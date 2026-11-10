@@ -73,6 +73,8 @@ assert python_validation_results == node_validation_results
 
 **依赖：** T01
 
+**状态：** 已完成并通过独立规格/质量审查（`678587d`、`32e625e`）；覆盖自有账户、初始化、会话与管理员界面。
+
 **Files（拟创建/修改）：**
 
 - `apps/srv/src/veriq_server/auth/session.py`
@@ -84,7 +86,7 @@ assert python_validation_results == node_validation_results
 
 **Interfaces：** SessionService.login(credentials: LoginInput) -> SessionReceipt；BootstrapService.create_admin(input: AdminInput, setup_proof: SetupProof) -> UserDTO。
 
-- [ ] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
+- [x] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```python
 assert await login_valid_user() == AUTHENTICATED
@@ -92,10 +94,10 @@ assert await use_revoked_session() == UNAUTHENTICATED
 assert await bootstrap_second_admin_without_authority() == FORBIDDEN
 ```
 
-- [ ] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/auth -q`；失败必须来自缺失行为，而非测试环境拼写错误。
-- [ ] **Step 3：实现上述接口与文件。** 密码可靠哈希、无固定默认密码、单次重置/邀请令牌、CSRF、禁用后会话无效；安装/登录UI真实可用。
-- [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
-- [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t02 自有账号、初始化与会话`。有新决策先更新ADR，不扩展到下一任务。
+- [x] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/auth -q`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [x] **Step 3：实现上述接口与文件。** 密码可靠哈希、无固定默认密码、单次重置/邀请令牌、CSRF、禁用后会话无效；安装/登录UI真实可用。
+- [x] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
+- [x] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t02 自有账号、初始化与会话`。有新决策先更新ADR，不扩展到下一任务。
 
 ## T03：Workspace、成员与强制授权
 
