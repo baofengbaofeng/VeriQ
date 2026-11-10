@@ -51,10 +51,22 @@ def admin_dto(user: User) -> dict[str, Any]:
 
 
 def audit(
-    s: AsyncSession, action: str, actor: str | None = None, target: str | None = None
+    s: AsyncSession,
+    action: str,
+    actor: str | None = None,
+    target: str | None = None,
+    *,
+    workspace_id: str | None = None,
 ) -> None:
     s.add(
-        AuditLog(id=str(uuid4()), actor_id=actor, target_id=target, action=action, created_at=now())
+        AuditLog(
+            id=str(uuid4()),
+            actor_id=actor,
+            target_id=target,
+            workspace_id=workspace_id,
+            action=action,
+            created_at=now(),
+        )
     )
 
 

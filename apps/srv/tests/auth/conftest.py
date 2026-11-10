@@ -37,6 +37,9 @@ async def site():
             "veriq_user_tokens",
             "veriq_audit_logs",
             "veriq_alembic_version",
+            "veriq_workspaces",
+            "veriq_workspace_members",
+            "veriq_workspace_invites",
         }
         assert set(tables) <= owned
         await conn.execute(text("SET FOREIGN_KEY_CHECKS=0"))

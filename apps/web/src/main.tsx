@@ -7,6 +7,11 @@ import { Panel } from "./ui";
 import { SignIn, Setup, ResetRequest, ResetConfirm } from "./pages/auth";
 import { Account } from "./pages/account";
 import { AdminUsers } from "./pages/users";
+import { WorkspaceProvider } from "./features/workspaces/WorkspaceContext";
+import {
+  WorkspacePage,
+  AcceptInvitation,
+} from "./features/workspaces/WorkspacePage";
 import "./style.css";
 function App() {
   const [user, setUser] = useState<User | null>(null),
@@ -58,6 +63,7 @@ function App() {
           {user ? (
             <>
               <Link to="/account">Account</Link>
+              <Link to="/workspaces">Workspaces</Link>
               {user.systemAdmin && <Link to="/admin/users">Users</Link>}
               <button
                 data-testid="logout"
@@ -97,6 +103,15 @@ function App() {
           <Route path="/reset/confirm" element={<ResetConfirm />} />
           <Route path="/account" element={<Account />} />
           <Route path="/admin/users" element={<AdminUsers />} />
+          <Route
+            path="/workspaces"
+            element={
+              <WorkspaceProvider key={user?.id ?? "anonymous"}>
+                <WorkspacePage />
+              </WorkspaceProvider>
+            }
+          />
+          <Route path="/invitations/accept" element={<AcceptInvitation />} />
           <Route
             path="/"
             element={

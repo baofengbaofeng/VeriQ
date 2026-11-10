@@ -33,6 +33,9 @@ async def main():
         "veriq_user_tokens",
         "veriq_audit_logs",
         "veriq_alembic_version",
+        "veriq_workspaces",
+        "veriq_workspace_members",
+        "veriq_workspace_invites",
     }
     async with db.engine.begin() as conn:
         tables = set((await conn.execute(text("SHOW TABLES"))).scalars().all())

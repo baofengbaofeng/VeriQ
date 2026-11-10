@@ -33,10 +33,12 @@ export async function request<T>(
   path: string,
   method = "GET",
   data?: unknown,
+  signal?: AbortSignal,
 ): Promise<T> {
   const response = await fetch("/api/v1" + path, {
     method,
     credentials: "same-origin",
+    signal,
     headers: {
       "Content-Type": "application/json",
       ...(method !== "GET" ? { "X-CSRF-Token": csrfToken } : {}),
@@ -87,4 +89,80 @@ export const api = {
     request<ResetLink>(`/admin/users/${id}/reset-link`, "POST", {}),
   revokeUser: (id: string) =>
     request<Schemas["Empty"]>(`/admin/users/${id}/sessions/revoke`, "POST", {}),
+  workspaces: (cursor?: string, signal?: AbortSignal) =>
+    request<Schemas["WorkspaceDTOPageEnvelope"]["data"]>(
+      "/workspaces" + queryString({ cursor }),
+      "GET",
+      undefined,
+      signal,
+    ),
+  workspace: (id: string, signal?: AbortSignal) =>
+    request<Schemas["WorkspaceDTO"]>(
+      `/workspaces/${id}`,
+      "GET",
+      undefined,
+      signal,
+    ),
+  createWorkspace: (data: Schemas["WorkspaceWrite"], signal?: AbortSignal) =>
+    request<Schemas["WorkspaceDTO"]>("/workspaces", "POST", data, signal),
+  renameWorkspace: (id: string, name: string, signal?: AbortSignal) =>
+    request<Schemas["WorkspaceDTO"]>(
+      `/workspaces/${id}`,
+      "PATCH",
+      { name },
+      signal,
+    ),
+  archiveWorkspace: (id: string, signal?: AbortSignal) =>
+    request<Schemas["Empty"]>(`/workspaces/${id}`, "DELETE", undefined, signal),
+  members: (id: string, cursor?: string, signal?: AbortSignal) =>
+    request<Schemas["MemberDTOPageEnvelope"]["data"]>(
+      `/workspaces/${id}/members` + queryString({ cursor }),
+      "GET",
+      undefined,
+      signal,
+    ),
+  updateMember: (
+    ws: string,
+    id: string,
+    data: Schemas["MemberWrite"],
+    signal?: AbortSignal,
+  ) =>
+    request<Schemas["MemberDTO"]>(
+      `/workspaces/${ws}/members/${id}`,
+      "PUT",
+      data,
+      signal,
+    ),
+  removeMember: (ws: string, id: string, signal?: AbortSignal) =>
+    request<Schemas["Empty"]>(
+      `/workspaces/${ws}/members/${id}`,
+      "DELETE",
+      undefined,
+      signal,
+    ),
+  invitations: (id: string, cursor?: string, signal?: AbortSignal) =>
+    request<Schemas["InvitationSummaryDTOPageEnvelope"]["data"]>(
+      `/workspaces/${id}/invitations` + queryString({ cursor }),
+      "GET",
+      undefined,
+      signal,
+    ),
+  invite: (id: string, data: Schemas["InviteRequest"], signal?: AbortSignal) =>
+    request<Schemas["InviteDTO"]>(
+      `/workspaces/${id}/invitations`,
+      "POST",
+      data,
+      signal,
+    ),
+  revokeInvitation: (ws: string, id: string, signal?: AbortSignal) =>
+    request<Schemas["Empty"]>(
+      `/workspaces/${ws}/invitations/${id}`,
+      "DELETE",
+      undefined,
+      signal,
+    ),
+  acceptInvitation: (data: Schemas["InvitationAcceptRequest"]) =>
+    request<Schemas["UserDTO"]>("/auth/invitations/accept", "POST", data),
 };
+export type Workspace = Schemas["WorkspaceDTO"];
+export type Member = Schemas["MemberDTO"];

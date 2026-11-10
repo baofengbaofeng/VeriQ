@@ -14,6 +14,7 @@ from ..service import (
 )
 from .base import API
 from ..pagination import Page, boolean_filter
+from ..services.workspace import protect_user_disable
 
 
 class AdminAPI(API):
@@ -130,6 +131,8 @@ class AdminAPI(API):
                     raise Problem(
                         409, "LAST_ADMIN", "Create another enabled system administrator first"
                     )
+            if disabled and not user.disabled:
+                await protect_user_disable(s, user.id)
             user.disabled, user.system_admin = (disabled, admin)
             if disabled:
                 await invalidate(s, user.id)

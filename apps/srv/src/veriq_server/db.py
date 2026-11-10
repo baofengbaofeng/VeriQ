@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String
+from sqlalchemy import Boolean, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.dialects.mysql import DATETIME
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -58,7 +58,47 @@ class AuditLog(Base):
     id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
     actor_id: Mapped[str | None] = mapped_column(uuid_type)
     target_id: Mapped[str | None] = mapped_column(uuid_type)
+    workspace_id: Mapped[str | None] = mapped_column(
+        uuid_type, ForeignKey("veriq_workspaces.id"), index=True
+    )
     action: Mapped[str] = mapped_column(String(80, collation="ascii_bin"))
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+
+
+class Workspace(Base):
+    __tablename__ = "veriq_workspaces"
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    key: Mapped[str] = mapped_column(String(160, collation="ascii_bin"), unique=True)
+    name: Mapped[str] = mapped_column(String(160))
+    archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+
+
+class WorkspaceMember(Base):
+    __tablename__ = "veriq_workspace_members"
+    workspace_id: Mapped[str] = mapped_column(
+        uuid_type, ForeignKey("veriq_workspaces.id"), primary_key=True
+    )
+    user_id: Mapped[str] = mapped_column(
+        uuid_type, ForeignKey("veriq_users.id"), primary_key=True, index=True
+    )
+    role: Mapped[str] = mapped_column(String(16, collation="ascii_bin"))
+    status: Mapped[str] = mapped_column(String(16, collation="ascii_bin"))
+
+
+class WorkspaceInvite(Base):
+    __tablename__ = "veriq_workspace_invites"
+    __table_args__ = (UniqueConstraint("token_hash"),)
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(
+        uuid_type, ForeignKey("veriq_workspaces.id"), index=True
+    )
+    email: Mapped[str] = mapped_column(String(254, collation="utf8mb4_0900_as_ci"))
+    role: Mapped[str] = mapped_column(String(16, collation="ascii_bin"))
+    token_hash: Mapped[str] = mapped_column(hash_type)
+    expires_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+    consumed: Mapped[bool] = mapped_column(Boolean, default=False)
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
 
 
