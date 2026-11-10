@@ -1,6 +1,6 @@
 """Global user administration, serialized last-admin invariant."""
 
-from sqlalchemy import delete, select, func
+from sqlalchemy import delete, select, func, and_, or_
 from ..db import User, UserToken
 from ..service import (
     Problem,
@@ -13,15 +13,61 @@ from ..service import (
     stamp,
 )
 from .base import API
+from ..pagination import Page, boolean_filter
 
 
 class AdminAPI(API):
     async def get(self, user_id: str | None = None) -> None:
         async with self.db.sessions() as s:
             if self.action == "users":
-                await self.identity(s, True)
-                users = (await s.execute(select(User).order_by(User.email))).scalars().all()
-                self.respond({"items": [admin_dto(u) for u in users], "nextCursor": None})
+                actor, _ = await self.identity(s, True)
+                query = self.get_query_argument("q", "")
+                if len(query) > 254:
+                    raise Problem(
+                        400, "INVALID_FILTER", "Search query is limited to 254 characters"
+                    )
+                disabled = boolean_filter(self, "disabled")
+                system_admin = boolean_filter(self, "systemAdmin")
+                page = Page.read(
+                    self,
+                    {
+                        "list": "users",
+                        "actor": actor.id,
+                        "q": query,
+                        "disabled": disabled,
+                        "systemAdmin": system_admin,
+                    },
+                    self.config.signing_key.get_secret_value(),
+                )
+                statement = select(User)
+                if query:
+                    statement = statement.where(
+                        or_(
+                            User.email.contains(query, autoescape=True),
+                            User.display_name.contains(query, autoescape=True),
+                        )
+                    )
+                if disabled is not None:
+                    statement = statement.where(User.disabled.is_(disabled))
+                if system_admin is not None:
+                    statement = statement.where(User.system_admin.is_(system_admin))
+                if page.last:
+                    email, identifier = page.last
+                    statement = statement.where(
+                        or_(User.email > email, and_(User.email == email, User.id > identifier))
+                    )
+                rows = (
+                    (await s.execute(statement.order_by(User.email, User.id).limit(page.limit + 1)))
+                    .scalars()
+                    .all()
+                )
+                users = rows[: page.limit]
+                cursor = (
+                    page.next((users[-1].email, users[-1].id), len(rows) > page.limit)
+                    if users
+                    else None
+                )
+                self.respond({"items": [admin_dto(user) for user in users], "nextCursor": cursor})
             else:
                 raise Problem(404, "NOT_FOUND", "API endpoint not found")
 

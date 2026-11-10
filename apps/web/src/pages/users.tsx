@@ -1,6 +1,6 @@
 import { useState, useContext, useEffect } from "react";
 import { Navigate } from "react-router-dom";
-import { api, type User, type ResetLink } from "../api";
+import { api, type User, type ResetLink, type UserListQuery } from "../api";
 import { Auth } from "../auth-context";
 import { Notice, Field, useAction, values, Panel } from "../ui";
 export function AdminUsers() {
@@ -8,10 +8,18 @@ export function AdminUsers() {
     a = useAction();
   const [users, setUsers] = useState<User[] | null>(null),
     [link, setLink] = useState<ResetLink | null>(null);
-  const load = async () => setUsers((await api.users()).items);
+  const [filters, setFilters] = useState<UserListQuery>({ limit: 25 });
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const load = async (cursor?: string) => {
+    const page = await api.users({ ...filters, cursor });
+    setUsers((previous) =>
+      cursor && previous ? [...previous, ...page.items] : page.items,
+    );
+    setNextCursor(page.nextCursor);
+  };
   useEffect(() => {
-    if (user?.systemAdmin) void a.run(load);
-  }, [user?.systemAdmin]);
+    if (user?.systemAdmin) void a.run(() => load());
+  }, [user?.systemAdmin, filters]);
   if (!user) return <Navigate to="/login" />;
   if (!user.systemAdmin)
     return (
@@ -86,11 +94,66 @@ export function AdminUsers() {
         </aside>
       )}
       <h2>All users</h2>
+      <form
+        data-testid="users-filters"
+        onSubmit={(event) => {
+          const input = values(event);
+          setFilters({
+            q: input.q,
+            disabled:
+              input.disabled === "" ? undefined : input.disabled === "true",
+            systemAdmin:
+              input.systemAdmin === ""
+                ? undefined
+                : input.systemAdmin === "true",
+            limit: Number(input.limit),
+          });
+        }}
+      >
+        <label>
+          Search email or display name
+          <input
+            name="q"
+            data-testid="users-search"
+            type="search"
+            maxLength={254}
+          />
+        </label>
+        <label>
+          Account status
+          <select name="disabled" data-testid="users-disabled">
+            <option value="">All statuses</option>
+            <option value="false">Enabled</option>
+            <option value="true">Disabled</option>
+          </select>
+        </label>
+        <label>
+          Permission
+          <select name="systemAdmin" data-testid="users-admin">
+            <option value="">All users</option>
+            <option value="true">System administrators</option>
+            <option value="false">Users without system administration</option>
+          </select>
+        </label>
+        <label>
+          Users per page
+          <select name="limit" defaultValue="25" data-testid="users-limit">
+            {[1, 10, 25, 50, 100].map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button data-testid="users-filter-submit" disabled={a.busy}>
+          Apply filters
+        </button>
+      </form>
       {users === null ? (
         a.error ? (
           <div>
             <p>Users could not be loaded.</p>
-            <button onClick={() => void a.run(load)} disabled={a.busy}>
+            <button onClick={() => void a.run(() => load())} disabled={a.busy}>
               Retry users
             </button>
           </div>
@@ -184,6 +247,15 @@ export function AdminUsers() {
             </tbody>
           </table>
         </div>
+      )}
+      {nextCursor && (
+        <button
+          data-testid="users-more"
+          disabled={a.busy}
+          onClick={() => void a.run(() => load(nextCursor))}
+        >
+          {a.busy ? "Loading users…" : "Load more users"}
+        </button>
       )}
     </Panel>
   );

@@ -42,13 +42,63 @@ test("real setup, login, account, administration and one-time reset", async ({
     1,
   );
   page.off("framenavigated", recordLoginNavigation);
+  const otherContext = await page.context().browser()!.newContext();
+  const origin = "http://127.0.0.1:5173";
+  const otherSetup = await otherContext.request.get(origin + "/api/v1/setup");
+  const otherLogin = await otherContext.request.post(
+    origin + "/api/v1/auth/login",
+    {
+      headers: {
+        Origin: origin,
+        "X-CSRF-Token": (await otherSetup.json()).data.csrfToken,
+      },
+      data: {
+        email: "browser-admin@example.com",
+        password: "Browser password 123!",
+      },
+    },
+  );
+  expect(otherLogin.status()).toBe(200);
+  await otherContext.close();
+  await expect(page.getByTestId("sessions-limit")).toBeVisible();
+  await page.getByTestId("sessions-limit").selectOption("1");
+  await page.getByTestId("sessions-more").click();
+  await expect(page.getByTestId("sessions").getByRole("listitem")).toHaveCount(
+    2,
+  );
+
   await page.getByRole("link", { name: "Users", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Users", exact: true }),
+  ).toBeVisible();
   await page.getByTestId("email").fill("browser-user@example.com");
   await page.getByTestId("displayName").fill("Browser User");
   await page.getByTestId("password").fill("Initial password 123!");
   await page.getByTestId("create-user").click();
   const row = page.getByTestId("user-browser-user@example.com");
   await expect(row).toContainText("Browser User");
+  await page.getByTestId("users-limit").selectOption("1");
+  await page.getByTestId("users-filter-submit").click();
+  await expect(page.getByTestId("users").getByRole("row")).toHaveCount(2);
+  await page.getByTestId("users-more").click();
+  await expect(page.getByTestId("users").getByRole("row")).toHaveCount(3);
+  await page.getByTestId("users-search").fill("browser-user");
+  await page.getByTestId("users-filter-submit").click();
+  await expect(row).toBeVisible();
+  await expect(page.getByTestId("user-browser-admin@example.com")).toHaveCount(
+    0,
+  );
+  await page.getByTestId("users-disabled").selectOption("true");
+  await page.getByTestId("users-filter-submit").click();
+  await expect(
+    page.getByText("No users found.", { exact: true }),
+  ).toBeVisible();
+  await page.getByTestId("users-search").fill("");
+  await page.getByTestId("users-disabled").selectOption("");
+  await page.getByTestId("users-limit").selectOption("25");
+  await page.getByTestId("users-filter-submit").click();
+  await expect(row).toBeVisible();
+
   await page
     .getByTestId("user-browser-admin@example.com")
     .getByRole("button", { name: "Disable", exact: true })
@@ -79,10 +129,16 @@ test("real setup, login, account, administration and one-time reset", async ({
     page.getByRole("heading", { name: "Sign in to VeriQ" }),
   ).toBeVisible();
   await page.goto(link);
+  await expect(
+    page.getByRole("heading", { name: "Choose a new password" }),
+  ).toBeVisible();
   await page.getByTestId("newPassword").fill("Changed password 123!");
   await page.getByTestId("reset-confirm-submit").click();
   await expect(page.getByRole("status")).toContainText("Password updated");
   await page.getByRole("link", { name: "Sign in", exact: true }).last().click();
+  await expect(
+    page.getByRole("heading", { name: "Sign in to VeriQ" }),
+  ).toBeVisible();
   await page.getByTestId("email").fill("browser-user@example.com");
   await page.getByTestId("password").fill("Changed password 123!");
   await page.getByTestId("login-submit").click();
@@ -95,6 +151,9 @@ test("real setup, login, account, administration and one-time reset", async ({
     "System administrator permission",
   );
   await page.goto("/account");
+  await expect(
+    page.getByRole("heading", { name: "Your account" }),
+  ).toBeVisible();
   await page.getByTestId("currentPassword").fill("Changed password 123!");
   await page.getByTestId("newPassword").fill("Final password 123!");
   const passwordNavigations: string[] = [];
@@ -114,18 +173,27 @@ test("real setup, login, account, administration and one-time reset", async ({
   );
   page.off("framenavigated", recordPasswordNavigation);
   await page.getByRole("link", { name: "Forgot password?" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Reset your password" }),
+  ).toBeVisible();
   await page.getByTestId("email").fill("unknown@example.com");
   await page.getByTestId("reset-request-submit").click();
   await expect(page.getByRole("status")).toContainText(
     "If this account is eligible",
   );
   await page.goto(link);
+  await expect(
+    page.getByRole("heading", { name: "Choose a new password" }),
+  ).toBeVisible();
   await page.getByTestId("newPassword").fill("Rejected password 123!");
   await page.getByTestId("reset-confirm-submit").click();
   await expect(page.getByRole("alert")).toContainText(
     "Reset link is invalid or expired",
   );
   await page.goto("/login");
+  await expect(
+    page.getByRole("heading", { name: "Sign in to VeriQ" }),
+  ).toBeVisible();
   await page.getByTestId("email").fill("browser-user@example.com");
   await page.getByTestId("password").fill("Final password 123!");
   await page.getByTestId("login-submit").click();

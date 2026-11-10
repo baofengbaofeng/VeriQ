@@ -1,9 +1,23 @@
-import type { PlatformComponents } from "@veriq/contracts";
+import type { PlatformComponents, PlatformPaths } from "@veriq/contracts";
 type Schemas = PlatformComponents["schemas"];
 export type User = Schemas["AdminUserDTO"];
 export type Session = Schemas["SessionDTO"];
 export type AccountSessions = Schemas["AccountSessionsDTO"];
 export type ResetLink = Schemas["ResetLinkDTO"];
+export type UserListQuery = NonNullable<
+  PlatformPaths["/api/v1/admin/users"]["get"]["parameters"]["query"]
+>;
+export type SessionListQuery = NonNullable<
+  PlatformPaths["/api/v1/account/sessions"]["get"]["parameters"]["query"]
+>;
+function queryString(
+  options: Record<string, string | number | boolean | undefined>,
+): string {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(options))
+    if (value !== undefined) query.set(key, String(value));
+  return query.size ? "?" + query.toString() : "";
+}
 let csrfToken = "";
 export class ApiError extends Error {
   constructor(
@@ -51,7 +65,8 @@ export const api = {
   session: () => request<Session>("/auth/session"),
   logout: () => request<Schemas["Empty"]>("/auth/logout", "POST", {}),
   account: () => request<User>("/account"),
-  sessions: () => request<AccountSessions>("/account/sessions"),
+  sessions: (options: SessionListQuery = {}) =>
+    request<AccountSessions>("/account/sessions" + queryString({ ...options })),
   revokeOwn: () =>
     request<Schemas["Empty"]>("/account/sessions/revoke", "POST", {}),
   password: (data: Schemas["ChangePasswordRequest"]) =>
@@ -60,7 +75,10 @@ export const api = {
     request<Schemas["Empty"]>("/auth/password-reset", "POST", { email }),
   resetConfirm: (data: Schemas["ResetPasswordRequest"]) =>
     request<Schemas["Empty"]>("/auth/password-reset/confirm", "POST", data),
-  users: () => request<Schemas["AdminUsersDTO"]>("/admin/users"),
+  users: (options: UserListQuery = {}) =>
+    request<Schemas["AdminUsersDTO"]>(
+      "/admin/users" + queryString({ ...options }),
+    ),
   createUser: (data: Schemas["CreateUserRequest"]) =>
     request<User>("/admin/users", "POST", data),
   updateUser: (id: string, data: Schemas["UpdateUserRequest"]) =>

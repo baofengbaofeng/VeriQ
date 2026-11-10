@@ -81,13 +81,17 @@ class Settings(BaseModel):
         return v.rstrip("/")
 
 
-def load_settings(path: Path, overrides: dict[str, Any] | None = None) -> Settings:
+def resolve_settings_values(path: Path, overrides: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Merge every supported setting consistently before validation or generation."""
     values = json.loads(path.read_text()) if path.exists() else {}
+    if not isinstance(values, dict):
+        raise ValueError("Configuration must be a JSON object")
     for key in Settings.model_fields:
         if (value := os.environ.get("VERIQ_" + key.upper())) is not None:
             values[key] = value
     values.update({k: v for k, v in (overrides or {}).items() if v is not None})
-    settings = Settings.model_validate(values)
-    if settings.environment == "production" and not settings.public_url.startswith("https://"):
-        raise ValueError("Production requires HTTPS public URL")
-    return settings
+    return values
+
+
+def load_settings(path: Path, overrides: dict[str, Any] | None = None) -> Settings:
+    return Settings.model_validate(resolve_settings_values(path, overrides))

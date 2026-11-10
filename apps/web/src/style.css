@@ -68,7 +68,8 @@ label {
   gap: 8px;
   font-weight: 550;
 }
-input {
+input,
+select {
   font: inherit;
   border: 1px solid #9db2b6;
   border-radius: 6px;
@@ -77,7 +78,8 @@ input {
   background: white;
   color: #193038;
 }
-input:focus {
+input:focus,
+select:focus {
   outline: 3px solid #b6dddb;
   border-color: #136968;
 }

@@ -10,15 +10,15 @@ from pathlib import Path
 import secrets
 import signal
 
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 from tornado.httpserver import HTTPServer
 
 from .app import make_app
 from .db import Database, Installation
 from sqlalchemy import text
 from .migrate import migrate
-from .service import Problem, initialize, provision_setup_secret
-from .settings import Settings, load_settings
+from .service import Problem, digest, initialize, lock_installation
+from .settings import Settings, load_settings, resolve_settings_values
 
 
 def secure_write(path: Path, content: str) -> None:
@@ -29,53 +29,60 @@ def secure_write(path: Path, content: str) -> None:
 
 
 async def run(args: argparse.Namespace) -> None:
+    overrides = {
+        field: getattr(args, field, None) for field in ("public_url", "host", "port", "environment")
+    }
     if args.command == "init":
-        secret_path = args.config.with_suffix(".installation-secret")
-        if args.config.exists():
-            # Resume an interrupted init without replacing external key material.
-            settings = load_settings(
-                args.config,
-                {
-                    "public_url": args.public_url,
-                    "environment": args.environment,
-                },
-            )
-            secret = secret_path.read_text().strip()
-            if not secret or len(secret) > 256:
-                raise ValueError("Installation secret file is invalid")
+        existed = args.config.exists()
+        stored = json.loads(args.config.read_text()) if existed else {}
+        values = resolve_settings_values(args.config, overrides)
+        if "database_url" not in values:
+            values["database_url"] = getpass.getpass("MySQL URL: ")
+        for field in ("master_key", "signing_key"):
+            if field not in values:
+                values[field] = secrets.token_hex(32)
+        settings = Settings.model_validate(values)
+        persisted = {
+            key: value.get_secret_value() if isinstance(value, SecretStr) else value
+            for key, value in settings.model_dump().items()
+        }
+        if not existed:
+            secure_write(args.config, json.dumps(persisted, indent=2) + "\n")
         else:
-            values = {
-                "database_url": os.environ.get("VERIQ_DATABASE_URL")
-                or getpass.getpass("MySQL URL: "),
-                "public_url": args.public_url or os.environ.get("VERIQ_PUBLIC_URL"),
-                "environment": args.environment
-                or os.environ.get("VERIQ_ENVIRONMENT", "production"),
-                "master_key": secrets.token_hex(32),
-                "signing_key": secrets.token_hex(32),
-            }
-            settings = Settings.model_validate(values)
-            secret = secrets.token_urlsafe(32)
-            secure_write(args.config, json.dumps(values, indent=2) + "\n")
-            secure_write(secret_path, secret + "\n")
+            # Preserve existing key bytes even when an environment override is active.
+            persisted.update(
+                {key: stored[key] for key in ("master_key", "signing_key") if key in stored}
+            )
+            if persisted != stored:
+                replacement = args.config.with_name(
+                    args.config.name + "." + secrets.token_hex(8) + ".tmp"
+                )
+                secure_write(replacement, json.dumps(persisted, indent=2) + "\n")
+                try:
+                    os.replace(replacement, args.config)
+                finally:
+                    replacement.unlink(missing_ok=True)
         await migrate(settings)
         db = Database(settings)
         try:
-            await provision_setup_secret(db, secret)
+            async with db.sessions.begin() as session:
+                installation = await lock_installation(session)
+                if installation.initialized:
+                    raise Problem(409, "ALREADY_INITIALIZED", "Installation already initialized")
+                secret_path = args.config.with_suffix(".installation-secret")
+                if not secret_path.exists():
+                    secure_write(secret_path, secrets.token_urlsafe(32) + "\n")
+                secret = secret_path.read_text().strip()
+                if not secret or len(secret) > 256:
+                    raise ValueError("Installation secret file is invalid")
+                installation.setup_secret_hash = digest(secret)
         finally:
             await db.close()
         print(
             "VeriQ initialized. Configuration and installation-secret files are operator-only. Use setup or create-admin; back up external keys."
         )
         return
-    settings = load_settings(
-        args.config,
-        {
-            "public_url": args.public_url,
-            "host": args.host,
-            "port": args.port,
-            "environment": args.environment,
-        },
-    )
+    settings = load_settings(args.config, overrides)
     if args.command == "migrate":
         await migrate(settings)
         print("VeriQ database migration complete.")

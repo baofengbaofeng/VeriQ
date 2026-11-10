@@ -67,6 +67,7 @@ async def test_real_cli_init_migrate_create_admin_and_serve(site, tmp_path):
     secret_path = path.with_suffix(".installation-secret")
     assert secret_path.stat().st_mode & 0o777 == 0o600
     original = path.read_bytes()
+    secret_path.unlink()  # Resume interruption between configuration and secret writes.
     await command("init")
     assert path.read_bytes() == original
     await command("migrate")
@@ -133,3 +134,99 @@ def test_incomplete_or_plaintext_production_smtp_is_rejected():
             smtp_from="sender@example.com",
             smtp_username="user",
         )
+
+
+@pytest.mark.parametrize("resumed", [False, True])
+async def test_init_resolves_all_effective_settings(tmp_path, monkeypatch, resumed):
+    from argparse import Namespace
+    from veriq_server import cli
+
+    class Captured(Exception):
+        pass
+
+    config = tmp_path / "init.json"
+    stored = {
+        "database_url": "mysql+asyncmy://u:p@localhost/veriq_test",
+        "public_url": "https://file.example.com",
+        "master_key": "a" * 64,
+        "signing_key": "b" * 64,
+        "host": "file-host",
+        "port": 8001,
+    }
+    if resumed:
+        config.write_text(json.dumps(stored))
+        config.with_suffix(".installation-secret").write_text("existing-operator-secret")
+    monkeypatch.setenv("VERIQ_DATABASE_URL", stored["database_url"])
+    monkeypatch.setenv("VERIQ_PUBLIC_URL", "https://env.example.com")
+    monkeypatch.setenv("VERIQ_PORT", "8002")
+    monkeypatch.setenv("VERIQ_SESSION_HOURS", "24")
+    monkeypatch.setenv("VERIQ_MASTER_KEY", "c" * 64)
+    monkeypatch.setenv("VERIQ_SIGNING_KEY", "d" * 64)
+    monkeypatch.setenv("VERIQ_SMTP_HOST", "smtp.example.com")
+    monkeypatch.setenv("VERIQ_SMTP_FROM", "sender@example.com")
+    monkeypatch.setenv("VERIQ_SMTP_PASSWORD", "synthetic-password")
+    monkeypatch.setenv("VERIQ_SMTP_USERNAME", "synthetic-user")
+    captured = []
+
+    async def capture(settings):
+        captured.append(settings)
+        raise Captured
+
+    monkeypatch.setattr(cli, "migrate", capture)
+    with pytest.raises(Captured):
+        await cli.run(
+            Namespace(
+                command="init",
+                config=config,
+                host="cli-host",
+                port=8003,
+                public_url="https://cli.example.com",
+                environment=None,
+            )
+        )
+    settings = captured[0]
+    assert (settings.host, settings.port, settings.session_hours) == ("cli-host", 8003, 24)
+    assert settings.public_url == "https://cli.example.com"
+    assert settings.master_key.get_secret_value() == "c" * 64
+    assert settings.signing_key.get_secret_value() == "d" * 64
+    assert (
+        settings.smtp_host == "smtp.example.com"
+        and settings.smtp_username.get_secret_value() == "synthetic-user"
+    )
+    persisted = json.loads(config.read_text())
+    if resumed:
+        assert persisted["master_key"] == stored["master_key"]
+        assert persisted["signing_key"] == stored["signing_key"]
+        assert persisted["host"] == "cli-host" and persisted["port"] == 8003
+        assert persisted["session_hours"] == 24 and persisted["smtp_host"] == "smtp.example.com"
+    else:
+        assert persisted["master_key"] == "c" * 64 and persisted["signing_key"] == "d" * 64
+        assert persisted["port"] == 8003 and persisted["session_hours"] == 24
+        assert persisted["smtp_host"] == "smtp.example.com"
+
+
+@pytest.mark.parametrize(
+    "bad_field,bad_value",
+    [("VERIQ_MASTER_KEY", "bad-key"), ("VERIQ_SMTP_HOST", "smtp.example.com")],
+)
+async def test_init_validates_environment_before_writes(
+    tmp_path, monkeypatch, bad_field, bad_value
+):
+    from argparse import Namespace
+    from veriq_server import cli
+
+    config = tmp_path / "invalid.json"
+    monkeypatch.setenv("VERIQ_DATABASE_URL", "mysql+asyncmy://u:p@localhost/veriq_test")
+    monkeypatch.setenv(bad_field, bad_value)
+    with pytest.raises(ValidationError):
+        await cli.run(
+            Namespace(
+                command="init",
+                config=config,
+                host=None,
+                port=None,
+                public_url="https://veriq.example.com",
+                environment=None,
+            )
+        )
+    assert not config.exists()

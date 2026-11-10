@@ -7,10 +7,21 @@ export function Account() {
   const { user, refresh } = useContext(Auth),
     a = useAction();
   const [sessions, setSessions] = useState<AccountSessions | null>(null);
-  const loadSessions = async () => setSessions(await api.sessions());
+  const [limit, setLimit] = useState(25);
+  const loadSessions = async (cursor?: string) => {
+    const page = await api.sessions({ limit, cursor });
+    setSessions((previous) =>
+      cursor && previous
+        ? {
+            items: [...previous.items, ...page.items],
+            nextCursor: page.nextCursor,
+          }
+        : page,
+    );
+  };
   useEffect(() => {
-    if (user) void a.run(loadSessions);
-  }, [user?.id]);
+    if (user) void a.run(() => loadSessions());
+  }, [user?.id, limit]);
   if (!user) return <Navigate to="/login" />;
   const signedOut = async () => {
     await refresh();
@@ -54,11 +65,29 @@ export function Account() {
         </button>
       </form>
       <h2>Active sessions</h2>
+      <label>
+        Sessions per page
+        <select
+          data-testid="sessions-limit"
+          value={limit}
+          disabled={a.busy}
+          onChange={(e) => setLimit(Number(e.target.value))}
+        >
+          {[1, 10, 25, 50, 100].map((value) => (
+            <option key={value} value={value}>
+              {value}
+            </option>
+          ))}
+        </select>
+      </label>
       {!sessions ? (
         a.error ? (
           <div>
             <p>Sessions could not be loaded.</p>
-            <button onClick={() => void a.run(loadSessions)} disabled={a.busy}>
+            <button
+              onClick={() => void a.run(() => loadSessions())}
+              disabled={a.busy}
+            >
               Retry sessions
             </button>
           </div>
@@ -76,6 +105,15 @@ export function Account() {
             </li>
           ))}
         </ul>
+      )}
+      {sessions?.nextCursor && (
+        <button
+          data-testid="sessions-more"
+          disabled={a.busy}
+          onClick={() => void a.run(() => loadSessions(sessions.nextCursor!))}
+        >
+          {a.busy ? "Loading sessions…" : "Load more sessions"}
+        </button>
       )}
       <button
         data-testid="revoke-own"

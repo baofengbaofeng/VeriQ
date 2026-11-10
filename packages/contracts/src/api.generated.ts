@@ -1301,6 +1301,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** @description Own unexpired sessions only, bounded keyset pagination in stable createdAt/ID order. */
         get: operations["listAccountSessions"];
         put?: never;
         post?: never;
@@ -1333,6 +1334,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** @description Bounded keyset pagination in stable email/ID order. Concurrent changes are not a frozen snapshot; restart paging to refresh filters or see newly inserted preceding rows. */
         get: operations["listGlobalUsers"];
         put?: never;
         post: operations["createGlobalUser"];
@@ -12064,7 +12066,12 @@ export interface operations {
     };
     listAccountSessions: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Maximum page size; rejected outside 1–100. Default 25. */
+                limit?: number;
+                /** @description Opaque continuation cursor, expires after 24 hours and is bound to the caller, list and active filters. */
+                cursor?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -12216,7 +12223,18 @@ export interface operations {
     };
     listGlobalUsers: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Maximum page size; rejected outside 1–100. Default 25. */
+                limit?: number;
+                /** @description Opaque continuation cursor, expires after 24 hours and is bound to the caller, list and active filters. */
+                cursor?: string;
+                /** @description Literal substring of email or display name; wildcard characters are literal. */
+                q?: string;
+                /** @description Filter by disabled status. Omit to include both. */
+                disabled?: boolean;
+                /** @description Filter by global administrator capability. Omit to include both. */
+                systemAdmin?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
