@@ -369,7 +369,10 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
               .map((invite) => (
                 <li key={invite.id} data-testid={`invitation-${invite.email}`}>
                   {invite.email} · {invite.role} · {invite.status} · Expires{" "}
-                  {new Date(invite.expiresAt).toLocaleString()}
+                  {new Date(invite.expiresAt).toLocaleString(undefined, {
+                    timeZone: "Asia/Shanghai",
+                  })}{" "}
+                  (Asia/Shanghai, UTC+08:00)
                   {invite.status === "PENDING" && (
                     <button
                       disabled={a.busy}
