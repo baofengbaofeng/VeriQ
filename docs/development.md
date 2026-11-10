@@ -1,6 +1,10 @@
 # Developing VeriQ
 
-T02 implements installation and user accounts: setup/login/logout, password reset, account/session controls and global user administration. Workspace and execution modules remain under development. The pages show actual account data from MySQL.
+Installation, user accounts and Workspace management are implemented: setup/login/logout, password reset, account/session controls, global user administration, Workspace selection, membership and invitations. Test assets, execution, reports and the desktop client remain under development. The pages use actual MySQL records.
+
+After signing in, open **Workspaces** to create a project Workspace; its creator becomes OWNER. OWNER/ADMIN can invite members with a copyable link or configured SMTP. Existing accounts sign in within the acceptance page; new invitees create an ordinary account. Invitation tokens are removed from the address bar and retained in page memory, so reopen the original link after a full refresh. Global system administration does not grant project membership.
+
+Workspace members can switch spaces and view their role. OWNER/ADMIN can manage permitted memberships; only OWNER can grant ownership or archive a Workspace. The final enabled ACTIVE OWNER cannot be removed, demoted or disabled without a successor. Archived Workspaces are read-only; this API currently has no restore operation. Resource, execution and device authorization will build on this scope layer in later tasks.
 
 Use the exact toolchain from [contracts.md](contracts.md). Install dependencies from the repository root:
 

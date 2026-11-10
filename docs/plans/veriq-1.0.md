@@ -103,6 +103,8 @@ assert await bootstrap_second_admin_without_authority() == FORBIDDEN
 
 **依赖：** T02
 
+**状态：** 已完成并通过独立规格/质量审查（`ef0fb6d`、`39672c4`、`eb75c4b`）；资源、执行与证据等后续服务须复用作用域授权。
+
 **Files（拟创建/修改）：**
 
 - `apps/srv/src/veriq_server/services/workspace.py`
@@ -112,7 +114,7 @@ assert await bootstrap_second_admin_without_authority() == FORBIDDEN
 
 **Interfaces：** Authorization.require(actor: Actor, scope: WorkspaceScope, permission: Permission) -> None；所有Repository显式WorkspaceScope。
 
-- [ ] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
+- [x] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```python
 assert await actor_a_read_workspace_b() == FORBIDDEN
@@ -120,10 +122,10 @@ assert await remove_last_owner() == CONFLICT
 assert await reference_other_workspace_version() == INVALID_REFERENCE
 ```
 
-- [ ] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/auth/test_workspace.py -q`；失败必须来自缺失行为，而非测试环境拼写错误。
-- [ ] **Step 3：实现上述接口与文件。** 资源、批量、证据、SSE、下载、导入全部跨空间拒绝；切换空间清缓存/取消旧订阅。
-- [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
-- [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t03 Workspace、成员与强制授权`。有新决策先更新ADR，不扩展到下一任务。
+- [x] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/auth/test_workspace.py -q`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [x] **Step 3：实现上述接口与文件。** 资源、批量、证据、SSE、下载、导入全部跨空间拒绝；切换空间清缓存/取消旧订阅。
+- [x] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
+- [x] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t03 Workspace、成员与强制授权`。有新决策先更新ADR，不扩展到下一任务。
 
 ## T04：版本化资产、草稿、校验回执与发布
 
