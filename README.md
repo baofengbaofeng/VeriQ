@@ -74,7 +74,7 @@ flowchart TB
 | --- | --- |
 | 控制服务 | Python 3.12、Tornado 6.6.1 系列、SQLAlchemy 2.0、Alembic、asyncmy |
 | 数据库 | MySQL 8.4 LTS |
-| Web | React 18、TypeScript、Vite 6、Tailwind 3、ESM、react-router-dom 6、TanStack Query 5、Radix/CVA、i18next |
+| Web | React 18、TypeScript、Vite 6、Tailwind 3、ESM、react-router-dom 7.18.5、TanStack Query 5、Radix/CVA、i18next |
 | 执行 | 独立 Node24 LTS、Playwright Test、共享编译器与 Runner SDK |
 | 桌面 | Electron + React、main/preload/renderer 分层、白名单类型化 IPC |
 | 契约 | JSON Schema、OpenAPI、Pydantic 2、jsonschema、Ajv |

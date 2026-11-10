@@ -6,6 +6,7 @@
 - Existing LICENSE is AGPL-3.0; do not replace it.
 
 ## Product constraints
+- User approved exact React Router/react-router-dom7.18.5; keep React18 and Vite6.
 - Human-readable project name is VeriQ in comments, docs, specs/plans, API/GUI titles and generated documentation; keep lower-case technical identifiers.
 - Full first-release scope F01-F14, including an Electron desktop GUI; a partial loop is not the MVP.
 - Python3.12/Tornado 6.6.1/SQLAlchemy2/MySQL8.4; React18/Vite6/Tailwind3; Node24/TypeScript/Playwright execution.
