@@ -1,0 +1,3906 @@
+[
+  {
+    "name": "appendix-write-case",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "employee-create",
+      "title": "Create employee",
+      "kind": "WRITE",
+      "roleKey": "hr-editor",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+      "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+      "persistenceCheckpointStepId": "confirm",
+      "steps": [
+        {
+          "id": "open",
+          "action": "goto",
+          "path": "/employees/new"
+        },
+        {
+          "id": "name",
+          "action": "fill",
+          "target": "employee.form.name",
+          "value": "{{data.name}}"
+        },
+        {
+          "id": "save",
+          "action": "click",
+          "target": "employee.form.save",
+          "critical": true,
+          "observers": [
+            {
+              "id": "create",
+              "method": "POST",
+              "path": "/api/employees",
+              "bodyMatch": {
+                "code": "{{vars.employeeCode}}"
+              },
+              "timeoutMs": 15000,
+              "window": {
+                "mode": "UNTIL_ACTION_SETTLED",
+                "quietMs": 500
+              }
+            }
+          ],
+          "afterAssertions": [
+            {
+              "id": "http",
+              "type": "httpStatus",
+              "source": "response:create",
+              "operator": "equals",
+              "expected": 201,
+              "severity": "BLOCK",
+              "expectedSource": "API-EMPLOYEE-1"
+            }
+          ],
+          "extract": [
+            {
+              "source": "response:create",
+              "pointer": "/data/id",
+              "to": "employeeId",
+              "valueType": "string",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "confirm",
+          "action": "reload",
+          "afterAssertions": [
+            {
+              "id": "persisted-name",
+              "type": "ui",
+              "target": "employee.detail.name",
+              "operator": "textEquals",
+              "expected": "{{data.name}}",
+              "timeoutMs": 5000,
+              "severity": "BLOCK",
+              "expectedSource": "REQ-EMPLOYEE-1"
+            }
+          ]
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "minimal-read-case",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "view",
+      "title": "Read",
+      "kind": "READ",
+      "roleKey": "viewer",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "steps": [
+        {
+          "id": "open",
+          "action": "goto",
+          "path": "/"
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "unknown-action",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "employee-create",
+      "title": "Create employee",
+      "kind": "WRITE",
+      "roleKey": "hr-editor",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+      "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+      "persistenceCheckpointStepId": "confirm",
+      "steps": [
+        {
+          "id": "open",
+          "action": "evaluate",
+          "path": "/employees/new"
+        },
+        {
+          "id": "name",
+          "action": "fill",
+          "target": "employee.form.name",
+          "value": "{{data.name}}"
+        },
+        {
+          "id": "save",
+          "action": "click",
+          "target": "employee.form.save",
+          "critical": true,
+          "observers": [
+            {
+              "id": "create",
+              "method": "POST",
+              "path": "/api/employees",
+              "bodyMatch": {
+                "code": "{{vars.employeeCode}}"
+              },
+              "timeoutMs": 15000,
+              "window": {
+                "mode": "UNTIL_ACTION_SETTLED",
+                "quietMs": 500
+              }
+            }
+          ],
+          "afterAssertions": [
+            {
+              "id": "http",
+              "type": "httpStatus",
+              "source": "response:create",
+              "operator": "equals",
+              "expected": 201,
+              "severity": "BLOCK",
+              "expectedSource": "API-EMPLOYEE-1"
+            }
+          ],
+          "extract": [
+            {
+              "source": "response:create",
+              "pointer": "/data/id",
+              "to": "employeeId",
+              "valueType": "string",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "confirm",
+          "action": "reload",
+          "afterAssertions": [
+            {
+              "id": "persisted-name",
+              "type": "ui",
+              "target": "employee.detail.name",
+              "operator": "textEquals",
+              "expected": "{{data.name}}",
+              "timeoutMs": 5000,
+              "severity": "BLOCK",
+              "expectedSource": "REQ-EMPLOYEE-1"
+            }
+          ]
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "unknown-root-field",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "employee-create",
+      "title": "Create employee",
+      "kind": "WRITE",
+      "roleKey": "hr-editor",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+      "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+      "persistenceCheckpointStepId": "confirm",
+      "steps": [
+        {
+          "id": "open",
+          "action": "goto",
+          "path": "/employees/new"
+        },
+        {
+          "id": "name",
+          "action": "fill",
+          "target": "employee.form.name",
+          "value": "{{data.name}}"
+        },
+        {
+          "id": "save",
+          "action": "click",
+          "target": "employee.form.save",
+          "critical": true,
+          "observers": [
+            {
+              "id": "create",
+              "method": "POST",
+              "path": "/api/employees",
+              "bodyMatch": {
+                "code": "{{vars.employeeCode}}"
+              },
+              "timeoutMs": 15000,
+              "window": {
+                "mode": "UNTIL_ACTION_SETTLED",
+                "quietMs": 500
+              }
+            }
+          ],
+          "afterAssertions": [
+            {
+              "id": "http",
+              "type": "httpStatus",
+              "source": "response:create",
+              "operator": "equals",
+              "expected": 201,
+              "severity": "BLOCK",
+              "expectedSource": "API-EMPLOYEE-1"
+            }
+          ],
+          "extract": [
+            {
+              "source": "response:create",
+              "pointer": "/data/id",
+              "to": "employeeId",
+              "valueType": "string",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "confirm",
+          "action": "reload",
+          "afterAssertions": [
+            {
+              "id": "persisted-name",
+              "type": "ui",
+              "target": "employee.detail.name",
+              "operator": "textEquals",
+              "expected": "{{data.name}}",
+              "timeoutMs": 5000,
+              "severity": "BLOCK",
+              "expectedSource": "REQ-EMPLOYEE-1"
+            }
+          ]
+        }
+      ],
+      "javascript": "alert(1)"
+    },
+    "valid": false
+  },
+  {
+    "name": "action-forbids-unrelated-field",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "employee-create",
+      "title": "Create employee",
+      "kind": "WRITE",
+      "roleKey": "hr-editor",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+      "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+      "persistenceCheckpointStepId": "confirm",
+      "steps": [
+        {
+          "id": "open",
+          "action": "goto",
+          "path": "/employees/new",
+          "target": "button"
+        },
+        {
+          "id": "name",
+          "action": "fill",
+          "target": "employee.form.name",
+          "value": "{{data.name}}"
+        },
+        {
+          "id": "save",
+          "action": "click",
+          "target": "employee.form.save",
+          "critical": true,
+          "observers": [
+            {
+              "id": "create",
+              "method": "POST",
+              "path": "/api/employees",
+              "bodyMatch": {
+                "code": "{{vars.employeeCode}}"
+              },
+              "timeoutMs": 15000,
+              "window": {
+                "mode": "UNTIL_ACTION_SETTLED",
+                "quietMs": 500
+              }
+            }
+          ],
+          "afterAssertions": [
+            {
+              "id": "http",
+              "type": "httpStatus",
+              "source": "response:create",
+              "operator": "equals",
+              "expected": 201,
+              "severity": "BLOCK",
+              "expectedSource": "API-EMPLOYEE-1"
+            }
+          ],
+          "extract": [
+            {
+              "source": "response:create",
+              "pointer": "/data/id",
+              "to": "employeeId",
+              "valueType": "string",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "confirm",
+          "action": "reload",
+          "afterAssertions": [
+            {
+              "id": "persisted-name",
+              "type": "ui",
+              "target": "employee.detail.name",
+              "operator": "textEquals",
+              "expected": "{{data.name}}",
+              "timeoutMs": 5000,
+              "severity": "BLOCK",
+              "expectedSource": "REQ-EMPLOYEE-1"
+            }
+          ]
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "fill-requires-value",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "employee-create",
+      "title": "Create employee",
+      "kind": "WRITE",
+      "roleKey": "hr-editor",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+      "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+      "persistenceCheckpointStepId": "confirm",
+      "steps": [
+        {
+          "id": "open",
+          "action": "goto",
+          "path": "/employees/new"
+        },
+        {
+          "id": "name",
+          "action": "fill",
+          "target": "employee.form.name"
+        },
+        {
+          "id": "save",
+          "action": "click",
+          "target": "employee.form.save",
+          "critical": true,
+          "observers": [
+            {
+              "id": "create",
+              "method": "POST",
+              "path": "/api/employees",
+              "bodyMatch": {
+                "code": "{{vars.employeeCode}}"
+              },
+              "timeoutMs": 15000,
+              "window": {
+                "mode": "UNTIL_ACTION_SETTLED",
+                "quietMs": 500
+              }
+            }
+          ],
+          "afterAssertions": [
+            {
+              "id": "http",
+              "type": "httpStatus",
+              "source": "response:create",
+              "operator": "equals",
+              "expected": 201,
+              "severity": "BLOCK",
+              "expectedSource": "API-EMPLOYEE-1"
+            }
+          ],
+          "extract": [
+            {
+              "source": "response:create",
+              "pointer": "/data/id",
+              "to": "employeeId",
+              "valueType": "string",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "confirm",
+          "action": "reload",
+          "afterAssertions": [
+            {
+              "id": "persisted-name",
+              "type": "ui",
+              "target": "employee.detail.name",
+              "operator": "textEquals",
+              "expected": "{{data.name}}",
+              "timeoutMs": 5000,
+              "severity": "BLOCK",
+              "expectedSource": "REQ-EMPLOYEE-1"
+            }
+          ]
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "invalid-assertion-operator",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "employee-create",
+      "title": "Create employee",
+      "kind": "WRITE",
+      "roleKey": "hr-editor",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+      "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+      "persistenceCheckpointStepId": "confirm",
+      "steps": [
+        {
+          "id": "open",
+          "action": "goto",
+          "path": "/employees/new"
+        },
+        {
+          "id": "name",
+          "action": "fill",
+          "target": "employee.form.name",
+          "value": "{{data.name}}"
+        },
+        {
+          "id": "save",
+          "action": "click",
+          "target": "employee.form.save",
+          "critical": true,
+          "observers": [
+            {
+              "id": "create",
+              "method": "POST",
+              "path": "/api/employees",
+              "bodyMatch": {
+                "code": "{{vars.employeeCode}}"
+              },
+              "timeoutMs": 15000,
+              "window": {
+                "mode": "UNTIL_ACTION_SETTLED",
+                "quietMs": 500
+              }
+            }
+          ],
+          "afterAssertions": [
+            {
+              "id": "http",
+              "type": "httpStatus",
+              "source": "response:create",
+              "operator": "textEquals",
+              "expected": 201,
+              "severity": "BLOCK",
+              "expectedSource": "API-EMPLOYEE-1"
+            }
+          ],
+          "extract": [
+            {
+              "source": "response:create",
+              "pointer": "/data/id",
+              "to": "employeeId",
+              "valueType": "string",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "confirm",
+          "action": "reload",
+          "afterAssertions": [
+            {
+              "id": "persisted-name",
+              "type": "ui",
+              "target": "employee.detail.name",
+              "operator": "textEquals",
+              "expected": "{{data.name}}",
+              "timeoutMs": 5000,
+              "severity": "BLOCK",
+              "expectedSource": "REQ-EMPLOYEE-1"
+            }
+          ]
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "http-status-must-be-integer",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "employee-create",
+      "title": "Create employee",
+      "kind": "WRITE",
+      "roleKey": "hr-editor",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+      "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+      "persistenceCheckpointStepId": "confirm",
+      "steps": [
+        {
+          "id": "open",
+          "action": "goto",
+          "path": "/employees/new"
+        },
+        {
+          "id": "name",
+          "action": "fill",
+          "target": "employee.form.name",
+          "value": "{{data.name}}"
+        },
+        {
+          "id": "save",
+          "action": "click",
+          "target": "employee.form.save",
+          "critical": true,
+          "observers": [
+            {
+              "id": "create",
+              "method": "POST",
+              "path": "/api/employees",
+              "bodyMatch": {
+                "code": "{{vars.employeeCode}}"
+              },
+              "timeoutMs": 15000,
+              "window": {
+                "mode": "UNTIL_ACTION_SETTLED",
+                "quietMs": 500
+              }
+            }
+          ],
+          "afterAssertions": [
+            {
+              "id": "http",
+              "type": "httpStatus",
+              "source": "response:create",
+              "operator": "equals",
+              "expected": "201",
+              "severity": "BLOCK",
+              "expectedSource": "API-EMPLOYEE-1"
+            }
+          ],
+          "extract": [
+            {
+              "source": "response:create",
+              "pointer": "/data/id",
+              "to": "employeeId",
+              "valueType": "string",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "confirm",
+          "action": "reload",
+          "afterAssertions": [
+            {
+              "id": "persisted-name",
+              "type": "ui",
+              "target": "employee.detail.name",
+              "operator": "textEquals",
+              "expected": "{{data.name}}",
+              "timeoutMs": 5000,
+              "severity": "BLOCK",
+              "expectedSource": "REQ-EMPLOYEE-1"
+            }
+          ]
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "invalid-source",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "employee-create",
+      "title": "Create employee",
+      "kind": "WRITE",
+      "roleKey": "hr-editor",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+      "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+      "persistenceCheckpointStepId": "confirm",
+      "steps": [
+        {
+          "id": "open",
+          "action": "goto",
+          "path": "/employees/new"
+        },
+        {
+          "id": "name",
+          "action": "fill",
+          "target": "employee.form.name",
+          "value": "{{data.name}}"
+        },
+        {
+          "id": "save",
+          "action": "click",
+          "target": "employee.form.save",
+          "critical": true,
+          "observers": [
+            {
+              "id": "create",
+              "method": "POST",
+              "path": "/api/employees",
+              "bodyMatch": {
+                "code": "{{vars.employeeCode}}"
+              },
+              "timeoutMs": 15000,
+              "window": {
+                "mode": "UNTIL_ACTION_SETTLED",
+                "quietMs": 500
+              }
+            }
+          ],
+          "afterAssertions": [
+            {
+              "id": "http",
+              "type": "httpStatus",
+              "source": "response.create",
+              "operator": "equals",
+              "expected": 201,
+              "severity": "BLOCK",
+              "expectedSource": "API-EMPLOYEE-1"
+            }
+          ],
+          "extract": [
+            {
+              "source": "response:create",
+              "pointer": "/data/id",
+              "to": "employeeId",
+              "valueType": "string",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "confirm",
+          "action": "reload",
+          "afterAssertions": [
+            {
+              "id": "persisted-name",
+              "type": "ui",
+              "target": "employee.detail.name",
+              "operator": "textEquals",
+              "expected": "{{data.name}}",
+              "timeoutMs": 5000,
+              "severity": "BLOCK",
+              "expectedSource": "REQ-EMPLOYEE-1"
+            }
+          ]
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "invalid-pointer",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "employee-create",
+      "title": "Create employee",
+      "kind": "WRITE",
+      "roleKey": "hr-editor",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+      "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+      "persistenceCheckpointStepId": "confirm",
+      "steps": [
+        {
+          "id": "open",
+          "action": "goto",
+          "path": "/employees/new"
+        },
+        {
+          "id": "name",
+          "action": "fill",
+          "target": "employee.form.name",
+          "value": "{{data.name}}"
+        },
+        {
+          "id": "save",
+          "action": "click",
+          "target": "employee.form.save",
+          "critical": true,
+          "observers": [
+            {
+              "id": "create",
+              "method": "POST",
+              "path": "/api/employees",
+              "bodyMatch": {
+                "code": "{{vars.employeeCode}}"
+              },
+              "timeoutMs": 15000,
+              "window": {
+                "mode": "UNTIL_ACTION_SETTLED",
+                "quietMs": 500
+              }
+            }
+          ],
+          "afterAssertions": [
+            {
+              "id": "http",
+              "type": "httpStatus",
+              "source": "response:create",
+              "operator": "equals",
+              "expected": 201,
+              "severity": "BLOCK",
+              "expectedSource": "API-EMPLOYEE-1"
+            }
+          ],
+          "extract": [
+            {
+              "source": "response:create",
+              "pointer": "$.data.id",
+              "to": "employeeId",
+              "valueType": "string",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "confirm",
+          "action": "reload",
+          "afterAssertions": [
+            {
+              "id": "persisted-name",
+              "type": "ui",
+              "target": "employee.detail.name",
+              "operator": "textEquals",
+              "expected": "{{data.name}}",
+              "timeoutMs": 5000,
+              "severity": "BLOCK",
+              "expectedSource": "REQ-EMPLOYEE-1"
+            }
+          ]
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "invalid-pointer-escape",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "employee-create",
+      "title": "Create employee",
+      "kind": "WRITE",
+      "roleKey": "hr-editor",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+      "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+      "persistenceCheckpointStepId": "confirm",
+      "steps": [
+        {
+          "id": "open",
+          "action": "goto",
+          "path": "/employees/new"
+        },
+        {
+          "id": "name",
+          "action": "fill",
+          "target": "employee.form.name",
+          "value": "{{data.name}}"
+        },
+        {
+          "id": "save",
+          "action": "click",
+          "target": "employee.form.save",
+          "critical": true,
+          "observers": [
+            {
+              "id": "create",
+              "method": "POST",
+              "path": "/api/employees",
+              "bodyMatch": {
+                "code": "{{vars.employeeCode}}"
+              },
+              "timeoutMs": 15000,
+              "window": {
+                "mode": "UNTIL_ACTION_SETTLED",
+                "quietMs": 500
+              }
+            }
+          ],
+          "afterAssertions": [
+            {
+              "id": "http",
+              "type": "httpStatus",
+              "source": "response:create",
+              "operator": "equals",
+              "expected": 201,
+              "severity": "BLOCK",
+              "expectedSource": "API-EMPLOYEE-1"
+            }
+          ],
+          "extract": [
+            {
+              "source": "response:create",
+              "pointer": "/bad~2escape",
+              "to": "employeeId",
+              "valueType": "string",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "confirm",
+          "action": "reload",
+          "afterAssertions": [
+            {
+              "id": "persisted-name",
+              "type": "ui",
+              "target": "employee.detail.name",
+              "operator": "textEquals",
+              "expected": "{{data.name}}",
+              "timeoutMs": 5000,
+              "severity": "BLOCK",
+              "expectedSource": "REQ-EMPLOYEE-1"
+            }
+          ]
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "unsafe-template-expression",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "employee-create",
+      "title": "Create employee",
+      "kind": "WRITE",
+      "roleKey": "hr-editor",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+      "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+      "persistenceCheckpointStepId": "confirm",
+      "steps": [
+        {
+          "id": "open",
+          "action": "goto",
+          "path": "/employees/new"
+        },
+        {
+          "id": "name",
+          "action": "fill",
+          "target": "employee.form.name",
+          "value": "{{process.exit()}}"
+        },
+        {
+          "id": "save",
+          "action": "click",
+          "target": "employee.form.save",
+          "critical": true,
+          "observers": [
+            {
+              "id": "create",
+              "method": "POST",
+              "path": "/api/employees",
+              "bodyMatch": {
+                "code": "{{vars.employeeCode}}"
+              },
+              "timeoutMs": 15000,
+              "window": {
+                "mode": "UNTIL_ACTION_SETTLED",
+                "quietMs": 500
+              }
+            }
+          ],
+          "afterAssertions": [
+            {
+              "id": "http",
+              "type": "httpStatus",
+              "source": "response:create",
+              "operator": "equals",
+              "expected": 201,
+              "severity": "BLOCK",
+              "expectedSource": "API-EMPLOYEE-1"
+            }
+          ],
+          "extract": [
+            {
+              "source": "response:create",
+              "pointer": "/data/id",
+              "to": "employeeId",
+              "valueType": "string",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "confirm",
+          "action": "reload",
+          "afterAssertions": [
+            {
+              "id": "persisted-name",
+              "type": "ui",
+              "target": "employee.detail.name",
+              "operator": "textEquals",
+              "expected": "{{data.name}}",
+              "timeoutMs": 5000,
+              "severity": "BLOCK",
+              "expectedSource": "REQ-EMPLOYEE-1"
+            }
+          ]
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "unsafe-javascript-url",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "employee-create",
+      "title": "Create employee",
+      "kind": "WRITE",
+      "roleKey": "hr-editor",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+      "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+      "persistenceCheckpointStepId": "confirm",
+      "steps": [
+        {
+          "id": "open",
+          "action": "goto",
+          "path": "javascript:alert(1)"
+        },
+        {
+          "id": "name",
+          "action": "fill",
+          "target": "employee.form.name",
+          "value": "{{data.name}}"
+        },
+        {
+          "id": "save",
+          "action": "click",
+          "target": "employee.form.save",
+          "critical": true,
+          "observers": [
+            {
+              "id": "create",
+              "method": "POST",
+              "path": "/api/employees",
+              "bodyMatch": {
+                "code": "{{vars.employeeCode}}"
+              },
+              "timeoutMs": 15000,
+              "window": {
+                "mode": "UNTIL_ACTION_SETTLED",
+                "quietMs": 500
+              }
+            }
+          ],
+          "afterAssertions": [
+            {
+              "id": "http",
+              "type": "httpStatus",
+              "source": "response:create",
+              "operator": "equals",
+              "expected": 201,
+              "severity": "BLOCK",
+              "expectedSource": "API-EMPLOYEE-1"
+            }
+          ],
+          "extract": [
+            {
+              "source": "response:create",
+              "pointer": "/data/id",
+              "to": "employeeId",
+              "valueType": "string",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "confirm",
+          "action": "reload",
+          "afterAssertions": [
+            {
+              "id": "persisted-name",
+              "type": "ui",
+              "target": "employee.detail.name",
+              "operator": "textEquals",
+              "expected": "{{data.name}}",
+              "timeoutMs": 5000,
+              "severity": "BLOCK",
+              "expectedSource": "REQ-EMPLOYEE-1"
+            }
+          ]
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "unknown-step-field",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "employee-create",
+      "title": "Create employee",
+      "kind": "WRITE",
+      "roleKey": "hr-editor",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+      "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+      "persistenceCheckpointStepId": "confirm",
+      "steps": [
+        {
+          "id": "open",
+          "action": "goto",
+          "path": "/employees/new"
+        },
+        {
+          "id": "name",
+          "action": "fill",
+          "target": "employee.form.name",
+          "value": "{{data.name}}",
+          "force": true
+        },
+        {
+          "id": "save",
+          "action": "click",
+          "target": "employee.form.save",
+          "critical": true,
+          "observers": [
+            {
+              "id": "create",
+              "method": "POST",
+              "path": "/api/employees",
+              "bodyMatch": {
+                "code": "{{vars.employeeCode}}"
+              },
+              "timeoutMs": 15000,
+              "window": {
+                "mode": "UNTIL_ACTION_SETTLED",
+                "quietMs": 500
+              }
+            }
+          ],
+          "afterAssertions": [
+            {
+              "id": "http",
+              "type": "httpStatus",
+              "source": "response:create",
+              "operator": "equals",
+              "expected": 201,
+              "severity": "BLOCK",
+              "expectedSource": "API-EMPLOYEE-1"
+            }
+          ],
+          "extract": [
+            {
+              "source": "response:create",
+              "pointer": "/data/id",
+              "to": "employeeId",
+              "valueType": "string",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "confirm",
+          "action": "reload",
+          "afterAssertions": [
+            {
+              "id": "persisted-name",
+              "type": "ui",
+              "target": "employee.detail.name",
+              "operator": "textEquals",
+              "expected": "{{data.name}}",
+              "timeoutMs": 5000,
+              "severity": "BLOCK",
+              "expectedSource": "REQ-EMPLOYEE-1"
+            }
+          ]
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "invalid-uuid",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "employee-create",
+      "title": "Create employee",
+      "kind": "WRITE",
+      "roleKey": "hr-editor",
+      "catalogVersionId": "other-workspace",
+      "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+      "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+      "persistenceCheckpointStepId": "confirm",
+      "steps": [
+        {
+          "id": "open",
+          "action": "goto",
+          "path": "/employees/new"
+        },
+        {
+          "id": "name",
+          "action": "fill",
+          "target": "employee.form.name",
+          "value": "{{data.name}}"
+        },
+        {
+          "id": "save",
+          "action": "click",
+          "target": "employee.form.save",
+          "critical": true,
+          "observers": [
+            {
+              "id": "create",
+              "method": "POST",
+              "path": "/api/employees",
+              "bodyMatch": {
+                "code": "{{vars.employeeCode}}"
+              },
+              "timeoutMs": 15000,
+              "window": {
+                "mode": "UNTIL_ACTION_SETTLED",
+                "quietMs": 500
+              }
+            }
+          ],
+          "afterAssertions": [
+            {
+              "id": "http",
+              "type": "httpStatus",
+              "source": "response:create",
+              "operator": "equals",
+              "expected": 201,
+              "severity": "BLOCK",
+              "expectedSource": "API-EMPLOYEE-1"
+            }
+          ],
+          "extract": [
+            {
+              "source": "response:create",
+              "pointer": "/data/id",
+              "to": "employeeId",
+              "valueType": "string",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "confirm",
+          "action": "reload",
+          "afterAssertions": [
+            {
+              "id": "persisted-name",
+              "type": "ui",
+              "target": "employee.detail.name",
+              "operator": "textEquals",
+              "expected": "{{data.name}}",
+              "timeoutMs": 5000,
+              "severity": "BLOCK",
+              "expectedSource": "REQ-EMPLOYEE-1"
+            }
+          ]
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "invalid-severity",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "employee-create",
+      "title": "Create employee",
+      "kind": "WRITE",
+      "roleKey": "hr-editor",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+      "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+      "persistenceCheckpointStepId": "confirm",
+      "steps": [
+        {
+          "id": "open",
+          "action": "goto",
+          "path": "/employees/new"
+        },
+        {
+          "id": "name",
+          "action": "fill",
+          "target": "employee.form.name",
+          "value": "{{data.name}}"
+        },
+        {
+          "id": "save",
+          "action": "click",
+          "target": "employee.form.save",
+          "critical": true,
+          "observers": [
+            {
+              "id": "create",
+              "method": "POST",
+              "path": "/api/employees",
+              "bodyMatch": {
+                "code": "{{vars.employeeCode}}"
+              },
+              "timeoutMs": 15000,
+              "window": {
+                "mode": "UNTIL_ACTION_SETTLED",
+                "quietMs": 500
+              }
+            }
+          ],
+          "afterAssertions": [
+            {
+              "id": "http",
+              "type": "httpStatus",
+              "source": "response:create",
+              "operator": "equals",
+              "expected": 201,
+              "severity": "IGNORE",
+              "expectedSource": "API-EMPLOYEE-1"
+            }
+          ],
+          "extract": [
+            {
+              "source": "response:create",
+              "pointer": "/data/id",
+              "to": "employeeId",
+              "valueType": "string",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "confirm",
+          "action": "reload",
+          "afterAssertions": [
+            {
+              "id": "persisted-name",
+              "type": "ui",
+              "target": "employee.detail.name",
+              "operator": "textEquals",
+              "expected": "{{data.name}}",
+              "timeoutMs": 5000,
+              "severity": "BLOCK",
+              "expectedSource": "REQ-EMPLOYEE-1"
+            }
+          ]
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "observer-negative-timeout",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "employee-create",
+      "title": "Create employee",
+      "kind": "WRITE",
+      "roleKey": "hr-editor",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+      "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+      "persistenceCheckpointStepId": "confirm",
+      "steps": [
+        {
+          "id": "open",
+          "action": "goto",
+          "path": "/employees/new"
+        },
+        {
+          "id": "name",
+          "action": "fill",
+          "target": "employee.form.name",
+          "value": "{{data.name}}"
+        },
+        {
+          "id": "save",
+          "action": "click",
+          "target": "employee.form.save",
+          "critical": true,
+          "observers": [
+            {
+              "id": "create",
+              "method": "POST",
+              "path": "/api/employees",
+              "bodyMatch": {
+                "code": "{{vars.employeeCode}}"
+              },
+              "timeoutMs": -1,
+              "window": {
+                "mode": "UNTIL_ACTION_SETTLED",
+                "quietMs": 500
+              }
+            }
+          ],
+          "afterAssertions": [
+            {
+              "id": "http",
+              "type": "httpStatus",
+              "source": "response:create",
+              "operator": "equals",
+              "expected": 201,
+              "severity": "BLOCK",
+              "expectedSource": "API-EMPLOYEE-1"
+            }
+          ],
+          "extract": [
+            {
+              "source": "response:create",
+              "pointer": "/data/id",
+              "to": "employeeId",
+              "valueType": "string",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "confirm",
+          "action": "reload",
+          "afterAssertions": [
+            {
+              "id": "persisted-name",
+              "type": "ui",
+              "target": "employee.detail.name",
+              "operator": "textEquals",
+              "expected": "{{data.name}}",
+              "timeoutMs": 5000,
+              "severity": "BLOCK",
+              "expectedSource": "REQ-EMPLOYEE-1"
+            }
+          ]
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "empty-steps",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "employee-create",
+      "title": "Create employee",
+      "kind": "WRITE",
+      "roleKey": "hr-editor",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+      "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+      "persistenceCheckpointStepId": "confirm",
+      "steps": []
+    },
+    "valid": false
+  },
+  {
+    "name": "invalid-http-method",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "employee-create",
+      "title": "Create employee",
+      "kind": "WRITE",
+      "roleKey": "hr-editor",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+      "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+      "persistenceCheckpointStepId": "confirm",
+      "steps": [
+        {
+          "id": "open",
+          "action": "goto",
+          "path": "/employees/new"
+        },
+        {
+          "id": "name",
+          "action": "fill",
+          "target": "employee.form.name",
+          "value": "{{data.name}}"
+        },
+        {
+          "id": "save",
+          "action": "click",
+          "target": "employee.form.save",
+          "critical": true,
+          "observers": [
+            {
+              "id": "create",
+              "method": "SHELL",
+              "path": "/api/employees",
+              "bodyMatch": {
+                "code": "{{vars.employeeCode}}"
+              },
+              "timeoutMs": 15000,
+              "window": {
+                "mode": "UNTIL_ACTION_SETTLED",
+                "quietMs": 500
+              }
+            }
+          ],
+          "afterAssertions": [
+            {
+              "id": "http",
+              "type": "httpStatus",
+              "source": "response:create",
+              "operator": "equals",
+              "expected": 201,
+              "severity": "BLOCK",
+              "expectedSource": "API-EMPLOYEE-1"
+            }
+          ],
+          "extract": [
+            {
+              "source": "response:create",
+              "pointer": "/data/id",
+              "to": "employeeId",
+              "valueType": "string",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "confirm",
+          "action": "reload",
+          "afterAssertions": [
+            {
+              "id": "persisted-name",
+              "type": "ui",
+              "target": "employee.detail.name",
+              "operator": "textEquals",
+              "expected": "{{data.name}}",
+              "timeoutMs": 5000,
+              "severity": "BLOCK",
+              "expectedSource": "REQ-EMPLOYEE-1"
+            }
+          ]
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "invalid-ui-boolean",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "employee-create",
+      "title": "Create employee",
+      "kind": "WRITE",
+      "roleKey": "hr-editor",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+      "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+      "persistenceCheckpointStepId": "confirm",
+      "steps": [
+        {
+          "id": "open",
+          "action": "goto",
+          "path": "/employees/new"
+        },
+        {
+          "id": "name",
+          "action": "fill",
+          "target": "employee.form.name",
+          "value": "{{data.name}}"
+        },
+        {
+          "id": "save",
+          "action": "click",
+          "target": "employee.form.save",
+          "critical": true,
+          "observers": [
+            {
+              "id": "create",
+              "method": "POST",
+              "path": "/api/employees",
+              "bodyMatch": {
+                "code": "{{vars.employeeCode}}"
+              },
+              "timeoutMs": 15000,
+              "window": {
+                "mode": "UNTIL_ACTION_SETTLED",
+                "quietMs": 500
+              }
+            }
+          ],
+          "afterAssertions": [
+            {
+              "id": "http",
+              "type": "httpStatus",
+              "source": "response:create",
+              "operator": "equals",
+              "expected": 201,
+              "severity": "BLOCK",
+              "expectedSource": "API-EMPLOYEE-1"
+            }
+          ],
+          "extract": [
+            {
+              "source": "response:create",
+              "pointer": "/data/id",
+              "to": "employeeId",
+              "valueType": "string",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "confirm",
+          "action": "reload",
+          "afterAssertions": [
+            {
+              "id": "visible",
+              "type": "ui",
+              "target": "employee.name",
+              "operator": "visible",
+              "expected": "true",
+              "severity": "BLOCK",
+              "expectedSource": "REQ-1"
+            }
+          ]
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "unsafe-large-integer",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "employee-create",
+      "title": "Create employee",
+      "kind": "WRITE",
+      "roleKey": "hr-editor",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+      "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+      "persistenceCheckpointStepId": "confirm",
+      "steps": [
+        {
+          "id": "open",
+          "action": "goto",
+          "path": "/employees/new"
+        },
+        {
+          "id": "name",
+          "action": "fill",
+          "target": "employee.form.name",
+          "value": "{{data.name}}"
+        },
+        {
+          "id": "save",
+          "action": "click",
+          "target": "employee.form.save",
+          "critical": true,
+          "observers": [
+            {
+              "id": "create",
+              "method": "POST",
+              "path": "/api/employees",
+              "bodyMatch": {
+                "id": 9007199254740992
+              },
+              "timeoutMs": 15000,
+              "window": {
+                "mode": "UNTIL_ACTION_SETTLED",
+                "quietMs": 500
+              }
+            }
+          ],
+          "afterAssertions": [
+            {
+              "id": "http",
+              "type": "httpStatus",
+              "source": "response:create",
+              "operator": "equals",
+              "expected": 201,
+              "severity": "BLOCK",
+              "expectedSource": "API-EMPLOYEE-1"
+            }
+          ],
+          "extract": [
+            {
+              "source": "response:create",
+              "pointer": "/data/id",
+              "to": "employeeId",
+              "valueType": "string",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "confirm",
+          "action": "reload",
+          "afterAssertions": [
+            {
+              "id": "persisted-name",
+              "type": "ui",
+              "target": "employee.detail.name",
+              "operator": "textEquals",
+              "expected": "{{data.name}}",
+              "timeoutMs": 5000,
+              "severity": "BLOCK",
+              "expectedSource": "REQ-EMPLOYEE-1"
+            }
+          ]
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "asset-CASE",
+    "schema": "ResourceDocumentV1",
+    "value": {
+      "kind": "CASE",
+      "document": {
+        "schemaVersion": "1.0",
+        "caseKey": "employee-create",
+        "title": "Create employee",
+        "kind": "WRITE",
+        "roleKey": "hr-editor",
+        "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+        "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+        "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+        "persistenceCheckpointStepId": "confirm",
+        "steps": [
+          {
+            "id": "open",
+            "action": "goto",
+            "path": "/employees/new"
+          },
+          {
+            "id": "name",
+            "action": "fill",
+            "target": "employee.form.name",
+            "value": "{{data.name}}"
+          },
+          {
+            "id": "save",
+            "action": "click",
+            "target": "employee.form.save",
+            "critical": true,
+            "observers": [
+              {
+                "id": "create",
+                "method": "POST",
+                "path": "/api/employees",
+                "bodyMatch": {
+                  "code": "{{vars.employeeCode}}"
+                },
+                "timeoutMs": 15000,
+                "window": {
+                  "mode": "UNTIL_ACTION_SETTLED",
+                  "quietMs": 500
+                }
+              }
+            ],
+            "afterAssertions": [
+              {
+                "id": "http",
+                "type": "httpStatus",
+                "source": "response:create",
+                "operator": "equals",
+                "expected": 201,
+                "severity": "BLOCK",
+                "expectedSource": "API-EMPLOYEE-1"
+              }
+            ],
+            "extract": [
+              {
+                "source": "response:create",
+                "pointer": "/data/id",
+                "to": "employeeId",
+                "valueType": "string",
+                "required": true
+              }
+            ]
+          },
+          {
+            "id": "confirm",
+            "action": "reload",
+            "afterAssertions": [
+              {
+                "id": "persisted-name",
+                "type": "ui",
+                "target": "employee.detail.name",
+                "operator": "textEquals",
+                "expected": "{{data.name}}",
+                "timeoutMs": 5000,
+                "severity": "BLOCK",
+                "expectedSource": "REQ-EMPLOYEE-1"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "asset-CASE-extra",
+    "schema": "ResourceDocumentV1",
+    "value": {
+      "kind": "CASE",
+      "document": {
+        "schemaVersion": "1.0",
+        "caseKey": "employee-create",
+        "title": "Create employee",
+        "kind": "WRITE",
+        "roleKey": "hr-editor",
+        "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+        "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+        "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+        "persistenceCheckpointStepId": "confirm",
+        "steps": [
+          {
+            "id": "open",
+            "action": "goto",
+            "path": "/employees/new"
+          },
+          {
+            "id": "name",
+            "action": "fill",
+            "target": "employee.form.name",
+            "value": "{{data.name}}"
+          },
+          {
+            "id": "save",
+            "action": "click",
+            "target": "employee.form.save",
+            "critical": true,
+            "observers": [
+              {
+                "id": "create",
+                "method": "POST",
+                "path": "/api/employees",
+                "bodyMatch": {
+                  "code": "{{vars.employeeCode}}"
+                },
+                "timeoutMs": 15000,
+                "window": {
+                  "mode": "UNTIL_ACTION_SETTLED",
+                  "quietMs": 500
+                }
+              }
+            ],
+            "afterAssertions": [
+              {
+                "id": "http",
+                "type": "httpStatus",
+                "source": "response:create",
+                "operator": "equals",
+                "expected": 201,
+                "severity": "BLOCK",
+                "expectedSource": "API-EMPLOYEE-1"
+              }
+            ],
+            "extract": [
+              {
+                "source": "response:create",
+                "pointer": "/data/id",
+                "to": "employeeId",
+                "valueType": "string",
+                "required": true
+              }
+            ]
+          },
+          {
+            "id": "confirm",
+            "action": "reload",
+            "afterAssertions": [
+              {
+                "id": "persisted-name",
+                "type": "ui",
+                "target": "employee.detail.name",
+                "operator": "textEquals",
+                "expected": "{{data.name}}",
+                "timeoutMs": 5000,
+                "severity": "BLOCK",
+                "expectedSource": "REQ-EMPLOYEE-1"
+              }
+            ]
+          }
+        ],
+        "unknown": true
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "asset-ELEMENT_CATALOG",
+    "schema": "ResourceDocumentV1",
+    "value": {
+      "kind": "ELEMENT_CATALOG",
+      "document": {
+        "schemaVersion": "1.0",
+        "elements": [
+          {
+            "key": "employee.form.name",
+            "locator": {
+              "by": "testId",
+              "value": "employee-name"
+            }
+          }
+        ]
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "asset-ELEMENT_CATALOG-extra",
+    "schema": "ResourceDocumentV1",
+    "value": {
+      "kind": "ELEMENT_CATALOG",
+      "document": {
+        "schemaVersion": "1.0",
+        "elements": [
+          {
+            "key": "employee.form.name",
+            "locator": {
+              "by": "testId",
+              "value": "employee-name"
+            }
+          }
+        ],
+        "unknown": true
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "asset-ASSERTION_TEMPLATE",
+    "schema": "ResourceDocumentV1",
+    "value": {
+      "kind": "ASSERTION_TEMPLATE",
+      "document": {
+        "schemaVersion": "1.0",
+        "parameters": {
+          "expected": "string"
+        },
+        "assertions": [
+          {
+            "id": "name",
+            "type": "ui",
+            "target": "employee.name",
+            "operator": "textEquals",
+            "expected": "{{data.expected}}",
+            "severity": "BLOCK",
+            "expectedSource": "REQ-1"
+          }
+        ]
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "asset-ASSERTION_TEMPLATE-extra",
+    "schema": "ResourceDocumentV1",
+    "value": {
+      "kind": "ASSERTION_TEMPLATE",
+      "document": {
+        "schemaVersion": "1.0",
+        "parameters": {
+          "expected": "string"
+        },
+        "assertions": [
+          {
+            "id": "name",
+            "type": "ui",
+            "target": "employee.name",
+            "operator": "textEquals",
+            "expected": "{{data.expected}}",
+            "severity": "BLOCK",
+            "expectedSource": "REQ-1"
+          }
+        ],
+        "unknown": true
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "asset-DATASET",
+    "schema": "ResourceDocumentV1",
+    "value": {
+      "kind": "DATASET",
+      "document": {
+        "schemaVersion": "1.0",
+        "columns": {
+          "name": "string"
+        },
+        "rows": [
+          {
+            "key": "one",
+            "values": {
+              "name": "Ada"
+            }
+          }
+        ]
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "asset-DATASET-extra",
+    "schema": "ResourceDocumentV1",
+    "value": {
+      "kind": "DATASET",
+      "document": {
+        "schemaVersion": "1.0",
+        "columns": {
+          "name": "string"
+        },
+        "rows": [
+          {
+            "key": "one",
+            "values": {
+              "name": "Ada"
+            }
+          }
+        ],
+        "unknown": true
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "asset-FLOW",
+    "schema": "ResourceDocumentV1",
+    "value": {
+      "kind": "FLOW",
+      "document": {
+        "schemaVersion": "1.0",
+        "parameters": {
+          "name": "string"
+        },
+        "steps": [
+          {
+            "id": "name",
+            "action": "fill",
+            "target": "employee.name",
+            "value": "{{data.name}}"
+          }
+        ]
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "asset-FLOW-extra",
+    "schema": "ResourceDocumentV1",
+    "value": {
+      "kind": "FLOW",
+      "document": {
+        "schemaVersion": "1.0",
+        "parameters": {
+          "name": "string"
+        },
+        "steps": [
+          {
+            "id": "name",
+            "action": "fill",
+            "target": "employee.name",
+            "value": "{{data.name}}"
+          }
+        ],
+        "unknown": true
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "asset-FIXTURE",
+    "schema": "ResourceDocumentV1",
+    "value": {
+      "kind": "FIXTURE",
+      "document": {
+        "schemaVersion": "1.0",
+        "prepare": {
+          "method": "POST",
+          "path": "/fixtures/prepare"
+        },
+        "query": {
+          "method": "GET",
+          "path": "/fixtures/result"
+        },
+        "cleanup": {
+          "method": "POST",
+          "path": "/fixtures/cleanup"
+        },
+        "inputSchema": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {}
+        },
+        "outputSchema": {
+          "type": "object",
+          "required": [
+            "employeeCode"
+          ],
+          "properties": {
+            "employeeCode": {
+              "type": "string"
+            }
+          }
+        },
+        "ttlSeconds": 3600
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "asset-FIXTURE-extra",
+    "schema": "ResourceDocumentV1",
+    "value": {
+      "kind": "FIXTURE",
+      "document": {
+        "schemaVersion": "1.0",
+        "prepare": {
+          "method": "POST",
+          "path": "/fixtures/prepare"
+        },
+        "query": {
+          "method": "GET",
+          "path": "/fixtures/result"
+        },
+        "cleanup": {
+          "method": "POST",
+          "path": "/fixtures/cleanup"
+        },
+        "inputSchema": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {}
+        },
+        "outputSchema": {
+          "type": "object",
+          "required": [
+            "employeeCode"
+          ],
+          "properties": {
+            "employeeCode": {
+              "type": "string"
+            }
+          }
+        },
+        "ttlSeconds": 3600,
+        "unknown": true
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "asset-SUITE",
+    "schema": "ResourceDocumentV1",
+    "value": {
+      "kind": "SUITE",
+      "document": {
+        "schemaVersion": "1.0",
+        "cases": [
+          {
+            "versionId": "11111111-1111-4111-8111-111111111111",
+            "roleKeys": [
+              "editor"
+            ],
+            "browsers": [
+              "chromium"
+            ]
+          }
+        ]
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "asset-SUITE-extra",
+    "schema": "ResourceDocumentV1",
+    "value": {
+      "kind": "SUITE",
+      "document": {
+        "schemaVersion": "1.0",
+        "cases": [
+          {
+            "versionId": "11111111-1111-4111-8111-111111111111",
+            "roleKeys": [
+              "editor"
+            ],
+            "browsers": [
+              "chromium"
+            ]
+          }
+        ],
+        "unknown": true
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "asset-ENVIRONMENT",
+    "schema": "ResourceDocumentV1",
+    "value": {
+      "kind": "ENVIRONMENT",
+      "document": {
+        "schemaVersion": "1.0",
+        "baseURL": "https://example.com",
+        "apiBaseURL": "https://example.com",
+        "allowedOrigins": [
+          "https://example.com"
+        ],
+        "locale": "zh-CN",
+        "timezone": "Asia/Shanghai",
+        "roles": [
+          {
+            "roleKey": "editor",
+            "authAdapterVersionId": "11111111-1111-4111-8111-111111111111",
+            "secretRef": "hr-account",
+            "secretVersionId": "11111111-1111-4111-8111-111111111111"
+          }
+        ],
+        "buildSha": "abc123"
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "asset-ENVIRONMENT-extra",
+    "schema": "ResourceDocumentV1",
+    "value": {
+      "kind": "ENVIRONMENT",
+      "document": {
+        "schemaVersion": "1.0",
+        "baseURL": "https://example.com",
+        "apiBaseURL": "https://example.com",
+        "allowedOrigins": [
+          "https://example.com"
+        ],
+        "locale": "zh-CN",
+        "timezone": "Asia/Shanghai",
+        "roles": [
+          {
+            "roleKey": "editor",
+            "authAdapterVersionId": "11111111-1111-4111-8111-111111111111",
+            "secretRef": "hr-account",
+            "secretVersionId": "11111111-1111-4111-8111-111111111111"
+          }
+        ],
+        "buildSha": "abc123",
+        "unknown": true
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "asset-snapshot",
+    "schema": "AssetSnapshotV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "workspaceId": "11111111-1111-4111-8111-111111111111",
+      "sourceHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "engineVersion": "1.0.0",
+      "entryCaseVersionIds": [
+        "11111111-1111-4111-8111-111111111111"
+      ],
+      "assets": [
+        {
+          "resourceId": "11111111-1111-4111-8111-111111111111",
+          "versionId": "11111111-1111-4111-8111-111111111111",
+          "kind": "CASE",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "document": {
+            "schemaVersion": "1.0",
+            "caseKey": "employee-create",
+            "title": "Create employee",
+            "kind": "WRITE",
+            "roleKey": "hr-editor",
+            "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+            "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+            "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+            "persistenceCheckpointStepId": "confirm",
+            "steps": [
+              {
+                "id": "open",
+                "action": "goto",
+                "path": "/employees/new"
+              },
+              {
+                "id": "name",
+                "action": "fill",
+                "target": "employee.form.name",
+                "value": "{{data.name}}"
+              },
+              {
+                "id": "save",
+                "action": "click",
+                "target": "employee.form.save",
+                "critical": true,
+                "observers": [
+                  {
+                    "id": "create",
+                    "method": "POST",
+                    "path": "/api/employees",
+                    "bodyMatch": {
+                      "code": "{{vars.employeeCode}}"
+                    },
+                    "timeoutMs": 15000,
+                    "window": {
+                      "mode": "UNTIL_ACTION_SETTLED",
+                      "quietMs": 500
+                    }
+                  }
+                ],
+                "afterAssertions": [
+                  {
+                    "id": "http",
+                    "type": "httpStatus",
+                    "source": "response:create",
+                    "operator": "equals",
+                    "expected": 201,
+                    "severity": "BLOCK",
+                    "expectedSource": "API-EMPLOYEE-1"
+                  }
+                ],
+                "extract": [
+                  {
+                    "source": "response:create",
+                    "pointer": "/data/id",
+                    "to": "employeeId",
+                    "valueType": "string",
+                    "required": true
+                  }
+                ]
+              },
+              {
+                "id": "confirm",
+                "action": "reload",
+                "afterAssertions": [
+                  {
+                    "id": "persisted-name",
+                    "type": "ui",
+                    "target": "employee.detail.name",
+                    "operator": "textEquals",
+                    "expected": "{{data.name}}",
+                    "timeoutMs": 5000,
+                    "severity": "BLOCK",
+                    "expectedSource": "REQ-EMPLOYEE-1"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "execution-snapshot",
+    "schema": "ExecutionSnapshotV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "workspaceId": "11111111-1111-4111-8111-111111111111",
+      "runId": "11111111-1111-4111-8111-111111111111",
+      "caseExecutionId": "11111111-1111-4111-8111-111111111111",
+      "assetSourceHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "environmentVersionId": "11111111-1111-4111-8111-111111111111",
+      "environment": {
+        "schemaVersion": "1.0",
+        "baseURL": "https://example.com",
+        "apiBaseURL": "https://example.com",
+        "allowedOrigins": [
+          "https://example.com"
+        ],
+        "locale": "zh-CN",
+        "timezone": "Asia/Shanghai",
+        "roles": [
+          {
+            "roleKey": "editor",
+            "authAdapterVersionId": "11111111-1111-4111-8111-111111111111",
+            "secretRef": "hr-account",
+            "secretVersionId": "11111111-1111-4111-8111-111111111111"
+          }
+        ],
+        "buildSha": "abc123"
+      },
+      "roleKey": "editor",
+      "browser": "chromium",
+      "dataRow": {
+        "key": "one",
+        "values": {
+          "name": "Ada"
+        }
+      },
+      "variables": {},
+      "secretVersions": [
+        {
+          "secretRef": "hr-account",
+          "versionId": "11111111-1111-4111-8111-111111111111"
+        }
+      ],
+      "namespace": "veriq-run-1",
+      "attemptNo": 1
+    },
+    "valid": true
+  },
+  {
+    "name": "job-TEST",
+    "schema": "JobManifestV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "workspaceId": "11111111-1111-4111-8111-111111111111",
+      "jobId": "11111111-1111-4111-8111-111111111111",
+      "snapshotSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "engineVersion": "1.0.0",
+      "kind": "TEST",
+      "caseExecutionId": "11111111-1111-4111-8111-111111111111",
+      "compiledBundleSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "executionSnapshotSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "valid": true
+  },
+  {
+    "name": "job-TEST-missing-subject",
+    "schema": "JobManifestV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "workspaceId": "11111111-1111-4111-8111-111111111111",
+      "jobId": "11111111-1111-4111-8111-111111111111",
+      "snapshotSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "engineVersion": "1.0.0",
+      "kind": "TEST"
+    },
+    "valid": false
+  },
+  {
+    "name": "job-VALIDATE",
+    "schema": "JobManifestV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "workspaceId": "11111111-1111-4111-8111-111111111111",
+      "jobId": "11111111-1111-4111-8111-111111111111",
+      "snapshotSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "engineVersion": "1.0.0",
+      "kind": "VALIDATE",
+      "resourceId": "11111111-1111-4111-8111-111111111111",
+      "revision": 1,
+      "sourceHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "valid": true
+  },
+  {
+    "name": "job-VALIDATE-missing-subject",
+    "schema": "JobManifestV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "workspaceId": "11111111-1111-4111-8111-111111111111",
+      "jobId": "11111111-1111-4111-8111-111111111111",
+      "snapshotSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "engineVersion": "1.0.0",
+      "kind": "VALIDATE"
+    },
+    "valid": false
+  },
+  {
+    "name": "job-CLEANUP",
+    "schema": "JobManifestV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "workspaceId": "11111111-1111-4111-8111-111111111111",
+      "jobId": "11111111-1111-4111-8111-111111111111",
+      "snapshotSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "engineVersion": "1.0.0",
+      "kind": "CLEANUP",
+      "maintenanceId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+      "namespace": "veriq-run-1",
+      "cleanupRef": "opaque-reference"
+    },
+    "valid": true
+  },
+  {
+    "name": "job-CLEANUP-missing-subject",
+    "schema": "JobManifestV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "workspaceId": "11111111-1111-4111-8111-111111111111",
+      "jobId": "11111111-1111-4111-8111-111111111111",
+      "snapshotSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "engineVersion": "1.0.0",
+      "kind": "CLEANUP"
+    },
+    "valid": false
+  },
+  {
+    "name": "claim-request",
+    "schema": "ClaimRequest",
+    "value": {
+      "runnerId": "11111111-1111-4111-8111-111111111111",
+      "clientRequestId": "11111111-1111-4111-8111-111111111111",
+      "availableSlots": 1,
+      "capabilities": {
+        "engineVersion": "1.0.0",
+        "os": "linux",
+        "arch": "x64",
+        "browsers": [
+          "chromium"
+        ]
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "claim-dto",
+    "schema": "ClaimDTO",
+    "value": {
+      "jobId": "11111111-1111-4111-8111-111111111111",
+      "jobKind": "TEST",
+      "attemptId": "11111111-1111-4111-8111-111111111111",
+      "leaseToken": "opaque-token",
+      "fencingToken": 1,
+      "expiresAt": "2026-11-10T12:00:00Z",
+      "snapshotUrl": "https://example.com/internal/v1/snapshots/x",
+      "snapshotSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "valid": true
+  },
+  {
+    "name": "event",
+    "schema": "ExecutionEventV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "attemptId": "11111111-1111-4111-8111-111111111111",
+      "sequence": 1,
+      "type": "STEP_STARTED",
+      "timestamp": "2026-11-10T12:00:00Z",
+      "stepId": "open",
+      "payload": {}
+    },
+    "valid": true
+  },
+  {
+    "name": "event-invalid-timestamp",
+    "schema": "ExecutionEventV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "attemptId": "11111111-1111-4111-8111-111111111111",
+      "sequence": 1,
+      "type": "STEP_STARTED",
+      "timestamp": "yesterday",
+      "payload": {}
+    },
+    "valid": false
+  },
+  {
+    "name": "compiled-bundle",
+    "schema": "CompiledAssetBundle",
+    "value": {
+      "schemaVersion": "1.0",
+      "sourceHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "engineVersion": "1.0.0",
+      "compilerVersion": "1.0.0",
+      "runnerSdkVersion": "1.0.0",
+      "entrypoints": [
+        "generated/case.spec.ts"
+      ],
+      "files": [
+        {
+          "path": "generated/case.spec.ts",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sizeBytes": 123
+        }
+      ],
+      "dependencies": [
+        {
+          "name": "@playwright/test",
+          "version": "1.65.0",
+          "integrity": "sha512-abc"
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "bundle-manifest",
+    "schema": "BundleManifestV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "bundleId": "11111111-1111-4111-8111-111111111111",
+      "workspaceId": "11111111-1111-4111-8111-111111111111",
+      "issuerId": "enterprise",
+      "keyId": "key-1",
+      "createdAt": "2026-11-10T12:00:00Z",
+      "expiresAt": "2026-11-11T12:00:00Z",
+      "sourceHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "snapshotSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "engineVersion": "1.0.0",
+      "validationStatus": "VALIDATED",
+      "files": [
+        {
+          "path": "generated/case.spec.ts",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sizeBytes": 123
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "bundle-path-traversal",
+    "schema": "BundleManifestV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "bundleId": "11111111-1111-4111-8111-111111111111",
+      "workspaceId": "11111111-1111-4111-8111-111111111111",
+      "issuerId": "enterprise",
+      "keyId": "key-1",
+      "createdAt": "2026-11-10T12:00:00Z",
+      "expiresAt": "2026-11-11T12:00:00Z",
+      "sourceHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "snapshotSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "engineVersion": "1.0.0",
+      "validationStatus": "VALIDATED",
+      "files": [
+        {
+          "path": "../secret",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sizeBytes": 1
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "bundle-has-secret",
+    "schema": "BundleManifestV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "bundleId": "11111111-1111-4111-8111-111111111111",
+      "workspaceId": "11111111-1111-4111-8111-111111111111",
+      "issuerId": "enterprise",
+      "keyId": "key-1",
+      "createdAt": "2026-11-10T12:00:00Z",
+      "expiresAt": "2026-11-11T12:00:00Z",
+      "sourceHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "snapshotSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "engineVersion": "1.0.0",
+      "validationStatus": "VALIDATED",
+      "files": [
+        {
+          "path": "generated/case.spec.ts",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sizeBytes": 123
+        }
+      ],
+      "password": "secret"
+    },
+    "valid": false
+  },
+  {
+    "name": "offline-result",
+    "schema": "OfflineResultV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "workspaceId": "11111111-1111-4111-8111-111111111111",
+      "bundleId": "11111111-1111-4111-8111-111111111111",
+      "localRunId": "11111111-1111-4111-8111-111111111111",
+      "deviceId": "11111111-1111-4111-8111-111111111111",
+      "source": "OFFLINE_IMPORT",
+      "trustStatus": "USER_REGISTERED",
+      "dirty": false,
+      "revocationStatus": "UNKNOWN",
+      "manifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "startedAt": "2026-11-10T12:00:00Z",
+      "finishedAt": "2026-11-10T12:01:00Z",
+      "outcome": "PASSED",
+      "actualEnvironment": {
+        "schemaVersion": "1.0",
+        "baseURL": "https://example.com",
+        "apiBaseURL": "https://example.com",
+        "allowedOrigins": [
+          "https://example.com"
+        ],
+        "locale": "zh-CN",
+        "timezone": "Asia/Shanghai",
+        "roles": [
+          {
+            "roleKey": "editor",
+            "authAdapterVersionId": "11111111-1111-4111-8111-111111111111",
+            "secretRef": "hr-account",
+            "secretVersionId": "11111111-1111-4111-8111-111111111111"
+          }
+        ],
+        "buildSha": "abc123"
+      },
+      "attempts": [
+        {
+          "attemptId": "11111111-1111-4111-8111-111111111111",
+          "caseVersionId": "11111111-1111-4111-8111-111111111111",
+          "attemptNo": 1,
+          "outcome": "PASSED",
+          "cleanupStatus": "SUCCEEDED",
+          "lastSequence": 1,
+          "events": [
+            {
+              "schemaVersion": "1.0",
+              "attemptId": "11111111-1111-4111-8111-111111111111",
+              "sequence": 1,
+              "type": "ATTEMPT_FINISHED",
+              "timestamp": "2026-11-10T12:01:00Z",
+              "payload": {
+                "outcome": "PASSED",
+                "cleanupStatus": "SUCCEEDED"
+              }
+            }
+          ],
+          "artifacts": []
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "offline-reject-online-source",
+    "schema": "OfflineResultV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "workspaceId": "11111111-1111-4111-8111-111111111111",
+      "bundleId": "11111111-1111-4111-8111-111111111111",
+      "localRunId": "11111111-1111-4111-8111-111111111111",
+      "deviceId": "11111111-1111-4111-8111-111111111111",
+      "source": "MANAGED_CLOUD",
+      "trustStatus": "USER_REGISTERED",
+      "dirty": false,
+      "revocationStatus": "UNKNOWN",
+      "manifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "startedAt": "2026-11-10T12:00:00Z",
+      "finishedAt": "2026-11-10T12:01:00Z",
+      "outcome": "PASSED",
+      "actualEnvironment": {
+        "schemaVersion": "1.0",
+        "baseURL": "https://example.com",
+        "apiBaseURL": "https://example.com",
+        "allowedOrigins": [
+          "https://example.com"
+        ],
+        "locale": "zh-CN",
+        "timezone": "Asia/Shanghai",
+        "roles": [
+          {
+            "roleKey": "editor",
+            "authAdapterVersionId": "11111111-1111-4111-8111-111111111111",
+            "secretRef": "hr-account",
+            "secretVersionId": "11111111-1111-4111-8111-111111111111"
+          }
+        ],
+        "buildSha": "abc123"
+      },
+      "attempts": [
+        {
+          "attemptId": "11111111-1111-4111-8111-111111111111",
+          "caseVersionId": "11111111-1111-4111-8111-111111111111",
+          "attemptNo": 1,
+          "outcome": "PASSED",
+          "cleanupStatus": "SUCCEEDED",
+          "lastSequence": 1,
+          "events": [
+            {
+              "schemaVersion": "1.0",
+              "attemptId": "11111111-1111-4111-8111-111111111111",
+              "sequence": 1,
+              "type": "ATTEMPT_FINISHED",
+              "timestamp": "2026-11-10T12:01:00Z",
+              "payload": {}
+            }
+          ],
+          "artifacts": []
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "unsafe-path-binding",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "employee-create",
+      "title": "Create employee",
+      "kind": "WRITE",
+      "roleKey": "hr-editor",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+      "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+      "persistenceCheckpointStepId": "confirm",
+      "steps": [
+        {
+          "id": "open",
+          "action": "goto",
+          "path": "/{{process.exit()}}"
+        },
+        {
+          "id": "name",
+          "action": "fill",
+          "target": "employee.form.name",
+          "value": "{{data.name}}"
+        },
+        {
+          "id": "save",
+          "action": "click",
+          "target": "employee.form.save",
+          "critical": true,
+          "observers": [
+            {
+              "id": "create",
+              "method": "POST",
+              "path": "/api/employees",
+              "bodyMatch": {
+                "code": "{{vars.employeeCode}}"
+              },
+              "timeoutMs": 15000,
+              "window": {
+                "mode": "UNTIL_ACTION_SETTLED",
+                "quietMs": 500
+              }
+            }
+          ],
+          "afterAssertions": [
+            {
+              "id": "http",
+              "type": "httpStatus",
+              "source": "response:create",
+              "operator": "equals",
+              "expected": 201,
+              "severity": "BLOCK",
+              "expectedSource": "API-EMPLOYEE-1"
+            }
+          ],
+          "extract": [
+            {
+              "source": "response:create",
+              "pointer": "/data/id",
+              "to": "employeeId",
+              "valueType": "string",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "confirm",
+          "action": "reload",
+          "afterAssertions": [
+            {
+              "id": "persisted-name",
+              "type": "ui",
+              "target": "employee.detail.name",
+              "operator": "textEquals",
+              "expected": "{{data.name}}",
+              "timeoutMs": 5000,
+              "severity": "BLOCK",
+              "expectedSource": "REQ-EMPLOYEE-1"
+            }
+          ]
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "unsafe-key-binding",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "employee-create",
+      "title": "Create employee",
+      "kind": "WRITE",
+      "roleKey": "hr-editor",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+      "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+      "persistenceCheckpointStepId": "confirm",
+      "steps": [
+        {
+          "id": "key",
+          "action": "press",
+          "target": "employee.name",
+          "value": "{{eval('x')}}"
+        },
+        {
+          "id": "name",
+          "action": "fill",
+          "target": "employee.form.name",
+          "value": "{{data.name}}"
+        },
+        {
+          "id": "save",
+          "action": "click",
+          "target": "employee.form.save",
+          "critical": true,
+          "observers": [
+            {
+              "id": "create",
+              "method": "POST",
+              "path": "/api/employees",
+              "bodyMatch": {
+                "code": "{{vars.employeeCode}}"
+              },
+              "timeoutMs": 15000,
+              "window": {
+                "mode": "UNTIL_ACTION_SETTLED",
+                "quietMs": 500
+              }
+            }
+          ],
+          "afterAssertions": [
+            {
+              "id": "http",
+              "type": "httpStatus",
+              "source": "response:create",
+              "operator": "equals",
+              "expected": 201,
+              "severity": "BLOCK",
+              "expectedSource": "API-EMPLOYEE-1"
+            }
+          ],
+          "extract": [
+            {
+              "source": "response:create",
+              "pointer": "/data/id",
+              "to": "employeeId",
+              "valueType": "string",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "confirm",
+          "action": "reload",
+          "afterAssertions": [
+            {
+              "id": "persisted-name",
+              "type": "ui",
+              "target": "employee.detail.name",
+              "operator": "textEquals",
+              "expected": "{{data.name}}",
+              "timeoutMs": 5000,
+              "severity": "BLOCK",
+              "expectedSource": "REQ-EMPLOYEE-1"
+            }
+          ]
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "request-method-operator-domain",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "employee-create",
+      "title": "Create employee",
+      "kind": "WRITE",
+      "roleKey": "hr-editor",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+      "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+      "persistenceCheckpointStepId": "confirm",
+      "steps": [
+        {
+          "id": "open",
+          "action": "goto",
+          "path": "/employees/new"
+        },
+        {
+          "id": "name",
+          "action": "fill",
+          "target": "employee.form.name",
+          "value": "{{data.name}}"
+        },
+        {
+          "id": "save",
+          "action": "click",
+          "target": "employee.form.save",
+          "critical": true,
+          "observers": [
+            {
+              "id": "create",
+              "method": "POST",
+              "path": "/api/employees",
+              "bodyMatch": {
+                "code": "{{vars.employeeCode}}"
+              },
+              "timeoutMs": 15000,
+              "window": {
+                "mode": "UNTIL_ACTION_SETTLED",
+                "quietMs": 500
+              }
+            }
+          ],
+          "afterAssertions": [
+            {
+              "id": "method",
+              "type": "request",
+              "source": "request:create",
+              "operator": "methodEquals",
+              "expected": "SHELL",
+              "severity": "BLOCK",
+              "expectedSource": "REQ-1"
+            }
+          ],
+          "extract": [
+            {
+              "source": "response:create",
+              "pointer": "/data/id",
+              "to": "employeeId",
+              "valueType": "string",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "confirm",
+          "action": "reload",
+          "afterAssertions": [
+            {
+              "id": "persisted-name",
+              "type": "ui",
+              "target": "employee.detail.name",
+              "operator": "textEquals",
+              "expected": "{{data.name}}",
+              "timeoutMs": 5000,
+              "severity": "BLOCK",
+              "expectedSource": "REQ-EMPLOYEE-1"
+            }
+          ]
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "field-in-requires-array",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "employee-create",
+      "title": "Create employee",
+      "kind": "WRITE",
+      "roleKey": "hr-editor",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+      "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+      "persistenceCheckpointStepId": "confirm",
+      "steps": [
+        {
+          "id": "open",
+          "action": "goto",
+          "path": "/employees/new"
+        },
+        {
+          "id": "name",
+          "action": "fill",
+          "target": "employee.form.name",
+          "value": "{{data.name}}"
+        },
+        {
+          "id": "save",
+          "action": "click",
+          "target": "employee.form.save",
+          "critical": true,
+          "observers": [
+            {
+              "id": "create",
+              "method": "POST",
+              "path": "/api/employees",
+              "bodyMatch": {
+                "code": "{{vars.employeeCode}}"
+              },
+              "timeoutMs": 15000,
+              "window": {
+                "mode": "UNTIL_ACTION_SETTLED",
+                "quietMs": 500
+              }
+            }
+          ],
+          "afterAssertions": [
+            {
+              "id": "code",
+              "type": "responseField",
+              "source": "response:create",
+              "pointer": "/code",
+              "operator": "in",
+              "expected": 0,
+              "severity": "BLOCK",
+              "expectedSource": "REQ-1"
+            }
+          ],
+          "extract": [
+            {
+              "source": "response:create",
+              "pointer": "/data/id",
+              "to": "employeeId",
+              "valueType": "string",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "confirm",
+          "action": "reload",
+          "afterAssertions": [
+            {
+              "id": "persisted-name",
+              "type": "ui",
+              "target": "employee.detail.name",
+              "operator": "textEquals",
+              "expected": "{{data.name}}",
+              "timeoutMs": 5000,
+              "severity": "BLOCK",
+              "expectedSource": "REQ-EMPLOYEE-1"
+            }
+          ]
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "count-requires-fixed-window",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "employee-create",
+      "title": "Create employee",
+      "kind": "WRITE",
+      "roleKey": "hr-editor",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+      "datasetVersionId": "11111111-1111-4111-8111-111111111111",
+      "persistenceCheckpointStepId": "confirm",
+      "steps": [
+        {
+          "id": "open",
+          "action": "goto",
+          "path": "/employees/new"
+        },
+        {
+          "id": "name",
+          "action": "fill",
+          "target": "employee.form.name",
+          "value": "{{data.name}}"
+        },
+        {
+          "id": "save",
+          "action": "click",
+          "target": "employee.form.save",
+          "critical": true,
+          "observers": [
+            {
+              "id": "create",
+              "method": "POST",
+              "path": "/api/employees",
+              "bodyMatch": {
+                "code": "{{vars.employeeCode}}"
+              },
+              "timeoutMs": 15000,
+              "expectedCount": 1
+            }
+          ],
+          "afterAssertions": [
+            {
+              "id": "http",
+              "type": "httpStatus",
+              "source": "response:create",
+              "operator": "equals",
+              "expected": 201,
+              "severity": "BLOCK",
+              "expectedSource": "API-EMPLOYEE-1"
+            }
+          ],
+          "extract": [
+            {
+              "source": "response:create",
+              "pointer": "/data/id",
+              "to": "employeeId",
+              "valueType": "string",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "confirm",
+          "action": "reload",
+          "afterAssertions": [
+            {
+              "id": "persisted-name",
+              "type": "ui",
+              "target": "employee.detail.name",
+              "operator": "textEquals",
+              "expected": "{{data.name}}",
+              "timeoutMs": 5000,
+              "severity": "BLOCK",
+              "expectedSource": "REQ-EMPLOYEE-1"
+            }
+          ]
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "action-click",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "view",
+      "title": "Read",
+      "kind": "READ",
+      "roleKey": "viewer",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "steps": [
+        {
+          "id": "click",
+          "action": "click",
+          "target": "employee.save",
+          "beforeAssertions": [
+            {
+              "id": "enabled",
+              "type": "ui",
+              "target": "employee.save",
+              "operator": "enabled",
+              "expected": true,
+              "severity": "BLOCK",
+              "expectedSource": "REQ-1"
+            }
+          ]
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "action-check",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "view",
+      "title": "Read",
+      "kind": "READ",
+      "roleKey": "viewer",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "steps": [
+        {
+          "id": "check",
+          "action": "check",
+          "target": "employee.active"
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "action-uncheck",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "view",
+      "title": "Read",
+      "kind": "READ",
+      "roleKey": "viewer",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "steps": [
+        {
+          "id": "uncheck",
+          "action": "uncheck",
+          "target": "employee.active"
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "action-press",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "view",
+      "title": "Read",
+      "kind": "READ",
+      "roleKey": "viewer",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "steps": [
+        {
+          "id": "press",
+          "action": "press",
+          "target": "employee.name",
+          "value": "Enter"
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "action-selectOption",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "view",
+      "title": "Read",
+      "kind": "READ",
+      "roleKey": "viewer",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "steps": [
+        {
+          "id": "select",
+          "action": "selectOption",
+          "target": "employee.department",
+          "value": [
+            "hr"
+          ]
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "action-upload",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "view",
+      "title": "Read",
+      "kind": "READ",
+      "roleKey": "viewer",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "steps": [
+        {
+          "id": "upload",
+          "action": "upload",
+          "target": "employee.avatar",
+          "value": [
+            "fixtures/avatar.png"
+          ]
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "action-apiRequest",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "view",
+      "title": "Read",
+      "kind": "READ",
+      "roleKey": "viewer",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "steps": [
+        {
+          "id": "request",
+          "action": "apiRequest",
+          "method": "GET",
+          "path": "/api/employees",
+          "query": {
+            "code": "{{vars.employeeCode}}"
+          }
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "action-callFlow",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "view",
+      "title": "Read",
+      "kind": "READ",
+      "roleKey": "viewer",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "steps": [
+        {
+          "id": "flow",
+          "action": "callFlow",
+          "versionId": "11111111-1111-4111-8111-111111111111",
+          "parameters": {
+            "name": "Ada"
+          }
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "event-step-finish",
+    "schema": "ExecutionEventV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "attemptId": "11111111-1111-4111-8111-111111111111",
+      "sequence": 1,
+      "type": "STEP_FINISHED",
+      "timestamp": "2026-11-10T12:00:00Z",
+      "stepId": "open",
+      "payload": {
+        "status": "PASSED",
+        "durationMs": 12
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "event-assertion",
+    "schema": "ExecutionEventV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "attemptId": "11111111-1111-4111-8111-111111111111",
+      "sequence": 1,
+      "type": "ASSERTION_RESULT",
+      "timestamp": "2026-11-10T12:00:00Z",
+      "stepId": "open",
+      "payload": {
+        "status": "PASSED",
+        "severity": "BLOCK",
+        "expectedSource": "REQ-1",
+        "expected": true,
+        "actual": {
+          "present": true,
+          "value": true
+        },
+        "durationMs": 10
+      },
+      "assertionId": "visible"
+    },
+    "valid": true
+  },
+  {
+    "name": "event-step-status-domain",
+    "schema": "ExecutionEventV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "attemptId": "11111111-1111-4111-8111-111111111111",
+      "sequence": 1,
+      "type": "STEP_FINISHED",
+      "timestamp": "2026-11-10T12:00:00Z",
+      "stepId": "open",
+      "payload": {
+        "status": "GREEN",
+        "durationMs": 12
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "event-assertion-requires-actual",
+    "schema": "ExecutionEventV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "attemptId": "11111111-1111-4111-8111-111111111111",
+      "sequence": 1,
+      "type": "ASSERTION_RESULT",
+      "timestamp": "2026-11-10T12:00:00Z",
+      "stepId": "open",
+      "payload": {
+        "status": "PASSED",
+        "severity": "BLOCK",
+        "expectedSource": "REQ-1",
+        "expected": true,
+        "durationMs": 10
+      },
+      "assertionId": "visible"
+    },
+    "valid": false
+  },
+  {
+    "name": "event-step-requires-step-id",
+    "schema": "ExecutionEventV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "attemptId": "11111111-1111-4111-8111-111111111111",
+      "sequence": 1,
+      "type": "STEP_FINISHED",
+      "timestamp": "2026-11-10T12:00:00Z",
+      "payload": {
+        "status": "PASSED",
+        "durationMs": 12
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "event-finish-requires-outcome",
+    "schema": "ExecutionEventV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "attemptId": "11111111-1111-4111-8111-111111111111",
+      "sequence": 1,
+      "type": "ATTEMPT_FINISHED",
+      "timestamp": "2026-11-10T12:00:00Z",
+      "stepId": "open",
+      "payload": {}
+    },
+    "valid": false
+  },
+  {
+    "name": "event-log-rejects-extra-payload",
+    "schema": "ExecutionEventV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "attemptId": "11111111-1111-4111-8111-111111111111",
+      "sequence": 1,
+      "type": "LOG",
+      "timestamp": "2026-11-10T12:00:00Z",
+      "stepId": "open",
+      "payload": {
+        "level": "INFO",
+        "message": "hello",
+        "password": "secret"
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "review-uuid-hyphenated",
+    "schema": "Id",
+    "value": "11111111-1111-4111-8111-111111111111",
+    "valid": true
+  },
+  {
+    "name": "review-uuid-uppercase",
+    "schema": "Id",
+    "value": "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA",
+    "valid": true
+  },
+  {
+    "name": "review-uuid-urn",
+    "schema": "Id",
+    "value": "urn:uuid:11111111-1111-4111-8111-111111111111",
+    "valid": false
+  },
+  {
+    "name": "review-uuid-compact",
+    "schema": "Id",
+    "value": "11111111111141118111111111111111",
+    "valid": false
+  },
+  {
+    "name": "review-uuid-braces",
+    "schema": "Id",
+    "value": "{11111111-1111-4111-8111-111111111111}",
+    "valid": false
+  },
+  {
+    "name": "review-uuid-final-newline",
+    "schema": "Id",
+    "value": "11111111-1111-4111-8111-111111111111\n",
+    "valid": false
+  },
+  {
+    "name": "review-timestamp-utc",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2026-11-10T10:00:00Z",
+      "cancelRequested": false
+    },
+    "valid": true
+  },
+  {
+    "name": "review-timestamp-lowercase",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2026-11-10t10:00:00z",
+      "cancelRequested": false
+    },
+    "valid": true
+  },
+  {
+    "name": "review-timestamp-fraction-offset",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2024-02-29T23:59:59.123456789+05:30",
+      "cancelRequested": false
+    },
+    "valid": true
+  },
+  {
+    "name": "review-timestamp-negative-offset",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2026-11-10T10:00:00-08:00",
+      "cancelRequested": false
+    },
+    "valid": true
+  },
+  {
+    "name": "review-timestamp-unknown-offset",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2026-11-10T10:00:00-00:00",
+      "cancelRequested": false
+    },
+    "valid": true
+  },
+  {
+    "name": "review-timestamp-space",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2026-11-10 10:00:00Z",
+      "cancelRequested": false
+    },
+    "valid": false
+  },
+  {
+    "name": "review-timestamp-leap-second",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2026-11-10T23:59:60Z",
+      "cancelRequested": false
+    },
+    "valid": false
+  },
+  {
+    "name": "review-timestamp-leap-year",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2024-02-29T10:00:00Z",
+      "cancelRequested": false
+    },
+    "valid": true
+  },
+  {
+    "name": "review-timestamp-nonleap-day",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2026-02-29T10:00:00Z",
+      "cancelRequested": false
+    },
+    "valid": false
+  },
+  {
+    "name": "review-timestamp-invalid-day",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2026-04-31T10:00:00Z",
+      "cancelRequested": false
+    },
+    "valid": false
+  },
+  {
+    "name": "review-timestamp-zero-year",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "0000-01-01T00:00:00Z",
+      "cancelRequested": false
+    },
+    "valid": false
+  },
+  {
+    "name": "review-timestamp-missing-zone",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2026-11-10T10:00:00",
+      "cancelRequested": false
+    },
+    "valid": false
+  },
+  {
+    "name": "review-timestamp-offset-hour",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2026-11-10T10:00:00+24:00",
+      "cancelRequested": false
+    },
+    "valid": false
+  },
+  {
+    "name": "review-timestamp-offset-minute",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2026-11-10T10:00:00+00:60",
+      "cancelRequested": false
+    },
+    "valid": false
+  },
+  {
+    "name": "review-timestamp-end-of-day",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2026-11-10T24:00:00Z",
+      "cancelRequested": false
+    },
+    "valid": false
+  },
+  {
+    "name": "review-timestamp-newline",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2026-11-10T10:00:00Z\n",
+      "cancelRequested": false
+    },
+    "valid": false
+  },
+  {
+    "name": "review-literal-json",
+    "schema": "JsonValue",
+    "value": "{{customer.name}}",
+    "valid": true
+  },
+  {
+    "name": "review-literal-nested-json",
+    "schema": "JsonValue",
+    "value": {
+      "items": [
+        "{{evil()}}",
+        {
+          "text": "{{customer.name}}"
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "review-literal-actual",
+    "schema": "ActualValueV1",
+    "value": {
+      "present": true,
+      "value": "{{customer.name}}"
+    },
+    "valid": true
+  },
+  {
+    "name": "review-literal-step-error",
+    "schema": "StepFinishedPayloadV1",
+    "value": {
+      "status": "ERROR",
+      "durationMs": 1,
+      "message": "Invalid binding: {{evil()}}"
+    },
+    "valid": true
+  },
+  {
+    "name": "review-literal-log",
+    "schema": "ExecutionEventV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "attemptId": "11111111-1111-4111-8111-111111111111",
+      "sequence": 1,
+      "type": "LOG",
+      "timestamp": "2026-11-10T12:00:00Z",
+      "stepId": "open",
+      "payload": {
+        "level": "ERROR",
+        "message": "Invalid binding: {{evil()}}"
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "review-literal-assertion-result",
+    "schema": "ExecutionEventV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "attemptId": "11111111-1111-4111-8111-111111111111",
+      "sequence": 1,
+      "type": "ASSERTION_RESULT",
+      "timestamp": "2026-11-10T12:00:00Z",
+      "stepId": "open",
+      "payload": {
+        "status": "PASSED",
+        "severity": "BLOCK",
+        "expectedSource": "REQ-1",
+        "expected": "{{expected()}}",
+        "actual": {
+          "present": true,
+          "value": "{{customer.name}}"
+        },
+        "durationMs": 10
+      },
+      "assertionId": "visible"
+    },
+    "valid": true
+  },
+  {
+    "name": "review-literal-json-schema",
+    "schema": "JsonSchema",
+    "value": {
+      "type": "string",
+      "const": "{{customer.name}}",
+      "description": "Literal {{evil()}}"
+    },
+    "valid": true
+  },
+  {
+    "name": "review-literal-dataset",
+    "schema": "ResourceDocumentV1",
+    "value": {
+      "kind": "DATASET",
+      "document": {
+        "schemaVersion": "1.0",
+        "columns": {
+          "name": "string"
+        },
+        "rows": [
+          {
+            "key": "one",
+            "values": {
+              "name": "{{customer.name}}"
+            }
+          }
+        ]
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "review-path-ordinary",
+    "schema": "Path",
+    "value": "/orders/123?state=open#details",
+    "valid": true
+  },
+  {
+    "name": "review-path-root",
+    "schema": "Path",
+    "value": "/",
+    "valid": true
+  },
+  {
+    "name": "review-path-template",
+    "schema": "Path",
+    "value": "/orders/{{vars.orderId}}",
+    "valid": true
+  },
+  {
+    "name": "review-path-backslash",
+    "schema": "Path",
+    "value": "/\\outside.example/path",
+    "valid": false
+  },
+  {
+    "name": "review-path-tab",
+    "schema": "Path",
+    "value": "/\t/outside.example",
+    "valid": false
+  },
+  {
+    "name": "review-path-nul",
+    "schema": "Path",
+    "value": "/\u0000/outside.example",
+    "valid": false
+  },
+  {
+    "name": "review-path-del",
+    "schema": "Path",
+    "value": "//outside.example",
+    "valid": false
+  },
+  {
+    "name": "review-path-newline",
+    "schema": "Path",
+    "value": "/\n/outside.example",
+    "valid": false
+  },
+  {
+    "name": "review-path-network",
+    "schema": "Path",
+    "value": "//outside.example/path",
+    "valid": false
+  },
+  {
+    "name": "review-path-scheme",
+    "schema": "Path",
+    "value": "https://outside.example/path",
+    "valid": false
+  },
+  {
+    "name": "review-path-unsafe-binding",
+    "schema": "Path",
+    "value": "/{{evil()}}",
+    "valid": false
+  },
+  {
+    "name": "review-unsafe-body",
+    "schema": "StepV1",
+    "value": {
+      "id": "request",
+      "action": "apiRequest",
+      "method": "POST",
+      "path": "/orders",
+      "body": {
+        "nested": [
+          "{{evil()}}"
+        ]
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "review-unsafe-query",
+    "schema": "StepV1",
+    "value": {
+      "id": "request",
+      "action": "apiRequest",
+      "method": "POST",
+      "path": "/orders",
+      "query": {
+        "nested": [
+          "{{evil()}}"
+        ]
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "review-unsafe-flow-parameters",
+    "schema": "StepV1",
+    "value": {
+      "id": "flow",
+      "action": "callFlow",
+      "versionId": "11111111-1111-4111-8111-111111111111",
+      "parameters": {
+        "x": "{{evil()}}"
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "review-safe-nested-bindings",
+    "schema": "StepV1",
+    "value": {
+      "id": "request",
+      "action": "apiRequest",
+      "method": "POST",
+      "path": "/orders",
+      "body": {
+        "nested": [
+          "{{vars.orderId}}",
+          7
+        ]
+      }
+    },
+    "valid": true
+  }
+]

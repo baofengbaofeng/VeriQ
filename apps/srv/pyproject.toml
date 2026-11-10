@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "veriq-server"
+version = "0.1.0"
+description = "VeriQ control service"
+requires-python = ">=3.12,<3.13"
+license = "AGPL-3.0-only"
+dependencies = [
+  "tornado==6.6.1",
+  "sqlalchemy==2.0.46",
+  "alembic==1.18.4",
+  "asyncmy==0.2.18",
+  "pydantic==2.12.5",
+  "jsonschema[format-nongpl]==4.26.0",
+  "argon2-cffi==25.1.0",
+  "cryptography==50.0.2",
+  "httpx==0.28.1",
+  "structlog==25.5.0",
+]
+
+[dependency-groups]
+dev = ["pytest==9.2.0", "pytest-asyncio==1.3.0", "pytest-cov==7.0.0", "ruff==0.15.1", "mypy==1.19.1", "types-jsonschema==4.26.0.20260202", "build==1.4.0", "hatchling==1.27.0", "pyyaml==6.0.3"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/veriq_server"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"../../packages/contracts/schemas" = "veriq_server/_schemas"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.mypy]
+python_version = "3.12"
+strict = true

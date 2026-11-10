@@ -1,0 +1,5 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veriq.dev/schemas/fixture-v1.schema.json",
+  "$ref": "platform-v1.schema.json#/$defs/FixtureV1"
+}

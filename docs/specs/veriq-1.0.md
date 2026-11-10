@@ -35,7 +35,7 @@ AI模块开箱提供完整配置和操作引导；实际模型调用使用用户
 
 - 名称VeriQ，技术标识veriq；全部平台物理表以veriq_开头，包括迁移版本表。
 - 后端Python3.12、Tornado 6.6.1、SQLAlchemy2.0、MySQL8.4 LTS；精确补丁与镜像摘要在依赖冻结时记录，不跨系列静默升级。
-- 前端React18、Vite6、Tailwind3、ESM、react-router-dom6、TanStack Query5、Radix/CVA、i18next；按需使用dnd-kit与DOMPurify。
+- 前端React18、Vite6、Tailwind3、ESM、react-router-dom7.18.5、TanStack Query5、Radix/CVA、i18next；按需使用dnd-kit与DOMPurify。
 - 一项目一Workspace，用户可加入多个Workspace。项目资源、证据和导出均做服务端归属授权。
 - 控制服务可在没有Chrome/Playwright运行条件的环境部署；浏览器在独立Runtime运行。
 - 业务定时由外部中间件调用HTTP触发；平台不实现Cron解析、计划扫描或APScheduler服务。

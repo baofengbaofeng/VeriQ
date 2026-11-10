@@ -1,0 +1,21 @@
+{
+  "name": "@veriq/runtime",
+  "dependencies": {
+    "commander": "14.0.3",
+    "env-paths": "3.0.0",
+    "proper-lockfile": "4.1.2",
+    "pino": "10.4.0",
+    "@veriq/contracts": "workspace:*",
+    "@veriq/compiler": "workspace:*",
+    "@veriq/runner-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "@types/node": "24.10.1",
+    "@types/proper-lockfile": "4.1.4"
+  },
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-only"
+}

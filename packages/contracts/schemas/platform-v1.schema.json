@@ -1,0 +1,4573 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veriq.dev/schemas/platform-v1.schema.json",
+  "title": "VeriQ Platform v1",
+  "$defs": {
+    "Id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$(?![\\s\\S])",
+      "description": "Hyphenated 8-4-4-4-12 hexadecimal UUID, case-insensitive; no URN, braces or surrounding whitespace."
+    },
+    "Sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "Key": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_.-]*$",
+      "maxLength": 160
+    },
+    "Version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+    },
+    "SafeString": {
+      "type": "string",
+      "pattern": "^(?![\\s\\S]*\\{\\{(?!(?:data|vars)\\.[A-Za-z_][A-Za-z0-9_.]*\\}\\}))[\\s\\S]*$",
+      "description": "Interpolated DSL string. Only {{data.identifier}} and {{vars.identifier}} dotted bindings are supported; arbitrary executable expressions are rejected. Never use for inert evidence or diagnostics."
+    },
+    "JsonValue": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "number",
+          "not": {
+            "type": "integer"
+          }
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "minItems": 0
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          }
+        }
+      ],
+      "description": "Inert portable JSON. Strings are literal, including arbitrary braces and invalid DSL expressions; consumers must never evaluate or recursively interpolate this type."
+    },
+    "JsonObject": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      }
+    },
+    "JsonSchema": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      }
+    },
+    "ValueType": {
+      "type": "string",
+      "enum": [
+        "string",
+        "number",
+        "integer",
+        "boolean",
+        "object",
+        "array",
+        "null"
+      ]
+    },
+    "ParameterTypes": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/Key"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/ValueType"
+      }
+    },
+    "Timeout": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 300000
+    },
+    "Pointer": {
+      "type": "string",
+      "pattern": "^(?:/(?:[^~/]|~[01])*)*$"
+    },
+    "Path": {
+      "type": "string",
+      "pattern": "^/(?!/)[^\\\\\\x00-\\x1f\\x7f]*$(?![\\s\\S])",
+      "allOf": [
+        {
+          "$ref": "#/$defs/SafeString"
+        }
+      ],
+      "description": "Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized base/allowedOrigins before any request/navigation, and enforce policy on redirects."
+    },
+    "HttpUrl": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https?://"
+    },
+    "SourceRef": {
+      "type": "string",
+      "pattern": "^(request|response):[A-Za-z_][A-Za-z0-9_.-]*$"
+    },
+    "ResponseRef": {
+      "type": "string",
+      "pattern": "^response:[A-Za-z_][A-Za-z0-9_.-]*$"
+    },
+    "RequestRef": {
+      "type": "string",
+      "pattern": "^request:[A-Za-z_][A-Za-z0-9_.-]*$"
+    },
+    "HttpMethod": {
+      "type": "string",
+      "enum": [
+        "GET",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE",
+        "HEAD",
+        "OPTIONS"
+      ]
+    },
+    "Browser": {
+      "type": "string",
+      "enum": [
+        "chromium",
+        "firefox",
+        "webkit"
+      ]
+    },
+    "ResourceKind": {
+      "type": "string",
+      "enum": [
+        "CASE",
+        "ELEMENT_CATALOG",
+        "ASSERTION_TEMPLATE",
+        "DATASET",
+        "FLOW",
+        "FIXTURE",
+        "SUITE",
+        "ENVIRONMENT"
+      ]
+    },
+    "Outcome": {
+      "type": "string",
+      "enum": [
+        "PASSED",
+        "FAILED",
+        "ERROR",
+        "UNSTABLE",
+        "CANCELLED",
+        "INCOMPLETE",
+        "SKIPPED"
+      ]
+    },
+    "AttemptOutcome": {
+      "type": "string",
+      "enum": [
+        "PASSED",
+        "FAILED",
+        "ERROR",
+        "CANCELLED",
+        "INCOMPLETE",
+        "SKIPPED"
+      ]
+    },
+    "CleanupStatus": {
+      "type": "string",
+      "enum": [
+        "NOT_REQUIRED",
+        "PENDING",
+        "SUCCEEDED",
+        "FAILED",
+        "UNKNOWN"
+      ]
+    },
+    "TrustStatus": {
+      "type": "string",
+      "enum": [
+        "MANAGED",
+        "USER_REGISTERED",
+        "REVOKED"
+      ]
+    },
+    "RunSource": {
+      "type": "string",
+      "enum": [
+        "MANAGED_CLOUD",
+        "CONNECTED_LOCAL",
+        "OFFLINE_IMPORT"
+      ]
+    },
+    "FilePath": {
+      "type": "string",
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*(?:^|/)\\.(?:/|$))[^\\u0000\\r\\n]+$"
+    },
+    "FileEntry": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/FilePath"
+        },
+        "sha256": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "sizeBytes"
+      ],
+      "additionalProperties": false
+    },
+    "DependencyVersion": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "integrity": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "integrity"
+      ],
+      "additionalProperties": false
+    },
+    "ObserverWindow": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "const": "UNTIL_ACTION_SETTLED"
+            },
+            "quietMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 30000
+            }
+          },
+          "required": [
+            "mode"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "const": "FIXED"
+            },
+            "durationMs": {
+              "$ref": "#/$defs/Timeout"
+            }
+          },
+          "required": [
+            "mode",
+            "durationMs"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ObserverV1": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Key"
+        },
+        "method": {
+          "$ref": "#/$defs/HttpMethod"
+        },
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "queryMatch": {
+          "$ref": "#/$defs/BindingJsonObject"
+        },
+        "bodyMatch": {
+          "$ref": "#/$defs/BindingJsonObject"
+        },
+        "timeoutMs": {
+          "$ref": "#/$defs/Timeout"
+        },
+        "window": {
+          "$ref": "#/$defs/ObserverWindow"
+        },
+        "expectedCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "retryPolicy": {
+          "type": "string",
+          "enum": [
+            "FORBID",
+            "ALLOW_MATCHING_RETRIES"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "path"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "expectedCount": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "expectedCount"
+            ]
+          },
+          "then": {
+            "required": [
+              "window"
+            ],
+            "properties": {
+              "window": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "const": "FIXED"
+                  }
+                },
+                "required": [
+                  "mode"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ExtractionV1": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/SourceRef"
+        },
+        "pointer": {
+          "$ref": "#/$defs/Pointer"
+        },
+        "to": {
+          "$ref": "#/$defs/Key"
+        },
+        "valueType": {
+          "$ref": "#/$defs/ValueType"
+        },
+        "required": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "source",
+        "pointer",
+        "to",
+        "valueType",
+        "required"
+      ],
+      "additionalProperties": false
+    },
+    "AssertionV1": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "BLOCK",
+                "CONTINUE_FAIL",
+                "WARN"
+              ]
+            },
+            "expectedSource": {
+              "type": "string",
+              "minLength": 1
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "type": {
+              "const": "ui"
+            },
+            "target": {
+              "$ref": "#/$defs/Key"
+            },
+            "operator": {
+              "type": "string",
+              "enum": [
+                "visible",
+                "enabled",
+                "checked",
+                "attached",
+                "editable"
+              ]
+            },
+            "expected": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "id",
+            "type",
+            "severity",
+            "expectedSource",
+            "target",
+            "operator",
+            "expected"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "BLOCK",
+                "CONTINUE_FAIL",
+                "WARN"
+              ]
+            },
+            "expectedSource": {
+              "type": "string",
+              "minLength": 1
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "type": {
+              "const": "ui"
+            },
+            "target": {
+              "$ref": "#/$defs/Key"
+            },
+            "operator": {
+              "type": "string",
+              "enum": [
+                "textEquals",
+                "textContains",
+                "valueEquals"
+              ]
+            },
+            "expected": {
+              "$ref": "#/$defs/SafeString"
+            }
+          },
+          "required": [
+            "id",
+            "type",
+            "severity",
+            "expectedSource",
+            "target",
+            "operator",
+            "expected"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "BLOCK",
+                "CONTINUE_FAIL",
+                "WARN"
+              ]
+            },
+            "expectedSource": {
+              "type": "string",
+              "minLength": 1
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "type": {
+              "const": "ui"
+            },
+            "target": {
+              "$ref": "#/$defs/Key"
+            },
+            "operator": {
+              "const": "countEquals"
+            },
+            "expected": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "id",
+            "type",
+            "severity",
+            "expectedSource",
+            "target",
+            "operator",
+            "expected"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "BLOCK",
+                "CONTINUE_FAIL",
+                "WARN"
+              ]
+            },
+            "expectedSource": {
+              "type": "string",
+              "minLength": 1
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "type": {
+              "const": "url"
+            },
+            "source": {
+              "const": "page"
+            },
+            "operator": {
+              "type": "string",
+              "enum": [
+                "equals",
+                "contains"
+              ]
+            },
+            "expected": {
+              "$ref": "#/$defs/SafeString"
+            }
+          },
+          "required": [
+            "id",
+            "type",
+            "severity",
+            "expectedSource",
+            "source",
+            "operator",
+            "expected"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "BLOCK",
+                "CONTINUE_FAIL",
+                "WARN"
+              ]
+            },
+            "expectedSource": {
+              "type": "string",
+              "minLength": 1
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "type": {
+              "const": "httpStatus"
+            },
+            "source": {
+              "$ref": "#/$defs/ResponseRef"
+            },
+            "operator": {
+              "const": "equals"
+            },
+            "expected": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 599
+            }
+          },
+          "required": [
+            "id",
+            "type",
+            "severity",
+            "expectedSource",
+            "source",
+            "operator",
+            "expected"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "BLOCK",
+                "CONTINUE_FAIL",
+                "WARN"
+              ]
+            },
+            "expectedSource": {
+              "type": "string",
+              "minLength": 1
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "type": {
+              "const": "request"
+            },
+            "source": {
+              "$ref": "#/$defs/RequestRef"
+            },
+            "operator": {
+              "const": "methodEquals"
+            },
+            "expected": {
+              "$ref": "#/$defs/HttpMethod"
+            }
+          },
+          "required": [
+            "id",
+            "type",
+            "severity",
+            "expectedSource",
+            "source",
+            "operator",
+            "expected"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "BLOCK",
+                "CONTINUE_FAIL",
+                "WARN"
+              ]
+            },
+            "expectedSource": {
+              "type": "string",
+              "minLength": 1
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "type": {
+              "const": "request"
+            },
+            "source": {
+              "$ref": "#/$defs/RequestRef"
+            },
+            "operator": {
+              "const": "pathEquals"
+            },
+            "expected": {
+              "$ref": "#/$defs/Path"
+            }
+          },
+          "required": [
+            "id",
+            "type",
+            "severity",
+            "expectedSource",
+            "source",
+            "operator",
+            "expected"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "BLOCK",
+                "CONTINUE_FAIL",
+                "WARN"
+              ]
+            },
+            "expectedSource": {
+              "type": "string",
+              "minLength": 1
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "type": {
+              "const": "responseSchema"
+            },
+            "source": {
+              "$ref": "#/$defs/ResponseRef"
+            },
+            "operator": {
+              "const": "matchesSchema"
+            },
+            "expected": {
+              "$ref": "#/$defs/JsonSchema"
+            }
+          },
+          "required": [
+            "id",
+            "type",
+            "severity",
+            "expectedSource",
+            "source",
+            "operator",
+            "expected"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "BLOCK",
+                "CONTINUE_FAIL",
+                "WARN"
+              ]
+            },
+            "expectedSource": {
+              "type": "string",
+              "minLength": 1
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "type": {
+              "const": "duration"
+            },
+            "source": {
+              "$ref": "#/$defs/SourceRef"
+            },
+            "operator": {
+              "const": "lessThanOrEqual"
+            },
+            "expected": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 300000
+            }
+          },
+          "required": [
+            "id",
+            "type",
+            "severity",
+            "expectedSource",
+            "source",
+            "operator",
+            "expected"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "BLOCK",
+                "CONTINUE_FAIL",
+                "WARN"
+              ]
+            },
+            "expectedSource": {
+              "type": "string",
+              "minLength": 1
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "type": {
+              "const": "requestCount"
+            },
+            "source": {
+              "$ref": "#/$defs/RequestRef"
+            },
+            "operator": {
+              "const": "equals"
+            },
+            "expected": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000
+            }
+          },
+          "required": [
+            "id",
+            "type",
+            "severity",
+            "expectedSource",
+            "source",
+            "operator",
+            "expected"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "BLOCK",
+                "CONTINUE_FAIL",
+                "WARN"
+              ]
+            },
+            "expectedSource": {
+              "type": "string",
+              "minLength": 1
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "type": {
+              "const": "eventually"
+            },
+            "query": {
+              "type": "object",
+              "properties": {
+                "method": {
+                  "const": "GET"
+                },
+                "path": {
+                  "$ref": "#/$defs/Path"
+                },
+                "query": {
+                  "$ref": "#/$defs/BindingJsonObject"
+                }
+              },
+              "required": [
+                "method",
+                "path"
+              ],
+              "additionalProperties": false
+            },
+            "pointer": {
+              "$ref": "#/$defs/Pointer"
+            },
+            "operator": {
+              "const": "equals"
+            },
+            "expected": {
+              "$ref": "#/$defs/BindingJsonValue"
+            },
+            "intervalMs": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 10000
+            }
+          },
+          "required": [
+            "id",
+            "type",
+            "severity",
+            "expectedSource",
+            "query",
+            "pointer",
+            "operator",
+            "expected"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "BLOCK",
+                "CONTINUE_FAIL",
+                "WARN"
+              ]
+            },
+            "expectedSource": {
+              "type": "string",
+              "minLength": 1
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "type": {
+              "const": "template"
+            },
+            "versionId": {
+              "$ref": "#/$defs/Id"
+            },
+            "parameters": {
+              "$ref": "#/$defs/BindingJsonObject"
+            }
+          },
+          "required": [
+            "id",
+            "type",
+            "severity",
+            "expectedSource",
+            "versionId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "BLOCK",
+                "CONTINUE_FAIL",
+                "WARN"
+              ]
+            },
+            "expectedSource": {
+              "type": "string",
+              "minLength": 1
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "type": {
+              "const": "responseField"
+            },
+            "source": {
+              "$ref": "#/$defs/ResponseRef"
+            },
+            "pointer": {
+              "$ref": "#/$defs/Pointer"
+            },
+            "operator": {
+              "type": "string",
+              "enum": [
+                "equals",
+                "notEquals"
+              ]
+            },
+            "expected": {
+              "$ref": "#/$defs/BindingJsonValue"
+            }
+          },
+          "required": [
+            "id",
+            "type",
+            "severity",
+            "expectedSource",
+            "source",
+            "pointer",
+            "operator",
+            "expected"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "BLOCK",
+                "CONTINUE_FAIL",
+                "WARN"
+              ]
+            },
+            "expectedSource": {
+              "type": "string",
+              "minLength": 1
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "type": {
+              "const": "responseField"
+            },
+            "source": {
+              "$ref": "#/$defs/ResponseRef"
+            },
+            "pointer": {
+              "$ref": "#/$defs/Pointer"
+            },
+            "operator": {
+              "const": "contains"
+            },
+            "expected": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/SafeString"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/BindingJsonValue"
+                  }
+                }
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "type",
+            "severity",
+            "expectedSource",
+            "source",
+            "pointer",
+            "operator",
+            "expected"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "BLOCK",
+                "CONTINUE_FAIL",
+                "WARN"
+              ]
+            },
+            "expectedSource": {
+              "type": "string",
+              "minLength": 1
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "type": {
+              "const": "responseField"
+            },
+            "source": {
+              "$ref": "#/$defs/ResponseRef"
+            },
+            "pointer": {
+              "$ref": "#/$defs/Pointer"
+            },
+            "operator": {
+              "const": "in"
+            },
+            "expected": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/BindingJsonValue"
+              },
+              "minItems": 1
+            }
+          },
+          "required": [
+            "id",
+            "type",
+            "severity",
+            "expectedSource",
+            "source",
+            "pointer",
+            "operator",
+            "expected"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "BLOCK",
+                "CONTINUE_FAIL",
+                "WARN"
+              ]
+            },
+            "expectedSource": {
+              "type": "string",
+              "minLength": 1
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "type": {
+              "const": "responseField"
+            },
+            "source": {
+              "$ref": "#/$defs/ResponseRef"
+            },
+            "pointer": {
+              "$ref": "#/$defs/Pointer"
+            },
+            "operator": {
+              "const": "exists"
+            },
+            "expected": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "id",
+            "type",
+            "severity",
+            "expectedSource",
+            "source",
+            "pointer",
+            "operator",
+            "expected"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "BLOCK",
+                "CONTINUE_FAIL",
+                "WARN"
+              ]
+            },
+            "expectedSource": {
+              "type": "string",
+              "minLength": 1
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "type": {
+              "const": "requestField"
+            },
+            "source": {
+              "$ref": "#/$defs/RequestRef"
+            },
+            "pointer": {
+              "$ref": "#/$defs/Pointer"
+            },
+            "operator": {
+              "type": "string",
+              "enum": [
+                "equals",
+                "notEquals"
+              ]
+            },
+            "expected": {
+              "$ref": "#/$defs/BindingJsonValue"
+            }
+          },
+          "required": [
+            "id",
+            "type",
+            "severity",
+            "expectedSource",
+            "source",
+            "pointer",
+            "operator",
+            "expected"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "BLOCK",
+                "CONTINUE_FAIL",
+                "WARN"
+              ]
+            },
+            "expectedSource": {
+              "type": "string",
+              "minLength": 1
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "type": {
+              "const": "requestField"
+            },
+            "source": {
+              "$ref": "#/$defs/RequestRef"
+            },
+            "pointer": {
+              "$ref": "#/$defs/Pointer"
+            },
+            "operator": {
+              "const": "contains"
+            },
+            "expected": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/SafeString"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/BindingJsonValue"
+                  }
+                }
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "type",
+            "severity",
+            "expectedSource",
+            "source",
+            "pointer",
+            "operator",
+            "expected"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "BLOCK",
+                "CONTINUE_FAIL",
+                "WARN"
+              ]
+            },
+            "expectedSource": {
+              "type": "string",
+              "minLength": 1
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "type": {
+              "const": "requestField"
+            },
+            "source": {
+              "$ref": "#/$defs/RequestRef"
+            },
+            "pointer": {
+              "$ref": "#/$defs/Pointer"
+            },
+            "operator": {
+              "const": "in"
+            },
+            "expected": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/BindingJsonValue"
+              },
+              "minItems": 1
+            }
+          },
+          "required": [
+            "id",
+            "type",
+            "severity",
+            "expectedSource",
+            "source",
+            "pointer",
+            "operator",
+            "expected"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "BLOCK",
+                "CONTINUE_FAIL",
+                "WARN"
+              ]
+            },
+            "expectedSource": {
+              "type": "string",
+              "minLength": 1
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "type": {
+              "const": "requestField"
+            },
+            "source": {
+              "$ref": "#/$defs/RequestRef"
+            },
+            "pointer": {
+              "$ref": "#/$defs/Pointer"
+            },
+            "operator": {
+              "const": "exists"
+            },
+            "expected": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "id",
+            "type",
+            "severity",
+            "expectedSource",
+            "source",
+            "pointer",
+            "operator",
+            "expected"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "StepV1": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "critical": {
+              "type": "boolean"
+            },
+            "beforeAssertions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AssertionV1"
+              },
+              "minItems": 0
+            },
+            "observers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ObserverV1"
+              },
+              "minItems": 0
+            },
+            "afterAssertions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AssertionV1"
+              },
+              "minItems": 0
+            },
+            "extract": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ExtractionV1"
+              },
+              "minItems": 0
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "failurePolicy": {
+              "type": "string",
+              "enum": [
+                "STOP_CASE",
+                "CONTINUE"
+              ]
+            },
+            "action": {
+              "const": "goto"
+            },
+            "path": {
+              "$ref": "#/$defs/Path"
+            }
+          },
+          "required": [
+            "id",
+            "action",
+            "path"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "critical": {
+              "type": "boolean"
+            },
+            "beforeAssertions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AssertionV1"
+              },
+              "minItems": 0
+            },
+            "observers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ObserverV1"
+              },
+              "minItems": 0
+            },
+            "afterAssertions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AssertionV1"
+              },
+              "minItems": 0
+            },
+            "extract": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ExtractionV1"
+              },
+              "minItems": 0
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "failurePolicy": {
+              "type": "string",
+              "enum": [
+                "STOP_CASE",
+                "CONTINUE"
+              ]
+            },
+            "action": {
+              "const": "click"
+            },
+            "target": {
+              "$ref": "#/$defs/Key"
+            }
+          },
+          "required": [
+            "id",
+            "action",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "critical": {
+              "type": "boolean"
+            },
+            "beforeAssertions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AssertionV1"
+              },
+              "minItems": 0
+            },
+            "observers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ObserverV1"
+              },
+              "minItems": 0
+            },
+            "afterAssertions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AssertionV1"
+              },
+              "minItems": 0
+            },
+            "extract": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ExtractionV1"
+              },
+              "minItems": 0
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "failurePolicy": {
+              "type": "string",
+              "enum": [
+                "STOP_CASE",
+                "CONTINUE"
+              ]
+            },
+            "action": {
+              "const": "check"
+            },
+            "target": {
+              "$ref": "#/$defs/Key"
+            }
+          },
+          "required": [
+            "id",
+            "action",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "critical": {
+              "type": "boolean"
+            },
+            "beforeAssertions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AssertionV1"
+              },
+              "minItems": 0
+            },
+            "observers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ObserverV1"
+              },
+              "minItems": 0
+            },
+            "afterAssertions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AssertionV1"
+              },
+              "minItems": 0
+            },
+            "extract": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ExtractionV1"
+              },
+              "minItems": 0
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "failurePolicy": {
+              "type": "string",
+              "enum": [
+                "STOP_CASE",
+                "CONTINUE"
+              ]
+            },
+            "action": {
+              "const": "uncheck"
+            },
+            "target": {
+              "$ref": "#/$defs/Key"
+            }
+          },
+          "required": [
+            "id",
+            "action",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "critical": {
+              "type": "boolean"
+            },
+            "beforeAssertions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AssertionV1"
+              },
+              "minItems": 0
+            },
+            "observers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ObserverV1"
+              },
+              "minItems": 0
+            },
+            "afterAssertions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AssertionV1"
+              },
+              "minItems": 0
+            },
+            "extract": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ExtractionV1"
+              },
+              "minItems": 0
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "failurePolicy": {
+              "type": "string",
+              "enum": [
+                "STOP_CASE",
+                "CONTINUE"
+              ]
+            },
+            "action": {
+              "const": "fill"
+            },
+            "target": {
+              "$ref": "#/$defs/Key"
+            },
+            "value": {
+              "$ref": "#/$defs/SafeString"
+            }
+          },
+          "required": [
+            "id",
+            "action",
+            "target",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "critical": {
+              "type": "boolean"
+            },
+            "beforeAssertions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AssertionV1"
+              },
+              "minItems": 0
+            },
+            "observers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ObserverV1"
+              },
+              "minItems": 0
+            },
+            "afterAssertions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AssertionV1"
+              },
+              "minItems": 0
+            },
+            "extract": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ExtractionV1"
+              },
+              "minItems": 0
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "failurePolicy": {
+              "type": "string",
+              "enum": [
+                "STOP_CASE",
+                "CONTINUE"
+              ]
+            },
+            "action": {
+              "const": "press"
+            },
+            "target": {
+              "$ref": "#/$defs/Key"
+            },
+            "value": {
+              "$ref": "#/$defs/SafeString",
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "id",
+            "action",
+            "target",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "critical": {
+              "type": "boolean"
+            },
+            "beforeAssertions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AssertionV1"
+              },
+              "minItems": 0
+            },
+            "observers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ObserverV1"
+              },
+              "minItems": 0
+            },
+            "afterAssertions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AssertionV1"
+              },
+              "minItems": 0
+            },
+            "extract": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ExtractionV1"
+              },
+              "minItems": 0
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "failurePolicy": {
+              "type": "string",
+              "enum": [
+                "STOP_CASE",
+                "CONTINUE"
+              ]
+            },
+            "action": {
+              "const": "selectOption"
+            },
+            "target": {
+              "$ref": "#/$defs/Key"
+            },
+            "value": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/SafeString"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/SafeString"
+                  },
+                  "minItems": 1
+                }
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "action",
+            "target",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "critical": {
+              "type": "boolean"
+            },
+            "beforeAssertions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AssertionV1"
+              },
+              "minItems": 0
+            },
+            "observers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ObserverV1"
+              },
+              "minItems": 0
+            },
+            "afterAssertions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AssertionV1"
+              },
+              "minItems": 0
+            },
+            "extract": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ExtractionV1"
+              },
+              "minItems": 0
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "failurePolicy": {
+              "type": "string",
+              "enum": [
+                "STOP_CASE",
+                "CONTINUE"
+              ]
+            },
+            "action": {
+              "const": "upload"
+            },
+            "target": {
+              "$ref": "#/$defs/Key"
+            },
+            "value": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/FilePath"
+              },
+              "minItems": 1
+            }
+          },
+          "required": [
+            "id",
+            "action",
+            "target",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "critical": {
+              "type": "boolean"
+            },
+            "beforeAssertions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AssertionV1"
+              },
+              "minItems": 0
+            },
+            "observers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ObserverV1"
+              },
+              "minItems": 0
+            },
+            "afterAssertions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AssertionV1"
+              },
+              "minItems": 0
+            },
+            "extract": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ExtractionV1"
+              },
+              "minItems": 0
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "failurePolicy": {
+              "type": "string",
+              "enum": [
+                "STOP_CASE",
+                "CONTINUE"
+              ]
+            },
+            "action": {
+              "const": "reload"
+            }
+          },
+          "required": [
+            "id",
+            "action"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "critical": {
+              "type": "boolean"
+            },
+            "beforeAssertions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AssertionV1"
+              },
+              "minItems": 0
+            },
+            "observers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ObserverV1"
+              },
+              "minItems": 0
+            },
+            "afterAssertions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AssertionV1"
+              },
+              "minItems": 0
+            },
+            "extract": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ExtractionV1"
+              },
+              "minItems": 0
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "failurePolicy": {
+              "type": "string",
+              "enum": [
+                "STOP_CASE",
+                "CONTINUE"
+              ]
+            },
+            "action": {
+              "const": "apiRequest"
+            },
+            "method": {
+              "$ref": "#/$defs/HttpMethod"
+            },
+            "path": {
+              "$ref": "#/$defs/Path"
+            },
+            "query": {
+              "$ref": "#/$defs/BindingJsonObject"
+            },
+            "body": {
+              "$ref": "#/$defs/BindingJsonValue"
+            },
+            "headers": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/SafeString"
+              }
+            }
+          },
+          "required": [
+            "id",
+            "action",
+            "method",
+            "path"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Key"
+            },
+            "critical": {
+              "type": "boolean"
+            },
+            "beforeAssertions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AssertionV1"
+              },
+              "minItems": 0
+            },
+            "observers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ObserverV1"
+              },
+              "minItems": 0
+            },
+            "afterAssertions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AssertionV1"
+              },
+              "minItems": 0
+            },
+            "extract": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ExtractionV1"
+              },
+              "minItems": 0
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/Timeout"
+            },
+            "failurePolicy": {
+              "type": "string",
+              "enum": [
+                "STOP_CASE",
+                "CONTINUE"
+              ]
+            },
+            "action": {
+              "const": "callFlow"
+            },
+            "versionId": {
+              "$ref": "#/$defs/Id"
+            },
+            "parameters": {
+              "$ref": "#/$defs/BindingJsonObject"
+            }
+          },
+          "required": [
+            "id",
+            "action",
+            "versionId"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "CaseDslV1": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "caseKey": {
+          "$ref": "#/$defs/Key"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "READ",
+            "WRITE"
+          ]
+        },
+        "roleKey": {
+          "$ref": "#/$defs/Key"
+        },
+        "catalogVersionId": {
+          "$ref": "#/$defs/Id"
+        },
+        "fixtureVersionId": {
+          "$ref": "#/$defs/Id"
+        },
+        "datasetVersionId": {
+          "$ref": "#/$defs/Id"
+        },
+        "persistenceCheckpointStepId": {
+          "$ref": "#/$defs/Key"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StepV1"
+          },
+          "minItems": 1,
+          "maxItems": 500
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "caseKey",
+        "title",
+        "kind",
+        "roleKey",
+        "catalogVersionId",
+        "steps"
+      ],
+      "additionalProperties": false
+    },
+    "LocatorV1": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "by": {
+              "const": "testId"
+            },
+            "value": {
+              "$ref": "#/$defs/Key"
+            }
+          },
+          "required": [
+            "by",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "by": {
+              "const": "role"
+            },
+            "role": {
+              "type": "string",
+              "minLength": 1
+            },
+            "name": {
+              "$ref": "#/$defs/SafeString"
+            },
+            "exact": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "by",
+            "role"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "CatalogElementV1": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/Key"
+        },
+        "locator": {
+          "$ref": "#/$defs/LocatorV1"
+        },
+        "scope": {
+          "$ref": "#/$defs/Key"
+        },
+        "recordKey": {
+          "$ref": "#/$defs/SafeString"
+        }
+      },
+      "required": [
+        "key",
+        "locator"
+      ],
+      "additionalProperties": false
+    },
+    "ElementCatalogV1": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "elements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CatalogElementV1"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "elements"
+      ],
+      "additionalProperties": false
+    },
+    "AssertionTemplateV1": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "parameters": {
+          "$ref": "#/$defs/ParameterTypes"
+        },
+        "assertions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AssertionV1"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "assertions"
+      ],
+      "additionalProperties": false
+    },
+    "DataRowV1": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/Key"
+        },
+        "values": {
+          "$ref": "#/$defs/JsonObject"
+        }
+      },
+      "required": [
+        "key",
+        "values"
+      ],
+      "additionalProperties": false
+    },
+    "DatasetV1": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "columns": {
+          "$ref": "#/$defs/ParameterTypes"
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DataRowV1"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "columns",
+        "rows"
+      ],
+      "additionalProperties": false
+    },
+    "FlowV1": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "parameters": {
+          "$ref": "#/$defs/ParameterTypes"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StepV1"
+          },
+          "minItems": 1,
+          "maxItems": 500
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "steps"
+      ],
+      "additionalProperties": false
+    },
+    "FixtureEndpointV1": {
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": [
+            "GET",
+            "POST",
+            "DELETE"
+          ]
+        },
+        "path": {
+          "$ref": "#/$defs/Path"
+        }
+      },
+      "required": [
+        "method",
+        "path"
+      ],
+      "additionalProperties": false
+    },
+    "FixtureV1": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "prepare": {
+          "$ref": "#/$defs/FixtureEndpointV1"
+        },
+        "query": {
+          "type": "object",
+          "properties": {
+            "method": {
+              "const": "GET"
+            },
+            "path": {
+              "$ref": "#/$defs/Path"
+            }
+          },
+          "required": [
+            "method",
+            "path"
+          ],
+          "additionalProperties": false
+        },
+        "cleanup": {
+          "$ref": "#/$defs/FixtureEndpointV1"
+        },
+        "inputSchema": {
+          "$ref": "#/$defs/JsonSchema"
+        },
+        "outputSchema": {
+          "$ref": "#/$defs/JsonSchema"
+        },
+        "ttlSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 604800
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "prepare",
+        "query",
+        "cleanup",
+        "inputSchema",
+        "outputSchema",
+        "ttlSeconds"
+      ],
+      "additionalProperties": false
+    },
+    "SuiteV1": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "cases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "versionId": {
+                "$ref": "#/$defs/Id"
+              },
+              "datasetVersionId": {
+                "$ref": "#/$defs/Id"
+              },
+              "roleKeys": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/Key"
+                },
+                "minItems": 1
+              },
+              "browsers": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/Browser"
+                },
+                "minItems": 1
+              }
+            },
+            "required": [
+              "versionId"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "cases"
+      ],
+      "additionalProperties": false
+    },
+    "EnvironmentRoleV1": {
+      "type": "object",
+      "properties": {
+        "roleKey": {
+          "$ref": "#/$defs/Key"
+        },
+        "authAdapterVersionId": {
+          "$ref": "#/$defs/Id"
+        },
+        "secretRef": {
+          "$ref": "#/$defs/Key"
+        },
+        "secretVersionId": {
+          "$ref": "#/$defs/Id"
+        },
+        "allowedIdentityIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "roleKey",
+        "authAdapterVersionId",
+        "secretRef",
+        "secretVersionId"
+      ],
+      "additionalProperties": false
+    },
+    "EnvironmentV1": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "baseURL": {
+          "$ref": "#/$defs/HttpUrl"
+        },
+        "apiBaseURL": {
+          "$ref": "#/$defs/HttpUrl"
+        },
+        "fixtureBaseURL": {
+          "$ref": "#/$defs/HttpUrl"
+        },
+        "allowedOrigins": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HttpUrl"
+          },
+          "minItems": 1
+        },
+        "locale": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timezone": {
+          "type": "string",
+          "minLength": 1
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EnvironmentRoleV1"
+          },
+          "minItems": 1
+        },
+        "buildSha": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "baseURL",
+        "apiBaseURL",
+        "allowedOrigins",
+        "locale",
+        "timezone",
+        "roles"
+      ],
+      "additionalProperties": false
+    },
+    "ResourceDocumentV1": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "CASE"
+            },
+            "document": {
+              "$ref": "#/$defs/CaseDslV1"
+            }
+          },
+          "required": [
+            "kind",
+            "document"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "ELEMENT_CATALOG"
+            },
+            "document": {
+              "$ref": "#/$defs/ElementCatalogV1"
+            }
+          },
+          "required": [
+            "kind",
+            "document"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "ASSERTION_TEMPLATE"
+            },
+            "document": {
+              "$ref": "#/$defs/AssertionTemplateV1"
+            }
+          },
+          "required": [
+            "kind",
+            "document"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "DATASET"
+            },
+            "document": {
+              "$ref": "#/$defs/DatasetV1"
+            }
+          },
+          "required": [
+            "kind",
+            "document"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "FLOW"
+            },
+            "document": {
+              "$ref": "#/$defs/FlowV1"
+            }
+          },
+          "required": [
+            "kind",
+            "document"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "FIXTURE"
+            },
+            "document": {
+              "$ref": "#/$defs/FixtureV1"
+            }
+          },
+          "required": [
+            "kind",
+            "document"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "SUITE"
+            },
+            "document": {
+              "$ref": "#/$defs/SuiteV1"
+            }
+          },
+          "required": [
+            "kind",
+            "document"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "ENVIRONMENT"
+            },
+            "document": {
+              "$ref": "#/$defs/EnvironmentV1"
+            }
+          },
+          "required": [
+            "kind",
+            "document"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "AssetVersionV1": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "resourceId": {
+              "$ref": "#/$defs/Id"
+            },
+            "versionId": {
+              "$ref": "#/$defs/Id"
+            },
+            "kind": {
+              "const": "CASE"
+            },
+            "sha256": {
+              "$ref": "#/$defs/Sha256"
+            },
+            "document": {
+              "$ref": "#/$defs/CaseDslV1"
+            }
+          },
+          "required": [
+            "resourceId",
+            "versionId",
+            "kind",
+            "sha256",
+            "document"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "resourceId": {
+              "$ref": "#/$defs/Id"
+            },
+            "versionId": {
+              "$ref": "#/$defs/Id"
+            },
+            "kind": {
+              "const": "ELEMENT_CATALOG"
+            },
+            "sha256": {
+              "$ref": "#/$defs/Sha256"
+            },
+            "document": {
+              "$ref": "#/$defs/ElementCatalogV1"
+            }
+          },
+          "required": [
+            "resourceId",
+            "versionId",
+            "kind",
+            "sha256",
+            "document"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "resourceId": {
+              "$ref": "#/$defs/Id"
+            },
+            "versionId": {
+              "$ref": "#/$defs/Id"
+            },
+            "kind": {
+              "const": "ASSERTION_TEMPLATE"
+            },
+            "sha256": {
+              "$ref": "#/$defs/Sha256"
+            },
+            "document": {
+              "$ref": "#/$defs/AssertionTemplateV1"
+            }
+          },
+          "required": [
+            "resourceId",
+            "versionId",
+            "kind",
+            "sha256",
+            "document"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "resourceId": {
+              "$ref": "#/$defs/Id"
+            },
+            "versionId": {
+              "$ref": "#/$defs/Id"
+            },
+            "kind": {
+              "const": "DATASET"
+            },
+            "sha256": {
+              "$ref": "#/$defs/Sha256"
+            },
+            "document": {
+              "$ref": "#/$defs/DatasetV1"
+            }
+          },
+          "required": [
+            "resourceId",
+            "versionId",
+            "kind",
+            "sha256",
+            "document"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "resourceId": {
+              "$ref": "#/$defs/Id"
+            },
+            "versionId": {
+              "$ref": "#/$defs/Id"
+            },
+            "kind": {
+              "const": "FLOW"
+            },
+            "sha256": {
+              "$ref": "#/$defs/Sha256"
+            },
+            "document": {
+              "$ref": "#/$defs/FlowV1"
+            }
+          },
+          "required": [
+            "resourceId",
+            "versionId",
+            "kind",
+            "sha256",
+            "document"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "resourceId": {
+              "$ref": "#/$defs/Id"
+            },
+            "versionId": {
+              "$ref": "#/$defs/Id"
+            },
+            "kind": {
+              "const": "FIXTURE"
+            },
+            "sha256": {
+              "$ref": "#/$defs/Sha256"
+            },
+            "document": {
+              "$ref": "#/$defs/FixtureV1"
+            }
+          },
+          "required": [
+            "resourceId",
+            "versionId",
+            "kind",
+            "sha256",
+            "document"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "resourceId": {
+              "$ref": "#/$defs/Id"
+            },
+            "versionId": {
+              "$ref": "#/$defs/Id"
+            },
+            "kind": {
+              "const": "SUITE"
+            },
+            "sha256": {
+              "$ref": "#/$defs/Sha256"
+            },
+            "document": {
+              "$ref": "#/$defs/SuiteV1"
+            }
+          },
+          "required": [
+            "resourceId",
+            "versionId",
+            "kind",
+            "sha256",
+            "document"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "resourceId": {
+              "$ref": "#/$defs/Id"
+            },
+            "versionId": {
+              "$ref": "#/$defs/Id"
+            },
+            "kind": {
+              "const": "ENVIRONMENT"
+            },
+            "sha256": {
+              "$ref": "#/$defs/Sha256"
+            },
+            "document": {
+              "$ref": "#/$defs/EnvironmentV1"
+            }
+          },
+          "required": [
+            "resourceId",
+            "versionId",
+            "kind",
+            "sha256",
+            "document"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "AssetSnapshotV1": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/Id"
+        },
+        "sourceHash": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "engineVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "entryCaseVersionIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Id"
+          },
+          "minItems": 1
+        },
+        "assets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AssetVersionV1"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "workspaceId",
+        "sourceHash",
+        "engineVersion",
+        "entryCaseVersionIds",
+        "assets"
+      ],
+      "additionalProperties": false
+    },
+    "SnapshotV1": {
+      "$ref": "#/$defs/AssetSnapshotV1"
+    },
+    "ExecutionSnapshotV1": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/Id"
+        },
+        "runId": {
+          "$ref": "#/$defs/Id"
+        },
+        "caseExecutionId": {
+          "$ref": "#/$defs/Id"
+        },
+        "assetSourceHash": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "environmentVersionId": {
+          "$ref": "#/$defs/Id"
+        },
+        "environment": {
+          "$ref": "#/$defs/EnvironmentV1"
+        },
+        "roleKey": {
+          "$ref": "#/$defs/Key"
+        },
+        "browser": {
+          "$ref": "#/$defs/Browser"
+        },
+        "dataRow": {
+          "$ref": "#/$defs/DataRowV1"
+        },
+        "variables": {
+          "$ref": "#/$defs/JsonObject"
+        },
+        "secretVersions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "secretRef": {
+                "$ref": "#/$defs/Key"
+              },
+              "versionId": {
+                "$ref": "#/$defs/Id"
+              }
+            },
+            "required": [
+              "secretRef",
+              "versionId"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 0
+        },
+        "namespace": {
+          "$ref": "#/$defs/Key"
+        },
+        "attemptNo": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "workspaceId",
+        "runId",
+        "caseExecutionId",
+        "assetSourceHash",
+        "environmentVersionId",
+        "environment",
+        "roleKey",
+        "browser",
+        "variables",
+        "secretVersions",
+        "namespace",
+        "attemptNo"
+      ],
+      "additionalProperties": false
+    },
+    "CompiledAssetBundle": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "sourceHash": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "engineVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "compilerVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "runnerSdkVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "entrypoints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FilePath"
+          },
+          "minItems": 1
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FileEntry"
+          },
+          "minItems": 1
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DependencyVersion"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "sourceHash",
+        "engineVersion",
+        "compilerVersion",
+        "runnerSdkVersion",
+        "entrypoints",
+        "files",
+        "dependencies"
+      ],
+      "additionalProperties": false
+    },
+    "RuntimeCapabilitiesV1": {
+      "type": "object",
+      "properties": {
+        "engineVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "os": {
+          "type": "string",
+          "enum": [
+            "linux",
+            "win32"
+          ]
+        },
+        "arch": {
+          "const": "x64"
+        },
+        "browsers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Browser"
+          },
+          "minItems": 0
+        },
+        "jobKinds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "TEST",
+              "VALIDATE",
+              "CLEANUP"
+            ]
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "engineVersion",
+        "os",
+        "arch",
+        "browsers"
+      ],
+      "additionalProperties": false
+    },
+    "ClaimRequest": {
+      "type": "object",
+      "properties": {
+        "runnerId": {
+          "$ref": "#/$defs/Id"
+        },
+        "clientRequestId": {
+          "$ref": "#/$defs/Id"
+        },
+        "availableSlots": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "capabilities": {
+          "$ref": "#/$defs/RuntimeCapabilitiesV1"
+        }
+      },
+      "required": [
+        "runnerId",
+        "clientRequestId",
+        "availableSlots",
+        "capabilities"
+      ],
+      "additionalProperties": false
+    },
+    "ClaimDTO": {
+      "type": "object",
+      "properties": {
+        "jobId": {
+          "$ref": "#/$defs/Id"
+        },
+        "jobKind": {
+          "type": "string",
+          "enum": [
+            "TEST",
+            "VALIDATE",
+            "CLEANUP"
+          ]
+        },
+        "attemptId": {
+          "$ref": "#/$defs/Id"
+        },
+        "leaseToken": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fencingToken": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "snapshotUrl": {
+          "$ref": "#/$defs/HttpUrl"
+        },
+        "snapshotSha256": {
+          "$ref": "#/$defs/Sha256"
+        }
+      },
+      "required": [
+        "jobId",
+        "jobKind",
+        "attemptId",
+        "leaseToken",
+        "fencingToken",
+        "expiresAt",
+        "snapshotUrl",
+        "snapshotSha256"
+      ],
+      "additionalProperties": false
+    },
+    "TestJobManifestV1": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/Id"
+        },
+        "jobId": {
+          "$ref": "#/$defs/Id"
+        },
+        "snapshotSha256": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "engineVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "kind": {
+          "const": "TEST"
+        },
+        "caseExecutionId": {
+          "$ref": "#/$defs/Id"
+        },
+        "compiledBundleSha256": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "executionSnapshotSha256": {
+          "$ref": "#/$defs/Sha256"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "workspaceId",
+        "jobId",
+        "snapshotSha256",
+        "engineVersion",
+        "kind",
+        "caseExecutionId",
+        "compiledBundleSha256",
+        "executionSnapshotSha256"
+      ],
+      "additionalProperties": false
+    },
+    "ValidateJobManifestV1": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/Id"
+        },
+        "jobId": {
+          "$ref": "#/$defs/Id"
+        },
+        "snapshotSha256": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "engineVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "kind": {
+          "const": "VALIDATE"
+        },
+        "resourceId": {
+          "$ref": "#/$defs/Id"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "sourceHash": {
+          "$ref": "#/$defs/Sha256"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "workspaceId",
+        "jobId",
+        "snapshotSha256",
+        "engineVersion",
+        "kind",
+        "resourceId",
+        "revision",
+        "sourceHash"
+      ],
+      "additionalProperties": false
+    },
+    "CleanupJobManifestV1": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/Id"
+        },
+        "jobId": {
+          "$ref": "#/$defs/Id"
+        },
+        "snapshotSha256": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "engineVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "kind": {
+          "const": "CLEANUP"
+        },
+        "maintenanceId": {
+          "$ref": "#/$defs/Id"
+        },
+        "fixtureVersionId": {
+          "$ref": "#/$defs/Id"
+        },
+        "namespace": {
+          "$ref": "#/$defs/Key"
+        },
+        "cleanupRef": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "workspaceId",
+        "jobId",
+        "snapshotSha256",
+        "engineVersion",
+        "kind",
+        "maintenanceId",
+        "fixtureVersionId",
+        "namespace",
+        "cleanupRef"
+      ],
+      "additionalProperties": false
+    },
+    "JobManifestV1": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TestJobManifestV1"
+        },
+        {
+          "$ref": "#/$defs/ValidateJobManifestV1"
+        },
+        {
+          "$ref": "#/$defs/CleanupJobManifestV1"
+        }
+      ]
+    },
+    "ExecutionEventV1": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "1.0"
+            },
+            "attemptId": {
+              "$ref": "#/$defs/Id"
+            },
+            "sequence": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "timestamp": {
+              "$ref": "#/$defs/Timestamp"
+            },
+            "stepId": {
+              "$ref": "#/$defs/Key"
+            },
+            "assertionId": {
+              "$ref": "#/$defs/Key"
+            },
+            "type": {
+              "const": "ATTEMPT_STARTED"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "engineVersion": {
+                  "$ref": "#/$defs/Version"
+                },
+                "sourceHash": {
+                  "$ref": "#/$defs/Sha256"
+                }
+              },
+              "required": [
+                "engineVersion",
+                "sourceHash"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "attemptId",
+            "sequence",
+            "type",
+            "timestamp",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "1.0"
+            },
+            "attemptId": {
+              "$ref": "#/$defs/Id"
+            },
+            "sequence": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "timestamp": {
+              "$ref": "#/$defs/Timestamp"
+            },
+            "stepId": {
+              "$ref": "#/$defs/Key"
+            },
+            "assertionId": {
+              "$ref": "#/$defs/Key"
+            },
+            "type": {
+              "const": "PHASE_CHANGED"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "phase": {
+                  "type": "string",
+                  "enum": [
+                    "LEASED",
+                    "PREPARING",
+                    "RUNNING",
+                    "CLEANING",
+                    "FINALIZING",
+                    "FINISHED"
+                  ]
+                }
+              },
+              "required": [
+                "phase"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "attemptId",
+            "sequence",
+            "type",
+            "timestamp",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "1.0"
+            },
+            "attemptId": {
+              "$ref": "#/$defs/Id"
+            },
+            "sequence": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "timestamp": {
+              "$ref": "#/$defs/Timestamp"
+            },
+            "stepId": {
+              "$ref": "#/$defs/Key"
+            },
+            "assertionId": {
+              "$ref": "#/$defs/Key"
+            },
+            "type": {
+              "const": "STEP_STARTED"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {},
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "attemptId",
+            "sequence",
+            "type",
+            "timestamp",
+            "payload",
+            "stepId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "1.0"
+            },
+            "attemptId": {
+              "$ref": "#/$defs/Id"
+            },
+            "sequence": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "timestamp": {
+              "$ref": "#/$defs/Timestamp"
+            },
+            "stepId": {
+              "$ref": "#/$defs/Key"
+            },
+            "assertionId": {
+              "$ref": "#/$defs/Key"
+            },
+            "type": {
+              "const": "STEP_FINISHED"
+            },
+            "payload": {
+              "$ref": "#/$defs/StepFinishedPayloadV1"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "attemptId",
+            "sequence",
+            "type",
+            "timestamp",
+            "payload",
+            "stepId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "1.0"
+            },
+            "attemptId": {
+              "$ref": "#/$defs/Id"
+            },
+            "sequence": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "timestamp": {
+              "$ref": "#/$defs/Timestamp"
+            },
+            "stepId": {
+              "$ref": "#/$defs/Key"
+            },
+            "assertionId": {
+              "$ref": "#/$defs/Key"
+            },
+            "type": {
+              "const": "ASSERTION_RESULT"
+            },
+            "payload": {
+              "$ref": "#/$defs/AssertionResultPayloadV1"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "attemptId",
+            "sequence",
+            "type",
+            "timestamp",
+            "payload",
+            "stepId",
+            "assertionId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "1.0"
+            },
+            "attemptId": {
+              "$ref": "#/$defs/Id"
+            },
+            "sequence": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "timestamp": {
+              "$ref": "#/$defs/Timestamp"
+            },
+            "stepId": {
+              "$ref": "#/$defs/Key"
+            },
+            "assertionId": {
+              "$ref": "#/$defs/Key"
+            },
+            "type": {
+              "const": "OBSERVER_RESULT"
+            },
+            "payload": {
+              "$ref": "#/$defs/ObserverResultPayloadV1"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "attemptId",
+            "sequence",
+            "type",
+            "timestamp",
+            "payload",
+            "stepId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "1.0"
+            },
+            "attemptId": {
+              "$ref": "#/$defs/Id"
+            },
+            "sequence": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "timestamp": {
+              "$ref": "#/$defs/Timestamp"
+            },
+            "stepId": {
+              "$ref": "#/$defs/Key"
+            },
+            "assertionId": {
+              "$ref": "#/$defs/Key"
+            },
+            "type": {
+              "const": "VARIABLE_EXTRACTED"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "$ref": "#/$defs/Key"
+                },
+                "valueType": {
+                  "$ref": "#/$defs/ValueType"
+                }
+              },
+              "required": [
+                "name",
+                "valueType"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "attemptId",
+            "sequence",
+            "type",
+            "timestamp",
+            "payload",
+            "stepId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "1.0"
+            },
+            "attemptId": {
+              "$ref": "#/$defs/Id"
+            },
+            "sequence": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "timestamp": {
+              "$ref": "#/$defs/Timestamp"
+            },
+            "stepId": {
+              "$ref": "#/$defs/Key"
+            },
+            "assertionId": {
+              "$ref": "#/$defs/Key"
+            },
+            "type": {
+              "const": "LOG"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "level": {
+                  "type": "string",
+                  "enum": [
+                    "DEBUG",
+                    "INFO",
+                    "WARN",
+                    "ERROR"
+                  ]
+                },
+                "message": {
+                  "$ref": "#/$defs/DiagnosticText"
+                }
+              },
+              "required": [
+                "level",
+                "message"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "attemptId",
+            "sequence",
+            "type",
+            "timestamp",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "1.0"
+            },
+            "attemptId": {
+              "$ref": "#/$defs/Id"
+            },
+            "sequence": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "timestamp": {
+              "$ref": "#/$defs/Timestamp"
+            },
+            "stepId": {
+              "$ref": "#/$defs/Key"
+            },
+            "assertionId": {
+              "$ref": "#/$defs/Key"
+            },
+            "type": {
+              "const": "CLEANUP_RESULT"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "cleanupStatus": {
+                  "$ref": "#/$defs/CleanupStatus"
+                },
+                "errorCode": {
+                  "$ref": "#/$defs/Key"
+                }
+              },
+              "required": [
+                "cleanupStatus"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "attemptId",
+            "sequence",
+            "type",
+            "timestamp",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "1.0"
+            },
+            "attemptId": {
+              "$ref": "#/$defs/Id"
+            },
+            "sequence": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "timestamp": {
+              "$ref": "#/$defs/Timestamp"
+            },
+            "stepId": {
+              "$ref": "#/$defs/Key"
+            },
+            "assertionId": {
+              "$ref": "#/$defs/Key"
+            },
+            "type": {
+              "const": "ARTIFACT_CREATED"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "artifactId": {
+                  "$ref": "#/$defs/Id"
+                },
+                "file": {
+                  "$ref": "#/$defs/FileEntry"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "SCREENSHOT",
+                    "TRACE",
+                    "HTML",
+                    "JUNIT",
+                    "LOG",
+                    "SOURCE",
+                    "MANIFEST"
+                  ]
+                }
+              },
+              "required": [
+                "artifactId",
+                "file",
+                "kind"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "attemptId",
+            "sequence",
+            "type",
+            "timestamp",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "1.0"
+            },
+            "attemptId": {
+              "$ref": "#/$defs/Id"
+            },
+            "sequence": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "timestamp": {
+              "$ref": "#/$defs/Timestamp"
+            },
+            "stepId": {
+              "$ref": "#/$defs/Key"
+            },
+            "assertionId": {
+              "$ref": "#/$defs/Key"
+            },
+            "type": {
+              "const": "ATTEMPT_FINISHED"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "outcome": {
+                  "$ref": "#/$defs/AttemptOutcome"
+                },
+                "cleanupStatus": {
+                  "$ref": "#/$defs/CleanupStatus"
+                }
+              },
+              "required": [
+                "outcome",
+                "cleanupStatus"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "attemptId",
+            "sequence",
+            "type",
+            "timestamp",
+            "payload"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "BundleManifestV1": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "bundleId": {
+          "$ref": "#/$defs/Id"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/Id"
+        },
+        "issuerId": {
+          "$ref": "#/$defs/Key"
+        },
+        "keyId": {
+          "$ref": "#/$defs/Key"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "sourceHash": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "snapshotSha256": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "engineVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "validationStatus": {
+          "type": "string",
+          "enum": [
+            "VALIDATED",
+            "UNVALIDATED_DEBUG"
+          ]
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FileEntry"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "bundleId",
+        "workspaceId",
+        "issuerId",
+        "keyId",
+        "createdAt",
+        "expiresAt",
+        "sourceHash",
+        "snapshotSha256",
+        "engineVersion",
+        "validationStatus",
+        "files"
+      ],
+      "additionalProperties": false
+    },
+    "OfflineAttemptV1": {
+      "type": "object",
+      "properties": {
+        "attemptId": {
+          "$ref": "#/$defs/Id"
+        },
+        "caseVersionId": {
+          "$ref": "#/$defs/Id"
+        },
+        "attemptNo": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2
+        },
+        "outcome": {
+          "$ref": "#/$defs/AttemptOutcome"
+        },
+        "cleanupStatus": {
+          "$ref": "#/$defs/CleanupStatus"
+        },
+        "lastSequence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ExecutionEventV1"
+          },
+          "minItems": 0
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FileEntry"
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "attemptId",
+        "caseVersionId",
+        "attemptNo",
+        "outcome",
+        "cleanupStatus",
+        "lastSequence",
+        "events",
+        "artifacts"
+      ],
+      "additionalProperties": false
+    },
+    "OfflineResultV1": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/Id"
+        },
+        "bundleId": {
+          "$ref": "#/$defs/Id"
+        },
+        "localRunId": {
+          "$ref": "#/$defs/Id"
+        },
+        "deviceId": {
+          "$ref": "#/$defs/Id"
+        },
+        "source": {
+          "const": "OFFLINE_IMPORT"
+        },
+        "trustStatus": {
+          "$ref": "#/$defs/TrustStatus"
+        },
+        "dirty": {
+          "type": "boolean"
+        },
+        "revocationStatus": {
+          "type": "string",
+          "enum": [
+            "CURRENT",
+            "UNKNOWN",
+            "REVOKED"
+          ]
+        },
+        "manifestSha256": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "startedAt": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "finishedAt": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "outcome": {
+          "$ref": "#/$defs/Outcome"
+        },
+        "actualEnvironment": {
+          "$ref": "#/$defs/EnvironmentV1"
+        },
+        "attempts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OfflineAttemptV1"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "workspaceId",
+        "bundleId",
+        "localRunId",
+        "deviceId",
+        "source",
+        "trustStatus",
+        "dirty",
+        "revocationStatus",
+        "manifestSha256",
+        "startedAt",
+        "finishedAt",
+        "outcome",
+        "actualEnvironment",
+        "attempts"
+      ],
+      "additionalProperties": false
+    },
+    "ValidationIssue": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string",
+          "enum": [
+            "SCHEMA_VIOLATION",
+            "INVALID_JSON"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "path",
+        "code",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "HeartbeatRequest": {
+      "type": "object",
+      "properties": {
+        "leaseToken": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fencingToken": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "progress": {
+          "type": "object",
+          "properties": {
+            "phase": {
+              "type": "string",
+              "enum": [
+                "LEASED",
+                "PREPARING",
+                "RUNNING",
+                "CLEANING",
+                "FINALIZING"
+              ]
+            },
+            "stepId": {
+              "$ref": "#/$defs/Key"
+            },
+            "completedSteps": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 500
+            }
+          },
+          "required": [
+            "phase"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "leaseToken",
+        "fencingToken",
+        "progress"
+      ],
+      "additionalProperties": false
+    },
+    "HeartbeatDTO": {
+      "type": "object",
+      "properties": {
+        "leaseExpiresAt": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "cancelRequested": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "leaseExpiresAt",
+        "cancelRequested"
+      ],
+      "additionalProperties": false
+    },
+    "EventBatchRequest": {
+      "type": "object",
+      "properties": {
+        "leaseToken": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fencingToken": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ExecutionEventV1"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "leaseToken",
+        "fencingToken",
+        "events"
+      ],
+      "additionalProperties": false
+    },
+    "EventBatchDTO": {
+      "type": "object",
+      "properties": {
+        "acceptedThrough": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "acceptedThrough"
+      ],
+      "additionalProperties": false
+    },
+    "FinishRequest": {
+      "type": "object",
+      "properties": {
+        "leaseToken": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fencingToken": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "TEST",
+            "VALIDATE",
+            "CLEANUP"
+          ]
+        },
+        "outcome": {
+          "$ref": "#/$defs/AttemptOutcome"
+        },
+        "manifestSha256": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "lastSequence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "cleanupStatus": {
+          "$ref": "#/$defs/CleanupStatus"
+        }
+      },
+      "required": [
+        "leaseToken",
+        "fencingToken",
+        "kind",
+        "outcome",
+        "manifestSha256",
+        "lastSequence",
+        "cleanupStatus"
+      ],
+      "additionalProperties": false
+    },
+    "FinishDTO": {
+      "type": "object",
+      "properties": {
+        "attemptId": {
+          "$ref": "#/$defs/Id"
+        },
+        "accepted": {
+          "const": true
+        },
+        "outcome": {
+          "$ref": "#/$defs/AttemptOutcome"
+        },
+        "manifestSha256": {
+          "$ref": "#/$defs/Sha256"
+        }
+      },
+      "required": [
+        "attemptId",
+        "accepted",
+        "outcome",
+        "manifestSha256"
+      ],
+      "additionalProperties": false
+    },
+    "DurationMs": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "ActualValueV1": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "present": {
+              "const": false
+            }
+          },
+          "required": [
+            "present"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "present": {
+              "const": true
+            },
+            "value": {
+              "$ref": "#/$defs/JsonValue"
+            }
+          },
+          "required": [
+            "present",
+            "value"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "StepFinishedPayloadV1": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "PASSED",
+            "FAILED",
+            "ERROR",
+            "SKIPPED"
+          ]
+        },
+        "durationMs": {
+          "$ref": "#/$defs/DurationMs"
+        },
+        "errorCode": {
+          "$ref": "#/$defs/Key"
+        },
+        "message": {
+          "$ref": "#/$defs/DiagnosticText"
+        }
+      },
+      "required": [
+        "status",
+        "durationMs"
+      ],
+      "additionalProperties": false
+    },
+    "AssertionResultPayloadV1": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "PASSED",
+            "FAILED",
+            "WARN",
+            "SKIPPED"
+          ]
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "BLOCK",
+            "CONTINUE_FAIL",
+            "WARN"
+          ]
+        },
+        "expectedSource": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expected": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "actual": {
+          "$ref": "#/$defs/ActualValueV1"
+        },
+        "durationMs": {
+          "$ref": "#/$defs/DurationMs"
+        },
+        "errorCode": {
+          "$ref": "#/$defs/Key"
+        }
+      },
+      "required": [
+        "status",
+        "severity",
+        "expectedSource",
+        "expected",
+        "actual",
+        "durationMs"
+      ],
+      "additionalProperties": false
+    },
+    "ObserverResultPayloadV1": {
+      "type": "object",
+      "properties": {
+        "observerId": {
+          "$ref": "#/$defs/Key"
+        },
+        "matchedCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "windowMode": {
+          "type": "string",
+          "enum": [
+            "FIXED",
+            "UNTIL_ACTION_SETTLED"
+          ]
+        },
+        "durationMs": {
+          "$ref": "#/$defs/DurationMs"
+        },
+        "ambiguous": {
+          "type": "boolean"
+        },
+        "requests": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "requestId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "method": {
+                "$ref": "#/$defs/HttpMethod"
+              },
+              "path": {
+                "$ref": "#/$defs/Path"
+              },
+              "status": {
+                "type": "integer",
+                "minimum": 100,
+                "maximum": 599
+              }
+            },
+            "required": [
+              "requestId",
+              "method",
+              "path"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "observerId",
+        "matchedCount",
+        "windowMode",
+        "durationMs",
+        "ambiguous",
+        "requests"
+      ],
+      "additionalProperties": false
+    },
+    "Timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?!0000)[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])[Tt](?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]+)?(?:[Zz]|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$(?![\\s\\S])",
+      "description": "Supported RFC3339 profile: real Gregorian date, year 0001-9999, T/t separator, seconds 00-59, optional fractional seconds, mandatory Z/z or numeric offset (00-23:00-59). No leap seconds, spaces or surrounding whitespace. Emit UTC uppercase T/Z for server timestamps."
+    },
+    "BindingJsonValue": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "$ref": "#/$defs/SafeString"
+        },
+        {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "number",
+          "not": {
+            "type": "integer"
+          }
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BindingJsonValue"
+          },
+          "minItems": 0
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/BindingJsonValue"
+          }
+        }
+      ],
+      "description": "JSON used only in interpolated DSL fields, recursively restricted to SafeString bindings."
+    },
+    "BindingJsonObject": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/BindingJsonValue"
+      }
+    },
+    "DiagnosticText": {
+      "type": "string",
+      "description": "Literal diagnostic/evidence text; retain invalid expressions verbatim and never evaluate or interpolate it."
+    }
+  }
+}

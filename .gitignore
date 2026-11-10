@@ -205,6 +205,14 @@ cython_debug/
 # Temporary file for partial code execution
 tempCodeRunnerFile.py
 
+# Node workspaces and generated local execution state
+node_modules/
+.pnpm-store/
+*.tsbuildinfo
+/output/
+/work/
+/.superpowers/cache/
+
 # Ruff stuff:
 .ruff_cache/
 

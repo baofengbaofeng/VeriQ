@@ -42,6 +42,8 @@ T01建立pnpm check、pnpm verify、pnpm e2e -- <spec>、pnpm acceptance、pnpm 
 
 **依赖：** 无
 
+**状态：** 已完成并通过独立规格/质量审查（`23b5282`、`188c856`）；仅代表工程基线与公共契约。
+
 **Files（拟创建/修改）：**
 
 - `apps/srv/pyproject.toml`
@@ -54,7 +56,7 @@ T01建立pnpm check、pnpm verify、pnpm e2e -- <spec>、pnpm acceptance、pnpm 
 
 **Interfaces：** validate_case_schema(input: Any) -> list[ValidationIssue]；生成CaseDslV1、SnapshotV1、JobManifestV1等TS类型。
 
-- [ ] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
+- [x] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```python
 assert validate_case_schema(valid_case) == []
@@ -62,10 +64,10 @@ assert validate_case_schema(unknown_action_case)
 assert python_validation_results == node_validation_results
 ```
 
-- [ ] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/contracts -q`；失败必须来自缺失行为，而非测试环境拼写错误。
-- [ ] **Step 3：实现上述接口与文件。** 相同至少20个正反样本结果一致；无浮动latest依赖；选定原生入口技术和许可证；候选不伪称已批准。
-- [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
-- [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t01 工程基线、依赖ADR与公共契约`。有新决策先更新ADR，不扩展到下一任务。
+- [x] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/contracts -q`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [x] **Step 3：实现上述接口与文件。** 相同至少20个正反样本结果一致；无浮动latest依赖；选定原生入口技术和许可证；候选不伪称已批准。
+- [x] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
+- [x] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t01 工程基线、依赖ADR与公共契约`。有新决策先更新ADR，不扩展到下一任务。
 
 ## T02：自有账号、初始化与会话
 

@@ -1,0 +1,17 @@
+{
+  "name": "@veriq/ui",
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "@radix-ui/react-dialog": "1.3.1",
+    "class-variance-authority": "0.7.1"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7"
+  },
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-only"
+}

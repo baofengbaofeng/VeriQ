@@ -2,7 +2,7 @@
 
 面向企业 PC Web 系统的自动化冒烟与回归平台，以版本化测试资产和确定性 Playwright TypeScript 执行为核心，连接云端 Runtime、本地桌面客户端与离线执行。
 
-**当前状态：开发中 / 尚未发布。** 当前仓库处于需求与实施规划阶段，产品代码、安装包和发布验收尚未完成。本文中的功能、目录、技术栈与交付方式描述的是 1.0 目标，不代表已经可用；目前没有可供使用的安装命令或正式下载。
+**当前状态：开发中 / 尚未发布。** 仓库已加入工程基线、JSON Schema/OpenAPI 公共契约与跨语言检查；业务模块、安装包和完整发布验收仍在实施。下述功能描述的是 1.0 目标，不代表完整产品已经可用；目前没有正式安装包或下载。
 
 ## 为什么做 VeriQ
 
@@ -68,13 +68,13 @@ flowchart TB
 
 ## 技术基线
 
-以下是规格中的目标基线，精确补丁版本、依赖许可及打包工具将在 ADR 与锁文件中冻结，尚不表示依赖已安装或兼容性已验证。
+工程基线的精确依赖版本与许可记录见 [ADR 0003](docs/decisions/0003-engineering-baseline.md)、仓库锁文件和 [第三方声明](THIRD_PARTY_NOTICES.md)。已完成的契约检查不替代后续业务、浏览器与各目标 OS 的发布验收。
 
 | 层次 | 目标技术 |
 | --- | --- |
 | 控制服务 | Python 3.12、Tornado 6.6.1 系列、SQLAlchemy 2.0、Alembic、asyncmy |
 | 数据库 | MySQL 8.4 LTS |
-| Web | React 18、TypeScript、Vite 6、Tailwind 3、ESM、react-router-dom 6、TanStack Query 5、Radix/CVA、i18next |
+| Web | React 18、TypeScript、Vite 6、Tailwind 3、ESM、react-router-dom 7.18.5、TanStack Query 5、Radix/CVA、i18next |
 | 执行 | 独立 Node24 LTS、Playwright Test、共享编译器与 Runner SDK |
 | 桌面 | Electron + React、main/preload/renderer 分层、白名单类型化 IPC |
 | 契约 | JSON Schema、OpenAPI、Pydantic 2、jsonschema、Ajv |
@@ -83,6 +83,20 @@ flowchart TB
 | 构建与测试 | pnpm、uv、build、Hatchling、pytest/pytest-asyncio、Vitest、Playwright |
 
 目标兼容范围为服务端 Linux x64、本地 Runtime/桌面 Windows 11 x64 与 Ubuntu 24.04 x64；这些平台须分别完成真实构建与验收后才宣称支持。
+
+## 开发检查
+
+使用 Python 3.12.14、uv 0.13.5、Node 24.22.1 与 pnpm 11.25.0，在仓库根目录执行：
+
+```sh
+uv sync --project apps/srv --frozen --all-groups
+pnpm install --frozen-lockfile
+uv run --project apps/srv pytest -c apps/srv/pyproject.toml apps/srv/tests/contracts -q
+pnpm test
+pnpm check
+```
+
+当前 `pnpm test` 执行公共契约测试，`pnpm check` 检查契约 TypeScript 与生成文件是否同步；完整平台验收入口仍待后续任务交付。这些命令用于开发检查，不是启动完整产品的安装命令。公共接口、工具配置与更多检查命令见[契约说明](docs/contracts.md)。
 
 ## 规划中的仓库结构
 
@@ -134,7 +148,7 @@ veriq/
 
 请先阅读[1.0 需求与技术规格](docs/specs/veriq-1.0.md)、[桌面 GUI 规格](docs/specs/desktop.md)和[实施计划](docs/plans/veriq-1.0.md)。桌面规格覆盖早期仅 CLI 或薄原生启动器的过时候选。影响范围、契约或技术基线的新决策应先同步规格与 ADR，再进入实现。
 
-贡献应包含可审阅的行为说明、相应测试与实际验证结果，并同步受影响的 Schema、OpenAPI、客户端和文档。不要以空接口、假数据页面、TODO 或默认跳过测试代替模块交付；未运行的验证须如实说明。当前尚无可执行的工程检查入口，实施计划中的命令均为待建设目标。
+贡献应包含可审阅的行为说明、相应测试与实际验证结果，并同步受影响的 Schema、OpenAPI、客户端和文档。不要以空接口、假数据页面、TODO 或默认跳过测试代替模块交付；未运行的验证须如实说明。已交付的检查入口见上文，实施计划中的其他命令须由对应任务实现并实际验证。
 
 规划中的质量门禁包括 Python/TypeScript 单测、跨语言契约样本、真实 MySQL 集成、Web/桌面 E2E、权限与故障恢复、离线与幂等回传、wheel 干净安装及各目标 OS 原生发行验收。Python 可执行代码与 TS 核心包行覆盖率目标分别不低于 75%；关键状态、权限和错误恢复仍须独立测试。构建默认完整测试，缺 MySQL/浏览器条件不得自动跳过；证据须绑定同一提交、锁文件与静态资源清单。全部 F01–F14 及桌面验收通过后，才标记 1.0 完成。
 

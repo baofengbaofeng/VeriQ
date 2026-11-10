@@ -1,0 +1,15 @@
+{
+  "name": "@veriq/compiler",
+  "dependencies": {
+    "@veriq/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "@types/node": "24.10.1",
+    "vitest": "4.1.12"
+  },
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-only"
+}
