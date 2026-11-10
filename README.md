@@ -1,12 +1,12 @@
-# Veriq
+# VeriQ
 
 面向企业 PC Web 系统的自动化冒烟与回归平台，以版本化测试资产和确定性 Playwright TypeScript 执行为核心，连接云端 Runtime、本地桌面客户端与离线执行。
 
 **当前状态：开发中 / 尚未发布。** 当前仓库处于需求与实施规划阶段，产品代码、安装包和发布验收尚未完成。本文中的功能、目录、技术栈与交付方式描述的是 1.0 目标，不代表已经可用；目前没有可供使用的安装命令或正式下载。
 
-## 为什么做 Veriq
+## 为什么做 VeriQ
 
-Veriq 希望让团队把页面元素、步骤、业务断言、数据和环境组织成可审阅、可发布、可复现的测试资产。运行时冻结版本与环境快照，由固定版本的 Playwright Test 执行，并保留步骤结果、请求关联、截图与 Trace。
+VeriQ 希望让团队把页面元素、步骤、业务断言、数据和环境组织成可审阅、可发布、可复现的测试资产。运行时冻结版本与环境快照，由固定版本的 Playwright Test 执行，并保留步骤结果、请求关联、截图与 Trace。
 
 AI 是可选辅助：用于生成结构化草稿、边界建议与失败分析，输出须经过校验和人工审核。常规执行不调用模型；未配置 Provider 时，确定性执行仍应完整可用。实际模型调用需要用户配置有效的 Provider 与凭证。
 
@@ -72,7 +72,7 @@ flowchart TB
 
 | 层次 | 目标技术 |
 | --- | --- |
-| 控制服务 | Python 3.12、Tornado 6.4 系列、SQLAlchemy 2.0、Alembic、asyncmy |
+| 控制服务 | Python 3.12、Tornado 6.6.1 系列、SQLAlchemy 2.0、Alembic、asyncmy |
 | 数据库 | MySQL 8.4 LTS |
 | Web | React 18、TypeScript、Vite 6、Tailwind 3、ESM、react-router-dom 6、TanStack Query 5、Radix/CVA、i18next |
 | 执行 | 独立 Node24 LTS、Playwright Test、共享编译器与 Runner SDK |
@@ -125,7 +125,7 @@ veriq/
 
 ## Workspace 与命名规则
 
-- 产品名称为 **Veriq**，技术标识为 `veriq`，Node 包使用 `@veriq/` 命名空间，Python 服务包使用 `veriq_server`。
+- 产品名称为 **VeriQ**，技术标识为 `veriq`，Node 包使用 `@veriq/` 命名空间，Python 服务包使用 `veriq_server`。
 - 一项目一 Workspace，用户可加入多个 Workspace；资源、证据、导出/导入及 Runtime 派单均须执行服务端空间归属与成员授权。
 - 所有平台物理表使用 `veriq_` 前缀，包含迁移版本表 `veriq_alembic_version`。
 - 桌面入口为 `veriq`，后台进程为 `veriq_agent`，执行进程为 `veriq_runner`；CLI 可使用 `veriq_cli` 并保留兼容入口策略。须在目标 OS 验收真实进程名，不能只改窗口标题或日志。

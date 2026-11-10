@@ -1,4 +1,4 @@
-# Veriq contributor and coding-agent instructions
+# VeriQ contributor and coding-agent instructions
 
 ## Authority
 - Read README.md, docs/specs/veriq-1.0.md, docs/specs/desktop.md and the current task brief before coding.
@@ -6,8 +6,9 @@
 - Existing LICENSE is AGPL-3.0; do not replace it.
 
 ## Product constraints
+- Human-readable project name is VeriQ in comments, docs, specs/plans, API/GUI titles and generated documentation; keep lower-case technical identifiers.
 - Full first-release scope F01-F14, including an Electron desktop GUI; a partial loop is not the MVP.
-- Python3.12/Tornado6.4/SQLAlchemy2/MySQL8.4; React18/Vite6/Tailwind3; Node24/TypeScript/Playwright execution.
+- Python3.12/Tornado 6.6.1/SQLAlchemy2/MySQL8.4; React18/Vite6/Tailwind3; Node24/TypeScript/Playwright execution.
 - Workspace is the resource/authorization boundary. Validate nested references, downloads, events and imports.
 - Every platform table starts with veriq_; Alembic table veriq_alembic_version.
 - Local product processes use veriq/veriq_agent/veriq_runner (CLI may veriq_cli); real OS process names matter.
@@ -16,7 +17,7 @@
 - Control service needs neither Node nor Chrome at runtime. Electron GUI and Node24 execution are separate.
 - DSL is editable source, generated TS is immutable artifact; all execution dependencies are versioned.
 - Default browsers global4, Workspace2; heartbeat10s, lease60s; expired unknown processes quarantine capacity.
-- Retries belong to Veriq, Playwright retries=0, at most one whole-case retry; retry pass is UNSTABLE.
+- Retries belong to VeriQ, Playwright retries=0, at most one whole-case retry; retry pass is UNSTABLE.
 - Existing tests execute without model credentials; AI output never auto-publishes.
 
 ## Implementation and evidence
