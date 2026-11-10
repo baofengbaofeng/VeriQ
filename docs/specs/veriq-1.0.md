@@ -1,12 +1,12 @@
 > 已确认补充：桌面GUI属于完整MVP，采用Electron方向；见 [桌面规格](desktop.md)。桌面规格覆盖本文中CLI入口/薄原生启动器的过时候选，不另引入Rust桌面壳。
 
-# Veriq 1.0 需求与技术规格（审阅稿）
+# VeriQ 1.0 需求与技术规格（审阅稿）
 
 日期：2026-11-10。本文统一替代前序方案中冲突的技术与范围描述，配套实施任务见docs/plans/veriq-1.0.md。本文用于审阅后开展AI编码，不表示产品已实现、构建或通过测试。
 
 ## 1. 产品目标、范围与交付标准
 
-Veriq是面向企业PC Web系统的自动化冒烟与回归平台。模型按需辅助生成用例与分析；常规执行使用固定版本的Playwright TypeScript，不调用模型。适用初始规模：20名以内使用者，同时提交10个以内Run。
+VeriQ是面向企业PC Web系统的自动化冒烟与回归平台。模型按需辅助生成用例与分析；常规执行使用固定版本的Playwright TypeScript，不调用模型。适用初始规模：20名以内使用者，同时提交10个以内Run。
 
 首个MVP即完整可安装使用的1.0产品，必须交付下列全部模块。内部研发按依赖分阶段，不将阶段性闭环当作MVP交付，也不以假数据页面、空接口或TODO替代功能。
 
@@ -33,7 +33,7 @@ AI模块开箱提供完整配置和操作引导；实际模型调用使用用户
 
 ## 2. 已确认约束与本稿推荐基线
 
-- 名称Veriq，技术标识veriq；全部平台物理表以veriq_开头，包括迁移版本表。
+- 名称VeriQ，技术标识veriq；全部平台物理表以veriq_开头，包括迁移版本表。
 - 后端Python3.12、Tornado 6.6.1、SQLAlchemy2.0、MySQL8.4 LTS；精确补丁与镜像摘要在依赖冻结时记录，不跨系列静默升级。
 - 前端React18、Vite6、Tailwind3、ESM、react-router-dom6、TanStack Query5、Radix/CVA、i18next；按需使用dnd-kit与DOMPurify。
 - 一项目一Workspace，用户可加入多个Workspace。项目资源、证据和导出均做服务端归属授权。
@@ -69,7 +69,7 @@ AI模块开箱提供完整配置和操作引导；实际模型调用使用用户
 | AI | Provider SDK适配、按需接Midscene | LiteLLM/PydanticAI为候选，不必同时引入 |
 | Python打包 | uv、build、Hatchling | setuptools可替换，需验证静态文件和迁移脚本入包 |
 
-产品复用比较：Kiwi(Django)适合测试管理但改Tornado成本高；Multica适合参考daemon/Runtime，但当前许可含品牌等附加条件；MeterSphere偏接口测试且栈不同、许可亦有附加条件；Testkube偏K8s且开源Runner与商业控制面分开；ReportPortal/Allure适合作为报告能力；Midscene适合作为可选AI/工作流能力。整站fork需重新评估框架、数据前缀、品牌和离线协议，不能默认全部符合Veriq要求。
+产品复用比较：Kiwi(Django)适合测试管理但改Tornado成本高；Multica适合参考daemon/Runtime，但当前许可含品牌等附加条件；MeterSphere偏接口测试且栈不同、许可亦有附加条件；Testkube偏K8s且开源Runner与商业控制面分开；ReportPortal/Allure适合作为报告能力；Midscene适合作为可选AI/工作流能力。整站fork需重新评估框架、数据前缀、品牌和离线协议，不能默认全部符合VeriQ要求。
 
 每个直接依赖建立ADR：版本、许可证、维护状态、兼容性、传递依赖、选择理由、替换接口、POC结果。锁定依赖并提供SBOM和THIRD_PARTY_NOTICES。仓库现有LICENSE采用AGPL-3.0，保持不变。
 
@@ -223,7 +223,7 @@ Job state为QUEUED/LEASED/RUNNING/CANCEL_REQUESTED/FINISHED；CaseExecution stat
 
 MySQL短事务按固定顺序锁global/workspace/runtime/environment容量和资源，再用FOR UPDATE SKIP LOCKED领取；分配Attempt、令牌与容量原子提交。禁止count后无锁启动。心跳10秒、租约60秒，使用服务端时间。每次领取递增fencingToken；心跳、事件、上传与finish检查当前有效租约，旧结果不得覆盖新Attempt。
 
-失联标记WORKER_LOST。写入结果未知先用业务key/幂等键查询，不盲目重发；数据库队列不承诺业务副作用恰好一次。重试由Veriq统一，生成Playwright retries=0；默认不重试业务失败，最多1次整用例重试，新Context、新fixture、新工作目录。首次失败重试通过=UNSTABLE，默认门禁不通过。
+失联标记WORKER_LOST。写入结果未知先用业务key/幂等键查询，不盲目重发；数据库队列不承诺业务副作用恰好一次。重试由VeriQ统一，生成Playwright retries=0；默认不重试业务失败，最多1次整用例重试，新Context、新fixture、新工作目录。首次失败重试通过=UNSTABLE，默认门禁不通过。
 
 超时：动作10秒、UI5秒、网络15秒、准备60秒、业务120秒、独立清理30秒、Run30分钟。嵌套等待受剩余总预算限制。
 
@@ -273,7 +273,7 @@ CLI：login/logout；workspace list/use；runtime start/status/stop；doctor；b
 
 报告展示版本、来源、预期依据、实际/预期差异、请求关联、各Attempt、耗时、环境/浏览器、清理和证据状态。错误至少区分断言、定位缺失/歧义、网络超时、契约、准备、认证、环境变化、失联、清理、上传和结果不全。首次通过率、重试通过率、基础设施错误分开统计。
 
-结构化报告由Veriq展示；复用Playwright HTML/JUnit/Trace。原始HTML按受限制品下载或sandbox隔离查看，不把不可信导入HTML直接作为同源脚本运行。Trace支持授权下载及veriq trace open本地查看，不默认上传公网。Trace可能含业务数据，不能认为日志脱敏等于Trace脱敏。原始Trace不直接送模型。
+结构化报告由VeriQ展示；复用Playwright HTML/JUnit/Trace。原始HTML按受限制品下载或sandbox隔离查看，不把不可信导入HTML直接作为同源脚本运行。Trace支持授权下载及veriq trace open本地查看，不默认上传公网。Trace可能含业务数据，不能认为日志脱敏等于Trace脱敏。原始Trace不直接送模型。
 
 AI完整提供Provider配置/连接测试、需求+OpenAPI+元素+数据生成草稿、校验/审核/调试/发布、边界建议、脱敏失败分析、调用历史、token/费用与预算。关闭Provider不影响执行；预算耗尽只停生成。模型输出不能自动发布、修宽断言或读取密钥。
 
@@ -361,7 +361,7 @@ Runtime产物在对应Windows/Linux构建与测试job产生，含原生入口、
 
 ## 21. 参考与审阅决策
 
-推荐路线是自建薄控制面，非整站fork；当前候选和参考不等于依赖已冻结。审阅需确认：Veriq自身许可、支持OS/arch、具体库候选、Runtime原生封装与正式签名、部署环境及外部调度接入。用户明确约束无需重复确认，例Tornado 6.6.1、外部HTTP触发、前端随Python包发布。
+推荐路线是自建薄控制面，非整站fork；当前候选和参考不等于依赖已冻结。审阅需确认：VeriQ自身许可、支持OS/arch、具体库候选、Runtime原生封装与正式签名、部署环境及外部调度接入。用户明确约束无需重复确认，例Tornado 6.6.1、外部HTTP触发、前端随Python包发布。
 
 参考：https://www.tornadoweb.org/en/stable/ 、https://docs.sqlalchemy.org/en/20/ 、https://playwright.dev/docs/intro 、https://hatch.pypa.io/latest/config/build/ 、https://github.com/multica-ai/multica 、https://github.com/kiwitcms/Kiwi 、https://github.com/reportportal/reportportal 。第三方许可以选定tag及路径为准。
 

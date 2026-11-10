@@ -1,6 +1,6 @@
 > 执行修订：用户要求先补README，然后使用subagent编码；出现影响范围、架构或外部服务的未决问题必须暂停核对。桌面GUI首发采用Electron；T19包含apps/desktop及electron-builder，不按旧Rust壳文件清单执行。仓库现有AGPL-3.0保持。
 
-# Veriq 1.0 Implementation Plan
+# VeriQ 1.0 Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement task-by-task. Subagent-driven execution is optional only if explicitly selected. Steps use checkbox syntax. 本文为完整产品的内部实施顺序，不把中间任务作为缩减MVP交付。
 
@@ -10,7 +10,7 @@
 
 **Tech Stack:** 见规格技术选型表，具体依赖和产品许可在审阅后ADR锁定。
 
-**Spec:** [06-Veriq-v1.0-需求与技术规格.md](../specs/veriq-1.0.md)
+**Spec:** [06-VeriQ-v1.0-需求与技术规格.md](../specs/veriq-1.0.md)
 
 ## Global Constraints
 
@@ -21,7 +21,7 @@
 - 服务端运行不需要Node或浏览器；Runtime采用同一TS引擎，不在常规执行调用模型。
 - 业务唤醒和维护提供HTTP，Cron交外部；心跳10秒、租约60秒，过期不能复活。
 - 在线4个上下文、Workspace2个；10个未结束Run；离线本机1个，不宣称云端可约束全部离线并发。
-- Playwright retries=0；Veriq最多1次整用例重试，首次失败重试通过UNSTABLE。
+- Playwright retries=0；VeriQ最多1次整用例重试，首次失败重试通过UNSTABLE。
 - 发布内容不可变；所有结果检查fencing，未知物理进程与资源QUARANTINED。
 - 正常发布默认全测，Python/TS核心行覆盖>=75%；紧急跳过需原因和标记，常规release拒绝。
 - 文中测试片段规定核心断言，完整测试初始化由所属任务实现；以下命令尚未执行，不得把预期输出当实际证据。
