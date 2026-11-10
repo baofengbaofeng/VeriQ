@@ -10697,112 +10697,6 @@
         }
       }
     },
-    "/internal/v1/snapshots/{snapshotId}": {
-      "get": {
-        "operationId": "downloadSnapshot",
-        "tags": [
-          "snapshots"
-        ],
-        "security": [
-          {
-            "DeviceToken": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "snapshotId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Authorized artifact stream.",
-            "content": {
-              "application/octet-stream": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/internal/v1/maintenance/expired-leases/reap": {
       "post": {
         "operationId": "maintenanceExpireLeases",
@@ -11274,6 +11168,270 @@
           }
         }
       }
+    },
+    "/api/v1/workspaces/{workspaceId}/jobs/{jobId}/validation-receipt": {
+      "get": {
+        "operationId": "getValidationReceipt",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "WebSession": [],
+            "CsrfToken": []
+          },
+          {
+            "ServiceToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationReceiptDTOEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Retrieve a successful job validation receipt for publication",
+        "description": "Authorize current caller Workspace membership/service scope and job/resource ownership. Only a successful VALIDATE job returns its immutable receipt; pending, failed, cancelled or other-kind jobs return 409 VALIDATION_RECEIPT_UNAVAILABLE. Unknown/inaccessible Workspace/job returns 404. The receipt is bound to Workspace/job/resource/revision/sourceHash/engineVersion/compiledBundleSha256; publish rechecks these bindings against current draft and authorization."
+      }
+    },
+    "/internal/v1/workspaces/{workspaceId}/attempts/{attemptId}/content/{sha256}": {
+      "get": {
+        "operationId": "downloadAttemptContent",
+        "tags": [
+          "attempts"
+        ],
+        "security": [
+          {
+            "DeviceToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "attemptId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "sha256",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Sha256"
+            }
+          },
+          {
+            "name": "X-VeriQ-Lease-Token",
+            "in": "header",
+            "required": true,
+            "description": "Current lease proof; secret, redact from all logs.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "X-VeriQ-Fencing-Token",
+            "in": "header",
+            "required": true,
+            "description": "Current monotonically increasing attempt fencing token.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exact immutable bytes whose SHA-256 equals the sha256 path parameter. No envelope or server reserialization.",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Download exact immutable bytes from the authorized attempt closure",
+        "description": "DeviceToken is necessary but not sufficient. Authorize the current device, Workspace membership/grant/trust, assigned Attempt and current unexpired lease/fencing proof on every download, then require sha256 membership in that Attempt immutable closure. A hash never grants access. Closure includes the claim job manifest, manifest subject, compiled bundle descriptor, and every listed file. No global hash lookup or cross-Workspace access. Unknown/out-of-closure hashes return 404; revoked/unauthorized devices return 403; expired lease or stale fencing returns 409. Proof headers are transport secrets and must be redacted from logs; never include them in URLs/manifests. Return original application/octet-stream bytes without JSON envelope, decoding or reserialization; client verifies SHA-256 of exact received bytes (and FileEntry sizeBytes) before parsing/execution. snapshotUrl in ClaimDTO is this route for claim.snapshotSha256. All manifest subject/bundle/file hashes resolve through the same Workspace/Attempt route; clients send credentials only to the enrolled control-service origin and reject download redirects."
+      }
     }
   },
   "components": {
@@ -11598,8 +11756,7 @@
             "minLength": 1
           },
           "expiresAt": {
-            "type": "string",
-            "format": "date-time"
+            "$ref": "#/components/schemas/Timestamp"
           }
         },
         "required": [
@@ -11813,8 +11970,7 @@
             "$ref": "#/components/schemas/Id"
           },
           "expiresAt": {
-            "type": "string",
-            "format": "date-time"
+            "$ref": "#/components/schemas/Timestamp"
           },
           "invitationUrl": {
             "$ref": "#/components/schemas/HttpUrl"
@@ -11924,8 +12080,7 @@
             "$ref": "#/components/schemas/ResourceDocumentV1"
           },
           "updatedAt": {
-            "type": "string",
-            "format": "date-time"
+            "$ref": "#/components/schemas/Timestamp"
           }
         },
         "required": [
@@ -11996,8 +12151,13 @@
             "$ref": "#/components/schemas/Sha256"
           },
           "validatedAt": {
-            "type": "string",
-            "format": "date-time"
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "workspaceId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "jobId": {
+            "$ref": "#/components/schemas/Id"
           }
         },
         "required": [
@@ -12007,9 +12167,12 @@
           "sourceHash",
           "engineVersion",
           "compiledBundleSha256",
-          "validatedAt"
+          "validatedAt",
+          "workspaceId",
+          "jobId"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "Server-created successful VALIDATE receipt bound to Workspace, job, resource, immutable draft revision, source hash, engine version and compiled bundle. Publish must verify the current authorized resource/revision binding and reject stale/foreign receipts."
       },
       "PublishRequest": {
         "type": "object",
@@ -12056,8 +12219,7 @@
             "$ref": "#/components/schemas/ResourceDocumentV1"
           },
           "publishedAt": {
-            "type": "string",
-            "format": "date-time"
+            "$ref": "#/components/schemas/Timestamp"
           }
         },
         "required": [
@@ -12108,8 +12270,7 @@
             "$ref": "#/components/schemas/RuntimeCapabilitiesV1"
           },
           "lastSeenAt": {
-            "type": "string",
-            "format": "date-time"
+            "$ref": "#/components/schemas/Timestamp"
           }
         },
         "required": [
@@ -12166,8 +12327,7 @@
             "$ref": "#/components/schemas/HttpUrl"
           },
           "expiresAt": {
-            "type": "string",
-            "format": "date-time"
+            "$ref": "#/components/schemas/Timestamp"
           }
         },
         "required": [
@@ -12226,8 +12386,7 @@
             "minLength": 1
           },
           "expiresAt": {
-            "type": "string",
-            "format": "date-time"
+            "$ref": "#/components/schemas/Timestamp"
           },
           "issuerId": {
             "$ref": "#/components/schemas/Key"
@@ -12506,8 +12665,7 @@
             "$ref": "#/components/schemas/Sha256"
           },
           "createdAt": {
-            "type": "string",
-            "format": "date-time"
+            "$ref": "#/components/schemas/Timestamp"
           },
           "gateAtExecution": {
             "type": "boolean"
@@ -12676,8 +12834,7 @@
             ]
           },
           "createdAt": {
-            "type": "string",
-            "format": "date-time"
+            "$ref": "#/components/schemas/Timestamp"
           }
         },
         "required": [
@@ -13032,8 +13189,7 @@
             ]
           },
           "createdAt": {
-            "type": "string",
-            "format": "date-time"
+            "$ref": "#/components/schemas/Timestamp"
           }
         },
         "required": [
@@ -13065,8 +13221,7 @@
             "$ref": "#/components/schemas/Id"
           },
           "timestamp": {
-            "type": "string",
-            "format": "date-time"
+            "$ref": "#/components/schemas/Timestamp"
           },
           "details": {
             "$ref": "#/components/schemas/JsonObject"
@@ -13146,8 +13301,7 @@
             "$ref": "#/components/schemas/CleanupStatus"
           },
           "stoppedAt": {
-            "type": "string",
-            "format": "date-time"
+            "$ref": "#/components/schemas/Timestamp"
           }
         },
         "required": [
@@ -13215,8 +13369,7 @@
             "$ref": "#/components/schemas/Id"
           },
           "expiresAt": {
-            "type": "string",
-            "format": "date-time"
+            "$ref": "#/components/schemas/Timestamp"
           },
           "values": {
             "type": "object",
@@ -13311,8 +13464,7 @@
             "const": "PUT"
           },
           "expiresAt": {
-            "type": "string",
-            "format": "date-time"
+            "$ref": "#/components/schemas/Timestamp"
           }
         },
         "required": [
@@ -13475,8 +13627,7 @@
             "minLength": 1
           },
           "expiresAt": {
-            "type": "string",
-            "format": "date-time"
+            "$ref": "#/components/schemas/Timestamp"
           }
         },
         "required": [
@@ -14590,6 +14741,26 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/ArtifactUploadDTO"
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "data",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "Timestamp": {
+        "$ref": "../schemas/platform-v1.schema.json#/$defs/Timestamp"
+      },
+      "ValidationReceiptDTOEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ValidationReceiptDTO"
           },
           "requestId": {
             "type": "string",

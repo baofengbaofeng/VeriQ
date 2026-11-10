@@ -1,8 +1,10 @@
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import { expect, test } from "vitest";
 import platform from "../schemas/platform-v1.schema.json" with { type: "json" };
+import { parseContract, serializeContract, validateSchema } from "../src/index.js";
 
 const api = JSON.parse(readFileSync(new URL("../openapi/platform.yaml", import.meta.url), "utf8"));
 const ajv = new Ajv2020({strict:true, allErrors:true});
@@ -50,4 +52,91 @@ test("maintenance batches report continuation explicitly", () => {
   expect(validate("MaintenanceDTO",value)).toBe(true);
   const {hasMore:_,...incomplete} = value;
   expect(validate("MaintenanceDTO",incomplete)).toBe(false);
+});
+
+test("a completed validation job exposes a bound receipt usable by publish", () => {
+  const id = "11111111-1111-4111-8111-111111111111";
+  const resourceRoute = "/api/v1/workspaces/{workspaceId}/resources/{resourceId}";
+  const validation = api.paths[`${resourceRoute}/validate`].post;
+  const jobResponseSchema = validation.responses["202"].content["application/json"].schema.$ref.split("/").at(-1);
+  const queued = {data:{id,workspaceId:id,kind:"VALIDATE",state:"QUEUED"},requestId:"request-1"};
+  expect(validate(jobResponseSchema,queued)).toBe(true);
+  const completed = {...queued,data:{...queued.data,state:"FINISHED"}};
+  const poll = api.paths["/api/v1/workspaces/{workspaceId}/jobs/{jobId}"].get;
+  expect(validate(poll.responses["200"].content["application/json"].schema.$ref.split("/").at(-1),completed)).toBe(true);
+  const receipt = {id,workspaceId:id,jobId:id,resourceId:id,revision:3,sourceHash:"a".repeat(64),engineVersion:"1.0.0",compiledBundleSha256:"b".repeat(64),validatedAt:"2026-11-10T10:00:00Z"};
+  expect(receipt.jobId).toBe(completed.data.id);
+  expect(receipt.workspaceId).toBe(completed.data.workspaceId);
+  expect(validate("ValidationReceiptDTO",receipt)).toBe(true);
+  const response = {data:receipt,requestId:"request-1"};
+  const operation = api.paths["/api/v1/workspaces/{workspaceId}/jobs/{jobId}/validation-receipt"]?.get;
+  expect(operation).toBeDefined();
+  const responseSchema = operation.responses["200"].content["application/json"].schema.$ref;
+  expect(responseSchema).toBe("#/components/schemas/ValidationReceiptDTOEnvelope");
+  expect(validate(responseSchema.split("/").at(-1),response)).toBe(true);
+  const publishSchema = api.paths[`${resourceRoute}/publish`].post.requestBody.content["application/json"].schema.$ref.split("/").at(-1);
+  expect(validate(publishSchema,{revision:response.data.revision,validationReceiptId:response.data.id})).toBe(true);
+  const {sourceHash:_,...unbound} = receipt;
+  expect(validate("ValidationReceiptDTO",unbound)).toBe(false);
+});
+
+test("inert API errors preserve rejected expressions verbatim", () => {
+  expect(validate("ErrorEnvelope",{code:"INVALID_DSL",message:"Invalid {{evil()}}",details:{actual:"{{customer.name}}"},requestId:"request-1"})).toBe(true);
+});
+
+test("claim, manifest, frozen subject, compiled bundle and files have exact-byte device addresses", () => {
+  const route = "/internal/v1/workspaces/{workspaceId}/attempts/{attemptId}/content/{sha256}";
+  const operation = api.paths[route]?.get;
+  expect(operation).toBeDefined();
+  const sample = (name:string) => structuredClone(fixtures.find((x:{name:string}) => x.name === name).value);
+  const digest = (bytes:string) => createHash("sha256").update(bytes).digest("hex");
+  // This map represents immutable bytes, not an HTTP/storage implementation.
+  const content = new Map<string,string>();
+  const store = (schema:string,value:unknown) => {
+    const bytes = serializeContract(schema,value);
+    const hash = digest(bytes);
+    content.set(hash,bytes);
+    return hash;
+  };
+  const fileBytes = "export const frozen = true;\n";
+  const fileHash = digest(fileBytes);
+  content.set(fileHash,fileBytes);
+  const compiled = sample("compiled-bundle");
+  compiled.files = [{path:"case.ts",sha256:fileHash,sizeBytes:Buffer.byteLength(fileBytes)}];
+  compiled.entrypoints = ["case.ts"];
+  const compiledHash = store("CompiledAssetBundle",compiled);
+  for (const kind of ["TEST","VALIDATE","CLEANUP"]) {
+    const subjectSchema = kind === "VALIDATE" ? "AssetSnapshotV1" : "ExecutionSnapshotV1";
+    const subject = sample(kind === "VALIDATE" ? "asset-snapshot" : "execution-snapshot");
+    const subjectHash = store(subjectSchema,subject);
+    const manifest = sample(`job-${kind}`);
+    manifest.snapshotSha256 = subjectHash;
+    if (kind === "TEST") Object.assign(manifest,{executionSnapshotSha256:subjectHash,compiledBundleSha256:compiledHash});
+    const manifestHash = store("JobManifestV1",manifest);
+    const claim = sample("claim-dto");
+    Object.assign(claim,{jobKind:kind,snapshotSha256:manifestHash});
+    const address = (hash:string) => route.replace("{workspaceId}",manifest.workspaceId).replace("{attemptId}",claim.attemptId).replace("{sha256}",hash);
+    claim.snapshotUrl = "https://control.example" + address(manifestHash);
+    expect(validateSchema("ClaimDTO",claim)).toEqual([]);
+    const getBytes = (hash:string) => {
+      const url = new URL(address(hash),"https://control.example");
+      expect(url.search).toBe("");
+      const values: Record<string,unknown> = {workspaceId:manifest.workspaceId,attemptId:claim.attemptId,sha256:hash,"X-VeriQ-Lease-Token":claim.leaseToken,"X-VeriQ-Fencing-Token":claim.fencingToken};
+      for (const parameter of operation.parameters) {
+        const schema = JSON.parse(JSON.stringify(parameter.schema, (key,value:unknown) =>
+          key === "$ref" && typeof value === "string" ? value.replace(/^#\/components\/schemas\//, `${apiId}#/$defs/`) : value));
+        expect(ajv.compile(schema)(values[parameter.name])).toBe(true);
+      }
+      const bytes = content.get(hash)!;
+      expect(digest(bytes)).toBe(hash);
+      return bytes;
+    };
+    const downloaded = parseContract("JobManifestV1",getBytes(claim.snapshotSha256)) as typeof manifest;
+    expect(parseContract(subjectSchema,getBytes(downloaded.snapshotSha256))).toEqual(subject);
+    if (kind === "TEST") {
+      const bundle = parseContract("CompiledAssetBundle",getBytes(downloaded.compiledBundleSha256)) as typeof compiled;
+      expect(getBytes(bundle.files[0].sha256)).toBe(fileBytes);
+      expect(Buffer.byteLength(fileBytes)).toBe(bundle.files[0].sizeBytes);
+    }
+  }
 });

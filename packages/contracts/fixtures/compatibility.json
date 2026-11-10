@@ -3482,5 +3482,425 @@
       }
     },
     "valid": false
+  },
+  {
+    "name": "review-uuid-hyphenated",
+    "schema": "Id",
+    "value": "11111111-1111-4111-8111-111111111111",
+    "valid": true
+  },
+  {
+    "name": "review-uuid-uppercase",
+    "schema": "Id",
+    "value": "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA",
+    "valid": true
+  },
+  {
+    "name": "review-uuid-urn",
+    "schema": "Id",
+    "value": "urn:uuid:11111111-1111-4111-8111-111111111111",
+    "valid": false
+  },
+  {
+    "name": "review-uuid-compact",
+    "schema": "Id",
+    "value": "11111111111141118111111111111111",
+    "valid": false
+  },
+  {
+    "name": "review-uuid-braces",
+    "schema": "Id",
+    "value": "{11111111-1111-4111-8111-111111111111}",
+    "valid": false
+  },
+  {
+    "name": "review-uuid-final-newline",
+    "schema": "Id",
+    "value": "11111111-1111-4111-8111-111111111111\n",
+    "valid": false
+  },
+  {
+    "name": "review-timestamp-utc",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2026-11-10T10:00:00Z",
+      "cancelRequested": false
+    },
+    "valid": true
+  },
+  {
+    "name": "review-timestamp-lowercase",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2026-11-10t10:00:00z",
+      "cancelRequested": false
+    },
+    "valid": true
+  },
+  {
+    "name": "review-timestamp-fraction-offset",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2024-02-29T23:59:59.123456789+05:30",
+      "cancelRequested": false
+    },
+    "valid": true
+  },
+  {
+    "name": "review-timestamp-negative-offset",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2026-11-10T10:00:00-08:00",
+      "cancelRequested": false
+    },
+    "valid": true
+  },
+  {
+    "name": "review-timestamp-unknown-offset",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2026-11-10T10:00:00-00:00",
+      "cancelRequested": false
+    },
+    "valid": true
+  },
+  {
+    "name": "review-timestamp-space",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2026-11-10 10:00:00Z",
+      "cancelRequested": false
+    },
+    "valid": false
+  },
+  {
+    "name": "review-timestamp-leap-second",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2026-11-10T23:59:60Z",
+      "cancelRequested": false
+    },
+    "valid": false
+  },
+  {
+    "name": "review-timestamp-leap-year",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2024-02-29T10:00:00Z",
+      "cancelRequested": false
+    },
+    "valid": true
+  },
+  {
+    "name": "review-timestamp-nonleap-day",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2026-02-29T10:00:00Z",
+      "cancelRequested": false
+    },
+    "valid": false
+  },
+  {
+    "name": "review-timestamp-invalid-day",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2026-04-31T10:00:00Z",
+      "cancelRequested": false
+    },
+    "valid": false
+  },
+  {
+    "name": "review-timestamp-zero-year",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "0000-01-01T00:00:00Z",
+      "cancelRequested": false
+    },
+    "valid": false
+  },
+  {
+    "name": "review-timestamp-missing-zone",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2026-11-10T10:00:00",
+      "cancelRequested": false
+    },
+    "valid": false
+  },
+  {
+    "name": "review-timestamp-offset-hour",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2026-11-10T10:00:00+24:00",
+      "cancelRequested": false
+    },
+    "valid": false
+  },
+  {
+    "name": "review-timestamp-offset-minute",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2026-11-10T10:00:00+00:60",
+      "cancelRequested": false
+    },
+    "valid": false
+  },
+  {
+    "name": "review-timestamp-end-of-day",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2026-11-10T24:00:00Z",
+      "cancelRequested": false
+    },
+    "valid": false
+  },
+  {
+    "name": "review-timestamp-newline",
+    "schema": "HeartbeatDTO",
+    "value": {
+      "leaseExpiresAt": "2026-11-10T10:00:00Z\n",
+      "cancelRequested": false
+    },
+    "valid": false
+  },
+  {
+    "name": "review-literal-json",
+    "schema": "JsonValue",
+    "value": "{{customer.name}}",
+    "valid": true
+  },
+  {
+    "name": "review-literal-nested-json",
+    "schema": "JsonValue",
+    "value": {
+      "items": [
+        "{{evil()}}",
+        {
+          "text": "{{customer.name}}"
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "review-literal-actual",
+    "schema": "ActualValueV1",
+    "value": {
+      "present": true,
+      "value": "{{customer.name}}"
+    },
+    "valid": true
+  },
+  {
+    "name": "review-literal-step-error",
+    "schema": "StepFinishedPayloadV1",
+    "value": {
+      "status": "ERROR",
+      "durationMs": 1,
+      "message": "Invalid binding: {{evil()}}"
+    },
+    "valid": true
+  },
+  {
+    "name": "review-literal-log",
+    "schema": "ExecutionEventV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "attemptId": "11111111-1111-4111-8111-111111111111",
+      "sequence": 1,
+      "type": "LOG",
+      "timestamp": "2026-11-10T12:00:00Z",
+      "stepId": "open",
+      "payload": {
+        "level": "ERROR",
+        "message": "Invalid binding: {{evil()}}"
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "review-literal-assertion-result",
+    "schema": "ExecutionEventV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "attemptId": "11111111-1111-4111-8111-111111111111",
+      "sequence": 1,
+      "type": "ASSERTION_RESULT",
+      "timestamp": "2026-11-10T12:00:00Z",
+      "stepId": "open",
+      "payload": {
+        "status": "PASSED",
+        "severity": "BLOCK",
+        "expectedSource": "REQ-1",
+        "expected": "{{expected()}}",
+        "actual": {
+          "present": true,
+          "value": "{{customer.name}}"
+        },
+        "durationMs": 10
+      },
+      "assertionId": "visible"
+    },
+    "valid": true
+  },
+  {
+    "name": "review-literal-json-schema",
+    "schema": "JsonSchema",
+    "value": {
+      "type": "string",
+      "const": "{{customer.name}}",
+      "description": "Literal {{evil()}}"
+    },
+    "valid": true
+  },
+  {
+    "name": "review-literal-dataset",
+    "schema": "ResourceDocumentV1",
+    "value": {
+      "kind": "DATASET",
+      "document": {
+        "schemaVersion": "1.0",
+        "columns": {
+          "name": "string"
+        },
+        "rows": [
+          {
+            "key": "one",
+            "values": {
+              "name": "{{customer.name}}"
+            }
+          }
+        ]
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "review-path-ordinary",
+    "schema": "Path",
+    "value": "/orders/123?state=open#details",
+    "valid": true
+  },
+  {
+    "name": "review-path-root",
+    "schema": "Path",
+    "value": "/",
+    "valid": true
+  },
+  {
+    "name": "review-path-template",
+    "schema": "Path",
+    "value": "/orders/{{vars.orderId}}",
+    "valid": true
+  },
+  {
+    "name": "review-path-backslash",
+    "schema": "Path",
+    "value": "/\\outside.example/path",
+    "valid": false
+  },
+  {
+    "name": "review-path-tab",
+    "schema": "Path",
+    "value": "/\t/outside.example",
+    "valid": false
+  },
+  {
+    "name": "review-path-nul",
+    "schema": "Path",
+    "value": "/\u0000/outside.example",
+    "valid": false
+  },
+  {
+    "name": "review-path-del",
+    "schema": "Path",
+    "value": "//outside.example",
+    "valid": false
+  },
+  {
+    "name": "review-path-newline",
+    "schema": "Path",
+    "value": "/\n/outside.example",
+    "valid": false
+  },
+  {
+    "name": "review-path-network",
+    "schema": "Path",
+    "value": "//outside.example/path",
+    "valid": false
+  },
+  {
+    "name": "review-path-scheme",
+    "schema": "Path",
+    "value": "https://outside.example/path",
+    "valid": false
+  },
+  {
+    "name": "review-path-unsafe-binding",
+    "schema": "Path",
+    "value": "/{{evil()}}",
+    "valid": false
+  },
+  {
+    "name": "review-unsafe-body",
+    "schema": "StepV1",
+    "value": {
+      "id": "request",
+      "action": "apiRequest",
+      "method": "POST",
+      "path": "/orders",
+      "body": {
+        "nested": [
+          "{{evil()}}"
+        ]
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "review-unsafe-query",
+    "schema": "StepV1",
+    "value": {
+      "id": "request",
+      "action": "apiRequest",
+      "method": "POST",
+      "path": "/orders",
+      "query": {
+        "nested": [
+          "{{evil()}}"
+        ]
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "review-unsafe-flow-parameters",
+    "schema": "StepV1",
+    "value": {
+      "id": "flow",
+      "action": "callFlow",
+      "versionId": "11111111-1111-4111-8111-111111111111",
+      "parameters": {
+        "x": "{{evil()}}"
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "review-safe-nested-bindings",
+    "schema": "StepV1",
+    "value": {
+      "id": "request",
+      "action": "apiRequest",
+      "method": "POST",
+      "path": "/orders",
+      "body": {
+        "nested": [
+          "{{vars.orderId}}",
+          7
+        ]
+      }
+    },
+    "valid": true
   }
 ]

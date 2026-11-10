@@ -1,5 +1,5 @@
 /* Generated from openapi/platform.yaml. Run pnpm contracts:generate. */
-import type { JsonValue as ContractJsonValue } from "./types.generated.js";
+import type { JsonValue as ContractJsonValue, BindingJsonValue as ContractBindingJsonValue } from "./types.generated.js";
 export interface paths {
     "/health/live": {
         parameters: {
@@ -1138,22 +1138,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/internal/v1/snapshots/{snapshotId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["downloadSnapshot"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/internal/v1/maintenance/expired-leases/reap": {
         parameters: {
             query?: never;
@@ -1218,16 +1202,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspaceId}/jobs/{jobId}/validation-receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieve a successful job validation receipt for publication
+         * @description Authorize current caller Workspace membership/service scope and job/resource ownership. Only a successful VALIDATE job returns its immutable receipt; pending, failed, cancelled or other-kind jobs return 409 VALIDATION_RECEIPT_UNAVAILABLE. Unknown/inaccessible Workspace/job returns 404. The receipt is bound to Workspace/job/resource/revision/sourceHash/engineVersion/compiledBundleSha256; publish rechecks these bindings against current draft and authorization.
+         */
+        get: operations["getValidationReceipt"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/workspaces/{workspaceId}/attempts/{attemptId}/content/{sha256}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download exact immutable bytes from the authorized attempt closure
+         * @description DeviceToken is necessary but not sufficient. Authorize the current device, Workspace membership/grant/trust, assigned Attempt and current unexpired lease/fencing proof on every download, then require sha256 membership in that Attempt immutable closure. A hash never grants access. Closure includes the claim job manifest, manifest subject, compiled bundle descriptor, and every listed file. No global hash lookup or cross-Workspace access. Unknown/out-of-closure hashes return 404; revoked/unauthorized devices return 403; expired lease or stale fencing returns 409. Proof headers are transport secrets and must be redacted from logs; never include them in URLs/manifests. Return original application/octet-stream bytes without JSON envelope, decoding or reserialization; client verifies SHA-256 of exact received bytes (and FileEntry sizeBytes) before parsing/execution. snapshotUrl in ClaimDTO is this route for claim.snapshotSha256. All manifest subject/bundle/file hashes resolve through the same Workspace/Attempt route; clients send credentials only to the enrolled control-service origin and reject download redirects.
+         */
+        get: operations["downloadAttemptContent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** Format: uuid */
+        /**
+         * Format: uuid
+         * @description Hyphenated 8-4-4-4-12 hexadecimal UUID, case-insensitive; no URN, braces or surrounding whitespace.
+         */
         Id: string;
         Sha256: string;
         Key: string;
         Version: string;
+        /** @description Interpolated DSL string. Only {{data.identifier}} and {{vars.identifier}} dotted bindings are supported; arbitrary executable expressions are rejected. Never use for inert evidence or diagnostics. */
         SafeString: string;
+        /** @description Inert portable JSON. Strings are literal, including arbitrary braces and invalid DSL expressions; consumers must never evaluate or recursively interpolate this type. */
         JsonValue: ContractJsonValue;
         JsonObject: {
             [key: string]: components["schemas"]["JsonValue"];
@@ -1242,9 +1271,10 @@ export interface components {
         };
         Timeout: number;
         Pointer: string;
+        /** @description Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized base/allowedOrigins before any request/navigation, and enforce policy on redirects. */
         Path: string & components["schemas"]["SafeString"];
         /** Format: uri */
-        HttpUrl: string & components["schemas"]["SafeString"];
+        HttpUrl: string;
         SourceRef: string;
         ResponseRef: string;
         RequestRef: string;
@@ -1288,8 +1318,8 @@ export interface components {
             id: components["schemas"]["Key"];
             method: components["schemas"]["HttpMethod"];
             path: components["schemas"]["Path"];
-            queryMatch?: components["schemas"]["JsonObject"];
-            bodyMatch?: components["schemas"]["JsonObject"];
+            queryMatch?: components["schemas"]["BindingJsonObject"];
+            bodyMatch?: components["schemas"]["BindingJsonObject"];
             timeoutMs?: components["schemas"]["Timeout"];
             window?: components["schemas"]["ObserverWindow"];
             expectedCount?: number;
@@ -1436,12 +1466,12 @@ export interface components {
                 /** @constant */
                 method: "GET";
                 path: components["schemas"]["Path"];
-                query?: components["schemas"]["JsonObject"];
+                query?: components["schemas"]["BindingJsonObject"];
             };
             pointer: components["schemas"]["Pointer"];
             /** @constant */
             operator: "equals";
-            expected: components["schemas"]["JsonValue"];
+            expected: components["schemas"]["BindingJsonValue"];
             intervalMs?: number;
         } | {
             id: components["schemas"]["Key"];
@@ -1452,7 +1482,7 @@ export interface components {
             /** @constant */
             type: "template";
             versionId: components["schemas"]["Id"];
-            parameters?: components["schemas"]["JsonObject"];
+            parameters?: components["schemas"]["BindingJsonObject"];
         } | {
             id: components["schemas"]["Key"];
             /** @enum {string} */
@@ -1465,7 +1495,7 @@ export interface components {
             pointer: components["schemas"]["Pointer"];
             /** @enum {string} */
             operator: "equals" | "notEquals";
-            expected: components["schemas"]["JsonValue"];
+            expected: components["schemas"]["BindingJsonValue"];
         } | {
             id: components["schemas"]["Key"];
             /** @enum {string} */
@@ -1478,7 +1508,7 @@ export interface components {
             pointer: components["schemas"]["Pointer"];
             /** @constant */
             operator: "contains";
-            expected: components["schemas"]["SafeString"] | components["schemas"]["JsonValue"][];
+            expected: components["schemas"]["SafeString"] | components["schemas"]["BindingJsonValue"][];
         } | {
             id: components["schemas"]["Key"];
             /** @enum {string} */
@@ -1491,7 +1521,7 @@ export interface components {
             pointer: components["schemas"]["Pointer"];
             /** @constant */
             operator: "in";
-            expected: components["schemas"]["JsonValue"][];
+            expected: components["schemas"]["BindingJsonValue"][];
         } | {
             id: components["schemas"]["Key"];
             /** @enum {string} */
@@ -1517,7 +1547,7 @@ export interface components {
             pointer: components["schemas"]["Pointer"];
             /** @enum {string} */
             operator: "equals" | "notEquals";
-            expected: components["schemas"]["JsonValue"];
+            expected: components["schemas"]["BindingJsonValue"];
         } | {
             id: components["schemas"]["Key"];
             /** @enum {string} */
@@ -1530,7 +1560,7 @@ export interface components {
             pointer: components["schemas"]["Pointer"];
             /** @constant */
             operator: "contains";
-            expected: components["schemas"]["SafeString"] | components["schemas"]["JsonValue"][];
+            expected: components["schemas"]["SafeString"] | components["schemas"]["BindingJsonValue"][];
         } | {
             id: components["schemas"]["Key"];
             /** @enum {string} */
@@ -1543,7 +1573,7 @@ export interface components {
             pointer: components["schemas"]["Pointer"];
             /** @constant */
             operator: "in";
-            expected: components["schemas"]["JsonValue"][];
+            expected: components["schemas"]["BindingJsonValue"][];
         } | {
             id: components["schemas"]["Key"];
             /** @enum {string} */
@@ -1692,8 +1722,8 @@ export interface components {
             action: "apiRequest";
             method: components["schemas"]["HttpMethod"];
             path: components["schemas"]["Path"];
-            query?: components["schemas"]["JsonObject"];
-            body?: components["schemas"]["JsonValue"];
+            query?: components["schemas"]["BindingJsonObject"];
+            body?: components["schemas"]["BindingJsonValue"];
             headers?: {
                 [key: string]: components["schemas"]["SafeString"];
             };
@@ -1710,7 +1740,7 @@ export interface components {
             /** @constant */
             action: "callFlow";
             versionId: components["schemas"]["Id"];
-            parameters?: components["schemas"]["JsonObject"];
+            parameters?: components["schemas"]["BindingJsonObject"];
         };
         CaseDslV1: {
             /** @constant */
@@ -1971,8 +2001,7 @@ export interface components {
             attemptId: components["schemas"]["Id"];
             leaseToken: string;
             fencingToken: number;
-            /** Format: date-time */
-            expiresAt: string;
+            expiresAt: components["schemas"]["Timestamp"];
             snapshotUrl: components["schemas"]["HttpUrl"];
             snapshotSha256: components["schemas"]["Sha256"];
         };
@@ -2022,8 +2051,7 @@ export interface components {
             schemaVersion: "1.0";
             attemptId: components["schemas"]["Id"];
             sequence: number;
-            /** Format: date-time */
-            timestamp: string;
+            timestamp: components["schemas"]["Timestamp"];
             stepId?: components["schemas"]["Key"];
             assertionId?: components["schemas"]["Key"];
             /** @constant */
@@ -2037,8 +2065,7 @@ export interface components {
             schemaVersion: "1.0";
             attemptId: components["schemas"]["Id"];
             sequence: number;
-            /** Format: date-time */
-            timestamp: string;
+            timestamp: components["schemas"]["Timestamp"];
             stepId?: components["schemas"]["Key"];
             assertionId?: components["schemas"]["Key"];
             /** @constant */
@@ -2052,8 +2079,7 @@ export interface components {
             schemaVersion: "1.0";
             attemptId: components["schemas"]["Id"];
             sequence: number;
-            /** Format: date-time */
-            timestamp: string;
+            timestamp: components["schemas"]["Timestamp"];
             stepId: components["schemas"]["Key"];
             assertionId?: components["schemas"]["Key"];
             /** @constant */
@@ -2064,8 +2090,7 @@ export interface components {
             schemaVersion: "1.0";
             attemptId: components["schemas"]["Id"];
             sequence: number;
-            /** Format: date-time */
-            timestamp: string;
+            timestamp: components["schemas"]["Timestamp"];
             stepId: components["schemas"]["Key"];
             assertionId?: components["schemas"]["Key"];
             /** @constant */
@@ -2076,8 +2101,7 @@ export interface components {
             schemaVersion: "1.0";
             attemptId: components["schemas"]["Id"];
             sequence: number;
-            /** Format: date-time */
-            timestamp: string;
+            timestamp: components["schemas"]["Timestamp"];
             stepId: components["schemas"]["Key"];
             assertionId: components["schemas"]["Key"];
             /** @constant */
@@ -2088,8 +2112,7 @@ export interface components {
             schemaVersion: "1.0";
             attemptId: components["schemas"]["Id"];
             sequence: number;
-            /** Format: date-time */
-            timestamp: string;
+            timestamp: components["schemas"]["Timestamp"];
             stepId: components["schemas"]["Key"];
             assertionId?: components["schemas"]["Key"];
             /** @constant */
@@ -2100,8 +2123,7 @@ export interface components {
             schemaVersion: "1.0";
             attemptId: components["schemas"]["Id"];
             sequence: number;
-            /** Format: date-time */
-            timestamp: string;
+            timestamp: components["schemas"]["Timestamp"];
             stepId: components["schemas"]["Key"];
             assertionId?: components["schemas"]["Key"];
             /** @constant */
@@ -2115,8 +2137,7 @@ export interface components {
             schemaVersion: "1.0";
             attemptId: components["schemas"]["Id"];
             sequence: number;
-            /** Format: date-time */
-            timestamp: string;
+            timestamp: components["schemas"]["Timestamp"];
             stepId?: components["schemas"]["Key"];
             assertionId?: components["schemas"]["Key"];
             /** @constant */
@@ -2124,15 +2145,14 @@ export interface components {
             payload: {
                 /** @enum {string} */
                 level: "DEBUG" | "INFO" | "WARN" | "ERROR";
-                message: components["schemas"]["SafeString"];
+                message: components["schemas"]["DiagnosticText"];
             };
         } | {
             /** @constant */
             schemaVersion: "1.0";
             attemptId: components["schemas"]["Id"];
             sequence: number;
-            /** Format: date-time */
-            timestamp: string;
+            timestamp: components["schemas"]["Timestamp"];
             stepId?: components["schemas"]["Key"];
             assertionId?: components["schemas"]["Key"];
             /** @constant */
@@ -2146,8 +2166,7 @@ export interface components {
             schemaVersion: "1.0";
             attemptId: components["schemas"]["Id"];
             sequence: number;
-            /** Format: date-time */
-            timestamp: string;
+            timestamp: components["schemas"]["Timestamp"];
             stepId?: components["schemas"]["Key"];
             assertionId?: components["schemas"]["Key"];
             /** @constant */
@@ -2163,8 +2182,7 @@ export interface components {
             schemaVersion: "1.0";
             attemptId: components["schemas"]["Id"];
             sequence: number;
-            /** Format: date-time */
-            timestamp: string;
+            timestamp: components["schemas"]["Timestamp"];
             stepId?: components["schemas"]["Key"];
             assertionId?: components["schemas"]["Key"];
             /** @constant */
@@ -2181,10 +2199,8 @@ export interface components {
             workspaceId: components["schemas"]["Id"];
             issuerId: components["schemas"]["Key"];
             keyId: components["schemas"]["Key"];
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            expiresAt: string;
+            createdAt: components["schemas"]["Timestamp"];
+            expiresAt: components["schemas"]["Timestamp"];
             sourceHash: components["schemas"]["Sha256"];
             snapshotSha256: components["schemas"]["Sha256"];
             engineVersion: components["schemas"]["Version"];
@@ -2216,10 +2232,8 @@ export interface components {
             /** @enum {string} */
             revocationStatus: "CURRENT" | "UNKNOWN" | "REVOKED";
             manifestSha256: components["schemas"]["Sha256"];
-            /** Format: date-time */
-            startedAt: string;
-            /** Format: date-time */
-            finishedAt: string;
+            startedAt: components["schemas"]["Timestamp"];
+            finishedAt: components["schemas"]["Timestamp"];
             outcome: components["schemas"]["Outcome"];
             actualEnvironment: components["schemas"]["EnvironmentV1"];
             attempts: components["schemas"]["OfflineAttemptV1"][];
@@ -2241,8 +2255,7 @@ export interface components {
             };
         };
         HeartbeatDTO: {
-            /** Format: date-time */
-            leaseExpiresAt: string;
+            leaseExpiresAt: components["schemas"]["Timestamp"];
             cancelRequested: boolean;
         };
         EventBatchRequest: {
@@ -2292,8 +2305,7 @@ export interface components {
         SessionDTO: {
             user: components["schemas"]["UserDTO"];
             csrfToken: string;
-            /** Format: date-time */
-            expiresAt: string;
+            expiresAt: components["schemas"]["Timestamp"];
         };
         EmailRequest: {
             /** Format: email */
@@ -2343,8 +2355,7 @@ export interface components {
         };
         InviteDTO: {
             id: components["schemas"]["Id"];
-            /** Format: date-time */
-            expiresAt: string;
+            expiresAt: components["schemas"]["Timestamp"];
             invitationUrl: components["schemas"]["HttpUrl"];
         };
         ResourceDTO: {
@@ -2371,8 +2382,7 @@ export interface components {
             resourceId: components["schemas"]["Id"];
             revision: number;
             content: components["schemas"]["ResourceDocumentV1"];
-            /** Format: date-time */
-            updatedAt: string;
+            updatedAt: components["schemas"]["Timestamp"];
         };
         DraftWrite: {
             revision: number;
@@ -2382,6 +2392,7 @@ export interface components {
             revision: number;
             sourceHash: components["schemas"]["Sha256"];
         };
+        /** @description Server-created successful VALIDATE receipt bound to Workspace, job, resource, immutable draft revision, source hash, engine version and compiled bundle. Publish must verify the current authorized resource/revision binding and reject stale/foreign receipts. */
         ValidationReceiptDTO: {
             id: components["schemas"]["Id"];
             resourceId: components["schemas"]["Id"];
@@ -2389,8 +2400,9 @@ export interface components {
             sourceHash: components["schemas"]["Sha256"];
             engineVersion: components["schemas"]["Version"];
             compiledBundleSha256: components["schemas"]["Sha256"];
-            /** Format: date-time */
-            validatedAt: string;
+            validatedAt: components["schemas"]["Timestamp"];
+            workspaceId: components["schemas"]["Id"];
+            jobId: components["schemas"]["Id"];
         };
         PublishRequest: {
             revision: number;
@@ -2405,8 +2417,7 @@ export interface components {
             schemaVersion: "1.0";
             sha256: components["schemas"]["Sha256"];
             content: components["schemas"]["ResourceDocumentV1"];
-            /** Format: date-time */
-            publishedAt: string;
+            publishedAt: components["schemas"]["Timestamp"];
         };
         RuntimeDTO: {
             id: components["schemas"]["Id"];
@@ -2418,8 +2429,7 @@ export interface components {
             /** @enum {string} */
             status: "PENDING" | "ONLINE" | "OFFLINE" | "REVOKED";
             capabilities: components["schemas"]["RuntimeCapabilitiesV1"];
-            /** Format: date-time */
-            lastSeenAt?: string;
+            lastSeenAt?: components["schemas"]["Timestamp"];
         };
         EnrollmentRequest: {
             name: string;
@@ -2432,8 +2442,7 @@ export interface components {
             deviceCode: string;
             userCode: string;
             verificationUrl: components["schemas"]["HttpUrl"];
-            /** Format: date-time */
-            expiresAt: string;
+            expiresAt: components["schemas"]["Timestamp"];
         };
         EnrollmentApprove: {
             workspaceId: components["schemas"]["Id"];
@@ -2446,8 +2455,7 @@ export interface components {
         DeviceCredentialsDTO: {
             runnerId: components["schemas"]["Id"];
             deviceToken: string;
-            /** Format: date-time */
-            expiresAt: string;
+            expiresAt: components["schemas"]["Timestamp"];
             issuerId: components["schemas"]["Key"];
             trustedKeys: {
                 keyId: components["schemas"]["Key"];
@@ -2509,8 +2517,7 @@ export interface components {
             state: "QUEUED" | "RUNNING" | "CANCEL_REQUESTED" | "FINISHED";
             outcome?: components["schemas"]["Outcome"];
             snapshotHash: components["schemas"]["Sha256"];
-            /** Format: date-time */
-            createdAt: string;
+            createdAt: components["schemas"]["Timestamp"];
             gateAtExecution?: boolean;
             gateNow?: boolean;
         };
@@ -2549,8 +2556,7 @@ export interface components {
             snapshotSha256: components["schemas"]["Sha256"];
             /** @enum {string} */
             validationStatus: "VALIDATED" | "UNVALIDATED_DEBUG";
-            /** Format: date-time */
-            createdAt: string;
+            createdAt: components["schemas"]["Timestamp"];
         };
         ImportDTO: {
             id: components["schemas"]["Id"];
@@ -2635,8 +2641,7 @@ export interface components {
             versionId: components["schemas"]["Id"];
             /** @enum {string} */
             status: "ACTIVE" | "REVOKED";
-            /** Format: date-time */
-            createdAt: string;
+            createdAt: components["schemas"]["Timestamp"];
         };
         AuditDTO: {
             id: components["schemas"]["Id"];
@@ -2644,8 +2649,7 @@ export interface components {
             actorId: components["schemas"]["Id"];
             action: string;
             subjectId?: components["schemas"]["Id"];
-            /** Format: date-time */
-            timestamp: string;
+            timestamp: components["schemas"]["Timestamp"];
             details: components["schemas"]["JsonObject"];
         };
         HealthDTO: {
@@ -2665,8 +2669,7 @@ export interface components {
             fencingToken: number;
             processStopped: boolean;
             cleanupStatus: components["schemas"]["CleanupStatus"];
-            /** Format: date-time */
-            stoppedAt: string;
+            stoppedAt: components["schemas"]["Timestamp"];
         };
         ReconcileDTO: {
             attemptId: components["schemas"]["Id"];
@@ -2682,8 +2685,7 @@ export interface components {
         CredentialResolveDTO: {
             roleKey: components["schemas"]["Key"];
             secretVersionId: components["schemas"]["Id"];
-            /** Format: date-time */
-            expiresAt: string;
+            expiresAt: components["schemas"]["Timestamp"];
             values: {
                 username?: string;
                 password?: string;
@@ -2705,8 +2707,7 @@ export interface components {
             uploadUrl: components["schemas"]["HttpUrl"];
             /** @constant */
             method: "PUT";
-            /** Format: date-time */
-            expiresAt: string;
+            expiresAt: components["schemas"]["Timestamp"];
         };
         ArtifactCommitRequest: {
             leaseToken: string;
@@ -2737,8 +2738,7 @@ export interface components {
         ServiceTokenDTO: {
             id: components["schemas"]["Id"];
             token: string;
-            /** Format: date-time */
-            expiresAt: string;
+            expiresAt: components["schemas"]["Timestamp"];
         };
         HealthDTOEnvelope: {
             data: components["schemas"]["HealthDTO"];
@@ -2982,13 +2982,29 @@ export interface components {
             data: components["schemas"]["ArtifactUploadDTO"];
             requestId: string;
         };
+        /**
+         * Format: date-time
+         * @description Supported RFC3339 profile: real Gregorian date, year 0001-9999, T/t separator, seconds 00-59, optional fractional seconds, mandatory Z/z or numeric offset (00-23:00-59). No leap seconds, spaces or surrounding whitespace. Emit UTC uppercase T/Z for server timestamps.
+         */
+        Timestamp: string;
+        ValidationReceiptDTOEnvelope: {
+            data: components["schemas"]["ValidationReceiptDTO"];
+            requestId: string;
+        };
+        /** @description JSON used only in interpolated DSL fields, recursively restricted to SafeString bindings. */
+        BindingJsonValue: ContractBindingJsonValue;
+        BindingJsonObject: {
+            [key: string]: components["schemas"]["BindingJsonValue"];
+        };
         DurationMs: number;
+        /** @description Literal diagnostic/evidence text; retain invalid expressions verbatim and never evaluate or interpolate it. */
+        DiagnosticText: string;
         StepFinishedPayloadV1: {
             /** @enum {string} */
             status: "PASSED" | "FAILED" | "ERROR" | "SKIPPED";
             durationMs: components["schemas"]["DurationMs"];
             errorCode?: components["schemas"]["Key"];
-            message?: components["schemas"]["SafeString"];
+            message?: components["schemas"]["DiagnosticText"];
         };
         ActualValueV1: {
             /** @constant */
@@ -10937,91 +10953,6 @@ export interface operations {
             };
         };
     };
-    downloadSnapshot: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                snapshotId: components["schemas"]["Id"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Authorized artifact stream. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/octet-stream": string;
-                };
-            };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
     maintenanceExpireLeases: {
         parameters: {
             query?: never;
@@ -11315,6 +11246,184 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MaintenanceDTOEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getValidationReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                jobId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationReceiptDTOEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    downloadAttemptContent: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Current lease proof; secret, redact from all logs. */
+                "X-VeriQ-Lease-Token": string;
+                /** @description Current monotonically increasing attempt fencing token. */
+                "X-VeriQ-Fencing-Token": number;
+            };
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                attemptId: components["schemas"]["Id"];
+                sha256: components["schemas"]["Sha256"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exact immutable bytes whose SHA-256 equals the sha256 path parameter. No envelope or server reserialization. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
                 };
             };
             /** @description Stable JSON error; code is a machine-readable domain code. */

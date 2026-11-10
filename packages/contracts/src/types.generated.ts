@@ -1,6 +1,8 @@
 /* Generated from schemas/platform-v1.schema.json. Run pnpm contracts:generate. */
 
 /**
+ * Hyphenated 8-4-4-4-12 hexadecimal UUID, case-insensitive; no URN, braces or surrounding whitespace.
+ *
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "Id".
  */
@@ -21,18 +23,22 @@ export type Key = string;
  */
 export type Version = string;
 /**
+ * Interpolated DSL string. Only {{data.identifier}} and {{vars.identifier}} dotted bindings are supported; arbitrary executable expressions are rejected. Never use for inert evidence or diagnostics.
+ *
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "SafeString".
  */
 export type SafeString = string;
 /**
+ * Inert portable JSON. Strings are literal, including arbitrary braces and invalid DSL expressions; consumers must never evaluate or recursively interpolate this type.
+ *
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "JsonValue".
  */
 export type JsonValue =
   | null
   | boolean
-  | SafeString
+  | string
   | number
   | JsonValue[]
   | {
@@ -54,6 +60,10 @@ export type Timeout = number;
  */
 export type Pointer = string;
 export type Path = string;
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "HttpUrl".
+ */
 export type HttpUrl = string;
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -139,17 +149,34 @@ export type ObserverV1 = {
   id: Key;
   method: HttpMethod;
   /**
+   * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+   *
    * This interface was referenced by `ContractDefinitions`'s JSON-Schema
    * via the `definition` "Path".
    */
   path: SafeString & Path;
-  queryMatch?: JsonObject;
-  bodyMatch?: JsonObject;
+  queryMatch?: BindingJsonObject;
+  bodyMatch?: BindingJsonObject;
   timeoutMs?: Timeout;
   window?: ObserverWindow;
   expectedCount?: number;
   retryPolicy?: "FORBID" | "ALLOW_MATCHING_RETRIES";
 };
+/**
+ * JSON used only in interpolated DSL fields, recursively restricted to SafeString bindings.
+ *
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "BindingJsonValue".
+ */
+export type BindingJsonValue =
+  | null
+  | boolean
+  | SafeString
+  | number
+  | BindingJsonValue[]
+  | {
+      [k: string]: BindingJsonValue;
+    };
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "AssertionV1".
@@ -224,6 +251,8 @@ export type AssertionV1 =
       source: RequestRef;
       operator: "pathEquals";
       /**
+       * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+       *
        * This interface was referenced by `ContractDefinitions`'s JSON-Schema
        * via the `definition` "Path".
        */
@@ -268,15 +297,17 @@ export type AssertionV1 =
       query: {
         method: "GET";
         /**
+         * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+         *
          * This interface was referenced by `ContractDefinitions`'s JSON-Schema
          * via the `definition` "Path".
          */
         path: SafeString & Path;
-        query?: JsonObject;
+        query?: BindingJsonObject;
       };
       pointer: Pointer;
       operator: "equals";
-      expected: JsonValue;
+      expected: BindingJsonValue;
       intervalMs?: number;
     }
   | {
@@ -286,7 +317,7 @@ export type AssertionV1 =
       timeoutMs?: Timeout;
       type: "template";
       versionId: Id;
-      parameters?: JsonObject;
+      parameters?: BindingJsonObject;
     }
   | {
       id: Key;
@@ -297,7 +328,7 @@ export type AssertionV1 =
       source: ResponseRef;
       pointer: Pointer;
       operator: "equals" | "notEquals";
-      expected: JsonValue;
+      expected: BindingJsonValue;
     }
   | {
       id: Key;
@@ -308,7 +339,7 @@ export type AssertionV1 =
       source: ResponseRef;
       pointer: Pointer;
       operator: "contains";
-      expected: SafeString | JsonValue[];
+      expected: SafeString | BindingJsonValue[];
     }
   | {
       id: Key;
@@ -322,7 +353,7 @@ export type AssertionV1 =
       /**
        * @minItems 1
        */
-      expected: [JsonValue, ...JsonValue[]];
+      expected: [BindingJsonValue, ...BindingJsonValue[]];
     }
   | {
       id: Key;
@@ -344,7 +375,7 @@ export type AssertionV1 =
       source: RequestRef;
       pointer: Pointer;
       operator: "equals" | "notEquals";
-      expected: JsonValue;
+      expected: BindingJsonValue;
     }
   | {
       id: Key;
@@ -355,7 +386,7 @@ export type AssertionV1 =
       source: RequestRef;
       pointer: Pointer;
       operator: "contains";
-      expected: SafeString | JsonValue[];
+      expected: SafeString | BindingJsonValue[];
     }
   | {
       id: Key;
@@ -369,7 +400,7 @@ export type AssertionV1 =
       /**
        * @minItems 1
        */
-      expected: [JsonValue, ...JsonValue[]];
+      expected: [BindingJsonValue, ...BindingJsonValue[]];
     }
   | {
       id: Key;
@@ -410,6 +441,8 @@ export type StepV1 =
       failurePolicy?: "STOP_CASE" | "CONTINUE";
       action: "goto";
       /**
+       * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+       *
        * This interface was referenced by `ContractDefinitions`'s JSON-Schema
        * via the `definition` "Path".
        */
@@ -535,6 +568,9 @@ export type StepV1 =
       failurePolicy?: "STOP_CASE" | "CONTINUE";
       action: "press";
       target: Key;
+      /**
+       * Interpolated DSL string. Only {{data.identifier}} and {{vars.identifier}} dotted bindings are supported; arbitrary executable expressions are rejected. Never use for inert evidence or diagnostics.
+       */
       value: string;
     }
   | {
@@ -637,12 +673,14 @@ export type StepV1 =
       action: "apiRequest";
       method: HttpMethod;
       /**
+       * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+       *
        * This interface was referenced by `ContractDefinitions`'s JSON-Schema
        * via the `definition` "Path".
        */
       path: SafeString & Path;
-      query?: JsonObject;
-      body?: JsonValue;
+      query?: BindingJsonObject;
+      body?: BindingJsonValue;
       headers?: {
         [k: string]: SafeString;
       };
@@ -670,7 +708,7 @@ export type StepV1 =
       failurePolicy?: "STOP_CASE" | "CONTINUE";
       action: "callFlow";
       versionId: Id;
-      parameters?: JsonObject;
+      parameters?: BindingJsonObject;
     };
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -786,6 +824,13 @@ export type AssetVersionV1 =
       document: EnvironmentV1;
     };
 /**
+ * Supported RFC3339 profile: real Gregorian date, year 0001-9999, T/t separator, seconds 00-59, optional fractional seconds, mandatory Z/z or numeric offset (00-23:00-59). No leap seconds, spaces or surrounding whitespace. Emit UTC uppercase T/Z for server timestamps.
+ *
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "Timestamp".
+ */
+export type Timestamp = string;
+/**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "JobManifestV1".
  */
@@ -799,7 +844,7 @@ export type ExecutionEventV1 =
       schemaVersion: "1.0";
       attemptId: Id;
       sequence: number;
-      timestamp: string;
+      timestamp: Timestamp;
       stepId?: Key;
       assertionId?: Key;
       type: "ATTEMPT_STARTED";
@@ -812,7 +857,7 @@ export type ExecutionEventV1 =
       schemaVersion: "1.0";
       attemptId: Id;
       sequence: number;
-      timestamp: string;
+      timestamp: Timestamp;
       stepId?: Key;
       assertionId?: Key;
       type: "PHASE_CHANGED";
@@ -824,7 +869,7 @@ export type ExecutionEventV1 =
       schemaVersion: "1.0";
       attemptId: Id;
       sequence: number;
-      timestamp: string;
+      timestamp: Timestamp;
       stepId: Key;
       assertionId?: Key;
       type: "STEP_STARTED";
@@ -834,7 +879,7 @@ export type ExecutionEventV1 =
       schemaVersion: "1.0";
       attemptId: Id;
       sequence: number;
-      timestamp: string;
+      timestamp: Timestamp;
       stepId: Key;
       assertionId?: Key;
       type: "STEP_FINISHED";
@@ -844,7 +889,7 @@ export type ExecutionEventV1 =
       schemaVersion: "1.0";
       attemptId: Id;
       sequence: number;
-      timestamp: string;
+      timestamp: Timestamp;
       stepId: Key;
       assertionId: Key;
       type: "ASSERTION_RESULT";
@@ -854,7 +899,7 @@ export type ExecutionEventV1 =
       schemaVersion: "1.0";
       attemptId: Id;
       sequence: number;
-      timestamp: string;
+      timestamp: Timestamp;
       stepId: Key;
       assertionId?: Key;
       type: "OBSERVER_RESULT";
@@ -864,7 +909,7 @@ export type ExecutionEventV1 =
       schemaVersion: "1.0";
       attemptId: Id;
       sequence: number;
-      timestamp: string;
+      timestamp: Timestamp;
       stepId: Key;
       assertionId?: Key;
       type: "VARIABLE_EXTRACTED";
@@ -877,20 +922,20 @@ export type ExecutionEventV1 =
       schemaVersion: "1.0";
       attemptId: Id;
       sequence: number;
-      timestamp: string;
+      timestamp: Timestamp;
       stepId?: Key;
       assertionId?: Key;
       type: "LOG";
       payload: {
         level: "DEBUG" | "INFO" | "WARN" | "ERROR";
-        message: SafeString;
+        message: DiagnosticText;
       };
     }
   | {
       schemaVersion: "1.0";
       attemptId: Id;
       sequence: number;
-      timestamp: string;
+      timestamp: Timestamp;
       stepId?: Key;
       assertionId?: Key;
       type: "CLEANUP_RESULT";
@@ -903,7 +948,7 @@ export type ExecutionEventV1 =
       schemaVersion: "1.0";
       attemptId: Id;
       sequence: number;
-      timestamp: string;
+      timestamp: Timestamp;
       stepId?: Key;
       assertionId?: Key;
       type: "ARTIFACT_CREATED";
@@ -917,7 +962,7 @@ export type ExecutionEventV1 =
       schemaVersion: "1.0";
       attemptId: Id;
       sequence: number;
-      timestamp: string;
+      timestamp: Timestamp;
       stepId?: Key;
       assertionId?: Key;
       type: "ATTEMPT_FINISHED";
@@ -931,6 +976,13 @@ export type ExecutionEventV1 =
  * via the `definition` "DurationMs".
  */
 export type DurationMs = number;
+/**
+ * Literal diagnostic/evidence text; retain invalid expressions verbatim and never evaluate or interpolate it.
+ *
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "DiagnosticText".
+ */
+export type DiagnosticText = string;
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "ActualValueV1".
@@ -958,15 +1010,13 @@ export interface ContractDefinitions {
   Timeout?: Timeout;
   Pointer?: Pointer;
   /**
+   * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+   *
    * This interface was referenced by `ContractDefinitions`'s JSON-Schema
    * via the `definition` "Path".
    */
   Path?: SafeString & Path;
-  /**
-   * This interface was referenced by `ContractDefinitions`'s JSON-Schema
-   * via the `definition` "HttpUrl".
-   */
-  HttpUrl?: SafeString & HttpUrl;
+  HttpUrl?: HttpUrl;
   SourceRef?: SourceRef;
   ResponseRef?: ResponseRef;
   RequestRef?: RequestRef;
@@ -1027,6 +1077,10 @@ export interface ContractDefinitions {
   StepFinishedPayloadV1?: StepFinishedPayloadV1;
   AssertionResultPayloadV1?: AssertionResultPayloadV1;
   ObserverResultPayloadV1?: ObserverResultPayloadV1;
+  Timestamp?: Timestamp;
+  BindingJsonValue?: BindingJsonValue;
+  BindingJsonObject?: BindingJsonObject;
+  DiagnosticText?: DiagnosticText;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1066,6 +1120,13 @@ export interface DependencyVersion {
   name: string;
   version: Version;
   integrity: string;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "BindingJsonObject".
+ */
+export interface BindingJsonObject {
+  [k: string]: BindingJsonValue;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1171,6 +1232,8 @@ export interface FlowV1 {
 export interface FixtureEndpointV1 {
   method: "GET" | "POST" | "DELETE";
   /**
+   * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+   *
    * This interface was referenced by `ContractDefinitions`'s JSON-Schema
    * via the `definition` "Path".
    */
@@ -1186,6 +1249,8 @@ export interface FixtureV1 {
   query: {
     method: "GET";
     /**
+     * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+     *
      * This interface was referenced by `ContractDefinitions`'s JSON-Schema
      * via the `definition` "Path".
      */
@@ -1252,25 +1317,13 @@ export interface EnvironmentRoleV1 {
  */
 export interface EnvironmentV1 {
   schemaVersion: "1.0";
-  /**
-   * This interface was referenced by `ContractDefinitions`'s JSON-Schema
-   * via the `definition` "HttpUrl".
-   */
-  baseURL: SafeString & HttpUrl;
-  /**
-   * This interface was referenced by `ContractDefinitions`'s JSON-Schema
-   * via the `definition` "HttpUrl".
-   */
-  apiBaseURL: SafeString & HttpUrl;
-  /**
-   * This interface was referenced by `ContractDefinitions`'s JSON-Schema
-   * via the `definition` "HttpUrl".
-   */
-  fixtureBaseURL?: SafeString & HttpUrl;
+  baseURL: HttpUrl;
+  apiBaseURL: HttpUrl;
+  fixtureBaseURL?: HttpUrl;
   /**
    * @minItems 1
    */
-  allowedOrigins: [SafeString & HttpUrl, ...(SafeString & HttpUrl)[]];
+  allowedOrigins: [HttpUrl, ...HttpUrl[]];
   locale: string;
   timezone: string;
   /**
@@ -1383,12 +1436,8 @@ export interface ClaimDTO {
   attemptId: Id;
   leaseToken: string;
   fencingToken: number;
-  expiresAt: string;
-  /**
-   * This interface was referenced by `ContractDefinitions`'s JSON-Schema
-   * via the `definition` "HttpUrl".
-   */
-  snapshotUrl: SafeString & HttpUrl;
+  expiresAt: Timestamp;
+  snapshotUrl: HttpUrl;
   snapshotSha256: Sha256;
 }
 /**
@@ -1445,7 +1494,7 @@ export interface StepFinishedPayloadV1 {
   status: "PASSED" | "FAILED" | "ERROR" | "SKIPPED";
   durationMs: DurationMs;
   errorCode?: Key;
-  message?: SafeString;
+  message?: DiagnosticText;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1474,6 +1523,8 @@ export interface ObserverResultPayloadV1 {
     requestId: string;
     method: HttpMethod;
     /**
+     * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+     *
      * This interface was referenced by `ContractDefinitions`'s JSON-Schema
      * via the `definition` "Path".
      */
@@ -1491,8 +1542,8 @@ export interface BundleManifestV1 {
   workspaceId: Id;
   issuerId: Key;
   keyId: Key;
-  createdAt: string;
-  expiresAt: string;
+  createdAt: Timestamp;
+  expiresAt: Timestamp;
   sourceHash: Sha256;
   snapshotSha256: Sha256;
   engineVersion: Version;
@@ -1537,8 +1588,8 @@ export interface OfflineResultV1 {
   dirty: boolean;
   revocationStatus: "CURRENT" | "UNKNOWN" | "REVOKED";
   manifestSha256: Sha256;
-  startedAt: string;
-  finishedAt: string;
+  startedAt: Timestamp;
+  finishedAt: Timestamp;
   outcome: Outcome;
   actualEnvironment: EnvironmentV1;
   /**
@@ -1573,7 +1624,7 @@ export interface HeartbeatRequest {
  * via the `definition` "HeartbeatDTO".
  */
 export interface HeartbeatDTO {
-  leaseExpiresAt: string;
+  leaseExpiresAt: Timestamp;
   cancelRequested: boolean;
 }
 /**

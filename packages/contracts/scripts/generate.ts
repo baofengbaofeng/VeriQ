@@ -17,11 +17,12 @@ const types = await compile(definitions, "ContractDefinitions", {
 });
 const aliasTypes = aliases.map(([name, value]) => `export type ${name} = ${value.$ref!.split("/").at(-1)};`).join("\n");
 const api = astToString(await openapiTS(new URL("openapi/platform.yaml", directory), {
-  inject: 'import type { JsonValue as ContractJsonValue } from "./types.generated.js";',
+  inject: 'import type { JsonValue as ContractJsonValue, BindingJsonValue as ContractBindingJsonValue } from "./types.generated.js";',
   // An indexed-access recursive property cannot represent arbitrary JSON in TS.
   // Reuse the recursive type generated from the same canonical schema instead.
   transform(_schema, {path}) {
     if (path?.endsWith("/JsonValue")) return ts.factory.createTypeReferenceNode("ContractJsonValue");
+    if (path?.endsWith("/BindingJsonValue")) return ts.factory.createTypeReferenceNode("ContractBindingJsonValue");
   },
 }));
 const outputs = new Map([

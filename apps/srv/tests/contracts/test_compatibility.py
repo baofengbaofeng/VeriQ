@@ -33,6 +33,20 @@ def test_case_interface():
     assert validator.validate_case_schema(invalid)
 
 
+def test_literal_evidence_is_distinct_from_interpolated_dsl():
+    validator = contracts()
+    observed = {"present": True, "value": {"text": "{{customer.name}}"}}
+    assert (
+        validator.parse_contract(
+            "ActualValueV1", validator.serialize_contract("ActualValueV1", observed)
+        )
+        == observed
+    )
+    assert validator.validate_schema(
+        "StepV1", {"id": "fill", "action": "fill", "target": "input", "value": "{{evil()}}"}
+    )
+
+
 def test_python_and_node_agree():
     validator = contracts()
     expected = [

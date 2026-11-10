@@ -27,4 +27,18 @@ describe("shared schema behavior", () => {
     expect(() => serializeContract("CaseDslV1", {})).toThrow();
     expect(() => parseContract("CaseDslV1", '{"number":NaN}')).toThrow();
   });
+  test("literal evidence round-trips while unsafe interpolated DSL is rejected", () => {
+    const actual = {present:true,value:{text:"{{customer.name}}"}};
+    expect(parseContract("ActualValueV1", serializeContract("ActualValueV1", actual))).toEqual(actual);
+    expect(validateSchema("StepV1",{id:"fill",action:"fill",target:"input",value:"{{evil()}}"})).not.toEqual([]);
+  });
+  test("URL-parser origin escapes are rejected before resolution", () => {
+    const base = "https://app.example";
+    for (const path of ["/\\outside.example/path", "/\t/outside.example"]) {
+      expect(new URL(path,base).origin).toBe("https://outside.example");
+      expect(validateSchema("Path",path)).not.toEqual([]);
+    }
+    expect(validateSchema("Path","/orders/123?state=open")).toEqual([]);
+    expect(new URL("/orders/123?state=open",base).origin).toBe(base);
+  });
 });
