@@ -34,7 +34,7 @@ AI模块开箱提供完整配置和操作引导；实际模型调用使用用户
 ## 2. 已确认约束与本稿推荐基线
 
 - 名称Veriq，技术标识veriq；全部平台物理表以veriq_开头，包括迁移版本表。
-- 后端Python3.12、Tornado6.4系列、SQLAlchemy2.0、MySQL8.4 LTS；精确补丁与镜像摘要在依赖冻结时记录，不跨系列静默升级。
+- 后端Python3.12、Tornado 6.6.1、SQLAlchemy2.0、MySQL8.4 LTS；精确补丁与镜像摘要在依赖冻结时记录，不跨系列静默升级。
 - 前端React18、Vite6、Tailwind3、ESM、react-router-dom6、TanStack Query5、Radix/CVA、i18next；按需使用dnd-kit与DOMPurify。
 - 一项目一Workspace，用户可加入多个Workspace。项目资源、证据和导出均做服务端归属授权。
 - 控制服务可在没有Chrome/Playwright运行条件的环境部署；浏览器在独立Runtime运行。
@@ -361,7 +361,7 @@ Runtime产物在对应Windows/Linux构建与测试job产生，含原生入口、
 
 ## 21. 参考与审阅决策
 
-推荐路线是自建薄控制面，非整站fork；当前候选和参考不等于依赖已冻结。审阅需确认：Veriq自身许可、支持OS/arch、具体库候选、Runtime原生封装与正式签名、部署环境及外部调度接入。用户明确约束无需重复确认，例Tornado6.4、外部HTTP触发、前端随Python包发布。
+推荐路线是自建薄控制面，非整站fork；当前候选和参考不等于依赖已冻结。审阅需确认：Veriq自身许可、支持OS/arch、具体库候选、Runtime原生封装与正式签名、部署环境及外部调度接入。用户明确约束无需重复确认，例Tornado 6.6.1、外部HTTP触发、前端随Python包发布。
 
 参考：https://www.tornadoweb.org/en/stable/ 、https://docs.sqlalchemy.org/en/20/ 、https://playwright.dev/docs/intro 、https://hatch.pypa.io/latest/config/build/ 、https://github.com/multica-ai/multica 、https://github.com/kiwitcms/Kiwi 、https://github.com/reportportal/reportportal 。第三方许可以选定tag及路径为准。
 

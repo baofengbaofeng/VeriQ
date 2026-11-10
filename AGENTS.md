@@ -7,7 +7,7 @@
 
 ## Product constraints
 - Full first-release scope F01-F14, including an Electron desktop GUI; a partial loop is not the MVP.
-- Python3.12/Tornado6.4/SQLAlchemy2/MySQL8.4; React18/Vite6/Tailwind3; Node24/TypeScript/Playwright execution.
+- Python3.12/Tornado 6.6.1/SQLAlchemy2/MySQL8.4; React18/Vite6/Tailwind3; Node24/TypeScript/Playwright execution.
 - Workspace is the resource/authorization boundary. Validate nested references, downloads, events and imports.
 - Every platform table starts with veriq_; Alembic table veriq_alembic_version.
 - Local product processes use veriq/veriq_agent/veriq_runner (CLI may veriq_cli); real OS process names matter.

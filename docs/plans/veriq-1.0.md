@@ -6,7 +6,7 @@
 
 **Goal:** 完整交付规格F01-F14，达到安装、运行、云/本地/离线、管理、报告、升级运维均可用。
 
-**Architecture:** Python3.12/Tornado6.4/SQLAlchemy/MySQL控制面，React产物进入后端static/dist统一发布，独立Node/Playwright Runtime执行。统一Job类型TEST/VALIDATE/CLEANUP，外部HTTP唤醒，无内部Cron。
+**Architecture:** Python3.12/Tornado 6.6.1/SQLAlchemy/MySQL控制面，React产物进入后端static/dist统一发布，独立Node/Playwright Runtime执行。统一Job类型TEST/VALIDATE/CLEANUP，外部HTTP唤醒，无内部Cron。
 
 **Tech Stack:** 见规格技术选型表，具体依赖和产品许可在审阅后ADR锁定。
 
@@ -15,7 +15,7 @@
 ## Global Constraints
 
 - F01-F14全部属于首发MVP，不能以开发阶段为由删减。
-- Python3.12、Tornado6.4系列、SQLAlchemy2.0、MySQL8.4 LTS；全部表veriq_，Alembic表veriq_alembic_version。
+- Python3.12、Tornado 6.6.1、SQLAlchemy2.0、MySQL8.4 LTS；全部表veriq_，Alembic表veriq_alembic_version。
 - 私人设备与Workspace分别授权；本地自有进程veriq/veriq_agent/veriq_runner。
 - 开发前后端分开；生产web check/build后复制到apps/srv/src/veriq_server/static/dist，随wheel发布。
 - 服务端运行不需要Node或浏览器；Runtime采用同一TS引擎，不在常规执行调用模型。
