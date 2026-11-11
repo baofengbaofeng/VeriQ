@@ -32,7 +32,7 @@ class DeviceAPI(API):
             "service-enroll": "ServiceEnrollmentRequest",
             "enrollment-request": "EnrollmentRequest",
             "enrollment-poll": "EnrollmentPoll",
-            "device-rotate": "EmptyObject",
+            "device-rotate": "DeviceRotationRequest",
             "device-logout": "EmptyObject",
         }[self.action]
         data = self.body(schema)
@@ -55,6 +55,8 @@ class DeviceAPI(API):
                         # Persist only the throttle timestamp; no credential was issued.
                         await session.commit()
                     raise
+            elif self.action == "device-rotate":
+                result = await service.rotate(self.request.headers.get("Authorization", ""), data)
             else:
                 runtime, binding, token = await service.require_device(
                     self.request.headers.get("Authorization", "")

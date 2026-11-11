@@ -410,6 +410,8 @@ async def exercise_test_protocol(
             "kind": "TEST",
             "caseVersionId": case_version,
             "expectedPlansSha256": expected["sha256"],
+            # Explicit protocol fixture; physical observations are covered by test_agent_mysql.
+            "retrySafety": "READ_ONLY_OBSERVED",
             "businessOutcome": status,
             "cleanupStatus": "NOT_REQUIRED",
             "evidence": [entry],

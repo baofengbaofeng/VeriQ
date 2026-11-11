@@ -552,3 +552,126 @@ lock prevents concurrent enqueue/authorization mutation during this traversal an
 DB-time fence excludes newer rows. There is no fixed prefix or new cursor table. Memory
 and each query are bounded by100; total work and installation-lock hold time remain
 proportional to the existing matching queue, a conservative consistency tradeoff.
+
+## T10 — online Node Agent and physical execution
+
+`apps/runtime/src/execution/supervisor.ts` exports `ExecutionSupervisor.runAttempt`
+with `{claim, requestStarted, responseReceived}` and an AbortSignal. It returns
+`AttemptResult {completion?: CompletionManifestV1, stop: StopReceipt, files: LocalEvidence[]}`.
+The assigned JobManifest is an input; only measured execution produces a completion.
+No completion means reconciliation, never an exit-code-derived passing result.
+`terminateAttempt(id, reason)` returns the confirmed/unknown physical stop receipt.
+
+Development CLI: `runtime start --release-dir <operator-release> --browser-executable
+<pinned-browser>` runs the Agent in the foreground; `--once` consumes at most one claim.
+`runtime status` and `runtime stop` use a private authenticated Unix socket. SIGINT/SIGTERM
+also request cancellation. A profile permits one Agent. Logout requires stopping it first;
+local-only logout removes both the device credential and any pending rotation candidate.
+It retains execution evidence and does not revoke a remote credential. Native Windows
+job objects, installer process images and OS vault integration remain T20 boundaries.
+
+The local release directory has `inventory.json` (ApprovedEngineInventoryV1) and exact
+files at its declared paths. It is selected by the operator, never by an assigned job.
+The server independently approves the same inventory. T10 verifies hashes, installs only
+the approved local archives with npm offline/ignore-scripts, executes the actual archived
+compiler, and compares TEST descriptors/files with deterministic recompilation before
+registerCase can run. The release closure includes the compiler's already locked
+TypeScript dependency in addition to SDK dependencies. T18/T20 must promote these exact
+bytes; a developer test archive is not a published production engine.
+
+Claims are journaled and activated before the gated worker starts. Lost activation replies
+with no spawned worker reconcile as stopped. Linux ownership uses a random per-Attempt
+nonce, actual execution UID and `/proc` start times, including detached browser groups and recorded descendants.
+Current `/proc` owner UID is checked again before signalling; missing/mismatched journal UID remains unknown.
+Unknown identity or a process that cannot be confirmed stopped preserves quarantine.
+The existing monotonic leaseDeadline drives an independent watchdog; device wall-clock
+changes cannot revive authorization. Polling after204 waits at least10 seconds and uses a
+fresh UUID. Only a specific unacknowledged claim request reuses its journaled UUID.
+
+A business child receives no device token or lease proof. A private per-Attempt Unix
+channel resolves only frozen business/fixture references through the parent; responses
+are bounded and credentials remain in private process memory. SDK `onEvent` reports
+actual recursive starts, assertion/observer results, finishes and cleanup. The ordinary
+callback uses EvidencePolicy/redaction; restricted paths and raw traces use a separate
+sink. The provider sends only the final case summary, since live step facts have already
+been sent. Explicit skipped facts originate at actual STOP/BLOCK branches. The existing
+server expected-plan/order/completeness reducer remains authoritative.
+
+Each TEST has a fresh work directory, Playwright Context and fixture namespace, retries0,
+serviceWorkers:block and a real restricted trace. Chromium temporary paths use short
+private directories to fit Linux Unix-socket limits. A100ms byte/file monitor covers
+browser staging, unfinished downloads and traces (default64MiB/10,000 files); it stops all
+owned groups on overflow. It does not follow Chromium singleton symlinks. This is a
+measured detection-and-stop limit with scan/scheduling delay, not a kernel filesystem
+quota. Canonical event buffering is bounded to4MiB/10,000 events and fails closed on
+exhaustion. Confirmed shutdown removes regenerable dependencies/caches; acknowledged
+completion and local evidence stay private for reporting/retention work.
+
+CLEANUP uses the neutral `FixtureServiceContext`, containing only the original
+workspaceId/caseExecutionId/attemptNo/namespace, fixture-only secretVersions/authAdapters
+and the actual fixture environment fields. External maintenance obtains these from the
+original Attempt snapshot, including Attempt2, never from a retry's current Job snapshot.
+It removes business-role pins from the compensation subject. HTTP cleanup reuses the SDK
+fixture authentication/identity/idempotency contract without a Page or browser. The
+server's CLEANUP proof allows the fixture identity only. Compiler failure uploads a
+nonempty sanitized stable-code LOG and the existing ERROR completion without a bundle.
+
+Recoverable device rotation accepts either legacy `{}` or
+`{clientRequestId: UUID, replacementToken: 32-byte unpadded base64url}` at the existing
+rotate endpoint. The private store fsyncs a pending candidate before HTTP and atomically
+replaces the same principal's profile after confirmation. The server stores only
+predecessor/successor hashes and request UUID. Exact recovery is restricted to rotate and
+requires the still-current authorized successor; the old token never regains ordinary
+device authority. Renewal is serialized with bounded control operations at startup and
+on a12-hour monotonic schedule. A changed candidate/request, revoked successor or current
+owner/binding revocation fails closed.
+
+Runtime `lastSeenAt` now records server DB time for an authorized claim or valid heartbeat.
+The DTO reports ONLINE for communication in the last60 seconds, OFFLINE otherwise, with
+REVOKED taking priority. Registration and GET do not refresh it. Stop/disconnection may
+remain ONLINE until the TTL elapses; recent communication is not physical-process proof
+and never releases quarantined capacity.
+
+TEST `CompletionManifestV1.retrySafety` is an optional classification:
+`READ_ONLY_OBSERVED | WRITE_POSSIBLE | UNKNOWN`; absent means UNKNOWN. Compiler-owned
+`ExpectedPlansV1.cases[].hasPotentialWrites` is an optional boolean; absent is unknown,
+not false. Compiler source analysis includes WRITE declarations and non-GET/HEAD/OPTIONS
+API/observer methods recursively. Runtime observes business Context requests (including
+frames/popups), WebSocket activity and SDK business API calls, retaining only the category.
+The trusted provider closes the complete business Context before read-only confirmation;
+missing closure/window is UNKNOWN. Auth/fixture HTTP stays separate; service workers block.
+
+The original completion service queues its one whole-case retry only with genuine fixture
+closure (`cleanupSnapshotSha256` from the trusted producer plus SUCCEEDED cleanup), or both
+trusted `hasPotentialWrites:false` and actual `READ_ONLY_OBSERVED`. Other failures retain the
+original terminal outcome and record `retryReasonCode:RETRY_SAFETY_UNCONFIRMED` in Attempt
+facts. Fake SUCCEEDED cleanup without a fixture does not authorize replay. A no-fixture write
+whose response is lost is never automatically retried; a truly read-only failed Attempt can
+still retry in a fresh Context/workdir and become UNSTABLE after passing. Business-key inquiry
+and explicit user decisions for a new Run remain outside this narrow automatic retry gate.
+
+`StepFinishedPayloadV1.status` also accepts `CANCELLED` for an actual interrupted operation.
+The SDK uses explicit abort-versus-operation settlement, preserving a failure observed first;
+it does not infer cancellation from arbitrary error text or erase an existing failed assertion.
+An unfinished assertion interrupted by abort emits no fabricated ASSERTION_RESULT. The step
+reports its interruption and CASE_FINISHED retains any earlier FAILED business facts. The
+existing reducer and its cancellation completeness rules remain unchanged.
+
+
+T10 fix1 supersedes stop-time process scanning as positive proof. The fixed installed Linux
+`build/veriq_runner` guardian sets `PR_SET_CHILD_SUBREAPER` before forking the worker, then
+keeps a private gate closed until Node has fsynced both PID/UID/start-time identities.
+Activation is acknowledged before this launch path. The original Node worker IPC remains
+FD3; guardian-only status/control use FD4/FD5 and are closed in the worker before exec.
+Kernel adoption retains detached, empty-environment descendants after parent exit. `/proc`
+PPID enumeration is used to signal direct children, never to prove an empty tree. The
+single spawn gate must be closed and `waitpid(-1)` must return ECHILD before the guardian
+fsyncs its private nonce/UID/guardian+worker identity-bound DRAINED proof. Positive stop also
+requires guardian exit. Guardian loss, missing proof, changed UID/start time and bounded
+stop failure remain unknown/quarantined; legacy journals without containment proof are not
+silently upgraded. Agent control EOF triggers guardian cleanup. See ADR0012 for the local ABI.
+
+A pending claim UUID is now copied to its assigned private Attempt journal before execution.
+Recovery clears `claim-request.json` only when that same UUID was successfully reconciled;
+retained historical journals, including older journals without this association, cannot
+clear an unrelated newer lost request. The server claim/fence/lease protocol is unchanged.

@@ -408,6 +408,7 @@ class Runtime(Base):
     trust_status: Mapped[str] = mapped_column(String(24, collation="ascii_bin"))
     capabilities: Mapped[dict[str, Any]] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+    last_seen_at: Mapped[datetime | None] = mapped_column(DATETIME(fsp=6))
 
 
 class RuntimeBinding(Base):
@@ -466,6 +467,8 @@ class RuntimeToken(Base):
     expires_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
     revoked: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+    rotation_request_id: Mapped[str | None] = mapped_column(uuid_type)
+    successor_hash: Mapped[str | None] = mapped_column(hash_type)
 
 
 class ServiceAccount(Base):

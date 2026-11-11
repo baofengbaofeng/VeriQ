@@ -864,3 +864,11 @@ it("marks deferred request-count assertions FINALIZE in expected execution metad
   expect(plans.cases[0].steps[0].assertions).toContainEqual({ id: visible.assertion.id, severity: "BLOCK", stage: "RESPONSE" });
   expect(validateSchema("ExpectedPlansV1", plans)).toEqual([]);
 });
+
+it('derives retry write potential from compiled source rather than a claimed runtime flag',()=>{
+ for(const method of ['GET','POST'] as const){
+  const result=compileFiles(snapshot([{id:'request',action:'apiRequest',method,path:'/record'}]),distribution());
+  const plan=JSON.parse(new TextDecoder().decode(result.files['metadata/expected-plans.json']!)).cases[0];
+  expect(plan.hasPotentialWrites).toBe(method==='POST');
+ }
+});

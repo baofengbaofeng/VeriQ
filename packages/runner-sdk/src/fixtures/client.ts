@@ -1,14 +1,14 @@
 import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import type { FixtureV1, JsonObject, JsonValue } from "@veriq/contracts";
-import type { LifecycleContext, LifecycleProvider } from "../register-case.js";
+import type { FixtureServiceContext, LifecycleContext, LifecycleProvider } from "../register-case.js";
 import { authorizedURL } from "../http.js";
 import { authenticatedRequest, authenticateBusiness } from "./auth.js";
 const schemas = new Ajv2020({ strict: false, allErrors: true });
 addFormats.default(schemas);
 export interface FixtureRequest {
   fixture: FixtureV1;
-  context: LifecycleContext;
+  context: FixtureServiceContext | LifecycleContext;
 }
 export interface FixtureContext extends FixtureRequest {
   fixtureId: string;
@@ -20,7 +20,7 @@ export interface CleanupReceipt {
   status: "CLEANED" | "ALREADY_CLEANED";
   fixtureId?: string;
 }
-function envelope(context: LifecycleContext) {
+function envelope(context: FixtureServiceContext) {
   const e = context.execution;
   return {
     workspaceId: e.workspaceId,

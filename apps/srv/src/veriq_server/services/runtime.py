@@ -158,8 +158,10 @@ class RuntimeService:
         row.consumed = True
         return self.issue_token(runtime, binding)
 
-    def issue_token(self, runtime: Runtime, binding: RuntimeBinding) -> dict[str, Any]:
-        secret = secrets.token_urlsafe(32)
+    def issue_token(
+        self, runtime: Runtime, binding: RuntimeBinding, secret: str | None = None
+    ) -> dict[str, Any]:
+        secret = secret or secrets.token_urlsafe(32)
         expires = now() + timedelta(hours=24)
         self.session.add(
             RuntimeToken(
@@ -277,6 +279,66 @@ class RuntimeService:
             raise Problem(
                 401, "DEVICE_REVOKED", "Runtime owner authorization is inactive"
             ) from None
+
+    async def rotate(self, authorization: str, data: dict[str, Any]) -> dict[str, Any]:
+        if not data:
+            runtime, binding, token = await self.require_device(authorization)
+            token.revoked = True
+            audit(
+                self.session,
+                "runtime.token_revoked",
+                runtime.owner_user_id,
+                runtime.id,
+                workspace_id=binding.workspace_id,
+            )
+            return self.issue_token(runtime, binding)
+        candidate = data["replacementToken"]
+        if authorization == "Bearer " + candidate:
+            raise Problem(400, "INVALID_ROTATION", "Replacement must be a new credential")
+        if not authorization.startswith("Bearer ") or not 43 <= len(authorization[7:]) <= 128:
+            raise Problem(401, "DEVICE_UNAUTHORIZED", "Valid device authentication required")
+        predecessor = (
+            await self.session.execute(
+                select(RuntimeToken)
+                .where(RuntimeToken.token_hash == digest(authorization[7:]))
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        if predecessor and predecessor.rotation_request_id:
+            if predecessor.rotation_request_id != data[
+                "clientRequestId"
+            ] or predecessor.successor_hash != digest(candidate):
+                raise Problem(401, "DEVICE_UNAUTHORIZED", "Rotation recovery is not authorized")
+            runtime, binding, successor = await self.require_device("Bearer " + candidate)
+            if (
+                runtime.id != predecessor.runtime_id
+                or binding.workspace_id != predecessor.workspace_id
+            ):
+                raise Problem(401, "DEVICE_UNAUTHORIZED", "Rotation recovery is not authorized")
+            return {
+                "runnerId": runtime.id,
+                "workspaceId": binding.workspace_id,
+                "deviceToken": candidate,
+                "expiresAt": stamp(successor.expires_at),
+            }
+        runtime, binding, token = await self.require_device(authorization)
+        if (
+            await self.session.execute(
+                select(RuntimeToken.id).where(RuntimeToken.token_hash == digest(candidate))
+            )
+        ).first():
+            raise Problem(400, "INVALID_ROTATION", "Replacement must be a new credential")
+        token.revoked = True
+        audit(
+            self.session,
+            "runtime.token_revoked",
+            runtime.owner_user_id,
+            runtime.id,
+            workspace_id=binding.workspace_id,
+        )
+        token.rotation_request_id = data["clientRequestId"]
+        token.successor_hash = digest(candidate)
+        return self.issue_token(runtime, binding, candidate)
 
     async def require_device(
         self, authorization: str
@@ -427,7 +489,14 @@ class RuntimeService:
             "name": runtime.name,
             "location": runtime.location,
             "trustStatus": runtime.trust_status,
-            "status": "REVOKED" if runtime.trust_status == "REVOKED" else "OFFLINE",
+            "status": "REVOKED"
+            if runtime.trust_status == "REVOKED"
+            else (
+                "ONLINE"
+                if runtime.last_seen_at and runtime.last_seen_at > now() - timedelta(seconds=60)
+                else "OFFLINE"
+            ),
+            **({"lastSeenAt": stamp(runtime.last_seen_at)} if runtime.last_seen_at else {}),
             "capabilities": runtime.capabilities,
             "capabilitiesSource": "DEVICE_REPORTED",
             "sharedWithWorkspace": binding.shared_with_workspace,

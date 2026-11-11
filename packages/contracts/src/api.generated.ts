@@ -3756,6 +3756,10 @@ export interface components {
             requestId: string;
         };
         CompletionManifestV1: components["schemas"]["TestCompletionManifestV1"] | components["schemas"]["ValidateCompletionManifestV1"] | components["schemas"]["CleanupCompletionManifestV1"];
+        DeviceRotationRequest: Record<string, never> | {
+            clientRequestId: components["schemas"]["Id"];
+            replacementToken: string;
+        };
         /** @description JSON used only in interpolated DSL fields, recursively restricted to SafeString bindings. */
         BindingJsonValue: ContractBindingJsonValue;
         BindingJsonObject: {
@@ -3809,7 +3813,7 @@ export interface components {
         DiagnosticText: string;
         StepFinishedPayloadV1: {
             /** @enum {string} */
-            status: "PASSED" | "FAILED" | "ERROR" | "SKIPPED";
+            status: "PASSED" | "FAILED" | "ERROR" | "SKIPPED" | "CANCELLED";
             durationMs: components["schemas"]["DurationMs"];
             errorCode?: components["schemas"]["Key"];
             message?: components["schemas"]["DiagnosticText"];
@@ -3901,6 +3905,11 @@ export interface components {
             kind: "TEST";
             caseVersionId: components["schemas"]["Id"];
             expectedPlansSha256: components["schemas"]["Sha256"];
+            /**
+             * @description Actual business request observation through Context closure. Missing means UNKNOWN; not sufficient without approved expected metadata.
+             * @enum {string}
+             */
+            retrySafety?: "READ_ONLY_OBSERVED" | "WRITE_POSSIBLE" | "UNKNOWN";
         };
         ValidateSuccessCompletionManifestV1: {
             /** @constant */
@@ -14468,7 +14477,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["EmptyObject"];
+                "application/json": components["schemas"]["DeviceRotationRequest"];
             };
         };
         responses: {

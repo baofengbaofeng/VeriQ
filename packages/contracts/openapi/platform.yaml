@@ -14192,7 +14192,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/EmptyObject"
+                "$ref": "#/components/schemas/DeviceRotationRequest"
               }
             }
           }
@@ -19421,6 +19421,9 @@
       },
       "CompletionManifestV1": {
         "$ref": "../schemas/platform-v1.schema.json#/$defs/CompletionManifestV1"
+      },
+      "DeviceRotationRequest": {
+        "$ref": "../schemas/platform-v1.schema.json#/$defs/DeviceRotationRequest"
       }
     }
   }

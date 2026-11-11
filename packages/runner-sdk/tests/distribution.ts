@@ -105,6 +105,8 @@ export function actualDistribution(root: string): EngineDistribution {
       collect(dep, local ? join(packages, local) : dir);
   }
   collect("@veriq/runner-sdk", process.cwd());
+  // T10 executes the archived compiler in the same approved offline closure.
+  collect("typescript", join(packages, "compiler"));
   const files: Record<string, Uint8Array> = {},
     inventory: EngineDistribution["dependencies"] = [],
     nodes: Record<string, unknown> = {},

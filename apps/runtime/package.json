@@ -21,8 +21,9 @@
   "type": "module",
   "license": "AGPL-3.0-only",
   "scripts": {
-    "test": "node --import tsx --test tests/*.test.ts",
+    "test": "pnpm build:launcher && node --import tsx --test tests/*.test.ts",
     "check": "tsc --noEmit",
-    "dev": "node --import tsx src/cli.ts"
+    "dev": "node --import tsx src/cli.ts",
+    "build:launcher": "node scripts/build-launcher.mjs"
   }
 }

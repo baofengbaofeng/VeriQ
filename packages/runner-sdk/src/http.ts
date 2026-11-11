@@ -61,6 +61,7 @@ export async function apiRequest(
     body: body ?? null,
     headers: headers ?? {},
   };
+  ctx.onBusinessRequest?.(method);
   const captured = ctx.registry.captureRequest(original.href, data);
   try {
     for (let redirects = 0; redirects <= 10; redirects++) {

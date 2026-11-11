@@ -302,6 +302,8 @@ assert expired_unknown_worker.capacity_state == QUARANTINED
 
 **依赖：** T06/T07/T09
 
+**状态：** 已完成并通过独立规格/质量审查及修复复审（`d04a4fc`、`ee8da33`）；Linux 使用每 Attempt 的内核 subreaper guardian。Windows 原生 Job、发行打包与 OS 凭据库由 T20 完成，图形界面由 T19 完成。
+
 **Files（拟创建/修改）：**
 
 - `apps/runtime/src/agent/claim-loop.ts`
@@ -310,9 +312,9 @@ assert expired_unknown_worker.capacity_state == QUARANTINED
 - `apps/runtime/src/execution/events.ts`
 - `apps/runtime/tests/supervisor.test.ts`
 
-**Interfaces：** runAttempt(claim: ClaimedAttempt, signal: AbortSignal)；terminateAttempt(id, reason): Promise<StopReceipt>。分配输入为 JobManifestV1，执行产出以 T09 的 CompletionManifestV1 为准，实施前冻结准确返回类型，不把输入 manifest 当作完成结果。
+**Interfaces：** ExecutionSupervisor.runAttempt(claim: ClaimedAttempt, signal: AbortSignal): Promise<AttemptResult>；terminateAttempt(id, reason): Promise<StopReceipt>。AttemptResult 包含可选 CompletionManifestV1、真实 StopReceipt 与 LocalEvidence[]；JobManifestV1 是分配输入。
 
-- [ ] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
+- [x] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```ts
 expect(processes.active()).toHaveLength(0);
@@ -320,14 +322,14 @@ expect(retryPassed.outcome).toBe('UNSTABLE');
 expect(firstAttempt.fixtureId).not.toBe(secondAttempt.fixtureId);
 ```
 
-- [ ] **Step 2：运行测试确认未实现时失败。** `pnpm --filter @veriq/runtime exec node --import tsx --test tests/supervisor.test.ts`；失败必须来自缺失行为，而非测试环境拼写错误。
-- [ ] **Step 3：实现上述接口与文件。** TEST/VALIDATE/CLEANUP真实分派；断网停止、finally、事件缓冲有界、重试由平台单层控制。
-- [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
-- [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t10 Agent监督、事件、取消与整用例重试`。有新决策先更新ADR，不扩展到下一任务。
+- [x] **Step 2：运行测试确认未实现时失败。** 先 `pnpm --filter @veriq/runtime build:launcher`，再 `pnpm --filter @veriq/runtime exec node --import tsx --test tests/supervisor.test.ts`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [x] **Step 3：实现上述接口与文件。** TEST/VALIDATE/CLEANUP真实分派；断网停止、finally、事件缓冲有界、重试由平台单层控制。
+- [x] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
+- [x] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t10 Agent监督、事件、取消与整用例重试`。有新决策先更新ADR，不扩展到下一任务。
 
 ## T11：完整资产编辑器与环境配置UI
 
-**依赖：** T04/T05/T08
+**依赖：** T04/T05/T08/T10
 
 **Files（拟创建/修改）：**
 
@@ -335,7 +337,7 @@ expect(firstAttempt.fixtureId).not.toBe(secondAttempt.fixtureId);
 - `apps/web/src/features/cases/CaseEditor.tsx`
 - `apps/web/src/features/assertions/AssertionEditor.tsx`
 - `apps/web/src/features/environments/EnvironmentPage.tsx`
-- `tests/e2e/case-publish.spec.ts`
+- `apps/web/tests/case-publish.spec.ts`
 
 **Interfaces：** Web只提交CaseDslV1；observer/断言/变量面板共享同一表单状态，JSON编辑与表单可逆。
 
@@ -346,7 +348,7 @@ expect(await page.getByTestId('case.validation-errors').count()).toBe(0);
 await expect(page.getByTestId('case.published-version')).toBeVisible();
 ```
 
-- [ ] **Step 2：运行测试确认未实现时失败。** `pnpm e2e -- tests/e2e/case-publish.spec.ts`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [ ] **Step 2：运行测试确认未实现时失败。** `pnpm --filter @veriq/web test:e2e case-publish.spec.ts`；失败必须来自缺失行为，而非测试环境拼写错误。
 - [ ] **Step 3：实现上述接口与文件。** 全部资源kind、模板参数/影响、数据行、公共流程、版本差异、错误/空态/冲突真实可用。
 - [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
 - [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t11 完整资产编辑器与环境配置UI`。有新决策先更新ADR，不扩展到下一任务。

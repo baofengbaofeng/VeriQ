@@ -130,6 +130,7 @@ class CompletionService:
         evidence_complete &= set(manifest["requiredEvidence"]) <= {
             e["sha256"] for e in manifest["evidence"]
         }
+        safe_to_retry = False
         if job.kind == "VALIDATE":
             facts = await self.validation(
                 job, attempt, runtime.trust_status, manifest, uploaded, repo, evidence_complete
@@ -157,6 +158,12 @@ class CompletionService:
             )
             if not plan:
                 raise Problem(409, "EXPECTED_PLAN_REQUIRED", "Expected CASE is absent")
+            safe_to_retry = retry_is_safe(
+                plan.get("hasPotentialWrites"),
+                manifest.get("retrySafety"),
+                bool(job.required_capabilities.get("cleanupSnapshotSha256")),
+                manifest["cleanupStatus"],
+            )
             evidence_hashes = {e["sha256"] for e in manifest["evidence"]}
             evidence_kinds = {
                 u.metadata_json["kind"] for u in uploads if u.sha256 in evidence_hashes
@@ -211,13 +218,17 @@ class CompletionService:
         attempt.finish_receipt = receipt
         job.state, job.outcome = "FINISHED", facts["outcome"]
         await CapacityService(self.session, self.settings).release(attempt)
-        if (
+        retry_candidate = (
             job.kind == "TEST"
             and job.max_retries == 1
             and attempt.attempt_no == 1
             and attempt.outcome in {"FAILED", "ERROR"}
             and not was_cancelled
-        ):
+        )
+        if retry_candidate and not safe_to_retry:
+            # Keep the existing terminal reducer/history; only suppress unsafe replay.
+            attempt.facts = {**facts, "retryReasonCode": "RETRY_SAFETY_UNCONFIRMED"}
+        if retry_candidate and safe_to_retry:
             snapshot = json.loads((await repo.artifact(attempt.snapshot_hash)).content)
             snapshot["attemptNo"], snapshot["namespace"] = 2, "attempt_" + uuid4().hex
             job.snapshot_hash = await repo.store(canonical_bytes(snapshot))
@@ -422,3 +433,14 @@ class CompletionService:
                 "FINISHED",
                 aggregate([c.outcome or "INCOMPLETE" for c in cases]),
             )
+
+
+def retry_is_safe(
+    has_potential_writes: bool | None,
+    observed: str | None,
+    fixture_declared: bool,
+    cleanup_status: str,
+) -> bool:
+    return (fixture_declared and cleanup_status == "SUCCEEDED") or (
+        has_potential_writes is False and observed == "READ_ONLY_OBSERVED"
+    )
