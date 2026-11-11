@@ -1,0 +1,168 @@
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  color: #193038;
+  background: #f3f6f6;
+  font-synthesis: none;
+  font-size: 16px;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+header {
+  background: #fff;
+  border-bottom: 1px solid #d8e1e2;
+  padding: 20px 5%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.brand {
+  font-size: 25px;
+  font-weight: 750;
+  text-decoration: none;
+  color: #136968;
+}
+nav {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+a {
+  color: #136968;
+}
+main {
+  max-width: 1080px;
+  margin: 44px auto;
+  padding: 0 24px;
+}
+.panel {
+  background: #fff;
+  border: 1px solid #dbe4e4;
+  border-radius: 14px;
+  padding: 32px;
+  box-shadow: 0 8px 30px #183f4810;
+}
+h1 {
+  font-size: 28px;
+  margin: 0 0 14px;
+}
+h2 {
+  font-size: 20px;
+  margin-top: 32px;
+}
+p {
+  line-height: 1.6;
+  color: #4d6268;
+}
+form {
+  max-width: 480px;
+  display: grid;
+  gap: 18px;
+  margin: 24px 0;
+}
+label {
+  display: grid;
+  gap: 8px;
+  font-weight: 550;
+}
+input,
+select {
+  font: inherit;
+  border: 1px solid #9db2b6;
+  border-radius: 6px;
+  padding: 11px;
+  width: 100%;
+  background: white;
+  color: #193038;
+}
+input:focus,
+select:focus {
+  outline: 3px solid #b6dddb;
+  border-color: #136968;
+}
+button {
+  font: inherit;
+  border: 1px solid #126563;
+  border-radius: 6px;
+  padding: 10px 15px;
+  cursor: pointer;
+  background: #136968;
+  color: white;
+}
+button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+.check {
+  display: flex;
+  align-items: center;
+}
+.check input {
+  width: auto;
+}
+button + button {
+  margin-left: 8px;
+}
+[role="alert"] {
+  color: #a62d2d;
+  background: #fff1f0;
+  padding: 12px;
+  border-radius: 6px;
+}
+[role="status"] {
+  color: #185b40;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+td,
+th {
+  text-align: left;
+  border-bottom: 1px solid #dce5e5;
+  padding: 14px 10px;
+}
+td button {
+  font-size: 13px;
+  padding: 7px;
+  margin: 3px;
+}
+small {
+  display: block;
+  color: #63767b;
+  margin-top: 4px;
+}
+.table-scroll {
+  overflow-x: auto;
+}
+aside {
+  padding: 20px;
+  background: #eaf5f3;
+  border-radius: 8px;
+}
+aside input {
+  margin-bottom: 12px;
+}
+dt {
+  font-size: 13px;
+  color: #60777c;
+}
+dd {
+  margin: 4px 0 18px;
+  font-weight: 600;
+}
+@media (max-width: 650px) {
+  main {
+    margin: 24px auto;
+    padding: 0 12px;
+  }
+  .panel {
+    padding: 20px;
+  }
+  nav {
+    gap: 12px;
+  }
+}
