@@ -332,6 +332,178 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
       fail("BINDING_TYPE_MISMATCH", p);
     return result;
   }
+  // Unknown initial values have no fabricated stand-ins. Ajv checks every
+  // resolved subtree against its original schema location (retaining local
+  // refs). Only unconditional structure/types are checked around unknowns;
+  // assembly and the SDK validate the complete schema with frozen values.
+  function fixtureInput(
+    input: JsonValue,
+    schema: JsonValue,
+    data: Record<string, JsonValue>,
+    scope: Scope,
+    path: string,
+  ): void {
+    const dynamic = (value: JsonValue): boolean =>
+      typeof value === "string"
+        ? /\{\{vars\./u.test(value)
+        : value !== null &&
+          typeof value === "object" &&
+          Object.values(value).some(dynamic);
+    const schemas = new Ajv2020({ strict: false, allErrors: true });
+    addFormats.default(schemas);
+    const rootId = "urn:veriq:fixture-input";
+    schemas.addSchema(schema as object, rootId);
+    const visit = (
+      value: JsonValue,
+      definition: JsonValue,
+      pointer: string,
+      p: string,
+      seen = new Set<string>(),
+    ): void => {
+      if (!dynamic(value)) {
+        if (
+          !schemas.compile({ $ref: rootId + "#" + pointer })(
+            resolveBinding(value, { data, vars: {} }),
+          )
+        )
+          fail("FIXTURE_INPUT_INVALID", p);
+        return;
+      }
+      if (definition === false) {
+        fail("FIXTURE_INPUT_INVALID", p);
+        return;
+      }
+      if (
+        !definition ||
+        typeof definition !== "object" ||
+        Array.isArray(definition)
+      )
+        return;
+      const expected = schemaSymbol(definition, schema);
+      const actual = binding(value, scope, p);
+      if (
+        expected &&
+        actual &&
+        !(actual.alternatives ?? [actual.type]).every((t) =>
+          (expected.alternatives ?? [expected.type]).some((e) => accepts(e, t)),
+        )
+      )
+        fail("BINDING_TYPE_MISMATCH", p);
+      const ref = definition.$ref;
+      if (typeof ref === "string" && ref.startsWith("#/") && !seen.has(ref)) {
+        const target = resolvePointer(schema, ref.slice(1));
+        if (target.present)
+          visit(value, target.value, ref.slice(1), p, new Set([...seen, ref]));
+      }
+      if (Array.isArray(definition.allOf))
+        definition.allOf.forEach((child, i) =>
+          visit(value, child, `${pointer}/allOf/${i}`, p, seen),
+        );
+      if (
+        value !== null &&
+        typeof value === "object" &&
+        !Array.isArray(value)
+      ) {
+        const properties = definition.properties;
+        const declared =
+          properties &&
+          typeof properties === "object" &&
+          !Array.isArray(properties)
+            ? properties
+            : {};
+        // These constraints depend on the literal keys, never unknown values.
+        const shape = Object.fromEntries(
+          [
+            "required",
+            "minProperties",
+            "maxProperties",
+            "propertyNames",
+            "dependentRequired",
+          ]
+            .filter((k) => Object.hasOwn(definition, k))
+            .map((k) => [
+              k,
+              k === "propertyNames"
+                ? { $ref: rootId + "#" + pointer + "/propertyNames" }
+                : definition[k],
+            ]),
+        );
+        // Pattern properties may admit additional keys; Ajv handles matching.
+        const patterns = definition.patternProperties;
+        const patternKeys =
+          patterns && typeof patterns === "object" && !Array.isArray(patterns)
+            ? Object.keys(patterns)
+            : [];
+        if (
+          !schemas.compile({
+            ...shape,
+            type: "object",
+            properties: Object.fromEntries(
+              Object.keys(declared).map((k) => [k, true]),
+            ),
+            patternProperties: Object.fromEntries(
+              patternKeys.map((k) => [k, true]),
+            ),
+            ...(definition.additionalProperties === false
+              ? { additionalProperties: false }
+              : {}),
+          })(value)
+        )
+          fail("FIXTURE_INPUT_INVALID", p);
+        for (const [key, child] of Object.entries(value)) {
+          if (Object.hasOwn(declared, key))
+            visit(
+              child,
+              declared[key]!,
+              `${pointer}/properties/${pointerKey(key)}`,
+              `${p}/${pointerKey(key)}`,
+            );
+          for (const pattern of patternKeys)
+            if (new RegExp(pattern, "u").test(key))
+              visit(
+                child,
+                (patterns as Record<string, JsonValue>)[pattern]!,
+                `${pointer}/patternProperties/${pointerKey(pattern)}`,
+                `${p}/${pointerKey(key)}`,
+              );
+          if (
+            !Object.hasOwn(declared, key) &&
+            !patternKeys.some((pattern) =>
+              new RegExp(pattern, "u").test(key),
+            ) &&
+            typeof definition.additionalProperties === "object"
+          )
+            visit(
+              child,
+              definition.additionalProperties!,
+              `${pointer}/additionalProperties`,
+              `${p}/${pointerKey(key)}`,
+            );
+        }
+      } else if (Array.isArray(value)) {
+        const shape = Object.fromEntries(
+          ["minItems", "maxItems"]
+            .filter((k) => Object.hasOwn(definition, k))
+            .map((k) => [k, definition[k]]),
+        );
+        if (!schemas.compile({ type: "array", ...shape })(value))
+          fail("FIXTURE_INPUT_INVALID", p);
+        value.forEach((child, i) => {
+          const prefix = definition.prefixItems;
+          if (Array.isArray(prefix) && i < prefix.length)
+            visit(
+              child,
+              prefix[i]!,
+              `${pointer}/prefixItems/${i}`,
+              `${p}/${i}`,
+            );
+          else if (definition.items !== undefined)
+            visit(child, definition.items, `${pointer}/items`, `${p}/${i}`);
+        });
+      }
+    };
+    visit(input, schema, "", path);
+  }
   function params(
     declared: ParameterTypes | undefined,
     supplied: Record<string, JsonValue> | undefined,
@@ -680,7 +852,12 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
       for (const datasetVersionId of datasets) {
         const scope: Scope = {
           data: new Map(),
-          vars: new Map(),
+          vars: new Map(
+            Object.entries(d.initialVariables ?? {}).map(([key, type]) => [
+              key,
+              { type },
+            ]),
+          ),
           ...(c?.kind === "ELEMENT_CATALOG"
             ? { catalog: new Set(c.document.elements.map((e) => e.key)) }
             : {}),
@@ -732,14 +909,14 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                 ds?.kind === "DATASET"
                   ? ds.document.rows.map((r) => r.values)
                   : [{}];
-              const checkInput = jsonSchemas.compile(f.document.inputSchema);
               for (const data of rows)
-                if (
-                  !checkInput(
-                    resolveBinding(d.fixtureInput ?? {}, { data, vars: {} }),
-                  )
-                )
-                  fail("FIXTURE_INPUT_INVALID", p + "/fixtureInput");
+                fixtureInput(
+                  d.fixtureInput ?? {},
+                  f.document.inputSchema,
+                  data,
+                  scope,
+                  p + "/fixtureInput",
+                );
             } catch {
               fail("FIXTURE_INPUT_INVALID", p + "/fixtureInput");
             }
@@ -750,7 +927,16 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
               declared.alternatives
             )
               fail("FIXTURE_OUTPUT_DECLARATIONS_REQUIRED", p);
-            else scope.vars = new Map(declared.properties ?? []);
+            else
+              for (const [key, symbol] of declared.properties ?? []) {
+                if (scope.vars.has(key))
+                  fail(
+                    "DUPLICATE_VARIABLE",
+                    p + "/initialVariables/" + pointerKey(key),
+                    "Initial variable collides with fixture output: " + key,
+                  );
+                else scope.vars.set(key, symbol);
+              }
           }
         }
         const expanded = steps(

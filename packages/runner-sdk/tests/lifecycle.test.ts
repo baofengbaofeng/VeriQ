@@ -201,11 +201,16 @@ it("rejects resolved fixture input before authentication and passes explicit inp
   if (fixture.kind !== "FIXTURE") throw Error();
   fixture.document.inputSchema = {
     type: "object",
-    properties: { name: { type: "string" } },
+    properties: { name: { type: "string", minLength: 2 } },
     required: ["name"],
     additionalProperties: false,
   };
+  plan.document.initialVariables = { private: "string" };
   plan.document.fixtureInput = { name: "{{vars.private}}" };
+  const { rehash } = await import("../../compiler/tests/helpers.js");
+  rehash(source);
+  execution.assetSourceHash = source.sourceHash;
+  expect(analyze(source).issues).toEqual([]);
   execution.variables = { private: 42 };
   let authenticated = false;
   const lifecycle: LifecycleProvider = {
@@ -225,7 +230,18 @@ it("rejects resolved fixture input before authentication and passes explicit inp
     execution,
     lifecycle,
   });
-  expect(invalid.errorCode).toBe("FIXTURE_INPUT_INVALID");
+  expect(invalid.errorCode).toBe("INITIAL_VARIABLES_INVALID");
+  execution.variables = {};
+  expect(
+    (await executeCase(plan, source, { page: f.page, execution, lifecycle }))
+      .errorCode,
+  ).toBe("INITIAL_VARIABLES_INVALID");
+  expect(authenticated).toBe(false);
+  execution.variables = { private: "A" };
+  expect(
+    (await executeCase(plan, source, { page: f.page, execution, lifecycle }))
+      .errorCode,
+  ).toBe("FIXTURE_INPUT_INVALID");
   expect(authenticated).toBe(false);
   execution.variables = { private: "Ada" };
   expect(
@@ -233,3 +249,80 @@ it("rejects resolved fixture input before authentication and passes explicit inp
       .outcome,
   ).toBe("PASSED");
 });
+it.each([false, true])(
+  "core protects generic cleanup tokens before ordinary projection (invalid output: %s)",
+  async (invalidOutput) => {
+    const { source, execution } = input();
+    const secret = "generic-cleanup-token-protected";
+    f.responses.set("/cleanup-echo", { token: secret });
+    const caseAsset = source.assets.find((a) => a.kind === "CASE")!;
+    if (caseAsset.kind !== "CASE") throw Error();
+    caseAsset.document.steps = [
+      {
+        id: "echo",
+        action: "apiRequest",
+        method: "GET",
+        path: "/cleanup-echo",
+        observers: [
+          {
+            id: "echoed",
+            method: "GET",
+            path: "/cleanup-echo",
+            window: { mode: "UNTIL_ACTION_SETTLED", quietMs: 0 },
+          },
+        ],
+        afterAssertions: [
+          {
+            id: "token",
+            type: "responseField",
+            source: "response:echoed",
+            pointer: "/token",
+            operator: "notEquals",
+            expected: "public",
+            severity: "BLOCK",
+            expectedSource: "REQ-cleanup-secret",
+          },
+        ],
+      },
+    ];
+    const { rehash } = await import("../../compiler/tests/helpers.js");
+    rehash(source);
+    execution.assetSourceHash = source.sourceHash;
+    const analysis = analyze(source);
+    expect(analysis.issues).toEqual([]);
+    const events: unknown[] = [];
+    let cleaned: unknown;
+    const result = await executeCase(analysis.cases[0]!, source, {
+      page: f.page,
+      execution,
+      redact: (value) => value,
+      emit: async (event) => {
+        events.push(event);
+      },
+      lifecycle: {
+        authenticate: async () => ({ identityId: "reader" }),
+        prepare: async () => ({
+          variables: { code: invalidOutput ? 42 : "ok" },
+          cleanupToken: secret,
+        }),
+        cleanup: async (_fixture, token) => {
+          cleaned = token;
+        },
+      },
+    });
+    expect(cleaned).toBe(secret);
+    expect(result.cleanupStatus).toBe("SUCCEEDED");
+    expect(result.outcome).toBe(invalidOutput ? "ERROR" : "PASSED");
+    expect(JSON.stringify(result)).not.toContain(secret);
+    expect(JSON.stringify(events)).not.toContain(secret);
+    if (invalidOutput) {
+      expect(result.errorCode).toBe("FIXTURE_OUTPUT_INVALID");
+      expect(result.steps).toEqual([]);
+    } else {
+      expect(result.steps[0]!.assertions[0]!.actual).toEqual({
+        present: true,
+        value: "[REDACTED]",
+      });
+    }
+  },
+);

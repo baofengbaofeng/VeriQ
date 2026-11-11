@@ -1,4 +1,9 @@
-import type { JsonValue, ValueType } from "./types.generated.js";
+import type {
+  JsonValue,
+  JsonObject,
+  ParameterTypes,
+  ValueType,
+} from "./types.generated.js";
 export const pointerKey = (key: string): string =>
   key.replaceAll("~", "~0").replaceAll("/", "~1");
 export function valueType(value: unknown): ValueType {
@@ -78,4 +83,16 @@ export function resolveBinding(
       Object.entries(value).map(([k, v]) => [k, resolveBinding(v, context)]),
     );
   return value;
+}
+
+/** Validate required declarations and expose only the pre-prepare binding scope. */
+export function resolveInitialVariables(
+  declarations: ParameterTypes | undefined,
+  values: JsonObject,
+): JsonObject {
+  const entries = Object.entries(declarations ?? {});
+  for (const [key, type] of entries)
+    if (!Object.hasOwn(values, key) || !accepts(type, valueType(values[key])))
+      throw new Error("INITIAL_VARIABLES_INVALID");
+  return Object.fromEntries(entries.map(([key]) => [key, values[key]!]));
 }

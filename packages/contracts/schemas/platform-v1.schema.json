@@ -2174,6 +2174,9 @@
         },
         "fixtureInput": {
           "$ref": "#/$defs/BindingJsonObject"
+        },
+        "initialVariables": {
+          "$ref": "#/$defs/ParameterTypes"
         }
       },
       "required": [

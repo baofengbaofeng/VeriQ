@@ -1314,6 +1314,7 @@ export interface CaseDslV1 {
    */
   steps: [StepV1, ...StepV1[]];
   fixtureInput?: BindingJsonObject;
+  initialVariables?: ParameterTypes;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema

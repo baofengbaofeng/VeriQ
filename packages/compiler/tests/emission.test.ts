@@ -774,3 +774,63 @@ it("requires exact frozen adapter configuration and assigned secrets", () => {
     "AUTH_ADAPTER_HASH_MISMATCH",
   );
 });
+it("cold assembly validates declared initial values and complete fixture schemas", () => {
+  const fixture = asset(3, "FIXTURE", {
+    schemaVersion: "1.0",
+    prepare: { method: "POST", path: "/prepare" },
+    query: { method: "GET", path: "/query" },
+    cleanup: { method: "POST", path: "/cleanup" },
+    inputSchema: {
+      type: "object",
+      $defs: { label: { type: "string", minLength: 2 } },
+      properties: {
+        name: { $ref: "#/$defs/label" },
+        constant: { type: "integer" },
+      },
+      required: ["name", "constant"],
+      if: { properties: { name: { const: "Ada" } } },
+      then: { properties: { constant: { const: 1 } } },
+      else: { properties: { constant: { const: 2 } } },
+    },
+    outputSchema: {
+      type: "object",
+      properties: { code: { type: "string" } },
+      required: ["code"],
+    },
+    ttlSeconds: 60,
+  });
+  const s = snapshot(undefined, [fixture], {
+    fixtureVersionId: id(3),
+    initialVariables: { private: "string" },
+    fixtureInput: { name: "{{vars.private}}", constant: 1 },
+  });
+  const r = compileFiles(s, distribution()),
+    e = execution();
+  e.assetSourceHash = s.sourceHash;
+  e.environment.fixtureBaseURL = e.environment.apiBaseURL;
+  e.environment.fixtureIdentity = {
+    authAdapterVersionId: e.environment.roles[0]!.authAdapterVersionId,
+    secretRef: "fixture",
+    secretVersionId: id(26),
+  };
+  e.secretVersions.push({ secretRef: "fixture", versionId: id(26) });
+  expect(() => assembleExecution(r.bundle, e, r.files)).toThrow(
+    "INITIAL_VARIABLES_INVALID",
+  );
+  e.variables = { private: 42 };
+  expect(() => assembleExecution(r.bundle, e, r.files)).toThrow(
+    "INITIAL_VARIABLES_INVALID",
+  );
+  e.variables = { private: "A" };
+  expect(() => assembleExecution(r.bundle, e, r.files)).toThrow(
+    "FIXTURE_INPUT_INVALID",
+  );
+  e.variables = { private: "Grace" };
+  expect(() => assembleExecution(r.bundle, e, r.files)).toThrow(
+    "FIXTURE_INPUT_INVALID",
+  );
+  e.variables = { private: "Ada", legacy: 123 };
+  expect(assembleExecution(r.bundle, e, r.files).snapshot.variables).toEqual(
+    e.variables,
+  );
+});

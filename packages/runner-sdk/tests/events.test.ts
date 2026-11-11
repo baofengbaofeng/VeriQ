@@ -338,7 +338,11 @@ it("a captured dialog does not time out while later children finish their busine
 it("rejects a second popup arriving during the after-assertion phase", async () => {
   const ctx = createStepContext(f.options);
   f.hooks.set("/late-popup", async () => {
+    // Deliver the second popup during this assertion's HTTP request window.
+    // window.open returning alone does not guarantee Playwright event delivery.
+    const popup = f.page.waitForEvent("popup");
     await f.page.evaluate(() => window.open("/", "_blank"));
+    await popup;
   });
   try {
     const p = step(

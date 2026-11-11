@@ -1,8 +1,12 @@
+import { Ajv2020 } from "ajv/dist/2020.js";
+import addFormats from "ajv-formats";
 import { createHash } from "node:crypto";
 import ts from "typescript";
 import {
   assetSourceBytes,
   canonicalBytes,
+  resolveBinding,
+  resolveInitialVariables,
   validateSchema,
   type AssetSnapshotV1,
   type CompiledAssetBundle,
@@ -451,6 +455,24 @@ export function assembleExecution(
         ? "DATA_ROW_MISMATCH"
         : "UNEXPECTED_DATA_ROW",
     );
+  const initialVariables = resolveInitialVariables(
+    selectedCase.document.initialVariables,
+    snapshot.variables,
+  );
+  if (selectedCase.document.fixtureVersionId) {
+    const fixture = source.assets.find(
+      (a) => a.versionId === selectedCase.document.fixtureVersionId,
+    );
+    if (fixture?.kind !== "FIXTURE") throw new Error("FIXTURE_REQUIRED");
+    const schemas = new Ajv2020({ strict: false, allErrors: true });
+    addFormats.default(schemas);
+    const input = resolveBinding(selectedCase.document.fixtureInput ?? {}, {
+      data: snapshot.dataRow?.values ?? {},
+      vars: initialVariables,
+    });
+    if (!schemas.compile(fixture.document.inputSchema)(input))
+      throw new Error("FIXTURE_INPUT_INVALID");
+  }
   const origins = new Set(snapshot.environment.allowedOrigins);
   for (const base of [
     snapshot.environment.baseURL,

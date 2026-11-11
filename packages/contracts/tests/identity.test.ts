@@ -77,3 +77,22 @@ test("registry source projection matches Python with mixed-case UUID lexical ord
       .digest("hex"),
   ).toBe(vector.sha256);
 });
+test("initial variable declarations expose only own correctly typed frozen values", async () => {
+  const { resolveInitialVariables } = await import("../src/index.js");
+  expect(
+    resolveInitialVariables(
+      { name: "string", count: "number" },
+      { name: "Ada", count: 2, legacy: true },
+    ),
+  ).toEqual({ name: "Ada", count: 2 });
+  expect(resolveInitialVariables(undefined, { legacy: true })).toEqual({});
+  expect(() => resolveInitialVariables({ name: "string" }, {})).toThrow(
+    "INITIAL_VARIABLES_INVALID",
+  );
+  expect(() =>
+    resolveInitialVariables({ name: "string" }, { name: 42 }),
+  ).toThrow("INITIAL_VARIABLES_INVALID");
+  expect(() =>
+    resolveInitialVariables({ name: "string" }, Object.create({ name: "Ada" })),
+  ).toThrow("INITIAL_VARIABLES_INVALID");
+});

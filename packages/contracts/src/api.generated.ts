@@ -2060,6 +2060,7 @@ export interface components {
             persistenceCheckpointStepId?: components["schemas"]["Key"];
             steps: components["schemas"]["StepV1"][];
             fixtureInput?: components["schemas"]["BindingJsonObject"];
+            initialVariables?: components["schemas"]["ParameterTypes"];
         };
         LocatorV1: {
             /** @constant */

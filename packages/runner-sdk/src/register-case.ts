@@ -6,6 +6,7 @@ import { pathToFileURL } from "node:url";
 import {
   validateSchema,
   resolveBinding,
+  resolveInitialVariables,
   type AssetSnapshotV1,
   type CompiledCase,
   type ExecutionSnapshotV1,
@@ -181,6 +182,10 @@ export async function executeCase(
       (r) => r.roleKey === execution.roleKey,
     );
     if (!role) throw new Error("ROLE_NOT_FOUND");
+    const initialVariables = resolveInitialVariables(
+      plan.document.initialVariables,
+      execution.variables,
+    );
     if (plan.document.fixtureVersionId) {
       const asset = source.assets.find(
         (a) => a.versionId === plan.document.fixtureVersionId,
@@ -189,7 +194,7 @@ export async function executeCase(
       fixture = asset.document;
       fixtureInput = resolveBinding(plan.document.fixtureInput ?? {}, {
         data: execution.dataRow?.values ?? {},
-        vars: execution.variables,
+        vars: initialVariables,
       }) as JsonObject;
       if (!fixtureSchemas.compile(fixture.inputSchema)(fixtureInput))
         throw new Error("FIXTURE_INPUT_INVALID");
@@ -219,6 +224,7 @@ export async function executeCase(
         options.signal,
       );
       token = prepared.cleanupToken;
+      evidence.protect(token);
       if (!fixtureSchemas.compile(fixture.outputSchema)(prepared.variables))
         throw new Error("FIXTURE_OUTPUT_INVALID");
       variables = { ...variables, ...prepared.variables };
