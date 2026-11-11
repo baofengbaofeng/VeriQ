@@ -1,7 +1,11 @@
 import { createHash } from "node:crypto";
 import ts from "typescript";
 import { expect, it } from "vitest";
-import { validateSchema, type ExecutionSnapshotV1 } from "@veriq/contracts";
+import {
+  canonicalBytes,
+  validateSchema,
+  type ExecutionSnapshotV1,
+} from "@veriq/contracts";
 import {
   compileAssets,
   compileFiles,
@@ -80,6 +84,24 @@ export function execution(): ExecutionSnapshotV1 {
     browser: "chromium",
     variables: {},
     secretVersions: [{ secretRef: "business", versionId: id(25) }],
+    authAdapters: [
+      {
+        workspaceId: id(99),
+        versionId: id(24),
+        configuration: {
+          kind: "HTTP_BEARER",
+          identityPath: "/me",
+          identityPointer: "/id",
+        },
+        contentHash: hash(
+          canonicalBytes({
+            kind: "HTTP_BEARER",
+            identityPath: "/me",
+            identityPointer: "/id",
+          }),
+        ),
+      },
+    ],
     namespace: "run-21",
     attemptNo: 1,
   };
@@ -323,6 +345,7 @@ it("emits a canonical-schema-valid source sidecar for every asset kind", () => {
       versionId: id(8),
       revision: 3,
     };
+    if (kind === "ENVIRONMENT") s.authAdapters = execution().authAdapters!;
     const result = compileFiles(rehash(s), distribution());
     const context = JSON.parse(
       new TextDecoder().decode(result.files["source/asset-snapshot.json"]),
@@ -718,4 +741,36 @@ it("I2 emits the locator-dependent assertion in the post-extraction plan", () =>
   const plan = JSON.parse((jsonCall.arguments[0] as ts.StringLiteral).text);
   expect(plan.steps[0].responseAssertions).toEqual([]);
   expect(plan.steps[0].after[0].assertion.type).toBe("ui");
+});
+it("requires exact frozen adapter configuration and assigned secrets", () => {
+  const r = compileFiles(snapshot(), distribution());
+  const e = execution();
+  e.authAdapters = [];
+  expect(() => assembleExecution(r.bundle, e, r.files)).toThrow(
+    "AUTH_ADAPTER_REQUIRED",
+  );
+  const config = {
+    kind: "HTTP_BEARER" as const,
+    identityPath: "/me",
+    identityPointer: "/id",
+  };
+  e.authAdapters = [
+    {
+      workspaceId: e.workspaceId,
+      versionId: id(24),
+      configuration: config,
+      contentHash: hash(
+        new TextEncoder().encode(
+          '{"identityPath":"/me","identityPointer":"/id","kind":"HTTP_BEARER"}',
+        ),
+      ),
+    },
+  ];
+  expect(assembleExecution(r.bundle, e, r.files).snapshot.authAdapters).toEqual(
+    e.authAdapters,
+  );
+  e.authAdapters[0]!.configuration.identityPath = "/other";
+  expect(() => assembleExecution(r.bundle, e, r.files)).toThrow(
+    "AUTH_ADAPTER_HASH_MISMATCH",
+  );
 });

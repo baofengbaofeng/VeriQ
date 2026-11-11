@@ -480,6 +480,72 @@ export function assembleExecution(
     )
   )
     throw new Error("SECRET_VERSION_MISMATCH");
+  const identities = [
+    role,
+    ...(selectedCase.document.fixtureVersionId &&
+    snapshot.environment.fixtureIdentity
+      ? [snapshot.environment.fixtureIdentity]
+      : []),
+  ];
+  if (
+    selectedCase.document.fixtureVersionId &&
+    !snapshot.environment.fixtureIdentity
+  )
+    throw new Error("FIXTURE_IDENTITY_REQUIRED");
+  const expectedAdapters = new Set(
+    identities.map((r) => r.authAdapterVersionId),
+  );
+  const adapters = snapshot.authAdapters ?? [];
+  if (new Set(adapters.map((a) => a.versionId)).size !== adapters.length)
+    throw new Error("DUPLICATE_AUTH_ADAPTER");
+  for (const identity of identities) {
+    if (!adapters.some((a) => a.versionId === identity.authAdapterVersionId))
+      throw new Error("AUTH_ADAPTER_REQUIRED");
+    if (
+      !snapshot.secretVersions.some(
+        (s) =>
+          s.secretRef === identity.secretRef &&
+          s.versionId === identity.secretVersionId,
+      )
+    )
+      throw new Error("SECRET_VERSION_MISMATCH");
+  }
+  if (
+    snapshot.secretVersions.some(
+      (s) =>
+        !identities.some(
+          (r) =>
+            r.secretRef === s.secretRef && r.secretVersionId === s.versionId,
+        ),
+    )
+  )
+    throw new Error("UNASSIGNED_SECRET_VERSION");
+  for (const adapter of adapters) {
+    if (!expectedAdapters.has(adapter.versionId))
+      throw new Error("UNRELATED_AUTH_ADAPTER");
+    if (adapter.workspaceId !== snapshot.workspaceId)
+      throw new Error("AUTH_ADAPTER_WORKSPACE_MISMATCH");
+    if (sha256(canonicalBytes(adapter.configuration)) !== adapter.contentHash)
+      throw new Error("AUTH_ADAPTER_HASH_MISMATCH");
+  }
+  const environmentAsset = source.assets.find(
+    (a) => a.versionId === snapshot.environmentVersionId,
+  );
+  if (environmentAsset) {
+    if (
+      environmentAsset.kind !== "ENVIRONMENT" ||
+      sha256(canonicalBytes(environmentAsset.document)) !==
+        sha256(canonicalBytes(snapshot.environment))
+    )
+      throw new Error("ENVIRONMENT_VERSION_MISMATCH");
+    for (const adapter of adapters)
+      if (
+        !source.authAdapters?.some(
+          (a) => sha256(canonicalBytes(a)) === sha256(canonicalBytes(adapter)),
+        )
+      )
+        throw new Error("AUTH_ADAPTER_SOURCE_MISMATCH");
+  }
   const cloneFiles = Object.fromEntries(
     Object.entries(files).map(([path, data]) => [path, data.slice()]),
   );

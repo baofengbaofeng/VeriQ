@@ -14,6 +14,8 @@ class Settings(BaseModel):
     database_url: SecretStr
     public_url: str
     master_key: SecretStr
+    master_key_id: str = Field(default="primary", pattern=r"^[A-Za-z0-9_-]{1,80}$")
+    previous_master_keys: dict[str, SecretStr] = Field(default_factory=dict)
     signing_key: SecretStr
     environment: Literal["production", "development"] = "production"
     host: str = "127.0.0.1"
@@ -31,6 +33,10 @@ class Settings(BaseModel):
 
     @model_validator(mode="after")
     def production_origin(self) -> "Settings":
+        if self.master_key_id in self.previous_master_keys:
+            raise ValueError("Active key id must not appear in previous keys")
+        for value in self.previous_master_keys.values():
+            self.key(value)
         if self.environment == "production" and not self.public_url.startswith("https://"):
             raise ValueError("Production requires HTTPS public URL")
         if self.smtp_host:
@@ -88,10 +94,21 @@ def resolve_settings_values(path: Path, overrides: dict[str, Any] | None = None)
         raise ValueError("Configuration must be a JSON object")
     for key in Settings.model_fields:
         if (value := os.environ.get("VERIQ_" + key.upper())) is not None:
-            values[key] = value
+            values[key] = json.loads(value) if key == "previous_master_keys" else value
     values.update({k: v for k, v in (overrides or {}).items() if v is not None})
     return values
 
 
 def load_settings(path: Path, overrides: dict[str, Any] | None = None) -> Settings:
     return Settings.model_validate(resolve_settings_values(path, overrides))
+
+
+def operator_config_values(value: Any) -> Any:
+    """Serialize secret-bearing operator configuration only, never API exports/logs."""
+    if isinstance(value, SecretStr):
+        return value.get_secret_value()
+    if isinstance(value, dict):
+        return {key: operator_config_values(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [operator_config_values(item) for item in value]
+    return value

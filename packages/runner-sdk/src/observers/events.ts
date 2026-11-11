@@ -23,7 +23,9 @@ export type EventEvidence =
   | {
       observerId: string;
       kind: "download";
-      path: string;
+      sensitivity: "CREDENTIAL_RESTRICTED";
+      /** Present in trusted raw capture, omitted from ordinary report projection. */
+      path?: string;
       sizeBytes: number;
       suggestedFilename: string;
     };
@@ -156,6 +158,7 @@ export function armEvent(
         return {
           observerId: spec.id,
           kind: "download",
+          sensitivity: "CREDENTIAL_RESTRICTED",
           path,
           sizeBytes: (await stat(path)).size,
           suggestedFilename: d.suggestedFilename(),

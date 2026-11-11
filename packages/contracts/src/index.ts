@@ -81,8 +81,8 @@ export function canonicalBytes(value: unknown): Uint8Array {
  */
 export function assetSourceBytes(snapshot: Record<string, unknown>): Uint8Array {
   return canonicalBytes(Object.fromEntries(
-    ['schemaVersion', 'workspaceId', 'engineVersion', 'entryCaseVersionIds', 'assets']
-      .map(key => [key, snapshot[key]]),
+    ['schemaVersion', 'workspaceId', 'engineVersion', 'entryCaseVersionIds', 'assets', ...(Object.hasOwn(snapshot, 'authAdapters') ? ['authAdapters'] : [])]
+      .map(key => [key, key === "authAdapters" ? [...snapshot[key] as {versionId:string}[]].sort((a,b)=>a.versionId < b.versionId ? -1 : a.versionId > b.versionId ? 1 : 0) : snapshot[key]]),
   ));
 }
 

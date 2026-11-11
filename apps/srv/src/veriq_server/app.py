@@ -13,7 +13,9 @@ from .handlers.admin import AdminAPI
 from .handlers.health import HealthAPI
 from .handlers.workspace import WorkspaceAPI
 from .handlers.resource import ResourceAPI
+from .handlers.credential import CredentialAPI, CredentialResolveAPI, AuthAdapterAPI
 from .service import Problem
+from .credentials.registry import IdentityRegistry
 
 log = logging.getLogger("veriq.http")
 
@@ -29,6 +31,12 @@ class UnknownAPI(API):
 
 
 def handler_for(action: str) -> type[API]:
+    if action in {"auth-adapters", "auth-adapter-revoke"}:
+        return AuthAdapterAPI
+    if action in {"credentials", "credential-versions", "credential-revoke"}:
+        return CredentialAPI
+    if action == "credential-resolve":
+        return CredentialResolveAPI
     if action in {
         "resources",
         "resource",
@@ -114,6 +122,21 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
             "/api/v1/workspaces/([0-9a-fA-F-]{36})/jobs/([0-9a-fA-F-]{36})/validation-receipt",
             "validation-receipt",
         ),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/credentials", "credentials"),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/credentials/([A-Za-z_][A-Za-z0-9_-]{0,159})/versions",
+            "credential-versions",
+        ),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/credentials/([A-Za-z_][A-Za-z0-9_-]{0,159})/versions/([0-9a-fA-F-]{36})/revoke",
+            "credential-revoke",
+        ),
+        ("/internal/v1/attempts/([0-9a-fA-F-]{36})/credentials/resolve", "credential-resolve"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/auth-adapters", "auth-adapters"),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/auth-adapters/([0-9a-fA-F-]{36})/revoke",
+            "auth-adapter-revoke",
+        ),
         ("/.*", "unknown"),
     ]
 
@@ -142,4 +165,5 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
         compress_response=False,
         mail_delivery=delivery,
         reset_dispatcher=reset_dispatcher,
+        identity_reference_registry=IdentityRegistry(),
     )

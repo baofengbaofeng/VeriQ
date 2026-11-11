@@ -44,16 +44,34 @@ export const step = (
 });
 export async function fixture() {
   const hooks = new Map<string, () => Promise<void>>();
+  const responses = new Map<string, unknown>();
   let reads = 0;
-  const requests: { method: string; path: string; body: string }[] = [];
+  const requests: {
+    method: string;
+    path: string;
+    body: string;
+    authorization?: string;
+  }[] = [];
   const server = createServer(async (req, res) => {
     const body = await new Promise<string>((resolve) => {
       let s = "";
       req.on("data", (c) => (s += String(c)));
       req.on("end", () => resolve(s));
     });
-    requests.push({ method: req.method!, path: req.url!, body });
+    requests.push({
+      method: req.method!,
+      path: req.url!,
+      body,
+      ...(req.headers.authorization
+        ? { authorization: req.headers.authorization }
+        : {}),
+    });
     await hooks.get(req.url!)?.();
+    if (responses.has(req.url!)) {
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify(responses.get(req.url!)));
+      return;
+    }
     if (req.url === "/slow-download") {
       res.writeHead(200, {
         "Content-Disposition": 'attachment; filename="slow.txt"',
@@ -116,6 +134,7 @@ export async function fixture() {
     page,
     origin,
     requests,
+    responses,
     hooks,
     close: async () => {
       await browser.close();

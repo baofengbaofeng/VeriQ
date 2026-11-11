@@ -2171,6 +2171,9 @@
           },
           "minItems": 1,
           "maxItems": 500
+        },
+        "fixtureInput": {
+          "$ref": "#/$defs/BindingJsonObject"
         }
       },
       "required": [
@@ -2182,7 +2185,12 @@
         "catalogVersionId",
         "steps"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "dependentRequired": {
+        "fixtureInput": [
+          "fixtureVersionId"
+        ]
+      }
     },
     "LocatorV1": {
       "oneOf": [
@@ -2362,7 +2370,6 @@
         "method": {
           "type": "string",
           "enum": [
-            "GET",
             "POST",
             "DELETE"
           ]
@@ -2384,7 +2391,20 @@
           "const": "1.0"
         },
         "prepare": {
-          "$ref": "#/$defs/FixtureEndpointV1"
+          "type": "object",
+          "properties": {
+            "method": {
+              "const": "POST"
+            },
+            "path": {
+              "$ref": "#/$defs/Path"
+            }
+          },
+          "required": [
+            "method",
+            "path"
+          ],
+          "additionalProperties": false
         },
         "query": {
           "type": "object",
@@ -2546,6 +2566,9 @@
         "buildSha": {
           "type": "string",
           "minLength": 1
+        },
+        "fixtureIdentity": {
+          "$ref": "#/$defs/FixtureIdentityV1"
         }
       },
       "required": [
@@ -2557,7 +2580,15 @@
         "timezone",
         "roles"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "dependentRequired": {
+        "fixtureIdentity": [
+          "fixtureBaseURL"
+        ],
+        "fixtureBaseURL": [
+          "fixtureIdentity"
+        ]
+      }
     },
     "ResourceDocumentV1": {
       "oneOf": [
@@ -2950,6 +2981,13 @@
         },
         "validationTarget": {
           "$ref": "#/$defs/ValidationTargetV1"
+        },
+        "authAdapters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AuthAdapterVersionV1"
+          },
+          "maxItems": 100
         }
       },
       "required": [
@@ -3051,6 +3089,13 @@
         },
         "caseVersionId": {
           "$ref": "#/$defs/Id"
+        },
+        "authAdapters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AuthAdapterVersionV1"
+          },
+          "maxItems": 100
         }
       },
       "required": [
@@ -3908,7 +3953,7 @@
                   "$ref": "#/$defs/Id"
                 },
                 "file": {
-                  "$ref": "#/$defs/FileEntry"
+                  "$ref": "#/$defs/EvidenceFileEntryV1"
                 },
                 "kind": {
                   "type": "string",
@@ -3919,7 +3964,8 @@
                     "JUNIT",
                     "LOG",
                     "SOURCE",
-                    "MANIFEST"
+                    "MANIFEST",
+                    "DOWNLOAD"
                   ]
                 }
               },
@@ -4095,7 +4141,7 @@
         "artifacts": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/FileEntry"
+            "$ref": "#/$defs/EvidenceFileEntryV1"
           },
           "minItems": 0
         }
@@ -4841,6 +4887,141 @@
       "required": [
         "id",
         "kind"
+      ],
+      "additionalProperties": false
+    },
+    "AuthAdapterConfigV1": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "HTTP_BEARER"
+            },
+            "identityPath": {
+              "$ref": "#/$defs/Path"
+            },
+            "identityPointer": {
+              "type": "string",
+              "pattern": "^(?:/(?:[^~/]|~[01])*)*$"
+            }
+          },
+          "required": [
+            "kind",
+            "identityPath",
+            "identityPointer"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "HTTP_SESSION"
+            },
+            "loginPath": {
+              "$ref": "#/$defs/Path"
+            },
+            "identityPath": {
+              "$ref": "#/$defs/Path"
+            },
+            "identityPointer": {
+              "type": "string",
+              "pattern": "^(?:/(?:[^~/]|~[01])*)*$"
+            }
+          },
+          "required": [
+            "kind",
+            "loginPath",
+            "identityPath",
+            "identityPointer"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "AuthAdapterVersionV1": {
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "$ref": "#/$defs/Id"
+        },
+        "versionId": {
+          "$ref": "#/$defs/Id"
+        },
+        "contentHash": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "configuration": {
+          "$ref": "#/$defs/AuthAdapterConfigV1"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "versionId",
+        "contentHash",
+        "configuration"
+      ],
+      "additionalProperties": false
+    },
+    "FixtureIdentityV1": {
+      "type": "object",
+      "properties": {
+        "authAdapterVersionId": {
+          "$ref": "#/$defs/Id"
+        },
+        "secretRef": {
+          "$ref": "#/$defs/Key"
+        },
+        "secretVersionId": {
+          "$ref": "#/$defs/Id"
+        },
+        "allowedIdentityIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "authAdapterVersionId",
+        "secretRef",
+        "secretVersionId"
+      ],
+      "additionalProperties": false
+    },
+    "ArtifactSensitivity": {
+      "type": "string",
+      "enum": [
+        "REDACTED",
+        "CREDENTIAL_RESTRICTED"
+      ]
+    },
+    "EvidenceFileEntryV1": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/FilePath"
+        },
+        "sha256": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "sensitivity": {
+          "$ref": "#/$defs/ArtifactSensitivity"
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "sizeBytes",
+        "sensitivity"
       ],
       "additionalProperties": false
     }

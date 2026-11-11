@@ -10,7 +10,7 @@ from pathlib import Path
 import secrets
 import signal
 
-from pydantic import SecretStr, ValidationError
+from pydantic import ValidationError
 from tornado.httpserver import HTTPServer
 
 from .app import make_app
@@ -18,7 +18,7 @@ from .db import Database, Installation
 from sqlalchemy import text
 from .migrate import migrate
 from .service import Problem, digest, initialize, lock_installation
-from .settings import Settings, load_settings, resolve_settings_values
+from .settings import Settings, load_settings, resolve_settings_values, operator_config_values
 
 
 def secure_write(path: Path, content: str) -> None:
@@ -42,10 +42,7 @@ async def run(args: argparse.Namespace) -> None:
             if field not in values:
                 values[field] = secrets.token_hex(32)
         settings = Settings.model_validate(values)
-        persisted = {
-            key: value.get_secret_value() if isinstance(value, SecretStr) else value
-            for key, value in settings.model_dump().items()
-        }
+        persisted = operator_config_values(settings.model_dump())
         if not existed:
             secure_write(args.config, json.dumps(persisted, indent=2) + "\n")
         else:
@@ -53,6 +50,10 @@ async def run(args: argparse.Namespace) -> None:
             persisted.update(
                 {key: stored[key] for key in ("master_key", "signing_key") if key in stored}
             )
+            if "master_key" in stored:
+                # Preserve the whole persisted ring: an ID must never be paired with other bytes.
+                persisted["master_key_id"] = stored.get("master_key_id", "primary")
+                persisted["previous_master_keys"] = stored.get("previous_master_keys", {})
             if persisted != stored:
                 replacement = args.config.with_name(
                     args.config.name + "." + secrets.token_hex(8) + ".tmp"

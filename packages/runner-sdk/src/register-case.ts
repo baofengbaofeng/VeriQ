@@ -1,9 +1,11 @@
+import { EvidencePolicy, type RestrictedEvidence } from "./evidence.js";
 import { test, type Page, type TestInfo, type Route } from "@playwright/test";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import { pathToFileURL } from "node:url";
 import {
   validateSchema,
+  resolveBinding,
   type AssetSnapshotV1,
   type CompiledCase,
   type ExecutionSnapshotV1,
@@ -33,8 +35,11 @@ export interface LifecycleContext {
   execution: ExecutionSnapshotV1;
   signal: AbortSignal;
   credentials?: CredentialProvider;
+  fixtureInput?: JsonObject;
+  protect?: (value: JsonValue) => void;
 }
 export interface LifecycleProvider {
+  dispose?(context: LifecycleContext): Promise<void>;
   authenticate(context: LifecycleContext): Promise<{ identityId: string }>;
   prepare?(
     fixture: FixtureV1,
@@ -64,6 +69,8 @@ export interface ExecutionOptions {
   signal?: AbortSignal;
   files?: StepContextOptions["files"];
   downloads?: StepContextOptions["downloads"];
+  /** Trusted restricted artifact sink; never an ordinary event/report callback. */
+  restrictedEvidence?: (evidence: RestrictedEvidence) => Promise<void>;
   emit?: (event: SdkEvent) => Promise<void>;
   redact?: (value: JsonValue) => JsonValue;
 }
@@ -106,11 +113,13 @@ export async function executeCase(
     cleanupStatus: "NOT_REQUIRED",
     steps: [],
   };
+  const evidence = new EvidencePolicy();
   const execution = structuredClone(options.execution);
   let ctx: StepContext | undefined,
     fixture: FixtureV1 | undefined,
     token: JsonValue | undefined,
     preparing = false;
+  let fixtureInput: JsonObject = {};
   let originFailure = false;
   const route = async (r: Route) => {
     const url = new URL(r.request().url());
@@ -123,13 +132,30 @@ export async function executeCase(
     page: options.page,
     execution,
     signal,
-    ...(options.credentials ? { credentials: options.credentials } : {}),
+    fixtureInput,
+    protect: (value) => evidence.protect(value),
+    ...(options.credentials
+      ? {
+          credentials: {
+            async resolve(reference, signal) {
+              const value = await options.credentials!.resolve(
+                reference,
+                signal,
+              );
+              evidence.protect(value);
+              return value;
+            },
+          },
+        }
+      : {}),
   });
   async function emit(event: SdkEvent) {
     if (options.emit) {
       if (!options.redact) throw new Error("REDACTION_PROVIDER_REQUIRED");
       await options.emit(
-        options.redact(event as unknown as JsonValue) as unknown as SdkEvent,
+        options.redact(
+          evidence.redact(event as unknown as JsonValue),
+        ) as unknown as SdkEvent,
       );
     }
   }
@@ -161,6 +187,12 @@ export async function executeCase(
       );
       if (asset?.kind !== "FIXTURE") throw new Error("FIXTURE_REQUIRED");
       fixture = asset.document;
+      fixtureInput = resolveBinding(plan.document.fixtureInput ?? {}, {
+        data: execution.dataRow?.values ?? {},
+        vars: execution.variables,
+      }) as JsonObject;
+      if (!fixtureSchemas.compile(fixture.inputSchema)(fixtureInput))
+        throw new Error("FIXTURE_INPUT_INVALID");
       if (!options.lifecycle.prepare || !options.lifecycle.cleanup)
         throw new Error("FIXTURE_PROVIDER_REQUIRED");
     }
@@ -205,6 +237,17 @@ export async function executeCase(
     result.businessOutcome = plan.steps.length ? "PASSED" : "INCOMPLETE";
     for (const step of plan.steps) {
       const r = await executeStep(step, ctx);
+      const collect = async (step: StepResult): Promise<void> => {
+        for (const item of step.events)
+          if (item.kind === "download" && item.path)
+            await options.restrictedEvidence?.({
+              kind: "DOWNLOAD",
+              sensitivity: "CREDENTIAL_RESTRICTED",
+              path: item.path,
+            });
+        for (const child of step.children) await collect(child);
+      };
+      await collect(r);
       result.steps.push(r);
       await emit({ type: "STEP_FINISHED", step: r });
       if (r.cancelled) {
@@ -262,6 +305,17 @@ export async function executeCase(
         result.errorCode = "CLEANUP_FAILED";
       }
     }
+    if (options.lifecycle?.dispose) {
+      try {
+        await bounded(
+          (signal) => options.lifecycle!.dispose!(lifecycleContext(signal)),
+          30000,
+        );
+      } catch {
+        result.cleanupStatus = "FAILED";
+        result.errorCode = "AUTH_CLEANUP_FAILED";
+      }
+    }
     await options.page
       .context()
       .unroute("**/*", route)
@@ -275,7 +329,9 @@ export async function executeCase(
     result.outcome = "ERROR";
     result.errorCode = "EVENT_EMISSION_FAILED";
   }
-  return result;
+  return evidence.redact(
+    result as unknown as JsonValue,
+  ) as unknown as CaseResult;
 }
 export type ExecutionContextProvider = (
   info: TestInfo,

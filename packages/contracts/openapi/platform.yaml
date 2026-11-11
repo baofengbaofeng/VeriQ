@@ -6846,7 +6846,8 @@
               }
             }
           }
-        }
+        },
+        "description": "T12 authorization obligation: raw Trace, screenshots, HTML and downloads are CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata only. This schema does not implement storage or authorization."
       }
     },
     "/api/v1/workspaces/{workspaceId}/artifacts/{artifactId}/download": {
@@ -6964,7 +6965,8 @@
               }
             }
           }
-        }
+        },
+        "description": "T12 authorization obligation: raw Trace, screenshots, HTML and downloads are CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata only. This schema does not implement storage or authorization."
       }
     },
     "/api/v1/workspaces/{workspaceId}/runtimes": {
@@ -10690,6 +10692,26 @@
             "schema": {
               "$ref": "#/components/schemas/Id"
             }
+          },
+          {
+            "name": "X-VeriQ-Lease-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          },
+          {
+            "name": "X-VeriQ-Fencing-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
           }
         ],
         "responses": {
@@ -10783,7 +10805,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Deny by default until T08/T09 inject a server verifier for authenticated device, active assignment, membership/grants, lease and fence. Never accepts caller trust labels as proof."
       }
     },
     "/internal/v1/attempts/{attemptId}/artifact-uploads": {
@@ -10898,7 +10921,8 @@
               }
             }
           }
-        }
+        },
+        "description": "T12 authorization obligation: raw Trace, screenshots, HTML and downloads are CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata only. This schema does not implement storage or authorization."
       }
     },
     "/internal/v1/attempts/{attemptId}/artifacts/{artifactId}/commit": {
@@ -11021,7 +11045,8 @@
               }
             }
           }
-        }
+        },
+        "description": "T12 authorization obligation: raw Trace, screenshots, HTML and downloads are CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata only. This schema does not implement storage or authorization."
       }
     },
     "/internal/v1/maintenance/expired-leases/reap": {
@@ -11375,7 +11400,8 @@
               }
             }
           }
-        }
+        },
+        "description": "T12 authorization obligation: raw Trace, screenshots, HTML and downloads are CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata only. This schema does not implement storage or authorization."
       }
     },
     "/internal/v1/maintenance/capacity/reconcile": {
@@ -13170,6 +13196,718 @@
           }
         }
       }
+    },
+    "/api/v1/workspaces/{workspaceId}/credentials": {
+      "get": {
+        "operationId": "listCredentials",
+        "tags": [
+          "credentials"
+        ],
+        "security": [
+          {
+            "WebSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialListDTOEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createCredential",
+        "tags": [
+          "credentials"
+        ],
+        "security": [
+          {
+            "WebSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialDTOEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CredentialCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/credentials/{secretRef}/versions": {
+      "post": {
+        "operationId": "rotateCredential",
+        "tags": [
+          "credentials"
+        ],
+        "security": [
+          {
+            "WebSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "secretRef",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialDTOEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CredentialRotate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/credentials/{secretRef}/versions/{versionId}/revoke": {
+      "post": {
+        "operationId": "revokeCredential",
+        "tags": [
+          "credentials"
+        ],
+        "security": [
+          {
+            "WebSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "secretRef",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialDTOEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyObject"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/auth-adapters": {
+      "get": {
+        "operationId": "listAuthAdapters",
+        "tags": [
+          "credentials"
+        ],
+        "security": [
+          {
+            "WebSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthAdapterListDTOEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createAuthAdapter",
+        "tags": [
+          "credentials"
+        ],
+        "security": [
+          {
+            "WebSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthAdapterDTOEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthAdapterCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/auth-adapters/{versionId}/revoke": {
+      "post": {
+        "operationId": "revokeAuthAdapter",
+        "tags": [
+          "credentials"
+        ],
+        "security": [
+          {
+            "WebSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthAdapterDTOEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyObject"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -14556,7 +15294,8 @@
               "JUNIT",
               "LOG",
               "SOURCE",
-              "MANIFEST"
+              "MANIFEST",
+              "DOWNLOAD"
             ]
           },
           "filename": {
@@ -14574,6 +15313,9 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991
+          },
+          "sensitivity": {
+            "$ref": "../schemas/platform-v1.schema.json#/$defs/ArtifactSensitivity"
           }
         },
         "required": [
@@ -14583,7 +15325,8 @@
           "filename",
           "contentType",
           "sha256",
-          "sizeBytes"
+          "sizeBytes",
+          "sensitivity"
         ],
         "additionalProperties": false
       },
@@ -15140,67 +15883,37 @@
       "CredentialResolveRequest": {
         "type": "object",
         "properties": {
-          "leaseToken": {
+          "secretRef": {
+            "type": "string"
+          },
+          "versionId": {
             "type": "string",
-            "minLength": 1
-          },
-          "fencingToken": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 9007199254740991
-          },
-          "roleKey": {
-            "$ref": "#/components/schemas/Key"
-          },
-          "secretVersionId": {
-            "$ref": "#/components/schemas/Id"
+            "format": "uuid"
           }
         },
         "required": [
-          "leaseToken",
-          "fencingToken",
-          "roleKey",
-          "secretVersionId"
+          "secretRef",
+          "versionId"
         ],
         "additionalProperties": false
       },
       "CredentialResolveDTO": {
         "type": "object",
         "properties": {
-          "roleKey": {
-            "$ref": "#/components/schemas/Key"
+          "secretRef": {
+            "type": "string"
           },
-          "secretVersionId": {
+          "versionId": {
             "$ref": "#/components/schemas/Id"
           },
-          "expiresAt": {
-            "$ref": "#/components/schemas/Timestamp"
-          },
-          "values": {
-            "type": "object",
-            "properties": {
-              "username": {
-                "type": "string",
-                "minLength": 1
-              },
-              "password": {
-                "type": "string",
-                "minLength": 1
-              },
-              "token": {
-                "type": "string",
-                "minLength": 1
-              }
-            },
-            "required": [],
-            "additionalProperties": false
+          "value": {
+            "$ref": "#/components/schemas/JsonObject"
           }
         },
         "required": [
-          "roleKey",
-          "secretVersionId",
-          "expiresAt",
-          "values"
+          "secretRef",
+          "versionId",
+          "value"
         ],
         "additionalProperties": false
       },
@@ -15225,7 +15938,8 @@
               "JUNIT",
               "LOG",
               "SOURCE",
-              "MANIFEST"
+              "MANIFEST",
+              "DOWNLOAD"
             ]
           },
           "filename": {
@@ -15243,6 +15957,9 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991
+          },
+          "sensitivity": {
+            "$ref": "../schemas/platform-v1.schema.json#/$defs/ArtifactSensitivity"
           }
         },
         "required": [
@@ -15252,7 +15969,8 @@
           "filename",
           "contentType",
           "sha256",
-          "sizeBytes"
+          "sizeBytes",
+          "sensitivity"
         ],
         "additionalProperties": false
       },
@@ -17061,6 +17779,248 @@
           "requestId": {
             "type": "string",
             "minLength": 1
+          }
+        },
+        "required": [
+          "data",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "CredentialRotate": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "$ref": "#/components/schemas/JsonObject"
+          },
+          "allowedIdentityIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "maxItems": 100,
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "value",
+          "allowedIdentityIds"
+        ],
+        "additionalProperties": false
+      },
+      "CredentialCreate": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "$ref": "#/components/schemas/JsonObject"
+          },
+          "allowedIdentityIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "maxItems": 100,
+            "uniqueItems": true
+          },
+          "secretRef": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_-]{0,159}$"
+          }
+        },
+        "required": [
+          "secretRef",
+          "value",
+          "allowedIdentityIds"
+        ],
+        "additionalProperties": false
+      },
+      "EmptyObject": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "CredentialDTO": {
+        "type": "object",
+        "properties": {
+          "secretRef": {
+            "type": "string"
+          },
+          "versionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revoked": {
+            "type": "boolean"
+          },
+          "allowedIdentityIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "maxItems": 100,
+            "uniqueItems": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "secretRef",
+          "versionId",
+          "revoked",
+          "allowedIdentityIds",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "CredentialListDTO": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CredentialDTO"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "additionalProperties": false
+      },
+      "CredentialDTOEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CredentialDTO"
+          },
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "CredentialListDTOEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CredentialListDTO"
+          },
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "AuthAdapterCreate": {
+        "type": "object",
+        "properties": {
+          "configuration": {
+            "$ref": "../schemas/platform-v1.schema.json#/$defs/AuthAdapterConfigV1"
+          }
+        },
+        "required": [
+          "configuration"
+        ],
+        "additionalProperties": false
+      },
+      "AuthAdapterDTO": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "$ref": "../schemas/platform-v1.schema.json#/$defs/Id"
+          },
+          "versionId": {
+            "$ref": "../schemas/platform-v1.schema.json#/$defs/Id"
+          },
+          "contentHash": {
+            "$ref": "../schemas/platform-v1.schema.json#/$defs/Sha256"
+          },
+          "configuration": {
+            "$ref": "../schemas/platform-v1.schema.json#/$defs/AuthAdapterConfigV1"
+          },
+          "revoked": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "workspaceId",
+          "versionId",
+          "contentHash",
+          "configuration",
+          "revoked"
+        ],
+        "additionalProperties": false
+      },
+      "AuthAdapterListDTO": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuthAdapterDTO"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "additionalProperties": false
+      },
+      "AuthAdapterDTOEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AuthAdapterDTO"
+          },
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "AuthAdapterListDTOEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AuthAdapterListDTO"
+          },
+          "requestId": {
+            "type": "string"
           }
         },
         "required": [

@@ -1,3 +1,4 @@
+import { businessHeaders } from "./fixtures/auth.js";
 import type { HttpMethod, JsonObject, JsonValue } from "@veriq/contracts";
 import { randomUUID } from "node:crypto";
 import { budget, type StepContext } from "./context.js";
@@ -66,7 +67,10 @@ export async function apiRequest(
       const response = await ctx.page.request.fetch(url.href, {
         method,
         ...(body === undefined ? {} : { data: body }),
-        ...(headers ? { headers } : {}),
+        headers: {
+          ...headers,
+          ...businessHeaders(ctx.page.context(), url.href),
+        },
         timeout: budget(ctx, deadline - Date.now()),
         maxRedirects: 0,
         maxRetries: 0,

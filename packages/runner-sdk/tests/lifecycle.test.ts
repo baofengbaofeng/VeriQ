@@ -195,3 +195,41 @@ it("cancelled business action settles observers and still runs fixture cleanup",
     await other.close();
   }
 });
+it("rejects resolved fixture input before authentication and passes explicit input separately", async () => {
+  const { source, plan, execution } = input();
+  const fixture = source.assets.find((a) => a.kind === "FIXTURE")!;
+  if (fixture.kind !== "FIXTURE") throw Error();
+  fixture.document.inputSchema = {
+    type: "object",
+    properties: { name: { type: "string" } },
+    required: ["name"],
+    additionalProperties: false,
+  };
+  plan.document.fixtureInput = { name: "{{vars.private}}" };
+  execution.variables = { private: 42 };
+  let authenticated = false;
+  const lifecycle: LifecycleProvider = {
+    authenticate: async () => {
+      authenticated = true;
+      return { identityId: "test" };
+    },
+    prepare: async (_fixture, context) => {
+      expect(context.fixtureInput).toEqual({ name: "Ada" });
+      expect(context.execution.variables).toEqual({ private: "Ada" });
+      return { variables: { code: "ok" }, cleanupToken: "secret-cleanup" };
+    },
+    cleanup: async () => {},
+  };
+  const invalid = await executeCase(plan, source, {
+    page: f.page,
+    execution,
+    lifecycle,
+  });
+  expect(invalid.errorCode).toBe("FIXTURE_INPUT_INVALID");
+  expect(authenticated).toBe(false);
+  execution.variables = { private: "Ada" };
+  expect(
+    (await executeCase(plan, source, { page: f.page, execution, lifecycle }))
+      .outcome,
+  ).toBe("PASSED");
+});

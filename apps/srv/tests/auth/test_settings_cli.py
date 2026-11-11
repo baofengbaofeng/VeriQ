@@ -230,3 +230,74 @@ async def test_init_validates_environment_before_writes(
             )
         )
     assert not config.exists()
+
+
+def test_keyring_file_environment_and_explicit_override_precedence(tmp_path, monkeypatch):
+    path = tmp_path / "keyring.json"
+    values = {
+        "database_url": "mysql+asyncmy://u:p@localhost/veriq_test",
+        "public_url": "https://example.test",
+        "master_key": "a" * 64,
+        "master_key_id": "active",
+        "signing_key": "b" * 64,
+        "previous_master_keys": {"old": "c" * 64},
+    }
+    path.write_text(json.dumps(values))
+    assert load_settings(path).previous_master_keys["old"].get_secret_value() == "c" * 64
+    monkeypatch.setenv("VERIQ_PREVIOUS_MASTER_KEYS", json.dumps({"older": "d" * 64}))
+    assert load_settings(path).previous_master_keys["older"].get_secret_value() == "d" * 64
+    assert (
+        load_settings(path, {"previous_master_keys": {"explicit": "e" * 64}})
+        .previous_master_keys["explicit"]
+        .get_secret_value()
+        == "e" * 64
+    )
+
+
+async def test_cli_keyring_roundtrip_and_resumed_init_preserves_key_id_pair(site, tmp_path):
+    _, db = site
+    path = tmp_path / "ring.json"
+    env = os.environ.copy()
+    env.update(
+        VERIQ_DATABASE_URL=db.engine.url.render_as_string(hide_password=False),
+        VERIQ_PUBLIC_URL="http://127.0.0.1",
+        VERIQ_ENVIRONMENT="development",
+        VERIQ_MASTER_KEY="a" * 64,
+        VERIQ_MASTER_KEY_ID="active",
+        VERIQ_SIGNING_KEY="b" * 64,
+        VERIQ_PREVIOUS_MASTER_KEYS=json.dumps({"older": "c" * 64}),
+    )
+    binary = str(Path("apps/srv/.venv/bin/veriq_server").resolve())
+
+    async def command():
+        p = await asyncio.create_subprocess_exec(
+            binary,
+            "--config",
+            str(path),
+            "init",
+            env=env,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await p.communicate()
+        for value in ["a" * 64, "b" * 64, "c" * 64, "d" * 64, env["VERIQ_PREVIOUS_MASTER_KEYS"]]:
+            assert value.encode() not in stdout + stderr
+        return p.returncode
+
+    assert await command() == 0
+    first = json.loads(path.read_text())
+    assert first["master_key_id"] == "active" and first["master_key"] == "a" * 64
+    assert first["previous_master_keys"] == {"older": "c" * 64}
+    env.update(
+        VERIQ_MASTER_KEY="d" * 64,
+        VERIQ_MASTER_KEY_ID="replacement",
+        VERIQ_PREVIOUS_MASTER_KEYS=json.dumps({"active": "a" * 64, "older": "c" * 64}),
+    )
+    assert await command() == 0
+    persisted = json.loads(path.read_text())
+    assert {
+        key: persisted[key] for key in ["master_key", "master_key_id", "previous_master_keys"]
+    } == {key: first[key] for key in ["master_key", "master_key_id", "previous_master_keys"]}
+    env["VERIQ_PREVIOUS_MASTER_KEYS"] = "invalid-secret-json"
+    assert await command() == 1
+    assert json.loads(path.read_text()) == persisted

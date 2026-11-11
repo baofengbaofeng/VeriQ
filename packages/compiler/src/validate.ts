@@ -3,6 +3,7 @@ import addFormats from "ajv-formats";
 import {
   assetSourceBytes,
   canonicalBytes,
+  resolveBinding,
   validateSchema,
   type AssetSnapshotV1,
   type AssetVersionV1,
@@ -722,6 +723,26 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
             p + "/fixtureVersionId",
           );
           if (f?.kind === "FIXTURE") {
+            binding(d.fixtureInput ?? {}, scope, p + "/fixtureInput");
+            try {
+              const ds = datasetVersionId
+                ? assets.get(datasetVersionId)
+                : undefined;
+              const rows =
+                ds?.kind === "DATASET"
+                  ? ds.document.rows.map((r) => r.values)
+                  : [{}];
+              const checkInput = jsonSchemas.compile(f.document.inputSchema);
+              for (const data of rows)
+                if (
+                  !checkInput(
+                    resolveBinding(d.fixtureInput ?? {}, { data, vars: {} }),
+                  )
+                )
+                  fail("FIXTURE_INPUT_INVALID", p + "/fixtureInput");
+            } catch {
+              fail("FIXTURE_INPUT_INVALID", p + "/fixtureInput");
+            }
             const declared = schemaSymbol(f.document.outputSchema);
             if (
               !declared ||
@@ -924,6 +945,32 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
       }
     }
   }
+  const expectedAdapters = new Set(
+    snapshot.assets.flatMap((a) =>
+      a.kind === "ENVIRONMENT"
+        ? [
+            ...a.document.roles,
+            ...(a.document.fixtureIdentity ? [a.document.fixtureIdentity] : []),
+          ].map((r) => r.authAdapterVersionId)
+        : [],
+    ),
+  );
+  const adapters = snapshot.authAdapters ?? [];
+  unique(
+    adapters.map((a) => a.versionId),
+    "/authAdapters",
+  );
+  for (const adapter of adapters) {
+    if (!expectedAdapters.has(adapter.versionId))
+      fail("UNRELATED_AUTH_ADAPTER", "/authAdapters");
+    if (adapter.workspaceId !== snapshot.workspaceId)
+      fail("AUTH_ADAPTER_WORKSPACE_MISMATCH", "/authAdapters");
+    if (sha256(canonicalBytes(adapter.configuration)) !== adapter.contentHash)
+      fail("AUTH_ADAPTER_HASH_MISMATCH", "/authAdapters");
+  }
+  for (const id of expectedAdapters)
+    if (!adapters.some((a) => a.versionId === id))
+      fail("AUTH_ADAPTER_REQUIRED", "/authAdapters");
   const reachable = new Set<string>();
   const visit = (id: string) => {
     if (reachable.has(id)) return;

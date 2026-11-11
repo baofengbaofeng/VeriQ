@@ -349,10 +349,8 @@ async def test_large_document_bounded_lists_and_small_auth_limit(site):
 
 
 async def test_all_eight_kinds_share_publication_rules(site, monkeypatch):
-    """T07 identity registry is a scoped fixture; Runtime completion remains fixture-only."""
+    """Real T07 registry; Runtime completion remains an explicit test fixture."""
     from pathlib import Path
-    from veriq_server.services.resource import UnavailableIdentityRegistry
-    from veriq_server.service import Problem
 
     c, db = site
     await setup(c)
@@ -366,13 +364,33 @@ async def test_all_eight_kinds_share_publication_rules(site, monkeypatch):
     }
     expected_role = documents["ENVIRONMENT"]["document"]["roles"][0]
 
-    async def require_role(self, session, scope, role):
-        if scope.workspace_id != ws or role != expected_role:
-            raise Problem(
-                422, "UNRESOLVED_IDENTITY_REFERENCE", "Unknown fixture registry reference"
-            )
-
-    monkeypatch.setattr(UnavailableIdentityRegistry, "require_role", require_role)
+    secret = (
+        await c.post(
+            f"/api/v1/workspaces/{ws}/credentials",
+            json={
+                "secretRef": expected_role["secretRef"],
+                "value": {"token": "synthetic-test-secret"},
+                "allowedIdentityIds": ["editor"],
+            },
+        )
+    ).json()["data"]
+    adapter = (
+        await c.post(
+            f"/api/v1/workspaces/{ws}/auth-adapters",
+            json={
+                "configuration": {
+                    "kind": "HTTP_BEARER",
+                    "identityPath": "/me",
+                    "identityPointer": "/id",
+                }
+            },
+        )
+    ).json()["data"]
+    expected_role.update(
+        secretVersionId=secret["versionId"],
+        authAdapterVersionId=adapter["versionId"],
+        allowedIdentityIds=["editor"],
+    )
     versions = {}
     for kind in [
         "ELEMENT_CATALOG",

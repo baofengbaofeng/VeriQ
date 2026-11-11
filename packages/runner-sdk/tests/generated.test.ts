@@ -14,6 +14,8 @@ it("installs the actual emitted SDK closure offline and executes generated TS th
   const root = await mkdtemp(join(tmpdir(), "veriq-real-sdk-")),
     f = await fixture();
   try {
+    const syntheticSecret = "generated-runtime-protected-secret";
+    f.responses.set("/protected", { token: syntheticSecret });
     const source = snapshot([
       { id: "open", action: "goto", path: "/" },
       {
@@ -48,6 +50,32 @@ it("installs the actual emitted SDK closure offline and executes generated TS th
           },
         ],
       },
+      {
+        id: "protected",
+        action: "apiRequest",
+        method: "GET",
+        path: "/protected",
+        observers: [
+          {
+            id: "protectedResponse",
+            method: "GET",
+            path: "/protected",
+            window: { mode: "UNTIL_ACTION_SETTLED", quietMs: 0 },
+          },
+        ],
+        afterAssertions: [
+          {
+            id: "private",
+            type: "responseField",
+            source: "response:protectedResponse",
+            pointer: "/token",
+            operator: "notEquals",
+            expected: "public",
+            severity: "BLOCK",
+            expectedSource: "REQ-secret-separation",
+          },
+        ],
+      },
     ]);
     const catalog = source.assets.find((a) => a.kind === "ELEMENT_CATALOG")!;
     if (catalog.kind === "ELEMENT_CATALOG")
@@ -58,6 +86,10 @@ it("installs the actual emitted SDK closure offline and executes generated TS th
     rehash(source);
     const output = compileFiles(source, actualDistribution(root));
     verifyFiles(output.bundle, output.files);
+    for (const file of Object.values(output.files))
+      expect(Buffer.from(file).includes(Buffer.from(syntheticSecret))).toBe(
+        false,
+      );
     const emitted = join(root, "emitted");
     for (const [path, bytes] of Object.entries(output.files)) {
       await mkdir(dirname(join(emitted, path)), { recursive: true });
@@ -124,25 +156,37 @@ it("installs the actual emitted SDK closure offline and executes generated TS th
     await writeFile(join(emitted, "execution.json"), JSON.stringify(execution));
     await writeFile(
       join(emitted, "context.mjs"),
-      `import {readFile} from 'node:fs/promises';export async function createExecutionContext(){const execution=JSON.parse(await readFile(new URL('./execution.json',import.meta.url),'utf8'));return {execution,redact:value=>value,lifecycle:{authenticate:async({page})=>{const response=await page.request.get(execution.environment.apiBaseURL+'/identity');if(!response.ok())throw new Error('AUTH_FAILED');return {identityId:(await response.json()).id};}}};}`,
+      `import {readFile,appendFile} from 'node:fs/promises';export async function createExecutionContext(){const execution=JSON.parse(await readFile(new URL('./execution.json',import.meta.url),'utf8'));return {execution,credentials:{resolve:async()=>({token:process.env.VERIQ_TEST_SYNTHETIC_SECRET})},emit:async event=>appendFile(new URL('./events.jsonl',import.meta.url),JSON.stringify(event)+'\\n'),redact:value=>value,lifecycle:{authenticate:async({page,credentials,signal})=>{const value=await credentials.resolve({workspaceId:execution.workspaceId,secretRef:'reader',versionId:execution.secretVersions[0].versionId},signal);const response=await page.request.get(execution.environment.apiBaseURL+'/identity',{headers:{authorization:'Bearer '+value.token}});if(!response.ok())throw new Error('AUTH_FAILED');return {identityId:(await response.json()).id};}}};}`,
     );
     await writeFile(
       join(emitted, "playwright.config.ts"),
       `export default {testDir:'./cases',workers:1,retries:0,reporter:[['json',{outputFile:'report.json'}]],use:{launchOptions:{executablePath:'/usr/bin/chromium',args:['--no-sandbox']}}};`,
     );
-    await exec("node", ["node_modules/@playwright/test/cli.js", "test"], {
-      cwd: emitted,
-      env: {
-        ...process.env,
-        VERIQ_EXECUTION_CONTEXT_MODULE: join(emitted, "context.mjs"),
-        XDG_CACHE_HOME: join(root, "xdg-cache"),
-        XDG_CONFIG_HOME: join(root, "xdg-config"),
+    const processOutput = await exec(
+      "node",
+      ["node_modules/@playwright/test/cli.js", "test"],
+      {
+        cwd: emitted,
+        env: {
+          ...process.env,
+          VERIQ_TEST_SYNTHETIC_SECRET: syntheticSecret,
+          VERIQ_EXECUTION_CONTEXT_MODULE: join(emitted, "context.mjs"),
+          XDG_CACHE_HOME: join(root, "xdg-cache"),
+          XDG_CONFIG_HOME: join(root, "xdg-config"),
+        },
+        timeout: 45000,
       },
-      timeout: 45000,
-    });
+    );
+    expect(processOutput.stdout + processOutput.stderr).not.toContain(
+      syntheticSecret,
+    );
+    const events = await readFile(join(emitted, "events.jsonl"), "utf8");
+    expect(events).not.toContain(syntheticSecret);
+    expect(events).toContain("[REDACTED]");
     const report = JSON.parse(
       await readFile(join(emitted, "report.json"), "utf8"),
     );
+    expect(JSON.stringify(report)).not.toContain(syntheticSecret);
     expect(report.stats).toMatchObject({
       expected: 1,
       unexpected: 0,

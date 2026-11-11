@@ -1,0 +1,531 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "VeriQ controlled demo backend",
+    "version": "1.0.0",
+    "description": "Tested Python/Tornado sample. Three independent externally supplied identities. No internal scheduler; no test barrier routes in this application."
+  },
+  "paths": {
+    "/prepare": {
+      "post": {
+        "summary": "Idempotent isolated fixture preparation",
+        "security": [
+          {
+            "FixtureBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful JSON result"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Missing identity"
+          },
+          "403": {
+            "description": "Wrong identity"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Changed idempotency parameters or closed namespace"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "caseExecutionId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "attemptNo": {
+                    "type": "integer",
+                    "enum": [
+                      1,
+                      2
+                    ]
+                  },
+                  "namespace": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "idempotencyKey": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "input": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "ttlSeconds": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 604800
+                  }
+                },
+                "required": [
+                  "workspaceId",
+                  "caseExecutionId",
+                  "attemptNo",
+                  "namespace",
+                  "idempotencyKey",
+                  "input",
+                  "ttlSeconds"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cleanup": {
+      "post": {
+        "summary": "Close namespace and delete precisely owned employees",
+        "security": [
+          {
+            "FixtureBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful JSON result"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Missing identity"
+          },
+          "403": {
+            "description": "Wrong identity"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Changed idempotency parameters or closed namespace"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "caseExecutionId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "attemptNo": {
+                    "type": "integer",
+                    "enum": [
+                      1,
+                      2
+                    ]
+                  },
+                  "namespace": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "idempotencyKey": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "cleanupToken": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "workspaceId",
+                  "caseExecutionId",
+                  "attemptNo",
+                  "namespace",
+                  "idempotencyKey"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Close namespace and delete precisely owned employees",
+        "security": [
+          {
+            "FixtureBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful JSON result"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Missing identity"
+          },
+          "403": {
+            "description": "Wrong identity"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Changed idempotency parameters or closed namespace"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "caseExecutionId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "attemptNo": {
+                    "type": "integer",
+                    "enum": [
+                      1,
+                      2
+                    ]
+                  },
+                  "namespace": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "idempotencyKey": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "cleanupToken": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "workspaceId",
+                  "caseExecutionId",
+                  "attemptNo",
+                  "namespace",
+                  "idempotencyKey"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/query": {
+      "get": {
+        "summary": "Read fixture state by idempotency key",
+        "security": [
+          {
+            "FixtureBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful JSON result"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Missing identity"
+          },
+          "403": {
+            "description": "Wrong identity"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Changed idempotency parameters or closed namespace"
+          }
+        },
+        "parameters": [
+          {
+            "name": "idempotencyKey",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ]
+      }
+    },
+    "/me": {
+      "get": {
+        "summary": "Verify ordinary or fixture service identity",
+        "security": [
+          {
+            "BusinessBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful JSON result"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Missing identity"
+          },
+          "403": {
+            "description": "Wrong identity"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Changed idempotency parameters or closed namespace"
+          }
+        }
+      }
+    },
+    "/login": {
+      "post": {
+        "summary": "Create isolated HTTP session",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Successful JSON result"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Missing identity"
+          },
+          "403": {
+            "description": "Wrong identity"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Changed idempotency parameters or closed namespace"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "token"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/employees": {
+      "post": {
+        "summary": "Business write with atomic open-namespace check",
+        "security": [
+          {
+            "BusinessBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful JSON result"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Missing identity"
+          },
+          "403": {
+            "description": "Wrong identity"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Changed idempotency parameters or closed namespace"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "namespace": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "namespace",
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "Read owned employees",
+        "security": [
+          {
+            "BusinessBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful JSON result"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Missing identity"
+          },
+          "403": {
+            "description": "Wrong identity"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Changed idempotency parameters or closed namespace"
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ]
+      }
+    },
+    "/maintenance": {
+      "post": {
+        "summary": "Externally triggered bounded TTL cleanup",
+        "security": [
+          {
+            "MaintenanceBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful JSON result"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Missing identity"
+          },
+          "403": {
+            "description": "Wrong identity"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Changed idempotency parameters or closed namespace"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  }
+                },
+                "required": [],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BusinessBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "FixtureBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "MaintenanceBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

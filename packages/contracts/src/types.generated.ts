@@ -878,7 +878,45 @@ export type AssetSnapshotV1 = {
    */
   assets: [AssetVersionV1, ...AssetVersionV1[]];
   validationTarget?: ValidationTargetV1;
+  /**
+   * @maxItems 100
+   */
+  authAdapters?: AuthAdapterVersionV1[];
 };
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AuthAdapterConfigV1".
+ */
+export type AuthAdapterConfigV1 =
+  | {
+      kind: "HTTP_BEARER";
+      /**
+       * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+       *
+       * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+       * via the `definition` "Path".
+       */
+      identityPath: SafeString & Path;
+      identityPointer: string;
+    }
+  | {
+      kind: "HTTP_SESSION";
+      /**
+       * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+       *
+       * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+       * via the `definition` "Path".
+       */
+      loginPath: SafeString & Path;
+      /**
+       * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+       *
+       * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+       * via the `definition` "Path".
+       */
+      identityPath: SafeString & Path;
+      identityPointer: string;
+    };
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "CompiledAssetBundle".
@@ -1036,8 +1074,8 @@ export type ExecutionEventV1 =
       type: "ARTIFACT_CREATED";
       payload: {
         artifactId: Id;
-        file: FileEntry;
-        kind: "SCREENSHOT" | "TRACE" | "HTML" | "JUNIT" | "LOG" | "SOURCE" | "MANIFEST";
+        file: EvidenceFileEntryV1;
+        kind: "SCREENSHOT" | "TRACE" | "HTML" | "JUNIT" | "LOG" | "SOURCE" | "MANIFEST" | "DOWNLOAD";
       };
     }
   | {
@@ -1077,6 +1115,11 @@ export type ActualValueV1 =
       present: true;
       value: JsonValue;
     };
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "ArtifactSensitivity".
+ */
+export type ArtifactSensitivity = "REDACTED" | "CREDENTIAL_RESTRICTED";
 
 export interface ContractDefinitions {
   Id?: Id;
@@ -1169,6 +1212,11 @@ export interface ContractDefinitions {
   DialogObserverV1?: DialogObserverV1;
   NewPageObserverV1?: NewPageObserverV1;
   DownloadObserverV1?: DownloadObserverV1;
+  AuthAdapterConfigV1?: AuthAdapterConfigV1;
+  AuthAdapterVersionV1?: AuthAdapterVersionV1;
+  FixtureIdentityV1?: FixtureIdentityV1;
+  ArtifactSensitivity?: ArtifactSensitivity;
+  EvidenceFileEntryV1?: EvidenceFileEntryV1;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1265,6 +1313,7 @@ export interface CaseDslV1 {
    * @maxItems 500
    */
   steps: [StepV1, ...StepV1[]];
+  fixtureInput?: BindingJsonObject;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1337,7 +1386,7 @@ export interface FlowV1 {
  * via the `definition` "FixtureEndpointV1".
  */
 export interface FixtureEndpointV1 {
-  method: "GET" | "POST" | "DELETE";
+  method: "POST" | "DELETE";
   /**
    * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized base/allowedOrigins before any request/navigation, and enforce policy on redirects.
    *
@@ -1352,7 +1401,16 @@ export interface FixtureEndpointV1 {
  */
 export interface FixtureV1 {
   schemaVersion: "1.0";
-  prepare: FixtureEndpointV1;
+  prepare: {
+    method: "POST";
+    /**
+     * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+     *
+     * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+     * via the `definition` "Path".
+     */
+    path: SafeString & Path;
+  };
   query: {
     method: "GET";
     /**
@@ -1438,6 +1496,20 @@ export interface EnvironmentV1 {
    */
   roles: [EnvironmentRoleV1, ...EnvironmentRoleV1[]];
   buildSha?: string;
+  fixtureIdentity?: FixtureIdentityV1;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "FixtureIdentityV1".
+ */
+export interface FixtureIdentityV1 {
+  authAdapterVersionId: Id;
+  secretRef: Key;
+  secretVersionId: Id;
+  /**
+   * @minItems 0
+   */
+  allowedIdentityIds?: string[];
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1447,6 +1519,16 @@ export interface ValidationTargetV1 {
   resourceId: Id;
   versionId: Id;
   revision: number;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AuthAdapterVersionV1".
+ */
+export interface AuthAdapterVersionV1 {
+  workspaceId: Id;
+  versionId: Id;
+  contentHash: Sha256;
+  configuration: AuthAdapterConfigV1;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1474,6 +1556,10 @@ export interface ExecutionSnapshotV1 {
   namespace: Key;
   attemptNo: number;
   caseVersionId: Id;
+  /**
+   * @maxItems 100
+   */
+  authAdapters?: AuthAdapterVersionV1[];
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1619,6 +1705,16 @@ export interface ObserverResultPayloadV1 {
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "EvidenceFileEntryV1".
+ */
+export interface EvidenceFileEntryV1 {
+  path: FilePath;
+  sha256: Sha256;
+  sizeBytes: number;
+  sensitivity: ArtifactSensitivity;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "BundleManifestV1".
  */
 export interface BundleManifestV1 {
@@ -1656,7 +1752,7 @@ export interface OfflineAttemptV1 {
   /**
    * @minItems 0
    */
-  artifacts: FileEntry[];
+  artifacts: EvidenceFileEntryV1[];
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
