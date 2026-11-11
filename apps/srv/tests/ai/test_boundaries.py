@@ -53,3 +53,22 @@ async def test_gateway_rejects_encoded_response_before_decompression():
     response = httpx.Response(200, headers={"Content-Encoding": "gzip"})
     with pytest.raises(ValueError, match="AI_RESPONSE_ENCODING"):
         await limit_response(response)
+
+
+async def test_fix1_sdk_raw_unicode_failure_retains_usage():
+    from emulator import emulator
+    from veriq_server.infrastructure.providers import ProviderGateway
+
+    async with emulator() as model:
+        model.raw_content = "\ud800"
+        gateway = ProviderGateway(
+            {"adapter": "OPENAI_COMPATIBLE", "model": "emulator", "baseURL": model.base_url},
+            "synthetic-key",
+        )
+        reply = await gateway.generate(
+            DraftContext({"requirement": "REQ-1"}, {"type": "object"}, 128)
+        )
+        assert reply.error_code == "AI_INVALID_JSON"
+        assert reply.output is None
+        assert (reply.input_tokens, reply.output_tokens) == (80, 40)
+        assert len(model.calls) == 1

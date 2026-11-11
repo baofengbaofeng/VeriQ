@@ -144,14 +144,14 @@ class ProviderGateway:
                     system=SYSTEM,
                     messages=[{"role": "user", "content": context.messages()[1]["content"]}],
                 )
+                usage_in, usage_out = result.usage.input_tokens, result.usage.output_tokens
                 if (
                     result.stop_reason != "end_turn"
                     or len(result.content) != 1
                     or result.content[0].type != "text"
                 ):
-                    raise ValueError("AI_INCOMPLETE_OUTPUT")
+                    return ModelReply(None, usage_in, usage_out, "AI_INCOMPLETE_OUTPUT")
                 raw = result.content[0].text
-                usage_in, usage_out = result.usage.input_tokens, result.usage.output_tokens
             else:
                 sdk2 = AsyncOpenAI(
                     api_key=self.key,
@@ -165,14 +165,14 @@ class ProviderGateway:
                     max_tokens=context.max_output_tokens,
                     response_format={"type": "json_object"},
                 )
-                if len(result2.choices) != 1 or result2.choices[0].finish_reason != "stop":
-                    raise ValueError("AI_INCOMPLETE_OUTPUT")
-                raw = result2.choices[0].message.content or ""
                 usage_in = result2.usage.prompt_tokens if result2.usage else None
                 usage_out = result2.usage.completion_tokens if result2.usage else None
-            if len(raw.encode()) > 128 * 1024:
-                return ModelReply(None, usage_in, usage_out, "AI_RESPONSE_LIMIT")
+                if len(result2.choices) != 1 or result2.choices[0].finish_reason != "stop":
+                    return ModelReply(None, usage_in, usage_out, "AI_INCOMPLETE_OUTPUT")
+                raw = result2.choices[0].message.content or ""
             try:
+                if len(raw.encode()) > 128 * 1024:
+                    return ModelReply(None, usage_in, usage_out, "AI_RESPONSE_LIMIT")
                 output = json.loads(raw)
             except (ValueError, RecursionError):
                 return ModelReply(None, usage_in, usage_out, "AI_INVALID_JSON")

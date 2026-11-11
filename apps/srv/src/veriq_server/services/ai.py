@@ -630,32 +630,54 @@ class AiService:
                 except Problem:
                     error = "AI_CONTEXT_CHANGED"
             if reply and not error:
-                output = sanitize(reply.output, {key})
                 diagnostics = []
-                if req["purpose"] == "CASE_DRAFT":
-                    if (
-                        validate_schema("ResourceDocumentV1", output)
-                        or not isinstance(output, dict)
-                        or output.get("kind") != "CASE"
-                    ):
+                output = None
+                # Untrusted-content failures must not roll back verified usage or
+                # leave the durable call RUNNING. Operational/auth errors stay outside.
+                try:
+                    canonical_bytes(reply.output)
+                    output = sanitize(reply.output, {key})
+                    canonical_bytes(output)
+                    if req["purpose"] == "CASE_DRAFT":
+                        if (
+                            validate_schema("ResourceDocumentV1", output)
+                            or not isinstance(output, dict)
+                            or output.get("kind") != "CASE"
+                        ):
+                            diagnostics = [
+                                {
+                                    "code": "AI_SCHEMA_INVALID",
+                                    "message": "Output must be a canonical CASE resource document",
+                                }
+                            ]
+                        elif any(
+                            v not in d["selectedVersionIds"] for v, _ in asset_references(output)
+                        ):
+                            diagnostics = [
+                                {
+                                    "code": "AI_REFERENCE_UNSELECTED",
+                                    "message": "Output references a version outside reviewed context",
+                                }
+                            ]
+                    elif not Draft202012Validator(ADVICE_SCHEMA).is_valid(output):
                         diagnostics = [
                             {
                                 "code": "AI_SCHEMA_INVALID",
-                                "message": "Output must be a canonical CASE resource document",
+                                "message": "Advice must contain bounded suggestions and basis",
                             }
                         ]
-                    elif any(v not in d["selectedVersionIds"] for v, _ in asset_references(output)):
-                        diagnostics = [
-                            {
-                                "code": "AI_REFERENCE_UNSELECTED",
-                                "message": "Output references a version outside reviewed context",
-                            }
-                        ]
-                elif not Draft202012Validator(ADVICE_SCHEMA).is_valid(output):
+                except RecursionError:
                     diagnostics = [
                         {
-                            "code": "AI_SCHEMA_INVALID",
-                            "message": "Advice must contain bounded suggestions and basis",
+                            "code": "AI_OUTPUT_NESTING_LIMIT",
+                            "message": "Model output exceeds supported JSON nesting",
+                        }
+                    ]
+                except ValueError:
+                    diagnostics = [
+                        {
+                            "code": "AI_OUTPUT_NOT_PORTABLE",
+                            "message": "Model output must contain portable Unicode JSON",
                         }
                     ]
                 if diagnostics:

@@ -31,6 +31,9 @@ async def emulator():
         raw_content=None,
         status=200,
         usage=True,
+        stop_reason="end_turn",
+        finish_reason="stop",
+        output_tokens=40,
         release=asyncio.Event(),
         started=asyncio.Event(),
         wait=False,
@@ -65,9 +68,9 @@ async def emulator():
                         "role": "assistant",
                         "model": "emulator",
                         "content": [{"type": "text", "text": content}],
-                        "stop_reason": "end_turn",
+                        "stop_reason": state.stop_reason,
                         "stop_sequence": None,
-                        "usage": {"input_tokens": 80, "output_tokens": 40},
+                        "usage": {"input_tokens": 80, "output_tokens": state.output_tokens},
                     }
                 )
             else:
@@ -79,7 +82,7 @@ async def emulator():
                     "choices": [
                         {
                             "index": 0,
-                            "finish_reason": "stop",
+                            "finish_reason": state.finish_reason,
                             "message": {"role": "assistant", "content": content},
                         }
                     ],
@@ -87,8 +90,8 @@ async def emulator():
                 if state.usage:
                     value["usage"] = {
                         "prompt_tokens": 80,
-                        "completion_tokens": 40,
-                        "total_tokens": 120,
+                        "completion_tokens": state.output_tokens,
+                        "total_tokens": 80 + state.output_tokens,
                     }
                 self.write(value)
 

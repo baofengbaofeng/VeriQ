@@ -2,7 +2,7 @@ import { useContext, useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import type { PlatformComponents } from "@veriq/contracts";
+import { validateSchema, type PlatformComponents } from "@veriq/contracts";
 import { api, type Workspace } from "../../api";
 import { Auth } from "../../auth-context";
 import { Panel } from "../../ui";
@@ -648,36 +648,46 @@ export function AiWorkspaceView({
           </div>
           {generation.status === "SUCCEEDED" && edit && (
             <fieldset disabled={busy}>
-              <label>
-                {t("keyName")}
-                <input
-                  data-testid="ai-resource-key"
-                  value={key}
-                  onChange={(e) => setResourceKey(e.target.value)}
-                />
-              </label>
-              <label>
-                {t("resourceName")}
-                <input
-                  data-testid="ai-resource-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </label>
+              {!generation.resourceId &&
+                generation.purpose === "CASE_DRAFT" && (
+                  <>
+                    <label>
+                      {t("keyName")}
+                      <input
+                        data-testid="ai-resource-key"
+                        value={key}
+                        onChange={(e) => setResourceKey(e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      {t("resourceName")}
+                      <input
+                        data-testid="ai-resource-name"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                      />
+                    </label>
+                  </>
+                )}
               {generation.purpose === "CASE_DRAFT" && (
                 <button
                   data-testid="ai-accept"
+                  disabled={
+                    generation.resourceId
+                      ? !generation.revision
+                      : !name.trim() ||
+                        name.length > 160 ||
+                        validateSchema("Key", key).length > 0
+                  }
                   onClick={() =>
                     void action(async () => {
                       const g = await adapter.review(
                         generation.id,
                         {
                           decision: "ACCEPT_DRAFT",
-                          key,
-                          name,
-                          ...(generation.revision
+                          ...(generation.resourceId
                             ? { revision: generation.revision }
-                            : {}),
+                            : { key, name }),
                         },
                         signal,
                       );

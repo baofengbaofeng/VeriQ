@@ -3,6 +3,7 @@
 from uuid import uuid4
 from copy import deepcopy
 import asyncio
+import json
 import pytest
 from emulator import emulator, CASE
 from test_workspace import new_member, client
@@ -417,3 +418,124 @@ async def test_nonfinite_prices_are_rejected_as_invalid_json_without_provider_ro
         assert response.json()["code"] == "INVALID_REQUEST"
         assert len((await c.get(base + "/providers")).json()["data"]["items"]) == 1
         assert not model.calls
+
+
+@pytest.mark.parametrize("unusable", ["nested_case", "surrogate_advice", "surrogate_key"])
+async def test_fix1_unusable_output_finalizes_known_usage_without_draft(site, unusable):
+    c, db = site
+    async with emulator() as model:
+        ws, base, p = await ai_setup(c, model.base_url)
+        purpose = "BOUNDARY_SUGGESTION"
+        if unusable == "nested_case":
+            purpose = "CASE_DRAFT"
+            nested = 0
+            for _ in range(200):
+                nested = [nested]
+            model.output = deepcopy(CASE)
+            model.output["document"]["steps"][0]["afterAssertions"] = [
+                {
+                    "id": "nested",
+                    "type": "responseField",
+                    "source": "response:read",
+                    "pointer": "/ok",
+                    "operator": "equals",
+                    "expected": nested,
+                    "severity": "BLOCK",
+                    "expectedSource": "REQ-1",
+                }
+            ]
+        elif unusable == "surrogate_advice":
+            model.output = {"suggestions": [], "basis": "\ud800"}
+        else:
+            model.output = {"suggestions": [], "basis": "REQ-1", "\ud800": "unsafe"}
+        response = await c.post(base + "/generations", json=request(p["id"], purpose=purpose))
+        assert response.status_code == 201, response.text
+        g = response.json()["data"]
+        assert g["status"] == "FAILED", g
+        assert g["costState"] == "ESTIMATED" and g["costUsd"] == 0.00016
+        assert (g["inputTokens"], g["outputTokens"]) == (80, 40)
+        assert g["errorCode"] == "AI_OUTPUT_INVALID"
+        assert g["diagnostics"][0]["code"] == (
+            "AI_OUTPUT_NESTING_LIMIT" if unusable == "nested_case" else "AI_OUTPUT_NOT_PORTABLE"
+        )
+        assert "output" not in g
+        assert (await c.get(base + "/generations/" + g["id"])).json()["data"] == g
+        assert (await c.get(f"/api/v1/workspaces/{ws}/resources?kind=CASE")).json()["data"][
+            "items"
+        ] == []
+        budget = (await c.get(base + "/providers/" + p["id"])).json()["data"]["budget"]
+        assert budget["heldUsd"] == 0 and budget["estimatedUsedUsd"] == 0.00016
+        from sqlalchemy import select
+        from veriq_server.db import AiGeneration
+
+        async with db.sessions() as session:
+            persisted = (await session.scalars(select(AiGeneration))).one()
+            assert persisted.status == "FAILED" and persisted.cost_micros == 160
+        assert len(model.calls) == 1
+
+
+@pytest.mark.parametrize("adapter", ["OPENAI_COMPATIBLE", "ANTHROPIC"])
+async def test_fix1_truncated_sdk_reply_retains_verified_usage(site, adapter):
+    c, _ = site
+    async with emulator() as model:
+        _, base, p = await ai_setup(c, model.base_url, adapter=adapter, maxOutputTokens=32)
+        model.raw_content = '{"unfinished":'
+        model.finish_reason = "length"
+        model.stop_reason = "max_tokens"
+        model.output_tokens = 32
+        response = await c.post(base + "/generations", json=request(p["id"]))
+        assert response.status_code == 201, response.text
+        g = response.json()["data"]
+        assert g["status"] == "FAILED" and g["errorCode"] == "AI_INCOMPLETE_OUTPUT"
+        assert g["costState"] == "ESTIMATED" and g["costUsd"] == 0.000144
+        assert (g["inputTokens"], g["outputTokens"]) == (80, 32)
+        assert "output" not in g
+        budget = (await c.get(base + "/providers/" + p["id"])).json()["data"]["budget"]
+        assert budget["heldUsd"] == 0 and budget["estimatedUsedUsd"] == 0.000144
+        assert (await c.get(base + "/generations/" + g["id"])).json()["data"] == g
+        assert len(model.calls) == 1
+
+
+@pytest.mark.parametrize("raw", ["\ud800", None], ids=["raw_unicode", "parser_nesting"])
+async def test_fix1_parser_failure_finalizes_known_usage(site, raw):
+    c, _ = site
+    if raw is None:
+        # Python 3.12's C JSON decoder has its own recursion threshold.
+        depth = 10000
+        raw = "[" * depth + "0" + "]" * depth
+        assert len(raw.encode()) < 128 * 1024
+        with pytest.raises(RecursionError):
+            json.loads(raw)
+    async with emulator() as model:
+        _, base, p = await ai_setup(c, model.base_url)
+        model.raw_content = raw
+        response = await c.post(base + "/generations", json=request(p["id"]))
+        assert response.status_code == 201, response.text
+        g = response.json()["data"]
+        assert g["status"] == "FAILED" and g["errorCode"] == "AI_INVALID_JSON"
+        assert g["costState"] == "ESTIMATED" and g["costUsd"] == 0.00016
+        assert (g["inputTokens"], g["outputTokens"]) == (80, 40)
+        assert "output" not in g
+        assert (await c.get(base + "/generations/" + g["id"])).json()["data"] == g
+        assert (await c.get(base + "/providers/" + p["id"])).json()["data"]["budget"][
+            "heldUsd"
+        ] == 0
+
+
+@pytest.mark.parametrize("usage", ["missing", "over_limit"])
+async def test_fix1_truncated_unverified_usage_keeps_reservation(site, usage):
+    c, _ = site
+    async with emulator() as model:
+        _, base, p = await ai_setup(c, model.base_url, maxOutputTokens=32)
+        model.finish_reason = "length"
+        model.usage = usage != "missing"
+        model.output_tokens = 33
+        response = await c.post(base + "/generations", json=request(p["id"]))
+        assert response.status_code == 201, response.text
+        g = response.json()["data"]
+        assert g["status"] == "FAILED" and g["errorCode"] == "AI_INCOMPLETE_OUTPUT"
+        assert g["costState"] == "UNKNOWN" and "costUsd" not in g
+        assert "inputTokens" not in g and "outputTokens" not in g and "output" not in g
+        budget = (await c.get(base + "/providers/" + p["id"])).json()["data"]["budget"]
+        assert budget["heldUsd"] == g["reservedUsd"] > 0
+        assert budget["estimatedUsedUsd"] == 0
