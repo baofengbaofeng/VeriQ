@@ -359,6 +359,8 @@ await expect(page.getByTestId('case.published-version')).toBeVisible();
 
 **依赖：** T10/T11
 
+**状态：** 已完成并通过独立规格、质量审查及修复复审（`f77a9b9`、`47986b0`）。真实报告与受限证据、存储/退役并发、旧编译包兼容和统计修复有针对性证据；SDK 取消超时仍待正式构建前定位。完整元数据/导出包生命周期、桌面与离线模块仍按后续任务交付。
+
 **Files（拟创建/修改）：**
 
 - `apps/srv/src/veriq_server/services/report.py`
@@ -369,7 +371,7 @@ await expect(page.getByTestId('case.published-version')).toBeVisible();
 
 **Interfaces：** ReportService.get(scope, run_id) -> RunReportDTO；ResultService.finish(proof, manifest) -> CommitReceipt；File/S3 ArtifactStore同接口。
 
-- [ ] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
+- [x] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```python
 assert incomplete_manifest.outcome == INCOMPLETE
@@ -377,10 +379,10 @@ assert await foreign_workspace_artifact() == FORBIDDEN
 assert same_finish_retry.receipt_id == first_receipt.receipt_id
 ```
 
-- [ ] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/report -q`；失败必须来自缺失行为，而非测试环境拼写错误。
-- [ ] **Step 3：实现上述接口与文件。** SSE补读、事件幂等、同终态重放、原始HTML隔离、Trace受限、各Attempt保留；错误不全绿。共享归约样本固定ERROR>INCOMPLETE>FAILED>CANCELLED>UNSTABLE>SKIPPED>PASSED，测试清理失败、取消缺证据、零用例与计划跳过。
-- [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
-- [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t12 实时报告、证据、审计与可信门禁`。有新决策先更新ADR，不扩展到下一任务。
+- [x] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/report -q`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [x] **Step 3：实现上述接口与文件。** SSE补读、事件幂等、同终态重放、原始HTML隔离、Trace受限、各Attempt保留；错误不全绿。共享归约样本固定ERROR>INCOMPLETE>FAILED>CANCELLED>UNSTABLE>SKIPPED>PASSED，测试清理失败、取消缺证据、零用例与计划跳过。
+- [x] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
+- [x] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t12 实时报告、证据、审计与可信门禁`。有新决策先更新ADR，不扩展到下一任务。
 
 ## T13：AI完整模块与无模型执行
 

@@ -157,6 +157,40 @@ before Runtime tests. One later instrumented, isolated execution passed in 671 m
 reproduce or explain the earlier failure. Capture the failing phase and resolve this before
 claiming a passing formal build; increasing the timeout or retrying until green is not a fix.
 
+The report implementation (`f77a9b9`, fixed in `47986b0`) also passed independent spec and
+quality review. Its final fix checks passed 24 report/storage tests, two current physical
+pipeline/schema tests and one actual pre-T12 compiler-archive compatibility test, plus
+Ruff, mypy (65 files) and generated/type checks. Earlier applicable checks include Runtime
+38, contracts 193, compiler 112 and Web 10 passes. Full backend runs had failures before
+their scoped corrections; they are not represented as clean all-test runs.
+
+The required T12 SDK run again recorded 131 passes and the same cancellation timeout.
+Properly instrumented follow-up did not reproduce cancellation (1.287 seconds); its whole
+command still failed because diagnostic DEBUG reached a generated-test child and printed
+synthetic protected locator text, triggering that test's privacy assertion. This does not
+resolve the timeout or establish a leak in the normal Runtime, which passes an explicit
+child environment without DEBUG. Future required diagnosis must capture the failing phase
+without contaminating the generated-child privacy check.
+
 The production build also retains a large-chunk warning from eager Monaco loading; local
 worker assets remain bundled for offline use. Loading improvements belong to the final UX
 work. Existing test color-environment warnings remain an infrastructure follow-up.
+
+## Reports and restricted evidence
+
+The development `/reports` view uses actual Run/Attempt history, replayable event streams,
+compiler-derived step labels and separate execution/current trust gates. Ordinary members
+see redacted structured values. Raw Trace, HTML, screenshot, download and log access requires
+current Workspace Owner/Admin permission and the exact Attempt association; caller-supplied
+sensitivity cannot grant access. Locally view an authorized downloaded Trace with
+`pnpm --filter @veriq/runtime dev trace open /path/to/trace.zip`; it uses the pinned Playwright
+viewer on loopback and does not upload the file to a public service.
+
+Raw evidence retention uses server terminal timestamps, defaults to 14 days for passed
+Attempts and 30 days for other terminal outcomes, and is woken through the authenticated
+external maintenance HTTP endpoint. Unknown historical timestamps remain retained. Source,
+engine and compiled provenance stay pinned. Metadata/export-package lifecycle is still a
+required operations task. Minimal empty private retirement fences prevent a late external
+writer from restoring deleted evidence bytes; elapsed time alone is not sufficient to remove
+those fences. Protocol and storage details are in [the contracts](contracts.md) and
+[ADR0014](decisions/0014-report-evidence-storage.md).
