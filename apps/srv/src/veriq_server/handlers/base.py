@@ -19,6 +19,8 @@ log = logging.getLogger("veriq.http")
 
 
 class API(RequestHandler):
+    body_limit = 65536
+
     def initialize(self, config: Settings, db: Database, action: str = "") -> None:
         self.config, self.db, self.action = (config, db, action)
         self.request_id = str(uuid4())
@@ -32,8 +34,8 @@ class API(RequestHandler):
 
     def prepare(self) -> None:
         self.set_header("X-Request-Id", self.request_id)
-        if len(self.request.body) > 65536:
-            raise Problem(413, "BODY_TOO_LARGE", "Request body exceeds 64 KiB")
+        if len(self.request.body) > self.body_limit:
+            raise Problem(413, "BODY_TOO_LARGE", "Request body exceeds operation limit")
         if self.request.method not in {"GET", "HEAD", "OPTIONS"}:
             if self.request.headers.get("Origin") != self.config.public_url:
                 raise Problem(403, "ORIGIN_FORBIDDEN", "Request origin is not allowed")

@@ -64,7 +64,7 @@ test("a completed validation job exposes a bound receipt usable by publish", () 
   const completed = {...queued,data:{...queued.data,state:"FINISHED"}};
   const poll = api.paths["/api/v1/workspaces/{workspaceId}/jobs/{jobId}"].get;
   expect(validate(poll.responses["200"].content["application/json"].schema.$ref.split("/").at(-1),completed)).toBe(true);
-  const receipt = {id,workspaceId:id,jobId:id,resourceId:id,revision:3,sourceHash:"a".repeat(64),engineVersion:"1.0.0",compiledBundleSha256:"b".repeat(64),validatedAt:"2026-11-10T10:00:00Z"};
+  const receipt = {id,runtimeId:id,attemptId:id,compilerTrust:"MANAGED",workspaceId:id,jobId:id,resourceId:id,revision:3,sourceHash:"a".repeat(64),engineVersion:"1.0.0",compiledBundleSha256:"b".repeat(64),validatedAt:"2026-11-10T10:00:00Z"};
   expect(receipt.jobId).toBe(completed.data.id);
   expect(receipt.workspaceId).toBe(completed.data.workspaceId);
   expect(validate("ValidationReceiptDTO",receipt)).toBe(true);
@@ -103,7 +103,7 @@ test("claim, manifest, frozen subject, compiled bundle and files have exact-byte
   content.set(fileHash,fileBytes);
   const compiled = sample("compiled-bundle");
   compiled.files = [{path:"case.ts",sha256:fileHash,sizeBytes:Buffer.byteLength(fileBytes)}];
-  compiled.entrypoints = ["case.ts"];
+  compiled.entrypoints = [{caseVersionId:"11111111-1111-4111-8111-111111111111",path:"case.ts"}];
   const compiledHash = store("CompiledAssetBundle",compiled);
   for (const kind of ["TEST","VALIDATE","CLEANUP"]) {
     const subjectSchema = kind === "VALIDATE" ? "AssetSnapshotV1" : "ExecutionSnapshotV1";

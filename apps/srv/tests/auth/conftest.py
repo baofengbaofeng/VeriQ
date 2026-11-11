@@ -40,6 +40,13 @@ async def site():
             "veriq_workspaces",
             "veriq_workspace_members",
             "veriq_workspace_invites",
+            "veriq_resources",
+            "veriq_resource_drafts",
+            "veriq_resource_versions",
+            "veriq_resource_dependencies",
+            "veriq_artifacts",
+            "veriq_jobs",
+            "veriq_validation_receipts",
         }
         assert set(tables) <= owned
         await conn.execute(text("SET FOREIGN_KEY_CHECKS=0"))
@@ -49,7 +56,7 @@ async def site():
     await migrate(settings)
     await provision_setup_secret(db, "operator-secret")
     sockets = bind_sockets(18889, "127.0.0.1")
-    server = HTTPServer(make_app(settings, db), max_body_size=1024 * 1024)
+    server = HTTPServer(make_app(settings, db), max_body_size=3 * 1024 * 1024)
     server.add_sockets(sockets)
 
     async def validate_response(response):

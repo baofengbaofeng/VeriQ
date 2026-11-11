@@ -29,7 +29,8 @@ test("validation receipts are retrievable through authorized job results", async
   const api = await SwaggerParser.validate(fileURLToPath(new URL("../openapi/platform.yaml", import.meta.url)));
   const operation = api.paths!["/api/v1/workspaces/{workspaceId}/jobs/{jobId}/validation-receipt"]?.get;
   expect(operation).toBeDefined();
-  expect(operation!.security).toEqual([{WebSession:[],CsrfToken:[]},{ServiceToken:[]}]);
+  // T04 implements session-authorized receipt reads; automation auth is a later task.
+  expect(operation!.security).toEqual([{WebSession:[],CsrfToken:[]}]);
   expect(operation!.responses).toHaveProperty("200");
   expect(operation!.responses).toHaveProperty("409");
   expect(operation!.parameters).toEqual(expect.arrayContaining([

@@ -824,6 +824,53 @@ export type AssetVersionV1 =
       document: EnvironmentV1;
     };
 /**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AssetSnapshotV1".
+ */
+export type AssetSnapshotV1 = {
+  [k: string]: unknown;
+} & {
+  schemaVersion: "1.0";
+  workspaceId: Id;
+  sourceHash: Sha256;
+  engineVersion: Version;
+  /**
+   * @minItems 0
+   */
+  entryCaseVersionIds: Id[];
+  /**
+   * @minItems 1
+   */
+  assets: [AssetVersionV1, ...AssetVersionV1[]];
+  validationTarget?: ValidationTargetV1;
+};
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "CompiledAssetBundle".
+ */
+export type CompiledAssetBundle = {
+  [k: string]: unknown;
+} & {
+  schemaVersion: "1.0";
+  sourceHash: Sha256;
+  engineVersion: Version;
+  compilerVersion: Version;
+  runnerSdkVersion: Version;
+  /**
+   * @minItems 0
+   */
+  entrypoints: CaseEntrypointV1[];
+  /**
+   * @minItems 1
+   */
+  files: [FileEntry, ...FileEntry[]];
+  /**
+   * @minItems 1
+   */
+  dependencies: [DependencyVersion, ...DependencyVersion[]];
+  validationOnly?: boolean;
+};
+/**
  * Supported RFC3339 profile: real Gregorian date, year 0001-9999, T/t separator, seconds 00-59, optional fractional seconds, mandatory Z/z or numeric offset (00-23:00-59). No leap seconds, spaces or surrounding whitespace. Emit UTC uppercase T/Z for server timestamps.
  *
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1081,6 +1128,8 @@ export interface ContractDefinitions {
   BindingJsonValue?: BindingJsonValue;
   BindingJsonObject?: BindingJsonObject;
   DiagnosticText?: DiagnosticText;
+  ValidationTargetV1?: ValidationTargetV1;
+  CaseEntrypointV1?: CaseEntrypointV1;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1334,21 +1383,12 @@ export interface EnvironmentV1 {
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
- * via the `definition` "AssetSnapshotV1".
+ * via the `definition` "ValidationTargetV1".
  */
-export interface AssetSnapshotV1 {
-  schemaVersion: "1.0";
-  workspaceId: Id;
-  sourceHash: Sha256;
-  engineVersion: Version;
-  /**
-   * @minItems 1
-   */
-  entryCaseVersionIds: [Id, ...Id[]];
-  /**
-   * @minItems 1
-   */
-  assets: [AssetVersionV1, ...AssetVersionV1[]];
+export interface ValidationTargetV1 {
+  resourceId: Id;
+  versionId: Id;
+  revision: number;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1375,29 +1415,15 @@ export interface ExecutionSnapshotV1 {
   }[];
   namespace: Key;
   attemptNo: number;
+  caseVersionId: Id;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
- * via the `definition` "CompiledAssetBundle".
+ * via the `definition` "CaseEntrypointV1".
  */
-export interface CompiledAssetBundle {
-  schemaVersion: "1.0";
-  sourceHash: Sha256;
-  engineVersion: Version;
-  compilerVersion: Version;
-  runnerSdkVersion: Version;
-  /**
-   * @minItems 1
-   */
-  entrypoints: [FilePath, ...FilePath[]];
-  /**
-   * @minItems 1
-   */
-  files: [FileEntry, ...FileEntry[]];
-  /**
-   * @minItems 1
-   */
-  dependencies: [DependencyVersion, ...DependencyVersion[]];
+export interface CaseEntrypointV1 {
+  caseVersionId: Id;
+  path: FilePath;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1454,6 +1480,7 @@ export interface TestJobManifestV1 {
   caseExecutionId: Id;
   compiledBundleSha256: Sha256;
   executionSnapshotSha256: Sha256;
+  caseVersionId: Id;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema

@@ -109,3 +109,32 @@ def parse_contract(schema_name: str, text: str) -> Any:
     if issues:
         raise ValueError(issues)
     return value
+
+
+def canonical_bytes(value: Any) -> bytes:
+    """RFC8785/JCS over portable JSON. Signatures still retain exact original bytes."""
+    import rfc8785
+
+    if not _portable_json(value, set()):
+        raise ValueError("Expected portable JSON")
+    return rfc8785.dumps(value)
+
+
+def asset_source_hash(snapshot: dict[str, Any]) -> str:
+    """Hash immutable source only, excluding validation/request metadata."""
+    import hashlib
+
+    return hashlib.sha256(
+        canonical_bytes(
+            {
+                key: snapshot[key]
+                for key in (
+                    "schemaVersion",
+                    "workspaceId",
+                    "engineVersion",
+                    "entryCaseVersionIds",
+                    "assets",
+                )
+            }
+        )
+    ).hexdigest()

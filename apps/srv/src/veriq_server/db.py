@@ -1,9 +1,19 @@
 """Async MySQL persistence. Schema creation belongs exclusively to Alembic."""
 
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, UniqueConstraint
-from sqlalchemy.dialects.mysql import DATETIME
+from sqlalchemy import (
+    Boolean,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+    ForeignKeyConstraint,
+    BigInteger,
+    JSON,
+)
+from sqlalchemy.dialects.mysql import DATETIME, LONGBLOB
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -115,3 +125,150 @@ class Database:
 
     async def close(self) -> None:
         await self.engine.dispose()
+
+
+# Immutable source, content and validation provenance share the existing Workspace.
+class Resource(Base):
+    __tablename__ = "veriq_resources"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "kind", "key"),
+        UniqueConstraint("workspace_id", "id"),
+    )
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_workspaces.id"))
+    kind: Mapped[str] = mapped_column(String(24, collation="ascii_bin"))
+    key: Mapped[str] = mapped_column(String(160, collation="ascii_bin"))
+    name: Mapped[str] = mapped_column(String(160))
+    status: Mapped[str] = mapped_column(String(16, collation="ascii_bin"))
+    latest_version_id: Mapped[str | None] = mapped_column(uuid_type)
+
+
+class ResourceDraft(Base):
+    __tablename__ = "veriq_resource_drafts"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "resource_id"], ["veriq_resources.workspace_id", "veriq_resources.id"]
+        ),
+    )
+    resource_id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type)
+    revision: Mapped[int] = mapped_column(BigInteger)
+    document_json: Mapped[dict[str, Any]] = mapped_column(JSON)
+    updated_by: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_users.id"))
+    updated_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+
+
+class ResourceVersion(Base):
+    __tablename__ = "veriq_resource_versions"
+    __table_args__ = (
+        UniqueConstraint("resource_id", "version_no"),
+        UniqueConstraint("workspace_id", "id"),
+        UniqueConstraint("resource_id", "draft_revision"),
+        ForeignKeyConstraint(
+            ["workspace_id", "resource_id"], ["veriq_resources.workspace_id", "veriq_resources.id"]
+        ),
+    )
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    resource_id: Mapped[str] = mapped_column(uuid_type)
+    workspace_id: Mapped[str] = mapped_column(uuid_type)
+    kind: Mapped[str] = mapped_column(String(24, collation="ascii_bin"))
+    version_no: Mapped[int] = mapped_column(Integer)
+    draft_revision: Mapped[int] = mapped_column(BigInteger)
+    document_json: Mapped[dict[str, Any]] = mapped_column(JSON)
+    sha256: Mapped[str] = mapped_column(hash_type)
+    source_hash: Mapped[str] = mapped_column(hash_type)
+    engine_version: Mapped[str] = mapped_column(String(80, collation="ascii_bin"))
+    receipt_id: Mapped[str] = mapped_column(uuid_type)
+    published_by: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_users.id"))
+    published_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+
+
+class ResourceDependency(Base):
+    __tablename__ = "veriq_resource_dependencies"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "version_id"],
+            ["veriq_resource_versions.workspace_id", "veriq_resource_versions.id"],
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "dependency_version_id"],
+            ["veriq_resource_versions.workspace_id", "veriq_resource_versions.id"],
+        ),
+    )
+    workspace_id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    version_id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    dependency_version_id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+
+
+class Artifact(Base):
+    """Immutable content-addressed bytes; T12 extends external storage/retention."""
+
+    __tablename__ = "veriq_artifacts"
+    workspace_id: Mapped[str] = mapped_column(
+        uuid_type, ForeignKey("veriq_workspaces.id"), primary_key=True
+    )
+    sha256: Mapped[str] = mapped_column(hash_type, primary_key=True)
+    content: Mapped[bytes] = mapped_column(LONGBLOB)
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    media_type: Mapped[str] = mapped_column(String(80, collation="ascii_bin"))
+
+
+class Job(Base):
+    """Single shared Runtime queue. T09 adds claims/leases/capacity."""
+
+    __tablename__ = "veriq_jobs"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id"),
+        UniqueConstraint("workspace_id", "validation_key"),
+        ForeignKeyConstraint(
+            ["workspace_id", "snapshot_hash"],
+            ["veriq_artifacts.workspace_id", "veriq_artifacts.sha256"],
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "manifest_hash"],
+            ["veriq_artifacts.workspace_id", "veriq_artifacts.sha256"],
+        ),
+    )
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_workspaces.id"))
+    kind: Mapped[str] = mapped_column(String(16, collation="ascii_bin"))
+    subject_id: Mapped[str] = mapped_column(uuid_type)
+    state: Mapped[str] = mapped_column(String(24, collation="ascii_bin"), index=True)
+    snapshot_hash: Mapped[str] = mapped_column(hash_type)
+    manifest_hash: Mapped[str] = mapped_column(hash_type)
+    validation_key: Mapped[str | None] = mapped_column(hash_type)
+    required_capabilities: Mapped[dict[str, Any]] = mapped_column(JSON)
+    active_attempt_id: Mapped[str | None] = mapped_column(uuid_type)
+    created_by: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_users.id"))
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+
+
+class ValidationReceipt(Base):
+    """Only verified Runtime completion may create this provenance record."""
+
+    __tablename__ = "veriq_validation_receipts"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "resource_id"], ["veriq_resources.workspace_id", "veriq_resources.id"]
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "job_id"], ["veriq_jobs.workspace_id", "veriq_jobs.id"]
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "compiled_bundle_sha256"],
+            ["veriq_artifacts.workspace_id", "veriq_artifacts.sha256"],
+        ),
+        UniqueConstraint("job_id"),
+    )
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type)
+    resource_id: Mapped[str] = mapped_column(uuid_type)
+    job_id: Mapped[str] = mapped_column(uuid_type)
+    revision: Mapped[int] = mapped_column(BigInteger)
+    source_hash: Mapped[str] = mapped_column(hash_type)
+    engine_version: Mapped[str] = mapped_column(String(80, collation="ascii_bin"))
+    compiled_bundle_sha256: Mapped[str] = mapped_column(hash_type)
+    runtime_id: Mapped[str] = mapped_column(uuid_type)
+    attempt_id: Mapped[str] = mapped_column(uuid_type)
+    compiler_trust: Mapped[str] = mapped_column(String(24, collation="ascii_bin"))
+    validated_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))

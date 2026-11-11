@@ -1,3 +1,6 @@
+import canonicalizeModule from "canonicalize";
+// canonicalize 2.x ships an ESM default declaration for its CommonJS export.
+const canonicalize = canonicalizeModule as unknown as (value: unknown) => string | undefined;
 import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import schema from "../schemas/platform-v1.schema.json" with { type: "json" };
@@ -55,4 +58,30 @@ export function parseContract(schemaName: string, text: string): unknown {
   const issues = validateSchema(schemaName, value);
   if (issues.length) throw new Error(JSON.stringify(issues));
   return value;
+}
+
+/** RFC8785/JCS bytes; this does not replace exact-byte manifest signing. */
+export function canonicalBytes(value: unknown): Uint8Array {
+  if (!portableJson(value)) throw new Error('Expected portable JSON');
+  const result = canonicalize(value);
+  if (result === undefined) throw new Error('Expected JSON');
+  // JCS rejects lone surrogates; JSON.stringify otherwise silently escapes them.
+  function unicode(v: unknown): void {
+    if (typeof v === 'string' && /[\uD800-\uDFFF]/u.test(v)) throw new Error('Invalid Unicode');
+    if (Array.isArray(v)) v.forEach(unicode);
+    else if (v !== null && typeof v === 'object') for (const [k, x] of Object.entries(v)) { unicode(k); unicode(x); }
+  }
+  unicode(value);
+  return new TextEncoder().encode(result);
+}
+
+/** Exact source projection shared with Python; digest with the caller's SHA-256 API.
+ * Input assets and entry IDs use the producer's frozen order (server sorts by UUID).
+ * Validation target, receipt/job IDs and the claimed sourceHash are excluded.
+ */
+export function assetSourceBytes(snapshot: Record<string, unknown>): Uint8Array {
+  return canonicalBytes(Object.fromEntries(
+    ['schemaVersion', 'workspaceId', 'engineVersion', 'entryCaseVersionIds', 'assets']
+      .map(key => [key, snapshot[key]]),
+  ));
 }
