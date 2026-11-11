@@ -142,3 +142,21 @@ It uses the guarded dedicated MySQL fixture, builds a genuine locked test-only r
 registers the actual CLI and invokes the actual Linux Agent compiler. No test release is
 promoted to the production catalog. It needs writable XDG paths and sufficient temporary
 disk space; generated archives, device profiles and per-Attempt work are transient.
+
+## Current verification limits
+
+The reviewed editor implementation (`c128ac5`, fixed in `b49f981`) passed its final nine
+browser tests, Web type check and production build. The initial implementation also passed
+five existing Web journeys, 258 affected Python tests, 193 contract tests, 109 compiler tests,
+Ruff and mypy. These are scoped development results, not complete product acceptance.
+
+The broader `pnpm test` run remains failed: SDK cancellation test
+`cancels an in-flight assertion while preserving already observed failure=false` exceeded its
+unchanged 15-second budget under two workers (131 passed, one failed). The script stopped
+before Runtime tests. One later instrumented, isolated execution passed in 671 ms; it did not
+reproduce or explain the earlier failure. Capture the failing phase and resolve this before
+claiming a passing formal build; increasing the timeout or retrying until green is not a fix.
+
+The production build also retains a large-chunk warning from eager Monaco loading; local
+worker assets remain bundled for offline use. Loading improvements belong to the final UX
+work. Existing test color-environment warnings remain an infrastructure follow-up.

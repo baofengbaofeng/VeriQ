@@ -331,6 +331,8 @@ expect(firstAttempt.fixtureId).not.toBe(secondAttempt.fixtureId);
 
 **依赖：** T04/T05/T08/T10
 
+**状态：** 已完成并通过独立规格、质量审查及修复复审（`c128ac5`、`b49f981`）。最终编辑器浏览器回归 9 项通过；整体 SDK 测试仍有取消场景超时待定位，正式构建前必须解决，见[开发验证记录](../development.md#current-verification-limits)。本阶段不代表完整 MVP 已交付。
+
 **Files（拟创建/修改）：**
 
 - `apps/web/src/features/resources/ResourcePage.tsx`
@@ -341,17 +343,17 @@ expect(firstAttempt.fixtureId).not.toBe(secondAttempt.fixtureId);
 
 **Interfaces：** Web只提交CaseDslV1；observer/断言/变量面板共享同一表单状态，JSON编辑与表单可逆。
 
-- [ ] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
+- [x] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```ts
 expect(await page.getByTestId('case.validation-errors').count()).toBe(0);
 await expect(page.getByTestId('case.published-version')).toBeVisible();
 ```
 
-- [ ] **Step 2：运行测试确认未实现时失败。** `pnpm --filter @veriq/web test:e2e case-publish.spec.ts`；失败必须来自缺失行为，而非测试环境拼写错误。
-- [ ] **Step 3：实现上述接口与文件。** 全部资源kind、模板参数/影响、数据行、公共流程、版本差异、错误/空态/冲突真实可用。
-- [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
-- [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t11 完整资产编辑器与环境配置UI`。有新决策先更新ADR，不扩展到下一任务。
+- [x] **Step 2：运行测试确认未实现时失败。** `pnpm --filter @veriq/web test:e2e case-publish.spec.ts`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [x] **Step 3：实现上述接口与文件。** 全部资源kind、模板参数/影响、数据行、公共流程、版本差异、错误/空态/冲突真实可用。
+- [x] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
+- [x] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t11 完整资产编辑器与环境配置UI`。有新决策先更新ADR，不扩展到下一任务。
 
 ## T12：实时报告、证据、审计与可信门禁
 
