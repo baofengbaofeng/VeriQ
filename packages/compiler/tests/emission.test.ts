@@ -509,3 +509,213 @@ it("rejects portable filename collisions while compiling", () => {
   d.packageLock = bytes(JSON.stringify(lock));
   expect(() => compileFiles(snapshot(), d)).toThrow("DUPLICATE_FILE_PATH");
 });
+
+it("I1 compiles one CASE entrypoint for multiple suite-only data contexts and cold-assembles each", () => {
+  const data = (n: number, name: string) =>
+    asset(n, "DATASET", {
+      schemaVersion: "1.0",
+      columns: { name: "string" },
+      rows: [{ key: "a", values: { name } }],
+    });
+  const s = snapshot(
+    [{ id: "fill", action: "fill", target: "name", value: "{{data.name}}" }],
+    [
+      data(3, "A"),
+      data(4, "B"),
+      asset(8, "SUITE", {
+        schemaVersion: "1.0",
+        cases: [
+          { versionId: id(1), datasetVersionId: id(3) },
+          { versionId: id(1), datasetVersionId: id(4) },
+        ],
+      }),
+    ],
+  );
+  s.validationTarget = {
+    resourceId: s.assets[4]!.resourceId,
+    versionId: id(8),
+    revision: 1,
+  };
+  rehash(s);
+  const r = compileFiles(s, distribution());
+  expect(r.bundle.entrypoints).toHaveLength(1);
+  for (const name of ["A", "B"]) {
+    const e = execution();
+    e.assetSourceHash = s.sourceHash;
+    e.dataRow = { key: "a", values: { name } };
+    expect(assembleExecution(r.bundle, e, r.files).snapshot.dataRow).toEqual(
+      e.dataRow,
+    );
+  }
+});
+it("I3 accepts both no-row and exact-row alternatives of matching suite variants", () => {
+  const dataset = asset(3, "DATASET", {
+    schemaVersion: "1.0",
+    columns: { name: "string" },
+    rows: [{ key: "a", values: { name: "A" } }],
+  });
+  const s = snapshot(undefined, [
+    dataset,
+    asset(8, "SUITE", {
+      schemaVersion: "1.0",
+      cases: [
+        { versionId: id(1) },
+        { versionId: id(1), datasetVersionId: id(3) },
+      ],
+    }),
+  ]);
+  s.validationTarget = {
+    resourceId: s.assets[3]!.resourceId,
+    versionId: id(8),
+    revision: 1,
+  };
+  rehash(s);
+  const r = compileFiles(s, distribution());
+  const e = execution();
+  e.assetSourceHash = s.sourceHash;
+  expect(
+    assembleExecution(r.bundle, e, r.files).snapshot.dataRow,
+  ).toBeUndefined();
+  e.dataRow = { key: "a", values: { name: "A" } };
+  expect(assembleExecution(r.bundle, e, r.files).snapshot.dataRow).toEqual(
+    e.dataRow,
+  );
+  e.dataRow = { key: "a", values: { name: "WRONG" } };
+  expect(() => assembleExecution(r.bundle, e, r.files)).toThrow(
+    "DATA_ROW_MISMATCH",
+  );
+});
+it("I3 keeps role, browser and data matching coupled to a complete variant", () => {
+  const dataset = asset(3, "DATASET", {
+    schemaVersion: "1.0",
+    columns: { name: "string" },
+    rows: [{ key: "a", values: { name: "A" } }],
+  });
+  const s = snapshot(undefined, [
+    dataset,
+    asset(8, "SUITE", {
+      schemaVersion: "1.0",
+      cases: [
+        { versionId: id(1), roleKeys: ["reader"], browsers: ["chromium"] },
+        {
+          versionId: id(1),
+          roleKeys: ["editor"],
+          browsers: ["firefox"],
+          datasetVersionId: id(3),
+        },
+      ],
+    }),
+  ]);
+  s.validationTarget = {
+    resourceId: s.assets[3]!.resourceId,
+    versionId: id(8),
+    revision: 1,
+  };
+  rehash(s);
+  const r = compileFiles(s, distribution());
+  const e = execution();
+  e.assetSourceHash = s.sourceHash;
+  e.environment.roles.push({ ...e.environment.roles[0], roleKey: "editor" });
+  expect(assembleExecution(r.bundle, e, r.files).snapshot.roleKey).toBe(
+    "reader",
+  );
+  e.dataRow = { key: "a", values: { name: "A" } };
+  expect(() => assembleExecution(r.bundle, e, r.files)).toThrow(
+    "UNEXPECTED_DATA_ROW",
+  );
+  e.roleKey = "editor";
+  expect(() => assembleExecution(r.bundle, e, r.files)).toThrow(
+    "ROLE_MISMATCH",
+  );
+  e.browser = "firefox";
+  expect(assembleExecution(r.bundle, e, r.files).snapshot.roleKey).toBe(
+    "editor",
+  );
+  delete e.dataRow;
+  expect(() => assembleExecution(r.bundle, e, r.files)).toThrow(
+    "DATA_ROW_MISMATCH",
+  );
+});
+it("I1 compilation rejects a well-formed override dataset that violates the CASE action type", () => {
+  const s = snapshot(
+    [{ id: "fill", action: "fill", target: "name", value: "{{data.name}}" }],
+    [
+      asset(3, "DATASET", {
+        schemaVersion: "1.0",
+        columns: { name: "string" },
+        rows: [{ key: "a", values: { name: "A" } }],
+      }),
+      asset(4, "DATASET", {
+        schemaVersion: "1.0",
+        columns: { name: "integer" },
+        rows: [{ key: "a", values: { name: 42 } }],
+      }),
+      asset(8, "SUITE", {
+        schemaVersion: "1.0",
+        cases: [{ versionId: id(1), datasetVersionId: id(4) }],
+      }),
+    ],
+    { datasetVersionId: id(3) },
+  );
+  s.validationTarget = {
+    resourceId: s.assets[4]!.resourceId,
+    versionId: id(8),
+    revision: 1,
+  };
+  rehash(s);
+  expect(() => compileFiles(s, distribution())).toThrow(
+    "BINDING_TYPE_MISMATCH",
+  );
+});
+it("I2 emits the locator-dependent assertion in the post-extraction plan", () => {
+  const s = snapshot([
+    {
+      id: "read",
+      action: "reload",
+      observers: [{ id: "read", method: "GET", path: "/" }],
+      extract: [
+        {
+          source: "response:read",
+          pointer: "/id",
+          to: "id",
+          valueType: "string",
+          required: true,
+        },
+      ],
+      afterAssertions: [
+        {
+          id: "visible",
+          type: "ui",
+          target: "name",
+          operator: "visible",
+          expected: true,
+          severity: "BLOCK",
+          expectedSource: "REQ",
+        },
+      ],
+    },
+  ]);
+  s.assets[1] = asset(2, "ELEMENT_CATALOG", {
+    schemaVersion: "1.0",
+    elements: [
+      {
+        key: "name",
+        recordKey: "{{vars.id}}",
+        locator: { by: "testId", value: "name" },
+      },
+    ],
+  });
+  const r = compileFiles(rehash(s), distribution());
+  const file = ts.createSourceFile(
+    "case.test.ts",
+    new TextDecoder().decode(r.files[r.bundle.entrypoints[0]!.path]),
+    ts.ScriptTarget.ES2023,
+    true,
+  );
+  const registration = file.statements.find(ts.isExpressionStatement)!
+    .expression as ts.CallExpression;
+  const jsonCall = registration.arguments[0] as ts.CallExpression;
+  const plan = JSON.parse((jsonCall.arguments[0] as ts.StringLiteral).text);
+  expect(plan.steps[0].responseAssertions).toEqual([]);
+  expect(plan.steps[0].after[0].assertion.type).toBe("ui");
+});

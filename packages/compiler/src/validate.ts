@@ -149,6 +149,25 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
     )
       fail("INVALID_VALIDATION_TARGET", "/validationTarget");
   }
+  // Select the same unambiguous SUITE root used by closure validation. CASE
+  // validation targets always retain their own declared data context.
+  let suiteRoot: Extract<AssetVersionV1, { kind: "SUITE" }> | undefined;
+  if (snapshot.validationTarget) {
+    const root = assets.get(snapshot.validationTarget.versionId);
+    if (root?.kind === "SUITE") suiteRoot = root;
+  } else {
+    const roots = snapshot.assets.filter(
+      (a): a is Extract<AssetVersionV1, { kind: "SUITE" }> =>
+        a.kind === "SUITE" &&
+        new Set(a.document.cases.map((c) => c.versionId)).size ===
+          snapshot.entryCaseVersionIds.length &&
+        a.document.cases.every((c) =>
+          snapshot.entryCaseVersionIds.includes(c.versionId),
+        ),
+    );
+    if (roots.length > 1) fail("AMBIGUOUS_SUITE_ROOT", "/assets");
+    else suiteRoot = roots[0];
+  }
   function localDefinitions(
     list: StepV1[],
     seen = new Set<string>(),
@@ -500,7 +519,7 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
         path + "/beforeAssertions",
       );
       if ("target" in s) target(s.target, scope, path + "/target");
-      for (const k of ["path", "value", "body", "query", "headers"] as const)
+      for (const k of ["path", "value", "body", "query"] as const)
         if (k in s)
           binding(
             (s as unknown as Record<string, unknown>)[k],
@@ -512,6 +531,14 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                 (s.action === "selectOption" && typeof s.value === "string"))
               ? "string"
               : undefined,
+          );
+      if (s.action === "apiRequest")
+        for (const [name, value] of Object.entries(s.headers ?? {}))
+          binding(
+            value,
+            scope,
+            path + "/headers/" + pointerKey(name),
+            "string",
           );
       if (s.action === "selectOption" && Array.isArray(s.value))
         s.value.forEach((v, i) =>
@@ -582,7 +609,9 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
         (a.assertion.type !== "responseSchema" &&
           "expected" in a.assertion &&
           usesExtract(a.assertion.expected)) ||
-        (a.assertion.type === "eventually" && usesExtract(a.assertion.query));
+        (a.assertion.type === "eventually" && usesExtract(a.assertion.query)) ||
+        ("target" in a.assertion &&
+          usesExtract(scope.locatorBindings?.get(a.assertion.target) ?? []));
       const {
         beforeAssertions: _before,
         afterAssertions: _after,
@@ -609,124 +638,144 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
         "ELEMENT_CATALOG",
         p + "/catalogVersionId",
       );
-      const scope: Scope = {
-        data: new Map(),
-        vars: new Map(),
-        ...(c?.kind === "ELEMENT_CATALOG"
-          ? { catalog: new Set(c.document.elements.map((e) => e.key)) }
-          : {}),
-      };
-      if (c?.kind === "ELEMENT_CATALOG") {
-        scope.locatorBindings = new Map();
-        const elements = new Map(c.document.elements.map((e) => [e.key, e]));
-        for (const e of c.document.elements) {
-          const values: unknown[] = [];
-          const seen = new Set<string>();
-          let current: typeof e | undefined = e;
-          while (current && !seen.has(current.key)) {
-            seen.add(current.key);
-            if (current.recordKey) values.push(current.recordKey);
-            if (current.locator.by === "role" && current.locator.name)
-              values.push(current.locator.name);
-            current = current.scope ? elements.get(current.scope) : undefined;
-          }
-          scope.locatorBindings.set(e.key, values);
-        }
-      }
-      if (d.datasetVersionId) {
-        const ds = ref(
+      if (d.datasetVersionId)
+        ref(
           a.versionId,
           d.datasetVersionId,
           "DATASET",
           p + "/datasetVersionId",
         );
-        if (ds?.kind === "DATASET")
-          for (const [k, v] of Object.entries(ds.document.columns))
-            scope.data.set(k, {
-              ...dataSymbol(
-                ds.document.rows
-                  .filter((row) => Object.hasOwn(row.values, k))
-                  .map((row) => row.values[k]!),
-              ),
-              type: v,
-            });
-      }
-      if (d.fixtureVersionId) {
-        const f = ref(
-          a.versionId,
-          d.fixtureVersionId,
-          "FIXTURE",
-          p + "/fixtureVersionId",
-        );
-        if (f?.kind === "FIXTURE") {
-          const declared = schemaSymbol(f.document.outputSchema);
-          if (!declared || declared.type !== "object" || declared.alternatives)
-            fail("FIXTURE_OUTPUT_DECLARATIONS_REQUIRED", p);
-          else scope.vars = new Map(declared.properties ?? []);
+      const variants = suiteRoot?.document.cases.filter(
+        (c) => c.versionId === a.versionId,
+      );
+      const datasets = variants?.length
+        ? [
+            ...new Set(
+              variants.map((c) => c.datasetVersionId ?? d.datasetVersionId),
+            ),
+          ]
+        : [d.datasetVersionId];
+      let compiled: CompiledCase | undefined;
+      for (const datasetVersionId of datasets) {
+        const scope: Scope = {
+          data: new Map(),
+          vars: new Map(),
+          ...(c?.kind === "ELEMENT_CATALOG"
+            ? { catalog: new Set(c.document.elements.map((e) => e.key)) }
+            : {}),
+        };
+        if (c?.kind === "ELEMENT_CATALOG") {
+          scope.locatorBindings = new Map();
+          const elements = new Map(c.document.elements.map((e) => [e.key, e]));
+          for (const e of c.document.elements) {
+            const values: unknown[] = [];
+            const seen = new Set<string>();
+            let current: typeof e | undefined = e;
+            while (current && !seen.has(current.key)) {
+              seen.add(current.key);
+              if (current.recordKey) values.push(current.recordKey);
+              if (current.locator.by === "role" && current.locator.name)
+                values.push(current.locator.name);
+              current = current.scope ? elements.get(current.scope) : undefined;
+            }
+            scope.locatorBindings.set(e.key, values);
+          }
         }
-      }
-      const expanded = steps(
-        d.steps,
-        a.versionId,
-        scope,
-        p + "/steps",
-        [],
-        { count: 0 },
-        d.kind === "WRITE",
-      );
-      if (d.kind === "WRITE") {
-        const index = d.steps.findIndex(
-          (s) => s.id === d.persistenceCheckpointStepId,
-        );
-        const checkpoint = expanded[index];
-        const critical = (s: CompiledStep): boolean =>
-          !!s.step.critical || !!s.children?.some(critical);
-        const lastWrite = expanded.reduce(
-          (last, s, i) => (critical(s) ? i : last),
-          -1,
-        );
-        const observed =
-          checkpoint &&
-          [...checkpoint.responseAssertions, ...checkpoint.after].some(
-            (x) =>
-              x.assertion.severity !== "WARN" &&
-              (x.assertion.type === "eventually" ||
-                (["reload", "goto"].includes(checkpoint.step.action) &&
-                  x.assertion.type === "ui") ||
-                (checkpoint.step.action === "apiRequest" &&
-                  checkpoint.step.method === "GET" &&
-                  x.assertion.type === "responseField")),
+        if (datasetVersionId) {
+          const ds = assets.get(datasetVersionId);
+          if (ds?.kind === "DATASET")
+            for (const [k, v] of Object.entries(ds.document.columns))
+              scope.data.set(k, {
+                ...dataSymbol(
+                  ds.document.rows
+                    .filter((row) => Object.hasOwn(row.values, k))
+                    .map((row) => row.values[k]!),
+                ),
+                type: v,
+              });
+        }
+        if (d.fixtureVersionId) {
+          const f = ref(
+            a.versionId,
+            d.fixtureVersionId,
+            "FIXTURE",
+            p + "/fixtureVersionId",
           );
-        if (
-          index < 0 ||
-          index < lastWrite ||
-          (index === lastWrite &&
-            !(
-              checkpoint &&
-              [...checkpoint.responseAssertions, ...checkpoint.after].some(
-                (x) =>
-                  x.assertion.type === "eventually" &&
-                  x.assertion.severity !== "WARN",
-              )
-            )) ||
-          !observed
-        )
-          fail(
-            "MISSING_PERSISTENCE_CHECKPOINT",
-            p + "/persistenceCheckpointStepId",
+          if (f?.kind === "FIXTURE") {
+            const declared = schemaSymbol(f.document.outputSchema);
+            if (
+              !declared ||
+              declared.type !== "object" ||
+              declared.alternatives
+            )
+              fail("FIXTURE_OUTPUT_DECLARATIONS_REQUIRED", p);
+            else scope.vars = new Map(declared.properties ?? []);
+          }
+        }
+        const expanded = steps(
+          d.steps,
+          a.versionId,
+          scope,
+          p + "/steps",
+          [],
+          { count: 0 },
+          d.kind === "WRITE",
+        );
+        if (d.kind === "WRITE") {
+          const index = d.steps.findIndex(
+            (s) => s.id === d.persistenceCheckpointStepId,
           );
+          const checkpoint = expanded[index];
+          const critical = (s: CompiledStep): boolean =>
+            !!s.step.critical || !!s.children?.some(critical);
+          const lastWrite = expanded.reduce(
+            (last, s, i) => (critical(s) ? i : last),
+            -1,
+          );
+          const observed =
+            checkpoint &&
+            [...checkpoint.responseAssertions, ...checkpoint.after].some(
+              (x) =>
+                x.assertion.severity !== "WARN" &&
+                (x.assertion.type === "eventually" ||
+                  (["reload", "goto"].includes(checkpoint.step.action) &&
+                    x.assertion.type === "ui") ||
+                  (checkpoint.step.action === "apiRequest" &&
+                    checkpoint.step.method === "GET" &&
+                    x.assertion.type === "responseField")),
+            );
+          if (
+            index < 0 ||
+            index < lastWrite ||
+            (index === lastWrite &&
+              !(
+                checkpoint &&
+                [...checkpoint.responseAssertions, ...checkpoint.after].some(
+                  (x) =>
+                    x.assertion.type === "eventually" &&
+                    x.assertion.severity !== "WARN",
+                )
+              )) ||
+            !observed
+          )
+            fail(
+              "MISSING_PERSISTENCE_CHECKPOINT",
+              p + "/persistenceCheckpointStepId",
+            );
+        }
+        const checkpoint = expanded.find(
+          (_, i) => d.steps[i]!.id === d.persistenceCheckpointStepId,
+        );
+        compiled ??= {
+          caseVersionId: a.versionId,
+          document: d,
+          steps: expanded,
+          ...(checkpoint
+            ? { persistenceCheckpointStepId: checkpoint.step.id }
+            : {}),
+        };
       }
-      const checkpoint = expanded.find(
-        (_, i) => d.steps[i]!.id === d.persistenceCheckpointStepId,
-      );
-      cases.push({
-        caseVersionId: a.versionId,
-        document: d,
-        steps: expanded,
-        ...(checkpoint
-          ? { persistenceCheckpointStepId: checkpoint.step.id }
-          : {}),
-      });
+      if (compiled) cases.push(compiled);
     } else if (a.kind === "DATASET") {
       unique(
         a.document.rows.map((r) => r.key),
@@ -865,19 +914,7 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
     ? [snapshot.validationTarget.versionId]
     : snapshot.entryCaseVersionIds)
     visit(id);
-  if (!snapshot.validationTarget) {
-    const roots = snapshot.assets.filter(
-      (a) =>
-        a.kind === "SUITE" &&
-        new Set(a.document.cases.map((c) => c.versionId)).size ===
-          snapshot.entryCaseVersionIds.length &&
-        a.document.cases.every((c) =>
-          snapshot.entryCaseVersionIds.includes(c.versionId),
-        ),
-    );
-    if (roots.length > 1) fail("AMBIGUOUS_SUITE_ROOT", "/assets");
-    else if (roots[0]) visit(roots[0].versionId);
-  }
+  if (!snapshot.validationTarget && suiteRoot) visit(suiteRoot.versionId);
   for (const a of snapshot.assets)
     if (!reachable.has(a.versionId))
       fail("UNREACHABLE_ASSET", paths.get(a.versionId)!);

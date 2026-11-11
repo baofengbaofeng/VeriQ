@@ -426,25 +426,31 @@ export function assembleExecution(
       : selectedCase.document.roleKey !== snapshot.roleKey
   )
     throw new Error("ROLE_MISMATCH");
-  const dataIds = new Set(
-    variants
-      .map((c) => c.datasetVersionId ?? selectedCase.document.datasetVersionId)
-      .filter((id): id is string => !!id),
-  );
-  if (dataIds.size) {
-    const rows = source.assets.flatMap((a) =>
-      a.kind === "DATASET" && dataIds.has(a.versionId) ? a.document.rows : [],
-    );
-    if (
-      !snapshot.dataRow ||
-      !rows.some(
+  // A no-data alternative remains distinct from every dataset alternative.
+  // Role/browser filtering above must stay coupled to this exact row match.
+  const matchesData = variants.some((variant) => {
+    const datasetId =
+      variant.datasetVersionId ?? selectedCase.document.datasetVersionId;
+    if (!datasetId) return snapshot.dataRow === undefined;
+    if (!snapshot.dataRow) return false;
+    const dataset = source.assets.find((a) => a.versionId === datasetId);
+    return (
+      dataset?.kind === "DATASET" &&
+      dataset.document.rows.some(
         (row) =>
           sha256(canonicalBytes(row)) ===
           sha256(canonicalBytes(snapshot.dataRow)),
       )
-    )
-      throw new Error("DATA_ROW_MISMATCH");
-  } else if (snapshot.dataRow) throw new Error("UNEXPECTED_DATA_ROW");
+    );
+  });
+  if (!matchesData)
+    throw new Error(
+      variants.some(
+        (c) => c.datasetVersionId ?? selectedCase.document.datasetVersionId,
+      )
+        ? "DATA_ROW_MISMATCH"
+        : "UNEXPECTED_DATA_ROW",
+    );
   const origins = new Set(snapshot.environment.allowedOrigins);
   for (const base of [
     snapshot.environment.baseURL,

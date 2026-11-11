@@ -868,3 +868,414 @@ it("rejects standalone flow use before a local extraction while allowing declare
   };
   expect(codes(rehash(s))).toContain("VARIABLE_USED_BEFORE_DEFINED");
 });
+
+function suiteRoot(
+  s: AssetSnapshotV1,
+  variants: { versionId: string; datasetVersionId?: string }[],
+): AssetSnapshotV1 {
+  const root = asset(80, "SUITE", { schemaVersion: "1.0", cases: variants });
+  s.assets.push(root);
+  s.validationTarget = {
+    resourceId: root.resourceId,
+    versionId: root.versionId,
+    revision: 1,
+  };
+  return rehash(s);
+}
+const namedDataset = (n: number, type: string, values: unknown[]) =>
+  asset(n, "DATASET", {
+    schemaVersion: "1.0",
+    columns: { name: type },
+    rows: values.map((name, i) => ({ key: "row" + i, values: { name } })),
+  });
+const fillName: StepV1 = {
+  id: "fill",
+  action: "fill",
+  target: "name",
+  value: "{{data.name}}",
+};
+it("I1 rejects an incompatible suite dataset override even when the CASE default is valid", () => {
+  const s = suiteRoot(
+    snapshot(
+      [fillName],
+      [namedDataset(3, "string", ["A"]), namedDataset(4, "integer", [42])],
+      { datasetVersionId: id(3) },
+    ),
+    [{ versionId: id(1), datasetVersionId: id(4) }],
+  );
+  expect(codes(s)).toContain("BINDING_TYPE_MISMATCH");
+});
+it("I1 validates every effective dataset variant, independently of variant ordering", () => {
+  for (const datasetIds of [
+    [3, 4],
+    [4, 3],
+  ]) {
+    const s = suiteRoot(
+      snapshot(
+        [fillName],
+        [namedDataset(3, "string", ["A"]), namedDataset(4, "integer", [42])],
+        { datasetVersionId: id(3) },
+      ),
+      datasetIds.map((n) => ({ versionId: id(1), datasetVersionId: id(n) })),
+    );
+    expect(codes(s)).toContain("BINDING_TYPE_MISMATCH");
+  }
+});
+it("I1 accepts suite-only datasets without weakening standalone CASE binding checks", () => {
+  const s = snapshot([fillName], [namedDataset(3, "string", ["A"])]);
+  expect(codes(s)).toContain("UNKNOWN_DATA_BINDING");
+  const suite = suiteRoot(s, [{ versionId: id(1), datasetVersionId: id(3) }]);
+  expect(validate(suite)).toEqual([]);
+  expect(analyze(suite).cases).toHaveLength(1);
+  const standalone = structuredClone(suite);
+  standalone.validationTarget = {
+    resourceId: standalone.assets[0].resourceId,
+    versionId: id(1),
+    revision: 1,
+  };
+  expect(codes(rehash(standalone))).toContain("UNKNOWN_DATA_BINDING");
+});
+it("I1 checks nested override properties and missing values across every row", () => {
+  const nested: StepV1 = { ...fillName, value: "{{data.name.first}}" };
+  const good = namedDataset(3, "object", [{ first: "A" }]);
+  for (const [rows, error] of [
+    [[{ first: 42 }], "BINDING_TYPE_MISMATCH"],
+    [[{ first: "A" }, {}], "POSSIBLY_MISSING_VARIABLE"],
+  ] as const) {
+    const override = namedDataset(4, "object", [...rows]);
+    expect(
+      codes(
+        suiteRoot(
+          snapshot([nested], [good, override], { datasetVersionId: id(3) }),
+          [{ versionId: id(1), datasetVersionId: id(4) }],
+        ),
+      ),
+    ).toContain(error);
+  }
+});
+it("I1 applies suite datasets to catalog, flow parameter and template parameter requirements", () => {
+  const data = [
+    namedDataset(3, "string", ["A"]),
+    namedDataset(4, "integer", [42]),
+  ];
+  const variants = [{ versionId: id(1), datasetVersionId: id(4) }];
+  const locator = snapshot(
+    [{ id: "click", action: "click", target: "name" }],
+    data,
+    { datasetVersionId: id(3) },
+  );
+  locator.assets[1] = asset(2, "ELEMENT_CATALOG", {
+    schemaVersion: "1.0",
+    elements: [
+      {
+        key: "name",
+        locator: { by: "role", role: "button", name: "{{data.name}}" },
+      },
+    ],
+  });
+  expect(codes(suiteRoot(locator, variants))).toContain(
+    "BINDING_TYPE_MISMATCH",
+  );
+  const f = flow(
+    5,
+    [{ id: "fill", action: "fill", target: "name", value: "{{data.input}}" }],
+    { input: "string" },
+  );
+  expect(
+    codes(
+      suiteRoot(
+        snapshot(
+          [
+            {
+              id: "call",
+              action: "callFlow",
+              versionId: id(5),
+              parameters: { input: "{{data.name}}" },
+            },
+          ],
+          [...data, f],
+          { datasetVersionId: id(3) },
+        ),
+        variants,
+      ),
+    ),
+  ).toContain("BINDING_TYPE_MISMATCH");
+  const template = asset(6, "ASSERTION_TEMPLATE", {
+    schemaVersion: "1.0",
+    parameters: { input: "string" },
+    assertions: [
+      {
+        id: "text",
+        type: "ui",
+        target: "name",
+        operator: "textEquals",
+        expected: "{{data.input}}",
+        severity: "BLOCK",
+        expectedSource: "REQ",
+      },
+    ],
+  });
+  expect(
+    codes(
+      suiteRoot(
+        snapshot(
+          [
+            {
+              id: "check",
+              action: "reload",
+              afterAssertions: [
+                {
+                  id: "template",
+                  type: "template",
+                  versionId: id(6),
+                  parameters: { input: "{{data.name}}" },
+                  severity: "BLOCK",
+                  expectedSource: "REQ",
+                },
+              ],
+            },
+          ],
+          [...data, template],
+          { datasetVersionId: id(3) },
+        ),
+        variants,
+      ),
+    ),
+  ).toContain("BINDING_TYPE_MISMATCH");
+});
+
+it.each(["recordKey", "roleName", "ancestor"] as const)(
+  "I2 schedules a UI assertion after extraction when its %s depends on the new value",
+  (kind) => {
+    const observed: StepV1 = {
+      id: "read",
+      action: "reload",
+      observers: [{ id: "read", method: "GET", path: "/" }],
+      extract: [
+        {
+          source: "response:read",
+          pointer: "/id",
+          to: "id",
+          valueType: "string",
+          required: true,
+        },
+      ],
+      afterAssertions: [
+        {
+          id: "status",
+          type: "httpStatus",
+          source: "response:read",
+          operator: "equals",
+          expected: 200,
+          severity: "BLOCK",
+          expectedSource: "API",
+        },
+        {
+          id: "schema",
+          type: "responseSchema",
+          source: "response:read",
+          operator: "matchesSchema",
+          expected: { type: "object", description: "{{vars.id}}" },
+          severity: "BLOCK",
+          expectedSource: "API",
+        },
+        {
+          id: "visible",
+          type: "ui",
+          target: "name",
+          operator: "visible",
+          expected: true,
+          severity: "BLOCK",
+          expectedSource: "REQ",
+        },
+      ],
+    };
+    const s = snapshot([observed]);
+    s.assets[1] = asset(2, "ELEMENT_CATALOG", {
+      schemaVersion: "1.0",
+      elements:
+        kind === "ancestor"
+          ? [
+              {
+                key: "row",
+                locator: { by: "testId", value: "row" },
+                recordKey: "{{vars.id}}",
+              },
+              {
+                key: "name",
+                scope: "row",
+                locator: { by: "testId", value: "name" },
+              },
+            ]
+          : [
+              {
+                key: "name",
+                locator:
+                  kind === "roleName"
+                    ? { by: "role", role: "button", name: "{{vars.id}}" }
+                    : { by: "testId", value: "name" },
+                ...(kind === "recordKey" ? { recordKey: "{{vars.id}}" } : {}),
+              },
+            ],
+    });
+    const result = analyze(rehash(s));
+    expect(result.issues).toEqual([]);
+    expect(
+      result.cases[0]!.steps[0]!.responseAssertions.map(
+        (a) => a.assertion.type,
+      ),
+    ).toEqual(["httpStatus", "responseSchema"]);
+    expect(
+      result.cases[0]!.steps[0]!.after.map((a) => a.assertion.type),
+    ).toEqual(["ui"]);
+  },
+);
+it("I2 includes template parameter scopes in a locator extraction dependency", () => {
+  const template = asset(6, "ASSERTION_TEMPLATE", {
+    schemaVersion: "1.0",
+    parameters: { row: "string" },
+    assertions: [
+      {
+        id: "visible",
+        type: "ui",
+        target: "name",
+        operator: "visible",
+        expected: true,
+        severity: "BLOCK",
+        expectedSource: "REQ",
+      },
+    ],
+  });
+  const s = snapshot(
+    [
+      {
+        id: "read",
+        action: "reload",
+        observers: [{ id: "read", method: "GET", path: "/" }],
+        extract: [
+          {
+            source: "response:read",
+            pointer: "/id",
+            to: "id",
+            valueType: "string",
+            required: true,
+          },
+        ],
+        afterAssertions: [
+          {
+            id: "use",
+            type: "template",
+            versionId: id(6),
+            parameters: { row: "{{vars.id}}" },
+            severity: "BLOCK",
+            expectedSource: "REQ",
+          },
+        ],
+      },
+    ],
+    [template],
+  );
+  s.assets[1] = asset(2, "ELEMENT_CATALOG", {
+    schemaVersion: "1.0",
+    elements: [
+      {
+        key: "name",
+        recordKey: "{{data.row}}",
+        locator: { by: "testId", value: "name" },
+      },
+    ],
+  });
+  const result = analyze(rehash(s));
+  expect(result.issues).toEqual([]);
+  expect(result.cases[0]!.steps[0]!.responseAssertions).toEqual([]);
+  expect(result.cases[0]!.steps[0]!.after).toHaveLength(1);
+});
+it.each([
+  ["integer", 42],
+  ["object", { a: 1 }],
+  ["array", [1]],
+] as const)("I4 rejects a full-placeholder %s HTTP header", (type, value) => {
+  const s = snapshot(
+    [
+      {
+        id: "request",
+        action: "apiRequest",
+        method: "GET",
+        path: "/",
+        headers: { "X-Test": "{{data.name}}" },
+      },
+    ],
+    [namedDataset(3, type, [value])],
+    { datasetVersionId: id(3) },
+  );
+  expect(codes(s)).toContain("BINDING_TYPE_MISMATCH");
+});
+it.each([
+  ["integer", 42],
+  ["boolean", true],
+  ["string", "text"],
+] as const)(
+  "I4 accepts embedded %s HTTP header interpolation",
+  (type, value) => {
+    const s = snapshot(
+      [
+        {
+          id: "request",
+          action: "apiRequest",
+          method: "GET",
+          path: "/",
+          headers: { "X-Test": "prefix-{{data.name}}" },
+        },
+      ],
+      [namedDataset(3, type, [value])],
+      { datasetVersionId: id(3) },
+    );
+    expect(validate(s)).toEqual([]);
+  },
+);
+it("I4 enforces string headers inside a pinned flow", () => {
+  const f = flow(
+    3,
+    [
+      {
+        id: "request",
+        action: "apiRequest",
+        method: "GET",
+        path: "/",
+        headers: { "X-Test": "{{data.value}}" },
+      },
+    ],
+    { value: "integer" },
+  );
+  expect(
+    codes(
+      snapshot(
+        [
+          {
+            id: "call",
+            action: "callFlow",
+            versionId: id(3),
+            parameters: { value: 42 },
+          },
+        ],
+        [f],
+      ),
+    ),
+  ).toContain("BINDING_TYPE_MISMATCH");
+});
+it("I4 leaves business JSON fields named headers as JSON rather than treating them as HTTP headers", () => {
+  const s = snapshot(
+    [
+      {
+        id: "request",
+        action: "apiRequest",
+        method: "POST",
+        path: "/",
+        body: { headers: { value: "{{data.name}}" } },
+      },
+    ],
+    [namedDataset(3, "integer", [42])],
+    { datasetVersionId: id(3) },
+  );
+  expect(validate(s)).toEqual([]);
+});
