@@ -12,6 +12,7 @@ import {
   WorkspacePage,
   AcceptInvitation,
 } from "./features/workspaces/WorkspacePage";
+import { RuntimePage } from "./features/runtimes/RuntimePage";
 import "./style.css";
 function App() {
   const [user, setUser] = useState<User | null>(null),
@@ -64,6 +65,7 @@ function App() {
             <>
               <Link to="/account">Account</Link>
               <Link to="/workspaces">Workspaces</Link>
+              <Link to="/runtimes">Runtimes</Link>
               {user.systemAdmin && <Link to="/admin/users">Users</Link>}
               <button
                 data-testid="logout"
@@ -108,6 +110,14 @@ function App() {
             element={
               <WorkspaceProvider key={user?.id ?? "anonymous"}>
                 <WorkspacePage />
+              </WorkspaceProvider>
+            }
+          />
+          <Route
+            path="/runtimes"
+            element={
+              <WorkspaceProvider key={user?.id ?? "anonymous"}>
+                <RuntimePage />
               </WorkspaceProvider>
             }
           />

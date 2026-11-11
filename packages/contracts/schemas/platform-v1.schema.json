@@ -5027,6 +5027,209 @@
         "sensitivity"
       ],
       "additionalProperties": false
+    },
+    "RuntimeDTO": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Id"
+        },
+        "ownerId": {
+          "$ref": "#/$defs/Id"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "location": {
+          "type": "string",
+          "enum": [
+            "MANAGED_CLOUD",
+            "CONNECTED_LOCAL"
+          ]
+        },
+        "trustStatus": {
+          "$ref": "#/$defs/TrustStatus"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "PENDING",
+            "ONLINE",
+            "OFFLINE",
+            "REVOKED"
+          ]
+        },
+        "capabilities": {
+          "$ref": "#/$defs/RuntimeCapabilitiesV1"
+        },
+        "lastSeenAt": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/Id"
+        },
+        "ownerType": {
+          "enum": [
+            "USER",
+            "SERVICE_ACCOUNT"
+          ]
+        },
+        "capabilitiesSource": {
+          "const": "DEVICE_REPORTED"
+        },
+        "sharedWithWorkspace": {
+          "type": "boolean"
+        },
+        "sharedWithUserIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Id"
+          }
+        },
+        "allowCredentialDelivery": {
+          "type": "boolean"
+        },
+        "canManage": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "name",
+        "location",
+        "trustStatus",
+        "status",
+        "capabilities",
+        "workspaceId",
+        "ownerType",
+        "capabilitiesSource",
+        "sharedWithWorkspace",
+        "sharedWithUserIds",
+        "allowCredentialDelivery",
+        "canManage"
+      ],
+      "additionalProperties": false
+    },
+    "EnrollmentDTO": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Id"
+        },
+        "deviceCode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "userCode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "verificationUrl": {
+          "$ref": "#/$defs/HttpUrl"
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "intervalSeconds": {
+          "type": "integer",
+          "const": 5
+        }
+      },
+      "required": [
+        "id",
+        "deviceCode",
+        "userCode",
+        "verificationUrl",
+        "expiresAt",
+        "intervalSeconds"
+      ],
+      "additionalProperties": false
+    },
+    "EnrollmentPreview": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Id"
+        },
+        "name": {
+          "type": "string"
+        },
+        "capabilities": {
+          "$ref": "#/$defs/RuntimeCapabilitiesV1"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "capabilities"
+      ],
+      "additionalProperties": false
+    },
+    "DeviceCredentialsDTO": {
+      "type": "object",
+      "properties": {
+        "runnerId": {
+          "$ref": "#/$defs/Id"
+        },
+        "deviceToken": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "issuerId": {
+          "$ref": "#/$defs/Key"
+        },
+        "trustedKeys": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "keyId": {
+                "$ref": "#/$defs/Key"
+              },
+              "algorithm": {
+                "const": "Ed25519"
+              },
+              "publicKey": {
+                "type": "string",
+                "minLength": 1
+              },
+              "fingerprint": {
+                "$ref": "#/$defs/Sha256"
+              }
+            },
+            "required": [
+              "keyId",
+              "algorithm",
+              "publicKey",
+              "fingerprint"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "runnerId",
+        "workspaceId",
+        "deviceToken",
+        "expiresAt"
+      ],
+      "additionalProperties": false,
+      "dependentRequired": {
+        "issuerId": [
+          "trustedKeys"
+        ],
+        "trustedKeys": [
+          "issuerId"
+        ]
+      }
     }
   }
 }

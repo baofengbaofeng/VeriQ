@@ -31,6 +31,13 @@ async def site():
     async with db.engine.begin() as conn:
         tables = (await conn.execute(text("SHOW TABLES"))).scalars().all()
         owned = {
+            "veriq_service_accounts",
+            "veriq_service_tokens",
+            "veriq_runtimes",
+            "veriq_runtime_bindings",
+            "veriq_runtime_grants",
+            "veriq_runtime_enrollments",
+            "veriq_runtime_tokens",
             "veriq_installation",
             "veriq_users",
             "veriq_user_sessions",

@@ -1542,6 +1542,135 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/runtime-enrollments/inspect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["inspectEnrollment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/runtime": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getDeviceRuntime"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/runtime/token/rotate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["rotateDeviceToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/runtime/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["logoutDevice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/runtime-enrollments/service": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["enrollServiceRuntime"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/service-accounts/{serviceAccountId}/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["disableServiceAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/service-accounts/{serviceAccountId}/tokens/{tokenId}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["revokeServiceToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/runtimes/{runtimeId}/credential-delivery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Current Workspace OWNER/ADMIN approves credential delivery only after independent system-admin MANAGED trust and owner sharing consent. Does not grant hardware trust. */
+        put: operations["updateRuntimeCredentialDelivery"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2762,11 +2891,20 @@ export interface components {
             status: "PENDING" | "ONLINE" | "OFFLINE" | "REVOKED";
             capabilities: components["schemas"]["RuntimeCapabilitiesV1"];
             lastSeenAt?: components["schemas"]["Timestamp"];
+            workspaceId: components["schemas"]["Id"];
+            /** @enum {unknown} */
+            ownerType: "USER" | "SERVICE_ACCOUNT";
+            /** @constant */
+            capabilitiesSource: "DEVICE_REPORTED";
+            sharedWithWorkspace: boolean;
+            sharedWithUserIds: components["schemas"]["Id"][];
+            allowCredentialDelivery: boolean;
+            canManage: boolean;
         };
         EnrollmentRequest: {
             name: string;
             /** @enum {string} */
-            location: "MANAGED_CLOUD" | "CONNECTED_LOCAL";
+            location: "CONNECTED_LOCAL";
             capabilities: components["schemas"]["RuntimeCapabilitiesV1"];
         };
         EnrollmentDTO: {
@@ -2775,11 +2913,14 @@ export interface components {
             userCode: string;
             verificationUrl: components["schemas"]["HttpUrl"];
             expiresAt: components["schemas"]["Timestamp"];
+            /** @constant */
+            intervalSeconds: 5;
         };
         EnrollmentApprove: {
             workspaceId: components["schemas"]["Id"];
             private: boolean;
             sharedWithUserIds: components["schemas"]["Id"][];
+            userCode: string;
         };
         EnrollmentPoll: {
             deviceCode: string;
@@ -2788,14 +2929,15 @@ export interface components {
             runnerId: components["schemas"]["Id"];
             deviceToken: string;
             expiresAt: components["schemas"]["Timestamp"];
-            issuerId: components["schemas"]["Key"];
-            trustedKeys: {
+            issuerId?: components["schemas"]["Key"];
+            trustedKeys?: {
                 keyId: components["schemas"]["Key"];
                 /** @constant */
                 algorithm: "Ed25519";
                 publicKey: string;
                 fingerprint: components["schemas"]["Sha256"];
             }[];
+            workspaceId: components["schemas"]["Id"];
         };
         RuntimeGrantWrite: {
             workspaceId: components["schemas"]["Id"];
@@ -3058,14 +3200,15 @@ export interface components {
         };
         ServiceAccountDTO: {
             id: components["schemas"]["Id"];
+            workspaceId: components["schemas"]["Id"];
             name: string;
-            scopes: ("RUN_TRIGGER" | "MAINTENANCE" | "READ_REPORTS")[];
-            planIds: components["schemas"]["Id"][];
-            revoked: boolean;
+            disabled: boolean;
         };
         ServiceTokenDTO: {
             id: components["schemas"]["Id"];
             token: string;
+            /** @constant */
+            purpose: "RUNTIME_ENROLLMENT";
             expiresAt: components["schemas"]["Timestamp"];
         };
         HealthDTOEnvelope: {
@@ -3175,7 +3318,7 @@ export interface components {
         };
         ServiceAccountDTOEnvelope: {
             data: components["schemas"]["ServiceAccountDTO"];
-            requestId: string;
+            requestId: components["schemas"]["Id"];
         };
         RunDTOEnvelope: {
             data: components["schemas"]["RunDTO"];
@@ -3276,7 +3419,7 @@ export interface components {
         };
         ServiceTokenDTOEnvelope: {
             data: components["schemas"]["ServiceTokenDTO"];
-            requestId: string;
+            requestId: components["schemas"]["Id"];
         };
         MaintenanceDTOEnvelope: {
             data: components["schemas"]["MaintenanceDTO"];
@@ -3487,6 +3630,33 @@ export interface components {
         AuthAdapterListDTOEnvelope: {
             data: components["schemas"]["AuthAdapterListDTO"];
             requestId: string;
+        };
+        EnrollmentInspect: {
+            userCode: string;
+        };
+        EnrollmentPreview: {
+            id: components["schemas"]["Id"];
+            name: string;
+            capabilities: components["schemas"]["RuntimeCapabilitiesV1"];
+        };
+        EnrollmentPreviewEnvelope: {
+            data: components["schemas"]["EnrollmentPreview"];
+            requestId: components["schemas"]["Id"];
+        };
+        ServiceAccountCreate: {
+            name: string;
+        };
+        ServiceTokenIssue: {
+            /** @constant */
+            purpose: "RUNTIME_ENROLLMENT";
+        };
+        ServiceEnrollmentRequest: {
+            name: string;
+            capabilities: components["schemas"]["RuntimeCapabilitiesV1"];
+            sharedWithWorkspace: boolean;
+        };
+        RuntimeCredentialDeliveryWrite: {
+            allowCredentialDelivery: boolean;
         };
         /** @description JSON used only in interpolated DSL fields, recursively restricted to SafeString bindings. */
         BindingJsonValue: ContractBindingJsonValue;
@@ -7312,7 +7482,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ServiceAccountWrite"];
+                "application/json": components["schemas"]["ServiceAccountCreate"];
             };
         };
         responses: {
@@ -9348,7 +9518,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["EmptyEnvelope"];
+                    "application/json": components["schemas"]["RuntimeDTOEnvelope"];
                 };
             };
             /** @description Stable JSON error; code is a machine-readable domain code. */
@@ -10923,7 +11093,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServiceTokenIssue"];
+            };
+        };
         responses: {
             /** @description Success. */
             201: {
@@ -13937,6 +14111,708 @@ export interface operations {
             };
             /** @description Stable error */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    inspectEnrollment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnrollmentInspect"];
+            };
+        };
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnrollmentPreviewEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getDeviceRuntime: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeDTOEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    rotateDeviceToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmptyObject"];
+            };
+        };
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceCredentialsDTOEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    logoutDevice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmptyObject"];
+            };
+        };
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmptyEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    enrollServiceRuntime: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServiceEnrollmentRequest"];
+            };
+        };
+        responses: {
+            /** @description Success. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceCredentialsDTOEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    disableServiceAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                serviceAccountId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmptyObject"];
+            };
+        };
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceAccountDTOEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    revokeServiceToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                serviceAccountId: components["schemas"]["Id"];
+                tokenId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmptyObject"];
+            };
+        };
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmptyEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updateRuntimeCredentialDelivery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                runtimeId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RuntimeCredentialDeliveryWrite"];
+            };
+        };
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeDTOEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

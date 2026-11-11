@@ -1217,6 +1217,10 @@ export interface ContractDefinitions {
   FixtureIdentityV1?: FixtureIdentityV1;
   ArtifactSensitivity?: ArtifactSensitivity;
   EvidenceFileEntryV1?: EvidenceFileEntryV1;
+  RuntimeDTO?: RuntimeDTO;
+  EnrollmentDTO?: EnrollmentDTO;
+  EnrollmentPreview?: EnrollmentPreview;
+  DeviceCredentialsDTO?: DeviceCredentialsDTO;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1850,6 +1854,65 @@ export interface FinishDTO {
   accepted: true;
   outcome: AttemptOutcome;
   manifestSha256: Sha256;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "RuntimeDTO".
+ */
+export interface RuntimeDTO {
+  id: Id;
+  ownerId: Id;
+  name: string;
+  location: "MANAGED_CLOUD" | "CONNECTED_LOCAL";
+  trustStatus: TrustStatus;
+  status: "PENDING" | "ONLINE" | "OFFLINE" | "REVOKED";
+  capabilities: RuntimeCapabilitiesV1;
+  lastSeenAt?: Timestamp;
+  workspaceId: Id;
+  ownerType: "USER" | "SERVICE_ACCOUNT";
+  capabilitiesSource: "DEVICE_REPORTED";
+  sharedWithWorkspace: boolean;
+  sharedWithUserIds: Id[];
+  allowCredentialDelivery: boolean;
+  canManage: boolean;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "EnrollmentDTO".
+ */
+export interface EnrollmentDTO {
+  id: Id;
+  deviceCode: string;
+  userCode: string;
+  verificationUrl: HttpUrl;
+  expiresAt: Timestamp;
+  intervalSeconds: 5;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "EnrollmentPreview".
+ */
+export interface EnrollmentPreview {
+  id: Id;
+  name: string;
+  capabilities: RuntimeCapabilitiesV1;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "DeviceCredentialsDTO".
+ */
+export interface DeviceCredentialsDTO {
+  runnerId: Id;
+  deviceToken: string;
+  expiresAt: Timestamp;
+  issuerId?: Key;
+  trustedKeys?: {
+    keyId: Key;
+    algorithm: "Ed25519";
+    publicKey: string;
+    fingerprint: Sha256;
+  }[];
+  workspaceId: Id;
 }
 
 export type SnapshotV1 = AssetSnapshotV1;

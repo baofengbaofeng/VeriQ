@@ -70,3 +70,34 @@ pnpm --filter @veriq/web test:e2e
 ```
 
 Playwright uses its installed Chromium by default. On managed test hosts, `VERIQ_TEST_CHROMIUM=/usr/bin/chromium` selects an existing test browser; this option belongs only to the test configuration. Use writable task-local `UV_CACHE_DIR`/`XDG_CONFIG_HOME`/`XDG_CACHE_HOME` if HOME is read-only. Browser evidence goes under ignored `.superpowers/cache/t02/`. No browser or Node process is required by the Python API at runtime.
+
+## Runtime enrollment and doctor (T08 development CLI)
+
+Install the frozen workspace dependencies, then use the implemented CLI:
+
+```sh
+pnpm --filter @veriq/runtime dev doctor --server http://127.0.0.1:5173
+pnpm --filter @veriq/runtime dev login --server http://127.0.0.1:5173 --name "My workstation"
+pnpm --filter @veriq/runtime dev status
+pnpm --filter @veriq/runtime dev workspace list
+pnpm --filter @veriq/runtime dev workspace use APPROVED_WORKSPACE_UUID
+pnpm --filter @veriq/runtime dev logout
+```
+
+Open the displayed control URL, sign in, select the Workspace, inspect the approval code and confirm the device and sharing scope. The device polls at five-second intervals until approval or the ten-minute expiry. A successful login registers an **offline** device; it does not start a worker. Workspace use accepts only the existing approved binding; it does not create a new grant. A revoked, expired, disabled-owner or removed-membership identity is denied at the next operation. Logout revokes the current token remotely before deleting local configuration; if unreachable it keeps the file so logout can be retried.
+
+Doctor checks the actual pinned Node 24.22.1, supported OS/x64 architecture, installed compiler/SDK versions, Chromium executable and real headless launch/render, plus the configured control liveness endpoint. `--browser-executable PATH` explicitly selects an installed browser; production defaults use Playwright's installation. An unavailable browser or network produces a nonzero exit with a safe diagnostic. Success is exit 0, failure 1, cancellation 130. Diagnostics go to stdout; sanitized command failure logs go to stderr. No token is printed or passed in argv. Only HTTPS control origins are accepted, except localhost HTTP development. Redirects are rejected and requests/body sizes are bounded.
+
+Deployment managers create a Workspace service account in the Runtime page and issue a one-time enrollment token. Supply it through standard input to `enroll-service --server ORIGIN --name NAME`; include `--share-workspace` only when consenting to Workspace use. Never paste a token as a command argument or put it in a URL. Tokens expire in ten minutes and cannot be used for execution-plan triggers, maintenance or credential resolution. System-admin MANAGED approval is separate from owner consent and cloud location. Workspace OWNER/ADMIN separately approves credential delivery after MANAGED trust; a global administrator with only project VIEWER/EDITOR membership cannot grant it. Disabling the account denies its devices immediately.
+
+The Node development CLI uses the pinned tsx loader to consume shared TypeScript packages. Its env-paths configuration directory is mode 0700 and the device file is mode 0600 with proper-lockfile serialization and atomic replacement. `--config-dir` selects a dedicated private development directory. This is a documented file-storage seam, **not** an OS vault or a native release package. T20 provides OS vaults, installers and real process names; T09/T10 implement worker claim/lease/start/stop and unattended token renewal. A lost one-time receipt or rotation response requires explicit recovery/re-enrollment; no fake claim or silently restored credential exists. Bundle trust roots remain unavailable until T14 supplies an actual authenticated issuer.
+
+Run Runtime tests with `VERIQ_TEST_CHROMIUM` selecting the test host's Chromium if necessary:
+
+```sh
+pnpm --filter @veriq/runtime test
+pnpm --filter @veriq/runtime check
+pnpm --filter @veriq/web test:e2e z-runtimes.spec.ts
+```
+
+The real browser journey launches the CLI, approves in the UI, reads the protected local credential, changes sharing and managed trust, revokes the device, and confirms the token is rejected. Vite forwards both `/api` and `/internal` to the control service. The Python control service still requires neither Node nor Chrome at runtime.

@@ -14,6 +14,8 @@ from .handlers.health import HealthAPI
 from .handlers.workspace import WorkspaceAPI
 from .handlers.resource import ResourceAPI
 from .handlers.credential import CredentialAPI, CredentialResolveAPI, AuthAdapterAPI
+from .handlers.service_account import ServiceAccountAPI
+from .handlers.enrollment import DeviceAPI, EnrollmentAPI, RuntimeAPI
 from .service import Problem
 from .credentials.registry import IdentityRegistry
 
@@ -31,6 +33,33 @@ class UnknownAPI(API):
 
 
 def handler_for(action: str) -> type[API]:
+    if action in {
+        "service-accounts",
+        "service-token-issue",
+        "service-account-disable",
+        "service-token-revoke",
+    }:
+        return ServiceAccountAPI
+    if action in {
+        "service-enroll",
+        "enrollment-request",
+        "enrollment-poll",
+        "device-info",
+        "device-rotate",
+        "device-logout",
+    }:
+        return DeviceAPI
+    if action in {"enrollment-inspect", "enrollment-approve"}:
+        return EnrollmentAPI
+    if action in {
+        "runtimes",
+        "runtime",
+        "runtime-grants",
+        "runtime-trust",
+        "runtime-delivery",
+        "runtime-revoke",
+    }:
+        return RuntimeAPI
     if action in {"auth-adapters", "auth-adapter-revoke"}:
         return AuthAdapterAPI
     if action in {"credentials", "credential-versions", "credential-revoke"}:
@@ -76,6 +105,45 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
     delivery = delivery or (SMTPDelivery(settings) if settings.smtp_host else None)
     reset_dispatcher = ResetDispatcher(db, settings, delivery)
     routes = [
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/runtimes/([0-9a-fA-F-]{36})/credential-delivery",
+            "runtime-delivery",
+        ),
+        ("/internal/v1/runtime-enrollments/service", "service-enroll"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/service-accounts", "service-accounts"),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/service-accounts/([0-9a-fA-F-]{36})/tokens",
+            "service-token-issue",
+        ),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/service-accounts/([0-9a-fA-F-]{36})/disable",
+            "service-account-disable",
+        ),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/service-accounts/([0-9a-fA-F-]{36})/tokens/([0-9a-fA-F-]{36})/revoke",
+            "service-token-revoke",
+        ),
+        ("/api/v1/runtime-enrollments", "enrollment-request"),
+        ("/api/v1/runtime-enrollments/poll", "enrollment-poll"),
+        ("/api/v1/runtime-enrollments/inspect", "enrollment-inspect"),
+        ("/api/v1/runtime-enrollments/([0-9a-fA-F-]{36})/approve", "enrollment-approve"),
+        ("/internal/v1/runtime", "device-info"),
+        ("/internal/v1/runtime/token/rotate", "device-rotate"),
+        ("/internal/v1/runtime/logout", "device-logout"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runtimes", "runtimes"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runtimes/([0-9a-fA-F-]{36})", "runtime"),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/runtimes/([0-9a-fA-F-]{36})/grants",
+            "runtime-grants",
+        ),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/runtimes/([0-9a-fA-F-]{36})/trust",
+            "runtime-trust",
+        ),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/runtimes/([0-9a-fA-F-]{36})/revoke",
+            "runtime-revoke",
+        ),
         ("/api/v1/setup", "setup"),
         ("/api/v1/auth/login", "login"),
         ("/api/v1/auth/session", "session"),
