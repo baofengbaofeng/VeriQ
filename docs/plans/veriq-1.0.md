@@ -388,6 +388,8 @@ assert same_finish_retry.receipt_id == first_receipt.receipt_id
 
 **依赖：** T11/T12
 
+**状态：** 代码实现与修复复审已通过（`f9573d0`、`3c96eb6`）；Provider 配置、预算、生成审核、失败分析和无模型真实执行有针对性证据。经授权的实际外部 Provider 验收尚待用户确认服务、模型、预算并建立独立配置，T13 验收仍未完成。见 [AI 说明](../ai.md)与[验证限制](../development.md#current-verification-limits)。
+
 **Files（拟创建/修改）：**
 
 - `apps/srv/src/veriq_server/services/ai.py`
@@ -397,7 +399,7 @@ assert same_finish_retry.receipt_id == first_receipt.receipt_id
 
 **Interfaces：** ModelGateway.generate(context: DraftContext) -> ModelReply；AiService.create_draft(scope, req) -> GenerationDTO；预算拒绝不影响Run。
 
-- [ ] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
+- [x] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```python
 assert generation.resource_state == DRAFT
@@ -405,10 +407,10 @@ assert disabled_provider_run.outcome == PASSED
 assert model_calls_during_execution == 0
 ```
 
-- [ ] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/ai -q`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [x] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/ai -q`；失败必须来自缺失行为，而非测试环境拼写错误。
 - [ ] **Step 3：实现上述接口与文件。** Provider配置/连接、结构化生成/审核、脱敏失败分析、历史与费用；mock及经授权真实Provider各有证据。
 - [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
-- [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t13 AI完整模块与无模型执行`。有新决策先更新ADR，不扩展到下一任务。
+- [x] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t13 AI完整模块与无模型执行`。有新决策先更新ADR，不扩展到下一任务。
 
 ## T14：依赖闭包、签名包与本地凭证
 
