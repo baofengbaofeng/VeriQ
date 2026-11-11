@@ -980,6 +980,12 @@
       "homepage": "https://github.com/browserslist/caniuse-lite#readme"
     },
     {
+      "name": "canonicalize",
+      "version": "2.1.0",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/erdtman/canonicalize#readme"
+    },
+    {
       "name": "chai",
       "version": "6.3.0",
       "license": "MIT",

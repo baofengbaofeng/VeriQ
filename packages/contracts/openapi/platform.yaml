@@ -2083,9 +2083,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -2113,7 +2110,25 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 100,
-              "default": 30
+              "default": 25
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/ResourceKind"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "enum": [
+                "DRAFT",
+                "PUBLISHED",
+                "ARCHIVED"
+              ]
             }
           }
         ],
@@ -2197,6 +2212,16 @@
                 }
               }
             }
+          },
+          "413": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
           }
         }
       },
@@ -2209,9 +2234,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -2304,6 +2326,16 @@
                 }
               }
             }
+          },
+          "413": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -2328,9 +2360,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -2423,6 +2452,16 @@
             }
           },
           "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
             "description": "Stable JSON error; code is a machine-readable domain code.",
             "content": {
               "application/json": {
@@ -2443,9 +2482,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -2538,6 +2574,16 @@
             }
           },
           "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
             "description": "Stable JSON error; code is a machine-readable domain code.",
             "content": {
               "application/json": {
@@ -2570,9 +2616,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -2665,6 +2708,16 @@
             }
           },
           "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
             "description": "Stable JSON error; code is a machine-readable domain code.",
             "content": {
               "application/json": {
@@ -2685,9 +2738,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -2780,6 +2830,16 @@
             }
           },
           "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
             "description": "Stable JSON error; code is a machine-readable domain code.",
             "content": {
               "application/json": {
@@ -2812,9 +2872,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -2915,6 +2972,16 @@
                 }
               }
             }
+          },
+          "413": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -2939,9 +3006,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -3042,6 +3106,16 @@
                 }
               }
             }
+          },
+          "413": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -3066,9 +3140,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -3104,7 +3175,7 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 100,
-              "default": 30
+              "default": 25
             }
           }
         ],
@@ -3188,6 +3259,16 @@
                 }
               }
             }
+          },
+          "413": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
           }
         }
       }
@@ -3202,9 +3283,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -3313,6 +3391,16 @@
                 }
               }
             }
+          },
+          "413": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
           }
         }
       }
@@ -3327,9 +3415,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -3365,7 +3450,7 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 100,
-              "default": 30
+              "default": 25
             }
           }
         ],
@@ -3441,6 +3526,16 @@
             }
           },
           "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
             "description": "Stable JSON error; code is a machine-readable domain code.",
             "content": {
               "application/json": {
@@ -6533,9 +6628,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -11414,9 +11506,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -12957,6 +13046,130 @@
           }
         }
       }
+    },
+    "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/validation-preview": {
+      "get": {
+        "operationId": "previewResourceValidation",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "WebSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "resourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationPreviewDTOEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -13565,11 +13778,14 @@
             "$ref": "#/components/schemas/ResourceKind"
           },
           "key": {
-            "$ref": "#/components/schemas/Key"
+            "$ref": "#/components/schemas/Key",
+            "maxLength": 160,
+            "type": "string"
           },
           "name": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 160
           },
           "status": {
             "type": "string",
@@ -13600,11 +13816,14 @@
             "$ref": "#/components/schemas/ResourceKind"
           },
           "key": {
-            "$ref": "#/components/schemas/Key"
+            "$ref": "#/components/schemas/Key",
+            "maxLength": 160,
+            "type": "string"
           },
           "name": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 160
           },
           "content": {
             "$ref": "#/components/schemas/ResourceDocumentV1"
@@ -13623,7 +13842,8 @@
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 160
           },
           "archived": {
             "type": "boolean"
@@ -13650,13 +13870,17 @@
           },
           "updatedAt": {
             "$ref": "#/components/schemas/Timestamp"
+          },
+          "documentHash": {
+            "$ref": "#/components/schemas/Sha256"
           }
         },
         "required": [
           "resourceId",
           "revision",
           "content",
-          "updatedAt"
+          "updatedAt",
+          "documentHash"
         ],
         "additionalProperties": false
       },
@@ -13727,6 +13951,15 @@
           },
           "jobId": {
             "$ref": "#/components/schemas/Id"
+          },
+          "runtimeId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "attemptId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "compilerTrust": {
+            "const": "MANAGED"
           }
         },
         "required": [
@@ -13738,7 +13971,10 @@
           "compiledBundleSha256",
           "validatedAt",
           "workspaceId",
-          "jobId"
+          "jobId",
+          "runtimeId",
+          "attemptId",
+          "compilerTrust"
         ],
         "additionalProperties": false,
         "description": "Server-created successful VALIDATE receipt bound to Workspace, job, resource, immutable draft revision, source hash, engine version and compiled bundle. Publish must verify the current authorized resource/revision binding and reject stale/foreign receipts."
@@ -16771,6 +17007,56 @@
               "nextCursor"
             ],
             "additionalProperties": false
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "data",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "ValidationPreviewDTO": {
+        "type": "object",
+        "properties": {
+          "resourceId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "candidateVersionId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "documentHash": {
+            "$ref": "#/components/schemas/Sha256"
+          },
+          "sourceHash": {
+            "$ref": "#/components/schemas/Sha256"
+          },
+          "engineVersion": {
+            "$ref": "#/components/schemas/Version"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "resourceId",
+          "candidateVersionId",
+          "documentHash",
+          "sourceHash",
+          "engineVersion",
+          "revision"
+        ],
+        "additionalProperties": false
+      },
+      "ValidationPreviewDTOEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ValidationPreviewDTO"
           },
           "requestId": {
             "type": "string",

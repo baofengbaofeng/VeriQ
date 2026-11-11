@@ -12,6 +12,7 @@ from .handlers.account import AccountAPI
 from .handlers.admin import AdminAPI
 from .handlers.health import HealthAPI
 from .handlers.workspace import WorkspaceAPI
+from .handlers.resource import ResourceAPI
 from .service import Problem
 
 log = logging.getLogger("veriq.http")
@@ -28,6 +29,20 @@ class UnknownAPI(API):
 
 
 def handler_for(action: str) -> type[API]:
+    if action in {
+        "resources",
+        "resource",
+        "draft",
+        "validation-preview",
+        "validate",
+        "publish",
+        "versions",
+        "version",
+        "dependents",
+        "job",
+        "validation-receipt",
+    }:
+        return ResourceAPI
     if action in {
         "workspaces",
         "workspace",
@@ -76,6 +91,29 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/invitations", "invitations"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/invitations/([0-9a-fA-F-]{36})", "invitation"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})", "workspace"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/resources", "resources"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/resources/([0-9a-fA-F-]{36})", "resource"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/resources/([0-9a-fA-F-]{36})/draft", "draft"),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/resources/([0-9a-fA-F-]{36})/validation-preview",
+            "validation-preview",
+        ),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/resources/([0-9a-fA-F-]{36})/validate", "validate"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/resources/([0-9a-fA-F-]{36})/publish", "publish"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/resources/([0-9a-fA-F-]{36})/versions", "versions"),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/resources/([0-9a-fA-F-]{36})/dependents",
+            "dependents",
+        ),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/resources/([0-9a-fA-F-]{36})/versions/([0-9a-fA-F-]{36})",
+            "version",
+        ),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/jobs/([0-9a-fA-F-]{36})", "job"),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/jobs/([0-9a-fA-F-]{36})/validation-receipt",
+            "validation-receipt",
+        ),
         ("/.*", "unknown"),
     ]
 

@@ -36,6 +36,13 @@ async def main():
         "veriq_workspaces",
         "veriq_workspace_members",
         "veriq_workspace_invites",
+        "veriq_resources",
+        "veriq_resource_drafts",
+        "veriq_resource_versions",
+        "veriq_resource_dependencies",
+        "veriq_artifacts",
+        "veriq_jobs",
+        "veriq_validation_receipts",
     }
     async with db.engine.begin() as conn:
         tables = set((await conn.execute(text("SHOW TABLES"))).scalars().all())
@@ -46,7 +53,7 @@ async def main():
         await conn.execute(text("SET FOREIGN_KEY_CHECKS=1"))
     await migrate(settings)
     await provision_setup_secret(db, "browser-operator-secret")
-    server = HTTPServer(make_app(settings, db), max_body_size=1024 * 1024)
+    server = HTTPServer(make_app(settings, db), max_body_size=3 * 1024 * 1024)
     server.listen(8888, "127.0.0.1")
     try:
         await asyncio.Event().wait()

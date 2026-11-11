@@ -131,6 +131,8 @@ assert await reference_other_workspace_version() == INVALID_REFERENCE
 
 **依赖：** T01/T03
 
+**状态：** 已完成并通过独立规格/质量审查（`2a2dd25`）；生产回执写入依赖后续可信 Runtime 完成链路。
+
 **Files（拟创建/修改）：**
 
 - `apps/srv/src/veriq_server/services/resource.py`
@@ -140,7 +142,7 @@ assert await reference_other_workspace_version() == INVALID_REFERENCE
 
 **Interfaces：** ResourceService.update_draft(scope, resource_id, expected_revision, document) -> DraftDTO；PublishService.publish(scope, draft_revision, receipt_id) -> VersionDTO。
 
-- [ ] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
+- [x] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```python
 assert await stale_revision_update() == CONFLICT
@@ -148,10 +150,10 @@ assert old_version.document == old_document
 assert await publish_with_receipt_for_other_hash() == INVALID_RECEIPT
 ```
 
-- [ ] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/resources -q`；失败必须来自缺失行为，而非测试环境拼写错误。
-- [ ] **Step 3：实现上述接口与文件。** 所有kind共用版本规则；修改模板/目录/数据不改变旧版本；维护引用与影响分析。
-- [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
-- [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t04 版本化资产、草稿、校验回执与发布`。有新决策先更新ADR，不扩展到下一任务。
+- [x] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/resources -q`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [x] **Step 3：实现上述接口与文件。** 所有kind共用版本规则；修改模板/目录/数据不改变旧版本；维护引用与影响分析。
+- [x] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
+- [x] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t04 版本化资产、草稿、校验回执与发布`。有新决策先更新ADR，不扩展到下一任务。
 
 ## T05：确定性编译器与变量依赖
 

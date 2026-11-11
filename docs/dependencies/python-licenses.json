@@ -520,6 +520,18 @@
       ]
     },
     {
+      "name": "rfc8785",
+      "version": "0.1.4",
+      "licenseExpression": null,
+      "licenseMetadata": null,
+      "licenseClassifiers": [
+        "License :: OSI Approved :: Apache Software License"
+      ],
+      "licenseFiles": [
+        "LICENSE"
+      ]
+    },
+    {
       "name": "rpds-py",
       "version": "2026.9.1",
       "licenseExpression": "MIT",

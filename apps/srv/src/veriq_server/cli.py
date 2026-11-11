@@ -115,7 +115,7 @@ async def run(args: argparse.Namespace) -> None:
         else:
             logging.basicConfig(level=logging.INFO, format="%(message)s")
             application = make_app(settings, db)
-            server = HTTPServer(application, max_body_size=1024 * 1024)
+            server = HTTPServer(application, max_body_size=3 * 1024 * 1024)
             server.listen(settings.port, address=settings.host)
             stop = asyncio.Event()
             loop = asyncio.get_running_loop()

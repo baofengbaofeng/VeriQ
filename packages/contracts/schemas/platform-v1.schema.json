@@ -2954,7 +2954,7 @@
           "items": {
             "$ref": "#/$defs/Id"
           },
-          "minItems": 1
+          "minItems": 0
         },
         "assets": {
           "type": "array",
@@ -2962,6 +2962,9 @@
             "$ref": "#/$defs/AssetVersionV1"
           },
           "minItems": 1
+        },
+        "validationTarget": {
+          "$ref": "#/$defs/ValidationTargetV1"
         }
       },
       "required": [
@@ -2972,7 +2975,27 @@
         "entryCaseVersionIds",
         "assets"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "validationTarget"
+            ],
+            "properties": {
+              "validationTarget": {}
+            }
+          },
+          "else": {
+            "properties": {
+              "entryCaseVersionIds": {
+                "minItems": 1,
+                "type": "array"
+              }
+            }
+          }
+        }
+      ]
     },
     "SnapshotV1": {
       "$ref": "#/$defs/AssetSnapshotV1"
@@ -3040,6 +3063,9 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 2
+        },
+        "caseVersionId": {
+          "$ref": "#/$defs/Id"
         }
       },
       "required": [
@@ -3055,7 +3081,8 @@
         "variables",
         "secretVersions",
         "namespace",
-        "attemptNo"
+        "attemptNo",
+        "caseVersionId"
       ],
       "additionalProperties": false
     },
@@ -3080,9 +3107,9 @@
         "entrypoints": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/FilePath"
+            "$ref": "#/$defs/CaseEntrypointV1"
           },
-          "minItems": 1
+          "minItems": 0
         },
         "files": {
           "type": "array",
@@ -3097,6 +3124,9 @@
             "$ref": "#/$defs/DependencyVersion"
           },
           "minItems": 1
+        },
+        "validationOnly": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -3109,7 +3139,37 @@
         "files",
         "dependencies"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "validationOnly": {
+                "const": true
+              }
+            },
+            "required": [
+              "validationOnly"
+            ]
+          },
+          "then": {
+            "properties": {
+              "entrypoints": {
+                "maxItems": 0,
+                "type": "array"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "entrypoints": {
+                "minItems": 1,
+                "type": "array"
+              }
+            }
+          }
+        }
+      ]
     },
     "RuntimeCapabilitiesV1": {
       "type": "object",
@@ -3258,6 +3318,9 @@
         },
         "executionSnapshotSha256": {
           "$ref": "#/$defs/Sha256"
+        },
+        "caseVersionId": {
+          "$ref": "#/$defs/Id"
         }
       },
       "required": [
@@ -3269,7 +3332,8 @@
         "kind",
         "caseExecutionId",
         "compiledBundleSha256",
-        "executionSnapshotSha256"
+        "executionSnapshotSha256",
+        "caseVersionId"
       ],
       "additionalProperties": false
     },
@@ -4568,6 +4632,44 @@
     "DiagnosticText": {
       "type": "string",
       "description": "Literal diagnostic/evidence text; retain invalid expressions verbatim and never evaluate or interpolate it."
+    },
+    "ValidationTargetV1": {
+      "type": "object",
+      "properties": {
+        "resourceId": {
+          "$ref": "#/$defs/Id"
+        },
+        "versionId": {
+          "$ref": "#/$defs/Id"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "resourceId",
+        "versionId",
+        "revision"
+      ],
+      "additionalProperties": false
+    },
+    "CaseEntrypointV1": {
+      "type": "object",
+      "properties": {
+        "caseVersionId": {
+          "$ref": "#/$defs/Id"
+        },
+        "path": {
+          "$ref": "#/$defs/FilePath"
+        }
+      },
+      "required": [
+        "caseVersionId",
+        "path"
+      ],
+      "additionalProperties": false
     }
   }
 }
