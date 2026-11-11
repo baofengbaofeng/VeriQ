@@ -96,6 +96,44 @@ async def business():
         await server.close_all_connections()
 
 
+def guardian_diagnostics(profile):
+    """Bounded local ownership facts only: never dump credentials, nonce or lease journals."""
+    facts = []
+    for path in sorted((profile / "agent/processes").glob("*.process.json"))[:20]:
+        journal = json.loads(path.read_text())
+        proof_path = path.with_name(path.name.replace(".process.json", ".drained.json"))
+        proof = json.loads(proof_path.read_text()) if proof_path.exists() else {}
+        error_path = proof_path.with_name(proof_path.name + ".error")
+        error = json.loads(error_path.read_text()) if error_path.exists() else {}
+        facts.append(
+            {
+                "attemptId": journal.get("attemptId"),
+                "state": journal.get("state"),
+                "workerPid": journal.get("pid"),
+                "guardianPid": journal.get("guardianPid"),
+                "hasProof": bool(proof),
+                "proofState": proof.get("state"),
+                "nonceMatches": bool(proof) and proof.get("nonce") == journal.get("nonce"),
+                "identityMatches": bool(proof)
+                and all(
+                    proof.get(key) == journal.get(value)
+                    for key, value in [
+                        ("uid", "uid"),
+                        ("workerPid", "pid"),
+                        ("workerStartTime", "startTime"),
+                        ("guardianPid", "guardianPid"),
+                        ("guardianStartTime", "guardianStartTime"),
+                    ]
+                ),
+                "failureCode": error.get("failureCode"),
+                "errno": error.get("errno"),
+                "failurePid": error.get("pid"),
+                "observedUid": error.get("observedUid"),
+            }
+        )
+    return facts
+
+
 async def agent_once(profile, release, *, expected_code=0, browser="/usr/bin/chromium"):
     process = await asyncio.create_subprocess_exec(
         "node",
@@ -122,7 +160,9 @@ async def agent_once(profile, release, *, expected_code=0, browser="/usr/bin/chr
             process.terminate()
         await asyncio.wait_for(process.communicate(), 40)
         raise
-    assert process.returncode == expected_code, stderr.decode()
+    assert process.returncode == expected_code, stderr.decode() + json.dumps(
+        guardian_diagnostics(profile)
+    )
     return stdout.decode()
 
 
@@ -432,9 +472,20 @@ async def test_agent_actual_compiler_completion_and_sanitized_no_bundle_failure(
             (profile / "agent/processes" / f"{crashed.id}.process.json").read_text()
         )
         assert journal["state"] == "RUNNING"
+        assert journal["guardianPid"] != journal["pid"]
+        assert os.getpgid(journal["pid"]) == journal["pid"]
+        assert os.getpgid(journal["guardianPid"]) == journal["guardianPid"]
+        attempt_journal = json.loads(
+            (profile / "agent/attempts" / f"{crashed.id}.json").read_text()
+        )
+        pending_claim = json.loads((profile / "agent/claim-request.json").read_text())
+        assert attempt_journal["claimRequestId"] == pending_claim["clientRequestId"]
         assert Path(f"/proc/{journal['pid']}/comm").read_text().strip() == "veriq_runner"
         os.killpg(journal["pid"], signal.SIGKILL)
         await crashing
+        async with db.sessions() as session:
+            stopped = await session.get(Attempt, crashed.id)
+            assert stopped.capacity_state == "RELEASED", guardian_diagnostics(profile)
         facts["hold_status"] = False
         account = (
             await c.post(f"/api/v1/workspaces/{ws}/service-accounts", json={"name": "Compensation"})

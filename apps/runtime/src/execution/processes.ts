@@ -1,9 +1,13 @@
 import { readFileSync, statSync } from 'node:fs';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { chmod, mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
+import { access, chmod, mkdir, readFile, rename, writeFile, lstat, open } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { constants as osConstants } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
+import { Readable, Writable } from 'node:stream';
 export interface StopReceipt {
     attemptId: string;
     processStopped: boolean;
@@ -16,8 +20,9 @@ interface Journal {
     nonce: string;
     pid?: number;
     startTime?: string;
+    guardianPid?: number;
+    guardianStartTime?: string;
     state: 'SPAWNING' | 'RUNNING' | 'STOPPED';
-    owned?: {pid: number; startTime: string}[];
 }
 export interface Command {
     executable: string;
@@ -26,213 +31,214 @@ export interface Command {
     env?: Record<string, string>;
 }
 export interface OwnedProcess {
+    /** Business worker identity; the native guardian has a distinct PID/group. */
     pid: number;
-    exited: Promise<{
-        code: number | null;
-        signal: NodeJS.Signals | null;
-    }>;
+    exited: Promise<{code: number | null; signal: NodeJS.Signals | null}>;
     firstLine(): Promise<string>;
     send(message: unknown): void;
     child: ChildProcess;
 }
-interface Proc {
-    uid: number;
-    pid: number;
-    group: number;
-    parent: number;
-    startTime: string;
-    state: string;
-}
-function inspectSync(pid: number): Proc | undefined {
+interface Proc { uid: number; pid: number; group: number; startTime: string; state: string }
+function inspect(pid: number): Proc | undefined {
     try {
         const raw = readFileSync(`/proc/${pid}/stat`, 'utf8');
         const fields = raw.slice(raw.lastIndexOf(')') + 2).split(' ');
-        return { uid: statSync(`/proc/${pid}`).uid, pid, state: fields[0]!, group: Number(fields[2]), parent: Number(fields[1]), startTime: fields[19]! };
-    }
-    catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT' || (error as NodeJS.ErrnoException).code === 'ESRCH')
-            return;
+        return { uid: statSync(`/proc/${pid}`).uid, pid, state: fields[0]!, group: Number(fields[2]), startTime: fields[19]! };
+    } catch (error) {
+        if (['ENOENT', 'ESRCH'].includes((error as NodeJS.ErrnoException).code ?? '')) return;
         throw error;
     }
 }
-async function inspect(pid: number): Promise<Proc | undefined> { return inspectSync(pid); }
-/** Private crash journal is evidence of ownership, never evidence of successful business work. */
+const launcher = fileURLToPath(new URL('../../build/veriq_runner', import.meta.url));
+/** Only the kernel subreaper's durable ECHILD proof authorizes positive stop. */
 export class ProcessSupervisor {
     private live = new Map<string, OwnedProcess>();
     private stopping = new Map<string, Promise<StopReceipt>>();
     constructor(private directory: string, private graceMs = 500) { }
-    private path(id: string) { if (!/^[a-zA-Z0-9_-]{1,100}$/.test(id))
-        throw new Error('INVALID_ATTEMPT_ID'); return join(this.directory, `${id}.process.json`); }
+    private path(id: string) {
+        if (!/^[a-zA-Z0-9_-]{1,100}$/.test(id)) throw new Error('INVALID_ATTEMPT_ID');
+        return join(this.directory, `${id}.process.json`);
+    }
+    private proofPath(id: string) { this.path(id); return join(this.directory, `${id}.drained.json`); }
     private async save(journal: Journal) {
         await mkdir(this.directory, { recursive: true, mode: 0o700 });
         await chmod(this.directory, 0o700);
         const path = this.path(journal.attemptId), temporary = `${path}.${randomUUID()}.tmp`;
         await writeFile(temporary, JSON.stringify(journal), { mode: 0o600, flag: 'wx', flush: true });
         await rename(temporary, path);
+        const directory = await open(this.directory, 'r');
+        try { await directory.sync(); } finally { await directory.close(); }
     }
     async start(id: string, command: Command): Promise<OwnedProcess> {
-        if (process.platform !== 'linux')
-            throw new Error('UNSUPPORTED_PROCESS_PLATFORM');
-        if (this.live.has(id))
-            throw new Error('PROCESS_ALREADY_RUNNING');
-        try {
-            await readFile(this.path(id));
-            throw new Error('PROCESS_JOURNAL_EXISTS');
-        }
-        catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
-                throw error;
-        }
-        const journal: Journal = { uid: process.getuid!(), attemptId: id, nonce: randomUUID(), state: 'SPAWNING' };
+        if (process.platform !== 'linux') throw new Error('UNSUPPORTED_PROCESS_PLATFORM');
+        if (this.live.has(id)) throw new Error('PROCESS_ALREADY_RUNNING');
+        // Fixed installed Agent component, never a job-provided path or a runtime compiler fallback.
+        try { await access(launcher, constants.X_OK); } catch { throw new Error('NATIVE_LAUNCHER_REQUIRED'); }
+        try { await readFile(this.path(id)); throw new Error('PROCESS_JOURNAL_EXISTS'); }
+        catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+        const journal: Journal = {uid: process.getuid!(), attemptId: id, nonce: randomUUID(), state: 'SPAWNING'};
         await this.save(journal);
-        // Build an allowlist from scratch. Device tokens, NODE_OPTIONS, proxy credentials and
-        // the Agent's credential-store location must never enter a business child.
-        const child = spawn(command.executable, command.args, {
-            cwd: command.cwd, detached: true, stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
-            env: { PATH: '/usr/bin:/bin', LANG: 'C.UTF-8', ...command.env, VERIQ_PROCESS_NONCE: journal.nonce },
+        const child = spawn(launcher, [this.proofPath(id), journal.nonce, String(this.graceMs), command.executable, ...command.args], {
+            cwd: command.cwd, detached: true,
+            stdio: ['ignore', 'pipe', 'pipe', 'ipc', 'pipe', 'pipe'],
+            env: {PATH: '/usr/bin:/bin', LANG: 'C.UTF-8', ...command.env, VERIQ_PROCESS_NONCE: journal.nonce},
         });
-        let resolveLine!: (s: string) => void, rejectLine!: (e: Error) => void;
-        const line = new Promise<string>((resolve, reject) => { resolveLine = resolve; rejectLine = reject; });
-        void line.catch(() => { });
-        let buffer = '', bytes = 0;
+        const descriptors: readonly (Readable | Writable | null | undefined)[] = child.stdio;
+        const control = descriptors[5], status = descriptors[4];
+        if (!(control instanceof Writable) || !(status instanceof Readable)) {
+            child.kill('SIGTERM');
+            throw new Error('INVALID_GUARDIAN_CHANNEL');
+        }
+        control.on('error', () => {});
+        let resolveLine!: (line: string) => void, rejectLine!: (error: Error) => void;
+        const line = new Promise<string>((resolve, reject) => {resolveLine = resolve; rejectLine = reject;});
+        void line.catch(() => {});
+        let output = '', bytes = 0;
+        const overflow = () => { rejectLine(new Error('PROCESS_OUTPUT_LIMIT')); control.write('STOP\n'); };
         child.stdout!.on('data', (chunk: Buffer) => {
             bytes += chunk.length;
-            if (bytes > 65536) {
-                rejectLine(new Error('PROCESS_OUTPUT_LIMIT'));
-                void this.terminateAttempt(id, 'PROCESS_OUTPUT_LIMIT');
-                return;
-            }
-            buffer += chunk.toString('utf8');
-            if (buffer.includes('\n')) {
-                resolveLine(buffer.slice(0, buffer.indexOf('\n')));
-                buffer = '';
+            if (bytes > 65536) { overflow(); return; }
+            output += chunk.toString();
+            if (output.includes('\n')) { resolveLine(output.slice(0, output.indexOf('\n'))); output = ''; }
+        });
+        child.stderr!.on('data', (chunk: Buffer) => { bytes += chunk.length; if (bytes > 65536) overflow(); });
+        let ready!: (pid: number) => void, failed!: (error: Error) => void;
+        const started = new Promise<number>((resolve, reject) => {ready = resolve; failed = reject;});
+        let exited!: (value: {code: number | null; signal: NodeJS.Signals | null}) => void;
+        const workerExit = new Promise<{code: number | null; signal: NodeJS.Signals | null}>(resolve => {exited = resolve;});
+        let statusBuffer = '', statusBytes = 0, sawReady = false, sawExit = false;
+        status.on('data', (chunk: Buffer) => {
+            statusBytes += chunk.length;
+            if (statusBytes > 4096) { failed(new Error('INVALID_GUARDIAN_PROTOCOL')); control.write('STOP\n'); return; }
+            statusBuffer += chunk.toString();
+            while (statusBuffer.includes('\n')) {
+                const end = statusBuffer.indexOf('\n'), record = statusBuffer.slice(0, end);
+                statusBuffer = statusBuffer.slice(end + 1);
+                try {
+                    const value = JSON.parse(record);
+                    if (value.type === 'READY' && !sawReady && Number.isSafeInteger(value.workerPid) && value.workerPid > 1) {
+                        sawReady = true; ready(value.workerPid);
+                    } else if (value.type === 'EXIT' && sawReady && !sawExit &&
+                        ((Number.isInteger(value.code) && value.code >= 0 && value.code <= 255 && value.signal === null) ||
+                         (value.code === null && Number.isInteger(value.signal) && value.signal > 0 && value.signal < 128))) {
+                        sawExit = true;
+                        const signal = value.signal === null ? null : Object.entries(osConstants.signals).find(([,number]) => number === value.signal)?.[0] as NodeJS.Signals | undefined;
+                        exited({code: value.code, signal: signal ?? null});
+                    } else throw new Error('INVALID_GUARDIAN_PROTOCOL');
+                } catch { failed(new Error('INVALID_GUARDIAN_PROTOCOL')); control.write('STOP\n'); }
             }
         });
-        // Raw stderr stays out of ordinary logs; enforce the same bounded output budget.
-        child.stderr!.on('data', (chunk: Buffer) => { bytes += chunk.length; if (bytes > 65536)
-            void this.terminateAttempt(id, 'PROCESS_OUTPUT_LIMIT'); });
-        const exited = new Promise<{
-            code: number | null;
-            signal: NodeJS.Signals | null;
-        }>((resolve, reject) => {
-            child.once('error', reject);
-            child.once('exit', (code, signal) => { rejectLine(new Error('PROCESS_NO_OUTPUT')); resolve({ code, signal }); });
+        child.once('error', () => failed(new Error('NATIVE_LAUNCHER_FAILED')));
+        child.once('exit', (_code, signal) => {
+            failed(new Error('GUARDIAN_EXITED_BEFORE_READY'));
+            rejectLine(new Error('PROCESS_NO_OUTPUT'));
+            exited({code: null, signal});
         });
-        void exited.catch(() => { });
-        await new Promise<void>((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject); });
-        journal.pid = child.pid!;
-        const info = await inspect(journal.pid);
-        if (!info)
-            throw new Error('PROCESS_EXITED_BEFORE_JOURNAL');
-        if (info.uid !== journal.uid)
-            throw new Error('PROCESS_IDENTITY_CHANGED');
-        journal.startTime = info.startTime;
-        journal.state = 'RUNNING';
-        const owned: OwnedProcess = { pid: child.pid!, child, exited, firstLine: () => line, send: (message) => { if (child.connected)
-                child.send(message as import("node:child_process").Serializable); } };
-        this.live.set(id, owned);
+        const startup = setTimeout(() => {failed(new Error('GUARDIAN_START_TIMEOUT')); control.end();}, 5000);
         try {
+            journal.pid = await started;
+            journal.guardianPid = child.pid!;
+            const worker = inspect(journal.pid), guardian = inspect(journal.guardianPid);
+            if (!worker || !guardian || worker.uid !== journal.uid || guardian.uid !== journal.uid)
+                throw new Error('PROCESS_IDENTITY_UNKNOWN');
+            journal.startTime = worker.startTime;
+            journal.guardianStartTime = guardian.startTime;
+            journal.state = 'RUNNING';
             await this.save(journal);
-        }
-        catch (error) {
-            await this.terminateAttempt(id, 'JOURNAL_FAILED');
-            throw error;
-        }
-        return owned;
+            const owned: OwnedProcess = {pid: journal.pid, child, exited: workerExit, firstLine: () => line,
+                send: message => {if (child.connected) child.send(message as import('node:child_process').Serializable);}};
+            this.live.set(id, owned);
+            // Native worker cannot exec even trusted Node code before both identities are durable.
+            control.write('START\n');
+            return owned;
+        } catch (error) { control.end(); throw error; }
+        finally { clearTimeout(startup); }
     }
-    async isRunning(pid: number): Promise<boolean> { const proc = await inspect(pid); return !!proc && proc.state !== 'Z' && proc.state !== 'X'; }
-    active(): string[] { return [...this.live.keys()]; }
+    async isRunning(pid: number) { const proc = inspect(pid); return !!proc && !['Z','X'].includes(proc.state); }
+    active() { return [...this.live.keys()]; }
     terminateAttempt(id: string, reason: string): Promise<StopReceipt> {
-        const current = this.stopping.get(id);
-        if (current)
-            return current;
-        const promise = this.stop(id, reason).finally(() => this.stopping.delete(id));
-        this.stopping.set(id, promise);
-        return promise;
+        const existing = this.stopping.get(id);
+        if (existing) return existing;
+        const operation = this.stop(id, reason).finally(() => this.stopping.delete(id));
+        this.stopping.set(id, operation);
+        return operation;
+    }
+    private async hasProof(journal: Journal): Promise<boolean> {
+        try {
+            const path = this.proofPath(journal.attemptId), info = await lstat(path);
+            if (!info.isFile() || info.isSymbolicLink() || info.uid !== journal.uid || info.size > 2048 || (info.mode & 0o077)) return false;
+            const proof = JSON.parse(await readFile(path, 'utf8'));
+            return proof.version === 1 && proof.state === 'DRAINED' && proof.nonce === journal.nonce && proof.uid === journal.uid &&
+                proof.guardianPid === journal.guardianPid && proof.guardianStartTime === journal.guardianStartTime &&
+                proof.workerPid === journal.pid && proof.workerStartTime === journal.startTime;
+        } catch { return false; }
+    }
+    private async provedStopped(journal: Journal): Promise<boolean> {
+        if (!await this.hasProof(journal)) return false;
+        const guardian = inspect(journal.guardianPid!);
+        return !guardian || guardian.startTime !== journal.guardianStartTime || ['Z','X'].includes(guardian.state);
+    }
+    private releaseHandles(id: string) {
+        const owned = this.live.get(id);
+        if (!owned) return;
+        for (const stream of owned.child.stdio) stream?.destroy();
+        if (owned.child.connected) owned.child.disconnect();
+        owned.child.unref();
+        this.live.delete(id);
     }
     private async stop(id: string, reason: string): Promise<StopReceipt> {
-        const receipt = (processStopped: boolean, why = reason): StopReceipt => ({ attemptId: id, processStopped, reason: why, stoppedAt: new Date().toISOString() });
+        const receipt = (processStopped: boolean, why = reason): StopReceipt => ({attemptId:id, processStopped, reason:why, stoppedAt:new Date().toISOString()});
         let journal: Journal;
-        try {
-            journal = JSON.parse(await readFile(this.path(id), 'utf8')) as Journal;
-        }
-        catch {
+        try { journal = JSON.parse(await readFile(this.path(id), 'utf8')); }
+        catch { return receipt(false, 'UNKNOWN_PROCESS'); }
+        if (journal.attemptId !== id || !journal.nonce || journal.uid !== process.getuid!() || !journal.pid || !journal.startTime || !journal.guardianPid || !journal.guardianStartTime)
             return receipt(false, 'UNKNOWN_PROCESS');
-        }
-        if (journal.attemptId !== id || !journal.nonce || journal.uid !== process.getuid!())
-            return receipt(false, 'UNKNOWN_PROCESS');
-        if (journal.state === 'STOPPED')
-            return receipt(true);
-        if (!journal.pid || !journal.startTime)
-            return receipt(false, 'UNKNOWN_PROCESS');
-        const tracked = new Map((journal.owned ?? []).map(p => [p.pid, p.startTime]));
-        const members = async () => {
-            const entries = await readdir('/proc');
-            const facts = entries.filter(s => /^\d+$/.test(s)).map(s => inspectSync(Number(s)))
-                .filter((p): p is Proc => !!p && p.state !== 'Z' && p.state !== 'X');
-            const leader = facts.find(p => p.pid === journal.pid);
-            if (leader && leader.startTime !== journal.startTime) throw new Error('PROCESS_IDENTITY_CHANGED');
-            const descendants = new Set<number>([journal.pid!]);
-            for (let changed = true; changed;) {
-                changed = false;
-                for (const fact of facts) if (descendants.has(fact.parent) && !descendants.has(fact.pid)) {
-                    descendants.add(fact.pid); changed = true;
-                }
-            }
-            const matches = facts.map(fact => {
-                if (fact.uid !== journal.uid) {
-                    if (tracked.get(fact.pid) === fact.startTime || descendants.has(fact.pid) || fact.group === journal.pid)
-                        throw new Error('PROCESS_IDENTITY_UNKNOWN');
-                    return;
-                }
-                try {
-                    const env = readFileSync(`/proc/${fact.pid}/environ`);
-                    const owned = env.toString().split('\0').includes(`VERIQ_PROCESS_NONCE=${journal.nonce}`);
-                    // Detached browser groups retain the nonce even after their parent dies.
-                    return owned || tracked.get(fact.pid) === fact.startTime || descendants.has(fact.pid) || fact.group === journal.pid ? fact : undefined;
-                } catch (error) {
-                    if (['ENOENT', 'ESRCH'].includes((error as NodeJS.ErrnoException).code ?? '')) return;
-                    if (tracked.get(fact.pid) === fact.startTime || descendants.has(fact.pid) || fact.group === journal.pid) throw new Error('PROCESS_IDENTITY_UNKNOWN');
-                    return;
-                }
-            });
-            const owned = matches.filter((fact): fact is Proc => !!fact);
-            for (const fact of owned) tracked.set(fact.pid, fact.startTime);
-            return owned;
+        const confirmed = async (): Promise<StopReceipt | undefined> => {
+            try {
+                if (!await this.provedStopped(journal)) return;
+                journal.state = 'STOPPED'; await this.save(journal); this.releaseHandles(id);
+                return receipt(true);
+            } catch { return; }
         };
-        const signal = async (members: Proc[], signal: NodeJS.Signals) => {
-            journal.owned = [...tracked].map(([pid, startTime]) => ({pid, startTime}));
-            await this.save(journal);
-            for (const group of new Set(members.map(p => p.group))) {
-                if (group <= 1) throw new Error('PROCESS_IDENTITY_UNKNOWN');
-                const proof = members.find(p => p.group === group)!;
-                const current = await inspect(proof.pid);
-                if (!current) continue;
-                if (current.uid !== journal.uid || current.startTime !== proof.startTime || current.group !== group) throw new Error('PROCESS_IDENTITY_CHANGED');
-                try { process.kill(-group, signal); }
-                catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw new Error('PROCESS_STOP_FAILED'); }
-            }
-        };
+        const alreadyStopped = await confirmed();
+        if (alreadyStopped) return alreadyStopped;
         try {
-            let group = await members();
-            if (group.length) {
-                await signal(group, 'SIGTERM');
-                const until = performance.now() + this.graceMs;
-                while ((group = await members()).length && performance.now() < until) await delay(20);
-                const killUntil = performance.now() + 2000;
-                while (group.length && performance.now() < killUntil) {
-                    await signal(group, 'SIGKILL');
-                    await delay(20);
-                    group = await members();
-                }
-                if (group.length) return receipt(false, 'PROCESS_STOP_UNCONFIRMED');
+            const worker = inspect(journal.pid), guardian = inspect(journal.guardianPid);
+            if (worker && (worker.uid !== journal.uid || worker.startTime !== journal.startTime)) return receipt(false, 'PROCESS_IDENTITY_CHANGED');
+            if (!guardian || ['Z','X'].includes(guardian.state)) {
+                // The first file probe may precede fsync/exit. Observe that handoff again.
+                const drained = await confirmed();
+                if (drained) return drained;
+                // Best-effort known worker stop is not proof that an orphaned tree drained.
+                if (worker && worker.group === journal.pid) process.kill(-worker.group, 'SIGKILL');
+                this.releaseHandles(id); return receipt(false, 'CONTAINMENT_LOST');
             }
-        } catch (error) {
-            return receipt(false, error instanceof Error && /^PROCESS_/.test(error.message) ? error.message : 'PROCESS_IDENTITY_UNKNOWN');
+            if (guardian.uid !== journal.uid || guardian.startTime !== journal.guardianStartTime)
+                return receipt(false, 'PROCESS_IDENTITY_UNKNOWN');
+            if (!readFileSync(`/proc/${guardian.pid}/environ`).toString().split('\0').includes(`VERIQ_PROCESS_NONCE=${journal.nonce}`)) {
+                const drained = await confirmed();
+                if (drained) return drained;
+                return receipt(false, 'PROCESS_IDENTITY_UNKNOWN');
+            }
+            process.kill(guardian.pid, 'SIGUSR1');
+            const deadline = performance.now() + this.graceMs + 2000;
+            while (performance.now() < deadline) {
+                if (await this.provedStopped(journal)) {
+                    journal.state = 'STOPPED'; await this.save(journal); this.releaseHandles(id); return receipt(true);
+                }
+                const current = inspect(guardian.pid);
+                if (!current || ['Z','X'].includes(current.state)) break;
+                if (current.uid !== journal.uid || current.startTime !== journal.guardianStartTime) break;
+                await delay(20);
+            }
+            if (await this.provedStopped(journal)) {
+                journal.state = 'STOPPED'; await this.save(journal); this.releaseHandles(id); return receipt(true);
+            }
+            this.releaseHandles(id); return receipt(false, 'PROCESS_STOP_UNCONFIRMED');
+        } catch {
+            const drained = await confirmed();
+            if (drained) return drained;
+            this.releaseHandles(id); return receipt(false, 'PROCESS_IDENTITY_UNKNOWN');
         }
-        journal.state = 'STOPPED';
-        await this.save(journal);
-        this.live.delete(id);
-        return receipt(true);
     }
 }

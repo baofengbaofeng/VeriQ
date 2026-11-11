@@ -184,6 +184,7 @@ test('actual approved generated TS runs with fresh browser/fixture/workdir and r
             const result = await supervisor.runAttempt({ claim, requestStarted: performance.now(), responseReceived: performance.now() }, new AbortController().signal);
             results.push(result);
             if (!result.completion) {
+                try { process.stderr.write('guardian: '+await readFile(join(root,'agent/processes',claim.attemptId+'.drained.json.error'),'utf8')); } catch {}
                 for (const file of ['worker-failure.json', 'worker-result.json', 'tmp/playwright.json'])
                     try {
                         const diagnostic = await readFile(join(root, 'agent/work', claim.attemptId, file), 'utf8');

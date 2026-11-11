@@ -159,3 +159,9 @@ veriq/
 ## 许可证
 
 本项目采用 **GNU Affero General Public License v3.0（AGPL-3.0）**，完整条款见 [LICENSE](LICENSE)。第三方依赖许可将单独核验，并随发行提供 SBOM 与许可声明。
+
+Linux Agent development requires `pnpm --filter @veriq/runtime build:launcher` before
+`runtime start` (the Runtime test command builds it automatically). This uses a C compiler
+at build time only. Installed Agents require the precompiled `build/veriq_runner` helper;
+missing helpers fail closed. Production native packaging remains T20; no Python, MySQL,
+C compiler, bwrap or unshare is a local Agent runtime prerequisite.

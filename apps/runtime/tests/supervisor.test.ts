@@ -103,3 +103,102 @@ test('a changed execution UID in the private journal cannot authorize signalling
   assert.equal(await supervisor.isRunning(child.pid),true);
  }finally{if(original)await writeFile(path,original,{mode:0o600});await supervisor.terminateAttempt('uid','TEST_FINALLY');await rm(directory,{recursive:true,force:true});}
 });
+
+test('orphaned detached child with an empty environment cannot survive a positive stop receipt',async()=>{
+ const directory=await mkdtemp(join(tmpdir(),'veriq-t10-orphan-')), supervisor=new ProcessSupervisor(directory,100);
+ let detached:number|undefined;
+ try{
+  const worker=await supervisor.start('orphan',{executable:process.execPath,args:['-e',`const {spawn}=require('node:child_process');const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{detached:true,env:{},stdio:'ignore'});console.log(child.pid);setInterval(()=>{},1000);`],cwd:directory});
+  detached=Number(await worker.firstLine());assert.equal(await supervisor.isRunning(detached),true);
+  process.kill(worker.pid,'SIGKILL');await worker.exited;
+  const stopped=await supervisor.terminateAttempt('orphan','REVIEW');
+  assert.equal(stopped.processStopped,true);
+  assert.equal(await supervisor.isRunning(detached),false);
+ }finally{if(detached&&await supervisor.isRunning(detached))process.kill(-detached,'SIGKILL');await supervisor.terminateAttempt('orphan','TEST_FINALLY');await rm(directory,{recursive:true,force:true});}
+});
+
+test('guardian death cannot become positive stop even when the known worker is killed',async()=>{
+ const directory=await mkdtemp(join(tmpdir(),'veriq-t10-guardian-lost-')), supervisor=new ProcessSupervisor(directory,100);
+ let detached:number|undefined;
+ try{
+  const worker=await supervisor.start('lost',{executable:process.execPath,args:['-e',`const {spawn}=require('node:child_process');const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{detached:true,env:{},stdio:'ignore'});console.log(child.pid);setInterval(()=>{},1000);`],cwd:directory});
+  detached=Number(await worker.firstLine());
+  const journal=JSON.parse(await readFile(join(directory,'lost.process.json'),'utf8'));
+  const gone=new Promise<void>(resolve=>worker.child.once('exit',()=>resolve()));
+  process.kill(journal.guardianPid,'SIGKILL');await gone;
+  const receipt=await supervisor.terminateAttempt('lost','GUARDIAN_LOST');
+  assert.equal(receipt.processStopped,false);assert.equal(await supervisor.isRunning(detached),true);
+ }finally{if(detached&&await supervisor.isRunning(detached))process.kill(-detached,'SIGKILL');await supervisor.terminateAttempt('lost','TEST_FINALLY');await rm(directory,{recursive:true,force:true});}
+});
+
+test('a STOPPED journal without the guardian drain proof remains unknown',async()=>{
+ const {unlink}=await import('node:fs/promises');
+ const directory=await mkdtemp(join(tmpdir(),'veriq-t10-proof-lost-')), supervisor=new ProcessSupervisor(directory);
+ try{
+  const worker=await supervisor.start('proof',{executable:process.execPath,args:['-e',"console.log('ready');setInterval(()=>{},1000)"],cwd:directory});await worker.firstLine();
+  assert.equal((await supervisor.terminateAttempt('proof','STOP')).processStopped,true);
+  await unlink(join(directory,'proof.drained.json'));
+  assert.equal((await new ProcessSupervisor(directory).terminateAttempt('proof','RECOVERY')).processStopped,false);
+ }finally{await supervisor.terminateAttempt('proof','TEST_FINALLY');await rm(directory,{recursive:true,force:true});}
+});
+
+test('actual Agent-parent death closes private control and the guardian drains clean-environment descendants',async()=>{
+ const {spawn}=await import('node:child_process');
+ const {setTimeout:delay}=await import('node:timers/promises');
+ const directory=await mkdtemp(join(tmpdir(),'veriq-t10-parent-lost-')), supervisor=new ProcessSupervisor(directory);
+ const program=`import {ProcessSupervisor} from './src/execution/processes.ts';import {readFile} from 'node:fs/promises';const root=process.argv[1],s=new ProcessSupervisor(root,100);const worker=await s.start('parent',{executable:process.execPath,args:['-e',"const {spawn}=require('node:child_process');const c=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{detached:true,env:{},stdio:'ignore'});console.log(c.pid);setInterval(()=>{},1000);"],cwd:root});const detached=Number(await worker.firstLine());const journal=JSON.parse(await readFile(root+'/parent.process.json','utf8'));console.log(JSON.stringify({worker:worker.pid,detached,guardian:journal.guardianPid}));setInterval(()=>{},1000);`;
+ const parent=spawn(process.execPath,['--import','tsx','--input-type=module','-e',program,directory],{stdio:['ignore','pipe','pipe']});
+ let observed:{worker:number;detached:number;guardian:number}|undefined;
+ try{
+  const line=await new Promise<string>((resolve,reject)=>{let data='';parent.stdout.on('data',chunk=>{data+=chunk.toString();if(data.includes('\n'))resolve(data.slice(0,data.indexOf('\n')));});parent.once('error',reject);parent.once('exit',()=>reject(new Error('PARENT_EXITED_BEFORE_READY')));});
+  observed=JSON.parse(line);
+  const gone=new Promise<void>(resolve=>parent.once('exit',()=>resolve()));parent.kill('SIGKILL');await gone;
+  const until=performance.now()+3000;
+  while((await supervisor.isRunning(observed!.worker)||await supervisor.isRunning(observed!.detached))&&performance.now()<until)await delay(20);
+  assert.equal(await supervisor.isRunning(observed!.worker),false);assert.equal(await supervisor.isRunning(observed!.detached),false);
+  assert.equal((await supervisor.terminateAttempt('parent','RECOVERY')).processStopped,true);
+ }finally{
+  if(parent.exitCode===null&&parent.signalCode===null)parent.kill('SIGKILL');
+  if(observed)for(const pid of [observed.worker,observed.detached,observed.guardian])if(await supervisor.isRunning(pid))process.kill(pid,'SIGKILL');
+  await rm(directory,{recursive:true,force:true});
+ }
+});
+
+test('a real absent-proof observation delivered after natural guardian exit is rechecked',async()=>{
+ const {setTimeout:delay}=await import('node:timers/promises');
+ const root=await mkdtemp(join(tmpdir(),'veriq-t10-proof-handoff-')),supervisor=new ProcessSupervisor(root);
+ const original=Reflect.get(supervisor,'hasProof').bind(supervisor) as (journal:unknown)=>Promise<boolean>;
+ try{
+  const worker=await supervisor.start('handoff',{executable:process.execPath,args:['-e',"process.once('message',()=>process.exit(0));console.log('ready');setInterval(()=>{},1000);"],cwd:root});await worker.firstLine();
+  const journal=JSON.parse(await readFile(join(root,'handoff.process.json'),'utf8'));
+  let first=true;
+  // Scheduling barrier only: preserve the actual first filesystem result while the
+  // real worker voluntarily exits and the real helper durably publishes its proof.
+  Reflect.set(supervisor,'hasProof',async(value:unknown)=>{
+   const observed=await original(value);
+   if(first){
+    first=false;assert.equal(observed,false);worker.send({type:'FINISH'});await worker.exited;
+    const until=performance.now()+2000;
+    while((!await original(value)||await supervisor.isRunning(journal.guardianPid))&&performance.now()<until)await delay(10);
+    assert.equal(await original(value),true);assert.equal(await supervisor.isRunning(journal.guardianPid),false);
+   }
+   return observed;
+  });
+  assert.equal((await supervisor.terminateAttempt('handoff','NATURAL_EXIT')).processStopped,true);
+ }finally{Reflect.set(supervisor,'hasProof',original);await supervisor.terminateAttempt('handoff','TEST_FINALLY');await rm(root,{recursive:true,force:true});}
+});
+
+test('a changed ownership nonce cannot authorize signalling or reuse a later proof',async()=>{
+ const {writeFile}=await import('node:fs/promises');
+ const directory=await mkdtemp(join(tmpdir(),'veriq-t10-nonce-')), supervisor=new ProcessSupervisor(directory);
+ let original:string|undefined;
+ const path=join(directory,'uid.process.json');
+ try{
+  const child=await supervisor.start('uid',{executable:process.execPath,args:['-e',"console.log('ready');setInterval(()=>{},1000)"],cwd:directory});await child.firstLine();
+  original=await readFile(path,'utf8');
+  await writeFile(path,JSON.stringify({...JSON.parse(original),nonce:'00000000-0000-4000-8000-000000000000'}),{mode:0o600});
+  const receipt=await supervisor.terminateAttempt('uid','RECOVERY');
+  assert.equal(receipt.processStopped,false);
+  assert.equal(await supervisor.isRunning(child.pid),true);
+ }finally{if(original)await writeFile(path,original,{mode:0o600});await supervisor.terminateAttempt('uid','TEST_FINALLY');await rm(directory,{recursive:true,force:true});}
+});

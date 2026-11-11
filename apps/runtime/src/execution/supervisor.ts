@@ -16,6 +16,7 @@ import { AttemptBroker } from './broker.ts';
 import { monitorStorage } from './storage.ts';
 import { loadRelease, sha256 } from './release.ts';
 export interface ClaimedAttempt {
+    claimRequestId?: string;
     claim: Claim;
     requestStarted: number;
     responseReceived: number;
@@ -39,6 +40,7 @@ export interface SupervisorOptions {
     npmExecutable?: string;
 }
 interface AttemptJournal {
+    claimRequestId?: string;
     claim: Claim;
     state: 'ALLOCATED' | 'ACTIVATING' | 'ACTIVATED' | 'SPAWNING' | 'RUNNING' | 'STOPPED';
     work: string;
@@ -55,10 +57,10 @@ export class ExecutionSupervisor {
         await rename(temporary, path);
     }
     terminateAttempt(id: string, reason: string) { return this.processes.terminateAttempt(id, reason); }
-    async recover(): Promise<StopReceipt[]> {
+    async recover(): Promise<(StopReceipt & {claimRequestId?: string})[]> {
         const directory = join(this.options.root, 'attempts');
         await mkdir(directory, { recursive: true, mode: 0o700 });
-        const receipts: StopReceipt[] = [];
+        const receipts: (StopReceipt & {claimRequestId?: string})[] = [];
         for (const name of await readdir(directory)) {
             if (!name.endsWith('.json'))
                 continue;
@@ -67,7 +69,7 @@ export class ExecutionSupervisor {
                 ? { attemptId: record.claim.attemptId, processStopped: true, reason: 'NO_PROCESS_SPAWNED', stoppedAt: new Date().toISOString() }
                 : await this.terminateAttempt(record.claim.attemptId, 'AGENT_RECOVERY');
             await this.reconcile(record.claim, stop, 'PENDING');
-            receipts.push(stop);
+            receipts.push({...stop, ...(record.claimRequestId ? {claimRequestId: record.claimRequestId} : {})});
         }
         return receipts;
     }
@@ -80,7 +82,7 @@ export class ExecutionSupervisor {
         const work = join(this.options.root, 'work', claim.attemptId);
         await mkdir(work, { recursive: true, mode: 0o700 });
         const tmp = await mkdtemp(join(tmpdir(), 'veriq-a-')); // Chromium AF_UNIX paths must fit108 bytes.
-        const record: AttemptJournal = { claim, state: 'ALLOCATED', work };
+        const record: AttemptJournal = { claim, state: 'ALLOCATED', work, ...(assignment.claimRequestId ? {claimRequestId: assignment.claimRequestId} : {}) };
         await this.journal(record);
         const client = this.options.client, events = new EventBuffer(claim, client), controller = new AbortController();
         let reason: string | undefined, child: OwnedProcess | undefined, broker: AttemptBroker | undefined, monitor: ReturnType<typeof monitorStorage> | undefined;

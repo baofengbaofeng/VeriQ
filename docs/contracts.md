@@ -656,3 +656,22 @@ it does not infer cancellation from arbitrary error text or erase an existing fa
 An unfinished assertion interrupted by abort emits no fabricated ASSERTION_RESULT. The step
 reports its interruption and CASE_FINISHED retains any earlier FAILED business facts. The
 existing reducer and its cancellation completeness rules remain unchanged.
+
+
+T10 fix1 supersedes stop-time process scanning as positive proof. The fixed installed Linux
+`build/veriq_runner` guardian sets `PR_SET_CHILD_SUBREAPER` before forking the worker, then
+keeps a private gate closed until Node has fsynced both PID/UID/start-time identities.
+Activation is acknowledged before this launch path. The original Node worker IPC remains
+FD3; guardian-only status/control use FD4/FD5 and are closed in the worker before exec.
+Kernel adoption retains detached, empty-environment descendants after parent exit. `/proc`
+PPID enumeration is used to signal direct children, never to prove an empty tree. The
+single spawn gate must be closed and `waitpid(-1)` must return ECHILD before the guardian
+fsyncs its private nonce/UID/guardian+worker identity-bound DRAINED proof. Positive stop also
+requires guardian exit. Guardian loss, missing proof, changed UID/start time and bounded
+stop failure remain unknown/quarantined; legacy journals without containment proof are not
+silently upgraded. Agent control EOF triggers guardian cleanup. See ADR0012 for the local ABI.
+
+A pending claim UUID is now copied to its assigned private Attempt journal before execution.
+Recovery clears `claim-request.json` only when that same UUID was successfully reconciled;
+retained historical journals, including older journals without this association, cannot
+clear an unrelated newer lost request. The server claim/fence/lease protocol is unchanged.

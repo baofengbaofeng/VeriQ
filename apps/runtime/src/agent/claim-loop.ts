@@ -22,9 +22,13 @@ export async function claimLoop(options: {
     const recovered = await supervisor.recover();
     if (recovered.some(r => !r.processStopped))
         throw new Error('PROCESS_QUARANTINED');
-    if (recovered.length)
-        await unlink(pending).catch((e: NodeJS.ErrnoException) => { if (e.code !== 'ENOENT')
-            throw e; });
+    try {
+        const request = JSON.parse(await readFile(pending, 'utf8')) as S['ClaimRequest'];
+        if (request.runnerId === options.runnerId && recovered.some(receipt => receipt.claimRequestId === request.clientRequestId))
+            await unlink(pending);
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
     while (!signal.aborted) {
         let request: S['ClaimRequest'];
         try {
@@ -42,7 +46,7 @@ export async function claimLoop(options: {
         const claim = await client.request<Claim | undefined>('/internal/v1/jobs/claim', 'POST', request, signal);
         const responseReceived = performance.now();
         if (claim) {
-            const result = await supervisor.runAttempt({ claim, requestStarted, responseReceived }, signal);
+            const result = await supervisor.runAttempt({ claim, requestStarted, responseReceived, claimRequestId: request.clientRequestId }, signal);
             if (!result.stop.processStopped)
                 throw new Error('PROCESS_QUARANTINED');
             if (!result.completion)
