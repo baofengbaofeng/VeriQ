@@ -675,3 +675,32 @@ A pending claim UUID is now copied to its assigned private Attempt journal befor
 Recovery clears `claim-request.json` only when that same UUID was successfully reconciled;
 retained historical journals, including older journals without this association, cannot
 clear an unrelated newer lost request. The server claim/fence/lease protocol is unchanged.
+
+## T11 shared editors and published source view
+
+The Web resource/editor components accept `ResourceAdapter` instead of hard-coded remote
+URLs. `CloudResourceAdapter` owns authenticated transport; `LocalResourceAdapter` is
+read-only and accepts a single-Workspace immutable snapshot already verified by a trusted
+host/provider. It does not implement signature verification, offline editing or sync.
+React Hook Form holds the canonical source document, and local Monaco JSON buffers require
+explicit Apply. Unapplied buffers block save/validate/publish; invalid JSON and409 revision
+conflicts retain local content. All eight kinds expose graphical controls. Initial variable
+controls declare types only, not runtime values. Source models/workers and Query state are
+disposed or aborted on authenticated-user/Workspace/editor lifetime changes.
+
+Existing `GET /api/v1/workspaces/{ws}/jobs/{job}` now includes actual optional `outcome`,
+`waitReason` and a safe `errorCode` projected from the active retained Attempt. No detailed
+compiler path or raw LOG is inferred. `GET .../validation-receipt` remains the only existing
+successful receipt read; pending or failed validation never enables publication. Richer
+structured compile diagnostics remain a T12 report-pipeline handoff.
+
+`GET /api/v1/workspaces/{ws}/resources/{resource}/versions/{version}/compiled-source`
+requires current Workspace VIEW and the resource/version's original retained receipt.
+Without `path` the JSON data is `{descriptorSha256, files: FileEntry[]}`, listing only
+`validation.ts`, `source/context.ts` and compiler case entrypoints `cases/{uuid}.test.ts`.
+With a listed `path`, it returns the exact retained bytes as `text/plain; charset=utf-8`,
+without an envelope, after descriptor membership/hash/length verification. The response is
+private/no-store, nosniff and sandboxed. Arbitrary hashes, local filesystem paths, archives,
+raw evidence and non-TypeScript members are unavailable. Generated TypeScript is displayed
+read-only and is never compiled or executed in the frontend. The published version's receipt
+and descriptor remain immutable even after later draft changes or revalidation.

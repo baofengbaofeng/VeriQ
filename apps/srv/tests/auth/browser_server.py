@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 from pathlib import Path
 
 from sqlalchemy import text
@@ -24,6 +25,7 @@ async def main():
         master_key="a" * 64,
         signing_key="b" * 64,
         environment="development",
+        approved_engine_inventory_path=os.environ.get("VERIQ_TEST_ENGINE_INVENTORY"),
     )
     db = Database(settings)
     owned = {

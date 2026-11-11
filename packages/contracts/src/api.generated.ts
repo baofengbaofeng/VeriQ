@@ -1721,6 +1721,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/versions/{versionId}/compiled-source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * View exact retained generated TypeScript for an immutable published version
+         * @description Current Workspace VIEW, resource/version/receipt/descriptor membership are required. Omit path for an allowlisted TypeScript file listing. A path returns exact retained text/plain bytes verified against descriptor hash/size; caller hashes, arbitrary files and raw evidence are not accepted.
+         */
+        get: operations["getPublishedCompiledSource"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3071,6 +3091,9 @@ export interface components {
             /** @enum {string} */
             waitReason?: "RUNTIME_OFFLINE" | "NO_CAPABILITY" | "CAPACITY" | "RESOURCE_LOCK" | "QUARANTINED";
             activeAttemptId?: components["schemas"]["Id"];
+            outcome?: components["schemas"]["AttemptOutcome"];
+            /** @description Safe code projected from retained validated Attempt facts; no raw log content. */
+            errorCode?: string;
         };
         ArtifactDTO: {
             id: components["schemas"]["Id"];
@@ -3759,6 +3782,14 @@ export interface components {
         DeviceRotationRequest: Record<string, never> | {
             clientRequestId: components["schemas"]["Id"];
             replacementToken: string;
+        };
+        CompiledSourceDTO: {
+            descriptorSha256: components["schemas"]["Sha256"];
+            files: components["schemas"]["FileEntry"][];
+        };
+        CompiledSourceDTOEnvelope: {
+            data: components["schemas"]["CompiledSourceDTO"];
+            requestId: string;
         };
         /** @description JSON used only in interpolated DSL fields, recursively restricted to SafeString bindings. */
         BindingJsonValue: ContractBindingJsonValue;
@@ -15247,6 +15278,106 @@ export interface operations {
             };
             /** @description Stable JSON error; code is a machine-readable domain code. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getPublishedCompiledSource: {
+        parameters: {
+            query?: {
+                /** @description An allowlisted descriptor TypeScript member path; never a filesystem path. */
+                path?: string;
+            };
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                resourceId: components["schemas"]["Id"];
+                versionId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompiledSourceDTOEnvelope"];
+                    "text/plain": string;
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            413: {
                 headers: {
                     [name: string]: unknown;
                 };

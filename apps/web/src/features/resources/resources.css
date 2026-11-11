@@ -1,0 +1,151 @@
+.vq-resources {
+  min-width: 0;
+}
+.vq-section {
+  border-top: 1px solid #dce5e5;
+  padding: 20px 0;
+  margin-top: 18px;
+  min-width: 0;
+}
+.vq-section h3 {
+  font-size: 17px;
+  margin: 0 0 16px;
+}
+.vq-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+.vq-actions h2 {
+  margin: 0;
+  flex: 1;
+}
+.vq-actions input,
+.vq-actions select {
+  width: auto;
+  max-width: 100%;
+}
+.vq-actions label {
+  flex: 1;
+  min-width: 160px;
+}
+.vq-actions label input,
+.vq-actions label select {
+  width: 100%;
+}
+.vq-button + .vq-button {
+  margin-left: 0;
+}
+.vq-secondary {
+  background: #fff;
+  color: #136968;
+}
+.vq-danger {
+  background: #fff3f0;
+  color: #962e24;
+  border-color: #c46c63;
+}
+.vq-editor-fields {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 20px 0;
+  display: grid;
+  gap: 16px;
+}
+.vq-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+.vq-fields > .vq-section,
+.vq-fields > .vq-value,
+.vq-fields > small,
+.vq-fields > div:not(.vq-actions),
+.vq-fields > details {
+  grid-column: 1 / -1;
+}
+.vq-item {
+  padding: 16px;
+  background: #f8fbfb;
+  border: 1px solid #d6e2e2;
+  border-radius: 8px;
+  margin: 12px 0;
+  min-width: 0;
+}
+.vq-item .vq-item {
+  background: white;
+}
+.vq-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.vq-check input[type="checkbox"],
+.vq-resources input[type="checkbox"] {
+  width: 19px;
+  height: 19px;
+  flex: 0 0 19px;
+}
+.vq-create {
+  max-width: none;
+  grid-template-columns: 1.2fr 1fr 1.5fr auto;
+  align-items: end;
+}
+.vq-monaco {
+  height: 390px;
+  width: 100%;
+  border: 1px solid #9db2b6;
+  margin: 14px 0;
+  min-width: 0;
+}
+.vq-value {
+  padding: 14px;
+  border: 1px solid #dce5e5;
+  border-radius: 6px;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.vq-value label,
+.vq-value input,
+.vq-value select {
+  min-width: 0;
+}
+.vq-drop {
+  outline: 3px solid #136968;
+}
+.vq-overlay {
+  position: fixed;
+  inset: 0;
+  background: #12343877;
+  z-index: 1000;
+}
+.vq-dialog {
+  position: fixed;
+  z-index: 1001;
+  inset: 20% auto auto 50%;
+  transform: translateX(-50%);
+  width: min(540px, 90vw);
+  background: white;
+  padding: 28px;
+  border-radius: 12px;
+  box-shadow: 0 20px 80px #12343866;
+}
+.vq-resources p,
+.vq-resources li,
+.vq-resources span {
+  overflow-wrap: anywhere;
+}
+.vq-resources [role="alert"] {
+  white-space: pre-wrap;
+}
+@media (max-width: 800px) {
+  .vq-create,
+  .vq-fields {
+    grid-template-columns: 1fr;
+  }
+}

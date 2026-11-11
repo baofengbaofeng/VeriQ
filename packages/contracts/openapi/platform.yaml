@@ -15184,6 +15184,155 @@
         },
         "description": "T12 authorization obligation: raw Trace, screenshots, HTML and downloads are CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata only. This schema does not implement storage or authorization."
       }
+    },
+    "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/versions/{versionId}/compiled-source": {
+      "get": {
+        "operationId": "getPublishedCompiledSource",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "WebSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "resourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "versionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "An allowlisted descriptor TypeScript member path; never a filesystem path."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompiledSourceDTOEnvelope"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "description": "Exact retained generated TypeScript bytes, without JSON envelope or reserialization."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "summary": "View exact retained generated TypeScript for an immutable published version",
+        "description": "Current Workspace VIEW, resource/version/receipt/descriptor membership are required. Omit path for an allowlisted TypeScript file listing. A path returns exact retained text/plain bytes verified against descriptor hash/size; caller hashes, arbitrary files and raw evidence are not accepted."
+      }
     }
   },
   "components": {
@@ -16454,6 +16603,14 @@
           },
           "activeAttemptId": {
             "$ref": "#/components/schemas/Id"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/AttemptOutcome"
+          },
+          "errorCode": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{0,79}$",
+            "description": "Safe code projected from retained validated Attempt facts; no raw log content."
           }
         },
         "required": [
@@ -19424,6 +19581,41 @@
       },
       "DeviceRotationRequest": {
         "$ref": "../schemas/platform-v1.schema.json#/$defs/DeviceRotationRequest"
+      },
+      "CompiledSourceDTO": {
+        "type": "object",
+        "properties": {
+          "descriptorSha256": {
+            "$ref": "#/components/schemas/Sha256"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "../schemas/platform-v1.schema.json#/$defs/FileEntry"
+            }
+          }
+        },
+        "required": [
+          "descriptorSha256",
+          "files"
+        ],
+        "additionalProperties": false
+      },
+      "CompiledSourceDTOEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CompiledSourceDTO"
+          },
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "requestId"
+        ],
+        "additionalProperties": false
       }
     }
   }

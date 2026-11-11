@@ -100,6 +100,7 @@ def handler_for(action: str) -> type[API]:
         "dependents",
         "job",
         "validation-receipt",
+        "compiled-source",
     }:
         return ResourceAPI
     if action in {
@@ -227,6 +228,10 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
         (
             "/api/v1/workspaces/([0-9a-fA-F-]{36})/resources/([0-9a-fA-F-]{36})/dependents",
             "dependents",
+        ),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/resources/([0-9a-fA-F-]{36})/versions/([0-9a-fA-F-]{36})/compiled-source",
+            "compiled-source",
         ),
         (
             "/api/v1/workspaces/([0-9a-fA-F-]{36})/resources/([0-9a-fA-F-]{36})/versions/([0-9a-fA-F-]{36})",

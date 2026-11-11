@@ -1,9 +1,10 @@
 """Resource HTTP boundary: canonical schemas, current membership and short transactions."""
 
 from typing import Any
+import re
 from sqlalchemy import and_, or_, select
 from ..auth.authorization import Permission, WorkspaceScope
-from ..db import Resource, ResourceVersion, ResourceDependency, ValidationReceipt
+from ..db import Resource, ResourceVersion, ResourceDependency, ValidationReceipt, Attempt
 from ..pagination import Page
 from ..repositories.resource import ResourceRepository
 from ..service import Problem, audit, lock_installation
@@ -31,6 +32,7 @@ class ResourceAPI(API):
             "dependents": {"GET"},
             "job": {"GET"},
             "validation-receipt": {"GET"},
+            "compiled-source": {"GET"},
         }
         if self.request.method not in allowed[self.action]:
             raise Problem(405, "METHOD_NOT_ALLOWED", "Method not allowed")
@@ -51,7 +53,20 @@ class ResourceAPI(API):
                 assert resource_id
                 job = await repo.job(resource_id)
                 if self.action == "job":
-                    self.respond(job_dto(job))
+                    dto = job_dto(job)
+                    if job.active_attempt_id:
+                        attempt = await s.get(Attempt, job.active_attempt_id)
+                        if (
+                            attempt
+                            and attempt.workspace_id == workspace_id
+                            and attempt.job_id == job.id
+                        ):
+                            code = attempt.facts.get("errorCode")
+                            if isinstance(code, str) and re.fullmatch(
+                                r"[A-Z][A-Z0-9_]{0,79}", code
+                            ):
+                                dto["errorCode"] = code
+                    self.respond(dto)
                     return
                 receipt = (
                     await s.execute(
@@ -68,6 +83,22 @@ class ResourceAPI(API):
                         "No successful validation receipt is available",
                     )
                 self.respond(receipt_dto(receipt))
+                return
+            if self.action == "compiled-source":
+                from ..services.resource_source import compiled_source
+
+                assert resource_id and version_id
+                metadata, content = await compiled_source(
+                    repo, resource_id, version_id, self.get_query_argument("path", None)
+                )
+                self.set_header("Cache-Control", "private, no-store")
+                self.set_header("X-Content-Type-Options", "nosniff")
+                self.set_header("Content-Security-Policy", "default-src 'none'; sandbox")
+                if content is None:
+                    self.respond(metadata)
+                else:
+                    self.set_header("Content-Type", "text/plain; charset=utf-8")
+                    self.finish(content)
                 return
             resource = await repo.resource(resource_id) if resource_id else None
             if self.action == "resource":

@@ -132,3 +132,13 @@ Start is foreground; status/stop are issued from another terminal. Stop acknowle
 Every Attempt uses fresh business state and bounded event/evidence storage. Explicit cancellation preserves earlier observed failures. Configured whole-case retry requires either successful cleanup under the fixture's namespace-closing contract, or trusted compiler metadata plus complete observed read-only behavior. A no-fixture write with an uncertain result is not automatically repeated: RETRY_SAFETY_UNCONFIRMED requires business reconciliation before an explicit new Run. Read-only retry remains available; a retry pass aggregates UNSTABLE. See the [execution contracts](contracts.md) for exact fields and authorization.
 
 The SDK test entry uses two workers with unchanged assertion/test timeouts. Heavier validation suites should run sequentially on constrained hosts. Earlier higher-concurrency timeouts remain documented; a passing bounded run is not proof that every possible scheduling race has been excluded. Windows process containment and the full desktop product remain subsequent tasks.
+
+The resource and environment UI is available at `/resources` and `/environments` in the
+Vite development app. Compile validation needs a currently authorized MANAGED Runtime and
+operator-approved engine inventory; without one, editing works and validation remains queued.
+Do not fabricate a receipt to enable publication. The focused browser command is
+`VERIQ_TEST_CHROMIUM=/usr/bin/chromium pnpm --filter @veriq/web test:e2e case-publish.spec.ts`.
+It uses the guarded dedicated MySQL fixture, builds a genuine locked test-only release,
+registers the actual CLI and invokes the actual Linux Agent compiler. No test release is
+promoted to the production catalog. It needs writable XDG paths and sufficient temporary
+disk space; generated archives, device profiles and per-Attempt work are transient.

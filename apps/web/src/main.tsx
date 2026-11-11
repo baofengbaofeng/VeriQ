@@ -13,6 +13,8 @@ import {
   AcceptInvitation,
 } from "./features/workspaces/WorkspacePage";
 import { RuntimePage } from "./features/runtimes/RuntimePage";
+import { ResourcePage } from "./features/resources/ResourcePage";
+import { EnvironmentPage } from "./features/environments/EnvironmentPage";
 import "./style.css";
 function App() {
   const [user, setUser] = useState<User | null>(null),
@@ -66,6 +68,8 @@ function App() {
               <Link to="/account">Account</Link>
               <Link to="/workspaces">Workspaces</Link>
               <Link to="/runtimes">Runtimes</Link>
+              <Link to="/resources">资源 / Resources</Link>
+              <Link to="/environments">环境 / Environments</Link>
               {user.systemAdmin && <Link to="/admin/users">Users</Link>}
               <button
                 data-testid="logout"
@@ -118,6 +122,22 @@ function App() {
             element={
               <WorkspaceProvider key={user?.id ?? "anonymous"}>
                 <RuntimePage />
+              </WorkspaceProvider>
+            }
+          />
+          <Route
+            path="/resources"
+            element={
+              <WorkspaceProvider key={user?.id ?? "anonymous"}>
+                <ResourcePage />
+              </WorkspaceProvider>
+            }
+          />
+          <Route
+            path="/environments"
+            element={
+              <WorkspaceProvider key={user?.id ?? "anonymous"}>
+                <EnvironmentPage />
               </WorkspaceProvider>
             }
           />

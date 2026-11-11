@@ -148,6 +148,10 @@ def job_dto(row: Job) -> dict[str, Any]:
     result = {"id": row.id, "workspaceId": row.workspace_id, "kind": row.kind, "state": row.state}
     if row.active_attempt_id:
         result["activeAttemptId"] = row.active_attempt_id
+    if row.outcome:
+        result["outcome"] = row.outcome
+    if row.wait_reason:
+        result["waitReason"] = row.wait_reason
     return result
 
 
