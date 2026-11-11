@@ -188,16 +188,40 @@ common(
 program
   .command("logout")
   .description("Revoke the current device token and remove local configuration")
-  .action(async () => {
-    const s = store(),
-      config = await s.load();
-    await new RuntimeClient(config.server).logout(
-      config.deviceToken,
-      controller.signal,
-    );
+  .option(
+    "--local-only",
+    "Forget only the local device credential without remote revocation",
+  )
+  .action(async (options: { localOnly?: boolean }) => {
+    const s = store();
+    if (options.localOnly) {
+      await s.remove();
+      process.stdout.write(
+        "Local device credential removed. Remote revocation was not attempted. The server credential may still be valid; revoke the device in the Web console or wait for expiry.\n",
+      );
+      return;
+    }
+    const config = await s.load();
+    let alreadyRejected = false;
+    try {
+      await new RuntimeClient(config.server).logout(
+        config.deviceToken,
+        controller.signal,
+      );
+    } catch (error) {
+      if (!(
+        error instanceof RuntimeError &&
+        error.status === 401 &&
+        ["DEVICE_UNAUTHORIZED", "DEVICE_REVOKED"].includes(error.code)
+      ))
+        throw error;
+      alreadyRejected = true;
+    }
     await s.remove();
     process.stdout.write(
-      "Device credential revoked and local configuration removed.\n",
+      alreadyRejected
+        ? "Server already rejected this device credential; local credential removed. You can enroll again. Revoke the device in the Web console if you also need to prevent future reuse.\n"
+        : "Device credential revoked and local configuration removed.\n",
     );
   });
 const workspace = program

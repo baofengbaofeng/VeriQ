@@ -197,3 +197,221 @@ test("a second enrollment never overwrites the existing device credential", asyn
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+function recoveryCli(directory: string, args: string[], input = "") {
+  return new Promise<{ status: number | null; output: string }>(
+    (resolve, reject) => {
+      const child = spawn(
+        process.execPath,
+        ["--import", "tsx", "src/cli.ts", "--config-dir", directory, ...args],
+        {
+          cwd: new URL("..", import.meta.url),
+        },
+      );
+      let output = "";
+      const timeout = setTimeout(() => {
+        child.kill("SIGKILL");
+        reject(new Error("CLI recovery test timed out"));
+      }, 20_000);
+      child.stdout.on("data", (chunk) => (output += String(chunk)));
+      child.stderr.on("data", (chunk) => (output += String(chunk)));
+      child.on("error", (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      });
+      child.on("close", (status) => {
+        clearTimeout(timeout);
+        resolve({ status, output });
+      });
+      child.stdin.end(input);
+    },
+  );
+}
+
+const recoveryReceipt = {
+  runnerId: "11111111-1111-4111-8111-111111111111",
+  workspaceId: "22222222-2222-4222-8222-222222222222",
+  deviceToken: "synthetic-private-recovery-token",
+  expiresAt: "2020-01-01T00:00:00Z",
+};
+
+for (const code of ["DEVICE_UNAUTHORIZED", "DEVICE_REVOKED"]) {
+  test(`logout recovery clears definitive ${code} and permits CLI enrollment in the same directory`, async () => {
+    const { DeviceStore } = await import(moduleUrl.href);
+    const directory = await mkdtemp(join(tmpdir(), "veriq-logout-recovery-"));
+    const nextReceipt = {
+      ...recoveryReceipt,
+      runnerId: "33333333-3333-4333-8333-333333333333",
+      deviceToken: "synthetic-replacement-device-token",
+      expiresAt: "2099-01-01T00:00:00Z",
+    };
+    const bootstrap = "B".repeat(43);
+    let logoutCalls = 0,
+      enrolled = 0;
+    const server = createServer((req, res) => {
+      res.setHeader("Content-Type", "application/json");
+      if (req.url === "/internal/v1/runtime/logout") {
+        logoutCalls++;
+        assert.equal(
+          req.headers.authorization,
+          "Bearer " + recoveryReceipt.deviceToken,
+        );
+        res.writeHead(401);
+        res.end(JSON.stringify({ code, message: recoveryReceipt.deviceToken }));
+      } else if (req.url === "/api/v1/health/live") {
+        res.end(JSON.stringify({ data: { alive: true } }));
+      } else if (req.url === "/internal/v1/runtime-enrollments/service") {
+        enrolled++;
+        assert.equal(req.headers.authorization, "Bearer " + bootstrap);
+        res.writeHead(201);
+        res.end(JSON.stringify({ data: nextReceipt }));
+      } else {
+        res.writeHead(404);
+        res.end("{}");
+      }
+    });
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve),
+    );
+    try {
+      const address = server.address();
+      assert(address && typeof address !== "string");
+      const origin = `http://127.0.0.1:${address.port}`;
+      const store = new DeviceStore(directory);
+      await store.save({ server: origin, ...recoveryReceipt });
+      const logout = await recoveryCli(directory, ["logout"]);
+      assert.equal(logout.status, 0, logout.output);
+      assert.match(logout.output, /already invalid|already rejected/);
+      assert.doesNotMatch(logout.output, /Device credential revoked/);
+      assert(!logout.output.includes(recoveryReceipt.deviceToken));
+      await assert.rejects(store.load(), { code: "ENOENT" });
+      const reenroll = await recoveryCli(
+        directory,
+        [
+          "enroll-service",
+          "--server",
+          origin,
+          "--name",
+          "Recovered device",
+          ...(process.env.VERIQ_TEST_CHROMIUM
+            ? ["--browser-executable", process.env.VERIQ_TEST_CHROMIUM]
+            : []),
+        ],
+        bootstrap,
+      );
+      assert.equal(reenroll.status, 0, reenroll.output);
+      assert.equal((await store.load()).deviceToken, nextReceipt.deviceToken);
+      assert.equal(logoutCalls, 1);
+      assert.equal(enrolled, 1);
+      assert(!reenroll.output.includes(bootstrap));
+      assert(!reenroll.output.includes(nextReceipt.deviceToken));
+      for (const command of ["login", "enroll-service"]) {
+        const repeat = await recoveryCli(directory, [
+          command,
+          "--server",
+          origin,
+        ]);
+        assert.equal(repeat.status, 1);
+        assert.match(repeat.output, /ALREADY_ENROLLED/);
+        assert.equal((await store.load()).deviceToken, nextReceipt.deviceToken);
+      }
+      assert.equal(enrolled, 1);
+    } finally {
+      server.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+}
+
+test("logout recovery retains credentials on transport and non-definitive HTTP failures", async () => {
+  const { DeviceStore } = await import(moduleUrl.href);
+  const directory = await mkdtemp(join(tmpdir(), "veriq-logout-network-"));
+  let mode = "transport";
+  const server = createServer((req, res) => {
+    if (mode === "transport") {
+      req.socket.destroy();
+      return;
+    }
+    res.writeHead(mode === "unknown" ? 401 : 503, {
+      "Content-Type": "application/json",
+    });
+    res.end(
+      JSON.stringify({
+        code:
+          mode === "unknown"
+            ? "AUTHENTICATION_REQUIRED"
+            : "DEVICE_UNAUTHORIZED",
+        message: recoveryReceipt.deviceToken,
+      }),
+    );
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const address = server.address();
+    assert(address && typeof address !== "string");
+    const store = new DeviceStore(directory);
+    await store.save({
+      server: `http://127.0.0.1:${address.port}`,
+      ...recoveryReceipt,
+    });
+    for (mode of ["transport", "unknown", "unavailable"]) {
+      const result = await recoveryCli(directory, ["logout"]);
+      assert.equal(result.status, 1);
+      assert.equal(
+        (await store.load()).deviceToken,
+        recoveryReceipt.deviceToken,
+      );
+      assert(!result.output.includes(recoveryReceipt.deviceToken));
+      assert.doesNotMatch(
+        result.output,
+        /credential revoked|configuration removed/,
+      );
+    }
+  } finally {
+    server.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("logout recovery local-only clears just credentials without contacting the unreachable server", async () => {
+  const { DeviceStore } = await import(moduleUrl.href);
+  const { writeFile } = await import("node:fs/promises");
+  const directory = await mkdtemp(join(tmpdir(), "veriq-logout-local-"));
+  let requests = 0;
+  const server = createServer((req) => {
+    requests++;
+    req.socket.destroy();
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const address = server.address();
+    assert(address && typeof address !== "string");
+    const store = new DeviceStore(directory);
+    await store.save({
+      server: `http://127.0.0.1:${address.port}`,
+      ...recoveryReceipt,
+    });
+    await writeFile(join(directory, "project.json"), "project assets");
+    await writeFile(join(directory, "results.json"), "execution results");
+    const result = await recoveryCli(directory, ["logout", "--local-only"]);
+    assert.equal(result.status, 0, result.output);
+    assert.equal(requests, 0);
+    assert.match(result.output, /Local device credential removed/);
+    assert.match(result.output, /Remote revocation was not attempted/);
+    assert.match(result.output, /Web.*revok|revok.*Web/);
+    assert.match(result.output, /expir/);
+    assert(!result.output.includes(recoveryReceipt.deviceToken));
+    await assert.rejects(store.load(), { code: "ENOENT" });
+    assert.equal(
+      await readFile(join(directory, "project.json"), "utf8"),
+      "project assets",
+    );
+    assert.equal(
+      await readFile(join(directory, "results.json"), "utf8"),
+      "execution results",
+    );
+  } finally {
+    server.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
