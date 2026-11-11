@@ -1,6 +1,6 @@
 # Developing VeriQ
 
-Installation, user accounts, Workspace management and versioned asset APIs are implemented. The current pages provide setup/login/logout, password reset, account/session controls, global user administration, Workspace selection, membership and invitations using actual MySQL records. The deterministic compiler is implemented as a library; the asset editor, production execution SDK, Runtime, reports and desktop client remain under development.
+Installation, user accounts, Workspace management and versioned asset APIs are implemented. The current pages provide setup/login/logout, password reset, account/session controls, global user administration, Workspace selection, membership and invitations using actual MySQL records. The deterministic compiler and Runner SDK core are implemented as libraries; the asset editor, production lifecycle integrations, Runtime, reports and desktop client remain under development.
 
 After signing in, open **Workspaces** to create a project Workspace; its creator becomes OWNER. OWNER/ADMIN can invite members with a copyable link or configured SMTP. Existing accounts sign in within the acceptance page; new invitees create an ordinary account. Invitation tokens are removed from the address bar and retained in page memory, so reopen the original link after a full refresh. Global system administration does not grant project membership.
 
@@ -8,7 +8,7 @@ Workspace members can switch spaces and view their role. OWNER/ADMIN can manage 
 
 Asset API clients can create and revise all eight resource kinds under a Workspace, inspect pinned dependencies and read immutable published versions. Read `validation-preview` before submitting the returned revision/source hash to `validate`. This creates a real queued VALIDATE job; production receipt creation awaits the trusted Runtime integration. No public endpoint fabricates successful validation. Current permission, hash, entrypoint and publication contracts are in [contracts.md](contracts.md).
 
-The compiler validates all eight asset kinds and emits deterministic TypeScript, source context and verified dependency files. Executable compilation requires actual engine distribution bytes. The current offline installation test uses an explicitly nonexecuting fixture SDK; production generated-program execution belongs to the SDK task. See [the compiler contract](contracts.md) and [ADR 0006](decisions/0006-deterministic-compiler-artifacts.md).
+The compiler validates all eight asset kinds and emits deterministic TypeScript, source context and verified dependency files. Executable compilation requires actual engine distribution bytes. The compiler retains its isolated fixture-distribution test; the SDK additionally installs actual SDK/contracts JavaScript and dependency archives offline, typechecks emitted TypeScript and executes it in Chromium. Real authentication/fixture integrations and trusted worker assembly remain later integration tasks. See [the compiler contract](contracts.md) and [ADR 0006](decisions/0006-deterministic-compiler-artifacts.md).
 
 Use the exact toolchain from [contracts.md](contracts.md). Install dependencies from the repository root:
 
@@ -55,12 +55,13 @@ Vite serves `http://127.0.0.1:5173` and proxies `/api` to Tornado on `127.0.0.1:
 
 Available pages are `/setup`, `/login`, `/reset`, `/reset/confirm`, `/account` and `/admin/users`. Passwords require 12–1024 characters. Without SMTP, public reset requests return the same generic response for every email and explain that an administrator supplies the link. Optional real SMTP delivery is configured in the protected file or with `VERIQ_SMTP_HOST`, `VERIQ_SMTP_PORT`, `VERIQ_SMTP_FROM`, `VERIQ_SMTP_USERNAME`, `VERIQ_SMTP_PASSWORD`, `VERIQ_SMTP_SECURITY` (`starttls` by default, or `tls`) and `VERIQ_SMTP_TIMEOUT`. Username/password must be supplied together; production rejects plaintext SMTP. TLS uses certificate verification. Public reset requests acknowledge before account lookup, and configured delivery runs as a tracked background task. A delivery failure logs a safe event, audits failure and revokes that issued token; the public response remains generic and never claims that mail was delivered. Normal server shutdown drains pending deliveries. This is an in-process delivery seam, without a durable queue across a process crash. `delivery.Delivery.send(recipient, subject, body)` can also support T03 invitations. An authorized administrator issues a copyable 30-minute one-time reset link, transmitted only in the authorized response. The URL carries the token in its fragment, which the browser removes on entry; it never enters the URL sent to the server. Password changes/resets, disable, logout and revocation invalidate sessions. The last enabled system administrator cannot be disabled or demoted without another enabled administrator.
 
-Tests require the dedicated operator-supplied MySQL test environment at `.superpowers/sdd/veriq-1/test-env.json` containing `mysql_dsn`. Tests explicitly refuse any database except `veriq_test` and refuse unknown tables; they reset only T02 account tables and `veriq_alembic_version`. Never point this file at existing platform data. Run Python and browser suites sequentially because both own that schema and fixed task ports:
+Tests require the dedicated operator-supplied MySQL test environment at `.superpowers/sdd/veriq-1/test-env.json` containing `mysql_dsn`. Tests explicitly refuse any database except `veriq_test` and refuse unknown tables; they reset only the explicitly allowlisted VeriQ tables and `veriq_alembic_version`. Never point this file at existing platform data. Run Python and browser suites sequentially because both own that schema and fixed task ports:
 
 ```sh
 uv run --project apps/srv pytest -c apps/srv/pyproject.toml apps/srv/tests --cov=veriq_server --cov-config=apps/srv/pyproject.toml --cov-report=term-missing -q
 pnpm test
 pnpm check
+pnpm --filter @veriq/runner-sdk test:coverage
 pnpm --filter @veriq/web check
 pnpm --filter @veriq/web build
 pnpm --filter @veriq/web test:e2e
