@@ -10,7 +10,7 @@ from typing import Any, Protocol
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth.authorization import Permission, WorkspaceScope
-from ..db import Artifact, Attempt, AttemptUpload, User
+from ..db import Artifact, ArtifactPublication, Attempt, AttemptUpload, User
 from ..service import Problem
 from ..settings import Settings
 from .workspace import WorkspaceRepository
@@ -41,6 +41,7 @@ class ArtifactStore(Protocol):
         self, workspace: str, digest: str, size: int, incarnation: str | None = None
     ) -> bytes: ...
     async def delete(self, workspace: str, digest: str, incarnation: str | None = None) -> None: ...
+    async def retire(self, workspace: str, digest: str, incarnation: str | None = None) -> None: ...
 
 
 class FileArtifactStore:
@@ -93,6 +94,25 @@ class FileArtifactStore:
 
     async def delete(self, workspace: str, digest: str, incarnation: str | None = None) -> None:
         await asyncio.to_thread(self._path(workspace, digest, incarnation).unlink, missing_ok=True)
+
+    async def retire(self, workspace: str, digest: str, incarnation: str | None = None) -> None:
+        def barrier() -> None:
+            path = self._path(workspace, digest, incarnation)
+            path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            fd, temporary = tempfile.mkstemp(dir=path.parent, prefix=".retire-")
+            try:
+                with os.fdopen(fd, "wb") as stream:
+                    os.fsync(stream.fileno())
+                os.replace(temporary, path)
+                directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+                try:
+                    os.fsync(directory)
+                finally:
+                    os.close(directory)
+            finally:
+                Path(temporary).unlink(missing_ok=True)
+
+        await asyncio.to_thread(barrier)
 
 
 class S3ArtifactStore:
@@ -164,6 +184,18 @@ class S3ArtifactStore:
             )
         )
 
+    async def retire(self, workspace: str, digest: str, incarnation: str | None = None) -> None:
+        # Keep the key occupied forever: late conditional puts cannot resurrect bytes.
+        await asyncio.to_thread(
+            lambda: self.client.put_object(
+                Bucket=self.bucket,
+                Key=key(workspace, digest, incarnation),
+                Body=b"",
+                ContentType="application/octet-stream",
+                Metadata={"veriq-retired": "true"},
+            )
+        )
+
 
 def artifact_store(settings: Settings, backend: str | None = None) -> ArtifactStore:
     if (backend or settings.artifact_backend) == "FILE":
@@ -204,6 +236,15 @@ class ArtifactService:
         artifact = await self.session.get(Artifact, (scope.workspace_id, upload.sha256))
         if not artifact:
             raise Problem(409, "INVALID_ARTIFACT", "Artifact metadata missing")
-        if upload.expired_at or artifact.expired_at:
+        publication = (
+            await self.session.get(ArtifactPublication, artifact.storage_incarnation)
+            if artifact.storage_incarnation
+            else None
+        )
+        if (
+            upload.expired_at
+            or artifact.expired_at
+            or (publication and publication.state == "RETIRED")
+        ):
             raise Problem(410, "ARTIFACT_EXPIRED", "Evidence retention has expired")
         return upload, artifact

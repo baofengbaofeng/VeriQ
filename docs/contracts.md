@@ -797,3 +797,18 @@ is a requirement, not proof of credential use. If a required captured approval i
 withdrawn, gateNow adds CREDENTIAL_DELIVERY_APPROVAL_REVOKED and blocks without changing
 gateAtExecution/outcome or credential delivery behavior. Older provenance lacking this
 distinction conservatively retains its captured approval requirement.
+
+T12 review correction (migration0009): external publication intents persist per immutable
+incarnation as PENDING/COMMITTED/RETIRED. Retirement replaces the exact private File/S3 key
+with an empty permanent create-only fence; it removes evidence bytes without permitting a
+late writer to recreate them. Empty evidence does not bypass RETIRED authority. Authenticated
+artifacts/expire recovers abandoned pending intents and retries exact retirement I/O outside
+DB transactions. Logical processedCount continues to count expired upload links. These
+private safety keys/journals are excluded from automatic metadata90 GC until a future safe
+writer-retirement protocol exists. No public API or raw path/URL is added.
+
+Dynamic assertion JsonValue objects with credential-bearing member names are wholly
+withheld as [REDACTED], avoiding key collisions; ordinary event protocol keys remain intact.
+Retained compiler archives may omit safeDiagnostics and ReportDisplay metadata; the Runtime
+entry keeps those fields absent while retaining exact compiler/bundle provenance checks.
+First-pass report counts select attemptNo1 explicitly, regardless of UUID ordering.

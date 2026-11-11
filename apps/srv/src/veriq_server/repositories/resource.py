@@ -6,7 +6,6 @@ installation guard before identity/scoped reads and retain it through commit.
 
 from typing import Protocol, cast
 from hashlib import sha256
-from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth.authorization import WorkspaceScope
@@ -15,7 +14,6 @@ from ..db import (
     ResourceDraft,
     ResourceVersion,
     Artifact,
-    ArtifactDeletion,
     Job,
     ValidationReceipt,
 )
@@ -123,14 +121,14 @@ class ResourceRepository:
             # A later source/manifest write pins these exact bytes inline. Raw read ACLs
             # remain tied to AttemptUpload, not the physical storage representation.
             if existing.storage_backend != "INLINE" and existing.expired_at is None:
-                self.session.add(
-                    ArtifactDeletion(
-                        id=str(uuid4()),
-                        workspace_id=self.scope.workspace_id,
-                        sha256=digest,
-                        storage_backend=existing.storage_backend,
-                        storage_incarnation=existing.storage_incarnation,
-                    )
+                from ..services.publication import retire
+
+                await retire(
+                    self.session,
+                    self.scope.workspace_id,
+                    digest,
+                    existing.storage_backend,
+                    existing.storage_incarnation,
                 )
             existing.content = content
             existing.storage_backend = "INLINE"

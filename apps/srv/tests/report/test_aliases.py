@@ -108,14 +108,14 @@ async def test_live_alias_pins_bytes_and_old_delete_cannot_remove_rehydrated_upl
     assert (await c.get(live_path)).content == raw
     await terminal(second, 40)
     deleting, release = asyncio.Event(), asyncio.Event()
-    original = FileArtifactStore.delete
+    original = FileArtifactStore.retire
 
     async def paused(self, *args):
         deleting.set()
         await release.wait()
         return await original(self, *args)
 
-    monkeypatch.setattr(FileArtifactStore, "delete", paused)
+    monkeypatch.setattr(FileArtifactStore, "retire", paused)
     pending = asyncio.create_task(expire())
     try:
         await asyncio.wait_for(deleting.wait(), 10)

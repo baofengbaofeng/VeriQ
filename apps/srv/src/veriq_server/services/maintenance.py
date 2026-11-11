@@ -312,8 +312,11 @@ class MaintenanceService:
                 )
                 count += 1
         elif operation == "artifacts/expire":
-            from ..db import Artifact, ArtifactDeletion, ValidationReceipt
+            from ..db import Artifact, ValidationReceipt
             from .artifact import RAW_KINDS
+            from .publication import recover, retire
+
+            await recover(self.session, workspace_id, limit)
 
             rows = list(
                 (
@@ -429,14 +432,12 @@ class MaintenanceService:
                     artifact.content = None
                     artifact.deleted_at = current
                 else:
-                    self.session.add(
-                        ArtifactDeletion(
-                            id=str(uuid4()),
-                            workspace_id=workspace_id,
-                            sha256=artifact.sha256,
-                            storage_backend=artifact.storage_backend,
-                            storage_incarnation=artifact.storage_incarnation,
-                        )
+                    await retire(
+                        self.session,
+                        workspace_id,
+                        artifact.sha256,
+                        artifact.storage_backend,
+                        artifact.storage_incarnation,
                     )
         elif operation == "capacity/reconcile":
             keys = (

@@ -63,6 +63,7 @@ async def main():
         "veriq_resource_dependencies",
         "veriq_artifacts",
         "veriq_artifact_deletions",
+        "veriq_artifact_publications",
         "veriq_jobs",
         "veriq_validation_receipts",
     }

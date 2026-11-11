@@ -30,7 +30,7 @@ class ExecutionAPI(DeviceAPI):
         offset = self.get_argument("offset", "")
         if not offset.isascii() or not offset.isdecimal() or len(offset) > 10:
             raise Problem(400, "INVALID_OFFSET", "Nonnegative bounded offset required")
-        from ..db import AttemptUpload, Artifact
+        from ..db import AttemptUpload, Artifact, ArtifactPublication
         from uuid import uuid4
         from ..services.artifact import artifact_store, RAW_KINDS, verify
 
@@ -93,6 +93,21 @@ class ExecutionAPI(DeviceAPI):
                     artifact.storage_backend, artifact.storage_incarnation = backend, incarnation
                     artifact.content = None
                     artifact.expired_at = artifact.deleted_at = None
+                if incarnation:
+                    publication = await session.get(ArtifactPublication, incarnation)
+                    if publication and publication.state == "RETIRED":
+                        raise Problem(409, "UPLOAD_CONFLICT", "Artifact publication was retired")
+                    if publication is None:
+                        session.add(
+                            ArtifactPublication(
+                                id=incarnation,
+                                workspace_id=workspace,
+                                sha256=digest,
+                                storage_backend=backend,
+                                upload_id=upload.id,
+                                state="PENDING",
+                            )
+                        )
                 await session.flush()
         external = None
         if complete and backend != "INLINE":
@@ -106,9 +121,14 @@ class ExecutionAPI(DeviceAPI):
             and len(prefix) + len(self.request.body) == size
         ):
             verify(prefix + self.request.body, digest, size)
-            await artifact_store(self.config, backend).put(
-                workspace, digest, prefix + self.request.body, incarnation
-            )
+            try:
+                await artifact_store(self.config, backend).put(
+                    workspace, digest, prefix + self.request.body, incarnation
+                )
+            except ValueError:
+                raise Problem(
+                    409, "UPLOAD_CONFLICT", "Artifact publication is unavailable"
+                ) from None
         async with self.db.sessions.begin() as session:
             await lock_installation(session)
             result = await ContentService(session, self.config).chunk(
@@ -189,7 +209,7 @@ class ExecutionAPI(DeviceAPI):
                         for row in rows
                     ]
                 for deletion_id, workspace, digest, backend, incarnation in deletes:
-                    await artifact_store(self.config, backend).delete(
+                    await artifact_store(self.config, backend).retire(
                         workspace, digest, incarnation
                     )
                     async with self.db.sessions.begin() as session:

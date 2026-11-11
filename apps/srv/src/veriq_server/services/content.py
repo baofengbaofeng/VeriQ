@@ -109,6 +109,13 @@ class ContentService:
                         409, "UPLOAD_HASH_MISMATCH", "Uploaded bytes do not match declared hash"
                     )
                 if staged and staged[2] != "INLINE":
+                    from ..db import ArtifactPublication
+
+                    publication = (
+                        await self.session.get(ArtifactPublication, staged[3])
+                        if staged[3]
+                        else None
+                    )
                     existing = await self.session.get(
                         Artifact, (attempt.workspace_id, upload.sha256)
                     )
@@ -117,10 +124,13 @@ class ContentService:
                         or existing.expired_at
                         or existing.storage_backend != staged[2]
                         or existing.storage_incarnation != staged[3]
+                        or (publication and publication.state == "RETIRED")
                     ):
                         raise Problem(
                             409, "UPLOAD_CONFLICT", "Artifact incarnation changed during staging"
                         )
+                    if publication:
+                        publication.state = "COMMITTED"
                 else:
                     await repo.store(retained, upload.metadata_json["contentType"])
                 upload.complete, upload.content = True, b""

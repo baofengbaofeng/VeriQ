@@ -44,7 +44,7 @@ SENSITIVE = {
 }
 
 
-def redact(value: Any, secrets: set[str]) -> Any:
+def redact(value: Any, secrets: set[str], *, dynamic_keys: bool = True) -> Any:
     protected = sorted(
         {
             v
@@ -64,6 +64,10 @@ def redact(value: Any, secrets: set[str]) -> Any:
         if isinstance(item, list):
             return [visit(v) for v in item]
         if isinstance(item, dict):
+            # Withhold the whole dynamic object: renaming protected keys could merge
+            # distinct members (including an existing literal "[REDACTED]" key).
+            if dynamic_keys and any(secret in k for k in item for secret in protected):
+                return "[REDACTED]"
             if str(item.get("name", "")).lower() in SENSITIVE and "value" in item:
                 item = {**item, "value": "[REDACTED]"}
             return {
@@ -213,7 +217,7 @@ class ReportService:
             "statistics": {
                 "caseCount": len(cases),
                 "firstPassCount": sum(
-                    bool(projected[c.id]) and projected[c.id][0]["outcome"] == "PASSED"
+                    any(a["attemptNo"] == 1 and a["outcome"] == "PASSED" for a in projected[c.id])
                     for c in cases
                 ),
                 "retryPassCount": sum(
@@ -309,7 +313,26 @@ class ReportService:
                     for k, v in payload.items()
                     if k in {"status", "durationMs", "severity", "cleanupStatus", "outcome"}
                 }
-            item = redact({**e, "payload": payload, "valuesAvailable": available}, secrets)
+            elif e["type"] == "ASSERTION_RESULT":
+                payload = {
+                    **payload,
+                    "expected": redact(payload["expected"], secrets),
+                    "actual": {
+                        **payload["actual"],
+                        **(
+                            {"value": redact(payload["actual"]["value"], secrets)}
+                            if "value" in payload["actual"]
+                            else {}
+                        ),
+                    },
+                }
+            # Envelope, event payload and ActualValue keys are protocol-owned. Only
+            # the JsonValue fields above may contain response-selected member names.
+            item = redact(
+                {**e, "payload": payload, "valuesAvailable": available},
+                secrets,
+                dynamic_keys=False,
+            )
             size = len(canonical_bytes(item))
             if items and total_bytes + size > byte_budget:
                 break
@@ -398,7 +421,7 @@ class ReportService:
         result: dict[str, Any] = {
             "display": None,
             "metadataStatus": "ABSENT",
-            "environment": redact(environment, secrets) if available else {},
+            "environment": redact(environment, secrets, dynamic_keys=False) if available else {},
         }
         if not available:
             result["metadataStatus"] = "REDACTED"
@@ -450,7 +473,7 @@ class ReportService:
                 raise Problem(
                     409, "INVALID_REPORT_DISPLAY", "Report labels do not match expected execution"
                 )
-        projected = redact(selected, secrets)
+        projected = redact(selected, secrets, dynamic_keys=False)
         if validate_schema("ReportDisplayV1", {"schemaVersion": "1.0", "cases": [projected]}):
             return {**result, "metadataStatus": "REDACTED"}
         return {**result, "display": projected, "metadataStatus": "AVAILABLE"}

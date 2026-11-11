@@ -1,7 +1,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { createHash } from 'node:crypto';
-import { compileFiles, assembleExecution, analyze, safeDiagnostics } from './engine/compiler/src/index.ts';
+import * as compiler from './engine/compiler/src/index.ts';
 import { canonicalBytes } from '@veriq/contracts';
 const invocation = JSON.parse(await readFile(new URL('./invocation.json', import.meta.url), 'utf8'));
 const root = invocation.work;
@@ -19,9 +19,13 @@ if (invocation.kind === 'CLEANUP')
 else
     try {
         const source = JSON.parse(await readFile(join(root, 'source/asset-snapshot.json'), 'utf8'));
-        diagnostics = safeDiagnostics(analyze(source).issues);
-        if (diagnostics.length) throw new Error("ASSET_VALIDATION_FAILED");
-        const output = compileFiles(source, distribution);
+        // Retained approved engines predate structured diagnostics. Their own
+        // compiler remains authoritative; absent capability means absent details.
+        if (typeof compiler.safeDiagnostics === 'function') {
+            diagnostics = compiler.safeDiagnostics(compiler.analyze(source).issues);
+            if (diagnostics.length) throw new Error("ASSET_VALIDATION_FAILED");
+        }
+        const output = compiler.compileFiles(source, distribution);
         if (invocation.kind === 'VALIDATE') {
             for (const [path, bytes] of Object.entries(output.files)) {
                 await mkdir(dirname(join(root, path)), { recursive: true });
@@ -40,7 +44,7 @@ else
             for (const [path, bytes] of Object.entries(output.files))
                 if (hash(bytes) !== hash(files[path]))
                     throw new Error('COMPILED_PROVENANCE_MISMATCH');
-            assembleExecution(supplied, JSON.parse(await readFile(join(root, 'execution.json'), 'utf8')), files);
+            compiler.assembleExecution(supplied, JSON.parse(await readFile(join(root, 'execution.json'), 'utf8')), files);
             result = { kind: 'READY' };
         }
     }

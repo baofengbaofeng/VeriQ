@@ -234,6 +234,22 @@ class ArtifactDeletion(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DATETIME(fsp=6))
 
 
+class ArtifactPublication(Base):
+    """Durable immutable incarnation intent; RETIRED is irreversible."""
+
+    __tablename__ = "veriq_artifact_publications"
+    __table_args__ = (
+        Index("ix_artifact_publication_pending", "workspace_id", "state", "id"),
+        CheckConstraint("state IN ('PENDING','COMMITTED','RETIRED')", name="ck_publication_state"),
+    )
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_workspaces.id"))
+    sha256: Mapped[str] = mapped_column(hash_type)
+    storage_backend: Mapped[str] = mapped_column(String(16))
+    upload_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_attempt_uploads.id"))
+    state: Mapped[str] = mapped_column(String(16), default="PENDING")
+
+
 class Job(Base):
     """Single shared Runtime queue. T09 adds claims/leases/capacity."""
 

@@ -104,3 +104,44 @@ Current gates also block withdrawal of captured credential-delivery approval whe
 execution pins require delivery. Activation captures that authoritative requirement; no
 claim of actual credential use is inferred. Legacy provenance without the distinction is
 conservative. This projection policy does not alter delivery grants or historical outcomes.
+
+Independent review R1 exposed publication after a previously completed deletion. The
+coordinator approved migration0009 and a durable per-incarnation publication journal:
+PENDING becomes COMMITTED only in the existing fenced upload transaction; RETIRED is
+irreversible. Source promotion retires the exact prior incarnation. Authenticated bounded
+maintenance recovers pending publications from durable reference/lease/fence facts. An
+active current alias keeps its pending bytes; a complete live alias reconciles COMMITTED.
+Superseded or abandoned incarnations retire even if the original request never returned.
+Lease expiry authorizes retirement but is never treated as proof that external I/O stopped.
+
+Retirement now atomically replaces the private File key with an fsynced empty file, or
+writes an empty S3 object at the same key. Every publication remains create-only (os.link /
+IfNoneMatch=*), so a late writer cannot overwrite this fence. The old evidence/credential
+bytes are removed; the empty object is persistent safety metadata, not retained evidence.
+Even an originally zero-byte object is denied by the durable RETIRED state. The publication
+journal and deletion acknowledgment expose internal pending/retired/completed state;
+maintenance processedCount still counts logical upload expirations, not safety markers.
+Migration0009 requeues previous deletion acknowledgments once to install these barriers.
+Its downgrade refuses to discard a nonempty publication journal. New UUID rehydration,
+inline source promotion and permanent logical expiry retain their existing behavior.
+
+Cost: one minimal empty storage key and journal/deletion metadata remain per retired
+incarnation. T21's metadata90 policy must not blindly delete these safety fences: their GC
+requires a future protocol proving no old create-only writer can publish, not a timeout.
+No raw key/URL becomes public and no internal maintenance timer is introduced. Real File
+and loopback Moto tests cover publication paused before source promotion, maintenance,
+then resume, and persisted interruption before/after put followed by a late put attempt.
+
+R2 protects dynamic assertion JsonValue member names as well as values (exact/URL/base64,
+including revoked frozen pins). A protected dynamic key withholds its entire containing
+object as [REDACTED], preventing key collisions and silent merges. Protocol envelope,
+ActualValue and compiler display keys retain their schema-owned shape. The unchanged SDK
+member-key redaction seam remains mandatory T14 work before offline T15 acceptance.
+
+R3 keeps the Runtime entry compatible with operator-approved retained compiler archives:
+it imports the namespace and uses safeDiagnostics only when the selected compiler exports
+that capability. Older engines retain honest absent diagnostics/display; their own compiler
+and unchanged bundle/file hash comparison still decide validity. The regression reconstructs
+actual BASE10379f0 compiler/SDK/contracts sources, exact dependency archives/lock/inventory,
+and runs both VALIDATE and TEST assembly plus changed-bundle rejection through the entry.
+R4 derives firstPassCount from attemptNo==1, independently of UUID query ordering.
