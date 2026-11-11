@@ -7,6 +7,7 @@ import {
   useValue,
   useSet,
   type VersionOption,
+  type PageReferenceScope,
 } from "../resources/fields";
 const assertionTypes = [
   "ui",
@@ -21,6 +22,16 @@ const assertionTypes = [
   "requestCount",
   "template",
 ];
+const networkAssertionTypes = new Set([
+  "request",
+  "httpStatus",
+  "requestField",
+  "responseField",
+  "responseSchema",
+  "duration",
+  "requestCount",
+]);
+type AssertionPhase = "BEFORE" | "AFTER" | "TEMPLATE";
 const operators: Record<string, string[]> = {
   ui: [
     "visible",
@@ -92,24 +103,39 @@ export function AssertionEditor({
   network,
   versions,
   pageKeys = [],
+  phase = "TEMPLATE",
+  scope,
 }: {
   name: string;
   title: string;
   network?: string[];
   versions: VersionOption[];
   pageKeys?: string[];
+  phase?: AssertionPhase;
+  scope: PageReferenceScope;
 }) {
   return (
-    <List name={name} title={title} initial={newAssertion}>
-      {(path) => (
-        <AssertionFields
-          path={path}
-          network={network}
-          versions={versions}
-          pageKeys={pageKeys}
-        />
+    <>
+      {phase === "BEFORE" && (
+        <p data-testid={`${name}.phase`}>
+          前置断言先于本步骤监听器安装；网络响应、计数与耗时断言应放在后置阶段。模板同样受调用阶段约束。
+          / BEFORE runs before step observers are armed; network assertions
+          belong AFTER. Templates inherit the calling phase.
+        </p>
       )}
-    </List>
+      <List name={name} title={title} initial={newAssertion}>
+        {(path) => (
+          <AssertionFields
+            path={path}
+            network={network}
+            versions={versions}
+            pageKeys={pageKeys}
+            phase={phase}
+            scope={scope}
+          />
+        )}
+      </List>
+    </>
   );
 }
 function AssertionFields({
@@ -117,24 +143,31 @@ function AssertionFields({
   network,
   versions,
   pageKeys,
+  phase,
+  scope,
 }: {
   path: string;
   network?: string[];
   versions: VersionOption[];
   pageKeys: string[];
+  phase: AssertionPhase;
+  scope: PageReferenceScope;
 }) {
   const a = useValue<AssertionV1>(path),
     set = useSet();
   if (!a) return null;
   const type = a.type,
     operator = "operator" in a ? a.operator : "";
+  const offeredTypes = assertionTypes.filter(
+    (type) => phase !== "BEFORE" || !networkAssertionTypes.has(type),
+  );
   const setType = (type: string) =>
     set(path, {
       id: a.id,
       severity: a.severity,
       expectedSource: a.expectedSource,
       ...(a.timeoutMs === undefined ? {} : { timeoutMs: a.timeoutMs }),
-      ...defaults(type, network ?? []),
+      ...defaults(type, phase === "BEFORE" ? [] : (network ?? [])),
     });
   const number =
     ["httpStatus", "requestCount", "duration"].includes(type) ||
@@ -157,7 +190,12 @@ function AssertionFields({
           value={type}
           onChange={(e) => setType(e.target.value)}
         >
-          {assertionTypes.map((t) => (
+          {!offeredTypes.includes(type) && (
+            <option value={type} disabled>
+              {type} · 不适用于前置阶段 / Not available BEFORE
+            </option>
+          )}
+          {offeredTypes.map((t) => (
             <option key={t}>{t}</option>
           ))}
         </select>
@@ -236,9 +274,14 @@ function AssertionFields({
             <Field
               name={`${path}.pageKey`}
               label="页面 / Page (省略=原始页面 / original)"
-              options={pageKeys}
+              options={scope === "CASE" ? pageKeys : undefined}
+              showUnlistedValue={scope === "CASE"}
               optional
-              hint="仅显式选择；公共流程内部新页面不泄漏到调用方 / Explicit lexical page scope"
+              hint={
+                scope === "CASE"
+                  ? "仅显式选择；公共流程内部新页面不泄漏到调用方 / Explicit lexical page scope"
+                  : "可填写调用方页面 key；实际调用时验证作用域，省略仍为原始页面。 / Symbolic caller page key; checked at the calling case. Omission means original page."
+              }
             />
           )}
           {!["ui", "url", "eventually"].includes(type) && (

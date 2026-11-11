@@ -4,6 +4,16 @@ import { mkdtemp, readFile, rm, readdir, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { test, expect } from "@playwright/test";
+import type { ResourceDocumentV1 } from "@veriq/contracts";
+import {
+  editorScope,
+  createResource,
+  saveDraft,
+  applyDocument,
+  managedCompiler,
+  queueValidation,
+  replaceEditorJson,
+} from "./editor-fixture";
 test.beforeEach(async ({ page }) => {
   const state = (await (await page.request.get("/api/v1/setup")).json()).data;
   if (!state.initialized)
@@ -398,9 +408,12 @@ test("all eight kinds expose usable typed controls and preserve literal business
       await page
         .getByTestId("content.document.steps.0.afterAssertions.add")
         .click();
-      await page
-        .getByTestId("content.document.steps.0.afterAssertions.0.pageKey")
-        .selectOption("detail");
+      const assertionPage = page.getByTestId(
+        "content.document.steps.0.afterAssertions.0.pageKey",
+      );
+      if (kind === "FLOW") await assertionPage.fill("detail");
+      else await assertionPage.selectOption("detail");
+      await expect(assertionPage).toHaveValue("detail");
       await page
         .getByTestId("content.document.steps.0.afterAssertions.0.type")
         .selectOption("eventually");
@@ -594,9 +607,7 @@ test("JSON Apply is lossless, blocks unapplied writes, and revision recovery ret
   };
   await page.getByTestId("resource-json-tab").click();
   const replaceJson = async (text: string) => {
-    await page.getByTestId("resource-json").locator(".view-lines").click();
-    await page.keyboard.press("Control+A");
-    await page.keyboard.insertText(text);
+    await replaceEditorJson(page, text);
   };
   await replaceJson(JSON.stringify(source, null, 2));
   await expect(page.getByTestId("resource-json-pending")).toBeVisible();
@@ -745,4 +756,400 @@ test("fixture binding picker exposes declared initial variables without future o
       exact: true,
     }),
   ).toHaveValue("{{vars.initialAnswer}}");
+});
+
+test("T11-R1 schema add/remove/add preserves existing property constraints", async ({
+  page,
+}) => {
+  await editorScope(page, "fix1-schema");
+  await createResource(page, "FIXTURE", "schema-survivor");
+  const section = page
+    .getByRole("heading", { name: "输入 Schema / Input schema", exact: true })
+    .locator("..");
+  await section
+    .getByRole("button", {
+      name: "添加 Schema 字段 / Add schema property",
+      exact: true,
+    })
+    .click();
+  await section
+    .getByRole("button", {
+      name: "添加 Schema 字段 / Add schema property",
+      exact: true,
+    })
+    .click();
+  await page
+    .getByRole("combobox", {
+      name: "输入 Schema / Input schema.field_2 type",
+      exact: true,
+    })
+    .selectOption("integer");
+  const initial = await saveDraft(page);
+  if (initial.content.kind !== "FIXTURE") throw new Error("Expected fixture");
+  const surviving = {
+    type: "integer",
+    minimum: 7,
+    maximum: 31,
+    description: "Keep this contract",
+  };
+  await applyDocument(page, {
+    ...initial.content,
+    document: {
+      ...initial.content.document,
+      inputSchema: {
+        type: "object",
+        properties: { field_1: { type: "string" }, field_2: surviving },
+        required: ["field_2"],
+      },
+    },
+  });
+  const first = page
+    .getByRole("textbox", {
+      name: "输入 Schema / Input schema property field_1",
+      exact: true,
+    })
+    .locator("..")
+    .locator("..");
+  await first
+    .getByRole("button", { name: "删除 / Remove", exact: true })
+    .click();
+  await section
+    .getByRole("button", {
+      name: "添加 Schema 字段 / Add schema property",
+      exact: true,
+    })
+    .click();
+  const saved = await saveDraft(page);
+  if (saved.content.kind !== "FIXTURE") throw new Error("Expected fixture");
+  expect(saved.content.document.inputSchema).toMatchObject({
+    type: "object",
+    properties: { field_2: surviving },
+    required: ["field_2"],
+  });
+  expect(
+    Object.keys(saved.content.document.inputSchema.properties as object),
+  ).toHaveLength(2);
+});
+
+test("T11-R2 BEFORE and AFTER observer choices match actual compiler phases", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  const scope = await editorScope(page, "fix1-phases");
+  const compiler = await managedCompiler(page, scope);
+  try {
+    await createResource(page, "ELEMENT_CATALOG", "phase-catalog");
+    await saveDraft(page);
+    const catalog = await compiler.publish();
+    await createResource(page, "CASE", "phase-case");
+    await page
+      .getByTestId("content.document.catalogVersionId")
+      .selectOption(catalog.id);
+    await page
+      .getByTestId("content.document.steps.0.action")
+      .selectOption("apiRequest");
+    await page.getByTestId("content.document.steps.0.path").fill("/status");
+    await page.getByTestId("content.document.steps.0.observers.add").click();
+    await page
+      .getByTestId("content.document.steps.0.observers.0.id")
+      .fill("save");
+    await page
+      .getByTestId("content.document.steps.0.observers.0.path")
+      .fill("/status");
+    await page
+      .getByTestId("content.document.steps.0.beforeAssertions.add")
+      .click();
+    const before = page.getByTestId(
+      "content.document.steps.0.beforeAssertions.0.type",
+    );
+    const types = await before
+      .locator("option")
+      .evaluateAll((options) =>
+        options.map((option) => (option as HTMLOptionElement).value),
+      );
+    expect(types).not.toContain("httpStatus");
+    expect(types).not.toContain("responseField");
+    expect(types).not.toContain("requestCount");
+    await before.selectOption("url");
+    await page
+      .getByTestId("content.document.steps.0.afterAssertions.add")
+      .click();
+    await page
+      .getByTestId("content.document.steps.0.afterAssertions.0.type")
+      .selectOption("httpStatus");
+    await expect(
+      page
+        .getByTestId("content.document.steps.0.afterAssertions.0.source")
+        .locator("option"),
+    ).toHaveText(["response:save"]);
+    await page
+      .getByTestId("content.document.steps.0.afterAssertions.0.source")
+      .selectOption("response:save");
+    await saveDraft(page);
+    const version = await compiler.publish();
+    expect(version.content.kind).toBe("CASE");
+  } finally {
+    await compiler.close();
+  }
+});
+
+test("T11-R3 reusable flow/template page keys round-trip and resolve only in caller scope", async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  const scope = await editorScope(page, "fix1-pages");
+  const compiler = await managedCompiler(page, scope);
+  try {
+    await createResource(page, "ELEMENT_CATALOG", "page-catalog");
+    await saveDraft(page);
+    const catalog = await compiler.publish();
+    await createResource(page, "FLOW", "caller-flow");
+    await page
+      .getByTestId("content.document.steps.0.action")
+      .selectOption("click");
+    await page.getByTestId("content.document.steps.0.pageKey").fill("detail");
+    const flowSource: ResourceDocumentV1 = {
+      kind: "FLOW",
+      document: {
+        schemaVersion: "1.0",
+        steps: [
+          { id: "caller", action: "click", target: "name", pageKey: "detail" },
+          {
+            id: "capture",
+            action: "click",
+            target: "name",
+            pageKey: "detail",
+            observers: [{ id: "local", kind: "newPage", pageKey: "inside" }],
+          },
+          {
+            id: "local-child",
+            action: "click",
+            target: "name",
+            pageKey: "inside",
+          },
+        ],
+      },
+    };
+    await applyDocument(page, flowSource);
+    await expect(
+      page.getByTestId("content.document.steps.0.pageKey"),
+    ).toHaveValue("detail");
+    const flowDraft = await saveDraft(page);
+    expect(flowDraft.content).toEqual(flowSource);
+    const flow = await compiler.publish();
+    await createResource(page, "ASSERTION_TEMPLATE", "caller-template");
+    await page
+      .getByTestId("content.document.assertions.0.pageKey")
+      .fill("detail");
+    const templateSource: ResourceDocumentV1 = {
+      kind: "ASSERTION_TEMPLATE",
+      document: {
+        schemaVersion: "1.0",
+        assertions: [
+          {
+            id: "visible",
+            type: "ui",
+            target: "name",
+            pageKey: "detail",
+            operator: "visible",
+            expected: true,
+            severity: "BLOCK",
+            expectedSource: "REQ caller page",
+          },
+        ],
+      },
+    };
+    await applyDocument(page, templateSource);
+    await expect(
+      page.getByTestId("content.document.assertions.0.pageKey"),
+    ).toHaveValue("detail");
+    expect((await saveDraft(page)).content).toEqual(templateSource);
+    const template = await compiler.publish();
+    await createResource(page, "CASE", "caller-case");
+    const callerSource: ResourceDocumentV1 = {
+      kind: "CASE",
+      document: {
+        schemaVersion: "1.0",
+        caseKey: "caller-case",
+        title: "Caller pages",
+        kind: "READ",
+        roleKey: "reader",
+        catalogVersionId: catalog.id,
+        steps: [
+          {
+            id: "capture",
+            action: "click",
+            target: "name",
+            observers: [{ id: "popup", kind: "newPage", pageKey: "detail" }],
+          },
+          {
+            id: "flow",
+            action: "callFlow",
+            versionId: flow.id,
+            afterAssertions: [
+              {
+                id: "template",
+                type: "template",
+                versionId: template.id,
+                severity: "BLOCK",
+                expectedSource: "REQ caller scope",
+              },
+            ],
+          },
+          {
+            id: "after-flow",
+            action: "click",
+            target: "name",
+            pageKey: "detail",
+          },
+        ],
+      },
+    };
+    await applyDocument(page, callerSource);
+    const callerPages = page.getByTestId("content.document.steps.2.pageKey");
+    await expect(callerPages).toHaveValue("detail");
+    expect(
+      await callerPages
+        .locator("option")
+        .evaluateAll((options) =>
+          options.map((option) => (option as HTMLOptionElement).value),
+        ),
+    ).toEqual(["", "detail"]);
+    expect((await saveDraft(page)).content).toEqual(callerSource);
+    await compiler.publish();
+    // Imported unresolved references remain visible rather than masquerading as the original page.
+    const invalid: ResourceDocumentV1 = {
+      ...callerSource,
+      document: {
+        ...callerSource.document,
+        steps: [
+          ...callerSource.document.steps.slice(0, 2),
+          {
+            id: "after-flow",
+            action: "click",
+            target: "name",
+            pageKey: "inside",
+          },
+        ],
+      },
+    };
+    await applyDocument(page, invalid);
+    await expect(
+      page.getByTestId("content.document.steps.2.pageKey"),
+    ).toHaveValue("inside");
+    await expect(
+      page
+        .getByTestId("content.document.steps.2.pageKey")
+        .locator("option:checked"),
+    ).toContainText("inside");
+    await saveDraft(page);
+    const failed = await queueValidation(page);
+    await compiler.compile();
+    await expect
+      .poll(
+        async () =>
+          (
+            await (
+              await page.request.get(
+                `/api/v1/workspaces/${scope.workspaceId}/jobs/${failed.id}`,
+              )
+            ).json()
+          ).data.outcome,
+      )
+      .toBe("ERROR");
+    expect(
+      (
+        await page.request.get(
+          `/api/v1/workspaces/${scope.workspaceId}/jobs/${failed.id}/validation-receipt`,
+        )
+      ).status(),
+    ).toBe(409);
+    await expect(page.getByTestId("case.publish")).toBeDisabled();
+  } finally {
+    await compiler.close();
+  }
+});
+
+test("T11-R4 delayed real J1 receipt cannot validate a saved candidate or queued J2", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  const scope = await editorScope(page, "fix1-receipt");
+  const compiler = await managedCompiler(page, scope);
+  let release!: () => void;
+  let held!: () => void;
+  let delivered!: () => void;
+  const holding = new Promise<void>((resolve) => (held = resolve)),
+    delivery = new Promise<void>((resolve) => (delivered = resolve)),
+    released = new Promise<void>((resolve) => (release = resolve));
+  let heldJob = "";
+  const receiptPath = `**/api/v1/workspaces/${scope.workspaceId}/jobs/*/validation-receipt`;
+  await page.route(receiptPath, async (route) => {
+    if (!route.request().url().includes(`/jobs/${heldJob}/`))
+      return route.continue();
+    const response = await route.fetch();
+    expect(response.status()).toBe(200);
+    held();
+    await released;
+    if (route.request().failure()) await response.dispose();
+    else await route.fulfill({ response });
+    delivered();
+  });
+  try {
+    await createResource(page, "ELEMENT_CATALOG", "receipt-catalog");
+    const firstDraft = await saveDraft(page);
+    const j1 = await queueValidation(page);
+    heldJob = j1.id;
+    await compiler.compile();
+    await holding;
+    await page
+      .getByTestId("content.document.elements.0.locator.value")
+      .fill("next-revision");
+    const next = await saveDraft(page);
+    expect(next.revision).toBe(firstDraft.revision + 1);
+    const j2 = await queueValidation(page);
+    expect(j2.id).not.toBe(j1.id);
+    release();
+    await delivery;
+    // The next real J2 status poll gives the old request's callbacks a complete browser/render turn.
+    await page.waitForResponse((response) =>
+      response.url().endsWith(`/jobs/${j2.id}`),
+    );
+    await expect(page.getByTestId("case.validation-receipt")).toHaveCount(0);
+    await expect(page.getByTestId("case.publish")).toBeDisabled();
+    await page.unroute(receiptPath);
+    await compiler.compile();
+    await expect(page.getByTestId("case.validation-receipt")).toBeVisible({
+      timeout: 20_000,
+    });
+    const receipt = (
+      await (
+        await page.request.get(
+          `/api/v1/workspaces/${scope.workspaceId}/jobs/${j2.id}/validation-receipt`,
+        )
+      ).json()
+    ).data;
+    expect(receipt.revision).toBe(next.revision);
+    await expect(page.getByTestId("case.validation-receipt")).toContainText(
+      receipt.id,
+    );
+    await expect(page.getByTestId("case.publish")).toBeEnabled();
+    if (next.content.kind !== "ELEMENT_CATALOG")
+      throw new Error("Expected catalog");
+    await applyDocument(page, {
+      ...next.content,
+      document: {
+        ...next.content.document,
+        elements: [
+          { key: "name", locator: { by: "testId", value: "applied-only" } },
+        ],
+      },
+    });
+    await expect(page.getByTestId("case.validation-receipt")).toHaveCount(0);
+    await expect(page.getByTestId("case.publish")).toBeDisabled();
+  } finally {
+    release?.();
+    await page.unroute(receiptPath);
+    await compiler.close();
+  }
 });

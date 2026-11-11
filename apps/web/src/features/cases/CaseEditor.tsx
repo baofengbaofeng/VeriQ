@@ -148,6 +148,7 @@ export function CaseEditor({
             path={path}
             versions={versions}
             preceding={steps.slice(0, index)}
+            scope={flow ? "FLOW" : "CASE"}
           />
         )}
       </List>
@@ -158,10 +159,12 @@ function StepFields({
   path,
   versions,
   preceding,
+  scope,
 }: {
   path: string;
   versions: VersionOption[];
   preceding: StepV1[];
+  scope: "CASE" | "FLOW";
 }) {
   const step = useValue<StepV1>(path),
     set = useSet();
@@ -231,9 +234,14 @@ function StepFields({
       <Field
         name={`${path}.pageKey`}
         label="动作页面 / Action page"
-        options={inheritedPages}
+        options={scope === "CASE" ? inheritedPages : undefined}
+        showUnlistedValue={scope === "CASE"}
         optional
-        hint="省略=原始页面；本步骤捕获的新页面只供之后的断言和步骤使用 / Omitted means original page; new pages become available after capture."
+        hint={
+          scope === "FLOW"
+            ? "可填写调用方或流程内先前捕获的页面 key；实际调用时检查词法作用域。流程内部页面不会泄漏给调用方。 / Caller or preceding flow page key; resolved in the calling case. Flow-local pages do not escape."
+            : "省略=原始页面；本步骤捕获的新页面只供之后的断言和步骤使用 / Omitted means original page; new pages become available after capture."
+        }
       />
       {["goto", "apiRequest"].includes(step.action) && (
         <Field name={`${path}.path`} label="相对路径 / Origin-relative path" />
@@ -307,7 +315,9 @@ function StepFields({
       <AssertionEditor
         name={`${path}.beforeAssertions`}
         title="前置断言 / Before assertions"
-        network={network}
+        phase="BEFORE"
+        scope={scope}
+        network={[]}
         versions={versions}
         pageKeys={inheritedPages}
       />
@@ -357,6 +367,8 @@ function StepFields({
       <AssertionEditor
         name={`${path}.afterAssertions`}
         title="后置断言 / After assertions"
+        phase="AFTER"
+        scope={scope}
         network={network}
         versions={versions}
         pageKeys={afterPages}

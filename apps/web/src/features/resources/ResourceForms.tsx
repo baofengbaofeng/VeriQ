@@ -141,6 +141,8 @@ export function ResourceForms({
         <AssertionEditor
           name="content.document.assertions"
           title="断言 / Assertions"
+          scope="ASSERTION_TEMPLATE"
+          phase="TEMPLATE"
           versions={versions}
         />
       </>
@@ -393,7 +395,9 @@ function SchemaFields({ path, label }: { path: string; label: string }) {
       : {};
   const required = Array.isArray(schema.required) ? schema.required : [];
   const add = () => {
-    const name = "field_" + (Object.keys(properties).length + 1);
+    let index = 1;
+    while (Object.hasOwn(properties, "field_" + index)) index++;
+    const name = "field_" + index;
     set(path, {
       ...schema,
       type: "object",

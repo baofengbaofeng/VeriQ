@@ -30,6 +30,7 @@ import { useEditorTranslationOptions } from "./i18n";
 export type EditorValues = {
   content: { kind: ResourceKind; document: object };
 };
+export type PageReferenceScope = "CASE" | "FLOW" | "ASSERTION_TEMPLATE";
 export const types = [
   "string",
   "number",
@@ -68,6 +69,7 @@ export function Field({
   hint,
   check,
   password,
+  showUnlistedValue = false,
 }: {
   name: string;
   label: string;
@@ -78,6 +80,7 @@ export function Field({
   hint?: string;
   check?: boolean;
   password?: boolean;
+  showUnlistedValue?: boolean;
 }) {
   const { control } = useFormContext<EditorValues>();
   return (
@@ -111,6 +114,15 @@ export function Field({
               data-testid={testId ?? name}
             >
               {optional && <option value="">—</option>}
+              {showUnlistedValue &&
+                typeof field.value === "string" &&
+                field.value &&
+                !options.includes(field.value) && (
+                  <option value={field.value} disabled>
+                    {field.value} · 未在当前作用域声明 / Not declared in this
+                    scope
+                  </option>
+                )}
               {options.map((o) => (
                 <option key={o} value={o}>
                   {o}

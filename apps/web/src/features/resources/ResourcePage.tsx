@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 import {
   useInfiniteQuery,
@@ -39,6 +39,25 @@ import type { EditorValues, VersionOption } from "./fields";
 import "./resources.css";
 const clean = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const pretty = (value: unknown) => JSON.stringify(value, null, 2);
+type ValidationCandidate = Pick<
+  Receipt,
+  | "workspaceId"
+  | "resourceId"
+  | "jobId"
+  | "revision"
+  | "sourceHash"
+  | "engineVersion"
+> & { documentHash: string; generation: number };
+const receiptMatchesCandidate = (
+  receipt: Receipt,
+  candidate: ValidationCandidate,
+) =>
+  receipt.workspaceId === candidate.workspaceId &&
+  receipt.resourceId === candidate.resourceId &&
+  receipt.jobId === candidate.jobId &&
+  receipt.revision === candidate.revision &&
+  receipt.sourceHash === candidate.sourceHash &&
+  receipt.engineVersion === candidate.engineVersion;
 const schemas: Record<ResourceKind, string> = {
   CASE: "CaseDslV1",
   ELEMENT_CATALOG: "ElementCatalogV1",
@@ -453,16 +472,44 @@ export function ResourceEditorView({
     [status, setStatus] = useState(""),
     [busy, setBusy] = useState(false),
     [conflict, setConflict] = useState<Draft | null>(null),
-    [jobId, setJobId] = useState(""),
+    [validation, setValidation] = useState<ValidationCandidate | null>(null),
     [receipt, setReceipt] = useState<Receipt | null>(null),
     [published, setPublished] = useState<Version | null>(null),
     [rename, setRename] = useState(resource.name);
+  const validationGeneration = useRef(0),
+    receiptRequest = useRef<AbortController | null>(null);
+  const invalidateValidation = () => {
+    const generation = ++validationGeneration.current;
+    receiptRequest.current?.abort();
+    receiptRequest.current = null;
+    setValidation(null);
+    setReceipt(null);
+    setStatus("");
+    return generation;
+  };
   const jsonDirty = buffer !== jsonBaseline,
     dirty = serialized !== pretty(saved.content),
     writable =
       !adapter.readOnly &&
       resource.status !== "ARCHIVED" &&
       editableRole(workspace, resource.kind);
+  const jobId = validation?.jobId ?? "";
+  const candidateIsCurrent =
+    !!validation &&
+    validation.generation === validationGeneration.current &&
+    validation.workspaceId === workspace.id &&
+    validation.resourceId === resource.id &&
+    validation.revision === saved.revision &&
+    validation.documentHash === saved.documentHash &&
+    !dirty &&
+    !jsonDirty;
+  const currentReceipt =
+    receipt &&
+    validation &&
+    candidateIsCurrent &&
+    receiptMatchesCandidate(receipt, validation)
+      ? receipt
+      : null;
   const issues = validateSchema(schemas[resource.kind], content.document);
   const allVersions = useQuery({
     queryKey: ["workspace", workspace.id, "reference-versions"],
@@ -502,19 +549,56 @@ export function ResourceEditorView({
       query.state.data?.state === "FINISHED" ? false : 1000,
   });
   useEffect(() => {
-    if (job.data?.state !== "FINISHED" || job.data.outcome !== "PASSED") return;
+    if (
+      !validation ||
+      !candidateIsCurrent ||
+      job.data?.id !== validation.jobId ||
+      job.data?.state !== "FINISHED" ||
+      job.data.outcome !== "PASSED"
+    )
+      return;
+    const controller = new AbortController(),
+      receiptSignal = AbortSignal.any([signal, controller.signal]);
+    const generation = validation.generation;
+    let active = true;
+    receiptRequest.current = controller;
     void adapter
-      .receipt(jobId, signal)
+      .receipt(validation.jobId, receiptSignal)
       .then((r) => {
-        if (!signal.aborted) {
-          setReceipt(r);
-          setStatus(t("success"));
-        }
+        if (
+          !active ||
+          receiptSignal.aborted ||
+          validationGeneration.current !== generation
+        )
+          return;
+        if (!receiptMatchesCandidate(r, validation))
+          throw new Error("VALIDATION_RECEIPT_MISMATCH");
+        setReceipt(r);
+        setStatus(t("success"));
       })
       .catch((e) => {
-        if (!signal.aborted) setError(e);
+        if (
+          active &&
+          !receiptSignal.aborted &&
+          validationGeneration.current === generation
+        )
+          setError(e);
       });
-  }, [job.data?.state, job.data?.outcome, jobId]);
+    return () => {
+      active = false;
+      controller.abort();
+      if (receiptRequest.current === controller) receiptRequest.current = null;
+    };
+  }, [
+    job.data?.id,
+    job.data?.state,
+    job.data?.outcome,
+    validation,
+    candidateIsCurrent,
+    signal,
+    adapter,
+    t,
+  ]);
   const run = (action: () => Promise<void>) => {
     setBusy(true);
     setError(null);
@@ -550,12 +634,11 @@ export function ResourceEditorView({
     setJsonBaseline(serialized);
   };
   const restore = (remote: Draft) => {
+    invalidateValidation();
     form.reset({ content: clean(remote.content) });
     setSaved(remote);
     setBuffer(pretty(remote.content));
     setJsonBaseline(pretty(remote.content));
-    setReceipt(null);
-    setJobId("");
     setConflict(null);
   };
   return (
@@ -614,10 +697,9 @@ export function ResourceEditorView({
           <Button
             data-testid="resource-rebase"
             onClick={() => {
+              invalidateValidation();
               setSaved(conflict);
               setConflict(null);
-              setReceipt(null);
-              setJobId("");
             }}
           >
             {t("keep")}
@@ -677,10 +759,9 @@ export function ResourceEditorView({
                         );
                       if ((next as ResourceDocumentV1).kind !== resource.kind)
                         throw new Error("RESOURCE_KIND_IMMUTABLE");
+                      invalidateValidation();
                       form.reset({ content: next as ResourceDocumentV1 });
                       setJsonBaseline(buffer);
-                      setReceipt(null);
-                      setJobId("");
                       setError(null);
                     } catch (e) {
                       setError(e as Error);
@@ -704,6 +785,7 @@ export function ResourceEditorView({
           onClick={() =>
             run(async () => {
               guard();
+              invalidateValidation();
               const draft = await adapter.save(
                 resource.id,
                 { revision: saved.revision, content },
@@ -711,8 +793,6 @@ export function ResourceEditorView({
               );
               signal.throwIfAborted();
               setSaved(draft);
-              setReceipt(null);
-              setJobId("");
               setStatus(t("saved"));
               await refresh();
             })
@@ -726,6 +806,7 @@ export function ResourceEditorView({
           onClick={() =>
             run(async () => {
               guard(true);
+              const generation = invalidateValidation();
               const preview = await adapter.preview(resource.id, signal);
               signal.throwIfAborted();
               if (
@@ -744,8 +825,17 @@ export function ResourceEditorView({
                 signal,
               );
               signal.throwIfAborted();
-              setJobId(queued.id);
-              setReceipt(null);
+              if (validationGeneration.current !== generation) return;
+              setValidation({
+                workspaceId: workspace.id,
+                resourceId: resource.id,
+                jobId: queued.id,
+                revision: preview.revision,
+                documentHash: preview.documentHash,
+                sourceHash: preview.sourceHash,
+                engineVersion: preview.engineVersion,
+                generation,
+              });
               setStatus(t("queued"));
             })
           }
@@ -758,15 +848,18 @@ export function ResourceEditorView({
             !writable ||
             busy ||
             !["OWNER", "ADMIN"].includes(workspace.role) ||
-            !receipt
+            !currentReceipt
           }
           onClick={() =>
             run(async () => {
               guard(true);
-              if (!receipt) throw new Error("VALIDATION_NOT_COMPLETED");
+              if (!currentReceipt) throw new Error("VALIDATION_NOT_COMPLETED");
               const version = await adapter.publish(
                 resource.id,
-                { revision: saved.revision, validationReceiptId: receipt.id },
+                {
+                  revision: saved.revision,
+                  validationReceiptId: currentReceipt.id,
+                },
                 signal,
               );
               signal.throwIfAborted();
@@ -784,7 +877,7 @@ export function ResourceEditorView({
           {t("publish")}
         </Button>
       </div>
-      {job.data && <ValidationState job={job.data} receipt={receipt} />}
+      {job.data && <ValidationState job={job.data} receipt={currentReceipt} />}
       {job.error && (
         <ErrorState error={job.error} retry={() => void job.refetch()} />
       )}
