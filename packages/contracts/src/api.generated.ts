@@ -1528,18 +1528,7 @@ export interface components {
             mode: "FIXED";
             durationMs: components["schemas"]["Timeout"];
         };
-        ObserverV1: {
-            id: components["schemas"]["Key"];
-            method: components["schemas"]["HttpMethod"];
-            path: components["schemas"]["Path"];
-            queryMatch?: components["schemas"]["BindingJsonObject"];
-            bodyMatch?: components["schemas"]["BindingJsonObject"];
-            timeoutMs?: components["schemas"]["Timeout"];
-            window?: components["schemas"]["ObserverWindow"];
-            expectedCount?: number;
-            /** @enum {string} */
-            retryPolicy?: "FORBID" | "ALLOW_MATCHING_RETRIES";
-        } & unknown;
+        ObserverV1: components["schemas"]["NetworkObserverV1"] | components["schemas"]["DialogObserverV1"] | components["schemas"]["NewPageObserverV1"] | components["schemas"]["DownloadObserverV1"];
         ExtractionV1: {
             source: components["schemas"]["SourceRef"];
             pointer: components["schemas"]["Pointer"];
@@ -1559,6 +1548,7 @@ export interface components {
             /** @enum {string} */
             operator: "visible" | "enabled" | "checked" | "attached" | "editable";
             expected: boolean;
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             /** @enum {string} */
@@ -1571,6 +1561,7 @@ export interface components {
             /** @enum {string} */
             operator: "textEquals" | "textContains" | "valueEquals";
             expected: components["schemas"]["SafeString"];
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             /** @enum {string} */
@@ -1583,6 +1574,7 @@ export interface components {
             /** @constant */
             operator: "countEquals";
             expected: number;
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             /** @enum {string} */
@@ -1596,6 +1588,7 @@ export interface components {
             /** @enum {string} */
             operator: "equals" | "contains";
             expected: components["schemas"]["SafeString"];
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             /** @enum {string} */
@@ -1815,6 +1808,7 @@ export interface components {
             /** @constant */
             action: "goto";
             path: components["schemas"]["Path"];
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             critical?: boolean;
@@ -1828,6 +1822,7 @@ export interface components {
             /** @constant */
             action: "click";
             target: components["schemas"]["Key"];
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             critical?: boolean;
@@ -1841,6 +1836,7 @@ export interface components {
             /** @constant */
             action: "check";
             target: components["schemas"]["Key"];
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             critical?: boolean;
@@ -1854,6 +1850,7 @@ export interface components {
             /** @constant */
             action: "uncheck";
             target: components["schemas"]["Key"];
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             critical?: boolean;
@@ -1868,6 +1865,7 @@ export interface components {
             action: "fill";
             target: components["schemas"]["Key"];
             value: components["schemas"]["SafeString"];
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             critical?: boolean;
@@ -1882,6 +1880,7 @@ export interface components {
             action: "press";
             target: components["schemas"]["Key"];
             value: components["schemas"]["SafeString"];
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             critical?: boolean;
@@ -1896,6 +1895,7 @@ export interface components {
             action: "selectOption";
             target: components["schemas"]["Key"];
             value: components["schemas"]["SafeString"] | components["schemas"]["SafeString"][];
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             critical?: boolean;
@@ -1910,6 +1910,7 @@ export interface components {
             action: "upload";
             target: components["schemas"]["Key"];
             value: components["schemas"]["FilePath"][];
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             critical?: boolean;
@@ -1922,6 +1923,7 @@ export interface components {
             failurePolicy?: "STOP_CASE" | "CONTINUE";
             /** @constant */
             action: "reload";
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             critical?: boolean;
@@ -1941,6 +1943,7 @@ export interface components {
             headers?: {
                 [key: string]: components["schemas"]["SafeString"];
             };
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             critical?: boolean;
@@ -1955,6 +1958,7 @@ export interface components {
             action: "callFlow";
             versionId: components["schemas"]["Id"];
             parameters?: components["schemas"]["BindingJsonObject"];
+            pageKey?: components["schemas"]["Key"];
         };
         CaseDslV1: {
             /** @constant */
@@ -3344,6 +3348,43 @@ export interface components {
         BindingJsonValue: ContractBindingJsonValue;
         BindingJsonObject: {
             [key: string]: components["schemas"]["BindingJsonValue"];
+        };
+        NetworkObserverV1: {
+            id: components["schemas"]["Key"];
+            method: components["schemas"]["HttpMethod"];
+            path: components["schemas"]["Path"];
+            queryMatch?: components["schemas"]["BindingJsonObject"];
+            bodyMatch?: components["schemas"]["BindingJsonObject"];
+            timeoutMs?: components["schemas"]["Timeout"];
+            window?: components["schemas"]["ObserverWindow"];
+            expectedCount?: number;
+            /** @enum {string} */
+            retryPolicy?: "FORBID" | "ALLOW_MATCHING_RETRIES";
+        } & unknown;
+        DialogObserverV1: {
+            id: components["schemas"]["Key"];
+            timeoutMs?: components["schemas"]["Timeout"];
+            /** @constant */
+            kind: "dialog";
+            /** @enum {unknown} */
+            dialogType: "alert" | "beforeunload" | "confirm" | "prompt";
+            message: components["schemas"]["SafeString"];
+            /** @enum {unknown} */
+            handling: "accept" | "dismiss";
+            promptText?: components["schemas"]["SafeString"];
+        } & unknown;
+        NewPageObserverV1: {
+            id: components["schemas"]["Key"];
+            timeoutMs?: components["schemas"]["Timeout"];
+            /** @constant */
+            kind: "newPage";
+            pageKey: components["schemas"]["Key"];
+        };
+        DownloadObserverV1: {
+            id: components["schemas"]["Key"];
+            timeoutMs?: components["schemas"]["Timeout"];
+            /** @constant */
+            kind: "download";
         };
         DurationMs: number;
         /** @description Literal diagnostic/evidence text; retain invalid expressions verbatim and never evaluate or interpolate it. */

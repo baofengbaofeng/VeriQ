@@ -23,30 +23,16 @@ import {
   type ValidationIssue,
 } from "./dependency.js";
 export const MAX_EXPANDED_ASSERTIONS = 5000;
-export interface CompiledAssertion {
-  assertion: Exclude<
-    AssertionV1,
-    {
-      type: "template";
-    }
-  >;
-  sourcePath: string;
-  parameters: Record<string, JsonValue>[];
-}
-export interface CompiledStep {
-  step: StepV1;
-  sourcePath: string;
-  before: CompiledAssertion[];
-  responseAssertions: CompiledAssertion[];
-  after: CompiledAssertion[];
-  children?: CompiledStep[];
-}
-export interface CompiledCase {
-  caseVersionId: string;
-  document: CaseDslV1;
-  steps: CompiledStep[];
-  persistenceCheckpointStepId?: string;
-}
+import type {
+  CompiledAssertion,
+  CompiledStep,
+  CompiledCase,
+} from "@veriq/contracts";
+export type {
+  CompiledAssertion,
+  CompiledStep,
+  CompiledCase,
+} from "@veriq/contracts";
 interface SymbolType {
   type: ValueType;
   alternatives?: ValueType[];
@@ -54,6 +40,7 @@ interface SymbolType {
   properties?: Map<string, SymbolType>;
 }
 interface Scope {
+  pages?: Set<string>;
   data: Map<string, SymbolType>;
   vars: Map<string, SymbolType>;
   catalog?: Set<string>;
@@ -454,6 +441,13 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
       }
       if ("source" in a && !scope.externalObservers)
         source(a.source, observers, path + "/source");
+      if (
+        "pageKey" in a &&
+        a.pageKey &&
+        !scope.pages?.has(a.pageKey) &&
+        !scope.library
+      )
+        fail("UNKNOWN_PAGE_KEY", path + "/pageKey");
       if ("target" in a) target(a.target, scope, path + "/target");
       if (a.type === "responseSchema")
         checkJsonSchema(a.expected, path + "/expected");
@@ -493,6 +487,7 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
     scope = {
       ...scope,
       assertionBudget: scope.assertionBudget ?? { count: 0 },
+      pages: new Set(scope.pages ?? []),
     };
     unique(
       list.map((s) => s.id),
@@ -509,7 +504,9 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
         );
         break;
       }
-      const obs = new Set((s.observers ?? []).map((o) => o.id));
+      const obs = new Set(
+        (s.observers ?? []).filter((o) => "method" in o).map((o) => o.id),
+      );
       unique([...(s.observers ?? []).map((o) => o.id)], path + "/observers");
       const before = assertions(
         s.beforeAssertions ?? [],
@@ -518,6 +515,18 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
         new Set(),
         path + "/beforeAssertions",
       );
+      if (s.pageKey && !scope.pages?.has(s.pageKey) && !scope.library)
+        fail("UNKNOWN_PAGE_KEY", path + "/pageKey");
+      for (const o of s.observers ?? [])
+        if (
+          "kind" in o &&
+          o.kind === "newPage" &&
+          typeof o.pageKey === "string"
+        ) {
+          if (scope.pages!.has(o.pageKey))
+            fail("DUPLICATE_PAGE_KEY", path + "/observers");
+          scope.pages!.add(o.pageKey);
+        }
       if ("target" in s) target(s.target, scope, path + "/target");
       for (const k of ["path", "value", "body", "query"] as const)
         if (k in s)
@@ -545,9 +554,20 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
           binding(v, scope, path + "/value/" + i, "string"),
         );
       for (const o of s.observers ?? [])
-        for (const k of ["path", "bodyMatch", "queryMatch"] as const)
+        for (const k of [
+          "path",
+          "bodyMatch",
+          "queryMatch",
+          "message",
+          "promptText",
+        ] as const)
           if (k in o)
-            binding(o[k], scope, path + "/observers/" + o.id + "/" + k);
+            binding(
+              (o as unknown as Record<string, unknown>)[k],
+              scope,
+              path + "/observers/" + o.id + "/" + k,
+              k === "message" || k === "promptText" ? "string" : undefined,
+            );
       let children: CompiledStep[] | undefined;
       if (s.action === "callFlow") {
         const f = ref(owner, s.versionId, "FLOW", path + "/versionId");

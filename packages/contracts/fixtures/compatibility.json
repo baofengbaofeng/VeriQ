@@ -4269,5 +4269,60 @@
         }
       ]
     }
+  },
+  {
+    "name": "dialog-prompt",
+    "schema": "ObserverV1",
+    "value": {
+      "id": "ask",
+      "kind": "dialog",
+      "dialogType": "prompt",
+      "message": "Name?",
+      "handling": "accept",
+      "promptText": "A"
+    },
+    "valid": true
+  },
+  {
+    "name": "popup-capture",
+    "schema": "ObserverV1",
+    "value": {
+      "id": "pop",
+      "kind": "newPage",
+      "pageKey": "detail"
+    },
+    "valid": true
+  },
+  {
+    "name": "download-capture",
+    "schema": "ObserverV1",
+    "value": {
+      "id": "file",
+      "kind": "download"
+    },
+    "valid": true
+  },
+  {
+    "name": "dialog-invalid-prompt",
+    "schema": "ObserverV1",
+    "value": {
+      "id": "ask",
+      "kind": "dialog",
+      "dialogType": "alert",
+      "message": "Hello",
+      "handling": "accept",
+      "promptText": "A"
+    },
+    "valid": false
+  },
+  {
+    "name": "download-path-injection",
+    "schema": "ObserverV1",
+    "value": {
+      "id": "file",
+      "kind": "download",
+      "path": "../escape"
+    },
+    "valid": false
   }
 ]

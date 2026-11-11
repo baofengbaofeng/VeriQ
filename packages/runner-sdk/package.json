@@ -2,15 +2,26 @@
   "name": "@veriq/runner-sdk",
   "dependencies": {
     "@playwright/test": "1.65.0",
-    "@veriq/contracts": "workspace:*"
+    "@veriq/contracts": "workspace:*",
+    "ajv": "8.18.0",
+    "ajv-formats": "3.0.1"
   },
   "devDependencies": {
     "typescript": "5.9.3",
     "@types/node": "24.10.1",
-    "vitest": "4.1.12"
+    "vitest": "4.1.12",
+    "@vitest/coverage-v8": "4.1.12"
   },
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "license": "AGPL-3.0-only"
+  "license": "AGPL-3.0-only",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "check": "tsc --noEmit",
+    "test:coverage": "vitest run --coverage"
+  }
 }

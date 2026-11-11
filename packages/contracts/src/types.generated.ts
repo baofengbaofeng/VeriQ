@@ -143,7 +143,12 @@ export type ObserverWindow =
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "ObserverV1".
  */
-export type ObserverV1 = {
+export type ObserverV1 = NetworkObserverV1 | DialogObserverV1 | NewPageObserverV1 | DownloadObserverV1;
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "NetworkObserverV1".
+ */
+export type NetworkObserverV1 = {
   [k: string]: unknown;
 } & {
   id: Key;
@@ -179,6 +184,21 @@ export type BindingJsonValue =
     };
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "DialogObserverV1".
+ */
+export type DialogObserverV1 = {
+  [k: string]: unknown;
+} & {
+  id: Key;
+  timeoutMs?: Timeout;
+  kind: "dialog";
+  dialogType: "alert" | "beforeunload" | "confirm" | "prompt";
+  message: SafeString;
+  handling: "accept" | "dismiss";
+  promptText?: SafeString;
+};
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "AssertionV1".
  */
 export type AssertionV1 =
@@ -191,6 +211,7 @@ export type AssertionV1 =
       target: Key;
       operator: "visible" | "enabled" | "checked" | "attached" | "editable";
       expected: boolean;
+      pageKey?: Key;
     }
   | {
       id: Key;
@@ -201,6 +222,7 @@ export type AssertionV1 =
       target: Key;
       operator: "textEquals" | "textContains" | "valueEquals";
       expected: SafeString;
+      pageKey?: Key;
     }
   | {
       id: Key;
@@ -211,6 +233,7 @@ export type AssertionV1 =
       target: Key;
       operator: "countEquals";
       expected: number;
+      pageKey?: Key;
     }
   | {
       id: Key;
@@ -221,6 +244,7 @@ export type AssertionV1 =
       source: "page";
       operator: "equals" | "contains";
       expected: SafeString;
+      pageKey?: Key;
     }
   | {
       id: Key;
@@ -447,6 +471,7 @@ export type StepV1 =
        * via the `definition` "Path".
        */
       path: SafeString & Path;
+      pageKey?: Key;
     }
   | {
       id: Key;
@@ -471,6 +496,7 @@ export type StepV1 =
       failurePolicy?: "STOP_CASE" | "CONTINUE";
       action: "click";
       target: Key;
+      pageKey?: Key;
     }
   | {
       id: Key;
@@ -495,6 +521,7 @@ export type StepV1 =
       failurePolicy?: "STOP_CASE" | "CONTINUE";
       action: "check";
       target: Key;
+      pageKey?: Key;
     }
   | {
       id: Key;
@@ -519,6 +546,7 @@ export type StepV1 =
       failurePolicy?: "STOP_CASE" | "CONTINUE";
       action: "uncheck";
       target: Key;
+      pageKey?: Key;
     }
   | {
       id: Key;
@@ -544,6 +572,7 @@ export type StepV1 =
       action: "fill";
       target: Key;
       value: SafeString;
+      pageKey?: Key;
     }
   | {
       id: Key;
@@ -572,6 +601,7 @@ export type StepV1 =
        * Interpolated DSL string. Only {{data.identifier}} and {{vars.identifier}} dotted bindings are supported; arbitrary executable expressions are rejected. Never use for inert evidence or diagnostics.
        */
       value: string;
+      pageKey?: Key;
     }
   | {
       id: Key;
@@ -597,6 +627,7 @@ export type StepV1 =
       action: "selectOption";
       target: Key;
       value: SafeString | [SafeString, ...SafeString[]];
+      pageKey?: Key;
     }
   | {
       id: Key;
@@ -625,6 +656,7 @@ export type StepV1 =
        * @minItems 1
        */
       value: [FilePath, ...FilePath[]];
+      pageKey?: Key;
     }
   | {
       id: Key;
@@ -648,6 +680,7 @@ export type StepV1 =
       timeoutMs?: Timeout;
       failurePolicy?: "STOP_CASE" | "CONTINUE";
       action: "reload";
+      pageKey?: Key;
     }
   | {
       id: Key;
@@ -684,6 +717,7 @@ export type StepV1 =
       headers?: {
         [k: string]: SafeString;
       };
+      pageKey?: Key;
     }
   | {
       id: Key;
@@ -709,6 +743,7 @@ export type StepV1 =
       action: "callFlow";
       versionId: Id;
       parameters?: BindingJsonObject;
+      pageKey?: Key;
     };
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1130,6 +1165,10 @@ export interface ContractDefinitions {
   DiagnosticText?: DiagnosticText;
   ValidationTargetV1?: ValidationTargetV1;
   CaseEntrypointV1?: CaseEntrypointV1;
+  NetworkObserverV1?: NetworkObserverV1;
+  DialogObserverV1?: DialogObserverV1;
+  NewPageObserverV1?: NewPageObserverV1;
+  DownloadObserverV1?: DownloadObserverV1;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1176,6 +1215,25 @@ export interface DependencyVersion {
  */
 export interface BindingJsonObject {
   [k: string]: BindingJsonValue;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "NewPageObserverV1".
+ */
+export interface NewPageObserverV1 {
+  id: Key;
+  timeoutMs?: Timeout;
+  kind: "newPage";
+  pageKey: Key;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "DownloadObserverV1".
+ */
+export interface DownloadObserverV1 {
+  id: Key;
+  timeoutMs?: Timeout;
+  kind: "download";
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema

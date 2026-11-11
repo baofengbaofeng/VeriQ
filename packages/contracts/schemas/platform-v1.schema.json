@@ -302,78 +302,18 @@
       ]
     },
     "ObserverV1": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "$ref": "#/$defs/Key"
-        },
-        "method": {
-          "$ref": "#/$defs/HttpMethod"
-        },
-        "path": {
-          "$ref": "#/$defs/Path"
-        },
-        "queryMatch": {
-          "$ref": "#/$defs/BindingJsonObject"
-        },
-        "bodyMatch": {
-          "$ref": "#/$defs/BindingJsonObject"
-        },
-        "timeoutMs": {
-          "$ref": "#/$defs/Timeout"
-        },
-        "window": {
-          "$ref": "#/$defs/ObserverWindow"
-        },
-        "expectedCount": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 10000
-        },
-        "retryPolicy": {
-          "type": "string",
-          "enum": [
-            "FORBID",
-            "ALLOW_MATCHING_RETRIES"
-          ]
-        }
-      },
-      "required": [
-        "id",
-        "method",
-        "path"
-      ],
-      "additionalProperties": false,
-      "allOf": [
+      "oneOf": [
         {
-          "if": {
-            "properties": {
-              "expectedCount": {
-                "type": "integer"
-              }
-            },
-            "required": [
-              "expectedCount"
-            ]
-          },
-          "then": {
-            "required": [
-              "window"
-            ],
-            "properties": {
-              "window": {
-                "type": "object",
-                "properties": {
-                  "mode": {
-                    "const": "FIXED"
-                  }
-                },
-                "required": [
-                  "mode"
-                ]
-              }
-            }
-          }
+          "$ref": "#/$defs/NetworkObserverV1"
+        },
+        {
+          "$ref": "#/$defs/DialogObserverV1"
+        },
+        {
+          "$ref": "#/$defs/NewPageObserverV1"
+        },
+        {
+          "$ref": "#/$defs/DownloadObserverV1"
         }
       ]
     },
@@ -446,6 +386,9 @@
             },
             "expected": {
               "type": "boolean"
+            },
+            "pageKey": {
+              "$ref": "#/$defs/Key"
             }
           },
           "required": [
@@ -496,6 +439,9 @@
             },
             "expected": {
               "$ref": "#/$defs/SafeString"
+            },
+            "pageKey": {
+              "$ref": "#/$defs/Key"
             }
           },
           "required": [
@@ -543,6 +489,9 @@
               "type": "integer",
               "minimum": 0,
               "maximum": 9007199254740991
+            },
+            "pageKey": {
+              "$ref": "#/$defs/Key"
             }
           },
           "required": [
@@ -592,6 +541,9 @@
             },
             "expected": {
               "$ref": "#/$defs/SafeString"
+            },
+            "pageKey": {
+              "$ref": "#/$defs/Key"
             }
           },
           "required": [
@@ -1475,6 +1427,9 @@
             },
             "path": {
               "$ref": "#/$defs/Path"
+            },
+            "pageKey": {
+              "$ref": "#/$defs/Key"
             }
           },
           "required": [
@@ -1535,6 +1490,9 @@
               "const": "click"
             },
             "target": {
+              "$ref": "#/$defs/Key"
+            },
+            "pageKey": {
               "$ref": "#/$defs/Key"
             }
           },
@@ -1597,6 +1555,9 @@
             },
             "target": {
               "$ref": "#/$defs/Key"
+            },
+            "pageKey": {
+              "$ref": "#/$defs/Key"
             }
           },
           "required": [
@@ -1657,6 +1618,9 @@
               "const": "uncheck"
             },
             "target": {
+              "$ref": "#/$defs/Key"
+            },
+            "pageKey": {
               "$ref": "#/$defs/Key"
             }
           },
@@ -1722,6 +1686,9 @@
             },
             "value": {
               "$ref": "#/$defs/SafeString"
+            },
+            "pageKey": {
+              "$ref": "#/$defs/Key"
             }
           },
           "required": [
@@ -1789,6 +1756,9 @@
               "$ref": "#/$defs/SafeString",
               "type": "string",
               "minLength": 1
+            },
+            "pageKey": {
+              "$ref": "#/$defs/Key"
             }
           },
           "required": [
@@ -1865,6 +1835,9 @@
                   "minItems": 1
                 }
               ]
+            },
+            "pageKey": {
+              "$ref": "#/$defs/Key"
             }
           },
           "required": [
@@ -1934,6 +1907,9 @@
                 "$ref": "#/$defs/FilePath"
               },
               "minItems": 1
+            },
+            "pageKey": {
+              "$ref": "#/$defs/Key"
             }
           },
           "required": [
@@ -1993,6 +1969,9 @@
             },
             "action": {
               "const": "reload"
+            },
+            "pageKey": {
+              "$ref": "#/$defs/Key"
             }
           },
           "required": [
@@ -2068,6 +2047,9 @@
               "additionalProperties": {
                 "$ref": "#/$defs/SafeString"
               }
+            },
+            "pageKey": {
+              "$ref": "#/$defs/Key"
             }
           },
           "required": [
@@ -2133,6 +2115,9 @@
             },
             "parameters": {
               "$ref": "#/$defs/BindingJsonObject"
+            },
+            "pageKey": {
+              "$ref": "#/$defs/Key"
             }
           },
           "required": [
@@ -4668,6 +4653,194 @@
       "required": [
         "caseVersionId",
         "path"
+      ],
+      "additionalProperties": false
+    },
+    "NetworkObserverV1": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Key"
+        },
+        "method": {
+          "$ref": "#/$defs/HttpMethod"
+        },
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "queryMatch": {
+          "$ref": "#/$defs/BindingJsonObject"
+        },
+        "bodyMatch": {
+          "$ref": "#/$defs/BindingJsonObject"
+        },
+        "timeoutMs": {
+          "$ref": "#/$defs/Timeout"
+        },
+        "window": {
+          "$ref": "#/$defs/ObserverWindow"
+        },
+        "expectedCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "retryPolicy": {
+          "type": "string",
+          "enum": [
+            "FORBID",
+            "ALLOW_MATCHING_RETRIES"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "path"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "expectedCount": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "expectedCount"
+            ]
+          },
+          "then": {
+            "required": [
+              "window"
+            ],
+            "properties": {
+              "window": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "const": "FIXED"
+                  }
+                },
+                "required": [
+                  "mode"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "DialogObserverV1": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Key"
+        },
+        "timeoutMs": {
+          "$ref": "#/$defs/Timeout"
+        },
+        "kind": {
+          "const": "dialog"
+        },
+        "dialogType": {
+          "enum": [
+            "alert",
+            "beforeunload",
+            "confirm",
+            "prompt"
+          ]
+        },
+        "message": {
+          "$ref": "#/$defs/SafeString"
+        },
+        "handling": {
+          "enum": [
+            "accept",
+            "dismiss"
+          ]
+        },
+        "promptText": {
+          "$ref": "#/$defs/SafeString"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "dialogType",
+        "message",
+        "handling"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "promptText"
+            ],
+            "properties": {
+              "promptText": {
+                "$ref": "#/$defs/SafeString"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "dialogType": {
+                "const": "prompt"
+              },
+              "handling": {
+                "const": "accept"
+              }
+            },
+            "required": [
+              "dialogType",
+              "handling"
+            ]
+          }
+        }
+      ]
+    },
+    "NewPageObserverV1": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Key"
+        },
+        "timeoutMs": {
+          "$ref": "#/$defs/Timeout"
+        },
+        "kind": {
+          "const": "newPage"
+        },
+        "pageKey": {
+          "$ref": "#/$defs/Key"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "pageKey"
+      ],
+      "additionalProperties": false
+    },
+    "DownloadObserverV1": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Key"
+        },
+        "timeoutMs": {
+          "$ref": "#/$defs/Timeout"
+        },
+        "kind": {
+          "const": "download"
+        }
+      },
+      "required": [
+        "id",
+        "kind"
       ],
       "additionalProperties": false
     }
