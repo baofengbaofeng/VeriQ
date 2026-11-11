@@ -157,6 +157,8 @@ assert await publish_with_receipt_for_other_hash() == INVALID_RECEIPT
 
 ## T05：确定性编译器与变量依赖
 
+**状态：** 已完成并通过独立规格/质量审查（`dcb05c0`、`3588164`）；生产 SDK 执行由 T06 实现。
+
 **依赖：** T01/T04
 
 **Files（拟创建/修改）：**
@@ -168,17 +170,17 @@ assert await publish_with_receipt_for_other_hash() == INVALID_RECEIPT
 
 **Interfaces：** validate(snapshot: AssetSnapshotV1): ValidationIssue[]；compileAssets(snapshot: AssetSnapshotV1): CompiledAssetBundle；assembleExecution(bundle, snapshot: ExecutionSnapshotV1): ExecutionPackage。
 
-- [ ] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
+- [x] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```ts
 expect(validate(useBeforeExtract).map(x => x.code)).toContain('VARIABLE_USED_BEFORE_DEFINED');
 expect(compileAssets(assetSnapshot).sourceHash).toBe(compileAssets(assetSnapshot).sourceHash);
 ```
 
-- [ ] **Step 2：运行测试确认未实现时失败。** `pnpm --filter @veriq/compiler exec vitest run tests/compile.test.ts`；失败必须来自缺失行为，而非测试环境拼写错误。
-- [ ] **Step 3：实现上述接口与文件。** fixture输出声明、模板固定、流程5层/500步、secret引用、JSON Pointer缺失类型、写用例持久化检查点。VALIDATE上传实际TS/依赖/文件manifest，服务端存不可变制品供正式包复用，草稿无Runtime导出标unvalidated且只含DSL。
-- [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
-- [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t05 确定性编译器与变量依赖`。有新决策先更新ADR，不扩展到下一任务。
+- [x] **Step 2：运行测试确认未实现时失败。** `pnpm --filter @veriq/compiler exec vitest run tests/compile.test.ts`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [x] **Step 3：实现上述接口与文件。** fixture输出声明、模板固定、流程5层/500步、secret引用、JSON Pointer缺失类型、写用例持久化检查点。VALIDATE上传实际TS/依赖/文件manifest，服务端存不可变制品供正式包复用，草稿无Runtime导出标unvalidated且只含DSL。
+- [x] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
+- [x] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t05 确定性编译器与变量依赖`。有新决策先更新ADR，不扩展到下一任务。
 
 ## T06：操作、监听和完整断言SDK
 
