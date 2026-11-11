@@ -1120,6 +1120,17 @@ export type ActualValueV1 =
  * via the `definition` "ArtifactSensitivity".
  */
 export type ArtifactSensitivity = "REDACTED" | "CREDENTIAL_RESTRICTED";
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "ValidateCompletionManifestV1".
+ */
+export type ValidateCompletionManifestV1 = ValidateSuccessCompletionManifestV1 | ValidateFailureCompletionManifestV1;
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "CompletionManifestV1".
+ */
+export type CompletionManifestV1 =
+  TestCompletionManifestV1 | ValidateCompletionManifestV1 | CleanupCompletionManifestV1;
 
 export interface ContractDefinitions {
   Id?: Id;
@@ -1221,6 +1232,15 @@ export interface ContractDefinitions {
   EnrollmentDTO?: EnrollmentDTO;
   EnrollmentPreview?: EnrollmentPreview;
   DeviceCredentialsDTO?: DeviceCredentialsDTO;
+  LeaseProofRequest?: LeaseProofRequest;
+  ExpectedPlansV1?: ExpectedPlansV1;
+  ApprovedEngineInventoryV1?: ApprovedEngineInventoryV1;
+  TestCompletionManifestV1?: TestCompletionManifestV1;
+  ValidateCompletionManifestV1?: ValidateCompletionManifestV1;
+  CleanupCompletionManifestV1?: CleanupCompletionManifestV1;
+  CompletionManifestV1?: CompletionManifestV1;
+  ValidateSuccessCompletionManifestV1?: ValidateSuccessCompletionManifestV1;
+  ValidateFailureCompletionManifestV1?: ValidateFailureCompletionManifestV1;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1565,6 +1585,8 @@ export interface ExecutionSnapshotV1 {
    * @maxItems 100
    */
   authAdapters?: AuthAdapterVersionV1[];
+  datasetVersionId?: Id;
+  suiteEntryIndex?: number;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1614,6 +1636,9 @@ export interface ClaimDTO {
   expiresAt: Timestamp;
   snapshotUrl: HttpUrl;
   snapshotSha256: Sha256;
+  serverTime: Timestamp;
+  leaseDurationMs: number;
+  activationRequired: true;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1671,6 +1696,8 @@ export interface StepFinishedPayloadV1 {
   durationMs: DurationMs;
   errorCode?: Key;
   message?: DiagnosticText;
+  blockedByStepId?: Key;
+  blockedByAssertionId?: Key;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1684,6 +1711,8 @@ export interface AssertionResultPayloadV1 {
   actual: ActualValueV1;
   durationMs: DurationMs;
   errorCode?: Key;
+  blockedByStepId?: Key;
+  blockedByAssertionId?: Key;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1812,6 +1841,8 @@ export interface HeartbeatRequest {
 export interface HeartbeatDTO {
   leaseExpiresAt: Timestamp;
   cancelRequested: boolean;
+  serverTime: Timestamp;
+  leaseDurationMs: number;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1913,6 +1944,170 @@ export interface DeviceCredentialsDTO {
     fingerprint: Sha256;
   }[];
   workspaceId: Id;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "LeaseProofRequest".
+ */
+export interface LeaseProofRequest {
+  leaseToken: string;
+  fencingToken: number;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "ExpectedPlansV1".
+ */
+export interface ExpectedPlansV1 {
+  schemaVersion: "1.0";
+  /**
+   * @maxItems 1000
+   */
+  cases: {
+    caseVersionId: Id;
+    persistenceCheckpointStepId?: Key;
+    /**
+     * @maxItems 500
+     */
+    steps: {
+      id: Key;
+      order: number;
+      parentId?: Key;
+      failurePolicy: "STOP" | "CONTINUE" | "BLOCK";
+      /**
+       * @maxItems 5000
+       */
+      assertions: {
+        id: Key;
+        severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+        stage: "BEFORE" | "RESPONSE" | "AFTER" | "FINALIZE";
+      }[];
+      /**
+       * @maxItems 1000
+       */
+      observers: Key[];
+    }[];
+    /**
+     * @minItems 1
+     */
+    requiredEvidenceKinds: ["TRACE" | "SCREENSHOT", ...("TRACE" | "SCREENSHOT")[]];
+  }[];
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "ApprovedEngineInventoryV1".
+ */
+export interface ApprovedEngineInventoryV1 {
+  schemaVersion: "1.0";
+  /**
+   * @maxItems 100
+   */
+  engines: {
+    engineVersion: Version;
+    compilerVersion: Version;
+    runnerSdkVersion: Version;
+    /**
+     * @maxItems 1000
+     */
+    files: FileEntry[];
+    /**
+     * @maxItems 1000
+     */
+    dependencies: DependencyVersion[];
+  }[];
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "TestCompletionManifestV1".
+ */
+export interface TestCompletionManifestV1 {
+  schemaVersion: "1.0";
+  attemptId: Id;
+  jobManifestSha256: Sha256;
+  businessOutcome: AttemptOutcome;
+  cleanupStatus: CleanupStatus;
+  /**
+   * @maxItems 1000
+   */
+  evidence: EvidenceFileEntryV1[];
+  /**
+   * @maxItems 1000
+   */
+  requiredEvidence: Sha256[];
+  processStopped: true;
+  kind: "TEST";
+  caseVersionId: Id;
+  expectedPlansSha256: Sha256;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "ValidateSuccessCompletionManifestV1".
+ */
+export interface ValidateSuccessCompletionManifestV1 {
+  schemaVersion: "1.0";
+  attemptId: Id;
+  jobManifestSha256: Sha256;
+  businessOutcome: "PASSED";
+  cleanupStatus: CleanupStatus;
+  /**
+   * @maxItems 1000
+   */
+  evidence: EvidenceFileEntryV1[];
+  /**
+   * @maxItems 1000
+   */
+  requiredEvidence: Sha256[];
+  processStopped: true;
+  kind: "VALIDATE";
+  compiledBundleSha256: Sha256;
+  engineInventorySha256: Sha256;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "ValidateFailureCompletionManifestV1".
+ */
+export interface ValidateFailureCompletionManifestV1 {
+  schemaVersion: "1.0";
+  attemptId: Id;
+  jobManifestSha256: Sha256;
+  businessOutcome: "ERROR";
+  cleanupStatus: CleanupStatus;
+  /**
+   * @minItems 1
+   * @maxItems 1000
+   */
+  evidence: [EvidenceFileEntryV1, ...EvidenceFileEntryV1[]];
+  /**
+   * @minItems 1
+   * @maxItems 1000
+   */
+  requiredEvidence: [Sha256, ...Sha256[]];
+  processStopped: true;
+  kind: "VALIDATE";
+  engineInventorySha256: Sha256;
+  failureCode: string;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "CleanupCompletionManifestV1".
+ */
+export interface CleanupCompletionManifestV1 {
+  schemaVersion: "1.0";
+  attemptId: Id;
+  jobManifestSha256: Sha256;
+  businessOutcome: AttemptOutcome;
+  cleanupStatus: CleanupStatus;
+  /**
+   * @maxItems 1000
+   */
+  evidence: EvidenceFileEntryV1[];
+  /**
+   * @maxItems 1000
+   */
+  requiredEvidence: Sha256[];
+  processStopped: true;
+  kind: "CLEANUP";
+  fixtureVersionId: Id;
+  namespace: Key;
 }
 
 export type SnapshotV1 = AssetSnapshotV1;

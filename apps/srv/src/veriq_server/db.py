@@ -13,6 +13,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     BigInteger,
     JSON,
+    Index,
 )
 from sqlalchemy.dialects.mysql import DATETIME, LONGBLOB
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -221,6 +222,56 @@ class Job(Base):
     __table_args__ = (
         UniqueConstraint("workspace_id", "id"),
         UniqueConstraint("workspace_id", "validation_key"),
+        Index("ix_veriq_job_claim", "workspace_id", "state", "created_at", "id"),
+        ForeignKeyConstraint(
+            ["workspace_id", "maintenance_id"],
+            ["veriq_maintenance_receipts.workspace_id", "veriq_maintenance_receipts.id"],
+            name="fk_job_maintenance",
+        ),
+        CheckConstraint(
+            "kind <> 'TEST' OR subject_id = case_execution_id", name="ck_job_case_subject"
+        ),
+        CheckConstraint(
+            "kind <> 'CLEANUP' OR (maintenance_id IS NOT NULL AND subject_id = maintenance_id AND origin_attempt_id IS NOT NULL)",
+            name="ck_job_cleanup_subject",
+        ),
+        CheckConstraint("kind IN ('TEST','VALIDATE','CLEANUP')", name="ck_job_kind"),
+        CheckConstraint("max_retries >= 0 AND max_retries <= 1", name="ck_job_retry_bound"),
+        CheckConstraint(
+            "(kind = 'TEST' AND run_id IS NOT NULL AND case_execution_id IS NOT NULL) OR (kind <> 'TEST' AND run_id IS NULL AND case_execution_id IS NULL)",
+            name="ck_job_subject",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "run_id", "case_execution_id"],
+            [
+                "veriq_case_executions.workspace_id",
+                "veriq_case_executions.run_id",
+                "veriq_case_executions.id",
+            ],
+            name="fk_job_run_execution",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "origin_attempt_id"],
+            ["veriq_attempts.workspace_id", "veriq_attempts.id"],
+            name="fk_job_origin_attempt",
+            use_alter=True,
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "run_id"],
+            ["veriq_runs.workspace_id", "veriq_runs.id"],
+            name="fk_job_run",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "case_execution_id"],
+            ["veriq_case_executions.workspace_id", "veriq_case_executions.id"],
+            name="fk_job_execution",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "id", "active_attempt_id"],
+            ["veriq_attempts.workspace_id", "veriq_attempts.job_id", "veriq_attempts.id"],
+            name="fk_job_active_attempt",
+            use_alter=True,
+        ),
         ForeignKeyConstraint(
             ["workspace_id", "snapshot_hash"],
             ["veriq_artifacts.workspace_id", "veriq_artifacts.sha256"],
@@ -240,6 +291,19 @@ class Job(Base):
     validation_key: Mapped[str | None] = mapped_column(hash_type)
     required_capabilities: Mapped[dict[str, Any]] = mapped_column(JSON)
     active_attempt_id: Mapped[str | None] = mapped_column(uuid_type)
+    run_id: Mapped[str | None] = mapped_column(uuid_type)
+    case_execution_id: Mapped[str | None] = mapped_column(uuid_type)
+    requested_runtime_id: Mapped[str | None] = mapped_column(uuid_type)
+    requested_location: Mapped[str | None] = mapped_column(String(24, collation="ascii_bin"))
+    requester_service_token_id: Mapped[str | None] = mapped_column(
+        uuid_type, ForeignKey("veriq_service_tokens.id", name="fk_job_service_requester")
+    )
+    origin_attempt_id: Mapped[str | None] = mapped_column(uuid_type)
+    maintenance_id: Mapped[str | None] = mapped_column(uuid_type)
+    outcome: Mapped[str | None] = mapped_column(String(24, collation="ascii_bin"))
+    wait_reason: Mapped[str | None] = mapped_column(String(24, collation="ascii_bin"))
+    max_retries: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    fence: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0")
     created_by: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_users.id"))
     created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
 
@@ -260,6 +324,16 @@ class ValidationReceipt(Base):
             ["veriq_artifacts.workspace_id", "veriq_artifacts.sha256"],
         ),
         UniqueConstraint("job_id"),
+        ForeignKeyConstraint(
+            ["workspace_id", "job_id", "attempt_id", "runtime_id"],
+            [
+                "veriq_attempts.workspace_id",
+                "veriq_attempts.job_id",
+                "veriq_attempts.id",
+                "veriq_attempts.runtime_id",
+            ],
+            name="fk_validation_attempt",
+        ),
     )
     id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
     workspace_id: Mapped[str] = mapped_column(uuid_type)
@@ -414,7 +488,218 @@ class ServiceToken(Base):
     )
     token_hash: Mapped[str] = mapped_column(hash_type, unique=True)
     purpose: Mapped[str] = mapped_column(String(40, collation="ascii_bin"))
+    operation_scopes: Mapped[list[str] | None] = mapped_column(JSON)
     expires_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
     consumed_at: Mapped[datetime | None] = mapped_column(DATETIME(fsp=6))
     revoked_at: Mapped[datetime | None] = mapped_column(DATETIME(fsp=6))
     created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+
+
+class Run(Base):
+    __tablename__ = "veriq_runs"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "snapshot_hash"],
+            ["veriq_artifacts.workspace_id", "veriq_artifacts.sha256"],
+        ),
+        UniqueConstraint("workspace_id", "id"),
+        UniqueConstraint("workspace_id", "idempotency_key"),
+    )
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_workspaces.id"))
+    created_by: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_users.id"))
+    idempotency_key: Mapped[str] = mapped_column(String(160, collation="ascii_bin"))
+    request_hash: Mapped[str] = mapped_column(hash_type)
+    trigger_kind: Mapped[str] = mapped_column(String(24, collation="ascii_bin"))
+    reason_code: Mapped[str | None] = mapped_column(String(80, collation="ascii_bin"))
+    source: Mapped[str] = mapped_column(String(24, collation="ascii_bin"))
+    state: Mapped[str] = mapped_column(String(24, collation="ascii_bin"))
+    outcome: Mapped[str | None] = mapped_column(String(24, collation="ascii_bin"))
+    snapshot_hash: Mapped[str] = mapped_column(hash_type)
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+
+
+class CaseExecution(Base):
+    __tablename__ = "veriq_case_executions"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "run_id", "id"),
+        ForeignKeyConstraint(
+            ["workspace_id", "source_snapshot_hash"],
+            ["veriq_artifacts.workspace_id", "veriq_artifacts.sha256"],
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "published_case_version_id"],
+            ["veriq_resource_versions.workspace_id", "veriq_resource_versions.id"],
+        ),
+        CheckConstraint(
+            "(published_case_version_id IS NULL) <> (candidate_version_id IS NULL)",
+            name="ck_case_source_kind",
+        ),
+        CheckConstraint(
+            "case_version_id = COALESCE(published_case_version_id, candidate_version_id)",
+            name="ck_case_source_identity",
+        ),
+        UniqueConstraint("workspace_id", "id"),
+        UniqueConstraint("run_id", "variant_key"),
+        ForeignKeyConstraint(
+            ["workspace_id", "run_id"], ["veriq_runs.workspace_id", "veriq_runs.id"]
+        ),
+    )
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type)
+    run_id: Mapped[str] = mapped_column(uuid_type)
+    case_version_id: Mapped[str] = mapped_column(uuid_type)
+    published_case_version_id: Mapped[str | None] = mapped_column(uuid_type)
+    candidate_version_id: Mapped[str | None] = mapped_column(uuid_type)
+    source_snapshot_hash: Mapped[str] = mapped_column(hash_type)
+    variant_key: Mapped[str] = mapped_column(hash_type)
+    provenance: Mapped[dict[str, Any]] = mapped_column(JSON)
+    state: Mapped[str] = mapped_column(String(24, collation="ascii_bin"))
+    outcome: Mapped[str | None] = mapped_column(String(24, collation="ascii_bin"))
+
+
+class Attempt(Base):
+    __tablename__ = "veriq_attempts"
+    __table_args__ = (
+        Index("ix_veriq_attempt_expiry", "workspace_id", "phase", "lease_expires_at", "id"),
+        UniqueConstraint("workspace_id", "id", "runtime_id"),
+        ForeignKeyConstraint(
+            ["workspace_id", "snapshot_hash"],
+            ["veriq_artifacts.workspace_id", "veriq_artifacts.sha256"],
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "manifest_hash"],
+            ["veriq_artifacts.workspace_id", "veriq_artifacts.sha256"],
+        ),
+        CheckConstraint(
+            "fencing_token >= 1 AND fencing_token <= 9007199254740991", name="ck_attempt_fence"
+        ),
+        CheckConstraint(
+            "phase IN ('LEASED','PREPARING','RUNNING','CLEANING','FINALIZING','FINISHED')",
+            name="ck_attempt_phase",
+        ),
+        CheckConstraint(
+            "capacity_state IN ('HELD','QUARANTINED','RELEASED')", name="ck_attempt_capacity_state"
+        ),
+        UniqueConstraint("workspace_id", "id"),
+        UniqueConstraint("job_id", "attempt_no"),
+        UniqueConstraint("workspace_id", "job_id", "id"),
+        UniqueConstraint("workspace_id", "job_id", "id", "runtime_id"),
+        ForeignKeyConstraint(
+            ["workspace_id", "job_id"], ["veriq_jobs.workspace_id", "veriq_jobs.id"]
+        ),
+        ForeignKeyConstraint(
+            ["runtime_id", "workspace_id"],
+            ["veriq_runtime_bindings.runtime_id", "veriq_runtime_bindings.workspace_id"],
+        ),
+        CheckConstraint("attempt_no >= 1 AND attempt_no <= 2", name="ck_attempt_retry_bound"),
+    )
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type)
+    job_id: Mapped[str] = mapped_column(uuid_type)
+    runtime_id: Mapped[str] = mapped_column(uuid_type)
+    attempt_no: Mapped[int] = mapped_column(Integer)
+    snapshot_hash: Mapped[str] = mapped_column(hash_type)
+    manifest_hash: Mapped[str] = mapped_column(hash_type)
+    lease_token_hash: Mapped[str] = mapped_column(hash_type)
+    fencing_token: Mapped[int] = mapped_column(BigInteger)
+    lease_expires_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+    activated_at: Mapped[datetime | None] = mapped_column(DATETIME(fsp=6))
+    phase: Mapped[str] = mapped_column(String(24, collation="ascii_bin"))
+    outcome: Mapped[str | None] = mapped_column(String(24, collation="ascii_bin"))
+    capacity_state: Mapped[str] = mapped_column(String(24, collation="ascii_bin"))
+    facts: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    finish_hash: Mapped[str | None] = mapped_column(hash_type)
+    finish_receipt: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    last_sequence: Mapped[int] = mapped_column(BigInteger, default=0)
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+
+
+class CapacityPool(Base):
+    __tablename__ = "veriq_capacity_pools"
+    key: Mapped[str] = mapped_column(String(240, collation="ascii_bin"), primary_key=True)
+    limit: Mapped[int] = mapped_column(Integer)
+    used: Mapped[int] = mapped_column(Integer, default=0)
+    __table_args__ = (CheckConstraint("used >= 0 AND used <= `limit`", name="ck_capacity_bound"),)
+
+
+class ResourceLease(Base):
+    __tablename__ = "veriq_resource_leases"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "attempt_id"], ["veriq_attempts.workspace_id", "veriq_attempts.id"]
+        ),
+    )
+    attempt_id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    pool_key: Mapped[str] = mapped_column(
+        String(240, collation="ascii_bin"), ForeignKey("veriq_capacity_pools.key"), primary_key=True
+    )
+    workspace_id: Mapped[str] = mapped_column(uuid_type)
+    state: Mapped[str] = mapped_column(String(24, collation="ascii_bin"))
+
+
+class ClaimReceipt(Base):
+    __tablename__ = "veriq_claim_receipts"
+    __table_args__ = (
+        Index("ix_veriq_claim_idle", "runtime_id", "attempt_id"),
+        Index("ix_veriq_claim_expiry", "workspace_id", "created_at"),
+        ForeignKeyConstraint(
+            ["runtime_id", "workspace_id"],
+            ["veriq_runtime_bindings.runtime_id", "veriq_runtime_bindings.workspace_id"],
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "attempt_id", "runtime_id"],
+            ["veriq_attempts.workspace_id", "veriq_attempts.id", "veriq_attempts.runtime_id"],
+        ),
+    )
+    runtime_id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    client_request_id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type)
+    request_hash: Mapped[str] = mapped_column(hash_type)
+    attempt_id: Mapped[str | None] = mapped_column(uuid_type)
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+
+
+class AttemptEvent(Base):
+    __tablename__ = "veriq_attempt_events"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "attempt_id"], ["veriq_attempts.workspace_id", "veriq_attempts.id"]
+        ),
+    )
+    attempt_id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    sequence: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type)
+    event_hash: Mapped[str] = mapped_column(hash_type)
+    document: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+
+class AttemptUpload(Base):
+    __tablename__ = "veriq_attempt_uploads"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "attempt_id"], ["veriq_attempts.workspace_id", "veriq_attempts.id"]
+        ),
+    )
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    attempt_id: Mapped[str] = mapped_column(uuid_type, index=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type)
+    sha256: Mapped[str] = mapped_column(hash_type)
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON)
+    content: Mapped[bytes] = mapped_column(LONGBLOB, default=bytes)
+    complete: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class MaintenanceReceipt(Base):
+    __tablename__ = "veriq_maintenance_receipts"
+    __table_args__ = (UniqueConstraint("workspace_id", "id"),)
+    id: Mapped[str] = mapped_column(uuid_type)
+    workspace_id: Mapped[str] = mapped_column(
+        uuid_type, ForeignKey("veriq_workspaces.id"), primary_key=True
+    )
+    idempotency_key: Mapped[str] = mapped_column(
+        String(160, collation="ascii_bin"), primary_key=True
+    )
+    request_hash: Mapped[str] = mapped_column(hash_type)
+    receipt: Mapped[dict[str, Any]] = mapped_column(JSON)

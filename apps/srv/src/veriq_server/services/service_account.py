@@ -1,4 +1,4 @@
-"""Reusable Workspace service identities; only enrollment purpose exists in T08."""
+"""Workspace service identities with distinct enrollment and maintenance purposes."""
 
 import secrets
 from datetime import timedelta
@@ -7,7 +7,7 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth.authorization import Permission, WorkspaceScope
-from ..db import ServiceAccount, ServiceToken, User
+from ..db import ServiceAccount, ServiceToken, User, Workspace
 from ..service import Problem, audit, digest, now, stamp
 from .workspace import WorkspaceRepository
 
@@ -41,17 +41,34 @@ class ServiceAccountService:
         audit(self.session, "service_account.created", actor.id, row.id, workspace_id=workspace_id)
         return row
 
-    async def issue(self, actor: User, account: ServiceAccount) -> dict[str, Any]:
+    async def issue(
+        self,
+        actor: User,
+        account: ServiceAccount,
+        purpose: str = "RUNTIME_ENROLLMENT",
+        operations: list[str] | None = None,
+    ) -> dict[str, Any]:
         await self.authorize(actor, account.workspace_id, write=True)
         if account.disabled:
             raise Problem(403, "SERVICE_ACCOUNT_DISABLED", "Service account is disabled")
+        allowed = {"expired-leases/reap", "fixture-cleanups/reconcile", "capacity/reconcile"}
+        if (
+            purpose not in {"RUNTIME_ENROLLMENT", "MAINTENANCE"}
+            or (purpose == "MAINTENANCE" and (not operations or not set(operations) <= allowed))
+            or (purpose == "RUNTIME_ENROLLMENT" and operations)
+        ):
+            raise Problem(
+                400, "INVALID_SERVICE_SCOPE", "Explicit bounded maintenance operations required"
+            )
         secret = secrets.token_urlsafe(32)
         row = ServiceToken(
             id=str(uuid4()),
             service_account_id=account.id,
             token_hash=digest(secret),
-            purpose="RUNTIME_ENROLLMENT",
-            expires_at=now() + timedelta(minutes=10),
+            purpose=purpose,
+            operation_scopes=operations,
+            expires_at=now()
+            + (timedelta(minutes=10) if purpose == "RUNTIME_ENROLLMENT" else timedelta(hours=24)),
             created_at=now(),
         )
         self.session.add(row)
@@ -68,6 +85,41 @@ class ServiceAccountService:
             "purpose": row.purpose,
             "expiresAt": stamp(row.expires_at),
         }
+
+    async def require_maintenance(
+        self, authorization: str, workspace_id: str, operation: str
+    ) -> ServiceAccount:
+        if not authorization.startswith("Bearer "):
+            raise Problem(401, "SERVICE_TOKEN_INVALID", "Scoped maintenance token required")
+        token = (
+            await self.session.execute(
+                select(ServiceToken)
+                .where(
+                    ServiceToken.token_hash == digest(authorization[7:]),
+                    ServiceToken.purpose == "MAINTENANCE",
+                    ServiceToken.revoked_at.is_(None),
+                    ServiceToken.expires_at > now(),
+                )
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        account = (
+            await self.session.get(ServiceAccount, token.service_account_id) if token else None
+        )
+        workspace = await self.session.get(Workspace, workspace_id)
+        if (
+            not token
+            or not account
+            or account.disabled
+            or account.workspace_id != workspace_id
+            or not workspace
+            or workspace.archived
+            or operation not in (token.operation_scopes or [])
+        ):
+            raise Problem(
+                403, "MAINTENANCE_FORBIDDEN", "Current Workspace maintenance scope required"
+            )
+        return account
 
     async def consume(self, authorization: str) -> ServiceAccount:
         if not authorization.startswith("Bearer ") or not 43 <= len(authorization[7:]) <= 128:

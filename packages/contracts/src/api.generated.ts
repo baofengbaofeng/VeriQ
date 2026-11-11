@@ -1072,6 +1072,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** @description Upload exact CompletionManifestV1 bytes first. The server verifies current device/requester, active lease/fence and retained evidence. VALIDATE success requires a compiled descriptor; VALIDATE ERROR prohibits a descriptor and requires a bounded failureCode, approved engineInventorySha256 and verified nonempty LOG evidence. Failure never creates a ValidationReceipt. Exact completed manifest replay returns the original receipt under current identity. */
         post: operations["finishAttempt"];
         delete?: never;
         options?: never;
@@ -1664,6 +1665,55 @@ export interface paths {
         get?: never;
         /** @description Current Workspace OWNER/ADMIN approves credential delivery only after independent system-admin MANAGED trust and owner sharing consent. Does not grant hardware trust. */
         put: operations["updateRuntimeCredentialDelivery"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/attempts/{attemptId}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["activateAttempt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/attempts/{attemptId}/reconcile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["auditReconcileAttempt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/attempts/{attemptId}/artifact-uploads/{uploadId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description T12 authorization obligation: raw Trace, screenshots, HTML and downloads are CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata only. This schema does not implement storage or authorization. */
+        put: operations["uploadArtifactChunk"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2411,6 +2461,8 @@ export interface components {
             attemptNo: number;
             caseVersionId: components["schemas"]["Id"];
             authAdapters?: components["schemas"]["AuthAdapterVersionV1"][];
+            datasetVersionId?: components["schemas"]["Id"];
+            suiteEntryIndex?: number;
         };
         CompiledAssetBundle: {
             /** @constant */
@@ -2449,6 +2501,10 @@ export interface components {
             expiresAt: components["schemas"]["Timestamp"];
             snapshotUrl: components["schemas"]["HttpUrl"];
             snapshotSha256: components["schemas"]["Sha256"];
+            serverTime: components["schemas"]["Timestamp"];
+            leaseDurationMs: number;
+            /** @constant */
+            activationRequired: true;
         };
         TestJobManifestV1: {
             /** @constant */
@@ -2703,6 +2759,8 @@ export interface components {
         HeartbeatDTO: {
             leaseExpiresAt: components["schemas"]["Timestamp"];
             cancelRequested: boolean;
+            serverTime: components["schemas"]["Timestamp"];
+            leaseDurationMs: number;
         };
         EventBatchRequest: {
             leaseToken: string;
@@ -2982,6 +3040,11 @@ export interface components {
             roleKeys: components["schemas"]["Key"][];
             browsers: components["schemas"]["Browser"][];
             runtimeIds: components["schemas"]["Id"][];
+            variables?: components["schemas"]["JsonObject"];
+            /** @enum {unknown} */
+            executionLocation?: "MANAGED_CLOUD" | "CONNECTED_LOCAL";
+            maxRetries?: number;
+            draftValidationJobId?: components["schemas"]["Id"];
         };
         RunDTO: {
             id: components["schemas"]["Id"];
@@ -2994,6 +3057,9 @@ export interface components {
             createdAt: components["schemas"]["Timestamp"];
             gateAtExecution?: boolean;
             gateNow?: boolean;
+            /** @enum {unknown} */
+            triggerKind?: "MANUAL" | "DEBUG" | "HTTP_TRIGGER";
+            reasonCode?: string;
         };
         JobDTO: {
             id: components["schemas"]["Id"];
@@ -3093,6 +3159,7 @@ export interface components {
         MaintenanceRequest: {
             limit: number;
             workspaceId?: components["schemas"]["Id"];
+            cursor?: string;
         };
         MaintenanceDTO: {
             id: components["schemas"]["Id"];
@@ -3100,6 +3167,7 @@ export interface components {
             status: "QUEUED" | "RUNNING" | "FINISHED";
             processedCount: number;
             hasMore: boolean;
+            nextCursor?: string;
         };
         SecretWrite: {
             key: components["schemas"]["Key"];
@@ -3166,7 +3234,7 @@ export interface components {
             fencingToken: number;
             /** @enum {string} */
             kind: "SCREENSHOT" | "TRACE" | "HTML" | "JUNIT" | "LOG" | "SOURCE" | "MANIFEST" | "DOWNLOAD";
-            filename: string;
+            filename: components["schemas"]["FilePath"];
             contentType: string;
             sha256: components["schemas"]["Sha256"];
             sizeBytes: number;
@@ -3207,8 +3275,8 @@ export interface components {
         ServiceTokenDTO: {
             id: components["schemas"]["Id"];
             token: string;
-            /** @constant */
-            purpose: "RUNTIME_ENROLLMENT";
+            /** @enum {unknown} */
+            purpose: "RUNTIME_ENROLLMENT" | "MAINTENANCE";
             expiresAt: components["schemas"]["Timestamp"];
         };
         HealthDTOEnvelope: {
@@ -3647,8 +3715,9 @@ export interface components {
             name: string;
         };
         ServiceTokenIssue: {
-            /** @constant */
-            purpose: "RUNTIME_ENROLLMENT";
+            /** @enum {unknown} */
+            purpose: "RUNTIME_ENROLLMENT" | "MAINTENANCE";
+            operations?: ("expired-leases/reap" | "fixture-cleanups/reconcile" | "capacity/reconcile")[];
         };
         ServiceEnrollmentRequest: {
             name: string;
@@ -3658,6 +3727,35 @@ export interface components {
         RuntimeCredentialDeliveryWrite: {
             allowCredentialDelivery: boolean;
         };
+        LeaseProofRequest: {
+            leaseToken: string;
+            fencingToken: number;
+        };
+        ActivationDTO: {
+            attemptId: components["schemas"]["Id"];
+            /** @constant */
+            activated: true;
+            fencingToken: number;
+        };
+        ActivationDTOEnvelope: {
+            data: components["schemas"]["ActivationDTO"];
+            requestId: string;
+        };
+        AdminReconcileRequest: {
+            /** @constant */
+            processStopped: true;
+            reason: string;
+        };
+        UploadChunkDTO: {
+            artifactId: components["schemas"]["Id"];
+            receivedBytes: number;
+            complete: boolean;
+        };
+        UploadChunkDTOEnvelope: {
+            data: components["schemas"]["UploadChunkDTO"];
+            requestId: string;
+        };
+        CompletionManifestV1: components["schemas"]["TestCompletionManifestV1"] | components["schemas"]["ValidateCompletionManifestV1"] | components["schemas"]["CleanupCompletionManifestV1"];
         /** @description JSON used only in interpolated DSL fields, recursively restricted to SafeString bindings. */
         BindingJsonValue: ContractBindingJsonValue;
         BindingJsonObject: {
@@ -3715,6 +3813,8 @@ export interface components {
             durationMs: components["schemas"]["DurationMs"];
             errorCode?: components["schemas"]["Key"];
             message?: components["schemas"]["DiagnosticText"];
+            blockedByStepId?: components["schemas"]["Key"];
+            blockedByAssertionId?: components["schemas"]["Key"];
         };
         ActualValueV1: {
             /** @constant */
@@ -3734,6 +3834,8 @@ export interface components {
             actual: components["schemas"]["ActualValueV1"];
             durationMs: components["schemas"]["DurationMs"];
             errorCode?: components["schemas"]["Key"];
+            blockedByStepId?: components["schemas"]["Key"];
+            blockedByAssertionId?: components["schemas"]["Key"];
         };
         ObserverResultPayloadV1: {
             observerId: components["schemas"]["Key"];
@@ -3783,6 +3885,73 @@ export interface components {
         CaseEntrypointV1: {
             caseVersionId: components["schemas"]["Id"];
             path: components["schemas"]["FilePath"];
+        };
+        TestCompletionManifestV1: {
+            /** @constant */
+            schemaVersion: "1.0";
+            attemptId: components["schemas"]["Id"];
+            jobManifestSha256: components["schemas"]["Sha256"];
+            businessOutcome: components["schemas"]["AttemptOutcome"];
+            cleanupStatus: components["schemas"]["CleanupStatus"];
+            evidence: components["schemas"]["EvidenceFileEntryV1"][];
+            requiredEvidence: components["schemas"]["Sha256"][];
+            /** @constant */
+            processStopped: true;
+            /** @constant */
+            kind: "TEST";
+            caseVersionId: components["schemas"]["Id"];
+            expectedPlansSha256: components["schemas"]["Sha256"];
+        };
+        ValidateSuccessCompletionManifestV1: {
+            /** @constant */
+            schemaVersion: "1.0";
+            attemptId: components["schemas"]["Id"];
+            jobManifestSha256: components["schemas"]["Sha256"];
+            /** @constant */
+            businessOutcome: "PASSED";
+            cleanupStatus: components["schemas"]["CleanupStatus"];
+            evidence: components["schemas"]["EvidenceFileEntryV1"][];
+            requiredEvidence: components["schemas"]["Sha256"][];
+            /** @constant */
+            processStopped: true;
+            /** @constant */
+            kind: "VALIDATE";
+            compiledBundleSha256: components["schemas"]["Sha256"];
+            engineInventorySha256: components["schemas"]["Sha256"];
+        };
+        ValidateFailureCompletionManifestV1: {
+            /** @constant */
+            schemaVersion: "1.0";
+            attemptId: components["schemas"]["Id"];
+            jobManifestSha256: components["schemas"]["Sha256"];
+            /** @constant */
+            businessOutcome: "ERROR";
+            cleanupStatus: components["schemas"]["CleanupStatus"];
+            evidence: components["schemas"]["EvidenceFileEntryV1"][];
+            requiredEvidence: components["schemas"]["Sha256"][];
+            /** @constant */
+            processStopped: true;
+            /** @constant */
+            kind: "VALIDATE";
+            engineInventorySha256: components["schemas"]["Sha256"];
+            failureCode: string;
+        };
+        ValidateCompletionManifestV1: components["schemas"]["ValidateSuccessCompletionManifestV1"] | components["schemas"]["ValidateFailureCompletionManifestV1"];
+        CleanupCompletionManifestV1: {
+            /** @constant */
+            schemaVersion: "1.0";
+            attemptId: components["schemas"]["Id"];
+            jobManifestSha256: components["schemas"]["Sha256"];
+            businessOutcome: components["schemas"]["AttemptOutcome"];
+            cleanupStatus: components["schemas"]["CleanupStatus"];
+            evidence: components["schemas"]["EvidenceFileEntryV1"][];
+            requiredEvidence: components["schemas"]["Sha256"][];
+            /** @constant */
+            processStopped: true;
+            /** @constant */
+            kind: "CLEANUP";
+            fixtureVersionId: components["schemas"]["Id"];
+            namespace: components["schemas"]["Key"];
         };
     };
     responses: never;
@@ -14755,6 +14924,280 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RuntimeDTOEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    activateAttempt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                attemptId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeaseProofRequest"];
+            };
+        };
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivationDTOEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    auditReconcileAttempt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                attemptId: components["schemas"]["Id"];
+                workspaceId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminReconcileRequest"];
+            };
+        };
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReconcileDTOEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    uploadArtifactChunk: {
+        parameters: {
+            query: {
+                offset: number;
+            };
+            header: {
+                "X-VeriQ-Lease-Token": string;
+                "X-VeriQ-Fencing-Token": number;
+            };
+            path: {
+                attemptId: components["schemas"]["Id"];
+                uploadId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description Idempotent contiguous chunk accepted. Verify receivedBytes before sending the next offset. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadChunkDTOEnvelope"];
                 };
             };
             /** @description Stable JSON error; code is a machine-readable domain code. */

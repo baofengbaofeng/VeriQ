@@ -23,6 +23,11 @@ class Settings(BaseModel):
     session_hours: int = Field(default=12, ge=1, le=168)
     reset_minutes: int = Field(default=30, ge=1, le=60)
 
+    approved_engine_inventory_path: str | None = None
+    runtime_job_slots: int = Field(default=1, ge=1, le=100)
+    compile_slots: int = Field(default=2, ge=1, le=100)
+    cleanup_slots: int = Field(default=2, ge=1, le=100)
+
     smtp_host: str | None = None
     smtp_port: int = Field(default=587, ge=1, le=65535)
     smtp_from: str | None = None

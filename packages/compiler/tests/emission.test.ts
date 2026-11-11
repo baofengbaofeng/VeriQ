@@ -8,6 +8,7 @@ import {
 } from "@veriq/contracts";
 import {
   compileAssets,
+  analyze,
   compileFiles,
   assembleExecution,
   type EngineDistribution,
@@ -833,4 +834,33 @@ it("cold assembly validates declared initial values and complete fixture schemas
   expect(assembleExecution(r.bundle, e, r.files).snapshot.variables).toEqual(
     e.variables,
   );
+});
+
+it("emits hash-listed expected plan from the same expanded compiler analysis", () => {
+  const result = compileFiles(snapshot(), distribution());
+  const metadata = result.files["metadata/expected-plans.json"]!;
+  expect(metadata).toBeDefined();
+  const plans = JSON.parse(new TextDecoder().decode(metadata));
+  expect(plans.cases[0].caseVersionId).toBe(id(1));
+  expect(plans.cases[0].steps.length).toBeGreaterThan(0);
+  expect(plans.cases[0].steps[0].id).toBeTruthy();
+  expect(result.bundle.files.find((f) => f.path === "metadata/expected-plans.json")?.sha256).toBe(hash(metadata));
+});
+
+it("marks deferred request-count assertions FINALIZE in expected execution metadata", () => {
+  const source = snapshot([{
+    id: "read", action: "reload", observers: [{ id: "network", method: "GET", path: "/" }],
+    afterAssertions: [
+      { id: "count", type: "requestCount", source: "request:network", operator: "equals", expected: 1, severity: "BLOCK", expectedSource: "REQ" },
+      { id: "visible", type: "ui", target: "name", operator: "visible", expected: true, severity: "BLOCK", expectedSource: "REQ" },
+    ],
+  }]);
+  const compiled = analyze(source).cases[0]!.steps[0]!;
+  const count = compiled.responseAssertions.find((a) => a.assertion.type === "requestCount")!;
+  const visible = compiled.responseAssertions.find((a) => a.assertion.type === "ui")!;
+  const result = compileFiles(source, distribution());
+  const plans = JSON.parse(new TextDecoder().decode(result.files["metadata/expected-plans.json"]!));
+  expect(plans.cases[0].steps[0].assertions).toContainEqual({ id: count.assertion.id, severity: "BLOCK", stage: "FINALIZE" });
+  expect(plans.cases[0].steps[0].assertions).toContainEqual({ id: visible.assertion.id, severity: "BLOCK", stage: "RESPONSE" });
+  expect(validateSchema("ExpectedPlansV1", plans)).toEqual([]);
 });

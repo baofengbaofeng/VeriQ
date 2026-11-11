@@ -2,7 +2,7 @@
 
 面向企业 PC Web 系统的自动化冒烟与回归平台，以版本化测试资产和确定性 Playwright TypeScript 执行为核心，连接云端 Runtime、本地桌面客户端与离线执行。
 
-**当前状态：开发中 / 尚未发布。** 工程基线、公共契约、自有账户、Workspace、版本化测试资产 API、确定性编译器、Runner SDK 核心、fixture/业务身份集成、加密凭证 API、Runtime 注册/授权界面及开发 CLI 自检已有实现；资产编辑器、Runtime 执行生命周期、报告和桌面客户端仍在实施。下述功能描述的是 1.0 目标，不代表完整产品已经可用；目前没有正式安装包或下载。
+**当前状态：开发中 / 尚未发布。** 工程基线、公共契约、自有账户、Workspace、版本化测试资产 API、确定性编译器、Runner SDK 核心、fixture/业务身份集成、加密凭证 API、Runtime 注册/授权界面、开发 CLI 自检、服务端统一队列、冻结快照、容量/租约及结果归约已有实现；资产编辑器、Agent 实际进程监督与浏览器执行、报告和桌面客户端仍在实施。下述功能描述的是 1.0 目标，不代表完整产品已经可用；目前没有正式安装包或下载。
 
 ## 为什么做 VeriQ
 
@@ -96,11 +96,11 @@ pnpm test
 pnpm check
 ```
 
-当前 `pnpm test` 执行公共契约、编译器与 Runner SDK 测试（SDK 测试需要本机 Chromium），`pnpm check` 检查契约/编译器/SDK TypeScript 与生成文件是否同步；完整平台验收入口仍待后续任务交付。这些命令用于开发检查，不是启动完整产品的安装命令。公共接口、工具配置与更多检查命令见[契约说明](docs/contracts.md)。
+当前 `pnpm test` 执行公共契约、编译器、Runner SDK 与 Runtime 测试（SDK 和 Runtime 自检测试需要本机 Chromium），`pnpm check` 检查契约/编译器/SDK/Runtime TypeScript 与生成文件是否同步；完整平台验收入口仍待后续任务交付。这些命令用于开发检查，不是启动完整产品的安装命令。公共接口、工具配置与更多检查命令见[契约说明](docs/contracts.md)。
 
 账户与 Workspace 模块可在开发环境运行：安全配置 MySQL、初始化管理员、分别启动 Tornado 与 Vite 的步骤见[开发指南](docs/development.md)。后端入口为 `veriq_server`；当前界面提供真实的安装、认证、用户管理、空间切换、成员与邀请功能，完整测试平台仍待后续模块交付。
 
-版本化资产 API 支持八类资源、草稿修订、依赖、校验预览与排队、不可变发布规则。生产校验回执需要后续受信 Runtime 完成链路；目前不会把排队任务当作已验证发布。字段与哈希协议见[契约说明](docs/contracts.md)及[资产验证决策](docs/decisions/0005-immutable-asset-validation.md)。fixture 示例、业务身份隔离、外部 TTL 补偿及受限 Trace 策略见[后端接入](docs/integration/backend.md)；真实设备凭证授权与生产制品权限仍由后续 Runtime/报告模块完成。
+版本化资产 API 支持八类资源、草稿修订、依赖、校验预览与排队、不可变发布规则。服务端已实现受信编译完成回执和发布校验，要求当前 MANAGED 设备、有效租约/fencing、批准的引擎清单及真实上传文件；实际 Agent 消费链路仍待后续任务接入，不会把排队任务当作已验证发布。字段与哈希协议见[契约说明](docs/contracts.md)及[资产验证决策](docs/decisions/0005-immutable-asset-validation.md)。fixture 示例、业务身份隔离、外部 TTL 补偿及受限 Trace 策略见[后端接入](docs/integration/backend.md)；当前 Attempt 凭证授权已接入真实设备、执行请求者和独立下发授权校验；原始制品访问权限与报告由后续模块完成。
 
 ## 规划中的仓库结构
 

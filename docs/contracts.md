@@ -116,11 +116,11 @@ T05 implements `compileAssets(snapshot, distribution) -> CompiledAssetBundle` an
 
 `ClaimRequest` is `{runnerId, clientRequestId, availableSlots, capabilities}`. Capabilities contain exact engineVersion, os (`linux`/`win32`), arch `x64`, browsers and optional jobKinds. Server-registered capacity and grants remain authoritative. A clientRequestId is reused for claim recovery, rather than issuing another business execution.
 
-Claim returns HTTP 204 when no eligible job exists. Success `ClaimDTO` contains jobId, jobKind, attemptId, leaseToken, fencingToken, expiresAt, snapshotUrl and snapshotSha256. The latter pair identifies exact downloaded job-manifest bytes. Tokens are transport-only secrets; never put them into snapshots/events/offline bundles.
+Claim returns HTTP 204 when no eligible job exists. Success `ClaimDTO` contains jobId, jobKind, attemptId, leaseToken, fencingToken, expiresAt, serverTime, leaseDurationMs, activationRequired (true), snapshotUrl and snapshotSha256. The latter pair identifies exact downloaded job-manifest bytes. Tokens are transport-only secrets; never put them into snapshots/events/offline bundles.
 
 The canonical DeviceToken download is GET `/internal/v1/workspaces/{workspaceId}/attempts/{attemptId}/content/{sha256}` (`downloadAttemptContent`). `claim.snapshotUrl` is the enrolled control-service origin plus this route for the assigned Attempt and `claim.snapshotSha256`, identifying the **job manifest**, not its subject. Before sending credentials, require the enrolled origin, claimed attemptId and canonical route; reject download redirects. After verifying manifest bytes/hash, its workspaceId must agree with the route Workspace and jobId/kind with the claim. The disconnected UUID snapshot-download route is removed.
 
-Every download requires DeviceToken and current `X-VeriQ-Lease-Token` / `X-VeriQ-Fencing-Token` **headers**. Authorize current device/trust/grant, Workspace, assigned Attempt, unexpired lease and fencing, then require hash membership in that Attempt's frozen immutable closure. Knowing a hash never grants access. Unknown/out-of-closure content returns 404, unauthorized/revoked devices 403, expired/stale lease proof 409. Redact proof headers from logs; never put them into URLs, manifests or ordinary events. Cached bytes still require authorization.
+Every download requires DeviceToken and current `X-VeriQ-Lease-Token` / `X-VeriQ-Fencing-Token` **headers**. Authorize current device/trust/grant, Workspace, assigned Attempt, unexpired lease and fencing, then require hash membership in that Attempt's frozen immutable closure. Knowing a hash never grants access. Unknown/out-of-closure content returns 404, invalid/revoked device tokens 401, unauthorized binding/requester 403, expired/stale lease proof 409. Redact proof headers from logs; never put them into URLs, manifests or ordinary events. Cached bytes still require authorization.
 
 Return original `application/octet-stream` bytes without an envelope, transformation or JSON reserialization. Verify SHA-256 over exact received bytes before parsing/execution. All references use the same Workspace/Attempt route and proof headers:
 
@@ -132,19 +132,19 @@ Return original `application/octet-stream` bytes without an envelope, transforma
 | TEST `compiledBundleSha256` | CompiledAssetBundle descriptor bytes |
 | compiled `files[].sha256` | File bytes; also verify sizeBytes, then use the validated bundle-relative path locally |
 
-Claim → manifest → subject/bundle → files therefore needs no UUID lookup, guessed storage path or browser credentials. Addresses/proof requirements are canonical; storage and HTTP authorization implementations remain downstream.
+Claim → manifest → subject/bundle → files therefore needs no UUID lookup, guessed storage path or browser credentials. T09 implements this exact-byte Artifact pipeline and current assignment authorization; T12 extends storage, reporting and raw-evidence access policy.
 
 `JobManifestV1` common fields are schemaVersion, workspaceId, jobId, snapshotSha256 and engineVersion. Its snapshotSha256 identifies the frozen subject snapshot, distinct from the outer claim's manifest hash. Kind-specific fields:
 
 | kind | Additional required fields | Frozen subject |
 | --- | --- | --- |
-| TEST | caseExecutionId, compiledBundleSha256, executionSnapshotSha256 | ExecutionSnapshotV1; snapshotSha256 and executionSnapshotSha256 must agree |
+| TEST | caseExecutionId, caseVersionId, compiledBundleSha256, executionSnapshotSha256 | ExecutionSnapshotV1; snapshotSha256 and executionSnapshotSha256 must agree |
 | VALIDATE | resourceId, revision, sourceHash | AssetSnapshotV1 of immutable draft-validation closure |
 | CLEANUP | maintenanceId, fixtureVersionId, namespace, cleanupRef | Original execution snapshot/cleanup context retained by the maintenance record; cleanupRef is an opaque authorized reference, not a secret or arbitrary local path |
 
 Workspace/subject/hash agreement and immutable cleanup provenance are server/Runtime semantic checks. TEST, VALIDATE and CLEANUP share the same claim/lease/terminal protocol. Only browser-requiring jobs occupy browser capacity; no duplicate queue or internal Cron is implied.
 
-`HeartbeatRequest` carries leaseToken/fencingToken and progress `{phase, optional stepId/completedSteps}`; `HeartbeatDTO` returns leaseExpiresAt/cancelRequested. `EventBatchRequest` carries lease credentials and events; response `EventBatchDTO.acceptedThrough` is the contiguous accepted sequence. `FinishRequest` carries lease credentials, kind, outcome, manifestSha256, lastSequence and cleanupStatus; `FinishDTO` returns attemptId, accepted true, outcome and manifestSha256. Attempt outcomes exclude UNSTABLE, which belongs only to aggregates over retry history. Expired leases, stale fencing, idempotent finish replay and quarantine reconciliation are service requirements.
+`HeartbeatRequest` carries leaseToken/fencingToken and progress `{phase, optional stepId/completedSteps}`; `HeartbeatDTO` returns leaseExpiresAt/cancelRequested/serverTime/leaseDurationMs. `EventBatchRequest` carries lease credentials and events; response `EventBatchDTO.acceptedThrough` is the contiguous accepted sequence. `FinishRequest` carries lease credentials, kind, outcome, manifestSha256, lastSequence and cleanupStatus; `FinishDTO` returns attemptId, accepted true, outcome and manifestSha256. Attempt outcomes exclude UNSTABLE, which belongs only to aggregates over retry history. T09 enforces expired leases, stale fencing, exact finish replay and quarantine reconciliation as described below.
 
 ## Execution events and results
 
@@ -333,7 +333,7 @@ Implemented management routes are Workspace `/credentials` GET/POST, `/credentia
 
 `IdentityRegistry.require_role(session,scope,role)` checks exact Workspace references, version revocation and explicit identity allowlists; `freeze(session,scope,roles)` returns sorted public config snapshots. Authorization locks/reloads mutable adapter and secret rows in the resolution transaction, with deterministic adapter ordering, so revocation cannot cross the authorization/decryption point.
 
-`POST /internal/v1/attempts/{attemptId}/credentials/resolve` takes `{secretRef,versionId}` and required Authorization, X-VeriQ-Lease-Token, X-VeriQ-Fencing-Token headers. It responds with `{secretRef,versionId,value}` inside the standard envelope and Cache-Control:no-store. Production uses `DenyAttemptProof`. T08/T09 inject `AttemptProofVerifier.verify(session:AsyncSession, attempt_id:str, proof:CredentialProofTransport)->VerifiedAttempt`. Transport holds authorization and lease_token (excluded from repr), plus fencing_token. The handler verifies the returned Attempt ID/caller fence; domain policy checks active/current fence, unexpired lease, current membership/grant and MANAGED trust. The future verifier must derive and lock these facts from real device/Attempt tables in the same transaction. Tests explicitly inject proof fixtures; these do not constitute real device integration.
+`POST /internal/v1/attempts/{attemptId}/credentials/resolve` takes `{secretRef,versionId}` and required Authorization, X-VeriQ-Lease-Token, X-VeriQ-Fencing-Token headers. It responds with `{secretRef,versionId,value}` inside the standard envelope and Cache-Control:no-store. Production uses `DenyAttemptProof`. T08/T09 inject `AttemptProofVerifier.verify(session:AsyncSession, attempt_id:str, proof:CredentialProofTransport)->VerifiedAttempt`. Transport holds authorization and lease_token (excluded from repr), plus fencing_token. The handler verifies the returned Attempt ID/caller fence; domain policy checks active/current fence, unexpired lease, current membership/grant and MANAGED trust. T09 implements these facts in `DatabaseAttemptProofVerifier` under the same installation lock. T07 domain tests still explicitly inject proof fixtures; T09 separately tests actual device/Attempt/credential integration.
 
 Settings `master_key_id` defaults to `primary`; `previous_master_keys` is an external key-ID-to-hex32 map, also accepted as JSON through VERIQ_PREVIOUS_MASTER_KEYS. CLI initialization serializes nested secrets only to the restricted operator config, and resumed init preserves the existing active key bytes, ID and prior decrypt keys together. Rotation creates immutable credential versions and never substitutes one for a revoked pinned version.
 
@@ -343,7 +343,7 @@ Settings `master_key_id` defaults to `primary`; `previous_master_keys` is an ext
 
 [ADR 0009](decisions/0009-runtime-enrollment.md) defines the approved ownership and enrollment model. Migration `0005_runtimes` adds the five Runtime tables and the reusable `veriq_service_accounts` / `veriq_service_tokens` foundation. Exactly one real user or service account owns a Runtime. Bindings and explicit named-member / whole-Workspace grants are separate from trust and location. Device capabilities remain `DEVICE_REPORTED`; registration returns `OFFLINE`, without `lastSeenAt` or invented execution history.
 
-`RuntimeService(session).approve_enrollment(actor: User, code, binding: workspace_id, grants, enrollment_id=...)` creates the owner-selected binding and returns Runtime metadata. `require_device(authorization)` returns the database-backed `(Runtime, RuntimeBinding, RuntimeToken)` after checking expiry, revocation, active binding and current user membership or service-account authorization. `require_dispatch(actor: User, workspace_id, runtime_id)` additionally checks current EXECUTE permission and private owner consent. These methods are transaction primitives: acquire `lock_installation` **before** identity/Workspace reads and retain it through the protected operation. HTTP handlers do so. T09 must join/lock its assignment, job actor, selected environment/credential grants, lease hash, fencing token and immutable pins in this same authorization transaction; `DenyAttemptProof` remains installed until that full verifier exists. T04 jobs/artifacts/validation receipts are preserved; Runtime/Attempt receipt FKs and approved release provenance remain T09/T10, with no production compiler completion seeded here.
+`RuntimeService(session).approve_enrollment(actor: User, code, binding: workspace_id, grants, enrollment_id=...)` creates the owner-selected binding and returns Runtime metadata. `require_device(authorization)` returns the database-backed `(Runtime, RuntimeBinding, RuntimeToken)` after checking expiry, revocation, active binding and current user membership or service-account authorization. `require_dispatch(actor: User, workspace_id, runtime_id)` additionally checks current EXECUTE permission and private owner consent. These methods are transaction primitives: acquire `lock_installation` **before** identity/Workspace reads and retain it through the protected operation. HTTP handlers do so. T09 must join/lock its assignment, job actor, selected environment/credential grants, lease hash, fencing token and immutable pins in this same authorization transaction; T09 now installs `DatabaseAttemptProofVerifier`, deriving that complete proof from current database state. T04 jobs/artifacts/validation receipts are preserved; T09 adds Runtime/Attempt receipt FKs and the verified production completion writer; the T08 enrollment path itself never seeds compiler receipts.
 
 Implemented human routes: `POST /api/v1/runtime-enrollments` (201), `/poll`, `/inspect`, and `/{enrollmentId}/approve`. Inspect/approve require the real Web session, Origin and CSRF. Native creation/poll use no cookie identity; cross-origin browser requests are rejected. Approval requires `userCode`, current executable Workspace membership, and explicit private / member / Workspace consent. Private plus named shares is invalid. Public code and polling secret are independently random and hashed, expire in ten minutes, and consumption is atomic. Creation is limited to twenty requests per source in ten minutes; pending polls enforce five seconds. Poll returns 409 `ENROLLMENT_PENDING`, 429 `ENROLLMENT_SLOW_DOWN`, or the single credential receipt. Restart enrollment after expiry, lost one-time receipt or consumed secret.
 
@@ -354,3 +354,201 @@ Implemented management routes are Workspace `/runtimes` GET with signed scoped p
 The canonical Workspace `/service-accounts` GET/POST, `/{serviceAccountId}/tokens` POST, `/disable` POST and `/tokens/{tokenId}/revoke` POST implement the T16 identity foundation. Current OWNER/ADMIN authority is required. T08 token purpose is exactly `RUNTIME_ENROLLMENT`: 256 bits, ten minutes, one consumption, independently revocable, no trigger/maintenance/credential powers. `POST /internal/v1/runtime-enrollments/service` consumes it into a service-owned MANAGED_CLOUD Runtime bound to the account's Workspace; trust still starts USER_REGISTERED. Disabled accounts immediately fail device authentication. T16 must extend these identities/tokens rather than duplicate them. Other planned service-account APIs/scopes remain unimplemented.
 
 Runtime wire descriptors and enrollment/credential receipts are canonical JSON Schema definitions, aliased by OpenAPI and consumed by generated TypeScript. The native client validates successful device responses with the existing `@veriq/contracts` validator. Real UI at `/runtimes` uses the authenticated Workspace provider, scoped/cancelled queries, explicit loading/empty/error/success states, device inspection, private/member/Workspace consent, trust/revoke management and deployment service accounts. It displays current trust without fabricated historical results.
+
+## T09 — implemented unified execution service
+
+Migration `0006_execution` extends the original `veriq_jobs` and reuses Workspace+SHA
+`veriq_artifacts` and `veriq_validation_receipts`. Run, CaseExecution, Attempt, capacity,
+resource lease, claim receipt, event, upload and maintenance receipt tables have typed
+Workspace foreign keys. A TEST Job references its actual Run+CaseExecution; a CLEANUP
+Job references its actual maintenance receipt and original Attempt. CaseExecution
+references either a published version or an immutable draft candidate UUID plus source
+artifact, never a fabricated published version. Completed compiler receipts bind an
+actual Attempt of the same Runtime and Workspace.
+
+`JobService(session, settings).claim(RuntimeIdentity(authorization), ClaimRequest)`
+returns ClaimDTO or None. `LeaseService.heartbeat(attempt_id, proof, progress)` returns
+HeartbeatDTO. `CredentialProofTransport` carries the device authorization, lease token
+and fence without revealing secrets in repr. Every public transaction acquires
+`lock_installation(session)` before identity and Workspace reads and retains it through
+commit. Domain callers must do the same. Current device owner/account, binding/consent,
+requesting human's EXECUTE authority (or the narrow CLEANUP service grant), active
+Attempt, hash-only lease and fence are checked together. Current revocation denies
+content, credentials, events, uploads and finish; heartbeat signals cancellation without
+extending the lease. Cached artifacts confer no authority.
+
+Run admission: POST `/api/v1/workspaces/{workspaceId}/runs`, with cookie/CSRF and an
+`Idempotency-Key` (1–160 characters), accepts exactly one of `caseVersionIds`,
+`suiteVersionId`, `draftValidationJobId`, plus `environmentVersionId`, `roleKeys`,
+`browsers`, `runtimeIds`, optional `variables`, `executionLocation`, `maxRetries` (0/1).
+Server-frozen variants retain suite ordinal, dataset version and row key, selected role,
+browser, environment, public adapter config hashes, reference-only secret version pins,
+initial variables and a unique attempt namespace. Selection never falls back to another
+Runtime/location. DEBUG may await its immutable candidate's managed validation, and
+only then materializes the executable manifest. A terminal failed validation causes the dependent DEBUG cases and Run to finish ERROR when the queue next examines them. `triggerKind` (MANUAL/DEBUG) is distinct
+from execution source/location. At most ten unfinished Runs exist globally; zero cases
+finish INCOMPLETE with `NO_CASES_SELECTED`. GET/list/cancel use the same Workspace API.
+Service-token Run admission remains denied until T16 supplies a real scoped plan grant.
+
+The actual device routes are:
+
+| Method and path | Request / response |
+| --- | --- |
+| POST `/internal/v1/jobs/claim` | ClaimRequest → ClaimDTO or 204 |
+| POST `/internal/v1/attempts/{id}/activate` | leaseToken, fencingToken → attemptId, activated:true, fencingToken |
+| POST `/internal/v1/attempts/{id}/heartbeat` | HeartbeatRequest → HeartbeatDTO |
+| POST `/internal/v1/attempts/{id}/events` | EventBatchRequest → acceptedThrough |
+| POST `/internal/v1/attempts/{id}/artifact-uploads` | proof + kind, filename, contentType, sha256, sizeBytes, sensitivity → artifactId, uploadUrl, method:PUT, expiresAt |
+| PUT returned uploadUrl + `?offset=N` | raw octets + proof headers → artifactId, receivedBytes, complete |
+| GET `/internal/v1/workspaces/{ws}/attempts/{id}/content/{sha256}` | proof headers → original bytes |
+| POST `/internal/v1/attempts/{id}/finish` | FinishRequest → saved FinishDTO |
+| POST `/internal/v1/attempts/{id}/reconcile` | fencingToken, processStopped, cleanupStatus, stoppedAt → attemptId, capacityReleased, auditId |
+
+POST requests use `Authorization: Bearer <DeviceToken>` and JSON proof fields. PUT/GET
+use `X-VeriQ-Lease-Token` and `X-VeriQ-Fencing-Token`. Native routes reject a foreign Origin; an omitted or same-service Origin is allowed
+under the existing DeviceAPI policy. Downloads are permitted before
+activation to verify the immutable closure. Credentials, uploads, events and finish
+require activation. T10 must reject redirects/unexpected origins and verify every hash.
+
+A claim allocates one LEASED Attempt; it does not permit execution effects. Reusing the
+same clientRequestId before activation rotates token+fence on that same Attempt without
+extending its deadline. After activation a duplicate returns 409
+`ATTEMPT_ALREADY_ACTIVATED`, grants no new authority and leaves healthy capacity held.
+Repeated activation likewise returns 409. Lost activation responses require local
+process reconciliation, never a second process. Empty claim receipts retain 204 for 24
+hours and are bounded at 10,000 per Runtime; external reap removes old empty receipts.
+Nonempty receipts follow retained Attempt lifetime. Clients never reuse request UUIDs.
+
+Server DB UTC determines validity: lease60s, heartbeat10s, Run budget30min. Claim exposes
+`expiresAt`; Heartbeat exposes `leaseExpiresAt`; both expose `serverTime` and
+`leaseDurationMs`. T10 maps the claim expiry to `LeaseGrant.leaseExpiresAt` when calling
+`apps/runtime/src/lease.ts::leaseDeadline(grant, monotonicSend, monotonicReceive)`. Its
+one-second stop reserve and full-roundtrip deduction are independent of client wall
+clock. It is a tested helper, not yet the T10 process supervisor.
+
+Capacity acquisition orders global → Workspace → Runtime → environment → exclusive
+resource keys under the installation lock. Browser limits remain global4/Workspace2;
+compile and cleanup each default global2/Workspace1, Runtime total headroom1,
+environment browser2. Settings `compile_slots`, `cleanup_slots`, `runtime_job_slots`
+control the independent non-browser/Runtime budgets; reported availableSlots cannot
+raise them. Expired unactivated Attempts release safely. Expired activated or explicitly
+unknown processes finish ERROR/WORKER_LOST and retain QUARANTINED capacity. Unknown
+reconciliation immediately revokes live authority and aggregates the Run. Confirmed
+stop releases capacity idempotently; it cannot turn an existing failure into success.
+A live stopped Attempt without a valid completion becomes INCOMPLETE and aggregates.
+
+Uploads keep Tornado's existing 3MiB transport cap. A chunk is at most 1MiB, one file
+32MiB, total declared Attempt upload budget256MiB, at most1,000 records. Exact repeated
+metadata returns the same upload; chunks must be contiguous or exact byte replays.
+Completion of upload verifies full SHA/size before storing in the existing immutable
+Artifact table. Temporary bytes are not executable artifacts. Proof is checked on every
+chunk, including replay; partial bytes on expired Attempts are cleared by external reap.
+T12 owns File/S3 backends, retention/report UI and raw-evidence download ACL/redaction;
+T09's closure-download endpoint does not expose arbitrary uploaded evidence.
+
+Compiler `compileFiles` now emits `metadata/expected-plans.json`, hash/size listed in
+CompiledAssetBundle. `ExpectedPlansV1` has schemaVersion and cases, each with
+caseVersionId, optional persistenceCheckpointStepId, requiredEvidenceKinds (TRACE), and
+flattened steps `{id, order, parentId?, failurePolicy, assertions, observers}`. Assertions
+carry `{id, severity, stage}`. This comes from actual CompiledCase analysis; the controller
+does not expand DSL. T10 must produce canonical lifecycle/step/assertion/observer events
+and real evidence, including ARTIFACT_CREATED with the returned artifactId and matching
+file/kind. Events are contiguous from sequence1; exact repeats are accepted, changed
+repeats or gaps conflict. Explicit dependent SKIPPED results carry blockedByStepId and,
+for a BLOCK assertion, blockedByAssertionId; missing results do not become skips.
+
+`completion-manifest-v1.schema.json` aliases the new strict `CompletionManifestV1`
+union; legacy `attempt-manifest-v1.schema.json` still aliases JobManifestV1. Common
+completion fields are schemaVersion, kind, attemptId, jobManifestSha256, businessOutcome,
+cleanupStatus, evidence (EvidenceFileEntryV1[]), requiredEvidence (SHA[]),
+processStopped:true. TEST additionally requires caseVersionId and expectedPlansSha256;
+VALIDATE success (businessOutcome:PASSED) requires compiledBundleSha256 and engineInventorySha256; VALIDATE failure (businessOutcome:ERROR) prohibits compiledBundleSha256 and requires engineInventorySha256, failureCode (1–80 uppercase ASCII letters/digits/underscores, leading letter), and at least one nonempty uploaded LOG in both evidence and requiredEvidence, linked by ARTIFACT_CREATED. Missing diagnostics are rejected, and this branch never mints a ValidationReceipt or permits publication. CLEANUP requires
+fixtureVersionId and original namespace. Upload the completion bytes before calling
+finish. `FinishRequest.outcome` is only a submitted claim: the server derives outcome
+from trusted metadata, retained events and verified own uploads. TEST missing lifecycle,
+expected results, required evidence or matching ARTIFACT_CREATED is INCOMPLETE; cleanup
+FAILED is ERROR. Raw business/cleanup/evidence facts are retained independently. At most
+one whole-case retry follows FAILED/ERROR, with a new namespace and Attempt; retry pass
+aggregates UNSTABLE. Playwright retries remain0. Same-hash finished replay returns the
+saved receipt even after lease expiry, under current device/requester authorization;
+a different hash cannot overwrite it. Reconcile/reap never fabricate a PASSED receipt.
+
+`approved_engine_inventory_path` is an operator-controlled JSON file validated as
+ApprovedEngineInventoryV1. Missing/invalid inventory fails closed for managed compiler
+claim/completion. Each exact engine binds compiler/SDK versions, dependency inventory,
+and SHA/size for package.json, package-lock.json, dependencies.json, engine/compiler.tgz
+and vendor archives. The completion inventory hash is SHA-256 of canonical engine-entry
+JSON, not the whole catalog. Only fixed release paths may be approved. Uploaded catalog
+content never grants approval. Actual uploaded descriptor/files, immutable source
+sidecar bytes, selected CASE entrypoints, expected plan, and current MANAGED active
+compiler proof are verified before minting the existing ValidationReceipt. Previously
+published trusted receipts remain immutable provenance. T18/T20 promote the same actual
+release bytes into this operator catalog; no production catalog is synthesized in T09.
+Controller runtime needs no Node/Chrome. Tests use real emitted archives and a test-only
+producer; TEST lifecycle/evidence fixtures prove the server protocol, not real T10
+browser/Agent execution or trace validity.
+
+Workspace Owner/Admin may issue `purpose:MAINTENANCE` on the existing service-token API,
+with explicit operations from `expired-leases/reap`, `fixture-cleanups/reconcile`,
+`capacity/reconcile`. Tokens are hash-only, reusable for24h, currently account/Workspace
+scoped and revocable. RUNTIME_ENROLLMENT remains a separate consumed10min secret and
+cannot authorize these operations. POST `/internal/v1/maintenance/{operation}` requires
+that Bearer token, explicit workspaceId, limit (1–10,000), optional cursor and an
+Idempotency-Key. Same request replays its saved result; changed parameters conflict.
+Reap bounds each of expired-Run jobs, expired Attempts and old empty receipts by limit.
+It cancels unstarted work after30min with RUN_TIMEOUT, terminates expired live authority,
+and conservatively quarantines unknown active processes. Fixture and capacity scans
+return hasMore/nextCursor; callers use a new idempotency key per page/iteration.
+Capacity reconciliation verifies counters against held leases without blind release.
+
+Compensation creates CLEANUP in the same queue only once per original Attempt. It waits
+until original capacity is released and uses a shared Runtime and current scoped
+maintenance grant. The pinned cleanup subject contains Workspace, original namespace,
+fixtureVersionId/definition, environment, public authAdapters and engineVersion; no
+plaintext cleanup credential. T10 supplies an HTTP-only fixture context and resolves
+only that frozen fixture identity through the actual proof verifier (no dummy Page).
+Owner/Admin POST `/api/v1/workspaces/{ws}/attempts/{id}/reconcile` requires
+`processStopped:true` and a reason of10–1,000 characters; it releases only quarantined
+or already released capacity and records a Workspace audit without changing outcomes.
+No internal scheduler, parallel queue, bootstrap-as-requester or offline fake Job is added.
+
+### T09 review correction: result order, blocking, cancellation and queue progress
+
+Expected-plan assertion `stage` describes execution, not editable DSL syntax:
+BEFORE → RESPONSE → AFTER → FINALIZE. The compiler marks `requestCount` as FINALIZE
+from its actual CompiledAssertion type because the SDK defers it until observers finish.
+Other assertions keep their compiled stage; neither DSL nor SDK behavior changes.
+A deferred count cannot prove that an earlier AFTER assertion or child was prevented.
+
+The reducer retains every negative business and ATTEMPT_FINISHED outcome. Conflicting
+terminal facts make evidence INCOMPLETE (ERROR keeps its higher priority); passing
+steps cannot erase a later business/origin failure. Execution facts must occur between
+ATTEMPT_STARTED and ATTEMPT_FINISHED, with cleanup after business work. Only LOG and
+ARTIFACT_CREATED notifications may form a post-terminal upload tail. Assertions and
+observers stay inside their STEP_STARTED/STEP_FINISHED interval; executed children stay
+inside parents, siblings follow compiled order, and assertion stages follow their actual
+execution order. FINALIZE assertions follow observed results.
+
+An explicit skipped assertion may name a previously failed BLOCK assertion in an earlier
+execution stage/order of the same step. The blocking fact must precede the skip. An
+ancestor can prevent unstarted child work only through a BEFORE BLOCK; the child still
+requires an explicit SKIPPED step fact. A failed STEP_FINISHED may explicitly name its
+own prior non-FINALIZE BLOCK using blockedByStepId/blockedByAssertionId when that block
+prevented observer finalization. Missing observer results are then retained as
+`blockedObservers` facts, never invented PASSED observations. Without that proof, missing
+observers remain INCOMPLETE.
+
+Cancelling a queued retry distinguishes a finished historical Attempt from a live
+assignment. It immediately finishes Job/CaseExecution/Run, records
+`reasonCode:USER_CANCELLED`, and aggregates retained Attempt history plus CANCELLED.
+An earlier FAILED/ERROR therefore remains the more severe outcome; the immutable
+Attempt result is unchanged and no replacement Attempt is claimed.
+
+Claim applies stable Workspace/state/time/Runtime/location/engine/kind predicates in
+SQL, then traverses successive100-row pages by `(created_at,id)` until the transaction's
+finite queue is exhausted or one eligible Job is reserved. Dynamic requester, allowlist,
+dependency, quarantine and capacity checks still run on each candidate. The installation
+lock prevents concurrent enqueue/authorization mutation during this traversal and the
+DB-time fence excludes newer rows. There is no fixed prefix or new cursor table. Memory
+and each query are bounded by100; total work and installation-lock hold time remain
+proportional to the existing matching queue, a conservative consistency tradeoff.

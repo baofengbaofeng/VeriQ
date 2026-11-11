@@ -26,11 +26,21 @@ async def site():
         master_key="a" * 64,
         signing_key="b" * 64,
         environment="development",
+        approved_engine_inventory_path=env.get("approved_engine_inventory_path"),
     )
     db = Database(settings)
     async with db.engine.begin() as conn:
         tables = (await conn.execute(text("SHOW TABLES"))).scalars().all()
         owned = {
+            "veriq_runs",
+            "veriq_case_executions",
+            "veriq_attempts",
+            "veriq_capacity_pools",
+            "veriq_resource_leases",
+            "veriq_claim_receipts",
+            "veriq_attempt_events",
+            "veriq_attempt_uploads",
+            "veriq_maintenance_receipts",
             "veriq_service_accounts",
             "veriq_service_tokens",
             "veriq_runtimes",
@@ -78,7 +88,7 @@ async def site():
                 operation = operations.get(response.request.method.lower())
                 if operation:
                     descriptor = operation["responses"].get(str(response.status_code))
-                    if descriptor and "content" in descriptor:
+                    if descriptor and "application/json" in descriptor.get("content", {}):
                         name = descriptor["content"]["application/json"]["schema"]["$ref"].split(
                             "/"
                         )[-1]

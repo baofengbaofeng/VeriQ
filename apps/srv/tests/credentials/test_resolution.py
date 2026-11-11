@@ -83,7 +83,9 @@ async def test_resolution_requires_current_verified_grant_and_exact_pin(site, mo
     async def verified(self, session, requested_attempt, transport):
         return replace(proof, attempt_id=attempt_id)
 
-    monkeypatch.setattr(module.DenyAttemptProof, "verify", verified)
+    from veriq_server.services.lease import DatabaseAttemptProofVerifier
+
+    monkeypatch.setattr(DatabaseAttemptProofVerifier, "verify", verified)
     response = await c.post(
         f"/internal/v1/attempts/{attempt_id}/credentials/resolve",
         json={"secretRef": "business", "versionId": secret["versionId"]},

@@ -27,6 +27,15 @@ async def main():
     )
     db = Database(settings)
     owned = {
+        "veriq_runs",
+        "veriq_case_executions",
+        "veriq_attempts",
+        "veriq_capacity_pools",
+        "veriq_resource_leases",
+        "veriq_claim_receipts",
+        "veriq_attempt_events",
+        "veriq_attempt_uploads",
+        "veriq_maintenance_receipts",
         "veriq_service_accounts",
         "veriq_service_tokens",
         "veriq_runtimes",

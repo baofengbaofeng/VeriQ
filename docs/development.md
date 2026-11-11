@@ -105,3 +105,13 @@ pnpm --filter @veriq/web test:e2e z-runtimes.spec.ts
 ```
 
 The real browser journey launches the CLI, approves in the UI, reads the protected local credential, changes sharing and managed trust, revokes the device, and confirms the token is rejected. Vite forwards both `/api` and `/internal` to the control service. The Python control service still requires neither Node nor Chrome at runtime.
+
+## Unified execution server (T09)
+
+The implemented control API admits immutable published CASE/SUITE runs or frozen draft candidates, queues TEST/VALIDATE/CLEANUP, and checks both the current device and original requester. Defaults remain four global browser contexts, two per Workspace, ten unfinished Runs, heartbeat10s and lease60s. Explicit activation precedes side effects; an expired or unknown process loses authority and keeps its capacity quarantined until stop reconciliation. Cancellation of an unstarted retry finishes immediately while retaining earlier failures.
+
+The server now verifies managed compiler completion against actual uploaded bytes, retained source and an operator-owned `approved_engine_inventory_path`. No production catalog is supplied yet: missing approval fails closed. T18/T20 build and promote exact engine bytes; the test-only archive producer is not an installation or production approval tool. The Python controller never executes Node or Chrome.
+
+External middleware calls scoped, idempotent HTTP maintenance routes for lease reaping, fixture compensation and capacity reconciliation. A Workspace service token with purpose MAINTENANCE and explicit operations is distinct from one-time RUNTIME_ENROLLMENT. There is no internal Cron. Complete fields, hashing, event order, FINALIZE metadata, upload bounds and result rules are in the [execution contracts](contracts.md) and [queue decision](decisions/0010-unified-fenced-execution.md).
+
+T09 is the server foundation. Its real MySQL/HTTP concurrency and actual compiler archive tests are separate from TEST/CLEANUP protocol fixtures; these fixtures are not browser traces or evidence of an Agent killing a process. T10 adds the real consumer, process supervision, canonical SDK events and unattended renewal. T12 adds restricted raw-evidence access, retention and reports. The development CLI still registers an offline device rather than automatically starting a worker.

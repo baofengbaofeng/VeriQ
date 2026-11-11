@@ -10535,7 +10535,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Upload exact CompletionManifestV1 bytes first. The server verifies current device/requester, active lease/fence and retained evidence. VALIDATE success requires a compiled descriptor; VALIDATE ERROR prohibits a descriptor and requires a bounded failureCode, approved engineInventorySha256 and verified nonempty LOG evidence. Failure never creates a ValidationReceipt. Exact completed manifest replay returns the original receipt under current identity."
       }
     },
     "/internal/v1/attempts/{attemptId}/reconcile": {
@@ -14790,6 +14791,399 @@
         },
         "description": "Current Workspace OWNER/ADMIN approves credential delivery only after independent system-admin MANAGED trust and owner sharing consent. Does not grant hardware trust."
       }
+    },
+    "/internal/v1/attempts/{attemptId}/activate": {
+      "post": {
+        "operationId": "activateAttempt",
+        "tags": [
+          "attempts"
+        ],
+        "security": [
+          {
+            "DeviceToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "attemptId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivationDTOEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeaseProofRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/attempts/{attemptId}/reconcile": {
+      "post": {
+        "operationId": "auditReconcileAttempt",
+        "tags": [
+          "attempts"
+        ],
+        "security": [
+          {
+            "WebSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "attemptId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReconcileDTOEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminReconcileRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/v1/attempts/{attemptId}/artifact-uploads/{uploadId}": {
+      "put": {
+        "operationId": "uploadArtifactChunk",
+        "tags": [
+          "attempts"
+        ],
+        "security": [
+          {
+            "DeviceToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "attemptId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "uploadId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 33554432
+            }
+          },
+          {
+            "name": "X-VeriQ-Lease-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-VeriQ-Fencing-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Idempotent contiguous chunk accepted. Verify receivedBytes before sending the next offset.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadChunkDTOEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary",
+                "maxLength": 1048576
+              }
+            }
+          }
+        },
+        "description": "T12 authorization obligation: raw Trace, screenshots, HTML and downloads are CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata only. This schema does not implement storage or authorization."
+      }
     }
   },
   "components": {
@@ -15937,6 +16331,23 @@
             "items": {
               "$ref": "#/components/schemas/Id"
             }
+          },
+          "variables": {
+            "$ref": "#/components/schemas/JsonObject"
+          },
+          "executionLocation": {
+            "enum": [
+              "MANAGED_CLOUD",
+              "CONNECTED_LOCAL"
+            ]
+          },
+          "maxRetries": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "draftValidationJobId": {
+            "$ref": "#/components/schemas/Id"
           }
         },
         "required": [
@@ -15982,6 +16393,16 @@
           },
           "gateNow": {
             "type": "boolean"
+          },
+          "triggerKind": {
+            "enum": [
+              "MANUAL",
+              "DEBUG",
+              "HTTP_TRIGGER"
+            ]
+          },
+          "reasonCode": {
+            "type": "string"
           }
         },
         "required": [
@@ -16408,6 +16829,10 @@
           },
           "workspaceId": {
             "$ref": "#/components/schemas/Id"
+          },
+          "cursor": {
+            "type": "string",
+            "maxLength": 240
           }
         },
         "required": [
@@ -16435,6 +16860,10 @@
           },
           "hasMore": {
             "type": "boolean"
+          },
+          "nextCursor": {
+            "type": "string",
+            "maxLength": 240
           }
         },
         "required": [
@@ -16710,12 +17139,12 @@
             ]
           },
           "filename": {
-            "type": "string",
-            "minLength": 1
+            "$ref": "../schemas/platform-v1.schema.json#/$defs/FilePath"
           },
           "contentType": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 80
           },
           "sha256": {
             "$ref": "#/components/schemas/Sha256"
@@ -16723,7 +17152,7 @@
           "sizeBytes": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 9007199254740991
+            "maximum": 33554432
           },
           "sensitivity": {
             "$ref": "../schemas/platform-v1.schema.json#/$defs/ArtifactSensitivity"
@@ -16902,7 +17331,10 @@
             "type": "string"
           },
           "purpose": {
-            "const": "RUNTIME_ENROLLMENT"
+            "enum": [
+              "RUNTIME_ENROLLMENT",
+              "MAINTENANCE"
+            ]
           },
           "expiresAt": {
             "$ref": "#/components/schemas/Timestamp"
@@ -18833,7 +19265,23 @@
         "type": "object",
         "properties": {
           "purpose": {
-            "const": "RUNTIME_ENROLLMENT"
+            "enum": [
+              "RUNTIME_ENROLLMENT",
+              "MAINTENANCE"
+            ]
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "expired-leases/reap",
+                "fixture-cleanups/reconcile",
+                "capacity/reconcile"
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 3,
+            "uniqueItems": true
           }
         },
         "required": [
@@ -18874,6 +19322,105 @@
           "allowCredentialDelivery"
         ],
         "additionalProperties": false
+      },
+      "LeaseProofRequest": {
+        "$ref": "../schemas/platform-v1.schema.json#/$defs/LeaseProofRequest"
+      },
+      "ActivationDTO": {
+        "type": "object",
+        "properties": {
+          "attemptId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "activated": {
+            "const": true
+          },
+          "fencingToken": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "attemptId",
+          "activated",
+          "fencingToken"
+        ],
+        "additionalProperties": false
+      },
+      "ActivationDTOEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ActivationDTO"
+          },
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "AdminReconcileRequest": {
+        "type": "object",
+        "properties": {
+          "processStopped": {
+            "const": true
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "processStopped",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "UploadChunkDTO": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "receivedBytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 33554432
+          },
+          "complete": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "artifactId",
+          "receivedBytes",
+          "complete"
+        ],
+        "additionalProperties": false
+      },
+      "UploadChunkDTOEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/UploadChunkDTO"
+          },
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "CompletionManifestV1": {
+        "$ref": "../schemas/platform-v1.schema.json#/$defs/CompletionManifestV1"
       }
     }
   }
