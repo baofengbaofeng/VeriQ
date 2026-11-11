@@ -156,6 +156,7 @@ class JobService:
         if req["runnerId"] != runtime.id:
             raise Problem(403, "DEVICE_MISMATCH", "Claim must use the authenticated Runtime")
         current = await database_time(self.session)
+        runtime.last_seen_at = current
         request_hash = sha256(canonical_bytes(req)).hexdigest()
         old = await self.session.get(ClaimReceipt, (runtime.id, req["clientRequestId"]))
         if old:

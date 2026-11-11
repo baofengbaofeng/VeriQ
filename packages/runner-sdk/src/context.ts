@@ -28,7 +28,14 @@ export interface StepResult extends StepFinishedPayloadV1 {
   events: import("./observers/events.js").EventEvidence[];
   cancelled?: boolean;
 }
+export type LiveStepEvent =
+  | {type: "STEP_STARTED"; stepId: string}
+  | {type: "STEP_FINISHED"; stepId: string; result: StepFinishedPayloadV1}
+  | {type: "ASSERTION_RESULT"; stepId: string; assertionId: string; result: AssertionResultPayloadV1}
+  | {type: "OBSERVER_RESULT"; stepId: string; result: ObserverResultPayloadV1};
 export interface StepContextOptions {
+  onBusinessRequest?: (method: string) => void;
+  onEvent?: (event: LiveStepEvent) => Promise<void>;
   page: Page;
   environment: EnvironmentV1;
   catalog: ElementCatalogV1;
@@ -77,8 +84,28 @@ export function createStepContext(options: StepContextOptions): StepContext {
     },
   };
 }
+/** A typed interruption, selected only when abort wins over operation settlement. */
+export class ExecutionCancelled extends Error {
+  constructor() { super("CANCELLED"); }
+}
+export function interruptible<T>(ctx: Pick<StepContext, "signal">, operation: () => Promise<T>): Promise<T> {
+  if (ctx.signal?.aborted) return Promise.reject(new ExecutionCancelled());
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const finish = (value: T | undefined, error?: unknown) => {
+      if (settled) return;
+      settled = true;
+      ctx.signal?.removeEventListener("abort", abort);
+      if (error !== undefined) reject(error); else resolve(value as T);
+    };
+    const abort = () => finish(undefined, new ExecutionCancelled());
+    ctx.signal?.addEventListener("abort", abort, {once:true});
+    try { operation().then(value => finish(value), error => finish(undefined, error)); }
+    catch (error) { finish(undefined, error); }
+  });
+}
 export function budget(ctx: StepContext, requested: number): number {
-  if (ctx.signal?.aborted) throw new Error("CANCELLED");
+  if (ctx.signal?.aborted) throw new ExecutionCancelled();
   const n = Math.min(requested, (ctx.deadline ?? Infinity) - Date.now());
   if (n <= 0) throw new Error("BUSINESS_TIMEOUT");
   return n;

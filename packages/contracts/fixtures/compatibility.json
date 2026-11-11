@@ -4662,5 +4662,177 @@
       "stage": "FINALIZE"
     },
     "valid": false
+  },
+  {
+    "name": "expected-plan-write-potential-false",
+    "schema": "ExpectedPlansV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "cases": [
+        {
+          "caseVersionId": "11111111-1111-4111-8111-111111111111",
+          "requiredEvidenceKinds": [
+            "TRACE"
+          ],
+          "steps": [
+            {
+              "id": "read",
+              "order": 0,
+              "failurePolicy": "STOP",
+              "assertions": [
+                {
+                  "id": "count",
+                  "severity": "BLOCK",
+                  "stage": "FINALIZE"
+                }
+              ],
+              "observers": [
+                "network"
+              ]
+            }
+          ],
+          "hasPotentialWrites": false
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "expected-plan-write-potential-invalid-string",
+    "schema": "ExpectedPlansV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "cases": [
+        {
+          "caseVersionId": "11111111-1111-4111-8111-111111111111",
+          "requiredEvidenceKinds": [
+            "TRACE"
+          ],
+          "steps": [
+            {
+              "id": "read",
+              "order": 0,
+              "failurePolicy": "STOP",
+              "assertions": [
+                {
+                  "id": "count",
+                  "severity": "BLOCK",
+                  "stage": "FINALIZE"
+                }
+              ],
+              "observers": [
+                "network"
+              ]
+            }
+          ],
+          "hasPotentialWrites": "false"
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "test-completion-retry-safety-None",
+    "schema": "CompletionManifestV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "attemptId": "11111111-1111-4111-8111-111111111111",
+      "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "businessOutcome": "FAILED",
+      "cleanupStatus": "NOT_REQUIRED",
+      "evidence": [],
+      "requiredEvidence": [],
+      "processStopped": true,
+      "kind": "TEST",
+      "caseVersionId": "22222222-2222-4222-8222-222222222222",
+      "expectedPlansSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "valid": true
+  },
+  {
+    "name": "test-completion-retry-safety-READ_ONLY_OBSERVED",
+    "schema": "CompletionManifestV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "attemptId": "11111111-1111-4111-8111-111111111111",
+      "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "businessOutcome": "FAILED",
+      "cleanupStatus": "NOT_REQUIRED",
+      "evidence": [],
+      "requiredEvidence": [],
+      "processStopped": true,
+      "kind": "TEST",
+      "caseVersionId": "22222222-2222-4222-8222-222222222222",
+      "expectedPlansSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "retrySafety": "READ_ONLY_OBSERVED"
+    },
+    "valid": true
+  },
+  {
+    "name": "test-completion-retry-safety-WRITE_POSSIBLE",
+    "schema": "CompletionManifestV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "attemptId": "11111111-1111-4111-8111-111111111111",
+      "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "businessOutcome": "FAILED",
+      "cleanupStatus": "NOT_REQUIRED",
+      "evidence": [],
+      "requiredEvidence": [],
+      "processStopped": true,
+      "kind": "TEST",
+      "caseVersionId": "22222222-2222-4222-8222-222222222222",
+      "expectedPlansSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "retrySafety": "WRITE_POSSIBLE"
+    },
+    "valid": true
+  },
+  {
+    "name": "test-completion-retry-safety-UNKNOWN",
+    "schema": "CompletionManifestV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "attemptId": "11111111-1111-4111-8111-111111111111",
+      "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "businessOutcome": "FAILED",
+      "cleanupStatus": "NOT_REQUIRED",
+      "evidence": [],
+      "requiredEvidence": [],
+      "processStopped": true,
+      "kind": "TEST",
+      "caseVersionId": "22222222-2222-4222-8222-222222222222",
+      "expectedPlansSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "retrySafety": "UNKNOWN"
+    },
+    "valid": true
+  },
+  {
+    "name": "test-completion-retry-safety-SAFE",
+    "schema": "CompletionManifestV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "attemptId": "11111111-1111-4111-8111-111111111111",
+      "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "businessOutcome": "FAILED",
+      "cleanupStatus": "NOT_REQUIRED",
+      "evidence": [],
+      "requiredEvidence": [],
+      "processStopped": true,
+      "kind": "TEST",
+      "caseVersionId": "22222222-2222-4222-8222-222222222222",
+      "expectedPlansSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "retrySafety": "SAFE"
+    },
+    "valid": false
+  },
+  {
+    "name": "actually-interrupted-step",
+    "schema": "StepFinishedPayloadV1",
+    "value": {
+      "status": "CANCELLED",
+      "durationMs": 1,
+      "errorCode": "CANCELLED"
+    },
+    "valid": true
   }
 ]

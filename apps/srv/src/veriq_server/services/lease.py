@@ -105,6 +105,7 @@ class LeaseService:
             job.state = "CANCEL_REQUESTED"
         current = await database_time(self.session)
         if not cancel:
+            runtime.last_seen_at = current
             attempt.lease_expires_at = (
                 min(current + timedelta(seconds=60), run.created_at + timedelta(minutes=30))
                 if run

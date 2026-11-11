@@ -1,6 +1,7 @@
 /** Native development transport. Tokens never use URLs, cookies, argv or logs. */
 import {
   chmod,
+  open,
   lstat,
   mkdir,
   readFile,
@@ -9,7 +10,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { join } from "node:path";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import envPaths from "env-paths";
 import lockfile from "proper-lockfile";
 import { validateSchema, type PlatformComponents } from "@veriq/contracts";
@@ -55,6 +56,8 @@ export class RuntimeClient {
     token?: string,
     signal?: AbortSignal,
   ): Promise<T> {
+    if (!path.startsWith("/") || path.startsWith("//") || new URL(path, this.server).origin !== this.server)
+      throw new RuntimeError("CONTROL_ORIGIN_MISMATCH", 0);
     let response: Response;
     try {
       response = await fetch(this.server + path, {
@@ -77,6 +80,7 @@ export class RuntimeClient {
         0,
       );
     }
+    if (response.status === 204) return undefined as T;
     // Bound the body before parsing, including untrusted proxy/error responses.
     const reader = response.body?.getReader();
     let size = 0;
@@ -245,13 +249,71 @@ export class DeviceStore {
       await release();
     }
   }
-  async remove() {
+  /** Hold the same profile lock throughout pending recovery and atomic replacement. */
+  async renew(client: RuntimeClient): Promise<DeviceConfig> {
     await this.prepare();
     const release = await lockfile.lock(this.directory, { retries: 0 });
+    const pendingPath = join(this.directory, "rotation.json");
+    const atomic = async (path: string, value: unknown) => {
+      const temporary = join(this.directory, `.renew-${randomUUID()}.json`);
+      try {
+        await writeFile(temporary, JSON.stringify(value), { mode: 0o600, flag: "wx", flush: true });
+        await rename(temporary, path);
+        const directory = await open(this.directory, "r");
+        try { await directory.sync(); } finally { await directory.close(); }
+      } finally { await unlink(temporary).catch((error: NodeJS.ErrnoException) => { if (error.code !== "ENOENT") throw error; }); }
+    };
     try {
-      await unlink(join(this.directory, "device.json"));
-    } finally {
-      await release();
-    }
+      const current = await this.load();
+      if (current.server !== client.server) throw new Error("DEVICE_PRINCIPAL_CHANGED");
+      let pending: { previous: DeviceConfig; clientRequestId: string; replacementToken: string };
+      try {
+        const info = await lstat(pendingPath);
+        if (!info.isFile() || info.isSymbolicLink() || info.size > 65536 || (info.mode & 0o077)) throw new Error("UNSAFE_ROTATION_JOURNAL");
+        pending = JSON.parse(await readFile(pendingPath, "utf8"));
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        pending = { previous: current, clientRequestId: randomUUID(), replacementToken: randomBytes(32).toString("base64url") };
+        await atomic(pendingPath, pending);
+      }
+      if (pending.previous.server !== current.server || pending.previous.runnerId !== current.runnerId || pending.previous.workspaceId !== current.workspaceId)
+        throw new Error("DEVICE_PRINCIPAL_CHANGED");
+      if (current.deviceToken === pending.replacementToken) {
+        await unlink(pendingPath);
+        return current;
+      }
+      if (current.deviceToken !== pending.previous.deviceToken) throw new Error("DEVICE_CREDENTIAL_CHANGED");
+      const receipt = await client.request<Schemas["DeviceCredentialsDTO"]>("/internal/v1/runtime/token/rotate", "POST", {clientRequestId: pending.clientRequestId, replacementToken: pending.replacementToken}, current.deviceToken);
+      if (receipt.runnerId !== current.runnerId || receipt.workspaceId !== current.workspaceId || receipt.deviceToken !== pending.replacementToken)
+        throw new Error("DEVICE_PRINCIPAL_CHANGED");
+      // Compare again before replacement, even though cooperative writers hold the lock.
+      if (JSON.stringify(await this.load()) !== JSON.stringify(current)) throw new Error("DEVICE_CREDENTIAL_CHANGED");
+      const replacement = {...current, ...receipt};
+      await atomic(join(this.directory, "device.json"), replacement);
+      await unlink(pendingPath);
+      return replacement;
+    } finally { await release(); }
+  }
+  async ensureStopped() {
+    if (await lockfile.check(join(this.directory, "agent-owner")).catch((error: NodeJS.ErrnoException) => { if (error.code === "ENOENT") return false; throw error; })) throw new Error("AGENT_RUNNING_STOP_FIRST");
+  }
+  async hasPendingRotation() {
+    try { await lstat(join(this.directory, "rotation.json")); return true; } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return false; throw error; }
+  }
+  async remove() {
+    await this.prepare();
+    const owner = join(this.directory, "agent-owner");
+    await mkdir(owner, {recursive: true, mode: 0o700});
+    let ownerRelease: () => Promise<void>;
+    try { ownerRelease = await lockfile.lock(owner, {retries: 0}); }
+    catch { throw new Error("AGENT_RUNNING_STOP_FIRST"); }
+    try {
+      const release = await lockfile.lock(this.directory, { retries: 0 });
+      try {
+        // Forget the candidate first: a crash must not revive a logged-out profile.
+        await unlink(join(this.directory, "rotation.json")).catch((error: NodeJS.ErrnoException) => {if (error.code !== "ENOENT") throw error;});
+        await unlink(join(this.directory, "device.json"));
+      } finally { await release(); }
+    } finally { await ownerRelease(); }
   }
 }

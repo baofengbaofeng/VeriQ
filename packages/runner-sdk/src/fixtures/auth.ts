@@ -12,7 +12,7 @@ import {
   type JsonObject,
   type JsonValue,
 } from "@veriq/contracts";
-import type { LifecycleContext } from "../register-case.js";
+import type { LifecycleContext, FixtureServiceContext } from "../register-case.js";
 import { authorizedURL } from "../http.js";
 const headers = new WeakMap<
   BrowserContext,
@@ -28,7 +28,7 @@ export function businessHeaders(
     : {};
 }
 export async function authenticatedRequest(
-  context: LifecycleContext,
+  context: FixtureServiceContext,
   identity: FixtureIdentityV1,
   base: string,
 ): Promise<{

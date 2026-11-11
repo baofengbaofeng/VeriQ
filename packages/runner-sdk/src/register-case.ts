@@ -1,3 +1,4 @@
+import { RetryObservation, type RetrySafety } from "./retry-safety.js";
 import { EvidencePolicy, type RestrictedEvidence } from "./evidence.js";
 import { test, type Page, type TestInfo, type Route } from "@playwright/test";
 import { Ajv2020 } from "ajv/dist/2020.js";
@@ -22,7 +23,7 @@ import {
   type StepContextOptions,
   type StepResult,
 } from "./context.js";
-import { executeStep } from "./execute-step.js";
+import { executeStep, skipStep } from "./execute-step.js";
 const fixtureSchemas = new Ajv2020({ strict: false, allErrors: true });
 addFormats.default(fixtureSchemas);
 export interface CredentialProvider {
@@ -31,7 +32,14 @@ export interface CredentialProvider {
     signal: AbortSignal,
   ): Promise<JsonValue>;
 }
-export interface LifecycleContext {
+export interface FixtureServiceContext {
+  execution: Pick<ExecutionSnapshotV1, "workspaceId" | "authAdapters" | "secretVersions" | "caseExecutionId" | "attemptNo" | "namespace"> & {environment: Pick<ExecutionSnapshotV1["environment"], "allowedOrigins" | "fixtureBaseURL" | "fixtureIdentity">};
+  signal: AbortSignal;
+  credentials?: CredentialProvider;
+  fixtureInput?: JsonObject;
+  protect?: (value: JsonValue) => void;
+}
+export interface LifecycleContext extends FixtureServiceContext {
   page: Page;
   execution: ExecutionSnapshotV1;
   signal: AbortSignal;
@@ -53,6 +61,7 @@ export interface LifecycleProvider {
   ): Promise<void>;
 }
 export interface CaseResult {
+  retrySafety?: RetrySafety;
   outcome: AttemptOutcome;
   businessOutcome: AttemptOutcome;
   cleanupStatus: CleanupStatus;
@@ -63,6 +72,8 @@ export type SdkEvent =
   | { type: "STEP_FINISHED"; step: StepResult }
   | { type: "CASE_FINISHED"; result: CaseResult };
 export interface ExecutionOptions {
+  /** Trusted worker closes the complete business Context before retry observation is final. */
+  finalizeExecution?: (context: import("@playwright/test").BrowserContext) => Promise<void>;
   page: Page;
   execution: ExecutionSnapshotV1;
   lifecycle?: LifecycleProvider;
@@ -72,6 +83,7 @@ export interface ExecutionOptions {
   downloads?: StepContextOptions["downloads"];
   /** Trusted restricted artifact sink; never an ordinary event/report callback. */
   restrictedEvidence?: (evidence: RestrictedEvidence) => Promise<void>;
+  onEvent?: (event: import("./context.js").LiveStepEvent | {type: "CLEANUP_RESULT"; cleanupStatus: CleanupStatus} | {type: "CASE_FINISHED"; result: CaseResult}) => Promise<void>;
   emit?: (event: SdkEvent) => Promise<void>;
   redact?: (value: JsonValue) => JsonValue;
 }
@@ -120,6 +132,7 @@ export async function executeCase(
     fixture: FixtureV1 | undefined,
     token: JsonValue | undefined,
     preparing = false;
+  let retryObservation: RetryObservation | undefined;
   let fixtureInput: JsonObject = {};
   let originFailure = false;
   const route = async (r: Route) => {
@@ -176,7 +189,7 @@ export async function executeCase(
       throw new Error("CATALOG_REQUIRED");
     if (!options.lifecycle?.authenticate)
       throw new Error("AUTH_PROVIDER_REQUIRED");
-    if (options.emit && !options.redact)
+    if ((options.emit || options.onEvent) && !options.redact)
       throw new Error("REDACTION_PROVIDER_REQUIRED");
     const role = execution.environment.roles.find(
       (r) => r.roleKey === execution.roleKey,
@@ -229,8 +242,11 @@ export async function executeCase(
         throw new Error("FIXTURE_OUTPUT_INVALID");
       variables = { ...variables, ...prepared.variables };
     }
+    retryObservation = new RetryObservation(options.page.context(), plan.document.kind === "WRITE");
     ctx = createStepContext({
+      onBusinessRequest: method => retryObservation!.method(method),
       page: options.page,
+      onEvent: async event => {if (options.onEvent) await options.onEvent(options.redact!(evidence.redact(event as unknown as JsonValue)) as unknown as import("./context.js").LiveStepEvent);},
       environment: execution.environment,
       catalog: catalog.document,
       data: execution.dataRow?.values ?? {},
@@ -257,12 +273,16 @@ export async function executeCase(
       result.steps.push(r);
       await emit({ type: "STEP_FINISHED", step: r });
       if (r.cancelled) {
-        result.businessOutcome = "CANCELLED";
+        if (result.businessOutcome !== "FAILED")
+          result.businessOutcome = r.status === "CANCELLED" ? "CANCELLED" : "FAILED";
         break;
       }
       if (r.status !== "PASSED") {
         result.businessOutcome = "FAILED";
-        if (step.step.failurePolicy !== "CONTINUE") break;
+        if (step.step.failurePolicy !== "CONTINUE") {
+          for (const remaining of plan.steps.slice(plan.steps.indexOf(step) + 1)) await skipStep(remaining, ctx, step.step.id);
+          break;
+        }
       }
     }
     const allSteps = (steps: StepResult[]): StepResult[] =>
@@ -327,9 +347,17 @@ export async function executeCase(
       .unroute("**/*", route)
       .catch(() => {});
   }
+  let finalized = false;
+  if (options.finalizeExecution) {
+    try { await options.finalizeExecution(options.page.context()); finalized = true; }
+    catch { result.businessOutcome = "ERROR"; result.errorCode = "CONTEXT_CLOSE_FAILED"; }
+  }
+  result.retrySafety = retryObservation?.finish(finalized) ?? "UNKNOWN";
   result.outcome =
     result.cleanupStatus === "FAILED" ? "ERROR" : result.businessOutcome;
   try {
+    await options.onEvent?.({type: "CLEANUP_RESULT", cleanupStatus: result.cleanupStatus});
+    await options.onEvent?.({type: "CASE_FINISHED", result: options.redact!(evidence.redact(result as unknown as JsonValue)) as unknown as CaseResult});
     await emit({ type: "CASE_FINISHED", result });
   } catch {
     result.outcome = "ERROR";

@@ -1131,6 +1131,16 @@ export type ValidateCompletionManifestV1 = ValidateSuccessCompletionManifestV1 |
  */
 export type CompletionManifestV1 =
   TestCompletionManifestV1 | ValidateCompletionManifestV1 | CleanupCompletionManifestV1;
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "DeviceRotationRequest".
+ */
+export type DeviceRotationRequest =
+  | {}
+  | {
+      clientRequestId: Id;
+      replacementToken: string;
+    };
 
 export interface ContractDefinitions {
   Id?: Id;
@@ -1241,6 +1251,7 @@ export interface ContractDefinitions {
   CompletionManifestV1?: CompletionManifestV1;
   ValidateSuccessCompletionManifestV1?: ValidateSuccessCompletionManifestV1;
   ValidateFailureCompletionManifestV1?: ValidateFailureCompletionManifestV1;
+  DeviceRotationRequest?: DeviceRotationRequest;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1692,7 +1703,7 @@ export interface CleanupJobManifestV1 {
  * via the `definition` "StepFinishedPayloadV1".
  */
 export interface StepFinishedPayloadV1 {
-  status: "PASSED" | "FAILED" | "ERROR" | "SKIPPED";
+  status: "PASSED" | "FAILED" | "ERROR" | "SKIPPED" | "CANCELLED";
   durationMs: DurationMs;
   errorCode?: Key;
   message?: DiagnosticText;
@@ -1990,6 +2001,10 @@ export interface ExpectedPlansV1 {
      * @minItems 1
      */
     requiredEvidenceKinds: ["TRACE" | "SCREENSHOT", ...("TRACE" | "SCREENSHOT")[]];
+    /**
+     * Compiler-derived known write potential. Missing legacy metadata is UNKNOWN for retry safety.
+     */
+    hasPotentialWrites?: boolean;
   }[];
 }
 /**
@@ -2037,6 +2052,10 @@ export interface TestCompletionManifestV1 {
   kind: "TEST";
   caseVersionId: Id;
   expectedPlansSha256: Sha256;
+  /**
+   * Actual business request observation through Context closure. Missing means UNKNOWN; not sufficient without approved expected metadata.
+   */
+  retrySafety?: "READ_ONLY_OBSERVED" | "WRITE_POSSIBLE" | "UNKNOWN";
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema

@@ -9,7 +9,7 @@ from test_runs_mysql import published, environment
 from test_lease_mysql import device, auth, claim_body
 from test_completion_mysql import upload
 from veriq_server.contracts import canonical_bytes
-from veriq_server.db import Job, Attempt, CapacityPool
+from veriq_server.db import Job, Attempt, CapacityPool, Artifact
 
 
 async def test_cleanup_uses_same_queue_scoped_actor_and_waits_for_unknown_process_stop(site):
@@ -126,6 +126,19 @@ async def test_cleanup_uses_same_queue_scoped_actor_and_waits_for_unknown_proces
     async with db.sessions() as session:
         cleanup = (await session.execute(select(Job).where(Job.kind == "CLEANUP"))).scalar_one()
         assert cleanup.origin_attempt_id == claim["attemptId"]
+        subject = json.loads((await session.get(Artifact, (ws, cleanup.snapshot_hash))).content)
+        original = await session.get(Attempt, claim["attemptId"])
+        frozen = json.loads((await session.get(Artifact, (ws, original.snapshot_hash))).content)
+        assert subject["caseExecutionId"] == frozen["caseExecutionId"]
+        assert subject["attemptNo"] == frozen["attemptNo"]
+        assert subject["namespace"] == frozen["namespace"]
+        assert subject["secretVersions"] == [
+            {
+                "secretRef": "fixture",
+                "versionId": frozen["environment"]["fixtureIdentity"]["secretVersionId"],
+            }
+        ]
+
         assert (await session.get(Attempt, claim["attemptId"])).capacity_state == "QUARANTINED"
     stopped = await c.post(
         origin + "/reconcile",
@@ -161,6 +174,30 @@ async def test_cleanup_uses_same_queue_scoped_actor_and_waits_for_unknown_proces
         snapshot["namespace"] == manifest["namespace"] and snapshot["fixtureVersionId"] == fixture
     )
     assert (await c.post(endpoint + "/activate", json=proof, headers=auth(d))).status_code == 200
+    assert "roles" not in snapshot["environment"]
+    assert (
+        await c.put(
+            base + f"/runtimes/{d['runnerId']}/trust",
+            json={"trustStatus": "MANAGED", "allowCredentialDelivery": True},
+        )
+    ).status_code == 200
+    business = frozen["environment"]["roles"][0]
+    forbidden = await c.post(
+        endpoint + "/credentials/resolve",
+        headers=headers,
+        json={"secretRef": business["secretRef"], "versionId": business["secretVersionId"]},
+    )
+    assert forbidden.status_code == 403
+    fixture_identity = snapshot["environment"]["fixtureIdentity"]
+    allowed = await c.post(
+        endpoint + "/credentials/resolve",
+        headers=headers,
+        json={
+            "secretRef": fixture_identity["secretRef"],
+            "versionId": fixture_identity["secretVersionId"],
+        },
+    )
+    assert allowed.status_code == 200
     raw = [
         ("ATTEMPT_STARTED", {"engineVersion": "0.1.0", "sourceHash": manifest["snapshotSha256"]}),
         ("CLEANUP_RESULT", {"cleanupStatus": "SUCCEEDED"}),

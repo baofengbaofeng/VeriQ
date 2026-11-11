@@ -4515,7 +4515,8 @@
             "PASSED",
             "FAILED",
             "ERROR",
-            "SKIPPED"
+            "SKIPPED",
+            "CANCELLED"
           ]
         },
         "durationMs": {
@@ -5397,6 +5398,10 @@
                 },
                 "minItems": 1,
                 "uniqueItems": true
+              },
+              "hasPotentialWrites": {
+                "type": "boolean",
+                "description": "Compiler-derived known write potential. Missing legacy metadata is UNKNOWN for retry safety."
               }
             },
             "required": [
@@ -5511,6 +5516,15 @@
         },
         "expectedPlansSha256": {
           "$ref": "#/$defs/Sha256"
+        },
+        "retrySafety": {
+          "type": "string",
+          "enum": [
+            "READ_ONLY_OBSERVED",
+            "WRITE_POSSIBLE",
+            "UNKNOWN"
+          ],
+          "description": "Actual business request observation through Context closure. Missing means UNKNOWN; not sufficient without approved expected metadata."
         }
       },
       "required": [
@@ -5734,6 +5748,33 @@
         "failureCode"
       ],
       "additionalProperties": false
+    },
+    "DeviceRotationRequest": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "clientRequestId",
+            "replacementToken"
+          ],
+          "properties": {
+            "clientRequestId": {
+              "$ref": "#/$defs/Id"
+            },
+            "replacementToken": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$",
+              "minLength": 43,
+              "maxLength": 43
+            }
+          }
+        }
+      ]
     }
   }
 }

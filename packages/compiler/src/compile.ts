@@ -287,7 +287,11 @@ export function compileFiles(
         ],
         observers: (step.step.observers ?? []).map((o) => o.id),
       }, ...flatten(step.children ?? [], step.step.id)]);
-    return { caseVersionId: plan.caseVersionId, requiredEvidenceKinds: ["TRACE"], steps: flatten(plan.steps),
+    const writes = (steps: CompiledStep[]): boolean => steps.some(({step, children}) =>
+      (step.action === "apiRequest" && !["GET", "HEAD", "OPTIONS"].includes(step.method)) ||
+      (step.observers ?? []).some(observer => "method" in observer && typeof observer.method === "string" && !["GET", "HEAD", "OPTIONS"].includes(observer.method)) ||
+      writes(children ?? []));
+    return { caseVersionId: plan.caseVersionId, hasPotentialWrites: plan.document.kind === "WRITE" || writes(plan.steps), requiredEvidenceKinds: ["TRACE"], steps: flatten(plan.steps),
       ...(plan.persistenceCheckpointStepId ? { persistenceCheckpointStepId: plan.persistenceCheckpointStepId } : {}) };
   });
   files["metadata/expected-plans.json"] = canonicalBytes({ schemaVersion: "1.0", cases: expectedCases });

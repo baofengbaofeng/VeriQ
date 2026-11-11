@@ -2,6 +2,12 @@
 /** Development CLI. Native launcher/process names and vault packaging are T20. */
 import { Command } from "commander";
 import pino from "pino";
+import { join } from "node:path";
+import { DeviceSession } from "./agent/credentials.ts";
+import { AgentClient } from "./agent/transport.ts";
+import { claimLoop } from "./agent/claim-loop.ts";
+import { agentControl, serveAgentControl } from "./agent/control.ts";
+import { ExecutionSupervisor } from "./execution/supervisor.ts";
 import { hostname } from "node:os";
 import { setTimeout as delay } from "node:timers/promises";
 import { DeviceStore, RuntimeClient, RuntimeError } from "./enrollment.ts";
@@ -194,6 +200,7 @@ program
   )
   .action(async (options: { localOnly?: boolean }) => {
     const s = store();
+    await s.ensureStopped();
     if (options.localOnly) {
       await s.remove();
       process.stdout.write(
@@ -201,7 +208,8 @@ program
       );
       return;
     }
-    const config = await s.load();
+    let config = await s.load();
+    if (await s.hasPendingRotation()) config = await s.renew(new RuntimeClient(config.server));
     let alreadyRejected = false;
     try {
       await new RuntimeClient(config.server).logout(
@@ -259,6 +267,28 @@ program
       `${info.name}: ${info.status}; current trust ${info.trustStatus}\n`,
     );
   });
+const runtime = program.command("runtime").description("Run and control the online Linux Agent");
+runtime.command("start").requiredOption("--release-dir <path>", "Operator-approved fixed engine release directory")
+  .requiredOption("--browser-executable <path>", "Pinned Playwright browser executable")
+  .option("--once", "Process at most one claim, then stop")
+  .action(async (options: {releaseDir:string;browserExecutable:string;once?:boolean}) => {
+    if (process.platform !== "linux") throw new Error("UNSUPPORTED_PROCESS_PLATFORM");
+    process.title = "veriq_agent";
+    const profile = store(), config = await profile.load(), client = new RuntimeClient(config.server);
+    const session = new DeviceSession(profile, client);
+    await session.open();
+    const root = join(profile.directory, "agent");
+    let close: (()=>Promise<void>) | undefined;
+    try {
+      close = await serveAgentControl(root, () => controller.abort());
+      const transport = new AgentClient(session);
+      const info = await transport.request<import("@veriq/contracts").PlatformComponents["schemas"]["RuntimeDTO"]>("/internal/v1/runtime");
+      const supervisor = new ExecutionSupervisor({root, client:transport, releaseDirectory:options.releaseDir, browserExecutable:options.browserExecutable});
+      await claimLoop({client:transport,supervisor,root,runnerId:config.runnerId,capabilities:info.capabilities,signal:controller.signal,...(options.once?{once:true}:{})});
+    } finally {await close?.();await session.close();}
+  });
+runtime.command("status").action(async()=>{const result=await agentControl(join(store().directory,"agent"),"status");process.stdout.write(`Agent running: ${result.running}; PID ${result.pid}\n`);});
+runtime.command("stop").action(async()=>{await agentControl(join(store().directory,"agent"),"stop");process.stdout.write("Agent stop requested; active Attempt cleanup and process confirmation precede shutdown.\n");});
 try {
   await program.parseAsync();
 } catch (error) {

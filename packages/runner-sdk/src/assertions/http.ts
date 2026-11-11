@@ -11,6 +11,8 @@ import {
 } from "@veriq/contracts";
 import {
   assertionScope,
+  interruptible,
+  ExecutionCancelled,
   binding,
   budget,
   exchange,
@@ -61,17 +63,18 @@ export async function runAssertion(
     ctx = outer;
   let errorCode: string | undefined;
   try {
+    budget(ctx, 1);
     ctx = { ...assertionScope(item, outer), page: outer.originalPage };
     if ("pageKey" in a && a.pageKey) {
       const page = ctx.pages.get(a.pageKey);
       if (!page) throw new Error("UNKNOWN_PAGE_KEY");
-      ctx = { ...ctx, page: await page };
+      ctx = { ...ctx, page: await interruptible(ctx, () => page) };
     }
     expected =
       a.type === "responseSchema" ? a.expected : binding(a.expected, ctx);
     let pass = false;
     if (a.type === "ui" || a.type === "url") {
-      actual = await assertUI(a, expected, ctx);
+      actual = await interruptible(ctx, () => assertUI(a, expected, ctx));
       pass = true;
     } else if (a.type === "eventually") {
       const timeout = budget(ctx, a.timeoutMs ?? 10000),
@@ -79,7 +82,7 @@ export async function runAssertion(
       const path = binding(a.query.path, ctx);
       if (typeof path !== "string" || a.query.method !== "GET")
         throw new Error("READ_ONLY_QUERY_REQUIRED");
-      await expect
+      await interruptible(ctx, () => expect
         .poll(
           async () => {
             const x = await apiRequest(
@@ -102,7 +105,7 @@ export async function runAssertion(
           },
           { timeout, intervals: [a.intervalMs ?? 500] },
         )
-        .toBe(true);
+        .toBe(true));
       pass = true;
     } else if (a.type === "requestCount") {
       const count = counts?.get(a.source.slice(8));
@@ -110,7 +113,7 @@ export async function runAssertion(
       actual = { present: true, value: count };
       pass = count === expected;
     } else {
-      const x = await exchange(a.source, ctx);
+      const x = await interruptible(ctx, () => exchange(a.source, ctx));
       switch (a.type) {
         case "httpStatus":
           actual = { present: true, value: x.response.status };
@@ -149,9 +152,8 @@ export async function runAssertion(
     }
     if (!pass) errorCode = "ASSERTION_FAILED";
   } catch (e) {
-    errorCode = ctx.signal?.aborted
-      ? "CANCELLED"
-      : e instanceof Error && /^[A-Z_]+$/.test(e.message)
+    if (e instanceof ExecutionCancelled) throw e;
+    errorCode = e instanceof Error && /^[A-Z_]+$/.test(e.message)
         ? e.message
         : "ASSERTION_FAILED";
     if (a.type === "ui" || a.type === "url") {

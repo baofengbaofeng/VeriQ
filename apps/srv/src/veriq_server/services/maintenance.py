@@ -231,6 +231,47 @@ class MaintenanceService:
                 execution_snapshot = json.loads(
                     (await repo.artifact(attempt.snapshot_hash)).content
                 )
+                identity = execution_snapshot.get("environment", {}).get("fixtureIdentity")
+                if (
+                    not identity
+                    or execution_snapshot.get("workspaceId") != workspace_id
+                    or snapshot.get("workspaceId") != workspace_id
+                    or snapshot.get("environment", {}).get("fixtureIdentity") != identity
+                ):
+                    raise Problem(
+                        409, "INVALID_CLEANUP_SOURCE", "Original fixture identity is unavailable"
+                    )
+                pins = [
+                    pin
+                    for pin in execution_snapshot.get("secretVersions", [])
+                    if pin["secretRef"] == identity["secretRef"]
+                    and pin["versionId"] == identity["secretVersionId"]
+                ]
+                if len(pins) != 1:
+                    raise Problem(
+                        409,
+                        "INVALID_CLEANUP_SOURCE",
+                        "Original fixture credential pin is unavailable",
+                    )
+                snapshot["caseExecutionId"] = execution_snapshot["caseExecutionId"]
+                snapshot["attemptNo"] = execution_snapshot["attemptNo"]
+                snapshot["secretVersions"] = pins
+                # Compensation needs only the original fixture service identity, never business pins.
+                snapshot["environment"] = {
+                    key: value
+                    for key, value in execution_snapshot["environment"].items()
+                    if key in {"allowedOrigins", "fixtureBaseURL", "fixtureIdentity"}
+                }
+                snapshot["authAdapters"] = [
+                    adapter
+                    for adapter in execution_snapshot.get("authAdapters", [])
+                    if adapter["versionId"] == identity["authAdapterVersionId"]
+                    and adapter["workspaceId"] == workspace_id
+                ]
+                if len(snapshot["authAdapters"]) != 1:
+                    raise Problem(
+                        409, "INVALID_CLEANUP_SOURCE", "Original fixture adapter is unavailable"
+                    )
                 snapshot["namespace"] = execution_snapshot["namespace"]
                 snapshot_hash = await repo.store(canonical_bytes(snapshot))
                 jid = str(uuid4())
