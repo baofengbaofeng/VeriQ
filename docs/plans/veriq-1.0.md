@@ -273,6 +273,8 @@ assert await claim_with_revoked_device_token() == UNAUTHORIZED
 
 **依赖：** T04/T08
 
+**状态：** 已完成并通过独立规格/质量审查及修复复审（`170c277`、`a9956f3`）；真实 Agent 进程、浏览器与事件生产由 T10 接入，原始证据访问控制与报告由 T12 完成。
+
 **Files（拟创建/修改）：**
 
 - `apps/srv/src/veriq_server/services/jobs.py`
@@ -282,7 +284,7 @@ assert await claim_with_revoked_device_token() == UNAUTHORIZED
 
 **Interfaces：** JobService.claim(identity: RuntimeIdentity, req: ClaimRequest) -> ClaimDTO | None；LeaseService.heartbeat(attempt_id, proof) -> HeartbeatDTO；kind=TEST/VALIDATE/CLEANUP。
 
-- [ ] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
+- [x] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```python
 assert active_browser_slots <= 4
@@ -291,10 +293,10 @@ assert stale_fence_result.accepted is False
 assert expired_unknown_worker.capacity_state == QUARANTINED
 ```
 
-- [ ] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/execution/test_lease_mysql.py -q`；失败必须来自缺失行为，而非测试环境拼写错误。
-- [ ] **Step 3：实现上述接口与文件。** 真实MySQL并发20claimer、同执行单租约、原子容量、响应丢失恢复、过期不能续活、未知进程容量不盲释放。
-- [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
-- [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t09 统一Job队列、快照、容量与fencing`。有新决策先更新ADR，不扩展到下一任务。
+- [x] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/execution/test_lease_mysql.py -q`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [x] **Step 3：实现上述接口与文件。** 真实MySQL并发20claimer、同执行单租约、原子容量、响应丢失恢复、过期不能续活、未知进程容量不盲释放。
+- [x] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
+- [x] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t09 统一Job队列、快照、容量与fencing`。有新决策先更新ADR，不扩展到下一任务。
 
 ## T10：Agent监督、事件、取消与整用例重试
 
@@ -308,7 +310,7 @@ assert expired_unknown_worker.capacity_state == QUARANTINED
 - `apps/runtime/src/execution/events.ts`
 - `apps/runtime/tests/supervisor.test.ts`
 
-**Interfaces：** runAttempt(claim: ClaimedAttempt, signal: AbortSignal): Promise<JobManifestV1>；terminateAttempt(id, reason): Promise<StopReceipt>。
+**Interfaces：** runAttempt(claim: ClaimedAttempt, signal: AbortSignal)；terminateAttempt(id, reason): Promise<StopReceipt>。分配输入为 JobManifestV1，执行产出以 T09 的 CompletionManifestV1 为准，实施前冻结准确返回类型，不把输入 manifest 当作完成结果。
 
 - [ ] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
@@ -318,7 +320,7 @@ expect(retryPassed.outcome).toBe('UNSTABLE');
 expect(firstAttempt.fixtureId).not.toBe(secondAttempt.fixtureId);
 ```
 
-- [ ] **Step 2：运行测试确认未实现时失败。** `pnpm --filter @veriq/runtime exec vitest run tests/supervisor.test.ts`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [ ] **Step 2：运行测试确认未实现时失败。** `pnpm --filter @veriq/runtime exec node --import tsx --test tests/supervisor.test.ts`；失败必须来自缺失行为，而非测试环境拼写错误。
 - [ ] **Step 3：实现上述接口与文件。** TEST/VALIDATE/CLEANUP真实分派；断网停止、finally、事件缓冲有界、重试由平台单层控制。
 - [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
 - [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t10 Agent监督、事件、取消与整用例重试`。有新决策先更新ADR，不扩展到下一任务。
