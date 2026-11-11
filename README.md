@@ -96,7 +96,7 @@ pnpm test
 pnpm check
 ```
 
-当前 `pnpm test` 执行公共契约、编译器、Runner SDK 与 Runtime 测试（SDK 和 Runtime 自检测试需要本机 Chromium），`pnpm check` 检查契约/编译器/SDK/Runtime TypeScript 与生成文件是否同步；完整平台验收入口仍待后续任务交付。这些命令用于开发检查，不是启动完整产品的安装命令。公共接口、工具配置与更多检查命令见[契约说明](docs/contracts.md)。
+当前 `pnpm test` 执行公共契约、编译器、Runner SDK 与 Runtime 测试（SDK 和 Runtime 自检测试需要本机 Chromium，Linux Runtime 测试还会使用开发主机的 `cc` 构建薄启动器；产品包将预编译提供），`pnpm check` 检查契约/编译器/SDK/Runtime TypeScript 与生成文件是否同步；完整平台验收入口仍待后续任务交付。这些命令用于开发检查，不是启动完整产品的安装命令。公共接口、工具配置与更多检查命令见[契约说明](docs/contracts.md)。
 
 账户与 Workspace 模块可在开发环境运行：安全配置 MySQL、初始化管理员、分别启动 Tornado 与 Vite 的步骤见[开发指南](docs/development.md)。后端入口为 `veriq_server`；当前界面提供真实的安装、认证、用户管理、空间切换、成员与邀请功能，完整测试平台仍待后续模块交付。
 
