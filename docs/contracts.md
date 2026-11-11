@@ -106,11 +106,11 @@ Extraction records source (`request:<observerId>` or `response:<observerId>`), p
 | AssetVersionV1 | resourceId, versionId, kind, sha256, document; kind/document strict union |
 | AssetSnapshotV1 | schemaVersion, workspaceId, sourceHash, engineVersion, entryCaseVersionIds, assets |
 | CompiledAssetBundle | schemaVersion, sourceHash, engineVersion, compilerVersion, runnerSdkVersion, entrypoints, files, dependencies |
-| ExecutionSnapshotV1 | schemaVersion, workspaceId, runId, caseExecutionId, assetSourceHash, environmentVersionId, environment, roleKey, browser, variables, secretVersions, namespace, attemptNo; optional dataRow |
+| ExecutionSnapshotV1 | schemaVersion, workspaceId, runId, caseExecutionId, caseVersionId, assetSourceHash, environmentVersionId, environment, roleKey, browser, variables, secretVersions, namespace, attemptNo; optional dataRow |
 
 `FileEntry` is `{path, sha256, sizeBytes}`; paths exclude absolute paths, traversal and backslashes. The importer must additionally reject links, normalization collisions, oversized archives and inconsistent hashes. Dependencies are `{name, version, integrity}` with exact semantic version strings. Generated TS files are immutable artifacts and are identified by the file manifest; DSL remains editable source. `secretVersions` consists of `{secretRef, versionId}` references. attemptNo is 1 or 2, reflecting at most one whole-case retry.
 
-The planned compiler interface is `compileAssets(AssetSnapshotV1) -> CompiledAssetBundle`; `assembleExecution(bundle, ExecutionSnapshotV1)` attaches execution context without changing verified source. T01 provides the contracts, not those implementations. Publication/VALIDATE receipts must be bound to source hash, revision and engine version. Runtime must download authorized content-addressed artifacts and validate hashes before consuming them.
+T05 implements `compileAssets(snapshot, distribution) -> CompiledAssetBundle` and the actual-byte API `compileFiles`; `assembleExecution(bundle, executionSnapshot, files)` attaches execution context without changing verified source. See the T05 handoff below for the required engine distribution and cold-download file context. Publication/VALIDATE receipts must be bound to source hash, revision and engine version. Runtime must download authorized content-addressed artifacts and validate hashes before consuming them.
 
 ## Claim, leases and job manifests
 
@@ -247,3 +247,47 @@ Publishable receipt provenance includes `runtimeId`, `attemptId`, `compilerTrust
 Limits: 2 MiB canonical resource content, 2 MiB + 4096-byte create/draft transport envelopes, 64 KiB other operations, 3 MiB hard HTTP transport; closure maximum 1000 assets/depth 100/16 MiB; list default 25/max 100. A realistic >64 KiB dataset is exercised over real HTTP/MySQL. A larger transport allowance does not alter account form limits or add binary upload support.
 
 Publication retries return an existing version only when its source hash, document hash, engine and previously bound receipt's compiled descriptor hash all match. A different engine/source requires a new draft revision; different compiled bytes for the same immutable revision return `REPRODUCIBILITY_CONFLICT` (409). Identical recompilation bytes may return the original version, preserving its original receipt and artifact identity.
+
+## T05 compiler, actual files and T06/T10 handoff
+
+`@veriq/compiler` is Node-only. Shared `@veriq/contracts` stays browser-portable; Tornado does not import or invoke the compiler. The public exports are:
+
+```ts
+validate(snapshot: AssetSnapshotV1): ValidationIssue[];
+analyze(snapshot: AssetSnapshotV1): Analysis; // issues + typed compiled cases
+compileFiles(snapshot: AssetSnapshotV1, distribution?: EngineDistribution): CompiledOutput;
+compileAssets(snapshot: AssetSnapshotV1, distribution?: EngineDistribution): CompiledAssetBundle;
+verifyFiles(bundle: CompiledAssetBundle, files: Record<string, Uint8Array>): void;
+assembleExecution(bundle: CompiledAssetBundle, snapshot: ExecutionSnapshotV1,
+                  files?: Record<string, Uint8Array>): ExecutionPackage;
+resolvePointer(value: JsonValue, pointer: string): Presence;
+resolveBinding(value: JsonValue, context: {data: JsonValue; vars: JsonValue}): JsonValue;
+```
+
+`ValidationIssue` has `path`, a semantic string `code`, and `message`; the compiler preserves canonical structural errors and adds semantic codes. `CompiledOutput` is `{bundle, files}`. `ExecutionPackage` is `{bundle, files, entrypoint, snapshot}` with independent copies; assembly neither mutates immutable files nor writes execution values into generated source. The optional signatures preserve a clear failure for old callers: omitted distribution throws `ENGINE_DISTRIBUTION_REQUIRED`, omitted assembly files throws `BUNDLE_FILES_REQUIRED`. No file bytes are hidden in process-global state or added to the strict wire descriptor.
+
+`EngineDistribution` contains `engineVersion`, `runnerSdkVersion`, exact `packageJson`/`packageLock` Uint8Array bytes, the complete canonical `DependencyVersion[]` inventory and `files: Record<string, Uint8Array>` for local `vendor/` archives. This is the approved T20 engine release input to T10. The package must be ESM, use local `file:vendor/...` dependencies, have no root install hooks/dev/optional dependencies, and use npm lockfile v3. Locked packages cannot be links or have install scripts. Every package has an exact inventory version/SHA-512 integrity and a verified local archive; required lock dependency edges must resolve inside the supplied closure. Missing artifacts, mismatched SDK/engine/lock/integrity and undeclared files fail closed. The compiler does not download dependencies, inspect archive members, install them or attest caller-supplied code authenticity. T08–T10 still enforce the approved release/compiler trust boundary from ADR 0005, and the importer must safely extract verified archives.
+
+All compiled files are returned, including case `.test.ts`, one shared `source/context.ts`, `source/asset-snapshot.json`, package.json, package-lock.json, dependencies.json and vendor archives. File entries cover exact bytes/sizes. CASE entrypoints map the pinned `caseVersionId` to `cases/<caseVersionId>.test.ts`; assembly checks that explicit mapping, rejects duplicates/missing files, and never derives a case from `caseExecutionId`. `source/asset-snapshot.json` is always a schema-valid AssetSnapshotV1 and is located by exported `SOURCE_SNAPSHOT_PATH`. After verifying the descriptor and every file hash, a cold Runtime validates that source context's document hashes, closure, source hash, engine, Workspace and selected case. It also checks role/secret version references, authorized origins and the selected frozen dataset row. Suite role/browser/dataset variants remain pinned in the source.
+
+SUITE targets select exactly the server-produced deduplicated case version IDs and emit executable entrypoints. The six true library kinds emit `validationOnly: true`, zero entrypoints, a real validation.ts exporting frozen asset data, and the same required dependency files. Their source sidecar retains validationTarget so zero-entry snapshots remain schema-valid. CASE/SUITE executable context strips validationTarget. A target-free context can retain exactly one SUITE whose deduplicated case set equals the selected entries; two matching roots or other unreachable assets are rejected. Validation-only output cannot be assembled as TEST, and zero-case execution never reports PASSED.
+
+The generated executable ABI is an ESM named export from `@veriq/runner-sdk`:
+
+```ts
+interface RunnerSdkV1 {
+  registerCase(plan: CompiledCase, source: AssetSnapshotV1): void;
+}
+```
+
+T06 can type-import `CompiledCase`, `CompiledStep`, `CompiledAssertion` and `RunnerSdkV1` from `@veriq/compiler` (no runtime compiler import is needed). `registerCase` registers the Playwright case; T10 supplies the separately verified ExecutionSnapshot through its SDK execution-context mechanism. Generated modules contain no run/attempt/machine paths, runtime variables/data row or secret values. There is no production registerCase implementation yet; the isolated archive test verifies offline packaging and generated TypeScript imports against an explicitly nonexecuting fixture SDK, not browser execution.
+
+A `CompiledStep` contains the action/observer/extraction `step` with generated wire ID, `sourcePath`, `before`, `responseAssertions`, `after`, and optional `children` for callFlow. Original step assertion lists are removed from the action payload; execute the compiled lists only. SDK phase order is before assertions → unique target resolution → register observers → action or nested children → responseAssertions → checked extraction → after → observation-window checks → disposal. Wrapper observers span the entire flow, including later children; all exits dispose them. Assertions depending on newly extracted vars occur in `after`; response/schema checks that do not depend on those values occur before assignment. The SDK must still check response availability, extraction presence/type and optional-value absence at runtime.
+
+Flow/template parameter declarations are scoped `data` names: evaluate supplied parameter values once in the caller's current scope, overlay `data` for that invocation, and restore it afterward. Flow `vars` extraction is shared in execution order. Each `CompiledAssertion.parameters` is the outer-to-inner template parameter-binding stack to apply around that assertion. Dataset values, JSON Schemas and values obtained from a binding stay inert; call `resolveBinding` only on fields marked interpolated by the canonical DSL. Full placeholders preserve JSON types; embedded interpolation accepts scalar values and rejects object/array/null. Missing values throw; `resolvePointer` distinguishes `{present:false}` from `{present:true,value:null}` and checks own properties only. Neither API uses eval or reinterprets braces inside resolved data.
+
+Semantic checks cover all eight kinds: typed pinned references, unique identities, catalog scopes/targets/bindings, dataset columns and every row, fixture schema/output declarations, scoped parameters/variable use and types, observer sources, recursion/expansion, WRITE business result assertions and explicit persistence proof. Standalone flow/template libraries may retain caller-supplied data/vars/catalog/observer requirements; each concrete CASE validates them against its actual closure. Fixture JSON Schema inference uses declared properties, local refs and type unions; ambiguous types cannot satisfy a concrete action type. Runtime schema checks remain required. Environment checks validate configured origins/locale/timezone and reference shape, not Workspace membership, secret plaintext or external identity registration; T07 owns those checks.
+
+Maximum flow depth is five, expanded steps including call boundaries are 500 per case/library, and template depth is five. Assertion expansion visits at most 5,000 nodes per case/library, counting template calls as well as leaves; it returns `EXPANDED_ASSERTION_LIMIT` before allocating an unbounded repeated-template DAG. Wire step/assertion IDs are `v_` plus a SHA-256 expansion-path digest (66 characters), preserving canonical Key bounds even for long nested DSL IDs. Expansion paths remain separate readable metadata. WRITE critical steps require a non-WARN response-field business assertion; checkpoint proof uses a non-WARN persisted UI check after navigation/reload, read-only GET response field, or eventual GET query, with ordering after critical writes. Same-step eventual read-back is permitted. `CompiledCase.persistenceCheckpointStepId` maps the explicit DSL checkpoint to its generated wire ID.
+
+The compiler supplies no validation receipt, queue worker, browser SDK, authenticated fixture adapter or draft/export HTTP endpoint. T10 must upload every actual emitted file and the exact descriptor to the existing VALIDATE completion path before publication; T12 reuses those retained bytes. A no-Runtime draft export remains DSL/dependency definitions marked unvalidated and cannot obtain executable artifacts from a missing engine distribution. See [ADR 0006](decisions/0006-deterministic-compiler-artifacts.md).
