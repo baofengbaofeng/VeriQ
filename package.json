@@ -9,8 +9,8 @@
     "pnpm": "11.25.0"
   },
   "scripts": {
-    "test": "pnpm --filter @veriq/contracts test && pnpm --filter @veriq/compiler test && pnpm --filter @veriq/runner-sdk test",
-    "check": "pnpm --filter @veriq/contracts check && pnpm --filter @veriq/compiler check && pnpm --filter @veriq/runner-sdk check",
+    "test": "pnpm --filter @veriq/contracts test && pnpm --filter @veriq/compiler test && pnpm --filter @veriq/runner-sdk test && pnpm --filter @veriq/runtime test",
+    "check": "pnpm --filter @veriq/contracts check && pnpm --filter @veriq/compiler check && pnpm --filter @veriq/runner-sdk check && pnpm --filter @veriq/runtime check",
     "contracts:generate": "pnpm --filter @veriq/contracts generate"
   }
 }

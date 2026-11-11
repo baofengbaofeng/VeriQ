@@ -1,16 +1,18 @@
 # Developing VeriQ
 
-Installation, user accounts, Workspace management and versioned asset APIs are implemented. The current pages provide setup/login/logout, password reset, account/session controls, global user administration, Workspace selection, membership and invitations using actual MySQL records. The deterministic compiler, Runner SDK and built-in HTTP business/fixture lifecycle providers are implemented, together with versioned credential/authentication APIs. The asset editor, trusted Runtime integration, reports and desktop client remain under development.
+Installation, user accounts, Workspace management and versioned asset APIs are implemented. The current pages provide setup/login/logout, password reset, account/session controls, global user administration, Workspace selection, membership and invitations using actual MySQL records. The deterministic compiler, Runner SDK and built-in HTTP business/fixture lifecycle providers are implemented, together with versioned credential/authentication APIs. Runtime enrollment, owner-controlled sharing, separate hardware trust/Workspace credential delivery and development CLI/doctor are implemented. The asset editor, actual worker/lease integration, reports and desktop client remain under development.
 
 After signing in, open **Workspaces** to create a project Workspace; its creator becomes OWNER. OWNER/ADMIN can invite members with a copyable link or configured SMTP. Existing accounts sign in within the acceptance page; new invitees create an ordinary account. Invitation tokens are removed from the address bar and retained in page memory, so reopen the original link after a full refresh. Global system administration does not grant project membership.
 
-Workspace members can switch spaces and view their role. OWNER/ADMIN can manage permitted memberships; only OWNER can grant ownership or archive a Workspace. The final enabled ACTIVE OWNER cannot be removed, demoted or disabled without a successor. Archived Workspaces are read-only; this API currently has no restore operation. Resource authorization already uses this scope layer; execution and device services will adopt it in later tasks.
+Workspace members can switch spaces and view their role. OWNER/ADMIN can manage permitted memberships; only OWNER can grant ownership or archive a Workspace. The final enabled ACTIVE OWNER cannot be removed, demoted or disabled without a successor. Archived Workspaces are read-only; this API currently has no restore operation. Resource authorization already uses this scope layer; device authorization adopts it, and execution services will use the same boundary in the next tasks.
 
 Asset API clients can create and revise all eight resource kinds under a Workspace, inspect pinned dependencies and read immutable published versions. Read `validation-preview` before submitting the returned revision/source hash to `validate`. This creates a real queued VALIDATE job; production receipt creation awaits the trusted Runtime integration. No public endpoint fabricates successful validation. Current permission, hash, entrypoint and publication contracts are in [contracts.md](contracts.md).
 
 The compiler validates all eight asset kinds and emits deterministic TypeScript, source context and verified dependency files. Executable compilation requires actual engine distribution bytes. The compiler retains its isolated fixture-distribution test; the SDK additionally installs actual SDK/contracts JavaScript and dependency archives offline, typechecks emitted TypeScript and executes it in Chromium. Built-in authentication/fixture providers now have real local backend/browser evidence; deployed Runtime authorization and trusted worker assembly remain later integration tasks. See [the compiler contract](contracts.md) and [ADR 0006](decisions/0006-deterministic-compiler-artifacts.md).
 
 Credential management APIs require Workspace OWNER/ADMIN and return metadata, never plaintext. Business and fixture identities are separate, version pinned, and configured through the immutable authentication registry. The internal credential resolver remains denied until a real device/Attempt verifier is integrated. The [backend integration guide](integration/backend.md) covers the controlled Tornado/SQLite test target, idempotent fixture lifecycle and compensation; this target does not replace the platform MySQL database. Raw Trace/screenshots/downloads carry credential-restricted sensitivity; production artifact authorization remains the report task. Initial variable declarations contain types only, with actual values frozen separately and checked before side effects.
+
+The Runtime page supports real device-code approval and deployment service accounts. Registration is OFFLINE until an actual worker is running; capability reports do not approve an engine release. The development CLI supports explicit logout recovery, including `--local-only` without remote revocation. Current known UI issue: an invalid or expired authenticated approval code is misclassified as session expiration; it is tracked for the full error-handling pass and does not revoke the server session cookie.
 
 Use the exact toolchain from [contracts.md](contracts.md). Install dependencies from the repository root:
 
@@ -70,3 +72,36 @@ pnpm --filter @veriq/web test:e2e
 ```
 
 Playwright uses its installed Chromium by default. On managed test hosts, `VERIQ_TEST_CHROMIUM=/usr/bin/chromium` selects an existing test browser; this option belongs only to the test configuration. Use writable task-local `UV_CACHE_DIR`/`XDG_CONFIG_HOME`/`XDG_CACHE_HOME` if HOME is read-only. Browser evidence goes under ignored `.superpowers/cache/t02/`. No browser or Node process is required by the Python API at runtime.
+
+## Runtime enrollment and doctor (T08 development CLI)
+
+Install the frozen workspace dependencies, then use the implemented CLI:
+
+```sh
+pnpm --filter @veriq/runtime dev doctor --server http://127.0.0.1:5173
+pnpm --filter @veriq/runtime dev login --server http://127.0.0.1:5173 --name "My workstation"
+pnpm --filter @veriq/runtime dev status
+pnpm --filter @veriq/runtime dev workspace list
+pnpm --filter @veriq/runtime dev workspace use APPROVED_WORKSPACE_UUID
+pnpm --filter @veriq/runtime dev logout
+```
+
+Open the displayed control URL, sign in, select the Workspace, inspect the approval code and confirm the device and sharing scope. The device polls at five-second intervals until approval or the ten-minute expiry. A successful login registers an **offline** device; it does not start a worker. Workspace use accepts only the existing approved binding; it does not create a new grant. A revoked, expired, disabled-owner or removed-membership identity is denied at the next operation. Normal logout deletes the local device credential after successful remote logout, or after a definitive HTTP 401 `DEVICE_UNAUTHORIZED` / `DEVICE_REVOKED` rejection. The latter reports that the server already rejected the credential, without claiming to have revoked it. You can then enroll again in the same configuration directory. Unknown errors and network/transport failures return nonzero and retain the credential so logout can be retried. Login never automatically deletes or overwrites an existing credential.
+
+For explicit local recovery while the server is unreachable, run `pnpm --filter @veriq/runtime dev logout --local-only` (with the same `--config-dir` if one was selected). This removes only the local device credential through the locked store; it does not contact the server, revoke any remote token, or delete project assets/results. The remote credential may remain valid. Revoke the device through the Web Runtime page when reachable, or wait for its expiry before assuming it cannot be used. This escape also permits replacement of an unreadable local credential file; normal login still preserves existing profiles.
+
+Doctor checks the actual pinned Node 24.22.1, supported OS/x64 architecture, installed compiler/SDK versions, Chromium executable and real headless launch/render, plus the configured control liveness endpoint. `--browser-executable PATH` explicitly selects an installed browser; production defaults use Playwright's installation. An unavailable browser or network produces a nonzero exit with a safe diagnostic. Success is exit 0, failure 1, cancellation 130. Diagnostics go to stdout; sanitized command failure logs go to stderr. No token is printed or passed in argv. Only HTTPS control origins are accepted, except localhost HTTP development. Redirects are rejected and requests/body sizes are bounded.
+
+Deployment managers create a Workspace service account in the Runtime page and issue a one-time enrollment token. Supply it through standard input to `enroll-service --server ORIGIN --name NAME`; include `--share-workspace` only when consenting to Workspace use. Never paste a token as a command argument or put it in a URL. Tokens expire in ten minutes and cannot be used for execution-plan triggers, maintenance or credential resolution. System-admin MANAGED approval is separate from owner consent and cloud location. Workspace OWNER/ADMIN separately approves credential delivery after MANAGED trust; a global administrator with only project VIEWER/EDITOR membership cannot grant it. Disabling the account denies its devices immediately.
+
+The Node development CLI uses the pinned tsx loader to consume shared TypeScript packages. Its env-paths configuration directory is mode 0700 and the device file is mode 0600 with proper-lockfile serialization and atomic replacement. `--config-dir` selects a dedicated private development directory. This is a documented file-storage seam, **not** an OS vault or a native release package. T20 provides OS vaults, installers and real process names; T09/T10 implement worker claim/lease/start/stop and unattended token renewal. A lost one-time receipt or rotation response requires explicit recovery/re-enrollment; no fake claim or silently restored credential exists. Bundle trust roots remain unavailable until T14 supplies an actual authenticated issuer.
+
+Run Runtime tests with `VERIQ_TEST_CHROMIUM` selecting the test host's Chromium if necessary:
+
+```sh
+pnpm --filter @veriq/runtime test
+pnpm --filter @veriq/runtime check
+pnpm --filter @veriq/web test:e2e z-runtimes.spec.ts
+```
+
+The real browser journey launches the CLI, approves in the UI, reads the protected local credential, changes sharing and managed trust, revokes the device, and confirms the token is rejected. Vite forwards both `/api` and `/internal` to the control service. The Python control service still requires neither Node nor Chrome at runtime.

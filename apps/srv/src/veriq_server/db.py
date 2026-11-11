@@ -5,6 +5,7 @@ from typing import Any
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     ForeignKey,
     Integer,
     String,
@@ -312,4 +313,108 @@ class AuthAdapterVersion(Base):
     content_hash: Mapped[str] = mapped_column(hash_type)
     configuration: Mapped[dict[str, Any]] = mapped_column(JSON)
     revoked: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+
+
+class Runtime(Base):
+    __tablename__ = "veriq_runtimes"
+    __table_args__ = (
+        CheckConstraint(
+            "(owner_user_id IS NULL) <> (owner_service_account_id IS NULL)",
+            name="ck_runtime_one_owner",
+        ),
+    )
+    owner_service_account_id: Mapped[str | None] = mapped_column(
+        uuid_type, ForeignKey("veriq_service_accounts.id")
+    )
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    owner_user_id: Mapped[str | None] = mapped_column(uuid_type, ForeignKey("veriq_users.id"))
+    name: Mapped[str] = mapped_column(String(160))
+    location: Mapped[str] = mapped_column(String(24, collation="ascii_bin"))
+    trust_status: Mapped[str] = mapped_column(String(24, collation="ascii_bin"))
+    capabilities: Mapped[dict[str, Any]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+
+
+class RuntimeBinding(Base):
+    __tablename__ = "veriq_runtime_bindings"
+    runtime_id: Mapped[str] = mapped_column(
+        uuid_type, ForeignKey("veriq_runtimes.id"), primary_key=True
+    )
+    workspace_id: Mapped[str] = mapped_column(
+        uuid_type, ForeignKey("veriq_workspaces.id"), primary_key=True
+    )
+    shared_with_workspace: Mapped[bool] = mapped_column(Boolean, default=False)
+    allow_credential_delivery: Mapped[bool] = mapped_column(Boolean, default=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class RuntimeGrant(Base):
+    __tablename__ = "veriq_runtime_grants"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["runtime_id", "workspace_id"],
+            ["veriq_runtime_bindings.runtime_id", "veriq_runtime_bindings.workspace_id"],
+        ),
+    )
+    runtime_id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    user_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_users.id"), primary_key=True)
+
+
+class RuntimeEnrollment(Base):
+    __tablename__ = "veriq_runtime_enrollments"
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    user_code_hash: Mapped[str] = mapped_column(hash_type, unique=True)
+    device_code_hash: Mapped[str] = mapped_column(hash_type, unique=True)
+    last_polled_at: Mapped[datetime | None] = mapped_column(DATETIME(fsp=6))
+    request_hash: Mapped[str] = mapped_column(hash_type, index=True)
+    name: Mapped[str] = mapped_column(String(160))
+    capabilities: Mapped[dict[str, Any]] = mapped_column(JSON)
+    expires_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+    runtime_id: Mapped[str | None] = mapped_column(uuid_type, ForeignKey("veriq_runtimes.id"))
+    consumed: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class RuntimeToken(Base):
+    __tablename__ = "veriq_runtime_tokens"
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    runtime_id: Mapped[str] = mapped_column(uuid_type)
+    workspace_id: Mapped[str] = mapped_column(uuid_type)
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["runtime_id", "workspace_id"],
+            ["veriq_runtime_bindings.runtime_id", "veriq_runtime_bindings.workspace_id"],
+        ),
+    )
+    token_hash: Mapped[str] = mapped_column(hash_type, unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+
+
+class ServiceAccount(Base):
+    __tablename__ = "veriq_service_accounts"
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(
+        uuid_type, ForeignKey("veriq_workspaces.id"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(160))
+    disabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_by: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_users.id"))
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+
+
+class ServiceToken(Base):
+    __tablename__ = "veriq_service_tokens"
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    service_account_id: Mapped[str] = mapped_column(
+        uuid_type, ForeignKey("veriq_service_accounts.id"), index=True
+    )
+    token_hash: Mapped[str] = mapped_column(hash_type, unique=True)
+    purpose: Mapped[str] = mapped_column(String(40, collation="ascii_bin"))
+    expires_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+    consumed_at: Mapped[datetime | None] = mapped_column(DATETIME(fsp=6))
+    revoked_at: Mapped[datetime | None] = mapped_column(DATETIME(fsp=6))
     created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))

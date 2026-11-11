@@ -166,3 +166,103 @@ export const api = {
 };
 export type Workspace = Schemas["WorkspaceDTO"];
 export type Member = Schemas["MemberDTO"];
+
+export type Runtime = Schemas["RuntimeDTO"];
+export const runtimeApi = {
+  delivery: (
+    ws: string,
+    id: string,
+    allowCredentialDelivery: boolean,
+    signal?: AbortSignal,
+  ) =>
+    request<Runtime>(
+      `/workspaces/${ws}/runtimes/${id}/credential-delivery`,
+      "PUT",
+      { allowCredentialDelivery },
+      signal,
+    ),
+  list: (ws: string, cursor?: string, signal?: AbortSignal) =>
+    request<Schemas["RuntimeDTOPageEnvelope"]["data"]>(
+      `/workspaces/${ws}/runtimes` + queryString({ cursor }),
+      "GET",
+      undefined,
+      signal,
+    ),
+  inspect: (userCode: string, signal?: AbortSignal) =>
+    request<Schemas["EnrollmentPreview"]>(
+      "/runtime-enrollments/inspect",
+      "POST",
+      { userCode },
+      signal,
+    ),
+  approve: (
+    id: string,
+    data: Schemas["EnrollmentApprove"],
+    signal?: AbortSignal,
+  ) =>
+    request<Runtime>(
+      `/runtime-enrollments/${id}/approve`,
+      "POST",
+      data,
+      signal,
+    ),
+  grants: (
+    ws: string,
+    id: string,
+    data: Schemas["RuntimeGrantWrite"],
+    signal?: AbortSignal,
+  ) =>
+    request<Runtime>(
+      `/workspaces/${ws}/runtimes/${id}/grants`,
+      "PUT",
+      data,
+      signal,
+    ),
+  trust: (
+    ws: string,
+    id: string,
+    data: Schemas["RuntimeTrustWrite"],
+    signal?: AbortSignal,
+  ) =>
+    request<Runtime>(
+      `/workspaces/${ws}/runtimes/${id}/trust`,
+      "PUT",
+      data,
+      signal,
+    ),
+  revoke: (ws: string, id: string, signal?: AbortSignal) =>
+    request<Runtime>(
+      `/workspaces/${ws}/runtimes/${id}/revoke`,
+      "POST",
+      {},
+      signal,
+    ),
+  accounts: (ws: string, cursor?: string, signal?: AbortSignal) =>
+    request<Schemas["ServiceAccountDTOPageEnvelope"]["data"]>(
+      `/workspaces/${ws}/service-accounts` + queryString({ cursor }),
+      "GET",
+      undefined,
+      signal,
+    ),
+  createAccount: (ws: string, name: string, signal?: AbortSignal) =>
+    request<Schemas["ServiceAccountDTO"]>(
+      `/workspaces/${ws}/service-accounts`,
+      "POST",
+      { name },
+      signal,
+    ),
+  issueToken: (ws: string, id: string, signal?: AbortSignal) =>
+    request<Schemas["ServiceTokenDTO"]>(
+      `/workspaces/${ws}/service-accounts/${id}/tokens`,
+      "POST",
+      { purpose: "RUNTIME_ENROLLMENT" },
+      signal,
+    ),
+  disableAccount: (ws: string, id: string, signal?: AbortSignal) =>
+    request<Schemas["ServiceAccountDTO"]>(
+      `/workspaces/${ws}/service-accounts/${id}/disable`,
+      "POST",
+      {},
+      signal,
+    ),
+};

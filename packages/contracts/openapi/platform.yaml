@@ -4756,15 +4756,11 @@
       "get": {
         "operationId": "listServiceAccounts",
         "tags": [
-          "workspaces"
+          "runtime-enrollments"
         ],
         "security": [
           {
-            "WebSession": [],
-            "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
+            "WebSession": []
           }
         ],
         "parameters": [
@@ -4797,16 +4793,6 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Success.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ServiceAccountDTOPageEnvelope"
-                }
-              }
-            }
-          },
           "400": {
             "description": "Stable JSON error; code is a machine-readable domain code.",
             "content": {
@@ -4876,21 +4862,28 @@
                 }
               }
             }
+          },
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceAccountDTOPageEnvelope"
+                }
+              }
+            }
           }
         }
       },
       "post": {
         "operationId": "createServiceAccount",
         "tags": [
-          "workspaces"
+          "runtime-enrollments"
         ],
         "security": [
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -4904,16 +4897,6 @@
           }
         ],
         "responses": {
-          "201": {
-            "description": "Success.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ServiceAccountDTOEnvelope"
-                }
-              }
-            }
-          },
           "400": {
             "description": "Stable JSON error; code is a machine-readable domain code.",
             "content": {
@@ -4983,6 +4966,16 @@
                 }
               }
             }
+          },
+          "201": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceAccountDTOEnvelope"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -4990,7 +4983,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ServiceAccountWrite"
+                "$ref": "#/components/schemas/ServiceAccountCreate"
               }
             }
           }
@@ -6977,11 +6970,7 @@
         ],
         "security": [
           {
-            "WebSession": [],
-            "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
+            "WebSession": []
           }
         ],
         "parameters": [
@@ -7105,11 +7094,7 @@
         ],
         "security": [
           {
-            "WebSession": [],
-            "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
+            "WebSession": []
           }
         ],
         "parameters": [
@@ -7224,9 +7209,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -7351,9 +7333,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -7478,9 +7457,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -7697,9 +7673,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -7718,7 +7691,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EmptyEnvelope"
+                  "$ref": "#/components/schemas/RuntimeDTOEnvelope"
                 }
               }
             }
@@ -9874,15 +9847,12 @@
       "post": {
         "operationId": "issueServiceToken",
         "tags": [
-          "workspaces"
+          "runtime-enrollments"
         ],
         "security": [
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -9904,16 +9874,6 @@
           }
         ],
         "responses": {
-          "201": {
-            "description": "Success.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ServiceTokenDTOEnvelope"
-                }
-              }
-            }
-          },
           "400": {
             "description": "Stable JSON error; code is a machine-readable domain code.",
             "content": {
@@ -9981,6 +9941,26 @@
                 "schema": {
                   "$ref": "#/components/schemas/ErrorEnvelope"
                 }
+              }
+            }
+          },
+          "201": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceTokenDTOEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceTokenIssue"
               }
             }
           }
@@ -13908,6 +13888,908 @@
           }
         }
       }
+    },
+    "/api/v1/runtime-enrollments/inspect": {
+      "post": {
+        "operationId": "inspectEnrollment",
+        "tags": [
+          "runtime-enrollments"
+        ],
+        "security": [
+          {
+            "WebSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrollmentPreviewEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrollmentInspect"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/v1/runtime": {
+      "get": {
+        "operationId": "getDeviceRuntime",
+        "tags": [
+          "runtime-enrollments"
+        ],
+        "security": [
+          {
+            "DeviceToken": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeDTOEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/v1/runtime/token/rotate": {
+      "post": {
+        "operationId": "rotateDeviceToken",
+        "tags": [
+          "runtime-enrollments"
+        ],
+        "security": [
+          {
+            "DeviceToken": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceCredentialsDTOEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyObject"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/v1/runtime/logout": {
+      "post": {
+        "operationId": "logoutDevice",
+        "tags": [
+          "runtime-enrollments"
+        ],
+        "security": [
+          {
+            "DeviceToken": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmptyEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyObject"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/v1/runtime-enrollments/service": {
+      "post": {
+        "operationId": "enrollServiceRuntime",
+        "tags": [
+          "runtime-enrollments"
+        ],
+        "security": [
+          {
+            "ServiceToken": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "400": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceCredentialsDTOEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceEnrollmentRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/service-accounts/{serviceAccountId}/disable": {
+      "post": {
+        "operationId": "disableServiceAccount",
+        "tags": [
+          "runtime-enrollments"
+        ],
+        "security": [
+          {
+            "WebSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "serviceAccountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceAccountDTOEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyObject"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/service-accounts/{serviceAccountId}/tokens/{tokenId}/revoke": {
+      "post": {
+        "operationId": "revokeServiceToken",
+        "tags": [
+          "runtime-enrollments"
+        ],
+        "security": [
+          {
+            "WebSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "serviceAccountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "tokenId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmptyEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyObject"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/runtimes/{runtimeId}/credential-delivery": {
+      "put": {
+        "operationId": "updateRuntimeCredentialDelivery",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "WebSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "runtimeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeDTOEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeCredentialDeliveryWrite"
+              }
+            }
+          }
+        },
+        "description": "Current Workspace OWNER/ADMIN approves credential delivery only after independent system-admin MANAGED trust and owner sharing consent. Does not grant hardware trust."
+      }
     }
   },
   "components": {
@@ -14778,66 +15660,19 @@
         "additionalProperties": false
       },
       "RuntimeDTO": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "$ref": "#/components/schemas/Id"
-          },
-          "ownerId": {
-            "$ref": "#/components/schemas/Id"
-          },
-          "name": {
-            "type": "string",
-            "minLength": 1
-          },
-          "location": {
-            "type": "string",
-            "enum": [
-              "MANAGED_CLOUD",
-              "CONNECTED_LOCAL"
-            ]
-          },
-          "trustStatus": {
-            "$ref": "#/components/schemas/TrustStatus"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "PENDING",
-              "ONLINE",
-              "OFFLINE",
-              "REVOKED"
-            ]
-          },
-          "capabilities": {
-            "$ref": "#/components/schemas/RuntimeCapabilitiesV1"
-          },
-          "lastSeenAt": {
-            "$ref": "#/components/schemas/Timestamp"
-          }
-        },
-        "required": [
-          "id",
-          "ownerId",
-          "name",
-          "location",
-          "trustStatus",
-          "status",
-          "capabilities"
-        ],
-        "additionalProperties": false
+        "$ref": "../schemas/platform-v1.schema.json#/$defs/RuntimeDTO"
       },
       "EnrollmentRequest": {
         "type": "object",
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 160
           },
           "location": {
             "type": "string",
             "enum": [
-              "MANAGED_CLOUD",
               "CONNECTED_LOCAL"
             ]
           },
@@ -14853,34 +15688,7 @@
         "additionalProperties": false
       },
       "EnrollmentDTO": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "$ref": "#/components/schemas/Id"
-          },
-          "deviceCode": {
-            "type": "string",
-            "minLength": 1
-          },
-          "userCode": {
-            "type": "string",
-            "minLength": 1
-          },
-          "verificationUrl": {
-            "$ref": "#/components/schemas/HttpUrl"
-          },
-          "expiresAt": {
-            "$ref": "#/components/schemas/Timestamp"
-          }
-        },
-        "required": [
-          "id",
-          "deviceCode",
-          "userCode",
-          "verificationUrl",
-          "expiresAt"
-        ],
-        "additionalProperties": false
+        "$ref": "../schemas/platform-v1.schema.json#/$defs/EnrollmentDTO"
       },
       "EnrollmentApprove": {
         "type": "object",
@@ -14895,13 +15703,20 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Id"
-            }
+            },
+            "maxItems": 100,
+            "uniqueItems": true
+          },
+          "userCode": {
+            "type": "string",
+            "pattern": "^[A-Z2-7]{12}$"
           }
         },
         "required": [
           "workspaceId",
           "private",
-          "sharedWithUserIds"
+          "sharedWithUserIds",
+          "userCode"
         ],
         "additionalProperties": false
       },
@@ -14910,7 +15725,8 @@
         "properties": {
           "deviceCode": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 128
           }
         },
         "required": [
@@ -14919,58 +15735,7 @@
         "additionalProperties": false
       },
       "DeviceCredentialsDTO": {
-        "type": "object",
-        "properties": {
-          "runnerId": {
-            "$ref": "#/components/schemas/Id"
-          },
-          "deviceToken": {
-            "type": "string",
-            "minLength": 1
-          },
-          "expiresAt": {
-            "$ref": "#/components/schemas/Timestamp"
-          },
-          "issuerId": {
-            "$ref": "#/components/schemas/Key"
-          },
-          "trustedKeys": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "keyId": {
-                  "$ref": "#/components/schemas/Key"
-                },
-                "algorithm": {
-                  "const": "Ed25519"
-                },
-                "publicKey": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "fingerprint": {
-                  "$ref": "#/components/schemas/Sha256"
-                }
-              },
-              "required": [
-                "keyId",
-                "algorithm",
-                "publicKey",
-                "fingerprint"
-              ],
-              "additionalProperties": false
-            }
-          }
-        },
-        "required": [
-          "runnerId",
-          "deviceToken",
-          "expiresAt",
-          "issuerId",
-          "trustedKeys"
-        ],
-        "additionalProperties": false
+        "$ref": "../schemas/platform-v1.schema.json#/$defs/DeviceCredentialsDTO"
       },
       "RuntimeGrantWrite": {
         "type": "object",
@@ -14982,7 +15747,9 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Id"
-            }
+            },
+            "maxItems": 100,
+            "uniqueItems": true
           },
           "sharedWithWorkspace": {
             "type": "boolean"
@@ -16105,37 +16872,23 @@
           "id": {
             "$ref": "#/components/schemas/Id"
           },
+          "workspaceId": {
+            "$ref": "#/components/schemas/Id"
+          },
           "name": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 160
           },
-          "scopes": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "enum": [
-                "RUN_TRIGGER",
-                "MAINTENANCE",
-                "READ_REPORTS"
-              ]
-            }
-          },
-          "planIds": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Id"
-            }
-          },
-          "revoked": {
+          "disabled": {
             "type": "boolean"
           }
         },
         "required": [
           "id",
+          "workspaceId",
           "name",
-          "scopes",
-          "planIds",
-          "revoked"
+          "disabled"
         ],
         "additionalProperties": false
       },
@@ -16146,8 +16899,10 @@
             "$ref": "#/components/schemas/Id"
           },
           "token": {
-            "type": "string",
-            "minLength": 1
+            "type": "string"
+          },
+          "purpose": {
+            "const": "RUNTIME_ENROLLMENT"
           },
           "expiresAt": {
             "$ref": "#/components/schemas/Timestamp"
@@ -16156,6 +16911,7 @@
         "required": [
           "id",
           "token",
+          "purpose",
           "expiresAt"
         ],
         "additionalProperties": false
@@ -16657,8 +17413,7 @@
             "$ref": "#/components/schemas/ServiceAccountDTO"
           },
           "requestId": {
-            "type": "string",
-            "minLength": 1
+            "$ref": "#/components/schemas/Id"
           }
         },
         "required": [
@@ -17130,8 +17885,7 @@
             "$ref": "#/components/schemas/ServiceTokenDTO"
           },
           "requestId": {
-            "type": "string",
-            "minLength": 1
+            "$ref": "#/components/schemas/Id"
           }
         },
         "required": [
@@ -18026,6 +18780,98 @@
         "required": [
           "data",
           "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "EnrollmentInspect": {
+        "type": "object",
+        "properties": {
+          "userCode": {
+            "type": "string",
+            "pattern": "^[A-Z2-7]{12}$"
+          }
+        },
+        "required": [
+          "userCode"
+        ],
+        "additionalProperties": false
+      },
+      "EnrollmentPreview": {
+        "$ref": "../schemas/platform-v1.schema.json#/$defs/EnrollmentPreview"
+      },
+      "EnrollmentPreviewEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EnrollmentPreview"
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/Id"
+          }
+        },
+        "required": [
+          "data",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "ServiceAccountCreate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "ServiceTokenIssue": {
+        "type": "object",
+        "properties": {
+          "purpose": {
+            "const": "RUNTIME_ENROLLMENT"
+          }
+        },
+        "required": [
+          "purpose"
+        ],
+        "additionalProperties": false
+      },
+      "ServiceEnrollmentRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/RuntimeCapabilitiesV1"
+          },
+          "sharedWithWorkspace": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "capabilities",
+          "sharedWithWorkspace"
+        ],
+        "additionalProperties": false
+      },
+      "RuntimeCredentialDeliveryWrite": {
+        "type": "object",
+        "properties": {
+          "allowCredentialDelivery": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "allowCredentialDelivery"
         ],
         "additionalProperties": false
       }
