@@ -394,7 +394,10 @@ class MaintenanceService:
                 # Exact source/assignment roots stay pinned. Compiler/engine closure members
                 # are pinned by their retained non-raw uploads in the reference check above.
                 digest = upload.sha256
+                from ..db import Bundle
+
                 roots = [
+                    select(Bundle.id).where(Bundle.workspace_id == workspace_id, or_(Bundle.manifest_hash == digest, Bundle.archive_hash == digest, Bundle.snapshot_hash == digest)),
                     select(Job.id).where(
                         Job.workspace_id == workspace_id,
                         or_(

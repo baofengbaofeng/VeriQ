@@ -3,7 +3,7 @@ const namedSpecs = process.argv.filter((arg) => arg.endsWith(".spec.ts"));
 const editorSuite =
   namedSpecs.length === 0 ||
   namedSpecs.some(
-    (arg) => arg.includes("case-publish") || arg.includes("ai.spec"),
+    (arg) => arg.includes("case-publish") || arg.includes("ai.spec") || arg.includes("bundles.spec"),
   );
 export default defineConfig({
   testDir: "./tests",

@@ -120,7 +120,7 @@ export async function queueValidation(page: Page): Promise<S["JobDTO"]> {
   expect(queued.status(), await queued.text()).toBe(202);
   return (await queued.json()).data;
 }
-export async function managedCompiler(page: Page, scope: EditorScope) {
+export async function managedCompiler(page: Page, scope: EditorScope, evidenceTask = "t11") {
   const profile = await mkdtemp("/tmp/vq11-f-");
   const command = (args: string[], input = "") =>
     new Promise<{ code: number | null; output: string }>((resolve, reject) => {
@@ -235,7 +235,7 @@ export async function managedCompiler(page: Page, scope: EditorScope) {
     await writeFile(
       fileURLToPath(
         new URL(
-          `../../../.superpowers/sdd/veriq-1/evidence/t11/fix1-stops-${scope.key}.json`,
+          `../../../.superpowers/sdd/veriq-1/evidence/${evidenceTask}/fix1-stops-${scope.key}.json`,
           import.meta.url,
         ),
       ),

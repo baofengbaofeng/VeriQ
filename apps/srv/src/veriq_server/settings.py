@@ -23,6 +23,8 @@ class Settings(BaseModel):
     session_hours: int = Field(default=12, ge=1, le=168)
     reset_minutes: int = Field(default=30, ge=1, le=60)
 
+    bundle_issuer_path: str | None = None
+    bundle_lifetime_days: int = Field(default=30, ge=1, le=365)
     approved_engine_inventory_path: str | None = None
     artifact_backend: Literal["FILE", "S3"] = "FILE"
     artifact_directory: str = "var/veriq/artifacts"

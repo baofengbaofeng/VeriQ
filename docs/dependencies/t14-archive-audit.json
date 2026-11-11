@@ -1,0 +1,57 @@
+{
+  "queriedAt": "2026-11-11T23:38:56.677227+00:00",
+  "source": "https://api.osv.dev/v1/querybatch",
+  "queries": [
+    {
+      "package": {
+        "name": "yauzl",
+        "ecosystem": "npm"
+      },
+      "version": "3.4.0"
+    },
+    {
+      "package": {
+        "name": "pend",
+        "ecosystem": "npm"
+      },
+      "version": "1.2.0"
+    },
+    {
+      "package": {
+        "name": "@types/yauzl",
+        "ecosystem": "npm"
+      },
+      "version": "3.4.0"
+    }
+  ],
+  "response": {
+    "results": [
+      {},
+      {},
+      {}
+    ]
+  },
+  "licenses": [
+    {
+      "name": "yauzl",
+      "version": "3.4.0",
+      "license": "MIT",
+      "licenseFile": "node_modules/.pnpm/yauzl@3.4.0/node_modules/yauzl/LICENSE",
+      "licenseSha256": "b303783d5eb7ca50b853ffa5f145e4e7998fab339831d848f507ca6cd970577a"
+    },
+    {
+      "name": "pend",
+      "version": "1.2.0",
+      "license": "MIT",
+      "licenseFile": "node_modules/.pnpm/pend@1.2.0/node_modules/pend/LICENSE",
+      "licenseSha256": "7e64acffcb0d20d33f5a86949ffd4a99ae045b10c7332a9c3a58635876c16880"
+    },
+    {
+      "name": "@types/yauzl",
+      "version": "3.4.0",
+      "license": "MIT",
+      "licenseFile": "node_modules/.pnpm/@types+yauzl@3.4.0/node_modules/@types/yauzl/LICENSE",
+      "licenseSha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+    }
+  ]
+}

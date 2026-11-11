@@ -62,6 +62,7 @@ async def site(request, monkeypatch):
     async with db.engine.begin() as conn:
         tables = (await conn.execute(text("SHOW TABLES"))).scalars().all()
         owned = {
+            "veriq_bundles",
             "veriq_ai_providers",
             "veriq_ai_generations",
             "veriq_runs",

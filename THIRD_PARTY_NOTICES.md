@@ -52,3 +52,11 @@ contributions as described by its upstream license; preserve both notices.
 | jiter | 0.19.0 | MIT |
 | sniffio | 1.3.1 | MIT OR Apache-2.0 |
 | tqdm | 4.70.1 | MPL-2.0 AND MIT |
+
+T14 adds yauzl 3.4.0 (MIT), resolved pend 1.2.0 (MIT), and development-only
+@types/yauzl 3.4.0 (MIT). Python ZIP writing uses the existing standard library;
+Ed25519 reuses cryptography and Node crypto. The exact new graph's OSV query and
+installed license-file hashes are recorded in
+[the archive audit](docs/dependencies/t14-archive-audit.json). No advisories were
+returned at that timestamp; this does not reassess unchanged dependencies or
+replace release-time checks. Distributions must include the upstream MIT notices.

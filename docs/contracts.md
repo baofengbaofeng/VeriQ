@@ -837,3 +837,38 @@ Budgets use integer micro-USD estimates with immutable rate/model snapshots; unk
 usage/cancellation retains reservations across UTC months. Provider disablement, budget
 exhaustion and errors do not affect deterministic Runs. See [AI operations](ai.md) and
 [ADR0015](decisions/0015-ai-provider-boundaries.md) for exact bounds and acceptance limits.
+
+## T14 signed offline packages
+
+`BundleSelectionV1` is canonical; `BundleCreate` aliases it. Select exactly one bounded
+CASE-version list, SUITE-version or immutable draft validation Job, plus environment.
+Draft selection requires UNVALIDATED_DEBUG and current EDIT on export/list/read/download;
+ordinary published exports require DOWNLOAD. BundleDTO identifies retained manifest and
+snapshot hashes. `/manifest` is an envelope preview; the detached signature verifies the
+exact `manifest.json` bytes inside the downloaded ZIP, not reserialized preview JSON.
+`/download` is a private attachment (`application/octet-stream`), never a presigned URL.
+
+The archive contains `manifest.json`, raw64-byte Ed25519 `manifest.sig`, `snapshot.json`,
+`selection.json`, `resources.json`, `assets/{version}.json`, each published version's
+`provenance/{version}/{source,descriptor,receipt}.json`, and validated
+`compiled/{version}/{original descriptor path}` bytes. Published packages include
+`engine/inventory.json` plus approved package/lock/dependency metadata; OS/arch execution
+archives are separately installed. DSL-only DEBUG adds original `draft/source.json`,
+freeze-time metadata and `engine/requirements.json`, and contains no compiled files.
+
+`IssuerTrustV1` has a stable issuer, monotonic revision, bounded public keys, fingerprints
+and explicit revocation facts. `GET /internal/v1/issuer` and the internal bundle download
+route authenticate an actual current device bearer separately from Web Cookie/CSRF.
+Trust refresh accepts only authenticated HTTPS origins; explicit out-of-band binding
+checks an administrator-confirmed fingerprint. Bundle-carried keys never establish trust.
+Private issuer files and runtime local mappings use distinct restricted configuration.
+
+Export collects immutable authorized bytes, releases DB locks for bounded thread ZIP
+assembly, then rechecks session/membership, credential pins, issuer and engine approval.
+Runtime verifies the signature before writing members, checks exact listed membership,
+portable paths, complete dependency/provenance/hash constraints, and atomically installs
+read-only data. The verified native snapshot supplies the existing LocalResourceAdapter;
+DSL-only candidate dates denote original snapshot freeze time, without fabricated
+published versions or validation receipts. SDK dynamic user JSON keys with exact/URL/
+base64 local secret values withhold their object; protocol keys/IDs/enums remain intact.
+Raw Trace is still credential-restricted. Limits/operations are in [offline bundles](offline-bundles.md).

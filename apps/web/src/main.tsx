@@ -1,3 +1,4 @@
+import { BundlePage } from "./features/bundles/BundlePage";
 import { AiPage } from "./features/ai/AiPage";
 import { ReportPage } from "./features/reports/ReportPage";
 import { useState, useEffect } from "react";
@@ -71,6 +72,7 @@ function App() {
               <Link to="/workspaces">Workspaces</Link>
               <Link to="/runtimes">Runtimes</Link>
               <Link to="/reports">Reports</Link>
+              <Link to="/bundles">Bundles</Link>
               <Link to="/ai">AI</Link>
                 <Link to="/resources">资源 / Resources</Link>
               <Link to="/environments">环境 / Environments</Link>
@@ -146,6 +148,7 @@ function App() {
             }
           />
           <Route path="/ai" element={<WorkspaceProvider key={user?.id ?? "anonymous"}><AiPage /></WorkspaceProvider>} />
+          <Route path="/bundles" element={<WorkspaceProvider key={user?.id ?? "anonymous"}><BundlePage /></WorkspaceProvider>} />
           <Route path="/reports" element={<WorkspaceProvider key={user?.id ?? "anonymous"}><ReportPage /></WorkspaceProvider>} />
           <Route path="/invitations/accept" element={<AcceptInvitation />} />
           <Route

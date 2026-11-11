@@ -1141,6 +1141,33 @@ export type DeviceRotationRequest =
       clientRequestId: Id;
       replacementToken: string;
     };
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "BundleSelectionV1".
+ */
+export type BundleSelectionV1 = {
+  [k: string]: unknown;
+} & {
+  /**
+   * @minItems 1
+   * @maxItems 100
+   */
+  caseVersionIds?: [Id, ...Id[]];
+  suiteVersionId?: Id;
+  environmentVersionId: Id;
+  validationStatus: "VALIDATED" | "UNVALIDATED_DEBUG";
+  draftValidationJobId?: Id;
+} & BundleSelectionV11;
+export type BundleSelectionV11 =
+  | {
+      caseVersionIds: unknown;
+    }
+  | {
+      suiteVersionId: unknown;
+    }
+  | {
+      draftValidationJobId: unknown;
+    };
 
 export interface ContractDefinitions {
   Id?: Id;
@@ -1254,6 +1281,12 @@ export interface ContractDefinitions {
   DeviceRotationRequest?: DeviceRotationRequest;
   CompilerDiagnosticV1?: CompilerDiagnosticV1;
   ReportDisplayV1?: ReportDisplayV1;
+  ResourceDTO?: ResourceDTO;
+  ResourceVersionDTO?: ResourceVersionDTO;
+  IssuerKeyV1?: IssuerKeyV1;
+  IssuerTrustV1?: IssuerTrustV1;
+  BundleResourcesV1?: BundleResourcesV1;
+  BundleSelectionV1?: BundleSelectionV1;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1778,6 +1811,7 @@ export interface BundleManifestV1 {
   validationStatus: "VALIDATED" | "UNVALIDATED_DEBUG";
   /**
    * @minItems 1
+   * @maxItems 4094
    */
   files: [FileEntry, ...FileEntry[]];
 }
@@ -2190,6 +2224,71 @@ export interface ReportDisplayV1 {
       }[];
     }[];
   }[];
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "ResourceDTO".
+ */
+export interface ResourceDTO {
+  id: Id;
+  workspaceId: Id;
+  kind: ResourceKind;
+  key: string;
+  name: string;
+  status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  latestVersionId?: Id;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "ResourceVersionDTO".
+ */
+export interface ResourceVersionDTO {
+  id: Id;
+  resourceId: Id;
+  workspaceId: Id;
+  versionNo: number;
+  schemaVersion: "1.0";
+  sha256: Sha256;
+  content: ResourceDocumentV1;
+  publishedAt: Timestamp;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "IssuerKeyV1".
+ */
+export interface IssuerKeyV1 {
+  keyId: Key;
+  algorithm: "Ed25519";
+  publicKey: string;
+  fingerprint: Sha256;
+  revoked: boolean;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "IssuerTrustV1".
+ */
+export interface IssuerTrustV1 {
+  issuerId: Key;
+  revision: number;
+  /**
+   * @minItems 1
+   * @maxItems 100
+   */
+  keys: [IssuerKeyV1, ...IssuerKeyV1[]];
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "BundleResourcesV1".
+ */
+export interface BundleResourcesV1 {
+  /**
+   * @maxItems 1000
+   */
+  resources: ResourceDTO[];
+  /**
+   * @maxItems 1000
+   */
+  versions: ResourceVersionDTO[];
 }
 
 export type SnapshotV1 = AssetSnapshotV1;

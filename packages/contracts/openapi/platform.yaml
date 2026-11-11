@@ -16172,6 +16172,217 @@
           }
         }
       }
+    },
+    "/internal/v1/issuer": {
+      "get": {
+        "operationId": "getIssuerTrust",
+        "tags": [
+          "runtime-enrollments"
+        ],
+        "security": [
+          {
+            "DeviceToken": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssuerTrustEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Read issuer public keys through current authenticated device binding"
+      }
+    },
+    "/internal/v1/workspaces/{workspaceId}/bundles/{bundleId}/download": {
+      "get": {
+        "operationId": "downloadDeviceBundle",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "DeviceToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "bundleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized artifact stream.",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -16768,48 +16979,7 @@
         "additionalProperties": false
       },
       "ResourceDTO": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "$ref": "#/components/schemas/Id"
-          },
-          "workspaceId": {
-            "$ref": "#/components/schemas/Id"
-          },
-          "kind": {
-            "$ref": "#/components/schemas/ResourceKind"
-          },
-          "key": {
-            "$ref": "#/components/schemas/Key",
-            "maxLength": 160,
-            "type": "string"
-          },
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 160
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "DRAFT",
-              "PUBLISHED",
-              "ARCHIVED"
-            ]
-          },
-          "latestVersionId": {
-            "$ref": "#/components/schemas/Id"
-          }
-        },
-        "required": [
-          "id",
-          "workspaceId",
-          "kind",
-          "key",
-          "name",
-          "status"
-        ],
-        "additionalProperties": false
+        "$ref": "../schemas/platform-v1.schema.json#/$defs/ResourceDTO"
       },
       "ResourceCreate": {
         "type": "object",
@@ -17000,46 +17170,7 @@
         "additionalProperties": false
       },
       "ResourceVersionDTO": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "$ref": "#/components/schemas/Id"
-          },
-          "resourceId": {
-            "$ref": "#/components/schemas/Id"
-          },
-          "workspaceId": {
-            "$ref": "#/components/schemas/Id"
-          },
-          "versionNo": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 9007199254740991
-          },
-          "schemaVersion": {
-            "const": "1.0"
-          },
-          "sha256": {
-            "$ref": "#/components/schemas/Sha256"
-          },
-          "content": {
-            "$ref": "#/components/schemas/ResourceDocumentV1"
-          },
-          "publishedAt": {
-            "$ref": "#/components/schemas/Timestamp"
-          }
-        },
-        "required": [
-          "id",
-          "resourceId",
-          "workspaceId",
-          "versionNo",
-          "schemaVersion",
-          "sha256",
-          "content",
-          "publishedAt"
-        ],
-        "additionalProperties": false
+        "$ref": "../schemas/platform-v1.schema.json#/$defs/ResourceVersionDTO"
       },
       "RuntimeDTO": {
         "$ref": "../schemas/platform-v1.schema.json#/$defs/RuntimeDTO"
@@ -17522,33 +17653,7 @@
         "additionalProperties": false
       },
       "BundleCreate": {
-        "type": "object",
-        "properties": {
-          "caseVersionIds": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Id"
-            }
-          },
-          "suiteVersionId": {
-            "$ref": "#/components/schemas/Id"
-          },
-          "environmentVersionId": {
-            "$ref": "#/components/schemas/Id"
-          },
-          "validationStatus": {
-            "type": "string",
-            "enum": [
-              "VALIDATED",
-              "UNVALIDATED_DEBUG"
-            ]
-          }
-        },
-        "required": [
-          "environmentVersionId",
-          "validationStatus"
-        ],
-        "additionalProperties": false
+        "$ref": "../schemas/platform-v1.schema.json#/$defs/BundleSelectionV1"
       },
       "BundleDTO": {
         "type": "object",
@@ -21409,6 +21514,25 @@
           },
           "requestId": {
             "$ref": "#/components/schemas/Id"
+          }
+        },
+        "required": [
+          "data",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "IssuerTrustV1": {
+        "$ref": "../schemas/platform-v1.schema.json#/$defs/IssuerTrustV1"
+      },
+      "IssuerTrustEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/IssuerTrustV1"
+          },
+          "requestId": {
+            "type": "string"
           }
         },
         "required": [

@@ -19,6 +19,11 @@ from veriq_server.settings import Settings
 async def main():
     env = json.loads(Path(".superpowers/sdd/veriq-1/test-env.json").read_text())
     assert make_url(env["mysql_dsn"]).database == "veriq_test"
+    # Test-only persistent signer. Production never creates an issuer while serving.
+    from veriq_server.bundles.issuer import Issuer
+    issuer_path = Path(".superpowers/cache/t14/browser-issuer/issuer.json")
+    issuer = Issuer(issuer_path) if issuer_path.exists() else Issuer.initialize(issuer_path)
+    Path(".superpowers/cache/t14/browser-issuer-public.json").write_text(json.dumps(issuer.public()))
     settings = Settings(
         database_url=env["mysql_dsn"],
         public_url="http://127.0.0.1:5173",
@@ -30,10 +35,12 @@ async def main():
             "https://api.openai.com/v1",
             "https://api.anthropic.com/v1",
         ],
+        bundle_issuer_path=str(issuer_path),
         approved_engine_inventory_path=os.environ.get("VERIQ_TEST_ENGINE_INVENTORY"),
     )
     db = Database(settings)
     owned = {
+        "veriq_bundles",
         "veriq_ai_providers",
         "veriq_ai_generations",
         "veriq_runs",

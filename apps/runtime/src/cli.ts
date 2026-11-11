@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+import { readFile } from "node:fs/promises";
+import { TrustStore, type IssuerTrust } from "./offline/trust.ts";
+import { verifyBundle } from "./offline/verify.ts";
+import { downloadBundle } from "./offline/download.ts";
+import { SecretStore, type SecretReference } from "./credentials/store.ts";
 import { openTrace } from "./trace.ts";
 /** Development CLI. Native launcher/process names and vault packaging are T20. */
 import { Command } from "commander";
@@ -205,6 +210,7 @@ program
     await s.ensureStopped();
     if (options.localOnly) {
       await s.remove();
+      await new SecretStore(s.directory).clear();
       process.stdout.write(
         "Local device credential removed. Remote revocation was not attempted. The server credential may still be valid; revoke the device in the Web console or wait for expiry.\n",
       );
@@ -228,6 +234,7 @@ program
       alreadyRejected = true;
     }
     await s.remove();
+    await new SecretStore(s.directory).clear();
     process.stdout.write(
       alreadyRejected
         ? "Server already rejected this device credential; local credential removed. You can enroll again. Revoke the device in the Web console if you also need to prevent future reuse.\n"
@@ -291,6 +298,22 @@ runtime.command("start").requiredOption("--release-dir <path>", "Operator-approv
   });
 runtime.command("status").action(async()=>{const result=await agentControl(join(store().directory,"agent"),"status");process.stdout.write(`Agent running: ${result.running}; PID ${result.pid}\n`);});
 runtime.command("stop").action(async()=>{await agentControl(join(store().directory,"agent"),"stop");process.stdout.write("Agent stop requested; active Attempt cleanup and process confirmation precede shutdown.\n");});
+const bundle = program.command("bundle").description("Download and verify signed offline data (no execution)");
+bundle.command("download <bundle-id>").requiredOption("--output <path>", "New archive file").action(async(id:string,options:{output:string})=>{await downloadBundle(await store().load(),id,options.output,controller.signal);process.stdout.write("Bundle downloaded; verify before opening.\n");});
+bundle.command("verify <file>").requiredOption("--destination <directory>","New read-only snapshot directory").option("--debug","Explicitly accept expired/unvalidated data; excludes formal gates").action(async(file:string,options:{destination:string;debug?:boolean})=>{const result=await verifyBundle(file,{trust:new TrustStore(store().directory),...options});process.stdout.write(`Verified ${result.manifest.bundleId}; revocation UNKNOWN; mode ${result.debug?"DEBUG":"VALIDATED"}; local results are not formal proof.\n`);});
+const trust=program.command("trust").description("Issuer roots persist across logout");
+trust.command("refresh").description("Refresh keys/revocations through authenticated HTTPS binding").action(async()=>{await new TrustStore(store().directory).refresh(await store().load(),controller.signal);process.stdout.write("Authenticated issuer trust refreshed.\n");});
+trust.command("bind <public-metadata-file>").requiredOption("--origin <origin>","Administrator-confirmed control origin").requiredOption("--fingerprint <sha256>","Out-of-band administrator verified active key fingerprint").action(async(file:string,options:{origin:string;fingerprint:string})=>{const raw=await readFile(file);if(raw.length>65536)throw new Error("INVALID_ISSUER");await new TrustStore(store().directory).bind(JSON.parse(raw.toString()) as IssuerTrust,options.origin,options.fingerprint);process.stdout.write("Out-of-band issuer fingerprint bound.\n");});
+const secret=program.command("secret").description("Exact local credential mappings; never print values");
+for(const name of ["set","remove"]){
+ const command=secret.command(name).requiredOption("--issuer <id>","Trusted issuer ID").requiredOption("--workspace <id>","Workspace UUID").requiredOption("--ref <key>","Exact secret reference").requiredOption("--version <id>","Exact version UUID");
+ command.action(async(options:{issuer:string;workspace:string;ref:string;version:string})=>{
+  const ref:SecretReference={issuerId:options.issuer,workspaceId:options.workspace,secretRef:options.ref,versionId:options.version};await new TrustStore(store().directory).issuer(ref.issuerId);const local=new SecretStore(store().directory);
+  if(name==="remove")await local.remove(ref);else{
+   let input="";for await(const chunk of process.stdin){input+=String(chunk);if(Buffer.byteLength(input)>65536)throw new Error("SECRET_INPUT_LIMIT");}await local.set(ref,JSON.parse(input));
+  }process.stdout.write("Local mapping updated.\n");
+ });
+}
 try {
   await program.parseAsync();
 } catch (error) {

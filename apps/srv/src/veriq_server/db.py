@@ -779,3 +779,17 @@ class AiGeneration(Base):
     reserved_micros: Mapped[int] = mapped_column(BigInteger)
     cost_micros: Mapped[int | None] = mapped_column(BigInteger)
     data: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+
+class Bundle(Base):
+    __tablename__ = "veriq_bundles"
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_workspaces.id"), index=True)
+    exported_by: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_users.id"))
+    manifest_hash: Mapped[str] = mapped_column(hash_type)
+    archive_hash: Mapped[str] = mapped_column(hash_type)
+    snapshot_hash: Mapped[str] = mapped_column(hash_type)
+    signature: Mapped[bytes] = mapped_column(LONGBLOB)
+    contains_draft: Mapped[bool] = mapped_column(Boolean, default=False)
+    validation_status: Mapped[str] = mapped_column(String(20))
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))

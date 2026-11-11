@@ -325,7 +325,7 @@ async def test_production_cookie_and_database_shape(site):
         ).scalar() == "READ-COMMITTED"
         assert (
             await s.execute(text("SELECT version_num FROM veriq_alembic_version"))
-        ).scalar() == "0010_ai"
+        ).scalar() == "0011_bundles"
         assert (
             await s.execute(
                 text(

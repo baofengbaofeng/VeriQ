@@ -1852,6 +1852,39 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/v1/issuer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read issuer public keys through current authenticated device binding */
+        get: operations["getIssuerTrust"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/workspaces/{workspaceId}/bundles/{bundleId}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["downloadDeviceBundle"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3218,13 +3251,7 @@ export interface components {
             sizeBytes: number;
             sensitivity: components["schemas"]["ArtifactSensitivity"];
         };
-        BundleCreate: {
-            caseVersionIds?: components["schemas"]["Id"][];
-            suiteVersionId?: components["schemas"]["Id"];
-            environmentVersionId: components["schemas"]["Id"];
-            /** @enum {string} */
-            validationStatus: "VALIDATED" | "UNVALIDATED_DEBUG";
-        };
+        BundleCreate: components["schemas"]["BundleSelectionV1"];
         BundleDTO: {
             id: components["schemas"]["Id"];
             workspaceId: components["schemas"]["Id"];
@@ -4122,6 +4149,15 @@ export interface components {
             data: components["schemas"]["AiContextDTO"];
             requestId: components["schemas"]["Id"];
         };
+        IssuerTrustV1: {
+            issuerId: components["schemas"]["Key"];
+            revision: number;
+            keys: components["schemas"]["IssuerKeyV1"][];
+        };
+        IssuerTrustEnvelope: {
+            data: components["schemas"]["IssuerTrustV1"];
+            requestId: string;
+        };
         /** @description JSON used only in interpolated DSL fields, recursively restricted to SafeString bindings. */
         BindingJsonValue: ContractBindingJsonValue;
         BindingJsonObject: {
@@ -4172,6 +4208,20 @@ export interface components {
         };
         /** @enum {string} */
         ArtifactSensitivity: "REDACTED" | "CREDENTIAL_RESTRICTED";
+        BundleSelectionV1: ({
+            caseVersionIds?: components["schemas"]["Id"][];
+            suiteVersionId?: components["schemas"]["Id"];
+            environmentVersionId: components["schemas"]["Id"];
+            /** @enum {string} */
+            validationStatus: "VALIDATED" | "UNVALIDATED_DEBUG";
+            draftValidationJobId?: components["schemas"]["Id"];
+        } & unknown) & ({
+            caseVersionIds: unknown;
+        } | {
+            suiteVersionId: unknown;
+        } | {
+            draftValidationJobId: unknown;
+        });
         DurationMs: number;
         /** @description Literal diagnostic/evidence text; retain invalid expressions verbatim and never evaluate or interpolate it. */
         DiagnosticText: string;
@@ -4236,6 +4286,14 @@ export interface components {
             loginPath: components["schemas"]["Path"];
             identityPath: components["schemas"]["Path"];
             identityPointer: string;
+        };
+        IssuerKeyV1: {
+            keyId: components["schemas"]["Key"];
+            /** @constant */
+            algorithm: "Ed25519";
+            publicKey: string;
+            fingerprint: components["schemas"]["Sha256"];
+            revoked: boolean;
         };
         ValidationTargetV1: {
             resourceId: components["schemas"]["Id"];
@@ -10352,7 +10410,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BundleCreate"];
+                "application/json": components["schemas"]["BundleSelectionV1"];
             };
         };
         responses: {
@@ -16384,6 +16442,175 @@ export interface operations {
                 };
             };
             /** @description Current authorization, bounded input, conflict or budget error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getIssuerTrust: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssuerTrustEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    downloadDeviceBundle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                bundleId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Authorized artifact stream. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
             429: {
                 headers: {
                     [name: string]: unknown;

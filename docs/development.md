@@ -207,3 +207,11 @@ required operations task. Minimal empty private retirement fences prevent a late
 writer from restoring deleted evidence bytes; elapsed time alone is not sufficient to remove
 those fences. Protocol and storage details are in [the contracts](contracts.md) and
 [ADR0014](decisions/0014-report-evidence-storage.md).
+
+T14 adds migration0011 (`veriq_bundles`) and the `/bundles` Web page. Provision the
+separate operator issuer for existing installations before exporting; see
+[offline bundle operations](offline-bundles.md). Fresh `init` creates it safely, while
+`serve` never invents signing identity. The native CLI implements bundle download/verify,
+trust bind/refresh and exact local secret mapping. Offline execution/result import and
+native OS vault/installers remain their later tasks; package signatures do not confer
+formal-result trust. Bundle retention roots are pinned pending T21's package lifecycle.

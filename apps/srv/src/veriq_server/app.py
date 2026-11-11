@@ -1,5 +1,6 @@
 """Application composition; schema migration is an explicit operator command."""
 
+import asyncio
 import json
 import logging
 from tornado.web import Application, RequestHandler
@@ -19,6 +20,7 @@ from .handlers.execution import ExecutionAPI
 from .handlers.run import RunAPI, AttemptAuditAPI
 from .handlers.report import ReportAPI
 from .handlers.ai import AiAPI
+from .handlers.bundle import BundleAPI, NativeBundleAPI
 from .services.lease import DatabaseAttemptProofVerifier
 from .handlers.enrollment import DeviceAPI, EnrollmentAPI, RuntimeAPI
 from .service import Problem
@@ -38,6 +40,10 @@ class UnknownAPI(API):
 
 
 def handler_for(action: str) -> type[API]:
+    if action in {"issuer-trust", "native-bundle-download"}:
+        return NativeBundleAPI
+    if action in {"bundles", "bundle", "bundle-manifest", "bundle-download"}:
+        return BundleAPI
     if action.startswith("ai-"):
         return AiAPI
     if action in {"report", "report-artifacts", "report-artifact", "report-history", "report-stream", "report-audit", "report-display"}:
@@ -135,6 +141,12 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
     delivery = delivery or (SMTPDelivery(settings) if settings.smtp_host else None)
     reset_dispatcher = ResetDispatcher(db, settings, delivery)
     routes = [
+        ("/internal/v1/issuer", "issuer-trust"),
+        ("/internal/v1/workspaces/([0-9a-fA-F-]{36})/bundles/([0-9a-fA-F-]{36})/download", "native-bundle-download"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/bundles", "bundles"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/bundles/([0-9a-fA-F-]{36})", "bundle"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/bundles/([0-9a-fA-F-]{36})/manifest", "bundle-manifest"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/bundles/([0-9a-fA-F-]{36})/download", "bundle-download"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/providers", "ai-providers"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/providers/([0-9a-fA-F-]{36})", "ai-provider"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/providers/([0-9a-fA-F-]{36})/connection-tests", "ai-connection"),
@@ -309,5 +321,6 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
         mail_delivery=delivery,
         reset_dispatcher=reset_dispatcher,
         identity_reference_registry=IdentityRegistry(),
+        bundle_export_slots=asyncio.Semaphore(2),
         attempt_proof_verifier=DatabaseAttemptProofVerifier(settings),
     )

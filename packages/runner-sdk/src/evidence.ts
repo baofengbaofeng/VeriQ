@@ -29,6 +29,13 @@ export class EvidencePolicy {
     }
     if (Array.isArray(value)) return value.map(this.redact);
     if (value && typeof value === "object") {
+      // Dynamic JSON keys are data. Withhold the whole object to avoid collisions.
+      if (
+        Object.keys(value).some((key) =>
+          [...this.values].some((secret) => key.includes(secret)),
+        )
+      )
+        return "[REDACTED]";
       const restricted =
         value.sensitivity === "CREDENTIAL_RESTRICTED" ||
         value.kind === "download";
@@ -50,6 +57,66 @@ export class EvidencePolicy {
       );
     }
     return value;
+  };
+  /** Engine-owned record trees have protocol IDs/enums; their dynamic values do not. */
+  readonly redactProtocol = (value: JsonValue): JsonValue => {
+    if (Array.isArray(value)) return value.map(this.redactProtocol);
+    if (!value || typeof value !== "object") return this.redact(value);
+    const identifiers = new Set([
+      "type",
+      "schemaVersion",
+      "attemptId",
+      "sequence",
+      "timestamp",
+      "stepId",
+      "assertionId",
+      "observerId",
+      "requestId",
+      "id",
+      "status",
+      "severity",
+      "outcome",
+      "businessOutcome",
+      "cleanupStatus",
+      "retrySafety",
+      "errorCode",
+      "blockedByStepId",
+      "blockedByAssertionId",
+      "windowMode",
+      "kind",
+      "sensitivity",
+      "method",
+      "dialogType",
+      "handling",
+      "pageKey",
+    ]);
+    const dynamic = new Set([
+      "expected",
+      "value",
+      "data",
+      "vars",
+      "variables",
+      "headers",
+    ]);
+    const restricted =
+      value.sensitivity === "CREDENTIAL_RESTRICTED" ||
+      value.kind === "download";
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(
+          ([key]) =>
+            !restricted ||
+            !["path", "bytes", "body", "buffer", "url"].includes(key),
+        )
+        .map(([key, item]) => [
+          key,
+          identifiers.has(key)
+            ? item
+            : dynamic.has(key)
+              ? this.redact(item)
+              : this.redactProtocol(item),
+        ]),
+    );
   };
   access(
     evidence: RestrictedEvidence,

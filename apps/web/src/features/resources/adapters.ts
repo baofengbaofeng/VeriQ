@@ -189,6 +189,8 @@ export type LocalResourceSnapshot = {
   workspaceId: string;
   resources: Resource[];
   versions: Version[];
+  /** Host-verified DSL-only candidates; updatedAt denotes snapshot freeze time. */
+  drafts?: Draft[];
   sourceFiles: Record<string, SourceFiles>;
   readSource: (
     versionId: string,
@@ -216,6 +218,7 @@ export class LocalResourceAdapter implements ResourceAdapter {
         workspaceId: snapshot.workspaceId,
         resources: snapshot.resources,
         versions: snapshot.versions,
+        drafts: snapshot.drafts,
         sourceFiles: snapshot.sourceFiles,
       }),
       readSource: snapshot.readSource,
@@ -239,6 +242,8 @@ export class LocalResourceAdapter implements ResourceAdapter {
   };
   draft = async (id: string, signal?: AbortSignal): Promise<Draft> => {
     this.check(signal);
+    const frozen = this.snapshot.drafts?.find(d => d.resourceId === id);
+    if (frozen) return structuredClone(frozen);
     const resource = this.snapshot.resources.find((r) => r.id === id);
     const v = this.snapshot.versions.find(
       (v) => v.id === resource?.latestVersionId && v.resourceId === id,
