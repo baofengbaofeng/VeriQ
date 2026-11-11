@@ -214,6 +214,8 @@ expect(registry.activeCount()).toBe(0);
 
 ## T07：fixture、业务身份与补偿
 
+**状态：** 已完成并通过独立规格/质量审查（`01561bc`、`6952a5b`）；真实设备授权、制品权限与离线签名接入分别由 T08/T09、T12、T14 完成。
+
 **依赖：** T06
 
 **Files（拟创建/修改）：**
@@ -226,7 +228,7 @@ expect(registry.activeCount()).toBe(0);
 
 **Interfaces：** prepareFixture(request: FixtureRequest): Promise<FixtureContext>；cleanupFixture(context): Promise<CleanupReceipt>；凭证解析隔离于普通变量。
 
-- [ ] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
+- [x] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```ts
 expect(second.fixtureId).toBe(first.fixtureId);
@@ -234,10 +236,10 @@ expect(attemptA.namespace).not.toBe(attemptB.namespace);
 expect(await cleanupAgain()).toMatchObject({status:'ALREADY_CLEANED'});
 ```
 
-- [ ] **Step 2：运行测试确认未实现时失败。** `pnpm --filter @veriq/runner-sdk exec vitest run tests/fixtures.test.ts`；失败必须来自缺失行为，而非测试环境拼写错误。
-- [ ] **Step 3：实现上述接口与文件。** 同key异参409，UI创建资源归属、部分失败/强杀回收、权限请求使用业务身份；stub与真实被测系统分别验收。环境roleKey映射认证/凭证版本，受管理设备按有效Attempt权限领取、个人设备默认本地解析，测试撤销、轮换、越权下发和日志不泄露。
-- [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
-- [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t07 fixture、业务身份与补偿`。有新决策先更新ADR，不扩展到下一任务。
+- [x] **Step 2：运行测试确认未实现时失败。** `pnpm --filter @veriq/runner-sdk exec vitest run tests/fixtures.test.ts`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [x] **Step 3：实现上述接口与文件。** 同key异参409，UI创建资源归属、部分失败/强杀回收、权限请求使用业务身份；stub与真实被测系统分别验收。环境roleKey映射认证/凭证版本，受管理设备按有效Attempt权限领取、个人设备默认本地解析，测试撤销、轮换、越权下发和日志不泄露。
+- [x] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
+- [x] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t07 fixture、业务身份与补偿`。有新决策先更新ADR，不扩展到下一任务。
 
 ## T08：设备注册、能力与私有/共享授权
 
