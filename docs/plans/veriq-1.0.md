@@ -243,7 +243,9 @@ expect(await cleanupAgain()).toMatchObject({status:'ALREADY_CLEANED'});
 
 ## T08：设备注册、能力与私有/共享授权
 
-**依赖：** T03
+**状态：** 已完成并通过独立关键修复复审（`255e7a4`、`094e670`）；登记码错误触发前端会话失效的 Minor 已记录至 T22，真实队列/租约由 T09/T10 接入。
+
+**依赖：** T03/T07
 
 **Files（拟创建/修改）：**
 
@@ -255,17 +257,17 @@ expect(await cleanupAgain()).toMatchObject({status:'ALREADY_CLEANED'});
 
 **Interfaces：** RuntimeService.approve_enrollment(actor, code, binding, grants) -> EnrollmentReceipt；设备token最小权限且可撤销。
 
-- [ ] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
+- [x] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```python
 assert await dispatch_to_unshared_private_runtime() == FORBIDDEN
 assert await claim_with_revoked_device_token() == UNAUTHORIZED
 ```
 
-- [ ] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/runtime -q`；失败必须来自缺失行为，而非测试环境拼写错误。
-- [ ] **Step 3：实现上述接口与文件。** owner确认共享；管理员不隐式操控私人机器；doctor真实检查版本/网络/浏览器。系统管理员授予MANAGED，客户端不得自报；服务账号注册云端Runtime，历史与当前门禁可信度分开。
-- [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
-- [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t08 设备注册、能力与私有/共享授权`。有新决策先更新ADR，不扩展到下一任务。
+- [x] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/runtime -q`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [x] **Step 3：实现上述接口与文件。** owner确认共享；管理员不隐式操控私人机器；doctor真实检查版本/网络/浏览器。系统管理员授予MANAGED，客户端不得自报；服务账号注册云端Runtime，历史与当前门禁可信度分开。
+- [x] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
+- [x] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t08 设备注册、能力与私有/共享授权`。有新决策先更新ADR，不扩展到下一任务。
 
 ## T09：统一Job队列、快照、容量与fencing
 
