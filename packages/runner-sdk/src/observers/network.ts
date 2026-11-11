@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { Page, Request, Response, APIResponse } from "@playwright/test";
-import type {
-  JsonValue,
-  NetworkObserverV1,
-  ObserverResultPayloadV1,
+import {
+  canonicalBytes,
+  type JsonValue,
+  type NetworkObserverV1,
+  type ObserverResultPayloadV1,
 } from "@veriq/contracts";
 
 export interface Exchange {
@@ -108,10 +109,30 @@ export function requestData(request: Request): Exchange["request"] {
     headers: request.headers(),
   };
 }
-export function queryData(url: URL): Record<string, JsonValue> {
+/** Scalars use URL strings; outer arrays repeat keys; structured values use canonical JSON. */
+export function queryParameters(
+  query: Record<string, JsonValue>,
+): URLSearchParams {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    for (const item of Array.isArray(value) ? value : [value]) {
+      params.append(
+        key,
+        item !== null && typeof item === "object"
+          ? new TextDecoder().decode(canonicalBytes(item))
+          : String(item),
+      );
+    }
+  }
+  return params;
+}
+export function queryData(
+  url: URL | URLSearchParams,
+): Record<string, JsonValue> {
+  const params = url instanceof URL ? url.searchParams : url;
   return Object.fromEntries(
-    [...new Set(url.searchParams.keys())].map((k) => {
-      const v = url.searchParams.getAll(k);
+    [...new Set(params.keys())].map((k) => {
+      const v = params.getAll(k);
       return [k, v.length === 1 ? v[0]! : v];
     }),
   );
@@ -142,6 +163,9 @@ export function armObserver(
       start + (spec.timeoutMs ?? 15000),
       ctx.deadline ?? Infinity,
     );
+  const queryMatch = spec.queryMatch
+    ? queryData(queryParameters(spec.queryMatch))
+    : undefined;
   const fixedEnd =
     spec.window?.mode === "FIXED" ? start + spec.window.durationMs : undefined;
   const records: {
@@ -171,7 +195,7 @@ export function armObserver(
     )
       return;
     if (
-      (spec.queryMatch && !subset(data.query, spec.queryMatch)) ||
+      (queryMatch && !subset(data.query, queryMatch)) ||
       (spec.bodyMatch && !subset(data.body, spec.bodyMatch))
     )
       return;
@@ -261,6 +285,17 @@ export function armObserver(
     },
     async finalize() {
       const settled = Date.now();
+      // Exact-count windows validate their count below. An ordinary observer
+      // must acquire a request, but need not await its response body.
+      if (spec.expectedCount === undefined) {
+        const acquisitionEnd = Math.min(timeout, fixedEnd ?? Infinity);
+        while (records.length === 0) {
+          check();
+          if (Date.now() >= acquisitionEnd) throw new Error("NETWORK_TIMEOUT");
+          await changed(acquisitionEnd);
+        }
+        if (records[0]!.at > acquisitionEnd) throw new Error("NETWORK_TIMEOUT");
+      }
       while (true) {
         check();
         const end =

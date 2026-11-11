@@ -1,11 +1,18 @@
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { chromium, type Browser, type Page } from "@playwright/test";
-import { createServer, type Server } from "node:http";
+import { createServer, type Server, type ServerResponse } from "node:http";
 import * as sdk from "../src/index.js";
 
+let onHeld: ((response: ServerResponse) => void) | undefined;
 let server: Server, browser: Browser, page: Page, origin: string;
 beforeAll(async () => {
   server = createServer(async (req, res) => {
+    if (req.url === "/held" && onHeld) {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.flushHeaders();
+      onHeld(res);
+      return;
+    }
     if (req.url === "/") {
       res.setHeader("content-type", "text/html");
       res.end(
@@ -191,4 +198,119 @@ it("response duration records completion rather than a later consumer read", asy
   });
   expect((await h.waitFirst()).durationMs).toBe(first.durationMs);
   h.dispose();
+});
+it("normalizes typed browser query matches without coercing JSON bodies", async () => {
+  const registry = new sdk.ObserverRegistry();
+  const h = sdk.armObserver(
+    {
+      id: "typed",
+      method: "POST",
+      path: "/save",
+      queryMatch: { enabled: true, n: 42, tag: [true, 42] },
+      bodyMatch: { enabled: true },
+      timeoutMs: 500,
+      window: { mode: "UNTIL_ACTION_SETTLED", quietMs: 0 },
+    },
+    { page, apiBaseURL: origin, allowedOrigins: [origin], registry },
+  );
+  try {
+    await page.evaluate(async () => {
+      for (const body of [{ enabled: "true" }, { enabled: true }])
+        await fetch("/save?enabled=true&n=42&tag=true&tag=42&extra=ignored", {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+    });
+    const response = await h.waitFirst();
+    expect(response.request.body).toEqual({ enabled: true });
+    expect((await h.finalize()).matchedCount).toBe(1);
+  } finally {
+    h.dispose();
+  }
+});
+it("ordinary request-only finalization accepts a candidate while its response body is still pending", async () => {
+  const registry = new sdk.ObserverRegistry();
+  const h = sdk.armObserver(
+    {
+      id: "held",
+      method: "GET",
+      path: "/held",
+      timeoutMs: 500,
+      window: { mode: "UNTIL_ACTION_SETTLED", quietMs: 0 },
+    },
+    { page, apiBaseURL: origin, allowedOrigins: [origin], registry },
+  );
+  let response: ServerResponse | undefined;
+  try {
+    const received = new Promise<ServerResponse>((resolve) => {
+      onHeld = resolve;
+    });
+    await page.evaluate(() => {
+      void fetch("/held").then((r) => r.text());
+    });
+    response = await received;
+    let resolved = false;
+    const waiting = h.waitFirst().then((result) => {
+      resolved = true;
+      return result;
+    });
+    expect((await h.finalize()).matchedCount).toBe(1);
+    expect(resolved).toBe(false);
+    response.end('{"code":0}');
+    expect((await waiting).response.body).toEqual({ code: 0 });
+  } finally {
+    response?.end();
+    onHeld = undefined;
+    h.dispose();
+  }
+});
+it.each(["dispose", "cancel"] as const)(
+  "pending first-candidate acquisition responds to %s",
+  async (mode) => {
+    const registry = new sdk.ObserverRegistry(),
+      controller = new AbortController();
+    const h = sdk.armObserver(
+      {
+        id: "pending",
+        method: "GET",
+        path: "/never",
+        window: { mode: "UNTIL_ACTION_SETTLED", quietMs: 0 },
+      },
+      {
+        page,
+        apiBaseURL: origin,
+        allowedOrigins: [origin],
+        registry,
+        signal: controller.signal,
+      },
+    );
+    const pending = h.finalize();
+    if (mode === "dispose") h.dispose();
+    else controller.abort();
+    await expect(pending).rejects.toThrow(
+      mode === "dispose" ? "OBSERVER_DISPOSED" : "CANCELLED",
+    );
+    h.dispose();
+    expect(registry.activeCount()).toBe(0);
+  },
+);
+it("a request arriving after the acquisition deadline cannot satisfy an ordinary observer", async () => {
+  const registry = new sdk.ObserverRegistry();
+  const h = sdk.armObserver(
+    {
+      id: "late-first",
+      method: "GET",
+      path: "/late-first",
+      timeoutMs: 50,
+      window: { mode: "UNTIL_ACTION_SETTLED", quietMs: 0 },
+    },
+    { page, apiBaseURL: origin, allowedOrigins: [origin], registry },
+  );
+  try {
+    await expect(h.finalize()).rejects.toThrow("NETWORK_TIMEOUT");
+    await page.evaluate(() => fetch("/late-first"));
+    await expect(h.finalize()).rejects.toThrow("NETWORK_TIMEOUT");
+  } finally {
+    h.dispose();
+  }
 });

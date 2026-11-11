@@ -1,7 +1,12 @@
 import type { HttpMethod, JsonObject, JsonValue } from "@veriq/contracts";
 import { randomUUID } from "node:crypto";
 import { budget, type StepContext } from "./context.js";
-import { responseData, queryData, type Exchange } from "./observers/network.js";
+import {
+  responseData,
+  queryData,
+  queryParameters,
+  type Exchange,
+} from "./observers/network.js";
 export function authorizedURL(
   path: string,
   base: string,
@@ -39,15 +44,11 @@ export async function apiRequest(
     ctx.environment.apiBaseURL,
     ctx.environment.allowedOrigins,
   );
+  const parameters = queryParameters(query ?? {});
   for (const [key, value] of Object.entries(query ?? {})) {
-    if (value !== null && typeof value === "object") {
-      if (!Array.isArray(value)) throw new Error("QUERY_TYPE_MISMATCH");
-      for (const v of value) {
-        if (v !== null && typeof v === "object")
-          throw new Error("QUERY_TYPE_MISMATCH");
-        url.searchParams.append(key, String(v));
-      }
-    } else url.searchParams.set(key, String(value));
+    if (!Array.isArray(value)) url.searchParams.delete(key);
+    for (const item of parameters.getAll(key))
+      url.searchParams.append(key, item);
   }
   const start = Date.now(),
     deadline = start + budget(ctx, timeout),
