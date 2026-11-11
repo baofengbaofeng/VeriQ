@@ -127,13 +127,18 @@ def asset_source_hash(snapshot: dict[str, Any]) -> str:
     return hashlib.sha256(
         canonical_bytes(
             {
-                key: snapshot[key]
+                key: (
+                    sorted(snapshot[key], key=lambda item: item["versionId"])
+                    if key == "authAdapters"
+                    else snapshot[key]
+                )
                 for key in (
                     "schemaVersion",
                     "workspaceId",
                     "engineVersion",
                     "entryCaseVersionIds",
                     "assets",
+                    *(["authAdapters"] if "authAdapters" in snapshot else []),
                 )
             }
         )

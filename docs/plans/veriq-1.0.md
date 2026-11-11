@@ -157,6 +157,8 @@ assert await publish_with_receipt_for_other_hash() == INVALID_RECEIPT
 
 ## T05：确定性编译器与变量依赖
 
+**状态：** 已完成并通过独立规格/质量审查（`dcb05c0`、`3588164`）；生产 SDK 执行由 T06 实现。
+
 **依赖：** T01/T04
 
 **Files（拟创建/修改）：**
@@ -168,19 +170,21 @@ assert await publish_with_receipt_for_other_hash() == INVALID_RECEIPT
 
 **Interfaces：** validate(snapshot: AssetSnapshotV1): ValidationIssue[]；compileAssets(snapshot: AssetSnapshotV1): CompiledAssetBundle；assembleExecution(bundle, snapshot: ExecutionSnapshotV1): ExecutionPackage。
 
-- [ ] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
+- [x] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```ts
 expect(validate(useBeforeExtract).map(x => x.code)).toContain('VARIABLE_USED_BEFORE_DEFINED');
 expect(compileAssets(assetSnapshot).sourceHash).toBe(compileAssets(assetSnapshot).sourceHash);
 ```
 
-- [ ] **Step 2：运行测试确认未实现时失败。** `pnpm --filter @veriq/compiler exec vitest run tests/compile.test.ts`；失败必须来自缺失行为，而非测试环境拼写错误。
-- [ ] **Step 3：实现上述接口与文件。** fixture输出声明、模板固定、流程5层/500步、secret引用、JSON Pointer缺失类型、写用例持久化检查点。VALIDATE上传实际TS/依赖/文件manifest，服务端存不可变制品供正式包复用，草稿无Runtime导出标unvalidated且只含DSL。
-- [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
-- [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t05 确定性编译器与变量依赖`。有新决策先更新ADR，不扩展到下一任务。
+- [x] **Step 2：运行测试确认未实现时失败。** `pnpm --filter @veriq/compiler exec vitest run tests/semantics.test.ts tests/emission.test.ts`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [x] **Step 3：实现上述接口与文件。** fixture输出声明、模板固定、流程5层/500步、secret引用、JSON Pointer缺失类型、写用例持久化检查点。VALIDATE上传实际TS/依赖/文件manifest，服务端存不可变制品供正式包复用，草稿无Runtime导出标unvalidated且只含DSL。
+- [x] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
+- [x] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t05 确定性编译器与变量依赖`。有新决策先更新ADR，不扩展到下一任务。
 
 ## T06：操作、监听和完整断言SDK
+
+**状态：** 已完成并通过独立规格/质量审查（`2482be9`、`68c99fd`）；真实身份/fixture 与 Runtime 接入分别由 T07/T10 完成。
 
 **依赖：** T05
 
@@ -195,7 +199,7 @@ expect(compileAssets(assetSnapshot).sourceHash).toBe(compileAssets(assetSnapshot
 
 **Interfaces：** executeStep(step: ResolvedStep, ctx: StepContext): Promise<StepResult>；armObserver(...): ObserverHandle，包含waitFirst/finalize/dispose。
 
-- [ ] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
+- [x] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```ts
 expect(savedRequest.body.code).toBe(attemptCode);
@@ -203,12 +207,14 @@ expect(await missingPersistenceCase()).toMatchObject({outcome:'FAILED'});
 expect(registry.activeCount()).toBe(0);
 ```
 
-- [ ] **Step 2：运行测试确认未实现时失败。** `pnpm --filter @veriq/runner-sdk exec vitest run tests`；失败必须来自缺失行为，而非测试环境拼写错误。
-- [ ] **Step 3：实现上述接口与文件。** 快速响应、同路径干扰、歧义、合法重试、JSON/非JSON/204、最终一致、点击失败无悬挂Promise；使用真实Playwright验证。
-- [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
-- [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t06 操作、监听和完整断言SDK`。有新决策先更新ADR，不扩展到下一任务。
+- [x] **Step 2：运行测试确认未实现时失败。** `pnpm --filter @veriq/runner-sdk exec vitest run tests`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [x] **Step 3：实现上述接口与文件。** 快速响应、同路径干扰、歧义、合法重试、JSON/非JSON/204、最终一致、点击失败无悬挂Promise；使用真实Playwright验证。
+- [x] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
+- [x] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t06 操作、监听和完整断言SDK`。有新决策先更新ADR，不扩展到下一任务。
 
 ## T07：fixture、业务身份与补偿
+
+**状态：** 已完成并通过独立规格/质量审查（`01561bc`、`6952a5b`）；真实设备授权、制品权限与离线签名接入分别由 T08/T09、T12、T14 完成。
 
 **依赖：** T06
 
@@ -222,7 +228,7 @@ expect(registry.activeCount()).toBe(0);
 
 **Interfaces：** prepareFixture(request: FixtureRequest): Promise<FixtureContext>；cleanupFixture(context): Promise<CleanupReceipt>；凭证解析隔离于普通变量。
 
-- [ ] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
+- [x] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```ts
 expect(second.fixtureId).toBe(first.fixtureId);
@@ -230,10 +236,10 @@ expect(attemptA.namespace).not.toBe(attemptB.namespace);
 expect(await cleanupAgain()).toMatchObject({status:'ALREADY_CLEANED'});
 ```
 
-- [ ] **Step 2：运行测试确认未实现时失败。** `pnpm --filter @veriq/runner-sdk exec vitest run tests/fixtures.test.ts`；失败必须来自缺失行为，而非测试环境拼写错误。
-- [ ] **Step 3：实现上述接口与文件。** 同key异参409，UI创建资源归属、部分失败/强杀回收、权限请求使用业务身份；stub与真实被测系统分别验收。环境roleKey映射认证/凭证版本，受管理设备按有效Attempt权限领取、个人设备默认本地解析，测试撤销、轮换、越权下发和日志不泄露。
-- [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
-- [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t07 fixture、业务身份与补偿`。有新决策先更新ADR，不扩展到下一任务。
+- [x] **Step 2：运行测试确认未实现时失败。** `pnpm --filter @veriq/runner-sdk exec vitest run tests/fixtures.test.ts`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [x] **Step 3：实现上述接口与文件。** 同key异参409，UI创建资源归属、部分失败/强杀回收、权限请求使用业务身份；stub与真实被测系统分别验收。环境roleKey映射认证/凭证版本，受管理设备按有效Attempt权限领取、个人设备默认本地解析，测试撤销、轮换、越权下发和日志不泄露。
+- [x] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
+- [x] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t07 fixture、业务身份与补偿`。有新决策先更新ADR，不扩展到下一任务。
 
 ## T08：设备注册、能力与私有/共享授权
 

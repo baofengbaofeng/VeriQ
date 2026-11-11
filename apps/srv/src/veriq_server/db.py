@@ -272,3 +272,44 @@ class ValidationReceipt(Base):
     attempt_id: Mapped[str] = mapped_column(uuid_type)
     compiler_trust: Mapped[str] = mapped_column(String(24, collation="ascii_bin"))
     validated_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+
+
+class SecretRef(Base):
+    __tablename__ = "veriq_secret_refs"
+    workspace_id: Mapped[str] = mapped_column(
+        uuid_type, ForeignKey("veriq_workspaces.id"), primary_key=True
+    )
+    key: Mapped[str] = mapped_column(String(160, collation="ascii_bin"), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+
+
+class SecretVersion(Base):
+    __tablename__ = "veriq_secret_versions"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "secret_ref"],
+            ["veriq_secret_refs.workspace_id", "veriq_secret_refs.key"],
+        ),
+        UniqueConstraint("workspace_id", "id"),
+    )
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type)
+    secret_ref: Mapped[str] = mapped_column(String(160, collation="ascii_bin"))
+    key_id: Mapped[str] = mapped_column(String(80, collation="ascii_bin"))
+    nonce: Mapped[bytes] = mapped_column(LONGBLOB)
+    ciphertext: Mapped[bytes] = mapped_column(LONGBLOB)
+    allowed_identity_ids: Mapped[list[str]] = mapped_column(JSON)
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+
+
+class AuthAdapterVersion(Base):
+    __tablename__ = "veriq_auth_adapter_versions"
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(
+        uuid_type, ForeignKey("veriq_workspaces.id"), index=True
+    )
+    content_hash: Mapped[str] = mapped_column(hash_type)
+    configuration: Mapped[dict[str, Any]] = mapped_column(JSON)
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))

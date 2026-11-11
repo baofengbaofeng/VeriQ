@@ -158,6 +158,12 @@
       "homepage": "https://babel.dev/docs/en/next/babel-types"
     },
     {
+      "name": "@bcoe/v8-coverage",
+      "version": "1.0.2",
+      "license": "MIT",
+      "homepage": ""
+    },
+    {
       "name": "@dnd-kit/accessibility",
       "version": "3.1.1",
       "license": "MIT",
@@ -668,6 +674,12 @@
       "homepage": "https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#readme"
     },
     {
+      "name": "@vitest/coverage-v8",
+      "version": "4.1.12",
+      "license": "MIT",
+      "homepage": "https://vitest.dev/guide/coverage"
+    },
+    {
       "name": "@vitest/expect",
       "version": "4.1.12",
       "license": "MIT",
@@ -810,6 +822,12 @@
       "version": "2.0.1",
       "license": "MIT",
       "homepage": "https://github.com/chaijs/assertion-error#readme"
+    },
+    {
+      "name": "ast-v8-to-istanbul",
+      "version": "1.0.8",
+      "license": "MIT",
+      "homepage": "https://github.com/AriPerkkio/ast-v8-to-istanbul"
     },
     {
       "name": "async",
@@ -1610,6 +1628,12 @@
       "homepage": "https://github.com/npm/hosted-git-info"
     },
     {
+      "name": "html-escaper",
+      "version": "2.0.2",
+      "license": "MIT",
+      "homepage": "https://github.com/WebReflection/html-escaper"
+    },
+    {
       "name": "html-parse-stringify",
       "version": "3.1.0",
       "license": "MIT",
@@ -1736,6 +1760,24 @@
       "homepage": "https://github.com/isaacs/isexe#readme"
     },
     {
+      "name": "istanbul-lib-coverage",
+      "version": "3.2.2",
+      "license": "BSD-3-Clause",
+      "homepage": "https://istanbul.js.org/"
+    },
+    {
+      "name": "istanbul-lib-report",
+      "version": "3.0.1",
+      "license": "BSD-3-Clause",
+      "homepage": "https://istanbul.js.org/"
+    },
+    {
+      "name": "istanbul-reports",
+      "version": "3.2.0",
+      "license": "BSD-3-Clause",
+      "homepage": "https://istanbul.js.org/"
+    },
+    {
       "name": "jake",
       "version": "10.9.4",
       "license": "Apache-2.0",
@@ -1758,6 +1800,12 @@
       "version": "1.1.6",
       "license": "MIT",
       "homepage": "https://github.com/gustf/js-levenshtein#readme"
+    },
+    {
+      "name": "js-tokens",
+      "version": "10.0.0",
+      "license": "MIT",
+      "homepage": ""
     },
     {
       "name": "js-tokens",
@@ -1878,6 +1926,18 @@
       "version": "0.30.21",
       "license": "MIT",
       "homepage": "https://github.com/Rich-Harris/magic-string#readme"
+    },
+    {
+      "name": "magicast",
+      "version": "0.5.5",
+      "license": "MIT",
+      "homepage": ""
+    },
+    {
+      "name": "make-dir",
+      "version": "4.0.0",
+      "license": "MIT",
+      "homepage": ""
     },
     {
       "name": "marked",

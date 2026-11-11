@@ -35,6 +35,10 @@ class IdentityReferenceRegistry(Protocol):
         self, session: AsyncSession, scope: WorkspaceScope, role: dict[str, Any]
     ) -> None: ...
 
+    async def freeze(
+        self, session: AsyncSession, scope: WorkspaceScope, roles: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]: ...
+
 
 class UnavailableIdentityRegistry:
     async def require_role(
@@ -44,6 +48,13 @@ class UnavailableIdentityRegistry:
             422,
             "UNRESOLVED_IDENTITY_REFERENCE",
             "Authentication adapter and credential references must resolve in this Workspace",
+        )
+
+    async def freeze(
+        self, session: AsyncSession, scope: WorkspaceScope, roles: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        raise Problem(
+            422, "UNRESOLVED_IDENTITY_REFERENCE", "Authentication registry is unavailable"
         )
 
 
@@ -260,6 +271,7 @@ class ResourceService:
         assets: dict[str, dict[str, Any]] = {}
         visiting: set[str] = set()
         source_size = 0
+        auth_adapters: dict[str, dict[str, Any]] = {}
 
         async def visit(version_id: str, resource_id: str, content: dict[str, Any]) -> None:
             nonlocal source_size
@@ -283,8 +295,11 @@ class ResourceService:
             if source_size > SNAPSHOT_LIMIT:
                 raise Problem(413, "SNAPSHOT_TOO_LARGE", "Dependency snapshot exceeds 16 MiB")
             if content["kind"] == "ENVIRONMENT":
-                for role in content["document"]["roles"]:
-                    await self.registry.require_role(self.session, scope, role)
+                identities = [*content["document"]["roles"]]
+                if content["document"].get("fixtureIdentity"):
+                    identities.append(content["document"]["fixtureIdentity"])
+                for adapter in await self.registry.freeze(self.session, scope, identities):
+                    auth_adapters[adapter["versionId"]] = adapter
             for dependency_id, expected_kind in asset_references(content):
                 try:
                     dependency = await repo.version(dependency_id)
@@ -328,6 +343,8 @@ class ResourceService:
                 "revision": draft.revision,
             },
         }
+        if auth_adapters:
+            snapshot["authAdapters"] = [auth_adapters[key] for key in sorted(auth_adapters)]
         snapshot["sourceHash"] = asset_source_hash(snapshot)
         if len(canonical_bytes(snapshot)) > SNAPSHOT_LIMIT:
             raise Problem(413, "SNAPSHOT_TOO_LARGE", "Dependency snapshot exceeds 16 MiB")

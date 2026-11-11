@@ -4269,5 +4269,142 @@
         }
       ]
     }
+  },
+  {
+    "name": "dialog-prompt",
+    "schema": "ObserverV1",
+    "value": {
+      "id": "ask",
+      "kind": "dialog",
+      "dialogType": "prompt",
+      "message": "Name?",
+      "handling": "accept",
+      "promptText": "A"
+    },
+    "valid": true
+  },
+  {
+    "name": "popup-capture",
+    "schema": "ObserverV1",
+    "value": {
+      "id": "pop",
+      "kind": "newPage",
+      "pageKey": "detail"
+    },
+    "valid": true
+  },
+  {
+    "name": "download-capture",
+    "schema": "ObserverV1",
+    "value": {
+      "id": "file",
+      "kind": "download"
+    },
+    "valid": true
+  },
+  {
+    "name": "dialog-invalid-prompt",
+    "schema": "ObserverV1",
+    "value": {
+      "id": "ask",
+      "kind": "dialog",
+      "dialogType": "alert",
+      "message": "Hello",
+      "handling": "accept",
+      "promptText": "A"
+    },
+    "valid": false
+  },
+  {
+    "name": "download-path-injection",
+    "schema": "ObserverV1",
+    "value": {
+      "id": "file",
+      "kind": "download",
+      "path": "../escape"
+    },
+    "valid": false
+  },
+  {
+    "name": "declared-initial-variables",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "initial-input",
+      "title": "Initial input",
+      "kind": "READ",
+      "roleKey": "reader",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "22222222-2222-4222-8222-222222222222",
+      "steps": [
+        {
+          "id": "open",
+          "action": "goto",
+          "path": "/"
+        }
+      ],
+      "fixtureInput": {
+        "name": "{{vars.name}}"
+      },
+      "initialVariables": {
+        "name": "string",
+        "count": "number"
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "initial-variables-cannot-contain-values",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "initial-input",
+      "title": "Initial input",
+      "kind": "READ",
+      "roleKey": "reader",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "22222222-2222-4222-8222-222222222222",
+      "steps": [
+        {
+          "id": "open",
+          "action": "goto",
+          "path": "/"
+        }
+      ],
+      "fixtureInput": {
+        "name": "{{vars.name}}"
+      },
+      "initialVariables": {
+        "name": "Ada"
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "initial-variable-invalid-key",
+    "schema": "CaseDslV1",
+    "value": {
+      "schemaVersion": "1.0",
+      "caseKey": "initial-input",
+      "title": "Initial input",
+      "kind": "READ",
+      "roleKey": "reader",
+      "catalogVersionId": "11111111-1111-4111-8111-111111111111",
+      "fixtureVersionId": "22222222-2222-4222-8222-222222222222",
+      "steps": [
+        {
+          "id": "open",
+          "action": "goto",
+          "path": "/"
+        }
+      ],
+      "fixtureInput": {
+        "name": "{{vars.name}}"
+      },
+      "initialVariables": {
+        "bad key": "string"
+      }
+    },
+    "valid": false
   }
 ]

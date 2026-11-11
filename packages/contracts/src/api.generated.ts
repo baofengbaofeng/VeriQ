@@ -619,6 +619,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** @description T12 authorization obligation: raw Trace, screenshots, HTML and downloads are CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata only. This schema does not implement storage or authorization. */
         get: operations["getArtifact"];
         put?: never;
         post?: never;
@@ -635,6 +636,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** @description T12 authorization obligation: raw Trace, screenshots, HTML and downloads are CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata only. This schema does not implement storage or authorization. */
         get: operations["downloadArtifact"];
         put?: never;
         post?: never;
@@ -1102,6 +1104,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** @description Deny by default until T08/T09 inject a server verifier for authenticated device, active assignment, membership/grants, lease and fence. Never accepts caller trust labels as proof. */
         post: operations["resolveCredentials"];
         delete?: never;
         options?: never;
@@ -1118,6 +1121,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** @description T12 authorization obligation: raw Trace, screenshots, HTML and downloads are CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata only. This schema does not implement storage or authorization. */
         post: operations["createArtifactUpload"];
         delete?: never;
         options?: never;
@@ -1134,6 +1138,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** @description T12 authorization obligation: raw Trace, screenshots, HTML and downloads are CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata only. This schema does not implement storage or authorization. */
         post: operations["commitArtifact"];
         delete?: never;
         options?: never;
@@ -1182,6 +1187,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** @description T12 authorization obligation: raw Trace, screenshots, HTML and downloads are CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata only. This schema does not implement storage or authorization. */
         post: operations["maintenanceRetention"];
         delete?: never;
         options?: never;
@@ -1456,6 +1462,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspaceId}/credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listCredentials"];
+        put?: never;
+        post: operations["createCredential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/credentials/{secretRef}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["rotateCredential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/credentials/{secretRef}/versions/{versionId}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["revokeCredential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/auth-adapters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listAuthAdapters"];
+        put?: never;
+        post: operations["createAuthAdapter"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/auth-adapters/{versionId}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["revokeAuthAdapter"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1528,18 +1614,7 @@ export interface components {
             mode: "FIXED";
             durationMs: components["schemas"]["Timeout"];
         };
-        ObserverV1: {
-            id: components["schemas"]["Key"];
-            method: components["schemas"]["HttpMethod"];
-            path: components["schemas"]["Path"];
-            queryMatch?: components["schemas"]["BindingJsonObject"];
-            bodyMatch?: components["schemas"]["BindingJsonObject"];
-            timeoutMs?: components["schemas"]["Timeout"];
-            window?: components["schemas"]["ObserverWindow"];
-            expectedCount?: number;
-            /** @enum {string} */
-            retryPolicy?: "FORBID" | "ALLOW_MATCHING_RETRIES";
-        } & unknown;
+        ObserverV1: components["schemas"]["NetworkObserverV1"] | components["schemas"]["DialogObserverV1"] | components["schemas"]["NewPageObserverV1"] | components["schemas"]["DownloadObserverV1"];
         ExtractionV1: {
             source: components["schemas"]["SourceRef"];
             pointer: components["schemas"]["Pointer"];
@@ -1559,6 +1634,7 @@ export interface components {
             /** @enum {string} */
             operator: "visible" | "enabled" | "checked" | "attached" | "editable";
             expected: boolean;
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             /** @enum {string} */
@@ -1571,6 +1647,7 @@ export interface components {
             /** @enum {string} */
             operator: "textEquals" | "textContains" | "valueEquals";
             expected: components["schemas"]["SafeString"];
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             /** @enum {string} */
@@ -1583,6 +1660,7 @@ export interface components {
             /** @constant */
             operator: "countEquals";
             expected: number;
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             /** @enum {string} */
@@ -1596,6 +1674,7 @@ export interface components {
             /** @enum {string} */
             operator: "equals" | "contains";
             expected: components["schemas"]["SafeString"];
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             /** @enum {string} */
@@ -1815,6 +1894,7 @@ export interface components {
             /** @constant */
             action: "goto";
             path: components["schemas"]["Path"];
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             critical?: boolean;
@@ -1828,6 +1908,7 @@ export interface components {
             /** @constant */
             action: "click";
             target: components["schemas"]["Key"];
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             critical?: boolean;
@@ -1841,6 +1922,7 @@ export interface components {
             /** @constant */
             action: "check";
             target: components["schemas"]["Key"];
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             critical?: boolean;
@@ -1854,6 +1936,7 @@ export interface components {
             /** @constant */
             action: "uncheck";
             target: components["schemas"]["Key"];
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             critical?: boolean;
@@ -1868,6 +1951,7 @@ export interface components {
             action: "fill";
             target: components["schemas"]["Key"];
             value: components["schemas"]["SafeString"];
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             critical?: boolean;
@@ -1882,6 +1966,7 @@ export interface components {
             action: "press";
             target: components["schemas"]["Key"];
             value: components["schemas"]["SafeString"];
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             critical?: boolean;
@@ -1896,6 +1981,7 @@ export interface components {
             action: "selectOption";
             target: components["schemas"]["Key"];
             value: components["schemas"]["SafeString"] | components["schemas"]["SafeString"][];
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             critical?: boolean;
@@ -1910,6 +1996,7 @@ export interface components {
             action: "upload";
             target: components["schemas"]["Key"];
             value: components["schemas"]["FilePath"][];
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             critical?: boolean;
@@ -1922,6 +2009,7 @@ export interface components {
             failurePolicy?: "STOP_CASE" | "CONTINUE";
             /** @constant */
             action: "reload";
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             critical?: boolean;
@@ -1941,6 +2029,7 @@ export interface components {
             headers?: {
                 [key: string]: components["schemas"]["SafeString"];
             };
+            pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
             critical?: boolean;
@@ -1955,6 +2044,7 @@ export interface components {
             action: "callFlow";
             versionId: components["schemas"]["Id"];
             parameters?: components["schemas"]["BindingJsonObject"];
+            pageKey?: components["schemas"]["Key"];
         };
         CaseDslV1: {
             /** @constant */
@@ -1969,6 +2059,8 @@ export interface components {
             datasetVersionId?: components["schemas"]["Id"];
             persistenceCheckpointStepId?: components["schemas"]["Key"];
             steps: components["schemas"]["StepV1"][];
+            fixtureInput?: components["schemas"]["BindingJsonObject"];
+            initialVariables?: components["schemas"]["ParameterTypes"];
         };
         LocatorV1: {
             /** @constant */
@@ -2016,13 +2108,17 @@ export interface components {
         };
         FixtureEndpointV1: {
             /** @enum {string} */
-            method: "GET" | "POST" | "DELETE";
+            method: "POST" | "DELETE";
             path: components["schemas"]["Path"];
         };
         FixtureV1: {
             /** @constant */
             schemaVersion: "1.0";
-            prepare: components["schemas"]["FixtureEndpointV1"];
+            prepare: {
+                /** @constant */
+                method: "POST";
+                path: components["schemas"]["Path"];
+            };
             query: {
                 /** @constant */
                 method: "GET";
@@ -2061,6 +2157,7 @@ export interface components {
             timezone: string;
             roles: components["schemas"]["EnvironmentRoleV1"][];
             buildSha?: string;
+            fixtureIdentity?: components["schemas"]["FixtureIdentityV1"];
         };
         ResourceDocumentV1: {
             /** @constant */
@@ -2161,6 +2258,7 @@ export interface components {
             entryCaseVersionIds: components["schemas"]["Id"][];
             assets: components["schemas"]["AssetVersionV1"][];
             validationTarget?: components["schemas"]["ValidationTargetV1"];
+            authAdapters?: components["schemas"]["AuthAdapterVersionV1"][];
         } & unknown;
         SnapshotV1: components["schemas"]["AssetSnapshotV1"];
         ExecutionSnapshotV1: {
@@ -2183,6 +2281,7 @@ export interface components {
             namespace: components["schemas"]["Key"];
             attemptNo: number;
             caseVersionId: components["schemas"]["Id"];
+            authAdapters?: components["schemas"]["AuthAdapterVersionV1"][];
         };
         CompiledAssetBundle: {
             /** @constant */
@@ -2391,9 +2490,9 @@ export interface components {
             type: "ARTIFACT_CREATED";
             payload: {
                 artifactId: components["schemas"]["Id"];
-                file: components["schemas"]["FileEntry"];
+                file: components["schemas"]["EvidenceFileEntryV1"];
                 /** @enum {string} */
-                kind: "SCREENSHOT" | "TRACE" | "HTML" | "JUNIT" | "LOG" | "SOURCE" | "MANIFEST";
+                kind: "SCREENSHOT" | "TRACE" | "HTML" | "JUNIT" | "LOG" | "SOURCE" | "MANIFEST" | "DOWNLOAD";
             };
         } | {
             /** @constant */
@@ -2434,7 +2533,7 @@ export interface components {
             cleanupStatus: components["schemas"]["CleanupStatus"];
             lastSequence: number;
             events: components["schemas"]["ExecutionEventV1"][];
-            artifacts: components["schemas"]["FileEntry"][];
+            artifacts: components["schemas"]["EvidenceFileEntryV1"][];
         };
         OfflineResultV1: {
             /** @constant */
@@ -2769,11 +2868,12 @@ export interface components {
             id: components["schemas"]["Id"];
             attemptId: components["schemas"]["Id"];
             /** @enum {string} */
-            kind: "SCREENSHOT" | "TRACE" | "HTML" | "JUNIT" | "LOG" | "SOURCE" | "MANIFEST";
+            kind: "SCREENSHOT" | "TRACE" | "HTML" | "JUNIT" | "LOG" | "SOURCE" | "MANIFEST" | "DOWNLOAD";
             filename: string;
             contentType: string;
             sha256: components["schemas"]["Sha256"];
             sizeBytes: number;
+            sensitivity: components["schemas"]["ArtifactSensitivity"];
         };
         BundleCreate: {
             caseVersionIds?: components["schemas"]["Id"][];
@@ -2910,30 +3010,25 @@ export interface components {
             auditId: components["schemas"]["Id"];
         };
         CredentialResolveRequest: {
-            leaseToken: string;
-            fencingToken: number;
-            roleKey: components["schemas"]["Key"];
-            secretVersionId: components["schemas"]["Id"];
+            secretRef: string;
+            /** Format: uuid */
+            versionId: string;
         };
         CredentialResolveDTO: {
-            roleKey: components["schemas"]["Key"];
-            secretVersionId: components["schemas"]["Id"];
-            expiresAt: components["schemas"]["Timestamp"];
-            values: {
-                username?: string;
-                password?: string;
-                token?: string;
-            };
+            secretRef: string;
+            versionId: components["schemas"]["Id"];
+            value: components["schemas"]["JsonObject"];
         };
         ArtifactUploadRequest: {
             leaseToken: string;
             fencingToken: number;
             /** @enum {string} */
-            kind: "SCREENSHOT" | "TRACE" | "HTML" | "JUNIT" | "LOG" | "SOURCE" | "MANIFEST";
+            kind: "SCREENSHOT" | "TRACE" | "HTML" | "JUNIT" | "LOG" | "SOURCE" | "MANIFEST" | "DOWNLOAD";
             filename: string;
             contentType: string;
             sha256: components["schemas"]["Sha256"];
             sizeBytes: number;
+            sensitivity: components["schemas"]["ArtifactSensitivity"];
         };
         ArtifactUploadDTO: {
             artifactId: components["schemas"]["Id"];
@@ -3340,10 +3435,106 @@ export interface components {
             data: components["schemas"]["ValidationPreviewDTO"];
             requestId: string;
         };
+        CredentialRotate: {
+            value: components["schemas"]["JsonObject"];
+            allowedIdentityIds: string[];
+        };
+        CredentialCreate: {
+            value: components["schemas"]["JsonObject"];
+            allowedIdentityIds: string[];
+            secretRef: string;
+        };
+        EmptyObject: Record<string, never>;
+        CredentialDTO: {
+            secretRef: string;
+            /** Format: uuid */
+            versionId: string;
+            revoked: boolean;
+            allowedIdentityIds: string[];
+            /** Format: date-time */
+            createdAt: string;
+        };
+        CredentialListDTO: {
+            items: components["schemas"]["CredentialDTO"][];
+            nextCursor: string | null;
+        };
+        CredentialDTOEnvelope: {
+            data: components["schemas"]["CredentialDTO"];
+            requestId: string;
+        };
+        CredentialListDTOEnvelope: {
+            data: components["schemas"]["CredentialListDTO"];
+            requestId: string;
+        };
+        AuthAdapterCreate: {
+            configuration: components["schemas"]["AuthAdapterConfigV1"];
+        };
+        AuthAdapterDTO: {
+            workspaceId: components["schemas"]["Id"];
+            versionId: components["schemas"]["Id"];
+            contentHash: components["schemas"]["Sha256"];
+            configuration: components["schemas"]["AuthAdapterConfigV1"];
+            revoked: boolean;
+        };
+        AuthAdapterListDTO: {
+            items: components["schemas"]["AuthAdapterDTO"][];
+            nextCursor: string | null;
+        };
+        AuthAdapterDTOEnvelope: {
+            data: components["schemas"]["AuthAdapterDTO"];
+            requestId: string;
+        };
+        AuthAdapterListDTOEnvelope: {
+            data: components["schemas"]["AuthAdapterListDTO"];
+            requestId: string;
+        };
         /** @description JSON used only in interpolated DSL fields, recursively restricted to SafeString bindings. */
         BindingJsonValue: ContractBindingJsonValue;
         BindingJsonObject: {
             [key: string]: components["schemas"]["BindingJsonValue"];
+        };
+        NetworkObserverV1: {
+            id: components["schemas"]["Key"];
+            method: components["schemas"]["HttpMethod"];
+            path: components["schemas"]["Path"];
+            queryMatch?: components["schemas"]["BindingJsonObject"];
+            bodyMatch?: components["schemas"]["BindingJsonObject"];
+            timeoutMs?: components["schemas"]["Timeout"];
+            window?: components["schemas"]["ObserverWindow"];
+            expectedCount?: number;
+            /** @enum {string} */
+            retryPolicy?: "FORBID" | "ALLOW_MATCHING_RETRIES";
+        } & unknown;
+        DialogObserverV1: {
+            id: components["schemas"]["Key"];
+            timeoutMs?: components["schemas"]["Timeout"];
+            /** @constant */
+            kind: "dialog";
+            /** @enum {unknown} */
+            dialogType: "alert" | "beforeunload" | "confirm" | "prompt";
+            message: components["schemas"]["SafeString"];
+            /** @enum {unknown} */
+            handling: "accept" | "dismiss";
+            promptText?: components["schemas"]["SafeString"];
+        } & unknown;
+        NewPageObserverV1: {
+            id: components["schemas"]["Key"];
+            timeoutMs?: components["schemas"]["Timeout"];
+            /** @constant */
+            kind: "newPage";
+            pageKey: components["schemas"]["Key"];
+        };
+        DownloadObserverV1: {
+            id: components["schemas"]["Key"];
+            timeoutMs?: components["schemas"]["Timeout"];
+            /** @constant */
+            kind: "download";
+        };
+        FixtureIdentityV1: {
+            authAdapterVersionId: components["schemas"]["Id"];
+            secretRef: components["schemas"]["Key"];
+            secretVersionId: components["schemas"]["Id"];
+            allowedIdentityIds?: string[];
         };
         DurationMs: number;
         /** @description Literal diagnostic/evidence text; retain invalid expressions verbatim and never evaluate or interpolate it. */
@@ -3388,10 +3579,36 @@ export interface components {
                 status?: number;
             }[];
         };
+        /** @enum {string} */
+        ArtifactSensitivity: "REDACTED" | "CREDENTIAL_RESTRICTED";
+        EvidenceFileEntryV1: {
+            path: components["schemas"]["FilePath"];
+            sha256: components["schemas"]["Sha256"];
+            sizeBytes: number;
+            sensitivity: components["schemas"]["ArtifactSensitivity"];
+        };
+        AuthAdapterConfigV1: {
+            /** @constant */
+            kind: "HTTP_BEARER";
+            identityPath: components["schemas"]["Path"];
+            identityPointer: string;
+        } | {
+            /** @constant */
+            kind: "HTTP_SESSION";
+            loginPath: components["schemas"]["Path"];
+            identityPath: components["schemas"]["Path"];
+            identityPointer: string;
+        };
         ValidationTargetV1: {
             resourceId: components["schemas"]["Id"];
             versionId: components["schemas"]["Id"];
             revision: number;
+        };
+        AuthAdapterVersionV1: {
+            workspaceId: components["schemas"]["Id"];
+            versionId: components["schemas"]["Id"];
+            contentHash: components["schemas"]["Sha256"];
+            configuration: components["schemas"]["AuthAdapterConfigV1"];
         };
         CaseEntrypointV1: {
             caseVersionId: components["schemas"]["Id"];
@@ -11321,7 +11538,10 @@ export interface operations {
     resolveCredentials: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                "X-VeriQ-Lease-Token": string;
+                "X-VeriQ-Fencing-Token": number;
+            };
             path: {
                 attemptId: components["schemas"]["Id"];
             };
@@ -13218,6 +13438,505 @@ export interface operations {
             };
             /** @description Stable JSON error; code is a machine-readable domain code. */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listCredentials: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialListDTOEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CredentialCreate"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialDTOEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    rotateCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                secretRef: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CredentialRotate"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialDTOEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    revokeCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                secretRef: string;
+                versionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmptyObject"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialDTOEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listAuthAdapters: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthAdapterListDTOEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createAuthAdapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthAdapterCreate"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthAdapterDTOEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    revokeAuthAdapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                versionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmptyObject"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthAdapterDTOEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable error */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
