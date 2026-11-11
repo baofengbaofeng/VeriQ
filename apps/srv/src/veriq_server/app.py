@@ -15,6 +15,9 @@ from .handlers.workspace import WorkspaceAPI
 from .handlers.resource import ResourceAPI
 from .handlers.credential import CredentialAPI, CredentialResolveAPI, AuthAdapterAPI
 from .handlers.service_account import ServiceAccountAPI
+from .handlers.execution import ExecutionAPI
+from .handlers.run import RunAPI, AttemptAuditAPI
+from .services.lease import DatabaseAttemptProofVerifier
 from .handlers.enrollment import DeviceAPI, EnrollmentAPI, RuntimeAPI
 from .service import Problem
 from .credentials.registry import IdentityRegistry
@@ -33,6 +36,25 @@ class UnknownAPI(API):
 
 
 def handler_for(action: str) -> type[API]:
+    if action == "attempt-audit":
+        return AttemptAuditAPI
+    if action in {"runs", "run", "run-cancel"}:
+        return RunAPI
+    if action in {
+        "finish",
+        "events",
+        "upload-create",
+        "upload-chunk",
+        "content",
+        "claim",
+        "activate",
+        "heartbeat",
+        "reconcile",
+        "expired-leases/reap",
+        "fixture-cleanups/reconcile",
+        "capacity/reconcile",
+    }:
+        return ExecutionAPI
     if action in {
         "service-accounts",
         "service-token-issue",
@@ -105,6 +127,31 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
     delivery = delivery or (SMTPDelivery(settings) if settings.smtp_host else None)
     reset_dispatcher = ResetDispatcher(db, settings, delivery)
     routes = [
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/attempts/([0-9a-fA-F-]{36})/reconcile",
+            "attempt-audit",
+        ),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runs", "runs"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runs/([0-9a-fA-F-]{36})", "run"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runs/([0-9a-fA-F-]{36})/cancel", "run-cancel"),
+        ("/internal/v1/attempts/([0-9a-fA-F-]{36})/finish", "finish"),
+        ("/internal/v1/attempts/([0-9a-fA-F-]{36})/events", "events"),
+        ("/internal/v1/attempts/([0-9a-fA-F-]{36})/artifact-uploads", "upload-create"),
+        (
+            "/internal/v1/attempts/([0-9a-fA-F-]{36})/artifact-uploads/([0-9a-fA-F-]{36})",
+            "upload-chunk",
+        ),
+        (
+            "/internal/v1/workspaces/([0-9a-fA-F-]{36})/attempts/([0-9a-fA-F-]{36})/content/([0-9a-f]{64})",
+            "content",
+        ),
+        ("/internal/v1/maintenance/expired-leases/reap", "expired-leases/reap"),
+        ("/internal/v1/maintenance/fixture-cleanups/reconcile", "fixture-cleanups/reconcile"),
+        ("/internal/v1/maintenance/capacity/reconcile", "capacity/reconcile"),
+        ("/internal/v1/attempts/([0-9a-fA-F-]{36})/reconcile", "reconcile"),
+        ("/internal/v1/jobs/claim", "claim"),
+        ("/internal/v1/attempts/([0-9a-fA-F-]{36})/activate", "activate"),
+        ("/internal/v1/attempts/([0-9a-fA-F-]{36})/heartbeat", "heartbeat"),
         (
             "/api/v1/workspaces/([0-9a-fA-F-]{36})/runtimes/([0-9a-fA-F-]{36})/credential-delivery",
             "runtime-delivery",
@@ -234,4 +281,5 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
         mail_delivery=delivery,
         reset_dispatcher=reset_dispatcher,
         identity_reference_registry=IdentityRegistry(),
+        attempt_proof_verifier=DatabaseAttemptProofVerifier(settings),
     )

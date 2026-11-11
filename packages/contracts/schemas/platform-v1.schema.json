@@ -3099,6 +3099,14 @@
             "$ref": "#/$defs/AuthAdapterVersionV1"
           },
           "maxItems": 100
+        },
+        "datasetVersionId": {
+          "$ref": "#/$defs/Id"
+        },
+        "suiteEntryIndex": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 999
         }
       },
       "required": [
@@ -3308,6 +3316,17 @@
         },
         "snapshotSha256": {
           "$ref": "#/$defs/Sha256"
+        },
+        "serverTime": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "leaseDurationMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 60000
+        },
+        "activationRequired": {
+          "const": true
         }
       },
       "required": [
@@ -3318,7 +3337,10 @@
         "fencingToken",
         "expiresAt",
         "snapshotUrl",
-        "snapshotSha256"
+        "snapshotSha256",
+        "serverTime",
+        "leaseDurationMs",
+        "activationRequired"
       ],
       "additionalProperties": false
     },
@@ -4318,11 +4340,21 @@
         },
         "cancelRequested": {
           "type": "boolean"
+        },
+        "serverTime": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "leaseDurationMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 60000
         }
       },
       "required": [
         "leaseExpiresAt",
-        "cancelRequested"
+        "cancelRequested",
+        "serverTime",
+        "leaseDurationMs"
       ],
       "additionalProperties": false
     },
@@ -4494,6 +4526,12 @@
         },
         "message": {
           "$ref": "#/$defs/DiagnosticText"
+        },
+        "blockedByStepId": {
+          "$ref": "#/$defs/Key"
+        },
+        "blockedByAssertionId": {
+          "$ref": "#/$defs/Key"
         }
       },
       "required": [
@@ -4536,6 +4574,12 @@
           "$ref": "#/$defs/DurationMs"
         },
         "errorCode": {
+          "$ref": "#/$defs/Key"
+        },
+        "blockedByStepId": {
+          "$ref": "#/$defs/Key"
+        },
+        "blockedByAssertionId": {
           "$ref": "#/$defs/Key"
         }
       },
@@ -5230,6 +5274,465 @@
           "issuerId"
         ]
       }
+    },
+    "LeaseProofRequest": {
+      "type": "object",
+      "properties": {
+        "leaseToken": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "fencingToken": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "leaseToken",
+        "fencingToken"
+      ],
+      "additionalProperties": false
+    },
+    "ExpectedPlansV1": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "cases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "caseVersionId": {
+                "$ref": "#/$defs/Id"
+              },
+              "persistenceCheckpointStepId": {
+                "$ref": "#/$defs/Key"
+              },
+              "steps": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "$ref": "#/$defs/Key"
+                    },
+                    "order": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 499
+                    },
+                    "parentId": {
+                      "$ref": "#/$defs/Key"
+                    },
+                    "failurePolicy": {
+                      "enum": [
+                        "STOP",
+                        "CONTINUE",
+                        "BLOCK"
+                      ]
+                    },
+                    "assertions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "$ref": "#/$defs/Key"
+                          },
+                          "severity": {
+                            "enum": [
+                              "BLOCK",
+                              "CONTINUE_FAIL",
+                              "WARN"
+                            ]
+                          },
+                          "stage": {
+                            "enum": [
+                              "BEFORE",
+                              "RESPONSE",
+                              "AFTER"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "severity",
+                          "stage"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "maxItems": 5000
+                    },
+                    "observers": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/Key"
+                      },
+                      "maxItems": 1000
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "order",
+                    "failurePolicy",
+                    "assertions",
+                    "observers"
+                  ],
+                  "additionalProperties": false
+                },
+                "maxItems": 500
+              },
+              "requiredEvidenceKinds": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "TRACE",
+                    "SCREENSHOT"
+                  ]
+                },
+                "minItems": 1,
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "caseVersionId",
+              "steps",
+              "requiredEvidenceKinds"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 1000
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "cases"
+      ],
+      "additionalProperties": false
+    },
+    "ApprovedEngineInventoryV1": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "engines": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "engineVersion": {
+                "$ref": "#/$defs/Version"
+              },
+              "compilerVersion": {
+                "$ref": "#/$defs/Version"
+              },
+              "runnerSdkVersion": {
+                "$ref": "#/$defs/Version"
+              },
+              "files": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/FileEntry"
+                },
+                "maxItems": 1000
+              },
+              "dependencies": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/DependencyVersion"
+                },
+                "maxItems": 1000
+              }
+            },
+            "required": [
+              "engineVersion",
+              "compilerVersion",
+              "runnerSdkVersion",
+              "files",
+              "dependencies"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 100
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "engines"
+      ],
+      "additionalProperties": false
+    },
+    "TestCompletionManifestV1": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "attemptId": {
+          "$ref": "#/$defs/Id"
+        },
+        "jobManifestSha256": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "businessOutcome": {
+          "$ref": "#/$defs/AttemptOutcome"
+        },
+        "cleanupStatus": {
+          "$ref": "#/$defs/CleanupStatus"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EvidenceFileEntryV1"
+          },
+          "maxItems": 1000
+        },
+        "requiredEvidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Sha256"
+          },
+          "maxItems": 1000
+        },
+        "processStopped": {
+          "const": true
+        },
+        "kind": {
+          "const": "TEST"
+        },
+        "caseVersionId": {
+          "$ref": "#/$defs/Id"
+        },
+        "expectedPlansSha256": {
+          "$ref": "#/$defs/Sha256"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "attemptId",
+        "jobManifestSha256",
+        "businessOutcome",
+        "cleanupStatus",
+        "evidence",
+        "requiredEvidence",
+        "processStopped",
+        "kind",
+        "caseVersionId",
+        "expectedPlansSha256"
+      ],
+      "additionalProperties": false
+    },
+    "ValidateCompletionManifestV1": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ValidateSuccessCompletionManifestV1"
+        },
+        {
+          "$ref": "#/$defs/ValidateFailureCompletionManifestV1"
+        }
+      ]
+    },
+    "CleanupCompletionManifestV1": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "attemptId": {
+          "$ref": "#/$defs/Id"
+        },
+        "jobManifestSha256": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "businessOutcome": {
+          "$ref": "#/$defs/AttemptOutcome"
+        },
+        "cleanupStatus": {
+          "$ref": "#/$defs/CleanupStatus"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EvidenceFileEntryV1"
+          },
+          "maxItems": 1000
+        },
+        "requiredEvidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Sha256"
+          },
+          "maxItems": 1000
+        },
+        "processStopped": {
+          "const": true
+        },
+        "kind": {
+          "const": "CLEANUP"
+        },
+        "fixtureVersionId": {
+          "$ref": "#/$defs/Id"
+        },
+        "namespace": {
+          "$ref": "#/$defs/Key"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "attemptId",
+        "jobManifestSha256",
+        "businessOutcome",
+        "cleanupStatus",
+        "evidence",
+        "requiredEvidence",
+        "processStopped",
+        "kind",
+        "fixtureVersionId",
+        "namespace"
+      ],
+      "additionalProperties": false
+    },
+    "CompletionManifestV1": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TestCompletionManifestV1"
+        },
+        {
+          "$ref": "#/$defs/ValidateCompletionManifestV1"
+        },
+        {
+          "$ref": "#/$defs/CleanupCompletionManifestV1"
+        }
+      ]
+    },
+    "ValidateSuccessCompletionManifestV1": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "attemptId": {
+          "$ref": "#/$defs/Id"
+        },
+        "jobManifestSha256": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "businessOutcome": {
+          "const": "PASSED"
+        },
+        "cleanupStatus": {
+          "$ref": "#/$defs/CleanupStatus"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EvidenceFileEntryV1"
+          },
+          "maxItems": 1000
+        },
+        "requiredEvidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Sha256"
+          },
+          "maxItems": 1000
+        },
+        "processStopped": {
+          "const": true
+        },
+        "kind": {
+          "const": "VALIDATE"
+        },
+        "compiledBundleSha256": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "engineInventorySha256": {
+          "$ref": "#/$defs/Sha256"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "attemptId",
+        "jobManifestSha256",
+        "businessOutcome",
+        "cleanupStatus",
+        "evidence",
+        "requiredEvidence",
+        "processStopped",
+        "kind",
+        "compiledBundleSha256",
+        "engineInventorySha256"
+      ],
+      "additionalProperties": false
+    },
+    "ValidateFailureCompletionManifestV1": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "attemptId": {
+          "$ref": "#/$defs/Id"
+        },
+        "jobManifestSha256": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "businessOutcome": {
+          "const": "ERROR"
+        },
+        "cleanupStatus": {
+          "$ref": "#/$defs/CleanupStatus"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EvidenceFileEntryV1"
+          },
+          "maxItems": 1000,
+          "minItems": 1
+        },
+        "requiredEvidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Sha256"
+          },
+          "maxItems": 1000,
+          "minItems": 1
+        },
+        "processStopped": {
+          "const": true
+        },
+        "kind": {
+          "const": "VALIDATE"
+        },
+        "engineInventorySha256": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "failureCode": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]{0,79}$",
+          "maxLength": 80
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "attemptId",
+        "jobManifestSha256",
+        "businessOutcome",
+        "cleanupStatus",
+        "evidence",
+        "requiredEvidence",
+        "processStopped",
+        "kind",
+        "engineInventorySha256",
+        "failureCode"
+      ],
+      "additionalProperties": false
     }
   }
 }

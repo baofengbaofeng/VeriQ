@@ -11,7 +11,7 @@ from sqlalchemy import select
 from test_auth import setup, login
 from test_workspace import workspace, new_member, client
 from veriq_server.contracts import canonical_bytes, asset_source_hash
-from veriq_server.db import Artifact, Job, ValidationReceipt
+from veriq_server.db import Artifact, Job, ValidationReceipt, Runtime, RuntimeBinding, Attempt
 from veriq_server.service import now
 
 CATALOG = {
@@ -94,14 +94,64 @@ async def completed(db, job_id):
                 )
             )
             await s.flush()
+        runtime_id, attempt_id = str(uuid4()), str(uuid4())
+        s.add(
+            Runtime(
+                id=runtime_id,
+                owner_user_id=job.created_by,
+                name="T04 provenance fixture",
+                location="CONNECTED_LOCAL",
+                trust_status="MANAGED",
+                capabilities={
+                    "engineVersion": "0.1.0",
+                    "os": "linux",
+                    "arch": "x64",
+                    "browsers": ["chromium"],
+                },
+                created_at=now(),
+            )
+        )
+        await s.flush()
+        s.add(
+            RuntimeBinding(
+                runtime_id=runtime_id,
+                workspace_id=job.workspace_id,
+                active=True,
+                shared_with_workspace=False,
+                allow_credential_delivery=False,
+            )
+        )
+        await s.flush()
+        s.add(
+            Attempt(
+                id=attempt_id,
+                workspace_id=job.workspace_id,
+                job_id=job.id,
+                runtime_id=runtime_id,
+                attempt_no=1,
+                snapshot_hash=job.snapshot_hash,
+                manifest_hash=job.manifest_hash,
+                lease_token_hash="0" * 64,
+                fencing_token=1,
+                lease_expires_at=now(),
+                phase="FINISHED",
+                outcome="PASSED",
+                capacity_state="RELEASED",
+                facts={},
+                last_sequence=0,
+                created_at=now(),
+            )
+        )
+        await s.flush()
         job.state = "FINISHED"
-        job.active_attempt_id = str(uuid4())
+        job.active_attempt_id = attempt_id
+        job.fence = 1
         receipt = ValidationReceipt(
             id=str(uuid4()),
             workspace_id=job.workspace_id,
             resource_id=target["resourceId"],
             job_id=job.id,
-            runtime_id=str(uuid4()),
+            runtime_id=runtime_id,
             attempt_id=job.active_attempt_id,
             compiler_trust="MANAGED",
             revision=target["revision"],
@@ -285,13 +335,21 @@ async def test_publication_rejects_tampered_provenance(site, tamper):
     path = await create(c, ws)
     p, j = await queue(c, path)
     rid, _ = await completed(db, j["id"])
+    if tamper == "attempt":
+        from sqlalchemy.exc import IntegrityError
+
+        # T09 now rejects impossible provenance at the composite FK itself.
+        with pytest.raises(IntegrityError, match="fk_validation_attempt"):
+            async with db.sessions.begin() as s:
+                r = await s.get(ValidationReceipt, rid)
+                r.attempt_id = str(uuid4())
+                await s.flush()
+        return
     async with db.sessions.begin() as s:
         r = await s.get(ValidationReceipt, rid)
         job = await s.get(Job, j["id"])
         if tamper == "trust":
             r.compiler_trust = "USER_REGISTERED"
-        if tamper == "attempt":
-            r.attempt_id = str(uuid4())
         if tamper == "source":
             r.source_hash = "0" * 64
         if tamper == "engine":

@@ -88,6 +88,7 @@ class CredentialResolveAPI(API):
 
         verifier = self.application.settings.get("attempt_proof_verifier") or DenyAttemptProof()
         async with self.db.sessions.begin() as session:
+            await lock_installation(session)
             transport = CredentialProofTransport.parse(
                 self.request.headers.get("Authorization", ""),
                 self.request.headers.get("X-VeriQ-Lease-Token", ""),

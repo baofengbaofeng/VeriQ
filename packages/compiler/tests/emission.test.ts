@@ -834,3 +834,14 @@ it("cold assembly validates declared initial values and complete fixture schemas
     e.variables,
   );
 });
+
+it("emits hash-listed expected plan from the same expanded compiler analysis", () => {
+  const result = compileFiles(snapshot(), distribution());
+  const metadata = result.files["metadata/expected-plans.json"]!;
+  expect(metadata).toBeDefined();
+  const plans = JSON.parse(new TextDecoder().decode(metadata));
+  expect(plans.cases[0].caseVersionId).toBe(id(1));
+  expect(plans.cases[0].steps.length).toBeGreaterThan(0);
+  expect(plans.cases[0].steps[0].id).toBeTruthy();
+  expect(result.bundle.files.find((f) => f.path === "metadata/expected-plans.json")?.sha256).toBe(hash(metadata));
+});

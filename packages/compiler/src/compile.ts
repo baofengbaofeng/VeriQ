@@ -13,6 +13,7 @@ import {
   type DependencyVersion,
   type ExecutionSnapshotV1,
   type FileEntry,
+  type CompiledStep,
 } from "@veriq/contracts";
 import { analyze, validate, type CompiledCase } from "./validate.js";
 import { sha256 } from "./dependency.js";
@@ -273,6 +274,23 @@ export function compileFiles(
         ) +
         ");\n",
     );
+  const expectedCases = analysis.cases.map((plan) => {
+    let ordinal = 0;
+    const flatten = (steps: CompiledStep[], parentId?: string): Record<string, unknown>[] =>
+      steps.flatMap((step) => [{
+        id: step.step.id, order: ordinal++, ...(parentId ? { parentId } : {}),
+        failurePolicy: step.step.failurePolicy ?? "STOP",
+        assertions: [
+          ...step.before.map((a) => ({ id: a.assertion.id, severity: a.assertion.severity, stage: "BEFORE" })),
+          ...step.responseAssertions.map((a) => ({ id: a.assertion.id, severity: a.assertion.severity, stage: "RESPONSE" })),
+          ...step.after.map((a) => ({ id: a.assertion.id, severity: a.assertion.severity, stage: "AFTER" })),
+        ],
+        observers: (step.step.observers ?? []).map((o) => o.id),
+      }, ...flatten(step.children ?? [], step.step.id)]);
+    return { caseVersionId: plan.caseVersionId, requiredEvidenceKinds: ["TRACE"], steps: flatten(plan.steps),
+      ...(plan.persistenceCheckpointStepId ? { persistenceCheckpointStepId: plan.persistenceCheckpointStepId } : {}) };
+  });
+  files["metadata/expected-plans.json"] = canonicalBytes({ schemaVersion: "1.0", cases: expectedCases });
   const manifest = Object.keys(files)
     .sort()
     .map((path) => ({

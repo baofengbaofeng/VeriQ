@@ -66,7 +66,9 @@ class ServiceAccountAPI(API):
                 assert account_id
                 account = await service.get(workspace_id, account_id)
                 if self.action == "service-token-issue":
-                    result = await service.issue(user, account)
+                    result = await service.issue(
+                        user, account, data["purpose"], data.get("operations")
+                    )
                 elif self.action == "service-account-disable":
                     account.disabled = True
                     audit(
