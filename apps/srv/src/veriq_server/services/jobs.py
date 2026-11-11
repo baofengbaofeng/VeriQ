@@ -3,11 +3,12 @@
 import secrets
 import json
 from dataclasses import dataclass, field
+from collections.abc import AsyncIterator
 from datetime import timedelta, datetime
 from hashlib import sha256
 from typing import Any, cast
 from uuid import uuid4, UUID
-from sqlalchemy import func, select
+from sqlalchemy import func, select, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..contracts import canonical_bytes
 from ..auth.authorization import WorkspaceScope
@@ -97,6 +98,52 @@ class JobService:
             "snapshotSha256": job.manifest_hash,
         }
 
+    async def candidates(
+        self,
+        workspace_id: str,
+        runtime_id: str,
+        location: str,
+        capabilities: dict[str, Any],
+        current: datetime,
+    ) -> AsyncIterator[Job]:
+        """Scan the finite locked queue using bounded pages, not a fixed prefix.
+
+        Enqueue and protected identity changes share the installation lock. The
+        timestamp fence and increasing (created_at, id) key bound this traversal
+        to existing work; each query/materialized page holds at most 100 jobs.
+        """
+        query = select(Job).where(
+            Job.workspace_id == workspace_id,
+            Job.state == "QUEUED",
+            Job.created_at <= current,
+            or_(Job.requested_runtime_id.is_(None), Job.requested_runtime_id == runtime_id),
+            or_(Job.requested_location.is_(None), Job.requested_location == location),
+            Job.kind.in_(capabilities.get("jobKinds", ["TEST", "VALIDATE", "CLEANUP"])),
+            Job.required_capabilities["engineVersion"].as_string() == capabilities["engineVersion"],
+        )
+        cursor: tuple[datetime, str] | None = None
+        while True:
+            page_query = query
+            if cursor:
+                page_query = page_query.where(
+                    or_(
+                        Job.created_at > cursor[0],
+                        and_(Job.created_at == cursor[0], Job.id > cursor[1]),
+                    )
+                )
+            page = (
+                (await self.session.execute(page_query.order_by(Job.created_at, Job.id).limit(100)))
+                .scalars()
+                .all()
+            )
+            if not page:
+                return
+            cursor = page[-1].created_at, page[-1].id
+            for job in page:
+                yield job
+            if len(page) < 100:
+                return
+
     async def claim(self, identity: RuntimeIdentity, req: ClaimRequest) -> ClaimDTO | None:
         req = {
             **req,
@@ -168,16 +215,10 @@ class JobService:
         self.session.add(receipt)
         if req["availableSlots"] == 0:
             return None
-        candidates = (
-            await self.session.execute(
-                select(Job)
-                .where(Job.workspace_id == binding.workspace_id, Job.state == "QUEUED")
-                .order_by(Job.created_at, Job.id)
-                .limit(100)
-            )
-        ).scalars()
         capacity = CapacityService(self.session, self.settings)
-        for job in candidates:
+        async for job in self.candidates(
+            binding.workspace_id, runtime.id, runtime.location, runtime.capabilities, current
+        ):
             run = await self.session.get(Run, job.run_id) if job.run_id else None
             if run and (
                 run.state in {"CANCEL_REQUESTED", "FINISHED"}

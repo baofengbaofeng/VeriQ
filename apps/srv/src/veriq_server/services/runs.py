@@ -9,12 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth.authorization import Permission, WorkspaceScope
 from ..contracts import canonical_bytes, validate_schema, asset_source_hash
 from ..credentials.registry import IdentityRegistry
-from ..db import Run, CaseExecution, Job, User, ResourceVersion
+from ..db import Run, CaseExecution, Job, User, ResourceVersion, Attempt
 from ..repositories.resource import ResourceRepository
 from ..service import Problem, now, stamp
 from .runtime import RuntimeService
 from .workspace import WorkspaceRepository
 from .snapshots import validate_initial_variables
+from .results import aggregate
 
 
 def run_dto(run: Run) -> dict[str, Any]:
@@ -377,7 +378,7 @@ class RunService:
         run = await self.get(workspace_id, run_id)
         if run.state == "FINISHED":
             return run_dto(run)
-        run.state = "CANCEL_REQUESTED"
+        run.state, run.reason_code = "CANCEL_REQUESTED", "USER_CANCELLED"
         jobs = (
             (
                 await self.session.execute(
@@ -389,14 +390,43 @@ class RunService:
         )
         active = False
         for job in jobs:
-            if job.active_attempt_id:
+            assigned = (
+                await self.session.get(Attempt, job.active_attempt_id)
+                if job.active_attempt_id
+                else None
+            )
+            if assigned and assigned.phase != "FINISHED":
                 job.state = "CANCEL_REQUESTED"
                 active = True
             else:
-                job.state, job.outcome = "FINISHED", "CANCELLED"
+                history = (
+                    (
+                        await self.session.execute(
+                            select(Attempt.outcome).where(
+                                Attempt.job_id == job.id, Attempt.phase == "FINISHED"
+                            )
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+                outcome = aggregate([*(result or "INCOMPLETE" for result in history), "CANCELLED"])
+                job.state, job.outcome = "FINISHED", outcome
                 execution = await self.session.get(CaseExecution, job.case_execution_id)
                 if execution:
-                    execution.state, execution.outcome = "FINISHED", "CANCELLED"
+                    execution.state, execution.outcome = "FINISHED", outcome
         if not active:
-            run.state, run.outcome = "FINISHED", "CANCELLED"
+            cases = (
+                (
+                    await self.session.execute(
+                        select(CaseExecution).where(CaseExecution.run_id == run.id)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            run.state, run.outcome = (
+                "FINISHED",
+                aggregate([c.outcome or "INCOMPLETE" for c in cases]),
+            )
         return run_dto(run)

@@ -5354,7 +5354,8 @@
                             "enum": [
                               "BEFORE",
                               "RESPONSE",
-                              "AFTER"
+                              "AFTER",
+                              "FINALIZE"
                             ]
                           }
                         },

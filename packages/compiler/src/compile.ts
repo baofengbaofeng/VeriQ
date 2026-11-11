@@ -281,9 +281,9 @@ export function compileFiles(
         id: step.step.id, order: ordinal++, ...(parentId ? { parentId } : {}),
         failurePolicy: step.step.failurePolicy ?? "STOP",
         assertions: [
-          ...step.before.map((a) => ({ id: a.assertion.id, severity: a.assertion.severity, stage: "BEFORE" })),
-          ...step.responseAssertions.map((a) => ({ id: a.assertion.id, severity: a.assertion.severity, stage: "RESPONSE" })),
-          ...step.after.map((a) => ({ id: a.assertion.id, severity: a.assertion.severity, stage: "AFTER" })),
+          ...step.before.map((a) => ({ id: a.assertion.id, severity: a.assertion.severity, stage: a.assertion.type === "requestCount" ? "FINALIZE" : "BEFORE" })),
+          ...step.responseAssertions.map((a) => ({ id: a.assertion.id, severity: a.assertion.severity, stage: a.assertion.type === "requestCount" ? "FINALIZE" : "RESPONSE" })),
+          ...step.after.map((a) => ({ id: a.assertion.id, severity: a.assertion.severity, stage: a.assertion.type === "requestCount" ? "FINALIZE" : "AFTER" })),
         ],
         observers: (step.step.observers ?? []).map((o) => o.id),
       }, ...flatten(step.children ?? [], step.step.id)]);

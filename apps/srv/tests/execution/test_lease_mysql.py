@@ -614,3 +614,35 @@ async def test_external_reaper_finishes_expired_queued_run_without_attempt(site)
             for j in (await session.execute(select(CaseExecution))).scalars()
         )
         assert not (await session.execute(select(Attempt))).first()
+
+
+async def test_claim_scans_past_multiple_pages_of_ineligible_older_jobs(site):
+    from sqlalchemy import select
+    from veriq_server.db import Job, Attempt
+
+    c, db = site
+    await setup(c)
+    await login(c)
+    ws = await workspace(c)
+    offline, eligible = await device(c, ws), await device(c, ws)
+    older = await queued_browser_jobs(c, db, ws, 205)
+    newer = await queued_browser_jobs(c, db, ws, 1)
+    async with db.sessions.begin() as session:
+        for job in (await session.execute(select(Job).where(Job.id.in_(older)))).scalars():
+            # Dynamic allowlist deliberately remains a post-query check.
+            job.required_capabilities = {
+                **job.required_capabilities,
+                "runtimeIds": [offline["runnerId"]],
+            }
+        job = await session.get(Job, newer[0])
+        job.required_capabilities = {
+            **job.required_capabilities,
+            "runtimeIds": [eligible["runnerId"]],
+        }
+    reply = await c.post(
+        "/internal/v1/jobs/claim", json=claim_body(eligible), headers=auth(eligible)
+    )
+    assert reply.status_code == 200, reply.text
+    assert reply.json()["data"]["jobId"] == newer[0]
+    async with db.sessions() as session:
+        assert len((await session.execute(select(Attempt))).scalars().all()) == 1

@@ -1979,7 +1979,7 @@ export interface ExpectedPlansV1 {
       assertions: {
         id: Key;
         severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
-        stage: "BEFORE" | "RESPONSE" | "AFTER";
+        stage: "BEFORE" | "RESPONSE" | "AFTER" | "FINALIZE";
       }[];
       /**
        * @maxItems 1000

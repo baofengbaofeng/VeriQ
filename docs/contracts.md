@@ -511,3 +511,44 @@ Owner/Admin POST `/api/v1/workspaces/{ws}/attempts/{id}/reconcile` requires
 `processStopped:true` and a reason of10–1,000 characters; it releases only quarantined
 or already released capacity and records a Workspace audit without changing outcomes.
 No internal scheduler, parallel queue, bootstrap-as-requester or offline fake Job is added.
+
+### T09 review correction: result order, blocking, cancellation and queue progress
+
+Expected-plan assertion `stage` describes execution, not editable DSL syntax:
+BEFORE → RESPONSE → AFTER → FINALIZE. The compiler marks `requestCount` as FINALIZE
+from its actual CompiledAssertion type because the SDK defers it until observers finish.
+Other assertions keep their compiled stage; neither DSL nor SDK behavior changes.
+A deferred count cannot prove that an earlier AFTER assertion or child was prevented.
+
+The reducer retains every negative business and ATTEMPT_FINISHED outcome. Conflicting
+terminal facts make evidence INCOMPLETE (ERROR keeps its higher priority); passing
+steps cannot erase a later business/origin failure. Execution facts must occur between
+ATTEMPT_STARTED and ATTEMPT_FINISHED, with cleanup after business work. Only LOG and
+ARTIFACT_CREATED notifications may form a post-terminal upload tail. Assertions and
+observers stay inside their STEP_STARTED/STEP_FINISHED interval; executed children stay
+inside parents, siblings follow compiled order, and assertion stages follow their actual
+execution order. FINALIZE assertions follow observed results.
+
+An explicit skipped assertion may name a previously failed BLOCK assertion in an earlier
+execution stage/order of the same step. The blocking fact must precede the skip. An
+ancestor can prevent unstarted child work only through a BEFORE BLOCK; the child still
+requires an explicit SKIPPED step fact. A failed STEP_FINISHED may explicitly name its
+own prior non-FINALIZE BLOCK using blockedByStepId/blockedByAssertionId when that block
+prevented observer finalization. Missing observer results are then retained as
+`blockedObservers` facts, never invented PASSED observations. Without that proof, missing
+observers remain INCOMPLETE.
+
+Cancelling a queued retry distinguishes a finished historical Attempt from a live
+assignment. It immediately finishes Job/CaseExecution/Run, records
+`reasonCode:USER_CANCELLED`, and aggregates retained Attempt history plus CANCELLED.
+An earlier FAILED/ERROR therefore remains the more severe outcome; the immutable
+Attempt result is unchanged and no replacement Attempt is claimed.
+
+Claim applies stable Workspace/state/time/Runtime/location/engine/kind predicates in
+SQL, then traverses successive100-row pages by `(created_at,id)` until the transaction's
+finite queue is exhausted or one eligible Job is reserved. Dynamic requester, allowlist,
+dependency, quarantine and capacity checks still run on each candidate. The installation
+lock prevents concurrent enqueue/authorization mutation during this traversal and the
+DB-time fence excludes newer rows. There is no fixed prefix or new cursor table. Memory
+and each query are bounded by100; total work and installation-lock hold time remain
+proportional to the existing matching queue, a conservative consistency tradeoff.

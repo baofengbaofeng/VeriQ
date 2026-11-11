@@ -78,3 +78,17 @@ proof, processStopped:true, bounded safe failureCode and verified nonempty LOG e
 Missing diagnostic bytes/event linkage is rejected. This branch never mints a receipt,
 never authorizes publish, and preserves exact completion replay. Dependent DEBUG work
 finishes ERROR when the failed validation is examined rather than waiting for Run timeout.
+
+Review fix1 preserves negative manifest/terminal facts and validates lifecycle, nested
+step intervals, sibling order and actual assertion stages. Compiler-only expected-plan
+FINALIZE marks deferred requestCount assertions; the DSL and SDK execution stay unchanged.
+Same-step later-stage BLOCK skips require an actual preceding failed BLOCK fact. Missing
+observers require explicit failed-step block proof and are recorded as blockedObservers,
+never PASSED; ancestor prevention of children requires BEFORE plus explicit child SKIPPED.
+Only LOG/ARTIFACT_CREATED tails may follow terminal execution.
+
+Queued-retry cancellation records USER_CANCELLED, immediately finishes stopped queued
+work, and reduces original history plus CANCELLED by fixed severity; it does not erase
+FAILED/ERROR Attempts. Claim uses stable SQL predicates and100-row keyset pages through
+the finite transaction queue. This removes head-of-queue starvation while preserving
+installation/capacity lock ordering; aggregate lock time scales with matching queue size.

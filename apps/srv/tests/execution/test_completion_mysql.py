@@ -47,15 +47,23 @@ async def upload(c, credential, claim, content, filename, kind="SOURCE"):
 
 
 @pytest.mark.parametrize(
-    "kind", ["ELEMENT_CATALOG", "CASE", "CASE_WITH_MISSING_ARTIFACT_EVENT", "CASE_COMPILER_ERROR"]
+    "kind",
+    [
+        "ELEMENT_CATALOG",
+        "CASE",
+        "CASE_WITH_MISSING_ARTIFACT_EVENT",
+        "CASE_COMPILER_ERROR",
+        "CASE_CANCEL_RETRY",
+    ],
 )
 async def test_managed_real_compilation_finishes_once_and_can_publish(site, tmp_path, kind):
     from veriq_server.db import Job, Artifact
     from veriq_server.contracts import canonical_bytes
 
+    cancel_retry = kind == "CASE_CANCEL_RETRY"
     compiler_error = kind == "CASE_COMPILER_ERROR"
     missing_artifact_event = kind == "CASE_WITH_MISSING_ARTIFACT_EVENT"
-    if missing_artifact_event or compiler_error:
+    if missing_artifact_event or compiler_error or cancel_retry:
         kind = "CASE"
     c, db = site
     await setup(c)
@@ -260,11 +268,20 @@ async def test_managed_real_compilation_finishes_once_and_can_publish(site, tmp_
     assert published.status_code == 201, published.text
     if kind == "CASE":
         await exercise_test_protocol(
-            c, db, ws, d, published.json()["data"]["id"], output, missing_artifact_event
+            c,
+            db,
+            ws,
+            d,
+            published.json()["data"]["id"],
+            output,
+            missing_artifact_event,
+            cancel_retry,
         )
 
 
-async def exercise_test_protocol(c, db, ws, d, case_version, output, missing_artifact_event=False):
+async def exercise_test_protocol(
+    c, db, ws, d, case_version, output, missing_artifact_event=False, cancel_retry=False
+):
     """Server protocol integration; actual browser execution remains T10."""
     from test_runs_mysql import environment
     from veriq_server.contracts import canonical_bytes
@@ -358,7 +375,7 @@ async def exercise_test_protocol(c, db, ws, d, case_version, output, missing_art
             ("STEP_STARTED", {}, {"stepId": plan["steps"][0]["id"]}),
             (
                 "STEP_FINISHED",
-                {"status": status, "durationMs": 1},
+                {"status": "PASSED" if cancel_retry and index == 0 else status, "durationMs": 1},
                 {"stepId": plan["steps"][0]["id"]},
             ),
             ("CLEANUP_RESULT", {"cleanupStatus": "NOT_REQUIRED"}, {}),
@@ -418,6 +435,41 @@ async def exercise_test_protocol(c, db, ws, d, case_version, output, missing_art
         assert result.json()["data"]["outcome"] == (
             "INCOMPLETE" if missing_artifact_event else status
         )
+        if cancel_retry and index == 0:
+            from veriq_server.db import Attempt, Job, CaseExecution, Run
+
+            cancelled = await c.post(
+                f"/api/v1/workspaces/{ws}/runs/{run_id}/cancel",
+                json={"reason": "Cancel pending retry"},
+            )
+            assert cancelled.status_code == 200, cancelled.text
+            body = cancelled.json()["data"]
+            assert body["state"] == "FINISHED" and body["outcome"] == "FAILED", body
+            assert body["reasonCode"] == "USER_CANCELLED"
+            async with db.sessions() as session:
+                attempt = await session.get(Attempt, claim["attemptId"])
+                job = await session.get(Job, attempt.job_id)
+                case = await session.get(CaseExecution, job.case_execution_id)
+                run = await session.get(Run, run_id)
+                assert (
+                    attempt.phase == "FINISHED"
+                    and attempt.outcome == "FAILED"
+                    and attempt.capacity_state == "RELEASED"
+                )
+                assert job.state == case.state == run.state == "FINISHED"
+                assert job.outcome == case.outcome == run.outcome == "FAILED"
+                assert (
+                    len(
+                        (await session.execute(select(Attempt).where(Attempt.job_id == job.id)))
+                        .scalars()
+                        .all()
+                    )
+                    == 1
+                )
+            assert (
+                await c.post("/internal/v1/jobs/claim", json=claim_body(d), headers=auth(d))
+            ).status_code == 204
+            return
     run = (await c.get(f"/api/v1/workspaces/{ws}/runs/{run_id}")).json()["data"]
     assert run["state"] == "FINISHED" and run["outcome"] == (
         "INCOMPLETE" if missing_artifact_event else "UNSTABLE"
