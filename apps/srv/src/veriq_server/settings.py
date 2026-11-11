@@ -24,6 +24,13 @@ class Settings(BaseModel):
     reset_minutes: int = Field(default=30, ge=1, le=60)
 
     approved_engine_inventory_path: str | None = None
+    artifact_backend: Literal["FILE", "S3"] = "FILE"
+    artifact_directory: str = "var/veriq/artifacts"
+    artifact_retention_days: int = Field(default=30, ge=1, le=3650)
+    artifact_success_retention_days: int = Field(default=14, ge=1, le=3650)
+    artifact_s3_bucket: str | None = None
+    artifact_s3_endpoint: str | None = None
+    artifact_s3_region: str = "us-east-1"
     runtime_job_slots: int = Field(default=1, ge=1, le=100)
     compile_slots: int = Field(default=2, ge=1, le=100)
     cleanup_slots: int = Field(default=2, ge=1, le=100)

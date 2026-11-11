@@ -295,6 +295,22 @@ export function compileFiles(
       ...(plan.persistenceCheckpointStepId ? { persistenceCheckpointStepId: plan.persistenceCheckpointStepId } : {}) };
   });
   files["metadata/expected-plans.json"] = canonicalBytes({ schemaVersion: "1.0", cases: expectedCases });
+  const displayCases = analysis.cases.map(plan => {
+    let order = 0;
+    const flatten = (steps: CompiledStep[], parentId?: string): Record<string, unknown>[] => steps.flatMap(step => [{
+      id: step.step.id, sourceId: step.sourceId!, sourcePath: step.sourcePath, action: step.step.action,
+      order: order++, ...(parentId ? { parentId } : {}),
+      assertions: [...step.before, ...step.responseAssertions, ...step.after].map(a => ({
+        id: a.assertion.id, sourceId: a.sourceId!, sourcePath: a.sourcePath, type: a.assertion.type,
+        ...("operator" in a.assertion ? { operator: a.assertion.operator } : {}),
+        expectedSource: a.assertion.expectedSource, severity: a.assertion.severity,
+      })),
+      observers: (step.step.observers ?? []).map(o => ({ id: o.id, kind: "kind" in o ? o.kind : "HTTP",
+        ...("method" in o ? { method: o.method, path: o.path } : {}) })),
+    }, ...flatten(step.children ?? [], step.step.id)]);
+    return { caseVersionId: plan.caseVersionId, caseKey: plan.document.caseKey, title: plan.document.title, steps: flatten(plan.steps) };
+  });
+  files["metadata/report-display.json"] = canonicalBytes({ schemaVersion: "1.0", cases: displayCases });
   const manifest = Object.keys(files)
     .sort()
     .map((path) => ({

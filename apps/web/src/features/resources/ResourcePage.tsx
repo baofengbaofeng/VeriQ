@@ -968,6 +968,7 @@ function ValidationState({
         {job.state} · {job.outcome ?? ""} · {job.waitReason ?? ""} ·{" "}
         {job.errorCode ?? ""}
       </p>
+      {job.diagnostics?.length ? <ul aria-label="Compiler diagnostics">{job.diagnostics.map((issue, index) => <li key={index}><code>{issue.code}</code> {issue.pathStatus === "EXACT" ? <code>{issue.path || "/"}</code> : "Source path withheld"}: {issue.message}</li>)}</ul> : null}
       {job.state !== "FINISHED" && (
         <p>需要在线受管理的 Runtime / Requires an available managed Runtime.</p>
       )}

@@ -1,11 +1,11 @@
 """Externally triggered bounded maintenance, never a timer or Cron service."""
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 import json
 from hashlib import sha256
 from typing import Any
 from uuid import uuid4
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..contracts import canonical_bytes
 from ..db import (
@@ -130,6 +130,8 @@ class MaintenanceService:
             more |= len(attempts) > limit
             for attempt in attempts[:limit]:
                 attempt.phase, attempt.outcome = "FINISHED", "ERROR"
+                if attempt.finished_at is None:
+                    attempt.finished_at = current
                 attempt.facts = {
                     "business": "UNKNOWN",
                     "cleanup": "UNKNOWN",
@@ -309,6 +311,133 @@ class MaintenanceService:
                     )
                 )
                 count += 1
+        elif operation == "artifacts/expire":
+            from ..db import Artifact, ArtifactDeletion, ValidationReceipt
+            from .artifact import RAW_KINDS
+
+            rows = list(
+                (
+                    await self.session.execute(
+                        select(AttemptUpload, Attempt)
+                        .join(Attempt, Attempt.id == AttemptUpload.attempt_id)
+                        .join(Job, Job.id == Attempt.job_id)
+                        .where(
+                            AttemptUpload.workspace_id == workspace_id,
+                            AttemptUpload.id > cursor,
+                            Attempt.phase == "FINISHED",
+                            Job.kind == "TEST",
+                            Attempt.finished_at
+                            < current
+                            - timedelta(
+                                days=min(
+                                    self.settings.artifact_retention_days,
+                                    self.settings.artifact_success_retention_days,
+                                )
+                            ),
+                        )
+                        .order_by(AttemptUpload.id)
+                        .limit(limit + 1)
+                    )
+                ).all()
+            )
+            more = len(rows) > limit
+            next_cursor = rows[limit - 1][0].id if more else None
+
+            def cutoff(outcome: str | None) -> datetime:
+                days = (
+                    self.settings.artifact_success_retention_days
+                    if outcome == "PASSED"
+                    else self.settings.artifact_retention_days
+                )
+                return current - timedelta(days=days)
+
+            for upload, attempt in rows[:limit]:
+                if attempt.finished_at is None or attempt.finished_at >= cutoff(attempt.outcome):
+                    continue
+                if upload.metadata_json["kind"] not in RAW_KINDS:
+                    continue
+                if upload.expired_at is None:
+                    upload.expired_at = current
+                    self.session.add(
+                        AuditLog(
+                            id=str(uuid4()),
+                            workspace_id=workspace_id,
+                            actor_id=None,
+                            target_id=upload.id,
+                            action="artifact.expired",
+                            created_at=current,
+                        )
+                    )
+                    count += 1
+                    await self.session.flush()
+                artifact = await self.session.get(Artifact, (workspace_id, upload.sha256))
+                if not artifact or artifact.expired_at:
+                    continue
+                references = list(
+                    (
+                        await self.session.execute(
+                            select(AttemptUpload, Attempt, Job)
+                            .join(Attempt, Attempt.id == AttemptUpload.attempt_id)
+                            .join(Job, Job.id == Attempt.job_id)
+                            .where(
+                                AttemptUpload.workspace_id == workspace_id,
+                                AttemptUpload.sha256 == upload.sha256,
+                            )
+                        )
+                    ).all()
+                )
+                if any(u.expired_at is None for u, _, _ in references):
+                    continue
+                # Exact source/assignment roots stay pinned. Compiler/engine closure members
+                # are pinned by their retained non-raw uploads in the reference check above.
+                digest = upload.sha256
+                roots = [
+                    select(Job.id).where(
+                        Job.workspace_id == workspace_id,
+                        or_(
+                            Job.snapshot_hash == digest,
+                            Job.manifest_hash == digest,
+                            Job.required_capabilities["cleanupSnapshotSha256"].as_string()
+                            == digest,
+                        ),
+                    ),
+                    select(Run.id).where(
+                        Run.workspace_id == workspace_id, Run.snapshot_hash == digest
+                    ),
+                    select(CaseExecution.id).where(
+                        CaseExecution.workspace_id == workspace_id,
+                        CaseExecution.source_snapshot_hash == digest,
+                    ),
+                    select(Attempt.id).where(
+                        Attempt.workspace_id == workspace_id,
+                        or_(Attempt.snapshot_hash == digest, Attempt.manifest_hash == digest),
+                    ),
+                    select(ValidationReceipt.id).where(
+                        ValidationReceipt.workspace_id == workspace_id,
+                        ValidationReceipt.compiled_bundle_sha256 == digest,
+                    ),
+                ]
+                pinned = False
+                for root in roots:
+                    if (await self.session.execute(root.limit(1))).first():
+                        pinned = True
+                        break
+                if pinned:
+                    continue
+                artifact.expired_at = current
+                if artifact.storage_backend == "INLINE":
+                    artifact.content = None
+                    artifact.deleted_at = current
+                else:
+                    self.session.add(
+                        ArtifactDeletion(
+                            id=str(uuid4()),
+                            workspace_id=workspace_id,
+                            sha256=artifact.sha256,
+                            storage_backend=artifact.storage_backend,
+                            storage_incarnation=artifact.storage_incarnation,
+                        )
+                    )
         elif operation == "capacity/reconcile":
             keys = (
                 (
@@ -378,6 +507,8 @@ class MaintenanceService:
             await CapacityService(self.session, self.settings).release(attempt)
             if attempt.phase != "FINISHED":
                 attempt.phase, attempt.outcome = "FINISHED", "INCOMPLETE"
+                if attempt.finished_at is None:
+                    attempt.finished_at = await database_time(self.session)
                 job = await self.session.get(Job, attempt.job_id)
                 assert job
                 job.state, job.outcome = "FINISHED", "INCOMPLETE"
@@ -389,6 +520,8 @@ class MaintenanceService:
             await CapacityService(self.session, self.settings).quarantine(attempt)
             if attempt.phase != "FINISHED":
                 attempt.phase, attempt.outcome = "FINISHED", "ERROR"
+                if attempt.finished_at is None:
+                    attempt.finished_at = await database_time(self.session)
                 attempt.facts = {
                     **attempt.facts,
                     "business": "UNKNOWN",

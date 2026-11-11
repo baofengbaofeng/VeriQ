@@ -62,6 +62,7 @@ async def site():
             "veriq_resource_versions",
             "veriq_resource_dependencies",
             "veriq_artifacts",
+            "veriq_artifact_deletions",
             "veriq_jobs",
             "veriq_validation_receipts",
             "veriq_secret_refs",

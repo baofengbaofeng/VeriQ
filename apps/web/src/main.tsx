@@ -1,3 +1,4 @@
+import { ReportPage } from "./features/reports/ReportPage";
 import { useState, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Link, Navigate, Route, Routes } from "react-router-dom";
@@ -68,7 +69,8 @@ function App() {
               <Link to="/account">Account</Link>
               <Link to="/workspaces">Workspaces</Link>
               <Link to="/runtimes">Runtimes</Link>
-              <Link to="/resources">资源 / Resources</Link>
+              <Link to="/reports">Reports</Link>
+                <Link to="/resources">资源 / Resources</Link>
               <Link to="/environments">环境 / Environments</Link>
               {user.systemAdmin && <Link to="/admin/users">Users</Link>}
               <button
@@ -141,6 +143,7 @@ function App() {
               </WorkspaceProvider>
             }
           />
+          <Route path="/reports" element={<WorkspaceProvider key={user?.id ?? "anonymous"}><ReportPage /></WorkspaceProvider>} />
           <Route path="/invitations/accept" element={<AcceptInvitation />} />
           <Route
             path="/"

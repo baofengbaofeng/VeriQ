@@ -872,3 +872,16 @@ it('derives retry write potential from compiled source rather than a claimed run
   expect(plan.hasPotentialWrites).toBe(method==='POST');
  }
 });
+
+it("emits descriptor-pinned human report labels from the actual expanded analysis", () => {
+  const source=snapshot([{id:"open",action:"goto",path:"/",afterAssertions:[{id:"visible",type:"ui",target:"name",operator:"textContains",expected:"Visible",severity:"BLOCK",expectedSource:"REQ-visible"}]}]);
+  const output=compileFiles(source,distribution());
+  const bytes=output.files["metadata/report-display.json"];
+  expect(bytes,"human report metadata must be emitted by the real compiler").toBeDefined();
+  const display=JSON.parse(new TextDecoder().decode(bytes!));
+  expect(display.cases[0].title).toBe("Read");
+  expect(display.cases[0].steps[0]).toMatchObject({sourceId:"open",action:"goto"});
+  expect(display.cases[0].steps[0].assertions[0]).toMatchObject({sourceId:"visible",type:"ui",operator:"textContains",expectedSource:"REQ-visible"});
+  expect(output.bundle.files.find(f=>f.path==="metadata/report-display.json")?.sha256).toBe(hash(bytes!));
+  expect(validateSchema("ReportDisplayV1",display)).toEqual([]);
+});

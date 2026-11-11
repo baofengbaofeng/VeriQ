@@ -51,7 +51,7 @@ class ServiceAccountService:
         await self.authorize(actor, account.workspace_id, write=True)
         if account.disabled:
             raise Problem(403, "SERVICE_ACCOUNT_DISABLED", "Service account is disabled")
-        allowed = {"expired-leases/reap", "fixture-cleanups/reconcile", "capacity/reconcile"}
+        allowed = {"expired-leases/reap", "fixture-cleanups/reconcile", "capacity/reconcile", "artifacts/expire"}
         if (
             purpose not in {"RUNTIME_ENROLLMENT", "MAINTENANCE"}
             or (purpose == "MAINTENANCE" and (not operations or not set(operations) <= allowed))

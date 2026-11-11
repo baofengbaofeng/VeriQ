@@ -112,20 +112,29 @@ class CompletionService:
             ).scalars()
         ]
         evidence_complete = data["lastSequence"] == attempt.last_sequence
+        matched_evidence: list[AttemptUpload] = []
         for entry in manifest["evidence"]:
-            upload = uploaded.get(entry["sha256"])
-            if (
-                not upload
-                or upload.size_bytes != entry["sizeBytes"]
-                or upload.metadata_json["sensitivity"] != entry["sensitivity"]
-                or not any(
+            # Distinct paths may legitimately share bytes (for example empty compiler
+            # metadata). Bind each entry to its own complete upload/event, not an
+            # arbitrary last upload in the digest index used for closure membership.
+            matched = [
+                upload
+                for upload in uploads
+                if upload.sha256 == entry["sha256"]
+                and upload.size_bytes == entry["sizeBytes"]
+                and upload.metadata_json["sensitivity"] == entry["sensitivity"]
+                and upload.metadata_json["filename"] == entry["path"]
+                and any(
                     e["type"] == "ARTIFACT_CREATED"
                     and e["payload"]["artifactId"] == upload.id
                     and e["payload"]["kind"] == upload.metadata_json["kind"]
                     and e["payload"]["file"] == entry
                     for e in events
                 )
-            ):
+            ]
+            if matched:
+                matched_evidence.extend(matched)
+            else:
                 evidence_complete = False
         evidence_complete &= set(manifest["requiredEvidence"]) <= {
             e["sha256"] for e in manifest["evidence"]
@@ -133,7 +142,14 @@ class CompletionService:
         safe_to_retry = False
         if job.kind == "VALIDATE":
             facts = await self.validation(
-                job, attempt, runtime.trust_status, manifest, uploaded, repo, evidence_complete
+                job,
+                attempt,
+                runtime.trust_status,
+                manifest,
+                uploaded,
+                repo,
+                evidence_complete,
+                matched_evidence,
             )
         elif job.kind == "TEST":
             assignment = json.loads((await repo.artifact(attempt.manifest_hash)).content)
@@ -164,10 +180,7 @@ class CompletionService:
                 bool(job.required_capabilities.get("cleanupSnapshotSha256")),
                 manifest["cleanupStatus"],
             )
-            evidence_hashes = {e["sha256"] for e in manifest["evidence"]}
-            evidence_kinds = {
-                u.metadata_json["kind"] for u in uploads if u.sha256 in evidence_hashes
-            }
+            evidence_kinds = {u.metadata_json["kind"] for u in matched_evidence}
             evidence_complete &= set(plan["requiredEvidenceKinds"]) <= evidence_kinds
             evidence_complete &= any(
                 e["type"] == "ATTEMPT_STARTED"
@@ -208,6 +221,8 @@ class CompletionService:
             }
         was_cancelled = job.state == "CANCEL_REQUESTED"
         attempt.phase, attempt.outcome, attempt.facts = "FINISHED", facts["outcome"], facts
+        if attempt.finished_at is None:
+            attempt.finished_at = await database_time(self.session)
         attempt.finish_hash = data["manifestSha256"]
         receipt = {
             "attemptId": attempt.id,
@@ -260,6 +275,7 @@ class CompletionService:
         uploaded: dict[str, AttemptUpload],
         repo: ResourceRepository,
         evidence_complete: bool,
+        matched_evidence: list[AttemptUpload],
     ) -> dict[str, Any]:
         if trust != "MANAGED":
             raise Problem(
@@ -278,8 +294,8 @@ class CompletionService:
                 e["sha256"] for e in manifest["evidence"]
             }
             if not any(
-                uploaded[h].metadata_json["kind"] == "LOG" and uploaded[h].size_bytes > 0
-                for h in required_logs
+                u.sha256 in required_logs and u.metadata_json["kind"] == "LOG" and u.size_bytes > 0
+                for u in matched_evidence
             ):
                 raise Problem(
                     409,
@@ -292,6 +308,7 @@ class CompletionService:
                 "cleanup": manifest["cleanupStatus"],
                 "evidence": "COMPLETE",
                 "errorCode": manifest["failureCode"],
+                **({"diagnostics": manifest["diagnostics"]} if "diagnostics" in manifest else {}),
             }
         bundle_hash = manifest["compiledBundleSha256"]
         if bundle_hash not in uploaded:

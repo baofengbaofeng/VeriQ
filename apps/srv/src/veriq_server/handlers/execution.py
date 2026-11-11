@@ -30,10 +30,95 @@ class ExecutionAPI(DeviceAPI):
         offset = self.get_argument("offset", "")
         if not offset.isascii() or not offset.isdecimal() or len(offset) > 10:
             raise Problem(400, "INVALID_OFFSET", "Nonnegative bounded offset required")
+        from ..db import AttemptUpload, Artifact
+        from uuid import uuid4
+        from ..services.artifact import artifact_store, RAW_KINDS, verify
+
+        async with self.db.sessions.begin() as session:
+            await lock_installation(session)
+            attempt, _, _, _ = await LeaseService(session, self.config).proof(
+                attempt_id, self.header_proof()
+            )
+            upload = await session.get(AttemptUpload, upload_id)
+            if (
+                not upload
+                or upload.attempt_id != attempt.id
+                or upload.workspace_id != attempt.workspace_id
+            ):
+                raise Problem(404, "UPLOAD_NOT_FOUND", "Upload not assigned to Attempt")
+            prefix, complete, workspace = upload.content, upload.complete, attempt.workspace_id
+            digest, size = upload.sha256, upload.size_bytes
+            artifact = await session.get(Artifact, (workspace, digest))
+            if upload.expired_at or (complete and artifact and artifact.expired_at):
+                raise Problem(410, "ARTIFACT_EXPIRED", "Evidence retention has expired")
+            if complete and artifact is None:
+                raise Problem(409, "INVALID_ARTIFACT", "Completed artifact is missing")
+            raw = upload.metadata_json["kind"] in RAW_KINDS
+            backend = (
+                artifact.storage_backend
+                if artifact and not artifact.expired_at and (raw or complete)
+                else (self.config.artifact_backend if raw else "INLINE")
+            )
+            incarnation = (
+                artifact.storage_incarnation if artifact and not artifact.expired_at else None
+            )
+            if (
+                not complete
+                and backend != "INLINE"
+                and int(offset) == len(prefix)
+                and len(prefix) + len(self.request.body) == size
+            ):
+                try:
+                    verify(prefix + self.request.body, digest, size)
+                except ValueError:
+                    raise Problem(
+                        409, "UPLOAD_HASH_MISMATCH", "Uploaded bytes do not match declared hash"
+                    ) from None
+                if artifact is None:
+                    incarnation = str(uuid4())
+                    artifact = Artifact(
+                        workspace_id=workspace,
+                        sha256=digest,
+                        content=None,
+                        size_bytes=size,
+                        media_type=upload.metadata_json["contentType"],
+                        storage_backend=backend,
+                        storage_incarnation=incarnation,
+                    )
+                    session.add(artifact)
+                elif artifact.expired_at:
+                    # The old immutable incarnation has its own durable deletion record.
+                    # Rehydration never clears any old AttemptUpload logical tombstone.
+                    incarnation = str(uuid4())
+                    artifact.storage_backend, artifact.storage_incarnation = backend, incarnation
+                    artifact.content = None
+                    artifact.expired_at = artifact.deleted_at = None
+                await session.flush()
+        external = None
+        if complete and backend != "INLINE":
+            external = await artifact_store(self.config, backend).read(
+                workspace, digest, size, incarnation
+            )
+        elif (
+            not complete
+            and backend != "INLINE"
+            and int(offset) == len(prefix)
+            and len(prefix) + len(self.request.body) == size
+        ):
+            verify(prefix + self.request.body, digest, size)
+            await artifact_store(self.config, backend).put(
+                workspace, digest, prefix + self.request.body, incarnation
+            )
         async with self.db.sessions.begin() as session:
             await lock_installation(session)
             result = await ContentService(session, self.config).chunk(
-                attempt_id, upload_id, self.header_proof(), int(offset), self.request.body
+                attempt_id,
+                upload_id,
+                self.header_proof(),
+                int(offset),
+                self.request.body,
+                external=external,
+                staged=(prefix, complete, backend, incarnation),
             )
         self.respond(result)
 
@@ -43,6 +128,7 @@ class ExecutionAPI(DeviceAPI):
             "expired-leases/reap",
             "fixture-cleanups/reconcile",
             "capacity/reconcile",
+            "artifacts/expire",
             "reconcile",
         }:
             data = self.body(
@@ -68,6 +154,60 @@ class ExecutionAPI(DeviceAPI):
                         data["limit"],
                         data.get("cursor", ""),
                     )
+            if self.action == "artifacts/expire":
+                from sqlalchemy import select
+                from ..db import Artifact, ArtifactDeletion
+                from ..services.artifact import artifact_store
+                from ..services.service_account import ServiceAccountService
+                from ..service import now
+
+                async with self.db.sessions.begin() as session:
+                    await lock_installation(session)
+                    await ServiceAccountService(session).require_maintenance(
+                        authorization, data["workspaceId"], self.action
+                    )
+                    rows = list(
+                        (
+                            await session.execute(
+                                select(ArtifactDeletion)
+                                .where(
+                                    ArtifactDeletion.workspace_id == data["workspaceId"],
+                                    ArtifactDeletion.deleted_at.is_(None),
+                                )
+                                .limit(data["limit"])
+                            )
+                        ).scalars()
+                    )
+                    deletes = [
+                        (
+                            row.id,
+                            row.workspace_id,
+                            row.sha256,
+                            row.storage_backend,
+                            row.storage_incarnation,
+                        )
+                        for row in rows
+                    ]
+                for deletion_id, workspace, digest, backend, incarnation in deletes:
+                    await artifact_store(self.config, backend).delete(
+                        workspace, digest, incarnation
+                    )
+                    async with self.db.sessions.begin() as session:
+                        await lock_installation(session)
+                        await ServiceAccountService(session).require_maintenance(
+                            authorization, workspace, self.action
+                        )
+                        row = await session.get(Artifact, (workspace, digest))
+                        deleted = await session.get(ArtifactDeletion, deletion_id)
+                        assert deleted
+                        deleted.deleted_at = now()
+                        if (
+                            row
+                            and row.expired_at
+                            and row.storage_backend == backend
+                            and row.storage_incarnation == incarnation
+                        ):
+                            row.deleted_at = deleted.deleted_at
             self.respond(result)
             return
         schema = {

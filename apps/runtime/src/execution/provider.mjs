@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 // Trusted worker module copied by the supervisor, never selected by DSL or a bundle.
 import { readFile } from 'node:fs/promises';
 import { connect } from 'node:net';
@@ -30,7 +31,17 @@ export async function createExecutionContext() {
     timer.unref();
     const secrets = new Map();
     const execution = JSON.parse(await readFile(new URL('./execution.json', import.meta.url), 'utf8'));
-    return { execution, finalizeExecution: async context => context.close(), signal: controller.signal, lifecycle: createHttpLifecycle(), credentials: { resolve: reference => { const key = JSON.stringify(reference); if (!secrets.has(key))
+    return { execution, finalizeExecution: async context => {
+        try {
+            // Optional capture must not start after trusted cancellation. Context close
+            // remains mandatory for physical completion and retry observation.
+            const page = context.pages()[0];
+            if (!controller.signal.aborted && page && !page.isClosed())
+                await page.screenshot({path: join(settings.tmp, 'screenshot.png'), timeout:5000});
+        } finally {
+            await context.close();
+        }
+    }, signal: controller.signal, lifecycle: createHttpLifecycle(), credentials: { resolve: reference => { const key = JSON.stringify(reference); if (!secrets.has(key))
                 secrets.set(key, contact({ type: 'credential', reference })); return secrets.get(key); } }, downloads: { directory: settings.downloads, maxBytes: settings.downloadLimit }, redact: value => value,
         onEvent: async (event) => { if (event.type === 'CASE_FINISHED')
             clearInterval(timer); await contact({ type: 'event', event: event.type === 'CASE_FINISHED' ? { type: event.type, result: { ...event.result, steps: [] } } : event }); }, restrictedEvidence: evidence => contact({ type: 'restricted', evidence }) };

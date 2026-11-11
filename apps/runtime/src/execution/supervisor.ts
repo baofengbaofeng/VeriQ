@@ -23,7 +23,7 @@ export interface ClaimedAttempt {
 }
 export interface LocalEvidence {
     file: EvidenceFileEntryV1;
-    kind: 'TRACE' | 'DOWNLOAD' | 'LOG' | 'SOURCE' | 'MANIFEST';
+    kind: 'TRACE' | 'DOWNLOAD' | 'LOG' | 'SOURCE' | 'MANIFEST' | 'HTML' | 'JUNIT' | 'SCREENSHOT';
     localPath: string;
 }
 export interface AttemptResult {
@@ -203,7 +203,7 @@ export class ExecutionSupervisor {
                 const entry = bundle.entrypoints.find(e => e.caseVersionId === execution!.caseVersionId);
                 if (!entry)
                     throw new Error('MISSING_CASE_ENTRYPOINT');
-                const config = { testDir: './cases', testMatch: entry.path.split('/').pop(), workers: 1, retries: 0, reporter: [['json', { outputFile: join(tmp, 'playwright.json') }]], outputDir: join(tmp, 'test-results'), use: { browserName: execution.browser, locale: execution.environment.locale, timezoneId: execution.environment.timezone, serviceWorkers: 'block', trace: 'on', launchOptions: { executablePath: this.options.browserExecutable, args: ['--no-sandbox'], downloadsPath: invocation.downloads } } };
+                const config = { testDir: './cases', testMatch: entry.path.split('/').pop(), workers: 1, retries: 0, reporter: [['json', { outputFile: join(tmp, 'playwright.json') }], ['junit', { outputFile: join(tmp, 'junit.xml') }], ['html', { outputFolder: join(tmp, 'html'), open: 'never' }]], outputDir: join(tmp, 'test-results'), use: { browserName: execution.browser, locale: execution.environment.locale, timezoneId: execution.environment.timezone, serviceWorkers: 'block', trace: 'on', launchOptions: { executablePath: this.options.browserExecutable, args: ['--no-sandbox'], downloadsPath: invocation.downloads } } };
                 await write('playwright.config.mjs', Buffer.from(`export default ${JSON.stringify(config)};`));
             }
             if (controller.signal.aborted)
@@ -246,6 +246,7 @@ export class ExecutionSupervisor {
                 businessOutcome: 'PASSED' | 'ERROR';
                 cleanupStatus: CleanupStatus;
                 failureCode?: string;
+                diagnostics?: { code: string; path: string; pathStatus: "EXACT" | "REDACTED"; message: string }[];
             }>(join(work, 'worker-result.json'));
             const cleanupStatus = manifest.kind === 'TEST' ? caseResult?.cleanupStatus ?? 'PENDING' : workerResult.cleanupStatus;
             if (manifest.kind === 'TEST' && !caseResult)
@@ -256,6 +257,16 @@ export class ExecutionSupervisor {
             }
             const add = async (path: string, kind: LocalEvidence['kind'], name = path, sensitivity: EvidenceFileEntryV1['sensitivity'] = 'REDACTED') => { const bytes = await readFile(join(work, path)); files.push({ kind, localPath: join(work, path), file: { path: name, sha256: sha256(bytes), sizeBytes: bytes.length, sensitivity } }); };
             if (manifest.kind === 'TEST') {
+                for (const [relative, name, kind] of [['junit.xml', 'junit.xml', 'JUNIT'], ['html/index.html', 'report.html', 'HTML'], ['screenshot.png', 'screenshot.png', 'SCREENSHOT']] as const) {
+                    try { await copyFile(join(tmp, relative), join(work, name)); }
+                    catch (error) {
+                        // Cancellation may close the page before this optional capture.
+                        // Missing required Trace still fails the canonical evidence check.
+                        if (kind === 'SCREENSHOT' && (error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+                        throw error;
+                    }
+                    await add(name, kind, name, 'CREDENTIAL_RESTRICTED');
+                }
                 const traces: string[] = [];
                 const visit = async (path: string): Promise<void> => { for (const entry of await readdir(path, { withFileTypes: true })) {
                     const full = join(path, entry.name);
@@ -297,7 +308,7 @@ export class ExecutionSupervisor {
             else if (workerResult.businessOutcome === 'PASSED')
                 completion = { ...common, kind: 'VALIDATE', businessOutcome: 'PASSED', compiledBundleSha256: sha256(await readFile(join(work, 'bundle.json'))), engineInventorySha256: release.inventoryHash };
             else
-                completion = { ...common, kind: 'VALIDATE', businessOutcome: 'ERROR', engineInventorySha256: release.inventoryHash, failureCode: workerResult.failureCode ?? 'COMPILATION_FAILED', evidence: evidence as [
+                completion = { ...common, kind: 'VALIDATE', businessOutcome: 'ERROR', engineInventorySha256: release.inventoryHash, failureCode: workerResult.failureCode ?? 'COMPILATION_FAILED', ...(workerResult.diagnostics ? { diagnostics: workerResult.diagnostics } : {}), evidence: evidence as [
                         EvidenceFileEntryV1,
                         ...EvidenceFileEntryV1[]
                     ], requiredEvidence: requiredEvidence as [

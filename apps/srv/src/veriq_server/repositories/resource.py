@@ -4,12 +4,31 @@ The calling service authorizes current membership. Mutations acquire the existin
 installation guard before identity/scoped reads and retain it through commit.
 """
 
+from typing import Protocol, cast
 from hashlib import sha256
+from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth.authorization import WorkspaceScope
-from ..db import Resource, ResourceDraft, ResourceVersion, Artifact, Job, ValidationReceipt
+from ..db import (
+    Resource,
+    ResourceDraft,
+    ResourceVersion,
+    Artifact,
+    ArtifactDeletion,
+    Job,
+    ValidationReceipt,
+)
 from ..service import Problem
+
+
+class InlineArtifact(Protocol):
+    """Read-only validated shape; the returned object remains the retained ORM row."""
+
+    @property
+    def content(self) -> bytes: ...
+    @property
+    def size_bytes(self) -> int: ...
 
 
 class ResourceRepository:
@@ -74,15 +93,17 @@ class ResourceRepository:
             )
         ).scalar_one_or_none()
 
-    async def artifact(self, digest: str) -> Artifact:
+    async def artifact(self, digest: str) -> InlineArtifact:
         row = await self.session.get(Artifact, (self.scope.workspace_id, digest))
         if (
             row is None
+            or row.content is None
+            or row.expired_at is not None
             or row.sha256 != sha256(row.content).hexdigest()
             or row.size_bytes != len(row.content)
         ):
             raise Problem(409, "INVALID_ARTIFACT", "Immutable artifact missing or corrupt")
-        return row
+        return cast(InlineArtifact, row)
 
     async def store(self, content: bytes, media_type: str = "application/json") -> str:
         digest = sha256(content).hexdigest()
@@ -97,6 +118,24 @@ class ResourceRepository:
                     media_type=media_type,
                 )
             )
+            await self.session.flush()
+        elif existing.content is None or existing.expired_at is not None:
+            # A later source/manifest write pins these exact bytes inline. Raw read ACLs
+            # remain tied to AttemptUpload, not the physical storage representation.
+            if existing.storage_backend != "INLINE" and existing.expired_at is None:
+                self.session.add(
+                    ArtifactDeletion(
+                        id=str(uuid4()),
+                        workspace_id=self.scope.workspace_id,
+                        sha256=digest,
+                        storage_backend=existing.storage_backend,
+                        storage_incarnation=existing.storage_incarnation,
+                    )
+                )
+            existing.content = content
+            existing.storage_backend = "INLINE"
+            existing.storage_incarnation = None
+            existing.expired_at = existing.deleted_at = None
             await self.session.flush()
         else:
             await self.artifact(digest)

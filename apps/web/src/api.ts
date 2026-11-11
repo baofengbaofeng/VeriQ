@@ -266,3 +266,11 @@ export const runtimeApi = {
       signal,
     ),
 };
+
+/** Cookie/CSRF streaming transport shared by typed feature adapters. */
+export async function streamRequest(path: string, data: unknown, signal: AbortSignal) {
+  const response = await fetch("/api/v1" + path, {method: "POST", credentials: "same-origin", signal,
+    headers: {"Content-Type":"application/json", "X-CSRF-Token":csrfToken}, body:JSON.stringify(data)});
+  if (!response.ok) { const body=await response.json(); if(response.status===401) window.dispatchEvent(new Event("veriq:session-expired")); throw new ApiError(body.code,body.message,response.status,body.requestId); }
+  return response;
+}

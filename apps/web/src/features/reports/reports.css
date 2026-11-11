@@ -1,0 +1,53 @@
+.veriq-reports pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.report-case {
+  border-top: 1px solid #d5e0e2;
+  margin-top: 1.5rem;
+  padding-top: 0.5rem;
+}
+.report-steps {
+  padding-left: 1.5rem;
+}
+.report-steps > li {
+  margin: 1rem 0;
+  padding: 0.75rem;
+  background: #f5f8f8;
+  border-radius: 0.5rem;
+}
+.report-assertion {
+  padding: 0.75rem;
+  margin-top: 0.75rem;
+  background: white;
+  border: 1px solid #d5e0e2;
+}
+.report-assertion h5 {
+  font-size: 1rem;
+  margin: 0;
+}
+.report-assertion table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+.report-assertion th,
+.report-assertion td {
+  text-align: left;
+  padding: 0.5rem;
+  border: 1px solid #d5e0e2;
+  vertical-align: top;
+}
+.report-assertion pre {
+  margin: 0;
+}
+.veriq-reports details {
+  margin: 0.75rem 0;
+}
+.veriq-reports li > button {
+  margin: 0.25rem;
+}
+.report-screenshot {
+  max-width: 100%;
+  height: auto;
+}

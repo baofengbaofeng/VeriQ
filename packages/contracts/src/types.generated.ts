@@ -1252,6 +1252,8 @@ export interface ContractDefinitions {
   ValidateSuccessCompletionManifestV1?: ValidateSuccessCompletionManifestV1;
   ValidateFailureCompletionManifestV1?: ValidateFailureCompletionManifestV1;
   DeviceRotationRequest?: DeviceRotationRequest;
+  CompilerDiagnosticV1?: CompilerDiagnosticV1;
+  ReportDisplayV1?: ReportDisplayV1;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -2104,6 +2106,20 @@ export interface ValidateFailureCompletionManifestV1 {
   kind: "VALIDATE";
   engineInventorySha256: Sha256;
   failureCode: string;
+  /**
+   * @maxItems 100
+   */
+  diagnostics?: CompilerDiagnosticV1[];
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "CompilerDiagnosticV1".
+ */
+export interface CompilerDiagnosticV1 {
+  code: string;
+  path: string;
+  pathStatus: "EXACT" | "REDACTED";
+  message: string;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -2127,6 +2143,53 @@ export interface CleanupCompletionManifestV1 {
   kind: "CLEANUP";
   fixtureVersionId: Id;
   namespace: Key;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "ReportDisplayV1".
+ */
+export interface ReportDisplayV1 {
+  schemaVersion: "1.0";
+  /**
+   * @maxItems 1000
+   */
+  cases: {
+    caseVersionId: Id;
+    caseKey: Key;
+    title: string;
+    /**
+     * @maxItems 500
+     */
+    steps: {
+      id: Key;
+      sourceId: Key;
+      sourcePath: string;
+      action: string;
+      order: number;
+      parentId?: Key;
+      /**
+       * @maxItems 5000
+       */
+      assertions: {
+        id: Key;
+        sourceId: Key;
+        sourcePath: string;
+        type: string;
+        operator?: string;
+        expectedSource: string;
+        severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      }[];
+      /**
+       * @maxItems 1000
+       */
+      observers: {
+        id: Key;
+        kind: string;
+        method?: string;
+        path?: string;
+      }[];
+    }[];
+  }[];
 }
 
 export type SnapshotV1 = AssetSnapshotV1;

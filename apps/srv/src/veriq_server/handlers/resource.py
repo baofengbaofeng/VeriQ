@@ -66,6 +66,8 @@ class ResourceAPI(API):
                                 r"[A-Z][A-Z0-9_]{0,79}", code
                             ):
                                 dto["errorCode"] = code
+                            if attempt.facts.get("diagnostics"):
+                                dto["diagnostics"] = attempt.facts["diagnostics"]
                     self.respond(dto)
                     return
                 receipt = (

@@ -555,7 +555,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["getReport"];
+        get: operations["getRunReport"];
         put?: never;
         post?: never;
         delete?: never;
@@ -974,7 +974,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["listAudit"];
+        get: operations["getWorkspaceAudit"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1188,8 +1188,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description T12 authorization obligation: raw Trace, screenshots, HTML and downloads are CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata only. This schema does not implement storage or authorization. */
-        post: operations["maintenanceRetention"];
+        post: operations["expireArtifacts"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1733,6 +1732,86 @@ export interface paths {
          * @description Current Workspace VIEW, resource/version/receipt/descriptor membership are required. Omit path for an allowlisted TypeScript file listing. A path returns exact retained text/plain bytes verified against descriptor hash/size; caller hashes, arbitrary files and raw evidence are not accepted.
          */
         get: operations["getPublishedCompiledSource"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/runs/{runId}/events/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["streamRunReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/attempts/{attemptId}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getAttemptHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/attempts/{attemptId}/artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getAttemptArtifacts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/attempts/{attemptId}/artifacts/{artifactId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["downloadAttemptArtifact"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/runs/{runId}/attempts/{attemptId}/display": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getReportDisplay"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3094,6 +3173,7 @@ export interface components {
             outcome?: components["schemas"]["AttemptOutcome"];
             /** @description Safe code projected from retained validated Attempt facts; no raw log content. */
             errorCode?: string;
+            diagnostics?: components["schemas"]["CompilerDiagnosticV1"][];
         };
         ArtifactDTO: {
             id: components["schemas"]["Id"];
@@ -3280,9 +3360,15 @@ export interface components {
         };
         ReportDTO: {
             run: components["schemas"]["RunDTO"];
-            jobs: components["schemas"]["JobDTO"][];
-            events: components["schemas"]["ExecutionEventV1"][];
-            artifacts: components["schemas"]["ArtifactDTO"][];
+            cases: components["schemas"]["ReportCaseDTO"][];
+            gateAtExecution: components["schemas"]["GateDTO"];
+            gateNow: components["schemas"]["GateDTO"];
+            statistics: {
+                caseCount: number;
+                firstPassCount: number;
+                retryPassCount: number;
+                infrastructureErrorCount: number;
+            };
         };
         ServiceAccountWrite: {
             name: string;
@@ -3740,7 +3826,7 @@ export interface components {
         ServiceTokenIssue: {
             /** @enum {unknown} */
             purpose: "RUNTIME_ENROLLMENT" | "MAINTENANCE";
-            operations?: ("expired-leases/reap" | "fixture-cleanups/reconcile" | "capacity/reconcile")[];
+            operations?: ("expired-leases/reap" | "fixture-cleanups/reconcile" | "capacity/reconcile" | "artifacts/expire")[];
         };
         ServiceEnrollmentRequest: {
             name: string;
@@ -3791,6 +3877,165 @@ export interface components {
             data: components["schemas"]["CompiledSourceDTO"];
             requestId: string;
         };
+        CompilerDiagnosticV1: {
+            code: string;
+            path: string;
+            /** @enum {unknown} */
+            pathStatus: "EXACT" | "REDACTED";
+            message: string;
+        };
+        GateDTO: {
+            passed: boolean;
+            reasons: string[];
+        };
+        ReportAttemptDTO: {
+            id: components["schemas"]["Id"];
+            attemptNo: number;
+            runtimeId: components["schemas"]["Id"];
+            phase: string;
+            outcome: string | null;
+            facts: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            createdAt: string;
+            activatedAt: string | null;
+            lastSequence: number;
+            provenance: components["schemas"]["JsonValue"];
+            gateAtExecution: components["schemas"]["GateDTO"];
+            gateNow: components["schemas"]["GateDTO"];
+            compensations: {
+                id: string;
+                state: string;
+                outcome: string | null;
+            }[];
+            /**
+             * Format: date-time
+             * @description Server database UTC terminal time, independent of physical process-stop proof; null for historical unknown.
+             */
+            finishedAt: string | null;
+        };
+        ReportCaseDTO: {
+            id: components["schemas"]["Id"];
+            caseVersionId: components["schemas"]["Id"];
+            state: string;
+            outcome: string | null;
+            provenance: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            attempts: components["schemas"]["ReportAttemptDTO"][];
+        };
+        RunReportDTO: {
+            run: components["schemas"]["RunDTO"];
+            cases: components["schemas"]["ReportCaseDTO"][];
+            gateAtExecution: components["schemas"]["GateDTO"];
+            gateNow: components["schemas"]["GateDTO"];
+            statistics: {
+                caseCount: number;
+                firstPassCount: number;
+                retryPassCount: number;
+                infrastructureErrorCount: number;
+            };
+        };
+        ReportStreamRequest: {
+            cursor?: string;
+        };
+        ReportEventDTO: {
+            schemaVersion: string;
+            attemptId: components["schemas"]["Id"];
+            sequence: number;
+            timestamp: string;
+            type: string;
+            payload: components["schemas"]["JsonValue"];
+            valuesAvailable: boolean;
+            stepId?: string;
+            assertionId?: string;
+        };
+        ReportHistoryDTO: {
+            items: components["schemas"]["ReportEventDTO"][];
+            nextSequence: number;
+            hasMore: boolean;
+        };
+        ReportArtifactDTO: {
+            id: components["schemas"]["Id"];
+            attemptId: components["schemas"]["Id"];
+            sha256: components["schemas"]["Sha256"];
+            sizeBytes: number;
+            kind: string;
+            /** @constant */
+            sensitivity: "CREDENTIAL_RESTRICTED";
+            /** @enum {unknown} */
+            state: "AVAILABLE" | "EXPIRED";
+        };
+        ReportArtifactsDTO: {
+            items: components["schemas"]["ReportArtifactDTO"][];
+        };
+        ReportAuditDTO: {
+            items: {
+                id: components["schemas"]["Id"];
+                actorId: string | null;
+                targetId: string | null;
+                action: string;
+                createdAt: string;
+            }[];
+            nextCursor: string | null;
+        };
+        RunReportDTOEnvelope: {
+            data: components["schemas"]["RunReportDTO"];
+            requestId: string;
+        };
+        ReportHistoryDTOEnvelope: {
+            data: components["schemas"]["ReportHistoryDTO"];
+            requestId: string;
+        };
+        ReportArtifactsDTOEnvelope: {
+            data: components["schemas"]["ReportArtifactsDTO"];
+            requestId: string;
+        };
+        ReportAuditDTOEnvelope: {
+            data: components["schemas"]["ReportAuditDTO"];
+            requestId: string;
+        };
+        ReportCaseDisplayDTO: {
+            caseVersionId: components["schemas"]["Id"];
+            caseKey: components["schemas"]["Key"];
+            title: string;
+            steps: {
+                id: components["schemas"]["Key"];
+                sourceId: components["schemas"]["Key"];
+                sourcePath: string;
+                action: string;
+                order: number;
+                parentId?: components["schemas"]["Key"];
+                assertions: {
+                    id: components["schemas"]["Key"];
+                    sourceId: components["schemas"]["Key"];
+                    sourcePath: string;
+                    type: string;
+                    operator?: string;
+                    expectedSource: string;
+                    /** @enum {unknown} */
+                    severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+                }[];
+                observers: {
+                    id: components["schemas"]["Key"];
+                    kind: string;
+                    method?: string;
+                    path?: string;
+                }[];
+            }[];
+        };
+        ReportDisplayDTO: {
+            display: components["schemas"]["ReportCaseDisplayDTO"] | null;
+            /** @enum {unknown} */
+            metadataStatus: "AVAILABLE" | "ABSENT" | "REDACTED";
+            environment: {
+                [key: string]: string;
+            };
+        };
+        ReportDisplayDTOEnvelope: {
+            data: components["schemas"]["ReportDisplayDTO"];
+            requestId: string;
+        };
         /** @description JSON used only in interpolated DSL fields, recursively restricted to SafeString bindings. */
         BindingJsonValue: ContractBindingJsonValue;
         BindingJsonObject: {
@@ -3839,6 +4084,8 @@ export interface components {
             secretVersionId: components["schemas"]["Id"];
             allowedIdentityIds?: string[];
         };
+        /** @enum {string} */
+        ArtifactSensitivity: "REDACTED" | "CREDENTIAL_RESTRICTED";
         DurationMs: number;
         /** @description Literal diagnostic/evidence text; retain invalid expressions verbatim and never evaluate or interpolate it. */
         DiagnosticText: string;
@@ -3886,8 +4133,6 @@ export interface components {
                 status?: number;
             }[];
         };
-        /** @enum {string} */
-        ArtifactSensitivity: "REDACTED" | "CREDENTIAL_RESTRICTED";
         EvidenceFileEntryV1: {
             path: components["schemas"]["FilePath"];
             sha256: components["schemas"]["Sha256"];
@@ -3975,6 +4220,7 @@ export interface components {
             kind: "VALIDATE";
             engineInventorySha256: components["schemas"]["Sha256"];
             failureCode: string;
+            diagnostics?: components["schemas"]["CompilerDiagnosticV1"][];
         };
         ValidateCompletionManifestV1: components["schemas"]["ValidateSuccessCompletionManifestV1"] | components["schemas"]["ValidateFailureCompletionManifestV1"];
         CleanupCompletionManifestV1: {
@@ -8661,7 +8907,7 @@ export interface operations {
             };
         };
     };
-    getReport: {
+    getRunReport: {
         parameters: {
             query?: never;
             header?: never;
@@ -8673,16 +8919,16 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /** @description Success */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ReportDTOEnvelope"];
+                    "application/json": components["schemas"]["RunReportDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Error */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -8691,7 +8937,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Error */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -8700,7 +8946,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Error */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8709,7 +8955,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Error */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -8718,7 +8964,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Error */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -8727,17 +8973,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
-            429: {
+            /** @description Error */
+            410: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -11204,12 +11441,9 @@ export interface operations {
             };
         };
     };
-    listAudit: {
+    getWorkspaceAudit: {
         parameters: {
-            query?: {
-                cursor?: string;
-                limit?: number;
-            };
+            query?: never;
             header?: never;
             path: {
                 workspaceId: components["schemas"]["Id"];
@@ -11218,16 +11452,16 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /** @description Success */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AuditDTOPageEnvelope"];
+                    "application/json": components["schemas"]["ReportAuditDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Error */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -11236,7 +11470,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Error */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -11245,7 +11479,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Error */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11254,7 +11488,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Error */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11263,7 +11497,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Error */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11272,17 +11506,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
-            429: {
+            /** @description Error */
+            410: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -12369,7 +12594,7 @@ export interface operations {
             };
         };
     };
-    maintenanceRetention: {
+    expireArtifacts: {
         parameters: {
             query?: never;
             header: {
@@ -15396,6 +15621,397 @@ export interface operations {
             };
             /** @description Stable JSON error; code is a machine-readable domain code. */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    streamRunReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                runId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportStreamRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+            /** @description Error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getAttemptHistory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                attemptId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportHistoryDTOEnvelope"];
+                };
+            };
+            /** @description Error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getAttemptArtifacts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                attemptId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportArtifactsDTOEnvelope"];
+                };
+            };
+            /** @description Error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    downloadAttemptArtifact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                attemptId: components["schemas"]["Id"];
+                artifactId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            /** @description Error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getReportDisplay: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                runId: components["schemas"]["Id"];
+                attemptId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportDisplayDTOEnvelope"];
+                };
+            };
+            /** @description Error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            410: {
                 headers: {
                     [name: string]: unknown;
                 };

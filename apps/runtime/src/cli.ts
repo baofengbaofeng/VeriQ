@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { openTrace } from "./trace.ts";
 /** Development CLI. Native launcher/process names and vault packaging are T20. */
 import { Command } from "commander";
 import pino from "pino";
@@ -34,6 +35,7 @@ program.option(
 const controller = new AbortController();
 process.once("SIGINT", () => controller.abort());
 process.once("SIGTERM", () => controller.abort());
+program.command("trace").description("Privileged local evidence viewer").command("open <file>").description("Open a downloaded Trace locally using pinned Playwright").action((file: string) => openTrace(file, controller.signal));
 const store = () =>
   new DeviceStore(program.opts<{ configDir?: string }>().configDir);
 const common = (command: Command) =>

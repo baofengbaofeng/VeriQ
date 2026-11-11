@@ -17,6 +17,7 @@ from .handlers.credential import CredentialAPI, CredentialResolveAPI, AuthAdapte
 from .handlers.service_account import ServiceAccountAPI
 from .handlers.execution import ExecutionAPI
 from .handlers.run import RunAPI, AttemptAuditAPI
+from .handlers.report import ReportAPI
 from .services.lease import DatabaseAttemptProofVerifier
 from .handlers.enrollment import DeviceAPI, EnrollmentAPI, RuntimeAPI
 from .service import Problem
@@ -36,6 +37,8 @@ class UnknownAPI(API):
 
 
 def handler_for(action: str) -> type[API]:
+    if action in {"report", "report-artifacts", "report-artifact", "report-history", "report-stream", "report-audit", "report-display"}:
+        return ReportAPI
     if action == "attempt-audit":
         return AttemptAuditAPI
     if action in {"runs", "run", "run-cancel"}:
@@ -53,6 +56,7 @@ def handler_for(action: str) -> type[API]:
         "expired-leases/reap",
         "fixture-cleanups/reconcile",
         "capacity/reconcile",
+        "artifacts/expire",
     }:
         return ExecutionAPI
     if action in {
@@ -132,6 +136,13 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
             "/api/v1/workspaces/([0-9a-fA-F-]{36})/attempts/([0-9a-fA-F-]{36})/reconcile",
             "attempt-audit",
         ),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runs/([0-9a-fA-F-]{36})/report", "report"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runs/([0-9a-fA-F-]{36})/attempts/([0-9a-fA-F-]{36})/display", "report-display"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runs/([0-9a-fA-F-]{36})/events/stream", "report-stream"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/attempts/([0-9a-fA-F-]{36})/history", "report-history"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/attempts/([0-9a-fA-F-]{36})/artifacts", "report-artifacts"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/attempts/([0-9a-fA-F-]{36})/artifacts/([0-9a-fA-F-]{36})", "report-artifact"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/audit", "report-audit"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runs", "runs"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runs/([0-9a-fA-F-]{36})", "run"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runs/([0-9a-fA-F-]{36})/cancel", "run-cancel"),
@@ -149,6 +160,7 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
         ("/internal/v1/maintenance/expired-leases/reap", "expired-leases/reap"),
         ("/internal/v1/maintenance/fixture-cleanups/reconcile", "fixture-cleanups/reconcile"),
         ("/internal/v1/maintenance/capacity/reconcile", "capacity/reconcile"),
+        ("/internal/v1/maintenance/artifacts/expire", "artifacts/expire"),
         ("/internal/v1/attempts/([0-9a-fA-F-]{36})/reconcile", "reconcile"),
         ("/internal/v1/jobs/claim", "claim"),
         ("/internal/v1/attempts/([0-9a-fA-F-]{36})/activate", "activate"),

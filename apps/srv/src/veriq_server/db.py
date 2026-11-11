@@ -210,9 +210,28 @@ class Artifact(Base):
         uuid_type, ForeignKey("veriq_workspaces.id"), primary_key=True
     )
     sha256: Mapped[str] = mapped_column(hash_type, primary_key=True)
-    content: Mapped[bytes] = mapped_column(LONGBLOB)
+    content: Mapped[bytes | None] = mapped_column(LONGBLOB, nullable=True)
     size_bytes: Mapped[int] = mapped_column(Integer)
     media_type: Mapped[str] = mapped_column(String(80, collation="ascii_bin"))
+    storage_backend: Mapped[str] = mapped_column(
+        String(16), default="INLINE", server_default="INLINE"
+    )
+    storage_incarnation: Mapped[str | None] = mapped_column(uuid_type)
+    expired_at: Mapped[datetime | None] = mapped_column(DATETIME(fsp=6))
+    deleted_at: Mapped[datetime | None] = mapped_column(DATETIME(fsp=6))
+
+
+class ArtifactDeletion(Base):
+    """Durable deletion of one immutable physical incarnation, never a job queue."""
+
+    __tablename__ = "veriq_artifact_deletions"
+    __table_args__ = (Index("ix_artifact_delete_pending", "workspace_id", "deleted_at"),)
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_workspaces.id"))
+    sha256: Mapped[str] = mapped_column(hash_type)
+    storage_backend: Mapped[str] = mapped_column(String(16))
+    storage_incarnation: Mapped[str | None] = mapped_column(uuid_type)
+    deleted_at: Mapped[datetime | None] = mapped_column(DATETIME(fsp=6))
 
 
 class Job(Base):
@@ -612,6 +631,8 @@ class Attempt(Base):
     outcome: Mapped[str | None] = mapped_column(String(24, collation="ascii_bin"))
     capacity_state: Mapped[str] = mapped_column(String(24, collation="ascii_bin"))
     facts: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    execution_provenance: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    finished_at: Mapped[datetime | None] = mapped_column(DATETIME(fsp=6))
     finish_hash: Mapped[str | None] = mapped_column(hash_type)
     finish_receipt: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     last_sequence: Mapped[int] = mapped_column(BigInteger, default=0)
@@ -691,6 +712,7 @@ class AttemptUpload(Base):
     size_bytes: Mapped[int] = mapped_column(Integer)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON)
     content: Mapped[bytes] = mapped_column(LONGBLOB, default=bytes)
+    expired_at: Mapped[datetime | None] = mapped_column(DATETIME(fsp=6))
     complete: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
