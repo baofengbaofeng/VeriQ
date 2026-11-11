@@ -812,3 +812,28 @@ withheld as [REDACTED], avoiding key collisions; ordinary event protocol keys re
 Retained compiler archives may omit safeDiagnostics and ReportDisplay metadata; the Runtime
 entry keeps those fields absent while retaining exact compiler/bundle provenance checks.
 First-pass report counts select attemptNo1 explicitly, regardless of UUID ordering.
+
+## Optional AI (T13)
+
+AI provider CRUD, connection tests, `/ai/context`, generation/history/review/cancel are
+Workspace-scoped Cookie/CSRF APIs. Canonical OpenAPI and generated client types define
+all bounded inputs. The previously unimplemented provider `secretRef` field is replaced
+by write-only `apiKey` input and `keyConfigured` output; business credentials and AI keys
+are separate purpose-bound AES-GCM domains. Migration0010 adds only AI tables.
+
+`ModelGateway.generate(DraftContext) -> ModelReply` uses the official pinned SDKs.
+`AiService.create_draft(scope, req) -> GenerationDTO` reserves budget in a short authority
+transaction, calls the provider outside locks, then rechecks current authority. Synchronous
+POST returns201 including recorded failure/unknown-cost state; request UUID/body replay
+returns the same generation without another call. History uses bounded signed cursors.
+
+Generation output is untrusted data. CASE output validates against ResourceDocumentV1,
+selected references and an explicit human review; acceptance only invokes ResourceService
+create/update_draft. Compilation/debug/publication remain existing Runtime workflows.
+Boundary suggestions and sanitized report analysis cannot be applied automatically.
+Provider keys, raw evidence and business credential references never enter model context.
+
+Budgets use integer micro-USD estimates with immutable rate/model snapshots; unknown
+usage/cancellation retains reservations across UTC months. Provider disablement, budget
+exhaustion and errors do not affect deterministic Runs. See [AI operations](ai.md) and
+[ADR0015](decisions/0015-ai-provider-boundaries.md) for exact bounds and acceptance limits.

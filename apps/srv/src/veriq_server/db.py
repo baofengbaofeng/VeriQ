@@ -744,3 +744,38 @@ class MaintenanceReceipt(Base):
     )
     request_hash: Mapped[str] = mapped_column(hash_type)
     receipt: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+
+class AiProvider(Base):
+    __tablename__ = "veriq_ai_providers"
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_workspaces.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer)
+    config: Mapped[dict[str, Any]] = mapped_column(JSON)
+    enabled: Mapped[bool] = mapped_column(Boolean)
+    deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    key_id: Mapped[str] = mapped_column(String(80))
+    key_version: Mapped[str] = mapped_column(uuid_type)
+    nonce: Mapped[bytes] = mapped_column(LONGBLOB)
+    ciphertext: Mapped[bytes] = mapped_column(LONGBLOB)
+
+
+class AiGeneration(Base):
+    __tablename__ = "veriq_ai_generations"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "request_id", name="uq_ai_request"),
+        Index("ix_ai_history", "workspace_id", "created_at", "id"),
+    )
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_workspaces.id"))
+    provider_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_ai_providers.id"))
+    actor_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_users.id"))
+    request_id: Mapped[str] = mapped_column(uuid_type)
+    request_hash: Mapped[str] = mapped_column(hash_type)
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+    month: Mapped[str] = mapped_column(String(7))
+    status: Mapped[str] = mapped_column(String(20))
+    purpose: Mapped[str] = mapped_column(String(24))
+    reserved_micros: Mapped[int] = mapped_column(BigInteger)
+    cost_micros: Mapped[int | None] = mapped_column(BigInteger)
+    data: Mapped[dict[str, Any]] = mapped_column(JSON)

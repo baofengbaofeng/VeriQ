@@ -18,6 +18,7 @@ from .handlers.service_account import ServiceAccountAPI
 from .handlers.execution import ExecutionAPI
 from .handlers.run import RunAPI, AttemptAuditAPI
 from .handlers.report import ReportAPI
+from .handlers.ai import AiAPI
 from .services.lease import DatabaseAttemptProofVerifier
 from .handlers.enrollment import DeviceAPI, EnrollmentAPI, RuntimeAPI
 from .service import Problem
@@ -37,6 +38,8 @@ class UnknownAPI(API):
 
 
 def handler_for(action: str) -> type[API]:
+    if action.startswith("ai-"):
+        return AiAPI
     if action in {"report", "report-artifacts", "report-artifact", "report-history", "report-stream", "report-audit", "report-display"}:
         return ReportAPI
     if action == "attempt-audit":
@@ -132,6 +135,14 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
     delivery = delivery or (SMTPDelivery(settings) if settings.smtp_host else None)
     reset_dispatcher = ResetDispatcher(db, settings, delivery)
     routes = [
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/providers", "ai-providers"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/providers/([0-9a-fA-F-]{36})", "ai-provider"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/providers/([0-9a-fA-F-]{36})/connection-tests", "ai-connection"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/context", "ai-context"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/generations", "ai-generations"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/generations/([0-9a-fA-F-]{36})", "ai-generation"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/generations/([0-9a-fA-F-]{36})/review", "ai-review"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/generations/([0-9a-fA-F-]{36})/cancel", "ai-cancel"),
         (
             "/api/v1/workspaces/([0-9a-fA-F-]{36})/attempts/([0-9a-fA-F-]{36})/reconcile",
             "attempt-audit",

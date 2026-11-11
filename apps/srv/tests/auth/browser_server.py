@@ -25,10 +25,17 @@ async def main():
         master_key="a" * 64,
         signing_key="b" * 64,
         environment="development",
+        ai_allowed_base_urls=[
+            "http://127.0.0.1:18890/v1",
+            "https://api.openai.com/v1",
+            "https://api.anthropic.com/v1",
+        ],
         approved_engine_inventory_path=os.environ.get("VERIQ_TEST_ENGINE_INVENTORY"),
     )
     db = Database(settings)
     owned = {
+        "veriq_ai_providers",
+        "veriq_ai_generations",
         "veriq_runs",
         "veriq_case_executions",
         "veriq_attempts",

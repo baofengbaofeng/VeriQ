@@ -1,5 +1,5 @@
 {
-  "description": "Installed Python dependency metadata inventory, including T12 storage/emulator delta and dev/build groups; not an OS or native-binary release SBOM.",
+  "description": "Installed Python dependency metadata inventory, including T12 storage/emulator and T13 AI deltas and dev/build groups; not an OS or native-binary release SBOM.",
   "packages": [
     {
       "name": "alembic",
@@ -22,6 +22,16 @@
       "licenseFiles": [
         "LICENSE"
       ]
+    },
+    {
+      "name": "anthropic",
+      "version": "0.84.0",
+      "licenseExpression": null,
+      "licenseMetadata": "MIT",
+      "licenseClassifiers": [
+        "License :: OSI Approved :: MIT License"
+      ],
+      "licenseFiles": []
     },
     {
       "name": "anyio",
@@ -193,6 +203,30 @@
       ]
     },
     {
+      "name": "distro",
+      "version": "1.9.0",
+      "licenseExpression": null,
+      "licenseMetadata": "Apache License, Version 2.0",
+      "licenseClassifiers": [
+        "License :: OSI Approved :: Apache Software License"
+      ],
+      "licenseFiles": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "docstring-parser",
+      "version": "0.18.0",
+      "licenseExpression": null,
+      "licenseMetadata": "MIT",
+      "licenseClassifiers": [
+        "License :: OSI Approved :: MIT License"
+      ],
+      "licenseFiles": [
+        "LICENSE.md"
+      ]
+    },
+    {
       "name": "flask",
       "version": "3.1.3",
       "licenseExpression": "BSD-3-Clause",
@@ -330,6 +364,16 @@
       ]
     },
     {
+      "name": "jiter",
+      "version": "0.19.0",
+      "licenseExpression": "MIT",
+      "licenseMetadata": null,
+      "licenseClassifiers": [],
+      "licenseFiles": [
+        "LICENSE"
+      ]
+    },
+    {
       "name": "jmespath",
       "version": "1.1.0",
       "licenseExpression": null,
@@ -448,6 +492,16 @@
       "licenseFiles": [
         "LICENSE"
       ]
+    },
+    {
+      "name": "openai",
+      "version": "2.29.0",
+      "licenseExpression": null,
+      "licenseMetadata": "Apache-2.0",
+      "licenseClassifiers": [
+        "License :: OSI Approved :: Apache Software License"
+      ],
+      "licenseFiles": []
     },
     {
       "name": "packaging",
@@ -719,6 +773,21 @@
       ]
     },
     {
+      "name": "sniffio",
+      "version": "1.3.1",
+      "licenseExpression": null,
+      "licenseMetadata": "MIT OR Apache-2.0",
+      "licenseClassifiers": [
+        "License :: OSI Approved :: MIT License",
+        "License :: OSI Approved :: Apache Software License"
+      ],
+      "licenseFiles": [
+        "LICENSE",
+        "LICENSE.APACHE2",
+        "LICENSE.MIT"
+      ]
+    },
+    {
       "name": "SQLAlchemy",
       "version": "2.0.46",
       "licenseExpression": null,
@@ -753,6 +822,16 @@
       ],
       "licenseFiles": [
         "LICENSE"
+      ]
+    },
+    {
+      "name": "tqdm",
+      "version": "4.70.1",
+      "licenseExpression": null,
+      "licenseMetadata": "MPL-2.0 AND MIT",
+      "licenseClassifiers": [],
+      "licenseFiles": [
+        "LICENCE"
       ]
     },
     {

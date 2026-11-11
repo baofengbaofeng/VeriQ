@@ -1,3 +1,4 @@
+import { AiPage } from "./features/ai/AiPage";
 import { ReportPage } from "./features/reports/ReportPage";
 import { useState, useEffect } from "react";
 import { createRoot } from "react-dom/client";
@@ -70,6 +71,7 @@ function App() {
               <Link to="/workspaces">Workspaces</Link>
               <Link to="/runtimes">Runtimes</Link>
               <Link to="/reports">Reports</Link>
+              <Link to="/ai">AI</Link>
                 <Link to="/resources">资源 / Resources</Link>
               <Link to="/environments">环境 / Environments</Link>
               {user.systemAdmin && <Link to="/admin/users">Users</Link>}
@@ -143,6 +145,7 @@ function App() {
               </WorkspaceProvider>
             }
           />
+          <Route path="/ai" element={<WorkspaceProvider key={user?.id ?? "anonymous"}><AiPage /></WorkspaceProvider>} />
           <Route path="/reports" element={<WorkspaceProvider key={user?.id ?? "anonymous"}><ReportPage /></WorkspaceProvider>} />
           <Route path="/invitations/accept" element={<AcceptInvitation />} />
           <Route

@@ -1820,6 +1820,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspaceId}/ai/context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["previewAiContext"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/ai/generations/{generationId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["cancelGeneration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3210,49 +3242,81 @@ export interface components {
         };
         ProviderWrite: {
             name: string;
-            /** @enum {string} */
+            /** @enum {unknown} */
             adapter: "OPENAI_COMPATIBLE" | "ANTHROPIC";
-            baseURL: components["schemas"]["HttpUrl"];
+            baseURL: string;
             model: string;
-            secretRef: components["schemas"]["Key"];
             enabled: boolean;
             monthlyBudgetUsd: number;
+            inputUsdPerMillion: number;
+            outputUsdPerMillion: number;
+            maxOutputTokens: number;
+            maxRequestUsd: number;
+            apiKey?: string;
         };
         ProviderDTO: {
-            id: components["schemas"]["Id"];
             name: string;
-            /** @enum {string} */
+            /** @enum {unknown} */
             adapter: "OPENAI_COMPATIBLE" | "ANTHROPIC";
-            baseURL: components["schemas"]["HttpUrl"];
+            baseURL: string;
             model: string;
-            secretRef: components["schemas"]["Key"];
             enabled: boolean;
             monthlyBudgetUsd: number;
+            inputUsdPerMillion: number;
+            outputUsdPerMillion: number;
+            maxOutputTokens: number;
+            maxRequestUsd: number;
+            id: components["schemas"]["Id"];
+            revision: number;
+            keyConfigured: boolean;
+            budget: components["schemas"]["AiBudgetDTO"];
         };
         GenerationRequest: {
+            requestId: components["schemas"]["Id"];
             providerId: components["schemas"]["Id"];
-            /** @enum {string} */
+            /** @enum {unknown} */
             purpose: "CASE_DRAFT" | "BOUNDARY_SUGGESTION" | "FAILURE_ANALYSIS";
             resourceId?: components["schemas"]["Id"];
             runId?: components["schemas"]["Id"];
             prompt: string;
+            openapi?: components["schemas"]["JsonObject"];
+            data?: components["schemas"]["JsonValue"];
+            versionIds?: components["schemas"]["Id"][];
+            contextHash?: string;
         };
         GenerationDTO: {
             id: components["schemas"]["Id"];
-            /** @enum {string} */
-            status: "PENDING" | "RUNNING" | "SUCCEEDED" | "FAILED" | "REVIEWED";
-            /** @enum {string} */
-            purpose: "CASE_DRAFT" | "BOUNDARY_SUGGESTION" | "FAILURE_ANALYSIS";
+            providerId: components["schemas"]["Id"];
+            requestId: components["schemas"]["Id"];
+            createdAt: components["schemas"]["Timestamp"];
+            /** @enum {unknown} */
+            status: "RUNNING" | "SUCCEEDED" | "FAILED" | "REVIEWED" | "REJECTED" | "CANCELLED";
+            /** @enum {unknown} */
+            purpose: "CASE_DRAFT" | "BOUNDARY_SUGGESTION" | "FAILURE_ANALYSIS" | "CONNECTION_TEST";
             output?: components["schemas"]["JsonValue"];
             inputTokens?: number;
             outputTokens?: number;
             costUsd?: number;
+            reservedUsd: number;
+            /** @enum {unknown} */
+            costState: "ESTIMATED" | "UNKNOWN";
             errorCode?: string;
+            diagnostics?: components["schemas"]["JsonObject"][];
+            context?: components["schemas"]["JsonObject"];
+            provenance?: components["schemas"]["JsonObject"][];
+            pricing?: components["schemas"]["JsonObject"];
+            resourceId?: components["schemas"]["Id"];
+            /** @constant */
+            resourceState?: "DRAFT";
+            revision?: number;
+            original?: components["schemas"]["JsonValue"];
         };
         GenerationReview: {
-            /** @enum {string} */
+            /** @enum {unknown} */
             decision: "ACCEPT_DRAFT" | "REJECT";
-            resourceId?: components["schemas"]["Id"];
+            key?: components["schemas"]["Key"];
+            name?: string;
+            revision?: number;
         };
         ConnectionTestDTO: {
             ok: boolean;
@@ -4035,6 +4099,28 @@ export interface components {
         ReportDisplayDTOEnvelope: {
             data: components["schemas"]["ReportDisplayDTO"];
             requestId: string;
+        };
+        AiBudgetDTO: {
+            month: string;
+            estimatedUsedUsd: number;
+            heldUsd: number;
+            availableUsd: number;
+            /** @constant */
+            pricingBasis: "CONFIGURED_ESTIMATE";
+        };
+        AiContextDTO: {
+            context: components["schemas"]["JsonObject"];
+            contextHash: string;
+            inputTokenBound: number;
+            reservedUsd: number;
+            provenance: components["schemas"]["JsonObject"][];
+        };
+        AiConnectionRequest: {
+            requestId: components["schemas"]["Id"];
+        };
+        AiContextDTOEnvelope: {
+            data: components["schemas"]["AiContextDTO"];
+            requestId: components["schemas"]["Id"];
         };
         /** @description JSON used only in interpolated DSL fields, recursively restricted to SafeString bindings. */
         BindingJsonValue: ContractBindingJsonValue;
@@ -7422,7 +7508,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProviderDTOPageEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -7431,7 +7517,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -7440,7 +7526,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7449,7 +7535,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -7458,7 +7544,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7467,7 +7553,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Current authorization, bounded input, conflict or budget error */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7476,7 +7571,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -7511,7 +7606,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProviderDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -7520,7 +7615,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -7529,7 +7624,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7538,7 +7633,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -7547,7 +7642,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7556,7 +7651,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Current authorization, bounded input, conflict or budget error */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7565,7 +7669,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -7597,7 +7701,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProviderDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -7606,7 +7710,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -7615,7 +7719,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7624,7 +7728,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -7633,7 +7737,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7642,7 +7746,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Current authorization, bounded input, conflict or budget error */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7651,7 +7764,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -7687,7 +7800,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProviderDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -7696,7 +7809,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -7705,7 +7818,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7714,7 +7827,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -7723,7 +7836,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7732,7 +7845,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Current authorization, bounded input, conflict or budget error */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7741,7 +7863,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -7773,7 +7895,7 @@ export interface operations {
                     "application/json": components["schemas"]["EmptyEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -7782,7 +7904,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -7791,7 +7913,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7800,7 +7922,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -7809,7 +7931,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7818,7 +7940,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Current authorization, bounded input, conflict or budget error */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7827,7 +7958,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -10659,18 +10790,22 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiConnectionRequest"];
+            };
+        };
         responses: {
-            /** @description Success. */
+            /** @description Recorded bounded connection generation */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ConnectionTestDTOEnvelope"];
+                    "application/json": components["schemas"]["GenerationDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -10679,7 +10814,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -10688,7 +10823,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10697,7 +10832,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -10706,7 +10841,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10715,7 +10850,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Current authorization, bounded input, conflict or budget error */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10724,7 +10868,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -10758,7 +10902,7 @@ export interface operations {
                     "application/json": components["schemas"]["GenerationDTOPageEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -10767,7 +10911,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -10776,7 +10920,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10785,7 +10929,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -10794,7 +10938,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10803,7 +10947,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Current authorization, bounded input, conflict or budget error */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10812,7 +10965,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -10838,8 +10991,8 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
-            202: {
+            /** @description Recorded generation, completed or idempotent replay of current state */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -10847,7 +11000,7 @@ export interface operations {
                     "application/json": components["schemas"]["GenerationDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -10856,7 +11009,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -10865,7 +11018,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10874,7 +11027,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -10883,7 +11036,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10892,7 +11045,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Current authorization, bounded input, conflict or budget error */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10901,7 +11063,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -10933,7 +11095,7 @@ export interface operations {
                     "application/json": components["schemas"]["GenerationDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -10942,7 +11104,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -10951,7 +11113,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10960,7 +11122,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -10969,7 +11131,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10978,7 +11140,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Current authorization, bounded input, conflict or budget error */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10987,7 +11158,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -11023,7 +11194,7 @@ export interface operations {
                     "application/json": components["schemas"]["GenerationDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -11032,7 +11203,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -11041,7 +11212,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11050,7 +11221,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11059,7 +11230,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11068,7 +11239,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Current authorization, bounded input, conflict or budget error */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -11077,7 +11257,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /** @description Current authorization, bounded input, conflict or budget error */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -16012,6 +16192,199 @@ export interface operations {
             };
             /** @description Error */
             410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    previewAiContext: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerationRequest"];
+            };
+        };
+        responses: {
+            /** @description Redacted context and conservative estimate */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiContextDTOEnvelope"];
+                };
+            };
+            /** @description Current authorization, bounded input, conflict or budget error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Current authorization, bounded input, conflict or budget error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Current authorization, bounded input, conflict or budget error */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Current authorization, bounded input, conflict or budget error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Current authorization, bounded input, conflict or budget error */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Current authorization, bounded input, conflict or budget error */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Current authorization, bounded input, conflict or budget error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Current authorization, bounded input, conflict or budget error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    cancelGeneration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                generationId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenerationDTOEnvelope"];
+                };
+            };
+            /** @description Current authorization, bounded input, conflict or budget error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Current authorization, bounded input, conflict or budget error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Current authorization, bounded input, conflict or budget error */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Current authorization, bounded input, conflict or budget error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Current authorization, bounded input, conflict or budget error */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Current authorization, bounded input, conflict or budget error */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Current authorization, bounded input, conflict or budget error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Current authorization, bounded input, conflict or budget error */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

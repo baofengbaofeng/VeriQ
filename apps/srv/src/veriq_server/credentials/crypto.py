@@ -18,15 +18,17 @@ class EncryptedValue:
 
 
 class Keyring:
-    def __init__(self, active_key_id: str, keys: dict[str, bytes]):
+    def __init__(
+        self, active_key_id: str, keys: dict[str, bytes], *, purpose: str = "veriq-credential-v1"
+    ):
+        self.purpose = purpose
         if active_key_id not in keys or any(len(key) != 32 for key in keys.values()):
             raise ValueError("INVALID_KEYRING")
         self.active_key_id = active_key_id
         self._keys = dict(keys)
 
-    @staticmethod
-    def _aad(workspace_id: str, secret_ref: str, version_id: str) -> bytes:
-        return canonical_bytes(["veriq-credential-v1", workspace_id, secret_ref, version_id])
+    def _aad(self, workspace_id: str, secret_ref: str, version_id: str) -> bytes:
+        return canonical_bytes([self.purpose, workspace_id, secret_ref, version_id])
 
     def encrypt(
         self, workspace_id: str, secret_ref: str, version_id: str, value: Any

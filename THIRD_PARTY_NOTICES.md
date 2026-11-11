@@ -35,3 +35,20 @@ T12 adds the storage/stream dependencies below; Moto/Flask and their server help
 | werkzeug | 3.1.9 | BSD-3-Clause |
 | xmltodict | 1.0.4 | MIT |
 | eventsource-parser | 4.1.3 | MIT |
+
+T13 adds official AI Provider SDKs and the following resolved Python delta. Existing
+HTTPX/Pydantic/cryptography dependencies are reused. See [ADR0015](docs/decisions/0015-ai-provider-boundaries.md).
+The new graph's OSV query returned no advisories on 2026-11-11; this is a point-in-time
+check, not a perpetual safety claim. Release bundles must preserve upstream license texts.
+For sniffio the MIT alternative is selected. tqdm's code is MPL-2.0 with MIT-licensed
+contributions as described by its upstream license; preserve both notices.
+
+| Package | Version | License |
+| --- | --- | --- |
+| openai | 2.29.0 | Apache-2.0 |
+| anthropic | 0.84.0 | MIT |
+| distro | 1.9.0 | Apache-2.0 |
+| docstring-parser | 0.18.0 | MIT |
+| jiter | 0.19.0 | MIT |
+| sniffio | 1.3.1 | MIT OR Apache-2.0 |
+| tqdm | 4.70.1 | MPL-2.0 AND MIT |

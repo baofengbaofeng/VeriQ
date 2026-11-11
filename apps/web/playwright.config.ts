@@ -1,5 +1,10 @@
 import { defineConfig } from "@playwright/test";
-const editorSuite = process.argv.some((arg) => arg.includes("case-publish"));
+const namedSpecs = process.argv.filter((arg) => arg.endsWith(".spec.ts"));
+const editorSuite =
+  namedSpecs.length === 0 ||
+  namedSpecs.some(
+    (arg) => arg.includes("case-publish") || arg.includes("ai.spec"),
+  );
 export default defineConfig({
   testDir: "./tests",
   workers: 1,

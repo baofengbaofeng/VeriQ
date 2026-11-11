@@ -35,6 +35,11 @@ class Settings(BaseModel):
     compile_slots: int = Field(default=2, ge=1, le=100)
     cleanup_slots: int = Field(default=2, ge=1, le=100)
 
+    ai_allowed_base_urls: list[str] = Field(
+        default_factory=lambda: ["https://api.openai.com/v1", "https://api.anthropic.com/v1"],
+        max_length=20,
+    )
+
     smtp_host: str | None = None
     smtp_port: int = Field(default=587, ge=1, le=65535)
     smtp_from: str | None = None
@@ -106,7 +111,11 @@ def resolve_settings_values(path: Path, overrides: dict[str, Any] | None = None)
         raise ValueError("Configuration must be a JSON object")
     for key in Settings.model_fields:
         if (value := os.environ.get("VERIQ_" + key.upper())) is not None:
-            values[key] = json.loads(value) if key == "previous_master_keys" else value
+            values[key] = (
+                json.loads(value)
+                if key in {"previous_master_keys", "ai_allowed_base_urls"}
+                else value
+            )
     values.update({k: v for k, v in (overrides or {}).items() if v is not None})
     return values
 
