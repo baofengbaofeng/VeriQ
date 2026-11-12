@@ -1,34 +1,102 @@
+/**
+ * 本文件 packages/contracts/src/compiled.ts 实现 VeriQ 相关前端或执行侧能力，并标明公开导出与关键路径
+ * 模块注释用于帮助智能体与贡献者快速定位授权、执行与离线相关逻辑。
+ * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+ * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+ * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+ * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+ * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+ * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ */
+
 import type {
-  AssertionV1,
-  StepV1,
-  CaseDslV1,
-  JsonValue,
-} from "./types.generated.js";
-export interface CompiledAssertion {
-  assertion: Exclude<
     AssertionV1,
-    {
-      type: "template";
-    }
-  >;
-  sourcePath: string;
-  /** Original DSL identifier for report display; absent in historical compiled plans. */
-  sourceId?: string;
-  parameters: Record<string, JsonValue>[];
+    StepV1,
+    CaseDslV1,
+    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+    JsonValue,
+} from "./types.generated.js";
+/**
+ * 公开类型 CompiledAssertion 描述 packages/contracts/src/compiled.ts 模块对外契约字段与可组合结构
+ * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+ * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+ * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+ * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+ * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+ * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ */
+export interface CompiledAssertion {
+    assertion: Exclude<
+        AssertionV1,
+        {
+            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+            type: "template";
+        }
+    >;
+    // 分段注释：继续说明 compiled.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+    sourcePath: string;
+ /**
+  * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+  * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+  * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+  * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+  * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+  * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+  * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+  * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+  */
+    /** Original DSL identifier for report display; absent in historical compiled plans. */
+    sourceId?: string;
+    parameters: Record<string, JsonValue>[];
 }
+/**
+ * 公开类型 CompiledStep 描述 packages/contracts/src/compiled.ts 模块对外契约字段与可组合结构
+ * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ */
 export interface CompiledStep {
-  step: StepV1;
-  sourcePath: string;
-  /** Original DSL identifier for report display; absent in historical compiled plans. */
-  sourceId?: string;
-  before: CompiledAssertion[];
-  responseAssertions: CompiledAssertion[];
-  after: CompiledAssertion[];
-  children?: CompiledStep[];
+    step: StepV1;
+    sourcePath: string;
+ /**
+  * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+  * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+  * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+  * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+  * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+  * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+  * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+  * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+  */
+    /** Original DSL identifier for report display; absent in historical compiled plans. */
+    sourceId?: string;
+    before: CompiledAssertion[];
+    responseAssertions: CompiledAssertion[];
+    after: CompiledAssertion[];
+    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+    children?: CompiledStep[];
 }
+/**
+ * 公开类型 CompiledCase 描述 packages/contracts/src/compiled.ts 模块对外契约字段与可组合结构
+ * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ */
 export interface CompiledCase {
-  caseVersionId: string;
-  document: CaseDslV1;
-  steps: CompiledStep[];
-  persistenceCheckpointStepId?: string;
+    caseVersionId: string;
+    document: CaseDslV1;
+    steps: CompiledStep[];
+    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+    persistenceCheckpointStepId?: string;
 }

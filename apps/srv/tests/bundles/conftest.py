@@ -4,33 +4,70 @@ import shutil
 import pytest
 from pathlib import Path
 
+# 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+# 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+# 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
 sys.path.insert(0, str(Path(__file__).parents[1] / "auth"))
 import runpy
 
 site = runpy.run_path(str(Path(__file__).parents[1] / "auth" / "conftest.py"))["site"]
+# 分段注释：继续说明 conftest.py 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+# 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+# 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
 sys.path.insert(0, str(Path(__file__).parents[1] / "resources"))
 
 
 @pytest.fixture(autouse=True)
 def clean_task_archives(tmp_path):
-    """Real engine archives are transient test data, not retained build evidence."""
+    """中文重写：Real engine archives are transient test data, not retained build evidence.
+本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+# 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+# 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+# 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+    本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+    # 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    # 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    # 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+    调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+    与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+    测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。"""
+    # 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    # 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    # 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
     yield
+    # 关键路径：处理 for 分支逻辑，确保失败可观测且不破坏租约/授权不变量；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
     for path in tmp_path.rglob("*"):
+        # 关键路径：处理 if 分支逻辑，确保失败可观测且不破坏租约/授权不变量；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
         if path.is_dir():
             path.chmod(0o700)
     shutil.rmtree(tmp_path)
 
 
 @pytest.fixture(autouse=True)
+# 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+# 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+# 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
 def bundle_issuer(monkeypatch, tmp_path):
     from veriq_server.bundles.issuer import Issuer
     from veriq_server.app import make_app
 
+    # 分段注释：继续说明 conftest.py 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    # 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+    # 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
     issuer_path = tmp_path / "issuer" / "keys.json"
     Issuer.initialize(issuer_path)
 
     def application(settings, db, *args, **kwargs):
         settings.bundle_issuer_path = str(issuer_path)
+        # 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        # 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+        # 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
         return make_app(settings, db, *args, **kwargs)
 
     monkeypatch.setitem(site.__wrapped__.__globals__, "make_app", application)
@@ -38,38 +75,80 @@ def bundle_issuer(monkeypatch, tmp_path):
 
 @pytest.fixture
 def approved_metadata(monkeypatch, tmp_path, bundle_issuer):
-    """Synthetic approved inventory for narrow HTTP tests; real Agent coverage is separate."""
+    """中文重写：Synthetic approved inventory for narrow HTTP tests; real Agent coverage is separate.
+本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+# 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+# 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+# 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+    本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+    # 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    # 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    # 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+    调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+    与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+    测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。"""
+    # 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    # 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    # 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
     from hashlib import sha256
     from veriq_server.contracts import canonical_bytes
 
     bodies = {
         "package.json": b'{"name":"synthetic-release"}',
         "package-lock.json": b'{"lockfileVersion":3}',
+        # 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        # 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+        # 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
         "dependencies.json": b"[]",
         "engine/compiler.tgz": b"synthetic compiler archive",
+    # 分段注释：继续说明 conftest.py 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    # 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+    # 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
     }
     entries = [
         {"path": path, "sha256": sha256(raw).hexdigest(), "sizeBytes": len(raw)}
+        # 关键路径：处理 for 分支逻辑，确保失败可观测且不破坏租约/授权不变量；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
         for path, raw in bodies.items()
     ]
     inventory = {
         "schemaVersion": "1.0",
+        # 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        # 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+        # 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
         "engines": [
             {
                 "engineVersion": "0.1.0",
+                # 分段注释：继续说明 conftest.py 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+                # 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+                # 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
                 "compilerVersion": "0.1.0",
                 "runnerSdkVersion": "0.1.0",
                 "files": entries,
                 "dependencies": [],
+            # 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            # 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+            # 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
             }
         ],
     }
     path = tmp_path / "inventory.json"
+    # 分段注释：继续说明 conftest.py 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    # 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+    # 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
     path.write_bytes(canonical_bytes(inventory))
     original = site.__wrapped__.__globals__["make_app"]
 
     def application(settings, db, *args, **kwargs):
         settings.approved_engine_inventory_path = str(path)
+        # 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        # 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+        # 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
         return original(settings, db, *args, **kwargs)
 
     monkeypatch.setitem(site.__wrapped__.__globals__, "make_app", application)

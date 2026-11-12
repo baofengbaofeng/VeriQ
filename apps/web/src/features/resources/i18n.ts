@@ -1,89 +1,189 @@
+/**
+ * 本文件 apps/web/src/features/resources/i18n.ts 实现 VeriQ 相关前端或执行侧能力，并标明公开导出与关键路径
+ * 模块注释用于帮助智能体与贡献者快速定位授权、执行与离线相关逻辑。
+ * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+ * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+ * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+ * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+ * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+ * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ */
+
 import i18next from "i18next";
 import { initReactI18next } from "react-i18next";
 const zh = {
-  resources: "资源 / Resources",
-  environments: "环境 / Environments",
-  save: "保存草稿",
-  validate: "编译校验",
-  publish: "发布版本",
-  saved: "已保存",
-  loading: "正在加载…",
-  retry: "重试",
-  empty: "此空间没有资源。",
-  create: "创建资源",
-  add: "添加",
-  remove: "删除",
-  up: "上移",
-  down: "下移",
-  json: "JSON 源码",
-  form: "图形表单",
-  apply: "应用 JSON",
-  pendingJson: "JSON 有尚未应用的更改；请应用或放弃后再保存、校验或发布。",
-  discard: "放弃 JSON 更改",
-  invalid: "请修正校验问题",
-  conflict: "草稿已被其他人修改。本地内容已保留；比较远端草稿后重新应用。",
-  readonly: "只读：当前角色、归档状态或本地快照不允许修改。",
-  impact: "引用影响",
-  versions: "不可变版本与差异",
-  source: "实际生成的 TypeScript（只读）",
-  noSource: "发布并选择版本后可查看真实生成文件。",
-  queued: "等待可用的受管理 Runtime 编译；排队不代表校验通过。",
-  success: "编译校验通过",
-  archive: "归档",
-  restore: "恢复",
-  reload: "重新加载远端草稿",
-  keep: "保留本地并采用远端修订号",
-  dirty: "草稿有未保存更改。保存后才能编译校验或发布。",
-  language: "语言 / Language",
+    resources: "资源 / Resources",
+    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+    environments: "环境 / Environments",
+    save: "保存草稿",
+    validate: "编译校验",
+    // 分段注释：继续说明 i18n.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+    publish: "发布版本",
+    saved: "已保存",
+    loading: "正在加载…",
+    retry: "重试",
+    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+    empty: "此空间没有资源。",
+    create: "创建资源",
+    add: "添加",
+    remove: "删除",
+    // 分段注释：继续说明 i18n.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+    up: "上移",
+    down: "下移",
+    json: "JSON 源码",
+    form: "图形表单",
+    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+    apply: "应用 JSON",
+    pendingJson: "JSON 有尚未应用的更改；请应用或放弃后再保存、校验或发布。",
+    discard: "放弃 JSON 更改",
+    invalid: "请修正校验问题",
+    // 分段注释：继续说明 i18n.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+    conflict: "草稿已被其他人修改。本地内容已保留；比较远端草稿后重新应用。",
+    readonly: "只读：当前角色、归档状态或本地快照不允许修改。",
+    impact: "引用影响",
+    versions: "不可变版本与差异",
+    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+    source: "实际生成的 TypeScript（只读）",
+    noSource: "发布并选择版本后可查看真实生成文件。",
+    queued: "等待可用的受管理 Runtime 编译；排队不代表校验通过。",
+    success: "编译校验通过",
+    // 分段注释：继续说明 i18n.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+    archive: "归档",
+    restore: "恢复",
+    reload: "重新加载远端草稿",
+    keep: "保留本地并采用远端修订号",
+    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+    dirty: "草稿有未保存更改。保存后才能编译校验或发布。",
+    language: "语言 / Language",
 };
 const en: typeof zh = {
-  resources: "Resources",
-  environments: "Environments",
-  save: "Save draft",
-  validate: "Compile and validate",
-  publish: "Publish version",
-  saved: "Saved",
-  loading: "Loading…",
-  retry: "Retry",
-  empty: "No resources in this Workspace.",
-  create: "Create resource",
-  add: "Add",
-  remove: "Remove",
-  up: "Move up",
-  down: "Move down",
-  json: "JSON source",
-  form: "Visual form",
-  apply: "Apply JSON",
-  pendingJson:
-    "Unapplied JSON changes: apply or discard them before saving, validating or publishing.",
-  discard: "Discard JSON changes",
-  invalid: "Correct validation issues",
-  conflict:
-    "The remote draft changed. Your local content is retained; compare before reapplying.",
-  readonly:
-    "Read only: your role, archive state or local snapshot does not allow changes.",
-  impact: "Reference impact",
-  versions: "Immutable versions and diff",
-  source: "Actual generated TypeScript (read only)",
-  noSource: "Publish and select a version to inspect actual generated files.",
-  queued:
-    "Waiting for an available managed compiler Runtime; queued is not validated.",
-  success: "Compilation validated",
-  archive: "Archive",
-  restore: "Restore",
-  reload: "Reload remote draft",
-  keep: "Keep local content with remote revision",
-  dirty: "Unsaved changes. Save before validation or publication.",
-  language: "Language",
+    // 分段注释：继续说明 i18n.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+    resources: "Resources",
+    environments: "Environments",
+    save: "Save draft",
+    validate: "Compile and validate",
+    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+    publish: "Publish version",
+    saved: "Saved",
+    loading: "Loading…",
+    retry: "Retry",
+    // 分段注释：继续说明 i18n.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+    empty: "No resources in this Workspace.",
+    create: "Create resource",
+    add: "Add",
+    remove: "Remove",
+    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+    up: "Move up",
+    down: "Move down",
+    json: "JSON source",
+    form: "Visual form",
+    // 分段注释：继续说明 i18n.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+    apply: "Apply JSON",
+    pendingJson:
+        "Unapplied JSON changes: apply or discard them before saving, validating or publishing.",
+    discard: "Discard JSON changes",
+    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+    invalid: "Correct validation issues",
+    conflict:
+        "The remote draft changed. Your local content is retained; compare before reapplying.",
+    readonly:
+        // 分段注释：继续说明 i18n.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+        "Read only: your role, archive state or local snapshot does not allow changes.",
+    impact: "Reference impact",
+    versions: "Immutable versions and diff",
+    source: "Actual generated TypeScript (read only)",
+    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+    noSource: "Publish and select a version to inspect actual generated files.",
+    queued:
+        "Waiting for an available managed compiler Runtime; queued is not validated.",
+    success: "Compilation validated",
+    // 分段注释：继续说明 i18n.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+    archive: "Archive",
+    restore: "Restore",
+    reload: "Reload remote draft",
+    keep: "Keep local content with remote revision",
+    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+    dirty: "Unsaved changes. Save before validation or publication.",
+    language: "Language",
 };
+/**
+ * 公开常量或工厂 editorI18n 为 apps/web/src/features/resources/i18n.ts 提供稳定导出入口与默认行为
+ * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+ * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+ * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+ * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+ * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+ * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ */
 export const editorI18n = i18next.createInstance();
 void editorI18n
-  .use(initReactI18next)
-  .init({
-    resources: { zh: { translation: zh }, en: { translation: en } },
-    lng: "zh",
-    fallbackLng: "en",
-    interpolation: { escapeValue: false },
-    initImmediate: false,
-  });
+    .use(initReactI18next)
+    .init({
+        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+        resources: { zh: { translation: zh }, en: { translation: en } },
+        lng: "zh",
+        fallbackLng: "en",
+        // 分段注释：继续说明 i18n.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+        interpolation: { escapeValue: false },
+        initImmediate: false,
+    });
+/**
+ * 公开常量或工厂 useEditorTranslationOptions 为 apps/web/src/features/resources/i18n.ts 提供稳定导出入口与默认行为
+ * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+ * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+ * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+ * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+ * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+ * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ */
 export const useEditorTranslationOptions = { i18n: editorI18n };

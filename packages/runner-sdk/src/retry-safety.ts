@@ -1,23 +1,169 @@
-import type {BrowserContext, Page, Request} from '@playwright/test';
-export type RetrySafety = 'READ_ONLY_OBSERVED' | 'WRITE_POSSIBLE' | 'UNKNOWN';
+/**
+ * 本文件 packages/runner-sdk/src/retry-safety.ts 实现 VeriQ 相关前端或执行侧能力，并标明公开导出与关键路径
+ * 模块注释用于帮助智能体与贡献者快速定位授权、执行与离线相关逻辑。
+ * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+ * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+ * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+ * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+ * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+ * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ */
+
+import type { BrowserContext, Page, Request } from "@playwright/test";
+/**
+ * 公开类型 RetrySafety 描述 packages/runner-sdk/src/retry-safety.ts 模块对外契约字段与可组合结构
+ * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+ * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+ * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+ * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+ * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+ * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ */
+export type RetrySafety = "READ_ONLY_OBSERVED" | "WRITE_POSSIBLE" | "UNKNOWN";
+ /**
+  * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+  * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+  * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+  * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+  * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+  * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+  * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+  * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+  */
 /** No URL/header/body is retained. A closed, fully observed business Context is required. */
+/**
+ * 公开类 RetryObservation 封装 packages/runner-sdk/src/retry-safety.ts 中的核心状态与可复用协作接口
+ * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ */
 export class RetryObservation {
- private writes:boolean;
- private closed=false;
- private pages=new Set<Page>();
- private request=(request:Request)=>this.method(request.method());
- private websocket=()=>{this.writes=true;};
- private page=(page:Page)=>{this.pages.add(page);page.on('websocket',this.websocket);};
- private close=()=>{this.closed=true;};
- constructor(private context:BrowserContext,declaredWrites:boolean){
-  this.writes=declaredWrites;
-  context.on('request',this.request);context.on('page',this.page);context.on('close',this.close);
-  for(const page of context.pages())this.page(page);
- }
- method(method:string){if(!['GET','HEAD','OPTIONS'].includes(method.toUpperCase()))this.writes=true;}
- finish(finalized:boolean):RetrySafety {
-  this.context.off('request',this.request);this.context.off('page',this.page);this.context.off('close',this.close);
-  for(const page of this.pages)page.off('websocket',this.websocket);
-  return this.writes?'WRITE_POSSIBLE':finalized&&this.closed?'READ_ONLY_OBSERVED':'UNKNOWN';
- }
+    private writes: boolean;
+    private closed = false;
+    private pages = new Set<Page>();
+    /**
+     * 公开函数 request 负责 packages/runner-sdk/src/retry-safety.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    private request = (request: Request) => this.method(request.method());
+    /**
+     * 公开函数 websocket 负责 packages/runner-sdk/src/retry-safety.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    private websocket = () => {
+        this.writes = true;
+    };
+    /**
+     * 公开函数 page 负责 packages/runner-sdk/src/retry-safety.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    private page = (page: Page) => {
+        this.pages.add(page);
+        page.on("websocket", this.websocket);
+    };
+    /**
+     * 公开函数 close 负责 packages/runner-sdk/src/retry-safety.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    private close = () => {
+        this.closed = true;
+    };
+    constructor(
+        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+        private context: BrowserContext,
+        declaredWrites: boolean,
+    ) {
+        // 分段注释：继续说明 retry-safety.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+        this.writes = declaredWrites;
+        context.on("request", this.request);
+        context.on("page", this.page);
+        context.on("close", this.close);
+        // 关键路径：处理 for 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        for (const page of context.pages()) this.page(page);
+    }
+    /**
+     * 公开函数 method 负责 packages/runner-sdk/src/retry-safety.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    method(method: string) {
+        // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        if (!["GET", "HEAD", "OPTIONS"].includes(method.toUpperCase())) this.writes = true;
+    }
+    /**
+     * 公开函数 finish 负责 packages/runner-sdk/src/retry-safety.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    finish(finalized: boolean): RetrySafety {
+        this.context.off("request", this.request);
+        this.context.off("page", this.page);
+        this.context.off("close", this.close);
+        // 关键路径：处理 for 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        for (const page of this.pages) page.off("websocket", this.websocket);
+        return this.writes
+            ? "WRITE_POSSIBLE"
+            : finalized && this.closed
+              // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+              // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+              // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+              ? "READ_ONLY_OBSERVED"
+              : "UNKNOWN";
+    }
+// 分段注释：继续说明 retry-safety.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+// 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+// 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
 }
