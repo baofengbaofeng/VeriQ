@@ -1,650 +1,338 @@
 /**
- * 本文件 apps/web/src/api.ts 实现 VeriQ 相关前端或执行侧能力，并标明公开导出与关键路径；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
- * 模块注释用于帮助智能体与贡献者快速定位授权、执行与离线相关逻辑。
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
- * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
- * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
- * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
- * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
- * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ * 本模块提供 Cookie/CSRF 会话下的 /api/v1 传输层，供各功能适配器复用同一凭证边界。写入请求必须同源且不落盘密钥。
+ * 401 时广播 veriq:session-expired；非 GET 写入自动附带 X-CSRF-Token。
  */
 
 import type { PlatformComponents, PlatformPaths } from "@veriq/contracts";
 type Schemas = PlatformComponents["schemas"];
 /**
- * 公开类型 User 描述 apps/web/src/api.ts 模块对外契约字段与可组合结构；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
- * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
- * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
- * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
- * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
- * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
- * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ * 账户与导航使用的 AdminUserDTO 投影，含 systemAdmin 以决定管理入口是否可见。密码哈希永不出现在此类型。
+ * 来自 /account 或管理端用户列表，不包含会话令牌或密码哈希。
  */
 export type User = Schemas["AdminUserDTO"];
 /**
- * 公开类型 Session 描述 apps/web/src/api.ts 模块对外契约字段与可组合结构；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
- * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
- * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
- * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
- * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
- * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
- * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ * 登录成功后返回的 SessionDTO，仅表示服务端已建立 Cookie 会话，不含 Workspace 列表。与 account() 结果分离。
+ * 前端用 session() 探活；真正资料展示依赖 account() 拉取的 User。
  */
 export type Session = Schemas["SessionDTO"];
 /**
- * 公开类型 AccountSessions 描述 apps/web/src/api.ts 模块对外契约字段与可组合结构；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
- * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
- * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
- * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
- * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
- * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
- * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ * 当前账户活跃会话分页信封，供账户页列出并批量吊销本机以外的会话。nextCursor 为空即无更多页；nextCursor 为空时账户页停止继续追加会话行。
+ * 查询参数遵循 SessionListQuery；吊销调用 revokeOwn 而非逐条删除。
  */
 export type AccountSessions = Schemas["AccountSessionsDTO"];
 /**
- * 公开类型 ResetLink 描述 apps/web/src/api.ts 模块对外契约字段与可组合结构；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
- * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
- * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
- * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
- * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
- * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
- * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ * 管理员签发的一次性重置链接 DTO，短时有效且仅在 AdminUsers 页展示给操作者。复制后即视为已暴露给管理员；链接只短暂展示且禁止写入 localStorage。
+ * 前端不得把链接写入日志或持久化到 localStorage。
  */
 export type ResetLink = Schemas["ResetLinkDTO"];
 /**
- * 公开类型 UserListQuery 描述 apps/web/src/api.ts 模块对外契约字段与可组合结构；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
- * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
- * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
- * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
- * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
- * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
- * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ * 系统管理员用户列表的游标与过滤查询形状，绑定 GET /admin/users 的 OpenAPI 参数。email 过滤为前缀匹配语义。
+ * limit/cursor 变更会触发 AdminUsers 重新拉取，避免跨页状态串扰。
  */
 export type UserListQuery = NonNullable<
     PlatformPaths["/api/v1/admin/users"]["get"]["parameters"]["query"]
 >;
 /**
- * 公开类型 SessionListQuery 描述 apps/web/src/api.ts 模块对外契约字段与可组合结构；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
- * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
- * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
- * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
- * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
- * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
- * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ * 账户会话列表查询形状，绑定 GET /account/sessions，支持 limit 与 cursor 分页。与管理端用户会话列表形状不同。
+ * Account 页用其控制每页条数并在 Load more 时追加 items。
  */
 export type SessionListQuery = NonNullable<
     PlatformPaths["/api/v1/account/sessions"]["get"]["parameters"]["query"]
 >;
-/**
- * 公开函数 queryString 负责 apps/web/src/api.ts 中的关键处理流程并返回约定结果；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
- * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
- * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
- * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
- * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
- * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
- * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
- */
 function queryString(
     options: Record<string, string | number | boolean | undefined>,
 ): string {
     const query = new URLSearchParams();
-    // 关键路径：处理 for 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
     for (const [key, value] of Object.entries(options))
-        // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
         if (value !== undefined) query.set(key, String(value));
     return query.size ? "?" + query.toString() : "";
 }
 let csrfToken = "";
 /**
- * 公开类 ApiError 封装 apps/web/src/api.ts 中的核心状态与可复用协作接口；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
- * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
- * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
- * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
- * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
- * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
- * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ * 将非 2xx JSON 体映射为带 code/status/requestId 的错误，供 Notice 与适配器统一展示。
+ * 401 已由 request 触发会话过期事件；调用方只消费可读 message。
  */
 export class ApiError extends Error {
     constructor(
         public code: string,
         message: string,
-        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
         public status: number,
         public requestId: string,
     ) {
-        // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
         super(message);
     }
 }
 /**
- * 公开函数 request 负责 apps/web/src/api.ts 中的关键处理流程并返回约定结果；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
- * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
- * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
- * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
- * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
- * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
- * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ * 通用 JSON 请求：same-origin Cookie、可选 AbortSignal，成功时刷新内存中的 csrfToken。
+ * 路径相对 /api/v1；业务适配器应传入已含 workspaceId 的路径，勿在此层拼接作用域。
  */
 export async function request<T>(
     path: string,
     method = "GET",
     data?: unknown,
-    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
     signal?: AbortSignal,
     headers?: Record<string, string>,
 ): Promise<T> {
-    // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
     const response = await fetch("/api/v1" + path, {
         method,
         credentials: "same-origin",
         signal,
-        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
         headers: {
             ...headers,
             "Content-Type": "application/json",
             ...(method !== "GET" ? { "X-CSRF-Token": csrfToken } : {}),
-        // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
         },
         ...(data === undefined ? {} : { body: JSON.stringify(data) }),
     });
     const body = await response.json();
-    // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
     if (response.status === 401)
         window.dispatchEvent(new Event("veriq:session-expired"));
-    // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
     if (!response.ok)
         throw new ApiError(
             body.code,
             body.message,
-            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
             response.status,
             body.requestId,
         );
-    // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
     if (body.data?.csrfToken) csrfToken = body.data.csrfToken;
     return body.data as T;
 }
 /**
- * 公开常量或工厂 api 为 apps/web/src/api.ts 提供稳定导出入口与默认行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
- * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
- * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
- * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
- * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
- * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
- * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ * 认证、账户、Workspace 成员与邀请的门面对象，所有方法最终走 request 并保持 CSRF。邀请接受走 /auth 而非空间嵌套路径。
+ * Workspace 相关写操作均要求显式 workspaceId，不依赖隐式全局选择。
  */
 export const api = {
     setup: () => request<Schemas["SetupDTO"]>("/setup"),
     initialize: (data: Schemas["SetupRequest"]) =>
         request<Schemas["UserDTO"]>("/setup", "POST", data),
-    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
     login: (data: Schemas["LoginRequest"]) =>
         request<Session>("/auth/login", "POST", data),
     session: () => request<Session>("/auth/session"),
-    // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
     logout: () => request<Schemas["Empty"]>("/auth/logout", "POST", {}),
     account: () => request<User>("/account"),
     sessions: (options: SessionListQuery = {}) =>
         request<AccountSessions>("/account/sessions" + queryString({ ...options })),
-    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
     revokeOwn: () =>
         request<Schemas["Empty"]>("/account/sessions/revoke", "POST", {}),
     password: (data: Schemas["ChangePasswordRequest"]) =>
         request<Schemas["Empty"]>("/account/password", "POST", data),
-    // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
     resetRequest: (email: string) =>
         request<Schemas["Empty"]>("/auth/password-reset", "POST", { email }),
     resetConfirm: (data: Schemas["ResetPasswordRequest"]) =>
         request<Schemas["Empty"]>("/auth/password-reset/confirm", "POST", data),
-    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
     users: (options: UserListQuery = {}) =>
         request<Schemas["AdminUsersDTO"]>(
             "/admin/users" + queryString({ ...options }),
         ),
-    // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
     createUser: (data: Schemas["CreateUserRequest"]) =>
         request<User>("/admin/users", "POST", data),
     updateUser: (id: string, data: Schemas["UpdateUserRequest"]) =>
         request<User>(`/admin/users/${id}`, "PATCH", data),
-    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
     resetLink: (id: string) =>
         request<ResetLink>(`/admin/users/${id}/reset-link`, "POST", {}),
     revokeUser: (id: string) =>
         request<Schemas["Empty"]>(`/admin/users/${id}/sessions/revoke`, "POST", {}),
-    // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
     workspaces: (cursor?: string, signal?: AbortSignal) =>
         request<Schemas["WorkspaceDTOPageEnvelope"]["data"]>(
             "/workspaces" + queryString({ cursor }),
             "GET",
-            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
             undefined,
             signal,
         ),
     workspace: (id: string, signal?: AbortSignal) =>
-        // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
         request<Schemas["WorkspaceDTO"]>(
             `/workspaces/${id}`,
             "GET",
             undefined,
-            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
             signal,
         ),
     createWorkspace: (data: Schemas["WorkspaceWrite"], signal?: AbortSignal) =>
         request<Schemas["WorkspaceDTO"]>("/workspaces", "POST", data, signal),
-    // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
     renameWorkspace: (id: string, name: string, signal?: AbortSignal) =>
         request<Schemas["WorkspaceDTO"]>(
             `/workspaces/${id}`,
             "PATCH",
-            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
             { name },
             signal,
         ),
     archiveWorkspace: (id: string, signal?: AbortSignal) =>
-        // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
         request<Schemas["Empty"]>(`/workspaces/${id}`, "DELETE", undefined, signal),
     members: (id: string, cursor?: string, signal?: AbortSignal) =>
         request<Schemas["MemberDTOPageEnvelope"]["data"]>(
             `/workspaces/${id}/members` + queryString({ cursor }),
-            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
             "GET",
             undefined,
             signal,
         ),
-    // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
     updateMember: (
         ws: string,
         id: string,
         data: Schemas["MemberWrite"],
-        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
         signal?: AbortSignal,
     ) =>
         request<Schemas["MemberDTO"]>(
             `/workspaces/${ws}/members/${id}`,
-            // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-            // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
             "PUT",
             data,
             signal,
         ),
-    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
     removeMember: (ws: string, id: string, signal?: AbortSignal) =>
         request<Schemas["Empty"]>(
             `/workspaces/${ws}/members/${id}`,
             "DELETE",
-            // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-            // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
             undefined,
             signal,
         ),
     invitations: (id: string, cursor?: string, signal?: AbortSignal) =>
-        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
         request<Schemas["InvitationSummaryDTOPageEnvelope"]["data"]>(
             `/workspaces/${id}/invitations` + queryString({ cursor }),
             "GET",
             undefined,
-            // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-            // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
             signal,
         ),
     invite: (id: string, data: Schemas["InviteRequest"], signal?: AbortSignal) =>
         request<Schemas["InviteDTO"]>(
-            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
             `/workspaces/${id}/invitations`,
             "POST",
             data,
             signal,
-        // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
         ),
     revokeInvitation: (ws: string, id: string, signal?: AbortSignal) =>
         request<Schemas["Empty"]>(
             `/workspaces/${ws}/invitations/${id}`,
-            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
             "DELETE",
             undefined,
             signal,
         ),
-    // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
     acceptInvitation: (data: Schemas["InvitationAcceptRequest"]) =>
         request<Schemas["UserDTO"]>("/auth/invitations/accept", "POST", data),
 };
 /**
- * 公开类型 Workspace 描述 apps/web/src/api.ts 模块对外契约字段与可组合结构；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
- * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
- * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
- * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
- * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
- * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
- * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ * WorkspaceDTO 别名，描述空间元数据与当前用户在该空间的角色摘要。归档空间仍可只读查询历史；归档之后仍允许只读查询该空间历史记录。
+ * 选择状态由 WorkspaceProvider 持有，本类型本身不含 AbortSignal。
  */
 export type Workspace = Schemas["WorkspaceDTO"];
 /**
- * 公开类型 Member 描述 apps/web/src/api.ts 模块对外契约字段与可组合结构；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
- * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
- * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
- * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
- * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
- * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
- * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ * MemberDTO 别名，表示某 Workspace 内成员角色；更新走 PUT /workspaces/{ws}/members/{id}。
+ * 移除成员不会级联删除资源，仅切断该用户对该空间的访问。
  */
 export type Member = Schemas["MemberDTO"];
 
 /**
- * 公开类型 Runtime 描述 apps/web/src/api.ts 模块对外契约字段与可组合结构；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
- * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
- * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
- * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
- * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
- * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
- * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ * RuntimeDTO 别名，登记设备、信任状态、授权矩阵与凭证投递开关。心跳与租约语义由服务端解释；心跳与租约是否过期一律交由服务端判定。
+ * 所有变更必须带 workspaceId；吊销后不可再领取作业。
  */
 export type Runtime = Schemas["RuntimeDTO"];
 /**
- * 公开常量或工厂 runtimeApi 为 apps/web/src/api.ts 提供稳定导出入口与默认行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
- * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
- * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
- * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
- * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
- * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
- * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ * Workspace 作用域内 Runtime 登记、授权、信任与服务账号令牌发放的专用 API 集合。服务账号令牌仅用于登记，不替代用户会话。
+ * enrollment inspect/approve 跨空间，但 grant/trust/revoke 始终绑定 workspace 路径。
  */
 export const runtimeApi = {
     delivery: (
         ws: string,
         id: string,
-        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
         allowCredentialDelivery: boolean,
         signal?: AbortSignal,
     ) =>
-        // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
         request<Runtime>(
             `/workspaces/${ws}/runtimes/${id}/credential-delivery`,
             "PUT",
             { allowCredentialDelivery },
-            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
             signal,
         ),
     list: (ws: string, cursor?: string, signal?: AbortSignal) =>
         request<Schemas["RuntimeDTOPageEnvelope"]["data"]>(
-            // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-            // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
             `/workspaces/${ws}/runtimes` + queryString({ cursor }),
             "GET",
             undefined,
             signal,
-        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
         ),
     inspect: (userCode: string, signal?: AbortSignal) =>
         request<Schemas["EnrollmentPreview"]>(
             "/runtime-enrollments/inspect",
-            // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-            // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
             "POST",
             { userCode },
             signal,
         ),
-    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
     approve: (
         id: string,
         data: Schemas["EnrollmentApprove"],
         signal?: AbortSignal,
-    // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
     ) =>
         request<Runtime>(
             `/runtime-enrollments/${id}/approve`,
             "POST",
-            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
             data,
             signal,
         ),
     grants: (
-        // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
         ws: string,
         id: string,
         data: Schemas["RuntimeGrantWrite"],
         signal?: AbortSignal,
-    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
     ) =>
         request<Runtime>(
             `/workspaces/${ws}/runtimes/${id}/grants`,
             "PUT",
-            // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-            // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
             data,
             signal,
         ),
     trust: (
-        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
         ws: string,
         id: string,
         data: Schemas["RuntimeTrustWrite"],
         signal?: AbortSignal,
-    // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
     ) =>
         request<Runtime>(
             `/workspaces/${ws}/runtimes/${id}/trust`,
             "PUT",
-            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
             data,
             signal,
         ),
     revoke: (ws: string, id: string, signal?: AbortSignal) =>
-        // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
         request<Runtime>(
             `/workspaces/${ws}/runtimes/${id}/revoke`,
             "POST",
             {},
-            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
             signal,
         ),
     accounts: (ws: string, cursor?: string, signal?: AbortSignal) =>
         request<Schemas["ServiceAccountDTOPageEnvelope"]["data"]>(
-            // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-            // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
             `/workspaces/${ws}/service-accounts` + queryString({ cursor }),
             "GET",
             undefined,
             signal,
-        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
         ),
     createAccount: (ws: string, name: string, signal?: AbortSignal) =>
         request<Schemas["ServiceAccountDTO"]>(
             `/workspaces/${ws}/service-accounts`,
-            // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-            // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
             "POST",
             { name },
             signal,
         ),
-    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
     issueToken: (ws: string, id: string, signal?: AbortSignal) =>
         request<Schemas["ServiceTokenDTO"]>(
             `/workspaces/${ws}/service-accounts/${id}/tokens`,
             "POST",
-            // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-            // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
             { purpose: "RUNTIME_ENROLLMENT" },
             signal,
         ),
     disableAccount: (ws: string, id: string, signal?: AbortSignal) =>
-        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
         request<Schemas["ServiceAccountDTO"]>(
             `/workspaces/${ws}/service-accounts/${id}/disable`,
             "POST",
             {},
-            // 分段注释：继续说明 api.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-            // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
             signal,
         ),
 };
 
- /**
-  * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
-  * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
-  * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
-  * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-  * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
-  * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-  * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
-  * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
-  */
-/** Cookie/CSRF streaming transport shared by typed feature adapters. */
 /**
- * 公开函数 streamRequest 负责 apps/web/src/api.ts 中的关键处理流程并返回约定结果；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
- * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ * POST 流式传输：附带 CSRF，返回原始 Response 供 SSE 解析，失败时同样抛出 ApiError。调用方负责取消 reader 与释放锁。
+ * CloudReportAdapter.subscribe 用其拉取 runs/.../events/stream，禁止缓冲整包到内存。
  */
 export async function streamRequest(path: string, data: unknown, signal: AbortSignal) {
     const response = await fetch("/api/v1" + path, {method: "POST", credentials: "same-origin", signal,
         headers: {"Content-Type":"application/json", "X-CSRF-Token":csrfToken}, body:JSON.stringify(data)});
-    // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
     if (!response.ok) { const body=await response.json(); if(response.status===401) window.dispatchEvent(new Event("veriq:session-expired")); throw new ApiError(body.code,body.message,response.status,body.requestId); }
     return response;
 }

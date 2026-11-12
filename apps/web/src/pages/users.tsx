@@ -1,8 +1,6 @@
 /**
- * 本文件 apps/web/src/pages/users.tsx 实现 VeriQ Web/共享 UI 界面能力并导出公开组件与辅助函数
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 系统管理员用户管理页：创建用户、过滤列表、签发重置链接并吊销目标用户会话。普通成员打开会看到权限受限提示；非 systemAdmin 访问时只渲染权限受限面板。
+ * 非 systemAdmin 显示受限面板；数据全部来自 /admin/users*。
  */
 
 import { useState, useContext, useEffect } from "react";
@@ -10,6 +8,10 @@ import { Navigate } from "react-router-dom";
 import { api, type User, type ResetLink, type UserListQuery } from "../api";
 import { Auth } from "../auth-context";
 import { Notice, Field, useAction, values, Panel } from "../ui";
+/**
+ * 持有 users/filters/nextCursor/link 状态；create/update/resetLink/revokeUser 均经 useAction。
+ * 重置链接仅短暂展示在本页，刷新后需重新签发。
+ */
 export function AdminUsers() {
     const { user, refresh } = useContext(Auth),
         a = useAction();

@@ -1,8 +1,6 @@
 /**
- * 本文件 apps/web/src/features/cases/CaseEditor.tsx 实现 VeriQ Web/共享 UI 界面能力并导出公开组件与辅助函数
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 用例/流程步骤编辑器：动作参数、观察者、前后断言与数据集/变量绑定。callFlow 只引用已发布流程版本；callFlow 动作只允许引用已发布的流程版本。
+ * flow=true 时编辑参数声明而非 caseKey；版本引用保持固定 UUID。
  */
 
 import type { StepV1, ObserverV1 } from "@veriq/contracts";
@@ -50,15 +48,18 @@ const actionDefaults = (action: string) =>
                     ? { versionId: "" }
                     : {};
 /**
- * 公开符号 newStep（const）定义 apps/web/src/features/cases/CaseEditor.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 工厂：默认 goto / 的步骤，id 含短 UUID，供步骤 List 新增行。后续由 action 切换填充默认参数。
+ * actionDefaults 在类型切换时填充，避免缺字段导致保存失败。
  */
 export const newStep = (): StepV1 => ({
     id: "step_" + crypto.randomUUID().slice(0, 8),
     action: "goto",
     path: "/",
 });
+/**
+ * 拥有 steps/initialVariables/dataset 绑定 UI，并嵌入 AssertionEditor。
+ * fixtureBindings 合并数据集列与变量供填充提示；不发起 Workspace API。
+ */
 export function CaseEditor({
     versions,
     flow = false,

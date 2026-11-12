@@ -1,8 +1,6 @@
 /**
- * 本文件 apps/web/src/features/resources/fields.tsx 实现 VeriQ Web/共享 UI 界面能力并导出公开组件与辅助函数
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 资源草稿 RHF 字段工具：路径读写、版本选择、列表编辑与受控 JSON 值，路径深度有界。禁止在控件内 fetch；字段控件内部禁止发起任何 Workspace fetch。
+ * Apply/save 边界再跑 ResourceDocumentV1 校验；递归 JSON 叶不用裸 textarea 执行。
  */
 
 import { useState, type ReactNode } from "react";
@@ -31,23 +29,37 @@ import { useEditorTranslationOptions } from "./i18n";
 // RHF paths stay bounded: recursive JSON leaves are edited by typed value controls.
 // Canonical ResourceDocumentV1 is validated at Apply/save boundaries.
 /**
- * 公开符号 EditorValues（type）定义 apps/web/src/features/resources/fields.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 编辑器根表单值类型，包裹资源草稿文档与 UI 辅助字段，供 useForm 泛型使用。辅助字段不会提交到 DraftWrite。
+ * 与服务器 Draft.content 对齐的部分经 save 提交；其余仅本地。
  */
 export type EditorValues = {
     content: { kind: ResourceKind; document: object };
 };
+/**
+ * 页面引用可选范围：CASE/FLOW/ASSERTION_TEMPLATE，限制 VersionField 可选版本集合。
+ * 断言编辑器用其过滤模板引用，避免跨 kind 误绑。
+ */
 export type PageReferenceScope = "CASE" | "FLOW" | "ASSERTION_TEMPLATE";
+/**
+ * JSON Schema 风格基础类型名列表，供 TypeMap/JsonValueControl 下拉使用。切换类型会重置默认值。
+ * 与契约校验器接受的类型字符串保持一致。
+ */
 export const types = ["string", "number", "integer", "boolean", "object", "array", "null"];
+/**
+ * HTTP 方法枚举，供用例步骤 apiRequest 与网络断言 query.method 下拉共用。与合约 HTTP 断言枚举一致。
+ * 顺序固定便于快照测试；不含 TRACE 等非业务方法。
+ */
 export const methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
+/**
+ * 从 RHF 读取指定路径的当前值（泛型 T），供字段组件订阅局部状态而不整表重渲染策略由 RHF 决定。名称参数为点分路径。
+ * 路径必须落在 EditorValues 内；越界返回 undefined。
+ */
 export function useValue<T>(name: string): T {
     return useWatch<EditorValues>({ name: name as FieldPath<EditorValues> }) as T;
 }
 /**
- * 公开符号 useSet（function）定义 apps/web/src/features/resources/fields.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 返回向 RHF 写入路径值的 setter，供 List/Json 控件在增删改时更新草稿。批量更新应合并为一次 setValue。
+ * 不自动标记 dirty 以外的副作用；保存仍由编辑器工具栏触发。
  */
 export function useSet() {
     const { setValue } = useFormContext<EditorValues>();
@@ -57,9 +69,8 @@ export function useSet() {
         });
 }
 /**
- * 公开符号 Field（function）定义 apps/web/src/features/resources/fields.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 资源草稿用文本/数字等简单字段，绑定 RHF 路径与双语 label，区别于 ui.tsx 的原生 Field。支持 required 与只读展示模式。
+ * 校验信息就地展示；不发起 API。
  */
 export function Field({
     name,
@@ -163,9 +174,8 @@ export function Field({
     );
 }
 /**
- * 公开符号 VersionOption（type）定义 apps/web/src/features/resources/fields.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 版本下拉选项：id、展示标签与可选内容摘要，供固定引用字段过滤。content 可选用于列名提示；可选 content 供数据集列名提示而不是提交。
+ * 由编辑器从 adapter.versions 映射而来，不直接等于 Version DTO。
  */
 export type VersionOption = {
     id: string;
@@ -175,9 +185,8 @@ export type VersionOption = {
     content?: ResourceDocumentV1;
 };
 /**
- * 公开符号 VersionField（function）定义 apps/web/src/features/resources/fields.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 在允许的 kind/scope 内选择不可变 versionId，写入草稿引用字段。空值表示清除固定引用；空值表示清除草稿里的该固定版本引用。
+ * 清空表示未绑定；发布后引用不会随远端新版本自动浮动。
  */
 export function VersionField({
     name,
@@ -256,9 +265,8 @@ function DragRow({ id, children }: { id: string; children: ReactNode }) {
     );
 }
 /**
- * 公开符号 List（function）定义 apps/web/src/features/resources/fields.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 通用数组字段编辑器：上移/下移/删除/添加，子项由 render 回调绘制。添加时调用调用方提供的 factory；新增一行时调用调用方传入的 factory 函数。
+ * 变更经 useSet 写回；用于步骤、断言、字符串列表等。
  */
 export function List(props: {
     name: string;
@@ -369,11 +377,9 @@ function defaultValue(type: string): JsonValue {
                 ? null
                 : 0;
 }
-/** Typed JSON values are business data/bindings, never evaluated or reparsed recursively. */
 /**
- * 公开符号 JsonValueControl（function）定义 apps/web/src/features/resources/fields.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 按类型编辑 JSON 叶子（含 object/array 有界展开），业务数据不当作可执行脚本。null 类型单独可选。
+ * 类型切换会重置为该类型默认值，避免残留非法形状。
  */
 export function JsonValueControl({
     value,
@@ -543,6 +549,10 @@ export function JsonValueControl({
         </div>
     );
 }
+/**
+ * 单路径 JSON 编辑入口，内部用 JsonValueControl，供断言 expected 等字段复用。label 与错误就近展示。
+ * 不在输入过程中 eval；仅在 Apply/save 做契约校验。
+ */
 export function JsonField({
     name,
     label,
@@ -572,9 +582,8 @@ export function JsonField({
     );
 }
 /**
- * 公开符号 StringList（function）定义 apps/web/src/features/resources/fields.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 字符串数组编辑（允许身份 ID 等），提供增删与排序，写入指定 RHF 路径。重复项由调用方决定是否允许；是否允许重复字符串完全由调用方自行约束。
+ * 空串是否保留由调用方约定；默认 trim 后提交。
  */
 export function StringList({
     name,
@@ -647,6 +656,10 @@ export function StringList({
         </div>
     );
 }
+/**
+ * string->类型 的映射编辑器，用于流程参数声明等 Record 结构。删除键不会残留空条目；删除某个键之后不得残留空的占位条目。
+ * 键名冲突时覆盖；不调用 Workspace API。
+ */
 export function TypeMap({ name, label }: { name: string; label: string }) {
     const value = useValue<Record<string, string> | undefined>(name) ?? {},
         set = useSet(),

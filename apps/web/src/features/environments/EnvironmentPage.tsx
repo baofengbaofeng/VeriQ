@@ -1,8 +1,6 @@
 /**
- * 本文件 apps/web/src/features/environments/EnvironmentPage.tsx 实现 VeriQ Web/共享 UI 界面能力并导出公开组件与辅助函数
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 环境资源页：复用 ResourcePage 并固定 kind 为 ENVIRONMENT，同时挂载身份/凭证管理。与资源页共享 editorI18n。
+ * Workspace 作用域与资源页相同；密钥明文不进 Query 缓存。
  */
 
 import { useMemo } from "react";
@@ -12,9 +10,8 @@ import { useWorkspace } from "../workspaces/WorkspaceContext";
 import { CloudIdentityAdapter } from "./identity-adapter";
 import { IdentityManager } from "./IdentityManager";
 /**
- * 公开符号 EnvironmentPage（function）定义 apps/web/src/features/environments/EnvironmentPage.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 渲染 ResourcePage(kind=ENVIRONMENT) 并在侧栏或下方接入 IdentityManager。
+ * 选中空间后 CloudIdentityAdapter 与资源适配器共用 selected。
  */
 export function EnvironmentPage() {
     return (

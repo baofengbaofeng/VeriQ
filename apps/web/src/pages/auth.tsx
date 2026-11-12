@@ -1,8 +1,6 @@
 /**
- * 本文件 apps/web/src/pages/auth.tsx 实现 VeriQ Web/共享 UI 界面能力并导出公开组件与辅助函数
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 认证页集合：登录、首次安装建管理员、申请重置与持 token 确认新密码；确认页成功后立刻清除 location.hash 令牌。
+ * 全部走 api.login/initialize/reset*；成功后 refresh 或导航到 /login。
  */
 
 import { useState, useContext, useEffect } from "react";
@@ -10,6 +8,10 @@ import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { Auth } from "../auth-context";
 import { Notice, Field, useAction, values, Panel } from "../ui";
+/**
+ * 邮箱密码登录表单：调用 api.login 后 auth.refresh，失败由 useAction 写入 Notice。
+ * 已登录用户由路由层 Navigate 到 /account，本组件不重复判断。
+ */
 export function SignIn() {
     const a = useAction(),
         auth = useContext(Auth);
@@ -37,9 +39,8 @@ export function SignIn() {
     );
 }
 /**
- * 公开符号 Setup（function）定义 apps/web/src/pages/auth.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 首次安装：用 installationSecret 创建系统管理员，成功后 setupComplete 并跳转登录。重复初始化由服务端拒绝。
+ * 仅在 setup.initialized=false 时由路由展示；密码最少 12 字符。
  */
 export function Setup() {
     const a = useAction(),
@@ -84,9 +85,8 @@ export function Setup() {
     );
 }
 /**
- * 公开符号 ResetRequest（function）定义 apps/web/src/pages/auth.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 提交邮箱触发 api.resetRequest；无论账号是否存在都显示中性成功提示以防枚举。不区分邮箱是否注册；成功文案保持中性以防止邮箱枚举攻击。
+ * 实际重置链接由管理员签发或邮件投递，本页不展示令牌。
  */
 export function ResetRequest() {
     const a = useAction();
@@ -118,9 +118,8 @@ export function ResetRequest() {
     );
 }
 /**
- * 公开符号 ResetConfirm（function）定义 apps/web/src/pages/auth.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 从 location.hash 读取一次性 token 后立即清 hash，再调用 resetConfirm 设置新密码。
+ * 缺少 token 时仅告警；成功后 refresh 会话以便进入账户。
  */
 export function ResetConfirm() {
     const auth = useContext(Auth);

@@ -1,8 +1,6 @@
 /**
- * 本文件 apps/web/src/features/assertions/AssertionEditor.tsx 实现 VeriQ Web/共享 UI 界面能力并导出公开组件与辅助函数
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 断言列表编辑器：按类型切换算子/期望值，并支持模板版本引用与网络观察源。模板类型只保存 versionId；模板类型断言只持久化 versionId 引用。
+ * 写入资源草稿 RHF 路径；不直接调用校验 API。
  */
 
 import type { AssertionV1 } from "@veriq/contracts";
@@ -62,9 +60,8 @@ const operators: Record<string, string[]> = {
     requestCount: ["equals"],
 };
 /**
- * 公开符号 newAssertion（const）定义 apps/web/src/features/assertions/AssertionEditor.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 工厂：生成带短 UUID 的默认 ui/visible/BLOCK 断言，expectedSource 标明人工审核。severity 默认 BLOCK。
+ * 供 List 的 add 回调使用，避免空对象未通过契约。
  */
 export const newAssertion = (): AssertionV1 => ({
     id: "assertion_" + crypto.randomUUID().slice(0, 8),
@@ -108,9 +105,8 @@ function defaults(type: string, network: string[]) {
     };
 }
 /**
- * 公开符号 AssertionEditor（function）定义 apps/web/src/features/assertions/AssertionEditor.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 拥有断言数组 UI：类型切换重置 defaults，网络类断言绑定 observer 名列表。pageKeys 限制 UI 目标候选。
+ * phase 区分 BEFORE/AFTER/TEMPLATE；scope 限制可引用的页面/模板版本。
  */
 export function AssertionEditor({
     name,
