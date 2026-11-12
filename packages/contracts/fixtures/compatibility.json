@@ -3854,7 +3854,7 @@
   {
     "name": "review-path-del",
     "schema": "Path",
-    "value": "/\u007f/outside.example",
+    "value": "//outside.example",
     "valid": false
   },
   {
@@ -4834,5 +4834,46 @@
       "errorCode": "CANCELLED"
     },
     "valid": true
+  },
+  {
+    "name": "offline-browser-choices",
+    "schema": "OfflineExecutionChoicesV1",
+    "value": {
+      "browsers": [
+        "chromium",
+        "firefox"
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "offline-browser-empty",
+    "schema": "OfflineExecutionChoicesV1",
+    "value": {
+      "browsers": []
+    },
+    "valid": false
+  },
+  {
+    "name": "offline-browser-duplicate",
+    "schema": "OfflineExecutionChoicesV1",
+    "value": {
+      "browsers": [
+        "chromium",
+        "chromium"
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "offline-browser-plan-forbidden",
+    "schema": "OfflineExecutionChoicesV1",
+    "value": {
+      "browsers": [
+        "chromium"
+      ],
+      "cases": []
+    },
+    "valid": false
   }
 ]

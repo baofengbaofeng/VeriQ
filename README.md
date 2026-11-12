@@ -2,7 +2,7 @@
 
 面向企业 PC Web 系统的自动化冒烟与回归平台，以版本化测试资产和确定性 Playwright TypeScript 执行为核心，连接云端 Runtime、本地桌面客户端与离线执行。
 
-**当前状态：开发中 / 尚未发布。** 账户与 Workspace、版本化测试资产、确定性编译器与 Runner SDK、fixture 与业务身份、Runtime 授权、统一队列及 Linux Agent 实际执行已有实现。八类资产编辑、编译发布、版本源码预览，以及实时结构化报告、受限证据、本机 Trace 查看、File/S3 存储与原始证据保留期维护已通过独立审查。AI 配置、预算、结构化草稿审核及失败分析已有实现并通过代码复审，实际外部 Provider 验收仍待用户授权和独立配置。签名包导出、可信公钥缓存、只读验证与本地凭证引用已通过修复复审；离线执行与回传、Electron 桌面客户端和正式发行等工作仍在推进。目前没有正式安装包，下述功能清单是 1.0 交付目标。
+**当前状态：开发中 / 尚未发布。** 账户与 Workspace、版本化测试资产、确定性编译器与 Runner SDK、fixture 与业务身份、Runtime 授权、统一队列及 Linux Agent 实际执行已有实现。八类资产编辑、编译发布、版本源码预览，以及实时结构化报告、受限证据、本机 Trace 查看、File/S3 存储与原始证据保留期维护已通过独立审查。AI 配置、预算、结构化草稿审核及失败分析已有实现并通过代码复审，实际外部 Provider 验收仍待用户授权和独立配置。签名包、可信公钥缓存、只读验证、本地凭证，以及真实离线执行、SQLite 持久化报告、取消恢复和幂等回传已通过独立复审；Electron 桌面客户端、外部触发与正式发行等工作仍在推进。目前没有正式安装包，下述功能清单是 1.0 交付目标。
 
 ## 为什么做 VeriQ
 
@@ -62,7 +62,7 @@ flowchart TB
 - **执行引擎：** Agent/Runner 使用独立锁定的 Node24；Electron 内嵌 Node 随 Electron 版本变化，不能视为 Node24 执行引擎。Playwright 测试浏览器与桌面 UI Chromium 分离，桌面升级不得静默改变测试引擎。
 - **离线：** 下载已发布资产的依赖闭包与签名快照，验签后使用本地凭证映射执行、查看报告，恢复连接后回传结果。离线意味着无需连接控制平台，被测业务系统仍须可达；离线包不携带密码、Cookie 或设备 token，也不自动双向同步编辑。
 
-签名包导出、信任根与本地凭证操作见[离线包说明](docs/offline-bundles.md)。
+签名包导出、信任根与本地凭证操作见[离线包说明](docs/offline-bundles.md)；离线执行、取消恢复、本地报告与回传见[操作说明](docs/offline-execution.md)。
 
 个人 Runtime 默认私有，共享须由所有者明确授权。离线结果保留来源与信任信息；签名验证包来源和完整性，不能证明本地结果绝未被修改。断网期间无法保证远程即时取消或权限回收。
 
@@ -78,6 +78,7 @@ flowchart TB
 | 数据库 | MySQL 8.4 LTS |
 | Web | React 18、TypeScript、Vite 6、Tailwind 3、ESM、react-router-dom 7.18.5、TanStack Query 5、Radix/CVA、i18next |
 | 执行 | 独立 Node24 LTS、Playwright Test、共享编译器与 Runner SDK |
+| 本地持久化 | 独立 Node24 内置 SQLite，执行占用、报告与上传状态持久化 |
 | 桌面 | Electron + React、main/preload/renderer 分层、白名单类型化 IPC |
 | 契约 | JSON Schema、OpenAPI、Pydantic 2、jsonschema、Ajv |
 | 报告与制品 | Playwright HTML/JUnit/Trace，本地文件存储默认、S3 适配可选 |

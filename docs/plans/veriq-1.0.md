@@ -416,7 +416,7 @@ assert model_calls_during_execution == 0
 
 **依赖：** T04/T10
 
-**状态：** 模块实现及两轮修复复审已通过（`46798ab`、`3ffb144`、`c1fa544`）。支持真实发布包和无 Runtime 的 DSL 草稿调试包、可信公钥缓存、严格入口/闭包验证、幂等导出、多 CASE 与版本分页、精确本地凭证引用及 SDK 动态键名脱敏。完整 SDK 检查仍有既有浏览器关闭超时，必须在 T18 正式门禁前处理，见[验证限制](../development.md#current-verification-limits)；本地执行/回传与桌面仍由后续任务交付。
+**状态：** 模块实现及两轮修复复审已通过（`46798ab`、`3ffb144`、`c1fa544`）。支持真实发布包和无 Runtime 的 DSL 草稿调试包、可信公钥缓存、严格入口/闭包验证、幂等导出、多 CASE 与版本分页、精确本地凭证引用及 SDK 动态键名脱敏。完整 SDK 检查仍有既有浏览器关闭超时，必须在 T18 正式门禁前处理，见[验证限制](../development.md#current-verification-limits)；T15 已补齐本地执行/回传，桌面仍由后续任务交付。
 
 **Files（拟创建/修改）：**
 
@@ -445,6 +445,8 @@ assert set(exported_versions) == set(dependency_closure)
 
 **依赖：** T12/T14
 
+**状态：** 模块实现与独立规格/质量复审已通过（`1b6fccb`、`86f1602`、`67968b4`）。真实断网执行、单机占用与代际恢复、证据持久化、完整/取消套件矩阵、草稿套件、幂等导入及报告回读均有实际验证；导入来源固定为 OFFLINE_IMPORT，缺失变体保守展示且正式门禁为 false。最终针对性检查为离线 27 项、后端 27 项、契约 200 项，真实组合验收 4 项；广套件历史失败与版本绑定见[验证记录](../development.md#current-verification-limits)。完整 SDK、桌面/目标 OS 发行及实际 Provider 验收继续按后续门禁执行，不能据此宣称完整 MVP 完成。
+
 **Files（拟创建/修改）：**
 
 - `apps/runtime/src/offline/run.ts`
@@ -455,7 +457,7 @@ assert set(exported_versions) == set(dependency_closure)
 
 **Interfaces：** runOffline(bundle, config): Promise<OfflineResultV1>；ImportService.import(scope, result) -> ImportReceipt。
 
-- [ ] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
+- [x] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```python
 assert first_import.run_id == repeated_import.run_id
@@ -463,10 +465,10 @@ assert first_import.source == OFFLINE_IMPORT
 assert dirty_import.official_gate_passed is False
 ```
 
-- [ ] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/bundles/test_import.py -q`；失败必须来自缺失行为，而非测试环境拼写错误。
-- [ ] **Step 3：实现上述接口与文件。** 无平台连接可运行看报告，原线上Attempt不被覆盖，dirty/环境覆盖/来源可信度如实显示；本地进程仍命名veriq。
-- [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
-- [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t15 离线执行、本地报告与幂等回传`。有新决策先更新ADR，不扩展到下一任务。
+- [x] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/bundles/test_import.py -q`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [x] **Step 3：实现上述接口与文件。** 无平台连接可运行看报告，原线上Attempt不被覆盖，dirty/环境覆盖/来源可信度如实显示；本地进程仍命名veriq。
+- [x] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
+- [x] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t15 离线执行、本地报告与幂等回传`。有新决策先更新ADR，不扩展到下一任务。
 
 ## T16：外部HTTP触发、维护接口与CI
 

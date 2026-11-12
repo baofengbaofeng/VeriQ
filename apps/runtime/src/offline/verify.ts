@@ -362,3 +362,57 @@ export async function verifyBundle(
     }
   }
 }
+
+/** Re-read an installed tree at the execution boundary; caller objects confer no authority.
+ * Returns captured exact bytes so a later filesystem edit cannot change this invocation.
+ */
+export async function reverifyInstalled(directory: string, options: {
+  trust: TrustStore; debug?: boolean; workspaceId?: string;
+}) {
+  const root = await lstat(directory);
+  if (!root.isDirectory() || root.isSymbolicLink()) throw new Error('UNSAFE_BUNDLE_DIRECTORY');
+  const manifestRaw = await readBoundedFile(join(directory,'manifest.json'),1024*1024);
+  const signature = await readBoundedFile(join(directory,'manifest.sig'),64);
+  const manifest = parse<BundleManifestV1>(manifestRaw,'BundleManifestV1');
+  const issuer = await options.trust.issuer(manifest.issuerId);
+  const key = issuer.keys.find(key=>key.keyId===manifest.keyId);
+  if (!key) throw new Error('ISSUER_KEY_NOT_TRUSTED');
+  if (key.revoked) throw new Error('ISSUER_KEY_REVOKED');
+  if (signature.length!==64 || !verify(null,manifestRaw,publicKey(key),signature)) throw new Error('BUNDLE_SIGNATURE_INVALID');
+  if (options.workspaceId && manifest.workspaceId!==options.workspaceId) throw new Error('BUNDLE_WORKSPACE_MISMATCH');
+  if (Date.parse(manifest.expiresAt)<=Date.parse(manifest.createdAt)) throw new Error('INVALID_BUNDLE_DATES');
+  const expired=Date.parse(manifest.expiresAt)<=Date.now(), debug=expired || manifest.validationStatus!=='VALIDATED';
+  if (debug && !options.debug) throw new Error(expired?'BUNDLE_EXPIRED':'BUNDLE_DEBUG_REQUIRED');
+  const actual = new Set<string>();
+  async function walk(relative: string): Promise<void> {
+    for(const entry of await readdir(join(directory,relative),{withFileTypes:true})) {
+      const path=relative?`${relative}/${entry.name}`:entry.name;
+      if (!safePath(path) || entry.isSymbolicLink()) throw new Error('UNSAFE_BUNDLE_DIRECTORY');
+      if (entry.isDirectory()) await walk(path);
+      else if (entry.isFile()) actual.add(path);
+      else throw new Error('UNSAFE_BUNDLE_DIRECTORY');
+      if (actual.size>MAX_FILES) throw new Error('BUNDLE_SIZE_LIMIT');
+    }
+  }
+  await walk('');
+  const expected = new Set(['manifest.json','manifest.sig']), contents=new Map<string,Buffer>();
+  let size=manifestRaw.length+signature.length;
+  for (const file of manifest.files) {
+    if (!safePath(file.path) || expected.has(file.path) || file.sizeBytes>MAX_FILE) throw new Error('INVALID_BUNDLE_FILES');
+    expected.add(file.path);
+    if (!actual.has(file.path)) throw new Error('BUNDLE_FILE_MISSING');
+    const raw=await readBoundedFile(join(directory,file.path),MAX_FILE);
+    if (raw.length!==file.sizeBytes) throw new Error('BUNDLE_SIZE_MISMATCH');
+    if (digest(raw)!==file.sha256) throw new Error('BUNDLE_HASH_MISMATCH');
+    size+=raw.length;
+    if (size>MAX_OUTPUT) throw new Error('BUNDLE_SIZE_LIMIT');
+    contents.set(file.path,raw);
+  }
+  if (actual.size!==expected.size) throw new Error('BUNDLE_EXTRA_FILE');
+  const raw=contents.get('snapshot.json');
+  if(!raw || digest(raw)!==manifest.snapshotSha256) throw new Error('BUNDLE_SNAPSHOT_MISMATCH');
+  const snapshot=parse<AssetSnapshotV1>(raw,'AssetSnapshotV1');
+  if(snapshot.workspaceId!==manifest.workspaceId || snapshot.engineVersion!==manifest.engineVersion || snapshot.sourceHash!==manifest.sourceHash || digest(assetSourceBytes(snapshot as unknown as Record<string,unknown>))!==manifest.sourceHash) throw new Error('BUNDLE_SNAPSHOT_MISMATCH');
+  const validated=validateContent(contents,manifest,snapshot);
+  return {manifest,manifestRaw,snapshot,contents,debug,expired,...validated};
+}

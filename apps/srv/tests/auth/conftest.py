@@ -9,6 +9,7 @@ from sqlalchemy.engine import make_url
 from tornado.httpserver import HTTPServer
 from tornado.netutil import bind_sockets
 from veriq_server.app import make_app
+from veriq_server.handlers.base import MAX_HTTP_BODY_BYTES
 from veriq_server.db import Database
 from veriq_server.settings import Settings
 from veriq_server.service import provision_setup_secret
@@ -62,6 +63,10 @@ async def site(request, monkeypatch):
     async with db.engine.begin() as conn:
         tables = (await conn.execute(text("SHOW TABLES"))).scalars().all()
         owned = {
+            "veriq_offline_imports",
+            "veriq_offline_import_keys",
+            "veriq_offline_attempts",
+            "veriq_offline_import_uploads",
             "veriq_bundles",
             "veriq_bundle_exports",
             "veriq_ai_providers",
@@ -112,7 +117,7 @@ async def site(request, monkeypatch):
     await migrate(settings)
     await provision_setup_secret(db, "operator-secret")
     sockets = bind_sockets(18889, "127.0.0.1")
-    server = HTTPServer(make_app(settings, db), max_body_size=3 * 1024 * 1024)
+    server = HTTPServer(make_app(settings, db), max_body_size=MAX_HTTP_BODY_BYTES)
     server.add_sockets(sockets)
 
     async def validate_response(response):

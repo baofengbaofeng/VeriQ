@@ -1886,6 +1886,87 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/v1/workspaces/{workspaceId}/result-imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Idempotent domain key is (workspaceId,bundleId,localRunId); validates signature, closure, provenance and current membership. */
+        post: operations["importNativeOfflineResult"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/result-import-uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["reserveOfflineUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/result-import-uploads/{uploadId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["uploadOfflineChunk"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/workspaces/{workspaceId}/result-import-uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["reserveNativeOfflineUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/workspaces/{workspaceId}/result-import-uploads/{uploadId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["uploadNativeOfflineChunk"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2883,7 +2964,22 @@ export interface components {
             cleanupStatus: components["schemas"]["CleanupStatus"];
             lastSequence: number;
             events: components["schemas"]["ExecutionEventV1"][];
-            artifacts: components["schemas"]["EvidenceFileEntryV1"][];
+            artifacts: components["schemas"]["OfflineArtifactV1"][];
+            execution?: components["schemas"]["ExecutionSnapshotV1"];
+            processStopped?: boolean;
+            /** @enum {unknown} */
+            retrySafety?: "READ_ONLY_OBSERVED" | "WRITE_POSSIBLE" | "UNKNOWN";
+            /** @enum {unknown} */
+            sourceKind?: "PUBLISHED" | "DRAFT_DEBUG";
+            variantKey?: components["schemas"]["Sha256"];
+            failureCode?: string;
+            diagnostics?: {
+                code: string;
+                path: string;
+                /** @enum {unknown} */
+                pathStatus: "EXACT" | "REDACTED";
+                message: string;
+            }[];
         };
         OfflineResultV1: {
             /** @constant */
@@ -2904,6 +3000,7 @@ export interface components {
             outcome: components["schemas"]["Outcome"];
             actualEnvironment: components["schemas"]["EnvironmentV1"];
             attempts: components["schemas"]["OfflineAttemptV1"][];
+            executionChoices?: components["schemas"]["OfflineExecutionChoicesV1"];
         };
         ValidationIssue: {
             path: string;
@@ -3223,7 +3320,7 @@ export interface components {
             gateAtExecution?: boolean;
             gateNow?: boolean;
             /** @enum {unknown} */
-            triggerKind?: "MANUAL" | "DEBUG" | "HTTP_TRIGGER";
+            triggerKind?: "MANUAL" | "DEBUG" | "HTTP_TRIGGER" | "OFFLINE_IMPORT";
             reasonCode?: string;
         };
         JobDTO: {
@@ -3267,6 +3364,10 @@ export interface components {
             runId: components["schemas"]["Id"];
             localRunId: components["schemas"]["Id"];
             duplicate: boolean;
+            /** @constant */
+            source: "OFFLINE_IMPORT";
+            /** @constant */
+            officialGatePassed: false;
         };
         ProviderWrite: {
             name: string;
@@ -3983,7 +4084,7 @@ export interface components {
         ReportAttemptDTO: {
             id: components["schemas"]["Id"];
             attemptNo: number;
-            runtimeId: components["schemas"]["Id"];
+            runtimeId: components["schemas"]["Id"] | null;
             phase: string;
             outcome: string | null;
             facts: {
@@ -4159,6 +4260,38 @@ export interface components {
             data: components["schemas"]["IssuerTrustV1"];
             requestId: string;
         };
+        OfflineArtifactV1: {
+            path: components["schemas"]["FilePath"];
+            sha256: components["schemas"]["Sha256"];
+            sizeBytes: number;
+            sensitivity: components["schemas"]["ArtifactSensitivity"];
+            /** @enum {unknown} */
+            kind?: "TRACE" | "DOWNLOAD" | "LOG" | "SOURCE" | "MANIFEST" | "HTML" | "JUNIT" | "SCREENSHOT";
+            artifactId?: components["schemas"]["Id"];
+        };
+        OfflineUploadRequest: {
+            bundleId: components["schemas"]["Id"];
+            localRunId: components["schemas"]["Id"];
+            attemptId: components["schemas"]["Id"];
+            file: components["schemas"]["OfflineArtifactV1"];
+        };
+        OfflineUploadDTO: {
+            id: components["schemas"]["Id"];
+            uploadUrl: string;
+        };
+        OfflineChunkDTO: {
+            id: components["schemas"]["Id"];
+            receivedBytes: number;
+            complete: boolean;
+        };
+        OfflineUploadDTOEnvelope: {
+            data: components["schemas"]["OfflineUploadDTO"];
+            requestId: components["schemas"]["Id"];
+        };
+        OfflineChunkDTOEnvelope: {
+            data: components["schemas"]["OfflineChunkDTO"];
+            requestId: components["schemas"]["Id"];
+        };
         /** @description JSON used only in interpolated DSL fields, recursively restricted to SafeString bindings. */
         BindingJsonValue: ContractBindingJsonValue;
         BindingJsonObject: {
@@ -4288,6 +4421,15 @@ export interface components {
             identityPath: components["schemas"]["Path"];
             identityPointer: string;
         };
+        AuthAdapterVersionV1: {
+            workspaceId: components["schemas"]["Id"];
+            versionId: components["schemas"]["Id"];
+            contentHash: components["schemas"]["Sha256"];
+            configuration: components["schemas"]["AuthAdapterConfigV1"];
+        };
+        OfflineExecutionChoicesV1: {
+            browsers: components["schemas"]["Browser"][];
+        };
         IssuerKeyV1: {
             keyId: components["schemas"]["Key"];
             /** @constant */
@@ -4300,12 +4442,6 @@ export interface components {
             resourceId: components["schemas"]["Id"];
             versionId: components["schemas"]["Id"];
             revision: number;
-        };
-        AuthAdapterVersionV1: {
-            workspaceId: components["schemas"]["Id"];
-            versionId: components["schemas"]["Id"];
-            contentHash: components["schemas"]["Sha256"];
-            configuration: components["schemas"]["AuthAdapterConfigV1"];
         };
         CaseEntrypointV1: {
             caseVersionId: components["schemas"]["Id"];
@@ -16618,6 +16754,208 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    importNativeOfflineResult: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns 409. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                workspaceId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OfflineResultV1"];
+            };
+        };
+        responses: {
+            /** @description Success. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportDTOEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    reserveOfflineUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OfflineUploadRequest"];
+            };
+        };
+        responses: {
+            /** @description Private bounded upload reservation */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfflineUploadDTOEnvelope"];
+                };
+            };
+        };
+    };
+    uploadOfflineChunk: {
+        parameters: {
+            query: {
+                offset: number;
+            };
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                uploadId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description Verified received offset */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfflineChunkDTOEnvelope"];
+                };
+            };
+        };
+    };
+    reserveNativeOfflineUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OfflineUploadRequest"];
+            };
+        };
+        responses: {
+            /** @description Private bounded upload reservation */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfflineUploadDTOEnvelope"];
+                };
+            };
+        };
+    };
+    uploadNativeOfflineChunk: {
+        parameters: {
+            query: {
+                offset: number;
+            };
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                uploadId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description Verified received offset */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfflineChunkDTOEnvelope"];
                 };
             };
         };

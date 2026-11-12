@@ -314,34 +314,40 @@ class MaintenanceService:
         elif operation == "artifacts/expire":
             from ..db import Artifact, ValidationReceipt
             from .artifact import RAW_KINDS
-            from .publication import recover, retire
+            from .publication import recover, retire, offline_pins, expire_offline
 
             await recover(self.session, workspace_id, limit)
+            # Preserve legacy online cursors, then transition once to offline aliases.
+            offline_cursor = cursor[8:] if cursor.startswith("offline:") else None
 
-            rows = list(
-                (
-                    await self.session.execute(
-                        select(AttemptUpload, Attempt)
-                        .join(Attempt, Attempt.id == AttemptUpload.attempt_id)
-                        .join(Job, Job.id == Attempt.job_id)
-                        .where(
-                            AttemptUpload.workspace_id == workspace_id,
-                            AttemptUpload.id > cursor,
-                            Attempt.phase == "FINISHED",
-                            Job.kind == "TEST",
-                            Attempt.finished_at
-                            < current
-                            - timedelta(
-                                days=min(
-                                    self.settings.artifact_retention_days,
-                                    self.settings.artifact_success_retention_days,
-                                )
-                            ),
+            rows = (
+                []
+                if offline_cursor is not None
+                else list(
+                    (
+                        await self.session.execute(
+                            select(AttemptUpload, Attempt)
+                            .join(Attempt, Attempt.id == AttemptUpload.attempt_id)
+                            .join(Job, Job.id == Attempt.job_id)
+                            .where(
+                                AttemptUpload.workspace_id == workspace_id,
+                                AttemptUpload.id > cursor,
+                                Attempt.phase == "FINISHED",
+                                Job.kind == "TEST",
+                                Attempt.finished_at
+                                < current
+                                - timedelta(
+                                    days=min(
+                                        self.settings.artifact_retention_days,
+                                        self.settings.artifact_success_retention_days,
+                                    )
+                                ),
+                            )
+                            .order_by(AttemptUpload.id)
+                            .limit(limit + 1)
                         )
-                        .order_by(AttemptUpload.id)
-                        .limit(limit + 1)
-                    )
-                ).all()
+                    ).all()
+                )
             )
             more = len(rows) > limit
             next_cursor = rows[limit - 1][0].id if more else None
@@ -389,7 +395,9 @@ class MaintenanceService:
                         )
                     ).all()
                 )
-                if any(u.expired_at is None for u, _, _ in references):
+                if any(u.expired_at is None for u, _, _ in references) or await offline_pins(
+                    self.session, workspace_id, upload.sha256
+                ):
                     continue
                 # Exact source/assignment roots stay pinned. Compiler/engine closure members
                 # are pinned by their retained non-raw uploads in the reference check above.
@@ -397,7 +405,14 @@ class MaintenanceService:
                 from ..db import Bundle
 
                 roots = [
-                    select(Bundle.id).where(Bundle.workspace_id == workspace_id, or_(Bundle.manifest_hash == digest, Bundle.archive_hash == digest, Bundle.snapshot_hash == digest)),
+                    select(Bundle.id).where(
+                        Bundle.workspace_id == workspace_id,
+                        or_(
+                            Bundle.manifest_hash == digest,
+                            Bundle.archive_hash == digest,
+                            Bundle.snapshot_hash == digest,
+                        ),
+                    ),
                     select(Job.id).where(
                         Job.workspace_id == workspace_id,
                         or_(
@@ -442,6 +457,15 @@ class MaintenanceService:
                         artifact.storage_backend,
                         artifact.storage_incarnation,
                     )
+            if not more:
+                # The request budget counts scanned online rows as well as expired offline rows.
+                remaining = limit - len(rows)
+                offline_count, offline_last, offline_more = await expire_offline(
+                    self.session, workspace_id, remaining, offline_cursor or ""
+                )
+                count += offline_count
+                more = offline_more
+                next_cursor = "offline:" + offline_last if more else None
         elif operation == "capacity/reconcile":
             keys = (
                 (

@@ -21,6 +21,12 @@ from .handlers.run import RunAPI, AttemptAuditAPI
 from .handlers.report import ReportAPI
 from .handlers.ai import AiAPI
 from .handlers.bundle import BundleAPI, NativeBundleAPI
+from .handlers.import_result import (
+    ImportAPI,
+    ImportUploadAPI,
+    NativeImportAPI,
+    NativeImportUploadAPI,
+)
 from .services.lease import DatabaseAttemptProofVerifier
 from .handlers.enrollment import DeviceAPI, EnrollmentAPI, RuntimeAPI
 from .service import Problem
@@ -40,13 +46,29 @@ class UnknownAPI(API):
 
 
 def handler_for(action: str) -> type[API]:
+    if action == "native-result-imports":
+        return NativeImportAPI
+    if action == "native-result-import-uploads":
+        return NativeImportUploadAPI
+    if action == "result-import-uploads":
+        return ImportUploadAPI
+    if action == "result-imports":
+        return ImportAPI
     if action in {"issuer-trust", "native-bundle-download"}:
         return NativeBundleAPI
     if action in {"bundles", "bundle", "bundle-manifest", "bundle-download"}:
         return BundleAPI
     if action.startswith("ai-"):
         return AiAPI
-    if action in {"report", "report-artifacts", "report-artifact", "report-history", "report-stream", "report-audit", "report-display"}:
+    if action in {
+        "report",
+        "report-artifacts",
+        "report-artifact",
+        "report-history",
+        "report-stream",
+        "report-audit",
+        "report-display",
+    }:
         return ReportAPI
     if action == "attempt-audit":
         return AttemptAuditAPI
@@ -142,29 +164,80 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
     reset_dispatcher = ResetDispatcher(db, settings, delivery)
     routes = [
         ("/internal/v1/issuer", "issuer-trust"),
-        ("/internal/v1/workspaces/([0-9a-fA-F-]{36})/bundles/([0-9a-fA-F-]{36})/download", "native-bundle-download"),
+        (
+            "/internal/v1/workspaces/([0-9a-fA-F-]{36})/bundles/([0-9a-fA-F-]{36})/download",
+            "native-bundle-download",
+        ),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/result-imports", "result-imports"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/result-import-uploads", "result-import-uploads"),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/result-import-uploads/([0-9a-fA-F-]{36})",
+            "result-import-uploads",
+        ),
+        ("/internal/v1/workspaces/([0-9a-fA-F-]{36})/result-imports", "native-result-imports"),
+        (
+            "/internal/v1/workspaces/([0-9a-fA-F-]{36})/result-import-uploads",
+            "native-result-import-uploads",
+        ),
+        (
+            "/internal/v1/workspaces/([0-9a-fA-F-]{36})/result-import-uploads/([0-9a-fA-F-]{36})",
+            "native-result-import-uploads",
+        ),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/bundles", "bundles"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/bundles/([0-9a-fA-F-]{36})", "bundle"),
-        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/bundles/([0-9a-fA-F-]{36})/manifest", "bundle-manifest"),
-        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/bundles/([0-9a-fA-F-]{36})/download", "bundle-download"),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/bundles/([0-9a-fA-F-]{36})/manifest",
+            "bundle-manifest",
+        ),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/bundles/([0-9a-fA-F-]{36})/download",
+            "bundle-download",
+        ),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/providers", "ai-providers"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/providers/([0-9a-fA-F-]{36})", "ai-provider"),
-        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/providers/([0-9a-fA-F-]{36})/connection-tests", "ai-connection"),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/providers/([0-9a-fA-F-]{36})/connection-tests",
+            "ai-connection",
+        ),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/context", "ai-context"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/generations", "ai-generations"),
-        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/generations/([0-9a-fA-F-]{36})", "ai-generation"),
-        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/generations/([0-9a-fA-F-]{36})/review", "ai-review"),
-        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/generations/([0-9a-fA-F-]{36})/cancel", "ai-cancel"),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/generations/([0-9a-fA-F-]{36})",
+            "ai-generation",
+        ),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/generations/([0-9a-fA-F-]{36})/review",
+            "ai-review",
+        ),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/generations/([0-9a-fA-F-]{36})/cancel",
+            "ai-cancel",
+        ),
         (
             "/api/v1/workspaces/([0-9a-fA-F-]{36})/attempts/([0-9a-fA-F-]{36})/reconcile",
             "attempt-audit",
         ),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runs/([0-9a-fA-F-]{36})/report", "report"),
-        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runs/([0-9a-fA-F-]{36})/attempts/([0-9a-fA-F-]{36})/display", "report-display"),
-        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runs/([0-9a-fA-F-]{36})/events/stream", "report-stream"),
-        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/attempts/([0-9a-fA-F-]{36})/history", "report-history"),
-        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/attempts/([0-9a-fA-F-]{36})/artifacts", "report-artifacts"),
-        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/attempts/([0-9a-fA-F-]{36})/artifacts/([0-9a-fA-F-]{36})", "report-artifact"),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/runs/([0-9a-fA-F-]{36})/attempts/([0-9a-fA-F-]{36})/display",
+            "report-display",
+        ),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/runs/([0-9a-fA-F-]{36})/events/stream",
+            "report-stream",
+        ),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/attempts/([0-9a-fA-F-]{36})/history",
+            "report-history",
+        ),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/attempts/([0-9a-fA-F-]{36})/artifacts",
+            "report-artifacts",
+        ),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/attempts/([0-9a-fA-F-]{36})/artifacts/([0-9a-fA-F-]{36})",
+            "report-artifact",
+        ),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/audit", "report-audit"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runs", "runs"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runs/([0-9a-fA-F-]{36})", "run"),

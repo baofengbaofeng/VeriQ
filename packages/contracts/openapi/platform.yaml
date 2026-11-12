@@ -8519,9 +8519,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -12251,7 +12248,7 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Maximum page size; rejected outside 1\u2013100. Default 25.",
+            "description": "Maximum page size; rejected outside 1–100. Default 25.",
             "schema": {
               "type": "integer",
               "minimum": 1,
@@ -12458,7 +12455,7 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Maximum page size; rejected outside 1\u2013100. Default 25.",
+            "description": "Maximum page size; rejected outside 1–100. Default 25.",
             "schema": {
               "type": "integer",
               "minimum": 1,
@@ -16370,6 +16367,355 @@
           }
         }
       }
+    },
+    "/internal/v1/workspaces/{workspaceId}/result-imports": {
+      "post": {
+        "operationId": "importNativeOfflineResult",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "DeviceToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "description": "Scoped to authenticated Workspace and operation. Same key/different payload returns 409."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportDTOEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OfflineResultV1"
+              }
+            }
+          }
+        },
+        "description": "Idempotent domain key is (workspaceId,bundleId,localRunId); validates signature, closure, provenance and current membership."
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/result-import-uploads": {
+      "post": {
+        "operationId": "reserveOfflineUpload",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "WebSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OfflineUploadRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Private bounded upload reservation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfflineUploadDTOEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/result-import-uploads/{uploadId}": {
+      "put": {
+        "operationId": "uploadOfflineChunk",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "WebSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "uploadId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 33554432
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary",
+                "maxLength": 1048576
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verified received offset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfflineChunkDTOEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/v1/workspaces/{workspaceId}/result-import-uploads": {
+      "post": {
+        "operationId": "reserveNativeOfflineUpload",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "DeviceToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OfflineUploadRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Private bounded upload reservation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfflineUploadDTOEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/v1/workspaces/{workspaceId}/result-import-uploads/{uploadId}": {
+      "put": {
+        "operationId": "uploadNativeOfflineChunk",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "DeviceToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "uploadId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 33554432
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary",
+                "maxLength": 1048576
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verified received offset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfflineChunkDTOEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -17504,7 +17850,8 @@
             "enum": [
               "MANUAL",
               "DEBUG",
-              "HTTP_TRIGGER"
+              "HTTP_TRIGGER",
+              "OFFLINE_IMPORT"
             ]
           },
           "reasonCode": {
@@ -17692,13 +18039,21 @@
           },
           "duplicate": {
             "type": "boolean"
+          },
+          "source": {
+            "const": "OFFLINE_IMPORT"
+          },
+          "officialGatePassed": {
+            "const": false
           }
         },
         "required": [
           "id",
           "runId",
           "localRunId",
-          "duplicate"
+          "duplicate",
+          "source",
+          "officialGatePassed"
         ],
         "additionalProperties": false
       },
@@ -20798,7 +21153,14 @@
             "type": "integer"
           },
           "runtimeId": {
-            "$ref": "#/components/schemas/Id"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Id"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "phase": {
             "type": "string"
@@ -21520,6 +21882,103 @@
           },
           "requestId": {
             "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "OfflineArtifactV1": {
+        "$ref": "../schemas/platform-v1.schema.json#/$defs/OfflineArtifactV1"
+      },
+      "OfflineUploadRequest": {
+        "type": "object",
+        "properties": {
+          "bundleId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "localRunId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "attemptId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "file": {
+            "$ref": "#/components/schemas/OfflineArtifactV1"
+          }
+        },
+        "required": [
+          "bundleId",
+          "localRunId",
+          "attemptId",
+          "file"
+        ],
+        "additionalProperties": false
+      },
+      "OfflineUploadDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "uploadUrl": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "uploadUrl"
+        ],
+        "additionalProperties": false
+      },
+      "OfflineChunkDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "receivedBytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 33554432
+          },
+          "complete": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "receivedBytes",
+          "complete"
+        ],
+        "additionalProperties": false
+      },
+      "OfflineUploadDTOEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/OfflineUploadDTO"
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/Id"
+          }
+        },
+        "required": [
+          "data",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "OfflineChunkDTOEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/OfflineChunkDTO"
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/Id"
           }
         },
         "required": [

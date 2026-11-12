@@ -26,15 +26,16 @@ else
             if (diagnostics.length) throw new Error("ASSET_VALIDATION_FAILED");
         }
         const output = compiler.compileFiles(source, distribution);
-        if (invocation.kind === 'VALIDATE') {
+        if (invocation.kind === 'VALIDATE' || invocation.localDraftCompile === true) {
             for (const [path, bytes] of Object.entries(output.files)) {
                 await mkdir(dirname(join(root, path)), { recursive: true });
                 await writeFile(join(root, path), bytes, { mode: 0o600 });
             }
             await writeFile(join(root, 'bundle.json'), canonicalBytes(output.bundle), { mode: 0o600 });
-            result = { kind: 'VALIDATE', businessOutcome: 'PASSED', cleanupStatus: 'NOT_REQUIRED' };
         }
-        else {
+        if (invocation.kind === 'VALIDATE') {
+            result = { kind: 'VALIDATE', businessOutcome: 'PASSED', cleanupStatus: 'NOT_REQUIRED' };
+        } else {
             const supplied = JSON.parse(await readFile(join(root, 'bundle.json'), 'utf8'));
             if (hash(canonicalBytes(supplied)) !== hash(canonicalBytes(output.bundle)))
                 throw new Error('COMPILED_PROVENANCE_MISMATCH');
@@ -49,11 +50,11 @@ else
         }
     }
     catch (error) {
-        if (invocation.kind !== 'VALIDATE')
+        if (invocation.kind !== 'VALIDATE' && invocation.localDraftCompile !== true)
             throw new Error('COMPILED_PROVENANCE_MISMATCH');
         const code = diagnostics?.[0]?.code ?? 'COMPILATION_FAILED';
         // Never persist compiler diagnostics containing source literals, URLs or credentials.
         await writeFile(join(root, 'compiler.log'), `VeriQ compiler failed: ${code}\n`, { mode: 0o600 });
-        result = { kind: 'VALIDATE', businessOutcome: 'ERROR', cleanupStatus: 'NOT_REQUIRED', failureCode: code, ...(diagnostics?.length ? { diagnostics } : {}) };
+        result = { kind: invocation.kind, businessOutcome: 'ERROR', cleanupStatus: 'NOT_REQUIRED', failureCode: code, ...(diagnostics?.length ? { diagnostics } : {}) };
     }
 await writeFile(join(root, 'worker-result.json'), JSON.stringify(result), { mode: 0o600 });
