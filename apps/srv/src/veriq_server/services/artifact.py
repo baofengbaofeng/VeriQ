@@ -258,8 +258,8 @@ class S3ArtifactStore:
     async def retire(self, workspace: str, digest: str, incarnation: str | None = None) -> None:
         """复制或迁移到 incarnation 键后删除主键，配合围栏退休，S3ArtifactStore.retire 遵守本文件边界。
         retire 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
+        主键在退休后永久占位，迟到的条件写入不能把已删除字节复活。
         """
-        # Keep the key occupied forever: late conditional puts cannot resurrect bytes.
         await asyncio.to_thread(
             lambda: self.client.put_object(
                 Bucket=self.bucket,
@@ -287,8 +287,8 @@ def artifact_store(settings: Settings, backend: str | None = None) -> ArtifactSt
 def effective_sensitivity(metadata: dict[str, Any]) -> str:
     """从元数据推导证据敏感级别，影响下载授权与是否需要强权限，effective_sensitivity 遵守本文件边界，失败返回稳定 Problem。
     effective_sensitivity 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
+    原始上传不能证明内容已经脱敏，调用方自行标注的 LOG 或 SOURCE 同样不算。
     """
-    # Raw uploads are not proof of sanitized content, including caller-labelled LOG/SOURCE.
     return "CREDENTIAL_RESTRICTED"
 
 

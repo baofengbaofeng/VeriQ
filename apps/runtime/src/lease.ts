@@ -1,7 +1,5 @@
-/**
- * 本文件按认领与心跳请求的发出时刻和到达时刻（单调时钟）换算本地停机截止，扣除完整往返时延并预留一秒，绝不去对照设备墙钟（LeaseGrant）。
- */
-/** Conservative local stop deadline. Never compare server UTC with the device wall clock. */
+/** 本文件按认领与心跳请求的发出时刻和到达时刻（单调时钟）换算本地停机截止，扣除完整往返时延并预留一秒，绝不去对照设备墙钟（LeaseGrant）。 */
+
 /**
  * 公开接口 LeaseGrant 描述平台下发的租约窗口，字段含 serverTime、leaseExpiresAt 与 leaseDurationMs，只供本地换算（LeaseGrant）。
  */

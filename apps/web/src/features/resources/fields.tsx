@@ -26,8 +26,6 @@ import type { JsonValue, ResourceKind, ResourceDocumentV1 } from "@veriq/contrac
 import { Button, Section } from "@veriq/ui";
 import { useTranslation } from "react-i18next";
 import { useEditorTranslationOptions } from "./i18n";
-// RHF paths stay bounded: recursive JSON leaves are edited by typed value controls.
-// Canonical ResourceDocumentV1 is validated at Apply/save boundaries.
 /**
  * 编辑器根表单值类型，包裹资源草稿文档与 UI 辅助字段，供 useForm 泛型使用。辅助字段不会提交到 DraftWrite。
  * 与服务器 Draft.content 对齐的部分经 save 提交；其余仅本地。

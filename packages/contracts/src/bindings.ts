@@ -40,8 +40,8 @@ export type Presence =
             present: true;
             value: JsonValue;
         };
-/** RFC6901 自有属性查找；缺失与 null 必须区分，禁止把二者当成同一语义。 */
 /**
+ * RFC6901 自有属性查找；缺失与 null 必须区分，禁止把二者当成同一语义。
  * 公开函数 resolvePointer 按 RFC6901 只读自有属性查找：非法指针抛错：缺失返回 present:false。
  */
 export function resolvePointer(value: JsonValue, pointer: string): Presence {
@@ -107,8 +107,8 @@ export function resolveBinding(
     return value;
 }
 
-/** 校验必需变量声明，并只暴露 prepare 之前的绑定作用域给后续步骤。 */
 /**
+ * 校验必需变量声明，并只暴露 prepare 之前的绑定作用域给后续步骤。
  * 公开函数 resolveInitialVariables 校验声明类型后只暴露预准备绑定作用域：缺键或类型不符即失败（resolveInitialVariables/INITIAL_VARIABLES_INVALID）。
  */
 export function resolveInitialVariables(

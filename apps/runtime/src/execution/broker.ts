@@ -5,7 +5,6 @@
 import { createServer, type Server, type Socket } from 'node:net';
 import { chmod, unlink } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
-/** Private per-Attempt Unix socket. No device credential is sent to this endpoint. */
 /**
  * 公开类 AttemptBroker 监听 Attempt 私有 Unix 套接字：用一次性 nonce 授权单行 JSON 控制消息。
  * 超限或失配时销毁连接且不转发设备凭证。

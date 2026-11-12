@@ -185,8 +185,8 @@ async def invalidate(s: AsyncSession, user_id: str) -> None:
 async def issue_reset(s: AsyncSession, user: User, minutes: int) -> tuple[str, datetime]:
     """签发一次性密码重置令牌：先清空旧令牌，再写入新摘要与过期时间，明文仅返回给投递层，issue_reset 的失败路径返回稳定错误。
     issue_reset 实现于 apps/srv/src/veriq_server/service.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    新链接必须取代全部旧重置链接，避免多枚未过期令牌并存。
     """
-    # 新链接必须取代全部旧重置链接，避免多枚未过期令牌并存。
     await s.execute(delete(UserToken).where(UserToken.user_id == user.id))
     token = secrets.token_urlsafe(32)
     expiry = now() + timedelta(minutes=minutes)

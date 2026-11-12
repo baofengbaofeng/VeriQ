@@ -100,8 +100,8 @@ async def resolve_verified(
 ) -> Any:
     """在 MANAGED 租约、有效 fence 与身份冻结通过后解密指定密钥版本，绝不向未授权 Attempt 泄密；解密前再次 freeze 身份，确保适配器与密钥仍未撤销。
     resolve_verified 触及凭证材料：管理面不得回传明文，日志与审计只能保留摘要或引用标识。
+    必须同时满足活跃租约、托管信任、凭据发放权、成员有效与 fence 对齐。
     """
-    # 必须同时满足活跃租约、托管信任、凭据发放权、成员有效与 fence 对齐。
     if not (
         proof.active
         and proof.trust_status == "MANAGED"

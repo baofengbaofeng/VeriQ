@@ -44,8 +44,8 @@ function portableJson(value: unknown, ancestors = new Set<object>()): boolean {
     }
 }
 
-/** 不做强制转换、默认填充、删字段或语义引用解析，只报告 schema 违例。 */
 /**
+ * 不做强制转换、默认填充、删字段或语义引用解析，只报告 schema 违例。
  * 公开函数 validateSchema 按 schema 名对值做严格校验：无强制、无默认、无删字段：也不做语义引用解析。
  */
 export function validateSchema(schemaName: string, value: unknown): ValidationIssue[] {
@@ -90,8 +90,8 @@ export function parseContract(schemaName: string, text: string): unknown {
     return value;
 }
 
-/** 产出 RFC8785/JCS 字节；这不能替代对清单成员的精确字节签名。 */
 /**
+ * 产出 RFC8785/JCS 字节；这不能替代对清单成员的精确字节签名。
  * 公开函数 canonicalBytes 生成 RFC8785/JCS 规范字节：拒绝非可移植 JSON 与孤立代理项：不替代精确字节清单签名。
  */
 export function canonicalBytes(value: unknown): Uint8Array {
@@ -114,8 +114,6 @@ export function canonicalBytes(value: unknown): Uint8Array {
 
 /**
  * 与 Python 共享的精确源投影；由调用方 SHA-256。排除 validationTarget、receipt/job 与声称的 sourceHash。
- */
-/**
  * 公开函数 assetSourceBytes 投影资产源的规范字节：排除 validationTarget/receipt 与声称的 sourceHash。
  * 供调用方自行 SHA-256。
  */

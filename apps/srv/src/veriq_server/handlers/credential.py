@@ -92,7 +92,6 @@ class CredentialResolveAPI(API):
         """设备认证归证明校验器，禁止依赖浏览器 Cookie 会话通过本端点；空实现是刻意的，避免误触发 Cookie CSRF。
         check_xsrf_cookie 触及凭证材料：管理面不得回传明文，日志与审计只能保留摘要或引用标识。
         """
-        # 设备认证属于证明校验器；绝不走 Cookie 会话认证。
         pass
 
     def prepare(self) -> None:

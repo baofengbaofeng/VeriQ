@@ -65,7 +65,6 @@ function inspect(pid: number): Proc | undefined {
     }
 }
 const launcher = fileURLToPath(new URL('../../build/veriq_runner', import.meta.url));
-/** Only the kernel subreaper's durable ECHILD proof authorizes positive stop. */
 /**
  * 公开类 ProcessSupervisor 负责 Attempt 进程生命周期：启动原生守护并解读排空证明：terminateAttempt 在未排空时隔离容量。
  */

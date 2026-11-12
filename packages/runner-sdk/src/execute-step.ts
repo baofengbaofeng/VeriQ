@@ -310,7 +310,6 @@ export async function executeStep(
     return result;
 }
 
-/** Called only at an actual STOP/BLOCK branch for work that has not started. */
 /**
  * 公开函数 skipStep 在上游失败或被跳过时标记本步骤及子树为跳过：仍发出可观测事件：不执行副作用动作（skipStep）。
  */

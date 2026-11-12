@@ -103,8 +103,8 @@ class WorkspaceRepository:
 async def protect_user_disable(session: AsyncSession, user_id: str) -> None:
     """禁用用户前检查是否为任何 Workspace 最后 Owner，是则拒绝以免租户悬空，protect_user_disable 遵守本文件 Workspace/事务边界。
     protect_user_disable 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    调用方须持有安装护栏，并与 Workspace 变更共用这把锁。
     """
-    # Caller holds installation guard, shared with Workspace mutations.
     workspace_ids = (
         (
             await session.execute(

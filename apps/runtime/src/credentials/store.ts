@@ -34,7 +34,6 @@ function key(ref: SecretReference) {
         ref.versionId,
     ]);
 }
-/** Restricted config implementation; native vault integration belongs to installation. */
 /**
  * 公开类 SecretStore 在私有配置中持久化本机密钥：原生保险库接入留给安装形态：开发期使用受限文件缝（SecretStore/INVALID_SECRET_VALUE）。
  */
@@ -77,11 +76,7 @@ export class SecretStore {
         );
     }
     /**
-     * 公开方法 resolve 按完整钉选引用读取密钥：缺失时抛出 LOCAL_CREDENTIAL_MISSING：绝不回落最新版本。
-     */
-    /**
-     * 公开方法 resolve 校验引用落在 Attempt 的 secretVersions 钉选表内：通过后才委托 SecretStore 取值。
-     * 防止跨范围读密。
+     * 公开方法 resolve 按完整钉选引用读取密钥：缺失时抛出 LOCAL_CREDENTIAL_MISSING，绝不回落最新版本。
      */
     async resolve(ref: SecretReference): Promise<SecretValue> {
         const pin = key(ref);
@@ -97,12 +92,14 @@ export class SecretStore {
         }
     }
 }
-/** Authorize every lookup against the immutable attempt's exact pins; no latest fallback. */
 /**
  * 公开类 SecretResolver 在 Attempt 钉选集合内授权密钥查找：超出 issuer/workspace/版本表即失败。
  */
 export class SecretResolver {
     constructor(private store: SecretStore) {}
+    /**
+     * 公开方法 resolve 校验引用落在 Attempt 的 secretVersions 钉选表内，通过后才委托 SecretStore 取值，防止跨范围读密。
+     */
     async resolve(
         ref: SecretReference,
         attempt: {

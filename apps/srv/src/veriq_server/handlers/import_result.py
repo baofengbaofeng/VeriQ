@@ -23,8 +23,8 @@ class ImportAPI(API):
     ) -> dict[str, Any]:
         """复用 Bundle 双槽信号量限制并发验签拷贝，超时映射 BUNDLE_IMPORT_BUSY；无论验签成败都在 finally 中释放信号量槽位。
         bounded_import 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
+        复用既有双槽 Bundle 加密预算；禁止无界排队归档拷贝。
         """
-        # 复用既有双槽 Bundle 加密预算；禁止无界排队归档拷贝。
         semaphore = self.application.settings["bundle_export_slots"]
         try:
             await asyncio.wait_for(semaphore.acquire(), timeout=5)

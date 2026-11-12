@@ -378,8 +378,8 @@ class RuntimeService:
     ) -> tuple[Runtime, RuntimeBinding, RuntimeToken]:
         """解析设备 Authorization 为 Runtime 与绑定，供内部端点使用，RuntimeService.require_device 遵守本文件边界。
         require_device 实现于 apps/srv/src/veriq_server/services/runtime.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        Cookie 或人工注册码都不能当作设备身份。
         """
-        # A cookie or human enrollment code is never accepted as device identity.
         if not authorization.startswith("Bearer ") or not 43 <= len(authorization[7:]) <= 128:
             raise Problem(401, "DEVICE_UNAUTHORIZED", "Valid device authentication required")
         token = (

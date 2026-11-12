@@ -5,7 +5,6 @@
 import type { JsonValue } from "@veriq/contracts";
 import type { CredentialProvider } from "../register-case.js";
 type Reference = { workspaceId: string; secretRef: string; versionId: string };
-/** Personal/offline default. T20 loads these values from OS vault or restricted local config. */
 /**
  * 公开类 LocalCredentialProvider 包装本机 SecretResolver：供开发执行解析钉选密钥。
  */

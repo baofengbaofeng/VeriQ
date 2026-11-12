@@ -146,7 +146,6 @@ export function requestData(request: Request): Exchange["request"] {
         headers: request.headers(),
     };
 }
-/** Scalars use URL strings; outer arrays repeat keys; structured values use canonical JSON. */
 /**
  * 公开函数 queryParameters 解析 URL 查询参数为对象：供断言按名取值（queryParameters）。
  */
@@ -196,7 +195,6 @@ function subset(actual: JsonValue, expected: JsonValue): boolean {
         )
     );
 }
-/** Timers express the declared observation window, never retry a browser action. */
 /**
  * 公开函数 armObserver 按编译规则武装网络观察器并登记到 ObserverRegistry：步骤结束必须 dispose。
  */
