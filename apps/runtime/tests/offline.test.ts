@@ -32,7 +32,7 @@ async function cleanup(path: string) {
   }
   await chmod(path, 0o700);
 }
-async function fixture() {
+async function fixture(realDistribution?: EngineDistribution, baseURL = "https://business.test") {
   const dir = await mkdtemp(join(tmpdir(), "veriq-offline-")),
     pair = generateKeyPairSync("ed25519"),
     raw = pair.publicKey.export({ format: "der", type: "spki" }).subarray(-32);
@@ -57,6 +57,8 @@ async function fixture() {
       mutate?: boolean;
       expired?: boolean;
       debug?: boolean;
+      dslOnly?: boolean;
+      dslError?: boolean;
       unsigned?: boolean;
       duplicate?: boolean;
       link?: boolean;
@@ -75,12 +77,12 @@ async function fixture() {
       signing?: { keyId: string; privateKey: typeof pair.privateKey };
     } = {},
   ) {
-    const source = snapshot(undefined, [
+    const source = snapshot(realDistribution ? [{id:"open",action:"goto",path:"/",afterAssertions:[{id:"url",type:"url",source:"page",operator:"equals",expected:baseURL+"/",severity:"BLOCK",expectedSource:"REQ"}]}] : undefined, [
       asset(3, "ENVIRONMENT", {
         schemaVersion: "1.0",
-        baseURL: "https://business.test",
-        apiBaseURL: "https://business.test",
-        allowedOrigins: ["https://business.test"],
+        baseURL,
+        apiBaseURL: baseURL,
+        allowedOrigins: [baseURL],
         locale: "en",
         timezone: "UTC",
         roles: [
@@ -88,6 +90,7 @@ async function fixture() {
             roleKey: "reader",
             authAdapterVersionId: id(13),
             secretRef: "reader",
+            allowedIdentityIds: ["reader"],
             secretVersionId: id(14),
           },
         ],
@@ -128,7 +131,7 @@ async function fixture() {
           "sha512-" + createHash("sha512").update(vendor).digest("base64"),
       },
     ];
-    const distribution: EngineDistribution = {
+    const distribution: EngineDistribution = realDistribution ?? {
       engineVersion: "0.1.0",
       runnerSdkVersion: "0.1.0",
       dependencies,
@@ -160,7 +163,7 @@ async function fixture() {
     put("selection.json", {
       ...(suite ? { suiteVersionId: id(20) } : { caseVersionIds: [id(1)] }),
       environmentVersionId: id(3),
-      validationStatus: opts.debug ? "UNVALIDATED_DEBUG" : "VALIDATED",
+      validationStatus: opts.debug || opts.dslOnly ? "UNVALIDATED_DEBUG" : "VALIDATED",
     });
     put("resources.json", {
       resources: source.assets.map((a) => ({
@@ -239,7 +242,7 @@ async function fixture() {
           ? distribution.packageJson
           : path === "package-lock.json"
             ? distribution.packageLock
-            : canonicalBytes(dependencies),
+            : canonicalBytes(distribution.dependencies),
       );
       files["engine/" + path] = body;
       return { path, sha256: sha(body), sizeBytes: body.length };
@@ -252,7 +255,7 @@ async function fixture() {
           compilerVersion: "0.1.0",
           runnerSdkVersion: "0.1.0",
           files: engineFiles,
-          dependencies,
+          dependencies: distribution.dependencies,
         },
       ],
     });
@@ -312,6 +315,23 @@ async function fixture() {
         });
       }
     }
+    if(opts.dslOnly) {
+      const draft=JSON.parse(files[`provenance/${id(1)}/source.json`]!.toString());
+      if(opts.dslError){
+       const changed=draft.assets.find((a:{versionId:string})=>a.versionId===id(1));changed.document.steps=[{id:'click',action:'click',target:'missing'}];changed.sha256=sha(canonicalBytes({kind:changed.kind,document:changed.document}));draft.sourceHash=sha(assetSourceBytes(draft));
+       source.assets[source.assets.findIndex(a=>a.versionId===id(1))]=changed;put(`assets/${id(1)}.json`,changed);
+      }
+      source.validationTarget=draft.validationTarget;
+      source.sourceHash=sha(assetSourceBytes(source));
+      put('snapshot.json',source);
+      put('draft/source.json',draft);put('draft/metadata.json',{frozenAt:'2026-11-12T00:00:00Z'});
+      put('selection.json',{draftValidationJobId:id(77),environmentVersionId:id(3),validationStatus:'UNVALIDATED_DEBUG'});
+      const resources=JSON.parse(files['resources.json']!.toString());resources.versions=resources.versions.filter((v:{id:string})=>v.id!==id(1));
+      for(const resource of resources.resources)if(resource.latestVersionId===id(1))delete resource.latestVersionId;
+      put('resources.json',resources);
+      for(const path of Object.keys(files))if(path.startsWith('compiled/')||path.startsWith('engine/')||path.startsWith(`provenance/${id(1)}/`))delete files[path];
+      put('engine/requirements.json',{engineVersion:'0.1.0',localCompilationRequired:true});
+    }
     const manifest = {
       schemaVersion: "1.0",
       bundleId: "00000000-0000-4000-8000-000000000010",
@@ -323,7 +343,7 @@ async function fixture() {
       sourceHash: source.sourceHash,
       snapshotSha256: sha(files["snapshot.json"]!),
       engineVersion: "0.1.0",
-      validationStatus: opts.debug ? "UNVALIDATED_DEBUG" : "VALIDATED",
+      validationStatus: opts.debug || opts.dslOnly ? "UNVALIDATED_DEBUG" : "VALIDATED",
       files: Object.entries(files).map(([path, body]) => ({
         path,
         sha256: sha(body),
@@ -729,4 +749,124 @@ test("unsigned metadata cannot poison authenticated revisions; legacy revocation
   } finally {
     await f.close();
   }
+});
+
+test('execution boundary rechecks signed installed bytes instead of trusting a VerifiedBundle object', async () => {
+  const { reverifyInstalled } = await import('../src/offline/verify.ts');
+  const f = await fixture();
+  try {
+    const bundle = await verifyBundle(await f.archive(), {trust:f.trust,destination:join(f.dir,'installed')});
+    const checked = await reverifyInstalled(bundle.directory, {trust:f.trust});
+    assert.equal(checked.manifest.bundleId,bundle.manifest.bundleId);
+    const member = bundle.manifest.files.find(f=>f.path.endsWith('.test.ts'))!;
+    await chmod(join(bundle.directory,member.path),0o600);
+    await writeFile(join(bundle.directory,member.path),'console.log("tampered")');
+    await assert.rejects(reverifyInstalled(bundle.directory,{trust:f.trust}),/BUNDLE_(HASH|SIZE)_MISMATCH/);
+  } finally { await f.close(); }
+});
+test('disconnected missing credential failure is durable without a platform request',async()=>{
+ const {runOffline}=await import('../src/offline/run.ts');
+ const {LocalStore}=await import('../src/offline/store.ts');
+ const f=await fixture();
+ try {
+  const bundle=await verifyBundle(await f.archive(),{trust:f.trust,destination:join(f.dir,'run-bundle')});
+  const result=await runOffline(bundle,{trust:f.trust,root:join(f.dir,'local'),secrets:new SecretStore(join(f.dir,'secrets')),releaseDirectory:join(f.dir,'uninstalled'),browserExecutable:'/uninstalled',deviceId:id(90)});
+  assert.equal(result.outcome,'ERROR');
+  assert.equal(result.attempts[0]?.failureCode,'LOCAL_CREDENTIAL_MISSING');
+  assert.equal(result.attempts[0]?.processStopped,true);
+  const store=await LocalStore.open(join(f.dir,'local'));
+  assert.deepEqual(store.result(result.workspaceId,result.localRunId),result);
+  assert.equal(store.active(),undefined);
+  assert.throws(()=>store.result(id(999),result.localRunId),/LOCAL_RUN_NOT_FOUND/);
+  store.close();
+  const {uploadOffline}=await import('../src/offline/upload.ts');
+  await assert.rejects(uploadOffline(join(f.dir,'local'),result.localRunId,{server:'http://127.0.0.1:1',workspaceId:result.workspaceId,deviceToken:'synthetic-offline-device'}),/UPLOAD_FAILED/);
+  const pending=await LocalStore.open(join(f.dir,'local'));assert.equal(pending.history(result.workspaceId)[0]!.uploadState,'PENDING');pending.close();
+  const {createServer}=await import('node:http');let received=0;let key='';
+  const transport=createServer(async(req,res)=>{assert.equal(req.headers.authorization,'Bearer synthetic-offline-device');let body='';for await(const chunk of req)body+=chunk;const sent=JSON.parse(body);assert.equal(sent.localRunId,result.localRunId);key=String(req.headers['idempotency-key']);received++;res.setHeader('content-type','application/json');res.end(JSON.stringify({data:{id:id(88),runId:id(89),localRunId:result.localRunId,source:'OFFLINE_IMPORT',officialGatePassed:false,duplicate:received>1}}));});
+  await new Promise<void>(r=>transport.listen(0,'127.0.0.1',r));
+  try{
+   const uploadConfig={server:`http://127.0.0.1:${(transport.address() as {port:number}).port}`,workspaceId:result.workspaceId,deviceToken:'synthetic-offline-device'};
+   const first=await uploadOffline(join(f.dir,'local'),result.localRunId,uploadConfig);const repeated=await uploadOffline(join(f.dir,'local'),result.localRunId,uploadConfig);
+   assert.equal(first.runId,repeated.runId);assert.equal(key,'offline_'+result.localRunId);assert.equal(received,2);
+  }finally{await new Promise<void>(r=>transport.close(()=>r()));}
+
+ }finally{await f.close();}
+});
+
+test('actual disconnected worker executes signed immutable source with Chromium and keeps raw Trace after reopen',{timeout:180000},async()=>{
+ const {createServer}=await import('node:http');
+ const {mkdir,copyFile}=await import('node:fs/promises');
+ const {dirname}=await import('node:path');
+ const {fileURLToPath}=await import('node:url');
+ const {runOffline}=await import('../src/offline/run.ts');
+ const {loadRelease}=await import('../src/execution/release.ts');
+ const {LocalStore}=await import('../src/offline/store.ts');
+ let hang=false,failPage=0;let observed:()=>void=()=>{};
+ const server=createServer((req,res)=>{if(hang&&req.url==='/'){observed();return;}if(req.url==='/'&&failPage>0){failPage--;res.statusCode=302;res.setHeader('location','/wrong');res.end();return;}if(req.url==='/me'){res.setHeader('content-type','application/json');res.end(JSON.stringify({id:'reader'}));}else{res.setHeader('content-type','text/html');res.end('<h1>VeriQ offline business</h1>');}});
+ await new Promise<void>(r=>server.listen(0,'127.0.0.1',r));
+ const baseURL=`http://127.0.0.1:${(server.address() as {port:number}).port}`;
+ const root=await mkdtemp(join(tmpdir(),'veriq-offline-real-'));
+ let f:Awaited<ReturnType<typeof fixture>>|undefined;
+ try {
+  const source=join(root,'source.json'),build=join(root,'build'),release=join(root,'release');
+  await writeFile(source,canonicalBytes(snapshot()));
+  execFileSync(process.execPath,['--import',fileURLToPath(import.meta.resolve('tsx')),'tests/queue-fixture.ts',source,build],{cwd:fileURLToPath(new URL('../../../packages/runner-sdk',import.meta.url)),timeout:120000,stdio:'pipe'});
+  const index=JSON.parse(await readFile(join(build,'index.json'),'utf8'));
+  for(const file of index.inventory.engines[0].files){await mkdir(dirname(join(release,file.path)),{recursive:true});await copyFile(join(build,file.sha256),join(release,file.path));}
+  await writeFile(join(release,'inventory.json'),canonicalBytes(index.inventory));
+  const approved=await loadRelease(release,'0.1.0');
+  const distribution={engineVersion:'0.1.0',runnerSdkVersion:'0.1.0',dependencies:approved.entry.dependencies,packageJson:approved.files['package.json']!,packageLock:approved.files['package-lock.json']!,files:Object.fromEntries(Object.entries(approved.files).filter(([path])=>path.startsWith('vendor/')))};
+  f=await fixture(distribution,baseURL);
+  const bundle=await verifyBundle(await f.archive(),{trust:f.trust,destination:join(f.dir,'installed')});
+  const secrets=new SecretStore(join(f.dir,'secrets'));
+  await secrets.set({issuerId:f.issuer.issuerId,workspaceId:id(99),secretRef:'reader',versionId:id(14)},{token:'local-test-only'});
+  const result=await runOffline(bundle,{trust:f.trust,root:join(f.dir,'local'),secrets,releaseDirectory:release,browserExecutable:process.env.VERIQ_TEST_CHROMIUM??'/usr/bin/chromium',deviceId:id(90)});
+  assert.equal(result.outcome,'PASSED',JSON.stringify(result.attempts.map(a=>({outcome:a.outcome,failure:a.failureCode,events:a.events}))));
+  assert.equal(result.attempts[0]!.processStopped,true);
+  assert.equal(result.revocationStatus,'UNKNOWN');
+  const trace=result.attempts[0]!.artifacts.find(a=>a.kind==='TRACE');assert(trace);
+  const {LocalReports}=await import('../src/offline/reports.ts');
+  const reports=new LocalReports(join(f.dir,'local'),()=>true);
+  const reportSnapshot=await reports.snapshot(result.workspaceId,result.localRunId);
+  assert.equal(reportSnapshot.reports[0]!.gateNow.passed,false);
+  assert.equal(reportSnapshot.reports[0]!.statistics.firstPassCount,1);
+  const {LocalReportAdapter}=await import(new URL('../../web/src/features/reports/adapters.ts', import.meta.url).href);
+  const adapter=new LocalReportAdapter(reportSnapshot);assert.equal((await adapter.report(result.localRunId)).run.id,result.localRunId);assert.equal((await adapter.display(result.localRunId,result.attempts[0]!.attemptId)).metadataStatus,'AVAILABLE');
+  assert.equal(reportSnapshot.history[result.attempts[0]!.attemptId]!.length,result.attempts[0]!.lastSequence);
+  assert.equal(sha(await reports.readRaw(result.workspaceId,result.localRunId,result.attempts[0]!.attemptId,trace.artifactId!)),trace.sha256);
+  await assert.rejects(new LocalReports(join(f.dir,'local'),()=>false).readRaw(result.workspaceId,result.localRunId,result.attempts[0]!.attemptId,trace.artifactId!),/RAW_EVIDENCE_FORBIDDEN/);
+
+  const bytes=await readFile(join(f.dir,'local','work',result.attempts[0]!.attemptId,'evidence',trace.path));assert.equal(sha(bytes),trace.sha256);
+  const store=await LocalStore.open(join(f.dir,'local'));assert.deepEqual(store.result(result.workspaceId,result.localRunId),result);store.close();
+  const debug=await verifyBundle(await f.archive({dslOnly:true}),{trust:f.trust,destination:join(f.dir,'draft'),debug:true});
+  const debugResult=await runOffline(debug,{trust:f.trust,root:join(f.dir,'local'),secrets,releaseDirectory:release,browserExecutable:process.env.VERIQ_TEST_CHROMIUM??'/usr/bin/chromium',deviceId:id(90),debug:true});
+  assert.equal(debugResult.outcome,'PASSED',JSON.stringify(debugResult.attempts.map(a=>({outcome:a.outcome,failure:a.failureCode}))));
+  assert.equal(debugResult.dirty,true);assert.equal(debugResult.attempts[0]!.sourceKind,'DRAFT_DEBUG');
+  const invalid=await verifyBundle(await f.archive({dslOnly:true,dslError:true}),{trust:f.trust,destination:join(f.dir,'invalid-draft'),debug:true});
+  const invalidResult=await runOffline(invalid,{trust:f.trust,root:join(f.dir,'local'),secrets,releaseDirectory:release,browserExecutable:process.env.VERIQ_TEST_CHROMIUM??'/usr/bin/chromium',deviceId:id(90),debug:true});
+  assert.equal(invalidResult.outcome,'ERROR');assert.equal(invalidResult.attempts[0]!.failureCode,'UNKNOWN_ELEMENT');assert.equal(invalidResult.attempts[0]!.diagnostics?.[0]?.code,'UNKNOWN_ELEMENT');
+  failPage=1;
+  const retried=await runOffline(bundle,{trust:f.trust,root:join(f.dir,'local'),secrets,releaseDirectory:release,browserExecutable:process.env.VERIQ_TEST_CHROMIUM??'/usr/bin/chromium',deviceId:id(90),retry:true});
+  assert.equal(retried.outcome,'UNSTABLE',JSON.stringify(retried.attempts.map(a=>({outcome:a.outcome,failure:a.failureCode,retry:a.retrySafety}))));assert.equal(retried.attempts.length,2);assert.notEqual(retried.attempts[0]!.execution!.namespace,retried.attempts[1]!.execution!.namespace);
+  hang=true;
+  let reached=new Promise<void>(resolve=>{observed=resolve;});
+  const cancelled=runOffline(bundle,{trust:f.trust,root:join(f.dir,'local'),secrets,releaseDirectory:release,browserExecutable:process.env.VERIQ_TEST_CHROMIUM??'/usr/bin/chromium',deviceId:id(90)});
+  await reached;
+  const cancellationStore=await LocalStore.open(join(f.dir,'local'));
+  const active=cancellationStore.active()!;cancellationStore.cancel(active.workspaceId,active.runId);cancellationStore.close();
+  const cancelledResult=await cancelled;assert.equal(cancelledResult.outcome,'CANCELLED');assert.equal(cancelledResult.attempts[0]!.processStopped,true);
+  const {spawn}=await import('node:child_process');
+  reached=new Promise<void>(resolve=>{observed=resolve;});
+  const script=`import {runOffline} from './src/offline/run.ts';import {TrustStore} from './src/offline/trust.ts';import {SecretStore} from './src/credentials/store.ts';const [directory,profile,root,release,browser,device]=process.argv.slice(1);await runOffline({directory},{trust:new TrustStore(profile),root,secrets:new SecretStore(profile+'/../secrets'),releaseDirectory:release,browserExecutable:browser,deviceId:device});`;
+  const parent=spawn(process.execPath,['--import','tsx','--input-type=module','-e',script,bundle.directory,join(f.dir,'trust'),join(f.dir,'local'),release,process.env.VERIQ_TEST_CHROMIUM??'/usr/bin/chromium',id(90)],{stdio:['ignore','pipe','pipe']});
+  const exited=new Promise<void>(resolve=>parent.once('exit',()=>resolve()));
+  await Promise.race([reached,exited.then(()=>{throw new Error('OFFLINE_PARENT_EXITED_BEFORE_BUSINESS');})]);
+  parent.kill('SIGKILL');await exited;
+  const {recoverOffline}=await import('../src/offline/run.ts');
+  const recovered=await recoverOffline(join(f.dir,'local'));assert.equal(recovered?.processStopped,true);
+  const recoveredStore=await LocalStore.open(join(f.dir,'local'));assert.equal(recoveredStore.active(),undefined);assert(recoveredStore.history(id(99)).some(r=>r.state==='FINISHED'));recoveredStore.close();
+
+
+ }finally{await f?.close();await rm(root,{recursive:true,force:true});await new Promise<void>(r=>server.close(()=>r()));}
 });

@@ -10,13 +10,33 @@ from typing import Any, Protocol
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth.authorization import Permission, WorkspaceScope
-from ..db import Artifact, ArtifactPublication, Attempt, AttemptUpload, User
+from ..db import (
+    Artifact,
+    ArtifactPublication,
+    Attempt,
+    AttemptUpload,
+    User,
+    OfflineAttempt,
+    OfflineImport,
+    OfflineImportUpload,
+)
 from ..service import Problem
 from ..settings import Settings
 from .workspace import WorkspaceRepository
 
 MAX_FILE = 32 * 1024 * 1024
 RAW_KINDS = {"TRACE", "HTML", "SCREENSHOT", "DOWNLOAD", "LOG", "JUNIT"}
+
+
+def listed_offline_artifact(document: dict[str, Any], upload: OfflineImportUpload) -> bool:
+    """Only the immutable result's exact descriptors can expose staged bytes."""
+    return any(
+        file["path"] == upload.path
+        and file["sha256"] == upload.sha256
+        and file["sizeBytes"] == upload.size_bytes
+        and file.get("kind") == upload.kind
+        for file in document.get("artifacts", [])
+    )
 
 
 def key(workspace: str, digest: str, incarnation: str | None = None) -> str:
@@ -218,10 +238,39 @@ class ArtifactService:
 
     async def authorized(
         self, scope: WorkspaceScope, attempt_id: str, upload_id: str
-    ) -> tuple[AttemptUpload, Artifact]:
+    ) -> tuple[AttemptUpload | OfflineImportUpload, Artifact]:
         await WorkspaceRepository(self.session, scope).authorize(
             self.user, Permission.MANAGE_ENVIRONMENT
         )
+        offline = await self.session.get(OfflineAttempt, attempt_id)
+        if offline and offline.workspace_id == scope.workspace_id:
+            imported = await self.session.get(OfflineImport, offline.import_id)
+            offline_upload = await self.session.get(OfflineImportUpload, upload_id)
+            if (
+                not imported
+                or not offline_upload
+                or offline_upload.workspace_id != scope.workspace_id
+                or offline_upload.bundle_id != imported.bundle_id
+                or offline_upload.local_run_id != imported.local_run_id
+                or offline_upload.local_attempt_id != offline.local_attempt_id
+                or offline_upload.state != "COMPLETE"
+                or not listed_offline_artifact(offline.document, offline_upload)
+            ):
+                raise Problem(404, "ARTIFACT_NOT_FOUND", "Artifact not found in this Attempt")
+            artifact = await self.session.get(Artifact, (scope.workspace_id, offline_upload.sha256))
+            publication = (
+                await self.session.get(ArtifactPublication, artifact.storage_incarnation)
+                if artifact and artifact.storage_incarnation
+                else None
+            )
+            if (
+                not artifact
+                or offline_upload.expired_at
+                or artifact.expired_at
+                or (publication and publication.state == "RETIRED")
+            ):
+                raise Problem(410, "ARTIFACT_EXPIRED", "Evidence retention has expired")
+            return offline_upload, artifact
         attempt = await self.session.get(Attempt, attempt_id)
         upload = await self.session.get(AttemptUpload, upload_id)
         if (

@@ -1287,6 +1287,7 @@ export interface ContractDefinitions {
   IssuerTrustV1?: IssuerTrustV1;
   BundleResourcesV1?: BundleResourcesV1;
   BundleSelectionV1?: BundleSelectionV1;
+  OfflineArtifactV1?: OfflineArtifactV1;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1828,12 +1829,41 @@ export interface OfflineAttemptV1 {
   lastSequence: number;
   /**
    * @minItems 0
+   * @maxItems 10000
    */
   events: ExecutionEventV1[];
   /**
    * @minItems 0
+   * @maxItems 100
    */
-  artifacts: EvidenceFileEntryV1[];
+  artifacts: OfflineArtifactV1[];
+  execution?: ExecutionSnapshotV1;
+  processStopped?: boolean;
+  retrySafety?: "READ_ONLY_OBSERVED" | "WRITE_POSSIBLE" | "UNKNOWN";
+  sourceKind?: "PUBLISHED" | "DRAFT_DEBUG";
+  variantKey?: Sha256;
+  failureCode?: string;
+  /**
+   * @maxItems 100
+   */
+  diagnostics?: {
+    code: string;
+    path: string;
+    pathStatus: "EXACT" | "REDACTED";
+    message: string;
+  }[];
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "OfflineArtifactV1".
+ */
+export interface OfflineArtifactV1 {
+  path: FilePath;
+  sha256: Sha256;
+  sizeBytes: number;
+  sensitivity: ArtifactSensitivity;
+  kind?: "TRACE" | "DOWNLOAD" | "LOG" | "SOURCE" | "MANIFEST" | "HTML" | "JUNIT" | "SCREENSHOT";
+  artifactId?: Id;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1856,6 +1886,7 @@ export interface OfflineResultV1 {
   actualEnvironment: EnvironmentV1;
   /**
    * @minItems 1
+   * @maxItems 2000
    */
   attempts: [OfflineAttemptV1, ...OfflineAttemptV1[]];
 }

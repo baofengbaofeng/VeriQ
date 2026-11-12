@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 import { readFile } from "node:fs/promises";
+import {randomUUID} from "node:crypto";
+import {runOffline, recoverOffline} from "./offline/run.ts";
+import {LocalStore} from "./offline/store.ts";
+import {LocalReports} from "./offline/reports.ts";
+import {uploadOffline} from "./offline/upload.ts";
+import {updatePrivate, readPrivate} from "./offline/config.ts";
 import { TrustStore, type IssuerTrust } from "./offline/trust.ts";
 import { verifyBundle } from "./offline/verify.ts";
 import { downloadBundle } from "./offline/download.ts";
@@ -298,7 +304,7 @@ runtime.command("start").requiredOption("--release-dir <path>", "Operator-approv
   });
 runtime.command("status").action(async()=>{const result=await agentControl(join(store().directory,"agent"),"status");process.stdout.write(`Agent running: ${result.running}; PID ${result.pid}\n`);});
 runtime.command("stop").action(async()=>{await agentControl(join(store().directory,"agent"),"stop");process.stdout.write("Agent stop requested; active Attempt cleanup and process confirmation precede shutdown.\n");});
-const bundle = program.command("bundle").description("Download and verify signed offline data (no execution)");
+const bundle = program.command("bundle").description("Download and verify signed offline data");
 bundle.command("download <bundle-id>").requiredOption("--output <path>", "New archive file").action(async(id:string,options:{output:string})=>{await downloadBundle(await store().load(),id,options.output,controller.signal);process.stdout.write("Bundle downloaded; verify before opening.\n");});
 bundle.command("verify <file>").requiredOption("--destination <directory>","New read-only snapshot directory").option("--debug","Explicitly accept expired/unvalidated data; excludes formal gates").action(async(file:string,options:{destination:string;debug?:boolean})=>{const result=await verifyBundle(file,{trust:new TrustStore(store().directory),...options});process.stdout.write(`Verified ${result.manifest.bundleId}; revocation UNKNOWN; mode ${result.debug?"DEBUG":"VALIDATED"}; local results are not formal proof.\n`);});
 const trust=program.command("trust").description("Issuer roots persist across logout");
@@ -314,6 +320,43 @@ for(const name of ["set","remove"]){
   }process.stdout.write("Local mapping updated.\n");
  });
 }
+const localRoot=()=>join(store().directory,'offline');
+program.command('run').description('Execute a signed installed bundle without the control service')
+ .requiredOption('--offline <directory>','Installed signed bundle directory')
+ .requiredOption('--release-dir <directory>','Installed approved engine release')
+ .requiredOption('--browser-executable <path>','Installed test browser')
+ .option('--debug','Explicit expired/unvalidated DEBUG execution')
+ .option('--retry','One safe whole-case retry at most')
+ .option('--base-url <url>','Explicit authorized public baseURL override')
+ .option('--fixture-url <url>','Explicit authorized public fixture URL override')
+ .action(async(options:{offline:string;releaseDir:string;browserExecutable:string;debug?:boolean;retry?:boolean;baseUrl?:string;fixtureUrl?:string})=>{
+  process.title='veriq';
+  const profile=store().directory;
+  await updatePrivate<{id:string}>(profile,'local-device.json',old=>old??{id:randomUUID()});
+  const identity=await readPrivate<{id:string}>(profile,'local-device.json');
+  const overrides={...(options.baseUrl?{baseURL:options.baseUrl}:{}),...(options.fixtureUrl?{fixtureBaseURL:options.fixtureUrl}:{})};
+  const result=await runOffline({directory:options.offline},{trust:new TrustStore(profile),root:localRoot(),secrets:new SecretStore(profile),releaseDirectory:options.releaseDir,browserExecutable:options.browserExecutable,deviceId:identity.id,debug:!!options.debug,retry:!!options.retry,overrides,authorizeOverride:()=>true,signal:controller.signal});
+  process.stdout.write(JSON.stringify({localRunId:result.localRunId,workspaceId:result.workspaceId,outcome:result.outcome,dirty:result.dirty,revocationStatus:result.revocationStatus})+'\n');
+  process.exitCode=result.outcome==='PASSED'?0:result.outcome==='CANCELLED'?130:1;
+ });
+const results=program.command('results').description('Durable local history, reports, cancellation and explicit upload');
+results.command('history').requiredOption('--workspace <id>','Workspace UUID').action(async(options:{workspace:string})=>{
+ const local=await LocalStore.open(localRoot());try{process.stdout.write(JSON.stringify(local.history(options.workspace))+'\n');}finally{local.close();}
+});
+results.command('report <runId>').requiredOption('--workspace <id>','Workspace UUID').action(async(runId:string,options:{workspace:string})=>{
+ process.stdout.write(JSON.stringify(await new LocalReports(localRoot(),()=>false).snapshot(options.workspace,runId))+'\n');
+});
+results.command('cancel <runId>').requiredOption('--workspace <id>','Workspace UUID').action(async(runId:string,options:{workspace:string})=>{
+ const local=await LocalStore.open(localRoot());try{local.cancel(options.workspace,runId);}finally{local.close();}process.stdout.write('Cancellation requested. Physical stop is recorded separately.\n');
+});
+results.command('recover').description('Reconcile an interrupted local host using native physical stop proof').action(async()=>{
+ process.stdout.write(JSON.stringify(await recoverOffline(localRoot())??{active:false})+'\n');
+});
+results.command('upload <runId>').description('Upload using the separately enrolled current device; retain failed uploads for retry').action(async(runId:string)=>{
+ const profile=store(),saved=await profile.load();
+ const current=await profile.renew(new RuntimeClient(saved.server));
+ process.stdout.write(JSON.stringify(await uploadOffline(localRoot(),runId,current,controller.signal))+'\n');
+});
 try {
   await program.parseAsync();
 } catch (error) {

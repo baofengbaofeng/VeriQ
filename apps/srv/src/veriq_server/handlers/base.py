@@ -15,6 +15,8 @@ from ..service import Problem, digest, now
 from ..settings import Settings
 from ..validation import validate_api
 
+MAX_HTTP_BODY_BYTES = 8 * 1024 * 1024
+
 log = logging.getLogger("veriq.http")
 
 

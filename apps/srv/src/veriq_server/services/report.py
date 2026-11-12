@@ -21,6 +21,9 @@ from ..db import (
     User,
     SecretVersion,
     AuditLog,
+    OfflineImport,
+    OfflineAttempt,
+    OfflineImportUpload,
 )
 from ..service import Problem, stamp
 from ..contracts import canonical_bytes
@@ -29,6 +32,7 @@ from ..settings import Settings
 from .workspace import WorkspaceRepository
 from .runs import run_dto
 from .gate import gate, current_gate
+from .artifact import listed_offline_artifact
 
 SENSITIVE = {
     "authorization",
@@ -89,7 +93,23 @@ class ReportService:
             raise Problem(404, "RUN_NOT_FOUND", "Run not found")
         return run
 
-    async def attempts(self, scope: WorkspaceScope, run_id: str) -> list[Attempt]:
+    async def attempts(self, scope: WorkspaceScope, run_id: str) -> list[Attempt | OfflineAttempt]:
+        run = await self.run(scope, run_id)
+        if run.source == "OFFLINE_IMPORT":
+            return list(
+                (
+                    await self.session.execute(
+                        select(OfflineAttempt)
+                        .join(OfflineImport, OfflineImport.id == OfflineAttempt.import_id)
+                        .where(
+                            OfflineAttempt.workspace_id == scope.workspace_id,
+                            OfflineImport.run_id == run_id,
+                        )
+                        .order_by(OfflineAttempt.id)
+                        .limit(2001)
+                    )
+                ).scalars()
+            )
         return list(
             (
                 await self.session.execute(
@@ -108,6 +128,8 @@ class ReportService:
 
     async def get(self, scope: WorkspaceScope, run_id: str) -> dict[str, Any]:
         run = await self.run(scope, run_id)
+        if run.source == "OFFLINE_IMPORT":
+            return await self.offline_report(scope, run)
         cases = list(
             (
                 await self.session.execute(
@@ -121,7 +143,7 @@ class ReportService:
                 )
             ).scalars()
         )
-        attempts = await self.attempts(scope, run_id)
+        attempts = [a for a in await self.attempts(scope, run_id) if isinstance(a, Attempt)]
         if len(cases) > 1000 or len(attempts) > 2000:
             raise Problem(409, "REPORT_LIMIT", "Run exceeds the admitted report bound")
         jobs = list(
@@ -288,6 +310,45 @@ class ReportService:
         limit: int = 100,
         byte_budget: int = 1024 * 1024,
     ) -> dict[str, Any]:
+        offline = await self.session.get(OfflineAttempt, attempt_id)
+        if offline and offline.workspace_id == scope.workspace_id:
+            await WorkspaceRepository(self.session, scope).authorize(self.user)
+            rows = offline.document["events"][after : after + limit + 1]
+            offline_items: list[dict[str, Any]] = []
+            total = 0
+            for event in rows[:limit]:
+                # Local vault values are unknowable to the server. Preserve structural
+                # facts while explicitly withholding dynamic values on imported history.
+                payload = {
+                    k: v
+                    for k, v in event["payload"].items()
+                    if k
+                    in {
+                        "status",
+                        "durationMs",
+                        "severity",
+                        "cleanupStatus",
+                        "outcome",
+                        "observerId",
+                        "code",
+                    }
+                }
+                item = {
+                    **event,
+                    "attemptId": offline.id,
+                    "payload": payload,
+                    "valuesAvailable": False,
+                }
+                size = len(canonical_bytes(item))
+                if offline_items and total + size > byte_budget:
+                    break
+                offline_items.append(item)
+                total += size
+            return {
+                "items": offline_items,
+                "nextSequence": offline_items[-1]["sequence"] if offline_items else after,
+                "hasMore": len(rows) > len(offline_items),
+            }
         attempt = await self.attempt(scope, attempt_id)
         rows = list(
             (
@@ -345,6 +406,42 @@ class ReportService:
         }
 
     async def artifacts(self, scope: WorkspaceScope, attempt_id: str) -> list[dict[str, Any]]:
+        offline = await self.session.get(OfflineAttempt, attempt_id)
+        if offline and offline.workspace_id == scope.workspace_id:
+            await WorkspaceRepository(self.session, scope).authorize(self.user)
+            imported = await self.session.get(OfflineImport, offline.import_id)
+            assert imported is not None
+            offline_rows = (
+                await self.session.execute(
+                    select(OfflineImportUpload, Artifact)
+                    .join(
+                        Artifact,
+                        (Artifact.workspace_id == OfflineImportUpload.workspace_id)
+                        & (Artifact.sha256 == OfflineImportUpload.sha256),
+                    )
+                    .where(
+                        OfflineImportUpload.workspace_id == scope.workspace_id,
+                        OfflineImportUpload.bundle_id == imported.bundle_id,
+                        OfflineImportUpload.local_run_id == imported.local_run_id,
+                        OfflineImportUpload.local_attempt_id == offline.local_attempt_id,
+                        OfflineImportUpload.state == "COMPLETE",
+                    )
+                    .limit(1000)
+                )
+            ).all()
+            return [
+                {
+                    "id": u.id,
+                    "attemptId": attempt_id,
+                    "sha256": u.sha256,
+                    "sizeBytes": u.size_bytes,
+                    "kind": u.kind,
+                    "sensitivity": "CREDENTIAL_RESTRICTED",
+                    "state": "EXPIRED" if u.expired_at or a.expired_at else "AVAILABLE",
+                }
+                for u, a in offline_rows
+                if listed_offline_artifact(offline.document, u)
+            ]
         await self.attempt(scope, attempt_id)
         rows = (
             await self.session.execute(
@@ -403,6 +500,21 @@ class ReportService:
         from ..repositories.resource import ResourceRepository
 
         await self.run(scope, run_id)
+        offline = await self.session.get(OfflineAttempt, attempt_id)
+        if offline and offline.workspace_id == scope.workspace_id:
+            imported = await self.session.get(OfflineImport, offline.import_id)
+            if not imported or imported.run_id != run_id:
+                raise Problem(404, "ATTEMPT_NOT_FOUND", "Attempt not found in Run")
+            environment = imported.declared["actualEnvironment"]
+            return {
+                "display": None,
+                "metadataStatus": "REDACTED",
+                "environment": {
+                    k: v
+                    for k, v in environment.items()
+                    if k in {"baseURL", "apiBaseURL", "locale", "timezone"}
+                },
+            }
         attempt = await self.attempt(scope, attempt_id)
         job = await self.session.get(Job, attempt.job_id)
         if not job or job.run_id != run_id or job.kind != "TEST":
@@ -477,3 +589,84 @@ class ReportService:
         if validate_schema("ReportDisplayV1", {"schemaVersion": "1.0", "cases": [projected]}):
             return {**result, "metadataStatus": "REDACTED"}
         return {**result, "display": projected, "metadataStatus": "AVAILABLE"}
+
+    async def offline_report(self, scope: WorkspaceScope, run: Run) -> dict[str, Any]:
+        imported = (
+            await self.session.execute(
+                select(OfflineImport).where(
+                    OfflineImport.workspace_id == scope.workspace_id, OfflineImport.run_id == run.id
+                )
+            )
+        ).scalar_one()
+        cases = list(
+            (
+                await self.session.execute(
+                    select(CaseExecution).where(
+                        CaseExecution.workspace_id == scope.workspace_id,
+                        CaseExecution.run_id == run.id,
+                    )
+                )
+            ).scalars()
+        )
+        attempts = list(
+            (
+                await self.session.execute(
+                    select(OfflineAttempt).where(
+                        OfflineAttempt.workspace_id == scope.workspace_id,
+                        OfflineAttempt.import_id == imported.id,
+                    )
+                )
+            ).scalars()
+        )
+        blocked = {"passed": False, "reasons": ["OFFLINE_IMPORT", "RESULT_AUTHENTICITY_UNVERIFIED"]}
+        projected = []
+        for case in cases:
+            rows = [a for a in attempts if a.case_execution_id == case.id]
+            projected.append(
+                {
+                    "id": case.id,
+                    "caseVersionId": case.case_version_id,
+                    "state": case.state,
+                    "outcome": case.outcome,
+                    "provenance": case.provenance,
+                    "attempts": [
+                        {
+                            "id": a.id,
+                            "attemptNo": a.attempt_no,
+                            "runtimeId": None,
+                            "phase": "FINISHED",
+                            "outcome": a.outcome,
+                            "facts": a.facts,
+                            "createdAt": stamp(imported.created_at),
+                            "activatedAt": None,
+                            "finishedAt": stamp(imported.created_at),
+                            "lastSequence": a.document["lastSequence"],
+                            "provenance": {
+                                "source": "OFFLINE_IMPORT",
+                                "declared": imported.declared,
+                                "verified": imported.verified,
+                            },
+                            "gateAtExecution": blocked,
+                            "gateNow": blocked,
+                            "compensations": [],
+                        }
+                        for a in sorted(rows, key=lambda a: a.attempt_no)
+                    ],
+                }
+            )
+        return {
+            "run": run_dto(run),
+            "cases": projected,
+            "gateAtExecution": blocked,
+            "gateNow": blocked,
+            "statistics": {
+                "caseCount": len(cases),
+                "firstPassCount": sum(
+                    a.attempt_no == 1 and a.outcome == "PASSED" for a in attempts
+                ),
+                "retryPassCount": sum(
+                    a.attempt_no == 2 and a.outcome == "PASSED" for a in attempts
+                ),
+                "infrastructureErrorCount": sum(a.outcome == "ERROR" for a in attempts),
+            },
+        }

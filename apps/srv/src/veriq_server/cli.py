@@ -14,6 +14,7 @@ from pydantic import ValidationError
 from tornado.httpserver import HTTPServer
 
 from .app import make_app
+from .handlers.base import MAX_HTTP_BODY_BYTES
 from .db import Database, Installation
 from sqlalchemy import text
 from .migrate import migrate
@@ -137,7 +138,7 @@ async def run(args: argparse.Namespace) -> None:
         else:
             logging.basicConfig(level=logging.INFO, format="%(message)s")
             application = make_app(settings, db)
-            server = HTTPServer(application, max_body_size=3 * 1024 * 1024)
+            server = HTTPServer(application, max_body_size=MAX_HTTP_BODY_BYTES)
             server.listen(settings.port, address=settings.host)
             stop = asyncio.Event()
             loop = asyncio.get_running_loop()

@@ -241,12 +241,20 @@ class ArtifactPublication(Base):
     __table_args__ = (
         Index("ix_artifact_publication_pending", "workspace_id", "state", "id"),
         CheckConstraint("state IN ('PENDING','COMMITTED','RETIRED')", name="ck_publication_state"),
+        CheckConstraint(
+            "(upload_id IS NULL) <> (offline_upload_id IS NULL)", name="ck_publication_owner"
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "offline_upload_id"],
+            ["veriq_offline_import_uploads.workspace_id", "veriq_offline_import_uploads.id"],
+        ),
     )
     id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
     workspace_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_workspaces.id"))
     sha256: Mapped[str] = mapped_column(hash_type)
     storage_backend: Mapped[str] = mapped_column(String(16))
-    upload_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_attempt_uploads.id"))
+    upload_id: Mapped[str | None] = mapped_column(uuid_type, ForeignKey("veriq_attempt_uploads.id"))
+    offline_upload_id: Mapped[str | None] = mapped_column(uuid_type)
     state: Mapped[str] = mapped_column(String(16), default="PENDING")
 
 
@@ -749,7 +757,9 @@ class MaintenanceReceipt(Base):
 class AiProvider(Base):
     __tablename__ = "veriq_ai_providers"
     id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
-    workspace_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_workspaces.id"), index=True)
+    workspace_id: Mapped[str] = mapped_column(
+        uuid_type, ForeignKey("veriq_workspaces.id"), index=True
+    )
     revision: Mapped[int] = mapped_column(Integer)
     config: Mapped[dict[str, Any]] = mapped_column(JSON)
     enabled: Mapped[bool] = mapped_column(Boolean)
@@ -784,7 +794,9 @@ class AiGeneration(Base):
 class Bundle(Base):
     __tablename__ = "veriq_bundles"
     id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
-    workspace_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_workspaces.id"), index=True)
+    workspace_id: Mapped[str] = mapped_column(
+        uuid_type, ForeignKey("veriq_workspaces.id"), index=True
+    )
     exported_by: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_users.id"))
     manifest_hash: Mapped[str] = mapped_column(hash_type)
     archive_hash: Mapped[str] = mapped_column(hash_type)
@@ -807,3 +819,90 @@ class BundleExport(Base):
     bundle_id: Mapped[str | None] = mapped_column(uuid_type, ForeignKey("veriq_bundles.id"))
     authority: Mapped[dict[str, Any]] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+
+
+class OfflineImport(Base):
+    """Reported disconnected facts never acquire online lease/fencing authority."""
+
+    __tablename__ = "veriq_offline_imports"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "bundle_id", "local_run_id"),
+        UniqueConstraint("workspace_id", "id"),
+    )
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_workspaces.id"))
+    bundle_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_bundles.id"))
+    local_run_id: Mapped[str] = mapped_column(uuid_type)
+    actor_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_users.id"))
+    run_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_runs.id"))
+    request_hash: Mapped[str] = mapped_column(hash_type)
+    declared: Mapped[dict[str, Any]] = mapped_column(JSON)
+    verified: Mapped[dict[str, Any]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+
+
+class OfflineImportKey(Base):
+    __tablename__ = "veriq_offline_import_keys"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "import_id"],
+            ["veriq_offline_imports.workspace_id", "veriq_offline_imports.id"],
+        ),
+    )
+    workspace_id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    key: Mapped[str] = mapped_column(String(160, collation="ascii_bin"), primary_key=True)
+    import_id: Mapped[str] = mapped_column(uuid_type)
+    actor_id: Mapped[str] = mapped_column(uuid_type)
+    request_hash: Mapped[str] = mapped_column(hash_type)
+
+
+class OfflineAttempt(Base):
+    __tablename__ = "veriq_offline_attempts"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "import_id"],
+            ["veriq_offline_imports.workspace_id", "veriq_offline_imports.id"],
+        ),
+        UniqueConstraint("workspace_id", "id"),
+        UniqueConstraint("case_execution_id", "attempt_no"),
+    )
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type)
+    import_id: Mapped[str] = mapped_column(uuid_type)
+    case_execution_id: Mapped[str] = mapped_column(
+        uuid_type, ForeignKey("veriq_case_executions.id")
+    )
+    local_attempt_id: Mapped[str] = mapped_column(uuid_type)
+    attempt_no: Mapped[int] = mapped_column(Integer)
+    outcome: Mapped[str] = mapped_column(String(24))
+    facts: Mapped[dict[str, Any]] = mapped_column(JSON)
+    document: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+    @property
+    def last_sequence(self) -> int:
+        return int(self.document["lastSequence"])
+
+
+class OfflineImportUpload(Base):
+    __tablename__ = "veriq_offline_import_uploads"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id"),
+        UniqueConstraint("workspace_id", "bundle_id", "local_run_id", "local_attempt_id", "path"),
+    )
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_workspaces.id"))
+    bundle_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_bundles.id"))
+    local_run_id: Mapped[str] = mapped_column(uuid_type)
+    local_attempt_id: Mapped[str] = mapped_column(uuid_type)
+    actor_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_users.id"))
+    path: Mapped[str] = mapped_column(String(240, collation="ascii_bin"))
+    sha256: Mapped[str] = mapped_column(hash_type)
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    kind: Mapped[str] = mapped_column(String(16))
+    sensitivity: Mapped[str] = mapped_column(String(24))
+    content: Mapped[bytes | None] = mapped_column(LONGBLOB)
+    state: Mapped[str] = mapped_column(String(16))
+    storage_incarnation: Mapped[str | None] = mapped_column(uuid_type)
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+    expires_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+    expired_at: Mapped[datetime | None] = mapped_column(DATETIME(fsp=6))
