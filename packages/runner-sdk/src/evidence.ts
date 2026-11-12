@@ -15,7 +15,6 @@ export interface RestrictedEvidence {
     sensitivity: "CREDENTIAL_RESTRICTED";
     path: string;
 }
-/** Trusted engine/local policy only. T12 must enforce current server authorization. */
 /**
  * 公开类 EvidencePolicy 管理敏感值保护与受限证据采集：截图/Trace 写入 mode-0700 目录（EvidencePolicy）。
  */

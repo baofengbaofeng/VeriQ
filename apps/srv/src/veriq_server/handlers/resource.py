@@ -20,8 +20,8 @@ class ResourceAPI(API):
     def prepare(self) -> None:
         """资源信封放宽到约 2 MiB，其余操作保留 64 KiB；并按 action 白名单限制动词；draft/resources 放宽正文，其它动作保持账户级上限。
         prepare 实现于 apps/srv/src/veriq_server/handlers/resource.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        JSON 资源信封：2 MiB 加有界信封开销；其他操作保留 64 KiB 账户/API 上限。
         """
-        # JSON 资源信封：2 MiB 加有界信封开销；其他操作保留 64 KiB 账户/API 上限。
         self.body_limit = 2 * 1024 * 1024 + 4096 if self.action in {"resources", "draft"} else 65536
         super().prepare()
         allowed = {

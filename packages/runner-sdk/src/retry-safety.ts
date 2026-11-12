@@ -8,7 +8,6 @@ import type { BrowserContext, Page, Request } from "@playwright/test";
  * 供平台决定是否允许整案重试。
  */
 export type RetrySafety = "READ_ONLY_OBSERVED" | "WRITE_POSSIBLE" | "UNKNOWN";
-/** No URL/header/body is retained. A closed, fully observed business Context is required. */
 /**
  * 公开类 RetryObservation 监听 Context 的请求/页面/WebSocket：在 finish 时给出 RetrySafety。
  * 不保留 URL 或正文。

@@ -49,9 +49,6 @@ export type LiveStepEvent =
 /**
  * 公开接口 StepContextOptions 配置 createStepContext 所需的页面、执行、预算与绑定环境。
  */
-/**
- * 公开接口 StepContext 暴露生成代码可用的定位、交换、断言与预算 API：由 createStepContext 构造。
- */
 export interface StepContextOptions {
     onBusinessRequest?: (method: string) => void;
     onEvent?: (event: LiveStepEvent) => Promise<void>;
@@ -112,7 +109,6 @@ export function createStepContext(options: StepContextOptions): StepContext {
         },
     };
 }
-/** A typed interruption, selected only when abort wins over operation settlement. */
 /**
  * 公开类 ExecutionCancelled 表示执行被取消或预算耗尽：用于中断嵌套等待而不伪装成断言失败（ExecutionCancelled/BUSINESS_TIMEOUT）。
  */

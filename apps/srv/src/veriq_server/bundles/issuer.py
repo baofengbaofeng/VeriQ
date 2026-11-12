@@ -126,8 +126,8 @@ class Issuer:
     def mutation(self) -> Iterator[None]:
         """跨进程排他持锁后重载最新快照执行算子变更，退出时原子写回；读路径使用旧/新快照；持锁期间重载磁盘快照，避免基于陈旧内存状态轮换。
         mutation 实现于 apps/srv/src/veriq_server/bundles/issuer.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        算子变更跨进程串行；对外服务依赖原子旧/新快照切换，不在此持读锁。
         """
-        # 算子变更跨进程串行；对外服务依赖原子旧/新快照切换，不在此持读锁。
         fd = os.open(self.path.with_suffix(".lock"), os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         try:
             fcntl.flock(fd, fcntl.LOCK_EX)

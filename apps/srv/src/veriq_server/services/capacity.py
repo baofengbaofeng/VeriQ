@@ -42,8 +42,8 @@ class CapacityService:
     async def available(self, job: Job, runtime_id: str) -> list[CapacityPool] | None:
         """固定顺序锁池；已满或 used>limit 则返回 None，CapacityService.available 路径必须遵守 Workspace 作用域。
         available 实现于 apps/srv/src/veriq_server/services/capacity.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        调用方须先持有安装授权护栏，再按固定顺序对容量池加锁，避免与开局突变死锁。
         """
-        # 调用方须先持有安装授权护栏，再按固定顺序对容量池加锁，避免与开局突变死锁。
         pools = []
         for key, limit in self.requirements(job, runtime_id):
             pool = (

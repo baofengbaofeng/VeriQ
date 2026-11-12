@@ -59,8 +59,8 @@ export interface ExecutionPackage {
     entrypoint: string;
     snapshot: ExecutionSnapshotV1;
 }
-/** T06 实现该导入 ABI；执行上下文由 worker 注入，编译器永不把上下文写进生成代码。 */
 /**
+ * T06 实现该导入 ABI；执行上下文由 worker 注入，编译器永不把上下文写进生成代码。
  * 公开接口 RunnerSdkV1 描述生成代码依赖的 runner-sdk ABI：执行上下文由 worker 注入：编译器只发射惰性调用。
  */
 export interface RunnerSdkV1 {
@@ -201,8 +201,8 @@ function distributionFiles(
     files["dependencies.json"] = canonicalBytes(d.dependencies);
     return files;
 }
-/** 核对与编译相同的引擎 package/lock/依赖闭包，但不执行其中任何代码。 */
 /**
+ * 核对与编译相同的引擎 package/lock/依赖闭包，但不执行其中任何代码。
  * 公开函数 verifyDistribution 核对引擎发行闭包与期望 engineVersion：不执行包内代码：哈希或版本不符即失败。
  */
 export function verifyDistribution(distribution: EngineDistribution, engineVersion: string): void {
@@ -367,8 +367,8 @@ export function compileFiles(
     verifyFiles(bundle, files);
     return { bundle, files };
 }
-/** 仅描述符兼容 API；上传/导出请用 compileFiles，且不维护隐藏文件缓存。 */
 /**
+ * 仅描述符兼容 API；上传/导出请用 compileFiles，且不维护隐藏文件缓存。
  * 公开函数 compileAssets 提供仅描述符的兼容编译入口：实际上委托 compileFiles：不隐藏进程级文件缓存。
  */
 export function compileAssets(
@@ -422,8 +422,8 @@ export function verifyFiles(
     if (Object.keys(files).length !== seen.size)
         throw new Error("UNMANIFESTED_FILE");
 }
-/** 冷装配接受已下载描述符与精确文件，不依赖进程内身份注册表。 */
 /**
+ * 冷装配接受已下载描述符与精确文件，不依赖进程内身份注册表。
  * 公开函数 assembleExecution 冷装配下载的描述符与精确文件：不依赖进程内身份注册表：输出可运行的 ExecutionPackage。
  */
 export function assembleExecution(

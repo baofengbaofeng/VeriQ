@@ -80,7 +80,6 @@ export function validateIssuer(value: IssuerTrust): IssuerTrust {
     }
     return structuredClone(value);
 }
-/** Public roots deliberately survive device logout. Explicit profile deletion is separate. */
 /**
  * 公开类 TrustStore 在私有目录持久化签发者信任：支持 bind/refresh：登出设备不会自动清空公钥根（TrustStore/ISSUER_NOT_TRUSTED）。
  */

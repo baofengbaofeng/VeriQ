@@ -4,7 +4,6 @@
 import { leaseDeadline } from '../lease.ts';
 import type { PlatformComponents } from '@veriq/contracts';
 import type { AgentClient, Claim } from './transport.ts';
-/** Watchdog never waits for the HTTP queue or a heartbeat response before requesting stop. */
 /**
  * 公开类 Heartbeat 用本地单调截止看管 Attempt 租约，不等待 HTTP 队列或心跳应答就会触发停机请求。
  * 每十秒续租并处理 cancelRequested；控制连接丢失映射为 CONTROL_CONNECTION_LOST。

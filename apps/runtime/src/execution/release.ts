@@ -18,7 +18,6 @@ export interface EngineRelease {
     files: Record<string, Uint8Array>;
     inventoryHash: string;
 }
-/** Operator-selected local release; a Job or downloaded catalog can never approve itself. */
 /**
  * 公开函数 loadRelease 读取运维目录 inventory.json：按版本装载发行成员并校验路径白名单与内容哈希。
  * 缺少强制文件时失败关闭。

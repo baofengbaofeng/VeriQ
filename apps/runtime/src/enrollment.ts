@@ -228,7 +228,6 @@ export class RuntimeClient {
     }
 }
 
-/** Restricted file seam for development; T20 provides the native OS vault. */
 /**
  * 公开类 DeviceStore 以排他文件缝持久化 DeviceConfig：支持续期、停机检查与轮换候选恢复（DeviceStore）。
  */
@@ -298,7 +297,6 @@ export class DeviceStore {
             await release();
         }
     }
-    /** Hold the same profile lock throughout pending recovery and atomic replacement. */
     /**
      * 公开方法 renew 在需要时轮换设备令牌并原子保存：恢复未完成的轮换候选：防止双主凭证，标注导出符号 renew 供检索。
      */

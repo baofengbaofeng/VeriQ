@@ -5,7 +5,6 @@ import lockfile from 'proper-lockfile';
 import { join } from 'node:path';
 import { mkdir } from 'node:fs/promises';
 import { DeviceStore, RuntimeClient, type DeviceConfig } from '../enrollment.ts';
-/** One native Agent owns a profile. Each bounded control request takes one fair queue turn. */
 /**
  * 公开类 DeviceSession 表示单一原生 Agent 对配置目录的独占所有权，控制请求经公平队列串行取用设备凭证。
  * open 以排他锁占据 agent-owner；withCredential 在十二小时窗口内复用令牌，到期则经 RuntimeClient 续期。

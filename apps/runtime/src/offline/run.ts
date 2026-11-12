@@ -363,7 +363,6 @@ export async function runOffline(bundle: Pick<VerifiedBundle, 'directory'>, conf
         store.close();
     }
 }
-/** Explicit recovery/cancellation from a native host. Never frees an unknown process. */
 /**
  * 公开函数 recoverOffline 由原生宿主显式触发恢复或取消：对未知进程隔离容量：绝不自动释放未排空进程（recoverOffline/LOCAL_OWNERSHIP_CHANGED）。
  */

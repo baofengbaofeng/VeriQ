@@ -329,9 +329,6 @@ export async function verifyBundle(
 }
 
 /**
- * Re-read an installed tree at the execution boundary; caller objects confer no authority.
- */
-/**
  * 公开函数 reverifyInstalled 在执行边界重读已安装目录并复核哈希：调用方持有的对象副本不具备权威（reverifyInstalled/UNSAFE_BUNDLE_DIRECTORY）。
  */
 export async function reverifyInstalled(

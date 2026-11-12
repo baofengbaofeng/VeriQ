@@ -6,7 +6,6 @@ import { open, unlink, mkdir, lstat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { controlOrigin, type DeviceConfig } from "../enrollment.ts";
-/** Exact-origin bearer-only transport; no redirects/cookies and bounded streaming. */
 /**
  * 公开函数 downloadBundle 向已登记控制 Origin 发起 Bearer 下载：校验响应哈希与体积上限：失败时不留下半截归档（downloadBundle）。
  */

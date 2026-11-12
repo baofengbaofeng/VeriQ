@@ -19,7 +19,6 @@ class DeviceAPI(API):
         """原生客户端使用有界注册密钥或 Authorization Bearer，不校验浏览器 CSRF Cookie；空实现防止 Tornado 默认 Cookie CSRF 拦截设备调用。
         check_xsrf_cookie 实现于 apps/srv/src/veriq_server/handlers/enrollment.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
         """
-        # 原生客户端使用有界注册密钥或 Authorization Bearer。
         pass
 
     def prepare(self) -> None:
