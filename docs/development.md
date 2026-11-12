@@ -1,16 +1,16 @@
 # Developing VeriQ
 
-Installation, user accounts, Workspace management and versioned asset APIs are implemented. The current pages provide setup/login/logout, password reset, account/session controls, global user administration, Workspace selection, membership and invitations using actual MySQL records. The deterministic compiler, Runner SDK and built-in HTTP business/fixture lifecycle providers are implemented, together with versioned credential/authentication APIs. Runtime enrollment, owner-controlled sharing, separate hardware trust/Workspace credential delivery and development CLI/doctor are implemented. The asset editor, actual worker/lease integration, reports and desktop client remain under development.
+Installation, user accounts, Workspace management and versioned asset APIs are implemented. The current pages provide setup/login/logout, password reset, account/session controls, global user administration, Workspace selection, membership and invitations using actual MySQL records. The deterministic compiler, Runner SDK and built-in HTTP business/fixture lifecycle providers are implemented, together with versioned credential/authentication APIs. Runtime enrollment, owner-controlled sharing, separate hardware trust/Workspace credential delivery and development CLI/doctor are implemented. Asset editing/publication, actual Linux Agent/lease integration and restricted reports/storage have passed task reviews. The AI implementation has also passed code review; authorized actual-Provider acceptance remains pending. Signed bundle export/verification, issuer trust and exact local credential references have passed their task reviews. Offline execution/import, the desktop client and formal distributions remain under development.
 
 After signing in, open **Workspaces** to create a project Workspace; its creator becomes OWNER. OWNER/ADMIN can invite members with a copyable link or configured SMTP. Existing accounts sign in within the acceptance page; new invitees create an ordinary account. Invitation tokens are removed from the address bar and retained in page memory, so reopen the original link after a full refresh. Global system administration does not grant project membership.
 
-Workspace members can switch spaces and view their role. OWNER/ADMIN can manage permitted memberships; only OWNER can grant ownership or archive a Workspace. The final enabled ACTIVE OWNER cannot be removed, demoted or disabled without a successor. Archived Workspaces are read-only; this API currently has no restore operation. Resource authorization already uses this scope layer; device authorization adopts it, and execution services will use the same boundary in the next tasks.
+Workspace members can switch spaces and view their role. OWNER/ADMIN can manage permitted memberships; only OWNER can grant ownership or archive a Workspace. The final enabled ACTIVE OWNER cannot be removed, demoted or disabled without a successor. Archived Workspaces are read-only; this API currently has no restore operation. Resource, device, execution, report and AI services use this scope boundary.
 
-Asset API clients can create and revise all eight resource kinds under a Workspace, inspect pinned dependencies and read immutable published versions. Read `validation-preview` before submitting the returned revision/source hash to `validate`. This creates a real queued VALIDATE job; production receipt creation awaits the trusted Runtime integration. No public endpoint fabricates successful validation. Current permission, hash, entrypoint and publication contracts are in [contracts.md](contracts.md).
+Asset API clients can create and revise all eight resource kinds under a Workspace, inspect pinned dependencies and read immutable published versions. Read `validation-preview` before submitting the returned revision/source hash to `validate`. This creates a real queued VALIDATE job; the Linux Agent consumes it using an approved engine inventory, actual compilation and fenced completion. No public endpoint fabricates successful validation. Current permission, hash, entrypoint and publication contracts are in [contracts.md](contracts.md).
 
-The compiler validates all eight asset kinds and emits deterministic TypeScript, source context and verified dependency files. Executable compilation requires actual engine distribution bytes. The compiler retains its isolated fixture-distribution test; the SDK additionally installs actual SDK/contracts JavaScript and dependency archives offline, typechecks emitted TypeScript and executes it in Chromium. Built-in authentication/fixture providers now have real local backend/browser evidence; deployed Runtime authorization and trusted worker assembly remain later integration tasks. See [the compiler contract](contracts.md) and [ADR 0006](decisions/0006-deterministic-compiler-artifacts.md).
+The compiler validates all eight asset kinds and emits deterministic TypeScript, source context and verified dependency files. Executable compilation requires actual engine distribution bytes. The compiler retains its isolated fixture-distribution test; the SDK additionally installs actual SDK/contracts JavaScript and dependency archives offline, typechecks emitted TypeScript and executes it in Chromium. Built-in authentication/fixture providers and Linux Agent assembly have real backend/browser evidence; native release packaging remains a later task. See [the compiler contract](contracts.md) and [ADR 0006](decisions/0006-deterministic-compiler-artifacts.md).
 
-Credential management APIs require Workspace OWNER/ADMIN and return metadata, never plaintext. Business and fixture identities are separate, version pinned, and configured through the immutable authentication registry. The internal credential resolver remains denied until a real device/Attempt verifier is integrated. The [backend integration guide](integration/backend.md) covers the controlled Tornado/SQLite test target, idempotent fixture lifecycle and compensation; this target does not replace the platform MySQL database. Raw Trace/screenshots/downloads carry credential-restricted sensitivity; production artifact authorization remains the report task. Initial variable declarations contain types only, with actual values frozen separately and checked before side effects.
+Credential management APIs require Workspace OWNER/ADMIN and return metadata, never plaintext. Business and fixture identities are separate, version pinned, and configured through the immutable authentication registry. The internal resolver requires the current device/Attempt authority and separately approved credential delivery. The [backend integration guide](integration/backend.md) covers the controlled Tornado/SQLite test target, idempotent fixture lifecycle and compensation; this target does not replace the platform MySQL database. Raw Trace/screenshots/downloads carry credential-restricted sensitivity and independent current report permissions. Initial variable declarations contain types only, with actual values frozen separately and checked before side effects.
 
 The Runtime page supports real device-code approval and deployment service accounts. Registration is OFFLINE until an actual worker is running; capability reports do not approve an engine release. The development CLI supports explicit logout recovery, including `--local-only` without remote revocation. Current known UI issue: an invalid or expired authenticated approval code is misclassified as session expiration; it is tracked for the full error-handling pass and does not revoke the server session cookie.
 
@@ -94,7 +94,7 @@ Doctor checks the actual pinned Node 24.22.1, supported OS/x64 architecture, ins
 
 Deployment managers create a Workspace service account in the Runtime page and issue a one-time enrollment token. Supply it through standard input to `enroll-service --server ORIGIN --name NAME`; include `--share-workspace` only when consenting to Workspace use. Never paste a token as a command argument or put it in a URL. Tokens expire in ten minutes and cannot be used for execution-plan triggers, maintenance or credential resolution. System-admin MANAGED approval is separate from owner consent and cloud location. Workspace OWNER/ADMIN separately approves credential delivery after MANAGED trust; a global administrator with only project VIEWER/EDITOR membership cannot grant it. Disabling the account denies its devices immediately.
 
-The Node development CLI uses the pinned tsx loader to consume shared TypeScript packages. Its env-paths configuration directory is mode 0700 and the device file is mode 0600 with proper-lockfile serialization and atomic replacement. `--config-dir` selects a dedicated private development directory. This is a documented file-storage seam, **not** an OS vault or a native release package. T20 provides OS vaults, installers and complete native platform delivery; T09/T10 now implement Linux worker claim/lease/start/stop and recoverable unattended token renewal. A lost one-time enrollment receipt still requires explicit recovery/re-enrollment; the Agent recovers its exact journaled rotation candidate without overwriting a different enrolled principal. Bundle trust roots remain unavailable until T14 supplies an actual authenticated issuer.
+The Node development CLI uses the pinned tsx loader to consume shared TypeScript packages. Its env-paths configuration directory is mode 0700 and the device file is mode 0600 with proper-lockfile serialization and atomic replacement. `--config-dir` selects a dedicated private development directory. This is a documented file-storage seam, **not** an OS vault or a native release package. T20 provides OS vaults, installers and complete native platform delivery; T09/T10 now implement Linux worker claim/lease/start/stop and recoverable unattended token renewal. A lost one-time enrollment receipt still requires explicit recovery/re-enrollment; the Agent recovers its exact journaled rotation candidate without overwriting a different enrolled principal. T14 provides a persisted issuer and separate `trust bind`/`trust refresh` commands; device credentials alone do not establish signer trust. See [offline bundle operations](offline-bundles.md).
 
 Run Runtime tests with `VERIQ_TEST_CHROMIUM` selecting the test host's Chromium if necessary:
 
@@ -132,3 +132,108 @@ Start is foreground; status/stop are issued from another terminal. Stop acknowle
 Every Attempt uses fresh business state and bounded event/evidence storage. Explicit cancellation preserves earlier observed failures. Configured whole-case retry requires either successful cleanup under the fixture's namespace-closing contract, or trusted compiler metadata plus complete observed read-only behavior. A no-fixture write with an uncertain result is not automatically repeated: RETRY_SAFETY_UNCONFIRMED requires business reconciliation before an explicit new Run. Read-only retry remains available; a retry pass aggregates UNSTABLE. See the [execution contracts](contracts.md) for exact fields and authorization.
 
 The SDK test entry uses two workers with unchanged assertion/test timeouts. Heavier validation suites should run sequentially on constrained hosts. Earlier higher-concurrency timeouts remain documented; a passing bounded run is not proof that every possible scheduling race has been excluded. Windows process containment and the full desktop product remain subsequent tasks.
+
+The resource and environment UI is available at `/resources` and `/environments` in the
+Vite development app. Compile validation needs a currently authorized MANAGED Runtime and
+operator-approved engine inventory; without one, editing works and validation remains queued.
+Do not fabricate a receipt to enable publication. The focused browser command is
+`VERIQ_TEST_CHROMIUM=/usr/bin/chromium pnpm --filter @veriq/web test:e2e case-publish.spec.ts`.
+It uses the guarded dedicated MySQL fixture, builds a genuine locked test-only release,
+registers the actual CLI and invokes the actual Linux Agent compiler. No test release is
+promoted to the production catalog. It needs writable XDG paths and sufficient temporary
+disk space; generated archives, device profiles and per-Attempt work are transient.
+
+## Current verification limits
+
+The signed-bundle implementation (`46798ab`, fixed in `3ffb144` and `c1fa544`)
+passed independent review after correcting unchecked OOB sibling keys, semantic
+closure/entrypoint binding, HTTP idempotency/auth/status contracts, and multi-CASE
+version pagination. Final scoped evidence includes 14 offline verifier tests,
+37 compiler emission tests, six bundle/guard checks, 196 contract tests, a real
+Agent/keyboard-GUI/download/native-verification journey, and one generated SDK
+consumer, plus types, mypy (76 files) and Ruff. The GUI pagination test discloses
+its listing-only history padding; only genuine Agent-published roots are exported.
+These checks are not whole-product acceptance.
+
+The required T14 full SDK command remains **134 passed / one timeout**. New phase
+evidence places the delayed await in fixture `browser.close()`, after executeStep
+settled and context close completed; this alone does not prove its business-status
+assertions passed. A separately authorized native process/pipe probe passed 47
+selected tests under a different schedule and did not reproduce the gap. No cause
+or lifecycle fix is claimed. System Chromium 156 differs from Playwright 1.65's
+expected Chromium 158 (revision 1254); causality is unproven. Before formal build,
+align the test harness with the matched pinned browser and obtain the official
+gate, capturing native phases if it fails again. Preserve the 15-second/two-worker
+checks and generated-child privacy. The later passing generated consumer is a
+focused compatibility check, not a replacement full gate.
+
+The AI implementation (`f9573d0`, fixed in `3c96eb6`) passed independent code review.
+Its pre-fix final AI suite passed 20 tests. The review fixes have six causal backend
+regressions passing, 29 covering cases passing, two corrected parser-fixture checks
+passing, and three browser journeys passing, with mypy/Ruff/TypeScript checks. Two
+covering commands retained one incorrect parser-fixture expectation each; neither
+is described as a full 30-test pass. The earlier broad Python command was 356 passes
+and one stale migration-head assertion; the broad Web command was 16 passes and one
+shared-empty-fixture assumption. Targeted checks verify those corrections without
+claiming a clean rerun of either broad suite. Real Chromium Runs with disabled and
+exhausted Providers both passed with zero model HTTP requests. Actual external
+Provider acceptance remains pending user authorization and durable isolated setup;
+see [AI configuration and acceptance](ai.md). Never put real keys in resettable tests.
+
+The reviewed editor implementation (`c128ac5`, fixed in `b49f981`) passed its final nine
+browser tests, Web type check and production build. The initial implementation also passed
+five existing Web journeys, 258 affected Python tests, 193 contract tests, 109 compiler tests,
+Ruff and mypy. These are scoped development results, not complete product acceptance.
+
+The broader `pnpm test` run remains failed: SDK cancellation test
+`cancels an in-flight assertion while preserving already observed failure=false` exceeded its
+unchanged 15-second budget under two workers (131 passed, one failed). The script stopped
+before Runtime tests. One later instrumented, isolated execution passed in 671 ms; it did not
+reproduce or explain the earlier failure. Capture the failing phase and resolve this before
+claiming a passing formal build; increasing the timeout or retrying until green is not a fix.
+
+The report implementation (`f77a9b9`, fixed in `47986b0`) also passed independent spec and
+quality review. Its final fix checks passed 24 report/storage tests, two current physical
+pipeline/schema tests and one actual pre-T12 compiler-archive compatibility test, plus
+Ruff, mypy (65 files) and generated/type checks. Earlier applicable checks include Runtime
+38, contracts 193, compiler 112 and Web 10 passes. Full backend runs had failures before
+their scoped corrections; they are not represented as clean all-test runs.
+
+The required T12 SDK run again recorded 131 passes and the same cancellation timeout.
+Properly instrumented follow-up did not reproduce cancellation (1.287 seconds); its whole
+command still failed because diagnostic DEBUG reached a generated-test child and printed
+synthetic protected locator text, triggering that test's privacy assertion. This does not
+resolve the timeout or establish a leak in the normal Runtime, which passes an explicit
+child environment without DEBUG. Future required diagnosis must capture the failing phase
+without contaminating the generated-child privacy check.
+
+The production build also retains a large-chunk warning from eager Monaco loading; local
+worker assets remain bundled for offline use. Loading improvements belong to the final UX
+work. Existing test color-environment warnings remain an infrastructure follow-up.
+
+## Reports and restricted evidence
+
+The development `/reports` view uses actual Run/Attempt history, replayable event streams,
+compiler-derived step labels and separate execution/current trust gates. Ordinary members
+see redacted structured values. Raw Trace, HTML, screenshot, download and log access requires
+current Workspace Owner/Admin permission and the exact Attempt association; caller-supplied
+sensitivity cannot grant access. Locally view an authorized downloaded Trace with
+`pnpm --filter @veriq/runtime dev trace open /path/to/trace.zip`; it uses the pinned Playwright
+viewer on loopback and does not upload the file to a public service.
+
+Raw evidence retention uses server terminal timestamps, defaults to 14 days for passed
+Attempts and 30 days for other terminal outcomes, and is woken through the authenticated
+external maintenance HTTP endpoint. Unknown historical timestamps remain retained. Source,
+engine and compiled provenance stay pinned. Metadata/export-package lifecycle is still a
+required operations task. Minimal empty private retirement fences prevent a late external
+writer from restoring deleted evidence bytes; elapsed time alone is not sufficient to remove
+those fences. Protocol and storage details are in [the contracts](contracts.md) and
+[ADR0014](decisions/0014-report-evidence-storage.md).
+
+T14 adds migration0011 (`veriq_bundles`) and the `/bundles` Web page. Provision the
+separate operator issuer for existing installations before exporting; see
+[offline bundle operations](offline-bundles.md). Fresh `init` creates it safely, while
+`serve` never invents signing identity. The native CLI implements bundle download/verify,
+trust bind/refresh and exact local secret mapping. Offline execution/result import and
+native OS vault/installers remain their later tasks; package signatures do not confer
+formal-result trust. Bundle retention roots are pinned pending T21's package lifecycle.

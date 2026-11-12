@@ -210,9 +210,44 @@ class Artifact(Base):
         uuid_type, ForeignKey("veriq_workspaces.id"), primary_key=True
     )
     sha256: Mapped[str] = mapped_column(hash_type, primary_key=True)
-    content: Mapped[bytes] = mapped_column(LONGBLOB)
+    content: Mapped[bytes | None] = mapped_column(LONGBLOB, nullable=True)
     size_bytes: Mapped[int] = mapped_column(Integer)
     media_type: Mapped[str] = mapped_column(String(80, collation="ascii_bin"))
+    storage_backend: Mapped[str] = mapped_column(
+        String(16), default="INLINE", server_default="INLINE"
+    )
+    storage_incarnation: Mapped[str | None] = mapped_column(uuid_type)
+    expired_at: Mapped[datetime | None] = mapped_column(DATETIME(fsp=6))
+    deleted_at: Mapped[datetime | None] = mapped_column(DATETIME(fsp=6))
+
+
+class ArtifactDeletion(Base):
+    """Durable deletion of one immutable physical incarnation, never a job queue."""
+
+    __tablename__ = "veriq_artifact_deletions"
+    __table_args__ = (Index("ix_artifact_delete_pending", "workspace_id", "deleted_at"),)
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_workspaces.id"))
+    sha256: Mapped[str] = mapped_column(hash_type)
+    storage_backend: Mapped[str] = mapped_column(String(16))
+    storage_incarnation: Mapped[str | None] = mapped_column(uuid_type)
+    deleted_at: Mapped[datetime | None] = mapped_column(DATETIME(fsp=6))
+
+
+class ArtifactPublication(Base):
+    """Durable immutable incarnation intent; RETIRED is irreversible."""
+
+    __tablename__ = "veriq_artifact_publications"
+    __table_args__ = (
+        Index("ix_artifact_publication_pending", "workspace_id", "state", "id"),
+        CheckConstraint("state IN ('PENDING','COMMITTED','RETIRED')", name="ck_publication_state"),
+    )
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_workspaces.id"))
+    sha256: Mapped[str] = mapped_column(hash_type)
+    storage_backend: Mapped[str] = mapped_column(String(16))
+    upload_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_attempt_uploads.id"))
+    state: Mapped[str] = mapped_column(String(16), default="PENDING")
 
 
 class Job(Base):
@@ -612,6 +647,8 @@ class Attempt(Base):
     outcome: Mapped[str | None] = mapped_column(String(24, collation="ascii_bin"))
     capacity_state: Mapped[str] = mapped_column(String(24, collation="ascii_bin"))
     facts: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    execution_provenance: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    finished_at: Mapped[datetime | None] = mapped_column(DATETIME(fsp=6))
     finish_hash: Mapped[str | None] = mapped_column(hash_type)
     finish_receipt: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     last_sequence: Mapped[int] = mapped_column(BigInteger, default=0)
@@ -691,6 +728,7 @@ class AttemptUpload(Base):
     size_bytes: Mapped[int] = mapped_column(Integer)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON)
     content: Mapped[bytes] = mapped_column(LONGBLOB, default=bytes)
+    expired_at: Mapped[datetime | None] = mapped_column(DATETIME(fsp=6))
     complete: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
@@ -706,3 +744,66 @@ class MaintenanceReceipt(Base):
     )
     request_hash: Mapped[str] = mapped_column(hash_type)
     receipt: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+
+class AiProvider(Base):
+    __tablename__ = "veriq_ai_providers"
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_workspaces.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer)
+    config: Mapped[dict[str, Any]] = mapped_column(JSON)
+    enabled: Mapped[bool] = mapped_column(Boolean)
+    deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    key_id: Mapped[str] = mapped_column(String(80))
+    key_version: Mapped[str] = mapped_column(uuid_type)
+    nonce: Mapped[bytes] = mapped_column(LONGBLOB)
+    ciphertext: Mapped[bytes] = mapped_column(LONGBLOB)
+
+
+class AiGeneration(Base):
+    __tablename__ = "veriq_ai_generations"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "request_id", name="uq_ai_request"),
+        Index("ix_ai_history", "workspace_id", "created_at", "id"),
+    )
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_workspaces.id"))
+    provider_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_ai_providers.id"))
+    actor_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_users.id"))
+    request_id: Mapped[str] = mapped_column(uuid_type)
+    request_hash: Mapped[str] = mapped_column(hash_type)
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+    month: Mapped[str] = mapped_column(String(7))
+    status: Mapped[str] = mapped_column(String(20))
+    purpose: Mapped[str] = mapped_column(String(24))
+    reserved_micros: Mapped[int] = mapped_column(BigInteger)
+    cost_micros: Mapped[int | None] = mapped_column(BigInteger)
+    data: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+
+class Bundle(Base):
+    __tablename__ = "veriq_bundles"
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_workspaces.id"), index=True)
+    exported_by: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_users.id"))
+    manifest_hash: Mapped[str] = mapped_column(hash_type)
+    archive_hash: Mapped[str] = mapped_column(hash_type)
+    snapshot_hash: Mapped[str] = mapped_column(hash_type)
+    signature: Mapped[bytes] = mapped_column(LONGBLOB)
+    contains_draft: Mapped[bool] = mapped_column(Boolean, default=False)
+    validation_status: Mapped[str] = mapped_column(String(20))
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+
+
+class BundleExport(Base):
+    __tablename__ = "veriq_bundle_exports"
+    __table_args__ = (UniqueConstraint("workspace_id", "idempotency_key"),)
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_workspaces.id"))
+    idempotency_key: Mapped[str] = mapped_column(String(160, collation="ascii_bin"))
+    actor_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_users.id"))
+    request_hash: Mapped[str] = mapped_column(hash_type)
+    state: Mapped[str] = mapped_column(String(16))
+    bundle_id: Mapped[str | None] = mapped_column(uuid_type, ForeignKey("veriq_bundles.id"))
+    authority: Mapped[dict[str, Any]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))

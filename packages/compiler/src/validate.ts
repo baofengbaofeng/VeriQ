@@ -640,6 +640,7 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
       if (a.type === "eventually") binding(a.query, scope, path + "/query");
       result.push({
         assertion: { ...a, id: wireId(path) },
+        sourceId: a.id,
         sourcePath: path,
         parameters: bindings,
       });
@@ -812,6 +813,7 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
       } = s;
       out.push({
         step: { ...action, id: wireId(path) },
+        sourceId: s.id,
         sourcePath: path,
         before,
         responseAssertions: after.filter((a) => !dependent(a)),

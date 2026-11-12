@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth.authorization import WorkspaceScope
 from ..contracts import validate_schema
 from ..credentials.resolve import CredentialProofTransport
-from ..db import AttemptUpload
+from ..db import AttemptUpload, Artifact
 from ..repositories.resource import ResourceRepository
 from ..service import Problem, stamp
 from ..settings import Settings
@@ -72,6 +72,9 @@ class ContentService:
         proof: CredentialProofTransport,
         offset: int,
         content: bytes,
+        *,
+        external: bytes | None = None,
+        staged: tuple[bytes, bool, str, str | None] | None = None,
     ) -> dict[str, Any]:
         attempt, _, _, _ = await LeaseService(self.session, self.settings).proof(attempt_id, proof)
         upload = await self.session.get(AttemptUpload, upload_id)
@@ -81,11 +84,17 @@ class ContentService:
             or upload.workspace_id != attempt.workspace_id
         ):
             raise Problem(404, "UPLOAD_NOT_FOUND", "Upload not assigned to Attempt")
+        if upload.expired_at:
+            raise Problem(410, "ARTIFACT_EXPIRED", "Evidence retention has expired")
         if len(content) > CHUNK_BYTES or offset < 0 or offset + len(content) > upload.size_bytes:
             raise Problem(413, "UPLOAD_LIMIT", "Chunk exceeds upload bounds")
         repo = ResourceRepository(self.session, WorkspaceScope(attempt.workspace_id))
+        if staged and (upload.content != staged[0] or upload.complete != staged[1]):
+            raise Problem(409, "UPLOAD_CONFLICT", "Upload changed during storage staging")
         retained = (
-            (await repo.artifact(upload.sha256)).content if upload.complete else upload.content
+            (external if external is not None else (await repo.artifact(upload.sha256)).content)
+            if upload.complete
+            else upload.content
         )
         if offset < len(retained) or upload.complete:
             if retained[offset : offset + len(content)] != content:
@@ -99,7 +108,31 @@ class ContentService:
                     raise Problem(
                         409, "UPLOAD_HASH_MISMATCH", "Uploaded bytes do not match declared hash"
                     )
-                await repo.store(retained, upload.metadata_json["contentType"])
+                if staged and staged[2] != "INLINE":
+                    from ..db import ArtifactPublication
+
+                    publication = (
+                        await self.session.get(ArtifactPublication, staged[3])
+                        if staged[3]
+                        else None
+                    )
+                    existing = await self.session.get(
+                        Artifact, (attempt.workspace_id, upload.sha256)
+                    )
+                    if (
+                        not existing
+                        or existing.expired_at
+                        or existing.storage_backend != staged[2]
+                        or existing.storage_incarnation != staged[3]
+                        or (publication and publication.state == "RETIRED")
+                    ):
+                        raise Problem(
+                            409, "UPLOAD_CONFLICT", "Artifact incarnation changed during staging"
+                        )
+                    if publication:
+                        publication.state = "COMMITTED"
+                else:
+                    await repo.store(retained, upload.metadata_json["contentType"])
                 upload.complete, upload.content = True, b""
             else:
                 upload.content = retained

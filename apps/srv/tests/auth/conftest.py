@@ -16,22 +16,56 @@ from veriq_server.migrate import migrate
 
 
 @pytest.fixture
-async def site():
+async def site(request, monkeypatch):
     env = json.loads(Path(".superpowers/sdd/veriq-1/test-env.json").read_text())
     assert make_url(env["mysql_dsn"]).database == "veriq_test"
     # The operator provisioned this database exclusively for isolated task tests.
+    storage = {}
+    moto = None
+    if getattr(request, "param", "FILE") == "S3":
+        from moto.server import ThreadedMotoServer
+        import boto3
+
+        for key, value in {
+            "AWS_ACCESS_KEY_ID": "synthetic-test",
+            "AWS_SECRET_ACCESS_KEY": "synthetic-test",
+            "AWS_EC2_METADATA_DISABLED": "true",
+        }.items():
+            monkeypatch.setenv(key, value)
+        moto = ThreadedMotoServer(ip_address="127.0.0.1", port=0, verbose=False)
+        moto.start()
+        host, port = moto.get_host_and_port()
+        endpoint = f"http://{host}:{port}"
+        boto3.client("s3", endpoint_url=endpoint, region_name="us-east-1").create_bucket(
+            Bucket="veriq-review"
+        )
+        storage = {
+            "artifact_backend": "S3",
+            "artifact_s3_endpoint": endpoint,
+            "artifact_s3_bucket": "veriq-review",
+        }
     settings = Settings(
+        **storage,
         database_url=env["mysql_dsn"],
         public_url="http://127.0.0.1:18889",
         master_key="a" * 64,
         signing_key="b" * 64,
         environment="development",
+        ai_allowed_base_urls=[
+            "http://127.0.0.1:18890/v1",
+            "https://api.openai.com/v1",
+            "https://api.anthropic.com/v1",
+        ],
         approved_engine_inventory_path=env.get("approved_engine_inventory_path"),
     )
     db = Database(settings)
     async with db.engine.begin() as conn:
         tables = (await conn.execute(text("SHOW TABLES"))).scalars().all()
         owned = {
+            "veriq_bundles",
+            "veriq_bundle_exports",
+            "veriq_ai_providers",
+            "veriq_ai_generations",
             "veriq_runs",
             "veriq_case_executions",
             "veriq_attempts",
@@ -62,6 +96,8 @@ async def site():
             "veriq_resource_versions",
             "veriq_resource_dependencies",
             "veriq_artifacts",
+            "veriq_artifact_deletions",
+            "veriq_artifact_publications",
             "veriq_jobs",
             "veriq_validation_receipts",
             "veriq_secret_refs",
@@ -106,3 +142,5 @@ async def site():
     server.stop()
     await server.close_all_connections()
     await db.close()
+    if moto:
+        moto.stop()

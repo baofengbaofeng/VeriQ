@@ -184,6 +184,77 @@ async def test_managed_real_compilation_finishes_once_and_can_publish(site, tmp_
         "compiledBundleSha256": bundle_hash,
         "engineInventorySha256": records["inventoryHash"],
     }
+    if kind == "ELEMENT_CATALOG":
+        # Actual non-CASE compiler emits two different metadata paths with identical
+        # canonical empty cases. Both upload/event identities must survive CAS sharing.
+        from sqlalchemy import select
+        from veriq_server.db import AttemptUpload
+
+        shared = [
+            f
+            for f in records["files"]
+            if f["path"] in {"metadata/expected-plans.json", "metadata/report-display.json"}
+        ]
+        assert len(shared) == 2 and shared[0]["sha256"] == shared[1]["sha256"]
+        async with db.sessions() as session:
+            rows = list(
+                (
+                    await session.execute(
+                        select(AttemptUpload).where(AttemptUpload.attempt_id == claim["attemptId"])
+                    )
+                ).scalars()
+            )
+        events = []
+        for index, file in enumerate(shared):
+            entry = {**file, "sensitivity": "REDACTED"}
+            row = next(r for r in rows if r.metadata_json["filename"] == file["path"])
+            completion["evidence"].append(entry)
+            events.append(
+                {
+                    "schemaVersion": "1.0",
+                    "attemptId": claim["attemptId"],
+                    "sequence": index + 1,
+                    "timestamp": "2026-11-11T12:00:00Z",
+                    "type": "ARTIFACT_CREATED",
+                    "payload": {"artifactId": row.id, "kind": "SOURCE", "file": entry},
+                }
+            )
+        posted = await c.post(
+            endpoint + "/events", json={**proof, "events": events}, headers=auth(d)
+        )
+        assert posted.status_code == 200, posted.text
+        assert (
+            await c.post(endpoint + "/events", json={**proof, "events": events}, headers=auth(d))
+        ).status_code == 200
+        changed = json.loads(json.dumps(events))
+        changed[0]["payload"]["file"]["path"] = "replayed-path.json"
+        rejected = await c.post(
+            endpoint + "/events", json={**proof, "events": changed}, headers=auth(d)
+        )
+        assert rejected.status_code == 409 and rejected.json()["code"] == "EVENT_CONFLICT"
+        forged = {
+            **completion,
+            "evidence": [
+                {**completion["evidence"][0], "path": "wrong-path.json"},
+                completion["evidence"][1],
+            ],
+        }
+        forged_hash = await upload(
+            c, d, claim, canonical_bytes(forged), "wrong-evidence.json", "MANIFEST"
+        )
+        rejected = await c.post(
+            endpoint + "/finish",
+            json={
+                **proof,
+                "kind": "VALIDATE",
+                "outcome": "PASSED",
+                "manifestSha256": forged_hash,
+                "lastSequence": 2,
+                "cleanupStatus": "NOT_REQUIRED",
+            },
+            headers=auth(d),
+        )
+        assert rejected.status_code == 409 and rejected.json()["code"] == "INVALID_EVIDENCE"
     manifest_hash = await upload(
         c, d, claim, canonical_bytes(completion), "completion.json", "MANIFEST"
     )
@@ -192,7 +263,7 @@ async def test_managed_real_compilation_finishes_once_and_can_publish(site, tmp_
         "kind": "VALIDATE",
         "outcome": "PASSED",
         "manifestSha256": manifest_hash,
-        "lastSequence": 0,
+        "lastSequence": 2 if kind == "ELEMENT_CATALOG" else 0,
         "cleanupStatus": "NOT_REQUIRED",
     }
     downgraded = await c.put(
@@ -247,6 +318,11 @@ async def test_managed_real_compilation_finishes_once_and_can_publish(site, tmp_
     assert result.status_code == 200, result.text
     assert result.json()["data"]["outcome"] == "PASSED"
     from sqlalchemy import text
+    from veriq_server.db import Attempt
+
+    async with db.sessions() as session:
+        finished_at = (await session.get(Attempt, claim["attemptId"])).finished_at
+        assert finished_at is not None
 
     async with db.sessions.begin() as session:
         await session.execute(
@@ -255,6 +331,8 @@ async def test_managed_real_compilation_finishes_once_and_can_publish(site, tmp_
     assert (await c.post(endpoint + "/finish", json=finish, headers=auth(d))).json()[
         "data"
     ] == result.json()["data"]
+    async with db.sessions() as session:
+        assert (await session.get(Attempt, claim["attemptId"])).finished_at == finished_at
     different = await c.post(
         endpoint + "/finish", json={**finish, "manifestSha256": "0" * 64}, headers=auth(d)
     )

@@ -23,10 +23,24 @@ class Settings(BaseModel):
     session_hours: int = Field(default=12, ge=1, le=168)
     reset_minutes: int = Field(default=30, ge=1, le=60)
 
+    bundle_issuer_path: str | None = None
+    bundle_lifetime_days: int = Field(default=30, ge=1, le=365)
     approved_engine_inventory_path: str | None = None
+    artifact_backend: Literal["FILE", "S3"] = "FILE"
+    artifact_directory: str = "var/veriq/artifacts"
+    artifact_retention_days: int = Field(default=30, ge=1, le=3650)
+    artifact_success_retention_days: int = Field(default=14, ge=1, le=3650)
+    artifact_s3_bucket: str | None = None
+    artifact_s3_endpoint: str | None = None
+    artifact_s3_region: str = "us-east-1"
     runtime_job_slots: int = Field(default=1, ge=1, le=100)
     compile_slots: int = Field(default=2, ge=1, le=100)
     cleanup_slots: int = Field(default=2, ge=1, le=100)
+
+    ai_allowed_base_urls: list[str] = Field(
+        default_factory=lambda: ["https://api.openai.com/v1", "https://api.anthropic.com/v1"],
+        max_length=20,
+    )
 
     smtp_host: str | None = None
     smtp_port: int = Field(default=587, ge=1, le=65535)
@@ -99,7 +113,11 @@ def resolve_settings_values(path: Path, overrides: dict[str, Any] | None = None)
         raise ValueError("Configuration must be a JSON object")
     for key in Settings.model_fields:
         if (value := os.environ.get("VERIQ_" + key.upper())) is not None:
-            values[key] = json.loads(value) if key == "previous_master_keys" else value
+            values[key] = (
+                json.loads(value)
+                if key in {"previous_master_keys", "ai_allowed_base_urls"}
+                else value
+            )
     values.update({k: v for k, v in (overrides or {}).items() if v is not None})
     return values
 

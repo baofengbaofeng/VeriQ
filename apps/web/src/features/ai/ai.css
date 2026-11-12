@@ -1,0 +1,55 @@
+.vq-ai {
+  display: grid;
+  gap: 1rem;
+  max-width: 1100px;
+}
+.vq-ai fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid #cad5df;
+  border-radius: 0.5rem;
+}
+.vq-ai label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 200px;
+  flex: 1;
+}
+.vq-ai textarea {
+  min-height: 100px;
+  font-family: monospace;
+}
+.vq-ai pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 400px;
+  overflow: auto;
+  background: #f4f7fa;
+  padding: 1rem;
+}
+.vq-ai-diff {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+.vq-ai li {
+  margin: 0.5rem 0;
+}
+.vq-ai section {
+  border-top: 1px solid #cad5df;
+  padding-top: 1rem;
+}
+@media (max-width: 700px) {
+  .vq-ai-diff {
+    grid-template-columns: 1fr;
+  }
+  .vq-ai fieldset {
+    display: block;
+  }
+  .vq-ai label {
+    margin: 1rem 0;
+  }
+}

@@ -4112,7 +4112,8 @@
           "items": {
             "$ref": "#/$defs/FileEntry"
           },
-          "minItems": 1
+          "minItems": 1,
+          "maxItems": 4094
         }
       },
       "required": [
@@ -5732,6 +5733,13 @@
           "type": "string",
           "pattern": "^[A-Z][A-Z0-9_]{0,79}$",
           "maxLength": 80
+        },
+        "diagnostics": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/CompilerDiagnosticV1"
+          }
         }
       },
       "required": [
@@ -5771,6 +5779,428 @@
               "pattern": "^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$",
               "minLength": 43,
               "maxLength": 43
+            }
+          }
+        }
+      ]
+    },
+    "CompilerDiagnosticV1": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]{0,79}$"
+        },
+        "path": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "pathStatus": {
+          "enum": [
+            "EXACT",
+            "REDACTED"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "code",
+        "path",
+        "pathStatus",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "ReportDisplayV1": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "cases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "caseVersionId": {
+                "$ref": "#/$defs/Id"
+              },
+              "caseKey": {
+                "$ref": "#/$defs/Key"
+              },
+              "title": {
+                "type": "string"
+              },
+              "steps": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "$ref": "#/$defs/Key"
+                    },
+                    "sourceId": {
+                      "$ref": "#/$defs/Key"
+                    },
+                    "sourcePath": {
+                      "type": "string"
+                    },
+                    "action": {
+                      "type": "string"
+                    },
+                    "order": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 499
+                    },
+                    "parentId": {
+                      "$ref": "#/$defs/Key"
+                    },
+                    "assertions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "$ref": "#/$defs/Key"
+                          },
+                          "sourceId": {
+                            "$ref": "#/$defs/Key"
+                          },
+                          "sourcePath": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string"
+                          },
+                          "operator": {
+                            "type": "string"
+                          },
+                          "expectedSource": {
+                            "type": "string"
+                          },
+                          "severity": {
+                            "enum": [
+                              "BLOCK",
+                              "CONTINUE_FAIL",
+                              "WARN"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "sourceId",
+                          "sourcePath",
+                          "type",
+                          "expectedSource",
+                          "severity"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "maxItems": 5000
+                    },
+                    "observers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "$ref": "#/$defs/Key"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "method": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "kind"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "maxItems": 1000
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "sourceId",
+                    "sourcePath",
+                    "action",
+                    "order",
+                    "assertions",
+                    "observers"
+                  ],
+                  "additionalProperties": false
+                },
+                "maxItems": 500
+              }
+            },
+            "required": [
+              "caseVersionId",
+              "caseKey",
+              "title",
+              "steps"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 1000
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "cases"
+      ],
+      "additionalProperties": false
+    },
+    "ResourceDTO": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Id"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/Id"
+        },
+        "kind": {
+          "$ref": "#/$defs/ResourceKind"
+        },
+        "key": {
+          "$ref": "#/$defs/Key",
+          "maxLength": 160,
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "DRAFT",
+            "PUBLISHED",
+            "ARCHIVED"
+          ]
+        },
+        "latestVersionId": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "id",
+        "workspaceId",
+        "kind",
+        "key",
+        "name",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "ResourceVersionDTO": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Id"
+        },
+        "resourceId": {
+          "$ref": "#/$defs/Id"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/Id"
+        },
+        "versionNo": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "sha256": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "content": {
+          "$ref": "#/$defs/ResourceDocumentV1"
+        },
+        "publishedAt": {
+          "$ref": "#/$defs/Timestamp"
+        }
+      },
+      "required": [
+        "id",
+        "resourceId",
+        "workspaceId",
+        "versionNo",
+        "schemaVersion",
+        "sha256",
+        "content",
+        "publishedAt"
+      ],
+      "additionalProperties": false
+    },
+    "IssuerKeyV1": {
+      "type": "object",
+      "properties": {
+        "keyId": {
+          "$ref": "#/$defs/Key"
+        },
+        "algorithm": {
+          "const": "Ed25519"
+        },
+        "publicKey": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]{43}=$"
+        },
+        "fingerprint": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "revoked": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "keyId",
+        "algorithm",
+        "publicKey",
+        "fingerprint",
+        "revoked"
+      ],
+      "additionalProperties": false
+    },
+    "IssuerTrustV1": {
+      "type": "object",
+      "properties": {
+        "issuerId": {
+          "$ref": "#/$defs/Key"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "keys": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IssuerKeyV1"
+          },
+          "minItems": 1,
+          "maxItems": 100
+        }
+      },
+      "required": [
+        "issuerId",
+        "revision",
+        "keys"
+      ],
+      "additionalProperties": false
+    },
+    "BundleResourcesV1": {
+      "type": "object",
+      "properties": {
+        "resources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ResourceDTO"
+          },
+          "maxItems": 1000
+        },
+        "versions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ResourceVersionDTO"
+          },
+          "maxItems": 1000
+        }
+      },
+      "required": [
+        "resources",
+        "versions"
+      ],
+      "additionalProperties": false
+    },
+    "BundleSelectionV1": {
+      "type": "object",
+      "properties": {
+        "caseVersionIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Id"
+          },
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true
+        },
+        "suiteVersionId": {
+          "$ref": "#/$defs/Id"
+        },
+        "environmentVersionId": {
+          "$ref": "#/$defs/Id"
+        },
+        "validationStatus": {
+          "type": "string",
+          "enum": [
+            "VALIDATED",
+            "UNVALIDATED_DEBUG"
+          ]
+        },
+        "draftValidationJobId": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "environmentVersionId",
+        "validationStatus"
+      ],
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "required": [
+            "caseVersionIds"
+          ],
+          "properties": {
+            "caseVersionIds": {}
+          }
+        },
+        {
+          "required": [
+            "suiteVersionId"
+          ],
+          "properties": {
+            "suiteVersionId": {}
+          }
+        },
+        {
+          "required": [
+            "draftValidationJobId"
+          ],
+          "properties": {
+            "draftValidationJobId": {}
+          }
+        }
+      ],
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "draftValidationJobId"
+            ],
+            "properties": {
+              "draftValidationJobId": {}
+            }
+          },
+          "then": {
+            "properties": {
+              "validationStatus": {
+                "const": "UNVALIDATED_DEBUG"
+              }
             }
           }
         }

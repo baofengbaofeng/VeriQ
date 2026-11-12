@@ -168,12 +168,16 @@ export async function executeCase(
       if (!options.redact) throw new Error("REDACTION_PROVIDER_REQUIRED");
       await options.emit(
         options.redact(
-          evidence.redact(event as unknown as JsonValue),
+          evidence.redactProtocol(event as unknown as JsonValue),
         ) as unknown as SdkEvent,
       );
     }
   }
   try {
+    for (const pin of execution.secretVersions ?? []) {
+      evidence.protect(pin.secretRef);
+      evidence.protect(pin.versionId);
+    }
     if (validateSchema("ExecutionSnapshotV1", execution).length)
       throw new Error("INVALID_EXECUTION_CONTEXT");
     if (
@@ -246,7 +250,7 @@ export async function executeCase(
     ctx = createStepContext({
       onBusinessRequest: method => retryObservation!.method(method),
       page: options.page,
-      onEvent: async event => {if (options.onEvent) await options.onEvent(options.redact!(evidence.redact(event as unknown as JsonValue)) as unknown as import("./context.js").LiveStepEvent);},
+      onEvent: async event => {if (options.onEvent) await options.onEvent(options.redact!(evidence.redactProtocol(event as unknown as JsonValue)) as unknown as import("./context.js").LiveStepEvent);},
       environment: execution.environment,
       catalog: catalog.document,
       data: execution.dataRow?.values ?? {},
@@ -357,13 +361,13 @@ export async function executeCase(
     result.cleanupStatus === "FAILED" ? "ERROR" : result.businessOutcome;
   try {
     await options.onEvent?.({type: "CLEANUP_RESULT", cleanupStatus: result.cleanupStatus});
-    await options.onEvent?.({type: "CASE_FINISHED", result: options.redact!(evidence.redact(result as unknown as JsonValue)) as unknown as CaseResult});
+    await options.onEvent?.({type: "CASE_FINISHED", result: options.redact!(evidence.redactProtocol(result as unknown as JsonValue)) as unknown as CaseResult});
     await emit({ type: "CASE_FINISHED", result });
   } catch {
     result.outcome = "ERROR";
     result.errorCode = "EVENT_EMISSION_FAILED";
   }
-  return evidence.redact(
+  return evidence.redactProtocol(
     result as unknown as JsonValue,
   ) as unknown as CaseResult;
 }

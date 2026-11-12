@@ -325,7 +325,21 @@ async def test_production_cookie_and_database_shape(site):
         ).scalar() == "READ-COMMITTED"
         assert (
             await s.execute(text("SELECT version_num FROM veriq_alembic_version"))
-        ).scalar() == "0006_execution"
+        ).scalar() == "0012_bundle_exports"
+        assert (
+            await s.execute(
+                text(
+                    "SELECT IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='veriq_artifacts' AND COLUMN_NAME='content'"
+                )
+            )
+        ).scalar() == "YES"
+        assert (
+            await s.execute(
+                text(
+                    "SELECT DATETIME_PRECISION FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='veriq_attempts' AND COLUMN_NAME='finished_at'"
+                )
+            )
+        ).scalar() == 6
         columns = (
             await s.execute(
                 text(

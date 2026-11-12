@@ -331,6 +331,8 @@ expect(firstAttempt.fixtureId).not.toBe(secondAttempt.fixtureId);
 
 **依赖：** T04/T05/T08/T10
 
+**状态：** 已完成并通过独立规格、质量审查及修复复审（`c128ac5`、`b49f981`）。最终编辑器浏览器回归 9 项通过；整体 SDK 测试仍有取消场景超时待定位，正式构建前必须解决，见[开发验证记录](../development.md#current-verification-limits)。本阶段不代表完整 MVP 已交付。
+
 **Files（拟创建/修改）：**
 
 - `apps/web/src/features/resources/ResourcePage.tsx`
@@ -341,21 +343,23 @@ expect(firstAttempt.fixtureId).not.toBe(secondAttempt.fixtureId);
 
 **Interfaces：** Web只提交CaseDslV1；observer/断言/变量面板共享同一表单状态，JSON编辑与表单可逆。
 
-- [ ] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
+- [x] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```ts
 expect(await page.getByTestId('case.validation-errors').count()).toBe(0);
 await expect(page.getByTestId('case.published-version')).toBeVisible();
 ```
 
-- [ ] **Step 2：运行测试确认未实现时失败。** `pnpm --filter @veriq/web test:e2e case-publish.spec.ts`；失败必须来自缺失行为，而非测试环境拼写错误。
-- [ ] **Step 3：实现上述接口与文件。** 全部资源kind、模板参数/影响、数据行、公共流程、版本差异、错误/空态/冲突真实可用。
-- [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
-- [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t11 完整资产编辑器与环境配置UI`。有新决策先更新ADR，不扩展到下一任务。
+- [x] **Step 2：运行测试确认未实现时失败。** `pnpm --filter @veriq/web test:e2e case-publish.spec.ts`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [x] **Step 3：实现上述接口与文件。** 全部资源kind、模板参数/影响、数据行、公共流程、版本差异、错误/空态/冲突真实可用。
+- [x] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
+- [x] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t11 完整资产编辑器与环境配置UI`。有新决策先更新ADR，不扩展到下一任务。
 
 ## T12：实时报告、证据、审计与可信门禁
 
 **依赖：** T10/T11
+
+**状态：** 已完成并通过独立规格、质量审查及修复复审（`f77a9b9`、`47986b0`）。真实报告与受限证据、存储/退役并发、旧编译包兼容和统计修复有针对性证据；SDK 取消超时仍待正式构建前定位。完整元数据/导出包生命周期、桌面与离线模块仍按后续任务交付。
 
 **Files（拟创建/修改）：**
 
@@ -367,7 +371,7 @@ await expect(page.getByTestId('case.published-version')).toBeVisible();
 
 **Interfaces：** ReportService.get(scope, run_id) -> RunReportDTO；ResultService.finish(proof, manifest) -> CommitReceipt；File/S3 ArtifactStore同接口。
 
-- [ ] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
+- [x] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```python
 assert incomplete_manifest.outcome == INCOMPLETE
@@ -375,14 +379,16 @@ assert await foreign_workspace_artifact() == FORBIDDEN
 assert same_finish_retry.receipt_id == first_receipt.receipt_id
 ```
 
-- [ ] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/report -q`；失败必须来自缺失行为，而非测试环境拼写错误。
-- [ ] **Step 3：实现上述接口与文件。** SSE补读、事件幂等、同终态重放、原始HTML隔离、Trace受限、各Attempt保留；错误不全绿。共享归约样本固定ERROR>INCOMPLETE>FAILED>CANCELLED>UNSTABLE>SKIPPED>PASSED，测试清理失败、取消缺证据、零用例与计划跳过。
-- [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
-- [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t12 实时报告、证据、审计与可信门禁`。有新决策先更新ADR，不扩展到下一任务。
+- [x] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/report -q`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [x] **Step 3：实现上述接口与文件。** SSE补读、事件幂等、同终态重放、原始HTML隔离、Trace受限、各Attempt保留；错误不全绿。共享归约样本固定ERROR>INCOMPLETE>FAILED>CANCELLED>UNSTABLE>SKIPPED>PASSED，测试清理失败、取消缺证据、零用例与计划跳过。
+- [x] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
+- [x] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t12 实时报告、证据、审计与可信门禁`。有新决策先更新ADR，不扩展到下一任务。
 
 ## T13：AI完整模块与无模型执行
 
 **依赖：** T11/T12
+
+**状态：** 代码实现与修复复审已通过（`f9573d0`、`3c96eb6`）；Provider 配置、预算、生成审核、失败分析和无模型真实执行有针对性证据。经授权的实际外部 Provider 验收尚待用户确认服务、模型、预算并建立独立配置，T13 验收仍未完成。见 [AI 说明](../ai.md)与[验证限制](../development.md#current-verification-limits)。
 
 **Files（拟创建/修改）：**
 
@@ -393,7 +399,7 @@ assert same_finish_retry.receipt_id == first_receipt.receipt_id
 
 **Interfaces：** ModelGateway.generate(context: DraftContext) -> ModelReply；AiService.create_draft(scope, req) -> GenerationDTO；预算拒绝不影响Run。
 
-- [ ] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
+- [x] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```python
 assert generation.resource_state == DRAFT
@@ -401,14 +407,16 @@ assert disabled_provider_run.outcome == PASSED
 assert model_calls_during_execution == 0
 ```
 
-- [ ] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/ai -q`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [x] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/ai -q`；失败必须来自缺失行为，而非测试环境拼写错误。
 - [ ] **Step 3：实现上述接口与文件。** Provider配置/连接、结构化生成/审核、脱敏失败分析、历史与费用；mock及经授权真实Provider各有证据。
 - [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
-- [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t13 AI完整模块与无模型执行`。有新决策先更新ADR，不扩展到下一任务。
+- [x] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t13 AI完整模块与无模型执行`。有新决策先更新ADR，不扩展到下一任务。
 
 ## T14：依赖闭包、签名包与本地凭证
 
 **依赖：** T04/T10
+
+**状态：** 模块实现及两轮修复复审已通过（`46798ab`、`3ffb144`、`c1fa544`）。支持真实发布包和无 Runtime 的 DSL 草稿调试包、可信公钥缓存、严格入口/闭包验证、幂等导出、多 CASE 与版本分页、精确本地凭证引用及 SDK 动态键名脱敏。完整 SDK 检查仍有既有浏览器关闭超时，必须在 T18 正式门禁前处理，见[验证限制](../development.md#current-verification-limits)；本地执行/回传与桌面仍由后续任务交付。
 
 **Files（拟创建/修改）：**
 
@@ -420,7 +428,7 @@ assert model_calls_during_execution == 0
 
 **Interfaces：** BundleService.export(scope, req) -> BundleDTO；verifyBundle(input: Path): VerifiedBundle；SecretResolver.resolve(ref, attempt): SecretValue。
 
-- [ ] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
+- [x] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```python
 assert exported_zip.contains_secret_values is False
@@ -428,10 +436,10 @@ assert tampered_bundle.accepted is False
 assert set(exported_versions) == set(dependency_closure)
 ```
 
-- [ ] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/bundles -q`；失败必须来自缺失行为，而非测试环境拼写错误。
-- [ ] **Step 3：实现上述接口与文件。** 完整闭包、manifest字节签名、hash、安全解压、无密钥、secretRef本地映射、缺依赖明确失败。信任根通过认证绑定/带外指纹建立，禁止信任包内自带根，测试替换key、轮换、已知撤销和离线未知撤销状态。
-- [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
-- [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t14 依赖闭包、签名包与本地凭证`。有新决策先更新ADR，不扩展到下一任务。
+- [x] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/bundles -q`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [x] **Step 3：实现上述接口与文件。** 完整闭包、manifest字节签名、hash、安全解压、无密钥、secretRef本地映射、缺依赖明确失败。信任根通过认证绑定/带外指纹建立，禁止信任包内自带根，测试替换key、轮换、已知撤销和离线未知撤销状态。
+- [x] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
+- [x] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t14 依赖闭包、签名包与本地凭证`。有新决策先更新ADR，不扩展到下一任务。
 
 ## T15：离线执行、本地报告与幂等回传
 

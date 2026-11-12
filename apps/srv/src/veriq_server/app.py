@@ -1,5 +1,6 @@
 """Application composition; schema migration is an explicit operator command."""
 
+import asyncio
 import json
 import logging
 from tornado.web import Application, RequestHandler
@@ -17,6 +18,9 @@ from .handlers.credential import CredentialAPI, CredentialResolveAPI, AuthAdapte
 from .handlers.service_account import ServiceAccountAPI
 from .handlers.execution import ExecutionAPI
 from .handlers.run import RunAPI, AttemptAuditAPI
+from .handlers.report import ReportAPI
+from .handlers.ai import AiAPI
+from .handlers.bundle import BundleAPI, NativeBundleAPI
 from .services.lease import DatabaseAttemptProofVerifier
 from .handlers.enrollment import DeviceAPI, EnrollmentAPI, RuntimeAPI
 from .service import Problem
@@ -36,6 +40,14 @@ class UnknownAPI(API):
 
 
 def handler_for(action: str) -> type[API]:
+    if action in {"issuer-trust", "native-bundle-download"}:
+        return NativeBundleAPI
+    if action in {"bundles", "bundle", "bundle-manifest", "bundle-download"}:
+        return BundleAPI
+    if action.startswith("ai-"):
+        return AiAPI
+    if action in {"report", "report-artifacts", "report-artifact", "report-history", "report-stream", "report-audit", "report-display"}:
+        return ReportAPI
     if action == "attempt-audit":
         return AttemptAuditAPI
     if action in {"runs", "run", "run-cancel"}:
@@ -53,6 +65,7 @@ def handler_for(action: str) -> type[API]:
         "expired-leases/reap",
         "fixture-cleanups/reconcile",
         "capacity/reconcile",
+        "artifacts/expire",
     }:
         return ExecutionAPI
     if action in {
@@ -100,6 +113,7 @@ def handler_for(action: str) -> type[API]:
         "dependents",
         "job",
         "validation-receipt",
+        "compiled-source",
     }:
         return ResourceAPI
     if action in {
@@ -127,10 +141,31 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
     delivery = delivery or (SMTPDelivery(settings) if settings.smtp_host else None)
     reset_dispatcher = ResetDispatcher(db, settings, delivery)
     routes = [
+        ("/internal/v1/issuer", "issuer-trust"),
+        ("/internal/v1/workspaces/([0-9a-fA-F-]{36})/bundles/([0-9a-fA-F-]{36})/download", "native-bundle-download"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/bundles", "bundles"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/bundles/([0-9a-fA-F-]{36})", "bundle"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/bundles/([0-9a-fA-F-]{36})/manifest", "bundle-manifest"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/bundles/([0-9a-fA-F-]{36})/download", "bundle-download"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/providers", "ai-providers"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/providers/([0-9a-fA-F-]{36})", "ai-provider"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/providers/([0-9a-fA-F-]{36})/connection-tests", "ai-connection"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/context", "ai-context"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/generations", "ai-generations"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/generations/([0-9a-fA-F-]{36})", "ai-generation"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/generations/([0-9a-fA-F-]{36})/review", "ai-review"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/generations/([0-9a-fA-F-]{36})/cancel", "ai-cancel"),
         (
             "/api/v1/workspaces/([0-9a-fA-F-]{36})/attempts/([0-9a-fA-F-]{36})/reconcile",
             "attempt-audit",
         ),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runs/([0-9a-fA-F-]{36})/report", "report"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runs/([0-9a-fA-F-]{36})/attempts/([0-9a-fA-F-]{36})/display", "report-display"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runs/([0-9a-fA-F-]{36})/events/stream", "report-stream"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/attempts/([0-9a-fA-F-]{36})/history", "report-history"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/attempts/([0-9a-fA-F-]{36})/artifacts", "report-artifacts"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/attempts/([0-9a-fA-F-]{36})/artifacts/([0-9a-fA-F-]{36})", "report-artifact"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/audit", "report-audit"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runs", "runs"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runs/([0-9a-fA-F-]{36})", "run"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runs/([0-9a-fA-F-]{36})/cancel", "run-cancel"),
@@ -148,6 +183,7 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
         ("/internal/v1/maintenance/expired-leases/reap", "expired-leases/reap"),
         ("/internal/v1/maintenance/fixture-cleanups/reconcile", "fixture-cleanups/reconcile"),
         ("/internal/v1/maintenance/capacity/reconcile", "capacity/reconcile"),
+        ("/internal/v1/maintenance/artifacts/expire", "artifacts/expire"),
         ("/internal/v1/attempts/([0-9a-fA-F-]{36})/reconcile", "reconcile"),
         ("/internal/v1/jobs/claim", "claim"),
         ("/internal/v1/attempts/([0-9a-fA-F-]{36})/activate", "activate"),
@@ -229,6 +265,10 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
             "dependents",
         ),
         (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/resources/([0-9a-fA-F-]{36})/versions/([0-9a-fA-F-]{36})/compiled-source",
+            "compiled-source",
+        ),
+        (
             "/api/v1/workspaces/([0-9a-fA-F-]{36})/resources/([0-9a-fA-F-]{36})/versions/([0-9a-fA-F-]{36})",
             "version",
         ),
@@ -281,5 +321,6 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
         mail_delivery=delivery,
         reset_dispatcher=reset_dispatcher,
         identity_reference_registry=IdentityRegistry(),
+        bundle_export_slots=asyncio.Semaphore(2),
         attempt_proof_verifier=DatabaseAttemptProofVerifier(settings),
     )

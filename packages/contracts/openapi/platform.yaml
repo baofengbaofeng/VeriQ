@@ -4206,7 +4206,7 @@
             }
           },
           "400": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4216,7 +4216,7 @@
             }
           },
           "401": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4226,7 +4226,7 @@
             }
           },
           "403": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4236,7 +4236,7 @@
             }
           },
           "404": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4246,7 +4246,7 @@
             }
           },
           "409": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4256,7 +4256,7 @@
             }
           },
           "422": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4266,7 +4266,17 @@
             }
           },
           "429": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4313,7 +4323,7 @@
             }
           },
           "400": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4323,7 +4333,7 @@
             }
           },
           "401": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4333,7 +4343,7 @@
             }
           },
           "403": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4343,7 +4353,7 @@
             }
           },
           "404": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4353,7 +4363,7 @@
             }
           },
           "409": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4363,7 +4373,7 @@
             }
           },
           "422": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4373,7 +4383,17 @@
             }
           },
           "429": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4440,7 +4460,7 @@
             }
           },
           "400": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4450,7 +4470,7 @@
             }
           },
           "401": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4460,7 +4480,7 @@
             }
           },
           "403": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4470,7 +4490,7 @@
             }
           },
           "404": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4480,7 +4500,7 @@
             }
           },
           "409": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4490,7 +4510,7 @@
             }
           },
           "422": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4500,7 +4520,17 @@
             }
           },
           "429": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4555,7 +4585,7 @@
             }
           },
           "400": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4565,7 +4595,7 @@
             }
           },
           "401": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4575,7 +4605,7 @@
             }
           },
           "403": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4585,7 +4615,7 @@
             }
           },
           "404": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4595,7 +4625,7 @@
             }
           },
           "409": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4605,7 +4635,7 @@
             }
           },
           "422": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4615,7 +4645,17 @@
             }
           },
           "429": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4680,7 +4720,7 @@
             }
           },
           "400": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4690,7 +4730,7 @@
             }
           },
           "401": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4700,7 +4740,7 @@
             }
           },
           "403": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4710,7 +4750,7 @@
             }
           },
           "404": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4720,7 +4760,7 @@
             }
           },
           "409": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4730,7 +4770,7 @@
             }
           },
           "422": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4740,7 +4780,17 @@
             }
           },
           "429": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -6250,17 +6300,10 @@
     },
     "/api/v1/workspaces/{workspaceId}/runs/{runId}/report": {
       "get": {
-        "operationId": "getReport",
-        "tags": [
-          "workspaces"
-        ],
+        "operationId": "getRunReport",
         "security": [
           {
-            "WebSession": [],
-            "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
+            "WebSession": []
           }
         ],
         "parameters": [
@@ -6282,18 +6325,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Success.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReportDTOEnvelope"
-                }
-              }
-            }
-          },
           "400": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Error",
             "content": {
               "application/json": {
                 "schema": {
@@ -6303,7 +6336,7 @@
             }
           },
           "401": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Error",
             "content": {
               "application/json": {
                 "schema": {
@@ -6313,7 +6346,7 @@
             }
           },
           "403": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Error",
             "content": {
               "application/json": {
                 "schema": {
@@ -6323,7 +6356,7 @@
             }
           },
           "404": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Error",
             "content": {
               "application/json": {
                 "schema": {
@@ -6333,7 +6366,7 @@
             }
           },
           "409": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Error",
             "content": {
               "application/json": {
                 "schema": {
@@ -6342,8 +6375,8 @@
               }
             }
           },
-          "422": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+          "410": {
+            "description": "Error",
             "content": {
               "application/json": {
                 "schema": {
@@ -6352,12 +6385,12 @@
               }
             }
           },
-          "429": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+          "200": {
+            "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
+                  "$ref": "#/components/schemas/RunReportDTOEnvelope"
                 }
               }
             }
@@ -7891,9 +7924,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -7912,22 +7942,13 @@
             "schema": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 160
+              "maxLength": 160,
+              "pattern": "^[!-~]{1,160}$"
             },
             "description": "Scoped to authenticated Workspace and operation. Same key/different payload returns 409."
           }
         ],
         "responses": {
-          "202": {
-            "description": "Success.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BundleDTOEnvelope"
-                }
-              }
-            }
-          },
           "400": {
             "description": "Stable JSON error; code is a machine-readable domain code.",
             "content": {
@@ -7997,6 +8018,16 @@
                 }
               }
             }
+          },
+          "201": {
+            "description": "Synchronous export completed. Same key, actor and request replays this immutable bundle after current authority checks.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BundleDTOEnvelope"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -8008,7 +8039,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Requires a durable Workspace-scoped Idempotency-Key. Different actor or payload conflicts. In-progress, failed or ambiguous requests are never automatically taken over."
       },
       "get": {
         "operationId": "listBundles",
@@ -8019,9 +8051,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -8147,9 +8176,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -8264,9 +8290,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -8381,9 +8404,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -8655,17 +8675,17 @@
         ],
         "responses": {
           "200": {
-            "description": "Success.",
+            "description": "Recorded bounded connection generation",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ConnectionTestDTOEnvelope"
+                  "$ref": "#/components/schemas/GenerationDTOEnvelope"
                 }
               }
             }
           },
           "400": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -8675,7 +8695,7 @@
             }
           },
           "401": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -8685,7 +8705,7 @@
             }
           },
           "403": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -8695,7 +8715,7 @@
             }
           },
           "404": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -8705,7 +8725,7 @@
             }
           },
           "409": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -8715,7 +8735,7 @@
             }
           },
           "422": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -8725,12 +8745,32 @@
             }
           },
           "429": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorEnvelope"
                 }
+              }
+            }
+          },
+          "413": {
+            "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiConnectionRequest"
               }
             }
           }
@@ -8763,18 +8803,8 @@
           }
         ],
         "responses": {
-          "202": {
-            "description": "Success.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GenerationDTOEnvelope"
-                }
-              }
-            }
-          },
           "400": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -8784,7 +8814,7 @@
             }
           },
           "401": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -8794,7 +8824,7 @@
             }
           },
           "403": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -8804,7 +8834,7 @@
             }
           },
           "404": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -8814,7 +8844,7 @@
             }
           },
           "409": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -8824,7 +8854,7 @@
             }
           },
           "422": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -8834,11 +8864,31 @@
             }
           },
           "429": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Recorded generation, completed or idempotent replay of current state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationDTOEnvelope"
                 }
               }
             }
@@ -8910,7 +8960,7 @@
             }
           },
           "400": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -8920,7 +8970,7 @@
             }
           },
           "401": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -8930,7 +8980,7 @@
             }
           },
           "403": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -8940,7 +8990,7 @@
             }
           },
           "404": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -8950,7 +9000,7 @@
             }
           },
           "409": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -8960,7 +9010,7 @@
             }
           },
           "422": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -8970,7 +9020,17 @@
             }
           },
           "429": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -9027,7 +9087,7 @@
             }
           },
           "400": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -9037,7 +9097,7 @@
             }
           },
           "401": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -9047,7 +9107,7 @@
             }
           },
           "403": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -9057,7 +9117,7 @@
             }
           },
           "404": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -9067,7 +9127,7 @@
             }
           },
           "409": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -9077,7 +9137,7 @@
             }
           },
           "422": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -9087,7 +9147,17 @@
             }
           },
           "429": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -9144,7 +9214,7 @@
             }
           },
           "400": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -9154,7 +9224,7 @@
             }
           },
           "401": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -9164,7 +9234,7 @@
             }
           },
           "403": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -9174,7 +9244,7 @@
             }
           },
           "404": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -9184,7 +9254,7 @@
             }
           },
           "409": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -9194,7 +9264,7 @@
             }
           },
           "422": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -9204,7 +9274,17 @@
             }
           },
           "429": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Current authorization, bounded input, conflict or budget error",
             "content": {
               "application/json": {
                 "schema": {
@@ -9717,17 +9797,10 @@
     },
     "/api/v1/workspaces/{workspaceId}/audit": {
       "get": {
-        "operationId": "listAudit",
-        "tags": [
-          "workspaces"
-        ],
+        "operationId": "getWorkspaceAudit",
         "security": [
           {
-            "WebSession": [],
-            "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
+            "WebSession": []
           }
         ],
         "parameters": [
@@ -9738,40 +9811,11 @@
             "schema": {
               "$ref": "#/components/schemas/Id"
             }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 30
-            }
           }
         ],
         "responses": {
-          "200": {
-            "description": "Success.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuditDTOPageEnvelope"
-                }
-              }
-            }
-          },
           "400": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Error",
             "content": {
               "application/json": {
                 "schema": {
@@ -9781,7 +9825,7 @@
             }
           },
           "401": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Error",
             "content": {
               "application/json": {
                 "schema": {
@@ -9791,7 +9835,7 @@
             }
           },
           "403": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Error",
             "content": {
               "application/json": {
                 "schema": {
@@ -9801,7 +9845,7 @@
             }
           },
           "404": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Error",
             "content": {
               "application/json": {
                 "schema": {
@@ -9811,7 +9855,7 @@
             }
           },
           "409": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "description": "Error",
             "content": {
               "application/json": {
                 "schema": {
@@ -9820,8 +9864,8 @@
               }
             }
           },
-          "422": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+          "410": {
+            "description": "Error",
             "content": {
               "application/json": {
                 "schema": {
@@ -9830,12 +9874,12 @@
               }
             }
           },
-          "429": {
-            "description": "Stable JSON error; code is a machine-readable domain code.",
+          "200": {
+            "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
+                  "$ref": "#/components/schemas/ReportAuditDTOEnvelope"
                 }
               }
             }
@@ -11268,7 +11312,7 @@
     },
     "/internal/v1/maintenance/artifacts/expire": {
       "post": {
-        "operationId": "maintenanceRetention",
+        "operationId": "expireArtifacts",
         "tags": [
           "maintenance"
         ],
@@ -11381,8 +11425,7 @@
               }
             }
           }
-        },
-        "description": "T12 authorization obligation: raw Trace, screenshots, HTML and downloads are CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata only. This schema does not implement storage or authorization."
+        }
       }
     },
     "/internal/v1/maintenance/capacity/reconcile": {
@@ -15184,6 +15227,1149 @@
         },
         "description": "T12 authorization obligation: raw Trace, screenshots, HTML and downloads are CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata only. This schema does not implement storage or authorization."
       }
+    },
+    "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/versions/{versionId}/compiled-source": {
+      "get": {
+        "operationId": "getPublishedCompiledSource",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "WebSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "resourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "versionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "An allowlisted descriptor TypeScript member path; never a filesystem path."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompiledSourceDTOEnvelope"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "description": "Exact retained generated TypeScript bytes, without JSON envelope or reserialization."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "summary": "View exact retained generated TypeScript for an immutable published version",
+        "description": "Current Workspace VIEW, resource/version/receipt/descriptor membership are required. Omit path for an allowlisted TypeScript file listing. A path returns exact retained text/plain bytes verified against descriptor hash/size; caller hashes, arbitrary files and raw evidence are not accepted."
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/runs/{runId}/events/stream": {
+      "post": {
+        "operationId": "streamRunReport",
+        "security": [
+          {
+            "WebSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportStreamRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/attempts/{attemptId}/history": {
+      "get": {
+        "operationId": "getAttemptHistory",
+        "security": [
+          {
+            "WebSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "attemptId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportHistoryDTOEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/attempts/{attemptId}/artifacts": {
+      "get": {
+        "operationId": "getAttemptArtifacts",
+        "security": [
+          {
+            "WebSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "attemptId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportArtifactsDTOEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/attempts/{attemptId}/artifacts/{artifactId}": {
+      "get": {
+        "operationId": "downloadAttemptArtifact",
+        "security": [
+          {
+            "WebSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "attemptId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "artifactId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/runs/{runId}/attempts/{attemptId}/display": {
+      "get": {
+        "operationId": "getReportDisplay",
+        "security": [
+          {
+            "WebSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "attemptId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportDisplayDTOEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/ai/context": {
+      "post": {
+        "operationId": "previewAiContext",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "WebSession": [],
+            "CsrfToken": []
+          },
+          {
+            "ServiceToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Redacted context and conservative estimate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiContextDTOEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerationRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/ai/generations/{generationId}/cancel": {
+      "post": {
+        "operationId": "cancelGeneration",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "WebSession": [],
+            "CsrfToken": []
+          },
+          {
+            "ServiceToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "generationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationDTOEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/v1/issuer": {
+      "get": {
+        "operationId": "getIssuerTrust",
+        "tags": [
+          "runtime-enrollments"
+        ],
+        "security": [
+          {
+            "DeviceToken": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssuerTrustEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Read issuer public keys through current authenticated device binding"
+      }
+    },
+    "/internal/v1/workspaces/{workspaceId}/bundles/{bundleId}/download": {
+      "get": {
+        "operationId": "downloadDeviceBundle",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "DeviceToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "bundleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized artifact stream.",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -15780,48 +16966,7 @@
         "additionalProperties": false
       },
       "ResourceDTO": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "$ref": "#/components/schemas/Id"
-          },
-          "workspaceId": {
-            "$ref": "#/components/schemas/Id"
-          },
-          "kind": {
-            "$ref": "#/components/schemas/ResourceKind"
-          },
-          "key": {
-            "$ref": "#/components/schemas/Key",
-            "maxLength": 160,
-            "type": "string"
-          },
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 160
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "DRAFT",
-              "PUBLISHED",
-              "ARCHIVED"
-            ]
-          },
-          "latestVersionId": {
-            "$ref": "#/components/schemas/Id"
-          }
-        },
-        "required": [
-          "id",
-          "workspaceId",
-          "kind",
-          "key",
-          "name",
-          "status"
-        ],
-        "additionalProperties": false
+        "$ref": "../schemas/platform-v1.schema.json#/$defs/ResourceDTO"
       },
       "ResourceCreate": {
         "type": "object",
@@ -16012,46 +17157,7 @@
         "additionalProperties": false
       },
       "ResourceVersionDTO": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "$ref": "#/components/schemas/Id"
-          },
-          "resourceId": {
-            "$ref": "#/components/schemas/Id"
-          },
-          "workspaceId": {
-            "$ref": "#/components/schemas/Id"
-          },
-          "versionNo": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 9007199254740991
-          },
-          "schemaVersion": {
-            "const": "1.0"
-          },
-          "sha256": {
-            "$ref": "#/components/schemas/Sha256"
-          },
-          "content": {
-            "$ref": "#/components/schemas/ResourceDocumentV1"
-          },
-          "publishedAt": {
-            "$ref": "#/components/schemas/Timestamp"
-          }
-        },
-        "required": [
-          "id",
-          "resourceId",
-          "workspaceId",
-          "versionNo",
-          "schemaVersion",
-          "sha256",
-          "content",
-          "publishedAt"
-        ],
-        "additionalProperties": false
+        "$ref": "../schemas/platform-v1.schema.json#/$defs/ResourceVersionDTO"
       },
       "RuntimeDTO": {
         "$ref": "../schemas/platform-v1.schema.json#/$defs/RuntimeDTO"
@@ -16454,6 +17560,21 @@
           },
           "activeAttemptId": {
             "$ref": "#/components/schemas/Id"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/AttemptOutcome"
+          },
+          "errorCode": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{0,79}$",
+            "description": "Safe code projected from retained validated Attempt facts; no raw log content."
+          },
+          "diagnostics": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/CompilerDiagnosticV1"
+            }
           }
         },
         "required": [
@@ -16519,33 +17640,7 @@
         "additionalProperties": false
       },
       "BundleCreate": {
-        "type": "object",
-        "properties": {
-          "caseVersionIds": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Id"
-            }
-          },
-          "suiteVersionId": {
-            "$ref": "#/components/schemas/Id"
-          },
-          "environmentVersionId": {
-            "$ref": "#/components/schemas/Id"
-          },
-          "validationStatus": {
-            "type": "string",
-            "enum": [
-              "VALIDATED",
-              "UNVALIDATED_DEBUG"
-            ]
-          }
-        },
-        "required": [
-          "environmentVersionId",
-          "validationStatus"
-        ],
-        "additionalProperties": false
+        "$ref": "../schemas/platform-v1.schema.json#/$defs/BundleSelectionV1"
       },
       "BundleDTO": {
         "type": "object",
@@ -16612,31 +17707,58 @@
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 160
           },
           "adapter": {
-            "type": "string",
             "enum": [
               "OPENAI_COMPATIBLE",
               "ANTHROPIC"
             ]
           },
           "baseURL": {
-            "$ref": "#/components/schemas/HttpUrl"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
           },
           "model": {
             "type": "string",
-            "minLength": 1
-          },
-          "secretRef": {
-            "$ref": "#/components/schemas/Key"
+            "minLength": 1,
+            "maxLength": 160
           },
           "enabled": {
             "type": "boolean"
           },
           "monthlyBudgetUsd": {
             "type": "number",
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "inputUsdPerMillion": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "outputUsdPerMillion": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "maxOutputTokens": {
+            "type": "integer",
+            "minimum": 32,
+            "maximum": 8192
+          },
+          "maxRequestUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 5
+          },
+          "apiKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "writeOnly": true
           }
         },
         "required": [
@@ -16644,67 +17766,110 @@
           "adapter",
           "baseURL",
           "model",
-          "secretRef",
           "enabled",
-          "monthlyBudgetUsd"
+          "monthlyBudgetUsd",
+          "inputUsdPerMillion",
+          "outputUsdPerMillion",
+          "maxOutputTokens",
+          "maxRequestUsd"
         ],
         "additionalProperties": false
       },
       "ProviderDTO": {
         "type": "object",
         "properties": {
-          "id": {
-            "$ref": "#/components/schemas/Id"
-          },
           "name": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 160
           },
           "adapter": {
-            "type": "string",
             "enum": [
               "OPENAI_COMPATIBLE",
               "ANTHROPIC"
             ]
           },
           "baseURL": {
-            "$ref": "#/components/schemas/HttpUrl"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
           },
           "model": {
             "type": "string",
-            "minLength": 1
-          },
-          "secretRef": {
-            "$ref": "#/components/schemas/Key"
+            "minLength": 1,
+            "maxLength": 160
           },
           "enabled": {
             "type": "boolean"
           },
           "monthlyBudgetUsd": {
             "type": "number",
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "inputUsdPerMillion": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "outputUsdPerMillion": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "maxOutputTokens": {
+            "type": "integer",
+            "minimum": 32,
+            "maximum": 8192
+          },
+          "maxRequestUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 5
+          },
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "keyConfigured": {
+            "type": "boolean"
+          },
+          "budget": {
+            "$ref": "#/components/schemas/AiBudgetDTO"
           }
         },
         "required": [
-          "id",
           "name",
           "adapter",
           "baseURL",
           "model",
-          "secretRef",
           "enabled",
-          "monthlyBudgetUsd"
+          "monthlyBudgetUsd",
+          "inputUsdPerMillion",
+          "outputUsdPerMillion",
+          "maxOutputTokens",
+          "maxRequestUsd",
+          "id",
+          "revision",
+          "keyConfigured",
+          "budget"
         ],
         "additionalProperties": false
       },
       "GenerationRequest": {
         "type": "object",
         "properties": {
+          "requestId": {
+            "$ref": "#/components/schemas/Id"
+          },
           "providerId": {
             "$ref": "#/components/schemas/Id"
           },
           "purpose": {
-            "type": "string",
             "enum": [
               "CASE_DRAFT",
               "BOUNDARY_SUGGESTION",
@@ -16719,10 +17884,30 @@
           },
           "prompt": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 16000
+          },
+          "openapi": {
+            "$ref": "#/components/schemas/JsonObject"
+          },
+          "data": {
+            "$ref": "#/components/schemas/JsonValue"
+          },
+          "versionIds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Id"
+            },
+            "maxItems": 20,
+            "uniqueItems": true
+          },
+          "contextHash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
           }
         },
         "required": [
+          "requestId",
           "providerId",
           "purpose",
           "prompt"
@@ -16735,22 +17920,31 @@
           "id": {
             "$ref": "#/components/schemas/Id"
           },
+          "providerId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
           "status": {
-            "type": "string",
             "enum": [
-              "PENDING",
               "RUNNING",
               "SUCCEEDED",
               "FAILED",
-              "REVIEWED"
+              "REVIEWED",
+              "REJECTED",
+              "CANCELLED"
             ]
           },
           "purpose": {
-            "type": "string",
             "enum": [
               "CASE_DRAFT",
               "BOUNDARY_SUGGESTION",
-              "FAILURE_ANALYSIS"
+              "FAILURE_ANALYSIS",
+              "CONNECTION_TEST"
             ]
           },
           "output": {
@@ -16758,25 +17952,77 @@
           },
           "inputTokens": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 262144
           },
           "outputTokens": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 8192
           },
           "costUsd": {
             "type": "number",
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "reservedUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 5
+          },
+          "costState": {
+            "enum": [
+              "ESTIMATED",
+              "UNKNOWN"
+            ]
           },
           "errorCode": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "diagnostics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JsonObject"
+            }
+          },
+          "context": {
+            "$ref": "#/components/schemas/JsonObject"
+          },
+          "provenance": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JsonObject"
+            }
+          },
+          "pricing": {
+            "$ref": "#/components/schemas/JsonObject"
+          },
+          "resourceId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "resourceState": {
+            "const": "DRAFT"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "original": {
+            "$ref": "#/components/schemas/JsonValue"
           }
         },
         "required": [
           "id",
+          "providerId",
+          "requestId",
+          "createdAt",
           "status",
-          "purpose"
+          "purpose",
+          "reservedUsd",
+          "costState"
         ],
         "additionalProperties": false
       },
@@ -16784,14 +18030,23 @@
         "type": "object",
         "properties": {
           "decision": {
-            "type": "string",
             "enum": [
               "ACCEPT_DRAFT",
               "REJECT"
             ]
           },
-          "resourceId": {
-            "$ref": "#/components/schemas/Id"
+          "key": {
+            "$ref": "#/components/schemas/Key"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
           }
         },
         "required": [
@@ -17236,30 +18491,53 @@
           "run": {
             "$ref": "#/components/schemas/RunDTO"
           },
-          "jobs": {
+          "cases": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/JobDTO"
+              "$ref": "#/components/schemas/ReportCaseDTO"
             }
           },
-          "events": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ExecutionEventV1"
-            }
+          "gateAtExecution": {
+            "$ref": "#/components/schemas/GateDTO"
           },
-          "artifacts": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ArtifactDTO"
-            }
+          "gateNow": {
+            "$ref": "#/components/schemas/GateDTO"
+          },
+          "statistics": {
+            "type": "object",
+            "properties": {
+              "caseCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "firstPassCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "retryPassCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "infrastructureErrorCount": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "caseCount",
+              "firstPassCount",
+              "retryPassCount",
+              "infrastructureErrorCount"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
           "run",
-          "jobs",
-          "events",
-          "artifacts"
+          "cases",
+          "gateAtExecution",
+          "gateNow",
+          "statistics"
         ],
         "additionalProperties": false
       },
@@ -19276,7 +20554,8 @@
               "enum": [
                 "expired-leases/reap",
                 "fixture-cleanups/reconcile",
-                "capacity/reconcile"
+                "capacity/reconcile",
+                "artifacts/expire"
               ]
             },
             "minItems": 1,
@@ -19424,6 +20703,830 @@
       },
       "DeviceRotationRequest": {
         "$ref": "../schemas/platform-v1.schema.json#/$defs/DeviceRotationRequest"
+      },
+      "CompiledSourceDTO": {
+        "type": "object",
+        "properties": {
+          "descriptorSha256": {
+            "$ref": "#/components/schemas/Sha256"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "../schemas/platform-v1.schema.json#/$defs/FileEntry"
+            }
+          }
+        },
+        "required": [
+          "descriptorSha256",
+          "files"
+        ],
+        "additionalProperties": false
+      },
+      "CompiledSourceDTOEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CompiledSourceDTO"
+          },
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "CompilerDiagnosticV1": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{0,79}$"
+          },
+          "path": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "pathStatus": {
+            "enum": [
+              "EXACT",
+              "REDACTED"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "code",
+          "path",
+          "pathStatus",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "GateDTO": {
+        "type": "object",
+        "properties": {
+          "passed": {
+            "type": "boolean"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "passed",
+          "reasons"
+        ],
+        "additionalProperties": false
+      },
+      "ReportAttemptDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "attemptNo": {
+            "type": "integer"
+          },
+          "runtimeId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "phase": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "facts": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            }
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "activatedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastSequence": {
+            "type": "integer"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/JsonValue"
+          },
+          "gateAtExecution": {
+            "$ref": "#/components/schemas/GateDTO"
+          },
+          "gateNow": {
+            "$ref": "#/components/schemas/GateDTO"
+          },
+          "compensations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "outcome": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "state",
+                "outcome"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Server database UTC terminal time, independent of physical process-stop proof; null for historical unknown."
+          }
+        },
+        "required": [
+          "id",
+          "attemptNo",
+          "runtimeId",
+          "phase",
+          "outcome",
+          "facts",
+          "createdAt",
+          "activatedAt",
+          "lastSequence",
+          "provenance",
+          "gateAtExecution",
+          "gateNow",
+          "compensations",
+          "finishedAt"
+        ],
+        "additionalProperties": false
+      },
+      "ReportCaseDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "caseVersionId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "state": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provenance": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            }
+          },
+          "attempts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportAttemptDTO"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "caseVersionId",
+          "state",
+          "outcome",
+          "provenance",
+          "attempts"
+        ],
+        "additionalProperties": false
+      },
+      "RunReportDTO": {
+        "type": "object",
+        "properties": {
+          "run": {
+            "$ref": "#/components/schemas/RunDTO"
+          },
+          "cases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportCaseDTO"
+            }
+          },
+          "gateAtExecution": {
+            "$ref": "#/components/schemas/GateDTO"
+          },
+          "gateNow": {
+            "$ref": "#/components/schemas/GateDTO"
+          },
+          "statistics": {
+            "type": "object",
+            "properties": {
+              "caseCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "firstPassCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "retryPassCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "infrastructureErrorCount": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "caseCount",
+              "firstPassCount",
+              "retryPassCount",
+              "infrastructureErrorCount"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "run",
+          "cases",
+          "gateAtExecution",
+          "gateNow",
+          "statistics"
+        ],
+        "additionalProperties": false
+      },
+      "ReportStreamRequest": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "maxLength": 230000
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "ReportEventDTO": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "string"
+          },
+          "attemptId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "sequence": {
+            "type": "integer"
+          },
+          "timestamp": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/JsonValue"
+          },
+          "valuesAvailable": {
+            "type": "boolean"
+          },
+          "stepId": {
+            "type": "string"
+          },
+          "assertionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "attemptId",
+          "sequence",
+          "timestamp",
+          "type",
+          "payload",
+          "valuesAvailable"
+        ],
+        "additionalProperties": false
+      },
+      "ReportHistoryDTO": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportEventDTO"
+            }
+          },
+          "nextSequence": {
+            "type": "integer"
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "nextSequence",
+          "hasMore"
+        ],
+        "additionalProperties": false
+      },
+      "ReportArtifactDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "attemptId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "sha256": {
+            "$ref": "#/components/schemas/Sha256"
+          },
+          "sizeBytes": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "sensitivity": {
+            "const": "CREDENTIAL_RESTRICTED"
+          },
+          "state": {
+            "enum": [
+              "AVAILABLE",
+              "EXPIRED"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "attemptId",
+          "sha256",
+          "sizeBytes",
+          "kind",
+          "sensitivity",
+          "state"
+        ],
+        "additionalProperties": false
+      },
+      "ReportArtifactsDTO": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportArtifactDTO"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false
+      },
+      "ReportAuditDTO": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "$ref": "#/components/schemas/Id"
+                },
+                "actorId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "targetId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "action": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "actorId",
+                "targetId",
+                "action",
+                "createdAt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "additionalProperties": false
+      },
+      "RunReportDTOEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RunReportDTO"
+          },
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "ReportHistoryDTOEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ReportHistoryDTO"
+          },
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "ReportArtifactsDTOEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ReportArtifactsDTO"
+          },
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "ReportAuditDTOEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ReportAuditDTO"
+          },
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "ReportCaseDisplayDTO": {
+        "type": "object",
+        "properties": {
+          "caseVersionId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "caseKey": {
+            "$ref": "#/components/schemas/Key"
+          },
+          "title": {
+            "type": "string"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "$ref": "#/components/schemas/Key"
+                },
+                "sourceId": {
+                  "$ref": "#/components/schemas/Key"
+                },
+                "sourcePath": {
+                  "type": "string"
+                },
+                "action": {
+                  "type": "string"
+                },
+                "order": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 499
+                },
+                "parentId": {
+                  "$ref": "#/components/schemas/Key"
+                },
+                "assertions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "$ref": "#/components/schemas/Key"
+                      },
+                      "sourceId": {
+                        "$ref": "#/components/schemas/Key"
+                      },
+                      "sourcePath": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "type": "string"
+                      },
+                      "operator": {
+                        "type": "string"
+                      },
+                      "expectedSource": {
+                        "type": "string"
+                      },
+                      "severity": {
+                        "enum": [
+                          "BLOCK",
+                          "CONTINUE_FAIL",
+                          "WARN"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "sourceId",
+                      "sourcePath",
+                      "type",
+                      "expectedSource",
+                      "severity"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "maxItems": 5000
+                },
+                "observers": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "$ref": "#/components/schemas/Key"
+                      },
+                      "kind": {
+                        "type": "string"
+                      },
+                      "method": {
+                        "type": "string"
+                      },
+                      "path": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "maxItems": 1000
+                }
+              },
+              "required": [
+                "id",
+                "sourceId",
+                "sourcePath",
+                "action",
+                "order",
+                "assertions",
+                "observers"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 500
+          }
+        },
+        "required": [
+          "caseVersionId",
+          "caseKey",
+          "title",
+          "steps"
+        ],
+        "additionalProperties": false
+      },
+      "ReportDisplayDTO": {
+        "type": "object",
+        "properties": {
+          "display": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReportCaseDisplayDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "metadataStatus": {
+            "enum": [
+              "AVAILABLE",
+              "ABSENT",
+              "REDACTED"
+            ]
+          },
+          "environment": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "display",
+          "metadataStatus",
+          "environment"
+        ],
+        "additionalProperties": false
+      },
+      "ReportDisplayDTOEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ReportDisplayDTO"
+          },
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "AiBudgetDTO": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 7
+          },
+          "estimatedUsedUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "heldUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "availableUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "pricingBasis": {
+            "const": "CONFIGURED_ESTIMATE"
+          }
+        },
+        "required": [
+          "month",
+          "estimatedUsedUsd",
+          "heldUsd",
+          "availableUsd",
+          "pricingBasis"
+        ],
+        "additionalProperties": false
+      },
+      "AiContextDTO": {
+        "type": "object",
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/JsonObject"
+          },
+          "contextHash": {
+            "type": "string"
+          },
+          "inputTokenBound": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 262144
+          },
+          "reservedUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 5
+          },
+          "provenance": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JsonObject"
+            }
+          }
+        },
+        "required": [
+          "context",
+          "contextHash",
+          "inputTokenBound",
+          "reservedUsd",
+          "provenance"
+        ],
+        "additionalProperties": false
+      },
+      "AiConnectionRequest": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "$ref": "#/components/schemas/Id"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "AiContextDTOEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AiContextDTO"
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/Id"
+          }
+        },
+        "required": [
+          "data",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "IssuerTrustV1": {
+        "$ref": "../schemas/platform-v1.schema.json#/$defs/IssuerTrustV1"
+      },
+      "IssuerTrustEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/IssuerTrustV1"
+          },
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "requestId"
+        ],
+        "additionalProperties": false
       }
     }
   }

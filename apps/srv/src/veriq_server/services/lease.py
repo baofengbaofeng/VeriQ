@@ -56,7 +56,7 @@ class LeaseService:
         return attempt, job, runtime, binding
 
     async def activate(self, attempt_id: str, proof: CredentialProofTransport) -> dict[str, Any]:
-        attempt, job, _, _ = await self.proof(attempt_id, proof, active=False)
+        attempt, job, runtime, binding = await self.proof(attempt_id, proof, active=False)
         if job.state == "CANCEL_REQUESTED":
             raise Problem(409, "CANCEL_REQUESTED", "Execution was cancelled")
         if attempt.activated_at is not None:
@@ -66,6 +66,8 @@ class LeaseService:
                 "Activation has already been acknowledged; reconcile local process state",
             )
         attempt.activated_at = await database_time(self.session)
+        from .gate import activation_provenance
+        attempt.execution_provenance = await activation_provenance(self.session, job, runtime, binding)
         attempt.phase, job.state = "PREPARING", "RUNNING"
         return {"attemptId": attempt.id, "activated": True, "fencingToken": attempt.fencing_token}
 

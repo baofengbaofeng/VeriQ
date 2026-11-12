@@ -32,6 +32,44 @@ test("real Workspace selection, invitation acceptance and member permissions", a
   await page.getByTestId("password").fill("Browser password 123!");
   await page.getByTestId("login-submit").click();
   await expect(page.getByTestId("account-info")).toBeVisible();
+  // Keep unrelated state present: this test's empty state belongs to a new actor,
+  // independently of other feature suites that already created Workspaces.
+  const setupSession = (
+    await (await page.request.get("/api/v1/auth/session")).json()
+  ).data;
+  const setupHeaders = {
+    Origin: "http://127.0.0.1:5173",
+    "X-CSRF-Token": setupSession.csrfToken,
+  };
+  const unrelated = await page.request.post("/api/v1/workspaces", {
+    headers: setupHeaders,
+    data: {
+      key: "workspace-fixture-unrelated",
+      name: "Retained unrelated Workspace",
+    },
+  });
+  expect(unrelated.status(), await unrelated.text()).toBe(201);
+  const unrelatedId = (await unrelated.json()).data.id;
+  const isolated = await page.request.post("/api/v1/admin/users", {
+    headers: setupHeaders,
+    data: {
+      email: "workspace-operator@example.com",
+      displayName: "Workspace test operator",
+      password: "Workspace operator password 123!",
+      systemAdmin: true,
+    },
+  });
+  expect(isolated.status(), await isolated.text()).toBe(201);
+  await page.getByTestId("logout").click();
+  await page.getByTestId("email").fill("workspace-operator@example.com");
+  await page.getByTestId("password").fill("Workspace operator password 123!");
+  await page.getByTestId("login-submit").click();
+  await expect(page.getByTestId("account-info")).toContainText(
+    "Workspace test operator",
+  );
+  expect(
+    (await page.request.get("/api/v1/workspaces/" + unrelatedId)).status(),
+  ).toBe(403);
   await page.getByRole("link", { name: "Workspaces", exact: true }).click();
   await expect(
     page.getByText("No Workspaces yet.", { exact: true }),

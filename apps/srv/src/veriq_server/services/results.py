@@ -114,7 +114,7 @@ def reduce_test(
             if blocker["id"] == step["id"]:
                 return assertion is not None and rank(blocker, expected) < rank(step, assertion)
             if ancestor(blocker["id"], step["id"]):
-                return expected["stage"] == "BEFORE"
+                return bool(expected["stage"] == "BEFORE")
             return True
         actual = finished.get(blocker["id"])
         return bool(

@@ -1,3 +1,6 @@
+import { BundlePage } from "./features/bundles/BundlePage";
+import { AiPage } from "./features/ai/AiPage";
+import { ReportPage } from "./features/reports/ReportPage";
 import { useState, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Link, Navigate, Route, Routes } from "react-router-dom";
@@ -13,6 +16,8 @@ import {
   AcceptInvitation,
 } from "./features/workspaces/WorkspacePage";
 import { RuntimePage } from "./features/runtimes/RuntimePage";
+import { ResourcePage } from "./features/resources/ResourcePage";
+import { EnvironmentPage } from "./features/environments/EnvironmentPage";
 import "./style.css";
 function App() {
   const [user, setUser] = useState<User | null>(null),
@@ -66,6 +71,11 @@ function App() {
               <Link to="/account">Account</Link>
               <Link to="/workspaces">Workspaces</Link>
               <Link to="/runtimes">Runtimes</Link>
+              <Link to="/reports">Reports</Link>
+              <Link to="/bundles">Bundles</Link>
+              <Link to="/ai">AI</Link>
+                <Link to="/resources">资源 / Resources</Link>
+              <Link to="/environments">环境 / Environments</Link>
               {user.systemAdmin && <Link to="/admin/users">Users</Link>}
               <button
                 data-testid="logout"
@@ -121,6 +131,25 @@ function App() {
               </WorkspaceProvider>
             }
           />
+          <Route
+            path="/resources"
+            element={
+              <WorkspaceProvider key={user?.id ?? "anonymous"}>
+                <ResourcePage />
+              </WorkspaceProvider>
+            }
+          />
+          <Route
+            path="/environments"
+            element={
+              <WorkspaceProvider key={user?.id ?? "anonymous"}>
+                <EnvironmentPage />
+              </WorkspaceProvider>
+            }
+          />
+          <Route path="/ai" element={<WorkspaceProvider key={user?.id ?? "anonymous"}><AiPage /></WorkspaceProvider>} />
+          <Route path="/bundles" element={<WorkspaceProvider key={user?.id ?? "anonymous"}><BundlePage /></WorkspaceProvider>} />
+          <Route path="/reports" element={<WorkspaceProvider key={user?.id ?? "anonymous"}><ReportPage /></WorkspaceProvider>} />
           <Route path="/invitations/accept" element={<AcceptInvitation />} />
           <Route
             path="/"

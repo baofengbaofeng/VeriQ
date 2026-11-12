@@ -32,6 +32,21 @@ async def run(args: argparse.Namespace) -> None:
     overrides = {
         field: getattr(args, field, None) for field in ("public_url", "host", "port", "environment")
     }
+    if args.command == "issuer":
+        from .bundles.issuer import Issuer
+        if args.operation == "init":
+            issuer = Issuer.initialize(args.path)
+        else:
+            issuer = Issuer(args.path)
+            if args.operation == "rotate":
+                issuer.rotate()
+            elif args.operation == "revoke":
+                if not args.key_id:
+                    raise ValueError("Key ID required")
+                issuer.revoke(args.key_id)
+            issuer = Issuer(args.path)
+        print(json.dumps(issuer.public()))
+        return
     if args.command == "init":
         existed = args.config.exists()
         stored = json.loads(args.config.read_text()) if existed else {}
@@ -41,6 +56,12 @@ async def run(args: argparse.Namespace) -> None:
         for field in ("master_key", "signing_key"):
             if field not in values:
                 values[field] = secrets.token_hex(32)
+        if "bundle_issuer_path" not in values and not existed:
+            from .bundles.issuer import Issuer
+            issuer_path = args.config.parent / "veriq-issuer" / "issuer.json"
+            if not issuer_path.exists():
+                Issuer.initialize(issuer_path)
+            values["bundle_issuer_path"] = str(issuer_path.resolve())
         settings = Settings.model_validate(values)
         persisted = operator_config_values(settings.model_dump())
         if not existed:
@@ -139,6 +160,10 @@ def main() -> None:
     parser.add_argument("--port", type=int)
     parser.add_argument("--environment", choices=["production", "development"])
     sub = parser.add_subparsers(dest="command", required=True)
+    issuer = sub.add_parser("issuer", help="Initialize/rotate/revoke the dedicated bundle issuer; output public metadata only")
+    issuer.add_argument("operation", choices=["init", "show", "rotate", "revoke"])
+    issuer.add_argument("--path", type=Path, required=True)
+    issuer.add_argument("--key-id")
     sub.add_parser("init")
     sub.add_parser("migrate")
     sub.add_parser("serve")

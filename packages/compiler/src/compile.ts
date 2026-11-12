@@ -179,6 +179,10 @@ function distributionFiles(
   files["dependencies.json"] = canonicalBytes(d.dependencies);
   return files;
 }
+/** Verify the same engine package/lock/dependency closure used by compilation, without executing it. */
+export function verifyDistribution(distribution: EngineDistribution, engineVersion: string): void {
+  distributionFiles(distribution, engineVersion);
+}
 /** TypeScript's printer handles identifiers/string literal escaping; DSL is emitted as inert JSON data. */
 function registration(plan: CompiledCase): Uint8Array {
   const f = ts.factory;
@@ -295,6 +299,22 @@ export function compileFiles(
       ...(plan.persistenceCheckpointStepId ? { persistenceCheckpointStepId: plan.persistenceCheckpointStepId } : {}) };
   });
   files["metadata/expected-plans.json"] = canonicalBytes({ schemaVersion: "1.0", cases: expectedCases });
+  const displayCases = analysis.cases.map(plan => {
+    let order = 0;
+    const flatten = (steps: CompiledStep[], parentId?: string): Record<string, unknown>[] => steps.flatMap(step => [{
+      id: step.step.id, sourceId: step.sourceId!, sourcePath: step.sourcePath, action: step.step.action,
+      order: order++, ...(parentId ? { parentId } : {}),
+      assertions: [...step.before, ...step.responseAssertions, ...step.after].map(a => ({
+        id: a.assertion.id, sourceId: a.sourceId!, sourcePath: a.sourcePath, type: a.assertion.type,
+        ...("operator" in a.assertion ? { operator: a.assertion.operator } : {}),
+        expectedSource: a.assertion.expectedSource, severity: a.assertion.severity,
+      })),
+      observers: (step.step.observers ?? []).map(o => ({ id: o.id, kind: "kind" in o ? o.kind : "HTTP",
+        ...("method" in o ? { method: o.method, path: o.path } : {}) })),
+    }, ...flatten(step.children ?? [], step.step.id)]);
+    return { caseVersionId: plan.caseVersionId, caseKey: plan.document.caseKey, title: plan.document.title, steps: flatten(plan.steps) };
+  });
+  files["metadata/report-display.json"] = canonicalBytes({ schemaVersion: "1.0", cases: displayCases });
   const manifest = Object.keys(files)
     .sort()
     .map((path) => ({
@@ -331,6 +351,20 @@ export function verifyFiles(
   files: Record<string, Uint8Array>,
 ): void {
   checkSchema("CompiledAssetBundle", bundle);
+  if (bundle.validationOnly && !Object.hasOwn(files, "validation.ts"))
+    throw new Error("MISSING_VALIDATION_FILE");
+  const entries = new Set<string>();
+  const paths = new Set<string>();
+  for (const entry of bundle.entrypoints) {
+    if (entries.has(entry.caseVersionId) || paths.has(entry.path))
+      throw new Error("DUPLICATE_ENTRYPOINT");
+    entries.add(entry.caseVersionId);
+    paths.add(entry.path);
+    if (!Object.hasOwn(files, entry.path))
+      throw new Error("MISSING_ENTRYPOINT_FILE");
+    if (entry.path !== `cases/${entry.caseVersionId}.test.ts`)
+      throw new Error("ENTRYPOINT_MAPPING_MISMATCH");
+  }
   const seen = new Set<string>();
   const folded = new Set<string>();
   for (const file of bundle.files) {
@@ -365,18 +399,7 @@ export function assembleExecution(
   if (bundle.validationOnly) throw new Error("VALIDATION_ONLY");
   if (!files) throw new Error("BUNDLE_FILES_REQUIRED");
   verifyFiles(bundle, files);
-  const entries = new Set<string>();
-  const paths = new Set<string>();
-  for (const entry of bundle.entrypoints) {
-    if (entries.has(entry.caseVersionId) || paths.has(entry.path))
-      throw new Error("DUPLICATE_ENTRYPOINT");
-    entries.add(entry.caseVersionId);
-    paths.add(entry.path);
-    if (!Object.hasOwn(files, entry.path))
-      throw new Error("MISSING_ENTRYPOINT_FILE");
-    if (entry.path !== `cases/${entry.caseVersionId}.test.ts`)
-      throw new Error("ENTRYPOINT_MAPPING_MISMATCH");
-  }
+  const entries = new Set(bundle.entrypoints.map((entry) => entry.caseVersionId));
   const selected = bundle.entrypoints.find(
     (e) => e.caseVersionId === snapshot.caseVersionId,
   );

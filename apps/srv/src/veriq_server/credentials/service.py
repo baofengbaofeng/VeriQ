@@ -13,7 +13,7 @@ from ..settings import Settings
 from .crypto import Keyring
 
 
-def configured_keyring(settings: Settings) -> Keyring:
+def configured_keyring(settings: Settings, *, purpose: str = "veriq-credential-v1") -> Keyring:
     return Keyring(
         settings.master_key_id,
         {
@@ -23,6 +23,7 @@ def configured_keyring(settings: Settings) -> Keyring:
             },
             settings.master_key_id: bytes.fromhex(settings.master_key.get_secret_value()),
         },
+        purpose=purpose,
     )
 
 

@@ -675,3 +675,208 @@ A pending claim UUID is now copied to its assigned private Attempt journal befor
 Recovery clears `claim-request.json` only when that same UUID was successfully reconciled;
 retained historical journals, including older journals without this association, cannot
 clear an unrelated newer lost request. The server claim/fence/lease protocol is unchanged.
+
+## T11 shared editors and published source view
+
+The Web resource/editor components accept `ResourceAdapter` instead of hard-coded remote
+URLs. `CloudResourceAdapter` owns authenticated transport; `LocalResourceAdapter` is
+read-only and accepts a single-Workspace immutable snapshot already verified by a trusted
+host/provider. It does not implement signature verification, offline editing or sync.
+React Hook Form holds the canonical source document, and local Monaco JSON buffers require
+explicit Apply. Unapplied buffers block save/validate/publish; invalid JSON and409 revision
+conflicts retain local content. All eight kinds expose graphical controls. Initial variable
+controls declare types only, not runtime values. Source models/workers and Query state are
+disposed or aborted on authenticated-user/Workspace/editor lifetime changes.
+
+Existing `GET /api/v1/workspaces/{ws}/jobs/{job}` now includes actual optional `outcome`,
+`waitReason` and a safe `errorCode` projected from the active retained Attempt. No detailed
+compiler path or raw LOG is inferred. `GET .../validation-receipt` remains the only existing
+successful receipt read; pending or failed validation never enables publication. Richer
+structured compile diagnostics remain a T12 report-pipeline handoff.
+
+`GET /api/v1/workspaces/{ws}/resources/{resource}/versions/{version}/compiled-source`
+requires current Workspace VIEW and the resource/version's original retained receipt.
+Without `path` the JSON data is `{descriptorSha256, files: FileEntry[]}`, listing only
+`validation.ts`, `source/context.ts` and compiler case entrypoints `cases/{uuid}.test.ts`.
+With a listed `path`, it returns the exact retained bytes as `text/plain; charset=utf-8`,
+without an envelope, after descriptor membership/hash/length verification. The response is
+private/no-store, nosniff and sandboxed. Arbitrary hashes, local filesystem paths, archives,
+raw evidence and non-TypeScript members are unavailable. Generated TypeScript is displayed
+read-only and is never compiled or executed in the frontend. The published version's receipt
+and descriptor remain immutable even after later draft changes or revalidation.
+
+## T12 reports, evidence and diagnostics
+
+`GET /api/v1/workspaces/{ws}/runs/{run}/report` projects the retained Run, every TEST
+Attempt, business/cleanup/evidence facts, compensation jobs and statistics. It reuses
+CompletionService and the canonical result reducer. `gateAtExecution` uses authoritative
+trust/location/grants frozen at activation before execution; missing historical provenance
+is UNKNOWN. `gateNow` additionally checks current Runtime/Workspace authority. Neither
+projection changes historical outcomes or upgrades an originally non-formal execution.
+
+`GET .../attempts/{attempt}/history?after={sequence}` returns at most100 ordered events
+(approximately1MiB), with `nextSequence`/`hasMore`. Ordinary reports redact frozen credential
+pins including revoked versions (exact, URL-encoded and base64 forms) and sensitive keys.
+LOG, artifact-created and extracted-variable payloads are withheld. If credentials cannot
+be decrypted, value-bearing event fields are withheld with `valuesAvailable:false`.
+`GET .../audit?after={id}` returns a bounded Workspace audit page.
+
+`POST .../runs/{run}/events/stream` uses the current session cookie, exact Origin and CSRF,
+and SSE parsed by pinned eventsource-parser. Its JSON body is at most256KiB. The optional
+signed `cursor` binds actor/Workspace/Run and at most2000 TEST Attempt sequence positions:
+1000 admitted Run variants × two attempts. It never travels in a URL or HTTP header. Each
+cycle checks current authorization and releases its transaction before flushing. The full
+report changes on current-gate or cleanup-compensation changes even without TEST events.
+An invalid/expired/foreign/future cursor fails before first flush with
+`REPORT_RESYNC_REQUIRED`; clients explicitly reload authoritative report and paged history,
+never silently discard positions. Later authorization errors close the stream. Consumers
+abort on authenticated-user, Workspace, Run or view lifetime changes.
+
+New compiler bundles contain hash-listed `metadata/report-display.json` (`ReportDisplayV1`).
+The analyzer preserves the actual source step/assertion IDs before wire-ID expansion.
+Metadata contains case title/key, wire/source IDs, real source paths, action names,
+parent/order, assertion type/operator/severity/expectedSource and observer method/path.
+It contains no action values, credentials or authentication payloads. The existing
+ExpectedPlans execution/reducer semantics are unchanged. `GET .../runs/{run}/attempts/{attempt}/display`
+requires current Workspace VIEW, the exact Run/TEST Attempt association, immutable
+assignment/descriptor membership, hash/size/schema and expected-plan IDs/order/parent
+matching. Only this allowlisted metadata projection and redacted public environment/browser
+fields are returned. There is no generic hash reader. Existing immutable bundles/receipts
+are untouched; absent historical labels are explicitly ABSENT, unavailable redaction
+context is REDACTED. Shared Cloud/Local report adapters consume this typed contract; the
+local adapter requires a host-verified, immutable, single-Workspace snapshot.
+
+`GET .../attempts/{attempt}/artifacts` lists availability and server-effective restricted
+sensitivity. `GET .../artifacts/{upload}` requires current Workspace MANAGE_ENVIRONMENT
+(Owner/Admin) plus exact Attempt linkage, before and after staged storage I/O. All raw
+uploads, including caller-labelled REDACTED LOG/HTML/Trace, remain privileged. Responses
+are private/no-store, octet-stream attachments, nosniff and sandboxed. No direct/presigned
+storage URL is exposed. HTML/JUnit/screenshot/Trace are actual Playwright evidence. The
+privileged user can download a Trace and run `veriq trace open trace.zip`, which opens the
+pinned Playwright viewer on loopback with an isolated private temporary directory.
+
+Migration0008 preserves existing inline source/manifest/engine readers and adds external
+raw evidence state. Default File CAS uses atomic immutable publication; optional S3 CAS
+uses conditional writes and bounded boto3 worker-thread I/O. Upload metadata stays immutable
+for completion checks; duplicate byte hashes at different evidence paths retain their own
+upload/event linkage. Staged writes and lost-ACK chunk replay recheck current fencing before
+commit. `MAINTENANCE` token operation `artifacts/expire` extends the existing authenticated,
+idempotent HTTP maintenance surface; it tombstones eligible old terminal TEST evidence,
+pins source/compiled/engine closure, retries external deletion and returns410/EXPIRED
+without changing historical completeness/outcome. There is no internal Cron.
+
+Compiler failures now optionally carry bounded `CompilerDiagnosticV1` records from actual
+`analyze().issues` through the existing worker/completion/Job/editor pipeline. Codes and
+paths come from the analyzer; messages are static safe text. Unsafe paths are explicitly
+REDACTED rather than replaced by invented ancestors. Older absent diagnostics stay absent.
+
+Retention time is server-owned `Attempt.finished_at` (nullable historical unknown), stamped
+once using database UTC at completion/loss/reconciliation terminal transitions, never on
+receipt replay. Report `finishedAt` exposes this honest nullable value. It is independent
+of physical stop confirmation. Active attempts and missing terminal timestamps stay pinned.
+Default raw PASSED retention is14days (`artifact_success_retention_days`); other terminal
+raw evidence is30days (`artifact_retention_days`). Both are configurable1–3650days. Full
+metadata90 and successful export-package lifecycle remain required T21 after T14/T15;
+T12 preserves immutable source/compiled/engine/provenance artifacts.
+
+Raw evidence expiry is per AttemptUpload link: an expired link stays410 even if another
+Attempt later uploads identical bytes. Physical CAS uses server-generated immutable
+incarnations (legacy keys remain readable). Every live/active/source/engine reference pins
+bytes. Maintenance durably records a specific backend/incarnation before external deletion;
+rehydration reserves a fresh incarnation and rechecks fencing before commit. An old pending
+delete cannot target the new object. Source promotion retains verified inline bytes and
+queues deletion of a redundant external copy. Maintenance processedCount counts newly
+expired logical links; physical deletion records retry independently and are not execution
+jobs. S3 bucket/endpoint and File root are operator storage locations: changing them requires
+an explicit storage migration, not merely changing runtime configuration. Downgrade refuses
+external bytes, logical expiry or pending deletion state that the older schema cannot retain.
+
+Activation provenance records `credentialDeliveryRequired` from the frozen execution
+snapshot's credential pins, independently of captured `credentialDeliveryAllowed`; this
+is a requirement, not proof of credential use. If a required captured approval is later
+withdrawn, gateNow adds CREDENTIAL_DELIVERY_APPROVAL_REVOKED and blocks without changing
+gateAtExecution/outcome or credential delivery behavior. Older provenance lacking this
+distinction conservatively retains its captured approval requirement.
+
+T12 review correction (migration0009): external publication intents persist per immutable
+incarnation as PENDING/COMMITTED/RETIRED. Retirement replaces the exact private File/S3 key
+with an empty permanent create-only fence; it removes evidence bytes without permitting a
+late writer to recreate them. Empty evidence does not bypass RETIRED authority. Authenticated
+artifacts/expire recovers abandoned pending intents and retries exact retirement I/O outside
+DB transactions. Logical processedCount continues to count expired upload links. These
+private safety keys/journals are excluded from automatic metadata90 GC until a future safe
+writer-retirement protocol exists. No public API or raw path/URL is added.
+
+Dynamic assertion JsonValue objects with credential-bearing member names are wholly
+withheld as [REDACTED], avoiding key collisions; ordinary event protocol keys remain intact.
+Retained compiler archives may omit safeDiagnostics and ReportDisplay metadata; the Runtime
+entry keeps those fields absent while retaining exact compiler/bundle provenance checks.
+First-pass report counts select attemptNo1 explicitly, regardless of UUID ordering.
+
+## Optional AI (T13)
+
+AI provider CRUD, connection tests, `/ai/context`, generation/history/review/cancel are
+Workspace-scoped Cookie/CSRF APIs. Canonical OpenAPI and generated client types define
+all bounded inputs. The previously unimplemented provider `secretRef` field is replaced
+by write-only `apiKey` input and `keyConfigured` output; business credentials and AI keys
+are separate purpose-bound AES-GCM domains. Migration0010 adds only AI tables.
+
+`ModelGateway.generate(DraftContext) -> ModelReply` uses the official pinned SDKs.
+`AiService.create_draft(scope, req) -> GenerationDTO` reserves budget in a short authority
+transaction, calls the provider outside locks, then rechecks current authority. Synchronous
+POST returns201 including recorded failure/unknown-cost state; request UUID/body replay
+returns the same generation without another call. History uses bounded signed cursors.
+
+Generation output is untrusted data. CASE output validates against ResourceDocumentV1,
+selected references and an explicit human review; acceptance only invokes ResourceService
+create/update_draft. Compilation/debug/publication remain existing Runtime workflows.
+Boundary suggestions and sanitized report analysis cannot be applied automatically.
+Provider keys, raw evidence and business credential references never enter model context.
+
+Budgets use integer micro-USD estimates with immutable rate/model snapshots; unknown
+usage/cancellation retains reservations across UTC months. Provider disablement, budget
+exhaustion and errors do not affect deterministic Runs. See [AI operations](ai.md) and
+[ADR0015](decisions/0015-ai-provider-boundaries.md) for exact bounds and acceptance limits.
+
+## T14 signed offline packages
+
+`BundleSelectionV1` is canonical; `BundleCreate` aliases it. Select exactly one bounded
+CASE-version list, SUITE-version or immutable draft validation Job, plus environment.
+Draft selection requires UNVALIDATED_DEBUG and current EDIT on export/list/read/download;
+ordinary published exports require DOWNLOAD. BundleDTO identifies retained manifest and
+snapshot hashes. `/manifest` is an envelope preview; the detached signature verifies the
+exact `manifest.json` bytes inside the downloaded ZIP, not reserialized preview JSON.
+`/download` is a private attachment (`application/octet-stream`), never a presigned URL.
+
+The archive contains `manifest.json`, raw64-byte Ed25519 `manifest.sig`, `snapshot.json`,
+`selection.json`, `resources.json`, `assets/{version}.json`, each published version's
+`provenance/{version}/{source,descriptor,receipt}.json`, and validated
+`compiled/{version}/{original descriptor path}` bytes. Published packages include
+`engine/inventory.json` plus approved package/lock/dependency metadata; OS/arch execution
+archives are separately installed. DSL-only DEBUG adds original `draft/source.json`,
+freeze-time metadata and `engine/requirements.json`, and contains no compiled files.
+
+`IssuerTrustV1` has a stable issuer, monotonic revision, bounded public keys, fingerprints
+and explicit revocation facts. `GET /internal/v1/issuer` and the internal bundle download
+route authenticate an actual current device bearer separately from Web Cookie/CSRF.
+Trust refresh accepts only authenticated HTTPS origins; explicit out-of-band binding
+checks an administrator-confirmed fingerprint. Bundle-carried keys never establish trust.
+Private issuer files and runtime local mappings use distinct restricted configuration.
+
+Export collects immutable authorized bytes, releases DB locks for bounded thread ZIP
+assembly, then rechecks session/membership, credential pins, issuer and engine approval.
+Runtime verifies the signature before writing members, checks exact listed membership,
+portable paths, complete dependency/provenance/hash constraints, and atomically installs
+read-only data. The verified native snapshot supplies the existing LocalResourceAdapter;
+DSL-only candidate dates denote original snapshot freeze time, without fabricated
+published versions or validation receipts. SDK dynamic user JSON keys with exact/URL/
+base64 local secret values withhold their object; protocol keys/IDs/enums remain intact.
+Raw Trace is still credential-restricted. Limits/operations are in [offline bundles](offline-bundles.md).
+
+T14 review correction: createBundle requires printable ASCII Idempotency-Key and returns
+201 synchronously. Public bundle operations use WebSession+CSRF only; native bearer
+routes remain separate. Workspace/key binds actor+canonical body durably; replay returns
+the original immutable result only after current authority/pin/issuer/engine checks.
+IN_PROGRESS/FAILED and changed actor/body return409 without automatic takeover. See
+[offline bundles](offline-bundles.md) for crash semantics and coordinated configuration
+promotion guards. Migration0012 adds veriq_bundle_exports;0011 remains immutable.

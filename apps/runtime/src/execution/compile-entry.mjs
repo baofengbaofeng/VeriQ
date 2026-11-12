@@ -1,7 +1,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { createHash } from 'node:crypto';
-import { compileFiles, assembleExecution } from './engine/compiler/src/index.ts';
+import * as compiler from './engine/compiler/src/index.ts';
 import { canonicalBytes } from '@veriq/contracts';
 const invocation = JSON.parse(await readFile(new URL('./invocation.json', import.meta.url), 'utf8'));
 const root = invocation.work;
@@ -13,12 +13,19 @@ for (const file of release.files)
         vendor[file.path] = await readFile(join(root, file.path));
 const distribution = { engineVersion: release.engineVersion, runnerSdkVersion: release.runnerSdkVersion, dependencies: release.dependencies, packageJson: await readFile(join(root, 'package.json')), packageLock: await readFile(join(root, 'package-lock.json')), files: vendor };
 let result;
+let diagnostics;
 if (invocation.kind === 'CLEANUP')
     result = { kind: 'READY' };
 else
     try {
         const source = JSON.parse(await readFile(join(root, 'source/asset-snapshot.json'), 'utf8'));
-        const output = compileFiles(source, distribution);
+        // Retained approved engines predate structured diagnostics. Their own
+        // compiler remains authoritative; absent capability means absent details.
+        if (typeof compiler.safeDiagnostics === 'function') {
+            diagnostics = compiler.safeDiagnostics(compiler.analyze(source).issues);
+            if (diagnostics.length) throw new Error("ASSET_VALIDATION_FAILED");
+        }
+        const output = compiler.compileFiles(source, distribution);
         if (invocation.kind === 'VALIDATE') {
             for (const [path, bytes] of Object.entries(output.files)) {
                 await mkdir(dirname(join(root, path)), { recursive: true });
@@ -37,16 +44,16 @@ else
             for (const [path, bytes] of Object.entries(output.files))
                 if (hash(bytes) !== hash(files[path]))
                     throw new Error('COMPILED_PROVENANCE_MISMATCH');
-            assembleExecution(supplied, JSON.parse(await readFile(join(root, 'execution.json'), 'utf8')), files);
+            compiler.assembleExecution(supplied, JSON.parse(await readFile(join(root, 'execution.json'), 'utf8')), files);
             result = { kind: 'READY' };
         }
     }
     catch (error) {
         if (invocation.kind !== 'VALIDATE')
             throw new Error('COMPILED_PROVENANCE_MISMATCH');
-        const code = /UNKNOWN_ELEMENT/.test(String(error)) ? 'UNKNOWN_ELEMENT' : 'COMPILATION_FAILED';
+        const code = diagnostics?.[0]?.code ?? 'COMPILATION_FAILED';
         // Never persist compiler diagnostics containing source literals, URLs or credentials.
         await writeFile(join(root, 'compiler.log'), `VeriQ compiler failed: ${code}\n`, { mode: 0o600 });
-        result = { kind: 'VALIDATE', businessOutcome: 'ERROR', cleanupStatus: 'NOT_REQUIRED', failureCode: code };
+        result = { kind: 'VALIDATE', businessOutcome: 'ERROR', cleanupStatus: 'NOT_REQUIRED', failureCode: code, ...(diagnostics?.length ? { diagnostics } : {}) };
     }
 await writeFile(join(root, 'worker-result.json'), JSON.stringify(result), { mode: 0o600 });
