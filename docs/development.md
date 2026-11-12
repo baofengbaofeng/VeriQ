@@ -145,6 +145,28 @@ disk space; generated archives, device profiles and per-Attempt work are transie
 
 ## Current verification limits
 
+The offline execution/import module (`1b6fccb`, `86f1602`, fixed in `67968b4`)
+passed independent spec/quality review and scoped rereview. Real composed tests
+cover signed Agent-published CASEs, cancelled and complete SUITE matrices, candidate
+SUITE role/browser/dataset overrides, and DOWNLOAD recovery after killing the
+host: four scenarios passed against business HTTP and the actual MySQL import API
+with the control listener physically stopped during execution. Source/variant/event
+and raw checksums match; repeated uploads reuse the Run and preserve online Attempts.
+Imports retain OFFLINE_IMPORT with gate false; omitted work stays INCOMPLETE.
+
+The final fix checks passed 27 offline and 27 import/report tests, 200 contract
+checks, generated-contract consistency, Runtime/Web types, Ruff and explicitly
+configured strict mypy (80 files). The four-scenario composition predates two
+small client/checkpoint refinements covered by the frozen-source offline checks;
+it is not claimed as a second composition run on those refinements. The initial
+broad server batch remains recorded as 290 passes/seven failures; six fixture
+configuration failures and the native import lock defect were checked by six real
+Agent/compiler tests and the affected import/publication suites. No clean rerun of
+that entire batch or the full SDK is claimed. See [offline execution](offline-execution.md)
+and [ADR0017](decisions/0017-offline-execution-import.md). Desktop/IPC, Windows/vault,
+production packaging and the formal browser/Provider gates below remain assigned
+work; this is not complete-product acceptance.
+
 The signed-bundle implementation (`46798ab`, fixed in `3ffb144` and `c1fa544`)
 passed independent review after correcting unchecked OOB sibling keys, semantic
 closure/entrypoint binding, HTTP idempotency/auth/status contracts, and multi-CASE
@@ -234,6 +256,7 @@ T14 adds migration0011 (`veriq_bundles`) and the `/bundles` Web page. Provision 
 separate operator issuer for existing installations before exporting; see
 [offline bundle operations](offline-bundles.md). Fresh `init` creates it safely, while
 `serve` never invents signing identity. The native CLI implements bundle download/verify,
-trust bind/refresh and exact local secret mapping. Offline execution/result import and
-native OS vault/installers remain their later tasks; package signatures do not confer
+trust bind/refresh and exact local secret mapping. Offline execution/result import now
+use the same worker/compiler and durable local SQLite reports; see [offline operations](offline-execution.md). Native OS vault,
+desktop IPC and installers remain their later tasks; package signatures do not confer
 formal-result trust. Bundle retention roots are pinned pending T21's package lifecycle.
