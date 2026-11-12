@@ -4303,6 +4303,9 @@
           },
           "minItems": 1,
           "maxItems": 2000
+        },
+        "executionChoices": {
+          "$ref": "#/$defs/OfflineExecutionChoicesV1"
         }
       },
       "required": [
@@ -6307,6 +6310,24 @@
         "sha256",
         "sizeBytes",
         "sensitivity"
+      ],
+      "additionalProperties": false
+    },
+    "OfflineExecutionChoicesV1": {
+      "type": "object",
+      "properties": {
+        "browsers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Browser"
+          },
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "browsers"
       ],
       "additionalProperties": false
     }

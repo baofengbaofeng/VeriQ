@@ -1288,6 +1288,7 @@ export interface ContractDefinitions {
   BundleResourcesV1?: BundleResourcesV1;
   BundleSelectionV1?: BundleSelectionV1;
   OfflineArtifactV1?: OfflineArtifactV1;
+  OfflineExecutionChoicesV1?: OfflineExecutionChoicesV1;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1889,6 +1890,18 @@ export interface OfflineResultV1 {
    * @maxItems 2000
    */
   attempts: [OfflineAttemptV1, ...OfflineAttemptV1[]];
+  executionChoices?: OfflineExecutionChoicesV1;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "OfflineExecutionChoicesV1".
+ */
+export interface OfflineExecutionChoicesV1 {
+  /**
+   * @minItems 1
+   * @maxItems 3
+   */
+  browsers: [Browser] | [Browser, Browser] | [Browser, Browser, Browser];
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema

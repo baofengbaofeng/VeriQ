@@ -26,6 +26,17 @@ export async function uploadOffline(root: string, runId: string, config: Pick<De
                         throw new Error('UPLOAD_RESPONSE_LIMIT');
                     chunks.push(chunk);
                 }
+            if (response.status === 422) {
+                let code: unknown;
+                try {
+                    code = (JSON.parse(Buffer.concat(chunks).toString()) as {
+                        code?: unknown;
+                    }).code;
+                }
+                catch { /* Unstructured server error remains UPLOAD_FAILED. */ }
+                if (code === 'OFFLINE_VARIANT_FACTS_REQUIRED')
+                    throw new Error(code);
+            }
             if (!response.ok)
                 throw new Error(response.status === 401 || response.status === 403 ? 'UPLOAD_UNAUTHORIZED' : response.status === 409 ? 'UPLOAD_CONFLICT' : 'UPLOAD_FAILED');
             return JSON.parse(Buffer.concat(chunks).toString()).data as unknown;

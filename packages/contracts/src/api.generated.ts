@@ -3000,6 +3000,7 @@ export interface components {
             outcome: components["schemas"]["Outcome"];
             actualEnvironment: components["schemas"]["EnvironmentV1"];
             attempts: components["schemas"]["OfflineAttemptV1"][];
+            executionChoices?: components["schemas"]["OfflineExecutionChoicesV1"];
         };
         ValidationIssue: {
             path: string;
@@ -4425,6 +4426,9 @@ export interface components {
             versionId: components["schemas"]["Id"];
             contentHash: components["schemas"]["Sha256"];
             configuration: components["schemas"]["AuthAdapterConfigV1"];
+        };
+        OfflineExecutionChoicesV1: {
+            browsers: components["schemas"]["Browser"][];
         };
         IssuerKeyV1: {
             keyId: components["schemas"]["Key"];

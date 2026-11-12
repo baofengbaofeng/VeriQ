@@ -13,7 +13,7 @@ import { executionEvent, sdkFact, type Fact, type SdkEvent } from '../execution/
 import { loadRelease, sha256 } from '../execution/release.ts';
 import { monitorStorage } from '../execution/storage.ts';
 import { SecretStore, SecretResolver } from '../credentials/store.ts';
-import { LocalStore } from './store.ts';
+import { LocalStore, type Ownership } from './store.ts';
 import { reverifyInstalled, type VerifiedBundle } from './verify.ts';
 import type { TrustStore } from './trust.ts';
 import { readBoundedFile } from './config.ts';
@@ -37,13 +37,24 @@ export interface OfflineConfig {
     authorizeOverride?: (field: string, value: string) => boolean;
 }
 type Checked = Awaited<ReturnType<typeof reverifyInstalled>>;
+const variantKey = (execution: ExecutionSnapshotV1) => sha256(canonicalBytes([execution.caseVersionId, execution.suiteEntryIndex ?? 0, execution.roleKey, execution.browser, execution.datasetVersionId ?? null, execution.dataRow?.key ?? null]));
 const code = (error: unknown) => error instanceof Error && /^[A-Z_]{1,80}$/.test(error.message) ? error.message : 'OFFLINE_EXECUTION_ERROR';
 const aggregate = (outcomes: string[]): Outcome => (['ERROR', 'INCOMPLETE', 'FAILED', 'CANCELLED', 'UNSTABLE', 'SKIPPED', 'PASSED'] as Outcome[]).find(o => outcomes.includes(o)) ?? 'INCOMPLETE';
+function selectedSuite(checked: Checked): string | undefined {
+    const selection = JSON.parse(checked.contents.get('selection.json')!.toString()) as {
+        suiteVersionId?: string;
+    };
+    return selection.suiteVersionId ?? (checked.dslOnly && checked.snapshot.assets.some(a => a.versionId === checked.snapshot.validationTarget?.versionId && a.kind === 'SUITE') ? checked.snapshot.validationTarget!.versionId : undefined);
+}
+function compilationRoot(checked: Checked, caseVersionId: string): string {
+    return selectedSuite(checked) ?? caseVersionId;
+}
 function variants(checked: Checked, runId: string, config: OfflineConfig): ExecutionSnapshotV1[] {
     const source = checked.snapshot;
     const selection = JSON.parse(checked.contents.get('selection.json')!.toString()) as {
         environmentVersionId: string;
         suiteVersionId?: string;
+        caseVersionIds?: string[];
     };
     const environment = structuredClone(source.assets.find(a => a.versionId === selection.environmentVersionId)?.document) as unknown as EnvironmentV1;
     if (!environment)
@@ -58,7 +69,8 @@ function variants(checked: Checked, runId: string, config: OfflineConfig): Execu
         if (!environment.allowedOrigins.includes(url.origin))
             environment.allowedOrigins.push(url.origin);
     }
-    const suite = selection.suiteVersionId ? source.assets.find(a => a.versionId === selection.suiteVersionId) : undefined;
+    const suiteId = selectedSuite(checked);
+    const suite = suiteId ? source.assets.find(a => a.versionId === suiteId) : undefined;
     type Entry = {
         versionId: string;
         roleKeys?: string[];
@@ -67,7 +79,7 @@ function variants(checked: Checked, runId: string, config: OfflineConfig): Execu
     };
     const entries: Entry[] = suite ? (suite.document as unknown as {
         cases: Entry[];
-    }).cases : source.entryCaseVersionIds.map(versionId => ({ versionId }));
+    }).cases : (selection.caseVersionIds ?? source.entryCaseVersionIds).map(versionId => ({ versionId }));
     const executions: ExecutionSnapshotV1[] = [];
     for (const [index, entry] of entries.entries()) {
         const asset = source.assets.find(a => a.versionId === entry.versionId && a.kind === 'CASE');
@@ -84,7 +96,7 @@ function variants(checked: Checked, runId: string, config: OfflineConfig): Execu
         })?.rows : [undefined];
         if (!rows)
             throw new Error('BUNDLE_DATASET_MISSING');
-        const original = checked.dslOnly ? JSON.parse(checked.contents.get('draft/source.json')!.toString()) as AssetSnapshotV1 : JSON.parse(checked.contents.get(`provenance/${entry.versionId}/source.json`)!.toString()) as AssetSnapshotV1;
+        const original = checked.dslOnly ? JSON.parse(checked.contents.get('draft/source.json')!.toString()) as AssetSnapshotV1 : JSON.parse(checked.contents.get(`provenance/${compilationRoot(checked, entry.versionId)}/source.json`)!.toString()) as AssetSnapshotV1;
         for (const roleKey of entry.roleKeys ?? [document.roleKey])
             for (const browser of entry.browsers ?? config.browsers ?? ['chromium'])
                 for (const dataRow of rows) {
@@ -107,7 +119,11 @@ function variants(checked: Checked, runId: string, config: OfflineConfig): Execu
         throw new Error('EMPTY_EXECUTION_MATRIX');
     return executions;
 }
-async function attempt(checked: Checked, execution: ExecutionSnapshotV1, attemptId: string, config: OfflineConfig, store: LocalStore, processes: ProcessSupervisor): Promise<OfflineAttemptV1> {
+async function attempt(checked: Checked, execution: ExecutionSnapshotV1, attemptId: string, config: OfflineConfig, store: LocalStore, processes: ProcessSupervisor, ownership: Ownership): Promise<{
+    result: OfflineAttemptV1;
+    owner: Ownership;
+}> {
+    let owner = ownership;
     const runId = execution.runId, work = join(config.root, 'work', attemptId), artifacts: OfflineAttemptV1['artifacts'] = [];
     let diagnostics: OfflineAttemptV1['diagnostics'];
     let sequence = 0, caseResult: CaseResult | undefined, child: OwnedProcess | undefined, broker: AttemptBroker | undefined, tmp: string | undefined, stop: StopReceipt | undefined, failure: string | undefined, spawning = false;
@@ -116,7 +132,7 @@ async function attempt(checked: Checked, execution: ExecutionSnapshotV1, attempt
     config.signal?.addEventListener('abort', abort, { once: true });
     if (config.signal?.aborted)
         abort();
-    const append = (fact: Fact) => store.append(runId, executionEvent(attemptId, ++sequence, fact));
+    const append = (fact: Fact) => store.append(runId, executionEvent(attemptId, ++sequence, fact), owner);
     const resolver = new SecretResolver(config.secrets);
     const context = { issuerId: checked.manifest.issuerId, workspaceId: execution.workspaceId, secretVersions: execution.secretVersions };
     const add = async (path: string, kind: NonNullable<OfflineAttemptV1['artifacts'][number]['kind']>, name: string) => {
@@ -145,10 +161,10 @@ async function attempt(checked: Checked, execution: ExecutionSnapshotV1, attempt
             await write('source/asset-snapshot.json', checked.contents.get('draft/source.json')!);
         }
         else {
-            const descriptor = JSON.parse(checked.contents.get(`provenance/${execution.caseVersionId}/descriptor.json`)!.toString()) as CompiledAssetBundle;
+            const descriptor = JSON.parse(checked.contents.get(`provenance/${compilationRoot(checked, execution.caseVersionId)}/descriptor.json`)!.toString()) as CompiledAssetBundle;
             await write('bundle.json', canonicalBytes(descriptor));
             for (const file of descriptor.files)
-                await write(file.path, checked.contents.get(`compiled/${execution.caseVersionId}/${file.path}`)!);
+                await write(file.path, checked.contents.get(`compiled/${compilationRoot(checked, execution.caseVersionId)}/${file.path}`)!);
             for (const [path, bytes] of Object.entries(release.files)) {
                 if (path === 'engine/compiler.tgz')
                     await write(path, bytes);
@@ -200,9 +216,10 @@ async function attempt(checked: Checked, execution: ExecutionSnapshotV1, attempt
         await write('playwright.config.mjs', Buffer.from(`export default ${JSON.stringify(pw)};`));
         if (controller.signal.aborted || store.cancelled(runId))
             throw new Error('USER_CANCELLED');
-        store.spawning(runId, attemptId);
+        owner = store.spawning(runId, attemptId, owner);
         spawning = true;
         child = await processes.start(attemptId, { executable: process.execPath, args: [fileURLToPath(new URL('../execution/worker.mjs', import.meta.url)), join(work, 'invocation.json')], cwd: work, env: { PATH: `${dirname(process.execPath)}:/usr/bin:/bin`, TMPDIR: tmp, XDG_CACHE_HOME: join(tmp, 'cache'), XDG_CONFIG_HOME: join(tmp, 'config'), VERIQ_EXECUTION_CONTEXT_MODULE: join(work, 'provider.mjs') } });
+        store.ensureOwner(owner);
         monitor = monitorStorage(tmp, 64 * 1024 * 1024, async (why) => { failure = why; controller.abort(); await processes.terminateAttempt(attemptId, why); });
         child.send({ type: 'START' });
         let exited = false;
@@ -239,12 +256,14 @@ async function attempt(checked: Checked, execution: ExecutionSnapshotV1, attempt
             }
         }
         const traces: string[] = [];
-        async function visit(path: string): Promise<void> { for (const entry of await readdir(path, { withFileTypes: true })) {
-            if (entry.isDirectory())
-                await visit(join(path, entry.name));
-            else if (entry.name === 'trace.zip')
-                traces.push(join(path, entry.name));
-        } }
+        async function visit(path: string): Promise<void> {
+            for (const entry of await readdir(path, { withFileTypes: true })) {
+                if (entry.isDirectory())
+                    await visit(join(path, entry.name));
+                else if (entry.name === 'trace.zip')
+                    traces.push(join(path, entry.name));
+            }
+        }
         await visit(tmp);
         for (const path of traces)
             await add(path, 'TRACE', `trace-${artifacts.length}.zip`);
@@ -259,7 +278,7 @@ async function attempt(checked: Checked, execution: ExecutionSnapshotV1, attempt
         config.signal?.removeEventListener('abort', abort);
         await broker?.close();
         stop ??= spawning ? await processes.terminateAttempt(attemptId, failure ?? 'EXECUTION_ERROR') : { attemptId, processStopped: true, reason: 'NO_PROCESS_SPAWNED', stoppedAt: new Date().toISOString() };
-        store.stopped(runId, stop);
+        owner = store.stopped(runId, stop, owner);
         if (stop.processStopped) {
             if (tmp)
                 await rm(tmp, { recursive: true, force: true });
@@ -271,43 +290,63 @@ async function attempt(checked: Checked, execution: ExecutionSnapshotV1, attempt
         append({ type: 'ATTEMPT_FINISHED', payload: { outcome: failure === 'USER_CANCELLED' ? 'CANCELLED' : 'ERROR', cleanupStatus: spawning ? 'PENDING' : 'NOT_REQUIRED' } });
     }
     const outcome = failure ? (failure === 'USER_CANCELLED' ? 'CANCELLED' : failure === 'REQUIRED_EVIDENCE_MISSING' ? 'INCOMPLETE' : 'ERROR') : caseResult?.outcome ?? 'INCOMPLETE';
-    return { attemptId, caseVersionId: execution.caseVersionId, attemptNo: execution.attemptNo, outcome, cleanupStatus: caseResult?.cleanupStatus ?? (spawning ? 'PENDING' : 'NOT_REQUIRED'), lastSequence: sequence, events: store.events(execution.workspaceId, runId, attemptId, 0, 10000), artifacts, execution, processStopped: stop.processStopped, retrySafety: caseResult?.retrySafety ?? 'UNKNOWN', sourceKind: checked.dslOnly ? 'DRAFT_DEBUG' : 'PUBLISHED', variantKey: sha256(canonicalBytes([execution.caseVersionId, execution.suiteEntryIndex ?? 0, execution.roleKey, execution.browser, execution.datasetVersionId ?? null, execution.dataRow?.key ?? null])), ...((failure ?? caseResult?.errorCode) ? { failureCode: (failure ?? caseResult?.errorCode)! } : {}), ...(diagnostics ? { diagnostics } : {}) };
+    return { owner, result: { attemptId, caseVersionId: execution.caseVersionId, attemptNo: execution.attemptNo, outcome, cleanupStatus: caseResult?.cleanupStatus ?? (spawning ? 'PENDING' : 'NOT_REQUIRED'), lastSequence: sequence, events: store.events(execution.workspaceId, runId, attemptId, 0, 10000), artifacts, execution, processStopped: stop.processStopped, retrySafety: caseResult?.retrySafety ?? 'UNKNOWN', sourceKind: checked.dslOnly ? 'DRAFT_DEBUG' : 'PUBLISHED', variantKey: variantKey(execution), ...((failure ?? caseResult?.errorCode) ? { failureCode: (failure ?? caseResult?.errorCode)! } : {}), ...(diagnostics ? { diagnostics } : {}) } };
 }
 export async function runOffline(bundle: Pick<VerifiedBundle, 'directory'>, config: OfflineConfig): Promise<OfflineResultV1> {
     const checked = await reverifyInstalled(bundle.directory, { trust: config.trust, ...(config.debug !== undefined ? { debug: config.debug } : {}) });
+    const choices = { browsers: config.browsers ?? ['chromium'] };
+    if (validateSchema('OfflineExecutionChoicesV1', choices).length)
+        throw new Error('INVALID_EXECUTION_CHOICES');
+    const executionChoices = choices as NonNullable<OfflineResultV1['executionChoices']>;
     const runId = randomUUID(), executions = variants(checked, runId, config), attempts: OfflineAttemptV1[] = [];
     const store = await LocalStore.open(config.root), processes = new ProcessSupervisor(join(config.root, 'processes'));
     const startedAt = new Date().toISOString();
     let attemptId = randomUUID();
     try {
-        const initial = (execution: ExecutionSnapshotV1): OfflineResultV1 => ({ schemaVersion: '1.0', workspaceId: checked.manifest.workspaceId, bundleId: checked.manifest.bundleId, localRunId: runId, deviceId: config.deviceId, source: 'OFFLINE_IMPORT', trustStatus: 'USER_REGISTERED', dirty: checked.debug || Object.keys(config.overrides ?? {}).length > 0, revocationStatus: 'UNKNOWN', manifestSha256: sha256(checked.manifestRaw), startedAt, finishedAt: startedAt, outcome: 'INCOMPLETE', actualEnvironment: executions[0]!.environment, attempts: [{ attemptId, caseVersionId: execution.caseVersionId, attemptNo: execution.attemptNo, outcome: 'INCOMPLETE', cleanupStatus: 'PENDING', lastSequence: 0, events: [], artifacts: [], execution, processStopped: false }, ...attempts] });
-        store.reserve(checked.manifest.workspaceId, runId, attemptId, initial(executions[0]!));
+        const initial = (execution: ExecutionSnapshotV1): OfflineResultV1 => {
+            const pending: OfflineResultV1['attempts'] = [{ attemptId, caseVersionId: execution.caseVersionId,
+                attemptNo: execution.attemptNo, outcome: 'INCOMPLETE', cleanupStatus: 'PENDING',
+                lastSequence: 0, events: [], artifacts: [], execution, variantKey: variantKey(execution), processStopped: false }];
+            // Keep retry ordering while atomically handing ownership to its durable checkpoint.
+            pending.unshift(...attempts);
+            return { schemaVersion: '1.0', workspaceId: checked.manifest.workspaceId,
+                bundleId: checked.manifest.bundleId, localRunId: runId, deviceId: config.deviceId,
+                source: 'OFFLINE_IMPORT', trustStatus: 'USER_REGISTERED',
+                dirty: checked.debug || Object.keys(config.overrides ?? {}).length > 0,
+                revocationStatus: 'UNKNOWN', manifestSha256: sha256(checked.manifestRaw),
+                startedAt, finishedAt: startedAt, outcome: 'INCOMPLETE', executionChoices,
+                actualEnvironment: executions[0]!.environment, attempts: pending };
+        };
+        let owner = store.reserve(checked.manifest.workspaceId, runId, attemptId, initial(executions[0]!));
         for (const execution of executions) {
             if (attempts.length) {
                 attemptId = randomUUID();
-                store.nextAttempt(runId, attemptId);
+                owner = store.nextAttempt(runId, attemptId, owner, initial(execution));
             }
-            store.checkpoint(initial(execution));
-            const first = await attempt(checked, execution, attemptId, config, store, processes);
+            store.checkpoint(initial(execution), owner);
+            const firstRun = await attempt(checked, execution, attemptId, config, store, processes, owner);
+            owner = firstRun.owner;
+            const first = firstRun.result;
             attempts.push(first);
             if (!first.processStopped || store.cancelled(runId) || config.signal?.aborted)
                 break;
             if (config.retry && ['FAILED', 'ERROR'].includes(first.outcome) && await safeRetry(checked, first, config.root)) {
                 attemptId = randomUUID();
-                store.nextAttempt(runId, attemptId);
                 const retriedExecution = { ...execution, attemptNo: 2, namespace: 'attempt_' + randomUUID().replaceAll('-', '') };
-                store.checkpoint(initial(retriedExecution));
-                const second = await attempt(checked, retriedExecution, attemptId, config, store, processes);
+                owner = store.nextAttempt(runId, attemptId, owner, initial(retriedExecution));
+                const secondRun = await attempt(checked, retriedExecution, attemptId, config, store, processes, owner);
+                owner = secondRun.owner;
+                const second = secondRun.result;
                 attempts.push(second);
                 if (!second.processStopped)
                     break;
             }
         }
         const caseOutcomes = executions.map(e => { const rows = attempts.filter(a => a.execution?.caseExecutionId === e.caseExecutionId); return rows.length === 2 && rows[1]!.outcome === 'PASSED' ? 'UNSTABLE' : rows.at(-1)?.outcome ?? 'CANCELLED'; });
-        const result: OfflineResultV1 = { schemaVersion: '1.0', workspaceId: checked.manifest.workspaceId, bundleId: checked.manifest.bundleId, localRunId: runId, deviceId: config.deviceId, source: 'OFFLINE_IMPORT', trustStatus: 'USER_REGISTERED', dirty: checked.debug || Object.keys(config.overrides ?? {}).length > 0, revocationStatus: 'UNKNOWN', manifestSha256: sha256(checked.manifestRaw), startedAt, finishedAt: new Date().toISOString(), outcome: aggregate(caseOutcomes), actualEnvironment: executions[0]!.environment, attempts: attempts as OfflineResultV1['attempts'] };
+        const result: OfflineResultV1 = { schemaVersion: '1.0', workspaceId: checked.manifest.workspaceId, bundleId: checked.manifest.bundleId, localRunId: runId, deviceId: config.deviceId, source: 'OFFLINE_IMPORT', trustStatus: 'USER_REGISTERED', dirty: checked.debug || Object.keys(config.overrides ?? {}).length > 0, revocationStatus: 'UNKNOWN', manifestSha256: sha256(checked.manifestRaw), startedAt, finishedAt: new Date().toISOString(), outcome: aggregate(caseOutcomes), executionChoices, actualEnvironment: executions[0]!.environment, attempts: attempts as OfflineResultV1['attempts'] };
         if (validateSchema('OfflineResultV1', result).length)
             throw new Error('INVALID_OFFLINE_RESULT');
-        store.finish(result);
+        store.finish(result, owner);
         return result;
     }
     finally {
@@ -318,11 +357,17 @@ export async function runOffline(bundle: Pick<VerifiedBundle, 'directory'>, conf
 export async function recoverOffline(root: string): Promise<StopReceipt | undefined> {
     const store = await LocalStore.open(root);
     try {
-        const owner = store.active();
+        let owner: Ownership | undefined;
+        for (let tries = 0; tries < 3 && !owner; tries++) {
+            const observed = store.active();
+            if (!observed)
+                return;
+            owner = store.claimRecovery(observed);
+        }
         if (!owner)
-            return;
-        const stop = owner.state === 'ALLOCATED' ? { attemptId: owner.attemptId, processStopped: true, reason: 'NO_PROCESS_SPAWNED', stoppedAt: new Date().toISOString() } : await new ProcessSupervisor(join(root, 'processes')).terminateAttempt(owner.attemptId, 'LOCAL_RECOVERY');
-        store.stopped(owner.runId, stop);
+            throw new Error('LOCAL_OWNERSHIP_CHANGED');
+        const stop = owner.state === 'RECOVERING_UNSPAWNED' ? { attemptId: owner.attemptId, processStopped: true, reason: 'NO_PROCESS_SPAWNED', stoppedAt: new Date().toISOString() } : await new ProcessSupervisor(join(root, 'processes')).terminateAttempt(owner.attemptId, 'LOCAL_RECOVERY');
+        owner = store.stopped(owner.runId, stop, owner);
         const result = store.result(owner.workspaceId, owner.runId);
         result.outcome = 'INCOMPLETE';
         result.finishedAt = new Date().toISOString();
@@ -335,7 +380,7 @@ export async function recoverOffline(root: string): Promise<StopReceipt | undefi
             attempt.outcome = 'INCOMPLETE';
             attempt.failureCode = 'LOCAL_RECOVERY';
         }
-        store.finish(result);
+        store.finish(result, owner);
         return stop;
     }
     finally {

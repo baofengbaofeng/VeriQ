@@ -107,6 +107,84 @@ def verify_archive(raw: bytes, manifest_hash: str, public: dict[str, Any]) -> di
         ) from None
 
 
+def expected_variants(checked: dict[str, Any], result: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Derive bounded selection facts from signed assets, never a caller-supplied plan."""
+    assets = {a["versionId"]: a for a in checked["snapshot"]["assets"]}
+    selection, files = checked["selection"], checked["files"]
+    draft = "draft/source.json" in files
+    target = checked["snapshot"].get("validationTarget", {}).get("versionId")
+    suite = selection.get("suiteVersionId") or (
+        target if draft and assets.get(target, {}).get("kind") == "SUITE" else None
+    )
+    entries = (
+        assets[suite]["document"]["cases"]
+        if suite
+        else [
+            {"versionId": case}
+            for case in selection.get("caseVersionIds", checked["snapshot"]["entryCaseVersionIds"])
+        ]
+    )
+    expected: dict[str, dict[str, Any]] = {}
+    for ordinal, entry in enumerate(entries):
+        case = entry["versionId"]
+        document = assets[case]["document"]
+        root = suite or case
+        source = files.get("draft/source.json" if draft else f"provenance/{root}/source.json")
+        if source is None:
+            raise Problem(409, "SOURCE_UNAVAILABLE", "Selected compilation source is unavailable")
+        provenance = {
+            "compilationSourceHash": json.loads(source)["sourceHash"],
+            "compilationSourceSha256": sha256(source).hexdigest(),
+            "compilationRootVersionId": root,
+            "dslOnly": draft,
+        }
+        for name, path in [
+            ("publishedDependencySourceSha256", f"provenance/{case}/source.json"),
+            ("publishedDependencyReceiptSha256", f"provenance/{case}/receipt.json"),
+            ("compilationDescriptorSha256", f"provenance/{root}/descriptor.json"),
+            ("compilationReceiptSha256", f"provenance/{root}/receipt.json"),
+        ]:
+            if path in files and (not draft or name.startswith("publishedDependency")):
+                provenance[name] = sha256(files[path]).hexdigest()
+        dataset = entry.get("datasetVersionId", document.get("datasetVersionId"))
+        data_rows = assets[dataset]["document"]["rows"] if dataset else [None]
+        for role in entry.get("roleKeys", [document["roleKey"]]):
+            for browser in entry.get(
+                "browsers", result.get("executionChoices", {}).get("browsers", ["chromium"])
+            ):
+                for data in data_rows:
+                    key = sha256(
+                        canonical_bytes(
+                            [case, ordinal, role, browser, dataset, data["key"] if data else None]
+                        )
+                    ).hexdigest()
+                    expected[key] = {
+                        "variant": key,
+                        "caseVersionId": case,
+                        "source": source,
+                        "root": root,
+                        "draft": draft,
+                        "attempts": [],
+                        "outcome": "INCOMPLETE",
+                        "compilation": provenance,
+                        "selection": {
+                            "variantKey": key,
+                            "suiteEntryIndex": ordinal,
+                            "roleKey": role,
+                            "browser": browser,
+                            "datasetVersionId": dataset,
+                            "dataRow": data,
+                        },
+                    }
+                    if len(expected) > 1000:
+                        raise Problem(
+                            422, "MATRIX_LIMIT", "Selected offline matrix exceeds 1000 variants"
+                        )
+    if not expected:
+        raise Problem(422, "EMPTY_EXECUTION_MATRIX", "Signed selection has no variants")
+    return expected
+
+
 class ImportService:
     def __init__(
         self,
@@ -297,6 +375,11 @@ class ImportService:
                         "source": "OFFLINE_IMPORT",
                         "declared": imported.declared,
                         "verified": imported.verified,
+                        "selection": {
+                            **{k: v for k, v in reduced["selection"].items() if k != "dataRow"},
+                            "dataRowKey": (reduced["selection"]["dataRow"] or {}).get("key"),
+                        },
+                        "compilation": reduced["compilation"],
                     },
                     state="FINISHED",
                     outcome=reduced["outcome"],
@@ -334,7 +417,9 @@ class ImportService:
     async def validate_facts(
         self, scope: WorkspaceScope, result: dict[str, Any], checked: dict[str, Any]
     ) -> list[dict[str, Any]]:
-        rows: dict[str, dict[str, Any]] = {}
+        rows = expected_variants(checked, result)
+        assets = {a["versionId"]: a for a in checked["snapshot"]["assets"]}
+        selection = checked["selection"]
         ids: set[str] = set()
         for attempt in result["attempts"]:
             case = attempt["caseVersionId"]
@@ -350,26 +435,37 @@ class ImportService:
                 for i, e in enumerate(events)
             ):
                 raise Problem(422, "INVALID_EVENT_SEQUENCE", "Offline event sequence differs")
-            source = checked["files"].get(
-                f"provenance/{case}/source.json", checked["files"].get("draft/source.json")
-            )
-            if source is None:
-                raise Problem(409, "SOURCE_UNAVAILABLE", "Original source is unavailable")
             execution = attempt.get("execution")
-            variant = sha256(
-                canonical_bytes(
-                    [
-                        case,
-                        execution.get("suiteEntryIndex", 0),
-                        execution["roleKey"],
-                        execution["browser"],
-                        execution.get("datasetVersionId"),
-                        execution.get("dataRow", {}).get("key"),
-                    ]
-                )
-                if execution
-                else canonical_bytes([case])
-            ).hexdigest()
+            if execution:
+                variant = sha256(
+                    canonical_bytes(
+                        [
+                            case,
+                            execution.get("suiteEntryIndex", 0),
+                            execution["roleKey"],
+                            execution["browser"],
+                            execution.get("datasetVersionId"),
+                            execution.get("dataRow", {}).get("key"),
+                        ]
+                    )
+                ).hexdigest()
+                if variant not in rows:
+                    raise Problem(
+                        422,
+                        "INVALID_OFFLINE_VARIANT",
+                        "Variant is outside the signed selected matrix",
+                    )
+            else:
+                candidates = [key for key, row in rows.items() if row["caseVersionId"] == case]
+                if len(candidates) != 1:
+                    raise Problem(
+                        422,
+                        "OFFLINE_VARIANT_FACTS_REQUIRED",
+                        "Legacy result has ambiguous variants; retain local history for inspection",
+                    )
+                variant = candidates[0]
+            group = rows[variant]
+            source = group["source"]
             if execution:
                 if (
                     execution["workspaceId"] != scope.workspace_id
@@ -383,7 +479,6 @@ class ImportService:
                     raise Problem(
                         422, "INVALID_OFFLINE_VARIANT", "Offline execution binding differs"
                     )
-            assets = {a["versionId"]: a for a in checked["snapshot"]["assets"]}
             document = assets[case]["document"]
             if execution:
                 selection = checked["selection"]
@@ -415,15 +510,6 @@ class ImportService:
                         "INVALID_ENVIRONMENT_OVERRIDE",
                         "Allowed origins differ from public routing",
                     )
-                entries = (
-                    assets[selection["suiteVersionId"]]["document"]["cases"]
-                    if "suiteVersionId" in selection
-                    else [{"versionId": v} for v in checked["snapshot"]["entryCaseVersionIds"]]
-                )
-                ordinal = execution.get("suiteEntryIndex", 0)
-                if ordinal >= len(entries) or entries[ordinal]["versionId"] != case:
-                    raise Problem(422, "INVALID_OFFLINE_VARIANT", "Suite entry differs")
-                entry = entries[ordinal]
                 role = next(
                     (
                         r
@@ -432,17 +518,8 @@ class ImportService:
                     ),
                     None,
                 )
-                if (
-                    not role
-                    or execution["roleKey"] not in entry.get("roleKeys", [document["roleKey"]])
-                    or execution["browser"]
-                    not in entry.get("browsers", ["chromium", "firefox", "webkit"])
-                ):
-                    raise Problem(
-                        422,
-                        "INVALID_OFFLINE_VARIANT",
-                        "Role or browser differs from signed selection",
-                    )
+                if not role:
+                    raise Problem(422, "INVALID_OFFLINE_VARIANT", "Role is unavailable")
                 identities = [role] + (
                     [original_environment["fixtureIdentity"]]
                     if document.get("fixtureVersionId")
@@ -452,7 +529,7 @@ class ImportService:
                     {"secretRef": i["secretRef"], "versionId": i["secretVersionId"]}
                     for i in identities
                 ]
-                dataset = entry.get("datasetVersionId", document.get("datasetVersionId"))
+                dataset = group["selection"]["datasetVersionId"]
                 if (
                     execution["environmentVersionId"] != selection["environmentVersionId"]
                     or execution["secretVersions"] != pins
@@ -460,15 +537,15 @@ class ImportService:
                     != checked["snapshot"].get("authAdapters", [])
                     or execution["variables"] != {}
                     or execution.get("datasetVersionId") != dataset
-                    or (
-                        dataset
-                        and execution.get("dataRow") not in assets[dataset]["document"]["rows"]
-                    )
-                    or (not dataset and "dataRow" in execution)
+                    or execution.get("dataRow") != group["selection"]["dataRow"]
                 ):
                     raise Problem(422, "INVALID_OFFLINE_VARIANT", "Frozen auth or dataset differs")
             # Older descriptors without variant facts remain importable as INCOMPLETE.
-            plan_raw = checked["files"].get(f"compiled/{case}/metadata/expected-plans.json")
+            plan_raw = (
+                None
+                if group["draft"]
+                else checked["files"].get(f"compiled/{group['root']}/metadata/expected-plans.json")
+            )
             plan = (
                 next((p for p in json.loads(plan_raw)["cases"] if p["caseVersionId"] == case), None)
                 if plan_raw
@@ -530,16 +607,6 @@ class ImportService:
                     "cleanup": attempt["cleanupStatus"],
                     "evidence": "INCOMPLETE",
                 }
-            )
-            group = rows.setdefault(
-                variant,
-                {
-                    "variant": variant,
-                    "caseVersionId": case,
-                    "source": source,
-                    "attempts": [],
-                    "outcome": "INCOMPLETE",
-                },
             )
             prior = group["attempts"]
             if attempt["attemptNo"] != len(prior) + 1 or len(prior) >= 2:

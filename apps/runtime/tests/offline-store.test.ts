@@ -12,12 +12,12 @@ test('local execution ownership survives reopen and unknown stop never frees the
         const first = await LocalStore.open(directory);
         const workspaceId = randomUUID(), runId = randomUUID(), attemptId = randomUUID();
         first.reserve(workspaceId, runId, attemptId);
-        first.spawning(runId, attemptId);
+        first.spawning(runId, attemptId, first.active()!);
         first.close();
         const reopened = await LocalStore.open(directory);
         assert.equal(reopened.active()?.attemptId, attemptId);
         assert.throws(() => reopened.reserve(workspaceId, randomUUID(), randomUUID()), /LOCAL_CAPACITY_HELD/);
-        reopened.stopped(runId, { attemptId, processStopped: false, reason: 'UNKNOWN_PROCESS', stoppedAt: new Date().toISOString() });
+        reopened.stopped(runId, { attemptId, processStopped: false, reason: 'UNKNOWN_PROCESS', stoppedAt: new Date().toISOString() }, reopened.active()!);
         assert.equal(reopened.active()?.state, 'QUARANTINED');
         assert.throws(() => reopened.reserve(workspaceId, randomUUID(), randomUUID()), /LOCAL_CAPACITY_HELD/);
         reopened.close();
