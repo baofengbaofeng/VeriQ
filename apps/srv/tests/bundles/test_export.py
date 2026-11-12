@@ -1,6 +1,7 @@
 """T14 actual HTTP boundary; T04 fixture seeds immutable compiler provenance only."""
 
 import sys
+from uuid import uuid4
 from pathlib import Path
 from test_auth import setup, login
 from test_workspace import workspace
@@ -10,12 +11,13 @@ from test_runs_mysql import published, environment
 
 
 async def test_published_selection_exports_secret_free_archive(
-    approved_metadata, site, monkeypatch
+    approved_metadata, site, monkeypatch, tmp_path
 ):
     c, db = site
     await setup(c)
     await login(c)
     ws = await workspace(c)
+    c.headers["Idempotency-Key"] = str(uuid4())
     from veriq_server.repositories.resource import ResourceRepository
     from veriq_server.auth.authorization import WorkspaceScope
 
@@ -60,6 +62,67 @@ async def test_published_selection_exports_secret_free_archive(
     )
     assert response.status_code == 201, response.text
     dto = response.json()["data"]
+    from veriq_server.services.bundle import BundleService
+
+    def must_not_assemble(_prepared):
+        raise AssertionError("Replay must not regenerate an archive")
+
+    original_assemble = BundleService.assemble
+    monkeypatch.setattr(BundleService, "assemble", staticmethod(must_not_assemble))
+    replay = await c.post(
+        f"/api/v1/workspaces/{ws}/bundles",
+        json={
+            "caseVersionIds": [case],
+            "environmentVersionId": env,
+            "validationStatus": "VALIDATED",
+        },
+    )
+    assert replay.status_code == 201, replay.text
+    assert replay.json()["data"] == dto
+    monkeypatch.setattr(BundleService, "assemble", staticmethod(original_assemble))
+    request = {
+        "caseVersionIds": [case],
+        "environmentVersionId": env,
+        "validationStatus": "VALIDATED",
+    }
+    missing_key = await c.post(
+        f"/api/v1/workspaces/{ws}/bundles", json=request, headers={"Idempotency-Key": ""}
+    )
+    assert (
+        missing_key.status_code == 400 and missing_key.json()["code"] == "IDEMPOTENCY_KEY_REQUIRED"
+    )
+    # Genuine service token, no Web session: public bundle APIs do not accept it.
+    import httpx
+
+    accounts = f"/api/v1/workspaces/{ws}/service-accounts"
+    account = (await c.post(accounts, json={"name": "bundle-negative"})).json()["data"]
+    token = (
+        await c.post(accounts + f"/{account['id']}/tokens", json={"purpose": "RUNTIME_ENROLLMENT"})
+    ).json()["data"]["token"]
+    async with httpx.AsyncClient(
+        base_url=str(c.base_url),
+        headers={"Origin": str(c.base_url).rstrip("/"), "Authorization": "Bearer " + token},
+    ) as service:
+        service.headers["X-CSRF-Token"] = (await service.get("/api/v1/setup")).json()["data"][
+            "csrfToken"
+        ]
+        assert (await service.get(f"/api/v1/workspaces/{ws}/bundles")).status_code == 401
+        assert (
+            await service.post(
+                f"/api/v1/workspaces/{ws}/bundles",
+                json=request,
+                headers={"Idempotency-Key": str(uuid4())},
+            )
+        ).status_code == 401
+    conflict = await c.post(
+        f"/api/v1/workspaces/{ws}/bundles",
+        json={
+            "caseVersionIds": [case],
+            "environmentVersionId": env,
+            "validationStatus": "UNVALIDATED_DEBUG",
+        },
+    )
+    assert conflict.status_code == 409 and conflict.json()["code"] == "IDEMPOTENCY_CONFLICT"
     manifest_response = await c.get(f"/api/v1/workspaces/{ws}/bundles/{dto['id']}/manifest")
     assert manifest_response.status_code == 200
     assert manifest_response.json()["data"]["snapshotSha256"] == dto["snapshotSha256"]
@@ -121,6 +184,16 @@ async def test_published_selection_exports_secret_free_archive(
 
     monkeypatch.setattr(BundleService, "assemble", staticmethod(held))
     async with client(c, "export-editor@example.com") as editor:
+        different_actor = await editor.post(
+            f"/api/v1/workspaces/{ws}/bundles",
+            json=request,
+            headers={"Idempotency-Key": c.headers["Idempotency-Key"]},
+        )
+        assert (
+            different_actor.status_code == 409
+            and different_actor.json()["code"] == "IDEMPOTENCY_CONFLICT"
+        )
+        editor.headers["Idempotency-Key"] = str(uuid4())
         pending = asyncio.create_task(
             editor.post(
                 f"/api/v1/workspaces/{ws}/bundles",
@@ -133,6 +206,18 @@ async def test_published_selection_exports_secret_free_archive(
         )
         try:
             assert await asyncio.to_thread(started.wait, 5)
+            concurrent = await editor.post(
+                f"/api/v1/workspaces/{ws}/bundles",
+                json={
+                    "caseVersionIds": [case],
+                    "environmentVersionId": env,
+                    "validationStatus": "VALIDATED",
+                },
+            )
+            assert (
+                concurrent.status_code == 409
+                and concurrent.json()["code"] == "BUNDLE_EXPORT_IN_PROGRESS"
+            )
             removed = await asyncio.wait_for(
                 c.delete(f"/api/v1/workspaces/{ws}/members/{editor_id}"), 3
             )
@@ -142,6 +227,47 @@ async def test_published_selection_exports_secret_free_archive(
         denied = await pending
         assert denied.status_code == 403
     assert len((await c.get(f"/api/v1/workspaces/{ws}/bundles")).json()["data"]["items"]) == 1
+    monkeypatch.setattr(BundleService, "assemble", staticmethod(original_assemble))
+    from veriq_server.bundles.issuer import Issuer
+    from veriq_server.db import BundleExport, SecretVersion
+    from sqlalchemy import select
+
+    async with db.sessions.begin() as session:
+        states = (await session.execute(select(BundleExport.state))).scalars().all()
+        assert sorted(states) == ["COMPLETE", "FAILED"]
+        secret = (await session.execute(select(SecretVersion))).scalars().first()
+        secret.revoked = True
+        secret_id = secret.id
+    revoked = await c.post(f"/api/v1/workspaces/{ws}/bundles", json=request)
+    assert revoked.status_code == 409 and revoked.json()["code"] == "CREDENTIAL_REVOKED"
+    async with db.sessions.begin() as session:
+        (
+            await session.get(SecretVersion, secret_id)
+        ).revoked = False  # restore test-owned fixture only
+    issuer = Issuer(tmp_path / "issuer/keys.json")
+    old_key = issuer.data["activeKeyId"]
+    await asyncio.to_thread(issuer.rotate)
+    assert (await c.post(f"/api/v1/workspaces/{ws}/bundles", json=request)).json()["data"] == dto
+
+    def rotates_after_assembly(prepared):
+        output = original_assemble(prepared)
+        Issuer(tmp_path / "issuer/keys.json").rotate()
+        return output
+
+    monkeypatch.setattr(BundleService, "assemble", staticmethod(rotates_after_assembly))
+    changed_key = str(uuid4())
+    changed = await c.post(
+        f"/api/v1/workspaces/{ws}/bundles", json=request, headers={"Idempotency-Key": changed_key}
+    )
+    assert changed.status_code == 409 and changed.json()["code"] == "ISSUER_CHANGED"
+    failed_retry = await c.post(
+        f"/api/v1/workspaces/{ws}/bundles", json=request, headers={"Idempotency-Key": changed_key}
+    )
+    assert failed_retry.status_code == 409 and failed_retry.json()["code"] == "BUNDLE_EXPORT_FAILED"
+    monkeypatch.setattr(BundleService, "assemble", staticmethod(original_assemble))
+    await asyncio.to_thread(issuer.revoke, old_key)
+    rejected = await c.post(f"/api/v1/workspaces/{ws}/bundles", json=request)
+    assert rejected.status_code == 409 and rejected.json()["code"] == "ISSUER_CHANGED"
 
 
 async def test_no_runtime_debug_dsl_only_requires_explicit_status_and_editor(site, tmp_path):
@@ -157,6 +283,7 @@ async def test_no_runtime_debug_dsl_only_requires_explicit_status_and_editor(sit
     await setup(c)
     await login(c)
     ws = await workspace(c)
+    c.headers["Idempotency-Key"] = str(uuid4())
     env = await environment(c, db, ws)
     catalog = await published(
         c,
@@ -296,6 +423,7 @@ async def test_bundle_selection_and_download_require_current_workspace_authority
     await setup(c)
     await login(c)
     ws = await workspace(c)
+    c.headers["Idempotency-Key"] = str(uuid4())
     env = await environment(c, db, ws)
     catalog = await published(
         c,
@@ -342,6 +470,7 @@ async def test_bundle_selection_and_download_require_current_workspace_authority
     assert missing.status_code == 404
     await new_member(c, ws, email="executor@example.com", role="EXECUTOR")
     async with client(c, "executor@example.com") as executor:
+        executor.headers["Idempotency-Key"] = str(uuid4())
         denied = await executor.post(f"/api/v1/workspaces/{ws}/bundles", json=req)
         assert denied.status_code == 403
         download = f"/api/v1/workspaces/{ws}/bundles/{result.json()['data']['id']}/download"

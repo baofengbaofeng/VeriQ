@@ -41,6 +41,7 @@ async def main():
     db = Database(settings)
     owned = {
         "veriq_bundles",
+        "veriq_bundle_exports",
         "veriq_ai_providers",
         "veriq_ai_generations",
         "veriq_runs",

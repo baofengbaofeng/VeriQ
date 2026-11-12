@@ -1,4 +1,6 @@
-import { test } from "node:test";
+import { test, mock } from "node:test";
+import { updatePrivate } from "../src/offline/config.ts";
+import { RuntimeClient, type DeviceConfig } from "../src/enrollment.ts";
 import assert from "node:assert/strict";
 import { generateKeyPairSync, sign, createHash } from "node:crypto";
 import {
@@ -13,6 +15,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
+import { compileFiles, type EngineDistribution } from "@veriq/compiler";
 import { canonicalBytes, assetSourceBytes } from "@veriq/contracts";
 import {
   snapshot,
@@ -59,6 +62,14 @@ async function fixture() {
       link?: boolean;
       payload?: Buffer;
       directoryCollision?: boolean;
+      inconsistent?:
+        | "entries"
+        | "adapter"
+        | "engine"
+        | "entrypoints"
+        | "validationOnly"
+        | "dependencies";
+      signing?: { keyId: string; privateKey: typeof pair.privateKey };
     } = {},
   ) {
     const source = snapshot(undefined, [
@@ -79,6 +90,51 @@ async function fixture() {
         ],
       }),
     ]);
+    const configuration = {
+      kind: "HTTP_BEARER" as const,
+      identityPath: "/me",
+      identityPointer: "/id",
+    };
+    source.authAdapters = [
+      {
+        workspaceId: source.workspaceId,
+        versionId: id(13),
+        configuration,
+        contentHash: sha(canonicalBytes(configuration)),
+      },
+    ];
+    source.sourceHash = sha(assetSourceBytes(source));
+    const vendor = Buffer.from("isolated dependency byte fixture");
+    const dependencies = [
+      {
+        name: "@veriq/runner-sdk",
+        version: "0.1.0",
+        integrity:
+          "sha512-" + createHash("sha512").update(vendor).digest("base64"),
+      },
+    ];
+    const distribution: EngineDistribution = {
+      engineVersion: "0.1.0",
+      runnerSdkVersion: "0.1.0",
+      dependencies,
+      packageJson: canonicalBytes({
+        name: "veriq-generated",
+        type: "module",
+        dependencies: { "@veriq/runner-sdk": "file:vendor/sdk.tgz" },
+      }),
+      packageLock: canonicalBytes({
+        lockfileVersion: 3,
+        packages: {
+          "": { dependencies: { "@veriq/runner-sdk": "file:vendor/sdk.tgz" } },
+          "node_modules/@veriq/runner-sdk": {
+            version: "0.1.0",
+            resolved: "file:vendor/sdk.tgz",
+            integrity: dependencies[0]!.integrity,
+          },
+        },
+      }),
+      files: { "vendor/sdk.tgz": vendor },
+    };
     const files: Record<string, Buffer> = {
       "snapshot.json": Buffer.from(canonicalBytes(source)),
       "value.txt": opts.payload ?? Buffer.from("original"),
@@ -124,6 +180,9 @@ async function fixture() {
           a.kind === "CASE"
             ? source.assets.filter((x) => x.kind !== "ENVIRONMENT")
             : [a],
+        ...(a.kind === "ENVIRONMENT"
+          ? { authAdapters: source.authAdapters }
+          : {}),
         validationTarget: {
           resourceId: a.resourceId,
           versionId: a.versionId,
@@ -131,32 +190,8 @@ async function fixture() {
         },
       };
       original.sourceHash = sha(assetSourceBytes(original));
-      const code = Buffer.from("export {};"),
-        entry = {
-          path: "validation.ts",
-          sha256: sha(code),
-          sizeBytes: code.length,
-        };
-      const descriptor = {
-        schemaVersion: "1.0",
-        sourceHash: original.sourceHash,
-        engineVersion: "0.1.0",
-        compilerVersion: "0.1.0",
-        runnerSdkVersion: "0.1.0",
-        entrypoints:
-          a.kind === "CASE"
-            ? [{ caseVersionId: a.versionId, path: "validation.ts" }]
-            : [],
-        ...(a.kind !== "CASE" ? { validationOnly: true } : {}),
-        files: [entry],
-        dependencies: [
-          {
-            name: "@veriq/runner-sdk",
-            version: "0.1.0",
-            integrity: "sha256-" + sha(code),
-          },
-        ],
-      };
+      const compiled = compileFiles(original as typeof source, distribution),
+        descriptor = compiled.bundle;
       put(`provenance/${a.versionId}/source.json`, original);
       put(`provenance/${a.versionId}/descriptor.json`, descriptor);
       put(`provenance/${a.versionId}/receipt.json`, {
@@ -166,14 +201,21 @@ async function fixture() {
         compilerTrust: "MANAGED",
         revision: 1,
       });
-      files[`compiled/${a.versionId}/validation.ts`] = code;
+      for (const [path, bytes] of Object.entries(compiled.files))
+        files[`compiled/${a.versionId}/${path}`] = Buffer.from(bytes);
     }
     const engineFiles = [
       "package.json",
       "package-lock.json",
       "dependencies.json",
     ].map((path) => {
-      const body = Buffer.from("{}");
+      const body = Buffer.from(
+        path === "package.json"
+          ? distribution.packageJson
+          : path === "package-lock.json"
+            ? distribution.packageLock
+            : canonicalBytes(dependencies),
+      );
       files["engine/" + path] = body;
       return { path, sha256: sha(body), sizeBytes: body.length };
     });
@@ -185,7 +227,7 @@ async function fixture() {
           compilerVersion: "0.1.0",
           runnerSdkVersion: "0.1.0",
           files: engineFiles,
-          dependencies: [],
+          dependencies,
         },
       ],
     });
@@ -193,12 +235,56 @@ async function fixture() {
       files["Folder/a.txt"] = Buffer.from("a");
       files["folder/b.txt"] = Buffer.from("b");
     }
+    if (opts.inconsistent) {
+      const update = (path: string, change: (value: any) => void) => {
+        const value = JSON.parse(files[path]!.toString());
+        change(value);
+        put(path, value);
+        return value;
+      };
+      if (opts.inconsistent === "entries" || opts.inconsistent === "adapter") {
+        if (opts.inconsistent === "entries")
+          source.entryCaseVersionIds = [id(999)];
+        else
+          source.authAdapters = [
+            {
+              workspaceId: id(999),
+              versionId: id(13),
+              configuration: {
+                kind: "HTTP_BEARER",
+                identityPath: "/me",
+                identityPointer: "/id",
+              },
+              contentHash: "0".repeat(64),
+            },
+          ];
+        source.sourceHash = sha(assetSourceBytes(source));
+        put("snapshot.json", source);
+      } else if (opts.inconsistent === "engine") {
+        update("engine/inventory.json", (v) => {
+          v.engines[0].compilerVersion = "9.9.9";
+          v.engines[0].runnerSdkVersion = "9.9.9";
+        });
+      } else {
+        const path = `provenance/${id(1)}/descriptor.json`;
+        update(path, (v) => {
+          if (opts.inconsistent === "entrypoints")
+            v.entrypoints[0].caseVersionId = id(999);
+          if (opts.inconsistent === "validationOnly") v.validationOnly = true;
+          if (opts.inconsistent === "dependencies")
+            v.dependencies[0].version = "9.9.9";
+        });
+        update(`provenance/${id(1)}/receipt.json`, (v) => {
+          v.compiledBundleSha256 = sha(files[path]!);
+        });
+      }
+    }
     const manifest = {
       schemaVersion: "1.0",
       bundleId: "00000000-0000-4000-8000-000000000010",
       workspaceId: source.workspaceId,
       issuerId: issuer.issuerId,
-      keyId: "key_1",
+      keyId: opts.signing?.keyId ?? "key_1",
       createdAt: "2020-01-01T00:00:00Z",
       expiresAt: opts.expired ? "2021-01-01T00:00:00Z" : "2099-01-01T00:00:00Z",
       sourceHash: source.sourceHash,
@@ -215,7 +301,7 @@ async function fixture() {
     files["manifest.json"] = manifestRaw;
     files["manifest.sig"] = opts.unsigned
       ? Buffer.alloc(64)
-      : sign(null, manifestRaw, pair.privateKey);
+      : sign(null, manifestRaw, opts.signing?.privateKey ?? pair.privateKey);
     if (opts.mutate) files["value.txt"] = Buffer.from("tampered");
     if (opts.extra) files[opts.extra] = Buffer.from("extra");
     const input = join(dir, "entries.json"),
@@ -322,7 +408,7 @@ test("expiry and debug require explicit consent, revoked keys remain rejected; r
     const state = structuredClone(f.issuer);
     state.revision++;
     state.keys[0]!.revoked = true;
-    // OOB refresh can record revocations when another non-revoked trusted key is present.
+    // Authenticated exact-origin transport establishes complete rotation/revocation metadata.
     const replacement = generateKeyPairSync("ed25519")
       .publicKey.export({ format: "der", type: "spki" })
       .subarray(-32);
@@ -333,11 +419,27 @@ test("expiry and debug require explicit consent, revoked keys remain rejected; r
       fingerprint: sha(replacement),
       revoked: false,
     });
-    await f.trust.bind(
-      state,
-      "https://control.test",
-      state.keys[1]!.fingerprint,
+    const config = {
+      server: "https://control.test",
+      deviceToken: "synthetic-device",
+    } as DeviceConfig;
+    let remote = state;
+    const request = mock.method(
+      RuntimeClient.prototype,
+      "request",
+      async function (
+        path: string,
+        method: string,
+        _body: unknown,
+        token: string,
+      ) {
+        assert.equal(path, "/internal/v1/issuer");
+        assert.equal(method, "GET");
+        assert.equal(token, config.deviceToken);
+        return remote;
+      },
     );
+    await f.trust.refresh(config);
     await assert.rejects(
       verifyBundle(archive, {
         trust: f.trust,
@@ -346,21 +448,22 @@ test("expiry and debug require explicit consent, revoked keys remain rejected; r
       }),
       /ISSUER_KEY_REVOKED/,
     );
+    remote = f.issuer;
+    await assert.rejects(f.trust.refresh(config), /ISSUER_ROLLBACK/);
     await assert.rejects(
       f.trust.bind(
         f.issuer,
         "https://control.test",
         f.issuer.keys[0]!.fingerprint,
       ),
-      /ISSUER_ROLLBACK/,
+      /ISSUER_KEY_REVOKED/,
     );
     const altered = structuredClone(state);
     altered.revision++;
     altered.keys[0] = { ...state.keys[1]!, keyId: "key_1" };
-    await assert.rejects(
-      f.trust.bind(altered, "https://control.test", state.keys[1]!.fingerprint),
-      /ISSUER_REPLACEMENT/,
-    );
+    remote = altered;
+    await assert.rejects(f.trust.refresh(config), /ISSUER_REPLACEMENT/);
+    request.mock.restore();
   } finally {
     await f.close();
   }
@@ -426,6 +529,158 @@ test("signed portable directory aliases and compressed oversize members are reje
       verifyBundle(bomb, { trust: f.trust, destination: join(f.dir, "bomb") }),
       /UNSAFE_ARCHIVE/,
     );
+  } finally {
+    await f.close();
+  }
+});
+
+test("OOB fingerprint never admits appended signers or their unsigned revision", async () => {
+  const f = await fixture();
+  try {
+    const attacker = generateKeyPairSync("ed25519");
+    const raw = attacker.publicKey
+      .export({ format: "der", type: "spki" })
+      .subarray(-32);
+    const injected = {
+      ...f.issuer,
+      revision: 999999,
+      keys: [
+        ...f.issuer.keys,
+        {
+          keyId: "attacker",
+          algorithm: "Ed25519" as const,
+          publicKey: raw.toString("base64"),
+          fingerprint: sha(raw),
+          revoked: false,
+        },
+      ],
+    };
+    for (const trust of [new TrustStore(join(f.dir, "first-bind")), f.trust]) {
+      await trust.bind(
+        injected,
+        "https://control.test",
+        f.issuer.keys[0]!.fingerprint,
+      );
+      const input = await f.archive({
+        signing: { keyId: "attacker", privateKey: attacker.privateKey },
+      });
+      const destination = join(f.dir, "injected");
+      await assert.rejects(
+        verifyBundle(input, { trust, destination }),
+        /ISSUER_KEY/,
+      );
+      await assert.rejects(stat(destination), { code: "ENOENT" });
+      assert.notEqual(
+        (await trust.issuer(f.issuer.issuerId)).revision,
+        injected.revision,
+      );
+    }
+  } finally {
+    await f.close();
+  }
+});
+
+for (const inconsistent of [
+  "entries",
+  "adapter",
+  "engine",
+  "entrypoints",
+  "validationOnly",
+  "dependencies",
+] as const) {
+  test(`signed inconsistent ${inconsistent} is rejected before install`, async () => {
+    const f = await fixture();
+    try {
+      const input = await f.archive({ inconsistent }),
+        destination = join(f.dir, "semantic");
+      await assert.rejects(
+        verifyBundle(input, { trust: f.trust, destination }),
+        /BUNDLE_/,
+      );
+      await assert.rejects(stat(destination), { code: "ENOENT" });
+    } finally {
+      await f.close();
+    }
+  });
+}
+
+test("unsigned metadata cannot poison authenticated revisions; legacy revocations deny aliases after rebind", async () => {
+  const f = await fixture();
+  try {
+    const rotated = generateKeyPairSync("ed25519"),
+      raw = rotated.publicKey
+        .export({ format: "der", type: "spki" })
+        .subarray(-32);
+    const key = {
+      keyId: "rotation",
+      algorithm: "Ed25519" as const,
+      publicKey: raw.toString("base64"),
+      fingerprint: sha(raw),
+      revoked: false,
+    };
+    await f.trust.bind(
+      {
+        ...f.issuer,
+        revision: Number.MAX_SAFE_INTEGER,
+        keys: [...f.issuer.keys, key],
+      },
+      "https://control.test",
+      f.issuer.keys[0]!.fingerprint,
+    );
+    const config = {
+      server: "https://control.test",
+      deviceToken: "synthetic-device",
+    } as DeviceConfig;
+    const request = mock.method(
+      RuntimeClient.prototype,
+      "request",
+      async () => ({ ...f.issuer, revision: 2, keys: [...f.issuer.keys, key] }),
+    );
+    try {
+      await f.trust.refresh(config);
+    } finally {
+      request.mock.restore();
+    }
+    const archive = await f.archive({
+      signing: { keyId: key.keyId, privateKey: rotated.privateKey },
+    });
+    await verifyBundle(archive, {
+      trust: f.trust,
+      destination: join(f.dir, "rotated"),
+    });
+    const directory = join(f.dir, "legacy"),
+      legacy = new TrustStore(directory);
+    await updatePrivate(directory, "trust.json", () => ({
+      origins: { "https://control.test": f.issuer.issuerId },
+      issuers: {
+        [f.issuer.issuerId]: {
+          ...f.issuer,
+          keys: [{ ...f.issuer.keys[0]!, revoked: true }, key],
+        },
+      },
+    }));
+    await assert.rejects(
+      legacy.issuer(f.issuer.issuerId),
+      /ISSUER_NOT_TRUSTED/,
+    );
+    await legacy.bind(
+      { ...f.issuer, keys: [key] },
+      "https://control.test",
+      key.fingerprint,
+    );
+    await assert.rejects(
+      legacy.bind(
+        {
+          issuerId: "renamed",
+          revision: 999,
+          keys: [{ ...f.issuer.keys[0]!, keyId: "alias" }],
+        },
+        "https://control.test",
+        f.issuer.keys[0]!.fingerprint,
+      ),
+      /ISSUER_KEY_REVOKED/,
+    );
+    assert.deepEqual((await legacy.issuer(f.issuer.issuerId)).keys, [key]);
   } finally {
     await f.close();
   }

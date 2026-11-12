@@ -10,14 +10,15 @@ from ..settings import Settings
 
 
 class ApprovedEngines:
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, raw: bytes | None = None):
         self.path = settings.approved_engine_inventory_path
+        self.raw = raw
 
     def require(self, version: str) -> tuple[dict[str, Any], str]:
         try:
             if not self.path:
                 raise ValueError("Absent inventory")
-            raw = Path(self.path).read_bytes()
+            raw = self.raw if self.raw is not None else Path(self.path).read_bytes()
             if len(raw) > 2 * 1024 * 1024:
                 raise ValueError("Oversize inventory")
             document = json.loads(raw)

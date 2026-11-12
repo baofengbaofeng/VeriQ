@@ -13,14 +13,13 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth.authorization import Permission, WorkspaceScope
-from ..bundles.issuer import Issuer
+from ..bundles.authority import authority_guard
 from ..contracts import asset_source_hash, canonical_bytes, validate_schema
 from ..credentials.registry import IdentityRegistry
-from ..db import Bundle, User
+from ..db import Bundle, BundleExport, User
 from ..repositories.resource import ResourceRepository
 from ..service import Problem, audit, now, stamp, lock_installation
 from ..settings import Settings
-from .engines import ApprovedEngines
 from .resource import asset_references, check_document, document_hash, resource_dto, version_dto
 from .resource_source import compiled_source
 from .workspace import WorkspaceRepository
@@ -66,21 +65,131 @@ class BundleService:
         self.session, self.actor, self.settings = session, actor, settings
         self.reauthorize = reauthorize
 
-    async def export(self, scope: WorkspaceScope, req: dict[str, Any]) -> dict[str, Any]:
-        """Own the two transactions; callers supply a session without an outer begin block."""
-        await lock_installation(self.session)
-        await self.session.refresh(self.actor)
-        prepared = await self.prepare(scope, req)
+    async def export(self, scope: WorkspaceScope, req: dict[str, Any], key: str) -> dict[str, Any]:
+        """A durable reservation cannot be taken over after an ambiguous/crashed request."""
+        if (
+            not key
+            or len(key) > 160
+            or not key.isascii()
+            or any(ord(c) < 33 or ord(c) > 126 for c in key)
+        ):
+            raise Problem(
+                400, "IDEMPOTENCY_KEY_REQUIRED", "Bounded printable ASCII idempotency key required"
+            )
+        request_hash = sha256(
+            canonical_bytes({"actorId": self.actor.id, "request": req})
+        ).hexdigest()
+        reservation_id: str | None = None
+        # identity() may have started a read transaction; no configuration guard
+        # is ever acquired with a database transaction still open.
         await self.session.commit()
-        assembled = await asyncio.to_thread(self.assemble, prepared)
-        await lock_installation(self.session)
-        self.session.expire_all()
-        await self.session.refresh(self.actor)
-        if self.reauthorize:
-            self.actor = await self.reauthorize(self.session)
-        result = await self.publish(scope, prepared, assembled)
-        await self.session.commit()
-        return result
+        try:
+            async with authority_guard(self.settings, "draftValidationJobId" in req) as authority:
+                self.issuer, self.engines = authority
+                await lock_installation(self.session)
+                await self.session.refresh(self.actor)
+                if self.reauthorize:
+                    self.actor = await self.reauthorize(self.session)
+                await self.authorize(scope)
+                if "draftValidationJobId" in req:
+                    await WorkspaceRepository(self.session, scope).authorize(
+                        self.actor, Permission.EDIT
+                    )
+                existing = (
+                    await self.session.execute(
+                        select(BundleExport).where(
+                            BundleExport.workspace_id == scope.workspace_id,
+                            BundleExport.idempotency_key == key,
+                        )
+                    )
+                ).scalar_one_or_none()
+                if existing:
+                    if existing.actor_id != self.actor.id or existing.request_hash != request_hash:
+                        raise Problem(409, "IDEMPOTENCY_CONFLICT", "Bundle export request changed")
+                    if existing.state != "COMPLETE":
+                        raise Problem(
+                            409,
+                            "BUNDLE_EXPORT_" + existing.state,
+                            "Export cannot be automatically repeated; use a new key only after reconciling the prior request",
+                        )
+                    result = await self.replay(scope, existing)
+                    await self.session.commit()
+                    return result
+                prepared = await self.prepare(scope, req)
+                reservation_id = str(uuid4())
+                self.session.add(
+                    BundleExport(
+                        id=reservation_id,
+                        workspace_id=scope.workspace_id,
+                        idempotency_key=key,
+                        actor_id=self.actor.id,
+                        request_hash=request_hash,
+                        state="IN_PROGRESS",
+                        authority={
+                            "roles": prepared["roles"],
+                            "issuerId": prepared["manifest"]["issuerId"],
+                            "keyId": prepared["manifest"]["keyId"],
+                            "keyFingerprint": next(
+                                k["fingerprint"]
+                                for k in prepared["issuer"].public()["keys"]
+                                if k["keyId"] == prepared["manifest"]["keyId"]
+                            ),
+                            "engine": prepared.get("engine"),
+                            "draft": "draftValidationJobId" in req,
+                        },
+                        created_at=now(),
+                    )
+                )
+                await self.session.commit()
+            assembled = await asyncio.to_thread(self.assemble, prepared)
+            async with authority_guard(self.settings, "draftValidationJobId" in req) as authority:
+                self.issuer, self.engines = authority
+                await lock_installation(self.session)
+                self.session.expire_all()
+                await self.session.refresh(self.actor)
+                if self.reauthorize:
+                    self.actor = await self.reauthorize(self.session)
+                result = await self.publish(scope, prepared, assembled)
+                await self.session.flush()
+                reservation = await self.session.get(BundleExport, reservation_id)
+                assert reservation is not None and reservation.state == "IN_PROGRESS"
+                reservation.state, reservation.bundle_id = "COMPLETE", result["id"]
+                await self.session.commit()
+            return result
+        except BaseException:
+            await self.session.rollback()
+            if reservation_id:
+                # An uncertain commit must never overwrite COMPLETE. If this cleanup
+                # itself cannot commit, IN_PROGRESS remains safely unreplayable.
+                async with self.session.begin():
+                    await lock_installation(self.session)
+                    reservation = await self.session.get(
+                        BundleExport, reservation_id, populate_existing=True
+                    )
+                    if reservation and reservation.state == "IN_PROGRESS":
+                        reservation.state = "FAILED"
+            raise
+
+    async def replay(self, scope: WorkspaceScope, reservation: BundleExport) -> dict[str, Any]:
+        assert reservation.bundle_id is not None
+        row = await self.get(scope, reservation.bundle_id)
+        authority = reservation.authority
+        public = self.issuer.public()
+        if public["issuerId"] != authority["issuerId"] or not any(
+            k["keyId"] == authority["keyId"]
+            and k["fingerprint"] == authority["keyFingerprint"]
+            and not k["revoked"]
+            for k in public["keys"]
+        ):
+            raise Problem(409, "ISSUER_CHANGED", "Original bundle signing key is unavailable")
+        await IdentityRegistry().freeze(self.session, scope, authority["roles"])
+        if authority["engine"] is not None:
+            engine, _ = self.engines.require(authority["engine"]["engineVersion"])
+            if engine != authority["engine"]:
+                raise Problem(409, "ENGINE_CHANGED", "Original approved engine changed")
+        repo = ResourceRepository(self.session, scope)
+        await repo.artifact(row.archive_hash)
+        return bundle_dto(row)
 
     async def authorize(self, scope: WorkspaceScope) -> None:
         await WorkspaceRepository(self.session, scope).authorize(self.actor, Permission.DOWNLOAD)
@@ -102,7 +211,7 @@ class BundleService:
 
     async def prepare(self, scope: WorkspaceScope, req: dict[str, Any]) -> dict[str, Any]:
         await self.authorize(scope)
-        issuer = Issuer(self.settings.bundle_issuer_path)
+        issuer = self.issuer
         repo = ResourceRepository(self.session, scope)
         if sum(k in req for k in ("caseVersionIds", "suiteVersionId", "draftValidationJobId")) != 1:
             raise Problem(400, "INVALID_SELECTION", "Select CASE versions or one SUITE")
@@ -268,7 +377,7 @@ class BundleService:
                 ),
             )
         else:
-            engine, _ = ApprovedEngines(self.settings).require(engine_version)
+            engine, _ = self.engines.require(engine_version)
             add(
                 "engine/inventory.json",
                 canonical_bytes({"schemaVersion": "1.0", "engines": [engine]}),
@@ -338,6 +447,7 @@ class BundleService:
             "issuer": issuer,
             "created": created,
             "request": req,
+            "engine": None if draft_mode else engine,
         }
 
     @staticmethod
@@ -361,14 +471,12 @@ class BundleService:
         await self.authorize(scope)
         if "draftValidationJobId" in prepared["request"]:
             await WorkspaceRepository(self.session, scope).authorize(self.actor, Permission.EDIT)
-        current = Issuer(self.settings.bundle_issuer_path)
+        current = self.issuer
         if current.public() != prepared["issuer"].public():
             raise Problem(409, "ISSUER_CHANGED", "Issuer changed during export; retry")
         await IdentityRegistry().freeze(self.session, scope, prepared["roles"])
         if "draftValidationJobId" not in prepared["request"]:
-            engine, _ = ApprovedEngines(self.settings).require(
-                prepared["manifest"]["engineVersion"]
-            )
+            engine, _ = self.engines.require(prepared["manifest"]["engineVersion"])
             if (
                 canonical_bytes({"schemaVersion": "1.0", "engines": [engine]})
                 != prepared["files"]["engine/inventory.json"]

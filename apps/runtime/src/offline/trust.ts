@@ -18,8 +18,11 @@ export type IssuerTrust = {
   keys: IssuerKey[];
 };
 type Cache = {
+  version: 2;
   origins: Record<string, string>;
   issuers: Record<string, IssuerTrust>;
+  authenticated: Record<string, IssuerTrust>;
+  revokedFingerprints: string[];
 };
 const keyPattern = /^[A-Za-z_][A-Za-z0-9_-]{0,159}$/;
 export function publicKey(key: IssuerKey) {
@@ -67,9 +70,14 @@ export class TrustStore {
   async issuer(id: string): Promise<IssuerTrust> {
     try {
       const cache = await readPrivate<Cache>(this.directory, "trust.json");
-      if (!Object.hasOwn(cache.issuers, id)) throw new Error();
+      if (cache.version !== 2 || !Object.hasOwn(cache.issuers, id))
+        throw new Error();
       const value = cache.issuers[id]!;
-      return validateIssuer(value);
+      const result = validateIssuer(value);
+      for (const key of result.keys)
+        if (cache.revokedFingerprints.includes(key.fingerprint))
+          key.revoked = true;
+      return result;
     } catch {
       throw new Error("ISSUER_NOT_TRUSTED");
     }
@@ -81,10 +89,17 @@ export class TrustStore {
   ): Promise<void> {
     const issuer = validateIssuer(value),
       server = controlOrigin(origin);
-    // The caller explicitly compares an administrator-distributed fingerprint.
-    if (!issuer.keys.some((k) => !k.revoked && k.fingerprint === fingerprint))
-      throw new Error("FINGERPRINT_MISMATCH");
-    await this.accept(issuer, server, true);
+    // Only this key is authenticated. Labels are local lookup aliases; unsigned
+    // revisions, revocations and sibling keys have no authority.
+    const key = issuer.keys.find(
+      (k) => !k.revoked && k.fingerprint === fingerprint,
+    );
+    if (!key) throw new Error("FINGERPRINT_MISMATCH");
+    await this.accept(
+      { issuerId: issuer.issuerId, revision: 1, keys: [key] },
+      server,
+      true,
+    );
   }
   async refresh(config: DeviceConfig, signal?: AbortSignal): Promise<void> {
     const server = controlOrigin(config.server);
@@ -103,7 +118,23 @@ export class TrustStore {
   }
   private async accept(value: IssuerTrust, origin: string, explicit: boolean) {
     await updatePrivate<Cache>(this.directory, "trust.json", (old) => {
-      const cache = old ?? { origins: {}, issuers: {} };
+      // Pre-fix caches cannot authenticate signers. Preserve only conservative
+      // revoked fingerprints so explicit rebind cannot resurrect a known key.
+      const cache: Cache =
+        old?.version === 2
+          ? old
+          : {
+              version: 2,
+              origins: {},
+              issuers: {},
+              authenticated: {},
+              revokedFingerprints: Object.values(old?.issuers ?? {}).flatMap(
+                (issuer) =>
+                  validateIssuer(issuer)
+                    .keys.filter((k) => k.revoked)
+                    .map((k) => k.fingerprint),
+              ),
+            };
       if (
         cache.origins[origin] &&
         cache.origins[origin] !== value.issuerId &&
@@ -113,10 +144,34 @@ export class TrustStore {
       const prior = Object.hasOwn(cache.issuers, value.issuerId)
         ? cache.issuers[value.issuerId]
         : undefined;
-      if (prior) {
-        validateIssuer(prior);
-        if (value.revision < prior.revision) throw new Error("ISSUER_ROLLBACK");
-        for (const key of prior.keys) {
+      const authenticated = Object.hasOwn(cache.authenticated, value.issuerId)
+        ? cache.authenticated[value.issuerId]
+        : undefined;
+      if (explicit) {
+        const key = value.keys[0]!;
+        if (cache.revokedFingerprints.includes(key.fingerprint))
+          throw new Error("ISSUER_KEY_REVOKED");
+        const existing = prior?.keys.find((k) => k.keyId === key.keyId);
+        if (existing && existing.publicKey !== key.publicKey)
+          throw new Error("ISSUER_REPLACEMENT");
+        value = {
+          issuerId: value.issuerId,
+          revision: authenticated?.revision ?? 1,
+          keys: [
+            ...(prior?.keys.filter((k) => k.keyId !== key.keyId) ?? []),
+            key,
+          ],
+        };
+      } else {
+        if (authenticated && value.revision < authenticated.revision)
+          throw new Error("ISSUER_ROLLBACK");
+        if (
+          authenticated &&
+          value.revision === authenticated.revision &&
+          JSON.stringify(value) !== JSON.stringify(authenticated)
+        )
+          throw new Error("ISSUER_REPLACEMENT");
+        for (const key of prior?.keys ?? []) {
           const next = value.keys.find((k) => k.keyId === key.keyId);
           if (
             !next ||
@@ -125,12 +180,26 @@ export class TrustStore {
           )
             throw new Error("ISSUER_REPLACEMENT");
         }
-        if (
-          value.revision === prior.revision &&
-          JSON.stringify(value) !== JSON.stringify(prior)
-        )
-          throw new Error("ISSUER_REPLACEMENT");
+        for (const key of value.keys) {
+          if (
+            !key.revoked &&
+            cache.revokedFingerprints.includes(key.fingerprint)
+          )
+            throw new Error("ISSUER_KEY_REVOKED");
+          if (
+            key.revoked &&
+            !cache.revokedFingerprints.includes(key.fingerprint)
+          )
+            cache.revokedFingerprints.push(key.fingerprint);
+        }
+        Object.defineProperty(cache.authenticated, value.issuerId, {
+          value: structuredClone(value),
+          enumerable: true,
+          writable: true,
+          configurable: true,
+        });
       }
+      if (value.keys.length > 100) throw new Error("INVALID_ISSUER");
       Object.defineProperty(cache.origins, origin, {
         value: value.issuerId,
         enumerable: true,

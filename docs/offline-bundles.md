@@ -81,3 +81,37 @@ unavailable original provenance fails export/verification. Data is read-only; th
 not add offline editing, automatic sync, result import or another online Attempt path.
 T15 owns distinct OFFLINE_IMPORT results. Package/metadata lifecycle and explicit
 read-only cache deletion are T21; raw Trace remains credential-restricted.
+
+Fingerprint binding trusts only the individually checked signing key. Other keys,
+unsigned revisions and revocation claims in that JSON do not gain authority. Issuer IDs
+in this path are local lookup labels; they never select a credential destination.
+Authenticated refresh uses the independently enrolled Runtime origin and checks its
+monotonic authenticated metadata. Rotation requires authenticated refresh or a separate
+fingerprint check for each new key. Known revoked fingerprints remain denied across
+aliases, rebind and logout. Pre-fix trust caches cannot authenticate signing roots;
+explicit rebind retains conservative known-revocation denies while dropping old roots.
+
+Web bundle creation is synchronous201 and accepts only WebSession+CSRF. Supply a
+printable ASCII `Idempotency-Key` (1–160 characters). Workspace+key binds the actor and
+canonical request. Same actor/body returns the original immutable bundle after current
+membership, credential pins, signing-key status and approved-engine checks; no archive
+is regenerated. Different actor/body returns409. IN_PROGRESS or FAILED reservations
+return explicit409 and are never automatically taken over. After a crash or ambiguous
+response, reconcile the prior export before deliberately choosing a new key. These
+reservations survive restart; T21 must retain retry bindings when applying lifecycle.
+The GUI retains a key for retries of the same submitted selection, a visible CASE
+resource/version basket, and cursor pagination for CASE/SUITE/environment versions.
+
+Operator configuration promotion must coordinate with exports. Stable lock paths are
+`Path(bundle_issuer_path).with_suffix(".lock")` and
+`Path(bundle_issuer_path).with_suffix(".inventory.lock")`, in the private writable issuer
+state directory (never beside read-only release assets). All instances share this state.
+Take exclusive `flock` on issuer lock, then inventory lock; atomically replace the approved
+inventory, fsync file/directory, then release in reverse order. Issuer rotation/revocation
+CLI takes the first lock. Never replace lock files themselves. Service acquires these
+locks before DB transactions, reads current files outside DB locks, then holds them through
+publish/replay commit. Compression releases both guards and DB transactions; final
+publication reacquires fresh authority. Unguarded manual hot replacement is unsupported.
+T18 engine promotion must use this exact coordination protocol. Acquisition is bounded
+five seconds per guard and cancellation releases eventual descriptors; no time-based reservation
+takeover or internal scheduler is introduced.

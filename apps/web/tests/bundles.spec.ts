@@ -8,7 +8,7 @@ const command = promisify(execFile);
 test("real Agent publications export through keyboard GUI and verify offline with exact generated source", async ({
   page,
 }) => {
-  test.setTimeout(180000);
+  test.setTimeout(240000);
   await page.setViewportSize({ width: 1280, height: 800 });
   const state = (await (await page.request.get("/api/v1/setup")).json()).data;
   if (!state.initialized)
@@ -39,6 +39,9 @@ test("real Agent publications export through keyboard GUI and verify offline wit
     });
     expect(create.status(), await create.text()).toBe(201);
     const resource = (await create.json()).data;
+    return publishVersion(resource);
+  }
+  async function publishVersion(resource: { id: string }) {
     const path = base + `/resources/${resource.id}`,
       preview = (
         await (await page.request.get(path + "/validation-preview")).json()
@@ -119,13 +122,87 @@ test("real Agent publications export through keyboard GUI and verify offline wit
       catalogVersionId: catalog.version.id,
       steps: [{ id: "open", action: "goto", path: "/" }],
     });
+    const second = await publish("CASE", "bundle-case-two", {
+      schemaVersion: "1.0",
+      caseKey: "bundle-case-two",
+      title: "REQ-bundle-two",
+      kind: "READ",
+      roleKey: "reader",
+      catalogVersionId: catalog.version.id,
+      steps: [{ id: "open", action: "goto", path: "/two" }],
+    });
+    // 30 listing-only history rows, never selected/exported or claimed as compiled.
+    // Selected IDs/source/receipt/generated TS remain the real Agent publications.
+    await command(
+      "uv",
+      [
+        "run",
+        "--project",
+        "apps/srv",
+        "python",
+        "apps/srv/tests/bundles/pagination_fixture.py",
+        testcase.version.id,
+        env.version.id,
+      ],
+      { cwd: resolve("../..") },
+    );
+    for (const resource of [testcase.resource, env.resource]) {
+      const path = base + `/resources/${resource.id}`;
+      const draft = (await (await page.request.get(path + "/draft")).json())
+        .data;
+      expect(
+        (
+          await page.request.put(path + "/draft", {
+            headers: scope.headers,
+            data: { revision: draft.revision, content: draft.content },
+          })
+        ).status(),
+      ).toBe(200);
+      const latest = await publishVersion(resource);
+      expect(latest.version.versionNo).toBe(32);
+    }
     await page.getByRole("link", { name: "Bundles", exact: true }).click();
     await page.getByLabel("Bundle Workspace").selectOption(scope.workspaceId);
     await page
       .getByTestId("bundle-resource")
       .selectOption(testcase.resource.id);
+    await expect(
+      page
+        .getByTestId("bundle-version")
+        .locator(`option[value="${testcase.version.id}"]`),
+    ).toHaveCount(0);
+    const casePage = page.waitForResponse((r) =>
+      r.url().includes(`/resources/${testcase.resource.id}/versions?cursor=`),
+    );
+    await page.getByTestId("bundle-more-versions").click();
+    expect((await casePage).status()).toBe(200);
+    await expect(
+      page
+        .getByTestId("bundle-version")
+        .locator(`option[value="${testcase.version.id}"]`),
+    ).toContainText("v31");
     await page.getByTestId("bundle-version").selectOption(testcase.version.id);
+    await page.getByTestId("bundle-add-case").click();
+    await page.getByTestId("bundle-resource").selectOption(second.resource.id);
+    await page.getByTestId("bundle-version").selectOption(second.version.id);
+    await page.getByTestId("bundle-add-case").click();
+    await expect(page.getByTestId("bundle-selected-case")).toHaveCount(2);
     await page.getByTestId("bundle-environment").selectOption(env.resource.id);
+    await expect(
+      page
+        .getByTestId("bundle-environment-version")
+        .locator(`option[value="${env.version.id}"]`),
+    ).toHaveCount(0);
+    const envPage = page.waitForResponse((r) =>
+      r.url().includes(`/resources/${env.resource.id}/versions?cursor=`),
+    );
+    await page.getByTestId("bundle-more-environments").click();
+    expect((await envPage).status()).toBe(200);
+    await expect(
+      page
+        .getByTestId("bundle-environment-version")
+        .locator(`option[value="${env.version.id}"]`),
+    ).toContainText("v31");
     await page
       .getByTestId("bundle-environment-version")
       .selectOption(env.version.id);
@@ -204,6 +281,22 @@ test("real Agent publications export through keyboard GUI and verify offline wit
       { cwd },
     );
     expect(inspected.stdout).toContain("Verified local resource adapter");
+    const snapshot = JSON.parse(
+      await readFile(join(temp, "verified/snapshot.json"), "utf8"),
+    );
+    expect(snapshot.entryCaseVersionIds.sort()).toEqual(
+      [testcase.version.id, second.version.id].sort(),
+    );
+    expect(
+      snapshot.assets.map((a: { versionId: string }) => a.versionId).sort(),
+    ).toEqual(
+      [
+        testcase.version.id,
+        second.version.id,
+        env.version.id,
+        catalog.version.id,
+      ].sort(),
+    );
     const source = await readFile(
       join(
         temp,

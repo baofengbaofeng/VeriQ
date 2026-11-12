@@ -1,6 +1,6 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { Auth } from "../../auth-context";
 import { api } from "../../api";
 import { Panel } from "../../ui";
@@ -83,11 +83,15 @@ export function BundleWorkspaceView({
   const [kind, setKind] = useState<"CASE" | "SUITE" | "DRAFT">("CASE"),
     [resource, setResource] = useState(""),
     [version, setVersion] = useState(""),
+    [basket, setBasket] = useState<{ resource: Resource; version: Version }[]>(
+      [],
+    ),
     [environment, setEnvironment] = useState(""),
     [environmentVersion, setEnvironmentVersion] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [status, setStatus] = useState("");
+  const retry = useRef<{ body: string; key: string }>();
   const controller = useMemo(() => new AbortController(), []);
   useEffect(() => () => controller.abort(), [controller]);
   const combined = useMemo(
@@ -105,20 +109,24 @@ export function BundleWorkspaceView({
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (p) => p.nextCursor ?? undefined,
   });
-  const versions = useQuery({
+  const versions = useInfiniteQuery({
     queryKey: ["workspace", "bundle-versions", workspaceId, resource],
-    queryFn: ({ signal: q }) =>
-      resources.versions(resource, undefined, AbortSignal.any([combined, q])),
+    queryFn: ({ pageParam, signal: q }) =>
+      resources.versions(resource, pageParam, AbortSignal.any([combined, q])),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (p) => p.nextCursor ?? undefined,
     enabled: !!resource && kind !== "DRAFT",
   });
-  const environments = useQuery({
+  const environments = useInfiniteQuery({
     queryKey: ["workspace", "bundle-environment", workspaceId, environment],
-    queryFn: ({ signal: q }) =>
+    queryFn: ({ pageParam, signal: q }) =>
       resources.versions(
         environment,
-        undefined,
+        pageParam,
         AbortSignal.any([combined, q]),
       ),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (p) => p.nextCursor ?? undefined,
     enabled: !!environment,
   });
   const bundles = useInfiniteQuery({
@@ -161,12 +169,15 @@ export function BundleWorkspaceView({
       } else
         selection = {
           ...(kind === "CASE"
-            ? { caseVersionIds: version.split(",") }
+            ? { caseVersionIds: basket.map((item) => item.version.id) }
             : { suiteVersionId: version }),
           environmentVersionId: environmentVersion,
           validationStatus: "VALIDATED",
         };
-      await adapter.export(selection, combined);
+      const body = JSON.stringify(selection);
+      if (retry.current?.body !== body)
+        retry.current = { body, key: crypto.randomUUID() };
+      await adapter.export(selection, retry.current.key, combined);
       if (!combined.aborted) {
         setStatus("已导出 / Exported");
         await bundles.refetch();
@@ -270,9 +281,73 @@ export function BundleWorkspaceView({
                 }
               >
                 <option value="">请选择 / Select</option>
-                {versionOptions(versions.data?.items ?? [])}
+                {versionOptions(
+                  versions.data?.pages.flatMap((p) => p.items) ?? [],
+                )}
               </select>
             </label>
+          )}
+          {kind !== "DRAFT" && versions.hasNextPage && (
+            <button
+              data-testid="bundle-more-versions"
+              disabled={versions.isFetchingNextPage}
+              onClick={() => void versions.fetchNextPage()}
+            >
+              更多版本 / More versions
+            </button>
+          )}
+          {kind === "CASE" && (
+            <>
+              <button
+                data-testid="bundle-add-case"
+                disabled={!version || basket.length >= 100}
+                onClick={() => {
+                  const selectedResource = items.find((r) => r.id === resource);
+                  if (!selectedResource) return;
+                  const selectedVersions =
+                    versions.data?.pages
+                      .flatMap((p) => p.items)
+                      .filter((v) => version.split(",").includes(v.id)) ?? [];
+                  const additions = selectedVersions.filter(
+                    (v) => !basket.some((item) => item.version.id === v.id),
+                  );
+                  if (basket.length + additions.length > 100) {
+                    setError("最多100个用例版本 / At most 100 case versions");
+                    return;
+                  }
+                  setBasket((current) => [
+                    ...current,
+                    ...additions.map((v) => ({
+                      resource: selectedResource,
+                      version: v,
+                    })),
+                  ]);
+                  setVersion("");
+                }}
+              >
+                添加用例 / Add case versions
+              </button>
+              <ul aria-label="Selected case versions">
+                {basket.map((item) => (
+                  <li key={item.version.id} data-testid="bundle-selected-case">
+                    {item.resource.name} · v{item.version.versionNo} ·{" "}
+                    {item.version.id}
+                    <button
+                      aria-label={`Remove ${item.resource.name} v${item.version.versionNo}`}
+                      onClick={() =>
+                        setBasket((current) =>
+                          current.filter(
+                            (v) => v.version.id !== item.version.id,
+                          ),
+                        )
+                      }
+                    >
+                      移除 / Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
           <label>
             环境 / Environment
@@ -296,9 +371,20 @@ export function BundleWorkspaceView({
               onChange={(e) => setEnvironmentVersion(e.target.value)}
             >
               <option value="">请选择 / Select</option>
-              {versionOptions(environments.data?.items ?? [])}
+              {versionOptions(
+                environments.data?.pages.flatMap((p) => p.items) ?? [],
+              )}
             </select>
           </label>
+          {environments.hasNextPage && (
+            <button
+              data-testid="bundle-more-environments"
+              disabled={environments.isFetchingNextPage}
+              onClick={() => void environments.fetchNextPage()}
+            >
+              更多环境版本 / More environment versions
+            </button>
+          )}
           {kind === "DRAFT" && (
             <p>
               未验证 DSL 快照；本地必须先编译，不用于正式门禁。 / Unvalidated
@@ -310,9 +396,10 @@ export function BundleWorkspaceView({
             data-testid="bundle-export"
             disabled={
               busy ||
-              !resource ||
               !environmentVersion ||
-              (kind !== "DRAFT" && !version)
+              (kind === "CASE"
+                ? !basket.length
+                : !resource || (kind === "SUITE" && !version))
             }
             onClick={() => void exportBundle()}
           >

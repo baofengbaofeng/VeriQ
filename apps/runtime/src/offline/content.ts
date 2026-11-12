@@ -1,5 +1,6 @@
 /** Cross-member provenance checks after signature/hash verification, before install. */
 import { createHash } from "node:crypto";
+import { analyze, verifyFiles, verifyDistribution } from "@veriq/compiler";
 import {
   canonicalBytes,
   assetSourceBytes,
@@ -64,6 +65,24 @@ export function validateContent(
   const environment = assets.get(selection.environmentVersionId);
   if (environment?.kind !== "ENVIRONMENT")
     throw new Error("BUNDLE_ENVIRONMENT_MISSING");
+  // Shared compiler analysis owns schema references and public auth bindings.
+  // Combined exports add the independently selected ENVIRONMENT to execution roots.
+  // Draft DSL may have business/type diagnostics; only binding diagnostics block it.
+  const bindings = new Set([
+    "INVALID_ENTRY_CASE",
+    "DUPLICATE_ENTRY_CASE",
+    "INVALID_VALIDATION_TARGET",
+    "DUPLICATE_VERSION",
+    "UNRELATED_AUTH_ADAPTER",
+    "AUTH_ADAPTER_WORKSPACE_MISMATCH",
+    "AUTH_ADAPTER_HASH_MISMATCH",
+    "AUTH_ADAPTER_REQUIRED",
+  ]);
+  const issues = analyze(snapshot).issues.filter(
+    (issue) => bindings.has(issue.code) || issue.path === "/authAdapters",
+  );
+  if (issues.length) throw new Error("BUNDLE_BINDING_MISMATCH");
+  let engine: ApprovedEngineInventoryV1["engines"][number] | undefined;
   let draft: AssetSnapshotV1 | undefined;
   if (dslOnly) {
     const metadata = read<{ frozenAt: string }>("draft/metadata.json");
@@ -91,13 +110,14 @@ export function validateContent(
     )
       throw new Error("BUNDLE_ENGINE_MISMATCH");
   } else {
-    const engine = read<ApprovedEngineInventoryV1>(
+    const engines = read<ApprovedEngineInventoryV1>(
       "engine/inventory.json",
       "ApprovedEngineInventoryV1",
     ).engines;
+    engine = engines[0];
     if (
-      engine.length !== 1 ||
-      engine[0]!.engineVersion !== manifest.engineVersion
+      engines.length !== 1 ||
+      engine!.engineVersion !== manifest.engineVersion
     )
       throw new Error("BUNDLE_ENGINE_MISMATCH");
     for (const path of [
@@ -105,7 +125,7 @@ export function validateContent(
       "package-lock.json",
       "dependencies.json",
     ]) {
-      const entry = engine[0]!.files.find((f) => f.path === path),
+      const entry = engine!.files.find((f) => f.path === path),
         raw = contents.get("engine/" + path);
       if (
         !entry ||
@@ -131,6 +151,19 @@ export function validateContent(
           : dslOnly
             ? assets.get(id)?.kind
             : "CASE"),
+    )
+  )
+    throw new Error("BUNDLE_SELECTION_MISMATCH");
+  const selectedRoot = assets.get(rootIds[0]!);
+  const expectedEntries = dslOnly
+    ? draft!.entryCaseVersionIds
+    : selection.suiteVersionId && selectedRoot?.kind === "SUITE"
+      ? [...new Set(selectedRoot.document.cases.map((row) => row.versionId))]
+      : selection.caseVersionIds!;
+  if (
+    !equal(
+      [...snapshot.entryCaseVersionIds].sort(),
+      [...expectedEntries].sort(),
     )
   )
     throw new Error("BUNDLE_SELECTION_MISMATCH");
@@ -241,6 +274,78 @@ export function validateContent(
         receipt.compiledBundleSha256
     )
       throw new Error("BUNDLE_PROVENANCE_MISMATCH");
+    const entries = descriptor.entrypoints.map((e) => e.caseVersionId);
+    if (
+      new Set(entries).size !== entries.length ||
+      !equal([...entries].sort(), [...source.entryCaseVersionIds].sort()) ||
+      !!descriptor.validationOnly !== (entries.length === 0) ||
+      descriptor.entrypoints.some(
+        (e) => !descriptor.files.some((f) => f.path === e.path),
+      ) ||
+      analyze(source).issues.length ||
+      source.assets.some((a) => !equal(a, assets.get(a.versionId))) ||
+      (source.authAdapters ?? []).some(
+        (a) =>
+          !equal(
+            a,
+            snapshot.authAdapters?.find(
+              (current) => current.versionId === a.versionId,
+            ),
+          ),
+      )
+    )
+      throw new Error("BUNDLE_PROVENANCE_MISMATCH");
+    if (
+      engine &&
+      (descriptor.compilerVersion !== engine.compilerVersion ||
+        descriptor.runnerSdkVersion !== engine.runnerSdkVersion ||
+        !equal(descriptor.dependencies, engine.dependencies))
+    )
+      throw new Error("BUNDLE_ENGINE_MISMATCH");
+    if (!dslOnly) {
+      const prefix = `compiled/${asset.versionId}/`;
+      const files = Object.fromEntries(
+        [...contents]
+          .filter(([p]) => p.startsWith(prefix))
+          .map(([p, raw]) => [p.slice(prefix.length), raw]),
+      );
+      try {
+        verifyFiles(descriptor, files);
+      } catch {
+        throw new Error("BUNDLE_COMPILED_MISMATCH");
+      }
+      for (const path of [
+        "package.json",
+        "package-lock.json",
+        "dependencies.json",
+      ])
+        if (
+          !files[path] ||
+          !files[path]!.equals(contents.get("engine/" + path)!)
+        )
+          throw new Error("BUNDLE_ENGINE_MISMATCH");
+      if (!equal(read("engine/dependencies.json"), descriptor.dependencies))
+        throw new Error("BUNDLE_ENGINE_MISMATCH");
+      try {
+        verifyDistribution(
+          {
+            engineVersion: descriptor.engineVersion,
+            runnerSdkVersion: descriptor.runnerSdkVersion,
+            dependencies: descriptor.dependencies,
+            packageJson: files["package.json"]!,
+            packageLock: files["package-lock.json"]!,
+            files: Object.fromEntries(
+              Object.entries(files).filter(([path]) =>
+                path.startsWith("vendor/"),
+              ),
+            ),
+          },
+          manifest.engineVersion,
+        );
+      } catch {
+        throw new Error("BUNDLE_ENGINE_MISMATCH");
+      }
+    }
     if (!dslOnly)
       for (const file of descriptor.files) {
         const raw = contents.get(`compiled/${asset.versionId}/${file.path}`);

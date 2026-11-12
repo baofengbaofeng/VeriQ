@@ -7,7 +7,11 @@ export interface BundleAdapter {
     cursor?: string,
     signal?: AbortSignal,
   ): Promise<{ items: Bundle[]; nextCursor: string | null }>;
-  export(selection: S["BundleCreate"], signal?: AbortSignal): Promise<Bundle>;
+  export(
+    selection: S["BundleCreate"],
+    key: string,
+    signal?: AbortSignal,
+  ): Promise<Bundle>;
   download(id: string, signal?: AbortSignal): Promise<Blob>;
 }
 export class CloudBundleAdapter implements BundleAdapter {
@@ -22,8 +26,10 @@ export class CloudBundleAdapter implements BundleAdapter {
       undefined,
       signal,
     );
-  export = (selection: S["BundleCreate"], signal?: AbortSignal) =>
-    request<Bundle>(this.base(), "POST", selection, signal);
+  export = (selection: S["BundleCreate"], key: string, signal?: AbortSignal) =>
+    request<Bundle>(this.base(), "POST", selection, signal, {
+      "Idempotency-Key": key,
+    });
   async download(id: string, signal?: AbortSignal) {
     const response = await fetch(
       `/api/v1${this.base()}/${encodeURIComponent(id)}/download`,
@@ -50,8 +56,8 @@ export class LocalBundleAdapter implements BundleAdapter {
   constructor(private host: BundleAdapter) {}
   list = (cursor?: string, signal?: AbortSignal) =>
     this.host.list(cursor, signal);
-  export = (selection: S["BundleCreate"], signal?: AbortSignal) =>
-    this.host.export(selection, signal);
+  export = (selection: S["BundleCreate"], key: string, signal?: AbortSignal) =>
+    this.host.export(selection, key, signal);
   download = (id: string, signal?: AbortSignal) =>
     this.host.download(id, signal);
 }

@@ -783,6 +783,7 @@ export interface paths {
         };
         get: operations["listBundles"];
         put?: never;
+        /** @description Requires a durable Workspace-scoped Idempotency-Key. Different actor or payload conflicts. In-progress, failed or ambiguous requests are never automatically taken over. */
         post: operations["createBundle"];
         delete?: never;
         options?: never;
@@ -10414,8 +10415,8 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
-            202: {
+            /** @description Synchronous export completed. Same key, actor and request replays this immutable bundle after current authority checks. */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };

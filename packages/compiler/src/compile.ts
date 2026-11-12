@@ -179,6 +179,10 @@ function distributionFiles(
   files["dependencies.json"] = canonicalBytes(d.dependencies);
   return files;
 }
+/** Verify the same engine package/lock/dependency closure used by compilation, without executing it. */
+export function verifyDistribution(distribution: EngineDistribution, engineVersion: string): void {
+  distributionFiles(distribution, engineVersion);
+}
 /** TypeScript's printer handles identifiers/string literal escaping; DSL is emitted as inert JSON data. */
 function registration(plan: CompiledCase): Uint8Array {
   const f = ts.factory;

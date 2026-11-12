@@ -7924,9 +7924,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -7945,22 +7942,13 @@
             "schema": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 160
+              "maxLength": 160,
+              "pattern": "^[!-~]{1,160}$"
             },
             "description": "Scoped to authenticated Workspace and operation. Same key/different payload returns 409."
           }
         ],
         "responses": {
-          "202": {
-            "description": "Success.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BundleDTOEnvelope"
-                }
-              }
-            }
-          },
           "400": {
             "description": "Stable JSON error; code is a machine-readable domain code.",
             "content": {
@@ -8030,6 +8018,16 @@
                 }
               }
             }
+          },
+          "201": {
+            "description": "Synchronous export completed. Same key, actor and request replays this immutable bundle after current authority checks.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BundleDTOEnvelope"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -8041,7 +8039,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Requires a durable Workspace-scoped Idempotency-Key. Different actor or payload conflicts. In-progress, failed or ambiguous requests are never automatically taken over."
       },
       "get": {
         "operationId": "listBundles",
@@ -8052,9 +8051,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -8180,9 +8176,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -8297,9 +8290,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -8414,9 +8404,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -12264,7 +12251,7 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Maximum page size; rejected outside 1–100. Default 25.",
+            "description": "Maximum page size; rejected outside 1\u2013100. Default 25.",
             "schema": {
               "type": "integer",
               "minimum": 1,
@@ -12471,7 +12458,7 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Maximum page size; rejected outside 1–100. Default 25.",
+            "description": "Maximum page size; rejected outside 1\u2013100. Default 25.",
             "schema": {
               "type": "integer",
               "minimum": 1,

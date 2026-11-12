@@ -872,3 +872,11 @@ DSL-only candidate dates denote original snapshot freeze time, without fabricate
 published versions or validation receipts. SDK dynamic user JSON keys with exact/URL/
 base64 local secret values withhold their object; protocol keys/IDs/enums remain intact.
 Raw Trace is still credential-restricted. Limits/operations are in [offline bundles](offline-bundles.md).
+
+T14 review correction: createBundle requires printable ASCII Idempotency-Key and returns
+201 synchronously. Public bundle operations use WebSession+CSRF only; native bearer
+routes remain separate. Workspace/key binds actor+canonical body durably; replay returns
+the original immutable result only after current authority/pin/issuer/engine checks.
+IN_PROGRESS/FAILED and changed actor/body return409 without automatic takeover. See
+[offline bundles](offline-bundles.md) for crash semantics and coordinated configuration
+promotion guards. Migration0012 adds veriq_bundle_exports;0011 remains immutable.

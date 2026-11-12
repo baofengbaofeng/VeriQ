@@ -60,3 +60,16 @@ are cleared. Explicit profile deletion (including trust) remains a separate host
 The restricted config seam is honest about file permissions; Windows native vault and
 installer validation remain T20. The new archive graph's exact versions, license hashes
 and timestamped OSV result are in `docs/dependencies/t14-archive-audit.json`.
+
+Review corrections: OOB pinning authenticates only one checked key, with unsigned
+labels/revisions isolated from authenticated HTTPS keyset revisions. Version2 cache
+migration drops all legacy signer trust while retaining fingerprint revocation denies.
+Shared compiler analyze/verifyFiles/distribution verification reconciles entrypoints,
+public auth configuration, original sources and compiler/SDK/dependency inventories
+before readonly installation; signatures alone cannot supply semantic consistency.
+Synchronous201 creation uses additive0012 durable Workspace/key/actor/request reservations
+(IN_PROGRESS/COMPLETE/FAILED), no automatic takeover, and current-authority replay.
+Configuration locks are acquired issuer→inventory→DB and held through final commit;
+reads and compression remain outside DB locks. Exact writable guard paths and operator
+promotion protocol are documented in offline-bundles.md for T18. UI CASE baskets persist
+across resources and all version selectors follow actual pagination cursors.

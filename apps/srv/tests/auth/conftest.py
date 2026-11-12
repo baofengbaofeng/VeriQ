@@ -63,6 +63,7 @@ async def site(request, monkeypatch):
         tables = (await conn.execute(text("SHOW TABLES"))).scalars().all()
         owned = {
             "veriq_bundles",
+            "veriq_bundle_exports",
             "veriq_ai_providers",
             "veriq_ai_generations",
             "veriq_runs",
