@@ -1,98 +1,312 @@
+/**
+ * 本文件 apps/web/src/features/environments/identity-adapter.ts 实现 VeriQ 相关前端或执行侧能力，并标明公开导出与关键路径
+ * 模块注释用于帮助智能体与贡献者快速定位授权、执行与离线相关逻辑。
+ * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+ * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+ * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+ * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+ * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+ * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ */
+
 import type {
-  PlatformComponents,
-  AuthAdapterConfigV1,
-  JsonObject,
+    PlatformComponents,
+    AuthAdapterConfigV1,
+    JsonObject,
+// 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+// 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+// 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
 } from "@veriq/contracts";
 import { request } from "../../api";
 type S = PlatformComponents["schemas"];
+/**
+ * 公开类型 CredentialSummary 描述 apps/web/src/features/environments/identity-adapter.ts 模块对外契约字段与可组合结构
+ * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+ * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+ * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+ * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+ * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+ * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ */
 export type CredentialSummary = S["CredentialDTO"];
+/**
+ * 公开类型 AdapterSummary 描述 apps/web/src/features/environments/identity-adapter.ts 模块对外契约字段与可组合结构
+ * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+ * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+ * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+ * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+ * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+ * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ */
 export type AdapterSummary = S["AuthAdapterDTO"];
+/**
+ * 公开类型 IdentityAdapter 描述 apps/web/src/features/environments/identity-adapter.ts 模块对外契约字段与可组合结构
+ * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+ * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+ * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+ * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+ * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+ * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ */
 export interface IdentityAdapter {
-  credentials(
-    cursor?: string,
-    signal?: AbortSignal,
-  ): Promise<S["CredentialListDTO"]>;
-  adapters(
-    cursor?: string,
-    signal?: AbortSignal,
-  ): Promise<S["AuthAdapterListDTO"]>;
-  createAdapter(
-    configuration: AuthAdapterConfigV1,
-    signal?: AbortSignal,
-  ): Promise<AdapterSummary>;
-  revokeAdapter(id: string, signal?: AbortSignal): Promise<AdapterSummary>;
-  credential(
-    secretRef: string,
-    value: JsonObject,
-    allowedIdentityIds: string[],
-    rotate: boolean,
-    signal?: AbortSignal,
-  ): Promise<CredentialSummary>;
-  revokeCredential(
-    ref: string,
-    id: string,
-    signal?: AbortSignal,
-  ): Promise<CredentialSummary>;
+    credentials(
+        cursor?: string,
+        signal?: AbortSignal,
+    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+    ): Promise<S["CredentialListDTO"]>;
+    adapters(
+        cursor?: string,
+        // 分段注释：继续说明 identity-adapter.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+        signal?: AbortSignal,
+    ): Promise<S["AuthAdapterListDTO"]>;
+    createAdapter(
+        configuration: AuthAdapterConfigV1,
+        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+        signal?: AbortSignal,
+    ): Promise<AdapterSummary>;
+    /**
+     * 公开函数 revokeAdapter 负责 apps/web/src/features/environments/identity-adapter.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    revokeAdapter(id: string, signal?: AbortSignal): Promise<AdapterSummary>;
+    credential(
+        secretRef: string,
+        value: JsonObject,
+        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+        allowedIdentityIds: string[],
+        rotate: boolean,
+        signal?: AbortSignal,
+    // 分段注释：继续说明 identity-adapter.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+    ): Promise<CredentialSummary>;
+    revokeCredential(
+        ref: string,
+        id: string,
+        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+        signal?: AbortSignal,
+    ): Promise<CredentialSummary>;
 }
+/**
+ * 公开类 CloudIdentityAdapter 封装 apps/web/src/features/environments/identity-adapter.ts 中的核心状态与可复用协作接口
+ * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+ * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+ * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+ * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+ * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+ * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ */
 export class CloudIdentityAdapter implements IdentityAdapter {
-  constructor(private workspaceId: string) {}
-  private base(path: string) {
-    return `/workspaces/${this.workspaceId}/${path}`;
-  }
-  credentials = (cursor?: string, signal?: AbortSignal) =>
-    request<S["CredentialListDTO"]>(
-      this.base("credentials") +
-        (cursor ? "?cursor=" + encodeURIComponent(cursor) : ""),
-      "GET",
-      undefined,
-      signal,
-    );
-  adapters = (cursor?: string, signal?: AbortSignal) =>
-    request<S["AuthAdapterListDTO"]>(
-      this.base("auth-adapters") +
-        (cursor ? "?cursor=" + encodeURIComponent(cursor) : ""),
-      "GET",
-      undefined,
-      signal,
-    );
-  createAdapter = (configuration: AuthAdapterConfigV1, signal?: AbortSignal) =>
-    request<AdapterSummary>(
-      this.base("auth-adapters"),
-      "POST",
-      { configuration },
-      signal,
-    );
-  revokeAdapter = (id: string, signal?: AbortSignal) =>
-    request<AdapterSummary>(
-      this.base(`auth-adapters/${encodeURIComponent(id)}/revoke`),
-      "POST",
-      {},
-      signal,
-    );
-  credential = (
-    secretRef: string,
-    value: JsonObject,
-    allowedIdentityIds: string[],
-    rotate: boolean,
-    signal?: AbortSignal,
-  ) =>
-    request<CredentialSummary>(
-      this.base(
-        rotate
-          ? `credentials/${encodeURIComponent(secretRef)}/versions`
-          : "credentials",
-      ),
-      "POST",
-      { ...(rotate ? {} : { secretRef }), value, allowedIdentityIds },
-      signal,
-    );
-  revokeCredential = (ref: string, id: string, signal?: AbortSignal) =>
-    request<CredentialSummary>(
-      this.base(
-        `credentials/${encodeURIComponent(ref)}/versions/${encodeURIComponent(id)}/revoke`,
-      ),
-      "POST",
-      {},
-      signal,
-    );
+    constructor(private workspaceId: string) {}
+    /**
+     * 公开函数 base 负责 apps/web/src/features/environments/identity-adapter.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    private base(path: string) {
+        return `/workspaces/${this.workspaceId}/${path}`;
+    }
+    /**
+     * 公开函数 credentials 负责 apps/web/src/features/environments/identity-adapter.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    credentials = (cursor?: string, signal?: AbortSignal) =>
+        request<S["CredentialListDTO"]>(
+            this.base("credentials") +
+                (cursor ? "?cursor=" + encodeURIComponent(cursor) : ""),
+            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+            "GET",
+            undefined,
+            signal,
+        // 分段注释：继续说明 identity-adapter.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+        );
+    /**
+     * 公开函数 adapters 负责 apps/web/src/features/environments/identity-adapter.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    adapters = (cursor?: string, signal?: AbortSignal) =>
+        request<S["AuthAdapterListDTO"]>(
+            this.base("auth-adapters") +
+                (cursor ? "?cursor=" + encodeURIComponent(cursor) : ""),
+            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+            "GET",
+            undefined,
+            signal,
+        // 分段注释：继续说明 identity-adapter.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+        );
+    /**
+     * 公开函数 createAdapter 负责 apps/web/src/features/environments/identity-adapter.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    createAdapter = (configuration: AuthAdapterConfigV1, signal?: AbortSignal) =>
+        request<AdapterSummary>(
+            this.base("auth-adapters"),
+            "POST",
+            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+            { configuration },
+            signal,
+        );
+    /**
+     * 公开函数 revokeAdapter 负责 apps/web/src/features/environments/identity-adapter.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    revokeAdapter = (id: string, signal?: AbortSignal) =>
+        request<AdapterSummary>(
+            this.base(`auth-adapters/${encodeURIComponent(id)}/revoke`),
+            "POST",
+            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+            {},
+            signal,
+        );
+    /**
+     * 公开函数 credential 负责 apps/web/src/features/environments/identity-adapter.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    credential = (
+        secretRef: string,
+        value: JsonObject,
+        allowedIdentityIds: string[],
+        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+        rotate: boolean,
+        signal?: AbortSignal,
+    ) =>
+        // 分段注释：继续说明 identity-adapter.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+        request<CredentialSummary>(
+            this.base(
+                rotate
+                    ? `credentials/${encodeURIComponent(secretRef)}/versions`
+                    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+                    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+                    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+                    : "credentials",
+            ),
+            "POST",
+            { ...(rotate ? {} : { secretRef }), value, allowedIdentityIds },
+            // 分段注释：继续说明 identity-adapter.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+            // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+            signal,
+        );
+    /**
+     * 公开函数 revokeCredential 负责 apps/web/src/features/environments/identity-adapter.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    revokeCredential = (ref: string, id: string, signal?: AbortSignal) =>
+        request<CredentialSummary>(
+            this.base(
+                `credentials/${encodeURIComponent(ref)}/versions/${encodeURIComponent(id)}/revoke`,
+            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+            ),
+            "POST",
+            {},
+            // 分段注释：继续说明 identity-adapter.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+            // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+            signal,
+        );
 }

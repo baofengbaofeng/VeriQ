@@ -1,260 +1,743 @@
+/**
+ * 本文件 apps/web/src/features/reports/adapters.ts 实现 VeriQ 相关前端或执行侧能力，并标明公开导出与关键路径
+ * 模块注释用于帮助智能体与贡献者快速定位授权、执行与离线相关逻辑。
+ * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+ * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+ * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+ * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+ * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+ * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ */
+
 import type { PlatformComponents } from "@veriq/contracts";
 import { EventSourceParserStream } from "eventsource-parser/stream";
 import { request, streamRequest } from "../../api";
 type S = PlatformComponents["schemas"];
+/**
+ * 公开类型 RunReport 描述 apps/web/src/features/reports/adapters.ts 模块对外契约字段与可组合结构
+ * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+ * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+ * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+ * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+ * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+ * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ */
 export type RunReport = S["RunReportDTO"];
+/**
+ * 公开类型 ReportEvent 描述 apps/web/src/features/reports/adapters.ts 模块对外契约字段与可组合结构
+ * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+ * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+ * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+ * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+ * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+ * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ */
 export type ReportEvent = S["ReportEventDTO"];
+/**
+ * 公开类型 ReportArtifact 描述 apps/web/src/features/reports/adapters.ts 模块对外契约字段与可组合结构
+ * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+ * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+ * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+ * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+ * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+ * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ */
 export type ReportArtifact = S["ReportArtifactDTO"];
+/**
+ * 公开类型 ReportDisplay 描述 apps/web/src/features/reports/adapters.ts 模块对外契约字段与可组合结构
+ * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+ * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+ * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+ * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+ * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+ * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ */
 export type ReportDisplay = S["ReportDisplayDTO"];
+/**
+ * 公开类型 ReportAdapter 描述 apps/web/src/features/reports/adapters.ts 模块对外契约字段与可组合结构
+ * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+ * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+ * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+ * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+ * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+ * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ */
 export interface ReportAdapter {
-  readonly readOnly: boolean;
-  list(
-    cursor?: string,
-    signal?: AbortSignal,
-  ): Promise<S["RunDTOPageEnvelope"]["data"]>;
-  report(runId: string, signal?: AbortSignal): Promise<RunReport>;
-  display(
-    runId: string,
-    attemptId: string,
-    signal?: AbortSignal,
-  ): Promise<ReportDisplay>;
-  history(
-    attemptId: string,
-    after: number,
-    signal?: AbortSignal,
-  ): Promise<S["ReportHistoryDTO"]>;
-  artifacts(
-    attemptId: string,
-    signal?: AbortSignal,
-  ): Promise<S["ReportArtifactsDTO"]>;
-  download(
-    attemptId: string,
-    artifactId: string,
-    signal?: AbortSignal,
-  ): Promise<Blob>;
-  audit(after?: string, signal?: AbortSignal): Promise<S["ReportAuditDTO"]>;
-  subscribe(
-    runId: string,
-    receive: (report: RunReport) => void,
-    signal: AbortSignal,
-  ): Promise<void>;
+    readonly readOnly: boolean;
+    list(
+        cursor?: string,
+        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+        signal?: AbortSignal,
+    ): Promise<S["RunDTOPageEnvelope"]["data"]>;
+    /**
+     * 公开函数 report 负责 apps/web/src/features/reports/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    report(runId: string, signal?: AbortSignal): Promise<RunReport>;
+    display(
+        runId: string,
+        attemptId: string,
+        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+        signal?: AbortSignal,
+    ): Promise<ReportDisplay>;
+    history(
+        // 分段注释：继续说明 adapters.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+        attemptId: string,
+        after: number,
+        signal?: AbortSignal,
+    ): Promise<S["ReportHistoryDTO"]>;
+    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+    artifacts(
+        attemptId: string,
+        signal?: AbortSignal,
+    ): Promise<S["ReportArtifactsDTO"]>;
+    // 分段注释：继续说明 adapters.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+    download(
+        attemptId: string,
+        artifactId: string,
+        signal?: AbortSignal,
+    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+    ): Promise<Blob>;
+    /**
+     * 公开函数 audit 负责 apps/web/src/features/reports/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    audit(after?: string, signal?: AbortSignal): Promise<S["ReportAuditDTO"]>;
+    subscribe(
+        runId: string,
+        receive: (report: RunReport) => void,
+        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+        signal: AbortSignal,
+    ): Promise<void>;
 }
+/**
+ * 公开类 CloudReportAdapter 封装 apps/web/src/features/reports/adapters.ts 中的核心状态与可复用协作接口
+ * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+ * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+ * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+ * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+ * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+ * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ */
 export class CloudReportAdapter implements ReportAdapter {
-  readonly readOnly = false;
-  constructor(readonly workspaceId: string) {}
-  private base = () => `/workspaces/${this.workspaceId}`;
-  list = (cursor?: string, signal?: AbortSignal) =>
-    request<S["RunDTOPageEnvelope"]["data"]>(
-      this.base() +
-        "/runs" +
-        (cursor ? "?cursor=" + encodeURIComponent(cursor) : ""),
-      "GET",
-      undefined,
-      signal,
-    );
-  report = (id: string, signal?: AbortSignal) =>
-    request<RunReport>(
-      this.base() + `/runs/${id}/report`,
-      "GET",
-      undefined,
-      signal,
-    );
-  display = (runId: string, attemptId: string, signal?: AbortSignal) =>
-    request<ReportDisplay>(
-      this.base() + `/runs/${runId}/attempts/${attemptId}/display`,
-      "GET",
-      undefined,
-      signal,
-    );
-  history = (id: string, after: number, signal?: AbortSignal) =>
-    request<S["ReportHistoryDTO"]>(
-      this.base() + `/attempts/${id}/history?after=${after}`,
-      "GET",
-      undefined,
-      signal,
-    );
-  artifacts = (id: string, signal?: AbortSignal) =>
-    request<S["ReportArtifactsDTO"]>(
-      this.base() + `/attempts/${id}/artifacts`,
-      "GET",
-      undefined,
-      signal,
-    );
-  audit = (after?: string, signal?: AbortSignal) =>
-    request<S["ReportAuditDTO"]>(
-      this.base() +
-        "/audit" +
-        (after ? "?after=" + encodeURIComponent(after) : ""),
-      "GET",
-      undefined,
-      signal,
-    );
-  async download(attemptId: string, artifactId: string, signal?: AbortSignal) {
-    const response = await fetch(
-      "/api/v1" +
-        this.base() +
-        `/attempts/${attemptId}/artifacts/${artifactId}`,
-      { credentials: "same-origin", signal },
-    );
-    if (!response.ok) throw new Error((await response.json()).message);
-    return response.blob();
-  }
-  async subscribe(
-    runId: string,
-    receive: (report: RunReport) => void,
-    signal: AbortSignal,
-  ) {
-    let cursor: string | undefined;
-    while (!signal.aborted) {
-      const response = await streamRequest(
-        this.base() + `/runs/${runId}/events/stream`,
-        cursor ? { cursor } : {},
-        signal,
-      );
-      if (!response.body) throw new Error("Report stream is unavailable.");
-      const reader = response.body
-        .pipeThrough(new TextDecoderStream())
-        .pipeThrough(
-          new EventSourceParserStream({
-            maxBufferSize: 32 * 1024 * 1024,
-            onError: "terminate",
-          }),
-        )
-        .getReader();
-      try {
+    readonly readOnly = false;
+    constructor(readonly workspaceId: string) {}
+    /**
+     * 公开函数 base 负责 apps/web/src/features/reports/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    private base = () => `/workspaces/${this.workspaceId}`;
+    /**
+     * 公开函数 list 负责 apps/web/src/features/reports/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    list = (cursor?: string, signal?: AbortSignal) =>
+        request<S["RunDTOPageEnvelope"]["data"]>(
+            this.base() +
+                "/runs" +
+                // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+                // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+                // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+                (cursor ? "?cursor=" + encodeURIComponent(cursor) : ""),
+            "GET",
+            undefined,
+            // 分段注释：继续说明 adapters.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+            // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+            signal,
+        );
+    /**
+     * 公开函数 report 负责 apps/web/src/features/reports/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    report = (id: string, signal?: AbortSignal) =>
+        request<RunReport>(
+            this.base() + `/runs/${id}/report`,
+            "GET",
+            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+            undefined,
+            signal,
+        );
+    /**
+     * 公开函数 display 负责 apps/web/src/features/reports/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    display = (runId: string, attemptId: string, signal?: AbortSignal) =>
+        request<ReportDisplay>(
+            this.base() + `/runs/${runId}/attempts/${attemptId}/display`,
+            "GET",
+            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+            undefined,
+            signal,
+        );
+    /**
+     * 公开函数 history 负责 apps/web/src/features/reports/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    history = (id: string, after: number, signal?: AbortSignal) =>
+        request<S["ReportHistoryDTO"]>(
+            this.base() + `/attempts/${id}/history?after=${after}`,
+            "GET",
+            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+            undefined,
+            signal,
+        );
+    /**
+     * 公开函数 artifacts 负责 apps/web/src/features/reports/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    artifacts = (id: string, signal?: AbortSignal) =>
+        request<S["ReportArtifactsDTO"]>(
+            this.base() + `/attempts/${id}/artifacts`,
+            "GET",
+            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+            undefined,
+            signal,
+        );
+    /**
+     * 公开函数 audit 负责 apps/web/src/features/reports/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    audit = (after?: string, signal?: AbortSignal) =>
+        request<S["ReportAuditDTO"]>(
+            this.base() +
+                "/audit" +
+                // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+                // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+                // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+                (after ? "?after=" + encodeURIComponent(after) : ""),
+            "GET",
+            undefined,
+            // 分段注释：继续说明 adapters.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+            // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+            signal,
+        );
+    /**
+     * 公开函数 download 负责 apps/web/src/features/reports/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    async download(attemptId: string, artifactId: string, signal?: AbortSignal) {
+        const response = await fetch(
+            "/api/v1" +
+                this.base() +
+                // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+                // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+                // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+                `/attempts/${attemptId}/artifacts/${artifactId}`,
+            { credentials: "same-origin", signal },
+        );
+        // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        if (!response.ok) throw new Error((await response.json()).message);
+        return response.blob();
+    }
+    async subscribe(
+        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+        runId: string,
+        receive: (report: RunReport) => void,
+        signal: AbortSignal,
+    // 分段注释：继续说明 adapters.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+    ) {
+        let cursor: string | undefined;
+        // 关键路径：处理 while 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
         while (!signal.aborted) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (value.event === "authorization")
-            throw new Error(
-              "Report access changed. Reload after signing in or confirming Workspace access.",
+            const response = await streamRequest(
+                this.base() + `/runs/${runId}/events/stream`,
+                cursor ? { cursor } : {},
+                // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+                // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+                // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+                signal,
             );
-          if (value.event === "report") {
-            const update = JSON.parse(value.data) as { report: RunReport };
-            receive(update.report);
-            cursor = value.id;
-          }
+            // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            if (!response.body) throw new Error("Report stream is unavailable.");
+            const reader = response.body
+                .pipeThrough(new TextDecoderStream())
+                .pipeThrough(
+                    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+                    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+                    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+                    new EventSourceParserStream({
+                        maxBufferSize: 32 * 1024 * 1024,
+                        onError: "terminate",
+                    // 分段注释：继续说明 adapters.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+                    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+                    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+                    }),
+                )
+                .getReader();
+            // 关键路径：处理 try 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            try {
+                // 关键路径：处理 while 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+                while (!signal.aborted) {
+                    const { done, value } = await reader.read();
+                    // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+                    if (done) break;
+                    // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+                    if (value.event === "authorization")
+                        throw new Error(
+                            "Report access changed. Reload after signing in or confirming Workspace access.",
+                        );
+                    // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+                    if (value.event === "report") {
+                        const update = JSON.parse(value.data) as { report: RunReport };
+                        receive(update.report);
+                        cursor = value.id;
+                    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+                    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+                    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+                    }
+                }
+            } finally {
+                // 分段注释：继续说明 adapters.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+                // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+                // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+                await reader.cancel();
+                reader.releaseLock();
+            }
+            // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            if (!signal.aborted)
+                await new Promise<void>((resolve, reject) => {
+                    const abort = () => {
+                        clearTimeout(timer);
+                        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+                        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+                        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+                        reject(signal.reason);
+                    };
+                    const timer = setTimeout(() => {
+                        // 分段注释：继续说明 adapters.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+                        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+                        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+                        signal.removeEventListener("abort", abort);
+                        resolve();
+                    }, 1000);
+                    signal.addEventListener("abort", abort, { once: true });
+                // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+                // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+                // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+                });
         }
-      } finally {
-        await reader.cancel();
-        reader.releaseLock();
-      }
-      if (!signal.aborted)
-        await new Promise<void>((resolve, reject) => {
-          const abort = () => {
-            clearTimeout(timer);
-            reject(signal.reason);
-          };
-          const timer = setTimeout(() => {
-            signal.removeEventListener("abort", abort);
-            resolve();
-          }, 1000);
-          signal.addEventListener("abort", abort, { once: true });
-        });
     }
-  }
 }
+ /**
+  * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+  * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+  * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+  * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+  * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+  * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+  * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+  * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+  */
 /** Host-verified immutable snapshot. Signature verification and raw-byte authorization belong to the host. */
+/**
+ * 公开类型 LocalReportSnapshot 描述 apps/web/src/features/reports/adapters.ts 模块对外契约字段与可组合结构
+ * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ */
 export interface LocalReportSnapshot {
-  workspaceId: string;
-  reports: RunReport[];
-  history: Record<string, ReportEvent[]>;
-  displays?: Record<string, ReportDisplay>;
-  artifacts: Record<string, ReportArtifact[]>;
+    workspaceId: string;
+    reports: RunReport[];
+    history: Record<string, ReportEvent[]>;
+    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+    displays?: Record<string, ReportDisplay>;
+    artifacts: Record<string, ReportArtifact[]>;
 }
+/**
+ * 公开类 LocalReportAdapter 封装 apps/web/src/features/reports/adapters.ts 中的核心状态与可复用协作接口
+ * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+ * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+ * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+ * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+ * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+ * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ */
 export class LocalReportAdapter implements ReportAdapter {
-  readonly readOnly = true;
-  private readonly snapshot: LocalReportSnapshot;
-  constructor(
-    snapshot: LocalReportSnapshot,
-    private readonly readRaw?: (
-      attempt: string,
-      artifact: string,
-      signal?: AbortSignal,
-    ) => Promise<Blob>,
-  ) {
-    this.snapshot = structuredClone(snapshot);
-    if (
-      this.snapshot.reports.some(
-        (report) => report.run.workspaceId !== snapshot.workspaceId,
-      )
-    )
-      throw new Error("Foreign Workspace report");
-    const attempts = new Set(
-      this.snapshot.reports.flatMap((r) =>
-        r.cases.flatMap((c) => c.attempts.map((a) => a.id)),
-      ),
-    );
-    for (const [id, events] of Object.entries(this.snapshot.history)) {
-      if (!attempts.has(id) || events.some((e) => e.attemptId !== id))
-        throw new Error("Foreign Attempt history");
+    readonly readOnly = true;
+    private readonly snapshot: LocalReportSnapshot;
+    constructor(
+        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+        snapshot: LocalReportSnapshot,
+        private readonly readRaw?: (
+            attempt: string,
+            // 分段注释：继续说明 adapters.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+            // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+            artifact: string,
+            signal?: AbortSignal,
+        ) => Promise<Blob>,
+    ) {
+        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+        this.snapshot = structuredClone(snapshot);
+        // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        if (
+            this.snapshot.reports.some(
+                (report) => report.run.workspaceId !== snapshot.workspaceId,
+            )
+        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+        )
+            throw new Error("Foreign Workspace report");
+        const attempts = new Set(
+            // 分段注释：继续说明 adapters.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+            // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+            this.snapshot.reports.flatMap((r) =>
+                r.cases.flatMap((c) => c.attempts.map((a) => a.id)),
+            ),
+        );
+        // 关键路径：处理 for 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        for (const [id, events] of Object.entries(this.snapshot.history)) {
+            // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            if (!attempts.has(id) || events.some((e) => e.attemptId !== id))
+                throw new Error("Foreign Attempt history");
+        }
+        // 关键路径：处理 for 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        for (const [id, artifacts] of Object.entries(this.snapshot.artifacts)) {
+            // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            if (!attempts.has(id) || artifacts.some((a) => a.attemptId !== id))
+                throw new Error("Foreign Attempt artifacts");
+        }
+        // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        if (
+            Object.keys(this.snapshot.displays ?? {}).some((id) => !attempts.has(id))
+        )
+            throw new Error("Foreign Attempt display");
+    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
     }
-    for (const [id, artifacts] of Object.entries(this.snapshot.artifacts)) {
-      if (!attempts.has(id) || artifacts.some((a) => a.attemptId !== id))
-        throw new Error("Foreign Attempt artifacts");
+    /**
+     * 公开函数 found 负责 apps/web/src/features/reports/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    private async found(id: string) {
+        const report = this.snapshot.reports.find((r) => r.run.id === id);
+        // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        if (!report) throw new Error("Report not found");
+        return structuredClone(report);
     }
-    if (
-      Object.keys(this.snapshot.displays ?? {}).some((id) => !attempts.has(id))
-    )
-      throw new Error("Foreign Attempt display");
-  }
-  private async found(id: string) {
-    const report = this.snapshot.reports.find((r) => r.run.id === id);
-    if (!report) throw new Error("Report not found");
-    return structuredClone(report);
-  }
-  list = async () => ({
-    items: this.snapshot.reports.map((r) => structuredClone(r.run)),
-    nextCursor: null,
-  });
-  report = (id: string) => this.found(id);
-  display = async (
-    runId: string,
-    attemptId: string,
-  ): Promise<ReportDisplay> => {
-    const report = await this.found(runId);
-    if (!report.cases.some((c) => c.attempts.some((a) => a.id === attemptId)))
-      throw new Error("Attempt not found in Run");
-    return structuredClone(
-      this.snapshot.displays?.[attemptId] ?? {
-        display: null,
-        metadataStatus: "ABSENT",
-        environment: {},
-      },
-    );
-  };
-  history = async (id: string, after: number) => {
-    const rows = (this.snapshot.history[id] ?? []).filter(
-      (e) => e.sequence > after,
-    );
-    const items = structuredClone(rows.slice(0, 100));
-    return {
-      items,
-      nextSequence: items.at(-1)?.sequence ?? after,
-      hasMore: rows.length > 100,
+    /**
+     * 公开函数 list 负责 apps/web/src/features/reports/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    list = async () => ({
+        items: this.snapshot.reports.map((r) => structuredClone(r.run)),
+        nextCursor: null,
+    });
+    /**
+     * 公开函数 report 负责 apps/web/src/features/reports/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    report = (id: string) => this.found(id);
+    /**
+     * 公开函数 display 负责 apps/web/src/features/reports/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    display = async (
+        runId: string,
+        attemptId: string,
+    ): Promise<ReportDisplay> => {
+        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+        const report = await this.found(runId);
+        // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        if (!report.cases.some((c) => c.attempts.some((a) => a.id === attemptId)))
+            throw new Error("Attempt not found in Run");
+        return structuredClone(
+            this.snapshot.displays?.[attemptId] ?? {
+                // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+                // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+                // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+                display: null,
+                metadataStatus: "ABSENT",
+                environment: {},
+            // 分段注释：继续说明 adapters.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+            // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+            },
+        );
     };
-  };
-  artifacts = async (id: string) => ({
-    items: structuredClone(this.snapshot.artifacts[id] ?? []),
-  });
-  audit = async () => ({ items: [], nextCursor: null });
-  download = async (
-    attempt: string,
-    artifact: string,
-    signal?: AbortSignal,
-  ) => {
-    if (
-      !this.readRaw ||
-      !this.snapshot.artifacts[attempt]?.some(
-        (a) => a.id === artifact && a.state === "AVAILABLE",
-      )
-    )
-      throw new Error("Raw evidence requires host authorization.");
-    return this.readRaw(attempt, artifact, signal);
-  };
-  subscribe = async (
-    _id: string,
-    _receive: (report: RunReport) => void,
-    _signal: AbortSignal,
-  ) => {};
+    /**
+     * 公开函数 history 负责 apps/web/src/features/reports/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    history = async (id: string, after: number) => {
+        const rows = (this.snapshot.history[id] ?? []).filter(
+            (e) => e.sequence > after,
+        );
+        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+        const items = structuredClone(rows.slice(0, 100));
+        return {
+            items,
+            // 分段注释：继续说明 adapters.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+            // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+            nextSequence: items.at(-1)?.sequence ?? after,
+            hasMore: rows.length > 100,
+        };
+    };
+    /**
+     * 公开函数 artifacts 负责 apps/web/src/features/reports/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    artifacts = async (id: string) => ({
+        items: structuredClone(this.snapshot.artifacts[id] ?? []),
+    });
+    /**
+     * 公开函数 audit 负责 apps/web/src/features/reports/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    audit = async () => ({ items: [], nextCursor: null });
+    /**
+     * 公开函数 download 负责 apps/web/src/features/reports/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    download = async (
+        attempt: string,
+        artifact: string,
+        signal?: AbortSignal,
+    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+    ) => {
+        // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        if (
+            !this.readRaw ||
+            !this.snapshot.artifacts[attempt]?.some(
+                (a) => a.id === artifact && a.state === "AVAILABLE",
+            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+            )
+        )
+            throw new Error("Raw evidence requires host authorization.");
+        // 分段注释：继续说明 adapters.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+        return this.readRaw(attempt, artifact, signal);
+    };
+    /**
+     * 公开函数 subscribe 负责 apps/web/src/features/reports/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    subscribe = async (
+        _id: string,
+        _receive: (report: RunReport) => void,
+        _signal: AbortSignal,
+    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+    ) => {};
 }

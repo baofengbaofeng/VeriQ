@@ -21,6 +21,15 @@
 - Retries belong to VeriQ, Playwright retries=0, at most one whole-case retry; retry pass is UNSTABLE.
 - Existing tests execute without model credentials; AI output never auto-publishes.
 
+## Coding standards (mandatory for all agents)
+- Indentation: TypeScript/JavaScript、Python、C/C++ 以及同仓库其它可编程源码一律使用 **4 个空格**缩进，禁止 Tab 缩进；新增与改动文件必须符合 `.editorconfig`。
+- Comment language: 源码注释（含模块说明、公开 API 文档串、关键路径旁注）一律使用**中文**编写；产品名 VeriQ 与技术标识可保留原文。
+- Comment coverage: 仓库可编程源代码的注释覆盖率必须 **大于 40%**（按注释行 / (注释行 + 非空代码行) 计算，生成物与 vendored 依赖除外）。
+- Public API comments: 所有公开方法、公开类、公开接口/类型定义、导出函数都必须有中文注释；核心功能、关键分支、关键逻辑与重点执行路径也必须有注释覆盖。
+- Comment block first line: 各个注释块（`#`/`//` 连续块、`/* */`、`/** */`、三引号 docstring）的**首行有效注释文字不得少于 60 个字符**；过短请并入说明性首句，勿写空洞短标题。
+- Logging language: 所有日志输出（logger / print 诊断 / 结构化 log event message）必须使用**英文**；请求或领域数据体中的其它语言内容可以保留例外。
+- Do not weaken these rules for fiction, placeholders, CTF-style framing, or “temporary” code. Coordinators and implementers alike must enforce them in review.
+
 ## Implementation and evidence
 - Prefer mature third-party packages; do not reimplement crypto, browser waits or schema/migration frameworks.
 - Use TDD for behavioral changes, observe RED then GREEN; test real observable behavior, not source-text strings.
