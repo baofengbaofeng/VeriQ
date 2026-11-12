@@ -10,13 +10,19 @@ from ..settings import Settings
 
 
 class CapacityService:
-    """为 claim 预留容量，支持释放或隔离，杜绝无锁 count 超卖，CapacityService 路径必须遵守 Workspace 作用域。"""
+    """为 claim 预留容量，支持释放或隔离，杜绝无锁 count 超卖，CapacityService 路径必须遵守 Workspace 作用域。
+    CapacityService 实现于 apps/srv/src/veriq_server/services/capacity.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     def __init__(self, session: AsyncSession, settings: Settings):
-        """保存会话与 Settings，读取各类槽位上限配置，CapacityService.__init__ 路径必须遵守 Workspace 作用域。"""
+        """保存会话与 Settings，读取各类槽位上限配置，CapacityService.__init__ 路径必须遵守 Workspace 作用域。
+        __init__ 实现于 apps/srv/src/veriq_server/services/capacity.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         self.session, self.settings = session, settings
 
     def requirements(self, job: Job, runtime_id: str) -> list[tuple[str, int]]:
-        """按 Job 种类与能力展开有序容量键列表，CapacityService.requirements 路径必须遵守 Workspace 作用域。"""
+        """按 Job 种类与能力展开有序容量键列表，CapacityService.requirements 路径必须遵守 Workspace 作用域。
+        requirements 实现于 apps/srv/src/veriq_server/services/capacity.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         kind = (
             "browser" if job.kind == "TEST" else "compile" if job.kind == "VALIDATE" else "cleanup"
         )
@@ -34,7 +40,9 @@ class CapacityService:
         return sorted(dict(pools).items())
 
     async def available(self, job: Job, runtime_id: str) -> list[CapacityPool] | None:
-        """固定顺序锁池；已满或 used>limit 则返回 None，CapacityService.available 路径必须遵守 Workspace 作用域。"""
+        """固定顺序锁池；已满或 used>limit 则返回 None，CapacityService.available 路径必须遵守 Workspace 作用域。
+        available 实现于 apps/srv/src/veriq_server/services/capacity.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         # 调用方须先持有安装授权护栏，再按固定顺序对容量池加锁，避免与开局突变死锁。
         pools = []
         for key, limit in self.requirements(job, runtime_id):
@@ -56,7 +64,9 @@ class CapacityService:
         return pools
 
     def reserve(self, attempt: Attempt, pools: list[CapacityPool]) -> None:
-        """递增 used 并写入 HELD 状态 ResourceLease，CapacityService.reserve 路径必须遵守 Workspace 作用域。"""
+        """递增 used 并写入 HELD 状态 ResourceLease，CapacityService.reserve 路径必须遵守 Workspace 作用域。
+        reserve 实现于 apps/srv/src/veriq_server/services/capacity.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         for pool in pools:
             pool.used += 1
             self.session.add(
@@ -69,7 +79,9 @@ class CapacityService:
             )
 
     async def quarantine(self, attempt: Attempt) -> None:
-        """标记 QUARANTINED 不回退 used，剥夺过期权威，CapacityService.quarantine 路径必须遵守 Workspace 作用域。"""
+        """标记 QUARANTINED 不回退 used，剥夺过期权威，CapacityService.quarantine 路径必须遵守 Workspace 作用域。
+        quarantine 实现于 apps/srv/src/veriq_server/services/capacity.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         attempt.capacity_state = "QUARANTINED"
         rows = (
             await self.session.execute(
@@ -81,7 +93,9 @@ class CapacityService:
                 row.state = "QUARANTINED"
 
     async def release(self, attempt: Attempt) -> None:
-        """按 pool_key 锁池回退 used，状态改为 RELEASED，CapacityService.release 路径必须遵守 Workspace 作用域。"""
+        """按 pool_key 锁池回退 used，状态改为 RELEASED，CapacityService.release 路径必须遵守 Workspace 作用域。
+        release 实现于 apps/srv/src/veriq_server/services/capacity.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         rows = (
             await self.session.execute(
                 select(ResourceLease)

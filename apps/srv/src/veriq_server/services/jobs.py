@@ -38,7 +38,9 @@ from .engines import ApprovedEngines
 
 @dataclass(frozen=True)
 class RuntimeIdentity:
-    """封装领取方 Runtime 身份与能力，供 claim 过滤候选 Job 与容量键，RuntimeIdentity 遵守本文件边界。"""
+    """封装领取方 Runtime 身份与能力，供 claim 过滤候选 Job 与容量键，RuntimeIdentity 遵守本文件边界。
+    RuntimeIdentity 实现于 apps/srv/src/veriq_server/services/jobs.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     authorization: str = field(repr=False)
 
 
@@ -47,12 +49,16 @@ ClaimDTO = dict[str, Any]
 
 
 async def database_time(session: AsyncSession) -> datetime:
-    """读取数据库 UTC 当前时间，作为租约与过期判断的权威时钟，避免节点时钟漂移，database_time 遵守本文件边界。"""
+    """读取数据库 UTC 当前时间，作为租约与过期判断的权威时钟，避免节点时钟漂移，database_time 遵守本文件边界。
+    database_time 实现于 apps/srv/src/veriq_server/services/jobs.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     return cast(datetime, (await session.execute(select(func.utc_timestamp(6)))).scalar_one())
 
 
 async def require_requester(session: AsyncSession, job: Job, runtime_id: str) -> User | None:
-    """确认 Job 请求者对 Runtime 仍有派发权，失效则领取与心跳应取消，require_requester 遵守本文件边界。"""
+    """确认 Job 请求者对 Runtime 仍有派发权，失效则领取与心跳应取消，require_requester 遵守本文件边界。
+    require_requester 实现于 apps/srv/src/veriq_server/services/jobs.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     if job.requester_service_token_id:
         token = await session.get(ServiceToken, job.requester_service_token_id)
         account = await session.get(ServiceAccount, token.service_account_id) if token else None
@@ -85,13 +91,19 @@ async def require_requester(session: AsyncSession, job: Job, runtime_id: str) ->
 
 
 class JobService:
-    """编排候选扫描、容量预留与 claim 提交，产出含租约秘密的 ClaimDTO，JobService 遵守本文件边界，失败返回稳定 Problem。"""
+    """编排候选扫描、容量预留与 claim 提交，产出含租约秘密的 ClaimDTO，JobService 遵守本文件边界，失败返回稳定 Problem。
+    JobService 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """
     def __init__(self, session: AsyncSession, settings: Settings):
-        """注入会话与 Settings，供容量槽位与租约时长配置读取，JobService.__init__ 遵守本文件边界，失败返回稳定 Problem。"""
+        """注入会话与 Settings，供容量槽位与租约时长配置读取，JobService.__init__ 遵守本文件边界，失败返回稳定 Problem。
+        __init__ 实现于 apps/srv/src/veriq_server/services/jobs.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         self.session, self.settings = session, settings
 
     def response(self, job: Job, attempt: Attempt, secret: str, current: Any) -> ClaimDTO:
-        """将 Job/Attempt 与明文 lease secret 组装为 ClaimDTO 响应，JobService.response 遵守本文件边界。"""
+        """将 Job/Attempt 与明文 lease secret 组装为 ClaimDTO 响应，JobService.response 遵守本文件边界。
+        response 实现于 apps/srv/src/veriq_server/services/jobs.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         return {
             "jobId": job.id,
             "jobKind": job.kind,
@@ -116,7 +128,9 @@ class JobService:
         capabilities: dict[str, Any],
         current: datetime,
     ) -> AsyncIterator[Job]:
-        """按能力与状态筛选可领 Job，使用 SKIP LOCKED 避免领取互撞，JobService.candidates 遵守本文件边界。"""
+        """按能力与状态筛选可领 Job，使用 SKIP LOCKED 避免领取互撞，JobService.candidates 遵守本文件边界。
+        candidates 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         query = select(Job).where(
             Job.workspace_id == workspace_id,
             Job.state == "QUEUED",
@@ -150,7 +164,9 @@ class JobService:
                 return
 
     async def claim(self, identity: RuntimeIdentity, req: ClaimRequest) -> ClaimDTO | None:
-        """原子领取：锁 Job、预留容量、创建 Attempt、递增 fence；失败返回 None，JobService.claim 遵守本文件边界。"""
+        """原子领取：锁 Job、预留容量、创建 Attempt、递增 fence；失败返回 None，JobService.claim 遵守本文件边界。
+        claim 的领取/竞争语义依赖数据库锁或原子更新，禁止先读计数再无锁启动执行。
+        """
         req = {
             **req,
             "clientRequestId": str(UUID(req["clientRequestId"])),

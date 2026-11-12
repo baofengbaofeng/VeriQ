@@ -4,10 +4,14 @@ from .base import API
 
 
 class HealthAPI(API):
-    """存活与就绪探针处理器：live 不触库，health 执行 SELECT 1 以确认数据库连接可用；该处理器不要求会话，供编排与负载均衡探活使用。"""
+    """存活与就绪探针处理器：live 不触库，health 执行 SELECT 1 以确认数据库连接可用；该处理器不要求会话，供编排与负载均衡探活使用。
+    HealthAPI 实现于 apps/srv/src/veriq_server/handlers/health.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
 
     async def get(self, user_id: str | None = None) -> None:
-        """按 action 分发 liveness/readiness；未知 action 映射 404，避免误报健康；未知 action 返回 NOT_FOUND，避免误把其它路径当健康。"""
+        """按 action 分发 liveness/readiness；未知 action 映射 404，避免误报健康；未知 action 返回 NOT_FOUND，避免误把其它路径当健康。
+        get 实现于 apps/srv/src/veriq_server/handlers/health.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         if self.action == "live":
             self.respond({"alive": True})
             return

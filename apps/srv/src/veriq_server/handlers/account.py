@@ -17,10 +17,14 @@ from ..pagination import Page
 
 
 class AccountAPI(API):
-    """当前登录账户自助接口：查询档案与会话列表，以及改密、吊销本账户全部会话；所有操作仅作用于当前 Cookie 会话对应用户自身。"""
+    """当前登录账户自助接口：查询档案与会话列表，以及改密、吊销本账户全部会话；所有操作仅作用于当前 Cookie 会话对应用户自身。
+    AccountAPI 实现于 apps/srv/src/veriq_server/handlers/account.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
 
     async def get(self, user_id: str | None = None) -> None:
-        """GET 分发 account 档案或 sessions 游标分页；会话游标时间戳非法时映射 INVALID_CURSOR。"""
+        """GET 分发 account 档案或 sessions 游标分页；会话游标时间戳非法时映射 INVALID_CURSOR。
+        get 实现于 apps/srv/src/veriq_server/handlers/account.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         async with self.db.sessions() as s:
             if self.action == "account":
                 user, _ = await self.identity(s)
@@ -91,7 +95,9 @@ class AccountAPI(API):
                 raise Problem(404, "NOT_FOUND", "API endpoint not found")
 
     async def post(self, user_id: str | None = None) -> None:
-        """POST 处理 password 改密与 revoke-own 吊销；改密前校验当前口令并清空重置令牌；写操作在安装锁内执行，保证与管理员吊销互斥。"""
+        """POST 处理 password 改密与 revoke-own 吊销；改密前校验当前口令并清空重置令牌；写操作在安装锁内执行，保证与管理员吊销互斥。
+        post 实现于 apps/srv/src/veriq_server/handlers/account.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         async with self.db.sessions.begin() as s:
             if self.action == "password":
                 data = self.body("ChangePasswordRequest")

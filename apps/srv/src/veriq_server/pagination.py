@@ -15,7 +15,9 @@ from .service import Problem
 
 @dataclass
 class Page:
-    """已解析的列表分页状态：包含 limit、可选 last 游标键、绑定 scope 以及签名所用密钥，Page 的失败路径返回稳定错误。"""
+    """已解析的列表分页状态：包含 limit、可选 last 游标键、绑定 scope 以及签名所用密钥，Page 的失败路径返回稳定错误。
+    Page 实现于 apps/srv/src/veriq_server/pagination.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
 
     limit: int
     last: tuple[str, str] | None
@@ -24,7 +26,9 @@ class Page:
 
     @classmethod
     def read(cls, handler: RequestHandler, scope: dict[str, Any], secret: str) -> "Page":
-        """从查询串解析 limit 与 cursor；游标失效、过期或 scope 不匹配时统一返回 INVALID_CURSOR。"""
+        """从查询串解析 limit 与 cursor；游标失效、过期或 scope 不匹配时统一返回 INVALID_CURSOR。
+        read 实现于 apps/srv/src/veriq_server/pagination.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         try:
             limit = int(handler.get_query_argument("limit", "25"))
         except ValueError:
@@ -68,7 +72,9 @@ class Page:
         return cls(limit, last, scope, secret)
 
     def next(self, last: tuple[str, str], has_more: bool) -> str | None:
-        """若仍有后续页则签发绑定当前 scope 的签名游标，否则返回 None 以结束翻页，Page.next 的失败路径返回稳定错误。"""
+        """若仍有后续页则签发绑定当前 scope 的签名游标，否则返回 None 以结束翻页，Page.next 的失败路径返回稳定错误。
+        next 实现于 apps/srv/src/veriq_server/pagination.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         if not has_more:
             return None
         value = json.dumps(
@@ -78,7 +84,9 @@ class Page:
 
 
 def boolean_filter(handler: RequestHandler, name: str) -> bool | None:
-    """读取可选布尔查询参数；缺省为 None，遇到非法字面量时抛出 INVALID_FILTER，boolean_filter 的失败路径返回稳定错误。"""
+    """读取可选布尔查询参数；缺省为 None，遇到非法字面量时抛出 INVALID_FILTER，boolean_filter 的失败路径返回稳定错误。
+    boolean_filter 实现于 apps/srv/src/veriq_server/pagination.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     value = handler.get_query_argument(name, None)
     if value is None:
         return None

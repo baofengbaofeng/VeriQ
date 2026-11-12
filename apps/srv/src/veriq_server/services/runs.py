@@ -23,7 +23,9 @@ from .results import aggregate
 
 
 def run_dto(run: Run) -> dict[str, Any]:
-    """导出 Run 对外字段含状态与时间戳，供列表与详情 API 使用，run_dto 遵守本文件边界，失败返回稳定 Problem。"""
+    """导出 Run 对外字段含状态与时间戳，供列表与详情 API 使用，run_dto 遵守本文件边界，失败返回稳定 Problem。
+    run_dto 实现于 apps/srv/src/veriq_server/services/runs.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     return {
         "id": run.id,
         "workspaceId": run.workspace_id,
@@ -38,19 +40,27 @@ def run_dto(run: Run) -> dict[str, Any]:
 
 
 class RunService:
-    """编排 Run 创建、用例展开与取消，所有写入限定 actor 已授权 Workspace，RunService 遵守本文件边界。"""
+    """编排 Run 创建、用例展开与取消，所有写入限定 actor 已授权 Workspace，RunService 遵守本文件边界。
+    RunService 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """
     def __init__(self, session: AsyncSession, actor: User):
-        """保存会话与发起用户，后续 authorize 使用其成员角色，RunService.__init__ 遵守本文件边界，失败返回稳定 Problem。"""
+        """保存会话与发起用户，后续 authorize 使用其成员角色，RunService.__init__ 遵守本文件边界，失败返回稳定 Problem。
+        __init__ 实现于 apps/srv/src/veriq_server/services/runs.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         self.session, self.actor = session, actor
 
     async def authorize(self, workspace_id: str) -> None:
-        """校验 actor 对 Workspace 的执行权限，归档租户拒绝新 Run，RunService.authorize 遵守本文件边界。"""
+        """校验 actor 对 Workspace 的执行权限，归档租户拒绝新 Run，RunService.authorize 遵守本文件边界。
+        authorize 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         await WorkspaceRepository(self.session, WorkspaceScope(workspace_id)).authorize(
             self.actor, Permission.EXECUTE, write=True
         )
 
     async def get(self, workspace_id: str, run_id: str) -> Run:
-        """按 Workspace 与 run_id 加载 Run，缺失返回 Problem，RunService.get 遵守本文件边界。"""
+        """按 Workspace 与 run_id 加载 Run，缺失返回 Problem，RunService.get 遵守本文件边界。
+        get 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         await WorkspaceRepository(self.session, WorkspaceScope(workspace_id)).authorize(self.actor)
         run = await self.session.get(Run, run_id)
         if not run or run.workspace_id != workspace_id:
@@ -58,7 +68,9 @@ class RunService:
         return run
 
     async def create(self, workspace_id: str, key: str, data: dict[str, Any]) -> dict[str, Any]:
-        """幂等创建 Run 并展开 CaseExecution/Job；键冲突返回既有结果，RunService.create 遵守本文件边界。"""
+        """幂等创建 Run 并展开 CaseExecution/Job；键冲突返回既有结果，RunService.create 遵守本文件边界。
+        create 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         await self.authorize(workspace_id)
         if not key or len(key) > 160:
             raise Problem(400, "IDEMPOTENCY_KEY_REQUIRED", "Bounded idempotency key required")
@@ -384,7 +396,9 @@ class RunService:
         return run_dto(run)
 
     async def cancel(self, workspace_id: str, run_id: str) -> dict[str, Any]:
-        """请求取消 Run 及其未完成 Job；未启动重试直接收尾，RunService.cancel 遵守本文件边界，失败返回稳定 Problem。"""
+        """请求取消 Run 及其未完成 Job；未启动重试直接收尾，RunService.cancel 遵守本文件边界，失败返回稳定 Problem。
+        cancel 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         await self.authorize(workspace_id)
         run = await self.get(workspace_id, run_id)
         if run.state == "FINISHED":

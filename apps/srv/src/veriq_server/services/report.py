@@ -53,7 +53,9 @@ SENSITIVE = {
 
 
 def redact(value: Any, secrets: set[str], *, dynamic_keys: bool = True) -> Any:
-    """递归脱敏结构中的秘密字符串与动态键，避免报告响应泄露凭据材料，redact 遵守本文件边界，失败返回稳定 Problem。"""
+    """递归脱敏结构中的秘密字符串与动态键，避免报告响应泄露凭据材料，redact 遵守本文件边界，失败返回稳定 Problem。
+    redact 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
+    """
     protected = sorted(
         {
             v
@@ -88,13 +90,19 @@ def redact(value: Any, secrets: set[str], *, dynamic_keys: bool = True) -> Any:
 
 
 class ReportService:
-    """组装报告 DTO、事件流、产物列表与审计页，强制 Workspace 边界，ReportService 遵守本文件边界。"""
+    """组装报告 DTO、事件流、产物列表与审计页，强制 Workspace 边界，ReportService 遵守本文件边界。
+    ReportService 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
+    """
     def __init__(self, session: AsyncSession, user: User, settings: Settings):
-        """注入会话、用户与设置，授权经 Workspace 成员角色判定，ReportService.__init__ 遵守本文件边界。"""
+        """注入会话、用户与设置，授权经 Workspace 成员角色判定，ReportService.__init__ 遵守本文件边界。
+        __init__ 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
+        """
         self.session, self.user, self.settings = session, user, settings
 
     async def run(self, scope: WorkspaceScope, run_id: str) -> Run:
-        """加载 Run 并校验其属于当前 Workspace 作用域，ReportService.run 遵守本文件边界，失败返回稳定 Problem。"""
+        """加载 Run 并校验其属于当前 Workspace 作用域，ReportService.run 遵守本文件边界，失败返回稳定 Problem。
+        run 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
+        """
         await WorkspaceRepository(self.session, scope).authorize(self.user)
         run = await self.session.get(Run, run_id)
         if not run or run.workspace_id != scope.workspace_id:
@@ -102,7 +110,9 @@ class ReportService:
         return run
 
     async def attempts(self, scope: WorkspaceScope, run_id: str) -> list[Attempt | OfflineAttempt]:
-        """列出 Run 下在线与离线 Attempt，供报告时间线展示，ReportService.attempts 遵守本文件边界。"""
+        """列出 Run 下在线与离线 Attempt，供报告时间线展示，ReportService.attempts 遵守本文件边界。
+        attempts 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
+        """
         run = await self.run(scope, run_id)
         if run.source == "OFFLINE_IMPORT":
             return list(
@@ -136,7 +146,9 @@ class ReportService:
         )
 
     async def get(self, scope: WorkspaceScope, run_id: str) -> dict[str, Any]:
-        """构建 Run 级报告摘要，包含聚合结果与门禁信息，ReportService.get 遵守本文件边界，失败返回稳定 Problem。"""
+        """构建 Run 级报告摘要，包含聚合结果与门禁信息，ReportService.get 遵守本文件边界，失败返回稳定 Problem。
+        get 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
+        """
         run = await self.run(scope, run_id)
         if run.source == "OFFLINE_IMPORT":
             return await self.offline_report(scope, run)
@@ -261,7 +273,9 @@ class ReportService:
         }
 
     async def attempt(self, scope: WorkspaceScope, attempt_id: str) -> Attempt:
-        """按 ID 加载 Attempt，并校验 Workspace 归属关系，ReportService.attempt 遵守本文件边界。"""
+        """按 ID 加载 Attempt，并校验 Workspace 归属关系，ReportService.attempt 遵守本文件边界。
+        attempt 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
+        """
         await WorkspaceRepository(self.session, scope).authorize(self.user)
         attempt = await self.session.get(Attempt, attempt_id)
         if not attempt or attempt.workspace_id != scope.workspace_id:
@@ -269,7 +283,10 @@ class ReportService:
         return attempt
 
     async def secrets(self, attempt: Attempt) -> tuple[set[str], bool]:
-        """收集 Attempt 相关密钥材料集合，供后续 redact 使用，ReportService.secrets 遵守本文件边界。"""
+        """收集 Attempt 相关密钥材料集合，供后续 redact 使用，ReportService.secrets 遵守本文件边界。
+        secrets 触及凭证材料：管理面不得回传明文，日志与审计只能保留摘要或引用标识。
+        secrets 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
+        """
         snapshot = await self.session.get(Artifact, (attempt.workspace_id, attempt.snapshot_hash))
         if (
             not snapshot
@@ -322,7 +339,9 @@ class ReportService:
         limit: int = 100,
         byte_budget: int = 1024 * 1024,
     ) -> dict[str, Any]:
-        """分页或游标读取事件并脱敏，供报告流式展示，ReportService.events 遵守本文件边界，失败返回稳定 Problem。"""
+        """分页或游标读取事件并脱敏，供报告流式展示，ReportService.events 遵守本文件边界，失败返回稳定 Problem。
+        events 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
+        """
         offline = await self.session.get(OfflineAttempt, attempt_id)
         if offline and offline.workspace_id == scope.workspace_id:
             await WorkspaceRepository(self.session, scope).authorize(self.user)
@@ -419,7 +438,9 @@ class ReportService:
         }
 
     async def artifacts(self, scope: WorkspaceScope, attempt_id: str) -> list[dict[str, Any]]:
-        """列出产物元数据；敏感下载另走更强授权路径，ReportService.artifacts 遵守本文件边界，失败返回稳定 Problem。"""
+        """列出产物元数据；敏感下载另走更强授权路径，ReportService.artifacts 遵守本文件边界，失败返回稳定 Problem。
+        artifacts 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
+        """
         offline = await self.session.get(OfflineAttempt, attempt_id)
         if offline and offline.workspace_id == scope.workspace_id:
             await WorkspaceRepository(self.session, scope).authorize(self.user)
@@ -484,7 +505,9 @@ class ReportService:
         ]
 
     async def audit(self, scope: WorkspaceScope, after: str = "") -> dict[str, Any]:
-        """读取 Workspace 审计日志页，支持 after 游标翻页，ReportService.audit 遵守本文件边界。"""
+        """读取 Workspace 审计日志页，支持 after 游标翻页，ReportService.audit 遵守本文件边界。
+        audit 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
+        """
         await WorkspaceRepository(self.session, scope).authorize(self.user)
         rows = list(
             (
@@ -511,7 +534,9 @@ class ReportService:
         }
 
     async def display(self, scope: WorkspaceScope, run_id: str, attempt_id: str) -> dict[str, Any]:
-        """构建单 Attempt 展示载荷，含归约后的步骤断言树，ReportService.display 遵守本文件边界，失败返回稳定 Problem。"""
+        """构建单 Attempt 展示载荷，含归约后的步骤断言树，ReportService.display 遵守本文件边界，失败返回稳定 Problem。
+        display 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
+        """
         from ..contracts import validate_schema
         from ..repositories.resource import ResourceRepository
 
@@ -607,7 +632,9 @@ class ReportService:
         return {**result, "display": projected, "metadataStatus": "AVAILABLE"}
 
     async def offline_report(self, scope: WorkspaceScope, run: Run) -> dict[str, Any]:
-        """为离线导入 Run 生成保守门禁下的只读报告，ReportService.offline_report 遵守本文件边界。"""
+        """为离线导入 Run 生成保守门禁下的只读报告，ReportService.offline_report 遵守本文件边界。
+        offline_report 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
+        """
         imported = (
             await self.session.execute(
                 select(OfflineImport).where(

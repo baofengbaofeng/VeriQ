@@ -20,9 +20,13 @@ from .runtime import RuntimeService
 
 
 class LeaseService:
-    """验证与维护 Attempt 租约；激活前禁止副作用，心跳可传播取消，LeaseService 路径必须遵守 Workspace 作用域。"""
+    """验证与维护 Attempt 租约；激活前禁止副作用，心跳可传播取消，LeaseService 路径必须遵守 Workspace 作用域。
+    LeaseService 路径涉及租约或 fencing：过期、错配令牌或不属于本设备的占用必须失败关闭而非降级继续。
+    """
     def __init__(self, session: AsyncSession, settings: Settings):
-        """注入会话与 Settings，租约上限结合 Run 三十分钟预算裁剪，LeaseService.__init__ 路径必须遵守 Workspace 作用域。"""
+        """注入会话与 Settings，租约上限结合 Run 三十分钟预算裁剪，LeaseService.__init__ 路径必须遵守 Workspace 作用域。
+        __init__ 路径涉及租约或 fencing：过期、错配令牌或不属于本设备的占用必须失败关闭而非降级继续。
+        """
         self.session, self.settings = session, settings
 
     async def proof(
@@ -35,6 +39,7 @@ class LeaseService:
     ) -> tuple[Attempt, Job, Runtime, RuntimeBinding]:
         """核验设备、归属、fence、lease_token 与未过期，失败返回 Problem，LeaseService.proof 路径必须遵守 Workspace 作用域。
         active 要求已激活；requester 复查原始请求者授权。
+        proof 路径涉及租约或 fencing：过期、错配令牌或不属于本设备的占用必须失败关闭而非降级继续。
         """
         runtime, binding, _ = await RuntimeService(self.session).require_device(proof.authorization)
         attempt = await self.session.get(Attempt, attempt_id)
@@ -67,6 +72,7 @@ class LeaseService:
     async def activate(self, attempt_id: str, proof: CredentialProofTransport) -> dict[str, Any]:
         """写入 activated_at 与溯源，阶段 PREPARING；重复激活拒绝，LeaseService.activate 路径必须遵守 Workspace 作用域。
         取消中 Job 不可激活；返回 fencingToken。
+        activate 路径涉及租约或 fencing：过期、错配令牌或不属于本设备的占用必须失败关闭而非降级继续。
         """
         attempt, job, runtime, binding = await self.proof(attempt_id, proof, active=False)
         if job.state == "CANCEL_REQUESTED":
@@ -91,6 +97,7 @@ class LeaseService:
     ) -> dict[str, Any]:
         """续租并推进阶段；未激活不得离 LEASED，禁止阶段回退，LeaseService.heartbeat 路径必须遵守 Workspace 作用域。
         取消或 requester 失效时不再延长租约。
+        heartbeat 路径涉及租约或 fencing：过期、错配令牌或不属于本设备的占用必须失败关闭而非降级继续。
         """
         attempt, job, runtime, _ = await self.proof(
             attempt_id, proof, active=False, requester=False
@@ -139,9 +146,13 @@ class LeaseService:
 
 
 class DatabaseAttemptProofVerifier:
-    """为凭据解析校验 Attempt 证明并提取角色或夹具身份，DatabaseAttemptProofVerifier 路径必须遵守 Workspace 作用域。"""
+    """为凭据解析校验 Attempt 证明并提取角色或夹具身份，DatabaseAttemptProofVerifier 路径必须遵守 Workspace 作用域。
+    DatabaseAttemptProofVerifier 路径涉及租约或 fencing：过期、错配令牌或不属于本设备的占用必须失败关闭而非降级继续。
+    """
     def __init__(self, settings: Settings):
-        """保存 Settings，供内部 LeaseService 使用同一配置，DatabaseAttemptProofVerifier.__init__ 路径必须遵守 Workspace 作用域。"""
+        """保存 Settings，供内部 LeaseService 使用同一配置，DatabaseAttemptProofVerifier.__init__ 路径必须遵守 Workspace 作用域。
+        __init__ 路径涉及租约或 fencing：过期、错配令牌或不属于本设备的占用必须失败关闭而非降级继续。
+        """
         self.settings = settings
 
     async def verify(
@@ -149,6 +160,7 @@ class DatabaseAttemptProofVerifier:
     ) -> VerifiedAttempt:
         """proof 后组装 VerifiedAttempt；取消中 Job 置 active=False，DatabaseAttemptProofVerifier.verify 路径必须遵守 Workspace 作用域。
         TEST 读角色身份，CLEANUP 读夹具身份。
+        verify 路径涉及租约或 fencing：过期、错配令牌或不属于本设备的占用必须失败关闭而非降级继续。
         """
         attempt, job, runtime, binding = await LeaseService(session, self.settings).proof(
             attempt_id, proof

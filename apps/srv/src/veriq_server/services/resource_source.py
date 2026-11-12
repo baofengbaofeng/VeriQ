@@ -18,7 +18,9 @@ _SOURCE_PATH = re.compile(r"(?:validation\.ts|source/context\.ts|cases/[0-9a-fA-
 async def compiled_source(
     repo: ResourceRepository, resource_id: str, version_id: str, path: str | None
 ) -> tuple[dict[str, Any], bytes | None]:
-    """验证发布溯源后返回元数据，可选读取单个生成 TypeScript 文件字节，compiled_source 路径必须遵守 Workspace 作用域。"""
+    """验证发布溯源后返回元数据，可选读取单个生成 TypeScript 文件字节，compiled_source 路径必须遵守 Workspace 作用域。
+    compiled_source 实现于 apps/srv/src/veriq_server/services/resource_source.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     await repo.resource(resource_id)
     version = await repo.version(version_id)
     if version.resource_id != resource_id:

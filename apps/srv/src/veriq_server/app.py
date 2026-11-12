@@ -42,10 +42,14 @@ log = logging.getLogger("veriq.http")
 
 
 class UnknownAPI(API):
-    """兜底处理器：对未登记路径的任意 HTTP 动词统一抛出 NOT_FOUND，避免静默 200 或方法泄露，UnknownAPI 的失败路径返回稳定错误。"""
+    """兜底处理器：对未登记路径的任意 HTTP 动词统一抛出 NOT_FOUND，避免静默 200 或方法泄露，UnknownAPI 的失败路径返回稳定错误。
+    UnknownAPI 实现于 apps/srv/src/veriq_server/app.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
 
     async def get(self, *args: str) -> None:
-        """拒绝未知路径上的 GET（以及其他动词别名），返回 404 问题对象给客户端，UnknownAPI.get 的失败路径返回稳定错误。"""
+        """拒绝未知路径上的 GET（以及其他动词别名），返回 404 问题对象给客户端，UnknownAPI.get 的失败路径返回稳定错误。
+        get 实现于 apps/srv/src/veriq_server/app.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         raise Problem(404, "NOT_FOUND", "API endpoint not found")
 
     post = get
@@ -55,7 +59,9 @@ class UnknownAPI(API):
 
 
 def handler_for(action: str) -> type[API]:
-    """按路由动作名选择具体 API 处理器类；当动作未匹配时回退到 UnknownAPI，handler_for 的失败路径返回稳定错误。"""
+    """按路由动作名选择具体 API 处理器类；当动作未匹配时回退到 UnknownAPI，handler_for 的失败路径返回稳定错误。
+    handler_for 实现于 apps/srv/src/veriq_server/app.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     if action == "native-result-imports":
         return NativeImportAPI
     if action == "native-result-import-uploads":
@@ -170,7 +176,9 @@ def handler_for(action: str) -> type[API]:
 
 
 def make_app(settings: Settings, db: Database, delivery: Delivery | None = None) -> Application:
-    """构建 Tornado Application：注册全部公开与内部路由，并注入投递、身份与围栏校验依赖，make_app 的失败路径返回稳定错误。"""
+    """构建 Tornado Application：注册全部公开与内部路由，并注入投递、身份与围栏校验依赖，make_app 的失败路径返回稳定错误。
+    make_app 实现于 apps/srv/src/veriq_server/app.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     delivery = delivery or (SMTPDelivery(settings) if settings.smtp_host else None)
     reset_dispatcher = ResetDispatcher(db, settings, delivery)
     routes = [
@@ -380,7 +388,9 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
     ]
 
     def request_log(handler: RequestHandler) -> None:
-        """结构化访问日志：仅记录请求 ID、方法、状态与耗时，不含路径参数与载荷。"""
+        """结构化访问日志：仅记录请求 ID、方法、状态与耗时，不含路径参数与载荷；该符号的输入校验、错误返回与调用方契约以本文件实现为准。
+        request_log 实现于 apps/srv/src/veriq_server/app.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         log.info(
             json.dumps(
                 {

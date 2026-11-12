@@ -11,12 +11,16 @@ from .enrollment import DeviceAPI
 
 
 class ExecutionAPI(DeviceAPI):
-    """设备执行面：认领任务、租约心跳、证据分块上传、完成事件以及维护触发端点；继承 DeviceAPI，故跳过浏览器 CSRF 而依赖租约证明。"""
+    """设备执行面：认领任务、租约心跳、证据分块上传、完成事件以及维护触发端点；继承 DeviceAPI，故跳过浏览器 CSRF 而依赖租约证明。
+    ExecutionAPI 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """
 
     body_limit = CHUNK_BYTES
 
     def header_proof(self) -> CredentialProofTransport:
-        """从 Authorization、租约头与 fencing 头组装 Attempt 证明，供上传与下载共用；三元组缺一不可，解析失败直接 400/403。"""
+        """从 Authorization、租约头与 fencing 头组装 Attempt 证明，供上传与下载共用；三元组缺一不可，解析失败直接 400/403。
+        header_proof 实现于 apps/srv/src/veriq_server/handlers/execution.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         return CredentialProofTransport.parse(
             self.request.headers.get("Authorization", ""),
             self.request.headers.get("X-VeriQ-Lease-Token", ""),
@@ -24,7 +28,9 @@ class ExecutionAPI(DeviceAPI):
         )
 
     async def put(self, attempt_id: str, upload_id: str) -> None:
-        """PUT upload-chunk：租约证明绑定 Attempt 后按 offset 写入，末块可落外部制品存储；外部存储写入在事务外执行，避免长 I/O 占锁。"""
+        """PUT upload-chunk：租约证明绑定 Attempt 后按 offset 写入，末块可落外部制品存储；外部存储写入在事务外执行，避免长 I/O 占锁。
+        put 实现于 apps/srv/src/veriq_server/handlers/execution.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         if self.action != "upload-chunk":
             raise Problem(405, "METHOD_NOT_ALLOWED", "Method not allowed")
         if self.request.headers.get("Content-Type") != "application/octet-stream":
@@ -145,7 +151,9 @@ class ExecutionAPI(DeviceAPI):
         self.respond(result)
 
     async def post(self, attempt_id: str | None = None) -> None:
-        """POST 认领/激活/心跳/完成/事件/建上传，或走服务账号维护触发（租约回收与制品过期）；维护类 action 要求服务账号令牌与显式 Workspace。"""
+        """POST 认领/激活/心跳/完成/事件/建上传，或走服务账号维护触发（租约回收与制品过期）；维护类 action 要求服务账号令牌与显式 Workspace。
+        post 实现于 apps/srv/src/veriq_server/handlers/execution.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         result: dict[str, Any] | None
         if self.action in {
             "expired-leases/reap",
@@ -280,7 +288,9 @@ class ExecutionAPI(DeviceAPI):
             self.respond(result, 201 if self.action == "upload-create" else 200)
 
     async def get(self, *args: str) -> None:
-        """GET content：在租约证明下按 Workspace/Attempt/摘要下载已授权证据字节；下载响应为原始字节流，不走 JSON 成功信封。"""
+        """GET content：在租约证明下按 Workspace/Attempt/摘要下载已授权证据字节；下载响应为原始字节流，不走 JSON 成功信封。
+        get 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         if self.action != "content":
             raise Problem(405, "METHOD_NOT_ALLOWED", "Method not allowed")
         workspace_id, attempt_id, digest = args

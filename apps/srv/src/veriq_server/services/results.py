@@ -10,7 +10,9 @@ STAGES = {"BEFORE": 0, "RESPONSE": 1, "AFTER": 2, "FINALIZE": 3}
 
 
 def aggregate(outcomes: list[str]) -> str:
-    """将 outcome 列表归约为代表结果，优先级体现失败重于通过与不稳定，aggregate 遵守本文件边界，失败返回稳定 Problem。"""
+    """将 outcome 列表归约为代表结果，优先级体现失败重于通过与不稳定，aggregate 遵守本文件边界，失败返回稳定 Problem。
+    aggregate 实现于 apps/srv/src/veriq_server/services/results.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     return next((o for o in PRIORITY if o in outcomes), "INCOMPLETE")
 
 
@@ -22,7 +24,9 @@ def reduce_test(
     evidence_complete: bool,
     cancel_requested: bool = False,
 ) -> dict[str, Any]:
-    """按步骤与断言时序归约测试事实树，保留阻塞点并省略冗余通过噪音，reduce_test 遵守本文件边界，失败返回稳定 Problem。"""
+    """按步骤与断言时序归约测试事实树，保留阻塞点并省略冗余通过噪音，reduce_test 遵守本文件边界，失败返回稳定 Problem。
+    reduce_test 实现于 apps/srv/src/veriq_server/services/results.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     steps = {s["id"]: s for s in plan["steps"]}
     positions = {id(e): i for i, e in enumerate(events)}
     starts = {e.get("stepId"): e for e in events if e["type"] == "STEP_STARTED"}

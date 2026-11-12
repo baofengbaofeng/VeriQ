@@ -19,7 +19,9 @@ MAX_SAFE_INTEGER = 9_007_199_254_740_991
 
 
 class ValidationIssue(TypedDict):
-    """单条契约校验问题：包含 JSON Pointer 路径、稳定错误码以及面向调用方的英文说明消息，ValidationIssue 的失败路径返回稳定错误。"""
+    """单条契约校验问题：包含 JSON Pointer 路径、稳定错误码以及面向调用方的英文说明消息，ValidationIssue 的失败路径返回稳定错误。
+    ValidationIssue 实现于 apps/srv/src/veriq_server/contracts.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
 
     path: str
     code: str
@@ -28,7 +30,7 @@ class ValidationIssue(TypedDict):
 
 @cache
 def _schema() -> dict[str, Any]:
-    """加载完整 platform-v1.schema.json，优先包资源，其次源码 contracts 路径。"""
+    """加载完整 platform-v1.schema.json：优先已安装包内资源，缺失时回退到源码树 contracts 路径以便开发态校验。"""
     resource = files("veriq_server").joinpath("_schemas/platform-v1.schema.json")
     if resource.is_file():
         return json.loads(resource.read_text(encoding="utf-8"))  # type: ignore[no-any-return]
@@ -41,7 +43,7 @@ def _schema() -> dict[str, Any]:
 
 @cache
 def _validator(schema_name: str) -> Draft202012Validator:
-    """按 $defs 名称构造带 FormatChecker 的 Draft 2020-12 校验器并缓存。"""
+    """按 $defs 名称构造带 FormatChecker 的 Draft 2020-12 校验器，并按名称缓存以避免重复编译 schema。"""
     definitions = _schema()["$defs"]
     if schema_name not in definitions:
         raise ValueError(f"Unknown contract schema: {schema_name}")
@@ -51,12 +53,12 @@ def _validator(schema_name: str) -> Draft202012Validator:
 
 
 def _pointer(parts: Any) -> str:
-    """将绝对路径元组编码为 RFC6901 JSON Pointer，供问题排序与展示。"""
+    """将绝对路径元组编码为 RFC6901 JSON Pointer，供问题排序与展示；该符号的输入校验、错误返回与调用方契约以本文件实现为准。"""
     return "".join("/" + str(part).replace("~", "~0").replace("/", "~1") for part in parts)
 
 
 def _portable_json(value: Any, ancestors: set[int]) -> bool:
-    """判断值是否为可跨语言移植的 JSON：有限数、安全整数、无环引用且键均为字符串。"""
+    """判断值是否为可跨语言移植的 JSON：有限数、安全整数、无环引用且键均为字符串；该符号的输入校验、错误返回与调用方契约以本文件实现为准。"""
     if value is None or type(value) in (str, bool):
         return True
     if type(value) is int:
@@ -77,7 +79,9 @@ def _portable_json(value: Any, ancestors: set[int]) -> bool:
 
 
 def validate_schema(schema_name: str, value: Any) -> list[ValidationIssue]:
-    """先做可移植性检查再运行 schema，返回按路径排序的问题列表，空列表表示校验通过，validate_schema 的失败路径返回稳定错误。"""
+    """先做可移植性检查再运行 schema，返回按路径排序的问题列表，空列表表示校验通过，validate_schema 的失败路径返回稳定错误。
+    validate_schema 实现于 apps/srv/src/veriq_server/contracts.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     validator = _validator(schema_name)
     if not _portable_json(value, set()):
         return [
@@ -96,12 +100,16 @@ def validate_schema(schema_name: str, value: Any) -> list[ValidationIssue]:
 
 
 def validate_case_schema(value: Any) -> list[ValidationIssue]:
-    """校验 CaseDslV1 文档结构，供草稿保存与发布前的契约门禁流程复用同一套规则，validate_case_schema 的失败路径返回稳定错误。"""
+    """校验 CaseDslV1 文档结构，供草稿保存与发布前的契约门禁流程复用同一套规则，validate_case_schema 的失败路径返回稳定错误。
+    validate_case_schema 实现于 apps/srv/src/veriq_server/contracts.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     return validate_schema("CaseDslV1", value)
 
 
 def serialize_contract(schema_name: str, value: Any) -> str:
-    """校验通过后以紧凑且 allow_nan=False 的 JSON 文本序列化契约对象，拒绝非有限数值，serialize_contract 的失败路径返回稳定错误。"""
+    """校验通过后以紧凑且 allow_nan=False 的 JSON 文本序列化契约对象，拒绝非有限数值，serialize_contract 的失败路径返回稳定错误。
+    serialize_contract 实现于 apps/srv/src/veriq_server/contracts.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     issues = validate_schema(schema_name, value)
     if issues:
         raise ValueError(issues)
@@ -109,7 +117,9 @@ def serialize_contract(schema_name: str, value: Any) -> str:
 
 
 def parse_contract(schema_name: str, text: str) -> Any:
-    """解析 JSON 文本并校验命名契约，同时拒绝 Infinity 与 NaN 等非标准 JSON 常量，parse_contract 的失败路径返回稳定错误。"""
+    """解析 JSON 文本并校验命名契约，同时拒绝 Infinity 与 NaN 等非标准 JSON 常量，parse_contract 的失败路径返回稳定错误。
+    parse_contract 实现于 apps/srv/src/veriq_server/contracts.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     def reject_constant(constant: str) -> None:
         raise ValueError(f"Non-JSON constant: {constant}")
 
@@ -121,7 +131,9 @@ def parse_contract(schema_name: str, text: str) -> Any:
 
 
 def canonical_bytes(value: Any) -> bytes:
-    """使用 rfc8785 生成规范字节作为内容寻址哈希输入；遇到不可移植值时直接拒绝，canonical_bytes 的失败路径返回稳定错误。"""
+    """使用 rfc8785 生成规范字节作为内容寻址哈希输入；遇到不可移植值时直接拒绝，canonical_bytes 的失败路径返回稳定错误。
+    canonical_bytes 实现于 apps/srv/src/veriq_server/contracts.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     import rfc8785
 
     if not _portable_json(value, set()):
@@ -130,7 +142,9 @@ def canonical_bytes(value: Any) -> bytes:
 
 
 def asset_source_hash(snapshot: dict[str, Any]) -> str:
-    """对执行快照关键字段做规范哈希；authAdapters 按 versionId 排序后再纳入摘要计算，asset_source_hash 的失败路径返回稳定错误。"""
+    """对执行快照关键字段做规范哈希；authAdapters 按 versionId 排序后再纳入摘要计算，asset_source_hash 的失败路径返回稳定错误。
+    asset_source_hash 实现于 apps/srv/src/veriq_server/contracts.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     import hashlib
 
     return hashlib.sha256(

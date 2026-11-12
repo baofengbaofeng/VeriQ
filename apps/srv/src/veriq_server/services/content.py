@@ -24,15 +24,21 @@ CHUNK_BYTES = 1024 * 1024
 
 
 class ContentService:
-    """编排在线证据上传会话与按 digest 下载，所有操作绑定 Attempt 租约证明，ContentService 遵守本文件 Workspace/事务边界。"""
+    """编排在线证据上传会话与按 digest 下载，所有操作绑定 Attempt 租约证明，ContentService 遵守本文件 Workspace/事务边界。
+    ContentService 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """
     def __init__(self, session: AsyncSession, settings: Settings):
-        """注入会话与 Settings，用于租约校验与产物存储后端选择，ContentService.__init__ 遵守本文件 Workspace/事务边界。"""
+        """注入会话与 Settings，用于租约校验与产物存储后端选择，ContentService.__init__ 遵守本文件 Workspace/事务边界。
+        __init__ 实现于 apps/srv/src/veriq_server/services/content.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         self.session, self.settings = session, settings
 
     async def create_upload(
         self, attempt_id: str, proof: CredentialProofTransport, data: dict[str, Any]
     ) -> dict[str, Any]:
-        """在有效租约下创建上传会话与 PENDING publication，返回 uploadId，ContentService.create_upload 遵守本文件 Workspace/事务边界。"""
+        """在有效租约下创建上传会话与 PENDING publication，返回 uploadId，ContentService.create_upload 遵守本文件 Workspace/事务边界。
+        create_upload 实现于 apps/srv/src/veriq_server/services/content.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         attempt, _, _, _ = await LeaseService(self.session, self.settings).proof(attempt_id, proof)
         if data["sizeBytes"] > MAX_FILE or validate_schema("FilePath", data["filename"]):
             raise Problem(413, "UPLOAD_LIMIT", "Upload filename or size is outside limits")
@@ -82,7 +88,9 @@ class ContentService:
         external: bytes | None = None,
         staged: tuple[bytes, bool, str, str | None] | None = None,
     ) -> dict[str, Any]:
-        """按偏移写入分块并更新进度；偏移不连续或租约失效则拒绝，ContentService.chunk 遵守本文件 Workspace/事务边界。"""
+        """按偏移写入分块并更新进度；偏移不连续或租约失效则拒绝，ContentService.chunk 遵守本文件 Workspace/事务边界。
+        chunk 实现于 apps/srv/src/veriq_server/services/content.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         attempt, _, _, _ = await LeaseService(self.session, self.settings).proof(attempt_id, proof)
         upload = await self.session.get(AttemptUpload, upload_id)
         if (
@@ -152,7 +160,9 @@ class ContentService:
     async def download(
         self, workspace_id: str, attempt_id: str, digest: str, proof: CredentialProofTransport
     ) -> bytes:
-        """按 Workspace 与 digest 读取已提交产物，供 Runtime 拉取钉死内容，ContentService.download 遵守本文件 Workspace/事务边界。"""
+        """按 Workspace 与 digest 读取已提交产物，供 Runtime 拉取钉死内容，ContentService.download 遵守本文件 Workspace/事务边界。
+        download 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         attempt, job, _, _ = await LeaseService(self.session, self.settings).proof(
             attempt_id, proof, active=False
         )

@@ -18,22 +18,32 @@ log = logging.getLogger("veriq.mail")
 
 
 class Delivery(Protocol):
-    """邮件投递协议定义异步发送纯文本正文的接口，实现可替换为测试桩或真实 SMTP，Delivery 的失败路径返回稳定错误。"""
+    """邮件投递协议定义异步发送纯文本正文的接口，实现可替换为测试桩或真实 SMTP，Delivery 的失败路径返回稳定错误。
+    Delivery 实现于 apps/srv/src/veriq_server/delivery.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
 
     async def send(self, recipient: str, subject: str, body: str) -> None:
-        """向指定收件人投递主题与正文；失败时应抛出异常，供调度器吊销对应重置令牌，Delivery.send 的失败路径返回稳定错误。"""
+        """向指定收件人投递主题与正文；失败时应抛出异常，供调度器吊销对应重置令牌，Delivery.send 的失败路径返回稳定错误。
+        send 实现于 apps/srv/src/veriq_server/delivery.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         ...
 
 
 class SMTPDelivery:
-    """基于 Settings 的 SMTP 实现：支持 SMTPS、STARTTLS 以及可选的用户名密码登录凭据，SMTPDelivery 的失败路径返回稳定错误。"""
+    """基于 Settings 的 SMTP 实现：支持 SMTPS、STARTTLS 以及可选的用户名密码登录凭据，SMTPDelivery 的失败路径返回稳定错误。
+    SMTPDelivery 实现于 apps/srv/src/veriq_server/delivery.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
 
     def __init__(self, config: Settings):
-        """保存 Settings 引用，后续发送时读取主机、端口、安全模式与可选登录凭据，SMTPDelivery.__init__ 的失败路径返回稳定错误。"""
+        """保存 Settings 引用，后续发送时读取主机、端口、安全模式与可选登录凭据，SMTPDelivery.__init__ 的失败路径返回稳定错误。
+        __init__ 实现于 apps/srv/src/veriq_server/delivery.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         self.config = config
 
     async def send(self, recipient: str, subject: str, body: str) -> None:
-        """组装 EmailMessage 并在线程池中调用 _send，避免阻塞 Tornado 的 IOLoop 事件循环，SMTPDelivery.send 的失败路径返回稳定错误。"""
+        """组装 EmailMessage 并在线程池中调用 _send，避免阻塞 Tornado 的 IOLoop 事件循环，SMTPDelivery.send 的失败路径返回稳定错误。
+        send 实现于 apps/srv/src/veriq_server/delivery.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         message = EmailMessage()
         message["From"] = self.config.smtp_from
         message["To"] = recipient
@@ -65,15 +75,21 @@ class SMTPDelivery:
 
 
 class ResetDispatcher:
-    """异步调度密码重置：持安装锁查找用户、签发令牌并投递邮件，失败则删除对应令牌摘要，ResetDispatcher 的失败路径返回稳定错误。"""
+    """异步调度密码重置：持安装锁查找用户、签发令牌并投递邮件，失败则删除对应令牌摘要，ResetDispatcher 的失败路径返回稳定错误。
+    ResetDispatcher 实现于 apps/srv/src/veriq_server/delivery.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
 
     def __init__(self, db: Database, config: Settings, delivery: Delivery | None):
-        """保存数据库、配置与可选 Delivery，并初始化进行中任务集合供 close 等待，ResetDispatcher.__init__ 的失败路径返回稳定错误。"""
+        """保存数据库、配置与可选 Delivery，并初始化进行中任务集合供 close 等待，ResetDispatcher.__init__ 的失败路径返回稳定错误。
+        __init__ 实现于 apps/srv/src/veriq_server/delivery.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         self.db, self.config, self.delivery = db, config, delivery
         self.pending: set[asyncio.Task[None]] = set()
 
     def submit(self, email: str) -> None:
-        """入队重置任务；未配置 delivery 时直接返回，避免与登录枚举以外的行为产生差异，ResetDispatcher.submit 的失败路径返回稳定错误。"""
+        """入队重置任务；未配置 delivery 时直接返回，避免与登录枚举以外的行为产生差异，ResetDispatcher.submit 的失败路径返回稳定错误。
+        submit 实现于 apps/srv/src/veriq_server/delivery.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         if self.delivery is None:
             return
         task = asyncio.create_task(self._run(email))
@@ -121,6 +137,8 @@ class ResetDispatcher:
                     log.error('{"event":"mail.revoke_failed"}')
 
     async def close(self) -> None:
-        """等待全部进行中的投递任务结束后再返回，供 HTTPServer 优雅停机路径调用，ResetDispatcher.close 的失败路径返回稳定错误。"""
+        """等待全部进行中的投递任务结束后再返回，供 HTTPServer 优雅停机路径调用，ResetDispatcher.close 的失败路径返回稳定错误。
+        close 实现于 apps/srv/src/veriq_server/delivery.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         if self.pending:
             await asyncio.gather(*list(self.pending))

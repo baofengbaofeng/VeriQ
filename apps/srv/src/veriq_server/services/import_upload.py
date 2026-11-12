@@ -19,9 +19,13 @@ from .artifact import artifact_store, listed_offline_artifact
 
 
 class ImportUploadService(ImportService):
-    """扩展 ImportService，提供离线产物分块预订、写入与提交前校验，ImportUploadService 遵守本文件边界。"""
+    """扩展 ImportService，提供离线产物分块预订、写入与提交前校验，ImportUploadService 遵守本文件边界。
+    ImportUploadService 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
+    """
     async def reserve(self, scope: WorkspaceScope, req: dict[str, Any]) -> OfflineImportUpload:
-        """按清单预订上传槽位与 PENDING publication，重复键幂等返回，ImportUploadService.reserve 遵守本文件边界。"""
+        """按清单预订上传槽位与 PENDING publication，重复键幂等返回，ImportUploadService.reserve 遵守本文件边界。
+        reserve 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
+        """
         file = req["file"]
         if (
             validate_schema("OfflineArtifactV1", file)
@@ -102,7 +106,9 @@ class ImportUploadService(ImportService):
     async def imported(
         self, scope: WorkspaceScope, bundle_id: str, local_run_id: str
     ) -> OfflineImport | None:
-        """查询上传是否已随导入提交，供客户端决定是否续传，ImportUploadService.imported 遵守本文件边界。"""
+        """查询上传是否已随导入提交，供客户端决定是否续传，ImportUploadService.imported 遵守本文件边界。
+        imported 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
+        """
         return (
             await self.session.execute(
                 select(OfflineImport).where(
@@ -116,7 +122,9 @@ class ImportUploadService(ImportService):
     async def committed_artifact(
         self, scope: WorkspaceScope, row: OfflineImportUpload, imported: OfflineImport | None
     ) -> None:
-        """确认 digest 已 COMMITTED 后方允许下游当作证据，ImportUploadService.committed_artifact 遵守本文件边界。"""
+        """确认 digest 已 COMMITTED 后方允许下游当作证据，ImportUploadService.committed_artifact 遵守本文件边界。
+        committed_artifact 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
+        """
         if imported is None:
             return
         attempt = (
@@ -140,7 +148,9 @@ class ImportUploadService(ImportService):
     async def current(
         self, scope: WorkspaceScope, upload_id: str, authority: Any
     ) -> OfflineImportUpload:
-        """返回当前上传进度与状态，越权 Workspace 拒绝，ImportUploadService.current 遵守本文件边界。"""
+        """返回当前上传进度与状态，越权 Workspace 拒绝，ImportUploadService.current 遵守本文件边界。
+        current 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
+        """
         row = await self.session.get(OfflineImportUpload, upload_id, populate_existing=True)
         if not row or row.workspace_id != scope.workspace_id:
             raise Problem(404, "UPLOAD_NOT_FOUND", "Upload not found")
@@ -157,7 +167,9 @@ class ImportUploadService(ImportService):
     async def chunk(
         self, scope: WorkspaceScope, upload_id: str, offset: int, raw: bytes
     ) -> dict[str, Any]:
-        """按偏移写入分块；偏移不连续或超出声明大小则失败，ImportUploadService.chunk 遵守本文件边界，失败返回稳定 Problem。"""
+        """按偏移写入分块；偏移不连续或超出声明大小则失败，ImportUploadService.chunk 遵守本文件边界，失败返回稳定 Problem。
+        chunk 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
+        """
         if len(raw) > 1024 * 1024 or offset < 0:
             raise Problem(413, "CHUNK_LIMIT", "Chunk exceeds bound")
         await self.session.commit()
@@ -276,7 +288,9 @@ class ImportUploadService(ImportService):
     async def completed_chunk(
         self, scope: WorkspaceScope, upload_id: str, offset: int, raw: bytes
     ) -> dict[str, Any] | None:
-        """标记分块完成并在全部到齐时推进 publication 状态，ImportUploadService.completed_chunk 遵守本文件边界。"""
+        """标记分块完成并在全部到齐时推进 publication 状态，ImportUploadService.completed_chunk 遵守本文件边界。
+        completed_chunk 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
+        """
         async with authority_guard(self.settings, False) as authority:
             await lock_installation(self.session)
             row = await self.current(scope, upload_id, authority)

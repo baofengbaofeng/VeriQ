@@ -12,7 +12,9 @@ from ..service import Problem
 
 
 def validate_initial_variables(declarations: dict[str, str], values: dict[str, Any]) -> None:
-    """校验 values 匹配 declarations；不符映射 INITIAL_VARIABLE_INVALID，validate_initial_variables 路径必须遵守 Workspace 作用域。"""
+    """校验 values 匹配 declarations；不符映射 INITIAL_VARIABLE_INVALID，validate_initial_variables 路径必须遵守 Workspace 作用域。
+    validate_initial_variables 实现于 apps/srv/src/veriq_server/services/snapshots.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     schema = {
         "type": "object",
         "properties": {key: {"type": kind} for key, kind in declarations.items()},

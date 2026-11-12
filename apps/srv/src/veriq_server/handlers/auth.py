@@ -23,10 +23,14 @@ from typing import cast
 
 
 class AuthAPI(API):
-    """安装引导与会话认证入口：setup、login、reset、logout 以及当前会话探测；登录成功后设置 HttpOnly Strict Cookie，生产强制 Secure。"""
+    """安装引导与会话认证入口：setup、login、reset、logout 以及当前会话探测；登录成功后设置 HttpOnly Strict Cookie，生产强制 Secure。
+    AuthAPI 实现于 apps/srv/src/veriq_server/handlers/auth.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
 
     async def get(self, user_id: str | None = None) -> None:
-        """GET 返回安装初始化态与 CSRF，或已登录会话用户摘要与过期时间；setup 无需登录即可读取 initialized 与 csrfToken。"""
+        """GET 返回安装初始化态与 CSRF，或已登录会话用户摘要与过期时间；setup 无需登录即可读取 initialized 与 csrfToken。
+        get 实现于 apps/srv/src/veriq_server/handlers/auth.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         async with self.db.sessions() as s:
             if self.action == "setup":
                 installation = await s.get(Installation, 1)
@@ -49,7 +53,9 @@ class AuthAPI(API):
                 raise Problem(404, "NOT_FOUND", "API endpoint not found")
 
     async def post(self, user_id: str | None = None) -> None:
-        """POST 分发首次 setup、登录发 Cookie、重置申请/确认与登出清 Cookie；重置确认与登录均在安装锁下串行，避免并发口令竞态。"""
+        """POST 分发首次 setup、登录发 Cookie、重置申请/确认与登出清 Cookie；重置确认与登录均在安装锁下串行，避免并发口令竞态。
+        post 实现于 apps/srv/src/veriq_server/handlers/auth.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         if self.action == "setup":
             self.respond(user_dto(await initialize(self.db, self.body("SetupRequest"))), 201)
             return

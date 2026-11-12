@@ -21,7 +21,9 @@ SYSTEM = (
 
 
 def allowed_endpoint(value: str, settings: Settings) -> str:
-    """把供应商 baseURL 规范到 scheme/host/port/path 后与算子白名单比对，拒绝凭证嵌入与危险路径。"""
+    """把供应商 baseURL 规范到 scheme/host/port/path 后与算子白名单比对，拒绝凭证嵌入与危险路径。
+    allowed_endpoint 实现于 apps/srv/src/veriq_server/infrastructure/providers.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
 
     def canonical(url: str) -> tuple[str, str, int, str]:
         u = urlsplit(url)
@@ -64,14 +66,18 @@ def allowed_endpoint(value: str, settings: Settings) -> str:
 
 @dataclass(frozen=True)
 class DraftContext:
-    """一次 AI 草稿调用的上下文封装：含不可信业务上下文、输出 Schema 与输出 token 上限；max_output_tokens 传给供应商 SDK，控制输出膨胀。"""
+    """一次 AI 草稿调用的上下文封装：含不可信业务上下文、输出 Schema 与输出 token 上限；max_output_tokens 传给供应商 SDK，控制输出膨胀。
+    DraftContext 实现于 apps/srv/src/veriq_server/infrastructure/providers.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
 
     context: dict[str, Any]
     schema: dict[str, Any]
     max_output_tokens: int
 
     def messages(self) -> list[dict[str, str]]:
-        """组装 system/user 消息；用户侧仅承载规范化 JSON，避免把上下文当指令执行；system 提示固定强调上下文不可信且禁止要凭据。"""
+        """组装 system/user 消息；用户侧仅承载规范化 JSON，避免把上下文当指令执行；system 提示固定强调上下文不可信且禁止要凭据。
+        messages 实现于 apps/srv/src/veriq_server/infrastructure/providers.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         return [
             {"role": "system", "content": SYSTEM},
             {
@@ -83,13 +89,17 @@ class DraftContext:
         ]
 
     def input_bound(self) -> int:
-        """估算输入字节上界（消息规范长度加固定余量），供配额与请求门禁使用；8192 余量覆盖序列化与供应商封装开销。（DraftContext.input_bound）"""
+        """估算输入字节上界（消息规范长度加固定余量），供配额与请求门禁使用；8192 余量覆盖序列化与供应商封装开销。（DraftContext.input_bound）
+        input_bound 实现于 apps/srv/src/veriq_server/infrastructure/providers.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         return len(canonical_bytes(self.messages())) + 8192
 
 
 @dataclass(frozen=True)
 class ModelReply:
-    """模型网关统一回复：解析后的 JSON、可选 token 用量以及可映射的错误码；error_code 非空时 output 应为 None，由上层映射问题码。"""
+    """模型网关统一回复：解析后的 JSON、可选 token 用量以及可映射的错误码；error_code 非空时 output 应为 None，由上层映射问题码。
+    ModelReply 实现于 apps/srv/src/veriq_server/infrastructure/providers.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
 
     output: Any
     input_tokens: int | None
@@ -98,18 +108,26 @@ class ModelReply:
 
 
 class ModelGateway(Protocol):
-    """AI 供应商网关协议：接收 DraftContext 并返回结构化 ModelReply，屏蔽 SDK 差异；实现类不得在此协议外偷偷发起重定向或重试。"""
+    """AI 供应商网关协议：接收 DraftContext 并返回结构化 ModelReply，屏蔽 SDK 差异；实现类不得在此协议外偷偷发起重定向或重试。
+    ModelGateway 实现于 apps/srv/src/veriq_server/infrastructure/providers.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
 
     async def generate(self, context: DraftContext) -> ModelReply:
-        """根据 DraftContext 调用具体供应商 SDK，并返回统一结构的 ModelReply 结果对象供上层错误映射。"""
+        """根据 DraftContext 调用具体供应商 SDK，并返回统一结构的 ModelReply 结果对象供上层错误映射。
+        generate 实现于 apps/srv/src/veriq_server/infrastructure/providers.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         ...
 
 
 class LimitedStream(httpx.AsyncByteStream):
-    """响应体流式读取护栏：累计超过 1 MiB 即中止，防止供应商异常膨胀耗尽内存；与 content-length 预检互补，覆盖分块/未知长度响应。"""
+    """响应体流式读取护栏：累计超过 1 MiB 即中止，防止供应商异常膨胀耗尽内存；与 content-length 预检互补，覆盖分块/未知长度响应。
+    LimitedStream 实现于 apps/srv/src/veriq_server/infrastructure/providers.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
 
     def __init__(self, stream: httpx.AsyncByteStream):
-        """包装原始 httpx 字节流，在迭代路径上叠加硬上限计数；不复制数据，只保存对流的引用与计数状态。（LimitedStream.__init__）"""
+        """包装原始 httpx 字节流，在迭代路径上叠加硬上限计数；不复制数据，只保存对流的引用与计数状态。（LimitedStream.__init__）
+        __init__ 实现于 apps/srv/src/veriq_server/infrastructure/providers.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         self.stream = stream
 
     async def __aiter__(self) -> AsyncIterator[bytes]:
@@ -122,12 +140,16 @@ class LimitedStream(httpx.AsyncByteStream):
             yield chunk
 
     async def aclose(self) -> None:
-        """关闭被包装的底层流，确保限流包装不泄漏连接资源；委托底层 aclose，保持 httpx 资源清理契约。（LimitedStream.aclose）"""
+        """关闭被包装的底层流，确保限流包装不泄漏连接资源；委托底层 aclose，保持 httpx 资源清理契约。（LimitedStream.aclose）
+        aclose 实现于 apps/srv/src/veriq_server/infrastructure/providers.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         await self.stream.aclose()
 
 
 async def limit_response(response: httpx.Response) -> None:
-    """响应钩子：拒绝压缩编码与过大 Content-Length，并将流替换为 LimitedStream；作为 event_hooks 在读取正文前挂接，尽早失败。"""
+    """响应钩子：拒绝压缩编码与过大 Content-Length，并将流替换为 LimitedStream；作为 event_hooks 在读取正文前挂接，尽早失败。
+    limit_response 实现于 apps/srv/src/veriq_server/infrastructure/providers.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     if response.headers.get("content-encoding", "identity").lower() != "identity":
         raise ValueError("AI_RESPONSE_ENCODING")
     if int(response.headers.get("content-length", "0")) > 1024 * 1024:
@@ -136,14 +158,20 @@ async def limit_response(response: httpx.Response) -> None:
 
 
 class ProviderGateway:
-    """按适配器类型调用 Anthropic 或 OpenAI 兼容接口，统一截断不完整输出与非法 JSON；ANTHROPIC 与 OpenAI 分支共享超时、禁重试与体积护栏。"""
+    """按适配器类型调用 Anthropic 或 OpenAI 兼容接口，统一截断不完整输出与非法 JSON；ANTHROPIC 与 OpenAI 分支共享超时、禁重试与体积护栏。
+    ProviderGateway 实现于 apps/srv/src/veriq_server/infrastructure/providers.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
 
     def __init__(self, config: dict[str, Any], key: str):
-        """保存已授权的供应商配置与 API 密钥；密钥仅驻留内存，不写回审计日志；config 应已通过 allowed_endpoint 白名单校验。"""
+        """保存已授权的供应商配置与 API 密钥；密钥仅驻留内存，不写回审计日志；config 应已通过 allowed_endpoint 白名单校验。
+        __init__ 实现于 apps/srv/src/veriq_server/infrastructure/providers.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         self.config, self.key = config, key
 
     async def generate(self, context: DraftContext) -> ModelReply:
-        """禁用重定向与重试地发起一次补全；输出超限或不完整时返回带 error_code 的空结果；不完整 finish_reason/stop_reason 映射 AI_INCOMPLETE_OUTPUT。"""
+        """禁用重定向与重试地发起一次补全；输出超限或不完整时返回带 error_code 的空结果；不完整 finish_reason/stop_reason 映射 AI_INCOMPLETE_OUTPUT。
+        generate 实现于 apps/srv/src/veriq_server/infrastructure/providers.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         usage_in: int | None
         usage_out: int | None
         async with httpx.AsyncClient(

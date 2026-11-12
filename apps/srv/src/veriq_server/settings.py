@@ -14,7 +14,9 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, m
 
 
 class Settings(BaseModel):
-    """控制面强类型配置模型；extra=forbid，生产环境额外强制 HTTPS 公网源以及 SMTP TLS，Settings 的失败路径返回稳定错误。"""
+    """控制面强类型配置模型；extra=forbid，生产环境额外强制 HTTPS 公网源以及 SMTP TLS，Settings 的失败路径返回稳定错误。
+    Settings 实现于 apps/srv/src/veriq_server/settings.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
 
     model_config = ConfigDict(extra="forbid")
     database_url: SecretStr
@@ -58,7 +60,9 @@ class Settings(BaseModel):
 
     @model_validator(mode="after")
     def production_origin(self) -> "Settings":
-        """交叉校验主密钥环、生产公网源与 SMTP 成套配置，拒绝任何不安全或不完整的组合，Settings.production_origin 的失败路径返回稳定错误。"""
+        """交叉校验主密钥环、生产公网源与 SMTP 成套配置，拒绝任何不安全或不完整的组合，Settings.production_origin 的失败路径返回稳定错误。
+        production_origin 实现于 apps/srv/src/veriq_server/settings.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         if self.master_key_id in self.previous_master_keys:
             raise ValueError("Active key id must not appear in previous keys")
         for value in self.previous_master_keys.values():
@@ -83,7 +87,9 @@ class Settings(BaseModel):
     @field_validator("database_url")
     @classmethod
     def database(cls, v: SecretStr) -> SecretStr:
-        """要求 mysql+asyncmy:// 形式的 DSN，排除同步驱动与非 MySQL 方言进入控制面，Settings.database 的失败路径返回稳定错误。"""
+        """要求 mysql+asyncmy:// 形式的 DSN，排除同步驱动与非 MySQL 方言进入控制面，Settings.database 的失败路径返回稳定错误。
+        database 实现于 apps/srv/src/veriq_server/settings.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         if not v.get_secret_value().startswith("mysql+asyncmy://"):
             raise ValueError("An async MySQL database is required")
         return v
@@ -91,7 +97,9 @@ class Settings(BaseModel):
     @field_validator("master_key", "signing_key")
     @classmethod
     def key(cls, v: SecretStr) -> SecretStr:
-        """密钥必须为精确 32 字节的十六进制编码字符串，长度不符或解码失败时一律拒绝，Settings.key 的失败路径返回稳定错误。"""
+        """密钥必须为精确 32 字节的十六进制编码字符串，长度不符或解码失败时一律拒绝，Settings.key 的失败路径返回稳定错误。
+        key 实现于 apps/srv/src/veriq_server/settings.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         if len(v.get_secret_value()) != 64:
             raise ValueError("Key must contain 32 bytes encoded as hex")
         if len(bytes.fromhex(v.get_secret_value())) != 32:
@@ -101,7 +109,9 @@ class Settings(BaseModel):
     @field_validator("public_url")
     @classmethod
     def url(cls, v: str) -> str:
-        """公网 URL 必须是无用户信息、无查询与片段的 HTTP(S) origin，末尾斜杠会被剥离，Settings.url 的失败路径返回稳定错误。"""
+        """公网 URL 必须是无用户信息、无查询与片段的 HTTP(S) origin，末尾斜杠会被剥离，Settings.url 的失败路径返回稳定错误。
+        url 实现于 apps/srv/src/veriq_server/settings.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         u = urlsplit(v)
         if (
             u.scheme not in {"http", "https"}
@@ -117,7 +127,9 @@ class Settings(BaseModel):
 
 
 def resolve_settings_values(path: Path, overrides: dict[str, Any] | None = None) -> dict[str, Any]:
-    """合并配置文件、VERIQ_* 环境变量与 CLI 覆盖为原始字典，供 Settings 校验，resolve_settings_values 的失败路径返回稳定错误。"""
+    """合并配置文件、VERIQ_* 环境变量与 CLI 覆盖为原始字典，供 Settings 校验，resolve_settings_values 的失败路径返回稳定错误。
+    resolve_settings_values 实现于 apps/srv/src/veriq_server/settings.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     values = json.loads(path.read_text()) if path.exists() else {}
     if not isinstance(values, dict):
         raise ValueError("Configuration must be a JSON object")
@@ -133,12 +145,16 @@ def resolve_settings_values(path: Path, overrides: dict[str, Any] | None = None)
 
 
 def load_settings(path: Path, overrides: dict[str, Any] | None = None) -> Settings:
-    """读取并校验配置文件，返回不可变语义的 Settings 实例供应用与 CLI 共享使用，load_settings 的失败路径返回稳定错误。"""
+    """读取并校验配置文件，返回不可变语义的 Settings 实例供应用与 CLI 共享使用，load_settings 的失败路径返回稳定错误。
+    load_settings 实现于 apps/srv/src/veriq_server/settings.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     return Settings.model_validate(resolve_settings_values(path, overrides))
 
 
 def operator_config_values(value: Any) -> Any:
-    """递归展开 SecretStr，生成可写回操作员配置文件的明文 JSON 可序列化结构，operator_config_values 的失败路径返回稳定错误。"""
+    """递归展开 SecretStr，生成可写回操作员配置文件的明文 JSON 可序列化结构，operator_config_values 的失败路径返回稳定错误。
+    operator_config_values 实现于 apps/srv/src/veriq_server/settings.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     if isinstance(value, SecretStr):
         return value.get_secret_value()
     if isinstance(value, dict):

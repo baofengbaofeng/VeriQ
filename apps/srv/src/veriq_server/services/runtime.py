@@ -28,15 +28,21 @@ from .workspace import WorkspaceRepository
 
 
 class RuntimeService:
-    """编排注册、审批、轮换、绑定、授权与凭据投递开关，区分人机与服务账号所有者，RuntimeService 遵守本文件边界。"""
+    """编排注册、审批、轮换、绑定、授权与凭据投递开关，区分人机与服务账号所有者，RuntimeService 遵守本文件边界。
+    RuntimeService 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """
     def __init__(self, session: AsyncSession):
-        """注入会话，令牌哈希与时间辅助来自公共 service 函数，RuntimeService.__init__ 遵守本文件边界。"""
+        """注入会话，令牌哈希与时间辅助来自公共 service 函数，RuntimeService.__init__ 遵守本文件边界。
+        __init__ 实现于 apps/srv/src/veriq_server/services/runtime.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         self.session = session
 
     async def request_enrollment(
         self, data: dict[str, Any], request_key: str, public_url: str
     ) -> dict[str, Any]:
-        """创建人机注册请求，只存审批码与轮询密钥哈希并短时过期，RuntimeService.request_enrollment 遵守本文件边界。"""
+        """创建人机注册请求，只存审批码与轮询密钥哈希并短时过期，RuntimeService.request_enrollment 遵守本文件边界。
+        request_enrollment 实现于 apps/srv/src/veriq_server/services/runtime.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         if data["location"] != "CONNECTED_LOCAL":
             raise Problem(
                 403,
@@ -79,7 +85,9 @@ class RuntimeService:
         }
 
     async def enrollment(self, code: str) -> RuntimeEnrollment:
-        """按审批码加载未过期注册请求，供所有者检查能力声明，RuntimeService.enrollment 遵守本文件边界，失败返回稳定 Problem。"""
+        """按审批码加载未过期注册请求，供所有者检查能力声明，RuntimeService.enrollment 遵守本文件边界，失败返回稳定 Problem。
+        enrollment 实现于 apps/srv/src/veriq_server/services/runtime.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         row = (
             await self.session.execute(
                 select(RuntimeEnrollment)
@@ -102,7 +110,9 @@ class RuntimeService:
         *,
         enrollment_id: str | None = None,
     ) -> dict[str, Any]:
-        """所有者选择 Workspace 与共享范围后批准，供设备 poll 消费，RuntimeService.approve_enrollment 遵守本文件边界。"""
+        """所有者选择 Workspace 与共享范围后批准，供设备 poll 消费，RuntimeService.approve_enrollment 遵守本文件边界。
+        approve_enrollment 实现于 apps/srv/src/veriq_server/services/runtime.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         row = await self.enrollment(code)
         if enrollment_id and row.id != enrollment_id:
             raise Problem(401, "ENROLLMENT_INVALID", "Enrollment does not match code")
@@ -135,7 +145,9 @@ class RuntimeService:
         return await self.dto(runtime, bound, actor)
 
     async def poll(self, device_code: str) -> dict[str, Any]:
-        """设备用轮询密钥一次性领取凭证，重复 poll 不得再发同一代，RuntimeService.poll 遵守本文件边界，失败返回稳定 Problem。"""
+        """设备用轮询密钥一次性领取凭证，重复 poll 不得再发同一代，RuntimeService.poll 遵守本文件边界，失败返回稳定 Problem。
+        poll 实现于 apps/srv/src/veriq_server/services/runtime.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         row = (
             await self.session.execute(
                 select(RuntimeEnrollment)
@@ -164,7 +176,9 @@ class RuntimeService:
     def issue_token(
         self, runtime: Runtime, binding: RuntimeBinding, secret: str | None = None
     ) -> dict[str, Any]:
-        """签发设备令牌代际，库内只存哈希，明文仅返回一次，RuntimeService.issue_token 遵守本文件边界，失败返回稳定 Problem。"""
+        """签发设备令牌代际，库内只存哈希，明文仅返回一次，RuntimeService.issue_token 遵守本文件边界，失败返回稳定 Problem。
+        issue_token 实现于 apps/srv/src/veriq_server/services/runtime.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         secret = secret or secrets.token_urlsafe(32)
         expires = now() + timedelta(hours=24)
         self.session.add(
@@ -193,7 +207,9 @@ class RuntimeService:
         }
 
     async def bound(self, workspace_id: str, runtime_id: str) -> tuple[Runtime, RuntimeBinding]:
-        """加载 Runtime 与指定 Workspace 绑定，缺失或未激活则失败，RuntimeService.bound 遵守本文件边界。"""
+        """加载 Runtime 与指定 Workspace 绑定，缺失或未激活则失败，RuntimeService.bound 遵守本文件边界。
+        bound 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         row = (
             await self.session.execute(
                 select(Runtime, RuntimeBinding)
@@ -206,7 +222,9 @@ class RuntimeService:
         return row[0], row[1]
 
     async def service_enroll(self, authorization: str, data: dict[str, Any]) -> dict[str, Any]:
-        """服务账号 Bearer 注册无人值守 Runtime 并建立绑定，RuntimeService.service_enroll 遵守本文件边界。"""
+        """服务账号 Bearer 注册无人值守 Runtime 并建立绑定，RuntimeService.service_enroll 遵守本文件边界。
+        service_enroll 实现于 apps/srv/src/veriq_server/services/runtime.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         from .service_account import ServiceAccountService
 
         account = await ServiceAccountService(self.session).consume(authorization)
@@ -243,7 +261,9 @@ class RuntimeService:
         return self.issue_token(runtime, binding)
 
     async def can_manage(self, actor: User, runtime: Runtime, binding: RuntimeBinding) -> bool:
-        """判断用户是否可管理该 Runtime（所有者或授权管理员），RuntimeService.can_manage 遵守本文件边界。"""
+        """判断用户是否可管理该 Runtime（所有者或授权管理员），RuntimeService.can_manage 遵守本文件边界。
+        can_manage 实现于 apps/srv/src/veriq_server/services/runtime.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         if runtime.owner_user_id:
             return actor.id == runtime.owner_user_id
         account = await self.session.get(ServiceAccount, runtime.owner_service_account_id)
@@ -258,7 +278,9 @@ class RuntimeService:
         return True
 
     async def require_owner_current(self, runtime: Runtime, binding: RuntimeBinding) -> None:
-        """要求所有者身份仍然有效，否则拒绝敏感变更，RuntimeService.require_owner_current 遵守本文件边界。"""
+        """要求所有者身份仍然有效，否则拒绝敏感变更，RuntimeService.require_owner_current 遵守本文件边界。
+        require_owner_current 实现于 apps/srv/src/veriq_server/services/runtime.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         if runtime.trust_status == "REVOKED" or not binding.active:
             raise Problem(401, "DEVICE_REVOKED", "Runtime authorization is revoked")
         if runtime.owner_service_account_id:
@@ -289,7 +311,9 @@ class RuntimeService:
             ) from None
 
     async def rotate(self, authorization: str, data: dict[str, Any]) -> dict[str, Any]:
-        """轮换设备令牌：候选确认前不覆盖当前，旧代立即失效，RuntimeService.rotate 遵守本文件边界，失败返回稳定 Problem。"""
+        """轮换设备令牌：候选确认前不覆盖当前，旧代立即失效，RuntimeService.rotate 遵守本文件边界，失败返回稳定 Problem。
+        rotate 实现于 apps/srv/src/veriq_server/services/runtime.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         if not data:
             runtime, binding, token = await self.require_device(authorization)
             token.revoked = True
@@ -352,7 +376,9 @@ class RuntimeService:
     async def require_device(
         self, authorization: str
     ) -> tuple[Runtime, RuntimeBinding, RuntimeToken]:
-        """解析设备 Authorization 为 Runtime 与绑定，供内部端点使用，RuntimeService.require_device 遵守本文件边界。"""
+        """解析设备 Authorization 为 Runtime 与绑定，供内部端点使用，RuntimeService.require_device 遵守本文件边界。
+        require_device 实现于 apps/srv/src/veriq_server/services/runtime.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         # A cookie or human enrollment code is never accepted as device identity.
         if not authorization.startswith("Bearer ") or not 43 <= len(authorization[7:]) <= 128:
             raise Problem(401, "DEVICE_UNAUTHORIZED", "Valid device authentication required")
@@ -374,7 +400,9 @@ class RuntimeService:
         return runtime, binding, token
 
     async def can_view(self, actor: User, runtime: Runtime, binding: RuntimeBinding) -> bool:
-        """判断用户是否可查看 Runtime 元数据信息，RuntimeService.can_view 遵守本文件边界，失败返回稳定 Problem。"""
+        """判断用户是否可查看 Runtime 元数据信息，RuntimeService.can_view 遵守本文件边界，失败返回稳定 Problem。
+        can_view 实现于 apps/srv/src/veriq_server/services/runtime.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         if await self.can_manage(actor, runtime, binding) or binding.shared_with_workspace:
             return True
         return (
@@ -385,7 +413,9 @@ class RuntimeService:
     async def require_access(
         self, actor: User, workspace_id: str, runtime_id: str, *, owner: bool = False
     ) -> tuple[Runtime, RuntimeBinding]:
-        """统一查看或管理访问检查，失败时抛出 Problem，RuntimeService.require_access 遵守本文件边界。"""
+        """统一查看或管理访问检查，失败时抛出 Problem，RuntimeService.require_access 遵守本文件边界。
+        require_access 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         await WorkspaceRepository(self.session, WorkspaceScope(workspace_id)).authorize(actor)
         runtime, binding = await self.bound(workspace_id, runtime_id)
         if (
@@ -395,7 +425,9 @@ class RuntimeService:
         return runtime, binding
 
     async def require_dispatch(self, actor: User, workspace_id: str, runtime_id: str) -> Runtime:
-        """派发前检查信任、绑定与共享，返回可用 Runtime，RuntimeService.require_dispatch 遵守本文件边界。"""
+        """派发前检查信任、绑定与共享，返回可用 Runtime，RuntimeService.require_dispatch 遵守本文件边界。
+        require_dispatch 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         await WorkspaceRepository(self.session, WorkspaceScope(workspace_id)).authorize(
             actor, Permission.EXECUTE, write=True
         )
@@ -406,7 +438,9 @@ class RuntimeService:
     async def set_grants(
         self, actor: User, binding: RuntimeBinding, runtime: Runtime, grants: dict[str, Any]
     ) -> None:
-        """更新私有 Runtime 的具名用户共享授权列表，RuntimeService.set_grants 遵守本文件边界，失败返回稳定 Problem。"""
+        """更新私有 Runtime 的具名用户共享授权列表，RuntimeService.set_grants 遵守本文件边界，失败返回稳定 Problem。
+        set_grants 实现于 apps/srv/src/veriq_server/services/runtime.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         if not await self.can_manage(actor, runtime, binding):
             raise Problem(403, "PRIVATE_RUNTIME_FORBIDDEN", "Only the Runtime owner may share it")
         if grants["workspaceId"] != binding.workspace_id:
@@ -448,7 +482,9 @@ class RuntimeService:
     async def set_credential_delivery(
         self, actor: User, runtime: Runtime, binding: RuntimeBinding, allowed: bool
     ) -> None:
-        """开关绑定上的凭据投递许可，影响正式门禁结论，RuntimeService.set_credential_delivery 遵守本文件边界。"""
+        """开关绑定上的凭据投递许可，影响正式门禁结论，RuntimeService.set_credential_delivery 遵守本文件边界。
+        set_credential_delivery 实现于 apps/srv/src/veriq_server/services/runtime.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         await WorkspaceRepository(self.session, WorkspaceScope(binding.workspace_id)).authorize(
             actor, Permission.MANAGE_ENVIRONMENT, write=True
         )
@@ -482,7 +518,9 @@ class RuntimeService:
     async def dto(
         self, runtime: Runtime, binding: RuntimeBinding, actor: User | None = None
     ) -> dict[str, Any]:
-        """导出 Runtime 对外 DTO，含在线状态与能力，不含令牌，RuntimeService.dto 遵守本文件边界，失败返回稳定 Problem。"""
+        """导出 Runtime 对外 DTO，含在线状态与能力，不含令牌，RuntimeService.dto 遵守本文件边界，失败返回稳定 Problem。
+        dto 实现于 apps/srv/src/veriq_server/services/runtime.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         users = (
             (
                 await self.session.execute(

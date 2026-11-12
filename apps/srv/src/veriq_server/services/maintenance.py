@@ -35,9 +35,13 @@ from .service_account import ServiceAccountService
 
 
 class MaintenanceService:
-    """执行幂等维护动作并写入 MaintenanceReceipt，必要时派生 CLEANUP Job，MaintenanceService 遵守本文件边界。"""
+    """执行幂等维护动作并写入 MaintenanceReceipt，必要时派生 CLEANUP Job，MaintenanceService 遵守本文件边界。
+    MaintenanceService 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """
     def __init__(self, session: AsyncSession, settings: Settings):
-        """注入会话与 Settings，读取保留天数与槽位相关配置，MaintenanceService.__init__ 遵守本文件边界。"""
+        """注入会话与 Settings，读取保留天数与槽位相关配置，MaintenanceService.__init__ 遵守本文件边界。
+        __init__ 实现于 apps/srv/src/veriq_server/services/maintenance.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         self.session, self.settings = session, settings
 
     async def execute(
@@ -49,7 +53,9 @@ class MaintenanceService:
         limit: int,
         cursor: str = "",
     ) -> dict[str, Any]:
-        """按维护类型与 key 幂等执行；重复 key 回放回执不加倍副作用，MaintenanceService.execute 遵守本文件边界。"""
+        """按维护类型与 key 幂等执行；重复 key 回放回执不加倍副作用，MaintenanceService.execute 遵守本文件边界。
+        execute 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         await ServiceAccountService(self.session).require_maintenance(
             authorization, workspace_id, operation
         )
@@ -525,7 +531,9 @@ class MaintenanceService:
     async def stopped(
         self, authorization: str, attempt_id: str, facts: dict[str, Any]
     ) -> dict[str, Any]:
-        """标记维护相关清理已停止或完成，供调和循环继续推进，MaintenanceService.stopped 遵守本文件边界。"""
+        """标记维护相关清理已停止或完成，供调和循环继续推进，MaintenanceService.stopped 遵守本文件边界。
+        stopped 实现于 apps/srv/src/veriq_server/services/maintenance.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         runtime, binding, _ = await RuntimeService(self.session).require_device(authorization)
         attempt = await self.session.get(Attempt, attempt_id)
         if (

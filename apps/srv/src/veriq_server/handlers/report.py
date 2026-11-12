@@ -13,7 +13,9 @@ from .base import API
 
 
 def encode_cursor(secret: str, scope: dict[str, str], positions: dict[str, int]) -> str:
-    """签发绑定 Workspace/Run/用户的报告流游标；位置数超 2000 强制客户端重新同步；签名名 veriq_report_v1，版本 2，绑定用户防止游标转借。"""
+    """签发绑定 Workspace/Run/用户的报告流游标；位置数超 2000 强制客户端重新同步；签名名 veriq_report_v1，版本 2，绑定用户防止游标转借。
+    encode_cursor 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
+    """
     if len(positions) > 2000:
         raise Problem(400, "REPORT_RESYNC_REQUIRED", "Cursor exceeds admitted Run bound")
     return create_signed_value(
@@ -27,7 +29,9 @@ def encode_cursor(secret: str, scope: dict[str, str], positions: dict[str, int])
 def decode_cursor(
     secret: str, scope: dict[str, str], cursor: str, known: dict[str, int]
 ) -> dict[str, int]:
-    """校验签名游标作用域与单调位置；过期、越界或未知 Attempt 一律要求重新同步；位置不得超过 known 序列，且一日后过期强制重同步。"""
+    """校验签名游标作用域与单调位置；过期、越界或未知 Attempt 一律要求重新同步；位置不得超过 known 序列，且一日后过期强制重同步。
+    decode_cursor 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
+    """
     try:
         if len(cursor) > 230000:
             raise ValueError
@@ -60,12 +64,18 @@ def decode_cursor(
 
 
 class ReportAPI(API):
-    """报告与证据只读面：权威报告、展示片段、制品下载、事件历史以及 SSE 增量流；SSE 与制品下载共享 Workspace 授权，但事务持有策略不同。"""
+    """报告与证据只读面：权威报告、展示片段、制品下载、事件历史以及 SSE 增量流；SSE 与制品下载共享 Workspace 授权，但事务持有策略不同。
+    ReportAPI 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    ReportAPI 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
+    """
 
     body_limit = 256 * 1024
 
     async def get(self, workspace_id: str, subject_id: str = "", upload_id: str = "") -> None:
-        """GET 分发报告/展示/制品列表/事件/审计；制品下载在校验哈希后沙箱附件输出；制品下载在外部读后再次授权并记 artifact.download 审计。"""
+        """GET 分发报告/展示/制品列表/事件/审计；制品下载在校验哈希后沙箱附件输出；制品下载在外部读后再次授权并记 artifact.download 审计。
+        get 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        get 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
+        """
         scope = WorkspaceScope(workspace_id)
         if self.action == "report-artifact":
             async with self.db.sessions.begin() as session:
@@ -125,11 +135,16 @@ class ReportAPI(API):
         self.respond(result)
 
     def on_connection_close(self) -> None:
-        """SSE 连接关闭时置位 disconnected，让流循环尽快退出而不再 flush；标志位供 post 循环检查，避免向已断开套接字 flush。"""
+        """SSE 连接关闭时置位 disconnected，让流循环尽快退出而不再 flush；标志位供 post 循环检查，避免向已断开套接字 flush。
+        on_connection_close 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
+        """
         self.disconnected = True
 
     async def post(self, workspace_id: str, run_id: str) -> None:
-        """POST SSE：短事务拉增量事件后释放权威锁，再 flush；授权失效发 authorization 事件；每轮短事务取数后释放锁，再进入 sleep/flush 背压阶段。"""
+        """POST SSE：短事务拉增量事件后释放权威锁，再 flush；授权失效发 authorization 事件；每轮短事务取数后释放锁，再进入 sleep/flush 背压阶段。
+        post 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        post 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
+        """
         self.disconnected = False
         data = self.body("ReportStreamRequest")
         scope = WorkspaceScope(workspace_id)

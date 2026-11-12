@@ -13,10 +13,14 @@ from .base import API
 
 
 class ResourceAPI(API):
-    """工作区资源生命周期 HTTP 面：草稿读写、校验、发布、版本与依赖方查询以及编译产物下载；发布依赖校验回执，禁止跳过验证直接升版本。"""
+    """工作区资源生命周期 HTTP 面：草稿读写、校验、发布、版本与依赖方查询以及编译产物下载；发布依赖校验回执，禁止跳过验证直接升版本。
+    ResourceAPI 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """
 
     def prepare(self) -> None:
-        """资源信封放宽到约 2 MiB，其余操作保留 64 KiB；并按 action 白名单限制动词；draft/resources 放宽正文，其它动作保持账户级上限。"""
+        """资源信封放宽到约 2 MiB，其余操作保留 64 KiB；并按 action 白名单限制动词；draft/resources 放宽正文，其它动作保持账户级上限。
+        prepare 实现于 apps/srv/src/veriq_server/handlers/resource.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         # JSON 资源信封：2 MiB 加有界信封开销；其他操作保留 64 KiB 账户/API 上限。
         self.body_limit = 2 * 1024 * 1024 + 4096 if self.action in {"resources", "draft"} else 65536
         super().prepare()
@@ -38,14 +42,18 @@ class ResourceAPI(API):
             raise Problem(405, "METHOD_NOT_ALLOWED", "Method not allowed")
 
     def service(self, session: Any, user: Any, publish: bool = False) -> ResourceService:
-        """按需构造 ResourceService 或 PublishService，并注入可选身份引用注册表；publish=True 时切换到 PublishService 实现。"""
+        """按需构造 ResourceService 或 PublishService，并注入可选身份引用注册表；publish=True 时切换到 PublishService 实现。
+        service 实现于 apps/srv/src/veriq_server/handlers/resource.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         cls = PublishService if publish else ResourceService
         return cls(session, user, self.application.settings.get("identity_reference_registry"))
 
     async def get(
         self, workspace_id: str, resource_id: str | None = None, version_id: str | None = None
     ) -> None:
-        """GET 分发资源元数据、草稿、预览、版本、依赖方、作业、校验回执与编译源；compiled-source 以沙箱 CSP 输出纯文本，防脚本执行。"""
+        """GET 分发资源元数据、草稿、预览、版本、依赖方、作业、校验回执与编译源；compiled-source 以沙箱 CSP 输出纯文本，防脚本执行。
+        get 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         scope = WorkspaceScope(workspace_id)
         async with self.db.sessions() as s:
             user, _ = await self.identity(s)
@@ -235,7 +243,9 @@ class ResourceAPI(API):
             )
 
     async def post(self, workspace_id: str, resource_id: str | None = None) -> None:
-        """POST 创建资源、异步启动校验（202）或在校验回执通过后发布不可变版本；validate 返回 202 表示作业已入队，不是已通过。"""
+        """POST 创建资源、异步启动校验（202）或在校验回执通过后发布不可变版本；validate 返回 202 表示作业已入队，不是已通过。
+        post 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         data = self.body(
             {
                 "resources": "ResourceCreate",
@@ -263,7 +273,9 @@ class ResourceAPI(API):
         self.respond(result, 202 if self.action == "validate" else 201)
 
     async def put(self, workspace_id: str, resource_id: str) -> None:
-        """PUT draft：在安装锁下按 revision 乐观并发写入草稿内容；revision 不匹配时由服务层映射并发冲突。"""
+        """PUT draft：在安装锁下按 revision 乐观并发写入草稿内容；revision 不匹配时由服务层映射并发冲突。
+        put 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         data = self.body("DraftWrite")
         async with self.db.sessions.begin() as s:
             await lock_installation(s)
@@ -274,7 +286,9 @@ class ResourceAPI(API):
         self.respond(result)
 
     async def patch(self, workspace_id: str, resource_id: str) -> None:
-        """PATCH 更新显示名与归档态；要求 EDIT 写权限并按资源 kind 再授权；归档态根据是否已有 latest_version_id 回退 PUBLISHED/DRAFT。"""
+        """PATCH 更新显示名与归档态；要求 EDIT 写权限并按资源 kind 再授权；归档态根据是否已有 latest_version_id 回退 PUBLISHED/DRAFT。
+        patch 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         data = self.body("ResourceUpdate")
         scope = WorkspaceScope(workspace_id)
         async with self.db.sessions.begin() as s:

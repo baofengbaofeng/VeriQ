@@ -17,10 +17,14 @@ from ..contracts import validate_schema
 
 
 class Issuer:
-    """离线 Bundle 签发权威：从受权限目录装载 Ed25519 密钥材料，对外只暴露公钥信任集；私钥仅存于受控文件，public() 永不返回 privateKey。"""
+    """离线 Bundle 签发权威：从受权限目录装载 Ed25519 密钥材料，对外只暴露公钥信任集；私钥仅存于受控文件，public() 永不返回 privateKey。
+    Issuer 实现于 apps/srv/src/veriq_server/bundles/issuer.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
 
     def __init__(self, path: str | Path | None):
-        """校验目录与文件权限后装载 IssuerTrustV1；任何权限或指纹异常都映射 ISSUER_UNAVAILABLE；目录与文件禁止 group/other 可写，防止权限宽松加载。"""
+        """校验目录与文件权限后装载 IssuerTrustV1；任何权限或指纹异常都映射 ISSUER_UNAVAILABLE；目录与文件禁止 group/other 可写，防止权限宽松加载。
+        __init__ 实现于 apps/srv/src/veriq_server/bundles/issuer.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         try:
             if not path:
                 raise ValueError()
@@ -57,7 +61,9 @@ class Issuer:
 
     @staticmethod
     def key() -> tuple[Ed25519PrivateKey, dict[str, Any]]:
-        """生成一对新的 Ed25519 密钥与可嵌入信任集的公钥元数据（含指纹与未撤销标记）；keyId 使用 uuid4 hex，指纹为公钥 SHA-256。"""
+        """生成一对新的 Ed25519 密钥与可嵌入信任集的公钥元数据（含指纹与未撤销标记）；keyId 使用 uuid4 hex，指纹为公钥 SHA-256。
+        key 实现于 apps/srv/src/veriq_server/bundles/issuer.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         key = Ed25519PrivateKey.generate()
         raw = key.public_key().public_bytes_raw()
         return key, {
@@ -70,7 +76,9 @@ class Issuer:
 
     @staticmethod
     def write(path: Path, data: dict[str, Any], initial: bool = False) -> None:
-        """以 0700 目录与临时文件原子替换写入签发材料；initial 用 link 创建避免覆盖既有文件；fsync 文件与目录，降低崩溃窗口导致的半写状态。"""
+        """以 0700 目录与临时文件原子替换写入签发材料；initial 用 link 创建避免覆盖既有文件；fsync 文件与目录，降低崩溃窗口导致的半写状态。
+        write 实现于 apps/srv/src/veriq_server/bundles/issuer.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         info = path.parent.lstat()
         if not stat.S_ISDIR(info.st_mode) or info.st_mode & 0o077:
@@ -97,7 +105,9 @@ class Issuer:
 
     @classmethod
     def initialize(cls, path: Path) -> "Issuer":
-        """首次引导写入 revision=1 的签发者材料并返回已校验的 Issuer 实例；initial=True 用 link 创建，已存在则失败而非覆盖。"""
+        """首次引导写入 revision=1 的签发者材料并返回已校验的 Issuer 实例；initial=True 用 link 创建，已存在则失败而非覆盖。
+        initialize 实现于 apps/srv/src/veriq_server/bundles/issuer.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         key, public = cls.key()
         cls.write(
             path,
@@ -114,7 +124,9 @@ class Issuer:
 
     @contextmanager
     def mutation(self) -> Iterator[None]:
-        """跨进程排他持锁后重载最新快照执行算子变更，退出时原子写回；读路径使用旧/新快照；持锁期间重载磁盘快照，避免基于陈旧内存状态轮换。"""
+        """跨进程排他持锁后重载最新快照执行算子变更，退出时原子写回；读路径使用旧/新快照；持锁期间重载磁盘快照，避免基于陈旧内存状态轮换。
+        mutation 实现于 apps/srv/src/veriq_server/bundles/issuer.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         # 算子变更跨进程串行；对外服务依赖原子旧/新快照切换，不在此持读锁。
         fd = os.open(self.path.with_suffix(".lock"), os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         try:
@@ -127,7 +139,9 @@ class Issuer:
             os.close(fd)
 
     def rotate(self) -> None:
-        """在历史上限内轮换活跃私钥：追加新公钥条目并提升 revision，旧密钥仍可验签直至撤销；密钥历史达到 100 条时拒绝继续轮换，需运维清理策略。"""
+        """在历史上限内轮换活跃私钥：追加新公钥条目并提升 revision，旧密钥仍可验签直至撤销；密钥历史达到 100 条时拒绝继续轮换，需运维清理策略。
+        rotate 实现于 apps/srv/src/veriq_server/bundles/issuer.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         with self.mutation():
             if len(self.data["keys"]) >= 100:
                 raise ValueError("Issuer key history limit reached")
@@ -141,7 +155,9 @@ class Issuer:
             self.private = key
 
     def revoke(self, key_id: str) -> None:
-        """撤销非活跃历史密钥；必须先 rotate 才能处理当前 activeKeyId，防止信任真空；禁止直接撤销活跃密钥，强制先 rotate 再 revoke。"""
+        """撤销非活跃历史密钥；必须先 rotate 才能处理当前 activeKeyId，防止信任真空；禁止直接撤销活跃密钥，强制先 rotate 再 revoke。
+        revoke 实现于 apps/srv/src/veriq_server/bundles/issuer.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         with self.mutation():
             if key_id == self.data["activeKeyId"]:
                 raise ValueError("Rotate before revoking the active key")
@@ -152,7 +168,9 @@ class Issuer:
             self.data["revision"] += 1
 
     def public(self) -> dict[str, Any]:
-        """导出可分发的公钥信任集副本，刻意剥离 privateKey 字段供设备与离线验签使用；深拷贝 keys，避免调用方修改内存中的信任集。"""
+        """导出可分发的公钥信任集副本，刻意剥离 privateKey 字段供设备与离线验签使用；深拷贝 keys，避免调用方修改内存中的信任集。
+        public 实现于 apps/srv/src/veriq_server/bundles/issuer.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         return {
             "issuerId": self.data["issuerId"],
             "revision": self.data["revision"],
@@ -160,5 +178,7 @@ class Issuer:
         }
 
     def sign(self, manifest: bytes) -> bytes:
-        """用当前活跃私钥对 Bundle 清单字节做 Ed25519 签名，供导出管线附加权威证明；签名字节供 Bundle 清单附加，验签方使用 public 信任集。"""
+        """用当前活跃私钥对 Bundle 清单字节做 Ed25519 签名，供导出管线附加权威证明；签名字节供 Bundle 清单附加，验签方使用 public 信任集。
+        sign 实现于 apps/srv/src/veriq_server/bundles/issuer.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         return self.private.sign(manifest)

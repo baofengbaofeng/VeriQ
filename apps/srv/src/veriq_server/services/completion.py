@@ -26,15 +26,21 @@ from .runtime import RuntimeService
 
 
 class CompletionService:
-    """在租约证明下完成 Attempt 收尾、事件持久化与结果聚合，CompletionService 遵守本文件边界，失败返回稳定 Problem。"""
+    """在租约证明下完成 Attempt 收尾、事件持久化与结果聚合，CompletionService 遵守本文件边界，失败返回稳定 Problem。
+    CompletionService 实现于 apps/srv/src/veriq_server/services/completion.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     def __init__(self, session: AsyncSession, settings: Settings):
-        """注入会话与 Settings，供租约校验与重试策略读取，CompletionService.__init__ 遵守本文件边界。"""
+        """注入会话与 Settings，供租约校验与重试策略读取，CompletionService.__init__ 遵守本文件边界。
+        __init__ 实现于 apps/srv/src/veriq_server/services/completion.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         self.session, self.settings = session, settings
 
     async def events(
         self, attempt_id: str, proof: CredentialProofTransport, events: list[dict[str, Any]]
     ) -> dict[str, Any]:
-        """在有效围栏下按序追加 AttemptEvent，序号冲突拒绝，CompletionService.events 遵守本文件边界。"""
+        """在有效围栏下按序追加 AttemptEvent，序号冲突拒绝，CompletionService.events 遵守本文件边界。
+        events 实现于 apps/srv/src/veriq_server/services/completion.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         attempt, _, _, _ = await LeaseService(self.session, self.settings).proof(attempt_id, proof)
         for event in events:
             if event["attemptId"] != attempt_id or validate_schema("ExecutionEventV1", event):
@@ -63,7 +69,9 @@ class CompletionService:
     async def finish(
         self, attempt_id: str, proof: CredentialProofTransport, data: dict[str, Any]
     ) -> dict[str, Any]:
-        """校验租约与 fence 后落库 outcome，触发 Job/Run 聚合或安全重试，CompletionService.finish 遵守本文件边界。"""
+        """校验租约与 fence 后落库 outcome，触发 Job/Run 聚合或安全重试，CompletionService.finish 遵守本文件边界。
+        finish 实现于 apps/srv/src/veriq_server/services/completion.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         runtime, binding, _ = await RuntimeService(self.session).require_device(proof.authorization)
         attempt = await self.session.get(Attempt, attempt_id)
         if (
@@ -285,7 +293,9 @@ class CompletionService:
         evidence_complete: bool,
         matched_evidence: list[AttemptUpload],
     ) -> dict[str, Any]:
-        """VALIDATE 成功时写入 ValidationReceipt 并绑定编译产物摘要，CompletionService.validation 遵守本文件边界。"""
+        """VALIDATE 成功时写入 ValidationReceipt 并绑定编译产物摘要，CompletionService.validation 遵守本文件边界。
+        validation 实现于 apps/srv/src/veriq_server/services/completion.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         if trust != "MANAGED":
             raise Problem(
                 403, "UNTRUSTED_COMPILER", "Only approved managed compiler completion may publish"
@@ -420,7 +430,9 @@ class CompletionService:
         }
 
     async def aggregate_job(self, job: Job, attempt: Attempt) -> None:
-        """根据 Attempt 结果更新 Job 终态，必要时调度唯一一次重试，CompletionService.aggregate_job 遵守本文件边界。"""
+        """根据 Attempt 结果更新 Job 终态，必要时调度唯一一次重试，CompletionService.aggregate_job 遵守本文件边界。
+        aggregate_job 实现于 apps/srv/src/veriq_server/services/completion.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         if job.case_execution_id:
             execution = await self.session.get(CaseExecution, job.case_execution_id)
             assert execution
@@ -444,7 +456,9 @@ class CompletionService:
             await self.aggregate_run(job.run_id)
 
     async def aggregate_run(self, run_id: str) -> None:
-        """汇总 CaseExecution 结果更新 Run 状态与正式门禁相关字段，CompletionService.aggregate_run 遵守本文件边界。"""
+        """汇总 CaseExecution 结果更新 Run 状态与正式门禁相关字段，CompletionService.aggregate_run 遵守本文件边界。
+        aggregate_run 实现于 apps/srv/src/veriq_server/services/completion.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         run = await self.session.get(Run, run_id)
         assert run
         cases = (
@@ -469,7 +483,9 @@ def retry_is_safe(
     fixture_declared: bool,
     cleanup_status: str,
 ) -> bool:
-    """判断失败是否允许整案重试；不安全副作用场景返回 False 禁止重放，retry_is_safe 遵守本文件边界，失败返回稳定 Problem。"""
+    """判断失败是否允许整案重试；不安全副作用场景返回 False 禁止重放，retry_is_safe 遵守本文件边界，失败返回稳定 Problem。
+    retry_is_safe 实现于 apps/srv/src/veriq_server/services/completion.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     return (fixture_declared and cleanup_status == "SUCCEEDED") or (
         has_potential_writes is False and observed == "READ_ONLY_OBSERVED"
     )

@@ -9,10 +9,14 @@ from .base import API
 
 
 class RunAPI(API):
-    """工作区 Run 调度入口：幂等创建、取消以及按 Workspace 边界列出/读取 Run；创建使用 Idempotency-Key，取消针对既有 run_id。"""
+    """工作区 Run 调度入口：幂等创建、取消以及按 Workspace 边界列出/读取 Run；创建使用 Idempotency-Key，取消针对既有 run_id。
+    RunAPI 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """
 
     async def post(self, workspace_id: str, run_id: str | None = None) -> None:
-        """POST 用 Idempotency-Key 创建 Run（202）或取消既有 Run；全程持安装锁；创建成功返回 202，表示已接受调度而非执行完成。"""
+        """POST 用 Idempotency-Key 创建 Run（202）或取消既有 Run；全程持安装锁；创建成功返回 202，表示已接受调度而非执行完成。
+        post 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         data = self.body("RunCreate" if self.action == "runs" else "CancelRequest")
         async with self.db.sessions.begin() as session:
             await lock_installation(session)
@@ -28,7 +32,9 @@ class RunAPI(API):
         self.respond(result, 202 if self.action == "runs" else 200)
 
     async def get(self, workspace_id: str, run_id: str | None = None) -> None:
-        """GET 读取单个 Run 或在 VIEW 授权后以 id 游标分页列出工作区 Run；单条读取走 RunService.get，内部再校验工作区边界。"""
+        """GET 读取单个 Run 或在 VIEW 授权后以 id 游标分页列出工作区 Run；单条读取走 RunService.get，内部再校验工作区边界。
+        get 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         async with self.db.sessions.begin() as session:
             await lock_installation(session)
             user, _ = await self.identity(session)
@@ -61,10 +67,14 @@ class RunAPI(API):
 
 
 class AttemptAuditAPI(API):
-    """管理员 Attempt 容量强制释放：仅对已隔离/已释放 Attempt 写入停机确认审计；仅处理 QUARANTINED/RELEASED，活跃 Attempt 必须先取消。"""
+    """管理员 Attempt 容量强制释放：仅对已隔离/已释放 Attempt 写入停机确认审计；仅处理 QUARANTINED/RELEASED，活跃 Attempt 必须先取消。
+    AttemptAuditAPI 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """
 
     async def post(self, workspace_id: str, attempt_id: str) -> None:
-        """要求 MANAGE_WORKSPACE 写权限；活跃 Attempt 必须先取消，成功后记录 administratorStopConfirmation。"""
+        """要求 MANAGE_WORKSPACE 写权限；活跃 Attempt 必须先取消，成功后记录 administratorStopConfirmation。
+        post 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         from uuid import uuid4
         from ..auth.authorization import Permission
         from ..db import Attempt, AuditLog

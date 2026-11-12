@@ -14,7 +14,9 @@ from .settings import Settings
 
 
 async def migrate(settings: Settings) -> None:
-    """校验 MySQL 小版本后在单连接上运行 Alembic upgrade head，提交完成后释放数据库引擎，migrate 的失败路径返回稳定错误。"""
+    """校验 MySQL 小版本后在单连接上运行 Alembic upgrade head，提交完成后释放数据库引擎，migrate 的失败路径返回稳定错误。
+    migrate 实现于 apps/srv/src/veriq_server/migrate.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     db = Database(settings)
     try:
         async with db.engine.connect() as connection:
@@ -26,7 +28,9 @@ async def migrate(settings: Settings) -> None:
             config.set_main_option("script_location", str(Path(__file__).parent / "migrations"))
 
             def upgrade(sync_connection: Connection) -> None:
-                """在 run_sync 回调内挂接同步连接并执行 Alembic 升级到最新修订版本，migrate.upgrade 的失败路径返回稳定错误。"""
+                """在 run_sync 回调内挂接同步连接并执行 Alembic 升级到最新修订版本，migrate.upgrade 的失败路径返回稳定错误。
+                upgrade 实现于 apps/srv/src/veriq_server/migrate.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+                """
                 config.attributes["connection"] = sync_connection
                 command.upgrade(config, "head")
 

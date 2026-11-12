@@ -16,7 +16,9 @@ from .resource import ResourceService, document_hash, version_dto, asset_referen
 
 
 def receipt_dto(row: ValidationReceipt) -> dict[str, Any]:
-    """将 ValidationReceipt 转为 API DTO，包含引擎、源哈希与编译产物摘要等字段，receipt_dto 遵守本文件 Workspace/事务边界。"""
+    """将 ValidationReceipt 转为 API DTO，包含引擎、源哈希与编译产物摘要等字段，receipt_dto 遵守本文件 Workspace/事务边界。
+    receipt_dto 属于发布/围栏相关逻辑：未满足设备、租约或引擎清单条件时不得把排队当成已验证发布。
+    """
     return {
         "id": row.id,
         "workspaceId": row.workspace_id,
@@ -34,11 +36,15 @@ def receipt_dto(row: ValidationReceipt) -> dict[str, Any]:
 
 
 class PublishService(ResourceService):
-    """在回执门禁通过后冻结草稿为 ResourceVersion，并维护依赖边与最新指针，PublishService 遵守本文件 Workspace/事务边界。"""
+    """在回执门禁通过后冻结草稿为 ResourceVersion，并维护依赖边与最新指针，PublishService 遵守本文件 Workspace/事务边界。
+    PublishService 属于发布/围栏相关逻辑：未满足设备、租约或引擎清单条件时不得把排队当成已验证发布。
+    """
     async def publish(
         self, scope: WorkspaceScope, resource_id: str, draft_revision: int, receipt_id: str
     ) -> dict[str, Any]:
-        """校验修订、回执与编译产物后写入不可变版本；冲突或回执失效返回 Problem，PublishService.publish 遵守本文件 Workspace/事务边界。"""
+        """校验修订、回执与编译产物后写入不可变版本；冲突或回执失效返回 Problem，PublishService.publish 遵守本文件 Workspace/事务边界。
+        publish 属于发布/围栏相关逻辑：未满足设备、租约或引擎清单条件时不得把排队当成已验证发布。
+        """
         resource = await self.editable(scope, resource_id, Permission.PUBLISH)
         repo = ResourceRepository(self.session, scope)
         draft = await repo.draft(resource_id)

@@ -34,7 +34,9 @@ MAX_FILES = 4096
 
 
 def safe_path(path: str) -> bool:
-    """校验包内相对路径不含穿越或绝对前缀，防止写出 Workspace 外位置，safe_path 遵守本文件边界，失败返回稳定 Problem。"""
+    """校验包内相对路径不含穿越或绝对前缀，防止写出 Workspace 外位置，safe_path 遵守本文件边界，失败返回稳定 Problem。
+    safe_path 实现于 apps/srv/src/veriq_server/services/bundle.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     return bool(
         len(path) <= 240
         and all(
@@ -48,7 +50,9 @@ def safe_path(path: str) -> bool:
 
 
 def bundle_dto(row: Bundle) -> dict[str, Any]:
-    """导出 Bundle 元数据字段供列表与详情，不含归档私有密钥，bundle_dto 遵守本文件边界，失败返回稳定 Problem。"""
+    """导出 Bundle 元数据字段供列表与详情，不含归档私有密钥，bundle_dto 遵守本文件边界，失败返回稳定 Problem。
+    bundle_dto 实现于 apps/srv/src/veriq_server/services/bundle.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     return {
         "id": row.id,
         "workspaceId": row.workspace_id,
@@ -60,7 +64,9 @@ def bundle_dto(row: Bundle) -> dict[str, Any]:
 
 
 class BundleService:
-    """编排导出预订、准备、组装与发布，全程绑定 Workspace 与幂等键，BundleService 遵守本文件边界，失败返回稳定 Problem。"""
+    """编排导出预订、准备、组装与发布，全程绑定 Workspace 与幂等键，BundleService 遵守本文件边界，失败返回稳定 Problem。
+    BundleService 实现于 apps/srv/src/veriq_server/services/bundle.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """
     def __init__(
         self,
         session: AsyncSession,
@@ -68,12 +74,16 @@ class BundleService:
         settings: Settings,
         reauthorize: Callable[[AsyncSession], Awaitable[User]] | None = None,
     ):
-        """注入会话、用户、设置与导出信号量，限制并发组装，BundleService.__init__ 遵守本文件边界，失败返回稳定 Problem。"""
+        """注入会话、用户、设置与导出信号量，限制并发组装，BundleService.__init__ 遵守本文件边界，失败返回稳定 Problem。
+        __init__ 实现于 apps/srv/src/veriq_server/services/bundle.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         self.session, self.actor, self.settings = session, actor, settings
         self.reauthorize = reauthorize
 
     async def export(self, scope: WorkspaceScope, req: dict[str, Any], key: str) -> dict[str, Any]:
-        """幂等导出入口：预订或重放，返回 bundle 标识与状态，BundleService.export 遵守本文件边界，失败返回稳定 Problem。"""
+        """幂等导出入口：预订或重放，返回 bundle 标识与状态，BundleService.export 遵守本文件边界，失败返回稳定 Problem。
+        export 实现于 apps/srv/src/veriq_server/services/bundle.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         if (
             not key
             or len(key) > 160
@@ -178,7 +188,9 @@ class BundleService:
             raise
 
     async def replay(self, scope: WorkspaceScope, reservation: BundleExport) -> dict[str, Any]:
-        """对已有 BundleExport 预订重放组装结果，不重新解释不同请求，BundleService.replay 遵守本文件边界。"""
+        """对已有 BundleExport 预订重放组装结果，不重新解释不同请求，BundleService.replay 遵守本文件边界。
+        replay 实现于 apps/srv/src/veriq_server/services/bundle.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         assert reservation.bundle_id is not None
         row = await self.get(scope, reservation.bundle_id)
         authority = reservation.authority
@@ -200,11 +212,15 @@ class BundleService:
         return bundle_dto(row)
 
     async def authorize(self, scope: WorkspaceScope) -> None:
-        """校验用户对 Workspace 的导出/下载类权限，BundleService.authorize 遵守本文件边界，失败返回稳定 Problem。"""
+        """校验用户对 Workspace 的导出/下载类权限，BundleService.authorize 遵守本文件边界，失败返回稳定 Problem。
+        authorize 实现于 apps/srv/src/veriq_server/services/bundle.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         await WorkspaceRepository(self.session, scope).authorize(self.actor, Permission.DOWNLOAD)
 
     async def get(self, scope: WorkspaceScope, bundle_id: str) -> Bundle:
-        """按 Workspace 加载 Bundle，缺失返回 Problem，BundleService.get 遵守本文件边界。"""
+        """按 Workspace 加载 Bundle，缺失返回 Problem，BundleService.get 遵守本文件边界。
+        get 实现于 apps/srv/src/veriq_server/services/bundle.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         await self.authorize(scope)
         row = (
             await self.session.execute(
@@ -220,7 +236,9 @@ class BundleService:
         return row
 
     async def prepare(self, scope: WorkspaceScope, req: dict[str, Any]) -> dict[str, Any]:
-        """冻结导出所需版本与产物清单，写入临时准备结构，BundleService.prepare 遵守本文件边界，失败返回稳定 Problem。"""
+        """冻结导出所需版本与产物清单，写入临时准备结构，BundleService.prepare 遵守本文件边界，失败返回稳定 Problem。
+        prepare 实现于 apps/srv/src/veriq_server/services/bundle.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         await self.authorize(scope)
         issuer = self.issuer
         repo = ResourceRepository(self.session, scope)
@@ -463,7 +481,9 @@ class BundleService:
 
     @staticmethod
     def assemble(prepared: dict[str, Any]) -> tuple[bytes, bytes, bytes]:
-        """将准备结果打包为清单、归档与签名字节三元组，BundleService.assemble 遵守本文件边界，失败返回稳定 Problem。"""
+        """将准备结果打包为清单、归档与签名字节三元组，BundleService.assemble 遵守本文件边界，失败返回稳定 Problem。
+        assemble 实现于 apps/srv/src/veriq_server/services/bundle.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         manifest_raw = canonical_bytes(prepared["manifest"])
         signature = prepared["issuer"].sign(manifest_raw)
         output = io.BytesIO()
@@ -480,7 +500,9 @@ class BundleService:
     async def publish(
         self, scope: WorkspaceScope, prepared: dict[str, Any], assembled: tuple[bytes, bytes, bytes]
     ) -> dict[str, Any]:
-        """签发并持久化 Bundle 元数据，供后续授权下载，BundleService.publish 遵守本文件边界，失败返回稳定 Problem。"""
+        """签发并持久化 Bundle 元数据，供后续授权下载，BundleService.publish 遵守本文件边界，失败返回稳定 Problem。
+        publish 实现于 apps/srv/src/veriq_server/services/bundle.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         await self.authorize(scope)
         if "draftValidationJobId" in prepared["request"]:
             await WorkspaceRepository(self.session, scope).authorize(self.actor, Permission.EDIT)

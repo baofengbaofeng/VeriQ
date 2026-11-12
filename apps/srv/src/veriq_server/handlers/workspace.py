@@ -17,10 +17,14 @@ log = logging.getLogger("veriq.http")
 
 
 class WorkspaceAPI(API):
-    """工作区与成员协作入口：创建/归档、成员角色、邀请签发/接受以及可复制链接投递；负责把会话身份映射到 Workspace 成员权限后再执行变更。"""
+    """工作区与成员协作入口：创建/归档、成员角色、邀请签发/接受以及可复制链接投递；负责把会话身份映射到 Workspace 成员权限后再执行变更。
+    WorkspaceAPI 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """
 
     def prepare(self) -> None:
-        """按 action 限制允许动词，避免对成员或邀请误用未声明的 HTTP 方法；未知 action 与方法组合直接映射 METHOD_NOT_ALLOWED。"""
+        """按 action 限制允许动词，避免对成员或邀请误用未声明的 HTTP 方法；未知 action 与方法组合直接映射 METHOD_NOT_ALLOWED。
+        prepare 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         super().prepare()
         allowed = {
             "workspaces": {"GET", "POST"},
@@ -35,7 +39,9 @@ class WorkspaceAPI(API):
             raise Problem(405, "METHOD_NOT_ALLOWED", "Method not allowed")
 
     def page(self, actor_id: str, workspace_id: str | None = None, **filters: Any) -> Page:
-        """构造绑定当前 action/actor/workspace 与附加过滤条件的签名分页游标读取器；游标签名密钥取自配置 signing_key，防止篡改翻页。"""
+        """构造绑定当前 action/actor/workspace 与附加过滤条件的签名分页游标读取器；游标签名密钥取自配置 signing_key，防止篡改翻页。
+        page 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         return Page.read(
             self,
             {"list": self.action, "actor": actor_id, "workspaceId": workspace_id, **filters},
@@ -43,7 +49,9 @@ class WorkspaceAPI(API):
         )
 
     async def get(self, workspace_id: str | None = None) -> None:
-        """GET 列出本人活跃成员关系、单个 Workspace，或分页成员/邀请（邀请需 MANAGE_MEMBERS）；列表查询不持安装写锁，仅只读会话即可完成授权。"""
+        """GET 列出本人活跃成员关系、单个 Workspace，或分页成员/邀请（邀请需 MANAGE_MEMBERS）；列表查询不持安装写锁，仅只读会话即可完成授权。
+        get 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         async with self.db.sessions() as s:
             user, _ = await self.identity(s)
             if self.action == "workspaces":
@@ -149,7 +157,9 @@ class WorkspaceAPI(API):
                 self.respond({"items": [invitation_dto(i) for i in shown], "nextCursor": cursor})
 
     async def post(self, workspace_id: str | None = None) -> None:
-        """POST 创建 Workspace（创建者即 OWNER）或签发七天有效邀请；可选邮件失败不撤销可复制链接；写路径一律先 lock_installation 再解析会话身份。"""
+        """POST 创建 Workspace（创建者即 OWNER）或签发七天有效邀请；可选邮件失败不撤销可复制链接；写路径一律先 lock_installation 再解析会话身份。
+        post 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         if self.action == "accept-invitation":
             await self.accept_invitation()
             return
@@ -229,7 +239,9 @@ class WorkspaceAPI(API):
         self.respond(result, 201)
 
     async def accept_invitation(self) -> None:
-        """接受邀请：校验令牌与归档态，既有账户需匹配会话，新账户要求姓名与口令；令牌只存哈希，明文仅出现在一次性可复制链接中。（WorkspaceAPI.accept_invitation）"""
+        """接受邀请：校验令牌与归档态，既有账户需匹配会话，新账户要求姓名与口令；令牌只存哈希，明文仅出现在一次性可复制链接中。（WorkspaceAPI.accept_invitation）
+        accept_invitation 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         data = self.body("InvitationAcceptRequest")
         async with self.db.sessions.begin() as s:
             await lock_installation(s)
@@ -298,7 +310,9 @@ class WorkspaceAPI(API):
         self.respond(result)
 
     async def patch(self, workspace_id: str) -> None:
-        """PATCH 重命名 Workspace：要求 MANAGE_WORKSPACE 写权限，不改动 key；仅允许改 name，key 作为稳定标识永不在此端点变更。"""
+        """PATCH 重命名 Workspace：要求 MANAGE_WORKSPACE 写权限，不改动 key；仅允许改 name，key 作为稳定标识永不在此端点变更。
+        patch 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         data = self.body("WorkspaceRename")
         async with self.db.sessions.begin() as s:
             await lock_installation(s)
@@ -312,7 +326,9 @@ class WorkspaceAPI(API):
         self.respond(result)
 
     async def put(self, workspace_id: str, user_id: str) -> None:
-        """PUT 调整成员角色/状态；触及 OWNER 角色需 OWNERSHIP，并保护最后一位活跃 Owner；角色变更写入审计 workspace.member_updated。"""
+        """PUT 调整成员角色/状态；触及 OWNER 角色需 OWNERSHIP，并保护最后一位活跃 Owner；角色变更写入审计 workspace.member_updated。
+        put 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         data = self.body("MemberWrite")
         async with self.db.sessions.begin() as s:
             await lock_installation(s)
@@ -340,7 +356,9 @@ class WorkspaceAPI(API):
         self.respond(result)
 
     async def delete(self, workspace_id: str, identifier: str | None = None) -> None:
-        """DELETE 归档 Workspace、移除成员或撤销邀请；归档与移除 Owner 均需 OWNERSHIP；归档为逻辑归档，不物理删除历史成员与资源。"""
+        """DELETE 归档 Workspace、移除成员或撤销邀请；归档与移除 Owner 均需 OWNERSHIP；归档为逻辑归档，不物理删除历史成员与资源。
+        delete 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         async with self.db.sessions.begin() as s:
             await lock_installation(s)
             user, _ = await self.identity(s)

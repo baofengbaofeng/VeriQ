@@ -16,10 +16,14 @@ from .enrollment import DeviceAPI
 
 
 class BundleAPI(API):
-    """浏览器态离线 Bundle 导出与下载：受导出槽位限制，清单/归档按 Workspace 授权读取；导出与下载均遵守 Workspace 授权边界，不跨租户取归档。"""
+    """浏览器态离线 Bundle 导出与下载：受导出槽位限制，清单/归档按 Workspace 授权读取；导出与下载均遵守 Workspace 授权边界，不跨租户取归档。
+    BundleAPI 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """
 
     async def post(self, workspace_id: str, bundle_id: str | None = None) -> None:
-        """POST bundles：抢占双槽导出信号量后幂等导出；超时返回 BUNDLE_EXPORT_BUSY；导出完成后无论成败都释放 bundle_export_slots。"""
+        """POST bundles：抢占双槽导出信号量后幂等导出；超时返回 BUNDLE_EXPORT_BUSY；导出完成后无论成败都释放 bundle_export_slots。
+        post 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         if self.action != "bundles":
             raise Problem(405, "METHOD_NOT_ALLOWED", "Method not allowed")
         req = self.body("BundleCreate")
@@ -44,7 +48,9 @@ class BundleAPI(API):
         self.respond(result, 201)
 
     async def get(self, workspace_id: str, bundle_id: str | None = None) -> None:
-        """GET 列表隐藏草稿包给非编辑角色；单包可读元数据、清单 JSON 或沙箱化归档下载；清单以 JSON 响应，归档以沙箱 CSP 的 octet-stream 下发。"""
+        """GET 列表隐藏草稿包给非编辑角色；单包可读元数据、清单 JSON 或沙箱化归档下载；清单以 JSON 响应，归档以沙箱 CSP 的 octet-stream 下发。
+        get 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         scope = WorkspaceScope(workspace_id)
         async with self.db.sessions.begin() as session:
             await lock_installation(session)
@@ -104,14 +110,20 @@ class BundleAPI(API):
 
 
 class NativeBundleAPI(DeviceAPI):
-    """设备态 Bundle 通道：下发签发者公钥信任集，或按用户绑定设备下载已授权归档；设备通道只读，不提供浏览器导出所需的会话 CSRF 流程。"""
+    """设备态 Bundle 通道：下发签发者公钥信任集，或按用户绑定设备下载已授权归档；设备通道只读，不提供浏览器导出所需的会话 CSRF 流程。
+    NativeBundleAPI 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """
 
     async def post(self, *args: str) -> None:
-        """设备通道禁止 POST 导出；创建必须走浏览器态 BundleAPI 并持用户会话；显式 405，防止设备误把导出请求打到内部路由。"""
+        """设备通道禁止 POST 导出；创建必须走浏览器态 BundleAPI 并持用户会话；显式 405，防止设备误把导出请求打到内部路由。
+        post 实现于 apps/srv/src/veriq_server/handlers/bundle.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """
         raise Problem(405, "METHOD_NOT_ALLOWED", "Method not allowed")
 
     async def get(self, workspace_id: str | None = None, bundle_id: str | None = None) -> None:
-        """GET issuer-trust 返回公钥集；归档下载要求设备绑定 Workspace 且持 DOWNLOAD 权限；下载前核对 binding.workspace_id 与路径参数一致。"""
+        """GET issuer-trust 返回公钥集；归档下载要求设备绑定 Workspace 且持 DOWNLOAD 权限；下载前核对 binding.workspace_id 与路径参数一致。
+        get 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """
         async with self.db.sessions.begin() as session:
             await lock_installation(session)
             runtime, binding, _ = await RuntimeService(session).require_device(
