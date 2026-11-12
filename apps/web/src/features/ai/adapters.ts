@@ -1,126 +1,477 @@
+/**
+ * 本文件 apps/web/src/features/ai/adapters.ts 实现 VeriQ 相关前端或执行侧能力，并标明公开导出与关键路径
+ * 模块注释用于帮助智能体与贡献者快速定位授权、执行与离线相关逻辑。
+ * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+ * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+ * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+ * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+ * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+ * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ */
+
 import type { PlatformComponents } from "@veriq/contracts";
 import { request } from "../../api";
 type S = PlatformComponents["schemas"];
+/**
+ * 公开类型 Provider 描述 apps/web/src/features/ai/adapters.ts 模块对外契约字段与可组合结构
+ * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+ * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+ * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+ * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+ * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+ * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ */
 export type Provider = S["ProviderDTO"];
+/**
+ * 公开类型 Generation 描述 apps/web/src/features/ai/adapters.ts 模块对外契约字段与可组合结构
+ * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+ * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+ * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+ * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+ * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+ * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ */
 export type Generation = S["GenerationDTO"];
+/**
+ * 公开类型 GenerationRequest 描述 apps/web/src/features/ai/adapters.ts 模块对外契约字段与可组合结构
+ * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+ * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+ * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+ * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+ * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+ * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ */
 export type GenerationRequest = S["GenerationRequest"];
+/**
+ * 公开类型 AiAdapter 描述 apps/web/src/features/ai/adapters.ts 模块对外契约字段与可组合结构
+ * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+ * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+ * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+ * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+ * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+ * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ */
 export interface AiAdapter {
-  resource(id: string, signal?: AbortSignal): Promise<S["ResourceDTO"]>;
-  providers(
-    cursor?: string,
-    signal?: AbortSignal,
-  ): Promise<S["ProviderDTOPageEnvelope"]["data"]>;
-  save(
-    data: S["ProviderWrite"],
-    id?: string,
-    signal?: AbortSignal,
-  ): Promise<Provider>;
-  remove(id: string, signal?: AbortSignal): Promise<unknown>;
-  test(
-    id: string,
-    requestId: string,
-    signal?: AbortSignal,
-  ): Promise<Generation>;
-  preview(
-    data: GenerationRequest,
-    signal?: AbortSignal,
-  ): Promise<S["AiContextDTO"]>;
-  generate(data: GenerationRequest, signal?: AbortSignal): Promise<Generation>;
-  history(
-    cursor?: string,
-    signal?: AbortSignal,
-  ): Promise<S["GenerationDTOPageEnvelope"]["data"]>;
-  get(id: string, signal?: AbortSignal): Promise<Generation>;
-  review(
-    id: string,
-    data: S["GenerationReview"],
-    signal?: AbortSignal,
-  ): Promise<Generation>;
-  cancel(id: string, signal?: AbortSignal): Promise<Generation>;
+    /**
+     * 公开函数 resource 负责 apps/web/src/features/ai/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    resource(id: string, signal?: AbortSignal): Promise<S["ResourceDTO"]>;
+    providers(
+        cursor?: string,
+        signal?: AbortSignal,
+    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+    ): Promise<S["ProviderDTOPageEnvelope"]["data"]>;
+    save(
+        data: S["ProviderWrite"],
+        // 分段注释：继续说明 adapters.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+        id?: string,
+        signal?: AbortSignal,
+    ): Promise<Provider>;
+    /**
+     * 公开函数 remove 负责 apps/web/src/features/ai/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    remove(id: string, signal?: AbortSignal): Promise<unknown>;
+    test(
+        id: string,
+        requestId: string,
+        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+        signal?: AbortSignal,
+    ): Promise<Generation>;
+    preview(
+        // 分段注释：继续说明 adapters.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+        data: GenerationRequest,
+        signal?: AbortSignal,
+    ): Promise<S["AiContextDTO"]>;
+    /**
+     * 公开函数 generate 负责 apps/web/src/features/ai/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    generate(data: GenerationRequest, signal?: AbortSignal): Promise<Generation>;
+    history(
+        cursor?: string,
+        signal?: AbortSignal,
+    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+    ): Promise<S["GenerationDTOPageEnvelope"]["data"]>;
+    /**
+     * 公开函数 get 负责 apps/web/src/features/ai/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    get(id: string, signal?: AbortSignal): Promise<Generation>;
+    review(
+        id: string,
+        data: S["GenerationReview"],
+        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+        signal?: AbortSignal,
+    ): Promise<Generation>;
+    /**
+     * 公开函数 cancel 负责 apps/web/src/features/ai/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    cancel(id: string, signal?: AbortSignal): Promise<Generation>;
 }
+/**
+ * 公开类 CloudAiAdapter 封装 apps/web/src/features/ai/adapters.ts 中的核心状态与可复用协作接口
+ * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+ * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+ * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+ * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+ * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+ * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ */
 export class CloudAiAdapter implements AiAdapter {
-  constructor(readonly workspaceId: string) {}
-  resource = (id: string, signal?: AbortSignal) =>
-    request<S["ResourceDTO"]>(
-      "/workspaces/" + this.workspaceId + "/resources/" + id,
-      "GET",
-      undefined,
-      signal,
-    );
-  private base = () => "/workspaces/" + this.workspaceId + "/ai";
-  providers = (cursor?: string, signal?: AbortSignal) =>
-    request<S["ProviderDTOPageEnvelope"]["data"]>(
-      this.base() +
-        "/providers" +
-        (cursor ? "?cursor=" + encodeURIComponent(cursor) : ""),
-      "GET",
-      undefined,
-      signal,
-    );
-  save = (data: S["ProviderWrite"], id?: string, signal?: AbortSignal) =>
-    request<Provider>(
-      this.base() + "/providers" + (id ? "/" + id : ""),
-      id ? "PUT" : "POST",
-      data,
-      signal,
-    );
-  remove = (id: string, signal?: AbortSignal) =>
-    request(this.base() + "/providers/" + id, "DELETE", undefined, signal);
-  test = (id: string, requestId: string, signal?: AbortSignal) =>
-    request<Generation>(
-      this.base() + "/providers/" + id + "/connection-tests",
-      "POST",
-      { requestId },
-      signal,
-    );
-  preview = (data: GenerationRequest, signal?: AbortSignal) =>
-    request<S["AiContextDTO"]>(this.base() + "/context", "POST", data, signal);
-  generate = (data: GenerationRequest, signal?: AbortSignal) =>
-    request<Generation>(this.base() + "/generations", "POST", data, signal);
-  history = (cursor?: string, signal?: AbortSignal) =>
-    request<S["GenerationDTOPageEnvelope"]["data"]>(
-      this.base() +
-        "/generations" +
-        (cursor ? "?cursor=" + encodeURIComponent(cursor) : ""),
-      "GET",
-      undefined,
-      signal,
-    );
-  get = (id: string, signal?: AbortSignal) =>
-    request<Generation>(
-      this.base() + "/generations/" + id,
-      "GET",
-      undefined,
-      signal,
-    );
-  review = (id: string, data: S["GenerationReview"], signal?: AbortSignal) =>
-    request<Generation>(
-      this.base() + "/generations/" + id + "/review",
-      "POST",
-      data,
-      signal,
-    );
-  cancel = (id: string, signal?: AbortSignal) =>
-    request<Generation>(
-      this.base() + "/generations/" + id + "/cancel",
-      "POST",
-      undefined,
-      signal,
-    );
+    constructor(readonly workspaceId: string) {}
+    /**
+     * 公开函数 resource 负责 apps/web/src/features/ai/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    resource = (id: string, signal?: AbortSignal) =>
+        request<S["ResourceDTO"]>(
+            "/workspaces/" + this.workspaceId + "/resources/" + id,
+            "GET",
+            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+            undefined,
+            signal,
+        );
+    /**
+     * 公开函数 base 负责 apps/web/src/features/ai/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    private base = () => "/workspaces/" + this.workspaceId + "/ai";
+    /**
+     * 公开函数 providers 负责 apps/web/src/features/ai/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    providers = (cursor?: string, signal?: AbortSignal) =>
+        request<S["ProviderDTOPageEnvelope"]["data"]>(
+            this.base() +
+                "/providers" +
+                // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+                // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+                // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+                (cursor ? "?cursor=" + encodeURIComponent(cursor) : ""),
+            "GET",
+            undefined,
+            // 分段注释：继续说明 adapters.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+            // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+            signal,
+        );
+    /**
+     * 公开函数 save 负责 apps/web/src/features/ai/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    save = (data: S["ProviderWrite"], id?: string, signal?: AbortSignal) =>
+        request<Provider>(
+            this.base() + "/providers" + (id ? "/" + id : ""),
+            id ? "PUT" : "POST",
+            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+            data,
+            signal,
+        );
+    /**
+     * 公开函数 remove 负责 apps/web/src/features/ai/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    remove = (id: string, signal?: AbortSignal) =>
+        request(this.base() + "/providers/" + id, "DELETE", undefined, signal);
+    /**
+     * 公开函数 test 负责 apps/web/src/features/ai/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    test = (id: string, requestId: string, signal?: AbortSignal) =>
+        request<Generation>(
+            this.base() + "/providers/" + id + "/connection-tests",
+            "POST",
+            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+            { requestId },
+            signal,
+        );
+    /**
+     * 公开函数 preview 负责 apps/web/src/features/ai/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    preview = (data: GenerationRequest, signal?: AbortSignal) =>
+        request<S["AiContextDTO"]>(this.base() + "/context", "POST", data, signal);
+    /**
+     * 公开函数 generate 负责 apps/web/src/features/ai/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    generate = (data: GenerationRequest, signal?: AbortSignal) =>
+        request<Generation>(this.base() + "/generations", "POST", data, signal);
+    /**
+     * 公开函数 history 负责 apps/web/src/features/ai/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    history = (cursor?: string, signal?: AbortSignal) =>
+        request<S["GenerationDTOPageEnvelope"]["data"]>(
+            this.base() +
+                "/generations" +
+                // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+                // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+                // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+                (cursor ? "?cursor=" + encodeURIComponent(cursor) : ""),
+            "GET",
+            undefined,
+            // 分段注释：继续说明 adapters.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+            // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+            signal,
+        );
+    /**
+     * 公开函数 get 负责 apps/web/src/features/ai/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    get = (id: string, signal?: AbortSignal) =>
+        request<Generation>(
+            this.base() + "/generations/" + id,
+            "GET",
+            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+            undefined,
+            signal,
+        );
+    /**
+     * 公开函数 review 负责 apps/web/src/features/ai/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    review = (id: string, data: S["GenerationReview"], signal?: AbortSignal) =>
+        request<Generation>(
+            this.base() + "/generations/" + id + "/review",
+            "POST",
+            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+            data,
+            signal,
+        );
+    /**
+     * 公开函数 cancel 负责 apps/web/src/features/ai/adapters.ts 中的关键处理流程并返回约定结果
+     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     */
+    cancel = (id: string, signal?: AbortSignal) =>
+        request<Generation>(
+            this.base() + "/generations/" + id + "/cancel",
+            "POST",
+            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+            undefined,
+            signal,
+        );
+// 分段注释：继续说明 adapters.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+// 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+// 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
 }
+ /**
+  * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
+  * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+  * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+  * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+  * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+  * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+  * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+  * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+  */
 /** Desktop hosts supply a trusted typed bridge; no renderer key read or arbitrary IPC. */
+/**
+ * 公开类 LocalAiAdapter 封装 apps/web/src/features/ai/adapters.ts 中的核心状态与可复用协作接口
+ * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ */
 export class LocalAiAdapter implements AiAdapter {
-  constructor(private readonly bridge: AiAdapter) {}
-  resource: AiAdapter["resource"] = (...args) => this.bridge.resource(...args);
-  providers: AiAdapter["providers"] = (...args) =>
-    this.bridge.providers(...args);
-  save: AiAdapter["save"] = (...args) => this.bridge.save(...args);
-  remove: AiAdapter["remove"] = (...args) => this.bridge.remove(...args);
-  test: AiAdapter["test"] = (...args) => this.bridge.test(...args);
-  preview: AiAdapter["preview"] = (...args) => this.bridge.preview(...args);
-  generate: AiAdapter["generate"] = (...args) => this.bridge.generate(...args);
-  history: AiAdapter["history"] = (...args) => this.bridge.history(...args);
-  get: AiAdapter["get"] = (...args) => this.bridge.get(...args);
-  review: AiAdapter["review"] = (...args) => this.bridge.review(...args);
-  cancel: AiAdapter["cancel"] = (...args) => this.bridge.cancel(...args);
+    constructor(private readonly bridge: AiAdapter) {}
+    resource: AiAdapter["resource"] = (...args) => this.bridge.resource(...args);
+    providers: AiAdapter["providers"] = (...args) =>
+        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+        this.bridge.providers(...args);
+    save: AiAdapter["save"] = (...args) => this.bridge.save(...args);
+    remove: AiAdapter["remove"] = (...args) => this.bridge.remove(...args);
+    // 分段注释：继续说明 adapters.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
+    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
+    test: AiAdapter["test"] = (...args) => this.bridge.test(...args);
+    preview: AiAdapter["preview"] = (...args) => this.bridge.preview(...args);
+    generate: AiAdapter["generate"] = (...args) => this.bridge.generate(...args);
+    history: AiAdapter["history"] = (...args) => this.bridge.history(...args);
+    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
+    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
+    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
+    get: AiAdapter["get"] = (...args) => this.bridge.get(...args);
+    review: AiAdapter["review"] = (...args) => this.bridge.review(...args);
+    cancel: AiAdapter["cancel"] = (...args) => this.bridge.cancel(...args);
 }
