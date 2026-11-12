@@ -416,6 +416,8 @@ assert model_calls_during_execution == 0
 
 **依赖：** T04/T10
 
+**状态：** 模块实现及两轮修复复审已通过（`46798ab`、`3ffb144`、`c1fa544`）。支持真实发布包和无 Runtime 的 DSL 草稿调试包、可信公钥缓存、严格入口/闭包验证、幂等导出、多 CASE 与版本分页、精确本地凭证引用及 SDK 动态键名脱敏。完整 SDK 检查仍有既有浏览器关闭超时，必须在 T18 正式门禁前处理，见[验证限制](../development.md#current-verification-limits)；本地执行/回传与桌面仍由后续任务交付。
+
 **Files（拟创建/修改）：**
 
 - `apps/srv/src/veriq_server/services/bundle.py`
@@ -426,7 +428,7 @@ assert model_calls_during_execution == 0
 
 **Interfaces：** BundleService.export(scope, req) -> BundleDTO；verifyBundle(input: Path): VerifiedBundle；SecretResolver.resolve(ref, attempt): SecretValue。
 
-- [ ] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
+- [x] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```python
 assert exported_zip.contains_secret_values is False
@@ -434,10 +436,10 @@ assert tampered_bundle.accepted is False
 assert set(exported_versions) == set(dependency_closure)
 ```
 
-- [ ] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/bundles -q`；失败必须来自缺失行为，而非测试环境拼写错误。
-- [ ] **Step 3：实现上述接口与文件。** 完整闭包、manifest字节签名、hash、安全解压、无密钥、secretRef本地映射、缺依赖明确失败。信任根通过认证绑定/带外指纹建立，禁止信任包内自带根，测试替换key、轮换、已知撤销和离线未知撤销状态。
-- [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
-- [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t14 依赖闭包、签名包与本地凭证`。有新决策先更新ADR，不扩展到下一任务。
+- [x] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/bundles -q`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [x] **Step 3：实现上述接口与文件。** 完整闭包、manifest字节签名、hash、安全解压、无密钥、secretRef本地映射、缺依赖明确失败。信任根通过认证绑定/带外指纹建立，禁止信任包内自带根，测试替换key、轮换、已知撤销和离线未知撤销状态。
+- [x] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
+- [x] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t14 依赖闭包、签名包与本地凭证`。有新决策先更新ADR，不扩展到下一任务。
 
 ## T15：离线执行、本地报告与幂等回传
 

@@ -1,6 +1,6 @@
 # Developing VeriQ
 
-Installation, user accounts, Workspace management and versioned asset APIs are implemented. The current pages provide setup/login/logout, password reset, account/session controls, global user administration, Workspace selection, membership and invitations using actual MySQL records. The deterministic compiler, Runner SDK and built-in HTTP business/fixture lifecycle providers are implemented, together with versioned credential/authentication APIs. Runtime enrollment, owner-controlled sharing, separate hardware trust/Workspace credential delivery and development CLI/doctor are implemented. Asset editing/publication, actual Linux Agent/lease integration and restricted reports/storage have passed task reviews. The AI implementation has also passed code review; authorized actual-Provider acceptance remains pending. Signed offline packages, the desktop client and formal distributions remain under development.
+Installation, user accounts, Workspace management and versioned asset APIs are implemented. The current pages provide setup/login/logout, password reset, account/session controls, global user administration, Workspace selection, membership and invitations using actual MySQL records. The deterministic compiler, Runner SDK and built-in HTTP business/fixture lifecycle providers are implemented, together with versioned credential/authentication APIs. Runtime enrollment, owner-controlled sharing, separate hardware trust/Workspace credential delivery and development CLI/doctor are implemented. Asset editing/publication, actual Linux Agent/lease integration and restricted reports/storage have passed task reviews. The AI implementation has also passed code review; authorized actual-Provider acceptance remains pending. Signed bundle export/verification, issuer trust and exact local credential references have passed their task reviews. Offline execution/import, the desktop client and formal distributions remain under development.
 
 After signing in, open **Workspaces** to create a project Workspace; its creator becomes OWNER. OWNER/ADMIN can invite members with a copyable link or configured SMTP. Existing accounts sign in within the acceptance page; new invitees create an ordinary account. Invitation tokens are removed from the address bar and retained in page memory, so reopen the original link after a full refresh. Global system administration does not grant project membership.
 
@@ -94,7 +94,7 @@ Doctor checks the actual pinned Node 24.22.1, supported OS/x64 architecture, ins
 
 Deployment managers create a Workspace service account in the Runtime page and issue a one-time enrollment token. Supply it through standard input to `enroll-service --server ORIGIN --name NAME`; include `--share-workspace` only when consenting to Workspace use. Never paste a token as a command argument or put it in a URL. Tokens expire in ten minutes and cannot be used for execution-plan triggers, maintenance or credential resolution. System-admin MANAGED approval is separate from owner consent and cloud location. Workspace OWNER/ADMIN separately approves credential delivery after MANAGED trust; a global administrator with only project VIEWER/EDITOR membership cannot grant it. Disabling the account denies its devices immediately.
 
-The Node development CLI uses the pinned tsx loader to consume shared TypeScript packages. Its env-paths configuration directory is mode 0700 and the device file is mode 0600 with proper-lockfile serialization and atomic replacement. `--config-dir` selects a dedicated private development directory. This is a documented file-storage seam, **not** an OS vault or a native release package. T20 provides OS vaults, installers and complete native platform delivery; T09/T10 now implement Linux worker claim/lease/start/stop and recoverable unattended token renewal. A lost one-time enrollment receipt still requires explicit recovery/re-enrollment; the Agent recovers its exact journaled rotation candidate without overwriting a different enrolled principal. Bundle trust roots remain unavailable until T14 supplies an actual authenticated issuer.
+The Node development CLI uses the pinned tsx loader to consume shared TypeScript packages. Its env-paths configuration directory is mode 0700 and the device file is mode 0600 with proper-lockfile serialization and atomic replacement. `--config-dir` selects a dedicated private development directory. This is a documented file-storage seam, **not** an OS vault or a native release package. T20 provides OS vaults, installers and complete native platform delivery; T09/T10 now implement Linux worker claim/lease/start/stop and recoverable unattended token renewal. A lost one-time enrollment receipt still requires explicit recovery/re-enrollment; the Agent recovers its exact journaled rotation candidate without overwriting a different enrolled principal. T14 provides a persisted issuer and separate `trust bind`/`trust refresh` commands; device credentials alone do not establish signer trust. See [offline bundle operations](offline-bundles.md).
 
 Run Runtime tests with `VERIQ_TEST_CHROMIUM` selecting the test host's Chromium if necessary:
 
@@ -144,6 +144,28 @@ promoted to the production catalog. It needs writable XDG paths and sufficient t
 disk space; generated archives, device profiles and per-Attempt work are transient.
 
 ## Current verification limits
+
+The signed-bundle implementation (`46798ab`, fixed in `3ffb144` and `c1fa544`)
+passed independent review after correcting unchecked OOB sibling keys, semantic
+closure/entrypoint binding, HTTP idempotency/auth/status contracts, and multi-CASE
+version pagination. Final scoped evidence includes 14 offline verifier tests,
+37 compiler emission tests, six bundle/guard checks, 196 contract tests, a real
+Agent/keyboard-GUI/download/native-verification journey, and one generated SDK
+consumer, plus types, mypy (76 files) and Ruff. The GUI pagination test discloses
+its listing-only history padding; only genuine Agent-published roots are exported.
+These checks are not whole-product acceptance.
+
+The required T14 full SDK command remains **134 passed / one timeout**. New phase
+evidence places the delayed await in fixture `browser.close()`, after executeStep
+settled and context close completed; this alone does not prove its business-status
+assertions passed. A separately authorized native process/pipe probe passed 47
+selected tests under a different schedule and did not reproduce the gap. No cause
+or lifecycle fix is claimed. System Chromium 156 differs from Playwright 1.65's
+expected Chromium 158 (revision 1254); causality is unproven. Before formal build,
+align the test harness with the matched pinned browser and obtain the official
+gate, capturing native phases if it fails again. Preserve the 15-second/two-worker
+checks and generated-child privacy. The later passing generated consumer is a
+focused compatibility check, not a replacement full gate.
 
 The AI implementation (`f9573d0`, fixed in `3c96eb6`) passed independent code review.
 Its pre-fix final AI suite passed 20 tests. The review fixes have six causal backend
