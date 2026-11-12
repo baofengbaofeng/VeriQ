@@ -1,681 +1,341 @@
 /**
- * 本文件 apps/runtime/src/enrollment.ts 实现 VeriQ 相关前端或执行侧能力，并标明公开导出与关键路径
- * 模块注释用于帮助智能体与贡献者快速定位授权、执行与离线相关逻辑。
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
- * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
- * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
- * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
- * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
- * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ * 本文件实现设备注册、令牌轮换与配置持久化：审批码轮询与服务账号注册共用受控文件存储：令牌不进 URL/日志（enrollment）。
  */
 
- /**
-  * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
-  * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
-  * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
-  * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-  * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
-  * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-  * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
-  * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
-  */
 /** Native development transport. Tokens never use URLs, cookies, argv or logs. */
 import {
     chmod,
     open,
     lstat,
-    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
     mkdir,
     readFile,
     rename,
     unlink,
     writeFile,
-// 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-// 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-// 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
 } from "node:fs/promises";
 import { join } from "node:path";
 import { randomBytes, randomUUID } from "node:crypto";
 import envPaths from "env-paths";
 import lockfile from "proper-lockfile";
-// 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-// 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-// 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
 import { validateSchema, type PlatformComponents } from "@veriq/contracts";
 type Schemas = PlatformComponents["schemas"];
 /**
- * 公开类型 DeviceConfig 描述 apps/runtime/src/enrollment.ts 模块对外契约字段与可组合结构
- * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ * 公开类型 DeviceConfig 保存已注册设备的控制 Origin、设备令牌与能力声明等私有配置字段（DeviceConfig）。
  */
 export type DeviceConfig = Schemas["DeviceCredentialsDTO"] & { server: string };
 /**
- * 公开类型 Capabilities 描述 apps/runtime/src/enrollment.ts 模块对外契约字段与可组合结构
- * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
- * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
- * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
- * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
- * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
- * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ * 公开类型 Capabilities 描述设备申报的执行能力：仅作注册与认领匹配：不构成信任证明（Capabilities）。
  */
 export type Capabilities = Schemas["RuntimeCapabilitiesV1"];
 
 /**
- * 公开函数 controlOrigin 负责 apps/runtime/src/enrollment.ts 中的关键处理流程并返回约定结果
- * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
- * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
- * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
- * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
- * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
- * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ * 公开函数 controlOrigin 规范化并校验控制服务 Origin：拒绝用户信息、异常端口与非 http(s) scheme（controlOrigin）。
  */
 export function controlOrigin(value: string): string {
     const url = new URL(value);
-    // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
     if (
         url.username ||
         url.password ||
         url.search ||
-        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
         url.hash ||
         url.pathname !== "/" ||
         !["https:", "http:"].includes(url.protocol) ||
-        // 分段注释：继续说明 enrollment.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
         (url.protocol === "http:" &&
             !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname))
     )
         throw new Error(
-            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
             "Use an HTTPS control origin (HTTP is allowed only for local development).",
         );
     return url.origin;
 }
 /**
- * 公开类 RuntimeError 封装 apps/runtime/src/enrollment.ts 中的核心状态与可复用协作接口
- * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
- * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
- * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
- * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
- * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
- * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ * 公开类 RuntimeError 表示控制面请求失败：携带稳定 code 与可选 HTTP 状态：供 CLI/Agent 映射用户可见错误（RuntimeError）。
  */
 export class RuntimeError extends Error {
     code: string;
     status: number;
-    /**
-     * 公开函数 constructor 负责 apps/runtime/src/enrollment.ts 中的关键处理流程并返回约定结果
-     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
-     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
-     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
-     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
-     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
-     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
-     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
-     */
     constructor(code: string, status: number) {
         super(`VeriQ request failed: ${code} (${status})`);
         this.code = code;
         this.status = status;
-    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
     }
 }
 /**
- * 公开类 RuntimeClient 封装 apps/runtime/src/enrollment.ts 中的核心状态与可复用协作接口
- * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
- * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
- * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
- * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
- * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
- * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+ * 公开类 RuntimeClient 封装设备注册与令牌相关的控制面 HTTP 调用：强制同源并省略 Cookie（RuntimeClient）。
  */
 export class RuntimeClient {
     server: string;
-    /**
-     * 公开函数 constructor 负责 apps/runtime/src/enrollment.ts 中的关键处理流程并返回约定结果
-     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
-     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
-     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
-     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
-     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
-     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
-     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
-     */
     constructor(server: string) {
         this.server = controlOrigin(server);
     }
     async request<T>(
-        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
         path: string,
         method = "GET",
         body?: unknown,
-        // 分段注释：继续说明 enrollment.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
         token?: string,
         signal?: AbortSignal,
     ): Promise<T> {
-        // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
         if (!path.startsWith("/") || path.startsWith("//") || new URL(path, this.server).origin !== this.server)
             throw new RuntimeError("CONTROL_ORIGIN_MISMATCH", 0);
         let response: Response;
-        // 关键路径：处理 try 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
         try {
             response = await fetch(this.server + path, {
                 method,
                 redirect: "error",
-                // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-                // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-                // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
                 credentials: "omit",
                 signal: AbortSignal.any([
                     AbortSignal.timeout(15_000),
-                    // 分段注释：继续说明 enrollment.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-                    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-                    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
                     ...(signal ? [signal] : []),
                 ]),
                 headers: {
                     "Content-Type": "application/json",
-                    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-                    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-                    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
                     ...(token ? { Authorization: "Bearer " + token } : {}),
                 },
                 ...(body === undefined ? {} : { body: JSON.stringify(body) }),
             });
-        // 分段注释：继续说明 enrollment.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
         } catch {
             throw new RuntimeError(
                 signal?.aborted ? "CANCELLED" : "NETWORK_UNAVAILABLE",
                 0,
-            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
             );
         }
-        // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
         if (response.status === 204) return undefined as T;
         // Bound the body before parsing, including untrusted proxy/error responses.
         const reader = response.body?.getReader();
         let size = 0;
         const chunks: Uint8Array[] = [];
-        // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
         if (reader)
-            // 关键路径：处理 try 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
             try {
-                // 关键路径：处理 while 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
                 while (true) {
                     const next = await reader.read();
-                    // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
                     if (next.done) break;
                     size += next.value.length;
-                    // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
                     if (size > 65536) {
                         await reader.cancel();
                         throw new Error();
                     }
-                    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-                    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-                    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
                     chunks.push(next.value);
                 }
             } catch {
-                // 分段注释：继续说明 enrollment.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-                // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-                // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
                 throw new RuntimeError("INVALID_RESPONSE", response.status);
             }
         let value: { data?: T; code?: unknown };
-        // 关键路径：处理 try 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
         try {
             value = JSON.parse(Buffer.concat(chunks).toString("utf8"));
         } catch {
             throw new RuntimeError("INVALID_RESPONSE", response.status);
-        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
         }
-        // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
         if (!response.ok) {
             const code =
                 typeof value.code === "string" && /^[A-Z_]{1,80}$/.test(value.code)
                     ? value.code
-                    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-                    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-                    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
                     : "REQUEST_FAILED";
             throw new RuntimeError(code, response.status);
         }
-        // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
         if (value.data === undefined)
             throw new RuntimeError("INVALID_RESPONSE", response.status);
         const schema =
             path.endsWith("/poll") ||
-            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
             path.endsWith("/rotate") ||
             path.endsWith("/service")
                 ? "DeviceCredentialsDTO"
-                // 分段注释：继续说明 enrollment.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-                // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-                // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
                 : path === "/api/v1/runtime-enrollments"
                     ? "EnrollmentDTO"
                     : path === "/internal/v1/runtime"
                         ? "RuntimeDTO"
-                        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-                        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-                        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
                         : undefined;
-        // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
         if (schema && validateSchema(schema, value.data).length)
             throw new RuntimeError("INVALID_RESPONSE", response.status);
         return value.data;
     }
     /**
-     * 公开函数 begin 负责 apps/runtime/src/enrollment.ts 中的关键处理流程并返回约定结果
-     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
-     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
-     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
-     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
-     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
-     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
-     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     * 公开方法 begin 发起人工审批注册：返回 deviceCode 等轮询材料：密钥不进 URL，标注导出 begin。
      */
     begin(name: string, capabilities: Capabilities, signal?: AbortSignal) {
         return this.request<Schemas["EnrollmentDTO"]>(
             "/api/v1/runtime-enrollments",
             "POST",
-            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
             { name, location: "CONNECTED_LOCAL", capabilities },
             undefined,
             signal,
-        // 分段注释：继续说明 enrollment.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
         );
     }
     /**
-     * 公开函数 inspectDevice 负责 apps/runtime/src/enrollment.ts 中的关键处理流程并返回约定结果
-     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
-     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
-     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
-     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
-     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
-     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
-     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     * 公开方法 inspectDevice 用设备令牌查询当前设备视图：供续期与诊断使用（inspectDevice）（inspectDevice）。
      */
     inspectDevice(token: string, signal?: AbortSignal) {
         return this.request<Schemas["RuntimeDTO"]>(
             "/internal/v1/runtime",
             "GET",
-            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
             undefined,
             token,
             signal,
-        // 分段注释：继续说明 enrollment.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
         );
     }
     /**
-     * 公开函数 poll 负责 apps/runtime/src/enrollment.ts 中的关键处理流程并返回约定结果；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
-     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
-     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
-     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
-     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
-     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
-     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     * 公开方法 poll 轮询人工审批结果：成功后取回设备令牌：过期或拒绝映射稳定错误码（poll），说明 poll 在 enrollment 中的专属行为（poll）。
      */
     poll(deviceCode: string, signal?: AbortSignal) {
         return this.request<Schemas["DeviceCredentialsDTO"]>(
             "/api/v1/runtime-enrollments/poll",
             "POST",
-            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
             { deviceCode },
             undefined,
             signal,
-        // 分段注释：继续说明 enrollment.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
         );
     }
+    /**
+     * 公开方法 serviceEnroll 使用服务账号令牌直接注册设备：跳过人工审批码：仍写入同一私有配置边界（serviceEnroll）。
+     */
     serviceEnroll(
         name: string,
-        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
         capabilities: Capabilities,
         token: string,
         sharedWithWorkspace: boolean,
         signal?: AbortSignal,
-    // 分段注释：继续说明 enrollment.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
     ) {
         return this.request<Schemas["DeviceCredentialsDTO"]>(
             "/internal/v1/runtime-enrollments/service",
             "POST",
-            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
             { name, capabilities, sharedWithWorkspace },
             token,
             signal,
         );
-    // 分段注释：继续说明 enrollment.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
     }
     /**
-     * 公开函数 rotate 负责 apps/runtime/src/enrollment.ts 中的关键处理流程并返回约定结果
-     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
-     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
-     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
-     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
-     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
-     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
-     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     * 公开方法 rotate 轮换设备令牌：返回新凭证供 DeviceStore 原子替换：旧令牌随后失效（rotate）（rotate）。
      */
     rotate(token: string, signal?: AbortSignal) {
         return this.request<Schemas["DeviceCredentialsDTO"]>(
             "/internal/v1/runtime/token/rotate",
             "POST",
-            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
             {},
             token,
             signal,
-        // 分段注释：继续说明 enrollment.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
         );
     }
     /**
-     * 公开函数 logout 负责 apps/runtime/src/enrollment.ts 中的关键处理流程并返回约定结果
-     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
-     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
-     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
-     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
-     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
-     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
-     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     * 公开方法 logout 向控制面注销设备令牌：本机删除配置由 DeviceStore.remove 负责（logout）。
      */
     logout(token: string, signal?: AbortSignal) {
         return this.request<Record<string, never>>(
             "/internal/v1/runtime/logout",
             "POST",
-            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
             {},
             token,
             signal,
-        // 分段注释：继续说明 enrollment.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
         );
     }
 }
 
- /**
-  * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
-  * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
-  * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
-  * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-  * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
-  * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-  * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
-  * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
-  */
 /** Restricted file seam for development; T20 provides the native OS vault. */
 /**
- * 公开类 DeviceStore 封装 apps/runtime/src/enrollment.ts 中的核心状态与可复用协作接口
- * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+ * 公开类 DeviceStore 以排他文件缝持久化 DeviceConfig：支持续期、停机检查与轮换候选恢复（DeviceStore）。
  */
 export class DeviceStore {
     directory: string;
-    /**
-     * 公开函数 constructor 负责 apps/runtime/src/enrollment.ts 中的关键处理流程并返回约定结果
-     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
-     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
-     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
-     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
-     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
-     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
-     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
-     */
     constructor(directory = envPaths("veriq", { suffix: "" }).config) {
         this.directory = directory;
     }
     /**
-     * 公开函数 prepare 负责 apps/runtime/src/enrollment.ts 中的关键处理流程并返回约定结果
-     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
-     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
-     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
-     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
-     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
-     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
-     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     * 公开方法 prepare 创建私有配置目录并准备设备文件锁：供 Agent 启动前调用，标注导出符号 prepare 供检索。
      */
     async prepare() {
         await mkdir(this.directory, { recursive: true, mode: 0o700 });
         const info = await lstat(this.directory);
-        // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
         if (!info.isDirectory() || info.isSymbolicLink())
             throw new Error("Unsafe device configuration directory");
         await chmod(this.directory, 0o700);
     }
     /**
-     * 公开函数 load 负责 apps/runtime/src/enrollment.ts 中的关键处理流程并返回约定结果；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
-     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
-     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
-     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
-     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
-     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
-     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     * 公开方法 load 读取本机 DeviceConfig：文件缺失或损坏时失败关闭：不返回部分令牌，标注导出符号 load。
      */
     async load(): Promise<DeviceConfig> {
         const file = join(this.directory, "device.json");
         const info = await lstat(file);
-        // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
         if (
             !info.isFile() ||
             info.isSymbolicLink() ||
             info.size > 65536 ||
-            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
             (process.platform !== "win32" && (info.mode & 0o077) !== 0)
         )
             throw new Error("Unsafe device credential file permissions");
-        // 分段注释：继续说明 enrollment.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
         const value = JSON.parse(await readFile(file, "utf8")) as DeviceConfig;
         controlOrigin(value.server);
         const { server: _, ...receipt } = value;
-        // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
         if (validateSchema("DeviceCredentialsDTO", receipt).length)
             throw new Error("Invalid device configuration");
         return value;
     }
     /**
-     * 公开函数 save 负责 apps/runtime/src/enrollment.ts 中的关键处理流程并返回约定结果；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
-     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
-     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
-     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
-     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
-     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
-     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     * 公开方法 save 原子写入 DeviceConfig：保持 0600 权限：避免半写状态被并发读者看到，标注 save。
      */
     async save(config: DeviceConfig) {
         await this.prepare();
         const release = await lockfile.lock(this.directory, { retries: 0 });
         const temporary = join(this.directory, `.device-${randomUUID()}.json`);
-        // 关键路径：处理 try 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
         try {
-            // 关键路径：处理 try 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
             try {
                 await lstat(join(this.directory, "device.json"));
                 throw new Error("ALREADY_ENROLLED");
             } catch (error) {
-                // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
                 if (!(
                     error instanceof Error &&
                     "code" in error &&
                     error.code === "ENOENT"
-                // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-                // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-                // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
                 ))
                     throw error;
             }
-            // 分段注释：继续说明 enrollment.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-            // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
             await writeFile(temporary, JSON.stringify(config), {
                 mode: 0o600,
                 flag: "wx",
             });
-            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
             await rename(temporary, join(this.directory, "device.json"));
         } finally {
             await unlink(temporary).catch((error: NodeJS.ErrnoException) => {
-                // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
                 if (error.code !== "ENOENT") throw error;
             });
             await release();
         }
-    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
     }
-     /**
-      * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
-      * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
-      * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
-      * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-      * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
-      * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-      * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
-      * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
-      */
     /** Hold the same profile lock throughout pending recovery and atomic replacement. */
     /**
-     * 公开函数 renew 负责 apps/runtime/src/enrollment.ts 中的关键处理流程并返回约定结果
-     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
+     * 公开方法 renew 在需要时轮换设备令牌并原子保存：恢复未完成的轮换候选：防止双主凭证，标注导出符号 renew 供检索。
      */
     async renew(client: RuntimeClient): Promise<DeviceConfig> {
         await this.prepare();
         const release = await lockfile.lock(this.directory, { retries: 0 });
         const pendingPath = join(this.directory, "rotation.json");
-        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
         const atomic = async (path: string, value: unknown) => {
             const temporary = join(this.directory, `.renew-${randomUUID()}.json`);
-            // 关键路径：处理 try 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
             try {
                 await writeFile(temporary, JSON.stringify(value), { mode: 0o600, flag: "wx", flush: true });
                 await rename(temporary, path);
                 const directory = await open(this.directory, "r");
-                // 关键路径：处理 try 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
                 try { await directory.sync(); } finally { await directory.close(); }
             } finally { await unlink(temporary).catch((error: NodeJS.ErrnoException) => { if (error.code !== "ENOENT") throw error; }); }
         };
-        // 关键路径：处理 try 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
         try {
             const current = await this.load();
-            // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
             if (current.server !== client.server) throw new Error("DEVICE_PRINCIPAL_CHANGED");
             let pending: { previous: DeviceConfig; clientRequestId: string; replacementToken: string };
-            // 关键路径：处理 try 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
             try {
                 const info = await lstat(pendingPath);
-                // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
                 if (!info.isFile() || info.isSymbolicLink() || info.size > 65536 || (info.mode & 0o077)) throw new Error("UNSAFE_ROTATION_JOURNAL");
                 pending = JSON.parse(await readFile(pendingPath, "utf8"));
             } catch (error) {
-                // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
                 if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
                 pending = { previous: current, clientRequestId: randomUUID(), replacementToken: randomBytes(32).toString("base64url") };
                 await atomic(pendingPath, pending);
             }
-            // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
             if (pending.previous.server !== current.server || pending.previous.runnerId !== current.runnerId || pending.previous.workspaceId !== current.workspaceId)
                 throw new Error("DEVICE_PRINCIPAL_CHANGED");
-            // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
             if (current.deviceToken === pending.replacementToken) {
                 await unlink(pendingPath);
                 return current;
             }
-            // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
             if (current.deviceToken !== pending.previous.deviceToken) throw new Error("DEVICE_CREDENTIAL_CHANGED");
             const receipt = await client.request<Schemas["DeviceCredentialsDTO"]>("/internal/v1/runtime/token/rotate", "POST", {clientRequestId: pending.clientRequestId, replacementToken: pending.replacementToken}, current.deviceToken);
-            // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
             if (receipt.runnerId !== current.runnerId || receipt.workspaceId !== current.workspaceId || receipt.deviceToken !== pending.replacementToken)
                 throw new Error("DEVICE_PRINCIPAL_CHANGED");
             // Compare again before replacement, even though cooperative writers hold the lock.
@@ -683,80 +343,38 @@ export class DeviceStore {
             const replacement = {...current, ...receipt};
             await atomic(join(this.directory, "device.json"), replacement);
             await unlink(pendingPath);
-            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
             return replacement;
         } finally { await release(); }
     }
     /**
-     * 公开函数 ensureStopped 负责 apps/runtime/src/enrollment.ts 中的关键处理流程并返回约定结果
-     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
-     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
-     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
-     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
-     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
-     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
-     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     * 公开方法 ensureStopped 确认本机 Agent 控制通道已停止：避免在旧进程仍存活时覆盖配置（ensureStopped）。
      */
     async ensureStopped() {
-        // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
         if (await lockfile.check(join(this.directory, "agent-owner")).catch((error: NodeJS.ErrnoException) => { if (error.code === "ENOENT") return false; throw error; })) throw new Error("AGENT_RUNNING_STOP_FIRST");
     }
     /**
-     * 公开函数 hasPendingRotation 负责 apps/runtime/src/enrollment.ts 中的关键处理流程并返回约定结果
-     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
-     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
-     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
-     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
-     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
-     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
-     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     * 公开方法 hasPendingRotation 检测是否存在未完成的令牌轮换候选：供启动恢复路径决定续写策略（hasPendingRotation）。
      */
     async hasPendingRotation() {
-        // 关键路径：处理 try 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
         try { await lstat(join(this.directory, "rotation.json")); return true; } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return false; throw error; }
     }
     /**
-     * 公开函数 remove 负责 apps/runtime/src/enrollment.ts 中的关键处理流程并返回约定结果
-     * 请结合 Workspace 边界、契约校验与失败关闭路径阅读本实现。
-     * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
-     * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
-     * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
-     * 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-     * 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
-     * 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-     * 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
-     * 测试与文档应能证明该路径在无模型凭证、缺浏览器或租约过期时仍失败关闭正确。
+     * 公开方法 remove 删除本机设备配置：不自动清除离线信任根：显式删档才移除签发者绑定，标注导出符号 remove 供检索。
      */
     async remove() {
         await this.prepare();
         const owner = join(this.directory, "agent-owner");
         await mkdir(owner, {recursive: true, mode: 0o700});
-        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
         let ownerRelease: () => Promise<void>;
-        // 关键路径：处理 try 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
         try { ownerRelease = await lockfile.lock(owner, {retries: 0}); }
-        // 关键路径：处理 catch 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
         catch { throw new Error("AGENT_RUNNING_STOP_FIRST"); }
-        // 关键路径：处理 try 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
         try {
             const release = await lockfile.lock(this.directory, { retries: 0 });
-            // 关键路径：处理 try 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
             try {
                 // Forget the candidate first: a crash must not revive a logged-out profile.
                 await unlink(join(this.directory, "rotation.json")).catch((error: NodeJS.ErrnoException) => {if (error.code !== "ENOENT") throw error;});
                 await unlink(join(this.directory, "device.json"));
             } finally { await release(); }
         } finally { await ownerRelease(); }
-    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
     }
 }

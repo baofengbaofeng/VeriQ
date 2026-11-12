@@ -1,8 +1,6 @@
 /**
- * 本文件 apps/web/src/features/resources/ResourcePage.tsx 实现 VeriQ Web/共享 UI 界面能力并导出公开组件与辅助函数
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 资源页：Workspace 下列表、创建、草稿编辑、校验作业轮询与发布；可被桌面复用编辑器视图。归档资源默认只读；桌面宿主可嵌入同一编辑器且归档资源只读。
+ * CloudResourceAdapter(selected)；桌面可注入 LocalResourceAdapter。
  */
 
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
@@ -69,9 +67,8 @@ function useLifetime(parent?: AbortSignal) {
     return signal;
 }
 /**
- * 公开符号 ResourcePage（function）定义 apps/web/src/features/resources/ResourcePage.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 按 kind 过滤入口（默认全部资源）；挂载工作区选择后渲染 ResourceWorkspaceView。environments 路由传入固定 kind。
+ * 环境页可传入固定 kind=ENVIRONMENT 复用同一套列表逻辑。
  */
 export function ResourcePage({
     initialKind,
@@ -173,11 +170,9 @@ function CloudWorkspace({
         </>
     );
 }
-/** Reusable by desktop hosts with CloudResourceAdapter or trusted read-only LocalResourceAdapter. */
 /**
- * 公开符号 ResourceWorkspaceView（function）定义 apps/web/src/features/resources/ResourcePage.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 拥有资源表、创建表单与当前编辑目标；表格 data 引用保持稳定以免 TanStack 重置环。创建成功后选中新资源；创建成功后立刻把表格选中项切到新资源。
+ * 选中后打开 ResourceEditorView；错误态用 ErrorState+retry。
  */
 export function ResourceWorkspaceView({
     workspace,
@@ -413,6 +408,10 @@ function DraftLoader(props: {
     if (draft.error) return <ErrorState error={draft.error} retry={() => void draft.refetch()} />;
     return <ResourceEditorView {...props} signal={signal} initial={draft.data} />;
 }
+/**
+ * 单资源编辑器：草稿 RHF、JSON/表单切换、校验/发布、版本差异与生成源码只读查看。脏草稿阻断校验与发布按钮；存在未保存脏草稿时禁用校验与发布按钮。
+ * 依赖 ResourceAdapter；AI 页也可嵌入此视图作为只读或可写宿主。
+ */
 export function ResourceEditorView({
     resource,
     adapter,
@@ -1126,6 +1125,10 @@ function Impact({
         </Section>
     );
 }
+/**
+ * 资源查询失败时的告警与可选 retry 按钮，避免空白页吞掉 ApiError 信息。无 retry 时仅展示错误文本。
+ * retry 由调用方绑定 refetch；本组件不直接触碰 adapter。
+ */
 export function ErrorState({ error, retry }: { error: Error; retry?: () => void }) {
     return (
         <div role="alert" data-testid="resource-error">

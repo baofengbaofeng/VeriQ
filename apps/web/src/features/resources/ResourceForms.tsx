@@ -1,8 +1,6 @@
 /**
- * 本文件 apps/web/src/features/resources/ResourceForms.tsx 实现 VeriQ Web/共享 UI 界面能力并导出公开组件与辅助函数
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 按 ResourceKind 分发的图形表单与 newDocument 工厂，写入 content.document 供草稿保存。
+ * CASE/FLOW 委托 CaseEditor；断言模板等走专用字段，不在此执行编译。
  */
 
 import type {
@@ -28,9 +26,8 @@ import {
 } from "./fields";
 import { Button, Section } from "@veriq/ui";
 /**
- * 公开符号 resourceKinds（const）定义 apps/web/src/features/resources/ResourceForms.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 创建资源下拉可用的 kind 枚举顺序，与契约 ResourceKind 对齐且不含已废弃值。顺序变更需同步创建表单测试。
+ * EnvironmentPage 可子集过滤；顺序影响默认选中项。
  */
 export const resourceKinds: ResourceKind[] = [
     "CASE",
@@ -44,9 +41,8 @@ export const resourceKinds: ResourceKind[] = [
 ];
 const placeholder = "00000000-0000-4000-8000-000000000000";
 /**
- * 公开符号 newDocument（function）定义 apps/web/src/features/resources/ResourceForms.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 按 kind/key/name 构造空 ResourceDocumentV1，供创建表单写入草稿初始 content。各 kind 默认字段集不同。
+ * 不访问网络；调用方随后 CloudResourceAdapter.create。
  */
 export function newDocument(kind: ResourceKind, key: string, name: string): ResourceDocumentV1 {
     const base = { schemaVersion: "1.0" as const };
@@ -135,9 +131,8 @@ export function newDocument(kind: ResourceKind, key: string, name: string): Reso
     }
 }
 /**
- * 公开符号 ResourceForms（function）定义 apps/web/src/features/resources/ResourceForms.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 根据当前草稿 kind 渲染对应字段集，并接入 AssertionEditor/CaseEditor/EnvironmentFields。
+ * 版本选项用于固定引用；不持有 Workspace 选择状态。
  */
 export function ResourceForms({
     kind,

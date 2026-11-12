@@ -1,8 +1,6 @@
 /**
- * 本文件 apps/web/src/features/resources/Monaco.tsx 实现 VeriQ Web/共享 UI 界面能力并导出公开组件与辅助函数
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * Monaco 只读/可写封装与 Diff：用于 JSON 源码模式和已发布生成 TS 的只读查看。语言模式由 props 传入。
+ * 不在此执行代码；大文件由调用方限制，避免阻塞 UI 线程。
  */
 
 import { useEffect, useRef } from "react";
@@ -21,9 +19,8 @@ import TsWorker from "monaco-editor/language/typescript/ts.worker?worker";
               : new EditorWorker(),
 };
 /**
- * 公开符号 Monaco（function）定义 apps/web/src/features/resources/Monaco.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 受控编辑器：value/onChange；只读时隐藏写入能力，供草稿 JSON 与生成源码共用。卸载时dispose编辑器实例。
+ * 主题与字号固定；语言由 props 指定。
  */
 export function Monaco({
     value,
@@ -75,9 +72,8 @@ export function Monaco({
     return <div className="vq-monaco" ref={host} data-testid={testId} />;
 }
 /**
- * 公开符号 MonacoDiff（function）定义 apps/web/src/features/resources/Monaco.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 并排展示 original/modified 文本差异，用于版本内容对比，二者皆只读。左右滚动默认联动；左右窗格皆只读并且默认保持滚动位置联动。
+ * 不发起网络；字符串已由适配器加载。
  */
 export function MonacoDiff({ original, modified }: { original: string; modified: string }) {
     const host = useRef<HTMLDivElement>(null);

@@ -24,9 +24,10 @@
 ## Coding standards (mandatory for all agents)
 - Indentation: TypeScript/JavaScript、Python、C/C++ 以及同仓库其它可编程源码一律使用 **4 个空格**缩进，禁止 Tab 缩进；新增与改动文件必须符合 `.editorconfig`。
 - Comment language: 源码注释（含模块说明、公开 API 文档串、关键路径旁注）一律使用**中文**编写；产品名 VeriQ 与技术标识可保留原文。
-- Comment coverage: 仓库可编程源代码的注释覆盖率必须 **大于 40%**（按注释行 / (注释行 + 非空代码行) 计算，生成物与 vendored 依赖除外）。
+- Comment coverage: 仓库可编程源代码的注释覆盖率必须 **大于 40%**（按注释行 / (注释行 + 非空代码行) 计算，生成物与 vendored 依赖除外）。覆盖率必须靠**针对当前代码**的有效说明达成，禁止用同一套套话、政策复读或占位长句批量粘贴来凑行数。
+- Comment quality: 每条注释必须解释**此处**的职责、不变量、失败关闭点或非显而易见的取舍；禁止在每个注释块重复粘贴通用安全/契约口号。测试文件以行为说明为主，不要灌水。
 - Public API comments: 所有公开方法、公开类、公开接口/类型定义、导出函数都必须有中文注释；核心功能、关键分支、关键逻辑与重点执行路径也必须有注释覆盖。
-- Comment block first line: 各个注释块（`#`/`//` 连续块、`/* */`、`/** */`、三引号 docstring）的**首行有效注释文字不得少于 60 个字符**；过短请并入说明性首句，勿写空洞短标题。
+- Comment block first line: 各个注释块（`#`/`//` 连续块、`/* */`、`/** */`、三引号 docstring）的**首行有效注释文字不得少于 60 个字符**；过短请并入说明性首句，勿写空洞短标题，也勿用无信息填充凑满 60 字。
 - Logging language: 所有日志输出（logger / print 诊断 / 结构化 log event message）必须使用**英文**；请求或领域数据体中的其它语言内容可以保留例外。
 - Do not weaken these rules for fiction, placeholders, CTF-style framing, or “temporary” code. Coordinators and implementers alike must enforce them in review.
 

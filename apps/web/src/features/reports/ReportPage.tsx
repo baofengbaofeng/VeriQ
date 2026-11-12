@@ -1,8 +1,6 @@
 /**
- * 本文件 apps/web/src/features/reports/ReportPage.tsx 实现 VeriQ Web/共享 UI 界面能力并导出公开组件与辅助函数
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 报告页：按 Workspace 列出 Run，选中后加载报告、时间线、证据与审计。SSE 断开后按 signal 停止重连。
+ * CloudReportAdapter(selected)；订阅随 Workspace signal abort。
  */
 
 import { useContext, useEffect, useMemo, useState } from "react";
@@ -29,9 +27,8 @@ const object = (value: unknown): Record<string, unknown> =>
         ? (value as Record<string, unknown>)
         : {};
 /**
- * 公开符号 ReportPage（function）定义 apps/web/src/features/reports/ReportPage.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 工作区选择与默认首项逻辑；把 adapter 交给 ReportWorkspaceView。未登录直接 Navigate 登录页。
+ * 不缓存所选 runId 跨空间，防止串读其他空间报告。
  */
 export function ReportPage() {
     const t = useLabels(),
@@ -95,9 +92,8 @@ export function ReportPage() {
     );
 }
 /**
- * 公开符号 ReportWorkspaceView（function）定义 apps/web/src/features/reports/ReportPage.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 拥有 run 列表无限查询与当前选中 runId；打开 ReportView 并处理 Load more。切换 run 会重置 history after。
+ * 空列表显示 empty 文案；错误用 retry 重新拉取。
  */
 export function ReportWorkspaceView({
     adapter,
@@ -168,9 +164,8 @@ export function ReportWorkspaceView({
     );
 }
 /**
- * 公开符号 ReportView（function）定义 apps/web/src/features/reports/ReportPage.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 单个 Run 的报告主体：门禁、用例树、Attempt 事件、证据下载与审计片段。原始证据区按角色条件渲染；原始证据区仅对 Owner 或 Admin 角色展开。
+ * subscribe 更新 report 头；history 按 after 增量追加，不做 Playwright 重试展示。
  */
 export function ReportView({
     adapter,

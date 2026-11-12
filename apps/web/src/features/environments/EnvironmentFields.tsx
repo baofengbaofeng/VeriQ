@@ -1,9 +1,13 @@
+/**
+ * 环境 DSL 表单字段：业务角色身份引用只存固定版本 UUID，从不内嵌密码或会话。allowedIdentityIds 为字符串列表。
+ * 与 IdentityManager 配合；secretRef 仅引用凭证元数据。
+ */
+
 import { Field, List, StringList, useValue, useSet } from "../resources/fields";
 import { Button } from "@veriq/ui";
 /**
- * 公开符号 IdentityFields（function）定义 apps/web/src/features/environments/EnvironmentFields.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 在给定 RHF path 下编辑 authAdapter/secret 版本引用与 allowedIdentityIds。
+ * role=true 时额外要求 roleKey；注释提示禁止保存明文。
  */
 export function IdentityFields({ path, role = false }: { path: string; role?: boolean }) {
     return (
@@ -26,6 +30,10 @@ export function IdentityFields({ path, role = false }: { path: string; role?: bo
         </>
     );
 }
+/**
+ * 环境文档根字段：夹具身份、角色映射与浏览器相关配置入口。fixtureIdentity 可为空对象；fixtureIdentity 允许先用空对象占位再补全。
+ * 读写仅经 useValue/useSet；保存由资源编辑器工具栏触发。
+ */
 export function EnvironmentFields() {
     const fixture = useValue<unknown>("content.document.fixtureIdentity"),
         set = useSet();
