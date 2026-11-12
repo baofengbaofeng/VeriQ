@@ -1,8 +1,6 @@
 /**
- * 本文件 apps/web/src/features/workspaces/WorkspacePage.tsx 实现 VeriQ Web/共享 UI 界面能力并导出公开组件与辅助函数
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * Workspace 管理页：创建/重命名/归档空间，以及成员角色、邀请与接受邀请流程。归档后成员列表仍可只读查看；归档完成后成员与邀请列表仍可只读浏览。
+ * 列表走 api.workspaces；成员与邀请均嵌套在选定 workspaceId 下。
  */
 
 import { useContext, useEffect, useState } from "react";
@@ -22,9 +20,8 @@ const message = (error: Error | null) =>
           : "";
 
 /**
- * 公开符号 WorkspacePage（function）定义 apps/web/src/features/workspaces/WorkspacePage.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 拥有空间列表、成员与邀请分页 UI 状态；写操作调用 create/rename/archive/invite/updateMember。
+ * 选择变更经 useWorkspace.select，确保下游 Runtime/Resource 页看到同一作用域。
  */
 export function WorkspacePage() {
     const { user } = useContext(Auth),
@@ -482,9 +479,8 @@ function MemberRow({
 }
 
 /**
- * 公开符号 AcceptInvitation（function）定义 apps/web/src/features/workspaces/WorkspacePage.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 独立路由页：提交邀请令牌调用 api.acceptInvitation，成功后刷新 Auth 并进入工作区。令牌无效时展示 ApiError。
+ * 不依赖 WorkspaceProvider 的 selected；接受后用户才获得该空间成员资格。
  */
 export function AcceptInvitation() {
     const { user, refresh } = useContext(Auth),

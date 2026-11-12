@@ -1,8 +1,6 @@
 /**
- * 本文件 apps/web/src/main.tsx 实现 VeriQ Web/共享 UI 界面能力并导出公开组件与辅助函数
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * Web 入口：探测 setup/session，注入 Auth，并按用户身份挂载带 WorkspaceProvider 的功能路由。
+ * 每个需空间作用域的路由用 user.id 作 Provider key，身份切换即清空查询与订阅。
  */
 
 import { BundlePage } from "./features/bundles/BundlePage";

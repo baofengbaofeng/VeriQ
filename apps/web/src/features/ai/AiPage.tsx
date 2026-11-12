@@ -1,8 +1,6 @@
 /**
- * 本文件 apps/web/src/features/ai/AiPage.tsx 实现 VeriQ Web/共享 UI 界面能力并导出公开组件与辅助函数
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * AI 页：选择 Workspace 后配置 Provider、预览上下文、触发生成并审核历史记录。历史刷新可取消进行中的预留。
+ * CloudAiAdapter(selected)；无模型凭证时测试用例仍可加载本页静态结构。
  */
 
 import { useContext, useEffect, useMemo, useState } from "react";
@@ -41,9 +39,8 @@ const defaults: S["ProviderWrite"] = {
     maxRequestUsd: 0.5,
 };
 /**
- * 公开符号 AiPage（function）定义 apps/web/src/features/ai/AiPage.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 工作区选择壳：默认选中首个空间，再渲染 AiWorkspaceView 并传入 adapter 与 signal。无空间时提示先创建或加入。
+ * 未登录重定向；自身不缓存 generation 表单以免切换空间泄漏。
  */
 export function AiPage() {
     const t = useLabels(),
@@ -108,9 +105,8 @@ export function AiPage() {
     );
 }
 /**
- * 公开符号 AiWorkspaceView（function）定义 apps/web/src/features/ai/AiPage.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 拥有 Provider 表单、生成请求、历史无限查询与审核动作等 UI 状态。Provider 禁用后隐藏生成按钮；Provider 一旦禁用就必须隐藏生成入口按钮。
+ * 调用 adapter.providers/generate/review/cancel；输出需人工审核，不会自动 publish。
  */
 export function AiWorkspaceView({
     workspace,

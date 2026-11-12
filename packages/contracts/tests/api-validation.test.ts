@@ -2,23 +2,14 @@ import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
-// 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-// 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-// 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
 import { expect, test } from "vitest";
 import platform from "../schemas/platform-v1.schema.json" with { type: "json" };
 import { parseContract, serializeContract, validateSchema } from "../src/index.js";
 
-// 分段注释：继续说明 api-validation.test.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-// 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-// 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
 const api = JSON.parse(readFileSync(new URL("../openapi/platform.yaml", import.meta.url), "utf8"));
 const ajv = new Ajv2020({strict:true, allErrors:true});
 addFormats.default(ajv);
 ajv.addSchema(platform);
-// 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-// 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-// 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
 const apiId = "https://veriq.dev/openapi/platform.yaml";
 // OpenAPI components are containers, not JSON Schema keywords. Preserve schemas
 // while rebasing only local component references into a JSON Schema $defs root.
@@ -26,124 +17,75 @@ const definitions = JSON.parse(JSON.stringify(api.components.schemas, (key,value
     key === "$ref" && typeof value === "string" ? value.replace(/^#\/components\/schemas\//, "#/$defs/") : value));
 ajv.addSchema({$id:apiId, $defs:definitions});
 const validate = (name:string, value:unknown) => ajv.getSchema(`${apiId}#/$defs/${name}`)!(value);
-// 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-// 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-// 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
 const fixtures = JSON.parse(readFileSync(new URL("../fixtures/compatibility.json", import.meta.url), "utf8"));
 
 test("every API component compiles with strict JSON Schema validation", () => {
-    // 关键路径：处理 for 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
     for (const name of Object.keys(definitions)) expect(ajv.getSchema(`${apiId}#/$defs/${name}`)).toBeTypeOf("function");
 });
 
 test("draft updates require revision and typed resource documents", () => {
     const content = fixtures.find((x:{name:string}) => x.name === "asset-CASE").value;
-    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
     expect(validate("DraftWrite", {revision:1,content})).toBe(true);
     expect(validate("DraftWrite", {content})).toBe(false);
     expect(validate("DraftWrite", {revision:0,content})).toBe(false);
-    // 分段注释：继续说明 api-validation.test.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
     expect(validate("DraftWrite", {revision:1,content:{kind:"CASE",document:{steps:[]}}})).toBe(false);
 });
 
 test("success and error envelopes are strict and carry request correlation", () => {
     const claim = fixtures.find((x:{name:string}) => x.name === "claim-dto").value;
-    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
     expect(validate("ClaimDTOEnvelope", {requestId:"request-1",data:claim})).toBe(true);
     expect(validate("ClaimDTOEnvelope", {data:claim})).toBe(false);
     expect(validate("ClaimDTOEnvelope", {requestId:"request-1",data:claim,extra:true})).toBe(false);
     expect(validate("ErrorEnvelope", {requestId:"request-1",code:"FORBIDDEN",message:"Not authorized",details:{}})).toBe(true);
-    // 分段注释：继续说明 api-validation.test.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
     expect(validate("ErrorEnvelope", {requestId:"request-1",code:403,message:"Not authorized",details:{}})).toBe(false);
 });
 
 test("member roles and Runtime trust updates use explicit allowed values", () => {
     expect(validate("MemberWrite", {role:"EXECUTOR",status:"ACTIVE"})).toBe(true);
-    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
     expect(validate("MemberWrite", {role:"SUPERUSER",status:"ACTIVE"})).toBe(false);
     expect(validate("RuntimeTrustWrite", {trustStatus:"MANAGED",allowCredentialDelivery:false})).toBe(true);
     expect(validate("RuntimeTrustWrite", {trustStatus:"MANAGED_CLOUD",allowCredentialDelivery:true})).toBe(false);
 });
 
-// 分段注释：继续说明 api-validation.test.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-// 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-// 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
 test("maintenance batches report continuation explicitly", () => {
     const value = {id:"11111111-1111-4111-8111-111111111111",status:"FINISHED",processedCount:3,hasMore:false};
     expect(validate("MaintenanceDTO",value)).toBe(true);
     const {hasMore:_,...incomplete} = value;
-    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
     expect(validate("MaintenanceDTO",incomplete)).toBe(false);
 });
 
 test("a completed validation job exposes a bound receipt usable by publish", () => {
     const id = "11111111-1111-4111-8111-111111111111";
-    // 分段注释：继续说明 api-validation.test.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
     const resourceRoute = "/api/v1/workspaces/{workspaceId}/resources/{resourceId}";
     const validation = api.paths[`${resourceRoute}/validate`].post;
     const jobResponseSchema = validation.responses["202"].content["application/json"].schema.$ref.split("/").at(-1);
     const queued = {data:{id,workspaceId:id,kind:"VALIDATE",state:"QUEUED"},requestId:"request-1"};
-    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
     expect(validate(jobResponseSchema,queued)).toBe(true);
     const completed = {...queued,data:{...queued.data,state:"FINISHED"}};
     const poll = api.paths["/api/v1/workspaces/{workspaceId}/jobs/{jobId}"].get;
     expect(validate(poll.responses["200"].content["application/json"].schema.$ref.split("/").at(-1),completed)).toBe(true);
-    // 分段注释：继续说明 api-validation.test.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
     const receipt = {id,runtimeId:id,attemptId:id,compilerTrust:"MANAGED",workspaceId:id,jobId:id,resourceId:id,revision:3,sourceHash:"a".repeat(64),engineVersion:"1.0.0",compiledBundleSha256:"b".repeat(64),validatedAt:"2026-11-10T10:00:00Z"};
     expect(receipt.jobId).toBe(completed.data.id);
     expect(receipt.workspaceId).toBe(completed.data.workspaceId);
     expect(validate("ValidationReceiptDTO",receipt)).toBe(true);
-    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
     const response = {data:receipt,requestId:"request-1"};
     const operation = api.paths["/api/v1/workspaces/{workspaceId}/jobs/{jobId}/validation-receipt"]?.get;
     expect(operation).toBeDefined();
     const responseSchema = operation.responses["200"].content["application/json"].schema.$ref;
-    // 分段注释：继续说明 api-validation.test.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
     expect(responseSchema).toBe("#/components/schemas/ValidationReceiptDTOEnvelope");
     expect(validate(responseSchema.split("/").at(-1),response)).toBe(true);
     const publishSchema = api.paths[`${resourceRoute}/publish`].post.requestBody.content["application/json"].schema.$ref.split("/").at(-1);
     expect(validate(publishSchema,{revision:response.data.revision,validationReceiptId:response.data.id})).toBe(true);
-    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
     const {sourceHash:_,...unbound} = receipt;
     expect(validate("ValidationReceiptDTO",unbound)).toBe(false);
 });
 
 test("inert API errors preserve rejected expressions verbatim", () => {
-    // 分段注释：继续说明 api-validation.test.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
     expect(validate("ErrorEnvelope",{code:"INVALID_DSL",message:"Invalid {{evil()}}",details:{actual:"{{customer.name}}"},requestId:"request-1"})).toBe(true);
 });
 
 test("claim, manifest, frozen subject, compiled bundle and files have exact-byte device addresses", () => {
     const route = "/internal/v1/workspaces/{workspaceId}/attempts/{attemptId}/content/{sha256}";
-    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
     const operation = api.paths[route]?.get;
     expect(operation).toBeDefined();
     const sample = (name:string) => structuredClone(fixtures.find((x:{name:string}) => x.name === name).value);
@@ -153,79 +95,48 @@ test("claim, manifest, frozen subject, compiled bundle and files have exact-byte
     const store = (schema:string,value:unknown) => {
         const bytes = serializeContract(schema,value);
         const hash = digest(bytes);
-        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
         content.set(hash,bytes);
         return hash;
     };
-    // 分段注释：继续说明 api-validation.test.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-    // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
     const fileBytes = "export const frozen = true;\n";
     const fileHash = digest(fileBytes);
     content.set(fileHash,fileBytes);
     const compiled = sample("compiled-bundle");
-    // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-    // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-    // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
     compiled.files = [{path:"case.ts",sha256:fileHash,sizeBytes:Buffer.byteLength(fileBytes)}];
     compiled.entrypoints = [{caseVersionId:"11111111-1111-4111-8111-111111111111",path:"case.ts"}];
     const compiledHash = store("CompiledAssetBundle",compiled);
-    // 关键路径：处理 for 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
     for (const kind of ["TEST","VALIDATE","CLEANUP"]) {
         const subjectSchema = kind === "VALIDATE" ? "AssetSnapshotV1" : "ExecutionSnapshotV1";
         const subject = sample(kind === "VALIDATE" ? "asset-snapshot" : "execution-snapshot");
         const subjectHash = store(subjectSchema,subject);
-        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
         const manifest = sample(`job-${kind}`);
         manifest.snapshotSha256 = subjectHash;
-        // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
         if (kind === "TEST") Object.assign(manifest,{executionSnapshotSha256:subjectHash,compiledBundleSha256:compiledHash});
         const manifestHash = store("JobManifestV1",manifest);
         const claim = sample("claim-dto");
         Object.assign(claim,{jobKind:kind,snapshotSha256:manifestHash});
-        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
         const address = (hash:string) => route.replace("{workspaceId}",manifest.workspaceId).replace("{attemptId}",claim.attemptId).replace("{sha256}",hash);
         claim.snapshotUrl = "https://control.example" + address(manifestHash);
         expect(validateSchema("ClaimDTO",claim)).toEqual([]);
-        // 分段注释：继续说明 api-validation.test.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-        // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
         const getBytes = (hash:string) => {
             const url = new URL(address(hash),"https://control.example");
             expect(url.search).toBe("");
             const values: Record<string,unknown> = {workspaceId:manifest.workspaceId,attemptId:claim.attemptId,sha256:hash,"X-VeriQ-Lease-Token":claim.leaseToken,"X-VeriQ-Fencing-Token":claim.fencingToken};
-            // 关键路径：处理 for 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
             for (const parameter of operation.parameters) {
                 const schema = JSON.parse(JSON.stringify(parameter.schema, (key,value:unknown) =>
                     key === "$ref" && typeof value === "string" ? value.replace(/^#\/components\/schemas\//, `${apiId}#/$defs/`) : value));
                 expect(ajv.compile(schema)(values[parameter.name])).toBe(true);
-            // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-            // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
             }
             const bytes = content.get(hash)!;
             expect(digest(bytes)).toBe(hash);
-            // 分段注释：继续说明 api-validation.test.ts 中后续语句的业务意图、校验点与失败关闭行为；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-            // 本节说明相关状态如何持久化，以及崩溃恢复后如何幂等续跑或拒绝重复副作用。
-            // 调用链上的错误必须映射到稳定错误码，禁止吞异常或改用模糊成功响应掩盖失败。
             return bytes;
         };
         const downloaded = parseContract("JobManifestV1",getBytes(claim.snapshotSha256)) as typeof manifest;
         expect(parseContract(subjectSchema,getBytes(downloaded.snapshotSha256))).toEqual(subject);
-        // 关键路径：处理 if 分支，保持取消、重试与证据完整性约束不被削弱；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
         if (kind === "TEST") {
             const bundle = parseContract("CompiledAssetBundle",getBytes(downloaded.compiledBundleSha256)) as typeof compiled;
             expect(getBytes(bundle.files[0].sha256)).toBe(fileBytes);
             expect(Buffer.byteLength(fileBytes)).toBe(bundle.files[0].sizeBytes);
-        // 补充注释：说明本段语句在测试或实现中的断言意图与边界条件；该说明用于满足 VeriQ 源码中文注释与注释块首行长度要求。
-        // 与外部系统交互时校验身份、作用域和超时，防止越权读取证据或绕过发布围栏。
-        // 性能优化不得牺牲确定性：同一输入版本应得到可复现的编译与执行语义结果。
         }
     }
 });

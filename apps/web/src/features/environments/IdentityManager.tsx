@@ -1,8 +1,6 @@
 /**
- * 本文件 apps/web/src/features/environments/IdentityManager.tsx 实现 VeriQ Web/共享 UI 界面能力并导出公开组件与辅助函数
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 身份与凭证管理面板：列出/创建认证适配器与凭证轮换，密钥经适配器直达服务端。轮换成功后刷新版本摘要；轮换成功后立即刷新适配器与凭证版本摘要。
+ * 接收已授权 host transport；secret 值不进入 React Query 或文档 state。
  */
 
 import { useEffect, useState } from "react";
@@ -27,11 +25,9 @@ type AdapterForm = {
     identityPointer: string;
     loginPath: string;
 };
-/** Receives an authorized host transport; secret values never enter Query or document state. */
 /**
- * 公开符号 IdentityManager（function）定义 apps/web/src/features/environments/IdentityManager.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 拥有适配器/凭证列表与表单 busy 态；调用 IdentityAdapter.create/revoke/credential。
+ * 成功后刷新摘要列表；失败展示 ApiError，不回显提交的密钥。
  */
 export function IdentityManager({
     adapter,

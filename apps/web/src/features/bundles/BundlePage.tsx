@@ -1,3 +1,8 @@
+/**
+ * 离线包页：按 Workspace 选择资源版本导出 Bundle，并下载已签发包（大小上限校验在适配器）。导出选择不可跨空间混合版本。
+ * 使用 CloudBundleAdapter(selected)；未登录 Navigate 到 /login。
+ */
+
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useInfiniteQuery } from "@tanstack/react-query";
@@ -8,9 +13,8 @@ import { useWorkspace } from "../workspaces/WorkspaceContext";
 import { CloudResourceAdapter, type Resource, type Version } from "../resources/adapters";
 import { CloudBundleAdapter, type BundleAdapter } from "./adapters";
 /**
- * 公开符号 BundlePage（function）定义 apps/web/src/features/bundles/BundlePage.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 拉取工作区列表并默认选中首项，再把 selected 与 adapter 交给 BundleWorkspaceView。
+ * 自身不持有导出表单状态，避免与空间切换竞态。
  */
 export function BundlePage() {
     const { user } = useContext(Auth),
@@ -65,9 +69,8 @@ export function BundlePage() {
     );
 }
 /**
- * 公开符号 BundleWorkspaceView（function）定义 apps/web/src/features/bundles/BundlePage.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 拥有资源/版本多选与导出进度 UI；export 带 Idempotency-Key，download 触发浏览器保存。
+ * 只读依赖 CloudResourceAdapter 列出版本；写路径仅 BundleAdapter.export/download。
  */
 export function BundleWorkspaceView({
     workspaceId,

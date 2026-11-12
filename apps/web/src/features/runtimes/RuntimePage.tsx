@@ -1,8 +1,6 @@
 /**
- * 本文件 apps/web/src/features/runtimes/RuntimePage.tsx 实现 VeriQ Web/共享 UI 界面能力并导出公开组件与辅助函数
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * Runtime 管理页：在选定 Workspace 下列出设备、审批登记、配置授权/信任与服务账号令牌。离线 Agent 心跳状态只读展示。
+ * 数据经 runtimeApi 与 api.workspaces；切换空间清空本地表单状态。
  */
 
 import { useContext, useEffect, useState } from "react";
@@ -14,9 +12,8 @@ import { Notice, Panel, useAction, values } from "../../ui";
 import { useWorkspace } from "../workspaces/WorkspaceContext";
 
 /**
- * 公开符号 RuntimePage（function）定义 apps/web/src/features/runtimes/RuntimePage.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 组合工作区选择器与 Runtime/服务账号面板，调用 inspect/approve/grants/trust/revoke/issueToken。
+ * 凭证投递开关走 delivery；吊销后列表刷新且不可再领取该空间作业。
  */
 export function RuntimePage() {
     const { user } = useContext(Auth),

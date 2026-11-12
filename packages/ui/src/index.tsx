@@ -1,8 +1,5 @@
 /**
- * 本文件 packages/ui/src/index.tsx 实现 VeriQ Web/共享 UI 界面能力并导出公开组件与辅助函数
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 本文件提供 VeriQ 共享 UI 基元：语气按钮、确认对话框与分区标题：操作文案保持中英对照，供调用方理解 cva 路径。
  */
 
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
@@ -19,9 +16,8 @@ const button = cva("vq-button", {
     defaultVariants: { tone: "primary" },
 });
 /**
- * 公开符号 Button（const）定义 packages/ui/src/index.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 公开组件 Button 提供 primary/secondary/danger 语气的按钮基元：默认 type=button。
+ * 样式由 cva 变体生成。
  */
 export const Button = forwardRef<
     HTMLButtonElement,
@@ -32,9 +28,7 @@ export const Button = forwardRef<
     <button ref={ref} type={type} className={button({ tone, className })} {...props} />
 ));
 /**
- * 公开符号 ConfirmDialog（function）定义 packages/ui/src/index.tsx 对外可复用的界面或工具接口
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
+ * 公开组件 ConfirmDialog 用 Radix Dialog 实现确认/取消双按钮对话框：文案中英对照：确认后调用 onConfirm。
  */
 export function ConfirmDialog({
     title,
@@ -72,6 +66,9 @@ export function ConfirmDialog({
         </Dialog.Root>
     );
 }
+/**
+ * 公开组件 Section 渲染带标题的页面分区：可选 data-testid：供各功能页统一区块结构（Section）。
+ */
 export function Section({
     title,
     children,

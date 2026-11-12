@@ -1,8 +1,6 @@
 /**
- * 本文件 apps/web/src/pages/account.tsx 实现 VeriQ Web/共享 UI 界面能力并导出公开组件与辅助函数
- * 本段注释补充输入前提、失败关闭策略以及与相邻模块的契约对齐方式。
- * 实现时不得绕过 Workspace 归属校验，也不得把密钥或明文凭证写入日志。
- * 若行为变更，请同步更新契约样例、相关测试与可观察的错误码语义。
+ * 账户页：展示资料、改密、分页列出本账户会话，并可吊销全部其他会话。不展示其他用户的会话；界面逻辑保证绝不渲染其他用户的会话行。
+ * 调用 api.account/sessions/password/revokeOwn；未登录重定向 /login。
  */
 
 import { useState, useContext, useEffect } from "react";
@@ -10,6 +8,10 @@ import { Navigate } from "react-router-dom";
 import { api, type AccountSessions } from "../api";
 import { Auth } from "../auth-context";
 import { Notice, Field, useAction, values, Panel } from "../ui";
+/**
+ * 拥有 sessions 列表与 limit 状态；loadSessions 支持 cursor 追加，改密成功后可要求重新登录。
+ * 不涉及 Workspace 资源；会话吊销后通过 refresh 同步 Auth。
+ */
 export function Account() {
     const { user, refresh } = useContext(Auth),
         a = useAction();
