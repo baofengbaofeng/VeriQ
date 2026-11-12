@@ -109,33 +109,34 @@ pnpm check
 
 Linux Agent 开发需先执行 `pnpm --filter @veriq/runtime build:launcher` 再 `runtime start`（Runtime 测试命令会自动构建）。该步骤仅在构建期使用 C 编译器。已安装 Agent 需要预编译的 `build/veriq_runner` 辅助进程，缺失则失败关闭。生产原生打包仍属后续发行任务；本地 Agent 运行时不要求 Python、MySQL、C 编译器、bwrap 或 unshare。
 
-## 规划中的仓库结构
+## 当前仓库结构
 
-下列是**计划结构**，并非当前已实现的目录清单。桌面规格补充 `apps/desktop` 与共享 UI；早期薄原生启动器候选不替代 Electron GUI。当前仓库已实现其中大部分应用与包目录，但 `scripts/`、`deploy/`、`build.sh` 以及完整桌面源码仍可能缺失或仅部分落地。
+下面是仓库里已经存在的目录。`apps/desktop` 目前只有 Electron 包声明，还没有 main/preload/renderer 源码。发行用的 `scripts/`、`deploy/` 和 `build.sh` 还没有加入仓库；对应任务落地时再创建，不提前放空目录。
+
+JavaScript 依赖由仓库根的 pnpm 工作区统一锁定，声明写在各包的 `package.json`。Python 依赖只写在 `apps/srv/pyproject.toml`。
 
 ```text
 veriq/
 ├── apps/
 │   ├── web/                       # React / Vite Web 管理台
 │   ├── srv/
+│   │   ├── pyproject.toml         # 控制服务依赖与 uv 锁文件
 │   │   └── src/veriq_server/
 │   │       ├── migrations/        # 随 wheel 发布
 │   │       └── static/dist/       # 暂存前端产物，强制入正式 wheel
-│   ├── runtime/                   # Agent、CLI 与执行监督
-│   └── desktop/                   # Electron main / preload / renderer
+│   ├── runtime/
+│   │   ├── native/                # Linux 薄启动器源码
+│   │   └── build/                 # 本地 veriq_runner，不提交
+│   └── desktop/                   # Electron 包占位
 ├── packages/
 │   ├── contracts/                 # JSON Schema、OpenAPI 与样例
 │   ├── compiler/
 │   ├── runner-sdk/
 │   └── ui/                        # Web / 桌面共享组件
-├── fixtures/demo-app/             # 示例业务与测试数据
-├── scripts/                       # 静态产物暂存、wheel 校验与发布
-├── deploy/                        # 容器、部署与外部调度示例
-├── docs/
-│   ├── specs/                     # 需求与桌面规格
-│   ├── plans/                     # 实施计划
-│   └── …                          # 决策、接入、运维与验收资料
-└── build.sh                       # 规划中的构建入口
+├── fixtures/demo-app/             # 示例业务；运行依赖来自 apps/srv
+└── docs/
+    ├── specs/                     # 需求与桌面规格
+    └── plans/                     # 实施计划
 ```
 
 ## 开发与生产打包约定
@@ -282,33 +283,34 @@ Versioned asset APIs support eight resource kinds, draft revisions, dependencies
 
 Linux Agent development requires `pnpm --filter @veriq/runtime build:launcher` before `runtime start` (the Runtime test command builds it automatically). This uses a C compiler at build time only. Installed Agents require the precompiled `build/veriq_runner` helper; missing helpers fail closed. Production native packaging remains a later release task. No Python, MySQL, C compiler, bwrap, or unshare is a local Agent runtime prerequisite.
 
-## Planned repository layout
+## Current repository layout
 
-The tree below is the **planned** layout, not a guarantee of every directory already existing. The desktop spec adds `apps/desktop` and shared UI; early thin native launcher candidates do not replace the Electron GUI. Most app and package directories already exist; `scripts/`, `deploy/`, `build.sh`, and full desktop sources may still be missing or only partially landed.
+The tree below is what exists in the repository today. `apps/desktop` currently has the Electron package manifest and does not yet contain main, preload, or renderer sources. Release helpers such as `scripts/`, `deploy/`, and `build.sh` are not in the tree; add them when those tasks land instead of creating empty directories now.
+
+JavaScript dependencies are locked once by the pnpm workspace at the repository root, and each package declares its own dependencies. Python dependencies are declared only in `apps/srv/pyproject.toml`.
 
 ```text
 veriq/
 ├── apps/
 │   ├── web/                       # React / Vite web console
 │   ├── srv/
+│   │   ├── pyproject.toml         # control-service dependencies and uv lock
 │   │   └── src/veriq_server/
 │   │       ├── migrations/        # shipped in the wheel
 │   │       └── static/dist/       # staged frontend assets required in the release wheel
-│   ├── runtime/                   # Agent, CLI, and execution supervision
-│   └── desktop/                   # Electron main / preload / renderer
+│   ├── runtime/
+│   │   ├── native/                # Linux thin-launcher source
+│   │   └── build/                 # local veriq_runner, not committed
+│   └── desktop/                   # Electron package placeholder
 ├── packages/
 │   ├── contracts/                 # JSON Schema, OpenAPI, and samples
 │   ├── compiler/
 │   ├── runner-sdk/
 │   └── ui/                        # shared web / desktop components
-├── fixtures/demo-app/             # sample business app and test data
-├── scripts/                       # static staging, wheel checks, and release helpers
-├── deploy/                        # containers, deploy, and external scheduler samples
-├── docs/
-│   ├── specs/                     # requirements and desktop specs
-│   ├── plans/                     # implementation plans
-│   └── …                          # decisions, integration, ops, and acceptance docs
-└── build.sh                       # planned build entry
+├── fixtures/demo-app/             # sample business app; run it with apps/srv
+└── docs/
+    ├── specs/                     # requirements and desktop specs
+    └── plans/                     # implementation plans
 ```
 
 ## Development and production packaging
