@@ -62,11 +62,14 @@ async function fixture() {
       link?: boolean;
       payload?: Buffer;
       directoryCollision?: boolean;
+      suite?: boolean;
       inconsistent?:
         | "entries"
         | "adapter"
         | "engine"
         | "entrypoints"
+        | "entrypath"
+        | "suiteSwap"
         | "validationOnly"
         | "dependencies";
       signing?: { keyId: string; privateKey: typeof pair.privateKey };
@@ -90,6 +93,18 @@ async function fixture() {
         ],
       }),
     ]);
+    const suite = opts.suite || opts.inconsistent === "suiteSwap";
+    if (suite) {
+      const first = source.assets.find((a) => a.kind === "CASE")!;
+      source.assets.push(
+        asset(10, "CASE", { ...first.document, caseKey: "second" }),
+        asset(20, "SUITE", {
+          schemaVersion: "1.0",
+          cases: [{ versionId: id(1) }, { versionId: id(10) }],
+        }),
+      );
+      source.entryCaseVersionIds.push(id(10));
+    }
     const configuration = {
       kind: "HTTP_BEARER" as const,
       identityPath: "/me",
@@ -143,7 +158,7 @@ async function fixture() {
       files[path] = Buffer.from(canonicalBytes(value));
     };
     put("selection.json", {
-      caseVersionIds: [id(1)],
+      ...(suite ? { suiteVersionId: id(20) } : { caseVersionIds: [id(1)] }),
       environmentVersionId: id(3),
       validationStatus: opts.debug ? "UNVALIDATED_DEBUG" : "VALIDATED",
     });
@@ -175,11 +190,21 @@ async function fixture() {
         workspaceId: source.workspaceId,
         engineVersion: source.engineVersion,
         sourceHash: "",
-        entryCaseVersionIds: a.kind === "CASE" ? [a.versionId] : [],
+        entryCaseVersionIds:
+          a.kind === "CASE"
+            ? [a.versionId]
+            : a.kind === "SUITE"
+              ? [id(1), id(10)]
+              : [],
         assets:
           a.kind === "CASE"
-            ? source.assets.filter((x) => x.kind !== "ENVIRONMENT")
-            : [a],
+            ? source.assets.filter(
+                (x) =>
+                  x.versionId === a.versionId || x.kind === "ELEMENT_CATALOG",
+              )
+            : a.kind === "SUITE"
+              ? source.assets.filter((x) => x.kind !== "ENVIRONMENT")
+              : [a],
         ...(a.kind === "ENVIRONMENT"
           ? { authAdapters: source.authAdapters }
           : {}),
@@ -266,15 +291,23 @@ async function fixture() {
           v.engines[0].runnerSdkVersion = "9.9.9";
         });
       } else {
-        const path = `provenance/${id(1)}/descriptor.json`;
+        const target = opts.inconsistent === "suiteSwap" ? id(20) : id(1);
+        const path = `provenance/${target}/descriptor.json`;
         update(path, (v) => {
           if (opts.inconsistent === "entrypoints")
             v.entrypoints[0].caseVersionId = id(999);
+          if (opts.inconsistent === "entrypath")
+            v.entrypoints[0].path = "package.json";
+          if (opts.inconsistent === "suiteSwap")
+            [v.entrypoints[0].path, v.entrypoints[1].path] = [
+              v.entrypoints[1].path,
+              v.entrypoints[0].path,
+            ];
           if (opts.inconsistent === "validationOnly") v.validationOnly = true;
           if (opts.inconsistent === "dependencies")
             v.dependencies[0].version = "9.9.9";
         });
-        update(`provenance/${id(1)}/receipt.json`, (v) => {
+        update(`provenance/${target}/receipt.json`, (v) => {
           v.compiledBundleSha256 = sha(files[path]!);
         });
       }
@@ -585,12 +618,24 @@ for (const inconsistent of [
   "adapter",
   "engine",
   "entrypoints",
+  "entrypath",
+  "suiteSwap",
   "validationOnly",
   "dependencies",
 ] as const) {
   test(`signed inconsistent ${inconsistent} is rejected before install`, async () => {
     const f = await fixture();
     try {
+      if (inconsistent === "suiteSwap") {
+        const positive = await verifyBundle(await f.archive({ suite: true }), {
+          trust: f.trust,
+          destination: join(f.dir, "suite-positive"),
+        });
+        assert.deepEqual(positive.snapshot.entryCaseVersionIds, [
+          id(1),
+          id(10),
+        ]);
+      }
       const input = await f.archive({ inconsistent }),
         destination = join(f.dir, "semantic");
       await assert.rejects(

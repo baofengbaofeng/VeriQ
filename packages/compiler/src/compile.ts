@@ -351,6 +351,20 @@ export function verifyFiles(
   files: Record<string, Uint8Array>,
 ): void {
   checkSchema("CompiledAssetBundle", bundle);
+  if (bundle.validationOnly && !Object.hasOwn(files, "validation.ts"))
+    throw new Error("MISSING_VALIDATION_FILE");
+  const entries = new Set<string>();
+  const paths = new Set<string>();
+  for (const entry of bundle.entrypoints) {
+    if (entries.has(entry.caseVersionId) || paths.has(entry.path))
+      throw new Error("DUPLICATE_ENTRYPOINT");
+    entries.add(entry.caseVersionId);
+    paths.add(entry.path);
+    if (!Object.hasOwn(files, entry.path))
+      throw new Error("MISSING_ENTRYPOINT_FILE");
+    if (entry.path !== `cases/${entry.caseVersionId}.test.ts`)
+      throw new Error("ENTRYPOINT_MAPPING_MISMATCH");
+  }
   const seen = new Set<string>();
   const folded = new Set<string>();
   for (const file of bundle.files) {
@@ -385,18 +399,7 @@ export function assembleExecution(
   if (bundle.validationOnly) throw new Error("VALIDATION_ONLY");
   if (!files) throw new Error("BUNDLE_FILES_REQUIRED");
   verifyFiles(bundle, files);
-  const entries = new Set<string>();
-  const paths = new Set<string>();
-  for (const entry of bundle.entrypoints) {
-    if (entries.has(entry.caseVersionId) || paths.has(entry.path))
-      throw new Error("DUPLICATE_ENTRYPOINT");
-    entries.add(entry.caseVersionId);
-    paths.add(entry.path);
-    if (!Object.hasOwn(files, entry.path))
-      throw new Error("MISSING_ENTRYPOINT_FILE");
-    if (entry.path !== `cases/${entry.caseVersionId}.test.ts`)
-      throw new Error("ENTRYPOINT_MAPPING_MISMATCH");
-  }
+  const entries = new Set(bundle.entrypoints.map((entry) => entry.caseVersionId));
   const selected = bundle.entrypoints.find(
     (e) => e.caseVersionId === snapshot.caseVersionId,
   );

@@ -10,6 +10,7 @@ import {
   compileAssets,
   analyze,
   compileFiles,
+  verifyFiles,
   assembleExecution,
   type EngineDistribution,
 } from "../src/index.js";
@@ -512,6 +513,7 @@ it("rejects a case-to-file mapping swapped between valid manifested files", () =
   ];
   const e = execution();
   e.assetSourceHash = s.sourceHash;
+  expect(() => verifyFiles(r.bundle, r.files)).toThrow("ENTRYPOINT_MAPPING_MISMATCH");
   expect(() => assembleExecution(r.bundle, e, r.files)).toThrow(
     "ENTRYPOINT_MAPPING_MISMATCH",
   );
@@ -884,4 +886,44 @@ it("emits descriptor-pinned human report labels from the actual expanded analysi
   expect(display.cases[0].steps[0].assertions[0]).toMatchObject({sourceId:"visible",type:"ui",operator:"textContains",expectedSource:"REQ-visible"});
   expect(output.bundle.files.find(f=>f.path==="metadata/report-display.json")?.sha256).toBe(hash(bytes!));
   expect(validateSchema("ReportDisplayV1",display)).toEqual([]);
+});
+
+it("shared verification binds CASE entrypoints to their canonical files before assembly", () => {
+  const compiled = compileFiles(snapshot(), distribution());
+  expect(() => verifyFiles(compiled.bundle, compiled.files)).not.toThrow();
+  const redirected = structuredClone(compiled.bundle);
+  redirected.entrypoints[0]!.path = "package.json";
+  expect(() => verifyFiles(redirected, compiled.files)).toThrow(
+    "ENTRYPOINT_MAPPING_MISMATCH",
+  );
+  expect(() =>
+    verifyFiles({ ...compiled.bundle, validationOnly: true }, compiled.files),
+  ).toThrow("INVALID_CompiledAssetBundle");
+});
+it("shared verification preserves the canonical validation-only library", () => {
+  const source = snapshot();
+  source.assets = [catalog()];
+  source.entryCaseVersionIds = [];
+  source.validationTarget = {
+    resourceId: source.assets[0]!.resourceId,
+    versionId: id(2),
+    revision: 1,
+  };
+  const compiled = compileFiles(rehash(source), distribution());
+  expect(() => verifyFiles(compiled.bundle, compiled.files)).not.toThrow();
+  const withoutMode = structuredClone(compiled.bundle);
+  delete withoutMode.validationOnly;
+  expect(() => verifyFiles(withoutMode, compiled.files)).toThrow(
+    "INVALID_CompiledAssetBundle",
+  );
+  const relocated = structuredClone(compiled.bundle);
+  relocated.files.find((f) => f.path === "validation.ts")!.path = "other.ts";
+  const files: Record<string, Uint8Array> = {
+    ...compiled.files,
+    "other.ts": compiled.files["validation.ts"]!,
+  };
+  delete files["validation.ts"];
+  expect(() => verifyFiles(relocated, files)).toThrow(
+    "MISSING_VALIDATION_FILE",
+  );
 });
