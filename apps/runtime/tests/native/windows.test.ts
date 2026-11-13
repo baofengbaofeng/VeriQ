@@ -3,13 +3,14 @@ import test from "node:test";
 import { copyFile, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { connect } from "node:net";
+import { randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { ProcessSupervisor } from "../../src/execution/processes.ts";
 import { AttemptBroker } from "../../src/execution/broker.ts";
 import { windowsNative } from "../../src/native/windows.ts";
+import { expectedPipeResponse } from "../support/pipe-response.ts";
 
 /** 本文件只由真实 Windows 原生验证任务执行，错误平台直接失败而不跳过；首轮在现有 Linux 专用实现上观察行为失败，随后同一用例必须通过实际 Job 与私有管道实现，不能用编译成功代替。 */
 assert.equal(process.platform, "win32", "Native Windows acceptance requires Windows");
@@ -124,7 +125,6 @@ test("Windows private broker serves a bounded Unicode request through a named pi
     }));
     const failures: unknown[] = [];
     const clientEvents: Array<Record<string, string | number | boolean>> = [];
-    let clientClosed: Promise<void> | undefined;
     const recordClient = (event: Record<string, string | number | boolean>) => {
         if (clientEvents.length === 64) clientEvents.shift();
         clientEvents.push(event);
@@ -134,52 +134,14 @@ test("Windows private broker serves a bounded Unicode request through a named pi
             await broker.open();
         }, "a private Windows broker must open without POSIX socket chmod");
         assert.match(broker.path, /^\\\\\.\\pipe\\veriq-/);
-        const response = await new Promise<string>((resolve, reject) => {
-            const socket = connect(broker.path);
-            const chunks: Buffer[] = [];
-            let totalBytes = 0;
-            clientClosed = new Promise<void>((closed) =>
-                socket.once("close", (hadError) => {
-                    recordClient({ event: "close", hadError });
-                    closed();
-                }),
-            );
-            socket.on("connect", () => {
-                recordClient({ event: "connect" });
-                const frame = JSON.stringify({ nonce: broker.nonce, text: "中文😀" }) + "\n";
-                recordClient({ event: "write.submitted", bytes: Buffer.byteLength(frame) });
-                socket.end(frame, () => recordClient({ event: "write.completed" }));
-            });
-            socket.on("data", (chunk) => {
-                chunks.push(chunk);
-                totalBytes += chunk.length;
-                recordClient({
-                    event: "data",
-                    bytes: chunk.length,
-                    totalBytes,
-                    newlineComplete: Buffer.concat(chunks).includes(10),
-                });
-            });
-            socket.on("end", () => {
-                recordClient({
-                    event: "end",
-                    totalBytes,
-                    newlineComplete: Buffer.concat(chunks).includes(10),
-                });
-                resolve(Buffer.concat(chunks).toString("utf8"));
-            });
-            socket.on("error", (error: NodeJS.ErrnoException) => {
-                recordClient({
-                    event: "error",
-                    code: /^[A-Z0-9_]+$/.test(error.code ?? "") ? error.code! : "UNKNOWN_ERROR",
-                    totalBytes,
-                    newlineComplete: Buffer.concat(chunks).includes(10),
-                });
-                reject(error);
-            });
-            socket.setTimeout(5000, () => socket.destroy(new Error("TEST_PIPE_TIMEOUT")));
-        });
-        assert.deepEqual(JSON.parse(response), { ok: true, value: { text: "中文😀" } });
+        const expected = { ok: true, value: { text: "中文😀" } };
+        const response = await expectedPipeResponse(
+            broker.path,
+            JSON.stringify({ nonce: broker.nonce, text: "中文😀" }) + "\n",
+            expected,
+            recordClient,
+        );
+        assert.deepEqual(response, { ok: true, value: { text: "中文😀" } });
         assert.deepEqual(
             JSON.parse(
                 await windowsNative().request(
@@ -207,7 +169,6 @@ test("Windows private broker serves a bounded Unicode request through a named pi
     } finally {
         try {
             await boundedCleanup(() => broker.close());
-            if (clientClosed) await boundedCleanup(() => clientClosed!);
             await boundedCleanup(() => rm(root, { recursive: true, force: true }));
         } catch (error) {
             failures.push(error);
@@ -226,5 +187,23 @@ test("Windows private broker serves a bounded Unicode request through a named pi
         throw new AggregateError(failures, "Windows broker assertion or cleanup failed", {
             cause: failures[0],
         });
+    }
+});
+
+/** 原生测试服务在收到请求后不写任何响应就关闭私有管道，实际 Windows 客户端必须把帧前 EPIPE 保留为失败；此用例使用独立随机端点且不发送凭证，验证完整帧修正没有变成无条件忽略断开错误。 */
+test("Windows raw client rejects a native forced disconnect before any response frame", async (context) => {
+    let server: { close(): void } | undefined;
+    try {
+        const path = "\\\\.\\pipe\\veriq-framing-" + randomUUID();
+        server = new (windowsNative().PrivatePipeServer)(path, () => server!.close());
+        await assert.rejects(
+            expectedPipeResponse(path, "{}\n", { ok: true }),
+            (error: NodeJS.ErrnoException) => error.code === "EPIPE",
+        );
+    } finally {
+        await boundedCleanup(async () => server?.close());
+        context.diagnostic(
+            `Preframe rejection native events: ${JSON.stringify(windowsNative().takePipeDiagnostics())}`,
+        );
     }
 });
