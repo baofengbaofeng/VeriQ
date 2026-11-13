@@ -72,9 +72,31 @@ jobs:
                   foreach ($root in $nativeRoots) {
                     if (Test-Path $root) { Get-ChildItem -Path $root -File -Recurse | ForEach-Object { $nativeInputs[$_.FullName] = @{ sha256 = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLowerInvariant(); bytes = $_.Length } } }
                   }
+                  # 只采集本次自有项目生成后的实际宏和异常处理设置，并限制文件数与字节量，避免把请求的编译选项当成真实配置；证据先落盘，再拒绝继承 STL 无异常模式或缺失设置的构建。
+                  $projectSettings = @()
+                  $projectRoot = Join-Path $env:GITHUB_WORKSPACE 'apps/runtime/native/build'
+                  $projects = @(Get-ChildItem -Path $projectRoot -Filter 'veriq_*.vcxproj' -File -ErrorAction SilentlyContinue)
+                  if ($projects.Count -gt 16) { throw 'NATIVE_PROJECT_EVIDENCE_LIMIT' }
+                  foreach ($projectFile in $projects) {
+                    if ($projectFile.Length -gt 256KB) { throw 'NATIVE_PROJECT_EVIDENCE_LIMIT' }
+                    [xml]$project = Get-Content -Raw $projectFile.FullName
+                    foreach ($group in $project.SelectNodes("//*[local-name()='ItemDefinitionGroup']")) {
+                      $compile = $group.SelectSingleNode("*[local-name()='ClCompile']")
+                      if ($null -eq $compile) { continue }
+                      $defines = $compile.SelectSingleNode("*[local-name()='PreprocessorDefinitions']")
+                      $exceptions = $compile.SelectSingleNode("*[local-name()='ExceptionHandling']")
+                      $projectSettings += @{ project = $projectFile.Name; condition = $group.GetAttribute('Condition'); preprocessorDefinitions = $defines.InnerText; exceptionHandling = $exceptions.InnerText }
+                    }
+                  }
+                  @{ source = $env:GITHUB_SHA; expected = @{ stlExceptions = '_HAS_EXCEPTIONS=1'; exceptionHandling = 'Sync' }; projects = $projectSettings } | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 (Join-Path $env:VERIQ_NATIVE_EVIDENCE 'exception-settings.json')
                   $nodePath = (Get-Command node).Source
                   $nativeInputs[$nodePath] = @{ sha256 = (Get-FileHash -Algorithm SHA256 $nodePath).Hash.ToLowerInvariant(); bytes = (Get-Item $nodePath).Length }
                   @{ source = $env:GITHUB_SHA; files = $hashes; finalFreeBytes = $free; phase = 'native-guardian-pipe-first-target-build'; nativeInputs = $nativeInputs } | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 (Join-Path $env:VERIQ_NATIVE_EVIDENCE 'source-binding.json')
+                  if ($projectSettings.Count -eq 0) { throw 'NATIVE_PROJECT_EVIDENCE_MISSING' }
+                  foreach ($settings in $projectSettings) {
+                    $definitions = $settings.preprocessorDefinitions.Split(';')
+                    if ($definitions -contains '_HAS_EXCEPTIONS=0' -or $definitions -notcontains '_HAS_EXCEPTIONS=1' -or $settings.exceptionHandling -ne 'Sync') { throw 'NATIVE_EXCEPTION_SETTINGS_INVALID' }
+                  }
                   if ($free -lt 2GB) { throw 'NATIVE_BUILD_DISK_RESERVE_EXHAUSTED' }
             - name: Upload native observations even when tests fail
               if: always()

@@ -1,5 +1,9 @@
 {
     "variables": {"veriq_native_tests%": 0},
+    "target_defaults": {
+        "defines!": ["_HAS_EXCEPTIONS=0"],
+        "defines": ["_HAS_EXCEPTIONS=1"]
+    },
     "targets": [
         {
             "target_name": "veriq_native",
