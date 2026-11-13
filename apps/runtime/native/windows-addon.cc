@@ -90,24 +90,16 @@ static void verifyPeer(HANDLE pipe, bool server) {
     require(WaitForSingleObject(peer.value, 0) == WAIT_TIMEOUT && processSid(peer.value) == currentSid(), "NATIVE_PIPE_PEER_REJECTED");
     verifyPrivate(pipe);
 }
-/** 写入完成只说明数据进入管道缓冲区，立刻断开会丢失尚未读取的响应；刷新使用独立内核计时器取消阻塞线程，关闭路径也显式取消同步 I/O，因此恶意客户端不读取响应不能无限占用清理流程。 */
-static void flushResponse(HANDLE pipe) {
-    HANDLE rawThread = nullptr;
-    require(DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(), &rawThread, 0, FALSE, DUPLICATE_SAME_ACCESS) != 0, "NATIVE_FLUSH_THREAD_FAILED");
-    Handle thread(rawThread);
-    PTP_TIMER timer = CreateThreadpoolTimer([](PTP_CALLBACK_INSTANCE, void* context, PTP_TIMER) {
-        CancelSynchronousIo(static_cast<HANDLE>(context));
-    }, thread.value, nullptr);
-    require(timer != nullptr, "NATIVE_FLUSH_TIMER_FAILED");
-    LARGE_INTEGER relative{}; relative.QuadPart = -5000LL * 10000;
-    FILETIME due{relative.LowPart, static_cast<DWORD>(relative.HighPart)};
-    SetThreadpoolTimer(timer, &due, 0, 0);
-    BOOL flushed = FlushFileBuffers(pipe);
-    const DWORD flushError = flushed ? ERROR_SUCCESS : GetLastError();
-    SetThreadpoolTimer(timer, nullptr, 0, 0);
-    WaitForThreadpoolTimerCallbacks(timer, TRUE);
-    CloseThreadpoolTimer(timer);
-    if (!flushed) throw NativeFailure("NATIVE_PIPE_FLUSH_FAILED", flushError);
+/** 写入完成后保留管道直到客户端读完完整响应并关闭自有连接，使用已有有界重叠读取观察真正的断管；停止事件即使早于提交也会取消该次操作，额外请求字节与其它错误均拒绝，不再依赖同步刷新线程的单次取消。 */
+static void awaitResponseClose(HANDLE pipe, HANDLE stopped) {
+    char extra = 0;
+    try {
+        transfer(pipe, stopped, &extra, 1, false, 5000);
+    } catch (const NativeFailure& error) {
+        if (error.win32 == ERROR_BROKEN_PIPE && std::string(error.what()) == "NATIVE_PIPE_IO_FAILED") return;
+        throw;
+    }
+    throw NativeFailure("NATIVE_PIPE_FRAME_INVALID");
 }
 struct Session {
     Handle pipe;
@@ -180,9 +172,9 @@ class PipeServer : public Napi::ObjectWrap<PipeServer> {
 #ifdef VERIQ_TEST_RESPONSE_WRITTEN
             VERIQ_TEST_RESPONSE_WRITTEN(name);
 #endif
-            phase = "server.flushResponse";
-            flushResponse(session->pipe.value);
-            recordPhase("server.flushResponse.complete");
+            phase = "server.awaitResponseClose";
+            awaitResponseClose(session->pipe.value, stopped.value);
+            recordPhase("server.awaitResponseClose.complete");
         } catch (const NativeFailure& error) { recordFailure(phase, error); }
         catch (const std::exception&) { recordFailure(phase, "NATIVE_UNEXPECTED_EXCEPTION"); }
         catch (...) { recordFailure(phase, "NATIVE_UNKNOWN_EXCEPTION"); }
