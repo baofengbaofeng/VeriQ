@@ -1,0 +1,71 @@
+name: Runtime native Windows verification
+on:
+    workflow_dispatch:
+    push:
+        branches: [codex/veriq-mvp-completion]
+        paths:
+            - .github/workflows/runtime-native.yml
+            - apps/runtime/**
+            - packages/**
+            - pnpm-lock.yaml
+            - pnpm-workspace.yaml
+permissions:
+    contents: read
+jobs:
+    windows-native:
+        runs-on: windows-2025
+        timeout-minutes: 25
+        env:
+            ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+            PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+            VERIQ_NATIVE_EVIDENCE: ${{ github.workspace }}/.superpowers/sdd/veriq-1/evidence/t20/native-${{ github.sha }}
+        steps:
+            - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+              with:
+                  node-version: 24.22.1
+            - name: Record actual OS identity and initial disk budget
+              shell: pwsh
+              run: |
+                  New-Item -ItemType Directory -Force $env:VERIQ_NATIVE_EVIDENCE | Out-Null
+                  $driveName = (Split-Path -Qualifier $env:GITHUB_WORKSPACE).TrimEnd(':')
+                  $free = (Get-PSDrive -Name $driveName).Free
+                  $os = Get-CimInstance Win32_OperatingSystem
+                  $record = @{ source = $env:GITHUB_SHA; node = (& node --version); productName = $os.Caption; version = $os.Version; build = $os.BuildNumber; arch = $os.OSArchitecture; freeBytes = $free; acceptance = 'Windows Server native test; not Windows 11 GUI acceptance' }
+                  $record | ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $env:VERIQ_NATIVE_EVIDENCE 'environment.json')
+                  if ($free -lt 12GB) { throw 'NATIVE_BUILD_DISK_BUDGET_REQUIRED' }
+            - name: Install pinned tools and frozen JavaScript dependencies
+              shell: pwsh
+              run: |
+                  npm install --prefix "$env:RUNNER_TEMP/veriq-node-tools" pnpm@11.25.0 --ignore-scripts
+                  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+                  $pnpm = Join-Path $env:RUNNER_TEMP 'veriq-node-tools/node_modules/pnpm/bin/pnpm.cjs'
+                  node $pnpm install --frozen-lockfile --ignore-scripts
+                  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            - name: Observe actual Windows lifecycle and private transport behavior
+              shell: pwsh
+              working-directory: apps/runtime
+              run: |
+                  node --import tsx --test tests/native/windows.test.ts 2>&1 | Tee-Object -FilePath (Join-Path $env:VERIQ_NATIVE_EVIDENCE 'windows-native.log')
+                  exit $LASTEXITCODE
+            - name: Preserve source binding and final disk observation
+              if: always()
+              shell: pwsh
+              run: |
+                  $driveName = (Split-Path -Qualifier $env:GITHUB_WORKSPACE).TrimEnd(':')
+                  $free = (Get-PSDrive -Name $driveName).Free
+                  $files = git ls-files apps/runtime packages pnpm-lock.yaml .github/workflows/runtime-native.yml
+                  $hashes = @{}
+                  foreach ($file in $files) { $hashes[$file] = (Get-FileHash -Algorithm SHA256 $file).Hash.ToLowerInvariant() }
+                  @{ source = $env:GITHUB_SHA; files = $hashes; finalFreeBytes = $free; phase = 'baseline-native-behavior'; nativeBuild = 'not yet implemented' } | ConvertTo-Json -Depth 5 | Set-Content -Encoding utf8 (Join-Path $env:VERIQ_NATIVE_EVIDENCE 'source-binding.json')
+                  if ($free -lt 2GB) { throw 'NATIVE_BUILD_DISK_RESERVE_EXHAUSTED' }
+            - name: Upload native observations even when tests fail
+              if: always()
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+              with:
+                  name: runtime-native-${{ github.sha }}
+                  path: |
+                      .superpowers/sdd/veriq-1/evidence/t20/native-${{ github.sha }}/*.json
+                      .superpowers/sdd/veriq-1/evidence/t20/native-${{ github.sha }}/*.log
+                  include-hidden-files: true
+                  if-no-files-found: warn

@@ -23,7 +23,7 @@ jobs:
         timeout-minutes: 45
         env:
             PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.superpowers/cache/playwright
-            VERIQ_DESKTOP_EVIDENCE: ${{ github.workspace }}/.superpowers/sdd/veriq-1/evidence/t19/fix1/ci
+            VERIQ_DESKTOP_EVIDENCE: ${{ github.workspace }}/.superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}
         services:
             mysql:
                 image: mysql:8.4.13@sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902
@@ -78,15 +78,15 @@ jobs:
             - name: Produce a separate unapproved current-source candidate
               run: |
                   set -o pipefail
-                  pnpm --filter @veriq/contracts exec tsx ../../scripts/build_engine.mts 1.0.2-t19-fix1 "$GITHUB_WORKSPACE/work/t19-fix1-ci-engine" | tee "$VERIQ_DESKTOP_EVIDENCE/engine-producer.log"
+                  pnpm --filter @veriq/contracts exec tsx ../../scripts/build_engine.mts "1.0.3-t20-${GITHUB_SHA}" "$GITHUB_WORKSPACE/work/t20-ci-engine-${GITHUB_SHA}" | tee "$VERIQ_DESKTOP_EVIDENCE/engine-producer.log"
                   python - <<'PY'
                   import hashlib, json, os, subprocess
                   from pathlib import Path
                   root = Path.cwd()
                   evidence = Path(os.environ['VERIQ_DESKTOP_EVIDENCE'])
                   produced = json.loads((evidence / 'engine-producer.log').read_text().splitlines()[-1])
-                  assert produced['engineVersion'] == '1.0.2-t19-fix1'
-                  candidate = root / 'work/t19-fix1-ci-engine'
+                  assert produced['engineVersion'] == '1.0.3-t20-' + os.environ['GITHUB_SHA']
+                  candidate = root / ('work/t20-ci-engine-' + os.environ['GITHUB_SHA'])
                   assert Path(produced['output']) == candidate
                   inventory_raw = (candidate / 'inventory.json').read_bytes()
                   (evidence / 'candidate-inventory.json').write_bytes(inventory_raw)
@@ -153,19 +153,19 @@ jobs:
               if: always()
               uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
               with:
-                  name: desktop-fix1-${{ github.sha }}
+                  name: desktop-t20-${{ github.sha }}
                   include-hidden-files: true
                   path: |
-                      .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/*.log
-                      .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/*.png
-                      .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/headed-*.json
-                      .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/gui-results.json
-                      .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/source-production-binding.json
-                      .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/candidate-inventory.json
-                      .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/compiled-binding.json
-                      .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/userns-*.json
-                      .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/userns-*.jsonl
-                      .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/userns-*.profile
-                      .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/gui-runtime-versions.json
-                      .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/playwright-results/**/error-context.md
+                      .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/*.log
+                      .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/*.png
+                      .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/headed-*.json
+                      .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/gui-results.json
+                      .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/source-production-binding.json
+                      .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/candidate-inventory.json
+                      .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/compiled-binding.json
+                      .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/userns-*.json
+                      .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/userns-*.jsonl
+                      .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/userns-*.profile
+                      .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/gui-runtime-versions.json
+                      .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/playwright-results/**/error-context.md
                   if-no-files-found: warn
