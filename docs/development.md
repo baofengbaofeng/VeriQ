@@ -143,6 +143,25 @@ registers the actual CLI and invokes the actual Linux Agent compiler. No test re
 promoted to the production catalog. It needs writable XDG paths and sufficient temporary
 disk space; generated archives, device profiles and per-Attempt work are transient.
 
+## External HTTP plans and CI (reviewed T16)
+
+执行计划、独立服务账号 EXECUTION 令牌、同计划 QUEUE/SKIP/REJECT、GUI及安全CI报告由
+`599f989` 实现，`10a1065` 修复管理入口认证回退与CI总截止时间，均经独立规格/质量审查及修复复审。
+服务账号创建者停用后，真实Agent仍能以明确计划/操作授权完成实际业务浏览器、凭证解析、状态/JUnit读取。
+CI超时使用单一截止时间，已知Run的取消另有最多10秒尽力请求；超时不证明远端任务未接受或物理进程已停止。
+接入、幂等分页与维护说明见[外部调度](integration/external-scheduler.md)和[ADR0018](decisions/0018-external-plan-trigger.md)。
+
+本轮证据按实际源码阶段分组：服务端广套件437通过/4失败，定向46通过/1测试证据变量错误，随后该单项1通过；
+Runtime广套件63通过/3缺浏览器路径，补齐环境后三项通过；TS契约先199/2、后200/1兼容超时，最终定向185通过。
+GUI最终4项通过。重要修复先观察认证/截止时间RED，再18项通过，最后传输收紧由7项通过覆盖；严格mypy84文件、
+Ruff、格式和生成一致性均有记录。不将这些分组结果称为同一冻结版本全量通过；原两项编译EXECUTION_ERROR的
+根因仍未证明，定向真实Agent/报告通过不倒推出磁盘是原因。源码、锁、提交树及哈希绑定已核对。
+
+恢复环境中的测试库存已迁入当前工作区私有状态，历史清单与保留副本逐字节一致；专用测试库binlog压力已处理。
+不把开发测试库存当正式批准分发。目标浏览器匹配、完整覆盖率、源码注释规范、真实Provider、生产打包及两平台
+安装仍是后续门禁。报告跨页Workspace深链接和计划错误方法500两项Minor明确由T22整改；旧账号/重跑/events
+声明仍须对齐，F10重跑不因旧路由未实现而被移出首发。完整状态以[里程碑](plans/milestones.md)为接续依据。
+
 ## Current verification limits
 
 The offline execution/import module (`1b6fccb`, `86f1602`, fixed in `67968b4`)
