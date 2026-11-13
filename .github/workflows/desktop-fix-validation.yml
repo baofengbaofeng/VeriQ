@@ -78,7 +78,7 @@ jobs:
             - name: Produce a separate unapproved current-source candidate
               run: |
                   set -o pipefail
-                  pnpm --filter @veriq/compiler exec tsx ../../scripts/build_engine.mts 1.0.2-t19-fix1 "$GITHUB_WORKSPACE/work/t19-fix1-ci-engine" | tee "$VERIQ_DESKTOP_EVIDENCE/engine-producer.log"
+                  pnpm --filter @veriq/contracts exec tsx ../../scripts/build_engine.mts 1.0.2-t19-fix1 "$GITHUB_WORKSPACE/work/t19-fix1-ci-engine" | tee "$VERIQ_DESKTOP_EVIDENCE/engine-producer.log"
                   python - <<'PY'
                   import hashlib, json, os, subprocess
                   from pathlib import Path

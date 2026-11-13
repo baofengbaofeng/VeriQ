@@ -71,7 +71,7 @@ The focused branch workflow contains the complete fresh-checkout setup, exact ac
 export PLAYWRIGHT_BROWSERS_PATH="$PWD/.superpowers/cache/playwright"
 mkdir -p work
 pnpm --filter @veriq/runner-sdk exec playwright install --with-deps chromium
-pnpm --filter @veriq/compiler exec tsx ../../scripts/build_engine.mts 1.0.2-t19-fix1 "$PWD/work/t19-fix1-ci-engine" > work/t19-fix1-engine-production.json
+pnpm --filter @veriq/contracts exec tsx ../../scripts/build_engine.mts 1.0.2-t19-fix1 "$PWD/work/t19-fix1-ci-engine" > work/t19-fix1-engine-production.json
 export VERIQ_TEST_ENGINE_DIRECTORY="$PWD/work/t19-fix1-ci-engine"
 export VERIQ_TEST_ENGINE_VERSION=1.0.2-t19-fix1
 export VERIQ_TEST_ENGINE_HASH="$(python -c 'import json; print(json.loads(open("work/t19-fix1-engine-production.json").read().splitlines()[-1])["inventoryHash"])')"
