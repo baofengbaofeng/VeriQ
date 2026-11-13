@@ -24,7 +24,6 @@ jobs:
         env:
             PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.superpowers/cache/playwright
             VERIQ_DESKTOP_EVIDENCE: ${{ github.workspace }}/.superpowers/sdd/veriq-1/evidence/t19/fix1/ci
-            VERIQ_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
         services:
             mysql:
                 image: mysql:8.4.13@sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902
@@ -117,6 +116,8 @@ jobs:
                   (Path(os.environ['VERIQ_DESKTOP_EVIDENCE']) / 'compiled-binding.json').write_text(json.dumps(binding, indent=4) + '\n')
                   PY
             - name: Allow user namespaces only for this hosted job's exact test binaries
+              env:
+                  VERIQ_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
               run: |
                   set -o pipefail
                   python tests/e2e/test_ci_userns.py 2>&1 | tee "$VERIQ_DESKTOP_EVIDENCE/userns-boundary-tests.log"
@@ -145,6 +146,8 @@ jobs:
                   PY
             - name: Remove only this job's temporary user namespace profiles
               if: always()
+              env:
+                  VERIQ_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
               run: python tests/e2e/ci_userns.py cleanup
             - name: Preserve public observations and diagnostics
               if: always()
