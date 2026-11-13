@@ -10,7 +10,7 @@ import sys
 
 
 class FaultRejected(RuntimeError):
-    """稳定拒绝码只供 QA 解释故障注入边界，不携带命令行、私有路径或业务数据；被拒绝的目标不能进入发送信号分支。"""
+    """稳定拒绝码只供 QA 解释故障注入边界，不携带命令行、私有路径或业务数据；被拒绝的目标不能进入发送信号分支，调用方也不能把拒绝当作已退出证明。"""
 
 
 def identity(pid: int) -> dict:
@@ -28,7 +28,7 @@ def identity(pid: int) -> dict:
 
 
 def matches(actual: dict, pid: int, uid: int, start: str) -> bool:
-    """身份必须同时匹配 PID、UID 和内核启动时钟，僵尸或已退出状态不能被再次当作活跃 UI renderer 注入。"""
+    """身份必须同时匹配 PID、UID 和内核启动时钟，僵尸或已退出状态不能被再次当作活跃 UI renderer 注入，避免对已经终结的目标重复发送信号。"""
     return (
         actual["pid"] == pid
         and actual["uid"] == uid
