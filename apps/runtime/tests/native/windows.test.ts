@@ -4,11 +4,16 @@ import { copyFile, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { connect } from "node:net";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
 import { ProcessSupervisor } from "../../src/execution/processes.ts";
 import { AttemptBroker } from "../../src/execution/broker.ts";
+import { windowsNative } from "../../src/native/windows.ts";
 
 /** 本文件只由真实 Windows 原生验证任务执行，错误平台直接失败而不跳过；首轮在现有 Linux 专用实现上观察行为失败，随后同一用例必须通过实际 Job 与私有管道实现，不能用编译成功代替。 */
 assert.equal(process.platform, "win32", "Native Windows acceptance requires Windows");
+const addonPath = fileURLToPath(new URL("../../build/Release/veriq_native.node", import.meta.url));
 
 /** 清理阶段只等待有限时间并保留原始断言与清理异常，超时并不代表底层资源已经释放；无法证明停止时必须留下该测试的私有目录，由目标任务日志记录位置而不能删除日志伪装排空成功。 */
 async function boundedCleanup<T>(operation: () => Promise<T>): Promise<T> {
@@ -37,8 +42,7 @@ test("Windows guardian contains renamed role Node and drains its detached descen
     try {
         await mkdir(join(root, "角色 binaries"));
         await copyFile(process.execPath, role);
-        const script =
-            "const {spawn}=require('node:child_process');const c=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{detached:true,stdio:'ignore'});console.log(JSON.stringify({execPath:process.execPath,args:process.argv.slice(1),child:c.pid,secret:process.env.VERIQ_DEVICE_TOKEN??null}));setInterval(()=>{},1000);";
+        const script = `const native=require(${JSON.stringify(addonPath)});const {spawn}=require('node:child_process');const c=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{detached:true,stdio:'ignore'});console.log(JSON.stringify({execPath:process.execPath,args:process.argv.slice(1),child:c.pid,sid:native.identity(process.pid).sid,secret:process.env.VERIQ_DEVICE_TOKEN??null}));setInterval(()=>{},1000);`;
         let owned!: Awaited<ReturnType<ProcessSupervisor["start"]>>;
         await assert.doesNotReject(async () => {
             owned = await processes.start("windows-tree", {
@@ -56,6 +60,7 @@ test("Windows guardian contains renamed role Node and drains its detached descen
         assert.equal(observed.execPath, role);
         assert.deepEqual(observed.args, arguments_);
         assert.equal(observed.secret, null);
+        assert.equal(observed.sid, windowsNative().sid);
         const journal = JSON.parse(
             await readFile(join(root, "processes/windows-tree.process.json"), "utf8"),
         );
@@ -89,6 +94,28 @@ test("Windows guardian contains renamed role Node and drains its detached descen
     }
 });
 
+/** 角色 Agent 在没有相邻 node.exe 的独立目录中实际装载同一个 Node-API 模块，验证 node-gyp 延迟加载钩子能解析重命名宿主导出；测试工具设置真实进程超时，结果不能由原始 Node 宿主代跑。 */
+test("Windows Node-API loads under the isolated renamed Agent executable", async () => {
+    const root = await mkdtemp(join(tmpdir(), "veriq agent 中文 "));
+    try {
+        const role = join(root, "veriq_agent.exe");
+        await copyFile(process.execPath, role);
+        const script = `const native=require(${JSON.stringify(addonPath)});console.log(JSON.stringify({path:process.execPath,sid:native.sid,identity:native.identity(process.pid)}));`;
+        const { stdout } = await promisify(execFile)(role, ["-e", script], {
+            cwd: root,
+            timeout: 5000,
+            env: { SystemRoot: process.env.SystemRoot! },
+        });
+        const observed = JSON.parse(stdout);
+        assert.equal(observed.path, role);
+        assert.equal(observed.sid, windowsNative().sid);
+        assert.equal(observed.identity.running, true);
+        assert.match(observed.identity.startTime, /^[0-9]+$/);
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+});
+
 /** 当前用户通过真实本机管道发送原始 UTF8 字节，只有正确 nonce 的有限请求可以到达业务处理器；接收测试不引入 TCP 替代通道，关闭时等待实际监听与连接资源释放后再清理私有目录。 */
 test("Windows private broker serves a bounded Unicode request through a named pipe", async (context) => {
     const root = await mkdtemp(join(tmpdir(), "veriq pipe 中文 "));
@@ -113,6 +140,28 @@ test("Windows private broker serves a bounded Unicode request through a named pi
             socket.setTimeout(5000, () => socket.destroy(new Error("TEST_PIPE_TIMEOUT")));
         });
         assert.deepEqual(JSON.parse(response), { ok: true, value: { text: "中文😀" } });
+        assert.deepEqual(
+            JSON.parse(
+                await windowsNative().request(
+                    broker.path,
+                    JSON.stringify({ nonce: "wrong", text: "rejected" }) + "\n",
+                ),
+            ),
+            { ok: false, error: "ATTEMPT_IPC_FAILED" },
+        );
+        assert.deepEqual(
+            JSON.parse(
+                await windowsNative().request(
+                    broker.path,
+                    JSON.stringify({ nonce: broker.nonce, text: "原生客户端😀" }) + "\n",
+                ),
+            ),
+            { ok: true, value: { text: "原生客户端😀" } },
+        );
+        assert.throws(
+            () => new (windowsNative().PrivatePipeServer)(broker.path, () => {}),
+            /NATIVE_PIPE_LISTEN_FAILED/,
+        );
     } catch (error) {
         failures.push(error);
     } finally {

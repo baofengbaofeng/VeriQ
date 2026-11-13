@@ -1,5 +1,5 @@
 /**
- * 本文件通过 linux veriq_runner 子收割守护进程管理 Attempt：仅在内核 ECHILD 排空证明后才认定进程已停止。
+ * 本文件按真实平台分派 Attempt 监督器：Linux 保持原有子收割守护与 ECHILD 证明，Windows 使用独立 Job 守护；两条路径都只有在可信排空证明成立后才能认定进程已停止并释放容量。
  * 未知进程必须隔离容量。
  */
 
@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { Readable, Writable } from 'node:stream';
+import { WindowsProcesses } from './windows-processes.ts';
 /**
  * 公开接口 StopReceipt 记录 Attempt 停机回执：含 processStopped、原因字符串与 stoppedAt。
  * 供恢复与控制面对账使用。
@@ -64,15 +65,18 @@ function inspect(pid: number): Proc | undefined {
         throw error;
     }
 }
-const launcher = fileURLToPath(new URL('../../build/veriq_runner', import.meta.url));
+const launcher = fileURLToPath(new URL(process.platform === 'win32' ? '../../build/Release/veriq_guardian.exe' : '../../build/veriq_runner', import.meta.url));
 /**
  * 公开类 ProcessSupervisor 负责 Attempt 进程生命周期：启动原生守护并解读排空证明：terminateAttempt 在未排空时隔离容量。
  */
 export class ProcessSupervisor {
     private live = new Map<string, OwnedProcess>();
     private stopping = new Map<string, Promise<StopReceipt>>();
+    private windows: WindowsProcesses | undefined;
     /** 安装宿主只能传入完整库存已核验的 guardian 路径，开发调用默认保持原目录；增加路径参数不改变持久身份日志、START 门或排空证明，无法访问所选二进制时仍在创建进程之前失败。 */
-    constructor(private directory: string, private graceMs = 500, private launcherPath = launcher) { }
+    constructor(private directory: string, private graceMs = 500, private launcherPath = launcher) {
+        if (process.platform === 'win32') this.windows = new WindowsProcesses(directory, launcherPath);
+    }
     private path(id: string) {
         if (!/^[a-zA-Z0-9_-]{1,100}$/.test(id)) throw new Error('INVALID_ATTEMPT_ID');
         return join(this.directory, `${id}.process.json`);
@@ -88,10 +92,10 @@ export class ProcessSupervisor {
         try { await directory.sync(); } finally { await directory.close(); }
     }
     /**
-     * 公开方法 start 写入进程日志并拉起 veriq_runner 守护进程：等待 READY 与 worker 身份校验通过。
-     * 禁止在非 linux 平台或重复 id 上启动。
+     * 公开方法 start 先选择平台实现并写入进程日志，再拉起受信任的原生守护等待 READY 与 worker 身份校验通过；未支持的平台和重复 Attempt 都在业务执行前失败，不能绕过平台所有权协议。
      */
     async start(id: string, command: Command): Promise<OwnedProcess> {
+        if (this.windows) return this.windows.start(id, command);
         if (process.platform !== 'linux') throw new Error('UNSUPPORTED_PROCESS_PLATFORM');
         if (this.live.has(id)) throw new Error('PROCESS_ALREADY_RUNNING');
         // 固定安装的 Agent 组件路径，绝不能改用 Job 提供路径或运行时编译器回退。
@@ -179,16 +183,17 @@ export class ProcessSupervisor {
     /**
      * 公开方法 isRunning 根据 /proc 状态判断 pid 是否仍为非僵尸存活进程：供停机路径确认业务 worker 去向。
      */
-    async isRunning(pid: number) { const proc = inspect(pid); return !!proc && !['Z','X'].includes(proc.state); }
+    async isRunning(pid: number) { if (this.windows) return this.windows.isRunning(pid); const proc = inspect(pid); return !!proc && !['Z','X'].includes(proc.state); }
     /**
      * 公开方法 active 返回当前仍登记为存活的 Attempt 标识列表：供恢复扫描与容量核算使用（active）（active）。
      */
-    active() { return [...this.live.keys()]; }
+    active() { return this.windows ? this.windows.active() : [...this.live.keys()]; }
     /**
      * 公开方法 terminateAttempt 请求守护进程停机并等待排空证明：缺少 ECHILD 证明则 processStopped 为 false。
      * 恢复路径据此隔离未知进程容量。
      */
     terminateAttempt(id: string, reason: string): Promise<StopReceipt> {
+        if (this.windows) return this.windows.terminateAttempt(id, reason);
         const existing = this.stopping.get(id);
         if (existing) return existing;
         const operation = this.stop(id, reason).finally(() => this.stopping.delete(id));

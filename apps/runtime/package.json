@@ -18,7 +18,9 @@
         "@types/node": "24.10.1",
         "@types/proper-lockfile": "4.1.4",
         "@types/yauzl": "3.4.0",
-        "typescript": "5.9.3"
+        "typescript": "5.9.3",
+        "node-addon-api": "8.9.2",
+        "node-gyp": "12.4.0"
     },
     "version": "0.1.0",
     "private": true,
@@ -28,6 +30,7 @@
         "test": "pnpm build:launcher && node --import tsx --test tests/*.test.ts",
         "check": "tsc --noEmit",
         "dev": "node --import tsx src/cli.ts",
-        "build:launcher": "node scripts/build-launcher.mjs"
+        "build:launcher": "node scripts/build-launcher.mjs",
+        "build:native:windows": "node scripts/build-windows.mjs"
     }
 }

@@ -45,6 +45,75 @@ class CiUsernsBoundaryTests(unittest.TestCase):
                 ci_userns.main()
             command.assert_not_called()
 
+    def test_source_bound_evidence_is_accepted_before_policy_dispatch(self):
+        """当前源码 SHA 必须选择唯一 T20 证据目录，完整主入口通过路径边界后才分派策略准备；测试替换实际策略函数并断言没有外部命令调用，因此这里只证明参数授权边界而不执行本机策略或 GUI。"""
+        with tempfile.TemporaryDirectory(prefix="veriq-ci-evidence-") as directory:
+            root = Path(directory).resolve()
+            source = "a" * 40
+            evidence = root / f".superpowers/sdd/veriq-1/evidence/t20/desktop-{source}"
+            evidence.mkdir(parents=True)
+            with (
+                patch.dict(
+                    os.environ,
+                    {
+                        "GITHUB_WORKSPACE": str(root),
+                        "GITHUB_SHA": source,
+                        "VERIQ_DESKTOP_EVIDENCE": str(evidence),
+                    },
+                    clear=True,
+                ),
+                patch.object(
+                    ci_userns, "__file__", str(root / "tests/e2e/ci_userns.py")
+                ),
+                patch.object(ci_userns, "job_identity", return_value="veriq-t19-123-1"),
+                patch.object(ci_userns.os, "geteuid", return_value=1000),
+                patch.object(ci_userns.sys, "argv", ["ci_userns.py", "prepare"]),
+                patch.object(ci_userns, "prepare") as prepare,
+                patch.object(ci_userns, "invoke") as invoke,
+            ):
+                ci_userns.main()
+                prepare.assert_called_once_with(root, evidence, "veriq-t19-123-1")
+                invoke.assert_not_called()
+
+    def test_evidence_rejects_wrong_sha_legacy_path_and_symlinks(self):
+        """证据边界拒绝不完整或错误源码 SHA、历史 T19 目录、父级跳转和任何层级的符号链接；临时目录中只创建本测试拥有的空文件夹，所有失败断言都发生在纯路径函数内而不读取或修改系统策略。"""
+        with tempfile.TemporaryDirectory(prefix="veriq-ci-boundary-") as directory:
+            root = Path(directory).resolve()
+            source = "a" * 40
+            evidence = root / f".superpowers/sdd/veriq-1/evidence/t20/desktop-{source}"
+            evidence.mkdir(parents=True)
+            environment = {
+                "GITHUB_SHA": source,
+                "VERIQ_DESKTOP_EVIDENCE": str(evidence),
+            }
+            self.assertEqual(ci_userns.evidence_path(root, environment), evidence)
+            for source_value in ["", "a" * 39, "A" * 40, "../candidate", "b" * 40]:
+                with self.subTest(source=source_value), self.assertRaises(ValueError):
+                    ci_userns.evidence_path(
+                        root, {**environment, "GITHUB_SHA": source_value}
+                    )
+            for path in [
+                str(root / ".superpowers/sdd/veriq-1/evidence/t19/fix1/ci"),
+                str(evidence) + "/../" + evidence.name,
+                str(root),
+            ]:
+                with self.subTest(path=path), self.assertRaises(ValueError):
+                    ci_userns.evidence_path(
+                        root, {**environment, "VERIQ_DESKTOP_EVIDENCE": path}
+                    )
+            evidence.rmdir()
+            target = root / "outside"
+            target.mkdir()
+            evidence.symlink_to(target, target_is_directory=True)
+            with self.assertRaises(ValueError):
+                ci_userns.evidence_path(root, environment)
+            evidence.unlink()
+            evidence.parent.rmdir()
+            evidence.parent.symlink_to(target, target_is_directory=True)
+            (target / evidence.name).mkdir()
+            with self.assertRaises(ValueError):
+                ci_userns.evidence_path(root, environment)
+
     def test_profile_paths_and_root_owned_file_identity_fail_closed(self):
         """精确路径不能接受 AppArmor 通配、变量、引号、控制字符或父级跳转，当前普通用户创建的同名字节也不构成 root 策略所有权；测试只读取真实临时文件，不尝试改变本机文件属主来制造通过。"""
         name = "veriq-t19-99999999999999-1-electron"

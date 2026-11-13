@@ -42,6 +42,16 @@ jobs:
                   $pnpm = Join-Path $env:RUNNER_TEMP 'veriq-node-tools/node_modules/pnpm/bin/pnpm.cjs'
                   node $pnpm install --frozen-lockfile --ignore-scripts
                   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            - name: Build native guardian and Node-API adapter with pinned build graph
+              shell: pwsh
+              working-directory: apps/runtime
+              run: |
+                  $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+                  & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -format json | Set-Content -Encoding utf8 (Join-Path $env:VERIQ_NATIVE_EVIDENCE 'visual-studio.json')
+                  python --version 2>&1 | Tee-Object -FilePath (Join-Path $env:VERIQ_NATIVE_EVIDENCE 'python-version.log')
+                  $headers = Join-Path $env:RUNNER_TEMP 'veriq-node-headers'
+                  node scripts/build-windows.mjs "$headers" 2>&1 | Tee-Object -FilePath (Join-Path $env:VERIQ_NATIVE_EVIDENCE 'native-build.log')
+                  exit $LASTEXITCODE
             - name: Observe actual Windows lifecycle and private transport behavior
               shell: pwsh
               working-directory: apps/runtime
@@ -57,7 +67,14 @@ jobs:
                   $files = git ls-files apps/runtime packages pnpm-lock.yaml .github/workflows/runtime-native.yml
                   $hashes = @{}
                   foreach ($file in $files) { $hashes[$file] = (Get-FileHash -Algorithm SHA256 $file).Hash.ToLowerInvariant() }
-                  @{ source = $env:GITHUB_SHA; files = $hashes; finalFreeBytes = $free; phase = 'baseline-native-behavior'; nativeBuild = 'not yet implemented' } | ConvertTo-Json -Depth 5 | Set-Content -Encoding utf8 (Join-Path $env:VERIQ_NATIVE_EVIDENCE 'source-binding.json')
+                  $nativeInputs = @{}
+                  $nativeRoots = @((Join-Path $env:RUNNER_TEMP 'veriq-node-headers'), (Join-Path $env:GITHUB_WORKSPACE 'apps/runtime/build'), (Join-Path $env:GITHUB_WORKSPACE 'apps/runtime/native/build'), (Join-Path $env:GITHUB_WORKSPACE 'apps/runtime/node_modules/node-addon-api'))
+                  foreach ($root in $nativeRoots) {
+                    if (Test-Path $root) { Get-ChildItem -Path $root -File -Recurse | ForEach-Object { $nativeInputs[$_.FullName] = @{ sha256 = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLowerInvariant(); bytes = $_.Length } } }
+                  }
+                  $nodePath = (Get-Command node).Source
+                  $nativeInputs[$nodePath] = @{ sha256 = (Get-FileHash -Algorithm SHA256 $nodePath).Hash.ToLowerInvariant(); bytes = (Get-Item $nodePath).Length }
+                  @{ source = $env:GITHUB_SHA; files = $hashes; finalFreeBytes = $free; phase = 'native-guardian-pipe-first-target-build'; nativeInputs = $nativeInputs } | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 (Join-Path $env:VERIQ_NATIVE_EVIDENCE 'source-binding.json')
                   if ($free -lt 2GB) { throw 'NATIVE_BUILD_DISK_RESERVE_EXHAUSTED' }
             - name: Upload native observations even when tests fail
               if: always()

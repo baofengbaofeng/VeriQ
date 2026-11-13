@@ -177,6 +177,12 @@ importers:
             "@types/yauzl":
                 specifier: 3.4.0
                 version: 3.4.0
+            node-addon-api:
+                specifier: 8.9.2
+                version: 8.9.2
+            node-gyp:
+                specifier: 12.4.0
+                version: 12.4.0
             typescript:
                 specifier: 5.9.3
                 version: 5.9.3
@@ -3889,6 +3895,13 @@ packages:
                 integrity: sha512-2xP/IGGMmmSQpI1+O/k72jF/ykvZ89JeuKX3TLJAYPDVLUalrshrLHkeVcCCZqG/eEa635cr8IBYzgnDvM2O8Q==,
             }
 
+    node-addon-api@8.9.2:
+        resolution:
+            {
+                integrity: sha512-VijLXbi3UACN69I0JVXJsX4tjACjNoQDgv2gTF6sx2wWEi8tkSg2eX8p5gSIFi8z2+DL3oHmY6OyKce38SDolg==,
+            }
+        engines: { node: "^18 || ^20 || >= 21" }
+
     node-gyp@12.4.0:
         resolution:
             {
@@ -7271,6 +7284,8 @@ snapshots:
     node-api-version@0.2.1:
         dependencies:
             semver: 7.8.6
+
+    node-addon-api@8.9.2: {}
 
     node-gyp@12.4.0:
         dependencies:

@@ -342,6 +342,25 @@ def cleanup(evidence: Path, stem: str) -> None:
     print("Job-scoped userns profiles removed; global restrictions unchanged")
 
 
+def evidence_path(root: Path, environment: dict[str, str]) -> Path:
+    """证据目录只能由已验证 checkout 根和完整小写源码 SHA 推导，环境变量必须逐字匹配唯一位置；逐层拒绝符号链接与缺失目录，使准备和清理都不能借重定向、旧候选路径或任意用户提供地址扩大策略作用范围。"""
+    source = environment.get("GITHUB_SHA", "")
+    if not re.fullmatch(r"[0-9a-f]{40}", source):
+        raise ValueError("CI_SOURCE_SHA_INVALID")
+    relative = Path(f".superpowers/sdd/veriq-1/evidence/t20/desktop-{source}")
+    expected = root / relative
+    if environment.get("VERIQ_DESKTOP_EVIDENCE") != str(expected):
+        raise ValueError("CI_EVIDENCE_PATH_MISMATCH")
+    current = root
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink() or not current.is_dir():
+            raise ValueError("CI_EVIDENCE_PATH_MISMATCH")
+    if expected.resolve(strict=True) != expected:
+        raise ValueError("CI_EVIDENCE_PATH_MISMATCH")
+    return expected
+
+
 def main() -> None:
     """入口在任何策略读取或 sudo 前验证托管 QA 上下文和普通 runner 身份，证据目录也固定在当前工作区；prepare 与 cleanup 都必须通过同样边界，测试模块导入只暴露纯文本及上下文校验而不触发系统修改。"""
     stem = job_identity(dict(os.environ), platform.freedesktop_os_release())
@@ -353,9 +372,7 @@ def main() -> None:
     if sys.argv[1:] not in (["prepare"], ["cleanup"]):
         raise ValueError("CI_PROFILE_OPERATION_INVALID")
     operation = sys.argv[1]
-    evidence = root / ".superpowers/sdd/veriq-1/evidence/t19/fix1/ci"
-    if Path(os.environ["VERIQ_DESKTOP_EVIDENCE"]).resolve(strict=True) != evidence:
-        raise ValueError("CI_EVIDENCE_PATH_MISMATCH")
+    evidence = evidence_path(root, dict(os.environ))
     try:
         if operation == "prepare":
             prepare(root, evidence, stem)
