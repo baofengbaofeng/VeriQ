@@ -12,6 +12,7 @@ import { ProcessSupervisor } from "../../src/execution/processes.ts";
 import { AttemptBroker } from "../../src/execution/broker.ts";
 import { windowsNative } from "../../src/native/windows.ts";
 import { expectedPipeResponse } from "../support/pipe-response.ts";
+import { withWindowsOwnership } from "../support/windows-ownership.ts";
 
 /** 本文件只由真实 Windows 原生验证任务执行，错误平台直接失败而不跳过；首轮在现有 Linux 专用实现上观察行为失败，随后同一用例必须通过实际 Job 与私有管道实现，不能用编译成功代替。 */
 assert.equal(process.platform, "win32", "Native Windows acceptance requires Windows");
@@ -344,4 +345,63 @@ test("Windows private pipe close releases the endpoint while old callbacks remai
             cause: failures[0],
         });
     }
+});
+
+/** 日志中的守护 PID 指向已经真实退出且经原生查询证实不存在的测试进程时，负回执不能顺带关闭另一个仍活跃的守护控制流；业务必须继续处理新挑战，最后用该 Attempt 原始日志核验真实排空。 */
+test("Windows absent journal guardian cannot close the actual live guardian", async (context) => {
+    await withWindowsOwnership(context, ["absent-guardian"], async (scenario) => {
+        const probe = promisify(execFile)(scenario.role, ["-e", ""], {
+            timeout: 5000,
+            env: { SystemRoot: process.env.SystemRoot! },
+        });
+        const absentPid = probe.child.pid;
+        await probe;
+        assert(absentPid);
+        assert.equal(
+            windowsNative().identity(absentPid),
+            null,
+            "The replacement PID must actually be absent",
+        );
+        await scenario.replaceJournal("absent-guardian", { guardianPid: absentPid });
+        const denied = await scenario.processes.terminateAttempt(
+            "absent-guardian",
+            "ABSENT_GUARDIAN_TEST",
+        );
+        assert.equal(denied.processStopped, false);
+        assert.equal(denied.reason, "CONTAINMENT_LOST");
+        await scenario.requireProgress(["absent-guardian"]);
+    });
+});
+
+/** 工作进程创建时间发生合法十进制篡改时，守护身份仍然真实也不足以授权停止该 Attempt；必须先核验完整拥有关系再发送信号，测试通过拒绝后的持续新进度验证业务没有被误停。 */
+test("Windows changed worker creation time cannot authorize stopping its live job", async (context) => {
+    await withWindowsOwnership(context, ["worker-time"], async (scenario) => {
+        const original = scenario.journals.get("worker-time")!;
+        assert.equal(typeof original.startTime, "string");
+        await scenario.replaceJournal("worker-time", {
+            startTime: (BigInt(original.startTime as string) + 1n).toString(),
+        });
+        const denied = await scenario.processes.terminateAttempt(
+            "worker-time",
+            "CHANGED_WORKER_TIME_TEST",
+        );
+        assert.equal(denied.processStopped, false);
+        await scenario.requireProgress(["worker-time"]);
+    });
+});
+
+/** 两个真实 Attempt 的 nonce 与守护身份不能交叉拼接成停止权限，来自第二个日志的有效 nonce 不得影响任一业务树；两个工作进程分别接受新挑战并独立报告进度，清理恢复各自精确原始日志。 */
+test("Windows guardian identity and another attempt nonce cannot stop either job", async (context) => {
+    await withWindowsOwnership(context, ["nonce-a", "nonce-b"], async (scenario) => {
+        const first = scenario.journals.get("nonce-a")!;
+        const second = scenario.journals.get("nonce-b")!;
+        assert.notEqual(first.nonce, second.nonce);
+        await scenario.replaceJournal("nonce-a", { nonce: second.nonce });
+        const denied = await scenario.processes.terminateAttempt(
+            "nonce-a",
+            "CROSS_ATTEMPT_NONCE_TEST",
+        );
+        assert.equal(denied.processStopped, false);
+        await scenario.requireProgress(["nonce-a", "nonce-b"]);
+    });
 });
