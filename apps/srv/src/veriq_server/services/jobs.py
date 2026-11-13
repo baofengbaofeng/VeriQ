@@ -3,7 +3,6 @@ require_requester 验证原始请求者对 Runtime 仍有效；database_time 使
 claim 失败返回 None 让 Agent 退避，禁止先 count 再无锁启动。
 """
 
-
 import secrets
 import json
 from dataclasses import dataclass, field
@@ -41,6 +40,7 @@ class RuntimeIdentity:
     """封装领取方 Runtime 身份与能力，供 claim 过滤候选 Job 与容量键，RuntimeIdentity 遵守本文件边界。
     RuntimeIdentity 实现于 apps/srv/src/veriq_server/services/jobs.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
+
     authorization: str = field(repr=False)
 
 
@@ -56,9 +56,21 @@ async def database_time(session: AsyncSession) -> datetime:
 
 
 async def require_requester(session: AsyncSession, job: Job, runtime_id: str) -> User | None:
-    """确认 Job 请求者对 Runtime 仍有派发权，失效则领取与心跳应取消，require_requester 遵守本文件边界。
-    require_requester 实现于 apps/srv/src/veriq_server/services/jobs.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
-    """
+    """每次领取、续租和结果提交都重验最初请求者的当前权限，执行令牌必须匹配冻结运行关联并保有计划与设备派发权；维护令牌继续走清理专用范围，普通用户仍通过原有成员和所有者检查。"""
+    if job.requester_service_token_id and job.kind == "TEST":
+        from .execution_principal import ServicePrincipal
+
+        run = await session.get(Run, job.run_id)
+        if (
+            not run
+            or not run.plan_id
+            or run.requester_service_token_id != job.requester_service_token_id
+        ):
+            raise Problem(403, "REQUESTER_REVOKED", "Frozen service plan association required")
+        await ServicePrincipal(job.requester_service_token_id, job.created_by).runtime(
+            session, job.workspace_id, run.plan_id, runtime_id
+        )
+        return None
     if job.requester_service_token_id:
         token = await session.get(ServiceToken, job.requester_service_token_id)
         account = await session.get(ServiceAccount, token.service_account_id) if token else None
@@ -94,6 +106,7 @@ class JobService:
     """编排候选扫描、容量预留与 claim 提交，产出含租约秘密的 ClaimDTO，JobService 遵守本文件边界，失败返回稳定 Problem。
     JobService 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     def __init__(self, session: AsyncSession, settings: Settings):
         """注入会话与 Settings，供容量槽位与租约时长配置读取，JobService.__init__ 遵守本文件边界，失败返回稳定 Problem。
         __init__ 实现于 apps/srv/src/veriq_server/services/jobs.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
@@ -164,9 +177,7 @@ class JobService:
                 return
 
     async def claim(self, identity: RuntimeIdentity, req: ClaimRequest) -> ClaimDTO | None:
-        """原子领取：锁 Job、预留容量、创建 Attempt、递增 fence；失败返回 None，JobService.claim 遵守本文件边界。
-        claim 的领取/竞争语义依赖数据库锁或原子更新，禁止先读计数再无锁启动执行。
-        """
+        """领取在安装锁和任务锁保护下预留容量、递增栅栏并建立租约，计划任务还必须等待前驱逻辑结束和物理占用释放；任何授权或容量条件不满足都不启动执行，未知进程不能凭时间超期重用容量。"""
         req = {
             **req,
             "clientRequestId": str(UUID(req["clientRequestId"])),
@@ -248,6 +259,12 @@ class JobService:
                 or run.created_at + timedelta(minutes=30) <= current
             ):
                 continue
+            if run and run.plan_id:
+                from .execution_plan import earlier_plan_work
+
+                if await earlier_plan_work(self.session, run.plan_id, run.plan_sequence):
+                    job.wait_reason = "RESOURCE_LOCK"
+                    continue
             try:
                 await require_requester(self.session, job, runtime.id)
             except Problem:

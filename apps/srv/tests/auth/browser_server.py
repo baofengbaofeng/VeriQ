@@ -39,6 +39,11 @@ async def main():
     )
     db = Database(settings)
     owned = {
+        "veriq_execution_plans",
+        "veriq_offline_imports",
+        "veriq_offline_import_keys",
+        "veriq_offline_attempts",
+        "veriq_offline_import_uploads",
         "veriq_bundles",
         "veriq_bundle_exports",
         "veriq_ai_providers",

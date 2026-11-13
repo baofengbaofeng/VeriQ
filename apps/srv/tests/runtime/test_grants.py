@@ -368,7 +368,7 @@ async def test_runtime_routes_reject_wrong_methods_before_argument_dispatch(site
     for method, path in [
         ("put", f"/api/v1/workspaces/{ws}/runtimes"),
         ("post", f"/api/v1/workspaces/{ws}/runtimes"),
-        ("get", f"/api/v1/workspaces/{ws}/service-accounts/{rid}/tokens"),
+        ("put", f"/api/v1/workspaces/{ws}/service-accounts/{rid}/tokens"),
         ("get", f"/api/v1/workspaces/{ws}/service-accounts/{rid}/disable"),
     ]:
         response = await c.request(method, path, json={})

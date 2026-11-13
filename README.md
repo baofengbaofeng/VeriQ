@@ -2,7 +2,7 @@
 
 面向企业 PC Web 系统的自动化冒烟与回归平台，以版本化测试资产和确定性 Playwright TypeScript 执行为核心，连接云端 Runtime、本地桌面客户端与离线执行。
 
-**当前状态：开发中 / 尚未发布。** 账户与 Workspace、版本化测试资产、确定性编译器与 Runner SDK、fixture 与业务身份、Runtime 授权、统一队列及 Linux Agent 实际执行已有实现。八类资产编辑、编译发布、版本源码预览，以及实时结构化报告、受限证据、本机 Trace 查看、File/S3 存储与原始证据保留期维护已通过独立审查。AI 配置、预算、结构化草稿审核及失败分析已有实现并通过代码复审，实际外部 Provider 验收仍待用户授权和独立配置。签名包、可信公钥缓存、只读验证、本地凭证，以及真实离线执行、SQLite 持久化报告、取消恢复和幂等回传已通过独立复审；Electron 桌面客户端、外部触发与正式发行等工作仍在推进。目前没有正式安装包，下述功能清单是 1.0 交付目标。
+**当前状态：开发中 / 尚未发布。** 账户与 Workspace、版本化测试资产、确定性编译器与 Runner SDK、fixture 与业务身份、Runtime 授权、统一队列及 Linux Agent 实际执行已有实现。八类资产编辑、编译发布、版本源码预览，以及实时结构化报告、受限证据、本机 Trace 查看、File/S3 存储与原始证据保留期维护已通过独立审查。AI 配置、预算、结构化草稿审核及失败分析已有实现并通过代码复审，实际外部 Provider 验收仍待用户授权和独立配置。签名包、可信公钥缓存、只读验证、本地凭证，以及真实离线执行、SQLite 持久化报告、取消恢复和幂等回传已通过独立复审；外部 HTTP 计划触发、独立服务令牌、计划与令牌管理界面及 CI 门禁已有实现，等待本轮独立审查；Electron 桌面客户端与正式发行等工作仍在推进。目前没有正式安装包，下述功能清单是 1.0 交付目标。
 
 仓库当前已落地 `apps/srv`（Tornado 控制服务）、`apps/web`（React 管理台）、`apps/runtime`（Agent/CLI/离线执行）、`packages/{contracts,compiler,runner-sdk,ui}`；`apps/desktop` 目前主要为 Electron 包占位，源码与发行流程仍在推进。贡献与智能体须遵循根目录 `AGENTS.md` 中的编码规范（4 空格缩进、中文注释、英文日志等）。
 
@@ -68,7 +68,7 @@ flowchart TB
 
 个人 Runtime 默认私有，共享须由所有者明确授权。离线结果保留来源与信任信息；签名验证包来源和完整性，不能证明本地结果绝未被修改。断网期间无法保证远程即时取消或权限回收。
 
-业务定时由外部调度中间件通过受限身份调用 HTTP 触发接口，执行计划不保存平台解释的 Cron。平台不内置 Cron 解析、计划扫描或 APScheduler 服务；任务轮询、租约心跳及外部触发的维护机制仍需完整实现。拟定触发接口和幂等规则见[需求与技术规格](docs/specs/veriq-1.0.md)。
+业务定时由外部调度中间件通过受限身份调用 HTTP 触发接口，执行计划不保存平台解释的 Cron。平台不内置 Cron 解析、计划扫描或 APScheduler 服务；任务轮询、租约心跳及有界维护接口沿用统一执行协议。计划管理、服务令牌、重叠策略和可运行 CI 命令见[外部调度接入](docs/integration/external-scheduler.md)。
 
 ## 技术基线
 
@@ -178,7 +178,7 @@ veriq/
 
 VeriQ is an automated smoke and regression platform for enterprise PC web systems. It centers on versioned test assets and deterministic Playwright TypeScript execution, and connects cloud Runtimes, a local desktop client, and offline execution.
 
-**Current status: under development / not released.** Accounts and Workspaces, versioned test assets, the deterministic compiler and Runner SDK, fixtures and business identities, Runtime authorization, the unified queue, and real Linux Agent execution are implemented. Editing for the eight asset kinds, compile/publish, version source preview, live structured reports, restricted evidence, local Trace viewing, File/S3 storage, and raw-evidence retention maintenance have passed independent review. AI configuration, budgets, structured draft review, and failure analysis are implemented and code-reviewed; real external Provider acceptance still needs user authorization and separate configuration. Signed bundles, trusted public-key cache, read-only verification, local credentials, real offline execution, SQLite-persisted reports, cancel/resume, and idempotent upload have passed independent re-review. Electron desktop client work, external triggers, and formal releases are still in progress. There is no formal installer yet; the feature list below is the 1.0 delivery target.
+**Current status: under development / not released.** Accounts and Workspaces, versioned test assets, the deterministic compiler and Runner SDK, fixtures and business identities, Runtime authorization, the unified queue, and real Linux Agent execution are implemented. Editing for the eight asset kinds, compile/publish, version source preview, live structured reports, restricted evidence, local Trace viewing, File/S3 storage, and raw-evidence retention maintenance have passed independent review. AI configuration, budgets, structured draft review, and failure analysis are implemented and code-reviewed; real external Provider acceptance still needs user authorization and separate configuration. Signed bundles, trusted public-key cache, read-only verification, local credentials, real offline execution, SQLite-persisted reports, cancel/resume, and idempotent upload have passed independent re-review. External HTTP plan triggers, independent service tokens, plan/token management UI and CI gates are implemented and awaiting this round of independent review; Electron desktop client work and formal releases are still in progress. There is no formal installer yet; the feature list below is the 1.0 delivery target.
 
 The repository currently includes `apps/srv` (Tornado control service), `apps/web` (React console), `apps/runtime` (Agent/CLI/offline execution), and `packages/{contracts,compiler,runner-sdk,ui}`. `apps/desktop` is mainly an Electron package placeholder; desktop sources and release flows are still advancing. Contributors and coding agents must follow the coding standards in root `AGENTS.md` (4-space indentation, Chinese source comments, English logs, and related rules).
 
@@ -244,7 +244,7 @@ See [offline bundles](docs/offline-bundles.md) for signed export, trust roots, a
 
 Personal Runtimes are private by default; sharing requires explicit owner authorization. Offline results retain provenance and trust metadata. Signatures prove bundle origin and integrity, not that local results were never altered. Remote instant cancel or permission revoke cannot be guaranteed while disconnected.
 
-Business schedules are driven by external middleware calling authenticated HTTP trigger APIs. The platform does not store platform-interpreted Cron, and does not embed Cron parsing, schedule scanners, or APScheduler. Task polling, lease heartbeats, and external-trigger maintenance still must be fully implemented. Proposed trigger APIs and idempotency rules are in the [requirements and technical spec](docs/specs/veriq-1.0.md).
+Business schedules are driven by external middleware calling authenticated HTTP trigger APIs. The platform does not store platform-interpreted Cron, and does not embed Cron parsing, schedule scanners, or APScheduler. Task polling, lease heartbeats and bounded maintenance reuse the unified execution protocol. Plan management, scoped service tokens, overlap policies and a runnable CI command are documented in [external scheduler integration](docs/integration/external-scheduler.md).
 
 ## Engineering baseline
 

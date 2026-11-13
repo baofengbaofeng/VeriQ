@@ -4,7 +4,7 @@
  */
 
 import { useContext, useEffect, useMemo, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Auth } from "../../auth-context";
@@ -41,10 +41,15 @@ export function ReportPage() {
         getNextPageParam: (p) => p.nextCursor ?? undefined,
         enabled: !!user,
     });
+    const [params] = useSearchParams();
+    const requestedWorkspace = params.get("workspaceId");
+    const requestedRun = params.get("runId") ?? "";
     const items = workspaces.data?.pages.flatMap((p) => p.items) ?? [];
     useEffect(() => {
-        if (!selected && items.length) select(items[0]!.id);
-    }, [selected, items[0]?.id]);
+        if (requestedWorkspace && items.some((w) => w.id === requestedWorkspace))
+            select(requestedWorkspace);
+        else if (!selected && items.length) select(items[0]!.id);
+    }, [requestedWorkspace, items[0]?.id]);
     const adapter = useMemo(() => new CloudReportAdapter(selected), [selected]);
     if (!user) return <Navigate to="/login" />;
     const workspace = items.find((w) => w.id === selected);
@@ -82,6 +87,7 @@ export function ReportPage() {
             )}
             {workspace && (
                 <ReportWorkspaceView
+                    initialRunId={selected === requestedWorkspace ? requestedRun : ""}
                     key={user.id + selected}
                     adapter={adapter}
                     signal={signal}
@@ -96,16 +102,18 @@ export function ReportPage() {
  * 空列表显示 empty 文案；错误用 retry 重新拉取。
  */
 export function ReportWorkspaceView({
+    initialRunId = "",
     adapter,
     signal,
     rawEvidenceAllowed = false,
 }: {
+    initialRunId?: string;
     adapter: ReportAdapter;
     signal?: AbortSignal;
     rawEvidenceAllowed?: boolean;
 }) {
     const t = useLabels(),
-        [selected, setSelected] = useState("");
+        [selected, setSelected] = useState(initialRunId);
     const runs = useInfiniteQuery({
         queryKey: ["workspace", "reports", adapter],
         queryFn: ({ pageParam, signal: s }) =>

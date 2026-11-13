@@ -3,7 +3,6 @@ create 绑定已发布或冻结草稿用例版本；idempotency_key 冲突复用
 cancel 对未启动重试立即收尾并保留既有失败语义。
 """
 
-
 import json
 from hashlib import sha256
 from typing import Any
@@ -20,6 +19,7 @@ from .runtime import RuntimeService
 from .workspace import WorkspaceRepository
 from .snapshots import validate_initial_variables
 from .results import aggregate
+from .execution_principal import ServicePrincipal
 
 
 def run_dto(run: Run) -> dict[str, Any]:
@@ -43,24 +43,30 @@ class RunService:
     """编排 Run 创建、用例展开与取消，所有写入限定 actor 已授权 Workspace，RunService 遵守本文件边界。
     RunService 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
-    def __init__(self, session: AsyncSession, actor: User):
-        """保存会话与发起用户，后续 authorize 使用其成员角色，RunService.__init__ 遵守本文件边界，失败返回稳定 Problem。
-        __init__ 实现于 apps/srv/src/veriq_server/services/runs.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
-        """
-        self.session, self.actor = session, actor
 
-    async def authorize(self, workspace_id: str) -> None:
-        """校验 actor 对 Workspace 的执行权限，归档租户拒绝新 Run，RunService.authorize 遵守本文件边界。
-        authorize 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
-        """
-        await WorkspaceRepository(self.session, WorkspaceScope(workspace_id)).authorize(
-            self.actor, Permission.EXECUTE, write=True
+    def __init__(self, session: AsyncSession, actor: User | ServicePrincipal):
+        """保存用户或独立服务主体并将审计归因单独保存，服务账号不会借用创建者的登录状态；计划标识只由受限触发服务设置，后续准入使用当前主体权限而非用户外键来判断是否允许执行。"""
+        self.session, self.actor = session, actor
+        self.plan_id: str | None = None
+        self.attribution = (
+            actor.attributed_user_id if isinstance(actor, ServicePrincipal) else actor.id
         )
 
+    async def authorize(self, workspace_id: str) -> None:
+        """员工派发需要当前空间执行权限，独立服务主体则必须具有显式计划和触发范围；缺少计划时立即拒绝通用创建路径，避免受限令牌通过直接构造运行选择扩大其执行资源范围。"""
+        if isinstance(self.actor, ServicePrincipal):
+            if not self.plan_id:
+                raise Problem(403, "PLAN_REQUIRED", "Service execution requires an explicit plan")
+            await self.actor.require(self.session, workspace_id, self.plan_id, "trigger")
+        else:
+            await WorkspaceRepository(self.session, WorkspaceScope(workspace_id)).authorize(
+                self.actor, Permission.EXECUTE, write=True
+            )
+
     async def get(self, workspace_id: str, run_id: str) -> Run:
-        """按 Workspace 与 run_id 加载 Run，缺失返回 Problem，RunService.get 遵守本文件边界。
-        get 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
-        """
+        """普通员工按当前空间成员资格读取运行，服务主体只读取当前授权计划的在线运行并复核冻结设备选择；不存在或跨空间的编号统一拒绝，原始证据权限仍由报告入口独立判定。"""
+        if isinstance(self.actor, ServicePrincipal):
+            return await self.actor.run(self.session, workspace_id, run_id)
         await WorkspaceRepository(self.session, WorkspaceScope(workspace_id)).authorize(self.actor)
         run = await self.session.get(Run, run_id)
         if not run or run.workspace_id != workspace_id:
@@ -68,14 +74,19 @@ class RunService:
         return run
 
     async def create(self, workspace_id: str, key: str, data: dict[str, Any]) -> dict[str, Any]:
-        """幂等创建 Run 并展开 CaseExecution/Job；键冲突返回既有结果，RunService.create 遵守本文件边界。
-        create 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
-        """
+        """复用已验证发布来源冻结运行并展开用例矩阵，在创建任何变体前计算既有千条上限；主体权限、设备选择和幂等摘要先行验证，服务账号仅保留创建者归因而不继承员工访问权。"""
         await self.authorize(workspace_id)
         if not key or len(key) > 160:
             raise Problem(400, "IDEMPOTENCY_KEY_REQUIRED", "Bounded idempotency key required")
         request_hash = sha256(
-            canonical_bytes({"actorId": self.actor.id, "request": data})
+            canonical_bytes(
+                {
+                    "actorId": self.actor.token_id
+                    if isinstance(self.actor, ServicePrincipal)
+                    else self.actor.id,
+                    "request": data,
+                }
+            )
         ).hexdigest()
         existing = (
             await self.session.execute(
@@ -103,7 +114,13 @@ class RunService:
                 "Select CASE versions, one SUITE or one immutable draft validation job",
             )
         runtimes = [
-            await RuntimeService(self.session).require_dispatch(self.actor, workspace_id, rid)
+            (
+                await self.actor.runtime(self.session, workspace_id, self.plan_id or "", rid)
+                if isinstance(self.actor, ServicePrincipal)
+                else await RuntimeService(self.session).require_dispatch(
+                    self.actor, workspace_id, rid
+                )
+            )
             for rid in data["runtimeIds"]
         ]
         if not runtimes:
@@ -182,10 +199,36 @@ class RunService:
                         raise Problem(409, "COMPILED_PROVENANCE_REQUIRED", "Compiled bytes differ")
                 root = next(a for a in source["assets"] if a["versionId"] == version.id)
                 selections.append((root, source, validation, receipt.compiled_bundle_sha256))
+        # 先按冻结来源中的数据行、角色和浏览器数量计算矩阵，超过既有上限立即拒绝，避免在安装锁内逐个创建大量快照和数据库对象后才回滚事务。
+        cardinality = 0
+        for root, source, _, _ in selections:
+            assets = {a["versionId"]: a for a in source["assets"]}
+            variants = (
+                root["document"]["cases"]
+                if root["kind"] == "SUITE"
+                else [{"versionId": root["versionId"]}]
+            )
+            for variant in variants:
+                document = assets[variant["versionId"]]["document"]
+                dataset = variant.get("datasetVersionId", document.get("datasetVersionId"))
+                row_count = len(assets[dataset]["document"]["rows"]) if dataset else 1
+                roles = len(
+                    [
+                        r
+                        for r in variant.get("roleKeys", [document["roleKey"]])
+                        if r in data["roleKeys"]
+                    ]
+                )
+                browsers = len(
+                    [b for b in variant.get("browsers", data["browsers"]) if b in data["browsers"]]
+                )
+                cardinality += row_count * roles * browsers
+                if cardinality > 1000:
+                    raise Problem(413, "MATRIX_LIMIT", "Run matrix exceeds 1000 variants")
         run = Run(
             id=str(uuid4()),
             workspace_id=workspace_id,
-            created_by=self.actor.id,
+            created_by=self.attribution,
             idempotency_key=key,
             request_hash=request_hash,
             trigger_kind="DEBUG" if "draftValidationJobId" in data else "MANUAL",
@@ -377,7 +420,10 @@ class RunService:
                                             else {}
                                         ),
                                     },
-                                    created_by=self.actor.id,
+                                    requester_service_token_id=self.actor.token_id
+                                    if isinstance(self.actor, ServicePrincipal)
+                                    else None,
+                                    created_by=self.attribution,
                                     created_at=now(),
                                 )
                             )
@@ -396,11 +442,12 @@ class RunService:
         return run_dto(run)
 
     async def cancel(self, workspace_id: str, run_id: str) -> dict[str, Any]:
-        """请求取消 Run 及其未完成 Job；未启动重试直接收尾，RunService.cancel 遵守本文件边界，失败返回稳定 Problem。
-        cancel 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
-        """
-        await self.authorize(workspace_id)
-        run = await self.get(workspace_id, run_id)
+        """员工取消继续要求空间执行权，独立服务主体则要求当前计划的取消范围并重新核对设备授权；已完成运行返回原有终态，其他运行只请求取消并由现有进程回收路径证明真实停止。"""
+        if isinstance(self.actor, ServicePrincipal):
+            run = await self.actor.run(self.session, workspace_id, run_id, "cancel")
+        else:
+            await self.authorize(workspace_id)
+            run = await self.get(workspace_id, run_id)
         if run.state == "FINISHED":
             return run_dto(run)
         run.state, run.reason_code = "CANCEL_REQUESTED", "USER_CANCELLED"

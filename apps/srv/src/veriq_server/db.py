@@ -4,7 +4,6 @@ uuid/hash 列使用 ascii_bin 校对，邮箱用 utf8mb4_0900_as_ci；复合外�
 Job/Attempt/容量与发布围栏相关约束在表级 CheckConstraint 固化，防止服务层遗漏破坏不变量。
 Database 隐藏连接参数并启用 pool_pre_ping，连接时固定 UTC 时区。"""
 
-
 from datetime import datetime
 from typing import Any
 
@@ -31,6 +30,7 @@ class Base(DeclarativeBase):
     """全部 ORM 模型的声明式基类，集中注册元数据，供 Alembic 迁移脚本与异步引擎共享同一套表定义。表前缀统一为 veriq_。
     Base 实现于 apps/srv/src/veriq_server/db.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
+
     pass
 
 
@@ -42,6 +42,7 @@ class Installation(Base):
     """安装单例行记录是否已初始化以及 setup 密钥摘要；开局与依赖安装护栏的突变必须 FOR UPDATE 该行。该行 id 恒为 1。
     Installation 实现于 apps/srv/src/veriq_server/db.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
+
     __tablename__ = "veriq_installation"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     initialized: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -52,6 +53,7 @@ class User(Base):
     """控制面用户账号：唯一邮箱（大小写不敏感）、Argon2 口令哈希、禁用标记与系统管理员标志。邮箱唯一索引防重复注册。邮箱唯一索引防止重复注册。
     User 实现于 apps/srv/src/veriq_server/db.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
+
     __tablename__ = "veriq_users"
     id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
     email: Mapped[str] = mapped_column(String(254, collation="utf8mb4_0900_as_ci"), unique=True)
@@ -65,6 +67,7 @@ class UserSession(Base):
     """登录会话行仅存令牌 SHA-256 与过期时间；改密或强制吊销通过删除行立即失效 Cookie。token_hash 全局唯一。
     UserSession 实现于 apps/srv/src/veriq_server/db.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
+
     __tablename__ = "veriq_user_sessions"
     id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
     user_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_users.id"), index=True)
@@ -77,6 +80,7 @@ class UserToken(Base):
     """密码重置一次性令牌只存哈希与过期/消费标记；新签发清空同用户旧令牌以保证链接互斥。consumed 标记防二次使用。consumed 标记防止令牌二次使用。
     UserToken 实现于 apps/srv/src/veriq_server/db.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
+
     __tablename__ = "veriq_user_tokens"
     id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
     user_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_users.id"), index=True)
@@ -89,6 +93,7 @@ class AuditLog(Base):
     """安全审计追加日志可绑定 actor、target 与 Workspace，随业务事务提交失败则回滚。不承载业务补偿逻辑。
     AuditLog 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     __tablename__ = "veriq_audit_logs"
     id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
     actor_id: Mapped[str | None] = mapped_column(uuid_type)
@@ -104,6 +109,7 @@ class Workspace(Base):
     """租户 Workspace 持有稳定 ascii key、显示名与归档标记，是资源与授权的根边界。归档后仍保留历史只读。归档后历史数据仍可只读保留。
     Workspace 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     __tablename__ = "veriq_workspaces"
     id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
     key: Mapped[str] = mapped_column(String(160, collation="ascii_bin"), unique=True)
@@ -116,6 +122,7 @@ class WorkspaceMember(Base):
     """Workspace 成员关系以复合主键携带角色与状态，授权查询以此表为真源。status 区分邀请中与生效。status 区分邀请中与已生效成员。
     WorkspaceMember 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     __tablename__ = "veriq_workspace_members"
     workspace_id: Mapped[str] = mapped_column(
         uuid_type, ForeignKey("veriq_workspaces.id"), primary_key=True
@@ -131,6 +138,7 @@ class WorkspaceInvite(Base):
     """成员邀请以 token_hash 唯一，含过期、消费与吊销标志，防止重复接受。revoked 与 consumed 互不复活。
     WorkspaceInvite 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     __tablename__ = "veriq_workspace_invites"
     __table_args__ = (UniqueConstraint("token_hash"),)
     id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
@@ -150,6 +158,7 @@ class Database:
     """异步引擎与会话工厂：READ COMMITTED、utf8mb4、UTC，并 hide_parameters 防日志泄密。
     Database 实现于 apps/srv/src/veriq_server/db.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
+
     def __init__(self, settings: Settings):
         """根据 Settings 创建隐藏 SQL 参数的异步引擎，以及 expire_on_commit=False 的会话工厂供请求复用。
         __init__ 实现于 apps/srv/src/veriq_server/db.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
@@ -175,6 +184,7 @@ class Resource(Base):
     """Workspace 内资源头：kind+key 唯一，跟踪状态与 latest_version_id 发布指针。跨 Workspace 查询必须失败。
     Resource 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     __tablename__ = "veriq_resources"
     __table_args__ = (
         UniqueConstraint("workspace_id", "kind", "key"),
@@ -193,6 +203,7 @@ class ResourceDraft(Base):
     """可编辑草稿以 revision 乐观锁保护 document_json，发布时冻结为不可变版本。更新必须比对 revision。
     ResourceDraft 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     __tablename__ = "veriq_resource_drafts"
     __table_args__ = (
         ForeignKeyConstraint(
@@ -211,6 +222,7 @@ class ResourceVersion(Base):
     """不可变已发布版本绑定草稿修订、哈希、引擎与校验回执，禁止就地改写历史。version_no 在资源内递增。version_no 在同一资源内单调递增。
     ResourceVersion 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     __tablename__ = "veriq_resource_versions"
     __table_args__ = (
         UniqueConstraint("resource_id", "version_no"),
@@ -239,6 +251,7 @@ class ResourceDependency(Base):
     """同 Workspace 版本依赖边两侧外键均带 workspace_id，阻断跨租户引用。依赖版本必须同租户。依赖版本必须与引用方同租户。
     ResourceDependency 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     __tablename__ = "veriq_resource_dependencies"
     __table_args__ = (
         ForeignKeyConstraint(
@@ -460,6 +473,7 @@ class SecretRef(Base):
     SecretRef 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     SecretRef 触及凭证材料：管理面不得回传明文，日志与审计只能保留摘要或引用标识。
     """
+
     __tablename__ = "veriq_secret_refs"
     workspace_id: Mapped[str] = mapped_column(
         uuid_type, ForeignKey("veriq_workspaces.id"), primary_key=True
@@ -473,6 +487,7 @@ class SecretVersion(Base):
     SecretVersion 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     SecretVersion 触及凭证材料：管理面不得回传明文，日志与审计只能保留摘要或引用标识。
     """
+
     __tablename__ = "veriq_secret_versions"
     __table_args__ = (
         ForeignKeyConstraint(
@@ -496,6 +511,7 @@ class AuthAdapterVersion(Base):
     """认证适配器不可变版本含内容哈希与配置 JSON，可吊销但不可改历史字节。content_hash 用于快照钉死。content_hash 用于执行快照钉死。
     AuthAdapterVersion 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     __tablename__ = "veriq_auth_adapter_versions"
     id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
     workspace_id: Mapped[str] = mapped_column(
@@ -511,6 +527,7 @@ class Runtime(Base):
     """执行设备 Runtime：用户或服务账号二选一所有者，含信任状态、位置与能力。trust_status 影响正式门禁资格。
     Runtime 实现于 apps/srv/src/veriq_server/db.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
+
     __tablename__ = "veriq_runtimes"
     __table_args__ = (
         CheckConstraint(
@@ -535,6 +552,7 @@ class RuntimeBinding(Base):
     """Runtime 与 Workspace 绑定：共享范围、凭据投递许可与激活状态。active=false 立即切断派发。
     RuntimeBinding 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     __tablename__ = "veriq_runtime_bindings"
     runtime_id: Mapped[str] = mapped_column(
         uuid_type, ForeignKey("veriq_runtimes.id"), primary_key=True
@@ -551,6 +569,7 @@ class RuntimeGrant(Base):
     """私有 Runtime 显式共享给 Workspace 内具名用户的授权行，非全员默认开放。授权变更需管理权限。变更共享授权需要管理工作区权限。
     RuntimeGrant 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     __tablename__ = "veriq_runtime_grants"
     __table_args__ = (
         ForeignKeyConstraint(
@@ -567,6 +586,7 @@ class RuntimeEnrollment(Base):
     """人机注册请求仅存审批码与轮询密钥哈希，短窗过期不可复活，明文不落库。审批与轮询密钥职责分离。审批码与轮询密钥职责严格分离。
     RuntimeEnrollment 实现于 apps/srv/src/veriq_server/db.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
+
     __tablename__ = "veriq_runtime_enrollments"
     id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
     user_code_hash: Mapped[str] = mapped_column(hash_type, unique=True)
@@ -585,6 +605,7 @@ class RuntimeToken(Base):
     """设备凭证代际以哈希存当前/候选轮换令牌，配合 fencing 防旧代重放。轮换候选未确认前不覆盖当前。轮换候选未确认前不覆盖当前令牌。
     RuntimeToken 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     __tablename__ = "veriq_runtime_tokens"
     id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
     runtime_id: Mapped[str] = mapped_column(uuid_type)
@@ -607,6 +628,7 @@ class ServiceAccount(Base):
     """Workspace 服务账号用于无人值守 Runtime 注册与维护触发，禁用后令牌失效。名称仅在 Workspace 内有意义。
     ServiceAccount 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     __tablename__ = "veriq_service_accounts"
     id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
     workspace_id: Mapped[str] = mapped_column(
@@ -622,6 +644,7 @@ class ServiceToken(Base):
     """服务账号令牌只存哈希可吊销，供 /internal 维护与 service enroll 消费。吊销立即拒绝后续 Bearer。
     ServiceToken 实现于 apps/srv/src/veriq_server/db.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
+
     __tablename__ = "veriq_service_tokens"
     id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
     service_account_id: Mapped[str] = mapped_column(
@@ -630,9 +653,26 @@ class ServiceToken(Base):
     token_hash: Mapped[str] = mapped_column(hash_type, unique=True)
     purpose: Mapped[str] = mapped_column(String(40, collation="ascii_bin"))
     operation_scopes: Mapped[list[str] | None] = mapped_column(JSON)
+    plan_scopes: Mapped[list[str] | None] = mapped_column(JSON)
     expires_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
     consumed_at: Mapped[datetime | None] = mapped_column(DATETIME(fsp=6))
     revoked_at: Mapped[datetime | None] = mapped_column(DATETIME(fsp=6))
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+
+
+class ExecutionPlan(Base):
+    """执行计划保存经授权的已发布资源选择与并发修订号，每次触发独立冻结配置并递增计划内序号，归档保留历史关联而不允许继续派发新任务或扩大服务令牌权限。"""
+
+    __tablename__ = "veriq_execution_plans"
+    __table_args__ = (UniqueConstraint("workspace_id", "id"),)
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_workspaces.id"))
+    name: Mapped[str] = mapped_column(String(160))
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+    next_sequence: Mapped[int] = mapped_column(Integer, default=0)
+    archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    selection: Mapped[dict[str, Any]] = mapped_column(JSON)
+    created_by: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_users.id"))
     created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
 
 
@@ -640,6 +680,7 @@ class Run(Base):
     """一次套件/用例执行批次：幂等键绑定意图，状态机受 30 分钟预算与取消约束。idempotency_key 防重复创建。
     Run 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     __tablename__ = "veriq_runs"
     __table_args__ = (
         ForeignKeyConstraint(
@@ -648,10 +689,22 @@ class Run(Base):
         ),
         UniqueConstraint("workspace_id", "id"),
         UniqueConstraint("workspace_id", "idempotency_key"),
+        UniqueConstraint("plan_id", "plan_sequence", name="uq_run_plan_sequence"),
+        ForeignKeyConstraint(
+            ["workspace_id", "plan_id"],
+            ["veriq_execution_plans.workspace_id", "veriq_execution_plans.id"],
+            name="fk_run_plan",
+        ),
     )
     id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
     workspace_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_workspaces.id"))
     created_by: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_users.id"))
+    plan_id: Mapped[str | None] = mapped_column(uuid_type)
+    plan_revision: Mapped[int | None] = mapped_column(Integer)
+    plan_sequence: Mapped[int | None] = mapped_column(Integer)
+    requester_service_token_id: Mapped[str | None] = mapped_column(
+        uuid_type, ForeignKey("veriq_service_tokens.id")
+    )
     idempotency_key: Mapped[str] = mapped_column(String(160, collation="ascii_bin"))
     request_hash: Mapped[str] = mapped_column(hash_type)
     trigger_kind: Mapped[str] = mapped_column(String(24, collation="ascii_bin"))
@@ -667,6 +720,7 @@ class CaseExecution(Base):
     """Run 内单用例执行：绑定发布或冻结草稿版本，并聚合 Attempt 结果与门禁。与 Job.subject 外键对齐。
     CaseExecution 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     __tablename__ = "veriq_case_executions"
     __table_args__ = (
         UniqueConstraint("workspace_id", "run_id", "id"),
@@ -709,6 +763,7 @@ class Attempt(Base):
     """Job 一次领取尝试：租约、围栏、阶段与容量；过期或未知进程失权威并隔离容量。lease_token 仅存哈希。lease_token 仅以哈希形式持久化。
     Attempt 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     __tablename__ = "veriq_attempts"
     __table_args__ = (
         Index("ix_veriq_attempt_expiry", "workspace_id", "phase", "lease_expires_at", "id"),
@@ -771,6 +826,7 @@ class CapacityPool(Base):
     """命名容量池 claim 时固定顺序加锁增减 used；默认全局浏览器 4、Workspace 2。used 不得超过 limit。
     CapacityPool 实现于 apps/srv/src/veriq_server/db.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
+
     __tablename__ = "veriq_capacity_pools"
     key: Mapped[str] = mapped_column(String(240, collation="ascii_bin"), primary_key=True)
     limit: Mapped[int] = mapped_column(Integer)
@@ -783,6 +839,7 @@ class ResourceLease(Base):
     ResourceLease 路径涉及租约或 fencing：过期、错配令牌或不属于本设备的占用必须失败关闭而非降级继续。
     ResourceLease 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     __tablename__ = "veriq_resource_leases"
     __table_args__ = (
         ForeignKeyConstraint(
@@ -802,6 +859,7 @@ class ClaimReceipt(Base):
     ClaimReceipt 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     ClaimReceipt 的领取/竞争语义依赖数据库锁或原子更新，禁止先读计数再无锁启动执行。
     """
+
     __tablename__ = "veriq_claim_receipts"
     __table_args__ = (
         Index("ix_veriq_claim_idle", "runtime_id", "attempt_id"),
@@ -827,6 +885,7 @@ class AttemptEvent(Base):
     """执行事件流条目须在有效租约与围栏校验后按序追加，供报告只读消费。序号冲突拒绝写入。序号冲突时拒绝写入事件；AttemptEvent 的查询与外键均不得跨租户拼接。
     AttemptEvent 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     __tablename__ = "veriq_attempt_events"
     __table_args__ = (
         ForeignKeyConstraint(
@@ -844,6 +903,7 @@ class AttemptUpload(Base):
     """在线证据上传会话分块写入并与 publication 围栏联动，提交前对报告不可见。完成后才提交 publication。
     AttemptUpload 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     __tablename__ = "veriq_attempt_uploads"
     __table_args__ = (
         ForeignKeyConstraint(
@@ -865,6 +925,7 @@ class MaintenanceReceipt(Base):
     """幂等维护触发回执以 key 绑定操作，清理 Job 以其标识为 subject_id。相同 key 重放同一回执。相同 key 重放返回同一回执。
     MaintenanceReceipt 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     __tablename__ = "veriq_maintenance_receipts"
     __table_args__ = (UniqueConstraint("workspace_id", "id"),)
     id: Mapped[str] = mapped_column(uuid_type)
@@ -883,6 +944,7 @@ class AiProvider(Base):
     AiProvider 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     AiProvider 属于 AI 辅助路径：无有效 Provider 时不得假装成功，模型输出不得自动发布为正式资产。
     """
+
     __tablename__ = "veriq_ai_providers"
     id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
     workspace_id: Mapped[str] = mapped_column(
@@ -903,6 +965,7 @@ class AiGeneration(Base):
     AiGeneration 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     AiGeneration 属于 AI 辅助路径：无有效 Provider 时不得假装成功，模型输出不得自动发布为正式资产。
     """
+
     __tablename__ = "veriq_ai_generations"
     __table_args__ = (
         UniqueConstraint("workspace_id", "request_id", name="uq_ai_request"),
@@ -927,6 +990,7 @@ class Bundle(Base):
     """离线导出包元数据含清单哈希、过期与签名信息；字节由导出流水线组装签名。下载需 Workspace 授权。下载接口必须校验 Workspace 授权。
     Bundle 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     __tablename__ = "veriq_bundles"
     id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
     workspace_id: Mapped[str] = mapped_column(
@@ -946,6 +1010,7 @@ class BundleExport(Base):
     """导出幂等预订用 Idempotency-Key 绑定 Workspace 与请求指纹，同键可安全重放。并发导出受信号量限制。
     BundleExport 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     __tablename__ = "veriq_bundle_exports"
     __table_args__ = (UniqueConstraint("workspace_id", "idempotency_key"),)
     id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
@@ -987,6 +1052,7 @@ class OfflineImportKey(Base):
     OfflineImportKey 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     OfflineImportKey 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
     """
+
     __tablename__ = "veriq_offline_import_keys"
     __table_args__ = (
         ForeignKeyConstraint(
@@ -1005,6 +1071,7 @@ class OfflineAttempt(Base):
     """导入生成的离线 Attempt 投影供报告只读；变体缺失时正式门禁保持未通过。不参与在线领取状态机。不参与在线领取与租约状态机。
     OfflineAttempt 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     __tablename__ = "veriq_offline_attempts"
     __table_args__ = (
         ForeignKeyConstraint(
@@ -1039,6 +1106,7 @@ class OfflineImportUpload(Base):
     OfflineImportUpload 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     OfflineImportUpload 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
     """
+
     __tablename__ = "veriq_offline_import_uploads"
     __table_args__ = (
         UniqueConstraint("workspace_id", "id"),

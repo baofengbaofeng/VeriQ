@@ -3,7 +3,6 @@ consume 只接受未吊销哈希匹配令牌；require_maintenance 额外校验�
 DTO 与列表响应不返回令牌明文，签发接口仅当时回显一次。
 """
 
-
 import secrets
 from datetime import timedelta
 from typing import Any
@@ -11,7 +10,7 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth.authorization import Permission, WorkspaceScope
-from ..db import ServiceAccount, ServiceToken, User, Workspace
+from ..db import ServiceAccount, ServiceToken, User, Workspace, ExecutionPlan
 from ..service import Problem, audit, digest, now, stamp
 from .workspace import WorkspaceRepository
 
@@ -20,6 +19,7 @@ class ServiceAccountService:
     """编排服务账号生命周期与令牌签发校验，突变限定在已授权 Workspace，ServiceAccountService 遵守本文件 Workspace/事务边界。
     ServiceAccountService 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     def __init__(self, session: AsyncSession):
         """注入数据库会话；令牌哈希与审计辅助复用 service 层公共函数，ServiceAccountService.__init__ 遵守本文件 Workspace/事务边界。
         __init__ 实现于 apps/srv/src/veriq_server/services/service_account.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
@@ -66,22 +66,42 @@ class ServiceAccountService:
         account: ServiceAccount,
         purpose: str = "RUNTIME_ENROLLMENT",
         operations: list[str] | None = None,
+        plan_ids: list[str] | None = None,
     ) -> dict[str, Any]:
-        """签发新服务令牌，明文仅返回一次，库内只存哈希，可同时吊销旧令牌，ServiceAccountService.issue 遵守本文件 Workspace/事务边界。
-        issue 实现于 apps/srv/src/veriq_server/services/service_account.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
-        """
+        """令牌用途严格区分设备注册、维护操作和计划执行，执行令牌必须限定当前空间的有效计划及独立操作集合；明文只在本次签发返回，数据库保存哈希且不把创建者登录状态当作服务账号权限。"""
         await self.authorize(actor, account.workspace_id, write=True)
         if account.disabled:
             raise Problem(403, "SERVICE_ACCOUNT_DISABLED", "Service account is disabled")
-        allowed = {"expired-leases/reap", "fixture-cleanups/reconcile", "capacity/reconcile", "artifacts/expire"}
+        allowed = {
+            "expired-leases/reap",
+            "fixture-cleanups/reconcile",
+            "capacity/reconcile",
+            "artifacts/expire",
+        }
         if (
-            purpose not in {"RUNTIME_ENROLLMENT", "MAINTENANCE"}
+            purpose not in {"RUNTIME_ENROLLMENT", "MAINTENANCE", "EXECUTION"}
             or (purpose == "MAINTENANCE" and (not operations or not set(operations) <= allowed))
+            or (operations is not None and len(operations) != len(set(operations)))
             or (purpose == "RUNTIME_ENROLLMENT" and operations)
+            or (purpose != "EXECUTION" and plan_ids)
+            or (
+                purpose == "EXECUTION"
+                and (
+                    not operations
+                    or not set(operations) <= {"trigger", "read", "cancel"}
+                    or not plan_ids
+                    or len(plan_ids) > 50
+                    or len(plan_ids) != len(set(plan_ids))
+                )
+            )
         ):
             raise Problem(
                 400, "INVALID_SERVICE_SCOPE", "Explicit bounded maintenance operations required"
             )
+        for plan_id in plan_ids or []:
+            plan = await self.session.get(ExecutionPlan, plan_id)
+            if not plan or plan.workspace_id != account.workspace_id or plan.archived:
+                raise Problem(422, "INVALID_PLAN_SCOPE", "Active Workspace plan required")
         secret = secrets.token_urlsafe(32)
         row = ServiceToken(
             id=str(uuid4()),
@@ -89,6 +109,7 @@ class ServiceAccountService:
             token_hash=digest(secret),
             purpose=purpose,
             operation_scopes=operations,
+            plan_scopes=plan_ids,
             expires_at=now()
             + (timedelta(minutes=10) if purpose == "RUNTIME_ENROLLMENT" else timedelta(hours=24)),
             created_at=now(),

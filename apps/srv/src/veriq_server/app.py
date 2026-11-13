@@ -1,4 +1,3 @@
-
 """Tornado 应用装配：将 /api 与 /internal 路由映射到处理器，注入重置投递、身份注册表、导出槽与尝试证明校验器。
 
 公开 API 与内部维护/领取端点共用 handler_for 分发；未知路径落入 UnknownAPI 返回稳定 404。
@@ -24,6 +23,7 @@ from .handlers.credential import CredentialAPI, CredentialResolveAPI, AuthAdapte
 from .handlers.service_account import ServiceAccountAPI
 from .handlers.execution import ExecutionAPI
 from .handlers.run import RunAPI, AttemptAuditAPI
+from .handlers.trigger import ExecutionPlanAPI, TriggerAPI, CIReportAPI
 from .handlers.report import ReportAPI
 from .handlers.ai import AiAPI
 from .handlers.bundle import BundleAPI, NativeBundleAPI
@@ -62,6 +62,12 @@ def handler_for(action: str) -> type[API]:
     """按路由动作名选择具体 API 处理器类；当动作未匹配时回退到 UnknownAPI，handler_for 的失败路径返回稳定错误。
     handler_for 实现于 apps/srv/src/veriq_server/app.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
+    if action in {"execution-plans", "execution-plan"}:
+        return ExecutionPlanAPI
+    if action == "plan-trigger":
+        return TriggerAPI
+    if action in {"ci-report", "ci-junit"}:
+        return CIReportAPI
     if action == "native-result-imports":
         return NativeImportAPI
     if action == "native-result-import-uploads":
@@ -182,6 +188,17 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
     delivery = delivery or (SMTPDelivery(settings) if settings.smtp_host else None)
     reset_dispatcher = ResetDispatcher(db, settings, delivery)
     routes = [
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/execution-plans", "execution-plans"),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/execution-plans/([0-9a-fA-F-]{36})",
+            "execution-plan",
+        ),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/execution-plans/([0-9a-fA-F-]{36})/trigger",
+            "plan-trigger",
+        ),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runs/([0-9a-fA-F-]{36})/ci-report", "ci-report"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runs/([0-9a-fA-F-]{36})/junit", "ci-junit"),
         ("/internal/v1/issuer", "issuer-trust"),
         (
             "/internal/v1/workspaces/([0-9a-fA-F-]{36})/bundles/([0-9a-fA-F-]{36})/download",

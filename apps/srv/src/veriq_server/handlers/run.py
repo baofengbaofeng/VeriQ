@@ -6,23 +6,27 @@ from ..service import lock_installation
 from ..services.runs import RunService, run_dto
 from ..services.workspace import WorkspaceRepository
 from .base import API
+from .trigger import ScopedExecutionAPI
+from ..services.execution_principal import ServicePrincipal
 
 
-class RunAPI(API):
-    """工作区 Run 调度入口：幂等创建、取消以及按 Workspace 边界列出/读取 Run；创建使用 Idempotency-Key，取消针对既有 run_id。
-    RunAPI 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
-    """
+class RunAPI(ScopedExecutionAPI):
+    """运行入口显式区分员工会话与独立执行令牌，员工仍可创建和分页读取空间运行；服务令牌只允许读取或取消授权计划产生的单个运行，所有写操作在安装锁内复核当前权限和不可变关联。"""
 
     async def post(self, workspace_id: str, run_id: str | None = None) -> None:
-        """POST 用 Idempotency-Key 创建 Run（202）或取消既有 Run；全程持安装锁；创建成功返回 202，表示已接受调度而非执行完成。
-        post 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
-        """
+        """普通员工通过既有幂等键创建运行，执行令牌必须使用计划触发入口而不能直接覆盖环境或资源选择；取消则委托运行服务检查相应主体的当前权限，接受请求不代表底层执行进程已停止。"""
         data = self.body("RunCreate" if self.action == "runs" else "CancelRequest")
         async with self.db.sessions.begin() as session:
             await lock_installation(session)
-            user, _ = await self.identity(session)
+            user = await self.principal(session)
             service = RunService(session, user)
             if self.action == "runs":
+                if isinstance(user, ServicePrincipal):
+                    from ..service import Problem
+
+                    raise Problem(
+                        403, "PLAN_REQUIRED", "Service token must trigger an authorized plan"
+                    )
                 result = await service.create(
                     workspace_id, self.request.headers.get("Idempotency-Key", ""), data
                 )
@@ -32,15 +36,19 @@ class RunAPI(API):
         self.respond(result, 202 if self.action == "runs" else 200)
 
     async def get(self, workspace_id: str, run_id: str | None = None) -> None:
-        """GET 读取单个 Run 或在 VIEW 授权后以 id 游标分页列出工作区 Run；单条读取走 RunService.get，内部再校验工作区边界。
-        get 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
-        """
+        """单个运行读取允许员工或受限计划主体并由服务重新核对当前授权，空间列表仅允许员工成员枚举；即使 Bearer 同时携带有效 Cookie，也不能回退会话身份获得全部运行的列表权限。"""
         async with self.db.sessions.begin() as session:
             await lock_installation(session)
-            user, _ = await self.identity(session)
+            user = await self.principal(session)
             if run_id:
                 result = run_dto(await RunService(session, user).get(workspace_id, run_id))
             else:
+                if isinstance(user, ServicePrincipal):
+                    from ..service import Problem
+
+                    raise Problem(
+                        403, "PLAN_REQUIRED", "Service token cannot enumerate Workspace Runs"
+                    )
                 # 列表路径先做 Workspace 成员校验，防止跨租户枚举 Run id。
                 await WorkspaceRepository(session, WorkspaceScope(workspace_id)).authorize(user)
                 page = Page.read(

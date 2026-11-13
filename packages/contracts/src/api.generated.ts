@@ -571,7 +571,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["downloadJunit"];
+        get: operations["getCIJUnit"];
         put?: never;
         post?: never;
         delete?: never;
@@ -991,7 +991,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: operations["listServiceTokens"];
         put?: never;
         post: operations["issueServiceToken"];
         delete?: never;
@@ -1960,6 +1960,22 @@ export interface paths {
         };
         get?: never;
         put: operations["uploadNativeOfflineChunk"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/runs/{runId}/ci-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getCIReport"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -3276,20 +3292,27 @@ export interface components {
             browsers: components["schemas"]["Browser"][];
             runtimeIds: components["schemas"]["Id"][];
             /** @enum {string} */
-            overlapPolicy: "ALLOW" | "SKIP" | "QUEUE";
+            overlapPolicy: "QUEUE" | "SKIP" | "REJECT";
             maxCaseRetries: number;
+            roleKeys: string[];
+            variables: components["schemas"]["JsonObject"];
+            revision?: number;
         };
         ExecutionPlanDTO: {
-            id: components["schemas"]["Id"];
-            workspaceId: components["schemas"]["Id"];
             name: string;
             suiteVersionId: components["schemas"]["Id"];
             environmentVersionId: components["schemas"]["Id"];
             browsers: components["schemas"]["Browser"][];
             runtimeIds: components["schemas"]["Id"][];
             /** @enum {string} */
-            overlapPolicy: "ALLOW" | "SKIP" | "QUEUE";
+            overlapPolicy: "QUEUE" | "SKIP" | "REJECT";
             maxCaseRetries: number;
+            roleKeys: string[];
+            variables: components["schemas"]["JsonObject"];
+            revision: number;
+            id: components["schemas"]["Id"];
+            workspaceId: components["schemas"]["Id"];
+            archived: boolean;
         };
         TriggerRequest: {
             buildSha?: string;
@@ -3578,7 +3601,7 @@ export interface components {
             id: components["schemas"]["Id"];
             token: string;
             /** @enum {unknown} */
-            purpose: "RUNTIME_ENROLLMENT" | "MAINTENANCE";
+            purpose: "RUNTIME_ENROLLMENT" | "MAINTENANCE" | "EXECUTION";
             expiresAt: components["schemas"]["Timestamp"];
         };
         HealthDTOEnvelope: {
@@ -4018,9 +4041,10 @@ export interface components {
         };
         ServiceTokenIssue: {
             /** @enum {unknown} */
-            purpose: "RUNTIME_ENROLLMENT" | "MAINTENANCE";
-            operations?: ("expired-leases/reap" | "fixture-cleanups/reconcile" | "capacity/reconcile" | "artifacts/expire")[];
-        };
+            purpose: "RUNTIME_ENROLLMENT" | "MAINTENANCE" | "EXECUTION";
+            operations?: ("expired-leases/reap" | "fixture-cleanups/reconcile" | "capacity/reconcile" | "artifacts/expire" | "trigger" | "read" | "cancel")[];
+            planIds?: components["schemas"]["Id"][];
+        } & (unknown & unknown & unknown);
         ServiceEnrollmentRequest: {
             name: string;
             capabilities: components["schemas"]["RuntimeCapabilitiesV1"];
@@ -4290,6 +4314,59 @@ export interface components {
         };
         OfflineChunkDTOEnvelope: {
             data: components["schemas"]["OfflineChunkDTO"];
+            requestId: components["schemas"]["Id"];
+        };
+        ExecutionPlanArchive: {
+            revision: number;
+        };
+        TriggerReceipt: {
+            /** @enum {unknown} */
+            decision: "ENQUEUED" | "REUSED" | "SKIPPED";
+            runId: components["schemas"]["Id"];
+            statusUrl: string;
+        };
+        TriggerReceiptEnvelope: {
+            data: components["schemas"]["TriggerReceipt"];
+            requestId: components["schemas"]["Id"];
+        };
+        CIReport: {
+            run: components["schemas"]["RunDTO"];
+            gatePassed: boolean;
+            cases: {
+                id: components["schemas"]["Id"];
+                /** @enum {unknown} */
+                state: "QUEUED" | "RUNNING" | "FINISHED";
+                /** @enum {string|null} */
+                outcome: "PASSED" | "FAILED" | "ERROR" | "UNSTABLE" | "CANCELLED" | "INCOMPLETE" | "SKIPPED" | null;
+            }[];
+            statistics: {
+                caseCount: number;
+                firstPassCount: number;
+                retryPassCount: number;
+                infrastructureErrorCount: number;
+            };
+        };
+        CIReportEnvelope: {
+            data: components["schemas"]["CIReport"];
+            requestId: components["schemas"]["Id"];
+        };
+        ServiceTokenMetadata: {
+            id: components["schemas"]["Id"];
+            /** @enum {unknown} */
+            purpose: "RUNTIME_ENROLLMENT" | "MAINTENANCE" | "EXECUTION";
+            operations: string[];
+            planIds: components["schemas"]["Id"][];
+            /** Format: date-time */
+            expiresAt: string;
+            revoked: boolean;
+            consumed: boolean;
+        };
+        ServiceTokenPage: {
+            items: components["schemas"]["ServiceTokenMetadata"][];
+            nextCursor: string | null;
+        };
+        ServiceTokenPageEnvelope: {
+            data: components["schemas"]["ServiceTokenPage"];
             requestId: components["schemas"]["Id"];
         };
         /** @description JSON used only in interpolated DSL fields, recursively restricted to SafeString bindings. */
@@ -7604,7 +7681,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExecutionPlanArchive"];
+            };
+        };
         responses: {
             /** @description Success. */
             200: {
@@ -8623,12 +8704,21 @@ export interface operations {
         };
         responses: {
             /** @description Success. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TriggerReceiptEnvelope"];
+                };
+            };
+            /** @description Success. */
             202: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RunDTOEnvelope"];
+                    "application/json": components["schemas"]["TriggerReceiptEnvelope"];
                 };
             };
             /** @description Stable JSON error; code is a machine-readable domain code. */
@@ -9310,7 +9400,7 @@ export interface operations {
             };
         };
     };
-    downloadJunit: {
+    getCIJUnit: {
         parameters: {
             query?: never;
             header?: never;
@@ -9322,13 +9412,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Authorized artifact stream. */
+            /** @description Success. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/octet-stream": string;
+                    "application/xml": string;
                 };
             };
             /** @description Stable JSON error; code is a machine-readable domain code. */
@@ -11818,7 +11908,9 @@ export interface operations {
     };
     getWorkspaceAudit: {
         parameters: {
-            query?: never;
+            query?: {
+                after?: components["schemas"]["Id"];
+            };
             header?: never;
             path: {
                 workspaceId: components["schemas"]["Id"];
@@ -11883,6 +11975,95 @@ export interface operations {
             };
             /** @description Error */
             410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listServiceTokens: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                serviceAccountId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceTokenPageEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -16088,7 +16269,9 @@ export interface operations {
     };
     getAttemptHistory: {
         parameters: {
-            query?: never;
+            query?: {
+                after?: number;
+            };
             header?: never;
             path: {
                 workspaceId: components["schemas"]["Id"];
@@ -16956,6 +17139,92 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OfflineChunkDTOEnvelope"];
+                };
+            };
+        };
+    };
+    getCIReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                runId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CIReportEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
         };

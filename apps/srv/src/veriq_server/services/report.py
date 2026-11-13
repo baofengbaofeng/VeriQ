@@ -3,7 +3,6 @@ redact 递归剥离秘密；offline_report 以保守门禁展示导入结果。
 原始 Trace 等敏感产物另需更强权限，不在普通报告中内联字节。
 """
 
-
 import base64
 import json
 from hashlib import sha256
@@ -34,6 +33,7 @@ from ..contracts import canonical_bytes
 from cryptography.exceptions import InvalidTag
 from ..settings import Settings
 from .workspace import WorkspaceRepository
+from .execution_principal import ServicePrincipal
 from .runs import run_dto
 from .gate import gate, current_gate
 from .artifact import listed_offline_artifact
@@ -93,17 +93,22 @@ class ReportService:
     """组装报告 DTO、事件流、产物列表与审计页，强制 Workspace 边界，ReportService 遵守本文件边界。
     ReportService 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
     """
-    def __init__(self, session: AsyncSession, user: User, settings: Settings):
-        """注入会话、用户与设置，授权经 Workspace 成员角色判定，ReportService.__init__ 遵守本文件边界。
-        __init__ 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
-        """
+
+    def __init__(self, session: AsyncSession, user: User | ServicePrincipal, settings: Settings):
+        """报告服务接收员工或独立服务主体以复用同一权威运行事实，服务主体仅供安全计划摘要路径使用；原始事件、制品和审计入口仍明确要求员工，不能因为支持 CI 汇总而继承原始证据访问权。"""
         self.session, self.user, self.settings = session, user, settings
 
+    def employee(self) -> User:
+        """普通事件、证据和审计读取仍必须由员工主体发起，执行令牌只能使用按计划授权的运行汇总；此处集中拒绝独立服务主体，避免新增安全摘要接口时意外扩大原始报告材料的访问面。"""
+        if isinstance(self.user, ServicePrincipal):
+            raise Problem(403, "EMPLOYEE_REQUIRED", "Employee report permission required")
+        return self.user
+
     async def run(self, scope: WorkspaceScope, run_id: str) -> Run:
-        """加载 Run 并校验其属于当前 Workspace 作用域，ReportService.run 遵守本文件边界，失败返回稳定 Problem。
-        run 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
-        """
-        await WorkspaceRepository(self.session, scope).authorize(self.user)
+        """加载运行前按主体类型检查当前空间成员权或显式计划读取范围，服务令牌还需保有快照设备的当前授权；离线导入不进入服务计划读取路径，跨空间编号始终不能用于绕过归属校验。"""
+        if isinstance(self.user, ServicePrincipal):
+            return await self.user.run(self.session, scope.workspace_id, run_id)
+        await WorkspaceRepository(self.session, scope).authorize(self.employee())
         run = await self.session.get(Run, run_id)
         if not run or run.workspace_id != scope.workspace_id:
             raise Problem(404, "RUN_NOT_FOUND", "Run not found")
@@ -276,7 +281,7 @@ class ReportService:
         """按 ID 加载 Attempt，并校验 Workspace 归属关系，ReportService.attempt 遵守本文件边界。
         attempt 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
         """
-        await WorkspaceRepository(self.session, scope).authorize(self.user)
+        await WorkspaceRepository(self.session, scope).authorize(self.employee())
         attempt = await self.session.get(Attempt, attempt_id)
         if not attempt or attempt.workspace_id != scope.workspace_id:
             raise Problem(404, "ATTEMPT_NOT_FOUND", "Attempt not found")
@@ -344,7 +349,7 @@ class ReportService:
         """
         offline = await self.session.get(OfflineAttempt, attempt_id)
         if offline and offline.workspace_id == scope.workspace_id:
-            await WorkspaceRepository(self.session, scope).authorize(self.user)
+            await WorkspaceRepository(self.session, scope).authorize(self.employee())
             rows = offline.document["events"][after : after + limit + 1]
             offline_items: list[dict[str, Any]] = []
             total = 0
@@ -443,7 +448,7 @@ class ReportService:
         """
         offline = await self.session.get(OfflineAttempt, attempt_id)
         if offline and offline.workspace_id == scope.workspace_id:
-            await WorkspaceRepository(self.session, scope).authorize(self.user)
+            await WorkspaceRepository(self.session, scope).authorize(self.employee())
             imported = await self.session.get(OfflineImport, offline.import_id)
             assert imported is not None
             offline_rows = (
@@ -508,7 +513,7 @@ class ReportService:
         """读取 Workspace 审计日志页，支持 after 游标翻页，ReportService.audit 遵守本文件边界。
         audit 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
         """
-        await WorkspaceRepository(self.session, scope).authorize(self.user)
+        await WorkspaceRepository(self.session, scope).authorize(self.employee())
         rows = list(
             (
                 await self.session.execute(
