@@ -16,7 +16,7 @@
                     "ExceptionHandling": 1
                 }
             },
-            "libraries": ["Advapi32.lib"]
+            "libraries": ["Advapi32.lib", "ntdll.lib"]
         },
         {
             "target_name": "veriq_guardian",
@@ -74,7 +74,7 @@
                             "ExceptionHandling": 1
                         }
                     },
-                    "libraries": ["Advapi32.lib"]
+                    "libraries": ["Advapi32.lib", "ntdll.lib"]
                 },
                 {
                     "target_name": "veriq_response_scheduled",
@@ -87,7 +87,7 @@
                             "ExceptionHandling": 1
                         }
                     },
-                    "libraries": ["Advapi32.lib"]
+                    "libraries": ["Advapi32.lib", "ntdll.lib"]
                 }
             ]
         }]

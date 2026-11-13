@@ -1,5 +1,6 @@
 /** Windows Node-API 适配器只暴露本机私有管道、当前用户 ACL 与精确进程身份操作；阻塞内核 I/O 在工作线程执行，关闭事件取消全部重叠请求，JavaScript 回调通过受限生命周期的线程安全队列交付。 */
 #include "windows-common.h"
+#include "windows-files.h"
 #include <napi.h>
 #include <atomic>
 #include <memory>
@@ -351,38 +352,53 @@ static Napi::Value signalStop(const Napi::CallbackInfo& info) {
         return info.Env().Undefined();
     } catch (const std::exception& error) { Napi::Error::New(info.Env(), error.what()).ThrowAsJavaScriptException(); return info.Env().Undefined(); }
 }
-/** 文件 ACL 入口只作用于当前用户拥有且非重解析点的对象；新目录带私有安全描述符创建，已有目录必须先验证，不允许借初始化路径把其他用户的文件权限强行修改为本用户所有。 */
+/** 私有文件接口只把明确不存在映射为 Node 的 ENOENT，供首次配置创建处理；ACL、重解析与提交不确定性保留各自固定错误码，错误对象不附加配置内容或路径，也不把失败伪装成空数据。 */
+static Napi::Value fileFailure(const Napi::CallbackInfo& info, const NativeFailure& failure) {
+    auto error = Napi::Error::New(info.Env(), failure.what());
+    if (std::string(failure.what()) == "NATIVE_PATH_UNAVAILABLE" &&
+        (failure.win32 == ERROR_FILE_NOT_FOUND || failure.win32 == ERROR_PATH_NOT_FOUND)) error.Set("code", "ENOENT");
+    error.Set("win32", failure.win32);
+    error.ThrowAsJavaScriptException();
+    return info.Env().Undefined();
+}
+/** 文件 ACL 入口只作用于当前用户拥有且整条祖先链无重解析点的对象，创建时即安装私有可继承目录权限；已有公共对象保持拒绝，不能借初始化路径把历史公开配置自动收紧并当成合法迁移。 */
 static Napi::Value privatePath(const Napi::CallbackInfo& info) {
     try {
         require(info.Length() == 2 && info[0].IsString() && info[1].IsBoolean(), "NATIVE_PATH_INVALID");
-        auto path = wide(info[0].As<Napi::String>().Utf8Value());
-        bool create = info[1].As<Napi::Boolean>();
-        if (create) {
-            PrivateSecurity security;
-            require(CreateDirectoryW(path.c_str(), &security.attributes) || GetLastError() == ERROR_ALREADY_EXISTS, "NATIVE_DIRECTORY_CREATE_FAILED");
-        }
-        Handle file(CreateFileW(path.c_str(), READ_CONTROL | FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS, nullptr));
-        require(file.valid(), "NATIVE_PATH_UNAVAILABLE");
-        FILE_ATTRIBUTE_TAG_INFO attributes{};
-        require(GetFileInformationByHandleEx(file.value, FileAttributeTagInfo, &attributes, sizeof(attributes)) && !(attributes.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT), "NATIVE_REPARSE_REJECTED");
-        verifyPrivate(file.value);
+        ensurePrivatePath(wide(info[0].As<Napi::String>().Utf8Value()), info[1].As<Napi::Boolean>());
         return info.Env().Undefined();
-    } catch (const std::exception& error) { Napi::Error::New(info.Env(), error.what()).ThrowAsJavaScriptException(); return info.Env().Undefined(); }
+    } catch (const NativeFailure& error) { return fileFailure(info, error); }
+    catch (const std::exception& error) { Napi::Error::New(info.Env(), error.what()).ThrowAsJavaScriptException(); return info.Env().Undefined(); }
 }
-/** 私有持久文件使用 CREATE_NEW 与创建时安全描述符，覆盖已有对象或重解析路径都会失败；写入和刷新完成后才关闭句柄，由调用方在同目录原子替换正式日志，避免公开临时文件或半写状态被误用。 */
+/** 私有新文件保持创建即独占和当前用户 DACL，写入与刷新都发生在已验证真实句柄上；普通接口不覆盖已有成员，配置替换使用下方独立有界入口，不能靠验证路径后再交回 JavaScript 重新打开完成。 */
 static Napi::Value writePrivate(const Napi::CallbackInfo& info) {
     try {
         require(info.Length() == 2 && info[0].IsString() && info[1].IsString(), "NATIVE_FILE_ARGUMENTS_INVALID");
-        auto path = wide(info[0].As<Napi::String>().Utf8Value());
-        auto bytes = info[1].As<Napi::String>().Utf8Value();
-        require(bytes.size() <= 1024 * 1024, "NATIVE_FILE_LIMIT");
-        PrivateSecurity security;
-        Handle file(CreateFileW(path.c_str(), GENERIC_WRITE, 0, &security.attributes, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr));
-        require(file.valid(), "NATIVE_PRIVATE_CREATE_FAILED");
-        writeAll(file.value, bytes);
-        require(FlushFileBuffers(file.value) != 0, "NATIVE_PRIVATE_FLUSH_FAILED");
+        createPrivateFile(wide(info[0].As<Napi::String>().Utf8Value()), info[1].As<Napi::String>().Utf8Value());
         return info.Env().Undefined();
-    } catch (const std::exception& error) { Napi::Error::New(info.Env(), error.what()).ThrowAsJavaScriptException(); return info.Env().Undefined(); }
+    } catch (const NativeFailure& error) { return fileFailure(info, error); }
+    catch (const std::exception& error) { Napi::Error::New(info.Env(), error.what()).ThrowAsJavaScriptException(); return info.Env().Undefined(); }
+}
+/** 私有读取最多返回一 MiB 的原始 Buffer，目录、文件 ACL 和字节大小都在本次实际句柄上检查；JSON 解析仍由配置层负责，不提供任意句柄、无限文件读取或遇到权限错误后的路径回退。 */
+static Napi::Value readPrivateFile(const Napi::CallbackInfo& info) {
+    try {
+        require(info.Length() == 2 && info[0].IsString() && info[1].IsNumber(), "NATIVE_FILE_ARGUMENTS_INVALID");
+        const double limit = info[1].As<Napi::Number>().DoubleValue();
+        require(limit >= 0 && limit <= 1024 * 1024 && limit == static_cast<size_t>(limit), "NATIVE_FILE_LIMIT");
+        const auto bytes = readPrivateBytes(wide(info[0].As<Napi::String>().Utf8Value()), static_cast<size_t>(limit));
+        return Napi::Buffer<char>::Copy(info.Env(), bytes.data(), bytes.size());
+    } catch (const NativeFailure& error) { return fileFailure(info, error); }
+    catch (const std::exception& error) { Napi::Error::New(info.Env(), error.what()).ThrowAsJavaScriptException(); return info.Env().Undefined(); }
+}
+/** 替换入口只接受私有目录、正式成员名、宿主随机临时名和有界正文，原子提交由持有句柄的原生层完成；提交后刷新失败会明确抛出不确定性错误，上层不得因此重跑更新回调或声称原值已经回滚。 */
+static Napi::Value replacePrivate(const Napi::CallbackInfo& info) {
+    try {
+        require(info.Length() == 4 && info[0].IsString() && info[1].IsString() && info[2].IsString() && info[3].IsString(), "NATIVE_FILE_ARGUMENTS_INVALID");
+        replacePrivateFile(wide(info[0].As<Napi::String>().Utf8Value()), wide(info[1].As<Napi::String>().Utf8Value()),
+            wide(info[2].As<Napi::String>().Utf8Value()), info[3].As<Napi::String>().Utf8Value());
+        return info.Env().Undefined();
+    } catch (const NativeFailure& error) { return fileFailure(info, error); }
+    catch (const std::exception& error) { Napi::Error::New(info.Env(), error.what()).ThrowAsJavaScriptException(); return info.Env().Undefined(); }
 }
 /** 诊断读取只能返回当前进程最近有界的固定错误记录并清空缓冲区，不接收文件路径或筛选表达式；测试在资源关闭后收集这些记录定位原生阶段，原始客户端断言与清理异常仍独立保留，不能被诊断替代。 */
 static Napi::Value takePipeDiagnostics(const Napi::CallbackInfo& info) {
@@ -411,6 +427,8 @@ static Napi::Object initialize(Napi::Env env, Napi::Object exports) {
         exports.Set("signalStop", Napi::Function::New(env, signalStop));
         exports.Set("privatePath", Napi::Function::New(env, privatePath));
         exports.Set("writePrivate", Napi::Function::New(env, writePrivate));
+        exports.Set("readPrivateFile", Napi::Function::New(env, readPrivateFile));
+        exports.Set("replacePrivate", Napi::Function::New(env, replacePrivate));
         exports.Set("takePipeDiagnostics", Napi::Function::New(env, takePipeDiagnostics));
         exports.Set("sid", Napi::String::New(env, utf8(currentSid())));
     } catch (const std::exception& error) { Napi::Error::New(env, error.what()).ThrowAsJavaScriptException(); }

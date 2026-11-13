@@ -27,6 +27,10 @@ export interface WindowsNative {
     ): void;
     privatePath(path: string, createDirectory: boolean): void;
     writePrivate(path: string, content: string): void;
+    /** 私有读取在原生层持有同一文件句柄完成 ACL、重解析与大小检查后才返回有限字节，调用者不会先检查字符串路径再通过另一个文件描述符读取，因此配置内容不能被中间路径替换转移。 */
+    readPrivateFile(path: string, limit: number): Buffer;
+    /** 原子更新只在已验证的目录句柄下创建随机临时成员并提交正式名称，提交后的刷新不确定性原样抛出；该接口不会执行回调、自动重试或在原生失败时回退到普通 Node 文件写入。 */
+    replacePrivate(directory: string, name: string, temporary: string, content: string): void;
     takePipeDiagnostics(): Array<{ phase: string; code: string; win32: number; checks: number }>;
 }
 let loaded: WindowsNative | undefined;

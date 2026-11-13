@@ -77,14 +77,14 @@ inline std::wstring stopEventName(const std::wstring& nonce, DWORD guardianPid, 
     return L"Local\\VeriQ-stop-" + nonce + L"-" + std::to_wstring(guardianPid) + L"-" + wide(guardianTime) +
         L"-" + std::to_wstring(workerPid) + L"-" + wide(workerTime);
 }
-/** 创建对象时就安装当前用户独占且禁止继承的 DACL，避免先创建公共对象再收紧权限的竞态；只有显式传入的子进程标准流允许继承，Job、停止事件和私有持久文件默认都不能被业务后代持有。 */
+/** 创建对象时就安装当前用户独占的保护 DACL，目录可显式让当前 SID 权限继承到库创建的子对象；句柄默认不继承，只有显式子进程标准流允许继承，避免先创建公共文件再事后收紧的暴露窗口。 */
 class PrivateSecurity {
     PSECURITY_DESCRIPTOR descriptor = nullptr;
 public:
     SECURITY_ATTRIBUTES attributes{};
-    explicit PrivateSecurity(bool inherit = false) {
+    explicit PrivateSecurity(bool inherit = false, bool children = false) {
         const auto sid = currentSid();
-        const auto sddl = L"O:" + sid + L"D:P(A;;GA;;;" + sid + L")";
+        const auto sddl = L"O:" + sid + (children ? L"D:P(A;OICI;GA;;;" : L"D:P(A;;GA;;;") + sid + L")";
         require(ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl.c_str(), SDDL_REVISION_1, &descriptor, nullptr) != 0, "NATIVE_DACL_FAILED");
         attributes = {sizeof(SECURITY_ATTRIBUTES), descriptor, inherit ? TRUE : FALSE};
     }
