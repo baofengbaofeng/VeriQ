@@ -121,6 +121,7 @@ struct Session {
 class PipeServer : public Napi::ObjectWrap<PipeServer> {
     Handle stopped{CreateEventW(nullptr, TRUE, FALSE, nullptr)};
     Napi::ThreadSafeFunction callback;
+    bool callbackOwned = false;
     std::thread listener;
     struct Client { std::shared_ptr<Session> session; std::thread thread; };
     std::vector<Client> clients;
@@ -235,17 +236,21 @@ class PipeServer : public Napi::ObjectWrap<PipeServer> {
         catch (const std::exception&) { recordFailure(phase, "NATIVE_UNEXPECTED_EXCEPTION"); SetEvent(stopped.value); }
         catch (...) { recordFailure(phase, "NATIVE_UNKNOWN_EXCEPTION"); SetEvent(stopped.value); }
     }
+    /** 关闭同时覆盖正常实例和监听线程尚未构造的失败状态，先结束已有线程再释放实际获得的 TSFN 引用及首实例句柄；回调引用只中止一次，未成功分配的对象不调用 Abort，部分构造不依赖未来 GC 才归还资源。 */
     void stop() {
         if (closed.exchange(true)) return;
-        SetEvent(stopped.value);
+        if (stopped.valid()) SetEvent(stopped.value);
         if (listener.joinable()) listener.join();
         for (auto& client : clients) if (client.thread.joinable()) {
             CancelSynchronousIo(client.thread.native_handle());
             client.thread.join();
         }
-        callback.Abort();
+        if (callbackOwned) { callbackOwned = false; callback.Abort(); }
+        Handle firstPipe(std::exchange(first.value, INVALID_HANDLE_VALUE));
+        Handle stopEvent(std::exchange(stopped.value, INVALID_HANDLE_VALUE));
     }
 public:
+    /** 创建监听前分别记录实际获得的管道与线程安全回调所有权，线程构造失败必须在向 JavaScript 抛错前释放它们；正式对象与测试注入都经过同一个异常清理分支，不把尚未启动线程误认为从未分配资源。 */
     explicit PipeServer(const Napi::CallbackInfo& info) : Napi::ObjectWrap<PipeServer>(info) {
         try {
             require(info.Length() == 2 && info[0].IsString() && info[1].IsFunction(), "NATIVE_SERVER_ARGUMENTS_INVALID");
@@ -253,14 +258,16 @@ public:
             name = pipeName(info[0].As<Napi::String>().Utf8Value());
             first.value = create(true);
             callback = Napi::ThreadSafeFunction::New(info.Env(), info[1].As<Napi::Function>(), "VeriQ private pipe", 32, 1);
+            callbackOwned = true;
             /** 仅独立测试编译体在真实管道和回调分配后注入监听线程构造失败，普通构建不定义此宏且不生成故障调用；该阶段用于验证部分构造的资源释放，不能成为运行时环境开关或正式模块导出。 */
 #ifdef VERIQ_TEST_FAIL_PIPE_LISTENER
             VERIQ_TEST_FAIL_PIPE_LISTENER();
 #endif
             listener = std::thread([this] { accept(); });
-        } catch (const std::exception& error) { Napi::Error::New(info.Env(), error.what()).ThrowAsJavaScriptException(); }
+        } catch (const std::exception& error) { stop(); Napi::Error::New(info.Env(), error.what()).ThrowAsJavaScriptException(); }
     }
-    ~PipeServer() { if (listener.joinable()) stop(); }
+    /** 析构不能以监听线程是否可 join 推断此前是否分配过 TSFN 或首实例管道，失败构造和显式关闭后的对象都进入幂等清理；已经释放的句柄和回调拥有标记阻止重复关闭与重复中止。 */
+    ~PipeServer() { stop(); }
     Napi::Value close(const Napi::CallbackInfo& info) { stop(); return info.Env().Undefined(); }
     static Napi::Function definition(Napi::Env env) {
         return DefineClass(env, "PrivatePipeServer", {InstanceMethod("close", &PipeServer::close)});
