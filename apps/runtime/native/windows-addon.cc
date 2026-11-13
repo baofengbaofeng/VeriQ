@@ -357,7 +357,7 @@ static Napi::Value fileFailure(const Napi::CallbackInfo& info, const NativeFailu
     auto error = Napi::Error::New(info.Env(), failure.what());
     if (std::string(failure.what()) == "NATIVE_PATH_UNAVAILABLE" &&
         (failure.win32 == ERROR_FILE_NOT_FOUND || failure.win32 == ERROR_PATH_NOT_FOUND)) error.Set("code", "ENOENT");
-    error.Set("win32", failure.win32);
+    error.Set("win32", static_cast<double>(failure.win32));
     error.ThrowAsJavaScriptException();
     return info.Env().Undefined();
 }
