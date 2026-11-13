@@ -10,15 +10,30 @@ import { AttemptBroker } from "../../src/execution/broker.ts";
 /** 本文件只由真实 Windows 原生验证任务执行，错误平台直接失败而不跳过；首轮在现有 Linux 专用实现上观察行为失败，随后同一用例必须通过实际 Job 与私有管道实现，不能用编译成功代替。 */
 assert.equal(process.platform, "win32", "Native Windows acceptance requires Windows");
 
+/** 清理阶段只等待有限时间并保留原始断言与清理异常，超时并不代表底层资源已经释放；无法证明停止时必须留下该测试的私有目录，由目标任务日志记录位置而不能删除日志伪装排空成功。 */
+async function boundedCleanup<T>(operation: () => Promise<T>): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+        return await Promise.race([
+            Promise.resolve().then(operation),
+            new Promise<never>((_, reject) => {
+                timer = setTimeout(() => reject(new Error("NATIVE_TEST_CLEANUP_TIMEOUT")), 5000);
+            }),
+        ]);
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 /** 真实角色 Node 副本必须在 Job 分配完成后运行，并把 Unicode、空格和引号参数原样传给业务代码；停止回执只能在根进程与实际派生后代都退出后成功，不能仅依赖当前 PID 或进程标题。 */
-test("Windows guardian contains renamed role Node and drains its detached descendant", async () => {
+test("Windows guardian contains renamed role Node and drains its detached descendant", async (context) => {
     const root = await mkdtemp(join(tmpdir(), "veriq native 中文 "));
     const role = join(root, "角色 binaries", "veriq_runner.exe");
     const processes = new ProcessSupervisor(join(root, "processes"));
     const arguments_ = ["with spaces", 'quote"inside', "trailing\\", "汉字😀"];
     const previousToken = process.env.VERIQ_DEVICE_TOKEN;
     process.env.VERIQ_DEVICE_TOKEN = "synthetic-parent-secret-must-not-inherit";
-    let started = false;
+    const failures: unknown[] = [];
     try {
         await mkdir(join(root, "角色 binaries"));
         await copyFile(process.execPath, role);
@@ -35,7 +50,6 @@ test("Windows guardian contains renamed role Node and drains its detached descen
                     PATH: join(process.env.SystemRoot!, "System32"),
                 },
             });
-            started = true;
         }, "a supported Windows worker must start under native containment");
         assert(owned);
         const observed = JSON.parse(await owned.firstLine());
@@ -52,25 +66,39 @@ test("Windows guardian contains renamed role Node and drains its detached descen
         assert.equal(stopped.processStopped, true);
         assert.equal(await processes.isRunning(owned.pid), false);
         assert.equal(await processes.isRunning(observed.child), false);
+    } catch (error) {
+        failures.push(error);
     } finally {
         if (previousToken === undefined) delete process.env.VERIQ_DEVICE_TOKEN;
         else process.env.VERIQ_DEVICE_TOKEN = previousToken;
-        if (started) await processes.terminateAttempt("windows-tree", "NATIVE_TEST_FINALLY");
-        await rm(root, { recursive: true, force: true });
+        try {
+            const receipt = await boundedCleanup(() =>
+                processes.terminateAttempt("windows-tree", "NATIVE_TEST_FINALLY"),
+            );
+            assert.equal(receipt.processStopped, true, `Unproved cleanup: ${receipt.reason}`);
+            await boundedCleanup(() => rm(root, { recursive: true, force: true }));
+        } catch (error) {
+            failures.push(error);
+            context.diagnostic(`Native process cleanup unproved; preserve profile: ${root}`);
+        }
+    }
+    if (failures.length) {
+        throw new AggregateError(failures, "Windows lifecycle assertion or cleanup failed", {
+            cause: failures[0],
+        });
     }
 });
 
 /** 当前用户通过真实本机管道发送原始 UTF8 字节，只有正确 nonce 的有限请求可以到达业务处理器；接收测试不引入 TCP 替代通道，关闭时等待实际监听与连接资源释放后再清理私有目录。 */
-test("Windows private broker serves a bounded Unicode request through a named pipe", async () => {
+test("Windows private broker serves a bounded Unicode request through a named pipe", async (context) => {
     const root = await mkdtemp(join(tmpdir(), "veriq pipe 中文 "));
     const broker = new AttemptBroker(join(root, "attempt.sock"), async (message) => ({
         text: message.text,
     }));
-    let opened = false;
+    const failures: unknown[] = [];
     try {
         await assert.doesNotReject(async () => {
             await broker.open();
-            opened = true;
         }, "a private Windows broker must open without POSIX socket chmod");
         assert.match(broker.path, /^\\\\\.\\pipe\\veriq-/);
         const response = await new Promise<string>((resolve, reject) => {
@@ -85,8 +113,20 @@ test("Windows private broker serves a bounded Unicode request through a named pi
             socket.setTimeout(5000, () => socket.destroy(new Error("TEST_PIPE_TIMEOUT")));
         });
         assert.deepEqual(JSON.parse(response), { ok: true, value: { text: "中文😀" } });
+    } catch (error) {
+        failures.push(error);
     } finally {
-        if (opened) await broker.close();
-        await rm(root, { recursive: true, force: true });
+        try {
+            await boundedCleanup(() => broker.close());
+            await boundedCleanup(() => rm(root, { recursive: true, force: true }));
+        } catch (error) {
+            failures.push(error);
+            context.diagnostic(`Native broker cleanup unproved; preserve profile: ${root}`);
+        }
+    }
+    if (failures.length) {
+        throw new AggregateError(failures, "Windows broker assertion or cleanup failed", {
+            cause: failures[0],
+        });
     }
 });
