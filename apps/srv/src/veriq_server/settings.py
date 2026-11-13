@@ -34,6 +34,10 @@ class Settings(BaseModel):
     bundle_issuer_path: str | None = None
     bundle_lifetime_days: int = Field(default=30, ge=1, le=365)
     approved_engine_inventory_path: str | None = None
+    # 验证引擎选择只影响此后创建的快照，默认保留既有开发版本；生产运维必须先晋升完整新发行再切换配置，旧 Job、签名包与发布回执继续携带冻结时的版本身份。
+    validation_engine_version: str = Field(
+        default="0.1.0", pattern=r"^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$"
+    )
     artifact_backend: Literal["FILE", "S3"] = "FILE"
     artifact_directory: str = "var/veriq/artifacts"
     artifact_retention_days: int = Field(default=30, ge=1, le=3650)

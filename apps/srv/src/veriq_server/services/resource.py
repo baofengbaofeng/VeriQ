@@ -41,6 +41,7 @@ class UnavailableIdentityRegistry:
     """不可用注册表实现，任何引用直接失败，用于测试缺依赖场景，UnavailableIdentityRegistry 遵守本文件边界。
     UnavailableIdentityRegistry 实现于 apps/srv/src/veriq_server/services/resource.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
+
     async def require_role(
         self, session: AsyncSession, scope: WorkspaceScope, role: dict[str, Any]
     ) -> None:
@@ -185,14 +186,22 @@ class ResourceService:
     """编排资源创建、草稿更新、快照与校验投递，强制租户与修订并发控制，ResourceService 遵守本文件边界，失败返回稳定 Problem。
     ResourceService 实现于 apps/srv/src/veriq_server/services/resource.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
+
     def __init__(
-        self, session: AsyncSession, user: User, registry: IdentityReferenceRegistry | None = None
+        self,
+        session: AsyncSession,
+        user: User,
+        registry: IdentityReferenceRegistry | None = None,
+        *,
+        engine_version: str = ENGINE_VERSION,
     ):
         """注入会话、用户、设置与身份注册表，供授权与冻结引用，ResourceService.__init__ 遵守本文件边界，失败返回稳定 Problem。
         __init__ 实现于 apps/srv/src/veriq_server/services/resource.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
         """
         self.session, self.user = session, user
         self.registry = registry or UnavailableIdentityRegistry()
+        # 选择值只用于当前服务创建的新快照与任务要求，冻结 sourceHash 随版本变化而变化；这里不修改已有发布对象，也不把候选选择解释为已获批准的执行发行。
+        self.engine_version = engine_version
 
     async def authorize(
         self,
@@ -388,7 +397,7 @@ class ResourceService:
             "schemaVersion": "1.0",
             "workspaceId": scope.workspace_id,
             "sourceHash": "0" * 64,
-            "engineVersion": ENGINE_VERSION,
+            "engineVersion": self.engine_version,
             "entryCaseVersionIds": entries,
             "assets": [assets[k] for k in sorted(assets)],
             "validationTarget": {
@@ -418,7 +427,7 @@ class ResourceService:
             "candidateVersionId": snapshot["validationTarget"]["versionId"],
             "documentHash": document_hash(draft.document_json),
             "sourceHash": snapshot["sourceHash"],
-            "engineVersion": ENGINE_VERSION,
+            "engineVersion": self.engine_version,
         }
 
     async def validate(
@@ -453,7 +462,7 @@ class ResourceService:
             "workspaceId": scope.workspace_id,
             "jobId": job_id,
             "snapshotSha256": snapshot_hash,
-            "engineVersion": ENGINE_VERSION,
+            "engineVersion": self.engine_version,
             "kind": "VALIDATE",
             "resourceId": resource_id,
             "revision": revision,
@@ -469,7 +478,7 @@ class ResourceService:
             snapshot_hash=snapshot_hash,
             manifest_hash=manifest_hash,
             validation_key=key,
-            required_capabilities={"engineVersion": ENGINE_VERSION, "compileAssets": True},
+            required_capabilities={"engineVersion": self.engine_version, "compileAssets": True},
             created_by=self.user.id,
             created_at=now(),
         )

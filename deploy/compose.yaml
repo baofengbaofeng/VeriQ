@@ -1,0 +1,44 @@
+services:
+    api:
+        build:
+            context: ..
+            dockerfile: deploy/Dockerfile
+        image: veriq-control:0.1.0
+        read_only: true
+        restart: unless-stopped
+        ports:
+            - "127.0.0.1:8888:8888"
+        volumes:
+            - ${VERIQ_CONFIG_DIRECTORY:?Set an external configuration directory}:/etc/veriq:ro
+            - data:/var/lib/veriq
+        tmpfs:
+            - /tmp:size=64m,mode=1777
+        depends_on:
+            database:
+                condition: service_healthy
+    database:
+        image: mysql:8.4.8@sha256:2952e3be7807f06fc18de50b3ea1a632d5c70d63482ff7d7376fe3aa8999babf
+        restart: unless-stopped
+        environment:
+            MYSQL_DATABASE: veriq
+            MYSQL_USER: veriq
+            MYSQL_PASSWORD_FILE: /run/secrets/mysql_password
+            MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql_root_password
+        secrets:
+            - mysql_password
+            - mysql_root_password
+        volumes:
+            - database:/var/lib/mysql
+        healthcheck:
+            test: ["CMD", "mysqladmin", "ping", "--silent"]
+            interval: 10s
+            timeout: 5s
+            retries: 12
+secrets:
+    mysql_password:
+        file: ${VERIQ_DB_PASSWORD_FILE:?Set the database password file}
+    mysql_root_password:
+        file: ${VERIQ_DB_ROOT_PASSWORD_FILE:?Set the database root password file}
+volumes:
+    data:
+    database:

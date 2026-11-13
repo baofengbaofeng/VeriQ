@@ -18,15 +18,15 @@ export const step = (
         ...s,
         ...(s.action === "apiRequest"
             ? {
-                    observers: [
-                        {
-                            id: "action",
-                            method: s.method,
-                            path: s.path,
-                            window: { mode: "UNTIL_ACTION_SETTLED", quietMs: 0 },
-                        },
-                    ],
-                }
+                  observers: [
+                      {
+                          id: "action",
+                          method: s.method,
+                          path: s.path,
+                          window: { mode: "UNTIL_ACTION_SETTLED", quietMs: 0 },
+                      },
+                  ],
+              }
             : {}),
     },
     sourcePath: `/steps/${s.id}`,
@@ -62,9 +62,7 @@ export async function fixture() {
             method: req.method!,
             path: req.url!,
             body,
-            ...(req.headers.authorization
-                ? { authorization: req.headers.authorization }
-                : {}),
+            ...(req.headers.authorization ? { authorization: req.headers.authorization } : {}),
         });
         await hooks.get(req.url!)?.();
         if (responses.has(req.url!)) {
@@ -105,14 +103,14 @@ export async function fixture() {
                     req.url === "/eventual"
                         ? { exists: ++reads >= 3 }
                         : req.url === "/missing"
-                            ? { exists: false }
-                            : {
-                                    code: 0,
-                                    id: "saved-1",
-                                    nil: null,
-                                    literal: "{{evil()}}",
-                                    items: [1, 2],
-                                },
+                          ? { exists: false }
+                          : {
+                                code: 0,
+                                id: "saved-1",
+                                nil: null,
+                                literal: "{{evil()}}",
+                                items: [1, 2],
+                            },
                 ),
             );
         }
@@ -120,12 +118,15 @@ export async function fixture() {
     await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
     const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
     const browser = await chromium.launch({
-        executablePath: "/usr/bin/chromium",
+        // 测试默认交由已锁定 Playwright 选择匹配浏览器，仅当操作员明确指定路径时覆盖；系统安装的 Chromium 不能成为未记录的正式门禁输入。
+        ...(process.env.VERIQ_TEST_CHROMIUM
+            ? { executablePath: process.env.VERIQ_TEST_CHROMIUM }
+            : {}),
         args: ["--no-sandbox"],
         env: {
             ...process.env,
-            XDG_CONFIG_HOME: "/tmp/veriq-t06-config",
-            XDG_CACHE_HOME: "/tmp/veriq-t06-cache",
+            XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME ?? "/tmp/veriq-t06-config",
+            XDG_CACHE_HOME: process.env.XDG_CACHE_HOME ?? "/tmp/veriq-t06-cache",
         },
     });
     const page = await browser.newPage();

@@ -1,0 +1,92 @@
+name: Server release verification
+on:
+    workflow_dispatch:
+    push:
+        branches: [main, master, codex/veriq-mvp-completion]
+    pull_request:
+permissions:
+    contents: read
+jobs:
+    ubuntu-release:
+        runs-on: ubuntu-24.04
+        timeout-minutes: 60
+        services:
+            mysql:
+                image: mysql:8.4.8@sha256:2952e3be7807f06fc18de50b3ea1a632d5c70d63482ff7d7376fe3aa8999babf
+                env:
+                    MYSQL_ROOT_PASSWORD: veriq-ci-only
+                    MYSQL_DATABASE: veriq_test
+                ports: ["13306:3306"]
+                options: >-
+                    --health-cmd="mysqladmin ping --silent"
+                    --health-interval=10s --health-timeout=5s --health-retries=12
+        steps:
+            - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+            - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+              with:
+                  python-version: 3.12.14
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+              with:
+                  node-version: 24.22.1
+            - name: Install pinned build tools into runner temporary directories
+              run: |
+                  python -m pip install --target "$RUNNER_TEMP/veriq-python-tools" uv==0.13.5
+                  npm install --prefix "$RUNNER_TEMP/veriq-node-tools" pnpm@11.25.0 --ignore-scripts
+                  echo "$RUNNER_TEMP/veriq-python-tools/bin" >> "$GITHUB_PATH"
+                  echo "$RUNNER_TEMP/veriq-node-tools/node_modules/.bin" >> "$GITHUB_PATH"
+            - name: Prepare isolated test inputs and matched browsers
+              run: |
+                  uv sync --project apps/srv --frozen --all-groups
+                  pnpm install --frozen-lockfile
+                  pnpm --filter @veriq/runner-sdk exec playwright install --with-deps chromium
+                  mkdir -p .superpowers/sdd/veriq-1/state
+                  python - <<'PY'
+                  import json, os
+                  from pathlib import Path
+                  root = Path.cwd()
+                  path = root / '.superpowers/sdd/veriq-1/test-env.json'
+                  path.write_text(json.dumps({'mysql_dsn': 'mysql+asyncmy://root:veriq-ci-only@127.0.0.1:13306/veriq_test', 'approved_engine_inventory_path': str(root / '.superpowers/sdd/veriq-1/state/approved-engine-inventory.json')}))
+                  path.chmod(0o600)
+                  PY
+                  node apps/web/tests/prepare-editor-agent.mjs
+                  cp .superpowers/cache/t11/release/inventory.json .superpowers/sdd/veriq-1/state/approved-engine-inventory.json
+            - name: Full normal release
+              run: ./build.sh
+            - name: Reject emergency artifacts in normal release CI
+              run: |
+                  python - <<'PY'
+                  import json
+                  from pathlib import Path
+                  release = json.loads(Path('output/server/release.json').read_bytes())
+                  assert release['status'] == 'VERIFIED'
+                  assert release['testsSkipped'] is False
+                  PY
+            - name: Independently build and start the pinned control image
+              run: |
+                  docker build -f output/server/deploy/Dockerfile -t veriq-control:test output/server
+                  mkdir -p work/container-config
+                  python - <<'PY'
+                  import json
+                  from pathlib import Path
+                  path = Path('work/container-config/veriq.json')
+                  path.write_text(json.dumps({'database_url': 'mysql+asyncmy://unused:unused@127.0.0.1:1/veriq_unused', 'public_url': 'https://veriq.example.com', 'host': '0.0.0.0', 'master_key': 'a' * 64, 'signing_key': 'b' * 64, 'artifact_directory': '/var/lib/veriq/artifacts'}))
+                  path.chmod(0o644)
+                  PY
+                  docker run --detach --name veriq-control-test --read-only --tmpfs /tmp --tmpfs /var/lib/veriq:uid=10001,gid=10001 -v "$PWD/work/container-config:/etc/veriq:ro" -p 18888:8888 veriq-control:test
+                  python scripts/probe_container.py
+                  docker exec veriq-control-test python -c "import shutil; assert all(shutil.which(x) is None for x in ('node', 'chromium', 'google-chrome'))"
+            - name: Preserve evidence even when a real gate fails
+              if: always()
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+              with:
+                  name: server-release-evidence
+                  path: |
+                      work/release-*/commands.json
+                      work/release-*/*.log
+                      work/release-*/source-binding.json
+                      work/release-*/comment-audit.json
+                      output/server/**
+                  if-no-files-found: error
+            - name: Stop candidate container
+              if: always()
+              run: docker rm -f veriq-control-test || test "$(docker ps -aq --filter name=veriq-control-test)" = ""

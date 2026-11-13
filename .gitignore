@@ -214,6 +214,7 @@ node_modules/
 *.tsbuildinfo
 /output/
 /work/
+/apps/srv/src/veriq_server/release/engine-inventory.json
 /.superpowers/
 
 # Ruff stuff:

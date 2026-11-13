@@ -60,3 +60,5 @@ installed license-file hashes are recorded in
 [the archive audit](docs/dependencies/t14-archive-audit.json). No advisories were
 returned at that timestamp; this does not reassess unchanged dependencies or
 replace release-time checks. Distributions must include the upstream MIT notices.
+
+T18 adds development-only Biome2.6.7 (MIT selected) and CycloneDX-bom8.0.1 with the exact12-package Python delta in [ADR0020](docs/decisions/0020-server-release-pipeline.md). Existing runtime versions are unchanged. [The full tool audit](docs/dependencies/t18-build-tools-audit.json) records licenses and the2026-11-13 OSV result; no advisories were returned at that time. Actual server SBOMs collect installed dependency license texts; Web BOMs describe the pre-bundle production closure and retain upstream LICENSE/NOTICE/README files. These build tools are not installed into the control-service runtime wheelhouse.

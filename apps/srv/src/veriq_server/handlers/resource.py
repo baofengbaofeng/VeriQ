@@ -46,7 +46,12 @@ class ResourceAPI(API):
         service 实现于 apps/srv/src/veriq_server/handlers/resource.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
         """
         cls = PublishService if publish else ResourceService
-        return cls(session, user, self.application.settings.get("identity_reference_registry"))
+        return cls(
+            session,
+            user,
+            self.application.settings.get("identity_reference_registry"),
+            engine_version=self.config.validation_engine_version,
+        )
 
     async def get(
         self, workspace_id: str, resource_id: str | None = None, version_id: str | None = None
