@@ -531,6 +531,8 @@ assert path_traversal.status in (403, 404)
 
 ## T18：前端先构建、wheel强制入包与服务端发行
 
+**状态：** 代码实现及重要问题修复复审已通过（`3995648`、`dc95f26`）；正式发行验收仍待T22/T23。27项取消/新鲜校验回归及Debian下当前wheel安装通过；默认构建因真实Web lint失败，M1/M2及全仓规范、目标Ubuntu/OCI仍未关闭。参见[里程碑](milestones.md)与[发行指南](../release.md)。
+
 **依赖：** T17
 
 **Files（拟创建/修改）：**
@@ -545,7 +547,7 @@ assert path_traversal.status in (403, 404)
 
 **Interfaces：** build_release(options: BuildOptions) -> ReleaseManifest；必须顺序web check/build→stage→srv检查测试→wheel→干净安装→原子output。
 
-- [ ] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
+- [x] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```python
 assert wheel.has('veriq_server/static/dist/index.html')
@@ -554,10 +556,12 @@ assert release.tests_skipped is False
 assert production_starts_without_node_or_chrome is True
 ```
 
-- [ ] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest tests/acceptance/test_server_package.py -q`；失败必须来自缺失行为，而非测试环境拼写错误。
-- [ ] **Step 3：实现上述接口与文件。** Hatchling hook区分editable与正式wheel；干净checkout无dist可安装开发依赖，正式构建缺dist失败；gitignore静态目录真实入wheel、无重复资源、无旧assets、版本一致、离线wheelhouse、正常默认全测、紧急跳过记录原因、SBOM/NOTICE/hash完整。
-- [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
-- [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t18 前端先构建、wheel强制入包与服务端发行`。有新决策先更新ADR，不扩展到下一任务。
+- [x] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest tests/acceptance/test_server_package.py -q`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [x] **Step 3：实现上述接口与文件。** Hatchling hook区分editable与正式wheel；干净checkout无dist可安装开发依赖，正式构建缺dist失败；gitignore静态目录真实入wheel、无重复资源、无旧assets、版本一致、离线wheelhouse、正常默认全测、紧急跳过记录原因、SBOM/NOTICE/hash完整。
+- [x] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
+- [x] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t18 前端先构建、wheel强制入包与服务端发行`。有新决策先更新ADR，不扩展到下一任务。
+
+**未完成的发行验收：** 最终源码/锁/static绑定的默认完整门禁、Python/TS核心覆盖率、B05有效说明与历史格式/类型债、目标Ubuntu24.04及独立OCI实测。当前候选为UNVERIFIED，不因上述实现活动已执行而宣称正常发行或完整MVP交付。
 
 ## T19：完整Electron桌面图形界面
 

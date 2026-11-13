@@ -2,7 +2,9 @@
 
 面向企业 PC Web 系统的自动化冒烟与回归平台，以版本化测试资产和确定性 Playwright TypeScript 执行为核心，连接云端 Runtime、本地桌面客户端与离线执行。
 
-**当前状态：开发中 / 尚未发布。** 账户与 Workspace、版本化测试资产、确定性编译器与 Runner SDK、fixture 与业务身份、Runtime 授权、统一队列及 Linux Agent 实际执行已有实现。八类资产编辑、编译发布、版本源码预览，以及实时结构化报告、受限证据、本机 Trace 查看、File/S3 存储与原始证据保留期维护已通过独立审查。AI 配置、预算、结构化草稿审核及失败分析已有实现并通过代码复审，实际外部 Provider 验收仍待用户授权和独立配置。签名包、可信公钥缓存、只读验证、本地凭证，以及真实离线执行、SQLite 持久化报告、取消恢复和幂等回传已通过独立复审；外部 HTTP 计划触发、独立服务令牌、计划与令牌管理界面及 CI 门禁已通过独立审查及重要问题修复复审；生产同源静态服务、完整文件清单校验和构建信息已通过独立审查及修复复审；Electron 桌面客户端与正式发行等工作仍在推进。目前没有正式安装包，下述功能清单是 1.0 交付目标。
+**当前状态：开发中 / 尚未发布。** 账户与 Workspace、版本化测试资产、确定性编译器与 Runner SDK、fixture 与业务身份、Runtime 授权、统一队列及 Linux Agent 实际执行已有实现。八类资产编辑、编译发布、版本源码预览，以及实时结构化报告、受限证据、本机 Trace 查看、File/S3 存储与原始证据保留期维护已通过独立审查。AI 配置、预算、结构化草稿审核及失败分析已有实现并通过代码复审，实际外部 Provider 验收仍待用户授权和独立配置。签名包、可信公钥缓存、只读验证、本地凭证，以及真实离线执行、SQLite 持久化报告、取消恢复和幂等回传已通过独立复审；外部 HTTP 计划触发、独立服务令牌、计划与令牌管理界面及 CI 门禁已通过独立审查及重要问题修复复审；生产同源静态服务、完整文件清单校验和构建信息已通过独立审查及修复复审。
+
+服务端构建、前端入 wheel、离线安装校验、引擎候选与独立晋升工具的代码已通过独立审查及取消/晋升问题修复复审。固定浏览器 SDK 136 项检查通过，行覆盖率 91.46%；这不代表最终集成门禁完成。默认构建仍被历史 lint、格式和注释规范阻断，当前包明确标记 UNVERIFIED。Electron 桌面客户端、目标 OS 发行与完整产品验收继续推进；目前没有正式安装包。详见[里程碑](docs/plans/milestones.md)和[构建发行指南](docs/release.md)。
 
 仓库当前已落地 `apps/srv`（Tornado 控制服务）、`apps/web`（React 管理台）、`apps/runtime`（Agent/CLI/离线执行）、`packages/{contracts,compiler,runner-sdk,ui}`；`apps/desktop` 目前主要为 Electron 包占位，源码与发行流程仍在推进。贡献与智能体须遵循根目录 `AGENTS.md` 中的编码规范（4 空格缩进、中文注释、英文日志等）。
 
@@ -101,7 +103,7 @@ pnpm test
 pnpm check
 ```
 
-当前 `pnpm test` 执行公共契约、编译器、Runner SDK 与 Runtime 测试（SDK 和 Runtime 自检测试需要本机 Chromium，Linux Runtime 测试还会使用开发主机的 `cc` 构建薄启动器；产品包将预编译提供），`pnpm check` 检查契约/编译器/SDK/Runtime TypeScript 与生成文件是否同步；完整平台验收入口仍待后续任务交付。这些命令用于开发检查，不是启动完整产品的安装命令。公共接口、工具配置与更多检查命令见[契约说明](docs/contracts.md)。
+当前 `pnpm test` 执行公共契约、编译器、Runner SDK 与 Runtime 测试（SDK 和 Runtime 自检测试需要本机 Chromium，Linux Runtime 测试还会使用开发主机的 `cc` 构建薄启动器；产品包将预编译提供），`pnpm check` 检查契约/编译器/SDK/Runtime TypeScript 与生成文件是否同步；默认 `./build.sh` 发行入口已实现，会执行额外真实门禁，目前仍被已登记的质量债阻断。这些命令用于开发检查，不是启动完整产品的安装命令。公共接口、工具配置与更多检查命令见[契约说明](docs/contracts.md)。
 
 账户与 Workspace 模块可在开发环境运行：安全配置 MySQL、初始化管理员、分别启动 Tornado 与 Vite 的步骤见[开发指南](docs/development.md)。后端入口为 `veriq_server`；当前界面提供真实的安装、认证、用户管理、空间切换、成员与邀请功能，完整测试平台仍待后续模块交付。
 
@@ -111,7 +113,7 @@ Linux Agent 开发需先执行 `pnpm --filter @veriq/runtime build:launcher` 再
 
 ## 当前仓库结构
 
-下面是仓库里已经存在的目录。`apps/desktop` 目前只有 Electron 包声明，还没有 main/preload/renderer 源码。发行用的 `scripts/`、`deploy/` 和 `build.sh` 还没有加入仓库；对应任务落地时再创建，不提前放空目录。
+下面是仓库里已经存在的目录。`apps/desktop` 目前只有 Electron 包声明，还没有 main/preload/renderer 源码。`scripts/`、`deploy/` 和 `build.sh` 已包含实际构建、校验与部署工具；桌面源码和正式发行验收仍待后续任务。
 
 JavaScript 依赖由仓库根的 pnpm 工作区统一锁定，声明写在各包的 `package.json`。Python 依赖只写在 `apps/srv/pyproject.toml`。
 
@@ -134,6 +136,9 @@ veriq/
 │   ├── runner-sdk/
 │   └── ui/                        # Web / 桌面共享组件
 ├── fixtures/demo-app/             # 示例业务；运行依赖来自 apps/srv
+├── scripts/                       # 构建、引擎、安装校验与 CI 工具
+├── deploy/                        # 离线安装、容器与启动资料
+├── build.sh                       # 默认完整门禁；当前仍有明确阻塞
 └── docs/
     ├── specs/                     # 需求与桌面规格
     └── plans/                     # 实施计划
@@ -144,6 +149,8 @@ veriq/
 **开发模式：** Vite 与 Tornado 分别启动，目标端口为 5173 与 8888。Vite 代理 API 和必要事件连接，保留 HMR；Runtime 独立启动。后端 editable 安装不依赖已经存在的前端产物。
 
 **生产模式：** 先构建 React，再将 `apps/web/dist` 暂存至 `apps/srv/src/veriq_server/static/dist`，最后构建 Python wheel。正式 wheel 必须包含完整静态资源、迁移和版本资料；缺少 `index.html` 或资源清单时构建失败。干净环境安装 wheel 后，Tornado 通过同一端口提供 API 与静态页面，服务端运行时不依赖 Node/pnpm/浏览器。
+
+构建入口为 `./build.sh`，`--with-tests` 与默认一致；`--skip-tests --reason "原因"` 不跳过静态或完整性检查。当前正常构建失败且不创建成功发行目录；使用方式和候选边界见[发行指南](docs/release.md)。
 
 生产路由须区分 API、静态文件与登记的 SPA 页面：未知 API 和缺失静态资源返回真实 404，登记页面支持深链接刷新。凭证不得写入前端构建产物，用户证据不放入静态发布目录。
 
@@ -178,7 +185,9 @@ veriq/
 
 VeriQ is an automated smoke and regression platform for enterprise PC web systems. It centers on versioned test assets and deterministic Playwright TypeScript execution, and connects cloud Runtimes, a local desktop client, and offline execution.
 
-**Current status: under development / not released.** Accounts and Workspaces, versioned test assets, the deterministic compiler and Runner SDK, fixtures and business identities, Runtime authorization, the unified queue, and real Linux Agent execution are implemented. Editing for the eight asset kinds, compile/publish, version source preview, live structured reports, restricted evidence, local Trace viewing, File/S3 storage, and raw-evidence retention maintenance have passed independent review. AI configuration, budgets, structured draft review, and failure analysis are implemented and code-reviewed; real external Provider acceptance still needs user authorization and separate configuration. Signed bundles, trusted public-key cache, read-only verification, local credentials, real offline execution, SQLite-persisted reports, cancel/resume, and idempotent upload have passed independent re-review. External HTTP plan triggers, independent service tokens, plan/token management UI and CI gates have passed independent review and scoped fix re-review; Production same-origin static serving, complete file-inventory validation and build identity have passed independent review and scoped fixes; Electron desktop client work and formal releases are still in progress. There is no formal installer yet; the feature list below is the 1.0 delivery target.
+**Current status: under development / not released.** Accounts and Workspaces, versioned test assets, the deterministic compiler and Runner SDK, fixtures and business identities, Runtime authorization, the unified queue, and real Linux Agent execution are implemented. Editing for the eight asset kinds, compile/publish, version source preview, live structured reports, restricted evidence, local Trace viewing, File/S3 storage, and raw-evidence retention maintenance have passed independent review. AI configuration, budgets, structured draft review, and failure analysis are implemented and code-reviewed; real external Provider acceptance still needs user authorization and separate configuration. Signed bundles, trusted public-key cache, read-only verification, local credentials, real offline execution, SQLite-persisted reports, cancel/resume, and idempotent upload have passed independent re-review. External HTTP plan triggers, independent service tokens, plan/token management UI and CI gates have passed independent review and scoped fix re-review; Production same-origin static serving, complete file-inventory validation and build identity have passed independent review and scoped fixes.
+
+Server build tooling, frontend-in-wheel packaging, offline installation checks, engine candidates and separate promotion have passed independent review and scoped cancellation/promotion fixes. The pinned-browser SDK gate passed 136 tests with 91.46% line coverage; this does not close final integration gates. Default builds remain blocked by existing lint, formatting and comment-policy debt, and current candidates are explicitly UNVERIFIED. Electron, target-OS releases and complete-product acceptance continue; there is no formal installer yet. See [milestones](docs/plans/milestones.md) and [release tooling](docs/release.md).
 
 The repository currently includes `apps/srv` (Tornado control service), `apps/web` (React console), `apps/runtime` (Agent/CLI/offline execution), and `packages/{contracts,compiler,runner-sdk,ui}`. `apps/desktop` is mainly an Electron package placeholder; desktop sources and release flows are still advancing. Contributors and coding agents must follow the coding standards in root `AGENTS.md` (4-space indentation, Chinese source comments, English logs, and related rules).
 
@@ -277,7 +286,7 @@ pnpm test
 pnpm check
 ```
 
-`pnpm test` runs shared contracts, compiler, Runner SDK, and Runtime tests (SDK and Runtime doctor tests need local Chromium; Linux Runtime tests also use host `cc` to build the thin launcher; product packages will ship it prebuilt). `pnpm check` verifies contracts/compiler/SDK/Runtime TypeScript and generated files stay in sync. Full platform acceptance entry points are still pending later tasks. These commands are development checks, not a full product install. See [contracts](docs/contracts.md) for public interfaces, tooling, and additional checks.
+`pnpm test` runs shared contracts, compiler, Runner SDK, and Runtime tests (SDK and Runtime doctor tests need local Chromium; Linux Runtime tests also use host `cc` to build the thin launcher; product packages will ship it prebuilt). `pnpm check` verifies contracts/compiler/SDK/Runtime TypeScript and generated files stay in sync. The default `./build.sh` release entry now exists and enforces additional real gates, which currently fail on recorded quality debt. These commands are development checks, not a full product install. See [contracts](docs/contracts.md) for public interfaces, tooling, and additional checks.
 
 Accounts and Workspace modules can run in development: secure MySQL setup, admin bootstrap, and separate Tornado/Vite startup are in the [development guide](docs/development.md). The backend entrypoint is `veriq_server`. The current UI provides real install, auth, user management, space switching, members, and invites; the full testing platform still needs remaining modules.
 
@@ -287,7 +296,7 @@ Linux Agent development requires `pnpm --filter @veriq/runtime build:launcher` b
 
 ## Current repository layout
 
-The tree below is what exists in the repository today. `apps/desktop` currently has the Electron package manifest and does not yet contain main, preload, or renderer sources. Release helpers such as `scripts/`, `deploy/`, and `build.sh` are not in the tree; add them when those tasks land instead of creating empty directories now.
+The tree below is what exists in the repository today. `apps/desktop` currently has the Electron package manifest and does not yet contain main, preload, or renderer sources. `scripts/`, `deploy/`, and `build.sh` now contain actual build, verification and deployment tooling; desktop sources and formal release acceptance remain subsequent work.
 
 JavaScript dependencies are locked once by the pnpm workspace at the repository root, and each package declares its own dependencies. Python dependencies are declared only in `apps/srv/pyproject.toml`.
 
@@ -310,6 +319,9 @@ veriq/
 │   ├── runner-sdk/
 │   └── ui/                        # shared web / desktop components
 ├── fixtures/demo-app/             # sample business app; run it with apps/srv
+├── scripts/                       # build, engine, install verification and CI tools
+├── deploy/                        # offline install, container and startup files
+├── build.sh                       # complete default gates; known blockers remain
 └── docs/
     ├── specs/                     # requirements and desktop specs
     └── plans/                     # implementation plans
@@ -318,6 +330,8 @@ veriq/
 ## Development and production packaging
 
 **Development mode:** Vite and Tornado start separately on ports 5173 and 8888. Vite proxies API and needed event connections and keeps HMR; Runtime starts independently. Editable backend installs do not require prebuilt frontend assets.
+
+The release entry is `./build.sh`; `--with-tests` is the default alias, and `--skip-tests --reason "reason"` preserves static and integrity checks. Current normal builds fail without creating a successful release output; see the [release guide](docs/release.md).
 
 **Production mode:** Build React first, stage `apps/web/dist` into `apps/srv/src/veriq_server/static/dist`, then build the Python wheel. The release wheel must include full static assets, migrations, and version metadata; missing `index.html` or the asset manifest fails the build. After a clean-environment wheel install, Tornado serves API and static pages on one port; the server runtime does not depend on Node/pnpm/browsers.
 

@@ -1,6 +1,6 @@
 # Developing VeriQ
 
-Installation, user accounts, Workspace management and versioned asset APIs are implemented. The current pages provide setup/login/logout, password reset, account/session controls, global user administration, Workspace selection, membership and invitations using actual MySQL records. The deterministic compiler, Runner SDK and built-in HTTP business/fixture lifecycle providers are implemented, together with versioned credential/authentication APIs. Runtime enrollment, owner-controlled sharing, separate hardware trust/Workspace credential delivery and development CLI/doctor are implemented. Asset editing/publication, actual Linux Agent/lease integration and restricted reports/storage have passed task reviews. The AI implementation has also passed code review; authorized actual-Provider acceptance remains pending. Signed bundle export/verification, issuer trust and exact local credential references have passed their task reviews. Offline execution/import, the desktop client and formal distributions remain under development.
+Installation, user accounts, Workspace management and versioned asset APIs are implemented. The current pages provide setup/login/logout, password reset, account/session controls, global user administration, Workspace selection, membership and invitations using actual MySQL records. The deterministic compiler, Runner SDK and built-in HTTP business/fixture lifecycle providers are implemented, together with versioned credential/authentication APIs. Runtime enrollment, owner-controlled sharing, separate hardware trust/Workspace credential delivery and development CLI/doctor are implemented. Asset editing/publication, actual Linux Agent/lease integration and restricted reports/storage have passed task reviews. The AI implementation has also passed code review; authorized actual-Provider acceptance remains pending. Signed bundle export/verification, issuer trust and exact local credential references have passed their task reviews. Offline execution/import has passed its task review. Server release tooling is code-reviewed with acceptance still pending; the desktop client and formal distributions remain under development.
 
 After signing in, open **Workspaces** to create a project Workspace; its creator becomes OWNER. OWNER/ADMIN can invite members with a copyable link or configured SMTP. Existing accounts sign in within the acceptance page; new invitees create an ordinary account. Invitation tokens are removed from the address bar and retained in page memory, so reopen the original link after a full refresh. Global system administration does not grant project membership.
 
@@ -47,7 +47,7 @@ uv run --project apps/srv veriq_server --config /private/veriq/veriq.json doctor
 uv run --project apps/srv veriq_server --config /private/veriq/veriq.json serve
 ```
 
-`doctor` checks validated configuration, MySQL 8.4 and the installation table. `GET /api/v1/health/live` only checks the HTTP process; `GET /api/v1/health/ready` queries the database. All API responses use canonical JSON envelopes. Explicit CLI settings override `VERIQ_` environment variables, which override config-file values, which override nonsensitive defaults. For example `--port 8889` or `VERIQ_PORT=8889` changes the API port. Required settings are `database_url`, `public_url`, `master_key` and `signing_key`; key values contain 32 bytes encoded as hex. Production defaults require an HTTPS public origin and set Secure cookies. Use a same-origin TLS reverse proxy for production; production static serving is implemented, while release staging and wheel verification remain T18 work; see [the inventory contract](decisions/0019-production-static-inventory.md).
+`doctor` checks validated configuration, MySQL 8.4 and the installation table. `GET /api/v1/health/live` only checks the HTTP process; `GET /api/v1/health/ready` queries the database. All API responses use canonical JSON envelopes. Explicit CLI settings override `VERIQ_` environment variables, which override config-file values, which override nonsensitive defaults. For example `--port 8889` or `VERIQ_PORT=8889` changes the API port. Required settings are `database_url`, `public_url`, `master_key` and `signing_key`; key values contain 32 bytes encoded as hex. Production defaults require an HTTPS public origin and set Secure cookies. Use a same-origin TLS reverse proxy for production; production static serving and code-reviewed release staging/wheel verification are implemented, while normal release and target-OS acceptance remain pending; see [the inventory contract](decisions/0019-production-static-inventory.md).
 
 Run Vite in another terminal:
 
@@ -110,7 +110,7 @@ The real browser journey launches the CLI, approves in the UI, reads the protect
 
 The implemented control API admits immutable published CASE/SUITE runs or frozen draft candidates, queues TEST/VALIDATE/CLEANUP, and checks both the current device and original requester. Defaults remain four global browser contexts, two per Workspace, ten unfinished Runs, heartbeat10s and lease60s. Explicit activation precedes side effects; an expired or unknown process loses authority and keeps its capacity quarantined until stop reconciliation. Cancellation of an unstarted retry finishes immediately while retaining earlier failures.
 
-The server now verifies managed compiler completion against actual uploaded bytes, retained source and an operator-owned `approved_engine_inventory_path`. No production catalog is supplied yet: missing approval fails closed. T18/T20 build and promote exact engine bytes; the test-only archive producer is not an installation or production approval tool. The Python controller never executes Node or Chrome.
+The server now verifies managed compiler completion against actual uploaded bytes, retained source and an operator-owned `approved_engine_inventory_path`. No engine is implicitly approved: missing approval fails closed. T18 now supplies the actual engine builder and separate guarded operator promotion; T20 adds native distribution. See [release tooling](release.md). The test-only archive producer is not an installation or production approval tool. The Python controller never executes Node or Chrome.
 
 External middleware calls scoped, idempotent HTTP maintenance routes for lease reaping, fixture compensation and capacity reconciliation. A Workspace service token with purpose MAINTENANCE and explicit operations is distinct from one-time RUNTIME_ENROLLMENT. There is no internal Cron. Complete fields, hashing, event order, FINALIZE metadata, upload bounds and result rules are in the [execution contracts](contracts.md) and [queue decision](decisions/0010-unified-fenced-execution.md).
 
@@ -172,7 +172,17 @@ Ruff、格式和生成一致性均有记录。不将这些分组结果称为同�
 基础实现阶段310项Python受影响回归、201项TS契约、真实HTTPS/Vite/MySQL认证和深链接，以及独立开发代理认证场景均通过。
 后续修复先观察真实RED，最终90项静态回归与85文件严格mypy、Ruff/格式通过；未重复310/浏览器/build，也不把旧结果重新绑定到修复源码。
 生产浏览器使用实际编译前端和临时TLS/包资源，服务器仍为真实Python工厂；这不是已安装wheel或目标OS发行验收。
-T18继续正式构建/clean install/无Node证明，T21继续完整存储/静态/关键依赖就绪监控；[里程碑](plans/milestones.md)保留所有发布阻塞。
+T18已提供实际stage/wheel及Debian下无Node/只读/仓库外安装证明，正常发行和Ubuntu/OCI验收仍开放；T21继续完整存储/静态/关键依赖就绪监控；[里程碑](plans/milestones.md)保留所有发布阻塞。
+
+## Server release tooling (reviewed T18; acceptance pending)
+
+`3995648` implements the release pipeline, and `dc95f26` fixes cancellation isolation and candidate freshness after authority-lock waits. Independent scoped re-review closed both Important findings with no new issues. Build stages now use isolated Linux subreapers that retain the build lock until their full subtree is reaped; missing completion proof quarantines the workspace. Promotion revalidates the originally selected inventory and file bytes after obtaining the existing issuer/inventory guard. See [ADR0020](decisions/0020-server-release-pipeline.md) and the [release guide](release.md).
+
+The actual default build on `dc95f26` completed frozen installation and stopped at Web lint: 145 errors, 38 warnings and 128 infos. `output/server` was absent before and after. Separate formatting found 132 files; the initial T18 fixed comment audit recorded 4.4551% and 280 violations, and four existing CI-client mypy annotations remain pending. These are real T22/T23 release blockers. No normal complete release, target Ubuntu24.04 or OCI acceptance is claimed.
+
+Evidence remains separated by source stage: the pinned Chromium158/revision1254 SDK gate passed 136 tests/15 files in 33.38 seconds with 91.46% line coverage, unchanged 15-second/two-worker limits and unchanged SDK product sources in Fix1. The historical timeout cause remains UNKNOWN. Initial package acceptance passed 13 tests; the affected backend batch was 140 passed/one obsolete test-control failure, followed by two focused passes. Fix1's 27 actual signal/lock/freshness tests passed in 30.37 seconds. No unified full-green suite is inferred.
+
+The Fix1 wheel (`15bc3473…`) contains the current promotion source and passed actual offline, read-only, outside-checkout, empty-PATH production startup on Debian13/Python3.12.14. Its static raw inventory remains `561ee42a…`. The earlier `3995648` no-Git source rebuild and UNVERIFIED tar remain historical candidates and do not contain Fix1. Final engine candidate entry `4ac70538…` and raw inventory `75fc7c83…` have load/install/export/compile evidence; real candidate browser execution is owned by T19/T23. The UTF-16 comment-audit and configurable-engine metadata Minors remain assigned to T22. [Milestones](plans/milestones.md) list all remaining acceptance work.
 
 ## Current verification limits
 
@@ -208,7 +218,7 @@ consumer, plus types, mypy (76 files) and Ruff. The GUI pagination test disclose
 its listing-only history padding; only genuine Agent-published roots are exported.
 These checks are not whole-product acceptance.
 
-The required T14 full SDK command remains **134 passed / one timeout**. New phase
+The historical T14 full SDK command recorded **134 passed / one timeout**; the later pinned-browser T18 gate above passed without establishing the old root cause. New phase
 evidence places the delayed await in fixture `browser.close()`, after executeStep
 settled and context close completed; this alone does not prove its business-status
 assertions passed. A separately authorized native process/pipe probe passed 47
