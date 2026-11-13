@@ -6,6 +6,7 @@ import { stopTestAgent } from "./agent-owner";
 import { testEngine } from "./engine";
 import { observeHeadedRun, assertHeadedStopped } from "./headed";
 import { observeExport } from "./export-observation";
+import { observeCrashFailure } from "./crash-observation";
 let engine: Awaited<ReturnType<typeof testEngine>>;
 test.beforeAll(async () => {
     engine = await testEngine(resolve("../.."));
@@ -739,62 +740,77 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
                   evidence,
               )
             : undefined;
-        await electron.evaluate(async ({ BrowserWindow }) => {
-            const windows = BrowserWindow.getAllWindows();
-            const contents = windows[0]!.webContents;
-            // 诊断保留原先选择首个窗口的语义，只记录有限窗口身份来区分目标选错、崩溃事件未到达和恢复加载失败；URL 不记录查询、片段或私有查看器路径，不能借观测泄露 Trace 入口能力。
-            const location = (raw: string): string => {
-                if (!raw) return "empty";
-                const url = new URL(raw);
-                return url.protocol === "veriq:" && url.hostname === "app"
-                    ? "veriq://app/" + (url.pathname === "/index.html" ? "index.html" : "other")
-                    : url.protocol + "//" + url.hostname;
-            };
-            let count = 0;
-            const observe = (event: string, detail: Record<string, unknown> = {}) => {
-                if (count++ >= 24) return;
-                console.error(
-                    "Renderer recovery observation",
-                    JSON.stringify({
-                        event,
-                        at: Date.now(),
-                        webContentsId: contents.id,
-                        rendererPid: contents.isDestroyed() ? null : contents.getOSProcessId(),
-                        loading: contents.isDestroyed() ? null : contents.isLoading(),
-                        ...detail,
+        const stopCrashObservation = await observeCrashFailure(electron, evidence);
+        const crashFailures: unknown[] = [];
+        try {
+            await electron.evaluate(async ({ BrowserWindow }) => {
+                const windows = BrowserWindow.getAllWindows();
+                const contents = windows[0]!.webContents;
+                // 诊断保留原先选择首个窗口的语义，只记录有限窗口身份来区分目标选错、崩溃事件未到达和恢复加载失败；URL 不记录查询、片段或私有查看器路径，不能借观测泄露 Trace 入口能力。
+                const location = (raw: string): string => {
+                    if (!raw) return "empty";
+                    const url = new URL(raw);
+                    return url.protocol === "veriq:" && url.hostname === "app"
+                        ? "veriq://app/" + (url.pathname === "/index.html" ? "index.html" : "other")
+                        : url.protocol + "//" + url.hostname;
+                };
+                let count = 0;
+                const observe = (event: string, detail: Record<string, unknown> = {}) => {
+                    if (count++ >= 24) return;
+                    console.error(
+                        "Renderer recovery observation",
+                        JSON.stringify({
+                            event,
+                            at: Date.now(),
+                            webContentsId: contents.id,
+                            rendererPid: contents.isDestroyed() ? null : contents.getOSProcessId(),
+                            loading: contents.isDestroyed() ? null : contents.isLoading(),
+                            ...detail,
+                        }),
+                    );
+                };
+                observe("before-crash", {
+                    selectedWindowId: windows[0]!.id,
+                    windowCount: windows.length,
+                    windows: windows.slice(0, 8).map((window) => ({
+                        id: window.id,
+                        webContentsId: window.webContents.id,
+                        rendererPid: window.webContents.getOSProcessId(),
+                        location: location(window.webContents.getURL()),
+                    })),
+                });
+                // 被动监听最多输出二十四条元数据，不覆盖 loadURL、不处理异常、不重载窗口，也不改变正式测试预算；did-fail-load 仅保留错误码和主 frame 标志，错误描述及实际导航地址不进入日志。
+                contents.on("render-process-gone", (_event, details) =>
+                    observe("render-process-gone", {
+                        reason: details.reason,
+                        exitCode: details.exitCode,
                     }),
                 );
-            };
-            observe("before-crash", {
-                selectedWindowId: windows[0]!.id,
-                windowCount: windows.length,
-                windows: windows.slice(0, 8).map((window) => ({
-                    id: window.id,
-                    webContentsId: window.webContents.id,
-                    rendererPid: window.webContents.getOSProcessId(),
-                    location: location(window.webContents.getURL()),
-                })),
+                contents.on("did-start-loading", () => observe("did-start-loading"));
+                contents.on("did-finish-load", () => observe("did-finish-load"));
+                contents.on("did-stop-loading", () => observe("did-stop-loading"));
+                contents.on("destroyed", () => observe("destroyed"));
+                contents.on("did-fail-load", (_event, code, _description, _url, mainFrame) =>
+                    observe("did-fail-load", { code, mainFrame }),
+                );
+                const restored = new Promise<void>((resolve) =>
+                    contents.once("did-finish-load", () => resolve()),
+                );
+                contents.forcefullyCrashRenderer();
+                await restored;
             });
-            // 被动监听最多输出二十四条元数据，不覆盖 loadURL、不处理异常、不重载窗口，也不改变正式测试预算；did-fail-load 仅保留错误码和主 frame 标志，错误描述及实际导航地址不进入日志。
-            contents.on("render-process-gone", (_event, details) =>
-                observe("render-process-gone", {
-                    reason: details.reason,
-                    exitCode: details.exitCode,
-                }),
-            );
-            contents.on("did-start-loading", () => observe("did-start-loading"));
-            contents.on("did-finish-load", () => observe("did-finish-load"));
-            contents.on("did-stop-loading", () => observe("did-stop-loading"));
-            contents.on("destroyed", () => observe("destroyed"));
-            contents.on("did-fail-load", (_event, code, _description, _url, mainFrame) =>
-                observe("did-fail-load", { code, mainFrame }),
-            );
-            const restored = new Promise<void>((resolve) =>
-                contents.once("did-finish-load", () => resolve()),
-            );
-            contents.forcefullyCrashRenderer();
-            await restored;
-        });
+        } catch (error) {
+            crashFailures.push(error);
+        } finally {
+            try {
+                await stopCrashObservation();
+            } catch (error) {
+                crashFailures.push(error);
+            }
+        }
+        if (crashFailures.length === 1) throw crashFailures[0];
+        if (crashFailures.length > 1)
+            throw new AggregateError(crashFailures, "CRASH_ASSERTION_AND_OBSERVATION_FAILED");
         await expect
             .poll(() =>
                 electron!.evaluate(({ BrowserWindow }) =>
