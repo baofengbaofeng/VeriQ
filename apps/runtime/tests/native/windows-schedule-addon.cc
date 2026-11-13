@@ -1,4 +1,4 @@
-/** 此独立测试 addon 只提供固定阶段的私有事件等待与读门放行，不修改正式 addon 的导出或状态；等待在 Node 工作线程执行且五秒到期必须失败，测试调度不能阻塞 JavaScript 清理定时器或伪造成功阶段。 */
+/** 此独立测试 addon 只提供固定阶段的私有事件等待与读门或响应门放行，不修改正式 addon 的导出或状态；等待在 Node 工作线程执行且五秒到期必须失败，测试调度不能阻塞 JavaScript 清理定时器或伪造成功阶段。 */
 #include "windows-schedule.h"
 #include <napi.h>
 #include <memory>
@@ -44,10 +44,20 @@ static Napi::Value releaseRead(const Napi::CallbackInfo& info) {
         return info.Env().Undefined();
     } catch (const std::exception& error) { Napi::Error::New(info.Env(), error.what()).ThrowAsJavaScriptException(); return info.Env().Undefined(); }
 }
-/** 模块注册只发生在显式构建的测试 addon 中，导出限于等待固定阶段和放行固定读门两项能力；正常产品模块仍由原 windows-addon 源码独立构建，不能因为安装了测试文件就启用调度控制。 */
+/** 响应门仅由持有该次随机 nonce 的测试控制器放行，设置事件本身不关闭客户端或服务器资源；清理仍须独立确认真实文件描述符关闭与宿主退出，重复放行不能替代任何产品资源完成证明。 */
+static Napi::Value releaseResponse(const Napi::CallbackInfo& info) {
+    try {
+        veriq::require(info.Length() == 1 && info[0].IsString(), "NATIVE_TEST_RELEASE_INVALID");
+        auto event = veriq_test::scheduleEvent(veriq::wide(info[0].As<Napi::String>().Utf8Value()), L"response-release");
+        veriq::require(SetEvent(event.value) != 0, "NATIVE_TEST_RELEASE_FAILED");
+        return info.Env().Undefined();
+    } catch (const std::exception& error) { Napi::Error::New(info.Env(), error.what()).ThrowAsJavaScriptException(); return info.Env().Undefined(); }
+}
+/** 模块注册只发生在显式构建的测试 addon 中，导出限于等待固定阶段和放行固定读门或响应门；正常产品模块仍由原 windows-addon 源码独立构建，不能因为安装了测试文件就启用调度控制。 */
 static Napi::Object initialize(Napi::Env env, Napi::Object exports) {
     exports.Set("waitPhase", Napi::Function::New(env, waitPhase));
     exports.Set("releaseRead", Napi::Function::New(env, releaseRead));
+    exports.Set("releaseResponse", Napi::Function::New(env, releaseResponse));
     return exports;
 }
 NODE_API_MODULE(veriq_test_schedule, initialize)

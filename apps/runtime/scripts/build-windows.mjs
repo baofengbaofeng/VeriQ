@@ -38,6 +38,7 @@ if (testSchedules) {
         "veriq_test_schedule.node",
         "veriq_guardian_scheduled.exe",
         "veriq_constructor_fault.node",
+        "veriq_response_scheduled.node",
     ]) {
         await copyFile(
             new URL(`native/build/Release/${name}`, root),

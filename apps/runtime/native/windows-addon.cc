@@ -176,6 +176,10 @@ class PipeServer : public Napi::ObjectWrap<PipeServer> {
             phase = "server.writeFrame";
             writeFrame(session->pipe.value, stopped.value, response, 5000);
             recordPhase("server.writeFrame.complete");
+            /** 独立测试编译体可在实际响应进入管道后控制会话线程的调度，以观察关闭取消先于下一次系统调用的真实窗口；正式目标不定义此宏，不生成测试调用，也不提供环境变量或普通导出启用它。 */
+#ifdef VERIQ_TEST_RESPONSE_WRITTEN
+            VERIQ_TEST_RESPONSE_WRITTEN(name);
+#endif
             phase = "server.flushResponse";
             flushResponse(session->pipe.value);
             recordPhase("server.flushResponse.complete");
