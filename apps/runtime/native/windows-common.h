@@ -11,6 +11,13 @@
 #include <utility>
 
 namespace veriq {
+/** 原生失败携带固定源码错误码及调用当时的 Win32 状态，逻辑条件失败的系统码固定为零；附加位仅表示 ACL 检查结果，不保存路径、SID 或业务数据，使异步管道诊断不会因异常展开丢失真正失败原因。 */
+class NativeFailure : public std::runtime_error {
+public:
+    DWORD win32;
+    DWORD checks;
+    NativeFailure(const char* code, DWORD system = 0, DWORD evidence = 0) : std::runtime_error(code), win32(system), checks(evidence) {}
+};
 /** 每个内核句柄在本层只具有一个释放者，移动操作清空原值，异常离开作用域时仍会关闭资源；无效句柄与空句柄统一拒绝使用，禁止把裸 HANDLE 数值传给 JavaScript 或当作 Node 文件描述符。 */
 class Handle {
 public:
@@ -22,7 +29,8 @@ public:
     Handle(Handle&& other) noexcept : value(std::exchange(other.value, INVALID_HANDLE_VALUE)) {}
     bool valid() const { return value != INVALID_HANDLE_VALUE && value != nullptr; }
 };
-inline void require(bool ok, const char* code) { if (!ok) throw std::runtime_error(code); }
+inline void require(bool ok, const char* code) { if (!ok) throw NativeFailure(code); }
+inline void requireWin32(bool ok, const char* code) { if (!ok) throw NativeFailure(code, GetLastError()); }
 inline std::wstring wide(const std::string& text) {
     if (text.empty()) return {};
     int size = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text.data(), static_cast<int>(text.size()), nullptr, 0);
@@ -41,15 +49,15 @@ inline std::string utf8(const std::wstring& text) {
 }
 inline std::wstring processSid(HANDLE process) {
     HANDLE raw = nullptr;
-    require(OpenProcessToken(process, TOKEN_QUERY, &raw) != 0, "NATIVE_TOKEN_UNAVAILABLE");
+    requireWin32(OpenProcessToken(process, TOKEN_QUERY, &raw) != 0, "NATIVE_TOKEN_UNAVAILABLE");
     Handle token(raw);
     DWORD size = 0;
     GetTokenInformation(token.value, TokenUser, nullptr, 0, &size);
     require(size > 0 && size <= 65536, "NATIVE_TOKEN_INVALID");
     std::vector<BYTE> data(size);
-    require(GetTokenInformation(token.value, TokenUser, data.data(), size, &size) != 0, "NATIVE_TOKEN_INVALID");
+    requireWin32(GetTokenInformation(token.value, TokenUser, data.data(), size, &size) != 0, "NATIVE_TOKEN_INVALID");
     LPWSTR value = nullptr;
-    require(ConvertSidToStringSidW(reinterpret_cast<TOKEN_USER*>(data.data())->User.Sid, &value) != 0, "NATIVE_SID_INVALID");
+    requireWin32(ConvertSidToStringSidW(reinterpret_cast<TOKEN_USER*>(data.data())->User.Sid, &value) != 0, "NATIVE_SID_INVALID");
     std::wstring sid(value);
     LocalFree(value);
     return sid;
@@ -83,27 +91,37 @@ inline void verifyPrivate(HANDLE handle, SE_OBJECT_TYPE type = SE_FILE_OBJECT) {
     PSID owner = nullptr;
     PACL acl = nullptr;
     PSECURITY_DESCRIPTOR descriptor = nullptr;
-    require(GetSecurityInfo(handle, type, OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, &owner, nullptr, &acl, nullptr, &descriptor) == ERROR_SUCCESS, "NATIVE_ACL_UNAVAILABLE");
+    const DWORD securityError = GetSecurityInfo(handle, type, OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, &owner, nullptr, &acl, nullptr, &descriptor);
+    if (securityError != ERROR_SUCCESS) throw NativeFailure("NATIVE_ACL_UNAVAILABLE", securityError);
     bool valid = false;
     LPWSTR ownerText = nullptr;
     LPWSTR aceText = nullptr;
     SECURITY_DESCRIPTOR_CONTROL control = 0;
     DWORD revision = 0;
     void* rawAce = nullptr;
+    DWORD checks = owner ? 1 : 0;
+    if (acl) checks |= 2;
+    if (acl && acl->AceCount == 1) checks |= 4;
     if (owner && acl && acl->AceCount == 1 && ConvertSidToStringSidW(owner, &ownerText) &&
         GetSecurityDescriptorControl(descriptor, &control, &revision) && (control & SE_DACL_PROTECTED) &&
         GetAce(acl, 0, &rawAce)) {
+        checks |= 8;
         auto* ace = static_cast<ACCESS_ALLOWED_ACE*>(rawAce);
+        if (ace->Header.AceType == ACCESS_ALLOWED_ACE_TYPE) checks |= 16;
+        if (!(ace->Header.AceFlags & INHERITED_ACE)) checks |= 32;
         if (ace->Header.AceType == ACCESS_ALLOWED_ACE_TYPE && !(ace->Header.AceFlags & INHERITED_ACE) &&
             ConvertSidToStringSidW(&ace->SidStart, &aceText)) {
             const auto sid = currentSid();
+            if (sid == ownerText) checks |= 64;
+            if (sid == aceText) checks |= 128;
             valid = sid == ownerText && sid == aceText;
         }
     }
+    if (control & SE_DACL_PROTECTED) checks |= 256;
     if (ownerText) LocalFree(ownerText);
     if (aceText) LocalFree(aceText);
     if (descriptor) LocalFree(descriptor);
-    require(valid, "NATIVE_ACL_NOT_PRIVATE");
+    if (!valid) throw NativeFailure("NATIVE_ACL_NOT_PRIVATE", 0, checks);
 }
 inline void writeAll(HANDLE handle, const std::string& bytes) {
     size_t offset = 0;

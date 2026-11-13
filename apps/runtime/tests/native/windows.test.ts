@@ -172,6 +172,13 @@ test("Windows private broker serves a bounded Unicode request through a named pi
             failures.push(error);
             context.diagnostic(`Native broker cleanup unproved; preserve profile: ${root}`);
         }
+        try {
+            context.diagnostic(
+                `Native pipe diagnostics: ${JSON.stringify(windowsNative().takePipeDiagnostics())}`,
+            );
+        } catch (error) {
+            failures.push(error);
+        }
     }
     if (failures.length) {
         throw new AggregateError(failures, "Windows broker assertion or cleanup failed", {

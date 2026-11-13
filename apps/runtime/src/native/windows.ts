@@ -20,6 +20,7 @@ export interface WindowsNative {
     signalStop(nonce: string, pid: number, startTime: string): void;
     privatePath(path: string, createDirectory: boolean): void;
     writePrivate(path: string, content: string): void;
+    takePipeDiagnostics(): Array<{ phase: string; code: string; win32: number; checks: number }>;
 }
 let loaded: WindowsNative | undefined;
 /** 构建期产生的 Node-API 模块通过标准 Node 加载器进入宿主，缺失或 ABI 错误直接失败；此处没有下载、编译、公共传输或额外 node.exe 回退，安装路径后续由已核验库存的构建布局提供。 */
