@@ -184,6 +184,18 @@ Evidence remains separated by source stage: the pinned Chromium158/revision1254 
 
 The Fix1 wheel (`15bc3473…`) contains the current promotion source and passed actual offline, read-only, outside-checkout, empty-PATH production startup on Debian13/Python3.12.14. Its static raw inventory remains `561ee42a…`. The earlier `3995648` no-Git source rebuild and UNVERIFIED tar remain historical candidates and do not contain Fix1. Final engine candidate entry `4ac70538…` and raw inventory `75fc7c83…` have load/install/export/compile evidence; real candidate browser execution is owned by T19/T23. The UTF-16 comment-audit and configurable-engine metadata Minors remain assigned to T22. [Milestones](plans/milestones.md) list all remaining acceptance work.
 
+## Electron desktop GUI (reviewed T19)
+
+T19 source `bac5162` and Fix1 through `eb2dc4e` passed the initial task review and scoped six-finding re-review. Logout now reaches the server and revokes a copied ordinary Cookie while preserving the device binding; client/broker preserve fragmented UTF-8 bytes, bundled assets use native Windows/POSIX containment, headed execution retains trusted X11 context, streamed Attempts retain native-evidence ownership, and fixtures await process/stdio closure.
+
+[Exact-head run43485459939](https://github.com/baofengbaofeng/VeriQ/actions/runs/43485459939) executed all six desktop GUI cases once with zero skipped/flaky results (125.020 seconds),34 unit tests and2 display tests. The actual full Chrome158 headed observation and positive stop proof share one Attempt. A real owned UI renderer abnormal termination produced a new renderer while the same independent Agent/Run continued; native QuitUI/reopen, upload recovery/idempotency, cancellation and copied-Cookie401 also passed. The component-only startup case remains explicitly identified as component evidence.
+
+QA uses Python3.12/pidfd only to inject a precisely owned renderer fault; Python is not a desktop product dependency. Earlier core-producing injection observed renderer CoreDumping=1 at ten seconds under the hosted collector, not a diagnosed systemd defect or an accepted product workaround. Actual process roles come from trusted Electron Browser/Tab metrics because Linux process titles do not preserve separate NUL arguments. All earlier failures remain recorded; the972 export failure's exact cause is UNKNOWN.
+
+The CI uses a separate unapproved engine1.0.2-t19-fix1 (canonical `1c64aff0…`), preserving original engine identities.501 source hashes match that commit and raw inventory identity matches;65 compiled hashes are CI manifest records whose bytes were not downloaded for independent local rehashing. Hosted exact-binary AppArmor QA profiles were fully removed without changing global restrictions. Existing business-browser `--no-sandbox` arguments remain a T20 security-default task, distinct from the sandboxed Electron UI.
+
+This closes the T19 module, not installed Windows11/Ubuntu24.04 distribution, vault/process/signing/upgrade, actual Provider, repository quality or complete MVP acceptance. Continue with T20 packaging and the [milestone handoff](plans/milestones.md); source-bound GUI evidence is not a production release package. See [desktop development](desktop.md).
+
 ## Current verification limits
 
 The offline execution/import module (`1b6fccb`, `86f1602`, fixed in `67968b4`)

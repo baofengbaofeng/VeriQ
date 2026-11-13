@@ -567,15 +567,17 @@ assert production_starts_without_node_or_chrome is True
 
 **依赖：** T10/T11/T12/T14/T15
 
+**状态：** 模块及六项重要修复复审已通过（`bac5162`→`eb2dc4e`，新增C/I/M为0）；精确源码六GUI/34unit/2display通过。Windows11/Ubuntu安装、原生托盘/vault/签名及全产品/Provider/质量门禁仍由T20–T23完成，见[里程碑](milestones.md)。
+
 **Files：** apps/desktop/package.json；apps/desktop/electron.vite.config.ts；apps/desktop/src/main/index.ts；apps/desktop/src/preload/index.ts；apps/desktop/src/renderer/；packages/ui/；tests/e2e/desktop.spec.ts。
 
 **Interfaces：** DesktopBridge为白名单类型化IPC；CloudResourceAdapter与LocalResourceAdapter共享资源视图；AgentClient连接受限本机IPC，不开启无认证控制端口。
 
-- [ ] Step 1：写桌面真实E2E，覆盖登录/Workspace、设备绑定、下载、独立执行、取消、报告、回传、设置、自检和托盘。Renderer不得直接获得进程/任意文件/密钥能力。
-- [ ] Step 2：运行pnpm desktop:test并确认缺功能时失败，保存证据。
-- [ ] Step 3：实现全部桌面界面和Cloud/Local适配；本地静态UI随包，无平台连接也能操作缓存；UI与独立Node24 Agent生命周期分离。
-- [ ] Step 4：运行组件、IPC、安全和真实Electron测试；检查UI崩溃/窗口关闭不丢后台执行。
-- [ ] Step 5：同步契约、安装说明并提交。
+- [x] Step 1：写桌面真实E2E，覆盖登录/Workspace、设备绑定、下载、独立执行、取消、报告、回传、设置、自检和托盘入口（原生目标托盘验收归T20）。Renderer不得直接获得进程/任意文件/密钥能力。
+- [x] Step 2：运行pnpm desktop:test并确认缺功能时失败，保存证据。
+- [x] Step 3：实现全部桌面界面和Cloud/Local适配；本地静态UI随包，无平台连接也能操作缓存；UI与独立Node24 Agent生命周期分离。
+- [x] Step 4：运行组件、IPC、安全和真实Electron测试；检查UI崩溃/窗口关闭不丢后台执行。
+- [x] Step 5：同步契约、安装说明并提交。
 
 ## T20：Windows/Linux桌面与Runtime发行
 

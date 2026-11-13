@@ -1,6 +1,6 @@
 # VeriQ 1.0 交付里程碑与 Agent 接续状态
 
-> 状态快照：2026-11-13（Asia/Shanghai）。恢复基线：`master` 提交 `e5d5a6bb93cc5cf7b9496defc3f0995ab47c8384`；本轮已审查功能分支代码 `dc95f26`（T18代码；正式发行待验收）。本文汇总已确认范围、已落地代码、验收缺口和接续上下文；不新增功能范围，也不替代需求规格。
+> 状态快照：2026-11-13（Asia/Shanghai）。恢复基线：`master` 提交 `e5d5a6bb93cc5cf7b9496defc3f0995ab47c8384`；本轮已审查功能分支代码 `eb2dc4e`（T19模块及修复复审；正式发行待验收）。本文汇总已确认范围、已落地代码、验收缺口和接续上下文；不新增功能范围，也不替代需求规格。
 >
 > **用户已明确恢复开发，目标为完整 MVP 交付。** 从最新 master 建立隔离功能工作区，按 T16–T23 继续子 Agent 开发及独立审查。恢复开发不等于批准实际付费 Provider 调用、正式发布或外部部署；相关验收仍需具体配置和授权。
 
@@ -10,10 +10,10 @@
 | --- | --- | --- |
 | 产品目标 | 企业 PC Web 自动化冒烟/回归平台；20 人以内、同时提交约 10 个 Run | 常规运行必须直接执行固定版本 TypeScript/Playwright，不依赖模型 |
 | 首发范围 | F01–F14 全部模块，包括 Electron 桌面 GUI、两平台 Runtime、安装与运维 | 阶段性实现不能被改称完整 MVP；尚未达到开箱即用标准 |
-| 实施任务 | T01–T12、T14–T17 共16项模块已审查；T18代码及重要修复已审查，正式发行待验收 | 不重做已完成实现；T18仍需T22/T23关闭正常发行和目标环境验收 |
+| 实施任务 | T01–T12、T14–T17、T19 共17项模块已审查；T18代码及重要修复已审查，正式发行待验收 | 不重做已完成实现；T18仍需T22/T23关闭正常发行和目标环境验收 |
 | AI 模块 | T13 代码与修复复审已完成，实际外部 Provider 验收未完成 | 不能把协议模拟、无模型运行成功当成实际 Provider 通过 |
-| 后续工作 | T19–T23 共5项实现/整体验收继续；T13/T18保留指定实际验收 | T19实现已提交`bac5162`；真实云端编辑、断网执行、报告回传和崩溃恢复已验证，独立审查6项Important正在Fix1修复 |
-| 已合并内容 | PR #10/#11已合并至恢复基线，覆盖至T15；T16–T18代码在功能分支已审查 | 当前分支`codex/veriq-mvp-completion`；远端状态以实际Git HEAD为准，尚未合并本轮代码至master |
+| 后续工作 | T20–T23 共4项实现/整体验收继续；T13/T18保留指定实际验收 | T19 `bac5162`→`eb2dc4e`六项Important复审全部关闭、新增0；实际六GUI一次通过，现进入两平台Runtime发行预研 |
+| 已合并内容 | PR #10/#11已合并至恢复基线，覆盖至T15；T16–T19代码在功能分支已审查，T18正式发行待验收 | 当前分支`codex/veriq-mvp-completion`；远端状态以实际Git HEAD为准，尚未合并本轮代码至master |
 | 主要发布阻塞 | 默认构建实际失败于Web lint；历史格式/类型与B05未达标，目标OS/OCI、Electron、真实Provider和完整验收未完成 | 固定SDK门禁/当前wheel组件验证通过不等于完整正常发行 |
 | 当前文档 | 本里程碑台账由 README 提供入口 | 实现状态基于上述代码提交；文档本身的提交与远端状态以 Git 历史为准 |
 
@@ -75,7 +75,7 @@
 | M04 AI 辅助 | T13 | 配置、预算、结构化生成、审核、失败分析、无模型执行 | 代码完成·待验收 | 需要经授权实际 Provider 验收和独立持久配置 |
 | M05 签名包与离线链路 | T14–T15 | 签名/验证、凭证引用、本地执行/恢复/报告/回传 | 已完成·模块 | 单 CASE、套件矩阵、草稿套件、崩溃证据链均有真实组合验证；GUI/安装待后续 |
 | M06 外部自动化与服务器产品化 | T16–T18 | HTTP/CI、生产同源、前端入wheel、构建/引擎工具 | 代码完成·发行待验收 | T18重要问题复审关闭；默认正常门禁失败，Ubuntu/OCI及最终正常包由T22/T23闭合 |
-| M07 桌面与跨平台 Runtime | T19–T20 | Electron 全 GUI、Windows/Linux 安装与原生能力 | 进行中·T19审查修复 | 桌面代码`bac5162`及真实组合已有；6项Important关闭后继续T20，两平台安装/vault/签名/离网仍待验收 |
+| M07 桌面与跨平台 Runtime | T19–T20 | Electron 全 GUI、Windows/Linux 安装与原生能力 | 进行中·T19模块完成，T20待开工 | T19重要问题复审已关闭；六GUI/34unit/2display通过；两平台安装、vault、签名、离网及安全默认值由T20继续 |
 | M08 运维与完整用户体验 | T21–T22 | 安装升级、备份恢复、观测、生命周期、示例/手册/接入 | 待开工 | 新环境按文档操作成功；全模块真实交互和中英文/键盘覆盖 |
 | M09 1.0 产品验收 | T23 | 全范围、并发、故障、业务多轮、发行物与整分支审查 | 待开工 | 全部阻塞、授权和平台验收关闭后才可以标记 1.0 完成 |
 
@@ -91,12 +91,12 @@
 | F06 操作断言 | UI/URL/请求/响应/业务码、JSON Pointer/Schema、持久化、最终一致、模板与预期来源 | 已完成·模块；最终集成待验收 | 前置/后置断言、动作前监听/关联、dispose、类型和重试；T18固定浏览器SDK136项通过、行覆盖91.46% | 历史browser.close根因仍未知；T23按最终源码门禁及全业务故障验收，不重跑旧诊断 |
 | F07 环境身份 | 地址/域名约束、语言时区、角色、凭证版本、构建身份 | 已完成·模块 | 独立认证注册、AES-GCM 版本凭证、按 Attempt 授权、明确下发同意、精确本地映射 | OS vault、代理/证书/桌面设置、实际部署手册；T19–T22 |
 | F08 测试数据 | fixture 准备/查询、namespace、幂等 cleanup、部分失败/崩溃补偿 | 已完成·模块 | T07 真实 HTTP 示例与 SDK；统一 CLEANUP Job、独立 fixture 身份、TTL 契约与安全重试 | 实际企业业务接入、升级/失联补偿运维、跨 OS 故障验收；T21–T23 |
-| F09 Runtime | 云端/本地、注册、自检、私人/共享、撤销、实际进程名 | 部分完成 | 设备身份/授权、真实 Linux 原生 guardian、在线 Agent/离线执行/doctor 已有 | Electron GUI、独立 Node/浏览器分发、Windows 原生进程树、服务/自启动/安装；T19/T20/T21 |
+| F09 Runtime | 云端/本地、注册、自检、私人/共享、撤销、实际进程名 | 部分完成 | 设备授权、Linux guardian、在线Agent/离线执行/doctor、Electron完整GUI及后台独立生命周期已审查 | 独立Node/浏览器分发、Windows原生进程树、OS vault、安装/自启动及目标系统进程名；T20/T21/T23 |
 | F10 执行调度 | 手动、HTTP 触发、队列、容量、租约、取消、重跑与整用例重试 | 部分完成 | 手动入队、TEST/VALIDATE/CLEANUP、fencing、真实消费者/恢复/重试及T16计划/HTTP/服务身份/CI已验证 | 计划/HTTP/QUEUE/SKIP/REJECT/安全JUnit已交付；重跑及遗留API由T22补齐，实际10 Run压测由T23完成 |
-| F11 报告 | 实时进度、差异、请求关联、所有 Attempt、耗时/环境/清理、证据、可信门禁、JUnit | 部分完成 | Web 结构化报告/SSE、受限原始证据、File/S3、Trace 本机查看、离线报告接口已有 | T16已交付受限CI状态/安全JUnit；桌面展示、指标/生命周期与最终统计验收仍由T19/T21/T23完成 |
-| F12 本地离线 | 依赖闭包、签名/安全安装、凭证、脱平台运行、报告、恢复/回传/来源 | 核心代码已完成；产品形态待补 | T14/T15 真正断开控制监听后运行并回传；代际 CAS、证据/变体完整性与不可变导入已修复复审 | 无终端 GUI、OS vault、离网安装与两平台完整体验；T19/T20/T23 |
+| F11 报告 | 实时进度、差异、请求关联、所有Attempt、环境/清理、证据、可信门禁、JUnit | 部分完成 | Web/SSE、受限原始证据、File/S3、安全CI/JUnit、桌面报告及原生Trace/图片、离线回传已交付 | 指标/完整生命周期、最终统计与整体验收仍由T21/T23完成 |
+| F12 本地离线 | 依赖闭包、签名/安全安装、凭证、独立执行、报告、恢复/回传/来源 | 核心与GUI已审查；发行待验收 | T14/T15真实断平台运行/回传及代际/完整性修复；T19无终端GUI、可见158执行/同Attempt停止、同Agent/Run恢复已验证 | OS vault、全离网安装和Windows11/Ubuntu24.04完整产品体验；T20/T23 |
 | F13 AI 辅助 | Provider 配置/连接、需求/OpenAPI/元素上下文、结构化草稿、审核、边界建议、失败分析、历史/费用预算 | 代码完成·待验收 | T13 已代码复审；官方 SDK、独立密钥、并发预算预留、取消/未知费用、人工审核；禁用/耗尽模型时真实 Run 仍成功且模型请求为 0 | 实际 Provider 授权与持久验收；契约/选择器遗留、最终 UX；T13/T16/T22/T23 |
-| F14 产品运维 | 同源发布、安装升级、备份恢复、保留期、日志指标、许可、手册/验收报告 | 部分完成 | 同源与T18构建/引擎/晋升、wheelhouse/SBOM/NOTICE及部署代码已有，当前wheel组件安装验证通过 | 正常发行、两平台包、完整生命周期、轮换恢复/指标和手册/最终验收仍由T19–T23完成 |
+| F14 产品运维 | 同源发布、安装升级、备份恢复、保留期、日志指标、许可、手册/验收报告 | 部分完成 | 同源与T18构建/引擎/晋升、wheelhouse/SBOM/NOTICE及部署代码已有，当前wheel组件安装验证通过 | 正常发行、两平台包、完整生命周期、轮换恢复/指标和手册/最终验收仍由T20–T23完成 |
 
 ## 5. 实施任务台账：T01–T23
 
@@ -122,7 +122,7 @@
 | T16 HTTP 触发/维护/CI | T09/T12，并保留 T15 接口 | 已完成·模块 | 计划修订/冻结、独立执行token、真实同计划领取门控、幂等、GUI和CI已落地；I1认证回退/I2总截止时间修复复审关闭，零新增阻塞 | `599f989`、`10a1065`；[接入说明](../integration/external-scheduler.md)、[ADR0018](../decisions/0018-external-plan-trigger.md)；M1/M2见D12/D13 |
 | T17 生产同源服务 | T02/T11 | 已完成·模块 | 唯一工厂、包内完整文件库存、已登记SPA GET/HEAD、API/静态404、缓存/范围/条件响应、build-info和健康兼容；HTML策略两轮修复复审关闭 | `4b58a4c`、`0f48d6e`、`67779ed`；[ADR0019](../decisions/0019-production-static-inventory.md)；stage/wheel已由T18交付，正式目标发行待验收 |
 | T18 构建与服务端发行 | T17 | 代码完成·待验收 | 默认完整门禁、Hatch/stage/wheel/离线安装、SBOM/引擎及独立晋升；两项Important修复复审通过 | `3995648`/`dc95f26`；27项fix回归、当前UNVERIFIED wheel安装通过；正常发行/Ubuntu/OCI及M1/M2仍开放 |
-| T19 Electron 全 GUI | T10/T11/T12/T14/T15 | 审查修复中·Fix1 | `bac5162`实现完整本地界面/受限IPC/独立Node24与共享视图；真实编译发布、签名下载、断网PASSED、Trace、幂等回传及崩溃恢复已验证；21桌面/3Runtime/201contracts检查通过 | 独立审查0 Critical/6 Important，详见下表，尚未批准；原Agent修复与同一审查者复审；可见158专项CI、全局规范和T20发行仍有明确后续门禁 |
+| T19 Electron 全 GUI | T10/T11/T12/T14/T15 | 已完成·模块及Fix1复审 | `bac5162`→`eb2dc4e`：完整本地界面、有限IPC、独立Node24、云端编辑/编译发布、签名下载、断网执行、报告/Trace/幂等回传与故障恢复；实际6GUI/34unit/2display通过 | I1–I6全部关闭，新增C/I/M均0；Windows/POSIX路径单测不等于安装验收，目标OS/vault/发行、Provider和全仓质量仍待T20–T23 |
 | T20 两平台 Runtime 发行 | T19 | 待开工 | Linux 开发原生 helper 已验证，不等于 Ubuntu/Windows 安装包 | 两 OS 独立构建、Node/浏览器/vault、安装升级签名、实际进程名 |
 | T21 安装运维 | T12/T16/T18/T20 | 待开工 | 基础 init/migrate/配置/原始证据维护已有，完整产品运维未完成 | Compose/离线包、备份恢复/轮换、生命周期、指标及遗留 M1 |
 | T22 全模块 UX/示例/接入 | T11/T12/T13/T15/T16/T19/T21 | 待开工 | 现有局部页面/后端示例/说明不是完整示例向导或完整手册 | 全菜单真实操作、中英文/键盘、示例与前后端规范、遗留 UX |
@@ -147,12 +147,12 @@
 | R18-02 / T18 | Hatch/安装包完整性 | 组件证明通过；最终源发行待验收 | editable无dist可用、正式缺资源失败、完整资源/RECORD校验；Fix1当前wheel离线/只读/仓库外无Node启动通过；无.git重建仅绑定早期399候选 |
 | R18-03 / T18 | 正常/紧急门禁 | 行为已实现，未产正常成功包 | default/with-tests完整；skip需reason且不跳静态/完整性；TERM/INT及detached子树、锁继承和未知证明隔离已实测，原子输出保护通过 |
 | R18-04 / T18 | 服务器发行物 | UNVERIFIED候选可审阅，正式目标验收未过 | 当前Fix1 wheel，55个锁定依赖wheel、SBOM/NOTICE/hash/部署代码；早期399 tar保留为历史候选；Ubuntu裸包/独立OCI/最终正常tar待T22/T23 |
-| R18-05 / T18 | 引擎批准/版本和质量 | 真实生产器与晋升代码已审查 | 新engine1.0.0/编译器SDK0.1.0分开；guard后复核原候选、旧身份保留；当前SDK136/91.46%已过，实际候选浏览器组合及最终核心75%待T19/T23 |
-| R19-01 / T19 | 桌面安装入口/窗口壳 | 开发中：真实本地窗口、第二实例唤醒、关闭保留后台已验证；安装包属T20 | 本地 renderer、单实例、托盘、重新唤起、版本/后台状态；不只载入远程网址 |
-| R19-02 / T19 | 登录/空间/设备/资源 | 开发中：真实登录/绑定/共享、资源编辑编译发布、签名下载和凭证映射已验证 | 配置控制地址、登录退出、Workspace/设备绑定与共享、浏览用例套件、下载、凭证映射、可见/无头选择 |
-| R19-03 / T19 | 本地执行全 GUI | 开发中：断控制平台后PASSED、历史/Trace、PENDING→COMPLETE和幂等回传、取消已验证 | 无终端启动/取消/恢复、进度、步骤断言/日志、历史、报告/Trace；断平台后仍可打开、运行、看报告；恢复后待上传与重试 |
-| R19-04 / T19 | IPC 与 host 会话 | 开发中：真实sandbox窗口、私有host会话、有限桥接和独立Agent已验证；最终审查待完成 | contextIsolation、关闭 renderer Node、适用 sandbox；白名单参数/sender 校验；token/vault/任意 fs/spawn 不给 renderer；无无鉴权本地控制 HTTP |
-| R19-05 / T19 | 生命周期与设置 | 开发中：renderer崩溃恢复、确认退出UI后Agent同PID存活、重开同Run继续PASSED、明确停止Agent已验证 | 关闭窗口、退出 UI、停止 Agent、取消测试独立；UI 崩溃不丢后台任务；自检、目录/缓存/并发、代理/证书及错误恢复可操作 |
+| R18-05 / T18 | 引擎批准/版本和质量 | 生产器与晋升代码已审查；最终发行待验收 | 原1.0.0身份不变；T19另用未批准1.0.2-t19-fix1实际生产并消费，六GUI通过；最终源码核心75%与正式候选仍待T23 |
+| R19-01 / T19 | 桌面窗口与本地入口 | 已完成·GUI模块；安装入口/原生托盘待T20 | 实际本地renderer、单实例、第二实例唤起、关闭保留后台及离线资产通过；不只载入远端网址，未将无D-Bus回退当目标托盘证明 |
+| R19-02 / T19 | 登录/空间/设备/资源 | 已完成·模块及复审 | 真实账号/Workspace/绑定共享、云端编辑编译发布、签名下载和凭证映射；GUI退出后复制旧Cookie401，设备绑定保留 |
+| R19-03 / T19 | 本地执行全GUI | 已完成·模块及复审 | 断平台真实PASSED、历史/Trace、PENDING→COMPLETE与幂等回传、取消；实际可见Chrome158及同Attempt正停止证明 |
+| R19-04 / T19 | IPC与host会话 | 已完成·模块及复审 | sandbox/contextIsolation、有限桥接、私有host Cookie、字节有界UTF-8、实时新增Attempt原生证据归属；renderer无通用fs/spawn/token能力 |
+| R19-05 / T19 | 生命周期与设置 | 已完成·模块及复审 | 真实UI renderer异常退出→新PID恢复，同Agent/Run继续；确认退出UI、重开、取消Run及停止Agent独立，自检/缓存/代理等有限设置可操作 |
 | R20-01 / T20 | 独立 Runtime 和浏览器分发 | Linux dev helper 不是发行物 | 固定 Node24 与 Electron ABI 分离；编译器/SDK/锁/浏览器按 OS/arch 分发，全离网安装不共用 node_modules，不要求本机 Python/MySQL/cc |
 | R20-02 / T20 | 原生进程、存储与停止 | Linux subreaper 有实际证据 | Windows 原生 Job/进程树与 Ubuntu 路径实测；OS vault；所有自有进程真实命名；未知停止继续隔离 |
 | R20-03 / T20 | 安装升级卸载/签名 | 待交付 | Windows/Linux 安装包、启动停止/自启动、升级回滚、数据保留、签名/摘要校验；执行中不强更；开发签名与正式签名分开 |
@@ -171,32 +171,34 @@
 | R23-04 / T23 | 目标 OS/安装/升级恢复 | 未完成 | wheel 干净安装与生产深链接、服务器镜像、两 OS Runtime 安装/签名/进程/离网/升级/恢复；实际环境证据齐全 |
 | R23-05 / T23 | 最终整分支复审与交付 | 尚未执行 | 独立整分支规格/质量审查、遗留清单复核、全量/覆盖率门禁、完整发行物/锁/许可/手册；发布授权与凭证单独确认 |
 
-### T19 当前验证上下文（`bac5162` 已实现，Fix1 审查修复中）
+### T19 当前验证上下文（`eb2dc4e`模块与Fix1复审通过）
 
-| 验证事项 | 当前实际结果 | 接续约束 |
+| 验证事项 | 实际结果 | 接续约束 |
 | --- | --- | --- |
-| 桌面与执行环境 | Electron45.3.1/UI Chromium156；独立Node24.22.1；测试引擎1.0.0及匹配Playwright浏览器158 | 三者版本不可混用；当前执行浏览器为headless shell，Fix1正在补真实可见158专项CI，完整两平台安装验收仍由T20/T23完成 |
-| 本地界面及断网资源 | 实际sandbox开启，严格CSP；断网冷窗口能读签名CASE、版本及生成TS；外部任意fetch拒绝 | 动态Ajv改为官方构建期standalone、Monaco同版官方功能注册；当前源码/产物/引擎闭包已核验；独立审查仍发现下列具体边界问题 |
-| 真实编译与发布 | 独立Agent使用原生产候选编译三类资源、发布及签名导出；云端JSON编辑器创建资源并发布成功 | 所选engine配置遗漏已修复，3项HTTP回归通过；旧T18 wheel不含此修改，最终服务端产物需重建 |
-| 离线任务与报告 | SQLite实际结果PASSED/Attempt PASSED/processStopped=true；JUNIT/HTML/SCREENSHOT/TRACE真实存在 | FINISHED只表示结束，不等于业务通过；原签名安装、profile和issuer保持一致，不能用重建回执替代恢复 |
-| Trace及回传 | 私有loopback官方Trace内容可读；关闭后listener消失且Agent仍可用，无额外OS浏览器；失败上传PENDING后恢复COMPLETE，重复导入同receipt | 不导入不可信同源HTML；Trace私有路径/根目录、原始证据权限及关闭清理均需最终审查 |
-| 生命周期 | 活动请求时真实renderer崩溃、恢复；确认退出UI后主进程退出而同Agent继续；重开同Run继续PASSED，另一Run取消后明确停止Agent | UI退出、取消Run、停止Agent保持独立；缺D-Bus日志不代表托盘已实测；两平台真实安装/托盘验收未完成 |
-| 任务结论 | `bac5162`的78项变更已提交；477跟踪文件与Git blob及哈希匹配，290项原始记录、82构建条目、36候选条目和3工具已核验；独立审查要求6项修复 | 工作区源码、生成物和原始记录按阶段绑定；未把旧GUI阶段当作最终字节的整体验收；Fix1及后续发行/Provider/两OS仍须完成 |
+| 独立审查 | 初审6 Important；Fix1 I1–I6全部ADDRESSED，新增C/I/M为0/0/0 | 仅模块与修复范围批准，不表示安装发行或完整MVP通过 |
+| 同源GUI与执行版本 | Electron45.3.1/UI Node24.22.2/Chromium156，独立Node24.22.1，Playwright1.65/full Chrome158.0.8127.18 | UI引擎、Node执行器、业务浏览器必须区分；业务浏览器旧`--no-sandbox`参数两次仍是T20安全默认值待办 |
+| 真实当前组合 | [GitHub run43485459939](https://github.com/baofengbaofeng/VeriQ/actions/runs/43485459939)，job132092596576；6GUI全部单次PASS、retry0/skip0/flaky0，125.020秒；34unit/2display通过 | 6例含明确component-only启动投影，不把它当真实后台；不将早期201contracts称该job重跑 |
+| 签名包与引擎 | 真实producer创建独立未批准测试候选1.0.2-t19-fix1，canonical `1c64aff0…`；实际编译发布、签名下载及脱平台执行 | 原1.0.0 canonical `4ac70538…`/raw `75fc7c83…`和1.0.1-t19探针保持原身份，不覆盖或自动晋升 |
+| 可见执行与停止 | 实际full158 IsViewable/无headless，browser→worker→guardian→Agent；同Attempt `52ba5b84-504a-487e-b74e-294e9ecc7a41` processStopped、STOPPED、windowGone、ownedPidsExited均true | 不是另起示例浏览器；X11/XWayland通过，不冒充纯Wayland或Windows安装验证 |
+| UI故障与后台连续性 | pidfd向唯一自有UI renderer注入异常终止，真实gone killed/exit9，旧6262→新6583、同main6209/窗口/content恢复，同AgentPID/Run继续；退出UI重开后仍完成 | Python3.12仅QA helper，产品不引入Python；官方Browser/Tab角色、UID/start/exe/祖先/pidfd均核验，不是失败后的业务清理kill-to-green |
+| 报告与会话 | 真实原生Trace内容/关闭清理、图片、离线源码/worker、PENDING恢复COMPLETE与重复同回执通过；GUI登出后旧Cookie401且设备不解绑 | 原始证据仍按当前权限授权；不将OFFLINE_IMPORT变成可信正式门禁通过 |
+| 当前源码与证据身份 | 501源码SHA与`eb2dc4e` Git blobs匹配；原始inventory字节与canonical一致；CI有65 compiled hash记录 | compiled字节未下载独立重hash，不称本地重建或可发布包；38修复源文件与616 raw绑定另存私有资料，其他机器不保证有 |
+| 宿主QA准备 | 三个精确测试二进制AppArmor临时profile加载后全部移除，全局限制及其他profile不变 | 是限定QA宿主配置，不是产品安装策略，控制服务生产仍无Node/Chrome |
 
-#### T19 独立审查修复台账
+#### T19 六项问题完成说明
 
-| ID | 实际问题与上下文摘要 | 状态 / 完成标准 |
+| ID | 原问题与上下文摘要 | 修复及验证结果 |
 | --- | --- | --- |
-| I1 | 桌面logout传`{}`，生成契约却声明无body，宿主先拒绝而只清本地Cookie；服务端实际要求Empty JSON | Fix1进行中：规范源/生成策略对齐；真实服务端退出、旧Cookie失效、设备绑定保留；仅删除body也不能修复 |
-| I2 | 客户端及broker逐socket chunk转UTF-8，分片可破坏中文；有限实际socket复现`资源中文`被替换字符污染 | Fix1进行中：按字节有界累积或流式解码；真实输入/输出中文及非BMP分片、字节上限、原始数据/哈希不变 |
-| I3 | 静态协议用`assets + "/"`判断原生路径包含关系，Windows反斜杠合法入口也被404 | Fix1进行中：平台路径包含判断；Windows/POSIX正常路径、父级/绝对路径/链接约束均验证；不冒充实际Windows安装验收 |
-| I4 | 可见模式的DISPLAY/XAUTHORITY等可信显示上下文被监督器环境过滤，完整浏览器也无法显示 | Fix1进行中：只传可信显示白名单，实际固定Chrome158窗口及原有ownership/stop验证；本机仅约70MiB，而完整下载展开验收峰值约710MiB，正准备无正式凭证Ubuntu24.04专项CI |
-| I5 | 云端原生证据适配器只记初始报告Attempt；SSE新增Attempt显示后，截图/Trace等会缺少Run上下文 | Fix1进行中：每次报告流更新维护归属；初始空报告→新Attempt→原生操作回归；保留空间/Attempt授权 |
-| I6 | GUI finally只发SIGTERM未等待服务退出/管道关闭，下一个`flock -n -F`可能遇到旧fixture锁 | Fix1进行中：真实受控退出/close屏障及Agent生命周期；组合GUI命令实测，不加sleep/强制解锁或重试到绿 |
+| I1 | logout空对象被生成的无body策略提前拒绝，只清本地Cookie | 规范Empty及生成策略对齐；真实POST、无条件本地清理、复制旧Cookie服务端401/设备保留，复审关闭 |
+| I2 | 任意socket分片逐块转UTF-8污染中文/non-BMP | 客户端与broker按原字节限额组帧、严格解码；真实分片输入/输出及上限回归，复审关闭 |
+| I3 | `assets + "/"`无法接受Windows反斜杠路径 | 原生relative/sep/absolute包含判断，保留链接/普通文件约束；Windows/POSIX正反例，复审关闭 |
+| I4 | 监督器过滤掉可见模式的可信DISPLAY/XAUTHORITY | 仅headed传本机可信显示白名单；真实full158窗口及同Attempt物理停止，复审关闭 |
+| I5 | 仅初始报告记录Attempt，SSE新增后原生证据失去Run归属 | 每次初始/流更新先验证并记录；实际SSE parser空报告→新增Attempt→原生动作及跨空间拒绝，复审关闭 |
+| I6 | finally只发SIGTERM，下一fixture可能抢旧DB锁 | 等实际exit+stdio close；认证停止自有Agent并核实退出；真实flock排空回归及完整六例串行，复审关闭 |
 
-全仓规范仍未达标：T19阶段固定方法统计4.8747684%、279项首行违规；新增非生成43文件统计573注释/5776代码行（9.0250433%），不等于局部或全局达标。AGENTS要求全仓最终>40%，未规定每任务单独比例；T22需有效整改，T23最终复核。新增排除仅真实可重现的`operations.generated.ts`，不能扩大排除或填充注释。
+历史失败仍保留：一次导出5秒断言失败的精确原因UNKNOWN，后来的POST201不能倒推已修复；旧core-producing注入只证明第10秒renderer CoreDumping=1/宿主systemd-coredump，不证明整个180秒状态。改用句柄绑定的真实renderer异常终止完成恢复验收，未修改产品恢复器或系统core策略。旧proc独立NUL参数假设与真实进程标题不符，已由可信Electron官方角色指标替代。
 
-此前远端`70cf56e`的Ubuntu24.04运行已完成容器/锁定工具/匹配浏览器准备，正常构建停于Web检查；这是CI基础可用性证据，不是新专项可见模式或正式发行通过。
+全仓质量仍未达标：`bac5162`阶段固定方法统计4.8747684%、279项首行违规；43个新增非生成文件的9.0250433%也是该历史局部测量。它们不是当前完整全仓PASS，也不是每任务独立门槛。AGENTS要求最终全仓有效注释>40%，T22整改、T23复核；不得扩大生成物排除或填充注释。正常服务器发行、Provider和目标系统验收仍保留。
 
 ## 7. 最近一次完成的 T15：必须保留的上下文
 
@@ -259,6 +261,7 @@
 | T18包/受影响检查 | 初始验收13通过；后端140通过/1旧测试控制失败，第二真实配置应用修正后定向2通过；mypy98通过 | 首wheel缺__main__失败保留；399无.git/sdist重建绑定旧候选，不代表Fix1 |
 | T18修复复审 | I1取消/锁/子树与I2等待锁后freshness；最终27通过/30.37秒，7模块mypy与Ruff/格式通过；复审新增0 | `3995648`→`dc95f26`；真实TERM/INT/setsid/十秒升级/未知证明隔离/同步尾段；原M1/M2明确T22 |
 | T18当前wheel/默认入口 | Fix1 wheel `15bc3473…`实际离线、只读、仓库外、无Node/Chrome启动通过；真实默认入口8阶段均回收，Web145 errors停止，output前后均absent | Debian13/Python3.12.14，不是Ubuntu/OCI通过；候选UNVERIFIED，未发布；425源码/146修复证据及旧122/10产物绑定核对 |
+| T19最终GUI/复审 | `eb2dc4e`六GUI单次通过/125.020秒、34unit/2display；I1–I6全部关闭、新增C/I/M均0 | run43485459939；501源身份、同Attempt可视停止、同Agent/Run恢复、旧Cookie401与QA策略清理；未替代安装/Provider/全仓发行门禁 |
 | T15 初始 Runtime/编译器 | Runtime62通过；契约196通过；编译器114通过，类型/静态检查有记录 | 属初始实现的检查，不替代后续修改后的针对性验证 |
 | T15 初始广后端 | 290通过/7失败 | 6项缺本地测试清单配置、1项原生并发锁问题；原始命令保留失败，不能改写为整套通过 |
 | T15 原失败补验 | 6项真实 Agent/编译通过；导入/发布记录34项通过 | 配置修复与代码修复的定向覆盖，不等于重跑全部297项 |
@@ -292,20 +295,19 @@
 | 迁移 | [versions](../../apps/srv/src/veriq_server/migrations/versions) | 当前头0014；新增迁移同步已知表/head断言，保护旧离线历史/发布/计划与独立主体 |
 | 构建/部署 | [发行指南](../release.md)、[ADR0020](../decisions/0020-server-release-pipeline.md)、[build.sh](../../build.sh) | T18已交付真实生产器/校验/部署代码和组件证明；默认正常门禁及Ubuntu/OCI仍未过，不将UNVERIFIED标为正式发行 |
 
-## 11. 当前 T19 修复与后续接续顺序
+## 11. 当前 T20 发行与后续接续顺序
 
 | 顺序 | 工作 | 依据与验收关注点 |
 | --- | --- | --- |
-| 1 | 沿当前功能分支核对提交/状态/本台账 | T16–T18代码审查已过；T18发行仍待验收；不在master编码、不重做旧模块 |
-| 2 | 阅读最新AGENTS、主/桌面规格及T19计划 | Electron完整本地GUI属于首发；4空格/有效中文注释/英文诊断，不恢复填充注释 |
-| 3 | 先关闭T19的I1–I6及同一审查者定向复审 | FIX_BASE `bac5162`；原实现Agent修复、真实RED/GREEN、后续复审仅修复diff与新增破坏；不得重做已通过模块或直接开始T20 |
-| 4 | 检查实际Cloud/Local adapters及Runtime导出 | 资源/报告/Bundle/AI共享视图；Node主机不引入浏览器API；renderer不触达SQLite/fs/spawn/任意网络 |
-| 5 | 建设无终端配置/登录/绑定/下载/凭证/执行/取消/报告/回传全GUI | UI与独立Node24后台生命周期分开；单实例/托盘/重开/退出/停止Agent分别可操作，断网本地UI仍可用 |
-| 6 | 消费T18真实生产候选进行完整组合 | canonical engine entry `4ac70538…`与raw inventory `75fc7c83…`分开；新1.0.0身份不覆盖旧0.1.0；已有load/install/compile不等于浏览器执行 |
-| 7 | 真实Electron/IPC/离线/生命周期E2E与独立审查 | 使用实际业务浏览器/签名包/Node后台，禁止假本地报告；OS安装/vault/进程原生命名由T20实际验收 |
-| 8 | 测试资源/隔离与版本绑定 | DB/Web/Agent同flock；私有DSN不打印；宿主Debian非Ubuntu；先预算Electron/浏览器/安装峰值，保留引擎身份和证据 |
-| 9 | 持续推进T20–T23及T13/T18指定验收 | 完成两平台包/运维/全UX与示例，关闭D11重跑及各Minor/全仓规范债，再实际默认全门禁与完整验收 |
-| 10 | 对具体外部输入/动作核对授权 | 完成可审阅配置/候选后确认真实Provider服务/模型/预算、安全填key、Windows11实际执行环境及正式签名/发布授权；其余独立工作继续 |
+| 1 | 沿功能分支核对本台账与Git状态 | T19模块/六项复审已过；T13真实Provider、T18正常发行仍待验收，不重做已通过模块 |
+| 2 | 先完成T20有界预研 | 读取AGENTS、规格、实际T19导出；比较成熟包的版本/许可/安全、原生接口与各OS构建图，先预算再下载 |
+| 3 | 正式分发独立Node/引擎/浏览器 | Node24.22.1与Electron内嵌Node分开；ASAR外实际Agent/helper/native依赖闭包；CLI/cloud/doctor用同一真实验证过的distribution身份 |
+| 4 | 完成两OS原生所有权与凭据 | 实际veriq/veriq_agent/veriq_runner、Windows Job/私有IPC ACL、Linux guardian、OS vault；处理preparing startupId和activeRun，未知停止仍隔离 |
+| 5 | 安装、离网、托盘、自启动与升级回滚 | 执行中不强更，真实关闭/退出/取消/停止语义不回退；安装签名根与企业测试包issuer根区分 |
+| 6 | 在精确目标验证 | Windows11不以Windows Server冒充；Ubuntu24.04 QA源码GUI不等于已安装包；独立构建/安装/vault/进程/停止证据绑定实际OS和版本 |
+| 7 | 继续T21–T23 | 运维/恢复/生命周期、全UX/i18n/示例/接入规范、全部已登记Minor/D11重跑与全仓质量，最后同一源码正常全门禁/完整产品验收 |
+| 8 | 保持资源与权限边界 | DB/Web/Agent同flock；私有DSN/key不入库；大包优先目标CI，保留旧引擎身份/原始证据；无内部业务Cron |
+| 9 | 对具体外部输入/动作核对授权 | 可审阅候选完成后核对实际Provider端点/模型/预算及安全key配置、必要Windows11环境、正式签名/发布授权；独立可做的工作持续推进 |
 
 ### 工作方式与证据保存
 
