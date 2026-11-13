@@ -34,6 +34,11 @@ async function processField(
     }
 }
 
+/** 原生窗口树同时包含根窗口、父窗口元数据和子窗口记录，枚举器只提供 XID 候选而不证明窗口可见或进程归属；调用方仍必须执行实际 xprop、IsViewable、二进制及祖先链验证，不能用文本匹配代替真实窗口检查。 */
+export function x11WindowIds(tree: string): string[] {
+    return (tree.match(/0x[0-9a-f]+/gi) ?? []).filter((id) => BigInt(id) !== 0n);
+}
+
 /** 业务响应被夹具暂缓期间，从真实 X11 窗口反查完整浏览器及监管器后代关系，并读取该 Attempt 的实际生成配置与 worker 显示环境；所有观察都来自本轮拥有的进程，不能另起一个示例浏览器代替 runOffline 的接线证明。 */
 export async function observeHeadedRun(
     profile: string,
@@ -68,7 +73,7 @@ export async function observeHeadedRun(
         .poll(
             async () => {
                 const tree = (await command("xwininfo", ["-root", "-tree"])).stdout;
-                for (const windowId of tree.match(/0x[0-9a-f]+/gi) ?? []) {
+                for (const windowId of x11WindowIds(tree)) {
                     let pid: number;
                     try {
                         const property = (await command("xprop", ["-id", windowId, "_NET_WM_PID"]))
