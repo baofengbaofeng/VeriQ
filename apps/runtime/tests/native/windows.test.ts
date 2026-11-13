@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { copyFile, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+import { setTimeout as delay } from "node:timers/promises";
 import { ProcessSupervisor } from "../../src/execution/processes.ts";
 import { AttemptBroker } from "../../src/execution/broker.ts";
 import { windowsNative } from "../../src/native/windows.ts";
@@ -90,6 +91,102 @@ test("Windows guardian contains renamed role Node and drains its detached descen
     }
     if (failures.length) {
         throw new AggregateError(failures, "Windows lifecycle assertion or cleanup failed", {
+            cause: failures[0],
+        });
+    }
+});
+
+/** 已启动业务持续处理磁盘挑战并返回新值，用真实工作进度证明错误 nonce 的拒绝不能关闭守护控制流；测试恢复原始日志后才请求合法排空，所有失败和未知清理均保留原始证据目录。 */
+test("Windows denied stop preserves worker progress until authentic ownership is restored", async (context) => {
+    const root = await mkdtemp(join(tmpdir(), "veriq ownership 中文 "));
+    const processes = new ProcessSupervisor(join(root, "processes"));
+    const journalPath = join(root, "processes/ownership.process.json");
+    const challengePath = join(root, "challenge.json");
+    const progressPath = join(root, "progress.json");
+    const failures: unknown[] = [];
+    let authenticJournal: string | undefined;
+    let started = false;
+    try {
+        const role = join(root, "veriq_runner.exe");
+        await copyFile(process.execPath, role);
+        await writeFile(challengePath, "initial");
+        const script = `const fs=require('node:fs');let sequence=0;setInterval(()=>{const challenge=fs.readFileSync(${JSON.stringify(challengePath)},'utf8');fs.writeFileSync(${JSON.stringify(progressPath)},JSON.stringify({challenge,sequence:++sequence}));},20);console.log('READY');`;
+        const owned = await processes.start("ownership", {
+            executable: role,
+            args: ["-e", script],
+            cwd: root,
+            env: { SystemRoot: process.env.SystemRoot! },
+        });
+        started = true;
+        assert.equal(await owned.firstLine(), "READY");
+        authenticJournal = await readFile(journalPath, "utf8");
+        const journal = JSON.parse(authenticJournal);
+        await writeFile(journalPath, JSON.stringify({ ...journal, nonce: randomUUID() }));
+        const denied = await processes.terminateAttempt("ownership", "DENIED_OWNERSHIP_TEST");
+        assert.equal(denied.processStopped, false);
+        assert.equal(denied.reason, "PROCESS_IDENTITY_UNKNOWN");
+        const challenge = randomUUID();
+        await writeFile(challengePath, challenge);
+        let firstSequence: number | undefined;
+        let lastSequence = 0;
+        const deadline = performance.now() + 2000;
+        while (performance.now() < deadline) {
+            let progress: { challenge: string; sequence: number } | undefined;
+            try {
+                progress = JSON.parse(await readFile(progressPath, "utf8"));
+            } catch (error) {
+                if (
+                    !(error instanceof SyntaxError) &&
+                    (error as NodeJS.ErrnoException).code !== "ENOENT"
+                )
+                    throw error;
+            }
+            if (progress?.challenge === challenge) {
+                firstSequence ??= progress.sequence;
+                lastSequence = progress.sequence;
+                if (lastSequence - firstSequence >= 25) break;
+            }
+            await delay(10);
+        }
+        context.diagnostic(
+            `Denied-stop worker progress: ${JSON.stringify({ firstSequence, lastSequence })}`,
+        );
+        assert(
+            firstSequence !== undefined && lastSequence - firstSequence >= 25,
+            "denied ownership must preserve sustained fresh worker progress after the stop attempt",
+        );
+        assert.deepEqual(processes.active(), ["ownership"]);
+        await writeFile(journalPath, authenticJournal);
+        const stopped = await processes.terminateAttempt("ownership", "AUTHENTIC_OWNERSHIP_TEST");
+        assert.equal(stopped.processStopped, true);
+        assert.equal(await processes.isRunning(owned.pid), false);
+        const proof = JSON.parse(
+            await readFile(join(root, "processes/ownership.drained.json"), "utf8"),
+        );
+        assert.equal(proof.state, "DRAINED");
+        assert.equal(proof.nonce, journal.nonce);
+        assert.equal(proof.workerStartTime, journal.startTime);
+        assert.equal(proof.guardianStartTime, journal.guardianStartTime);
+    } catch (error) {
+        failures.push(error);
+    } finally {
+        try {
+            if (started) {
+                assert(authenticJournal, "Authentic journal must be retained for owned cleanup");
+                await writeFile(journalPath, authenticJournal);
+                const receipt = await boundedCleanup(() =>
+                    processes.terminateAttempt("ownership", "OWNERSHIP_TEST_FINALLY"),
+                );
+                assert.equal(receipt.processStopped, true, `Unproved cleanup: ${receipt.reason}`);
+            }
+            await boundedCleanup(() => rm(root, { recursive: true, force: true }));
+        } catch (error) {
+            failures.push(error);
+            context.diagnostic(`Native ownership cleanup unproved; preserve profile: ${root}`);
+        }
+    }
+    if (failures.length) {
+        throw new AggregateError(failures, "Windows ownership assertion or cleanup failed", {
             cause: failures[0],
         });
     }
