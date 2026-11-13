@@ -191,6 +191,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Database readiness check failed; connection details are withheld.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthDTOEnvelope"
+                }
+              }
+            }
           }
         }
       }
@@ -283,8 +293,19 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Development server has no published frontend build.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
           }
-        }
+        },
+        "description": "Returns validated nonsecret installed frontend metadata; development without a published frontend returns 503 BUILD_INFO_UNAVAILABLE."
       }
     },
     "/api/v1/auth/login": {

@@ -502,18 +502,20 @@ assert unauthenticated_maintenance.status == 401
 
 ## T17：生产同源静态服务与开发代理
 
+**状态：** 已完成并通过独立审查及两轮修复复审（`4b58a4c`、`0f48d6e`、`67779ed`）。完整静态清单、生产HTTPS真实前端认证/深链接、缓存/拒绝策略已验证；非入口HTML后缀/MIME参数缺口已关闭。真实stage/wheel/无Node干净安装由T18继续，完整readiness由T21继续。
+
 **依赖：** T02/T11
 
 **Files（拟创建/修改）：**
 
 - `apps/web/vite.config.ts`
 - `apps/srv/src/veriq_server/handlers/static.py`
-- `apps/srv/src/veriq_server/application.py`
+- `apps/srv/src/veriq_server/app.py`
 - `apps/srv/tests/static/test_routes.py`
 
-**Interfaces：** create_application(settings: Settings) -> tornado.web.Application；production静态根由安装包定位，development不要求dist。
+**Interfaces：** make_app(settings: Settings, db: Database, delivery: Delivery | None = None) -> tornado.web.Application；production静态根由安装包定位，development不要求dist。
 
-- [ ] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
+- [x] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```python
 assert spa_deep_link.status == 200
@@ -522,10 +524,10 @@ assert missing_js.status == 404
 assert path_traversal.status in (403, 404)
 ```
 
-- [ ] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/static -q`；失败必须来自缺失行为，而非测试环境拼写错误。
-- [ ] **Step 3：实现上述接口与文件。** API404不回index，缺JS不回index，缓存头正确，同源Cookie/CSRF，前后端可分开调试。
-- [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
-- [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t17 生产同源静态服务与开发代理`。有新决策先更新ADR，不扩展到下一任务。
+- [x] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/static -q`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [x] **Step 3：实现上述接口与文件。** API404不回index，缺JS不回index，缓存头正确，同源Cookie/CSRF，前后端可分开调试。
+- [x] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
+- [x] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t17 生产同源静态服务与开发代理`。有新决策先更新ADR，不扩展到下一任务。
 
 ## T18：前端先构建、wheel强制入包与服务端发行
 

@@ -47,7 +47,7 @@ uv run --project apps/srv veriq_server --config /private/veriq/veriq.json doctor
 uv run --project apps/srv veriq_server --config /private/veriq/veriq.json serve
 ```
 
-`doctor` checks validated configuration, MySQL 8.4 and the installation table. `GET /api/v1/health/live` only checks the HTTP process; `GET /api/v1/health/ready` queries the database. All API responses use canonical JSON envelopes. Explicit CLI settings override `VERIQ_` environment variables, which override config-file values, which override nonsensitive defaults. For example `--port 8889` or `VERIQ_PORT=8889` changes the API port. Required settings are `database_url`, `public_url`, `master_key` and `signing_key`; key values contain 32 bytes encoded as hex. Production defaults require an HTTPS public origin and set Secure cookies. Use a same-origin TLS reverse proxy for production; final production static packaging belongs to T17/T18.
+`doctor` checks validated configuration, MySQL 8.4 and the installation table. `GET /api/v1/health/live` only checks the HTTP process; `GET /api/v1/health/ready` queries the database. All API responses use canonical JSON envelopes. Explicit CLI settings override `VERIQ_` environment variables, which override config-file values, which override nonsensitive defaults. For example `--port 8889` or `VERIQ_PORT=8889` changes the API port. Required settings are `database_url`, `public_url`, `master_key` and `signing_key`; key values contain 32 bytes encoded as hex. Production defaults require an HTTPS public origin and set Secure cookies. Use a same-origin TLS reverse proxy for production; production static serving is implemented, while release staging and wheel verification remain T18 work; see [the inventory contract](decisions/0019-production-static-inventory.md).
 
 Run Vite in another terminal:
 
@@ -55,7 +55,7 @@ Run Vite in another terminal:
 pnpm --filter @veriq/web dev
 ```
 
-Vite serves `http://127.0.0.1:5173` and proxies `/api` to Tornado on `127.0.0.1:8888`. Set `public_url` to the browser's exact Vite origin for development; mutation requests enforce Origin and Tornado CSRF validation. The API starts without a frontend `dist` directory. Opening `/` on the API port alone returns a JSON 404 until production static routing is implemented.
+Vite serves `http://127.0.0.1:5173` and proxies `/api` to Tornado on `127.0.0.1:8888`. Set `public_url` to the browser's exact Vite origin for development; mutation requests enforce Origin and Tornado CSRF validation. The API starts without a frontend `dist` directory. In development, opening `/` on the API port alone returns a JSON 404; Vite owns frontend routes. Its fixed port is 5173 (`strictPort`), and both `/api` and `/internal` retain the browser Origin when proxied. `GET /api/v1/build-info` returns structured `503 BUILD_INFO_UNAVAILABLE` without a published frontend. Production instead requires the complete package inventory and metadata described in [ADR 0019](decisions/0019-production-static-inventory.md).
 
 Available pages are `/setup`, `/login`, `/reset`, `/reset/confirm`, `/account` and `/admin/users`. Passwords require 12–1024 characters. Without SMTP, public reset requests return the same generic response for every email and explain that an administrator supplies the link. Optional real SMTP delivery is configured in the protected file or with `VERIQ_SMTP_HOST`, `VERIQ_SMTP_PORT`, `VERIQ_SMTP_FROM`, `VERIQ_SMTP_USERNAME`, `VERIQ_SMTP_PASSWORD`, `VERIQ_SMTP_SECURITY` (`starttls` by default, or `tls`) and `VERIQ_SMTP_TIMEOUT`. Username/password must be supplied together; production rejects plaintext SMTP. TLS uses certificate verification. Public reset requests acknowledge before account lookup, and configured delivery runs as a tracked background task. A delivery failure logs a safe event, audits failure and revokes that issued token; the public response remains generic and never claims that mail was delivered. Normal server shutdown drains pending deliveries. This is an in-process delivery seam, without a durable queue across a process crash. `delivery.Delivery.send(recipient, subject, body)` can also support T03 invitations. An authorized administrator issues a copyable 30-minute one-time reset link, transmitted only in the authorized response. The URL carries the token in its fragment, which the browser removes on entry; it never enters the URL sent to the server. Password changes/resets, disable, logout and revocation invalidate sessions. The last enabled system administrator cannot be disabled or demoted without another enabled administrator.
 
@@ -161,6 +161,18 @@ Ruff、格式和生成一致性均有记录。不将这些分组结果称为同�
 不把开发测试库存当正式批准分发。目标浏览器匹配、完整覆盖率、源码注释规范、真实Provider、生产打包及两平台
 安装仍是后续门禁。报告跨页Workspace深链接和计划错误方法500两项Minor明确由T22整改；旧账号/重跑/events
 声明仍须对齐，F10重跑不因旧路由未实现而被移出首发。完整状态以[里程碑](plans/milestones.md)为接续依据。
+
+## Production same-origin static service (reviewed T17)
+
+`4b58a4c`沿用唯一make_app工厂实现生产同源静态/SPA/API路由，`0f48d6e`/`67779ed`修复非入口HTML的后缀与MIME参数绕过，独立复审已关闭，零新增问题。
+完整文件库存与Vite图分别校验；生产缺文件、哈希/长度/闭包/版本/路径错误启动失败，开发不依赖dist。
+公开build-info使用既有四字段；开发缺发行物诚实返回503。公开健康别名使用规范HealthDTO，保留旧API响应兼容。
+[ADR0019](decisions/0019-production-static-inventory.md)定义T18必须遵守的stage清单/metadata格式、精确字节hash和无循环依赖。
+
+基础实现阶段310项Python受影响回归、201项TS契约、真实HTTPS/Vite/MySQL认证和深链接，以及独立开发代理认证场景均通过。
+后续修复先观察真实RED，最终90项静态回归与85文件严格mypy、Ruff/格式通过；未重复310/浏览器/build，也不把旧结果重新绑定到修复源码。
+生产浏览器使用实际编译前端和临时TLS/包资源，服务器仍为真实Python工厂；这不是已安装wheel或目标OS发行验收。
+T18继续正式构建/clean install/无Node证明，T21继续完整存储/静态/关键依赖就绪监控；[里程碑](plans/milestones.md)保留所有发布阻塞。
 
 ## Current verification limits
 

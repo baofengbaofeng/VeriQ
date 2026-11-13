@@ -1,18 +1,22 @@
-"""Tornado 应用装配：将 /api 与 /internal 路由映射到处理器，注入重置投递、身份注册表、导出槽与尝试证明校验器。
+"""Tornado 唯一应用工厂统一装配健康、构建信息、现有 API 与包内前端资源，并保留密码重置调度、身份注册表、导出并发槽和尝试证明校验器等既有运行依赖。
 
-公开 API 与内部维护/领取端点共用 handler_for 分发；未知路径落入 UnknownAPI 返回稳定 404。
-生产环境开启 Secure+Strict XSRF Cookie；bundle 导出并发由 Semaphore(2) 限制。
-控制面运行时不需要 Node 或 Chrome，执行与离线能力走独立 Runtime/Agent。
+production 先验证静态包库存与身份，缺失时不能绑定可服务的应用。
+development 不读取 dist，前端仍由独立 Vite 代理访问后端。
+未知 API 和内部路径先返回结构化错误，不能落入前端入口。
+公开文件与精确登记 SPA 路由之后才使用最终 JSON 404。
+控制面运行时仍不需要 Node 或 Chrome，执行能力继续由独立 Runtime 承担。
 """
 
 import asyncio
 import json
 import logging
+import re
 from tornado.web import Application, RequestHandler
 from .db import Database
 from .delivery import Delivery, ResetDispatcher, SMTPDelivery
 from .settings import Settings
 from .handlers.base import API
+from .handlers.static import BuildInfoAPI, PublishedFileHandler, SPA_PATHS, load_published_site
 from .handlers.auth import AuthAPI
 from .handlers.account import AccountAPI
 from .handlers.admin import AdminAPI
@@ -52,6 +56,7 @@ class UnknownAPI(API):
         """
         raise Problem(404, "NOT_FOUND", "API endpoint not found")
 
+    head = get
     post = get
     patch = get
     delete = get
@@ -182,9 +187,20 @@ def handler_for(action: str) -> type[API]:
 
 
 def make_app(settings: Settings, db: Database, delivery: Delivery | None = None) -> Application:
-    """构建 Tornado Application：注册全部公开与内部路由，并注入投递、身份与围栏校验依赖，make_app 的失败路径返回稳定错误。
-    make_app 实现于 apps/srv/src/veriq_server/app.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """构建唯一 Tornado Application 并在接受请求前校验正式静态发布输入，按既有动作表注入全部 API 依赖；新增文件与页面路由不创建第二工厂，也不替换原有身份、投递或调度控制插槽。
+
+    静态预检先于路由与应用创建，生产缺包必须立即失败。
+    delivery 的显式注入优先级仍高于 SMTP 配置默认值。
+    既有 action 与 handler_for 映射保留，避免接口在装配中丢失。
+    健康与构建信息匿名端点位于普通业务路由之前。
+    未知 api/internal 路径在静态处理之前封闭。
+    公开文件路径来自已验证的库存集合，不来自磁盘扫描扩权。
+    SPA 路径精确登记，不能通过客户端星号路由无限 fallback。
+    应用仍启用原有 CSRF Cookie 和正式 Secure+Strict 属性。
+    日志只记录既有请求关联与耗时，不增加配置或路径载荷。
+    export Semaphore、ResetDispatcher 与证明校验器继续使用原有实例职责。
     """
+    published_site = load_published_site(settings)
     delivery = delivery or (SMTPDelivery(settings) if settings.smtp_host else None)
     reset_dispatcher = ResetDispatcher(db, settings, delivery)
     routes = [
@@ -401,7 +417,6 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
             "/api/v1/workspaces/([0-9a-fA-F-]{36})/auth-adapters/([0-9a-fA-F-]{36})/revoke",
             "auth-adapter-revoke",
         ),
-        ("/.*", "unknown"),
     ]
 
     def request_log(handler: RequestHandler) -> None:
@@ -420,11 +435,30 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
             )
         )
 
+    handlers = [
+        ("/health/live", HealthAPI, {"config": settings, "db": db, "action": "public-live"}),
+        ("/health/ready", HealthAPI, {"config": settings, "db": db, "action": "public-ready"}),
+        ("/api/v1/build-info", BuildInfoAPI, {"config": settings, "db": db}),
+    ] + [
+        (path, handler_for(action), {"config": settings, "db": db, "action": action})
+        for path, action in routes
+    ]
+    # API 与内部命名空间先封闭未知路径，再登记清单文件和精确 SPA 路由，最终结构化兜底保持所有旧错误语义；生产入口绝不接管未经登记的页面或证据下载。
+    # 静态描述只在生产模式存在，因此开发 API 启动不读取 dist，也不依赖 Node 或浏览器。
+    # 原有投递调度、导出并发和身份校验插槽继续由下方唯一 Application 实例保存。
+    handlers.append((r"/(?:api|internal)(?:/.*)?", UnknownAPI, {"config": settings, "db": db}))
+    if published_site is not None:
+        static_options = {"config": settings, "db": db, "site": published_site}
+        public_paths = "|".join(re.escape(path) for path in sorted(published_site.public_files))
+        handlers.append((r"/(" + public_paths + r")", PublishedFileHandler, static_options))
+        handlers.extend(
+            (re.escape(path), PublishedFileHandler, {**static_options, "spa": True})
+            for path in SPA_PATHS
+        )
+    handlers.append((r"/.*", UnknownAPI, {"config": settings, "db": db}))
     return Application(
-        [
-            (path, handler_for(action), {"config": settings, "db": db, "action": action})
-            for path, action in routes
-        ],
+        handlers,
+        published_site=published_site,
         xsrf_cookies=True,
         xsrf_cookie_kwargs={"secure": settings.environment == "production", "samesite": "Strict"},
         cookie_secret=settings.signing_key.get_secret_value(),
