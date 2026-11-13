@@ -4,7 +4,7 @@
     "scope": "Build-only Node-API tools, not the full VeriQ Runtime or native implementation safety assessment",
     "status": "21 exact versions; registry integrity matches lock; no returned OSV advisories at query time",
     "sourceCommit": "37f4701afece8053c38eb3c5fa208cdd1912e564",
-    "nativeTargetResult": "Native build and13 initial native/framing tests passed at0b915e2 on WindowsServer2025; full native integration and Windows11 installed acceptance remain pending",
+    "nativeTargetResult": "Native5target build and21 native/ownership/lifecycle/framing tests passed at86d50fb on WindowsServer2025; full integration/Win11 installed acceptance pending; dependency advisory query timestamp unchanged",
     "packages": [
         {
             "lockKey": "node-gyp@12.4.0",
@@ -286,5 +286,14 @@
             "registryIntegrityMatchesLock": true,
             "osvReturnedAdvisories": []
         }
-    ]
+    ],
+    "nativeExceptionBuildSettings": {
+        "sourceCommit": "86d50fb42256174122421bc2262ba64100e57cd1",
+        "runId": 43521783803,
+        "projects": 5,
+        "actualConfigurations": 10,
+        "stlExceptions": "_HAS_EXCEPTIONS=1; inherited0 removed",
+        "msvcExceptionHandling": "Sync",
+        "scope": "Actual generated project settings, not an additional security-advisory query or installed-runtime acceptance"
+    }
 }
