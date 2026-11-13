@@ -506,3 +506,93 @@ async def test_unknown_head_is_real_404_without_html(published, path):
     assert response.status_code == 404
     assert response.content == b""
     assert response.headers["content-type"].startswith("application/json")
+
+
+@pytest.mark.parametrize(
+    "path,custom_mime",
+    [
+        (f"raw-evidence{suffix}", None)
+        for suffix in ".html .htm .HTML .HTM .hTm .shtml .SHTML .xhtml .XHTML .xht .XHT".split()
+    ]
+    + [
+        ("INDEX.HTML", None),
+        ("Index.html", None),
+        ("nested/index.html", None),
+        ("raw-evidence.custom-html", "text/html"),
+        ("raw-evidence.custom-xhtml", "application/xhtml+xml"),
+        ("raw-evidence.custom-html", "TEXT/HTML"),
+        ("raw-evidence.custom-xhtml", "APPLICATION/XHTML+XML"),
+    ],
+)
+async def test_non_entry_html_mime_is_rejected_with_valid_inventory(
+    static_package, production_settings, monkeypatch, path, custom_mime
+):
+    """除精确根入口 index.html 外，完整合法库存中的 HTML 与 XHTML 文档必须在生产启动时被拒绝；逐个变体重算文件长度、文件哈希和构建库存哈希，确保失败真正来自发布类型门禁。
+
+    扩展名参数覆盖小写、大写、混合大小写及两种 XHTML 后缀。
+    shtml 与定制 MIME 别名使用和 Tornado 相同的标准库类型映射。
+    MIME 值大小写同样不能改变浏览器对 HTML 文档的解释。
+    定制映射代表宿主机注册的附加 HTML 类型，而非替换文件处理器。
+    先触发标准库初始化，再在测试范围内修改并自动恢复公开映射表。
+    INDEX.HTML 与 Index.html 不能借大小写比较成为另一个入口。
+    nested/index.html 也不能因为文件名相同而获得根入口资格。
+    文件确实写入包目录，并被列入完整库存。
+    清单字节身份随新增记录更新，不能依赖旧顶层哈希误判通过。
+    Vite 模块图与正常根入口保持有效。
+    异常原因也必须明确指出非入口 HTML，而不是其它库存错误。
+    现有正常 favicon、脚本、CSS 与范围缓存测试继续承担公开资源正向检查。
+    此检查不扫描内容，不试图推断普通文本中的潜在脚本。
+    测试不把附加文件写到隐藏目录，保证它会进入候选公共集合。
+    index.html 保持原有字节及清单声明，合法入口没有被破坏。
+    附加文档没有 Vite 模块引用，模拟复制而非打包导入的文件。
+    内容不含运行时凭据或真实业务数据。
+    新文件路径使用相对 POSIX 形式。
+    目录实际文件集合与库存记录同步变化。
+    生产配置保持原有 HTTPS 约束与合成密钥。
+    启动前拒绝无需浏览器或数据库身份参与。
+    """
+    import mimetypes
+
+    # MIME 类型表由标准库懒加载，先完成初始化再修改公开映射，确保定制后缀确实走真实文件处理器采用的类型判断；monkeypatch 只恢复本测试增加的两个类型，不替换查询函数。
+    # 两个别名分别覆盖 HTML 和 XHTML，不靠硬编码后缀列表通过。
+    # 普通默认扩展名不进行任何类型表修改。
+    mimetypes.guess_type("index.html")
+    if custom_mime is not None:
+        monkeypatch.setitem(mimetypes.types_map, "." + path.rsplit(".", 1)[1], custom_mime)
+    target = static_package / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    content = b"<!doctype html><html><body>Copied evidence</body></html>"
+    target.write_bytes(content)
+    inventory_path = static_package / "static-manifest.json"
+    inventory = json.loads(inventory_path.read_text())
+    # 先创建附加文档再补充完整库存中的精确文件记录，使目录闭包、字节长度与 SHA-256 保持一致；这里不会故意损坏旧文件或省略记录来触发其它更早的失败关闭分支。
+    # Vite 图无需引用普通复制公开文件。
+    # 原有所有必需文件仍然存在，只有发布类型发生变化。
+    inventory["files"].append(
+        {
+            "path": path,
+            "sha256": hashlib.sha256(content).hexdigest(),
+            "sizeBytes": len(content),
+        }
+    )
+    raw = json.dumps(inventory).encode()
+    inventory_path.write_bytes(raw)
+    info_path = static_package / "build-info.json"
+    info = json.loads(info_path.read_text())
+    # 顶层构建哈希必须随库存原始字节重算，否则负样本会在身份绑定阶段提前失败，无法证明非入口 HTML 门禁；保留现有版本、commit 和 buildId，只更新真正变化的库存身份。
+    # 不解析后再次格式化库存再参与哈希。
+    # 写盘字节与服务器读取字节完全相同。
+    info["staticManifestHash"] = hashlib.sha256(raw).hexdigest()
+    info_path.write_text(json.dumps(info))
+    db = Database(production_settings)
+    try:
+        with pytest.raises(
+            ValueError, match="Production static package is incomplete or invalid"
+        ) as failure:
+            make_app(production_settings, db)
+        # 外层启动错误刻意统一，因此还须核对保留的异常原因确实命中非入口 HTML 分支，不能让其它未发现的无效测试输入提前失败后仍满足宽泛的 ValueError 断言。
+        # 该原因只供本地异常诊断，不通过匿名 HTTP 健康或构建信息返回。
+        # 没有产生可服务的应用，因此被拒绝文档不会进入公开文件路由。
+        assert str(failure.value.__cause__) == "Non-entry HTML in static inventory"
+    finally:
+        await db.close()
