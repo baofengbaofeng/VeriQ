@@ -105,7 +105,6 @@ test("Windows denied stop preserves worker progress until authentic ownership is
     const progressPath = join(root, "progress.json");
     const failures: unknown[] = [];
     let authenticJournal: string | undefined;
-    let started = false;
     try {
         const role = join(root, "veriq_runner.exe");
         await copyFile(process.execPath, role);
@@ -117,7 +116,6 @@ test("Windows denied stop preserves worker progress until authentic ownership is
             cwd: root,
             env: { SystemRoot: process.env.SystemRoot! },
         });
-        started = true;
         assert.equal(await owned.firstLine(), "READY");
         authenticJournal = await readFile(journalPath, "utf8");
         const journal = JSON.parse(authenticJournal);
@@ -171,14 +169,11 @@ test("Windows denied stop preserves worker progress until authentic ownership is
         failures.push(error);
     } finally {
         try {
-            if (started) {
-                assert(authenticJournal, "Authentic journal must be retained for owned cleanup");
-                await writeFile(journalPath, authenticJournal);
-                const receipt = await boundedCleanup(() =>
-                    processes.terminateAttempt("ownership", "OWNERSHIP_TEST_FINALLY"),
-                );
-                assert.equal(receipt.processStopped, true, `Unproved cleanup: ${receipt.reason}`);
-            }
+            if (authenticJournal) await writeFile(journalPath, authenticJournal);
+            const receipt = await boundedCleanup(() =>
+                processes.terminateAttempt("ownership", "OWNERSHIP_TEST_FINALLY"),
+            );
+            assert.equal(receipt.processStopped, true, `Unproved cleanup: ${receipt.reason}`);
             await boundedCleanup(() => rm(root, { recursive: true, force: true }));
         } catch (error) {
             failures.push(error);
