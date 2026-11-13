@@ -305,7 +305,7 @@ export class WindowsProcesses {
             this.release(id);
             return receipt(false, "PROCESS_STOP_UNCONFIRMED");
         } catch {
-            this.release(id);
+            /** 身份查询或停止事件打开失败不授予关闭活跃守护标准输入的权限，因为管道 EOF 本身会终止整个 Job；保留宿主连接和隔离日志，等待真实所有权恢复后的显式停止与排空证明。 */
             return receipt(false, "PROCESS_IDENTITY_UNKNOWN");
         }
     }

@@ -186,6 +186,12 @@ class PipeServer : public Napi::ObjectWrap<PipeServer> {
         recordPhase("server.disconnect.begin");
         if (DisconnectNamedPipe(session->pipe.value)) recordPhase("server.disconnect.complete");
         else recordFailure("server.disconnect", "NATIVE_PIPE_DISCONNECT_FAILED", GetLastError());
+        /** JavaScript 可以长期保存旧回复函数，因此会话对象的共享引用不能继续占用已结束的管道实例；持有回复互斥锁后释放两个真实句柄，确保此前获准的回复已结束且迟到回复不会访问回收的事件。 */
+        {
+            std::lock_guard<std::mutex> lock(session->mutex);
+            Handle completedPipe(std::exchange(session->pipe.value, INVALID_HANDLE_VALUE));
+            Handle completedAnswer(std::exchange(session->answered.value, INVALID_HANDLE_VALUE));
+        }
         --active;
     }
     void accept() {
