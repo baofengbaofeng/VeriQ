@@ -12,8 +12,12 @@ class ServiceAccountAPI(API):
     """
 
     def prepare(self) -> None:
-        """账号集合与令牌集合支持只读分页和显式签发，禁用账号与吊销令牌只允许 POST 以防导航产生状态变化；方法约束在读取请求体之前执行，普通浏览器写入仍需原有同源和 CSRF 校验。"""
+        """账号及令牌管理只接受员工会话，任何显式 Authorization 都拒绝而不能借用同时携带的 Cookie；集合允许分页和签发，禁用与吊销仅允许 POST，普通写入继续要求原有同源和 CSRF 校验。"""
         super().prepare()
+        if "Authorization" in self.request.headers:
+            raise Problem(
+                401, "EMPLOYEE_SESSION_REQUIRED", "Account management requires an employee session"
+            )
         allowed = (
             {"GET", "POST"}
             if self.action in {"service-accounts", "service-token-issue"}

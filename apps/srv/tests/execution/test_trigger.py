@@ -503,3 +503,26 @@ async def test_plan_management_rejects_bearer_instead_of_falling_back_to_cookie(
         headers={"Authorization": "Bearer invalid"},
     )
     assert response.status_code == 401, response.text
+
+
+async def test_token_management_rejects_explicit_bearer_with_valid_employee_cookie(site):
+    """令牌列表和签发都只接受员工会话，即使同一请求有有效 Cookie 与 CSRF 也不能忽略显式无效或有效执行 Bearer；移除认证头后普通管理流程仍可成功，而缺少 CSRF 的签发继续失败关闭。"""
+    c, _, ws, _, plan = await plan_fixture(site)
+    account, token = await service_token(c, ws, plan)
+    path = f"/api/v1/workspaces/{ws}/service-accounts/{account}/tokens"
+    body = {"purpose": "EXECUTION", "operations": ["read"], "planIds": [plan["id"]]}
+    statuses = []
+    for bearer in ["invalid", token["token"]]:
+        headers = {"Authorization": "Bearer " + bearer}
+        statuses.append((await c.get(path, headers=headers)).status_code)
+        statuses.append((await c.post(path, json=body, headers=headers)).status_code)
+    assert statuses == [401, 401, 401, 401], statuses
+    listed = await c.get(path)
+    assert listed.status_code == 200, listed.text
+    assert len(listed.json()["data"]["items"]) == 1
+    assert (await c.post(path, json=body)).status_code == 201
+    csrf = c.headers.pop("X-CSRF-Token")
+    try:
+        assert (await c.post(path, json=body)).status_code == 403
+    finally:
+        c.headers["X-CSRF-Token"] = csrf

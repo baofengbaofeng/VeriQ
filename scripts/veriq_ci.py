@@ -4,7 +4,9 @@ import argparse
 import json
 import os
 from pathlib import Path
+from queue import Empty, Queue
 import sys
+from threading import Thread
 import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
@@ -23,7 +25,7 @@ class NoRedirect(HTTPRedirectHandler):
 class Client:
     """薄 HTTP 客户端固定服务来源、每次请求超时和响应字节上限，Bearer 仅保存在内存；相同触发重试保留完全一致的正文和幂等键，网络错误不会导致生成新的运行请求。"""
 
-    def __init__(self, server: str, token: str, timeout: float):
+    def __init__(self, server: str, token: str, deadline: float):
         """服务地址默认要求 HTTPS，仅允许回环地址使用 HTTP 供隔离开发验证，禁止内嵌凭证和查询参数；独立请求超时由剩余 CI 总预算限制，避免在服务不可用时无限等待或意外泄露令牌。"""
         parsed = urlsplit(server)
         if (
@@ -39,8 +41,15 @@ class Client:
             parsed.scheme == "http" and parsed.hostname in {"127.0.0.1", "localhost", "::1"}
         ):
             raise ValueError("HTTPS is required outside loopback development")
-        self.server, self.token, self.timeout = server.rstrip("/"), token, timeout
+        self.server, self.token, self.deadline = server.rstrip("/"), token, deadline
         self.opener = build_opener(NoRedirect())
+
+    def remaining(self) -> float:
+        """所有请求与最终门禁判断共享同一个单调时钟截止点，每次重新计算剩余预算而不是延长原始超时；读取或解析完成时再次核对，防止在最后一个响应越过期限后仍然把通过结果交给 CI。"""
+        remaining = self.deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError
+        return remaining
 
     def request(
         self, path: str, method: str = "GET", body=None, key: str | None = None, *, binary=False
@@ -55,11 +64,37 @@ class Client:
             headers=headers,
             method=method,
         )
-        with self.opener.open(request, timeout=self.timeout) as response:
-            data = response.read(4 * 1024 * 1024 + 1)
+        self.remaining()
+        request_deadline = self.deadline
+        completed: Queue[tuple[bytes | None, Exception | None]] = Queue(maxsize=1)
+
+        def receive() -> None:
+            """标准 HTTP 调用在线程内执行以让主线程对 DNS、响应头和慢速正文统一限时，避免单纯空闲超时被持续字节续期；线程只处理这一请求，异常原样交回，守护属性确保到期后不会阻止 CLI 退出。"""
+            try:
+                remaining = request_deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError
+                timeout = min(30, remaining)
+                with self.opener.open(request, timeout=timeout) as response:
+                    data = response.read(4 * 1024 * 1024 + 1)
+                completed.put((data, None))
+            except Exception as error:
+                completed.put((None, error))
+
+        Thread(target=receive, daemon=True).start()
+        try:
+            data, error = completed.get(timeout=self.remaining())
+        except Empty as error:
+            raise TimeoutError from error
+        self.remaining()
+        if error is not None:
+            raise error
+        assert data is not None
         if len(data) > 4 * 1024 * 1024:
             raise ValueError("Response exceeds CI limit")
-        return data if binary else json.loads(data)["data"]
+        result = data if binary else json.loads(data)["data"]
+        self.remaining()
+        return result
 
 
 def main(argv=None) -> int:
@@ -82,12 +117,12 @@ def main(argv=None) -> int:
     if not token or not 1 <= args.timeout <= 86400 or not 0.1 <= args.poll_interval <= 60:
         print("A token and bounded timeout/poll interval are required", file=sys.stderr)
         return 2
-    started = time.monotonic()
+    deadline = time.monotonic() + args.timeout
     run_path = None
     client = None
     body = {"buildSha": args.build_sha} if args.build_sha else {}
     try:
-        client = Client(args.server, token, min(30, args.timeout))
+        client = Client(args.server, token, deadline)
         trigger_path = f"/api/v1/workspaces/{args.workspace}/execution-plans/{args.plan}/trigger"
         for attempt in range(3):
             try:
@@ -96,20 +131,17 @@ def main(argv=None) -> int:
             except (URLError, TimeoutError) as error:
                 if isinstance(error, HTTPError) and error.code < 500:
                     raise
-                if attempt == 2 or time.monotonic() - started >= args.timeout:
+                client.remaining()
+                if attempt == 2:
                     raise
         run_id = str(UUID(receipt["runId"]))
         run_path = f"/api/v1/workspaces/{args.workspace}/runs/{run_id}"
         print("VeriQ Run " + run_id)
         while True:
-            remaining = args.timeout - (time.monotonic() - started)
-            if remaining <= 0:
-                raise TimeoutError
-            client.timeout = min(30, remaining)
             status = client.request(run_path)
             if status["state"] == "FINISHED":
                 break
-            time.sleep(min(args.poll_interval, remaining))
+            time.sleep(min(args.poll_interval, client.remaining()))
         report = client.request(run_path + "/ci-report")
         xml = client.request(run_path + "/junit", binary=True)
         args.junit.parent.mkdir(parents=True, exist_ok=True)
@@ -130,13 +162,14 @@ def main(argv=None) -> int:
             and not junit.findall(".//failure")
             and not junit.findall(".//error")
         )
+        client.remaining()
         print("VeriQ gate " + ("passed" if passed else "failed"))
         return 0 if passed else 1
     except (KeyboardInterrupt, TimeoutError):
         if run_path and client:
             try:
-                client.timeout = 10
-                client.request(
+                cancellation = Client(args.server, token, time.monotonic() + 10)
+                cancellation.request(
                     run_path + "/cancel", "POST", {"reason": "CI interrupted or timed out"}
                 )
             except (HTTPError, URLError, TimeoutError, ValueError, KeyError, TypeError, OSError):

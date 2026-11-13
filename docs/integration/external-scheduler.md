@@ -49,9 +49,9 @@ python scripts/veriq_ci.py \
   --timeout 1800 --junit artifacts/veriq-junit.xml
 ```
 
-退出 `0` 仅限最终 PASSED、执行时及当前门禁都通过且存在真实用例。FAILED/ERROR/UNSTABLE/CANCELLED/INCOMPLETE/SKIPPED 退出 `1`；超时、认证丢失、协议/网络错误或用户中断退出 `2`。超时/中断尽力请求取消，取消确认不等于未知物理进程已经停止。授权失效立即失败；首次触发网络重试至多三次并复用原键，不因 HTTP 200/202 而宣称通过。
+退出 `0` 仅限最终 PASSED、执行时及当前门禁都通过且存在真实用例。FAILED/ERROR/UNSTABLE/CANCELLED/INCOMPLETE/SKIPPED 退出 `1`；超时、认证丢失、协议/网络错误或用户中断退出 `2`。`--timeout` 是触发重试、轮询、安全报告与 JUnit 下载共同使用的绝对总预算，持续零碎响应不会延长它。超时/中断另给最多 10 秒尽力请求取消，取消确认不等于未知物理进程已经停止；触发响应超时且尚无 runId 时，是否已接受仍未知，后续人工重试须保留同一幂等键。授权失效立即失败；首次触发网络重试至多三次并复用原键，不因 HTTP 200/202 而宣称通过。
 
-The command triggers, polls, retrieves the safe report and writes JUnit. Only PASSED plus both authoritative gates and real cases exits zero. Result failures exit 1; timeout, interruption, authorization loss and transport/protocol errors exit 2. Timeout/interruption requests cancellation when allowed. A redirect is rejected to protect the token. HTTPS is required except for explicit loopback development.
+The command triggers, polls, retrieves the safe report and writes JUnit. Only PASSED plus both authoritative gates and real cases exits zero. Result failures exit 1; timeout, interruption, authorization loss and transport/protocol errors exit 2. One absolute timeout covers trigger retries, polling and both report downloads, including slow trickled responses. Timeout/interruption uses a separate cancellation allowance of at most 10 seconds when a Run is known. A timed-out trigger may have been accepted; preserve its idempotency key and do not assume physical execution stopped. A redirect is rejected to protect the token. HTTPS is required except for explicit loopback development.
 
 `GET .../ci-report` 返回运行、用例标识/状态、统计和 `gatePassed`。`GET .../junit` 只允许终态，使用标准 XML 库输出安全 JUnit；每个真实用例一个 testcase，整体门禁失败另有明确 gate testcase。它不包含原始断言值、请求头、日志、设备本地库或业务标题。原始 Playwright JUnit 仍是独立的管理员受限证据，不能用执行令牌下载。离线导入不能变成正式线上计划运行。
 
