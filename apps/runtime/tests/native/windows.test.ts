@@ -123,6 +123,12 @@ test("Windows private broker serves a bounded Unicode request through a named pi
         text: message.text,
     }));
     const failures: unknown[] = [];
+    const clientEvents: Array<Record<string, string | number | boolean>> = [];
+    let clientClosed: Promise<void> | undefined;
+    const recordClient = (event: Record<string, string | number | boolean>) => {
+        if (clientEvents.length === 64) clientEvents.shift();
+        clientEvents.push(event);
+    };
     try {
         await assert.doesNotReject(async () => {
             await broker.open();
@@ -131,12 +137,46 @@ test("Windows private broker serves a bounded Unicode request through a named pi
         const response = await new Promise<string>((resolve, reject) => {
             const socket = connect(broker.path);
             const chunks: Buffer[] = [];
-            socket.on("connect", () =>
-                socket.end(JSON.stringify({ nonce: broker.nonce, text: "中文😀" }) + "\n"),
+            let totalBytes = 0;
+            clientClosed = new Promise<void>((closed) =>
+                socket.once("close", (hadError) => {
+                    recordClient({ event: "close", hadError });
+                    closed();
+                }),
             );
-            socket.on("data", (chunk) => chunks.push(chunk));
-            socket.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-            socket.on("error", reject);
+            socket.on("connect", () => {
+                recordClient({ event: "connect" });
+                const frame = JSON.stringify({ nonce: broker.nonce, text: "中文😀" }) + "\n";
+                recordClient({ event: "write.submitted", bytes: Buffer.byteLength(frame) });
+                socket.end(frame, () => recordClient({ event: "write.completed" }));
+            });
+            socket.on("data", (chunk) => {
+                chunks.push(chunk);
+                totalBytes += chunk.length;
+                recordClient({
+                    event: "data",
+                    bytes: chunk.length,
+                    totalBytes,
+                    newlineComplete: Buffer.concat(chunks).includes(10),
+                });
+            });
+            socket.on("end", () => {
+                recordClient({
+                    event: "end",
+                    totalBytes,
+                    newlineComplete: Buffer.concat(chunks).includes(10),
+                });
+                resolve(Buffer.concat(chunks).toString("utf8"));
+            });
+            socket.on("error", (error: NodeJS.ErrnoException) => {
+                recordClient({
+                    event: "error",
+                    code: /^[A-Z0-9_]+$/.test(error.code ?? "") ? error.code! : "UNKNOWN_ERROR",
+                    totalBytes,
+                    newlineComplete: Buffer.concat(chunks).includes(10),
+                });
+                reject(error);
+            });
             socket.setTimeout(5000, () => socket.destroy(new Error("TEST_PIPE_TIMEOUT")));
         });
         assert.deepEqual(JSON.parse(response), { ok: true, value: { text: "中文😀" } });
@@ -167,12 +207,14 @@ test("Windows private broker serves a bounded Unicode request through a named pi
     } finally {
         try {
             await boundedCleanup(() => broker.close());
+            if (clientClosed) await boundedCleanup(() => clientClosed!);
             await boundedCleanup(() => rm(root, { recursive: true, force: true }));
         } catch (error) {
             failures.push(error);
             context.diagnostic(`Native broker cleanup unproved; preserve profile: ${root}`);
         }
         try {
+            context.diagnostic(`Raw pipe client events: ${JSON.stringify(clientEvents)}`);
             context.diagnostic(
                 `Native pipe diagnostics: ${JSON.stringify(windowsNative().takePipeDiagnostics())}`,
             );

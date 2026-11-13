@@ -8,7 +8,7 @@
 #include <deque>
 
 using namespace veriq;
-/** 管道错误只保留最近六十四条固定阶段和固定错误码，系统返回码在失败调用处采集；诊断队列不含端点、nonce、SID、帧内容或异常动态文本，读取后清空，不能影响既有授权检查和失败关闭路径。 */
+/** 管道诊断只保留最近六十四条固定阶段事件和固定错误码，系统返回码在失败调用处采集；诊断队列不含端点、nonce、SID、帧内容或异常动态文本，读取后清空，不能影响既有授权检查和失败关闭路径。 */
 struct PipeDiagnostic { const char* phase; std::string code; DWORD win32; DWORD checks; };
 static std::mutex diagnosticMutex;
 static std::deque<PipeDiagnostic> diagnostics;
@@ -22,6 +22,9 @@ static void recordFailure(const char* phase, const char* code, DWORD win32 = 0, 
 }
 static void recordFailure(const char* phase, const NativeFailure& error) noexcept {
     recordFailure(phase, error.what(), error.win32, error.checks);
+}
+static void recordPhase(const char* phase) noexcept {
+    recordFailure(phase, "NATIVE_PIPE_PHASE");
 }
 static std::wstring pipeName(const std::string& name) {
     require(name.rfind("\\\\.\\pipe\\veriq-", 0) == 0 && name.size() <= 180 &&
@@ -136,9 +139,12 @@ class PipeServer : public Napi::ObjectWrap<PipeServer> {
     void serve(std::shared_ptr<Session> session) {
         const char* phase = "server.verifyPeer";
         try {
+            recordPhase("server.session.started");
             verifyPeer(session->pipe.value, true);
+            recordPhase("server.verifyPeer.complete");
             phase = "server.readFrame";
             session->request = readFrame(session->pipe.value, stopped.value, 65536, 5000);
+            recordPhase("server.readFrame.complete");
             phase = "server.dispatch";
             auto* delivery = new std::shared_ptr<Session>(session);
             auto queued = callback.NonBlockingCall(delivery, [](Napi::Env env, Napi::Function receive, std::shared_ptr<Session>* value) {
@@ -159,21 +165,27 @@ class PipeServer : public Napi::ObjectWrap<PipeServer> {
                 receive.Call({Napi::String::New(env, state->request), reply});
             });
             if (queued != napi_ok) { delete delivery; throw NativeFailure("NATIVE_PIPE_CALLBACK_CLOSED"); }
+            recordPhase("server.dispatch.queued");
             phase = "server.awaitResponse";
             HANDLE waits[] = {stopped.value, session->answered.value};
             require(WaitForMultipleObjects(2, waits, FALSE, 60000) == WAIT_OBJECT_0 + 1, "NATIVE_PIPE_RESPONSE_TIMEOUT");
+            recordPhase("server.response.ready");
             std::string response;
             { std::lock_guard<std::mutex> lock(session->mutex); response = session->response; }
             phase = "server.writeFrame";
             writeFrame(session->pipe.value, stopped.value, response, 5000);
+            recordPhase("server.writeFrame.complete");
             phase = "server.flushResponse";
             flushResponse(session->pipe.value);
+            recordPhase("server.flushResponse.complete");
         } catch (const NativeFailure& error) { recordFailure(phase, error); }
         catch (const std::exception&) { recordFailure(phase, "NATIVE_UNEXPECTED_EXCEPTION"); }
         catch (...) { recordFailure(phase, "NATIVE_UNKNOWN_EXCEPTION"); }
         session->finished = true;
         CancelIoEx(session->pipe.value, nullptr);
-        DisconnectNamedPipe(session->pipe.value);
+        recordPhase("server.disconnect.begin");
+        if (DisconnectNamedPipe(session->pipe.value)) recordPhase("server.disconnect.complete");
+        else recordFailure("server.disconnect", "NATIVE_PIPE_DISCONNECT_FAILED", GetLastError());
         --active;
     }
     void accept() {
@@ -198,6 +210,7 @@ class PipeServer : public Napi::ObjectWrap<PipeServer> {
                     }
                     requireWin32(GetOverlappedResult(pipe.value, &operation, &count, FALSE) != 0, "NATIVE_ACCEPT_FAILED");
                 } else if (!ok && error != ERROR_PIPE_CONNECTED) throw NativeFailure("NATIVE_ACCEPT_FAILED", error);
+                recordPhase("server.accept.complete");
                 for (auto entry = clients.begin(); entry != clients.end();) {
                     if (entry->session->finished) { entry->thread.join(); entry = clients.erase(entry); }
                     else ++entry;
@@ -205,6 +218,7 @@ class PipeServer : public Napi::ObjectWrap<PipeServer> {
                 if (active >= 31) { DisconnectNamedPipe(pipe.value); continue; }
                 phase = "server.createNext";
                 Handle next(create(false));
+                recordPhase("server.createNext.complete");
                 phase = "server.startSession";
                 auto session = std::make_shared<Session>(std::exchange(pipe.value, INVALID_HANDLE_VALUE));
                 ++active;
@@ -257,12 +271,16 @@ public:
             require(stopped.valid(), "NATIVE_STOP_EVENT_FAILED");
             Handle pipe(CreateFileW(name.c_str(), GENERIC_READ | GENERIC_WRITE | READ_CONTROL, 0, nullptr, OPEN_EXISTING, FILE_FLAG_OVERLAPPED | SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION, nullptr));
             requireWin32(pipe.valid(), "NATIVE_PIPE_CONNECT_FAILED");
+            recordPhase("client.connect.complete");
             phase = "client.verifyPeer";
             verifyPeer(pipe.value, false);
+            recordPhase("client.verifyPeer.complete");
             phase = "client.writeFrame";
             writeFrame(pipe.value, stopped.value, request, 5000);
+            recordPhase("client.writeFrame.complete");
             phase = "client.readFrame";
             response = readFrame(pipe.value, stopped.value, 32 * 1024 * 1024, 65000);
+            recordPhase("client.readFrame.complete");
         } catch (const NativeFailure& error) { recordFailure(phase, error); SetError(error.what()); }
         catch (const std::exception& error) { recordFailure(phase, "NATIVE_UNEXPECTED_EXCEPTION"); SetError(error.what()); }
     }
