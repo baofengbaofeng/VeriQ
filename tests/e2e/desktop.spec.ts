@@ -7,6 +7,7 @@ import { testEngine } from "./engine";
 import { observeHeadedRun, assertHeadedStopped } from "./headed";
 import { observeExport } from "./export-observation";
 import { observeCrashFailure } from "./crash-observation";
+import { terminateRenderer } from "./renderer-fault";
 let engine: Awaited<ReturnType<typeof testEngine>>;
 test.beforeAll(async () => {
     engine = await testEngine(resolve("../.."));
@@ -793,12 +794,8 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
                 contents.on("did-fail-load", (_event, code, _description, _url, mainFrame) =>
                     observe("did-fail-load", { code, mainFrame }),
                 );
-                const restored = new Promise<void>((resolve) =>
-                    contents.once("did-finish-load", () => resolve()),
-                );
-                contents.forcefullyCrashRenderer();
-                await restored;
             });
+            await terminateRenderer(electron, root, evidence);
         } catch (error) {
             crashFailures.push(error);
         } finally {
@@ -823,6 +820,7 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
         const crashState = await electron.evaluate(({ BrowserWindow }) =>
             BrowserWindow.getAllWindows()[0]!.webContents.executeJavaScript("window.veriq.state()"),
         );
+        expect(crashState.agent.pid).toBe(agentPid);
         expect(crashState.agent.active.runId).toBe(active.runId);
         const recoveredImage = await electron.evaluate(async ({ BrowserWindow }) =>
             (await BrowserWindow.getAllWindows()[0]!.capturePage()).toPNG().toString("base64"),
