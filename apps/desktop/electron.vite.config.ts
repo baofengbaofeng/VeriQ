@@ -18,6 +18,7 @@ export default defineConfig({
                 input: {
                     index: resolve("src/main/index.ts"),
                     agent: resolve("src/agent/index.ts"),
+                    cli: resolve("../runtime/src/cli.ts"),
                 },
                 output: { entryFileNames: "[name].js", chunkFileNames: "[name]-[hash].js" },
             },

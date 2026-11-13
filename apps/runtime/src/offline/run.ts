@@ -7,7 +7,6 @@ import { randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, readFile, writeFile, copyFile, readdir, rm } from "node:fs/promises";
 import { join, dirname, resolve } from "node:path";
 import { tmpdir } from "node:os";
-import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 import {
     canonicalBytes,
@@ -32,6 +31,11 @@ import { LocalStore, type Ownership } from "./store.ts";
 import { reverifyInstalled, type VerifiedBundle } from "./verify.ts";
 import type { TrustStore } from "./trust.ts";
 import { readBoundedFile } from "./config.ts";
+import {
+    developmentExecutionPaths,
+    containedPath,
+    type ExecutionPaths,
+} from "../execution/paths.ts";
 import { offlineWorkerEnvironment } from "./worker-environment.ts";
 /**
  * 公开接口 OfflineConfig 描述断网执行所需的本机目录、浏览器与发行配置：不含任何平台租约字段（OfflineConfig）。
@@ -42,6 +46,8 @@ export interface OfflineConfig {
     secrets: SecretStore;
     releaseDirectory: string;
     browserExecutable: string;
+    /** 离线宿主从完整发行清单选择执行角色及辅助模块路径，签名包仅选择受支持引擎版本而不携带可执行路径；源码开发调用可缺省，已安装入口必须显式提供已验证配置。 */
+    execution?: ExecutionPaths;
     deviceId: string;
     debug?: boolean;
     /** 桌面宿主可以明确选择可见浏览器，默认仍保持无头执行；此字段只影响当前启动配置，不修改签名业务快照，宿主必须先证明安装的浏览器具备所选择的显示能力。 */
@@ -350,7 +356,7 @@ async function attempt(
                 if (
                     evidence.kind !== "DOWNLOAD" ||
                     evidence.sensitivity !== "CREDENTIAL_RESTRICTED" ||
-                    !resolve(evidence.path).startsWith(resolve(tmp!) + "/")
+                    !containedPath(tmp!, resolve(evidence.path))
                 )
                     throw new Error("UNSAFE_EVIDENCE");
                 await add(evidence.path, "DOWNLOAD", `download-${artifacts.length}.bin`);
@@ -359,6 +365,7 @@ async function attempt(
             throw new Error("INVALID_IPC_OPERATION");
         });
         await broker.open();
+        const executionPaths = config.execution ?? developmentExecutionPaths();
         const invocation = {
             kind: "TEST",
             work,
@@ -367,15 +374,17 @@ async function attempt(
             nonce: broker.nonce,
             downloads: join(tmp, "downloads"),
             downloadLimit: 16 * 1024 * 1024,
-            npm: join(dirname(process.execPath), "npm"),
-            tsx: fileURLToPath(import.meta.resolve("tsx")),
+            npmCli: executionPaths.npmCli,
+            tsx: executionPaths.tsx,
             localDraftCompile: checked.dslOnly,
         };
         await mkdir(invocation.downloads, { mode: 0o700 });
         await write("invocation.json", canonicalBytes(invocation));
         for (const file of ["provider.mjs", "compile-entry.mjs"])
             await copyFile(
-                fileURLToPath(new URL("../execution/" + file, import.meta.url)),
+                file === "provider.mjs"
+                    ? executionPaths.providerEntry
+                    : executionPaths.compileEntry,
                 join(work, file),
             );
         const pw = {
@@ -409,15 +418,14 @@ async function attempt(
             tmp,
             join(work, "provider.mjs"),
             config.headless ?? true,
+            process.env,
+            { runnerExecutable: executionPaths.runnerExecutable },
         );
         owner = store.spawning(runId, attemptId, owner);
         spawning = true;
         child = await processes.start(attemptId, {
-            executable: process.execPath,
-            args: [
-                fileURLToPath(new URL("../execution/worker.mjs", import.meta.url)),
-                join(work, "invocation.json"),
-            ],
+            executable: executionPaths.runnerExecutable,
+            args: [executionPaths.workerEntry, join(work, "invocation.json")],
             cwd: work,
             env: environment,
         });
@@ -556,7 +564,11 @@ export async function runOffline(
         executions = variants(checked, runId, config),
         attempts: OfflineAttemptV1[] = [];
     const store = await LocalStore.open(config.root),
-        processes = new ProcessSupervisor(join(config.root, "processes"));
+        processes = new ProcessSupervisor(
+            join(config.root, "processes"),
+            500,
+            config.execution?.guardianExecutable,
+        );
     const startedAt = new Date().toISOString();
     let attemptId = randomUUID();
     try {

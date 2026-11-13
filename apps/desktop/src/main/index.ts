@@ -16,6 +16,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { readFile, writeFile, open, lstat, copyFile } from "node:fs/promises";
 import { spawn, execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { loadRuntimeDistribution } from "../../../runtime/src/distribution.ts";
 import { DesktopAgentClient } from "../agent/client";
 import { HostSession, controlOrigin } from "./session";
 import { object, parseSchema, resolveOperation } from "./policy";
@@ -49,10 +50,10 @@ import {
  * 默认 loopback 仅用于本机开发，正式配置仍要求 HTTPS。
  * 代理值由有限配置接口校验，不接收包含用户名和密码的代理 URL。
  * AgentClient 从私有档案取得 socket 和 nonce，页面不会获得这两项。
- * 默认 Node 路径指向安装包资源内独立分发物。
+ * 开发默认 Node 路径指向资源目录，安装模式改由完整发行清单派生角色路径。
  * Node 的实际版本还会在启动时核对，不能仅凭文件名 node 假设匹配。
  * 默认引擎目录与测试浏览器目录都是安装资源路径。
- * 完整可见浏览器为单独可选路径，不把 headless shell 重新标记为有界面。
+ * 开发可见浏览器允许单独配置，安装模式使用同一完整 Chrome，不把 headless shell 重新标记为有界面。
  * 这些配置仅决定本机执行候选，真正执行前 Runtime 仍核验发行与签名包。
  * 没有从 renderer 暴露 env、argv、任意读写文件或进程启动接口。
  */
@@ -121,18 +122,39 @@ async function ensureAgent(): Promise<void> {
         )
             throw error;
     }
-    const version = await promisify(execFile)(node24, ["--version"], { timeout: 10000 });
+    const installed = app.isPackaged
+        ? await loadRuntimeDistribution(join(process.resourcesPath, "runtime"))
+        : undefined;
+    const agentNode = installed?.agentExecutable ?? node24;
+    const version = await promisify(execFile)(agentNode, ["--version"], { timeout: 10000 });
     if (version.stdout.trim() !== "v24.22.1") throw new Error("INDEPENDENT_NODE24_REQUIRED");
-    await updatePrivate(profile, "desktop-config.json", () => ({ origin, ...runtime }));
+    await updatePrivate(profile, "desktop-config.json", () => ({
+        origin,
+        ...(installed
+            ? {
+                  distributionRoot: installed.root,
+                  engineDirectory: installed.engineDirectory,
+                  engineVersion: installed.engineVersion,
+                  browserExecutable: installed.browserExecutable,
+                  headedExecutable: installed.browserExecutable,
+              }
+            : runtime),
+    }));
     const log = await open(join(profile, "agent.log"), "a", 0o600);
-    const child = spawn(node24, [join(directory, "agent.js"), profile], {
-        detached: true,
-        stdio: ["ignore", log.fd, log.fd],
-        env: {
-            ...process.env,
-            ...(proxy ? { HTTPS_PROXY: proxy, HTTP_PROXY: proxy, NODE_USE_ENV_PROXY: "1" } : {}),
+    const child = spawn(
+        agentNode,
+        [installed?.agentEntry ?? join(directory, "agent.js"), profile],
+        {
+            detached: true,
+            stdio: ["ignore", log.fd, log.fd],
+            env: {
+                ...process.env,
+                ...(proxy
+                    ? { HTTPS_PROXY: proxy, HTTP_PROXY: proxy, NODE_USE_ENV_PROXY: "1" }
+                    : {}),
+            },
         },
-    });
+    );
     child.unref();
     await log.close();
     for (let attempt = 0; attempt < 100; attempt++) {

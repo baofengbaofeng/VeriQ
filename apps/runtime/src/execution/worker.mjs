@@ -4,7 +4,8 @@
 import { readFile, writeFile, copyFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { pathToFileURL } from 'node:url';
+import { extractCompiler } from './archive.mjs';
 process.title = 'veriq_runner';
 const invocation = JSON.parse(await readFile(process.argv[2], 'utf8'));
 await new Promise(resolve => process.once('message', message => { if (message?.type === 'START')
@@ -19,13 +20,13 @@ async function command(executable, args, timeout) {
 }
 let stage = "INSTALL_FAILED";
 try {
-    await command(invocation.npm, ['ci', '--offline', '--ignore-scripts', '--audit=false', '--fund=false', '--update-notifier=false', '--cache', join(invocation.tmp, 'npm-cache')], 45000);
+    await command(process.execPath, [invocation.npmCli, 'ci', '--offline', '--ignore-scripts', '--audit=false', '--fund=false', '--update-notifier=false', '--cache', join(invocation.tmp, 'npm-cache')], 45000);
     stage = 'COMPILER_EXTRACTION_FAILED';
     await mkdir(join(invocation.work, 'engine/compiler'), { recursive: true });
     // 该归档在激活前已与运维固定发行清单逐项匹配，工作进程不得改用其他编译器包。
-    await command('/usr/bin/tar', ['-xzf', 'engine/compiler.tgz', '--no-same-owner', '--no-same-permissions', '-C', 'engine/compiler'], 15000);
+    await extractCompiler(join(invocation.work, 'engine/compiler.tgz'), join(invocation.work, 'engine/compiler'));
     stage = 'COMPILER_PROCESS_FAILED';
-    await command(process.execPath, ['--import', invocation.tsx, join(invocation.work, 'compile-entry.mjs')], 45000);
+    await command(process.execPath, ['--import', pathToFileURL(invocation.tsx).href, join(invocation.work, 'compile-entry.mjs')], 45000);
     const result = JSON.parse(await readFile(join(invocation.work, 'worker-result.json'), 'utf8'));
     if (result.kind === 'READY') {
         if (invocation.kind === 'TEST') {
@@ -33,8 +34,8 @@ try {
             await command(process.execPath, [join(invocation.work, 'node_modules/@playwright/test/cli.js'), 'test', '--config', join(invocation.work, 'playwright.config.mjs')], 240000).catch(() => { });
         }
         else {
-            const { cleanupFixture } = await import(new URL('./node_modules/@veriq/runner-sdk/src/index.js', `file://${invocation.work}/`));
-            const { contact } = await import(new URL('./provider.mjs', `file://${invocation.work}/`));
+            const { cleanupFixture } = await import(pathToFileURL(join(invocation.work, 'node_modules/@veriq/runner-sdk/src/index.js')));
+            const { contact } = await import(pathToFileURL(join(invocation.work, 'provider.mjs')));
             const subject = JSON.parse(await readFile(join(invocation.work, 'subject.json'), 'utf8'));
             await cleanupFixture({ fixture: subject.fixture, context: { execution: subject, signal: AbortSignal.timeout(30000), credentials: { resolve: reference => contact({ type: 'credential', reference }) } } });
             await writeFile(join(invocation.work, 'worker-result.json'), JSON.stringify({ kind: 'CLEANUP', businessOutcome: 'PASSED', cleanupStatus: 'SUCCEEDED' }), { mode: 0o600 });

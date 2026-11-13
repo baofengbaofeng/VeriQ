@@ -10,13 +10,14 @@
         "pino": "10.4.0",
         "proper-lockfile": "4.1.2",
         "yauzl": "3.4.0",
-        "playwright-core": "1.65.0"
+        "playwright-core": "1.65.0",
+        "tar": "7.5.22",
+        "tsx": "4.23.15"
     },
     "devDependencies": {
         "@types/node": "24.10.1",
         "@types/proper-lockfile": "4.1.4",
         "@types/yauzl": "3.4.0",
-        "tsx": "4.23.15",
         "typescript": "5.9.3"
     },
     "version": "0.1.0",

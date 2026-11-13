@@ -4,7 +4,6 @@
 
 import { mkdtemp, mkdir, readFile, writeFile, copyFile, readdir, rm, rename } from 'node:fs/promises';
 import { join, dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -19,6 +18,8 @@ import { EventBuffer } from './events.ts';
 import { AttemptBroker } from './broker.ts';
 import { monitorStorage } from './storage.ts';
 import { loadRelease, sha256 } from './release.ts';
+import { developmentExecutionPaths, containedPath, type ExecutionPaths } from './paths.ts';
+import { offlineWorkerEnvironment } from '../offline/worker-environment.ts';
 /**
  * 公开接口 ClaimedAttempt 绑定一次认领结果与收发单调时刻：供 leaseDeadline 换算与 runAttempt 使用。
  */
@@ -53,7 +54,8 @@ export interface SupervisorOptions {
     releaseDirectory: string;
     browserExecutable: string;
     storageLimit?: number;
-    npmExecutable?: string;
+    /** 独立安装入口提供已验证的角色与辅助模块物理路径，缺省只适用于现有源码开发调用；业务 Job 不可覆盖这个宿主设置，Runner 子进程继续继承自身固定 Node 的 execPath。 */
+    execution?: ExecutionPaths;
 }
 interface AttemptJournal {
     claimRequestId?: string;
@@ -67,7 +69,7 @@ const json = async <T>(path: string): Promise<T> => JSON.parse(await readFile(pa
  */
 export class ExecutionSupervisor {
     readonly processes: ProcessSupervisor;
-    constructor(private options: SupervisorOptions) { this.processes = new ProcessSupervisor(join(options.root, 'processes')); }
+    constructor(private options: SupervisorOptions) { this.processes = new ProcessSupervisor(join(options.root, 'processes'), 500, options.execution?.guardianExecutable); }
     private async journal(value: AttemptJournal) {
         const directory = join(this.options.root, 'attempts');
         await mkdir(directory, { recursive: true, mode: 0o700 });
@@ -107,6 +109,7 @@ export class ExecutionSupervisor {
         leaseDeadline({ ...claim, leaseExpiresAt: claim.expiresAt }, assignment.requestStarted, assignment.responseReceived);
         if (process.platform !== 'linux')
             throw new Error('UNSUPPORTED_PROCESS_PLATFORM');
+        const executionPaths = this.options.execution ?? developmentExecutionPaths();
         const work = join(this.options.root, 'work', claim.attemptId);
         await mkdir(work, { recursive: true, mode: 0o700 });
         const tmp = await mkdtemp(join(tmpdir(), 'veriq-a-')); // Chromium AF_UNIX paths must fit108 bytes.
@@ -210,7 +213,7 @@ export class ExecutionSupervisor {
                         path: string;
                         sensitivity: 'CREDENTIAL_RESTRICTED';
                     };
-                    if (evidence.kind !== 'DOWNLOAD' || evidence.sensitivity !== 'CREDENTIAL_RESTRICTED' || !resolve(evidence.path).startsWith(resolve(tmp) + '/'))
+                    if (evidence.kind !== 'DOWNLOAD' || evidence.sensitivity !== 'CREDENTIAL_RESTRICTED' || !containedPath(tmp, resolve(evidence.path)))
                         throw new Error('UNSAFE_EVIDENCE');
                     const bytes = await readFile(evidence.path);
                     const name = `download-${files.length}.bin`;
@@ -221,12 +224,12 @@ export class ExecutionSupervisor {
                 throw new Error('INVALID_IPC_OPERATION');
             });
             await broker.open();
-            const invocation = { kind: manifest.kind, work, tmp, socket: broker.path, nonce: broker.nonce, downloads: join(tmp, 'downloads'), downloadLimit: 16 * 1024 * 1024, npm: this.options.npmExecutable ?? join(dirname(process.execPath), 'npm'), tsx: fileURLToPath(import.meta.resolve('tsx')) };
+            const invocation = { kind: manifest.kind, work, tmp, socket: broker.path, nonce: broker.nonce, downloads: join(tmp, 'downloads'), downloadLimit: 16 * 1024 * 1024, npmCli: executionPaths.npmCli, tsx: executionPaths.tsx };
             await mkdir(invocation.downloads, { mode: 0o700 });
             await write('invocation.json', canonicalBytes(invocation));
             await write('release.json', canonicalBytes(release.entry));
             for (const file of ['provider.mjs', 'compile-entry.mjs'])
-                await copyFile(fileURLToPath(new URL(file, import.meta.url)), join(work, file));
+                await copyFile(file === 'provider.mjs' ? executionPaths.providerEntry : executionPaths.compileEntry, join(work, file));
             if (bundle && execution) {
                 const entry = bundle.entrypoints.find(e => e.caseVersionId === execution!.caseVersionId);
                 if (!entry)
@@ -250,7 +253,7 @@ export class ExecutionSupervisor {
                 await this.terminateAttempt(claim.attemptId, why); });
             record.state = 'SPAWNING';
             await this.journal(record);
-            child = await this.processes.start(claim.attemptId, { executable: process.execPath, args: [fileURLToPath(new URL('worker.mjs', import.meta.url)), join(work, 'invocation.json')], cwd: work, env: { PATH: `${dirname(process.execPath)}:/usr/bin:/bin`, TMPDIR: tmp, XDG_CACHE_HOME: join(tmp, 'cache'), XDG_CONFIG_HOME: join(tmp, 'config'), VERIQ_EXECUTION_CONTEXT_MODULE: join(work, 'provider.mjs') } });
+            child = await this.processes.start(claim.attemptId, { executable: executionPaths.runnerExecutable, args: [executionPaths.workerEntry, join(work, 'invocation.json')], cwd: work, env: offlineWorkerEnvironment(tmp, join(work, 'provider.mjs'), true, process.env, { runnerExecutable: executionPaths.runnerExecutable }) });
             record.state = 'RUNNING';
             await this.journal(record);
             if (controller.signal.aborted)

@@ -7,6 +7,7 @@ import {
     readPrivate,
     updatePrivate,
 } from "../../../runtime/src/offline/config.ts";
+import { loadRuntimeDistribution, assertRuntimeRole } from "../../../runtime/src/distribution.ts";
 import { DesktopAgent, type AgentConfiguration } from "./service";
 
 /** 独立 Node24 后台入口只读取宿主已经写入的私有配置，通过现有 nonce broker 提供受限本机命令；锁持有期间才可删除陈旧 socket，防止并发 UI 启动抢占存活后台。 */
@@ -20,6 +21,14 @@ async function main() {
     await mkdir(owner, { recursive: true, mode: 0o700 });
     const release = await lockfile.lock(owner, { retries: 0 });
     const config = await readPrivate<AgentConfiguration>(root, "desktop-config.json");
+    if (config.distributionRoot) {
+        const installed = await loadRuntimeDistribution(config.distributionRoot);
+        assertRuntimeRole(installed, "agent");
+        config.engineDirectory = installed.engineDirectory;
+        config.engineVersion = installed.engineVersion;
+        config.browserExecutable = installed.browserExecutable;
+        config.headedExecutable = installed.browserExecutable;
+    }
     const service = new DesktopAgent(root, config);
     let stopping = false;
     const stop = async () => {

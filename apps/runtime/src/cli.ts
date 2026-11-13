@@ -18,7 +18,9 @@ import { openTrace } from "./trace.ts";
 /** Development CLI. Native launcher/process names and vault packaging are T20. */
 import { Command } from "commander";
 import pino from "pino";
-import { join } from "node:path";
+import { join, dirname, basename } from "node:path";
+import { loadRuntimeDistribution, assertRuntimeRole, diagnoseRelease } from "./distribution.ts";
+import { spawn } from "node:child_process";
 import { DeviceSession } from "./agent/credentials.ts";
 import { AgentClient } from "./agent/transport.ts";
 import { claimLoop } from "./agent/claim-loop.ts";
@@ -39,11 +41,72 @@ const logger = pino(
     },
     pino.destination(2),
 );
+const entryRole = basename(process.execPath).replace(/\.exe$/i, "");
+const entryDistribution = ["veriq_cli", "veriq_agent"].includes(entryRole)
+    ? await loadRuntimeDistribution(dirname(dirname(dirname(process.execPath))))
+    : undefined;
+if (entryDistribution)
+    assertRuntimeRole(entryDistribution, entryRole === "veriq_agent" ? "agent" : "cli");
 const program = new Command()
     .name("veriq_cli")
     .description("VeriQ Runtime enrollment and diagnostics (development)")
-    .version("0.1.0");
+    .version(entryDistribution?.productVersion ?? "0.1.0");
 program.option("--config-dir <directory>", "Private development configuration directory");
+program.option("--distribution-root <directory>", "Installed Runtime distribution root");
+
+/** 原生角色入口从物理可执行文件推导安装根，显式根仅供可信启动器传入且仍校验角色身份；开发 node 入口保持原来的源码探测，缺失安装清单绝不静默回落到开发依赖或系统浏览器。 */
+async function installedDistribution() {
+    const role = basename(process.execPath).replace(/\.exe$/i, "");
+    const root =
+        program.opts<{ distributionRoot?: string }>().distributionRoot ??
+        (["veriq_cli", "veriq_agent"].includes(role)
+            ? dirname(dirname(dirname(process.execPath)))
+            : undefined);
+    if (!root) return;
+    const installed = await loadRuntimeDistribution(root);
+    assertRuntimeRole(installed, role === "veriq_agent" ? "agent" : "cli");
+    return installed;
+}
+
+/** 注册与诊断共享完整发行核验，安装模式只允许清单中钉选的浏览器与引擎；调用者可选择控制 Origin 而不能通过 CLI 参数替换安装执行代码，避免登记出实际无法执行的组件版本。 */
+async function nativeDoctor(options: { server?: string; browserExecutable?: string }) {
+    const installed = await installedDistribution();
+    if (!installed)
+        return doctor({
+            ...options,
+            executablePath: options.browserExecutable,
+            signal: controller.signal,
+        });
+    if (options.browserExecutable && options.browserExecutable !== installed.browserExecutable)
+        throw new Error("RUNTIME_CONFIGURATION_MISMATCH");
+    return diagnoseRelease({
+        ...installed,
+        ...(options.server ? { server: options.server } : {}),
+        signal: controller.signal,
+    });
+}
+
+/** 安装 CLI 启动在线服务时必须转交给真实 Agent 角色 Node，而不是只修改当前 CLI 的进程标题；参数按原始数组传递，父进程等待真实退出，并把取消信号传给会执行既有排空协议的 Agent。 */
+async function startInstalledAgent(
+    installed: NonNullable<Awaited<ReturnType<typeof installedDistribution>>>,
+) {
+    controller.signal.throwIfAborted();
+    const child = spawn(installed.agentExecutable, [installed.cliEntry, ...process.argv.slice(2)], {
+        stdio: "inherit",
+    });
+    const cancel = () => {
+        child.kill("SIGTERM");
+    };
+    controller.signal.addEventListener("abort", cancel, { once: true });
+    try {
+        process.exitCode = await new Promise<number>((resolve, reject) => {
+            child.once("error", reject);
+            child.once("exit", (code) => resolve(code ?? 1));
+        });
+    } finally {
+        controller.signal.removeEventListener("abort", cancel);
+    }
+}
 const controller = new AbortController();
 process.once("SIGINT", () => controller.abort());
 process.once("SIGTERM", () => controller.abort());
@@ -65,11 +128,7 @@ common(
         .description("Inspect Node, engine/SDK, browser launch and optional control network")
         .option("--server <origin>", "Control service origin"),
 ).action(async (options: { server?: string; browserExecutable?: string }) => {
-    const result = await doctor({
-        server: options.server,
-        executablePath: options.browserExecutable,
-        signal: controller.signal,
-    });
+    const result = await nativeDoctor(options);
     for (const c of result.checks)
         process.stdout.write(`${c.ok ? "PASS" : "FAIL"} ${c.name}: ${c.detail}\n`);
     process.exitCode = result.ok ? 0 : 1;
@@ -89,11 +148,7 @@ common(
         if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
     }
     const client = new RuntimeClient(options.server);
-    const diagnostics = await doctor({
-        server: options.server,
-        executablePath: options.browserExecutable,
-        signal: controller.signal,
-    });
+    const diagnostics = await nativeDoctor(options);
     if (!diagnostics.ok || !diagnostics.capabilities) throw new Error("DOCTOR_FAILED");
     const enrollment = await client.begin(
         options.name,
@@ -144,11 +199,7 @@ common(
                 throw error;
         }
         const client = new RuntimeClient(options.server);
-        const diagnostics = await doctor({
-            server: options.server,
-            executablePath: options.browserExecutable,
-            signal: controller.signal,
-        });
+        const diagnostics = await nativeDoctor(options);
         if (!diagnostics.ok || !diagnostics.capabilities) throw new Error("DOCTOR_FAILED");
         let secret = "";
         const timeout = setTimeout(() => process.stdin.destroy(new Error("INPUT_TIMEOUT")), 30_000);
@@ -248,11 +299,35 @@ program
 const runtime = program.command("runtime").description("Run and control the online Linux Agent");
 runtime
     .command("start")
-    .requiredOption("--release-dir <path>", "Operator-approved fixed engine release directory")
-    .requiredOption("--browser-executable <path>", "Pinned Playwright browser executable")
+    .option("--release-dir <path>", "Operator-approved fixed engine release directory")
+    .option("--browser-executable <path>", "Pinned Playwright browser executable")
     .option("--once", "Process at most one claim, then stop")
     .action(async (options: { releaseDir: string; browserExecutable: string; once?: boolean }) => {
         if (process.platform !== "linux") throw new Error("UNSUPPORTED_PROCESS_PLATFORM");
+        const installed = await installedDistribution();
+        if (installed && entryRole !== "veriq_agent") {
+            await startInstalledAgent(installed);
+            return;
+        }
+        if (installed) assertRuntimeRole(installed, "agent");
+        if (
+            installed &&
+            ((options.releaseDir && options.releaseDir !== installed.engineDirectory) ||
+                (options.browserExecutable &&
+                    options.browserExecutable !== installed.browserExecutable))
+        )
+            throw new Error("RUNTIME_CONFIGURATION_MISMATCH");
+        const releaseDirectory = installed?.engineDirectory ?? options.releaseDir;
+        const browserExecutable = installed?.browserExecutable ?? options.browserExecutable;
+        if (!releaseDirectory || !browserExecutable)
+            throw new Error("RUNTIME_CONFIGURATION_REQUIRED");
+        const diagnostics = await diagnoseRelease({
+            engineDirectory: releaseDirectory,
+            engineVersion: installed?.engineVersion ?? "1.0.0",
+            browserExecutable,
+            signal: controller.signal,
+        });
+        if (!diagnostics.ok || !diagnostics.capabilities) throw new Error("DOCTOR_FAILED");
         process.title = "veriq_agent";
         const profile = store(),
             config = await profile.load(),
@@ -268,18 +343,21 @@ runtime
                 await transport.request<
                     import("@veriq/contracts").PlatformComponents["schemas"]["RuntimeDTO"]
                 >("/internal/v1/runtime");
+            if (info.capabilities.engineVersion !== diagnostics.capabilities.engineVersion)
+                throw new Error("RUNTIME_CAPABILITY_MISMATCH_REENROLL");
             const supervisor = new ExecutionSupervisor({
                 root,
                 client: transport,
-                releaseDirectory: options.releaseDir,
-                browserExecutable: options.browserExecutable,
+                releaseDirectory,
+                browserExecutable,
+                ...(installed ? { execution: installed.execution } : {}),
             });
             await claimLoop({
                 client: transport,
                 supervisor,
                 root,
                 runnerId: config.runnerId,
-                capabilities: info.capabilities,
+                capabilities: diagnostics.capabilities,
                 signal: controller.signal,
                 ...(options.once ? { once: true } : {}),
             });
@@ -382,8 +460,8 @@ program
     .command("run")
     .description("Execute a signed installed bundle without the control service")
     .requiredOption("--offline <directory>", "Installed signed bundle directory")
-    .requiredOption("--release-dir <directory>", "Installed approved engine release")
-    .requiredOption("--browser-executable <path>", "Installed test browser")
+    .option("--release-dir <directory>", "Installed approved engine release")
+    .option("--browser-executable <path>", "Installed test browser")
     .option("--debug", "Explicit expired/unvalidated DEBUG execution")
     .option("--retry", "One safe whole-case retry at most")
     .option("--base-url <url>", "Explicit authorized public baseURL override")
@@ -398,7 +476,19 @@ program
             baseUrl?: string;
             fixtureUrl?: string;
         }) => {
-            process.title = "veriq";
+            const installed = await installedDistribution();
+            if (
+                installed &&
+                ((options.releaseDir && options.releaseDir !== installed.engineDirectory) ||
+                    (options.browserExecutable &&
+                        options.browserExecutable !== installed.browserExecutable))
+            )
+                throw new Error("RUNTIME_CONFIGURATION_MISMATCH");
+            const releaseDirectory = installed?.engineDirectory ?? options.releaseDir;
+            const browserExecutable = installed?.browserExecutable ?? options.browserExecutable;
+            if (!releaseDirectory || !browserExecutable)
+                throw new Error("RUNTIME_CONFIGURATION_REQUIRED");
+            process.title = "veriq_cli";
             const profile = store().directory;
             await updatePrivate<{ id: string }>(
                 profile,
@@ -416,8 +506,9 @@ program
                     trust: new TrustStore(profile),
                     root: localRoot(),
                     secrets: new SecretStore(profile),
-                    releaseDirectory: options.releaseDir,
-                    browserExecutable: options.browserExecutable,
+                    releaseDirectory,
+                    browserExecutable,
+                    ...(installed ? { execution: installed.execution } : {}),
                     deviceId: identity.id,
                     debug: !!options.debug,
                     retry: !!options.retry,

@@ -23,6 +23,8 @@ import { dirname, join, resolve, relative } from "node:path";
 import { execFileSync } from "node:child_process";
 import ts from "../packages/compiler/node_modules/typescript/lib/typescript.js";
 import { canonicalBytes, validateSchema } from "../packages/contracts/src/index.js";
+import { archive } from "../apps/runtime/src/execution/archive.mjs";
+import { containedPath, developmentExecutionPaths } from "../apps/runtime/src/execution/paths.ts";
 import { COMPILER_VERSION } from "../packages/compiler/src/index.js";
 
 const root = resolve(import.meta.dirname, "..");
@@ -36,7 +38,7 @@ for (let ancestor = output; dirname(ancestor) !== ancestor; ancestor = dirname(a
         throw new Error("Linked engine output path is forbidden");
     }
 }
-if (!output.startsWith(join(root, "work") + "/") || existsSync(output))
+if (!containedPath(join(root, "work"), output) || existsSync(output))
     throw new Error("Engine output must be a new work directory");
 mkdirSync(dirname(output), { recursive: true });
 const work = mkdtempSync(join(dirname(output), ".engine-"));
@@ -54,26 +56,6 @@ function sources(path: string): string[] {
         const child = join(path, entry.name);
         return entry.isDirectory() ? sources(child) : entry.name.endsWith(".ts") ? [child] : [];
     });
-}
-
-/** tar 的内容顺序、时间戳与数值所有者固定，压缩输入只有明确目录中的普通发行文件；相同源码与依赖字节因此产生相同归档摘要，而不是随工作区复制时间改变引擎身份。
- * cwd 与成员单独传给 execFileSync，不经过 shell 插值。
- * 不使用源码执行钩子，也不会运行供应商 package scripts。
- */
-function archive(directory: string, members: string[], destination: string): void {
-    mkdirSync(dirname(destination), { recursive: true });
-    execFileSync("tar", [
-        "--sort=name",
-        "--mtime=@0",
-        "--owner=0",
-        "--group=0",
-        "--numeric-owner",
-        "-czf",
-        destination,
-        "-C",
-        directory,
-        ...members,
-    ]);
 }
 
 try {
@@ -176,6 +158,9 @@ try {
                 );
             return;
         }
+        /** 当前引擎闭包没有原生可选依赖，平台相关的 tsx 与 esbuild 属于外层 Runtime；未来依赖若增加 optionalDependencies 必须先明确跨平台收集策略，不能静默遗漏后仍宣称同一库存可离网执行。 */
+        if (Object.keys(pkg.optionalDependencies ?? {}).length)
+            throw new Error("Engine optional dependencies require an explicit target closure");
         collected.set(name, { dir: directory, pkg });
         for (const dependency of Object.keys(pkg.dependencies ?? {}))
             collect(dependency, local ? join(packages, local) : directory);
@@ -191,9 +176,9 @@ try {
         cpSync(dir, join(packed, "package"), {
             recursive: true,
             dereference: true,
-            filter: (path) => !relative(dir, path).split("/").includes("node_modules"),
+            filter: (path) => !relative(dir, path).split(/[\\/]/).includes("node_modules"),
         });
-        archive(packed, ["package"], join(release, filename));
+        await archive(packed, ["package"], join(release, filename));
         rmSync(packed, { recursive: true });
         const content = readFileSync(join(release, filename));
         dependencies.push({
@@ -218,8 +203,9 @@ try {
         ) + "\n",
     );
     execFileSync(
-        "npm",
+        process.execPath,
         [
+            developmentExecutionPaths().npmCli,
             "install",
             "--package-lock-only",
             "--offline",
@@ -237,7 +223,11 @@ try {
     cpSync(join(packages, "compiler/src"), join(compiler, "src"), { recursive: true });
     cpSync(join(packages, "compiler/package.json"), join(compiler, "package.json"));
     cpSync(join(root, "LICENSE"), join(compiler, "LICENSE"));
-    archive(compiler, ["src", "package.json", "LICENSE"], join(release, "engine/compiler.tgz"));
+    await archive(
+        compiler,
+        ["src", "package.json", "LICENSE"],
+        join(release, "engine/compiler.tgz"),
+    );
     const members = [
         "package.json",
         "package-lock.json",

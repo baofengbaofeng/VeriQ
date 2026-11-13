@@ -71,7 +71,8 @@ const launcher = fileURLToPath(new URL('../../build/veriq_runner', import.meta.u
 export class ProcessSupervisor {
     private live = new Map<string, OwnedProcess>();
     private stopping = new Map<string, Promise<StopReceipt>>();
-    constructor(private directory: string, private graceMs = 500) { }
+    /** 安装宿主只能传入完整库存已核验的 guardian 路径，开发调用默认保持原目录；增加路径参数不改变持久身份日志、START 门或排空证明，无法访问所选二进制时仍在创建进程之前失败。 */
+    constructor(private directory: string, private graceMs = 500, private launcherPath = launcher) { }
     private path(id: string) {
         if (!/^[a-zA-Z0-9_-]{1,100}$/.test(id)) throw new Error('INVALID_ATTEMPT_ID');
         return join(this.directory, `${id}.process.json`);
@@ -94,12 +95,12 @@ export class ProcessSupervisor {
         if (process.platform !== 'linux') throw new Error('UNSUPPORTED_PROCESS_PLATFORM');
         if (this.live.has(id)) throw new Error('PROCESS_ALREADY_RUNNING');
         // 固定安装的 Agent 组件路径，绝不能改用 Job 提供路径或运行时编译器回退。
-        try { await access(launcher, constants.X_OK); } catch { throw new Error('NATIVE_LAUNCHER_REQUIRED'); }
+        try { await access(this.launcherPath, constants.X_OK); } catch { throw new Error('NATIVE_LAUNCHER_REQUIRED'); }
         try { await readFile(this.path(id)); throw new Error('PROCESS_JOURNAL_EXISTS'); }
         catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
         const journal: Journal = {uid: process.getuid!(), attemptId: id, nonce: randomUUID(), state: 'SPAWNING'};
         await this.save(journal);
-        const child = spawn(launcher, [this.proofPath(id), journal.nonce, String(this.graceMs), command.executable, ...command.args], {
+        const child = spawn(this.launcherPath, [this.proofPath(id), journal.nonce, String(this.graceMs), command.executable, ...command.args], {
             cwd: command.cwd, detached: true,
             stdio: ['ignore', 'pipe', 'pipe', 'ipc', 'pipe', 'pipe'],
             env: {PATH: '/usr/bin:/bin', LANG: 'C.UTF-8', ...command.env, VERIQ_PROCESS_NONCE: journal.nonce},

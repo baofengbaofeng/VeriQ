@@ -22,12 +22,11 @@ import {
     updatePrivate,
     privateDirectory,
 } from "../../../runtime/src/offline/config.ts";
-import { doctor } from "../../../runtime/src/doctor.ts";
+import { diagnoseRelease, loadRuntimeDistribution } from "../../../runtime/src/distribution.ts";
 import { openTrace } from "../../../runtime/src/trace.ts";
 import { DeviceSession } from "../../../runtime/src/agent/credentials.ts";
 import { AgentClient } from "../../../runtime/src/agent/transport.ts";
 import { claimLoop } from "../../../runtime/src/agent/claim-loop.ts";
-import { loadRelease } from "../../../runtime/src/execution/release.ts";
 import { ExecutionSupervisor } from "../../../runtime/src/execution/supervisor.ts";
 import { object } from "../main/policy";
 import { probeBrowser } from "./browser-capability";
@@ -48,6 +47,8 @@ export interface AgentConfiguration {
     engineVersion?: string;
     browserExecutable: string;
     headedExecutable?: string;
+    /** 正式安装由 main 写入唯一 Runtime 资源根，Agent 启动及准备执行时重新验证该目录；renderer 和签名业务包不能传入此字段，开发配置没有该字段时保持已有独立工具路径。 */
+    distributionRoot?: string;
 }
 const id = (value: unknown) => {
     if (
@@ -580,11 +581,16 @@ export class DesktopAgent {
                 (old: Record<string, unknown> | undefined) => ({ ...old, [choiceId]: choice }),
             );
             startup?.signal.throwIfAborted();
+            const installed = this.config.distributionRoot
+                ? await loadRuntimeDistribution(this.config.distributionRoot)
+                : undefined;
+            startup?.signal.throwIfAborted();
             this.runController = startup ?? new AbortController();
             this.lastError = undefined;
             this.run = runOffline(
                 { directory },
                 {
+                    ...(installed ? { execution: installed.execution } : {}),
                     root: this.executionRoot,
                     trust: this.trust,
                     secrets: this.secrets,
@@ -781,33 +787,31 @@ export class DesktopAgent {
      * 编译器及 SDK 的源码版本可以与发行 engineVersion 不同。
      * 仅当原 doctor 已形成 capabilities 时才替换其发行版本字段。
      * 失败结果不能凭库存版本字符串制造 capabilities。
-     * 该适配不修改 CLI 默认包探测行为，CLI 发行入口还需要对应上下文接入。
+     * CLI 与桌面现在共用此发行适配，开发源码入口仍可保留原来的包探测。
      */
     private async diagnose(network: boolean) {
-        const release = await loadRelease(
-            this.config.engineDirectory,
-            this.config.engineVersion ?? "1.0.0",
-        );
-        const result = await doctor({
+        const installed = this.config.distributionRoot
+            ? await loadRuntimeDistribution(this.config.distributionRoot)
+            : undefined;
+        return diagnoseRelease({
+            engineDirectory: installed?.engineDirectory ?? this.config.engineDirectory,
+            engineVersion: installed?.engineVersion ?? this.config.engineVersion ?? "1.0.0",
+            browserExecutable: installed?.browserExecutable ?? this.config.browserExecutable,
             ...(network ? { server: this.config.origin } : {}),
-            executablePath: this.config.browserExecutable,
-            distribution: {
-                compilerVersion: release.entry.compilerVersion,
-                runnerSdkVersion: release.entry.runnerSdkVersion,
-            },
         });
-        result.checks.push({
-            name: "Production engine inventory",
-            ok: true,
-            detail: release.entry.engineVersion + " " + release.inventoryHash,
-        });
-        if (result.capabilities) result.capabilities.engineVersion = release.entry.engineVersion;
-        return result;
     }
 
     /** 在线领取使用已绑定设备的真实会话和现有执行监管器，启动准备期间仍受同一个控制器约束；查询设备状态失败或取消会关闭该会话，只有检查成功后才把 claimLoop 登记为活动任务。 */
     private async startOnline(controller: AbortController) {
         if (this.online || this.run) throw new Error("AGENT_BUSY");
+        const installed = this.config.distributionRoot
+            ? await loadRuntimeDistribution(this.config.distributionRoot)
+            : undefined;
+        const diagnostics = await this.diagnose(false);
+        controller.signal.throwIfAborted();
+        if (!diagnostics.ok || !diagnostics.capabilities) {
+            throw new Error("DOCTOR_FAILED");
+        }
         const config = await this.deviceConfig(),
             session = new DeviceSession(this.device, new RuntimeClient(config.server));
         await session.open();
@@ -818,12 +822,15 @@ export class DesktopAgent {
         try {
             info = await client.request<S["RuntimeDTO"]>("/internal/v1/runtime");
             controller.signal.throwIfAborted();
+            if (info.capabilities.engineVersion !== diagnostics.capabilities.engineVersion)
+                throw new Error("RUNTIME_CAPABILITY_MISMATCH_REENROLL");
         } catch (error) {
             await session.close();
             this.onlineController = undefined;
             throw error;
         }
         const supervisor = new ExecutionSupervisor({
+            ...(installed ? { execution: installed.execution } : {}),
             root,
             client,
             releaseDirectory: this.config.engineDirectory,
@@ -834,7 +841,7 @@ export class DesktopAgent {
             client,
             supervisor,
             runnerId: config.runnerId,
-            capabilities: info.capabilities,
+            capabilities: diagnostics.capabilities,
             signal: this.onlineController.signal,
         })
             .catch((error) => {
