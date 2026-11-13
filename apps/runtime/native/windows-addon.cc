@@ -253,6 +253,10 @@ public:
             name = pipeName(info[0].As<Napi::String>().Utf8Value());
             first.value = create(true);
             callback = Napi::ThreadSafeFunction::New(info.Env(), info[1].As<Napi::Function>(), "VeriQ private pipe", 32, 1);
+            /** 仅独立测试编译体在真实管道和回调分配后注入监听线程构造失败，普通构建不定义此宏且不生成故障调用；该阶段用于验证部分构造的资源释放，不能成为运行时环境开关或正式模块导出。 */
+#ifdef VERIQ_TEST_FAIL_PIPE_LISTENER
+            VERIQ_TEST_FAIL_PIPE_LISTENER();
+#endif
             listener = std::thread([this] { accept(); });
         } catch (const std::exception& error) { Napi::Error::New(info.Env(), error.what()).ThrowAsJavaScriptException(); }
     }

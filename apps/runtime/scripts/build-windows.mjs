@@ -18,7 +18,7 @@ const options = [
     fileURLToPath(new URL("native/", root)),
 ];
 if (process.argv[2]) options.push(`--devdir=${process.argv[2]}`);
-/** 正式构建显式关闭调度测试目标，只有命令行专用参数可编译独立测试二进制；该开关不修改生产 guardian 或 addon 的源码和导出，也不会读取全局环境变量来赋予运行时调度能力。 */
+/** 正式构建显式关闭调度及故障测试目标，只有命令行专用参数可编译独立测试二进制；该开关不启用生产 guardian 或 addon 的故障调用和导出，也不会读取全局环境变量来赋予运行时调度能力。 */
 options.push("--", `-Dveriq_native_tests=${testSchedules ? 1 : 0}`);
 execFileSync(
     process.execPath,
@@ -34,7 +34,11 @@ for (const name of ["veriq_native.node", "veriq_guardian.exe"]) {
 }
 if (testSchedules) {
     await mkdir(new URL("build/native-tests/", root), { recursive: true });
-    for (const name of ["veriq_test_schedule.node", "veriq_guardian_scheduled.exe"]) {
+    for (const name of [
+        "veriq_test_schedule.node",
+        "veriq_guardian_scheduled.exe",
+        "veriq_constructor_fault.node",
+    ]) {
         await copyFile(
             new URL(`native/build/Release/${name}`, root),
             new URL(`build/native-tests/${name}`, root),
