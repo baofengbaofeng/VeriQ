@@ -3,6 +3,7 @@
 #include <atomic>
 #include <mutex>
 #include <thread>
+#include <exception>
 #include <iostream>
 
 using namespace veriq;
@@ -20,6 +21,21 @@ static std::string hex(const char* bytes, DWORD count) {
         result += alphabet[value >> 4]; result += alphabet[value & 15];
     }
     return result;
+}
+/** 同步取消可能发生在目标线程下一次 ReadFile 之前，因此反复取消并等待真实线程句柄信号，不能只请求一次就无限 join；所有线程共用原有 Job 排空截止时间，只有已经观察到线程退出才回收其 C++ 对象。 */
+static bool finishThread(std::thread& thread, ULONGLONG deadline) {
+    const HANDLE handle = thread.native_handle();
+    for (;;) {
+        const DWORD state = WaitForSingleObject(handle, 0);
+        if (state == WAIT_OBJECT_0) { thread.join(); return true; }
+        const auto now = GetTickCount64();
+        if (state != WAIT_TIMEOUT || now >= deadline) return false;
+        CancelSynchronousIo(handle);
+        const auto remaining = deadline - now;
+        const DWORD waited = WaitForSingleObject(handle, static_cast<DWORD>(remaining < 20 ? remaining : 20));
+        if (waited == WAIT_OBJECT_0) { thread.join(); return true; }
+        if (waited != WAIT_TIMEOUT) return false;
+    }
 }
 int wmain(int argc, wchar_t** argv) {
     try {
@@ -126,9 +142,11 @@ int wmain(int argc, wchar_t** argv) {
             GetQueuedCompletionStatus(completion.value, &message, &key, &overlap, 50);
         }
         closed = true;
-        CancelSynchronousIo(control.native_handle());
-        CancelSynchronousIo(output.native_handle());
-        control.join(); output.join();
+        /** 截止时间内仍不能证明本进程线程退出时，不写任何 DRAINED 并只终止守护自身，让自有 Job 句柄按既有策略关闭；宿主保持未知容量隔离，异常退出和真正完成排空明确区分，不能把计时器到期伪造成成功。 */
+        if (!finishThread(control, deadline) || !finishThread(output, deadline)) {
+            TerminateProcess(GetCurrentProcess(), 125);
+            std::terminate();
+        }
         if (!terminated || !drained) return 125;
         DWORD exitCode = 0;
         require(GetExitCodeProcess(worker.value, &exitCode) != 0, "GUARDIAN_EXIT_FAILED");
