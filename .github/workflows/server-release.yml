@@ -82,6 +82,10 @@ jobs:
                   name: server-release-evidence
                   path: |
                       work/release-*/commands.json
+                      work/release-*/processes.json
+                      work/release-*/cancellation.json
+                      work/release-*/child-*.json
+                      work/build-unsafe.json
                       work/release-*/*.log
                       work/release-*/source-binding.json
                       work/release-*/comment-audit.json

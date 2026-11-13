@@ -2,7 +2,7 @@
 
 私钥仅由操作员配置的既有权威加载器读取，不进入候选目录。
 候选构建与批准晋升是两个独立动作。
-文件校验在进入权威锁前完成，不占用任何数据库事务。
+候选在权威锁前预检、取得锁后重新验证，不占用任何数据库事务。
 """
 
 import argparse
@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import re
 import tempfile
+from typing import Any
 
 from .bundles.authority import authority_guard
 from .contracts import canonical_bytes, validate_schema
@@ -20,14 +21,11 @@ from .services.engines import ApprovedEngines
 from .settings import Settings, load_settings
 
 
-async def promote_engine(settings: Settings, candidate: Path) -> str:
-    """校验单个候选发行的路径、字节和严格库存，持有既有双重权威锁后重新读取当前批准清单并追加新身份；已存在版本只能与原条目完全一致，否则拒绝不可变身份冲突。
+def _validate_candidate(settings: Settings, candidate: Path) -> tuple[bytes, dict[str, Any], str]:
+    """读取候选的有界库存并逐文件验证路径、长度和摘要，返回本次实际读取的原始库存及规范身份；前后两次使用同一校验器，防止等待权威锁时变化的文件被旧内存条目掩盖。
 
-    候选目录必须没有任何符号链接组件。
-    当前清单即使位于只读发行目录旁，锁仍放在可写 issuer 状态目录。
-    fsync 文件与父目录确保原子替换后的持久性。
-    保留旧条目让此前冻结的包与回执继续按原版本验证。
-    同字节重复晋升幂等，不重复写清单。
+    返回的字节快照只用于比较输入身份，不代表批准或修改候选目录。
+    同步文件校验没有后台 worker，因此任务取消后不会迟到执行库存替换。
     """
     if not settings.approved_engine_inventory_path:
         raise ValueError("Approved inventory path is required")
@@ -65,7 +63,27 @@ async def promote_engine(settings: Settings, candidate: Path) -> str:
         content = path.read_bytes()
         if len(content) != member["sizeBytes"] or sha256(content).hexdigest() != member["sha256"]:
             raise ValueError("Engine candidate content mismatch")
+    return raw, entry, identity
+
+
+async def promote_engine(settings: Settings, candidate: Path) -> str:
+    """校验单个候选发行的路径、字节和严格库存，持有既有双重权威锁后重新读取当前批准清单并追加新身份；已存在版本只能与原条目完全一致，否则拒绝不可变身份冲突。
+
+    候选目录必须没有任何符号链接组件。
+    当前清单即使位于只读发行目录旁，锁仍放在可写 issuer 状态目录。
+    fsync 文件与父目录确保原子替换后的持久性。
+    保留旧条目让此前冻结的包与回执继续按原版本验证。
+    同字节重复晋升幂等，不重复写清单。
+    """
+    approved_path = settings.approved_engine_inventory_path
+    if not approved_path:
+        raise ValueError("Approved inventory path is required")
+    selected_raw, entry, identity = _validate_candidate(settings, candidate)
+    version = entry["engineVersion"]
     async with authority_guard(settings, False) as (_, approved):
+        current_raw, _, _ = _validate_candidate(settings, candidate)
+        if current_raw != selected_raw:
+            raise ValueError("Engine candidate changed while waiting for authority")
         current = json.loads(approved.raw or b"null")
         if validate_schema("ApprovedEngineInventoryV1", current):
             raise ValueError("Current approved inventory is invalid")
@@ -80,7 +98,7 @@ async def promote_engine(settings: Settings, candidate: Path) -> str:
         current["engines"].append(entry)
         if validate_schema("ApprovedEngineInventoryV1", current):
             raise ValueError("Approved inventory limit exceeded")
-        target = Path(settings.approved_engine_inventory_path)
+        target = Path(approved_path)
         if any(path.is_symlink() for path in (target, *target.parents)):
             raise ValueError("Unsafe approved inventory path")
         descriptor, name = tempfile.mkstemp(prefix=".inventory-", dir=target.parent)

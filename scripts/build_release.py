@@ -16,7 +16,6 @@ from pathlib import Path
 import platform
 import re
 import shutil
-import signal
 import subprocess
 import sys
 import tarfile
@@ -30,6 +29,7 @@ from stage_web import stage_web
 from verify_wheel import verify_wheel, clean_install
 from wheelhouse import wheelhouse
 from npm_sbom import npm_sbom
+from release_processes import RunProcess, process_scope
 from release_support import safe_path
 
 
@@ -50,17 +50,21 @@ class BuildOptions:
 ReleaseManifest = dict[str, Any]
 
 
-def source_binding(root: Path) -> dict[str, str]:
+def source_binding(
+    root: Path, run_process: RunProcess = subprocess.run
+) -> dict[str, str]:
     """记录全部受版本控制的源码与新增未忽略文件的精确散列，构建结束时重新读取并比较；生成物与私有证据不进入 Git 文件集合，锁文件仍明确参与相同身份检查。
 
     字节身份比单独的 commit 更严格，能够检测脏工作区或运行期间编辑。
     正常发行仍另外要求工作区干净，候选验证可独立使用这份映射。
     """
-    names = subprocess.check_output(
+    names = run_process(
         ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
         cwd=root,
         text=True,
-    ).splitlines()
+        check=True,
+        stdout=subprocess.PIPE,
+    ).stdout.splitlines()
     return {
         name: sha256((root / name).read_bytes()).hexdigest()
         for name in sorted(set(names))
@@ -141,356 +145,375 @@ def build_release(options: BuildOptions) -> ReleaseManifest:
     fd = os.open(work / "build.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     with os.fdopen(fd, "w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if (work / "build-unsafe.json").exists():
+            raise ValueError(
+                "Build state quarantined after unconfirmed descendant shutdown"
+            )
         identifier = (
             time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()) + "-" + uuid.uuid4().hex[:12]
         )
         run = work / ("release-" + identifier)
         run.mkdir()
-        records = []
+        with process_scope(run, lock.fileno()) as managed:
+            records = []
 
-        def command(name: str, argv: list[str]) -> None:
-            """每个真实命令单独保存日志与时间，退出失败时立刻写入阶段记录并中止后续步骤；不捕获并忽略 CalledProcessError，也不把缺条件的测试改成成功状态。
+            def command(name: str, argv: list[str]) -> None:
+                """每个真实命令单独保存日志与时间，退出失败时立刻写入阶段记录并中止后续步骤；不捕获并忽略 CalledProcessError，也不把缺条件的测试改成成功状态。
 
-            argv 是数组，不经 shell 插值。
-            记录仅包含公开命令参数，不读取机密环境值。
-            """
-            started = time.time()
-            interrupted: BaseException | None = None
-            with (run / f"{name}.log").open("w") as log:
-                process = subprocess.Popen(
-                    argv,
-                    cwd=root,
-                    stdout=log,
-                    stderr=subprocess.STDOUT,
-                    start_new_session=True,
-                    env={
-                        **os.environ,
-                        "MYPYPATH": os.pathsep.join(
-                            [str(root / "apps/srv"), str(root / "scripts")]
-                        ),
-                    },
-                )
-                try:
-                    result_code = process.wait()
-                except BaseException as error:
-                    interrupted = error
-                    os.killpg(process.pid, signal.SIGTERM)
+                argv 是数组，不经 shell 插值。
+                记录仅包含公开命令参数，不读取机密环境值。
+                """
+                started = time.time()
+                interrupted: BaseException | None = None
+                result_code = None
+                with (run / f"{name}.log").open("w") as log:
                     try:
-                        process.wait(timeout=10)
-                    except subprocess.TimeoutExpired:
-                        os.killpg(process.pid, signal.SIGKILL)
-                        process.wait()
-                    result_code = process.returncode
-            records.append(
-                {
-                    "name": name,
-                    "argv": argv,
-                    "cwd": str(root),
-                    "started": started,
-                    "finished": time.time(),
-                    "exitCode": result_code,
-                }
-            )
-            (run / "commands.json").write_text(json.dumps(records, indent=2) + "\n")
-            if interrupted is not None:
-                raise interrupted
-            if result_code:
-                raise RuntimeError(
-                    f"Release phase failed: {name}; see {run / (name + '.log')}"
+                        result_code = managed.run(
+                            argv,
+                            cwd=root,
+                            stdout=log,
+                            stderr=subprocess.STDOUT,
+                            env={
+                                **os.environ,
+                                "MYPYPATH": os.pathsep.join(
+                                    [str(root / "apps/srv"), str(root / "scripts")]
+                                ),
+                            },
+                        ).returncode
+                    except BaseException as error:
+                        interrupted = error
+                        if managed.records:
+                            result_code = managed.records[-1]["exitCode"]
+                records.append(
+                    {
+                        "name": name,
+                        "argv": argv,
+                        "cwd": str(root),
+                        "started": started,
+                        "finished": time.time(),
+                        "exitCode": result_code,
+                        "cancelled": managed.cancel_signal is not None,
+                        "signal": managed.cancel_signal,
+                    }
                 )
+                (run / "commands.json").write_text(json.dumps(records, indent=2) + "\n")
+                if interrupted is not None:
+                    raise interrupted
+                if result_code:
+                    raise RuntimeError(
+                        f"Release phase failed: {name}; see {run / (name + '.log')}"
+                    )
 
-        if sys.version_info[:2] != (3, 12) or platform.machine() != "x86_64":
-            raise ValueError("Release requires Python 3.12 and Linux x64")
-        for tool, expected in [
-            ("node", "v24.22.1"),
-            ("pnpm", "11.25.0"),
-            ("uv", "uv 0.13.5"),
-        ]:
-            actual = subprocess.check_output([tool, "--version"], text=True).strip()
-            if not actual.startswith(expected):
-                raise ValueError(f"Unsupported release tool version: {tool}")
-        commit = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=root, text=True
-        ).strip()
-        if subprocess.check_output(
-            ["git", "status", "--porcelain", "--untracked-files=normal"], cwd=root
-        ).strip():
-            raise ValueError("Normal release requires a clean committed source tree")
-        binding = source_binding(root)
-        (run / "source-binding.json").write_text(
-            json.dumps(binding, sort_keys=True, indent=2) + "\n"
-        )
-        command("pnpm-install", ["pnpm", "install", "--frozen-lockfile"])
-        command("web-check", ["pnpm", "--filter", "@veriq/web", "check"])
-        command("web-build", ["pnpm", "--filter", "@veriq/web", "build"])
-        info = stage_web(root, commit, identifier)
-        command(
-            "python-sync",
-            ["uv", "sync", "--project", "apps/srv", "--frozen", "--all-groups"],
-        )
-        command("types", ["pnpm", "check"])
-        command("lint", ["pnpm", "lint"])
-        command("format", ["pnpm", "format:check"])
-        command(
-            "ruff",
-            [sys.executable, "-m", "ruff", "check", "apps/srv", "scripts", "tests"],
-        )
-        command(
-            "ruff-format",
-            [
-                sys.executable,
-                "-m",
-                "ruff",
-                "format",
-                "--check",
-                "apps/srv",
-                "scripts",
-                "tests",
-            ],
-        )
-        command(
-            "mypy",
-            [
-                sys.executable,
-                "-m",
-                "mypy",
-                "--config-file",
-                "apps/srv/pyproject.toml",
-                "apps/srv/src",
-            ],
-        )
-        command(
-            "build-types",
-            [
-                sys.executable,
-                "-m",
-                "mypy",
-                "--config-file",
-                "apps/srv/pyproject.toml",
-                "scripts",
-                "apps/srv/hatch_build.py",
-                "apps/srv/release_support.py",
-            ],
-        )
-        command(
-            "engine-types",
-            [
-                "pnpm",
-                "--filter",
-                "@veriq/contracts",
-                "exec",
-                "tsc",
-                "--noEmit",
-                "--project",
-                "../../scripts/tsconfig.json",
-            ],
-        )
-        command(
-            "comments",
-            [
-                sys.executable,
-                "scripts/comment_audit.py",
-                "--output",
-                str(run / "comment-audit.json"),
-            ],
-        )
-        if not options.skip_tests:
+            if sys.version_info[:2] != (3, 12) or platform.machine() != "x86_64":
+                raise ValueError("Release requires Python 3.12 and Linux x64")
+            for tool, expected in [
+                ("node", "v24.22.1"),
+                ("pnpm", "11.25.0"),
+                ("uv", "uv 0.13.5"),
+            ]:
+                actual = managed.run(
+                    [tool, "--version"], text=True, check=True, stdout=subprocess.PIPE
+                ).stdout.strip()
+                if not actual.startswith(expected):
+                    raise ValueError(f"Unsupported release tool version: {tool}")
+            commit = managed.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=root,
+                text=True,
+                check=True,
+                stdout=subprocess.PIPE,
+            ).stdout.strip()
+            if managed.run(
+                ["git", "status", "--porcelain", "--untracked-files=normal"],
+                cwd=root,
+                check=True,
+                stdout=subprocess.PIPE,
+            ).stdout.strip():
+                raise ValueError(
+                    "Normal release requires a clean committed source tree"
+                )
+            binding = source_binding(root, managed.run)
+            (run / "source-binding.json").write_text(
+                json.dumps(binding, sort_keys=True, indent=2) + "\n"
+            )
+            command("pnpm-install", ["pnpm", "install", "--frozen-lockfile"])
+            command("web-check", ["pnpm", "--filter", "@veriq/web", "check"])
+            command("web-build", ["pnpm", "--filter", "@veriq/web", "build"])
+            info = stage_web(root, commit, identifier)
             command(
-                "test-conditions",
-                [
-                    "flock",
-                    "/tmp/veriq-t12-db.lock",
-                    sys.executable,
-                    "scripts/test_conditions.py",
-                ],
+                "python-sync",
+                ["uv", "sync", "--project", "apps/srv", "--frozen", "--all-groups"],
+            )
+            command("types", ["pnpm", "check"])
+            command("lint", ["pnpm", "lint"])
+            command("format", ["pnpm", "format:check"])
+            command(
+                "ruff",
+                [sys.executable, "-m", "ruff", "check", "apps/srv", "scripts", "tests"],
             )
             command(
-                "python-tests",
+                "ruff-format",
                 [
-                    "flock",
-                    "/tmp/veriq-t12-db.lock",
                     sys.executable,
                     "-m",
-                    "pytest",
-                    "-c",
+                    "ruff",
+                    "format",
+                    "--check",
+                    "apps/srv",
+                    "scripts",
+                    "tests",
+                ],
+            )
+            command(
+                "mypy",
+                [
+                    sys.executable,
+                    "-m",
+                    "mypy",
+                    "--config-file",
                     "apps/srv/pyproject.toml",
-                    "apps/srv/tests",
-                    "tests/acceptance",
-                    "--cov=veriq_server",
-                    "--cov-fail-under=75",
-                    "--junitxml=" + str(run / "python-junit.xml"),
+                    "apps/srv/src",
                 ],
             )
-            if any(
-                int(suite.get("skipped", "0"))
-                for suite in ET.parse(run / "python-junit.xml").iter("testsuite")
+            command(
+                "build-types",
+                [
+                    sys.executable,
+                    "-m",
+                    "mypy",
+                    "--config-file",
+                    "apps/srv/pyproject.toml",
+                    "scripts",
+                    "apps/srv/hatch_build.py",
+                    "apps/srv/release_support.py",
+                ],
+            )
+            command(
+                "engine-types",
+                [
+                    "pnpm",
+                    "--filter",
+                    "@veriq/contracts",
+                    "exec",
+                    "tsc",
+                    "--noEmit",
+                    "--project",
+                    "../../scripts/tsconfig.json",
+                ],
+            )
+            command(
+                "comments",
+                [
+                    sys.executable,
+                    "scripts/comment_audit.py",
+                    "--output",
+                    str(run / "comment-audit.json"),
+                ],
+            )
+            if not options.skip_tests:
+                command(
+                    "test-conditions",
+                    [
+                        "flock",
+                        "/tmp/veriq-t12-db.lock",
+                        sys.executable,
+                        "scripts/test_conditions.py",
+                    ],
+                )
+                command(
+                    "python-tests",
+                    [
+                        "flock",
+                        "/tmp/veriq-t12-db.lock",
+                        sys.executable,
+                        "-m",
+                        "pytest",
+                        "-c",
+                        "apps/srv/pyproject.toml",
+                        "apps/srv/tests",
+                        "tests/acceptance",
+                        "--cov=veriq_server",
+                        "--cov-fail-under=75",
+                        "--junitxml=" + str(run / "python-junit.xml"),
+                    ],
+                )
+                if any(
+                    int(suite.get("skipped", "0"))
+                    for suite in ET.parse(run / "python-junit.xml").iter("testsuite")
+                ):
+                    raise ValueError("Default release tests must not be skipped")
+                command(
+                    "contracts-tests", ["pnpm", "--filter", "@veriq/contracts", "test"]
+                )
+                command(
+                    "compiler-tests",
+                    ["pnpm", "--filter", "@veriq/compiler", "test:coverage"],
+                )
+                command(
+                    "sdk-tests",
+                    [
+                        "flock",
+                        "/tmp/veriq-t12-db.lock",
+                        "pnpm",
+                        "--filter",
+                        "@veriq/runner-sdk",
+                        "test:coverage",
+                    ],
+                )
+                command(
+                    "runtime-tests",
+                    [
+                        "flock",
+                        "/tmp/veriq-t12-db.lock",
+                        "pnpm",
+                        "--filter",
+                        "@veriq/runtime",
+                        "test",
+                    ],
+                )
+                command(
+                    "web-tests",
+                    [
+                        "flock",
+                        "/tmp/veriq-t12-db.lock",
+                        "pnpm",
+                        "--filter",
+                        "@veriq/web",
+                        "test:e2e",
+                    ],
+                )
+            engine = run / "engine"
+            command(
+                "engine",
+                [
+                    "pnpm",
+                    "--filter",
+                    "@veriq/contracts",
+                    "exec",
+                    "tsx",
+                    "../../scripts/build_engine.mts",
+                    options.engine_version,
+                    str(engine),
+                ],
+            )
+            destination = (
+                root / "apps/srv/src/veriq_server/release/engine-inventory.json"
+            )
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(engine / "inventory.json", destination)
+            wheel_output = work / "server-wheel"
+            safe_path(wheel_output)
+            wheel_output.mkdir(exist_ok=True)
+            for previous in wheel_output.glob("*.whl"):
+                safe_path(previous)
+                previous.unlink()
+            command(
+                "wheel",
+                [
+                    "uv",
+                    "run",
+                    "--project",
+                    "apps/srv",
+                    "--frozen",
+                    "--all-groups",
+                    "python",
+                    "-m",
+                    "build",
+                    "--wheel",
+                    "--no-isolation",
+                    "apps/srv",
+                    "--outdir",
+                    "work/server-wheel",
+                ],
+            )
+            wheels = list((work / "server-wheel").glob("*.whl"))
+            if len(wheels) != 1:
+                raise ValueError("Wheel output must contain exactly one artifact")
+            wheel = wheels[0]
+            verified = verify_wheel(wheel)
+            house = run / "wheelhouse"
+            locked_wheels = wheelhouse(root, house, managed.run)
+            installed = clean_install(wheel, house, run / "installation", managed.run)
+            if (
+                platform.freedesktop_os_release().get("ID") != "ubuntu"
+                or platform.freedesktop_os_release().get("VERSION_ID") != "24.04"
             ):
-                raise ValueError("Default release tests must not be skipped")
-            command("contracts-tests", ["pnpm", "--filter", "@veriq/contracts", "test"])
-            command(
-                "compiler-tests",
-                ["pnpm", "--filter", "@veriq/compiler", "test:coverage"],
+                raise ValueError(
+                    "Ubuntu 24.04 target acceptance must run on the target OS; host candidate is not a release"
+                )
+            if source_binding(root, managed.run) != binding:
+                raise ValueError("Source changed during release")
+            candidate = run / "candidate"
+            candidate.mkdir()
+            shutil.copy2(wheel, candidate / wheel.name)
+            shutil.copytree(root / "deploy", candidate / "deploy")
+            shutil.copytree(house, candidate / "wheelhouse")
+            shutil.copytree(engine, candidate / "engine")
+            shutil.copy2(root / "THIRD_PARTY_NOTICES.md", candidate / "NOTICE")
+            shutil.copy2(run / "installation/server-sbom.json", candidate / "SBOM.json")
+            npm_metadata = npm_sbom(root, candidate / "frontend", managed.run)
+            shutil.copytree(run / "installation", candidate / "evidence/installation")
+            for name in ("source-binding.json", "commands.json"):
+                shutil.copy2(run / name, candidate / "evidence" / name)
+            shutil.copy2(
+                root / "apps/srv/src/veriq_server/static/dist/static-manifest.json",
+                candidate / "static-manifest.json",
             )
-            command(
-                "sdk-tests",
-                [
-                    "flock",
-                    "/tmp/veriq-t12-db.lock",
-                    "pnpm",
-                    "--filter",
-                    "@veriq/runner-sdk",
-                    "test:coverage",
-                ],
-            )
-            command(
-                "runtime-tests",
-                [
-                    "flock",
-                    "/tmp/veriq-t12-db.lock",
-                    "pnpm",
-                    "--filter",
-                    "@veriq/runtime",
-                    "test",
-                ],
-            )
-            command(
-                "web-tests",
-                [
-                    "flock",
-                    "/tmp/veriq-t12-db.lock",
-                    "pnpm",
-                    "--filter",
-                    "@veriq/web",
-                    "test:e2e",
-                ],
-            )
-        engine = run / "engine"
-        command(
-            "engine",
-            [
-                "pnpm",
-                "--filter",
-                "@veriq/contracts",
-                "exec",
-                "tsx",
-                "../../scripts/build_engine.mts",
-                options.engine_version,
-                str(engine),
-            ],
-        )
-        destination = root / "apps/srv/src/veriq_server/release/engine-inventory.json"
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(engine / "inventory.json", destination)
-        wheel_output = work / "server-wheel"
-        safe_path(wheel_output)
-        wheel_output.mkdir(exist_ok=True)
-        for previous in wheel_output.glob("*.whl"):
-            safe_path(previous)
-            previous.unlink()
-        command(
-            "wheel",
-            [
-                "uv",
-                "run",
-                "--project",
-                "apps/srv",
-                "--frozen",
-                "--all-groups",
-                "python",
-                "-m",
-                "build",
-                "--wheel",
-                "--no-isolation",
-                "apps/srv",
-                "--outdir",
-                "work/server-wheel",
-            ],
-        )
-        wheels = list((work / "server-wheel").glob("*.whl"))
-        if len(wheels) != 1:
-            raise ValueError("Wheel output must contain exactly one artifact")
-        wheel = wheels[0]
-        verified = verify_wheel(wheel)
-        house = run / "wheelhouse"
-        locked_wheels = wheelhouse(root, house)
-        installed = clean_install(wheel, house, run / "installation")
-        if (
-            platform.freedesktop_os_release().get("ID") != "ubuntu"
-            or platform.freedesktop_os_release().get("VERSION_ID") != "24.04"
-        ):
-            raise ValueError(
-                "Ubuntu 24.04 target acceptance must run on the target OS; host candidate is not a release"
-            )
-        if source_binding(root) != binding:
-            raise ValueError("Source changed during release")
-        candidate = run / "candidate"
-        candidate.mkdir()
-        shutil.copy2(wheel, candidate / wheel.name)
-        shutil.copytree(root / "deploy", candidate / "deploy")
-        shutil.copytree(house, candidate / "wheelhouse")
-        shutil.copytree(engine, candidate / "engine")
-        shutil.copy2(root / "THIRD_PARTY_NOTICES.md", candidate / "NOTICE")
-        shutil.copy2(run / "installation/server-sbom.json", candidate / "SBOM.json")
-        npm_metadata = npm_sbom(root, candidate / "frontend")
-        shutil.copytree(run / "installation", candidate / "evidence/installation")
-        for name in ("source-binding.json", "commands.json"):
-            shutil.copy2(run / name, candidate / "evidence" / name)
-        shutil.copy2(
-            root / "apps/srv/src/veriq_server/static/dist/static-manifest.json",
-            candidate / "static-manifest.json",
-        )
-        engine_metadata = json.loads((engine / "inventory.json").read_bytes())[
-            "engines"
-        ][0]
-        manifest = {
-            "status": "VERIFIED",
-            "version": info["version"],
-            "buildId": identifier,
-            "commit": commit,
-            "staticManifestHash": info["staticManifestHash"],
-            "testsSkipped": options.skip_tests,
-            "skipReason": options.reason,
-            "engineVersion": options.engine_version,
-            "compilerVersion": engine_metadata["compilerVersion"],
-            "runnerSdkVersion": engine_metadata["runnerSdkVersion"],
-            "engineInventorySha256": sha256(
-                (engine / "inventory.json").read_bytes()
-            ).hexdigest(),
-            "locks": {
-                name: binding[name] for name in ("pnpm-lock.yaml", "apps/srv/uv.lock")
-            },
-            "frontendSbom": npm_metadata,
-            "sourceBindingSha256": sha256(
-                (run / "source-binding.json").read_bytes()
-            ).hexdigest(),
-            "wheel": verified,
-            "wheelhouse": locked_wheels,
-            "installation": installed,
-        }
-        (candidate / "release.json").write_text(json.dumps(manifest, indent=2) + "\n")
-
-        def checksums() -> str:
-            """递归散列候选内全部普通文件并以相对路径记录，先生成归档内清单再增加归档本身摘要；仅排除清单自身，避免循环哈希，同时覆盖部署脚本、许可与 wheelhouse 的独立文件。
-
-            内层清单用于解压后的离线安装检查。
-            外层清单额外绑定最终压缩包字节。
-            """
-            return "".join(
-                f"{sha256(path.read_bytes()).hexdigest()}  {path.relative_to(candidate).as_posix()}\n"
-                for path in sorted(candidate.rglob("*"))
-                if path.is_file() and path.name != "sha256sums"
+            engine_metadata = json.loads((engine / "inventory.json").read_bytes())[
+                "engines"
+            ][0]
+            manifest = {
+                "status": "VERIFIED",
+                "version": info["version"],
+                "buildId": identifier,
+                "commit": commit,
+                "staticManifestHash": info["staticManifestHash"],
+                "testsSkipped": options.skip_tests,
+                "skipReason": options.reason,
+                "engineVersion": options.engine_version,
+                "compilerVersion": engine_metadata["compilerVersion"],
+                "runnerSdkVersion": engine_metadata["runnerSdkVersion"],
+                "engineInventorySha256": sha256(
+                    (engine / "inventory.json").read_bytes()
+                ).hexdigest(),
+                "locks": {
+                    name: binding[name]
+                    for name in ("pnpm-lock.yaml", "apps/srv/uv.lock")
+                },
+                "frontendSbom": npm_metadata,
+                "sourceBindingSha256": sha256(
+                    (run / "source-binding.json").read_bytes()
+                ).hexdigest(),
+                "wheel": verified,
+                "wheelhouse": locked_wheels,
+                "installation": installed,
+            }
+            (candidate / "release.json").write_text(
+                json.dumps(manifest, indent=2) + "\n"
             )
 
-        (candidate / "sha256sums").write_text(checksums())
-        with tarfile.open(
-            candidate / f"veriq-server-{info['version']}-linux-x64.tar.gz", "w:gz"
-        ) as archive:
-            for path in sorted(candidate.iterdir()):
-                if not path.name.endswith(".tar.gz"):
-                    archive.add(path, arcname=path.name)
-        (candidate / "sha256sums").write_text(checksums())
-        publish(candidate, root / "output")
-        return manifest
+            def checksums() -> str:
+                """递归散列候选内全部普通文件并以相对路径记录，先生成归档内清单再增加归档本身摘要；仅排除清单自身，避免循环哈希，同时覆盖部署脚本、许可与 wheelhouse 的独立文件。
+
+                内层清单用于解压后的离线安装检查。
+                外层清单额外绑定最终压缩包字节。
+                """
+                return "".join(
+                    f"{sha256(path.read_bytes()).hexdigest()}  {path.relative_to(candidate).as_posix()}\n"
+                    for path in sorted(candidate.rglob("*"))
+                    if path.is_file() and path.name != "sha256sums"
+                )
+
+            (candidate / "sha256sums").write_text(checksums())
+            with tarfile.open(
+                candidate / f"veriq-server-{info['version']}-linux-x64.tar.gz", "w:gz"
+            ) as archive:
+                for path in sorted(candidate.iterdir()):
+                    if not path.name.endswith(".tar.gz"):
+                        archive.add(path, arcname=path.name)
+            (candidate / "sha256sums").write_text(checksums())
+            publish(candidate, root / "output")
+            return manifest
 
 
 def main() -> None:

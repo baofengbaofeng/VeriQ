@@ -17,7 +17,9 @@ from veriq_server.services.resource import ResourceService
 from veriq_server.settings import Settings
 
 
-async def test_new_engine_selection_changes_source_hash_without_mutating_old_snapshot() -> None:
+async def test_new_engine_selection_changes_source_hash_without_mutating_old_snapshot() -> (
+    None
+):
     """新选择只影响随后冻结的快照和 sourceHash，默认仍保留旧开发引擎版本；此前返回的快照字节保持原样，因此旧签名包、Job 和发布回执不会随服务配置改变而被重新解释。
 
     无依赖目录资产让测试聚焦实际 snapshot 逻辑。
@@ -30,7 +32,9 @@ async def test_new_engine_selection_changes_source_hash_without_mutating_old_sna
             "kind": "ELEMENT_CATALOG",
             "document": {
                 "schemaVersion": "1.0",
-                "elements": [{"key": "save", "locator": {"by": "testId", "value": "save"}}],
+                "elements": [
+                    {"key": "save", "locator": {"by": "testId", "value": "save"}}
+                ],
             },
         },
     )
@@ -80,7 +84,9 @@ def promotion(tmp_path: Path):
         path = candidate / name
         path.parent.mkdir(exist_ok=True)
         path.write_bytes(b"test-only")
-        entries.append({"path": name, "sha256": sha256(b"test-only").hexdigest(), "sizeBytes": 9})
+        entries.append(
+            {"path": name, "sha256": sha256(b"test-only").hexdigest(), "sizeBytes": 9}
+        )
     engine = {
         "engineVersion": "0.1.0",
         "compilerVersion": "0.1.0",
@@ -164,3 +170,58 @@ async def test_promotion_waits_for_issuer_guard_and_cancellation_keeps_inventory
     monkeypatch.setattr(authority, "open_lock", original)
     await promote_engine(settings, candidate)
     assert len(json.loads(approved.read_bytes())["engines"]) == 1
+
+
+@pytest.mark.parametrize("changed", ["inventory", "file"])
+async def test_promotion_rechecks_candidate_after_waiting_for_guard(
+    promotion, monkeypatch, changed
+) -> None:
+    """取得权威锁前候选已验证，但等待真实 issuer 锁期间其库存或同长度文件发生变化时必须拒绝晋升；批准文件保持原始字节，避免对已经损坏或被替换的候选报告批准成功。
+
+    观察器只为真实 open_lock 建立握手，不替代操作系统文件锁。
+    库存变化保持合法结构，文件变化保持原长度，分别隔离身份与摘要检查。
+    """
+    import asyncio
+    import fcntl
+    import os
+    from veriq_server.bundles import authority
+    from veriq_server.promote_engine import promote_engine
+
+    settings, candidate, engine, approved = promotion
+    before = approved.read_bytes()
+    descriptor = authority.open_lock(
+        Path(settings.bundle_issuer_path).with_suffix(".lock")
+    )
+    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    opened = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    original = authority.open_lock
+
+    def observed(path):
+        result = original(path)
+        loop.call_soon_threadsafe(opened.set)
+        return result
+
+    monkeypatch.setattr(authority, "open_lock", observed)
+    task = asyncio.create_task(promote_engine(settings, candidate))
+    try:
+        await asyncio.wait_for(opened.wait(), 2)
+        assert not task.done()
+        if changed == "inventory":
+            engine["compilerVersion"] = "9.0.0"
+            (candidate / "inventory.json").write_text(
+                json.dumps({"schemaVersion": "1.0", "engines": [engine]})
+            )
+        else:
+            (candidate / "package.json").write_bytes(b"tampered!")
+        os.close(descriptor)
+        descriptor = -1
+        with pytest.raises(ValueError, match="candidate"):
+            await task
+        assert approved.read_bytes() == before
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        if not task.done():
+            task.cancel()
+        await asyncio.gather(task, return_exceptions=True)

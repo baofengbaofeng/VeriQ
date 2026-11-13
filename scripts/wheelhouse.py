@@ -12,13 +12,16 @@ import re
 import subprocess
 import tomllib
 import urllib.request
+from release_processes import RunProcess
 
 from packaging.requirements import Requirement
 from packaging.tags import sys_tags
 from packaging.utils import canonicalize_name, parse_wheel_filename
 
 
-def wheelhouse(root: Path, destination: Path) -> list[dict[str, Any]]:
+def wheelhouse(
+    root: Path, destination: Path, run_process: RunProcess = subprocess.run
+) -> list[dict[str, Any]]:
     """先让 uv 按冻结锁导出生产依赖，再从每个锁定包的 wheel 列表选择当前 ABI 可安装的兼容文件；缺少二进制、哈希不符或空间不足均失败，不用宿主编译产物补齐发行。
 
     marker 由 packaging 标准解析器按当前 Python3.12 Linux 环境判断。
@@ -26,7 +29,7 @@ def wheelhouse(root: Path, destination: Path) -> list[dict[str, Any]]:
     下载以临时文件落盘，校验后才改名为可安装 wheel。
     requirements.txt 保留 uv 给出的完整哈希供离线审计。
     """
-    exported = subprocess.check_output(
+    exported = run_process(
         [
             "uv",
             "export",
@@ -40,7 +43,9 @@ def wheelhouse(root: Path, destination: Path) -> list[dict[str, Any]]:
         ],
         cwd=root,
         text=True,
-    )
+        check=True,
+        stdout=subprocess.PIPE,
+    ).stdout
     destination.mkdir(parents=True, exist_ok=True)
     (destination / "requirements.txt").write_text(exported)
     packages = {

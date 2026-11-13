@@ -11,6 +11,7 @@ from typing import Any
 from pathlib import Path
 import shutil
 import subprocess
+from release_processes import RunProcess
 
 from cyclonedx.factory.license import LicenseFactory
 from cyclonedx.model import Property
@@ -22,7 +23,9 @@ from cyclonedx.validation.json import JsonStrictValidator
 from packageurl import PackageURL
 
 
-def npm_sbom(root: Path, destination: Path) -> dict[str, Any]:
+def npm_sbom(
+    root: Path, destination: Path, run_process: RunProcess = subprocess.run
+) -> dict[str, Any]:
     """调用 pnpm 读取真实生产依赖闭包，逐包读取实际版本与许可证后建立 CycloneDX 组件和依赖边；缺少许可元数据时失败，并保留上游声明文本供最终发行审查。
 
     工作区包采用自身真实版本，不把 link 路径当成版本号。
@@ -31,11 +34,22 @@ def npm_sbom(root: Path, destination: Path) -> dict[str, Any]:
     pnpm 输出负责依赖选择，本模块只做标准格式适配。
     """
     tree = json.loads(
-        subprocess.check_output(
-            ["pnpm", "--filter", "@veriq/web", "list", "--prod", "--depth", "Infinity", "--json"],
+        run_process(
+            [
+                "pnpm",
+                "--filter",
+                "@veriq/web",
+                "list",
+                "--prod",
+                "--depth",
+                "Infinity",
+                "--json",
+            ],
             cwd=root,
             text=True,
-        )
+            check=True,
+            stdout=subprocess.PIPE,
+        ).stdout
     )
     destination.mkdir(parents=True, exist_ok=True)
     components: dict[str, Component] = {}
@@ -63,11 +77,16 @@ def npm_sbom(root: Path, destination: Path) -> dict[str, Any]:
                 bom_ref=key,
                 licenses=[license_factory.make_from_string(license_name)],
                 purl=PackageURL(
-                    type="npm", namespace=namespace or None, name=basename, version=version
+                    type="npm",
+                    namespace=namespace or None,
+                    name=basename,
+                    version=version,
                 ),
             )
             components[key] = component
-            notice_dir = destination / "licenses" / key.replace("/", "-").replace("@", "_")
+            notice_dir = (
+                destination / "licenses" / key.replace("/", "-").replace("@", "_")
+            )
             notice_dir.mkdir(parents=True)
             for path in directory.iterdir():
                 if path.is_file() and path.name.upper().startswith(
@@ -75,11 +94,16 @@ def npm_sbom(root: Path, destination: Path) -> dict[str, Any]:
                 ):
                     shutil.copy2(path, notice_dir / path.name)
             (notice_dir / "metadata.json").write_text(
-                json.dumps({"name": name, "version": version, "license": license_name}, indent=2)
+                json.dumps(
+                    {"name": name, "version": version, "license": license_name},
+                    indent=2,
+                )
                 + "\n"
             )
         dependencies = [visit(child) for child in node.get("dependencies", {}).values()]
-        edges.setdefault(key, set()).update(str(child.bom_ref) for child in dependencies)
+        edges.setdefault(key, set()).update(
+            str(child.bom_ref) for child in dependencies
+        )
         return components[key]
 
     main = visit(tree[0])

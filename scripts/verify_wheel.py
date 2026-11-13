@@ -19,6 +19,7 @@ import subprocess
 import sys
 import tempfile
 import zipfile
+from release_processes import RunProcess
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "apps/srv"))
 from release_support import validate_static
@@ -54,7 +55,9 @@ def verify_wheel(wheel: Path) -> dict[str, Any]:
         if len(records) != 1:
             raise ValueError("Wheel RECORD missing or ambiguous")
         seen = set()
-        for name, digest, size in csv.reader(io.StringIO(archive.read(records[0]).decode())):
+        for name, digest, size in csv.reader(
+            io.StringIO(archive.read(records[0]).decode())
+        ):
             if name in seen or name not in names:
                 raise ValueError("Wheel RECORD member mismatch")
             seen.add(name)
@@ -82,7 +85,9 @@ def verify_wheel(wheel: Path) -> dict[str, Any]:
         }
         if (
             not required <= set(names)
-            or not any(name.startswith("veriq_server/migrations/versions/") for name in names)
+            or not any(
+                name.startswith("veriq_server/migrations/versions/") for name in names
+            )
             or not any(name.startswith("veriq_server/_schemas/") for name in names)
         ):
             raise ValueError("Required server package resources are missing")
@@ -97,7 +102,12 @@ def verify_wheel(wheel: Path) -> dict[str, Any]:
         }
 
 
-def clean_install(wheel: Path, wheelhouse: Path, evidence: Path) -> dict[str, Any]:
+def clean_install(
+    wheel: Path,
+    wheelhouse: Path,
+    evidence: Path,
+    run_process: RunProcess = subprocess.run,
+) -> dict[str, Any]:
     """在仓库外创建空虚拟环境并仅通过离线 wheelhouse 安装候选，随后以只读包和空 PATH 启动真实生产服务；安装依赖、HTTP 行为及进程退出任何一步失败都不能形成成功证明。
 
     临时环境验证后删除，避免占用发行构建机的有限空间。
@@ -126,10 +136,12 @@ def clean_install(wheel: Path, wheelhouse: Path, evidence: Path) -> dict[str, An
         ]
         with (evidence / "clean-install.log").open("w") as log:
             for command in commands:
-                subprocess.run(command, cwd=root, check=True, stdout=log, stderr=subprocess.STDOUT)
+                run_process(
+                    command, cwd=root, check=True, stdout=log, stderr=subprocess.STDOUT
+                )
             probe = Path(__file__).with_name("probe_install.py").read_text()
             try:
-                result = subprocess.run(
+                result = run_process(
                     [str(python), "-I", "-B", "-c", probe],
                     cwd=root,
                     env={"PATH": "", "PYTHONDONTWRITEBYTECODE": "1"},
@@ -143,10 +155,12 @@ def clean_install(wheel: Path, wheelhouse: Path, evidence: Path) -> dict[str, An
             finally:
                 server_log = root / "server.log"
                 if server_log.exists():
-                    (evidence / "installed-server.log").write_bytes(server_log.read_bytes())
+                    (evidence / "installed-server.log").write_bytes(
+                        server_log.read_bytes()
+                    )
             log.write(result.stderr)
         report = cast(dict[str, Any], json.loads(result.stdout))
-        subprocess.run(
+        run_process(
             [
                 sys.executable,
                 "-m",
@@ -162,7 +176,9 @@ def clean_install(wheel: Path, wheelhouse: Path, evidence: Path) -> dict[str, An
             check=True,
             cwd=root,
         )
-        (evidence / "clean-install.json").write_text(json.dumps(report, indent=2) + "\n")
+        (evidence / "clean-install.json").write_text(
+            json.dumps(report, indent=2) + "\n"
+        )
         return report
 
 
@@ -180,7 +196,9 @@ def main() -> None:
     try:
         report = verify_wheel(args.wheel)
         if args.wheelhouse:
-            report["cleanInstall"] = clean_install(args.wheel, args.wheelhouse, args.evidence)
+            report["cleanInstall"] = clean_install(
+                args.wheel, args.wheelhouse, args.evidence
+            )
         print(json.dumps(report))
     except (
         OSError,

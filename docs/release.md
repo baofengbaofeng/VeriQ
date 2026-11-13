@@ -54,3 +54,8 @@ The pipeline binds the commit, exact source bytes, locks and full static invento
 Product/compiler/SDK0.1.0 and candidate engine1.0.0 are separate identities. Building does not approve an engine. Explicit operator promotion validates bytes and uses the existing issuer→inventory locks, preserving old versions and rejecting changed bytes under an existing version. Switch `validation_engine_version` only after promotion and Runtime installation. Frozen snapshots and signed packages retain their original identity.
 
 Verify checksums, install into a new Python3.12 environment using the offline wheelhouse, initialize external configuration, run migration once, and then start the service behind HTTPS. Back up the database, artifacts and external keys before upgrades. Binary rollback requires a compatible database schema; otherwise restore the matching backup or repair forward. Debian candidate checks do not prove Ubuntu24.04 or the separately pinned container image. CI never receives production issuer keys or publishing credentials.
+
+
+构建取消会等待阶段专用 Linux subreaper 回收全部后代，包括另起 session 的浏览器。监督者继承构建锁；十秒清理宽限后只杀未退出后代，不杀监督者来提前释放锁。若监督者异常退出且没有完整回收证明，`work/build-unsafe.json` 阻止后续构建。操作员应检查对应 run 的 `processes.json`、`child-*.json` 与残留进程，确认没有任何旧构建写入者后才手动移除隔离标记；构建器不自动清除它。
+
+Cancellation waits for a stage-local Linux subreaper to reap all descendants, including detached browsers. The supervisor retains the build lock; escalation kills remaining descendants, never the supervisor as a substitute for cleanup. Missing completion proof creates `work/build-unsafe.json`, which blocks another build. Inspect the recorded run and confirm that all old writers have stopped before manually removing this marker.
