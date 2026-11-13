@@ -2,10 +2,13 @@
 
 import asyncio
 import json
+import os
+import re
 import signal
 import sys
 from tornado.web import Application, RequestHandler
 from veriq_server.promote_engine import promote_engine
+from veriq_server.services.engines import ApprovedEngines
 from pathlib import Path
 
 from sqlalchemy import text
@@ -36,6 +39,31 @@ async def main():
     resume = "--resume" in sys.argv
     if not resume:
         inventory.write_text(json.dumps({"schemaVersion": "1.0", "engines": []}))
+    # 候选覆盖必须由测试启动器同时给出目录、版本和规范摘要，任何缺失都在建库前失败；正式晋升仍负责完整文件库存校验，下面的摘要比较额外绑定本轮生产阶段，不能把新字节冒充旧候选身份。
+    candidate = [
+        os.environ.get(name)
+        for name in (
+            "VERIQ_TEST_ENGINE_DIRECTORY",
+            "VERIQ_TEST_ENGINE_VERSION",
+            "VERIQ_TEST_ENGINE_HASH",
+        )
+    ]
+    if any(value is not None for value in candidate):
+        if not all(candidate):
+            raise ValueError("INCOMPLETE_TEST_ENGINE")
+        directory, version, expected_hash = candidate
+        if (
+            not Path(directory).is_absolute()
+            or not re.fullmatch(r"\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?", version)
+            or not re.fullmatch(r"[a-f0-9]{64}", expected_hash)
+        ):
+            raise ValueError("INVALID_TEST_ENGINE")
+    else:
+        directory, version, expected_hash = (
+            "work/t18-engine-verified",
+            "1.0.0",
+            "4ac7053892d4dbeb957fbda59d9b70dd13a1b5b4ea3ea7acce310b9bfc431bcd",
+        )
     settings = Settings(
         database_url=env["mysql_dsn"],
         public_url="http://127.0.0.1:8888",
@@ -49,12 +77,14 @@ async def main():
         ],
         bundle_issuer_path=str(issuer_path),
         approved_engine_inventory_path=str(inventory),
-        validation_engine_version="1.0.0",
+        validation_engine_version=version,
     )
-    identity = await promote_engine(settings, Path("work/t18-engine-verified"))
-    assert (
-        identity == "4ac7053892d4dbeb957fbda59d9b70dd13a1b5b4ea3ea7acce310b9bfc431bcd"
-    )
+    with (Path(directory) / "inventory.json").open("rb") as stream:
+        selected_raw = stream.read(2 * 1024 * 1024 + 1)
+    _, selected_hash = ApprovedEngines(settings, selected_raw).require(version)
+    assert selected_hash == expected_hash, "TEST_ENGINE_HASH_MISMATCH"
+    identity = await promote_engine(settings, Path(directory))
+    assert identity == expected_hash, "TEST_ENGINE_HASH_MISMATCH"
     print("Production candidate promoted", identity, flush=True)
     db = Database(settings)
     owned = {

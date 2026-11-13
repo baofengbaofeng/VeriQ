@@ -13,6 +13,7 @@ import {
 import type { PlatformComponents } from "@veriq/contracts";
 import type { CloudOperation } from "../shared/operations.generated";
 import type { AgentState } from "../shared/bridge";
+import { nativeCloudReports } from "./cloud-reports";
 import catalog from "../shared/operations.generated.json";
 
 type S = PlatformComponents["schemas"];
@@ -115,25 +116,9 @@ export function installDesktopTransport(): void {
 export function cloudAdapters(workspaceId: string, debug: boolean) {
     const resources = new CloudResourceAdapter(workspaceId);
     const reports = new CloudReportAdapter(workspaceId);
-    const runs = new Map<string, string>();
-    const remember = (report: S["RunReportDTO"]) => {
-        for (const item of report.cases)
-            for (const attempt of item.attempts) runs.set(attempt.id, report.run.id);
-        return report;
-    };
-    const original = reports.report;
-    reports.report = async (...args) => remember(await original(...args));
-    const reportAdapter: ReportAdapter = Object.assign(reports, {
-        nativeArtifact: async (
-            attemptId: string,
-            artifactId: string,
-            action: "save" | "trace" | "preview",
-        ) => {
-            const runId = runs.get(attemptId);
-            if (!runId) throw new Error("REPORT_CONTEXT_MISSING");
-            await bridge.artifact({ local: false, runId, attemptId, artifactId, action });
-        },
-    });
+    const reportAdapter = nativeCloudReports(workspaceId, reports, (input) =>
+        bridge.artifact(input),
+    );
     const bundles = Object.assign(new CloudBundleAdapter(workspaceId), {
         install: async (bundleId: string) => {
             await bridge.local({ operation: "download", bundleId, debug });

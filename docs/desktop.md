@@ -59,6 +59,37 @@ The desktop check generates shared Web declarations before checking both strict 
 
 The GUI suite uses a real Electron process with Chromium sandbox explicitly enabled, an isolated platform fixture and the production engine candidate. It does not substitute mocked pages or fabricated reports. The fixture's issuer and credentials are synthetic; no paid model provider is needed.
 
+## 干净检出的 GUI 验收 / Fresh-checkout GUI acceptance
+
+[Desktop focused verification](../.github/workflows/desktop-fix-validation.yml) 固定 Ubuntu24.04、Node24.22.1、Python3.12.14、MySQL8.4.13、锁定依赖及匹配浏览器；开发分支 push 自动运行。工作流只创建隔离测试发行与数据库，不发布安装包。生产器输出的 `1.0.2-t19-fix1` 是未批准的测试候选，夹具只在本轮私有签发者下通过正式 `promote_engine` 验证并晋升它。
+
+The focused branch workflow contains the complete fresh-checkout setup, exact action/image pins and artifact allowlist. Its separate candidate is only approved inside the isolated test fixture; it is not a released engine.
+
+本机复现需先按该工作流准备锁定依赖、专用 `veriq_test` 数据库与私有 `.superpowers/sdd/veriq-1/test-env.json`（`mysql_dsn` 字段），然后在仓库根目录执行以下命令。输出目录必须全新，不能覆盖原候选；`PLAYWRIGHT_BROWSERS_PATH` 指向当前工作区缓存。
+
+```sh
+export PLAYWRIGHT_BROWSERS_PATH="$PWD/.superpowers/cache/playwright"
+mkdir -p work
+pnpm --filter @veriq/runner-sdk exec playwright install --with-deps chromium
+pnpm --filter @veriq/compiler exec tsx ../../scripts/build_engine.mts 1.0.2-t19-fix1 "$PWD/work/t19-fix1-ci-engine" > work/t19-fix1-engine-production.json
+export VERIQ_TEST_ENGINE_DIRECTORY="$PWD/work/t19-fix1-ci-engine"
+export VERIQ_TEST_ENGINE_VERSION=1.0.2-t19-fix1
+export VERIQ_TEST_ENGINE_HASH="$(python -c 'import json; print(json.loads(open("work/t19-fix1-engine-production.json").read().splitlines()[-1])["inventoryHash"])')"
+export VERIQ_TEST_ELECTRON="$(pnpm --filter @veriq/desktop exec node -p 'require("electron")')"
+export VERIQ_TEST_HEADED_BROWSER="$(pnpm --filter @veriq/desktop exec node -p 'require("playwright-core").chromium.executablePath()')"
+export VERIQ_DESKTOP_EVIDENCE="$PWD/.superpowers/sdd/veriq-1/evidence/t19/fix1/local"
+pnpm --filter @veriq/desktop build
+xvfb-run -a -s '-screen 0 1280x800x24 -nolisten tcp' pnpm desktop:test
+```
+
+三项 `VERIQ_TEST_ENGINE_DIRECTORY` / `VERSION` / `HASH` 必须同时设置；TypeScript 启动器先完整 `loadRelease` 并比对规范条目摘要，Python 夹具再通过真实晋升流程校验。完全不设置时保留原有本机 `work/t18-engine-verified` 的 `1.0.0` / `4ac705…` 身份，干净检出应使用上面的独立生产命令，不依赖旧机器私有候选。设置 `VERIQ_TEST_HEADED_BROWSER` 会在真实 GUI 恢复链勾选可见模式，观察实际业务浏览器窗口及其 worker/guardian/Agent 归属，随后验证停止事实；省略它只运行无头验收，不能据此宣称可见模式已验证。
+
+The three engine variables are an all-or-none trusted test-launch tuple. Full inventory validation and actual server promotion remain mandatory. Supplying the full-browser path enables the real GUI → offline execution → visible-window → stop-observation check; omitting it does not prove headed execution.
+
+当前 Linux 可见执行要求本机 X11 或 XWayland 的 `DISPLAY`（例如 `:99`），可选 `XAUTHORITY` 必须为绝对路径。后台只向可见 worker 传递这两个受限显示字段，不继承任意宿主环境；纯 Wayland 且没有 XWayland 时失败关闭。Electron GUI 明确启用 Chromium sandbox；既有 Runtime 业务浏览器启动参数包含 `--no-sandbox`，两者是不同进程，该已有策略仍需 T20 的目标系统安全默认值验收。
+
+Visible Linux execution currently requires a local X11/XWayland display and optional absolute Xauthority path. The Electron UI sandbox and the existing Runtime business-browser launch policy are recorded separately; target-system distribution acceptance must review the latter.
+
 ## 宿主边界 / Host boundary
 
 普通 Cookie / CSRF 保存在独立 Electron Session，设备 token 保存在独立 Node Agent。preload 只公开有限业务操作；主进程再次校验 sender、主 frame、Workspace、模式及大小。renderer 没有 Node、任意 HTTP、文件系统或 spawn。报告流最多四条且按消费拉取；工作区切换和登出撤销旧流。共享 Web 的类型兼容设置仅用于其自身声明构建，桌面各层仍使用严格 TypeScript。

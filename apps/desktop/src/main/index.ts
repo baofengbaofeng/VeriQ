@@ -23,6 +23,7 @@ import { authorizeSender } from "./scope";
 import { openNativeTrace } from "./trace-window";
 import { openNativeImage } from "./image-window";
 import { withArtifactExport } from "./artifact-export";
+import { bundledAssetPath } from "./asset-path";
 import { routingOverride } from "../shared/routing";
 import type { CloudOperation } from "../shared/operations.generated";
 import type { DesktopState } from "../shared/bridge";
@@ -590,8 +591,8 @@ async function main() {
         if (url.hostname !== "app" || url.search || request.method !== "GET")
             return new Response("Not found", { status: 404 });
         const pathname = decodeURIComponent(url.pathname);
-        const target = resolve(assets, "." + pathname);
-        if (!target.startsWith(assets + "/")) return new Response("Not found", { status: 404 });
+        const target = bundledAssetPath(assets, pathname);
+        if (!target) return new Response("Not found", { status: 404 });
         const info = await lstat(target).catch(() => undefined);
         if (!info?.isFile() || info.isSymbolicLink())
             return new Response("Not found", { status: 404 });

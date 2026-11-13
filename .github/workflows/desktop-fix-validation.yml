@@ -1,0 +1,136 @@
+name: Desktop focused verification
+on:
+    workflow_dispatch:
+    push:
+        branches: [codex/veriq-mvp-completion]
+        paths:
+            - .github/workflows/desktop-fix-validation.yml
+            - apps/desktop/**
+            - apps/runtime/**
+            - apps/web/**
+            - apps/srv/**
+            - packages/**
+            - tests/e2e/**
+            - scripts/build_engine.mts
+            - pnpm-lock.yaml
+            - pnpm-workspace.yaml
+            - package.json
+permissions:
+    contents: read
+jobs:
+    ubuntu-desktop:
+        runs-on: ubuntu-24.04
+        timeout-minutes: 45
+        env:
+            PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.superpowers/cache/playwright
+            VERIQ_DESKTOP_EVIDENCE: ${{ github.workspace }}/.superpowers/sdd/veriq-1/evidence/t19/fix1/ci
+        services:
+            mysql:
+                image: mysql:8.4.13@sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902
+                env:
+                    MYSQL_ROOT_PASSWORD: veriq-ci-only
+                    MYSQL_DATABASE: veriq_test
+                ports: ["13306:3306"]
+                options: >-
+                    --health-cmd="mysqladmin ping --silent"
+                    --health-interval=10s --health-timeout=5s --health-retries=12
+        steps:
+            - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+            - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+              with:
+                  python-version: 3.12.14
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+              with:
+                  node-version: 24.22.1
+            - name: Install pinned build tools
+              run: |
+                  python -m pip install --target "$RUNNER_TEMP/veriq-python-tools" uv==0.13.5
+                  npm install --prefix "$RUNNER_TEMP/veriq-node-tools" pnpm@11.25.0 --ignore-scripts
+                  echo "$RUNNER_TEMP/veriq-python-tools/bin" >> "$GITHUB_PATH"
+                  echo "$RUNNER_TEMP/veriq-node-tools/node_modules/.bin" >> "$GITHUB_PATH"
+            - name: Prepare locked dependencies and actual matched browsers
+              run: |
+                  mkdir -p "$VERIQ_DESKTOP_EVIDENCE"
+                  uv sync --project apps/srv --frozen --all-groups
+                  pnpm install --frozen-lockfile
+                  pnpm --filter @veriq/runner-sdk exec playwright install --with-deps chromium
+                  sudo apt-get install --yes --no-install-recommends xvfb xauth x11-utils imagemagick libxtst6
+                  pnpm --filter @veriq/desktop exec node -e 'process.stdout.write("VERIQ_TEST_ELECTRON=" + require("electron") + "\n")' >> "$GITHUB_ENV"
+                  pnpm --filter @veriq/desktop exec node -e 'process.stdout.write("VERIQ_TEST_HEADED_BROWSER=" + require("playwright-core").chromium.executablePath() + "\n")' >> "$GITHUB_ENV"
+            - name: Produce a separate unapproved current-source candidate
+              run: |
+                  set -o pipefail
+                  pnpm --filter @veriq/compiler exec tsx ../../scripts/build_engine.mts 1.0.2-t19-fix1 "$GITHUB_WORKSPACE/work/t19-fix1-ci-engine" | tee "$VERIQ_DESKTOP_EVIDENCE/engine-producer.log"
+                  python - <<'PY'
+                  import hashlib, json, os, subprocess
+                  from pathlib import Path
+                  root = Path.cwd()
+                  evidence = Path(os.environ['VERIQ_DESKTOP_EVIDENCE'])
+                  produced = json.loads((evidence / 'engine-producer.log').read_text().splitlines()[-1])
+                  assert produced['engineVersion'] == '1.0.2-t19-fix1'
+                  candidate = root / 'work/t19-fix1-ci-engine'
+                  assert Path(produced['output']) == candidate
+                  inventory = json.loads((candidate / 'inventory.json').read_bytes())
+                  (evidence / 'candidate-inventory.json').write_text(json.dumps(inventory, indent=4) + '\n')
+                  paths = subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0')
+                  binding = {'head': subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip(), 'status': 'UNAPPROVED_TEST_CANDIDATE', 'production': produced, 'sourceSha256': {name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in paths if name and (root / name).is_file()}, 'inventoryRawSha256': hashlib.sha256((candidate / 'inventory.json').read_bytes()).hexdigest()}
+                  (evidence / 'source-production-binding.json').write_text(json.dumps(binding, indent=4) + '\n')
+                  with open(os.environ['GITHUB_ENV'], 'a') as handle:
+                      handle.write(f"VERIQ_TEST_ENGINE_DIRECTORY={candidate}\nVERIQ_TEST_ENGINE_VERSION={produced['engineVersion']}\nVERIQ_TEST_ENGINE_HASH={produced['inventoryHash']}\n")
+                  settings = root / '.superpowers/sdd/veriq-1/test-env.json'
+                  settings.write_text(json.dumps({'mysql_dsn': 'mysql+asyncmy://root:veriq-ci-only@127.0.0.1:13306/veriq_test'}))
+                  settings.chmod(0o600)
+                  PY
+            - name: Build desktop and verify affected boundaries
+              run: |
+                  set -o pipefail
+                  pnpm --filter @veriq/desktop build 2>&1 | tee "$VERIQ_DESKTOP_EVIDENCE/desktop-build.log"
+                  pnpm check 2>&1 | tee "$VERIQ_DESKTOP_EVIDENCE/check.log"
+                  pnpm --filter @veriq/desktop test:unit 2>&1 | tee "$VERIQ_DESKTOP_EVIDENCE/unit.log"
+                  pnpm --filter @veriq/runtime exec node --import tsx --test tests/display-environment.test.ts 2>&1 | tee "$VERIQ_DESKTOP_EVIDENCE/display-environment.log"
+                  python - <<'PY'
+                  import hashlib, json, os, subprocess
+                  from pathlib import Path
+                  root = Path.cwd()
+                  files = [path for directory in ['apps/desktop/out', 'apps/web/dist-desktop'] for path in (root / directory).rglob('*') if path.is_file()]
+                  files.append(root / 'apps/desktop/build/veriq_runner')
+                  binding = {'head': subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip(), 'node': subprocess.check_output(['node', '--version']).decode().strip(), 'fullChrome': subprocess.check_output([os.environ['VERIQ_TEST_HEADED_BROWSER'], '--version']).decode().strip(), 'compiledSha256': {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(files)}}
+                  (Path(os.environ['VERIQ_DESKTOP_EVIDENCE']) / 'compiled-binding.json').write_text(json.dumps(binding, indent=4) + '\n')
+                  PY
+            - name: Run the composed actual GUI suite with visible Chromium acceptance
+              run: |
+                  set -o pipefail
+                  xvfb-run -a -s '-screen 0 1280x800x24 -nolisten tcp' pnpm desktop:test 2>&1 | tee "$VERIQ_DESKTOP_EVIDENCE/desktop-composed.log"
+                  python - <<'PY'
+                  import json, os
+                  from pathlib import Path
+                  evidence = Path(os.environ['VERIQ_DESKTOP_EVIDENCE'])
+                  observed = json.loads((evidence / 'headed-observation.json').read_bytes())
+                  stopped = json.loads((evidence / 'headed-stopped.json').read_bytes())
+                  results = json.loads((evidence / 'gui-results.json').read_bytes())
+                  assert observed['mode'] == 'headed' and observed['browserVersion'] == '158.0.8127.18'
+                  assert observed['mapState'] == 'IsViewable'
+                  assert stopped['attemptId'] == observed['attemptId']
+                  assert stopped['processStopped'] is True and stopped['journalState'] == 'STOPPED'
+                  assert stopped['windowGone'] is True and stopped['ownedPidsExited'] is True
+                  stats = results['stats']
+                  assert stats['expected'] == 6 and stats['unexpected'] == 0 and stats['skipped'] == 0 and stats['flaky'] == 0
+                  print('Composed GUI acceptance verified: 6 passed, 0 skipped; actual headed window and stop observations present')
+                  PY
+            - name: Preserve public observations and diagnostics
+              if: always()
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+              with:
+                  name: desktop-fix1-${{ github.sha }}
+                  include-hidden-files: true
+                  path: |
+                      .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/*.log
+                      .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/*.png
+                      .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/headed-*.json
+                      .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/gui-results.json
+                      .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/source-production-binding.json
+                      .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/candidate-inventory.json
+                      .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/compiled-binding.json
+                      .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/gui-runtime-versions.json
+                      .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/playwright-results/**/error-context.md
+                  if-no-files-found: warn

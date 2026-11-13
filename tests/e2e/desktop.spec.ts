@@ -1,13 +1,61 @@
 import { test, expect, _electron, chromium } from "../../apps/desktop/tests/fixtures";
-import { mkdtemp, rm, appendFile, readFile } from "node:fs/promises";
+import { mkdtemp, rm, appendFile, readFile, mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
+import { trackFixture, stopFixture } from "./lifecycle";
+import { stopTestAgent } from "./agent-owner";
+import { testEngine } from "./engine";
+import { observeHeadedRun, assertHeadedStopped } from "./headed";
+let engine: Awaited<ReturnType<typeof testEngine>>;
+test.beforeAll(async () => {
+    engine = await testEngine(resolve("../.."));
+    await mkdir(
+        resolve(
+            "../..",
+            process.env.VERIQ_DESKTOP_EVIDENCE ?? ".superpowers/sdd/veriq-1/evidence/t19",
+        ),
+        { recursive: true },
+    );
+});
 let workflowFixture: { profile: string; fixture: string } | undefined;
+
+/** 测试清理按后台、窗口、数据库夹具顺序收敛，并在任一步失败后仍尝试关闭其余自有资源；收集到的失败最终统一抛出，不让一个清理异常跳过释放数据库锁，也不把发送信号或框架返回当作真实进程停止。 */
+async function teardownDesktop(
+    electron: Awaited<ReturnType<typeof _electron.launch>> | undefined,
+    profile: string,
+    agentPid: number | undefined,
+    server?: import("node:child_process").ChildProcess,
+) {
+    const failures: unknown[] = [];
+    for (const step of [
+        async () => {
+            if (agentPid) await stopTestAgent(profile, agentPid);
+        },
+        async () => {
+            if (electron) await electron.close();
+        },
+        async () => {
+            if (server) await stopFixture(server);
+        },
+    ]) {
+        try {
+            await step();
+        } catch (error) {
+            console.error("Owned fixture teardown failed:", error);
+            failures.push(error);
+        }
+    }
+    if (failures.length) throw new AggregateError(failures, "DESKTOP_TEARDOWN_FAILED");
+}
 
 /** 最小窗口检查必须启动真实已打包 Electron，并从实际 preload 与独立后台读取状态；浏览器模拟页面、缺失二进制或缺少 DISPLAY 都不能代替这个产品行为测试的结果。 */
 test("bundled desktop opens offline with strict renderer and independent Node24", async () => {
     const root = resolve("../.."),
         profile = await mkdtemp("/tmp/veriq-t19-gui-");
-    const log = resolve(root, ".superpowers/sdd/veriq-1/evidence/t19/gui-window-diagnostics.log");
+    const log = resolve(
+        root,
+        process.env.VERIQ_DESKTOP_EVIDENCE ?? ".superpowers/sdd/veriq-1/evidence/t19",
+        "gui-window-diagnostics.log",
+    );
     console.log("Launching real desktop");
     const electron = await _electron.launch({
         chromiumSandbox: true,
@@ -17,7 +65,8 @@ test("bundled desktop opens offline with strict renderer and independent Node24"
             ...process.env,
             VERIQ_DESKTOP_PROFILE: profile,
             VERIQ_DESKTOP_NODE: process.execPath,
-            VERIQ_DESKTOP_ENGINE: resolve(root, "work/t18-engine-verified"),
+            VERIQ_DESKTOP_ENGINE: engine.directory,
+            VERIQ_DESKTOP_ENGINE_VERSION: engine.version,
             VERIQ_DESKTOP_BROWSER: resolve(
                 root,
                 ".superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell",
@@ -31,6 +80,21 @@ test("bundled desktop opens offline with strict renderer and independent Node24"
     try {
         const page = await electron.firstWindow({ timeout: 10000 });
         console.log("First window connected", page.url());
+        const versions = await electron.evaluate(({ BrowserWindow }) => ({
+            electron: process.versions.electron,
+            uiNode: process.versions.node,
+            uiChromium: process.versions.chrome,
+            sandbox: BrowserWindow.getAllWindows()[0]?.webContents.getLastWebPreferences().sandbox,
+        }));
+        expect(versions.sandbox).toBe(true);
+        await appendFile(
+            resolve(
+                root,
+                process.env.VERIQ_DESKTOP_EVIDENCE ?? ".superpowers/sdd/veriq-1/evidence/t19",
+                "gui-runtime-versions.json",
+            ),
+            JSON.stringify({ ...versions, independentNode: process.versions.node }) + "\n",
+        );
         page.on(
             "console",
             (message) => void appendFile(log, `renderer ${message.type()}: ${message.text()}\n`),
@@ -57,7 +121,11 @@ test("bundled desktop opens offline with strict renderer and independent Node24"
         await page.getByLabel("语言 / Language").selectOption("en");
         await expect(page.getByRole("heading", { name: "Local cache", exact: true })).toBeVisible();
         await page.screenshot({
-            path: resolve(root, ".superpowers/sdd/veriq-1/evidence/t19/desktop-initial-1280.png"),
+            path: resolve(
+                root,
+                process.env.VERIQ_DESKTOP_EVIDENCE ?? ".superpowers/sdd/veriq-1/evidence/t19",
+                "desktop-initial-1280.png",
+            ),
             fullPage: true,
         });
         const forbidden = await page.evaluate(async () => {
@@ -73,8 +141,7 @@ test("bundled desktop opens offline with strict renderer and independent Node24"
         expect(forbidden).toBe(true);
     } finally {
         console.log("Closing UI test process");
-        if (agentPid) process.kill(agentPid, "SIGTERM");
-        await electron.close();
+        await teardownDesktop(electron, profile, agentPid);
         // 失败时保留完整私有 profile 供诊断；正常退出须等后台描述文件消失后再清理，避免把存活后台的锁和数据库误删，这个早期空闲冒烟清理不用于证明活动 Run 的生命周期。
         if (agentPid) {
             await expect
@@ -94,21 +161,26 @@ test("bundled desktop opens offline with strict renderer and independent Node24"
 test("production candidate completes the real desktop offline workflow", async ({ request }) => {
     test.setTimeout(300000);
     const root = resolve("../..");
-    const evidence = resolve(root, ".superpowers/sdd/veriq-1/evidence/t19");
+    const evidence = resolve(
+        root,
+        process.env.VERIQ_DESKTOP_EVIDENCE ?? ".superpowers/sdd/veriq-1/evidence/t19",
+    );
     const profile = await mkdtemp("/tmp/veriq-t19-full-");
     const fixture = await mkdtemp(resolve(evidence, "service-"));
     const { spawn } = await import("node:child_process");
-    const server = spawn(
-        "flock",
-        [
-            "-n",
-            "-F",
-            "/tmp/veriq-t12-db.lock",
-            resolve(root, "apps/srv/.venv/bin/python"),
-            resolve(root, "tests/e2e/desktop_server.py"),
-            fixture,
-        ],
-        { cwd: root, stdio: ["ignore", "pipe", "pipe"] },
+    const server = trackFixture(
+        spawn(
+            "flock",
+            [
+                "-n",
+                "-F",
+                "/tmp/veriq-t12-db.lock",
+                resolve(root, "apps/srv/.venv/bin/python"),
+                resolve(root, "tests/e2e/desktop_server.py"),
+                fixture,
+            ],
+            { cwd: root, stdio: ["ignore", "pipe", "pipe"] },
+        ),
     );
     server.stdout.on("data", (data) => void appendFile(resolve(evidence, "full-server.log"), data));
     server.stderr.on("data", (data) => void appendFile(resolve(evidence, "full-server.log"), data));
@@ -162,7 +234,8 @@ test("production candidate completes the real desktop offline workflow", async (
                 ...process.env,
                 VERIQ_DESKTOP_PROFILE: profile,
                 VERIQ_DESKTOP_NODE: process.execPath,
-                VERIQ_DESKTOP_ENGINE: resolve(root, "work/t18-engine-verified"),
+                VERIQ_DESKTOP_ENGINE: engine.directory,
+                VERIQ_DESKTOP_ENGINE_VERSION: engine.version,
                 VERIQ_DESKTOP_BROWSER: resolve(
                     root,
                     ".superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell",
@@ -244,7 +317,7 @@ test("production candidate completes the real desktop offline workflow", async (
                 .toBe("FINISHED");
             expect((await api(base + `/jobs/${job.id}`)).outcome).toBe("PASSED");
             const receipt = await api(base + `/jobs/${job.id}/validation-receipt`);
-            expect(receipt.engineVersion).toBe("1.0.0");
+            expect(receipt.engineVersion).toBe(engine.version);
             const version = await api(path + "/publish", "POST", {
                 revision: preview.revision,
                 validationReceiptId: receipt.id,
@@ -371,9 +444,7 @@ test("production candidate completes the real desktop offline workflow", async (
         workflowFixture = { profile, fixture };
         console.log("Actual production candidate executed while control platform was offline");
     } finally {
-        if (agentPid) process.kill(agentPid, "SIGTERM");
-        if (electron) await electron.close();
-        server.kill("SIGTERM");
+        await teardownDesktop(electron, profile, agentPid, server);
     }
 });
 
@@ -385,24 +456,29 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
     );
     test.setTimeout(180000);
     const root = resolve("../.."),
-        evidence = resolve(root, ".superpowers/sdd/veriq-1/evidence/t19");
+        evidence = resolve(
+            root,
+            process.env.VERIQ_DESKTOP_EVIDENCE ?? ".superpowers/sdd/veriq-1/evidence/t19",
+        );
     const profile = process.env.VERIQ_T19_RESUME_PROFILE ?? workflowFixture!.profile;
     const fixture = process.env.VERIQ_T19_RESUME_FIXTURE ?? workflowFixture!.fixture;
     const { spawn, execFile } = await import("node:child_process");
     const { promisify } = await import("node:util");
     const command = promisify(execFile);
-    const server = spawn(
-        "flock",
-        [
-            "-n",
-            "-F",
-            "/tmp/veriq-t12-db.lock",
-            resolve(root, "apps/srv/.venv/bin/python"),
-            resolve(root, "tests/e2e/desktop_server.py"),
-            fixture,
-            "--resume",
-        ],
-        { cwd: root, stdio: ["ignore", "pipe", "pipe"] },
+    const server = trackFixture(
+        spawn(
+            "flock",
+            [
+                "-n",
+                "-F",
+                "/tmp/veriq-t12-db.lock",
+                resolve(root, "apps/srv/.venv/bin/python"),
+                resolve(root, "tests/e2e/desktop_server.py"),
+                fixture,
+                "--resume",
+            ],
+            { cwd: root, stdio: ["ignore", "pipe", "pipe"] },
+        ),
     );
     server.stdout.on(
         "data",
@@ -431,7 +507,11 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
                 ...process.env,
                 VERIQ_DESKTOP_PROFILE: profile,
                 VERIQ_DESKTOP_NODE: process.execPath,
-                VERIQ_DESKTOP_ENGINE: resolve(root, "work/t18-engine-verified"),
+                ...(process.env.VERIQ_TEST_HEADED_BROWSER
+                    ? { VERIQ_DESKTOP_HEADED_BROWSER: process.env.VERIQ_TEST_HEADED_BROWSER }
+                    : {}),
+                VERIQ_DESKTOP_ENGINE: engine.directory,
+                VERIQ_DESKTOP_ENGINE_VERSION: engine.version,
                 VERIQ_DESKTOP_BROWSER: resolve(
                     root,
                     ".superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell",
@@ -597,6 +677,9 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
         await page
             .getByLabel("本机资源包 / Local package")
             .selectOption(state.agent!.bundles[0]!.id);
+        if (process.env.VERIQ_TEST_HEADED_BROWSER) {
+            await page.getByLabel("可见浏览器 / Visible browser", { exact: true }).check();
+        }
         await request.post("http://127.0.0.1:18891/__hold");
         await page.getByRole("button", { name: "独立执行", exact: true }).click();
         await expect
@@ -608,6 +691,14 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
             .toBe(1);
         const active = (await page.evaluate(() => window.veriq.state())).agent!.active!;
         expect(active.runId).not.toBe(runId);
+        const headed = process.env.VERIQ_TEST_HEADED_BROWSER
+            ? await observeHeadedRun(
+                  profile,
+                  agentPid!,
+                  process.env.VERIQ_TEST_HEADED_BROWSER,
+                  evidence,
+              )
+            : undefined;
         await electron.evaluate(async ({ BrowserWindow }) => {
             const contents = BrowserWindow.getAllWindows()[0]!.webContents;
             const restored = new Promise<void>((resolve) =>
@@ -671,7 +762,11 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
                 ...process.env,
                 VERIQ_DESKTOP_PROFILE: profile,
                 VERIQ_DESKTOP_NODE: process.execPath,
-                VERIQ_DESKTOP_ENGINE: resolve(root, "work/t18-engine-verified"),
+                ...(process.env.VERIQ_TEST_HEADED_BROWSER
+                    ? { VERIQ_DESKTOP_HEADED_BROWSER: process.env.VERIQ_TEST_HEADED_BROWSER }
+                    : {}),
+                VERIQ_DESKTOP_ENGINE: engine.directory,
+                VERIQ_DESKTOP_ENGINE_VERSION: engine.version,
                 VERIQ_DESKTOP_BROWSER: resolve(
                     root,
                     ".superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell",
@@ -700,6 +795,15 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
             active.runId,
         );
         expect(restoredReport.reports[0].run.outcome).toBe("PASSED");
+        if (headed) {
+            expect(restoredReport.reports[0].cases[0].attempts[0].id).toBe(headed.attemptId);
+            await assertHeadedStopped(
+                profile,
+                headed,
+                restoredReport.reports[0].cases[0].attempts[0].facts.processStopped,
+                evidence,
+            );
+        }
         console.log("Active run survived actual renderer crash and confirmed UI quit/reopen");
         await reopened.getByRole("button", { name: "本机缓存", exact: true }).click();
         await reopened
@@ -757,6 +861,7 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
                 ),
             )
             .toBe(true);
+        if (agentPid) await stopTestAgent(profile, agentPid);
         agentPid = undefined;
         await previous.close();
         console.log(
@@ -766,9 +871,7 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
         console.error("Native continuation failed:", error);
         throw error;
     } finally {
-        server.kill("SIGTERM");
-        if (agentPid) process.kill(agentPid, "SIGTERM");
-        if (electron) await electron.close();
+        await teardownDesktop(electron, profile, agentPid, server);
     }
 });
 
@@ -779,14 +882,18 @@ test("offline shared resource assets and single instance remain local", async ({
         "Requires the recorded real workflow profile",
     );
     const root = resolve("../.."),
-        evidence = resolve(root, ".superpowers/sdd/veriq-1/evidence/t19");
+        evidence = resolve(
+            root,
+            process.env.VERIQ_DESKTOP_EVIDENCE ?? ".superpowers/sdd/veriq-1/evidence/t19",
+        );
     const profile = process.env.VERIQ_T19_RESUME_PROFILE ?? workflowFixture!.profile;
     await expect(request.get("http://127.0.0.1:8888/api/v1/setup")).rejects.toThrow();
     const env = {
         ...process.env,
         VERIQ_DESKTOP_PROFILE: profile,
         VERIQ_DESKTOP_NODE: process.execPath,
-        VERIQ_DESKTOP_ENGINE: resolve(root, "work/t18-engine-verified"),
+        VERIQ_DESKTOP_ENGINE: engine.directory,
+        VERIQ_DESKTOP_ENGINE_VERSION: engine.version,
         VERIQ_DESKTOP_BROWSER: resolve(
             root,
             ".superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell",
@@ -956,8 +1063,7 @@ test("offline shared resource assets and single instance remain local", async ({
         ).toBe(1);
         expect(() => process.kill(agentPid!, 0)).not.toThrow();
     } finally {
-        if (agentPid) process.kill(agentPid, "SIGTERM");
-        await electron.close();
+        await teardownDesktop(electron, profile, agentPid);
     }
 });
 
@@ -969,22 +1075,27 @@ test("shared cloud editor publishes through the desktop host transport", async (
     );
     test.setTimeout(120000);
     const root = resolve("../.."),
-        evidence = resolve(root, ".superpowers/sdd/veriq-1/evidence/t19");
+        evidence = resolve(
+            root,
+            process.env.VERIQ_DESKTOP_EVIDENCE ?? ".superpowers/sdd/veriq-1/evidence/t19",
+        );
     const profile = process.env.VERIQ_T19_RESUME_PROFILE ?? workflowFixture!.profile;
     const fixture = process.env.VERIQ_T19_RESUME_FIXTURE ?? workflowFixture!.fixture;
     const { spawn } = await import("node:child_process");
-    const server = spawn(
-        "flock",
-        [
-            "-n",
-            "-F",
-            "/tmp/veriq-t12-db.lock",
-            resolve(root, "apps/srv/.venv/bin/python"),
-            resolve(root, "tests/e2e/desktop_server.py"),
-            fixture,
-            "--resume",
-        ],
-        { cwd: root, stdio: ["ignore", "pipe", "pipe"] },
+    const server = trackFixture(
+        spawn(
+            "flock",
+            [
+                "-n",
+                "-F",
+                "/tmp/veriq-t12-db.lock",
+                resolve(root, "apps/srv/.venv/bin/python"),
+                resolve(root, "tests/e2e/desktop_server.py"),
+                fixture,
+                "--resume",
+            ],
+            { cwd: root, stdio: ["ignore", "pipe", "pipe"] },
+        ),
     );
     server.stdout.on(
         "data",
@@ -1013,7 +1124,8 @@ test("shared cloud editor publishes through the desktop host transport", async (
                 ...process.env,
                 VERIQ_DESKTOP_PROFILE: profile,
                 VERIQ_DESKTOP_NODE: process.execPath,
-                VERIQ_DESKTOP_ENGINE: resolve(root, "work/t18-engine-verified"),
+                VERIQ_DESKTOP_ENGINE: engine.directory,
+                VERIQ_DESKTOP_ENGINE_VERSION: engine.version,
                 VERIQ_DESKTOP_BROWSER: resolve(
                     root,
                     ".superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell",
@@ -1093,17 +1205,42 @@ test("shared cloud editor publishes through the desktop host transport", async (
         await expect
             .poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.online)
             .toBe(false);
+        const retainedCookies = await electron.evaluate(({ session }) =>
+            session
+                .fromPartition("persist:veriq-host")
+                .cookies.get({ url: "http://127.0.0.1:8888" }),
+        );
+        const oldSession = retainedCookies.find((cookie) => cookie.name === "veriq_session");
+        expect(oldSession).toBeDefined();
+        const retainedCookie = `${oldSession!.name}=${oldSession!.value}`;
+        expect(
+            (
+                await request.get("http://127.0.0.1:8888/api/v1/auth/session", {
+                    headers: { Cookie: retainedCookie },
+                })
+            ).status(),
+        ).toBe(200);
         await page.getByRole("button", { name: "退出登录", exact: true }).click();
+        await expect
+            .poll(async () =>
+                (
+                    await request.get("http://127.0.0.1:8888/api/v1/auth/session", {
+                        headers: { Cookie: retainedCookie },
+                    })
+                ).status(),
+            )
+            .toBe(401);
         await expect
             .poll(async () => (await page.evaluate(() => window.veriq.state())).user)
             .toBeUndefined();
         expect((await page.evaluate(() => window.veriq.state())).agent!.device!.workspaceId).toBe(
             workspaceId,
         );
+        console.log(
+            "Copied ordinary Cookie revoked by server after GUI logout; device binding retained",
+        );
     } finally {
-        server.kill("SIGTERM");
-        if (agentPid) process.kill(agentPid, "SIGTERM");
-        if (electron) await electron.close();
+        await teardownDesktop(electron, profile, agentPid, server);
     }
 });
 

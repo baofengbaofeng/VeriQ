@@ -45,7 +45,8 @@ export class DesktopAgentClient {
         if (Buffer.byteLength(outgoing) > 65535) throw new Error("IPC_PAYLOAD_LIMIT");
         return new Promise((resolve, reject) => {
             const socket = connect(descriptor.socket);
-            let incoming = "";
+            const chunks: Buffer[] = [];
+            let bytes = 0;
             let completed = false;
             const fail = (error: Error) => {
                 completed = true;
@@ -61,14 +62,19 @@ export class DesktopAgentClient {
             socket.on("error", () => fail(new Error("AGENT_UNAVAILABLE")));
             socket.setTimeout(65000, () => fail(new Error("AGENT_REQUEST_TIMEOUT")));
             socket.on("connect", () => socket.write(outgoing + "\n"));
+            /** socket 分块不是 Unicode 字符边界，因此先按原始字节累计到换行帧，再一次性严格解码；预算也按原始字节检查，非法 UTF-8 直接失败而不会把替换字符写入业务数据。 */
             socket.on("data", (chunk) => {
-                incoming += chunk.toString("utf8");
-                if (Buffer.byteLength(incoming) > 32 * 1024 * 1024)
-                    return fail(new Error("AGENT_RESPONSE_LIMIT"));
-                if (!incoming.includes("\n")) return;
+                if (completed) return;
+                bytes += chunk.length;
+                if (bytes > 32 * 1024 * 1024) return fail(new Error("AGENT_RESPONSE_LIMIT"));
+                chunks.push(chunk);
+                if (!chunk.includes(10)) return;
                 completed = true;
                 socket.destroy();
                 try {
+                    const incoming = new TextDecoder("utf-8", { fatal: true }).decode(
+                        Buffer.concat(chunks, bytes),
+                    );
                     const envelope = JSON.parse(incoming);
                     if (!envelope.ok || !envelope.value?.ok)
                         throw new Error(envelope.value?.error ?? "AGENT_REQUEST_FAILED");

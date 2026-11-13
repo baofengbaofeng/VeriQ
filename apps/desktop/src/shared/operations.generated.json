@@ -22,7 +22,7 @@
         "method": "POST",
         "ids": [],
         "queries": {},
-        "request": null,
+        "request": "Empty",
         "idempotency": false,
         "kind": "json"
     },

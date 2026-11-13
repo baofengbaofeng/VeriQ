@@ -32,6 +32,7 @@ import { LocalStore, type Ownership } from "./store.ts";
 import { reverifyInstalled, type VerifiedBundle } from "./verify.ts";
 import type { TrustStore } from "./trust.ts";
 import { readBoundedFile } from "./config.ts";
+import { offlineWorkerEnvironment } from "./worker-environment.ts";
 /**
  * 公开接口 OfflineConfig 描述断网执行所需的本机目录、浏览器与发行配置：不含任何平台租约字段（OfflineConfig）。
  */
@@ -404,6 +405,11 @@ async function attempt(
         };
         await write("playwright.config.mjs", Buffer.from(`export default ${JSON.stringify(pw)};`));
         if (controller.signal.aborted || store.cancelled(runId)) throw new Error("USER_CANCELLED");
+        const environment = offlineWorkerEnvironment(
+            tmp,
+            join(work, "provider.mjs"),
+            config.headless ?? true,
+        );
         owner = store.spawning(runId, attemptId, owner);
         spawning = true;
         child = await processes.start(attemptId, {
@@ -413,13 +419,7 @@ async function attempt(
                 join(work, "invocation.json"),
             ],
             cwd: work,
-            env: {
-                PATH: `${dirname(process.execPath)}:/usr/bin:/bin`,
-                TMPDIR: tmp,
-                XDG_CACHE_HOME: join(tmp, "cache"),
-                XDG_CONFIG_HOME: join(tmp, "config"),
-                VERIQ_EXECUTION_CONTEXT_MODULE: join(work, "provider.mjs"),
-            },
+            env: environment,
         });
         store.ensureOwner(owner);
         monitor = monitorStorage(tmp, 64 * 1024 * 1024, async (why) => {

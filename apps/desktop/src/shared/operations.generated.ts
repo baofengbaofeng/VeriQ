@@ -4,7 +4,7 @@ type S = PlatformComponents["schemas"];
 export type CloudOperation =
     | { operation: "login"; data: S["LoginRequest"] }
     | { operation: "session" }
-    | { operation: "logout" }
+    | { operation: "logout"; data: S["Empty"] }
     | { operation: "listWorkspaces"; query?: Record<string, string | number | boolean> }
     | { operation: "getWorkspace"; params: { workspaceId: string } }
     | {

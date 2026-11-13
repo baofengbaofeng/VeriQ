@@ -33,9 +33,10 @@ export class AttemptBroker {
             this.sockets.add(socket);
             socket.on("close", () => this.sockets.delete(socket));
             socket.on("error", () => {});
-            let bytes = 0,
-                buffer = "";
+            let bytes = 0;
+            const chunks: Buffer[] = [];
             let handled = false;
+            /** 单行请求的完整字节帧才是 UTF-8 解码边界，任意 socket 分块可能切开中文或四字节字符；保留既有六十四 KiB 原始上限，并在认证和业务回调之前拒绝非法编码或不完整 JSON。 */
             socket.on("data", (chunk: Buffer) => {
                 if (handled) return;
                 bytes += chunk.length;
@@ -43,15 +44,16 @@ export class AttemptBroker {
                     socket.destroy();
                     return;
                 }
-                buffer += chunk.toString();
-                if (!buffer.includes("\n")) return;
+                chunks.push(chunk);
+                if (!chunk.includes(10)) return;
                 handled = true;
                 void (async () => {
                     try {
-                        const message = JSON.parse(buffer.slice(0, buffer.indexOf("\n"))) as Record<
-                            string,
-                            unknown
-                        >;
+                        const frame = Buffer.concat(chunks, bytes);
+                        const text = new TextDecoder("utf-8", { fatal: true }).decode(
+                            frame.subarray(0, frame.indexOf(10)),
+                        );
+                        const message = JSON.parse(text) as Record<string, unknown>;
                         if (message.nonce !== this.nonce) throw new Error("IPC_UNAUTHORIZED");
                         const value = await this.receive(message);
                         socket.end(JSON.stringify({ ok: true, value }) + "\n");

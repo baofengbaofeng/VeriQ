@@ -79,3 +79,32 @@ test("enrollment rejection preserves ordinary authentication but session rejecti
     assert.equal(host.user, undefined);
     assert.equal(host.workspace, undefined);
 });
+
+/** 普通登出必须实际发送共享契约要求的空 JSON 对象，成功后才完成服务器撤销路径；不允许仅清空本地用户摘要就当作退出成功，同时网络失败也必须无条件清理宿主 Cookie 与旧作用域。 */
+test("logout sends canonical empty JSON and always clears the ordinary session", async () => {
+    let requests = 0;
+    let cleared = 0;
+    let unavailable = false;
+    const host = new HostSession(
+        {
+            fetch: async (_url, init) => {
+                requests++;
+                assert.equal(init?.method, "POST");
+                assert.equal(init?.body, "{}");
+                if (unavailable) throw new Error("CONTROL_OFFLINE");
+                return Response.json({ data: {} });
+            },
+            clearStorageData: async () => {
+                cleared++;
+            },
+        },
+        "https://platform.example",
+    );
+    await host.logout();
+    assert.equal(requests, 1);
+    assert.equal(cleared, 1);
+    unavailable = true;
+    await assert.rejects(host.logout(), /CONTROL_OFFLINE/);
+    assert.equal(requests, 2);
+    assert.equal(cleared, 2);
+});

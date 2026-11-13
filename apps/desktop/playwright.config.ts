@@ -7,6 +7,13 @@ export default defineConfig({
     workers: 1,
     retries: 0,
     timeout: 60000,
-    outputDir: "../../.superpowers/sdd/veriq-1/evidence/t19/playwright-results",
-    reporter: [["line"]],
+    outputDir: process.env.VERIQ_DESKTOP_EVIDENCE
+        ? `${process.env.VERIQ_DESKTOP_EVIDENCE}/playwright-results`
+        : "../../.superpowers/sdd/veriq-1/evidence/t19/playwright-results",
+    reporter: process.env.VERIQ_DESKTOP_EVIDENCE
+        ? [
+              ["line"],
+              ["json", { outputFile: `${process.env.VERIQ_DESKTOP_EVIDENCE}/gui-results.json` }],
+          ]
+        : [["line"]],
 });
