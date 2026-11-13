@@ -1,0 +1,290 @@
+{
+    "observedAt": "2026-11-13T20:21:59.193071+00:00",
+    "source": "Exact npm registry metadata, current pnpm lock and OSV batch; target workflow43502800084 at37f4701",
+    "scope": "Build-only Node-API tools, not the full VeriQ Runtime or native implementation safety assessment",
+    "status": "21 exact versions; registry integrity matches lock; no returned OSV advisories at query time",
+    "sourceCommit": "37f4701afece8053c38eb3c5fa208cdd1912e564",
+    "nativeTargetResult": "Native build and13 initial native/framing tests passed at0b915e2 on WindowsServer2025; full native integration and Windows11 installed acceptance remain pending",
+    "packages": [
+        {
+            "lockKey": "node-gyp@12.4.0",
+            "name": "node-gyp",
+            "version": "12.4.0",
+            "license": "MIT",
+            "integrity": "sha512-OMcPNvqTCFUnNaBlmdgq+lfNqY7gTiSmNRDjY3uAXRyudeKZEZxu3CLtjMQrx4zZxCX2b/mpNqTtwuCJgXhHkw==",
+            "registryTarball": "https://registry.npmjs.org/node-gyp/-/node-gyp-12.4.0.tgz",
+            "registryUnpackedBytes": 1876531,
+            "declaredDependencies": {
+                "tar": "^7.5.4",
+                "nopt": "^9.0.0",
+                "which": "^6.0.0",
+                "semver": "^7.3.5",
+                "undici": "^6.25.0",
+                "proc-log": "^6.0.0",
+                "env-paths": "^2.2.0",
+                "tinyglobby": "^0.2.12",
+                "graceful-fs": "^4.2.6",
+                "exponential-backoff": "^3.1.1"
+            },
+            "registryIntegrityMatchesLock": true,
+            "osvReturnedAdvisories": []
+        },
+        {
+            "lockKey": "which@6.0.1",
+            "name": "which",
+            "version": "6.0.1",
+            "license": "ISC",
+            "integrity": "sha512-oGLe46MIrCRqX7ytPUf66EAYvdeMIZYn3WaocqqKZAxrBpkqHfL/qvTyJ/bTk5+AqHCjXmrv3CEWgy368zhRUg==",
+            "registryTarball": "https://registry.npmjs.org/which/-/which-6.0.1.tgz",
+            "registryUnpackedBytes": 7477,
+            "declaredDependencies": {
+                "isexe": "^4.0.0"
+            },
+            "registryIntegrityMatchesLock": true,
+            "osvReturnedAdvisories": []
+        },
+        {
+            "lockKey": "isexe@4.0.0",
+            "name": "isexe",
+            "version": "4.0.0",
+            "license": "BlueOak-1.0.0",
+            "integrity": "sha512-FFUtZMpoZ8RqHS3XeXEmHWLA4thH+ZxCv2lOiPIn1Xc7CxrqhWzNSDzD+/chS/zbYezmiwWLdQC09JdQKmthOw==",
+            "registryTarball": "https://registry.npmjs.org/isexe/-/isexe-4.0.0.tgz",
+            "registryUnpackedBytes": 64013,
+            "declaredDependencies": {},
+            "registryIntegrityMatchesLock": true,
+            "osvReturnedAdvisories": []
+        },
+        {
+            "lockKey": "undici@6.29.1",
+            "name": "undici",
+            "version": "6.29.1",
+            "license": "MIT",
+            "integrity": "sha512-EvRlUt/QqAEvXdQeRMYUfwOQsfzpDztykrG2owGEE/rBOBoYv9uF39ZzsNDh4lTFHhTr2XOZjKkYgueD12ZmGA==",
+            "registryTarball": "https://registry.npmjs.org/undici/-/undici-6.29.1.tgz",
+            "registryUnpackedBytes": 1205968,
+            "declaredDependencies": {},
+            "registryIntegrityMatchesLock": true,
+            "osvReturnedAdvisories": []
+        },
+        {
+            "lockKey": "tinyglobby@0.2.17",
+            "name": "tinyglobby",
+            "version": "0.2.17",
+            "license": "MIT",
+            "integrity": "sha512-wXR/dYpcqKmfWpEdZjiKJOwCNFndD0DMnrW/cYjVGttEkBfVgcLFHoNrlj47mjOVic9yyNu65alsgF4NQyTa2g==",
+            "registryTarball": "https://registry.npmjs.org/tinyglobby/-/tinyglobby-0.2.17.tgz",
+            "registryUnpackedBytes": 39288,
+            "declaredDependencies": {
+                "fdir": "^6.5.0",
+                "picomatch": "^4.0.4"
+            },
+            "registryIntegrityMatchesLock": true,
+            "osvReturnedAdvisories": []
+        },
+        {
+            "lockKey": "picomatch@4.0.7",
+            "name": "picomatch",
+            "version": "4.0.7",
+            "license": "MIT",
+            "integrity": "sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==",
+            "registryTarball": "https://registry.npmjs.org/picomatch/-/picomatch-4.0.7.tgz",
+            "registryUnpackedBytes": 93759,
+            "declaredDependencies": {},
+            "registryIntegrityMatchesLock": true,
+            "osvReturnedAdvisories": []
+        },
+        {
+            "lockKey": "fdir@6.5.0(picomatch@4.0.7)",
+            "name": "fdir",
+            "version": "6.5.0",
+            "license": "MIT",
+            "integrity": "sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg==",
+            "registryTarball": "https://registry.npmjs.org/fdir/-/fdir-6.5.0.tgz",
+            "registryUnpackedBytes": 53291,
+            "declaredDependencies": {},
+            "registryIntegrityMatchesLock": true,
+            "osvReturnedAdvisories": []
+        },
+        {
+            "lockKey": "tar@7.5.22",
+            "name": "tar",
+            "version": "7.5.22",
+            "license": "BlueOak-1.0.0",
+            "integrity": "sha512-MFO/QzvtAOmJbkhOaCTvbGcFN9L9b+JunIsDwaKljSOdcLMea3NJ1k9Usz/rjdfSXTq4dfzfeS7W4p4YOAAHeA==",
+            "registryTarball": "https://registry.npmjs.org/tar/-/tar-7.5.22.tgz",
+            "registryUnpackedBytes": 2298662,
+            "declaredDependencies": {
+                "chownr": "^3.0.0",
+                "yallist": "^5.0.0",
+                "minipass": "^7.1.2",
+                "minizlib": "^3.1.0",
+                "@isaacs/fs-minipass": "^4.0.0"
+            },
+            "registryIntegrityMatchesLock": true,
+            "osvReturnedAdvisories": []
+        },
+        {
+            "lockKey": "yallist@5.0.0",
+            "name": "yallist",
+            "version": "5.0.0",
+            "license": "BlueOak-1.0.0",
+            "integrity": "sha512-YgvUTfwqyc7UXVMrB+SImsVYSmTS8X/tSrtdNZMImM+n7+QTriRXyXim0mBrTXNeqzVF0KWGgHPeiyViFFrNDw==",
+            "registryTarball": "https://registry.npmjs.org/yallist/-/yallist-5.0.0.tgz",
+            "registryUnpackedBytes": 80297,
+            "declaredDependencies": {},
+            "registryIntegrityMatchesLock": true,
+            "osvReturnedAdvisories": []
+        },
+        {
+            "lockKey": "minizlib@3.1.0",
+            "name": "minizlib",
+            "version": "3.1.0",
+            "license": "MIT",
+            "integrity": "sha512-KZxYo1BUkWD2TVFLr0MQoM8vUUigWD3LlD83a/75BqC+4qE0Hb1Vo5v1FgcfaNXvfXzr+5EhQ6ing/CaBijTlw==",
+            "registryTarball": "https://registry.npmjs.org/minizlib/-/minizlib-3.1.0.tgz",
+            "registryUnpackedBytes": 117811,
+            "declaredDependencies": {
+                "minipass": "^7.1.2"
+            },
+            "registryIntegrityMatchesLock": true,
+            "osvReturnedAdvisories": []
+        },
+        {
+            "lockKey": "minipass@7.1.3",
+            "name": "minipass",
+            "version": "7.1.3",
+            "license": "BlueOak-1.0.0",
+            "integrity": "sha512-tEBHqDnIoM/1rXME1zgka9g6Q2lcoCkxHLuc7ODJ5BxbP5d4c2Z5cGgtXAku59200Cx7diuHTOYfSBD8n6mm8A==",
+            "registryTarball": "https://registry.npmjs.org/minipass/-/minipass-7.1.3.tgz",
+            "registryUnpackedBytes": 366791,
+            "declaredDependencies": {},
+            "registryIntegrityMatchesLock": true,
+            "osvReturnedAdvisories": []
+        },
+        {
+            "lockKey": "chownr@3.0.0",
+            "name": "chownr",
+            "version": "3.0.0",
+            "license": "BlueOak-1.0.0",
+            "integrity": "sha512-+IxzY9BZOQd/XuYPRmrvEVjF/nqj5kgT4kEq7VofrDoM1MxoRjEWkrCC3EtLi59TVawxTAn+orJwFQcrqEN1+g==",
+            "registryTarball": "https://registry.npmjs.org/chownr/-/chownr-3.0.0.tgz",
+            "registryUnpackedBytes": 22048,
+            "declaredDependencies": {},
+            "registryIntegrityMatchesLock": true,
+            "osvReturnedAdvisories": []
+        },
+        {
+            "lockKey": "@isaacs/fs-minipass@4.0.1",
+            "name": "@isaacs/fs-minipass",
+            "version": "4.0.1",
+            "license": "ISC",
+            "integrity": "sha512-wgm9Ehl2jpeqP3zw/7mo3kRHFp5MEDhqAdwy1fTGkHAwnkGOVsgpvQhL8B5n1qlb01jV3n/bI0ZfZp5lWA1k4w==",
+            "registryTarball": "https://registry.npmjs.org/@isaacs/fs-minipass/-/fs-minipass-4.0.1.tgz",
+            "registryUnpackedBytes": 100617,
+            "declaredDependencies": {
+                "minipass": "^7.0.4"
+            },
+            "registryIntegrityMatchesLock": true,
+            "osvReturnedAdvisories": []
+        },
+        {
+            "lockKey": "semver@7.8.6",
+            "name": "semver",
+            "version": "7.8.6",
+            "license": "ISC",
+            "integrity": "sha512-9lpSSU4Mly3mrtruwLs1eLK6+gzbzqeBFwRNjIjE+9LuDpWdYctrQlQ3ej1Ilgi7gknpsTRnPoLP8DpCHqHIJw==",
+            "registryTarball": "https://registry.npmjs.org/semver/-/semver-7.8.6.tgz",
+            "registryUnpackedBytes": 118657,
+            "declaredDependencies": {},
+            "registryIntegrityMatchesLock": true,
+            "osvReturnedAdvisories": []
+        },
+        {
+            "lockKey": "proc-log@6.1.0",
+            "name": "proc-log",
+            "version": "6.1.0",
+            "license": "ISC",
+            "integrity": "sha512-iG+GYldRf2BQ0UDUAd6JQ/RwzaQy6mXmsk/IzlYyal4A4SNFw54MeH4/tLkF4I5WoWG9SQwuqWzS99jaFQHBuQ==",
+            "registryTarball": "https://registry.npmjs.org/proc-log/-/proc-log-6.1.0.tgz",
+            "registryUnpackedBytes": 12573,
+            "declaredDependencies": {},
+            "registryIntegrityMatchesLock": true,
+            "osvReturnedAdvisories": []
+        },
+        {
+            "lockKey": "nopt@9.0.0",
+            "name": "nopt",
+            "version": "9.0.0",
+            "license": "ISC",
+            "integrity": "sha512-Zhq3a+yFKrYwSBluL4H9XP3m3y5uvQkB/09CwDruCiRmR/UJYnn9W4R48ry0uGC70aeTPKLynBtscP9efFFcPw==",
+            "registryTarball": "https://registry.npmjs.org/nopt/-/nopt-9.0.0.tgz",
+            "registryUnpackedBytes": 28128,
+            "declaredDependencies": {
+                "abbrev": "^4.0.0"
+            },
+            "registryIntegrityMatchesLock": true,
+            "osvReturnedAdvisories": []
+        },
+        {
+            "lockKey": "abbrev@4.0.0",
+            "name": "abbrev",
+            "version": "4.0.0",
+            "license": "ISC",
+            "integrity": "sha512-a1wflyaL0tHtJSmLSOVybYhy22vRih4eduhhrkcjgrWGnRfrZtovJ2FRjxuTtkkj47O/baf0R86QU5OuYpz8fA==",
+            "registryTarball": "https://registry.npmjs.org/abbrev/-/abbrev-4.0.0.tgz",
+            "registryUnpackedBytes": 5121,
+            "declaredDependencies": {},
+            "registryIntegrityMatchesLock": true,
+            "osvReturnedAdvisories": []
+        },
+        {
+            "lockKey": "graceful-fs@4.2.11",
+            "name": "graceful-fs",
+            "version": "4.2.11",
+            "license": "ISC",
+            "integrity": "sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==",
+            "registryTarball": "https://registry.npmjs.org/graceful-fs/-/graceful-fs-4.2.11.tgz",
+            "registryUnpackedBytes": 32535,
+            "declaredDependencies": {},
+            "registryIntegrityMatchesLock": true,
+            "osvReturnedAdvisories": []
+        },
+        {
+            "lockKey": "exponential-backoff@3.1.3",
+            "name": "exponential-backoff",
+            "version": "3.1.3",
+            "license": "Apache-2.0",
+            "integrity": "sha512-ZgEeZXj30q+I0EN+CbSSpIyPaJ5HVQD18Z1m+u1FXbAeT94mr1zw50q4q6jiiC447Nl/YTcIYSAftiGqetwXCA==",
+            "registryTarball": "https://registry.npmjs.org/exponential-backoff/-/exponential-backoff-3.1.3.tgz",
+            "registryUnpackedBytes": 55183,
+            "declaredDependencies": {},
+            "registryIntegrityMatchesLock": true,
+            "osvReturnedAdvisories": []
+        },
+        {
+            "lockKey": "env-paths@2.2.1",
+            "name": "env-paths",
+            "version": "2.2.1",
+            "license": "MIT",
+            "integrity": "sha512-+h1lkLKhZMTYjog1VEpJNG7NZJWcuc2DDk/qsqSTRRCOXiLjeQ1d1/udrUGhqMxUgAlwKNZ0cf2uqan5GLuS2A==",
+            "registryTarball": "https://registry.npmjs.org/env-paths/-/env-paths-2.2.1.tgz",
+            "registryUnpackedBytes": 10163,
+            "declaredDependencies": {},
+            "registryIntegrityMatchesLock": true,
+            "osvReturnedAdvisories": []
+        },
+        {
+            "lockKey": "node-addon-api@8.9.2",
+            "name": "node-addon-api",
+            "version": "8.9.2",
+            "license": "MIT",
+            "integrity": "sha512-VijLXbi3UACN69I0JVXJsX4tjACjNoQDgv2gTF6sx2wWEi8tkSg2eX8p5gSIFi8z2+DL3oHmY6OyKce38SDolg==",
+            "registryTarball": "https://registry.npmjs.org/node-addon-api/-/node-addon-api-8.9.2.tgz",
+            "registryUnpackedBytes": 420314,
+            "declaredDependencies": {},
+            "registryIntegrityMatchesLock": true,
+            "osvReturnedAdvisories": []
+        }
+    ]
+}

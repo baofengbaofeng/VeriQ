@@ -23,7 +23,7 @@
 | 系统凭据 | Windows Credential Manager、Linux libsecret/Secret Service | 复用成熟 OS 服务，用有限原生适配访问；独立 Agent 在 UI 退出后仍可工作 | Ubuntu 精确系统包/ABI/许可、锁定与不可用、重启和真实用户隔离 |
 | 大凭据载荷 | Node 标准 crypto 认证加密 | OS vault 保存随机密钥，版本化私有密文保存 storageState、设备与轮换载荷；保留精确引用和恢复日志 | AAD/原子替换/失败恢复/迁移/删除及大对象上限 |
 
-以上是实现选择和比较，尚未安装的包不写成已集成。tar 的既有精确闭包为 @isaacs/fs-minipass4.0.1、chownr3.0.0、minipass7.1.3、minizlib3.1.0、yallist5.0.0，沿用根锁中的版本；不因为 registry 存在更新版本而静默升级。node-addon-api 仅用于构建，安装后的机器不要求编译器。
+以上是实现选择和比较，尚未安装的包不写成已集成。 构建工具21个精确版本的逐项许可、完整性和即时查询见[原生构建依赖记录](../dependencies/t20-native-build-audit.json)；该记录不代替原生源码审查或目标系统验收。tar 的既有精确闭包为 @isaacs/fs-minipass4.0.1、chownr3.0.0、minipass7.1.3、minizlib3.1.0、yallist5.0.0，沿用根锁中的版本；不因为 registry 存在更新版本而静默升级。node-addon-api 仅用于构建，安装后的机器不要求编译器。
 
 预研在 2026-11-13 对 keyring2.1.2 上游 Cargo.lock 的 186 个 registry 版本及 13 个 npm 元组做即时 OSV 查询。Rust 命中为 ctutils0.4.3（RUSTSEC-2026-0385，修复0.4.4）、rustix1.1.5（RUSTSEC-2026-0486，修复1.1.6），以及 zbus_names4.3.5、zvariant5.15.1、zvariant_derive5.15.1 三条停止维护公告。后者不被称作已证明可利用漏洞；Cargo.lock 命中也不直接证明每个目标二进制都含有或可到达该代码。尚未完成二进制归属和处置，因此不以直接 npm 查询无结果宣称整个原生闭包安全。系统适配方案同样必须完成真实构建图审计。
 
@@ -33,7 +33,7 @@ GUI 随包携带本地页面。Agent、CLI、Worker、编译 helper、运行依�
 
 npm 使用固定 Node 发行物中的 npm-cli.js 和完整依赖，通过角色 Node 调用，不依赖 npm.cmd、系统 npm 或 shell 拼接。固定 Node 归档内实际 npm 版本与依赖图仍需在获取时记录。生产 Runtime 不要求 Python、MySQL、cc、pnpm 或开发 checkout。
 
-发行 resolver 验证实际文件和引擎库存后，才给 CLI、桌面、云端注册、doctor 和启动报告同一分发身份。product、engine、compiler、SDK 版本分开。初始开发候选命名为 product1.0.0-dev.t20、engine1.0.3-t20；生成前冻结真实输入，之后任何输入变化另建候选。保留原1.0.0、1.0.1-t19 与1.0.2-t19-fix1，不覆盖旧签名包所需的字节。跨 OS 可选原生依赖是否进入同一引擎库存必须由实际生产器及离网安装证明。
+发行 resolver 验证实际文件和引擎库存后，才给 CLI、桌面、云端注册、doctor 和启动报告同一分发身份。product、engine、compiler、SDK 版本分开。初始开发候选命名为 product1.0.0-dev.t20、engine1.0.3-t20-<完整sourceSHA>；生成前冻结真实输入，之后任何输入变化另建候选。保留原1.0.0、1.0.1-t19 与1.0.2-t19-fix1，不覆盖旧签名包所需的字节。跨 OS 可选原生依赖是否进入同一引擎库存必须由实际生产器及离网安装证明。
 
 ## 私有 IPC、凭据和生命周期
 

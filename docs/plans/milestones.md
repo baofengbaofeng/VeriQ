@@ -1,6 +1,6 @@
 # VeriQ 1.0 交付里程碑与 Agent 接续状态
 
-> 状态快照：2026-11-13（Asia/Shanghai）。恢复基线：`master` 提交 `e5d5a6bb93cc5cf7b9496defc3f0995ab47c8384`；本轮已审查功能分支代码 `eb2dc4e`（T19模块及修复复审；正式发行待验收）。本文汇总已确认范围、已落地代码、验收缺口和接续上下文；不新增功能范围，也不替代需求规格。
+> 状态快照：2026-11-13（UTC）。恢复基线：`master` 提交 `e5d5a6bb93cc5cf7b9496defc3f0995ab47c8384`；本轮已审查功能分支代码 `eb2dc4e`（T19模块及修复复审；正式发行待验收）。本文汇总已确认范围、已落地代码、验收缺口和接续上下文；不新增功能范围，也不替代需求规格。
 >
 > **用户已明确恢复开发，目标为完整 MVP 交付。** 从最新 master 建立隔离功能工作区，按 T16–T23 继续子 Agent 开发及独立审查。恢复开发不等于批准实际付费 Provider 调用、正式发布或外部部署；相关验收仍需具体配置和授权。
 
@@ -199,6 +199,20 @@
 历史失败仍保留：一次导出5秒断言失败的精确原因UNKNOWN，后来的POST201不能倒推已修复；旧core-producing注入只证明第10秒renderer CoreDumping=1/宿主systemd-coredump，不证明整个180秒状态。改用句柄绑定的真实renderer异常终止完成恢复验收，未修改产品恢复器或系统core策略。旧proc独立NUL参数假设与真实进程标题不符，已由可信Electron官方角色指标替代。
 
 全仓质量仍未达标：`bac5162`阶段固定方法统计4.8747684%、279项首行违规；43个新增非生成文件的9.0250433%也是该历史局部测量。它们不是当前完整全仓PASS，也不是每任务独立门槛。AGENTS要求最终全仓有效注释>40%，T22整改、T23复核；不得扩大生成物排除或填充注释。正常服务器发行、Provider和目标系统验收仍保留。
+
+
+### T20 当前实现与实际 CI 上下文（未完成整任务）
+
+| 项目 | 当前事实 | 剩余事项与接续约束 |
+| --- | --- | --- |
+| 发行身份/路径切片 | `18792c0`已实现真实发行库存、角色执行器、npm JS、tar及路径适配；23Runtime、7最终受影响桌面测试、CLI与严格检查通过 | 合成库存单测不代表真实安装包；完整分发器、原生能力、vault和安装仍待交付 |
+| Windows实际行为基线 | `09e8586`，[run43498685838](https://github.com/baofengbaofeng/VeriQ/actions/runs/43498685838)，Windows Server2025/Node24.22.1；冻结安装成功，2项测试失败、0跳过：不支持Windows进程监督及Unix路径监听EACCES | 已据此开始Win32 Job/私有管道/ACL实现；该Server基线不能替代Windows11安装或GUI验收 |
+| 初始原生/帧验证 | `0b915e2`，[run43507693240](https://github.com/baofengbaofeng/VeriQ/actions/runs/43507693240)：原生编译及13项测试通过、0跳过，1.651秒；实际Job排空/改名Agent扩展/私有管道及帧正反例 | 旧EOF等待假设已按完整UTF8/JSON帧修正，提前EPIPE仍拒绝；CLI/Worker/私有存储/异常场景及Windows11安装仍未交付 |
+| Windows源码绑定 | 149个实际文件hash与Git字节的精确LF→CRLF变换匹配，0个原始字节相同 | 保存实际测试字节关系；不能写成149个原始Git blob完全相同；跨OS生成引擎须维护唯一身份 |
+| 当前Ubuntu源码GUI | `37f4701`，[run43502801828](https://github.com/baofengbaofeng/VeriQ/actions/runs/43502801828)：新引擎/build/全包类型/34unit/2display及6项GUI全部通过、0重试/跳过/不稳定，125.852秒 | 同Attempt可见158及真实停止通过，三份临时策略清理成功；旧`09e8586`证据路径迁移失败已修正；不是安装或Windows验收 |
+| 引擎与构建证据 | 独立未批准`1.0.3-t20-09e85861f03009abcf77d8dc0ba8b2f52ab63718`，canonical`aa30eca7…`、raw`2e512af6…`；511源码与Git blob一致 | 17引擎成员/70compiled hash为CI记录，compiled字节未下载独立重hash；未晋升、不覆盖T19候选 |
+| 正常服务器发行 | [run43498685897](https://github.com/baofengbaofeng/VeriQ/actions/runs/43498685897)仍在Web检查失败：Biome145errors/38warnings/132infos，检查53文件 | 132infos不是132个格式失败文件；T22整改、T23同一最终源码重新执行正常完整门禁，不使用跳过测试代替 |
+| 接续顺序 | 当前仅进入原生切片；薄Win32/Node-API适配及实际targetCI随后复核 | 再做系统凭据/迁移、真实依赖闭包/安装升级、目标OS验收和整T20独立复审；之后继续T21–T23 |
 
 ## 7. 最近一次完成的 T15：必须保留的上下文
 
