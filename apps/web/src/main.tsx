@@ -3,6 +3,7 @@
  * 每个需空间作用域的路由用 user.id 作 Provider key，身份切换即清空查询与订阅。
  */
 
+import { ExecutionPlansPage } from "./features/runs/ExecutionPlansPage";
 import { BundlePage } from "./features/bundles/BundlePage";
 import { AiPage } from "./features/ai/AiPage";
 import { ReportPage } from "./features/reports/ReportPage";
@@ -72,6 +73,7 @@ function App() {
                             <Link to="/workspaces">Workspaces</Link>
                             <Link to="/runtimes">Runtimes</Link>
                             <Link to="/reports">Reports</Link>
+                            <Link to="/execution-plans">执行计划 / Plans</Link>
                             <Link to="/bundles">Bundles</Link>
                             <Link to="/ai">AI</Link>
                             <Link to="/resources">资源 / Resources</Link>
@@ -168,6 +170,14 @@ function App() {
                         element={
                             <WorkspaceProvider key={user?.id ?? "anonymous"}>
                                 <ReportPage />
+                            </WorkspaceProvider>
+                        }
+                    />
+                    <Route
+                        path="/execution-plans"
+                        element={
+                            <WorkspaceProvider key={user?.id ?? "anonymous"}>
+                                <ExecutionPlansPage />
                             </WorkspaceProvider>
                         }
                     />

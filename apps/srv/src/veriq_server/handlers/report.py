@@ -69,6 +69,12 @@ class ReportAPI(API):
     ReportAPI 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
     """
 
+    def prepare(self) -> None:
+        """普通报告和原始证据入口仅接受员工 Cookie，显式 Bearer 头不会被忽略或借用同时存在的用户会话；受限 CI 必须使用独立安全摘要与 JUnit 路径，避免认证协议混淆扩大证据访问权限。"""
+        super().prepare()
+        if "Authorization" in self.request.headers:
+            raise Problem(401, "EMPLOYEE_SESSION_REQUIRED", "Use the scoped CI report endpoint")
+
     body_limit = 256 * 1024
 
     async def get(self, workspace_id: str, subject_id: str = "", upload_id: str = "") -> None:

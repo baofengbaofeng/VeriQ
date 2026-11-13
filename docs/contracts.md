@@ -880,3 +880,43 @@ the original immutable result only after current authority/pin/issuer/engine che
 IN_PROGRESS/FAILED and changed actor/body return409 without automatic takeover. See
 [offline bundles](offline-bundles.md) for crash semantics and coordinated configuration
 promotion guards. Migration0012 adds veriq_bundle_exports;0011 remains immutable.
+
+## T16 external execution plans and CI
+
+Migration0014 adds `veriq_execution_plans`, nullable Run plan/revision/sequence and service
+requester associations, and explicit token plan scopes. Existing employee Runs and offline
+imports retain their original source and null plan associations. Plan updates and archival
+require the current `revision`; list cursors bind the employee and Workspace. Write selection
+is bounded to20 Runtimes,32 roles,3 browsers and the existing1000 expanded variants. Matrix
+cardinality is checked before variant object expansion. No Cron field or timer exists.
+
+`POST .../execution-plans/{plan}/trigger` returns a TriggerReceipt envelope:
+`{decision: ENQUEUED|REUSED|SKIPPED, runId, statusUrl}`. First enqueue202; replay200; overlapping
+SKIP200 creates terminal SKIPPED/OVERLAP_SKIPPED without Jobs; REJECT409; QUEUE serializes
+stable per-plan sequence behind earlier unfinished Runs and unreleased physical attempts.
+The existing installation lock, global10 unfinished Run limit and browser4/2 capacity apply.
+The idempotency digest binds caller identity, plan ID and input, not mutable plan settings.
+Same-key replay after plan edits retains the original Run while checking current authority.
+
+`EXECUTION` tokens expire after24h and require explicit `planIds` and independent
+`trigger/read/cancel` operation scopes. They are independent service identities; `created_by`
+remains attribution. Admission, claim, heartbeat, credential resolution and completion reuse
+current requester authority checks. Service-owned or explicitly Workspace-shared Runtimes
+are allowed; employee private hardware is not inherited from the token issuer. Token/account
+revocation, expiry, Workspace/plan archive and current Runtime selection/sharing fail closed.
+`GET .../service-accounts/{account}/tokens` returns paged metadata only; plaintext appears only
+in the issuance response. Enrollment and maintenance purposes cannot gain execution scope.
+
+Only scoped trigger, single-Run status/cancel, `/ci-report` and `/junit` accept execution
+Bearer. An explicit invalid Authorization never falls back to a simultaneous Cookie.
+Ordinary Web writes retain Origin+CSRF. Ordinary report/evidence endpoints reject Bearer;
+CI uses the safe summary projection rather than raw report evidence. `/junit` requires a
+terminal Run and uses stdlib XML serialization of real case IDs/outcomes plus an explicit
+overall gate failure. Original Playwright JUnit remains OWNER/ADMIN credential-restricted
+raw evidence. No assertion values, headers, business labels or local vault data enter CI XML.
+The runnable Python stdlib client, exit codes and external maintenance paging examples are
+in [external scheduler integration](integration/external-scheduler.md).
+
+Carried contract corrections: maintenance allows all four registered operations with unique
+and known values; history/audit declare their actual `after` queries; AI context/cancel and
+other AI routes advertise employee Cookie/CSRF only, with no unsupported ServiceToken scope.

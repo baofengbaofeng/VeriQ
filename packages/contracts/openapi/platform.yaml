@@ -3556,11 +3556,7 @@
         ],
         "security": [
           {
-            "WebSession": [],
-            "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
+            "WebSession": []
           }
         ],
         "parameters": [
@@ -3684,9 +3680,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -3801,11 +3794,7 @@
         ],
         "security": [
           {
-            "WebSession": [],
-            "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
+            "WebSession": []
           }
         ],
         "parameters": [
@@ -3918,9 +3907,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -4043,9 +4029,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -4147,6 +4130,16 @@
               }
             }
           }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecutionPlanArchive"
+              }
+            }
+          }
         }
       }
     },
@@ -4158,11 +4151,7 @@
         ],
         "security": [
           {
-            "WebSession": [],
-            "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
+            "WebSession": []
           }
         ],
         "parameters": [
@@ -4296,9 +4285,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -4423,11 +4409,7 @@
         ],
         "security": [
           {
-            "WebSession": [],
-            "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
+            "WebSession": []
           }
         ],
         "parameters": [
@@ -4550,9 +4532,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -4685,9 +4664,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -5447,7 +5423,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RunDTOEnvelope"
+                  "$ref": "#/components/schemas/TriggerReceiptEnvelope"
                 }
               }
             }
@@ -5518,6 +5494,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriggerReceiptEnvelope"
                 }
               }
             }
@@ -5799,8 +5785,7 @@
         ],
         "security": [
           {
-            "WebSession": [],
-            "CsrfToken": []
+            "WebSession": []
           },
           {
             "ServiceToken": []
@@ -6400,14 +6385,13 @@
     },
     "/api/v1/workspaces/{workspaceId}/runs/{runId}/junit": {
       "get": {
-        "operationId": "downloadJunit",
+        "operationId": "getCIJUnit",
         "tags": [
           "workspaces"
         ],
         "security": [
           {
-            "WebSession": [],
-            "CsrfToken": []
+            "WebSession": []
           },
           {
             "ServiceToken": []
@@ -6433,12 +6417,11 @@
         ],
         "responses": {
           "200": {
-            "description": "Authorized artifact stream.",
+            "description": "Success.",
             "content": {
-              "application/octet-stream": {
+              "application/xml": {
                 "schema": {
-                  "type": "string",
-                  "format": "binary"
+                  "type": "string"
                 }
               }
             }
@@ -8647,9 +8630,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -8784,9 +8764,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -8909,11 +8886,7 @@
         ],
         "security": [
           {
-            "WebSession": [],
-            "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
+            "WebSession": []
           }
         ],
         "parameters": [
@@ -9047,11 +9020,7 @@
         ],
         "security": [
           {
-            "WebSession": [],
-            "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
+            "WebSession": []
           }
         ],
         "parameters": [
@@ -9176,9 +9145,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -9808,6 +9774,14 @@
             "schema": {
               "$ref": "#/components/schemas/Id"
             }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
           }
         ],
         "responses": {
@@ -10002,6 +9976,135 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ServiceTokenIssue"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listServiceTokens",
+        "tags": [
+          "runtime-enrollments"
+        ],
+        "security": [
+          {
+            "WebSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "serviceAccountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceTokenPageEnvelope"
+                }
               }
             }
           }
@@ -15509,6 +15612,16 @@
             "schema": {
               "$ref": "#/components/schemas/Id"
             }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
           }
         ],
         "responses": {
@@ -15911,9 +16024,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -16040,9 +16150,6 @@
           {
             "WebSession": [],
             "CsrfToken": []
-          },
-          {
-            "ServiceToken": []
           }
         ],
         "parameters": [
@@ -16710,6 +16817,122 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OfflineChunkDTOEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/runs/{runId}/ci-report": {
+      "get": {
+        "operationId": "getCIReport",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "WebSession": []
+          },
+          {
+            "ServiceToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CIReportEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
                 }
               }
             }
@@ -17633,7 +17856,8 @@
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 160
           },
           "suiteVersionId": {
             "$ref": "#/components/schemas/Id"
@@ -17645,26 +17869,51 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Browser"
-            }
+            },
+            "minItems": 1,
+            "maxItems": 3,
+            "uniqueItems": true
           },
           "runtimeIds": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Id"
-            }
+            },
+            "minItems": 1,
+            "maxItems": 20,
+            "uniqueItems": true
           },
           "overlapPolicy": {
             "type": "string",
             "enum": [
-              "ALLOW",
+              "QUEUE",
               "SKIP",
-              "QUEUE"
+              "REJECT"
             ]
           },
           "maxCaseRetries": {
             "type": "integer",
             "minimum": 0,
             "maximum": 1
+          },
+          "roleKeys": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "minItems": 1,
+            "maxItems": 32,
+            "uniqueItems": true
+          },
+          "variables": {
+            "$ref": "#/components/schemas/JsonObject"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
           }
         },
         "required": [
@@ -17674,22 +17923,19 @@
           "browsers",
           "runtimeIds",
           "overlapPolicy",
-          "maxCaseRetries"
+          "maxCaseRetries",
+          "roleKeys",
+          "variables"
         ],
         "additionalProperties": false
       },
       "ExecutionPlanDTO": {
         "type": "object",
         "properties": {
-          "id": {
-            "$ref": "#/components/schemas/Id"
-          },
-          "workspaceId": {
-            "$ref": "#/components/schemas/Id"
-          },
           "name": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 160
           },
           "suiteVersionId": {
             "$ref": "#/components/schemas/Id"
@@ -17701,38 +17947,76 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Browser"
-            }
+            },
+            "minItems": 1,
+            "maxItems": 3,
+            "uniqueItems": true
           },
           "runtimeIds": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Id"
-            }
+            },
+            "minItems": 1,
+            "maxItems": 20,
+            "uniqueItems": true
           },
           "overlapPolicy": {
             "type": "string",
             "enum": [
-              "ALLOW",
+              "QUEUE",
               "SKIP",
-              "QUEUE"
+              "REJECT"
             ]
           },
           "maxCaseRetries": {
             "type": "integer",
             "minimum": 0,
             "maximum": 1
+          },
+          "roleKeys": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "minItems": 1,
+            "maxItems": 32,
+            "uniqueItems": true
+          },
+          "variables": {
+            "$ref": "#/components/schemas/JsonObject"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          },
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "workspaceId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "archived": {
+            "type": "boolean"
           }
         },
         "required": [
-          "id",
-          "workspaceId",
           "name",
           "suiteVersionId",
           "environmentVersionId",
           "browsers",
           "runtimeIds",
           "overlapPolicy",
-          "maxCaseRetries"
+          "maxCaseRetries",
+          "roleKeys",
+          "variables",
+          "revision",
+          "id",
+          "workspaceId",
+          "archived"
         ],
         "additionalProperties": false
       },
@@ -17741,11 +18025,13 @@
         "properties": {
           "buildSha": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 160
           },
           "reason": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 500
           }
         },
         "required": [],
@@ -18966,7 +19252,8 @@
           "purpose": {
             "enum": [
               "RUNTIME_ENROLLMENT",
-              "MAINTENANCE"
+              "MAINTENANCE",
+              "EXECUTION"
             ]
           },
           "expiresAt": {
@@ -20900,7 +21187,8 @@
           "purpose": {
             "enum": [
               "RUNTIME_ENROLLMENT",
-              "MAINTENANCE"
+              "MAINTENANCE",
+              "EXECUTION"
             ]
           },
           "operations": {
@@ -20910,18 +21198,103 @@
                 "expired-leases/reap",
                 "fixture-cleanups/reconcile",
                 "capacity/reconcile",
-                "artifacts/expire"
+                "artifacts/expire",
+                "trigger",
+                "read",
+                "cancel"
               ]
             },
             "minItems": 1,
-            "maxItems": 3,
+            "maxItems": 4,
+            "uniqueItems": true
+          },
+          "planIds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Id"
+            },
+            "minItems": 1,
+            "maxItems": 50,
             "uniqueItems": true
           }
         },
         "required": [
           "purpose"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "purpose": {
+                  "const": "MAINTENANCE"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "operations"
+              ],
+              "properties": {
+                "operations": {
+                  "items": {
+                    "enum": [
+                      "expired-leases/reap",
+                      "fixture-cleanups/reconcile",
+                      "capacity/reconcile",
+                      "artifacts/expire"
+                    ]
+                  },
+                  "type": "array"
+                },
+                "planIds": false
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "purpose": {
+                  "const": "RUNTIME_ENROLLMENT"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "operations": false,
+                "planIds": false
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "purpose": {
+                  "const": "EXECUTION"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "operations",
+                "planIds"
+              ],
+              "properties": {
+                "operations": {
+                  "items": {
+                    "enum": [
+                      "trigger",
+                      "read",
+                      "cancel"
+                    ]
+                  },
+                  "maxItems": 3,
+                  "type": "array"
+                }
+              }
+            }
+          }
+        ]
       },
       "ServiceEnrollmentRequest": {
         "type": "object",
@@ -21976,6 +22349,256 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/OfflineChunkDTO"
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/Id"
+          }
+        },
+        "required": [
+          "data",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "ExecutionPlanArchive": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          }
+        },
+        "required": [
+          "revision"
+        ],
+        "additionalProperties": false
+      },
+      "TriggerReceipt": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "enum": [
+              "ENQUEUED",
+              "REUSED",
+              "SKIPPED"
+            ]
+          },
+          "runId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "statusUrl": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "decision",
+          "runId",
+          "statusUrl"
+        ],
+        "additionalProperties": false
+      },
+      "TriggerReceiptEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TriggerReceipt"
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/Id"
+          }
+        },
+        "required": [
+          "data",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "CIReport": {
+        "type": "object",
+        "properties": {
+          "run": {
+            "$ref": "#/components/schemas/RunDTO"
+          },
+          "gatePassed": {
+            "type": "boolean"
+          },
+          "cases": {
+            "type": "array",
+            "maxItems": 1000,
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "$ref": "#/components/schemas/Id"
+                },
+                "state": {
+                  "enum": [
+                    "QUEUED",
+                    "RUNNING",
+                    "FINISHED"
+                  ]
+                },
+                "outcome": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "PASSED",
+                    "FAILED",
+                    "ERROR",
+                    "UNSTABLE",
+                    "CANCELLED",
+                    "INCOMPLETE",
+                    "SKIPPED",
+                    null
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "state",
+                "outcome"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "statistics": {
+            "type": "object",
+            "properties": {
+              "caseCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "firstPassCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "retryPassCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "infrastructureErrorCount": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "caseCount",
+              "firstPassCount",
+              "retryPassCount",
+              "infrastructureErrorCount"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "run",
+          "gatePassed",
+          "cases",
+          "statistics"
+        ],
+        "additionalProperties": false
+      },
+      "CIReportEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CIReport"
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/Id"
+          }
+        },
+        "required": [
+          "data",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "ServiceTokenMetadata": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "purpose": {
+            "enum": [
+              "RUNTIME_ENROLLMENT",
+              "MAINTENANCE",
+              "EXECUTION"
+            ]
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 0,
+            "maxItems": 4,
+            "uniqueItems": true
+          },
+          "planIds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Id"
+            },
+            "minItems": 0,
+            "maxItems": 50,
+            "uniqueItems": true
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revoked": {
+            "type": "boolean"
+          },
+          "consumed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "purpose",
+          "operations",
+          "planIds",
+          "expiresAt",
+          "revoked",
+          "consumed"
+        ],
+        "additionalProperties": false
+      },
+      "ServiceTokenPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServiceTokenMetadata"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "additionalProperties": false
+      },
+      "ServiceTokenPageEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ServiceTokenPage"
           },
           "requestId": {
             "$ref": "#/components/schemas/Id"

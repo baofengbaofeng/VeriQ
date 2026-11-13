@@ -472,6 +472,8 @@ assert dirty_import.official_gate_passed is False
 
 ## T16：外部HTTP触发、维护接口与CI
 
+**状态：** 已完成模块实现及独立重要问题修复复审（`599f989`、`10a1065`）。真实Agent/CI与GUI已验证；I1认证回退、I2总截止时间已关闭。M1分页深链接、M2错误方法匹配归T22；分组广套件失败与定向纠正见里程碑，不能称完整发布门禁通过。
+
 **依赖：** T09/T12
 
 **Files（拟创建/修改）：**
@@ -485,7 +487,7 @@ assert dirty_import.official_gate_passed is False
 
 **Interfaces：** TriggerService.trigger(scope, plan_id, input, idempotency_key) -> TriggerReceipt；maintenance按批次处理并返回hasMore。
 
-- [ ] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
+- [x] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```python
 assert repeated_trigger.run_id == first_trigger.run_id
@@ -493,10 +495,10 @@ assert same_key_different_input.status == 409
 assert unauthenticated_maintenance.status == 401
 ```
 
-- [ ] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/execution/test_trigger.py -q`；失败必须来自缺失行为，而非测试环境拼写错误。
-- [ ] **Step 3：实现上述接口与文件。** 仅HTTP无内部Cron；重叠策略、CI退出码/JUnit、受限凭证、租约/清理/保留期维护及外部接入说明。
-- [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
-- [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t16 外部HTTP触发、维护接口与CI`。有新决策先更新ADR，不扩展到下一任务。
+- [x] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest apps/srv/tests/execution/test_trigger.py -q`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [x] **Step 3：实现上述接口与文件。** 仅HTTP无内部Cron；重叠策略、CI退出码/JUnit、受限凭证、租约/清理/保留期维护及外部接入说明。
+- [x] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
+- [x] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t16 外部HTTP触发、维护接口与CI`。有新决策先更新ADR，不扩展到下一任务。
 
 ## T17：生产同源静态服务与开发代理
 
