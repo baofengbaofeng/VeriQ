@@ -39,6 +39,8 @@ npm 使用固定 Node 发行物中的 npm-cli.js 和完整依赖，通过角色 
 
 Windows 使用明确当前账户 SID 的受限本机管道，拒绝远程客户端、名称抢占、错误主体、旧 nonce 和超限帧。Node-API 适配自行管理正式 Win32 管道 HANDLE，不假定 Node 的 POSIX fd3/4/5 协议可移植，也不把 HANDLE 传入未公开的 Node 内部接口。Linux 保留已有 guardian 协议；两侧共用有限业务命令、授权和有界 UTF-8 帧。
 
+Windows 停止事件将 nonce、guardian PID/完整 FILETIME、Worker PID/完整 FILETIME 共同绑定为同一关系；原生调用持有两个真实进程句柄，核验 SID 与创建时间后才打开匹配事件。单独真实的身份字段不能跨 Attempt 拼接。拒绝、超时或未知状态不关闭已有 guardian 控制连接，只有匹配 DRAINED 证明才释放；否则关闭 stdin 本身就可能终止整个 Job。`0547d3b` 已用同一组18项实际 Windows Server 测试完成已复现所有权缺陷的 RED→GREEN，取消时序、完整集成和目标安装验收仍待交付。
+
 桌面默认使用系统凭据库，锁定、缺失、不可用和错误不能都折叠为缺凭据。凭据库不可用时明确失败，不自动降级。大型载荷使用标准认证加密，密钥独立保存在 OS vault，元数据绑定 profile、purpose、精确引用和版本。当前设备 token、旧/新轮换 token 与业务凭据一起纳入；迁移须显式进行，在停止且独占的 profile 中写入、读回核验和记录进度，再删除旧明文。中途失败保留可恢复事实。
 
 无桌面 Linux 服务可按既有规格显式选择 restricted-file：专用用户、拥有者核验、0700目录和0600文件、外置持久卷及明示的非加密存储性质。该模式不是桌面 fallback，不声称 OS vault 或加密静态存储。登记秘密经有界标准输入或 OS 服务凭据通道注入，不写入 argv、镜像或日志。

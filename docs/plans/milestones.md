@@ -123,7 +123,7 @@
 | T17 生产同源服务 | T02/T11 | 已完成·模块 | 唯一工厂、包内完整文件库存、已登记SPA GET/HEAD、API/静态404、缓存/范围/条件响应、build-info和健康兼容；HTML策略两轮修复复审关闭 | `4b58a4c`、`0f48d6e`、`67779ed`；[ADR0019](../decisions/0019-production-static-inventory.md)；stage/wheel已由T18交付，正式目标发行待验收 |
 | T18 构建与服务端发行 | T17 | 代码完成·待验收 | 默认完整门禁、Hatch/stage/wheel/离线安装、SBOM/引擎及独立晋升；两项Important修复复审通过 | `3995648`/`dc95f26`；27项fix回归、当前UNVERIFIED wheel安装通过；正常发行/Ubuntu/OCI及M1/M2仍开放 |
 | T19 Electron 全 GUI | T10/T11/T12/T14/T15 | 已完成·模块及Fix1复审 | `bac5162`→`eb2dc4e`：完整本地界面、有限IPC、独立Node24、云端编辑/编译发布、签名下载、断网执行、报告/Trace/幂等回传与故障恢复；实际6GUI/34unit/2display通过 | I1–I6全部关闭，新增C/I/M均0；Windows/POSIX路径单测不等于安装验收，目标OS/vault/发行、Provider和全仓质量仍待T20–T23 |
-| T20 两平台 Runtime 发行 | T19 | 进行中·原生切片 | [ADR0021](../decisions/0021-runtime-distribution.md)及`18792c0`发行身份/角色路径/npm JS/tar已有实现；Windows初始13项实际原生/帧测试通过；新增所有权及管道关闭两项回归均完成真实RED→GREEN，当前15项全部通过 | 原生异常生命周期/完整IPC及Worker/CLI集成、OS vault、两OS独立构建及安装/离网/真实进程名仍须交付；整任务未复审 |
+| T20 两平台 Runtime 发行 | T19 | 进行中·原生切片 | [ADR0021](../decisions/0021-runtime-distribution.md)及`18792c0`发行身份/角色路径/npm JS/tar已有实现；Windows原生/帧及五项所有权/关闭回归已有真实RED→GREEN，当前18项全部通过 | 原生异常生命周期/完整IPC及Worker/CLI集成、OS vault、两OS独立构建及安装/离网/真实进程名仍须交付；整任务未复审 |
 | T21 安装运维 | T12/T16/T18/T20 | 待开工 | 基础 init/migrate/配置/原始证据维护已有，完整产品运维未完成 | Compose/离线包、备份恢复/轮换、生命周期、指标及遗留 M1 |
 | T22 全模块 UX/示例/接入 | T11/T12/T13/T15/T16/T19/T21 | 待开工 | 现有局部页面/后端示例/说明不是完整示例向导或完整手册 | 全菜单真实操作、中英文/键盘、示例与前后端规范、遗留 UX |
 | T23 1.0 完整验收 | T01–T22 | 待开工 | 尚无完整产品发行验收结论 | 全范围矩阵、10 Run、故障/篡改/权限、5–10 流程×≥5 轮、实际 Provider/OS、整分支审查 |
@@ -210,8 +210,9 @@
 | Windows源码绑定 | `0b915e2`及新增负例`1aa9ae4`各158个实际源码文件hash与Git字节的精确LF→CRLF变换匹配，0个原始字节相同 | 2871条原生输入hash为CI元数据记录，未下载二进制独立重hash；保留实际测试字节关系，跨OS引擎维护唯一身份 |
 | 所有权/关闭实际负例 | `1aa9ae4`，[run43512448515](https://github.com/baofengbaofeng/VeriQ/actions/runs/43512448515)：安装和编译通过，15项中13通过/2失败/0跳过；拒绝停止后Worker不再处理新挑战；关闭后保留旧回调导致同名端点无法重新绑定 | 属于真实行为失败；最小两文件修复`fbf93e3`已由同一15项测试全部验证通过；其余release分支、取消时序和部分构造失败仍须独立覆盖 |
 | 两项修复实际验证 | `fbf93e3`，[run43513680640](https://github.com/baofengbaofeng/VeriQ/actions/runs/43513680640)：安装/原生编译及同一15项测试全部通过、0跳过，2.838秒；拒绝停止后真实新挑战进度1→26，旧回调仍可达时同名端点重绑成功 | 仅关闭已复现的两点；其余身份/跨Attempt/取消时序、部分构造失败及完整Windows集成继续，不代表整T20或Windows11通过 |
-| 当前Ubuntu源码GUI | `37f4701`，[run43502801828](https://github.com/baofengbaofeng/VeriQ/actions/runs/43502801828)：新引擎/build/全包类型/34unit/2display及6项GUI全部通过、0重试/跳过/不稳定，125.852秒 | 同Attempt可见158及真实停止通过，三份临时策略清理成功；旧`09e8586`证据路径迁移失败已修正；不是安装或Windows验收 |
-| 引擎与构建证据 | Ubuntu GUI使用独立未批准`1.0.3-t20-37f4701afece8053c38eb3c5fa208cdd1912e564`，canonical`9cb02519…`、raw`dbd803f4…`；518源码与Git blob一致 | 70条compiled hash为CI记录，compiled字节未下载独立重hash；未晋升、不覆盖T19候选；旧09候选保留为历史 |
+| 完整所有权绑定验证 | `0547d3b`，[run43516230443](https://github.com/baofengbaofeng/VeriQ/actions/runs/43516230443)：同一18项全部通过、0跳过，6.904秒；已退出guardian/篡改Worker时间/交叉nonce三项均先在真实Windows失败，再验证拒绝后的四个Worker各继续至少25步 | 停止事件绑定nonce、guardian PID/FILETIME及Worker PID/FILETIME；只有匹配DRAINED才释放；159源码精确LF→CRLF，取消时序/完整IPC/存储/Worker及CLI集成仍未完成 |
+| 当前Ubuntu源码GUI | `fbf93e3`，[run43513680636](https://github.com/baofengbaofeng/VeriQ/actions/runs/43513680636)：新引擎/build/全包类型/34unit/2display及6项GUI全部通过、0重试/跳过/不稳定，124.669秒 | 同Attempt `ac021054-9005-4b9e-8464-511997d2b380`可见158及真实停止通过，三份临时策略清理成功；不是安装或Windows验收；原37记录保留 |
+| 引擎与构建证据 | Ubuntu GUI使用独立未批准`1.0.3-t20-fbf93e3b920905d609ffecb7112c2c7182d55c5e`，canonical`610b3ca0…`、raw`f7049158…`；521源码与Git blob一致 | 70条compiled hash为CI记录，compiled字节未下载独立重hash；未晋升、不覆盖T19候选；旧09候选保留为历史 |
 | 正常服务器发行 | [run43498685897](https://github.com/baofengbaofeng/VeriQ/actions/runs/43498685897)仍在Web检查失败：Biome145errors/38warnings/132infos，检查53文件 | 132infos不是132个格式失败文件；T22整改、T23同一最终源码重新执行正常完整门禁，不使用跳过测试代替 |
 | 接续顺序 | 继续原生所有权/取消/IPC和完整Worker/CLI集成；不要重复已完成预研或初始13项诊断 | 再做系统凭据/迁移、真实依赖闭包/安装升级、目标OS验收和整T20独立复审；之后继续T21–T23 |
 
