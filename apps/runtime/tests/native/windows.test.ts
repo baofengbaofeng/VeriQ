@@ -304,3 +304,49 @@ test("Windows raw client rejects a native forced disconnect before any response 
         );
     }
 });
+
+/** 服务已经返回完整帧后关闭仍须释放真实管道实例，即使 JavaScript 保留旧服务器和回复函数也不能占用端点；新服务器必须重新取得首实例并成功响应，证明关闭完成不是仅设置内存标志或断开连接。 */
+test("Windows private pipe close releases the endpoint while old callbacks remain reachable", async (context) => {
+    const path = "\\\\.\\pipe\\veriq-rebind-" + randomUUID();
+    const servers: Array<{ close(): void }> = [];
+    const replies: Array<(frame: string) => void> = [];
+    const failures: unknown[] = [];
+    try {
+        const first = new (windowsNative().PrivatePipeServer)(path, (_frame, reply) => {
+            replies.push(reply);
+            reply('{"generation":1}\n');
+        });
+        servers.push(first);
+        assert.deepEqual(await expectedPipeResponse(path, "{}\n", { generation: 1 }), {
+            generation: 1,
+        });
+        await boundedCleanup(async () => first.close());
+        const second = new (windowsNative().PrivatePipeServer)(path, (_frame, reply) => {
+            reply('{"generation":2}\n');
+        });
+        servers.push(second);
+        replies[0]!('{"generation":0}\n');
+        assert.deepEqual(await expectedPipeResponse(path, "{}\n", { generation: 2 }), {
+            generation: 2,
+        });
+        assert.equal(replies.length, 1);
+    } catch (error) {
+        failures.push(error);
+    } finally {
+        for (const server of servers) {
+            try {
+                await boundedCleanup(async () => server.close());
+            } catch (error) {
+                failures.push(error);
+            }
+        }
+        context.diagnostic(
+            `Pipe rebind native events: ${JSON.stringify(windowsNative().takePipeDiagnostics())}`,
+        );
+    }
+    if (failures.length) {
+        throw new AggregateError(failures, "Windows pipe rebind assertion or cleanup failed", {
+            cause: failures[0],
+        });
+    }
+});
