@@ -4,7 +4,12 @@ import { copyFile, mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 if (process.platform !== "win32") throw new Error("WINDOWS_NATIVE_BUILD_REQUIRED");
-if (process.argv.length > 3) throw new Error("NATIVE_BUILD_ARGUMENTS_INVALID");
+if (
+    process.argv.length > 4 ||
+    (process.argv[3] !== undefined && process.argv[3] !== "--test-schedules")
+)
+    throw new Error("NATIVE_BUILD_ARGUMENTS_INVALID");
+const testSchedules = process.argv[3] === "--test-schedules";
 const root = new URL("../", import.meta.url);
 const options = [
     "rebuild",
@@ -13,6 +18,8 @@ const options = [
     fileURLToPath(new URL("native/", root)),
 ];
 if (process.argv[2]) options.push(`--devdir=${process.argv[2]}`);
+/** 正式构建显式关闭调度测试目标，只有命令行专用参数可编译独立测试二进制；该开关不修改生产 guardian 或 addon 的源码和导出，也不会读取全局环境变量来赋予运行时调度能力。 */
+options.push("--", `-Dveriq_native_tests=${testSchedules ? 1 : 0}`);
 execFileSync(
     process.execPath,
     [fileURLToPath(new URL("node_modules/node-gyp/bin/node-gyp.js", root)), ...options],
@@ -24,4 +31,13 @@ for (const name of ["veriq_native.node", "veriq_guardian.exe"]) {
         new URL(`native/build/Release/${name}`, root),
         new URL(`build/Release/${name}`, root),
     );
+}
+if (testSchedules) {
+    await mkdir(new URL("build/native-tests/", root), { recursive: true });
+    for (const name of ["veriq_test_schedule.node", "veriq_guardian_scheduled.exe"]) {
+        await copyFile(
+            new URL(`native/build/Release/${name}`, root),
+            new URL(`build/native-tests/${name}`, root),
+        );
+    }
 }

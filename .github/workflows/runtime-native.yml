@@ -50,13 +50,13 @@ jobs:
                   & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -format json | Set-Content -Encoding utf8 (Join-Path $env:VERIQ_NATIVE_EVIDENCE 'visual-studio.json')
                   python --version 2>&1 | Tee-Object -FilePath (Join-Path $env:VERIQ_NATIVE_EVIDENCE 'python-version.log')
                   $headers = Join-Path $env:RUNNER_TEMP 'veriq-node-headers'
-                  node scripts/build-windows.mjs "$headers" 2>&1 | Tee-Object -FilePath (Join-Path $env:VERIQ_NATIVE_EVIDENCE 'native-build.log')
+                  node scripts/build-windows.mjs "$headers" --test-schedules 2>&1 | Tee-Object -FilePath (Join-Path $env:VERIQ_NATIVE_EVIDENCE 'native-build.log')
                   exit $LASTEXITCODE
             - name: Observe actual Windows lifecycle and private transport behavior
               shell: pwsh
               working-directory: apps/runtime
               run: |
-                  node --import tsx --test tests/native/windows.test.ts tests/pipe-framing.test.ts 2>&1 | Tee-Object -FilePath (Join-Path $env:VERIQ_NATIVE_EVIDENCE 'windows-native.log')
+                  node --import tsx --test tests/native/windows.test.ts tests/native/windows-scheduling.test.ts tests/pipe-framing.test.ts 2>&1 | Tee-Object -FilePath (Join-Path $env:VERIQ_NATIVE_EVIDENCE 'windows-native.log')
                   exit $LASTEXITCODE
             - name: Preserve source binding and final disk observation
               if: always()
