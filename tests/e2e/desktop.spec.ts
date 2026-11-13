@@ -5,6 +5,7 @@ import { trackFixture, stopFixture } from "./lifecycle";
 import { stopTestAgent } from "./agent-owner";
 import { testEngine } from "./engine";
 import { observeHeadedRun, assertHeadedStopped } from "./headed";
+import { observeExport } from "./export-observation";
 let engine: Awaited<ReturnType<typeof testEngine>>;
 test.beforeAll(async () => {
     engine = await testEngine(resolve("../.."));
@@ -403,9 +404,37 @@ test("production candidate completes the real desktop offline workflow", async (
         await page.getByTestId("bundle-add-case").click();
         await page.getByTestId("bundle-environment").selectOption(environment.resource.id);
         await page.getByTestId("bundle-environment-version").selectOption(environment.version.id);
-        await page.getByTestId("bundle-export").focus();
-        await page.keyboard.press("Enter");
-        await expect(page.getByTestId("bundle-item")).toHaveCount(1);
+        const exportObservation = await observeExport(
+            electron,
+            page,
+            origin + "/api/v1" + base + "/bundles",
+        );
+        const exportFailures: unknown[] = [];
+        try {
+            await exportObservation.snapshot("before-focus");
+            await page.getByTestId("bundle-export").focus();
+            await exportObservation.snapshot("focused");
+            await page.keyboard.press("Enter");
+            await exportObservation.snapshot("after-enter");
+            await expect(page.getByTestId("bundle-item")).toHaveCount(1);
+        } catch (error) {
+            exportFailures.push(error);
+        } finally {
+            try {
+                await exportObservation
+                    .snapshot("settled")
+                    .catch(() => console.log("Bundle export final observation unavailable"));
+            } finally {
+                try {
+                    await exportObservation.dispose();
+                } catch (error) {
+                    exportFailures.push(error);
+                }
+            }
+        }
+        if (exportFailures.length === 1) throw exportFailures[0];
+        if (exportFailures.length > 1)
+            throw new AggregateError(exportFailures, "EXPORT_ASSERTION_AND_OBSERVATION_FAILED");
         const issuer = JSON.parse(await readFile(resolve(fixture, "issuer-public.json"), "utf8"));
         await page.getByRole("button", { name: "设置与诊断", exact: true }).click();
         await page.getByLabel("公钥 JSON / Public issuer JSON").fill(JSON.stringify(issuer));
