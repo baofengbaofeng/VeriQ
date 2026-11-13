@@ -318,16 +318,26 @@ static Napi::Value identity(const Napi::CallbackInfo& info) {
         return result;
     } catch (const std::exception& error) { Napi::Error::New(info.Env(), error.what()).ThrowAsJavaScriptException(); return info.Env().Undefined(); }
 }
-/** 恢复停止先持有并核对守护进程的精确身份，再打开随机 nonce 绑定的私有事件；该接口只设置信号请求现存 Job 所有者排空，不支持任意 PID 终止，也不会把成功发送停止请求当作已排空回执。 */
+/** 恢复停止同时持有守护和工作进程句柄核对当前 SID 与完整创建时间，再打开绑定二者及 nonce 的私有事件；独立真实字段不能跨 Attempt 拼接，此接口只请求现存 Job 所有者排空而不提供任意 PID 终止或成功回执。 */
 static Napi::Value signalStop(const Napi::CallbackInfo& info) {
     try {
-        require(info.Length() == 3 && info[0].IsString() && info[1].IsNumber() && info[2].IsString(), "NATIVE_STOP_INVALID");
+        require(info.Length() == 5 && info[0].IsString() && info[1].IsNumber() && info[2].IsString() &&
+            info[3].IsNumber() && info[4].IsString(), "NATIVE_STOP_INVALID");
         auto nonce = info[0].As<Napi::String>().Utf8Value();
         require(nonce.size() == 36 && nonce.find_first_not_of("0123456789abcdef-") == std::string::npos, "NATIVE_NONCE_INVALID");
-        auto pid = info[1].As<Napi::Number>().Uint32Value();
+        const auto guardianNumber = info[1].As<Napi::Number>().DoubleValue(), workerNumber = info[3].As<Napi::Number>().DoubleValue();
+        require(guardianNumber >= 1 && guardianNumber <= MAXDWORD && guardianNumber == static_cast<DWORD>(guardianNumber) &&
+            workerNumber >= 1 && workerNumber <= MAXDWORD && workerNumber == static_cast<DWORD>(workerNumber), "NATIVE_PID_INVALID");
+        const auto pid = static_cast<DWORD>(guardianNumber), workerPid = static_cast<DWORD>(workerNumber);
         Handle process(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE, FALSE, pid));
-        require(process.valid() && processSid(process.value) == currentSid() && creationTime(process.value) == info[2].As<Napi::String>().Utf8Value() && WaitForSingleObject(process.value, 0) == WAIT_TIMEOUT, "NATIVE_STOP_IDENTITY_CHANGED");
-        Handle event(OpenEventW(EVENT_MODIFY_STATE | READ_CONTROL, FALSE, (L"Local\\VeriQ-stop-" + wide(nonce)).c_str()));
+        Handle worker(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE, FALSE, workerPid));
+        const auto guardianTime = info[2].As<Napi::String>().Utf8Value(), workerTime = info[4].As<Napi::String>().Utf8Value();
+        const auto sid = currentSid();
+        require(process.valid() && worker.valid() && processSid(process.value) == sid && processSid(worker.value) == sid &&
+            creationTime(process.value) == guardianTime && creationTime(worker.value) == workerTime &&
+            WaitForSingleObject(process.value, 0) == WAIT_TIMEOUT, "NATIVE_STOP_IDENTITY_CHANGED");
+        const auto eventName = stopEventName(wide(nonce), pid, guardianTime, workerPid, workerTime);
+        Handle event(OpenEventW(EVENT_MODIFY_STATE | READ_CONTROL, FALSE, eventName.c_str()));
         require(event.valid(), "NATIVE_STOP_EVENT_UNAVAILABLE");
         verifyPrivate(event.value, SE_KERNEL_OBJECT);
         require(SetEvent(event.value) != 0, "NATIVE_STOP_FAILED");

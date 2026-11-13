@@ -290,19 +290,26 @@ export class WindowsProcesses {
         try {
             if (await confirmed()) return receipt(true);
             const guardian = native.identity(journal.guardianPid);
-            if (!guardian?.running) {
-                this.release(id);
-                return receipt(false, "CONTAINMENT_LOST");
-            }
+            if (!guardian?.running) return receipt(false, "CONTAINMENT_LOST");
             if (guardian.sid !== journal.sid || guardian.startTime !== journal.guardianStartTime)
                 return receipt(false, "PROCESS_IDENTITY_CHANGED");
-            native.signalStop(journal.nonce, journal.guardianPid, journal.guardianStartTime);
+            /** 日志中真实的守护身份不能替代工作进程身份核验，二者必须同时属于当前用户并匹配精确创建时间；原生层还会用同时持有的两个句柄和同一 nonce 打开绑定事件，避免独立真实字段被跨 Attempt 拼接。 */
+            const worker = native.identity(journal.pid);
+            if (!worker || worker.sid !== journal.sid || worker.startTime !== journal.startTime)
+                return receipt(false, "PROCESS_IDENTITY_CHANGED");
+            native.signalStop(
+                journal.nonce,
+                journal.guardianPid,
+                journal.guardianStartTime,
+                journal.pid,
+                journal.startTime,
+            );
             const deadline = performance.now() + 3500;
             while (performance.now() < deadline) {
                 if (await confirmed()) return receipt(true);
                 await delay(20);
             }
-            this.release(id);
+            /** 停止请求和等待期限均不能替代排空证明，即便此前核验通过也保留现有守护连接与占用状态；之后再次查询可以接受迟到的真实证明，不能靠关闭输入流造成新的终止副作用来掩盖未知状态。 */
             return receipt(false, "PROCESS_STOP_UNCONFIRMED");
         } catch {
             /** 身份查询或停止事件打开失败不授予关闭活跃守护标准输入的权限，因为管道 EOF 本身会终止整个 Job；保留宿主连接和隔离日志，等待真实所有权恢复后的显式停止与排空证明。 */

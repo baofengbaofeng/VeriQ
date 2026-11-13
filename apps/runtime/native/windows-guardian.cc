@@ -27,10 +27,7 @@ int wmain(int argc, wchar_t** argv) {
         const std::wstring proofPath = argv[1], nonce = argv[2], executable = argv[3];
         require(nonce.size() == 36 && nonce.find_first_not_of(L"0123456789abcdef-") == std::wstring::npos, "GUARDIAN_NONCE_INVALID");
         const std::string token = utf8(nonce), sid = utf8(currentSid());
-        const std::wstring eventName = L"Local\\VeriQ-stop-" + nonce;
         PrivateSecurity security, inherited(true);
-        Handle stop(CreateEventW(&security.attributes, TRUE, FALSE, eventName.c_str()));
-        require(stop.valid() && GetLastError() != ERROR_ALREADY_EXISTS, "GUARDIAN_STOP_EVENT_FAILED");
         Handle job(CreateJobObjectW(&security.attributes, nullptr));
         require(job.valid(), "GUARDIAN_JOB_FAILED");
         JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};
@@ -78,6 +75,10 @@ int wmain(int argc, wchar_t** argv) {
         CloseHandle(std::exchange(outputWrite.value, INVALID_HANDLE_VALUE));
         CloseHandle(std::exchange(inputRead.value, INVALID_HANDLE_VALUE));
         const auto workerTime = creationTime(worker.value), guardianTime = creationTime(GetCurrentProcess());
+        /** 工作进程已经挂起归属 Job 且双进程身份可读后，才创建绑定这一完整关系的停止事件并准备 READY；创建失败会由 Job 句柄关闭终止尚未放行的工作进程，不留下可被其他 Attempt nonce 交叉命中的事件。 */
+        const auto eventName = stopEventName(nonce, GetCurrentProcessId(), guardianTime, created.dwProcessId, workerTime);
+        Handle stop(CreateEventW(&security.attributes, TRUE, FALSE, eventName.c_str()));
+        require(stop.valid() && GetLastError() != ERROR_ALREADY_EXISTS, "GUARDIAN_STOP_EVENT_FAILED");
         const std::string identity = "\"nonce\":\"" + token + "\",\"sid\":\"" + sid + "\",\"workerPid\":" + std::to_string(created.dwProcessId) +
             ",\"workerStartTime\":\"" + workerTime + "\",\"guardianPid\":" + std::to_string(GetCurrentProcessId()) + ",\"guardianStartTime\":\"" + guardianTime + "\"";
         status("{\"type\":\"READY\"," + identity + "}");

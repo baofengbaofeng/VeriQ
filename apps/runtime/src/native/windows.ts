@@ -17,7 +17,14 @@ export interface WindowsNative {
     ) => { close(): void };
     request(path: string, frame: string): Promise<string>;
     identity(pid: number): WindowsIdentity | null;
-    signalStop(nonce: string, pid: number, startTime: string): void;
+    /** 停止请求同时提供守护和工作进程的精确身份，原生层持有两者句柄并匹配同一私有事件后才发送；已退出工作进程仍可由守护句柄保留身份，不能把其他 Attempt 的 nonce 与独立真实 PID 拼接成权限。 */
+    signalStop(
+        nonce: string,
+        guardianPid: number,
+        guardianStartTime: string,
+        workerPid: number,
+        workerStartTime: string,
+    ): void;
     privatePath(path: string, createDirectory: boolean): void;
     writePrivate(path: string, content: string): void;
     takePipeDiagnostics(): Array<{ phase: string; code: string; win32: number; checks: number }>;

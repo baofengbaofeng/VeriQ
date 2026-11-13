@@ -71,6 +71,12 @@ inline std::string creationTime(HANDLE process) {
     exact.HighPart = creation.dwHighDateTime;
     return std::to_string(exact.QuadPart);
 }
+/** 停止事件名同时绑定随机 nonce、守护与工作进程的 PID 和完整 FILETIME，双方必须用同一拥有关系生成名称；创建时间始终保留十进制字符串，不经过浮点转换，也不兼容仅凭 nonce 打开其他任务事件的旧名称。 */
+inline std::wstring stopEventName(const std::wstring& nonce, DWORD guardianPid, const std::string& guardianTime,
+    DWORD workerPid, const std::string& workerTime) {
+    return L"Local\\VeriQ-stop-" + nonce + L"-" + std::to_wstring(guardianPid) + L"-" + wide(guardianTime) +
+        L"-" + std::to_wstring(workerPid) + L"-" + wide(workerTime);
+}
 /** 创建对象时就安装当前用户独占且禁止继承的 DACL，避免先创建公共对象再收紧权限的竞态；只有显式传入的子进程标准流允许继承，Job、停止事件和私有持久文件默认都不能被业务后代持有。 */
 class PrivateSecurity {
     PSECURITY_DESCRIPTOR descriptor = nullptr;
