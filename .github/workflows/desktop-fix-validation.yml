@@ -24,6 +24,7 @@ jobs:
         env:
             PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.superpowers/cache/playwright
             VERIQ_DESKTOP_EVIDENCE: ${{ github.workspace }}/.superpowers/sdd/veriq-1/evidence/t19/fix1/ci
+            VERIQ_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
         services:
             mysql:
                 image: mysql:8.4.13@sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902
@@ -88,8 +89,8 @@ jobs:
                   assert produced['engineVersion'] == '1.0.2-t19-fix1'
                   candidate = root / 'work/t19-fix1-ci-engine'
                   assert Path(produced['output']) == candidate
-                  inventory = json.loads((candidate / 'inventory.json').read_bytes())
-                  (evidence / 'candidate-inventory.json').write_text(json.dumps(inventory, indent=4) + '\n')
+                  inventory_raw = (candidate / 'inventory.json').read_bytes()
+                  (evidence / 'candidate-inventory.json').write_bytes(inventory_raw)
                   paths = subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0')
                   binding = {'head': subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip(), 'status': 'UNAPPROVED_TEST_CANDIDATE', 'production': produced, 'sourceSha256': {name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in paths if name and (root / name).is_file()}, 'inventoryRawSha256': hashlib.sha256((candidate / 'inventory.json').read_bytes()).hexdigest()}
                   (evidence / 'source-production-binding.json').write_text(json.dumps(binding, indent=4) + '\n')
@@ -115,7 +116,14 @@ jobs:
                   binding = {'head': subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip(), 'node': subprocess.check_output(['node', '--version']).decode().strip(), 'fullChrome': subprocess.check_output([os.environ['VERIQ_TEST_HEADED_BROWSER'], '--version']).decode().strip(), 'compiledSha256': {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(files)}}
                   (Path(os.environ['VERIQ_DESKTOP_EVIDENCE']) / 'compiled-binding.json').write_text(json.dumps(binding, indent=4) + '\n')
                   PY
+            - name: Allow user namespaces only for this hosted job's exact test binaries
+              run: |
+                  set -o pipefail
+                  python tests/e2e/test_ci_userns.py 2>&1 | tee "$VERIQ_DESKTOP_EVIDENCE/userns-boundary-tests.log"
+                  python tests/e2e/ci_userns.py prepare
             - name: Run the composed actual GUI suite with visible Chromium acceptance
+              env:
+                  DEBUG: pw:browser
               run: |
                   set -o pipefail
                   xvfb-run -a -s '-screen 0 1280x800x24 -nolisten tcp' pnpm desktop:test 2>&1 | tee "$VERIQ_DESKTOP_EVIDENCE/desktop-composed.log"
@@ -135,6 +143,9 @@ jobs:
                   assert stats['expected'] == 6 and stats['unexpected'] == 0 and stats['skipped'] == 0 and stats['flaky'] == 0
                   print('Composed GUI acceptance verified: 6 passed, 0 skipped; actual headed window and stop observations present')
                   PY
+            - name: Remove only this job's temporary user namespace profiles
+              if: always()
+              run: python tests/e2e/ci_userns.py cleanup
             - name: Preserve public observations and diagnostics
               if: always()
               uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -149,6 +160,9 @@ jobs:
                       .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/source-production-binding.json
                       .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/candidate-inventory.json
                       .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/compiled-binding.json
+                      .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/userns-*.json
+                      .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/userns-*.jsonl
+                      .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/userns-*.profile
                       .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/gui-runtime-versions.json
                       .superpowers/sdd/veriq-1/evidence/t19/fix1/ci/playwright-results/**/error-context.md
                   if-no-files-found: warn

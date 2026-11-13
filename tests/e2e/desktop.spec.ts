@@ -18,6 +18,10 @@ test.beforeAll(async () => {
 });
 let workflowFixture: { profile: string; fixture: string } | undefined;
 
+// pw:browser 诊断只属于测试驱动，实际 Electron、控制夹具及组件浏览器使用移除 DEBUG 后的宿主环境；独立 Agent 随后继承的是 Electron 的干净环境，不能把驱动日志选项传进业务 SDK。
+const applicationEnvironment = { ...process.env };
+delete applicationEnvironment.DEBUG;
+
 /** 测试清理按后台、窗口、数据库夹具顺序收敛，并在任一步失败后仍尝试关闭其余自有资源；收集到的失败最终统一抛出，不让一个清理异常跳过释放数据库锁，也不把发送信号或框架返回当作真实进程停止。 */
 async function teardownDesktop(
     electron: Awaited<ReturnType<typeof _electron.launch>> | undefined,
@@ -62,7 +66,7 @@ test("bundled desktop opens offline with strict renderer and independent Node24"
         executablePath: process.env.VERIQ_TEST_ELECTRON!,
         args: [resolve(".")],
         env: {
-            ...process.env,
+            ...applicationEnvironment,
             VERIQ_DESKTOP_PROFILE: profile,
             VERIQ_DESKTOP_NODE: process.execPath,
             VERIQ_DESKTOP_ENGINE: engine.directory,
@@ -112,6 +116,13 @@ test("bundled desktop opens offline with strict renderer and independent Node24"
         ).toEqual({ process: "undefined", require: "undefined" });
         const state = await page.evaluate(() => window.veriq.state());
         agentPid = state.agent?.pid;
+        expect(await electron.evaluate(() => process.env.DEBUG)).toBeUndefined();
+        if (agentPid)
+            expect(
+                (await readFile(`/proc/${agentPid}/environ`, "utf8"))
+                    .split("\0")
+                    .some((value) => value.startsWith("DEBUG=")),
+            ).toBe(false);
         expect(state.agent?.pid).not.toBe(electron.process().pid);
         await expect(page.getByText("Offline / signed out", { exact: true })).toHaveCount(0);
         await page.getByRole("button", { name: "本机缓存", exact: true }).click();
@@ -179,7 +190,7 @@ test("production candidate completes the real desktop offline workflow", async (
                 resolve(root, "tests/e2e/desktop_server.py"),
                 fixture,
             ],
-            { cwd: root, stdio: ["ignore", "pipe", "pipe"] },
+            { cwd: root, env: applicationEnvironment, stdio: ["ignore", "pipe", "pipe"] },
         ),
     );
     server.stdout.on("data", (data) => void appendFile(resolve(evidence, "full-server.log"), data));
@@ -231,7 +242,7 @@ test("production candidate completes the real desktop offline workflow", async (
             executablePath: process.env.VERIQ_TEST_ELECTRON!,
             args: [resolve(".")],
             env: {
-                ...process.env,
+                ...applicationEnvironment,
                 VERIQ_DESKTOP_PROFILE: profile,
                 VERIQ_DESKTOP_NODE: process.execPath,
                 VERIQ_DESKTOP_ENGINE: engine.directory,
@@ -477,7 +488,7 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
                 fixture,
                 "--resume",
             ],
-            { cwd: root, stdio: ["ignore", "pipe", "pipe"] },
+            { cwd: root, env: applicationEnvironment, stdio: ["ignore", "pipe", "pipe"] },
         ),
     );
     server.stdout.on(
@@ -504,7 +515,7 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
             executablePath: process.env.VERIQ_TEST_ELECTRON!,
             args: [resolve(".")],
             env: {
-                ...process.env,
+                ...applicationEnvironment,
                 VERIQ_DESKTOP_PROFILE: profile,
                 VERIQ_DESKTOP_NODE: process.execPath,
                 ...(process.env.VERIQ_TEST_HEADED_BROWSER
@@ -759,7 +770,7 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
             executablePath: process.env.VERIQ_TEST_ELECTRON!,
             args: [resolve(".")],
             env: {
-                ...process.env,
+                ...applicationEnvironment,
                 VERIQ_DESKTOP_PROFILE: profile,
                 VERIQ_DESKTOP_NODE: process.execPath,
                 ...(process.env.VERIQ_TEST_HEADED_BROWSER
@@ -889,7 +900,7 @@ test("offline shared resource assets and single instance remain local", async ({
     const profile = process.env.VERIQ_T19_RESUME_PROFILE ?? workflowFixture!.profile;
     await expect(request.get("http://127.0.0.1:8888/api/v1/setup")).rejects.toThrow();
     const env = {
-        ...process.env,
+        ...applicationEnvironment,
         VERIQ_DESKTOP_PROFILE: profile,
         VERIQ_DESKTOP_NODE: process.execPath,
         VERIQ_DESKTOP_ENGINE: engine.directory,
@@ -1094,7 +1105,7 @@ test("shared cloud editor publishes through the desktop host transport", async (
                 fixture,
                 "--resume",
             ],
-            { cwd: root, stdio: ["ignore", "pipe", "pipe"] },
+            { cwd: root, env: applicationEnvironment, stdio: ["ignore", "pipe", "pipe"] },
         ),
     );
     server.stdout.on(
@@ -1121,7 +1132,7 @@ test("shared cloud editor publishes through the desktop host transport", async (
             executablePath: process.env.VERIQ_TEST_ELECTRON!,
             args: [resolve(".")],
             env: {
-                ...process.env,
+                ...applicationEnvironment,
                 VERIQ_DESKTOP_PROFILE: profile,
                 VERIQ_DESKTOP_NODE: process.execPath,
                 VERIQ_DESKTOP_ENGINE: engine.directory,
@@ -1249,6 +1260,7 @@ test("component-only startup projection cancels its exact reservation", async ()
     const root = resolve("../.."),
         assets = resolve("out/renderer");
     const browser = await chromium.launch({
+        env: applicationEnvironment,
         chromiumSandbox: true,
         executablePath: resolve(
             root,

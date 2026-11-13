@@ -115,6 +115,10 @@ The three engine variables are an all-or-none trusted test-launch tuple. Full in
 
 Visible Linux execution currently requires a local X11/XWayland display and optional absolute Xauthority path. The Electron UI sandbox and the existing Runtime business-browser launch policy are recorded separately; target-system distribution acceptance must review the latter.
 
+专用 QA 工作流在 GitHub-hosted Ubuntu24.04 上检查真实 AppArmor/userns 状态后，只为本 job 精确验证的 Electron、headless shell 和完整 Chrome 路径临时加载三份 root-owned userns profile；无路径通配，不改全局限制，结束时检查并卸载自有策略。`tests/e2e/ci_userns.py` 明确拒绝普通本机和自托管上下文，不是用户安装命令；T20 的实际安装安全策略仍需独立验收。启动诊断仅用 `pw:browser`，实际 Electron/组件浏览器和控制夹具环境移除 DEBUG，独立 Agent/SDK 不继承该诊断选项。
+
+The QA helper is restricted to this GitHub-hosted Ubuntu24.04 workflow. It uses three exact temporary binary profiles and verifies cleanup without changing global restrictions; it is not a local installation recipe. Target-OS installation policy remains a separate release gate. Playwright launch diagnostics are kept out of application and Agent environments.
+
 ## 宿主边界 / Host boundary
 
 普通 Cookie / CSRF 保存在独立 Electron Session，设备 token 保存在独立 Node Agent。preload 只公开有限业务操作；主进程再次校验 sender、主 frame、Workspace、模式及大小。renderer 没有 Node、任意 HTTP、文件系统或 spawn。报告流最多四条且按消费拉取；工作区切换和登出撤销旧流。共享 Web 的类型兼容设置仅用于其自身声明构建，桌面各层仍使用严格 TypeScript。
