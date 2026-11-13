@@ -4,9 +4,9 @@
 
 **当前状态：开发中 / 尚未发布。** 账户与 Workspace、版本化测试资产、确定性编译器与 Runner SDK、fixture 与业务身份、Runtime 授权、统一队列及 Linux Agent 实际执行已有实现。八类资产编辑、编译发布、版本源码预览，以及实时结构化报告、受限证据、本机 Trace 查看、File/S3 存储与原始证据保留期维护已通过独立审查。AI 配置、预算、结构化草稿审核及失败分析已有实现并通过代码复审，实际外部 Provider 验收仍待用户授权和独立配置。签名包、可信公钥缓存、只读验证、本地凭证，以及真实离线执行、SQLite 持久化报告、取消恢复和幂等回传已通过独立复审；外部 HTTP 计划触发、独立服务令牌、计划与令牌管理界面及 CI 门禁已通过独立审查及重要问题修复复审；生产同源静态服务、完整文件清单校验和构建信息已通过独立审查及修复复审。
 
-服务端构建、前端入 wheel、离线安装校验、引擎候选与独立晋升工具的代码已通过独立审查及取消/晋升问题修复复审。固定浏览器 SDK 136 项检查通过，行覆盖率 91.46%；这不代表最终集成门禁完成。默认构建仍被历史 lint、格式和注释规范阻断，当前包明确标记 UNVERIFIED。Electron 桌面客户端、目标 OS 发行与完整产品验收继续推进；目前没有正式安装包。详见[里程碑](docs/plans/milestones.md)和[构建发行指南](docs/release.md)。
+服务端构建、前端入 wheel、离线安装校验、引擎候选与独立晋升工具的代码已通过独立审查及取消/晋升问题修复复审。固定浏览器 SDK 136 项检查通过，行覆盖率 91.46%；这不代表最终集成门禁完成。默认构建仍被历史 lint、格式和注释规范阻断，当前包明确标记 UNVERIFIED。Electron 桌面 GUI 模块已通过独立审查，支持平台断网时使用缓存资源运行和查看报告。原生发行仍在开发：Windows Server 上初始 13 项原生/帧测试和 Ubuntu 源码 6 项 GUI 回归已有实际通过记录；Windows11/Ubuntu 安装、系统凭据库及完整产品验收尚未完成，目前没有正式安装包。详见[里程碑](docs/plans/milestones.md)和[构建发行指南](docs/release.md)。
 
-仓库当前已落地 `apps/srv`（Tornado 控制服务）、`apps/web`（React 管理台）、`apps/runtime`（Agent/CLI/离线执行）、`packages/{contracts,compiler,runner-sdk,ui}`；`apps/desktop` 目前主要为 Electron 包占位，源码与发行流程仍在推进。贡献与智能体须遵循根目录 `AGENTS.md` 中的编码规范（4 空格缩进、中文注释、英文日志等）。
+仓库当前已落地 `apps/srv`（Tornado 控制服务）、`apps/web`（React 管理台）、`apps/runtime`（Agent/CLI/离线执行）、`packages/{contracts,compiler,runner-sdk,ui}`；`apps/desktop` 已包含 main/preload/renderer、本地打包界面和独立 Agent 入口；两平台安装发行及剩余原生能力仍在推进。贡献与智能体须遵循根目录 `AGENTS.md` 中的编码规范（4 空格缩进、中文注释、英文日志等）。
 
 ## 为什么做 VeriQ
 
@@ -103,7 +103,7 @@ pnpm test
 pnpm check
 ```
 
-当前 `pnpm test` 执行公共契约、编译器、Runner SDK 与 Runtime 测试（SDK 和 Runtime 自检测试需要本机 Chromium，Linux Runtime 测试还会使用开发主机的 `cc` 构建薄启动器；产品包将预编译提供），`pnpm check` 检查契约/编译器/SDK/Runtime TypeScript 与生成文件是否同步；默认 `./build.sh` 发行入口已实现，会执行额外真实门禁，目前仍被已登记的质量债阻断。这些命令用于开发检查，不是启动完整产品的安装命令。公共接口、工具配置与更多检查命令见[契约说明](docs/contracts.md)。
+当前 `pnpm test` 执行公共契约、编译器、Runner SDK 与 Runtime 测试（SDK 和 Runtime 自检测试需要本机 Chromium，Linux Runtime 测试还会使用开发主机的 `cc` 构建薄启动器；产品包将预编译提供），`pnpm check` 检查契约/编译器/SDK/Runtime/桌面 TypeScript 与生成文件是否同步；默认 `./build.sh` 发行入口已实现，会执行额外真实门禁，目前仍被已登记的质量债阻断。这些命令用于开发检查，不是启动完整产品的安装命令。公共接口、工具配置与更多检查命令见[契约说明](docs/contracts.md)。
 
 账户与 Workspace 模块可在开发环境运行：安全配置 MySQL、初始化管理员、分别启动 Tornado 与 Vite 的步骤见[开发指南](docs/development.md)。后端入口为 `veriq_server`；当前界面提供真实的安装、认证、用户管理、空间切换、成员与邀请功能，完整测试平台仍待后续模块交付。
 
@@ -113,7 +113,7 @@ Linux Agent 开发需先执行 `pnpm --filter @veriq/runtime build:launcher` 再
 
 ## 当前仓库结构
 
-下面是仓库里已经存在的目录。`apps/desktop` 目前只有 Electron 包声明，还没有 main/preload/renderer 源码。`scripts/`、`deploy/` 和 `build.sh` 已包含实际构建、校验与部署工具；桌面源码和正式发行验收仍待后续任务。
+下面是仓库里已经存在的目录。`apps/desktop` 已包含 main/preload/renderer、独立 Agent 和本地界面；`scripts/`、`deploy/` 和 `build.sh` 包含实际构建、校验与部署工具。完整安装包及正式发行验收仍在推进，源码运行记录不代表目标 OS 已完成安装验收。
 
 JavaScript 依赖由仓库根的 pnpm 工作区统一锁定，声明写在各包的 `package.json`。Python 依赖只写在 `apps/srv/pyproject.toml`。
 
@@ -127,9 +127,9 @@ veriq/
 │   │       ├── migrations/        # 随 wheel 发布
 │   │       └── static/dist/       # 暂存前端产物，强制入正式 wheel
 │   ├── runtime/
-│   │   ├── native/                # Linux 薄启动器源码
+│   │   ├── native/                # Linux guardian / Windows Job 与私有 IPC 源码
 │   │   └── build/                 # 本地 veriq_runner，不提交
-│   └── desktop/                   # Electron 包占位
+│   └── desktop/                   # Electron main/preload/renderer 与独立 Agent
 ├── packages/
 │   ├── contracts/                 # JSON Schema、OpenAPI 与样例
 │   ├── compiler/
@@ -187,9 +187,9 @@ VeriQ is an automated smoke and regression platform for enterprise PC web system
 
 **Current status: under development / not released.** Accounts and Workspaces, versioned test assets, the deterministic compiler and Runner SDK, fixtures and business identities, Runtime authorization, the unified queue, and real Linux Agent execution are implemented. Editing for the eight asset kinds, compile/publish, version source preview, live structured reports, restricted evidence, local Trace viewing, File/S3 storage, and raw-evidence retention maintenance have passed independent review. AI configuration, budgets, structured draft review, and failure analysis are implemented and code-reviewed; real external Provider acceptance still needs user authorization and separate configuration. Signed bundles, trusted public-key cache, read-only verification, local credentials, real offline execution, SQLite-persisted reports, cancel/resume, and idempotent upload have passed independent re-review. External HTTP plan triggers, independent service tokens, plan/token management UI and CI gates have passed independent review and scoped fix re-review; Production same-origin static serving, complete file-inventory validation and build identity have passed independent review and scoped fixes.
 
-Server build tooling, frontend-in-wheel packaging, offline installation checks, engine candidates and separate promotion have passed independent review and scoped cancellation/promotion fixes. The pinned-browser SDK gate passed 136 tests with 91.46% line coverage; this does not close final integration gates. Default builds remain blocked by existing lint, formatting and comment-policy debt, and current candidates are explicitly UNVERIFIED. Electron, target-OS releases and complete-product acceptance continue; there is no formal installer yet. See [milestones](docs/plans/milestones.md) and [release tooling](docs/release.md).
+Server build tooling, frontend-in-wheel packaging, offline installation checks, engine candidates and separate promotion have passed independent review and scoped cancellation/promotion fixes. The pinned-browser SDK gate passed 136 tests with 91.46% line coverage; this does not close final integration gates. Default builds remain blocked by existing lint, formatting and comment-policy debt, and current candidates are explicitly UNVERIFIED. The Electron desktop GUI module has passed independent review and supports cached runs and local reports while disconnected. Native distribution remains in progress: initial 13 native/framing tests on Windows Server and six source-GUI cases on Ubuntu have actual passing evidence. Windows11/Ubuntu installation, system vaults and complete-product acceptance remain pending; there is no formal installer yet. See [milestones](docs/plans/milestones.md) and [release tooling](docs/release.md).
 
-The repository currently includes `apps/srv` (Tornado control service), `apps/web` (React console), `apps/runtime` (Agent/CLI/offline execution), and `packages/{contracts,compiler,runner-sdk,ui}`. `apps/desktop` is mainly an Electron package placeholder; desktop sources and release flows are still advancing. Contributors and coding agents must follow the coding standards in root `AGENTS.md` (4-space indentation, Chinese source comments, English logs, and related rules).
+The repository currently includes `apps/srv` (Tornado control service), `apps/web` (React console), `apps/runtime` (Agent/CLI/offline execution), and `packages/{contracts,compiler,runner-sdk,ui}`. `apps/desktop` contains main/preload/renderer, bundled local UI and an independent Agent entry; target installers and remaining native capabilities are in progress. Contributors and coding agents must follow the coding standards in root `AGENTS.md` (4-space indentation, Chinese source comments, English logs, and related rules).
 
 ## Why VeriQ
 
@@ -286,7 +286,7 @@ pnpm test
 pnpm check
 ```
 
-`pnpm test` runs shared contracts, compiler, Runner SDK, and Runtime tests (SDK and Runtime doctor tests need local Chromium; Linux Runtime tests also use host `cc` to build the thin launcher; product packages will ship it prebuilt). `pnpm check` verifies contracts/compiler/SDK/Runtime TypeScript and generated files stay in sync. The default `./build.sh` release entry now exists and enforces additional real gates, which currently fail on recorded quality debt. These commands are development checks, not a full product install. See [contracts](docs/contracts.md) for public interfaces, tooling, and additional checks.
+`pnpm test` runs shared contracts, compiler, Runner SDK, and Runtime tests (SDK and Runtime doctor tests need local Chromium; Linux Runtime tests also use host `cc` to build the thin launcher; product packages will ship it prebuilt). `pnpm check` verifies contracts/compiler/SDK/Runtime/desktop TypeScript and generated files stay in sync. The default `./build.sh` release entry now exists and enforces additional real gates, which currently fail on recorded quality debt. These commands are development checks, not a full product install. See [contracts](docs/contracts.md) for public interfaces, tooling, and additional checks.
 
 Accounts and Workspace modules can run in development: secure MySQL setup, admin bootstrap, and separate Tornado/Vite startup are in the [development guide](docs/development.md). The backend entrypoint is `veriq_server`. The current UI provides real install, auth, user management, space switching, members, and invites; the full testing platform still needs remaining modules.
 
@@ -296,7 +296,7 @@ Linux Agent development requires `pnpm --filter @veriq/runtime build:launcher` b
 
 ## Current repository layout
 
-The tree below is what exists in the repository today. `apps/desktop` currently has the Electron package manifest and does not yet contain main, preload, or renderer sources. `scripts/`, `deploy/`, and `build.sh` now contain actual build, verification and deployment tooling; desktop sources and formal release acceptance remain subsequent work.
+The tree below reflects existing code. `apps/desktop` includes main/preload/renderer, an independent Agent and local UI; `scripts/`, `deploy/`, and `build.sh` contain build, verification and deployment tools. Complete installers and formal release acceptance remain in progress; source execution is not installed-target acceptance.
 
 JavaScript dependencies are locked once by the pnpm workspace at the repository root, and each package declares its own dependencies. Python dependencies are declared only in `apps/srv/pyproject.toml`.
 
@@ -310,9 +310,9 @@ veriq/
 │   │       ├── migrations/        # shipped in the wheel
 │   │       └── static/dist/       # staged frontend assets required in the release wheel
 │   ├── runtime/
-│   │   ├── native/                # Linux thin-launcher source
+│   │   ├── native/                # Linux guardian / Windows Job and private IPC source
 │   │   └── build/                 # local veriq_runner, not committed
-│   └── desktop/                   # Electron package placeholder
+│   └── desktop/                   # Electron main/preload/renderer and independent Agent
 ├── packages/
 │   ├── contracts/                 # JSON Schema, OpenAPI, and samples
 │   ├── compiler/
