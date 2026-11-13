@@ -75,12 +75,37 @@ pnpm --filter @veriq/compiler exec tsx ../../scripts/build_engine.mts 1.0.2-t19-
 export VERIQ_TEST_ENGINE_DIRECTORY="$PWD/work/t19-fix1-ci-engine"
 export VERIQ_TEST_ENGINE_VERSION=1.0.2-t19-fix1
 export VERIQ_TEST_ENGINE_HASH="$(python -c 'import json; print(json.loads(open("work/t19-fix1-engine-production.json").read().splitlines()[-1])["inventoryHash"])')"
-export VERIQ_TEST_ELECTRON="$(pnpm --filter @veriq/desktop exec node -p 'require("electron")')"
-export VERIQ_TEST_HEADED_BROWSER="$(pnpm --filter @veriq/desktop exec node -p 'require("playwright-core").chromium.executablePath()')"
 export VERIQ_DESKTOP_EVIDENCE="$PWD/.superpowers/sdd/veriq-1/evidence/t19/fix1/local"
 pnpm --filter @veriq/desktop build
-xvfb-run -a -s '-screen 0 1280x800x24 -nolisten tcp' pnpm desktop:test
+xvfb-run -a -s '-screen 0 1280x800x24 -nolisten tcp' pnpm --filter @veriq/desktop exec node <<'JS'
+const fs = require('node:fs');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
+function binary(value) {
+    if (typeof value !== 'string' || !path.isAbsolute(value)) throw new Error('INVALID_TEST_BINARY_PATH');
+    const actual = fs.realpathSync(value);
+    if (Array.from(actual).some(character => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)) throw new Error('INVALID_TEST_BINARY_PATH');
+    if (!fs.statSync(actual).isFile()) throw new Error('TEST_BINARY_NOT_FILE');
+    fs.accessSync(actual, fs.constants.X_OK);
+    return actual;
+}
+const result = spawnSync('pnpm', ['test:e2e'], {
+    shell: false,
+    stdio: 'inherit',
+    env: {
+        ...process.env,
+        VERIQ_TEST_ELECTRON: binary(require('electron')),
+        VERIQ_TEST_HEADED_BROWSER: binary(require('playwright-core').chromium.executablePath()),
+    },
+});
+if (result.error) throw result.error;
+process.exitCode = result.status ?? 1;
+JS
 ```
+
+首次解析 Electron 可能下载缺失二进制并向 stdout 输出诊断；上面的启动器保留这些日志，通过校验后的真实路径直接构造子进程环境，不把依赖 stdout 当作路径或 shell 代码。
+
+The launcher keeps dependency diagnostics on stdout, validates each executable realpath and passes values directly in the child environment with `shell:false`.
 
 三项 `VERIQ_TEST_ENGINE_DIRECTORY` / `VERSION` / `HASH` 必须同时设置；TypeScript 启动器先完整 `loadRelease` 并比对规范条目摘要，Python 夹具再通过真实晋升流程校验。完全不设置时保留原有本机 `work/t18-engine-verified` 的 `1.0.0` / `4ac705…` 身份，干净检出应使用上面的独立生产命令，不依赖旧机器私有候选。设置 `VERIQ_TEST_HEADED_BROWSER` 会在真实 GUI 恢复链勾选可见模式，观察实际业务浏览器窗口及其 worker/guardian/Agent 归属，随后验证停止事实；省略它只运行无头验收，不能据此宣称可见模式已验证。
 

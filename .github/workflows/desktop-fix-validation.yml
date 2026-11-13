@@ -55,8 +55,26 @@ jobs:
                   pnpm install --frozen-lockfile
                   pnpm --filter @veriq/runner-sdk exec playwright install --with-deps chromium
                   sudo apt-get install --yes --no-install-recommends xvfb xauth x11-utils imagemagick libxtst6
-                  pnpm --filter @veriq/desktop exec node -e 'process.stdout.write("VERIQ_TEST_ELECTRON=" + require("electron") + "\n")' >> "$GITHUB_ENV"
-                  pnpm --filter @veriq/desktop exec node -e 'process.stdout.write("VERIQ_TEST_HEADED_BROWSER=" + require("playwright-core").chromium.executablePath() + "\n")' >> "$GITHUB_ENV"
+                  pnpm --filter @veriq/desktop exec node <<'JS'
+                  // 首次解析成熟依赖可能向标准输出写下载诊断，因此只通过文件接口写入验证过的可执行路径；两项都校验成功后才追加环境记录，日志不能被当成 GitHub 环境文件语法解析。
+                  const fs = require('node:fs');
+                  const path = require('node:path');
+                  const environmentFile = process.env.GITHUB_ENV;
+                  if (!environmentFile || !path.isAbsolute(environmentFile)) throw new Error('GITHUB_ENV_PATH_REQUIRED');
+                  const binaries = [
+                      ['VERIQ_TEST_ELECTRON', require('electron')],
+                      ['VERIQ_TEST_HEADED_BROWSER', require('playwright-core').chromium.executablePath()],
+                  ];
+                  const lines = binaries.map(([key, value]) => {
+                      if (typeof value !== 'string' || !path.isAbsolute(value) || Array.from(value).some(character => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)) throw new Error('INVALID_TEST_BINARY_PATH');
+                      const actual = fs.realpathSync(value);
+                      if (Array.from(actual).some(character => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)) throw new Error('INVALID_TEST_BINARY_PATH');
+                      if (!fs.statSync(actual).isFile()) throw new Error('TEST_BINARY_NOT_FILE');
+                      fs.accessSync(actual, fs.constants.X_OK);
+                      return `${key}=${actual}`;
+                  });
+                  fs.appendFileSync(environmentFile, lines.join('\n') + '\n');
+                  JS
             - name: Produce a separate unapproved current-source candidate
               run: |
                   set -o pipefail
