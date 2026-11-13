@@ -17,6 +17,7 @@ class RendererFaultBoundaryTests(unittest.TestCase):
     """拒绝测试把发送函数设为可检查的替身，真实 proc/pidfd 仍读取自有子进程；任何前置不符都必须在信号边界前失败，不以测试清理动作充当故障注入成功。"""
 
     def setUp(self):
+        """每例只创建本测试拥有的空闲 Python 子进程和不可执行的身份占位文件，读取真实 UID 与启动时钟作为预期值；拒绝案例随后逐项修改预期并确认目标仍存活，不能使用用户既有进程。"""
         self.directory = tempfile.TemporaryDirectory(prefix="veriq-renderer-fault-")
         self.electron = Path(self.directory.name) / "electron"
         self.electron.write_bytes(b"test identity placeholder, not executable")
@@ -33,6 +34,7 @@ class RendererFaultBoundaryTests(unittest.TestCase):
         }
 
     def tearDown(self):
+        """仅在本例子进程仍运行时请求其终止并等待实际退出，然后回收本例临时目录；该收尾独立于用例中的 pidfd 故障及退出断言，不能以清理发送的信号补造正式故障注入或业务停止证明。"""
         if self.child.poll() is None:
             self.child.terminate()
         self.child.wait(timeout=3)
