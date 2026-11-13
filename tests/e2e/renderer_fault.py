@@ -1,4 +1,4 @@
-"""恢复验收只向由 Electron 主窗口确认且 pidfd 绑定的 UI renderer 注入一次异常终止，不停止 Agent 或业务浏览器；身份、角色、祖先或平台能力不符均拒绝，不提供数字 PID 信号或重试回退。"""
+"""恢复验收只向由 Electron 主窗口确认且 pidfd 绑定的 UI renderer 注入一次异常终止，不停止 Agent 或业务浏览器；窗口角色由可信主进程先行验证，身份、祖先或平台能力不符均拒绝，不提供数字 PID 信号或重试回退。"""
 
 import json
 import os
@@ -48,7 +48,7 @@ def check_fd(fd: int, pid: int) -> None:
 
 
 def inject(request: dict) -> dict:
-    """先打开稳定进程句柄，再复核 UI 可执行文件、renderer 参数和通往主进程的有限祖先链；仅一次 SIGKILL 诱发真实进程丢失，并用同句柄观察退出，发送成功不等于恢复或业务停止。"""
+    """先打开稳定进程句柄，再复核可信主进程已绑定的 UI 可执行文件和通往同身份主进程的有限祖先链；仅一次 SIGKILL 诱发真实进程丢失，并用同句柄观察退出，发送成功不等于恢复或业务停止。"""
     if sys.platform != "linux" or sys.version_info[:2] != (3, 12):
         raise FaultRejected("RENDERER_FAULT_PLATFORM_REQUIRED")
     if not hasattr(os, "pidfd_open") or not hasattr(signal, "pidfd_send_signal"):
@@ -93,12 +93,6 @@ def inject(request: dict) -> dict:
             or Path(f"/proc/{target}/exe").resolve() != executable
         ):
             raise FaultRejected("RENDERER_FAULT_EXECUTABLE_MISMATCH")
-        args = Path(f"/proc/{target}/cmdline").read_bytes().split(b"\0")
-        main_args = Path(f"/proc/{main}/cmdline").read_bytes().split(b"\0")
-        if b"--type=renderer" not in args or any(
-            value.startswith(b"--type=") for value in main_args
-        ):
-            raise FaultRejected("RENDERER_FAULT_ROLE_MISMATCH")
         cursor = target
         ancestors = []
         for _ in range(16):

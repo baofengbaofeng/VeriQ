@@ -86,21 +86,15 @@ class RendererFaultBoundaryTests(unittest.TestCase):
                 send.assert_not_called()
                 self.assertIsNone(self.child.poll())
 
-    def test_role_ancestry_and_fd_mismatches_never_signal(self):
-        """受控替身仅让拒绝路径到达角色和祖先验证，实际子进程/pidfd 不变且发送函数仍禁止调用；假角色数据不用于成功案例或任何真实 UI 恢复声明。"""
+    def test_ancestry_and_fd_mismatches_never_signal(self):
+        """受控替身仅让拒绝路径到达祖先验证，实际子进程及 pidfd 不变且发送函数仍禁止调用；窗口角色已迁至可信 Electron 指标层，这里的假可执行文件身份不用于成功或 UI 恢复声明。"""
         original_resolve = Path.resolve
-        original_bytes = Path.read_bytes
         original_identity = renderer_fault.identity
 
         def resolve(path, *args, **kwargs):
             if str(path).startswith("/proc/") and path.name == "exe":
                 return self.electron
             return original_resolve(path, *args, **kwargs)
-
-        def read_bytes(path):
-            if str(path) == f"/proc/{self.child.pid}/cmdline":
-                return b"electron\0--type=renderer\0"
-            return original_bytes(path)
 
         def wrong_parent(pid):
             result = original_identity(pid)
@@ -110,12 +104,7 @@ class RendererFaultBoundaryTests(unittest.TestCase):
             patch.object(Path, "resolve", resolve),
             patch.object(signal, "pidfd_send_signal") as send,
         ):
-            with self.assertRaisesRegex(renderer_fault.FaultRejected, "ROLE_MISMATCH"):
-                renderer_fault.inject(self.request)
-            with (
-                patch.object(Path, "read_bytes", read_bytes),
-                patch.object(renderer_fault, "identity", wrong_parent),
-            ):
+            with patch.object(renderer_fault, "identity", wrong_parent):
                 with self.assertRaisesRegex(
                     renderer_fault.FaultRejected, "ANCESTRY_MISMATCH"
                 ):
