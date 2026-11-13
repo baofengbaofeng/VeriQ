@@ -920,3 +920,10 @@ in [external scheduler integration](integration/external-scheduler.md).
 Carried contract corrections: maintenance allows all four registered operations with unique
 and known values; history/audit declare their actual `after` queries; AI context/cancel and
 other AI routes advertise employee Cookie/CSRF only, with no unsupported ServiceToken scope.
+
+
+## 生产静态与构建信息 / Production static and build information
+
+`GET /api/v1/build-info` 使用既有严格 `BuildInfoDTOEnvelope`，不增减四个公开字段。正式模式启动时验证包内 `static/dist` 的完整库存和构建身份；`staticManifestHash` 是 `static-manifest.json` 原始字节 SHA-256，而不是 Vite 模块图哈希。没有发行输入的开发服务返回结构化 `503 BUILD_INFO_UNAVAILABLE`。完整路径、哈希循环排除、私有元数据和 T18 生成边界见 [ADR 0019](decisions/0019-production-static-inventory.md)。
+
+The endpoint retains the existing strict four-field DTO and envelope. Production verifies the installed full inventory before serving. The manifest hash covers exact `static-manifest.json` bytes, rather than Vite's module graph. Development without release inputs returns structured `503 BUILD_INFO_UNAVAILABLE`. ADR 0019 records the inventory wire format, private metadata and T18 writer/release boundary.

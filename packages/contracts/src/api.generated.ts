@@ -40,6 +40,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** @description Returns validated nonsecret installed frontend metadata; development without a published frontend returns 503 BUILD_INFO_UNAVAILABLE. */
         get: operations["buildInfo"];
         put?: never;
         post?: never;
@@ -4770,6 +4771,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+            /** @description Database readiness check failed; connection details are withheld. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthDTOEnvelope"];
+                };
+            };
         };
     };
     buildInfo: {
@@ -4846,6 +4856,15 @@ export interface operations {
             };
             /** @description Stable JSON error; code is a machine-readable domain code. */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Development server has no published frontend build. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
