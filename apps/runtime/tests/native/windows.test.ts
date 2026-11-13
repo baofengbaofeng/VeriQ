@@ -347,29 +347,32 @@ test("Windows private pipe close releases the endpoint while old callbacks remai
     }
 });
 
-/** 日志中的守护 PID 指向已经真实退出且经原生查询证实不存在的测试进程时，负回执不能顺带关闭另一个仍活跃的守护控制流；业务必须继续处理新挑战，最后用该 Attempt 原始日志核验真实排空。 */
-test("Windows absent journal guardian cannot close the actual live guardian", async (context) => {
-    await withWindowsOwnership(context, ["absent-guardian"], async (scenario) => {
+/** 日志中的守护 PID 指向已经真实退出且经原生查询证实未运行的测试进程时，负回执不能关闭实际活跃守护的控制流；内核可以保留已退出进程对象，业务持续进度与原始日志排空才是这里需要核验的事实。 */
+test("Windows nonrunning journal guardian cannot close the actual live guardian", async (context) => {
+    await withWindowsOwnership(context, ["exited-guardian"], async (scenario) => {
         const probe = promisify(execFile)(scenario.role, ["-e", ""], {
             timeout: 5000,
             env: { SystemRoot: process.env.SystemRoot! },
         });
-        const absentPid = probe.child.pid;
+        const exitedPid = probe.child.pid;
         await probe;
-        assert(absentPid);
-        assert.equal(
-            windowsNative().identity(absentPid),
-            null,
-            "The replacement PID must actually be absent",
+        assert(exitedPid);
+        const observed = windowsNative().identity(exitedPid);
+        context.diagnostic(
+            `Exited guardian probe identity: ${JSON.stringify({ pid: exitedPid, observed })}`,
         );
-        await scenario.replaceJournal("absent-guardian", { guardianPid: absentPid });
+        assert(
+            observed === null || observed.running === false,
+            "The replacement guardian must actually be nonrunning",
+        );
+        await scenario.replaceJournal("exited-guardian", { guardianPid: exitedPid });
         const denied = await scenario.processes.terminateAttempt(
-            "absent-guardian",
-            "ABSENT_GUARDIAN_TEST",
+            "exited-guardian",
+            "NONRUNNING_GUARDIAN_TEST",
         );
         assert.equal(denied.processStopped, false);
         assert.equal(denied.reason, "CONTAINMENT_LOST");
-        await scenario.requireProgress(["absent-guardian"]);
+        await scenario.requireProgress(["exited-guardian"]);
     });
 });
 
