@@ -203,6 +203,7 @@ def load_published_site(settings: Settings) -> PublishedSite | None:
         # 精确根入口是唯一允许的 HTML 文档，后缀比较忽略大小写并覆盖 XHTML；额外 MIME 别名采用 Tornado 相同的标准库映射，不能让宿主机类型表把复制证据变成活动页面。
         # 压缩文件由 Tornado 返回 gzip 或 octet-stream 类型，不把底层推测的 HTML MIME 误当成实际响应类型。
         # 标准 HTML 后缀仍显式拒绝，不依赖宿主机恰好登记了完整默认类型表。
+        # MIME 比较先取分号前的媒体类型本体并去掉外层空白；charset 等参数及大小写不能把活动 HTML 文档伪装成其它类型。
         for path in public:
             if path == "index.html":
                 continue
@@ -215,7 +216,8 @@ def load_published_site(settings: Settings) -> PublishedSite | None:
                 ".xht",
             } or (
                 encoding is None
-                and (mime_type or "").lower() in {"text/html", "application/xhtml+xml"}
+                and (mime_type or "").partition(";")[0].strip().lower()
+                in {"text/html", "application/xhtml+xml"}
             ):
                 raise ValueError("Non-entry HTML in static inventory")
         return PublishedSite(root, frozenset(public), info)

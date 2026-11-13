@@ -522,16 +522,27 @@ async def test_unknown_head_is_real_404_without_html(published, path):
         ("raw-evidence.custom-xhtml", "application/xhtml+xml"),
         ("raw-evidence.custom-html", "TEXT/HTML"),
         ("raw-evidence.custom-xhtml", "APPLICATION/XHTML+XML"),
+        ("raw-evidence.mimefile-html", "text/html;charset=utf-8"),
+        ("raw-evidence.mimefile-xhtml", "application/xhtml+xml;charset=utf-8"),
+        ("raw-evidence.parameter-html", " \tTeXt/HtMl \t; charset=UTF-8 "),
+        ("raw-evidence.parameter-xhtml", "  APPLICATION/XHTML+XML ; charset=utf-8 "),
+        ("raw-evidence.parameter-html", 'text/html; charset=utf-8; profile="a;b"'),
+        ("raw-evidence.parameter-xhtml", 'application/xhtml+xml;profile="format;v=1"'),
     ],
 )
 async def test_non_entry_html_mime_is_rejected_with_valid_inventory(
-    static_package, production_settings, monkeypatch, path, custom_mime
+    static_package, production_settings, monkeypatch, tmp_path, path, custom_mime
 ):
     """除精确根入口 index.html 外，完整合法库存中的 HTML 与 XHTML 文档必须在生产启动时被拒绝；逐个变体重算文件长度、文件哈希和构建库存哈希，确保失败真正来自发布类型门禁。
 
     扩展名参数覆盖小写、大写、混合大小写及两种 XHTML 后缀。
     shtml 与定制 MIME 别名使用和 Tornado 相同的标准库类型映射。
     MIME 值大小写同样不能改变浏览器对 HTML 文档的解释。
+    参数化别名还通过真实 mime.types 文件解析，不能假设标准库会丢弃 charset。
+    无空格的参数形式是普通宿主类型文件可保留的真实值。
+    其它注册值覆盖外层空白、混合大小写和多个参数。
+    参数中的引号或分号不得改变第一个分隔符之前的媒体类型本体。
+    这些情况仍然使用同一份合法库存，不因注册内容变化绕过文件完整性校验。
     定制映射代表宿主机注册的附加 HTML 类型，而非替换文件处理器。
     先触发标准库初始化，再在测试范围内修改并自动恢复公开映射表。
     INDEX.HTML 与 Index.html 不能借大小写比较成为另一个入口。
@@ -553,12 +564,23 @@ async def test_non_entry_html_mime_is_rejected_with_valid_inventory(
     """
     import mimetypes
 
-    # MIME 类型表由标准库懒加载，先完成初始化再修改公开映射，确保定制后缀确实走真实文件处理器采用的类型判断；monkeypatch 只恢复本测试增加的两个类型，不替换查询函数。
-    # 两个别名分别覆盖 HTML 和 XHTML，不靠硬编码后缀列表通过。
+    # MIME 类型表由标准库懒加载，先完成初始化再修改公开映射，确保定制后缀确实走真实文件处理器采用的类型判断；monkeypatch 只恢复当前测试注册的后缀，不替换查询函数。
+    # 全部别名分别覆盖 HTML 和 XHTML，不靠硬编码后缀列表通过。
     # 普通默认扩展名不进行任何类型表修改。
     mimetypes.guess_type("index.html")
     if custom_mime is not None:
-        monkeypatch.setitem(mimetypes.types_map, "." + path.rsplit(".", 1)[1], custom_mime)
+        extension = "." + path.rsplit(".", 1)[1]
+        # 宿主类型文件按空白分列，但紧贴媒体类型的 charset 参数仍会保留；通过标准库实际文件解析和注册 API 还原这一入口，不替换 MIME 查询函数或 Tornado 的 Content-Type 生成。
+        # 外层带空白的注册值另走真实类型注册 API，避免让文件分列规则改变待验证输入。
+        # 临时占位记录只用于让 monkeypatch 自动恢复后续 add_type 对同一公开表的改动。
+        if extension.startswith(".mimefile-"):
+            mime_file = tmp_path / "host.mime.types"
+            mime_file.write_text(f"{custom_mime} {extension[1:]}\n")
+            parsed = mimetypes.read_mime_types(mime_file)
+            assert parsed is not None and parsed[extension] == custom_mime
+            custom_mime = parsed[extension]
+        monkeypatch.setitem(mimetypes.types_map, extension, "application/octet-stream")
+        mimetypes.add_type(custom_mime, extension)
     target = static_package / path
     target.parent.mkdir(parents=True, exist_ok=True)
     content = b"<!doctype html><html><body>Copied evidence</body></html>"
