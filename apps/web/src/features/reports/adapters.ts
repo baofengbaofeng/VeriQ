@@ -5,7 +5,7 @@
 
 import type { PlatformComponents } from "@veriq/contracts";
 import { EventSourceParserStream } from "eventsource-parser/stream";
-import { request, streamRequest } from "../../api";
+import { request, streamRequest, binaryRequest } from "../../api";
 type S = PlatformComponents["schemas"];
 /**
  * RunReportDTO：某次 Run 的汇总门禁、用例结果与当前 Attempt 指针，供报告头与列表共用。门禁字段区分执行时与当前。
@@ -33,30 +33,19 @@ export type ReportDisplay = S["ReportDisplayDTO"];
  */
 export interface ReportAdapter {
     readonly readOnly: boolean;
-    list(
-        cursor?: string,
-        signal?: AbortSignal,
-    ): Promise<S["RunDTOPageEnvelope"]["data"]>;
-    report(runId: string, signal?: AbortSignal): Promise<RunReport>;
-    display(
-        runId: string,
-        attemptId: string,
-        signal?: AbortSignal,
-    ): Promise<ReportDisplay>;
-    history(
-        attemptId: string,
-        after: number,
-        signal?: AbortSignal,
-    ): Promise<S["ReportHistoryDTO"]>;
-    artifacts(
-        attemptId: string,
-        signal?: AbortSignal,
-    ): Promise<S["ReportArtifactsDTO"]>;
-    download(
+    /** 桌面原始证据在宿主完成授权、校验与保存或本机查看，这个可选入口避免敏感字节经过渲染进程；普通 Web 适配器不实现它时继续保持现有 Blob 下载行为。 */
+    nativeArtifact?(
         attemptId: string,
         artifactId: string,
+        action: "save" | "trace" | "preview",
         signal?: AbortSignal,
-    ): Promise<Blob>;
+    ): Promise<void>;
+    list(cursor?: string, signal?: AbortSignal): Promise<S["RunDTOPageEnvelope"]["data"]>;
+    report(runId: string, signal?: AbortSignal): Promise<RunReport>;
+    display(runId: string, attemptId: string, signal?: AbortSignal): Promise<ReportDisplay>;
+    history(attemptId: string, after: number, signal?: AbortSignal): Promise<S["ReportHistoryDTO"]>;
+    artifacts(attemptId: string, signal?: AbortSignal): Promise<S["ReportArtifactsDTO"]>;
+    download(attemptId: string, artifactId: string, signal?: AbortSignal): Promise<Blob>;
     audit(after?: string, signal?: AbortSignal): Promise<S["ReportAuditDTO"]>;
     subscribe(
         runId: string,
@@ -74,20 +63,13 @@ export class CloudReportAdapter implements ReportAdapter {
     private base = () => `/workspaces/${this.workspaceId}`;
     list = (cursor?: string, signal?: AbortSignal) =>
         request<S["RunDTOPageEnvelope"]["data"]>(
-            this.base() +
-                "/runs" +
-                (cursor ? "?cursor=" + encodeURIComponent(cursor) : ""),
+            this.base() + "/runs" + (cursor ? "?cursor=" + encodeURIComponent(cursor) : ""),
             "GET",
             undefined,
             signal,
         );
     report = (id: string, signal?: AbortSignal) =>
-        request<RunReport>(
-            this.base() + `/runs/${id}/report`,
-            "GET",
-            undefined,
-            signal,
-        );
+        request<RunReport>(this.base() + `/runs/${id}/report`, "GET", undefined, signal);
     display = (runId: string, attemptId: string, signal?: AbortSignal) =>
         request<ReportDisplay>(
             this.base() + `/runs/${runId}/attempts/${attemptId}/display`,
@@ -111,28 +93,20 @@ export class CloudReportAdapter implements ReportAdapter {
         );
     audit = (after?: string, signal?: AbortSignal) =>
         request<S["ReportAuditDTO"]>(
-            this.base() +
-                "/audit" +
-                (after ? "?after=" + encodeURIComponent(after) : ""),
+            this.base() + "/audit" + (after ? "?after=" + encodeURIComponent(after) : ""),
             "GET",
             undefined,
             signal,
         );
     async download(attemptId: string, artifactId: string, signal?: AbortSignal) {
-        const response = await fetch(
-            "/api/v1" +
-                this.base() +
-                `/attempts/${attemptId}/artifacts/${artifactId}`,
-            { credentials: "same-origin", signal },
+        const response = await binaryRequest(
+            this.base() + `/attempts/${attemptId}/artifacts/${artifactId}`,
+            signal,
         );
         if (!response.ok) throw new Error((await response.json()).message);
         return response.blob();
     }
-    async subscribe(
-        runId: string,
-        receive: (report: RunReport) => void,
-        signal: AbortSignal,
-    ) {
+    async subscribe(runId: string, receive: (report: RunReport) => void, signal: AbortSignal) {
         let cursor: string | undefined;
         while (!signal.aborted) {
             const response = await streamRequest(
@@ -210,11 +184,7 @@ export class LocalReportAdapter implements ReportAdapter {
         ) => Promise<Blob>,
     ) {
         this.snapshot = structuredClone(snapshot);
-        if (
-            this.snapshot.reports.some(
-                (report) => report.run.workspaceId !== snapshot.workspaceId,
-            )
-        )
+        if (this.snapshot.reports.some((report) => report.run.workspaceId !== snapshot.workspaceId))
             throw new Error("Foreign Workspace report");
         const attempts = new Set(
             this.snapshot.reports.flatMap((r) =>
@@ -229,9 +199,7 @@ export class LocalReportAdapter implements ReportAdapter {
             if (!attempts.has(id) || artifacts.some((a) => a.attemptId !== id))
                 throw new Error("Foreign Attempt artifacts");
         }
-        if (
-            Object.keys(this.snapshot.displays ?? {}).some((id) => !attempts.has(id))
-        )
+        if (Object.keys(this.snapshot.displays ?? {}).some((id) => !attempts.has(id)))
             throw new Error("Foreign Attempt display");
     }
     private async found(id: string) {
@@ -244,10 +212,7 @@ export class LocalReportAdapter implements ReportAdapter {
         nextCursor: null,
     });
     report = (id: string) => this.found(id);
-    display = async (
-        runId: string,
-        attemptId: string,
-    ): Promise<ReportDisplay> => {
+    display = async (runId: string, attemptId: string): Promise<ReportDisplay> => {
         const report = await this.found(runId);
         if (!report.cases.some((c) => c.attempts.some((a) => a.id === attemptId)))
             throw new Error("Attempt not found in Run");
@@ -260,9 +225,7 @@ export class LocalReportAdapter implements ReportAdapter {
         );
     };
     history = async (id: string, after: number) => {
-        const rows = (this.snapshot.history[id] ?? []).filter(
-            (e) => e.sequence > after,
-        );
+        const rows = (this.snapshot.history[id] ?? []).filter((e) => e.sequence > after);
         const items = structuredClone(rows.slice(0, 100));
         return {
             items,
@@ -274,11 +237,7 @@ export class LocalReportAdapter implements ReportAdapter {
         items: structuredClone(this.snapshot.artifacts[id] ?? []),
     });
     audit = async () => ({ items: [], nextCursor: null });
-    download = async (
-        attempt: string,
-        artifact: string,
-        signal?: AbortSignal,
-    ) => {
+    download = async (attempt: string, artifact: string, signal?: AbortSignal) => {
         if (
             !this.readRaw ||
             !this.snapshot.artifacts[attempt]?.some(

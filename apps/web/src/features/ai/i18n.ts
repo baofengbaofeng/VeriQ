@@ -3,7 +3,7 @@
  * 默认 lng=zh；与资源编辑器的 editorI18n 分离以免键冲突。
  */
 
-import i18next from "i18next";
+import i18next, { type i18n } from "i18next";
 import { initReactI18next } from "react-i18next";
 const en = {
     title: "AI assistance",
@@ -29,8 +29,7 @@ const en = {
     context: "Exact sanitized context",
     apply: "Accept as DRAFT",
     reject: "Reject",
-    review:
-        "Review output against requirements before applying. Compilation, debug and publication remain separate editor actions.",
+    review: "Review output against requirements before applying. Compilation, debug and publication remain separate editor actions.",
     original: "Original candidate",
     output: "Proposed output",
     unknown: "Unknown cost / reservation retained",
@@ -66,8 +65,7 @@ const en = {
     target: "Use as target",
     privacy:
         "Only send reviewed nonsecret material. Raw Trace, HTML, screenshots, downloads and credentials are excluded.",
-    pending:
-        "Call in progress. Refresh history to inspect or cancel the durable reservation.",
+    pending: "Call in progress. Refresh history to inspect or cancel the durable reservation.",
     diagnostics: "Diagnostics",
     failed: "Operation failed",
 };
@@ -136,14 +134,12 @@ const zh: typeof en = {
  * 已 init 的 i18next 实例，供 AiPage 的 useTranslation('ai', { i18n: aiI18n }) 使用。
  * initImmediate 关闭时仍同步注册资源包，避免首屏闪英文。
  */
-export const aiI18n = i18next.createInstance();
-void aiI18n
-    .use(initReactI18next)
-    .init({
-        resources: { en: { ai: en }, zh: { ai: zh } },
-        lng: "zh",
-        fallbackLng: "en",
-        ns: ["ai"],
-        defaultNS: "ai",
-        interpolation: { escapeValue: false },
-    });
+export const aiI18n: i18n = i18next.createInstance();
+void aiI18n.use(initReactI18next).init({
+    resources: { en: { ai: en }, zh: { ai: zh } },
+    lng: "zh",
+    fallbackLng: "en",
+    ns: ["ai"],
+    defaultNS: "ai",
+    interpolation: { escapeValue: false },
+});

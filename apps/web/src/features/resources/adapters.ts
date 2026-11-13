@@ -9,7 +9,7 @@ import type {
     ResourceDocumentV1,
     ResourceKind,
 } from "@veriq/contracts";
-import { request, ApiError } from "../../api";
+import { request, ApiError, binaryRequest } from "../../api";
 type S = PlatformComponents["schemas"];
 /**
  * ResourceDTO：空间内资源元数据（kind/key/归档状态），列表与依赖图节点共用。key 在空间内唯一；resource key 在同一 Workspace 内必须唯一。
@@ -113,14 +113,13 @@ export class CloudResourceAdapter implements ResourceAdapter {
             signal,
         );
     source = async (id: string, versionId: string, file: FileEntry, signal?: AbortSignal) => {
-        const response = await fetch(
-            "/api/v1" +
-                this.base(id) +
+        const response = await binaryRequest(
+            this.base(id) +
                 "/versions/" +
                 encodeURIComponent(versionId) +
                 "/compiled-source" +
                 query({ path: file.path }),
-            { credentials: "same-origin", signal },
+            signal,
         );
         if (!response.ok) {
             const body = await response.json();

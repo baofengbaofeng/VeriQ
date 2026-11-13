@@ -39,15 +39,41 @@ export type UserListQuery = NonNullable<
 export type SessionListQuery = NonNullable<
     PlatformPaths["/api/v1/account/sessions"]["get"]["parameters"]["query"]
 >;
-function queryString(
-    options: Record<string, string | number | boolean | undefined>,
-): string {
+function queryString(options: Record<string, string | number | boolean | undefined>): string {
     const query = new URLSearchParams();
     for (const [key, value] of Object.entries(options))
         if (value !== undefined) query.set(key, String(value));
     return query.size ? "?" + query.toString() : "";
 }
 let csrfToken = "";
+/** 桌面宿主适配器只替换业务传输而不改变页面的数据契约，Web 默认继续使用同源 Cookie；注入者负责把路径转换为有限操作标识，真正权限仍由宿主独立验证。 */
+export interface HostTransport {
+    /** 共享页面把相对业务路径、方法和正文交给宿主兼容层映射，不能自行选择认证来源或浏览器 Cookie；信号用于丢弃已取消视图的结果，最终主机仍独立校验有限操作和工作区参数。 */
+    json(
+        path: string,
+        method: string,
+        data?: unknown,
+        signal?: AbortSignal,
+        headers?: Record<string, string>,
+    ): Promise<unknown>;
+    /** 报告流以标准 Response 供现有 SSE 解析器消费，但底层数据来自宿主逐块拉取的有限句柄；取消信号必须释放该句柄，不能把页面取消只实现为忽略后续事件。 */
+    stream(path: string, data: unknown, signal: AbortSignal): Promise<Response>;
+    /** 二进制兼容入口只用于宿主明确开放的生成源码，Response 不意味着页面获得通用下载权限；签名包安装和原始证据使用各自原生入口，不能通过此方法绕过授权确认。 */
+    binary(path: string, signal?: AbortSignal): Promise<Response>;
+}
+let hostTransport: HostTransport | undefined;
+/** 共享视图的宿主传输只允许初始化一次，桌面构建入口在挂载 React 之前安装适配器；普通 Web 入口不会调用此函数，因此现有同源会话和 CSRF 处理保持不变。 */
+export function installHostTransport(transport: HostTransport): void {
+    if (hostTransport) throw new Error("HOST_TRANSPORT_ALREADY_INSTALLED");
+    hostTransport = transport;
+}
+/** 二进制读取沿用服务端当前权限检查和禁止重定向约束，桌面宿主可仅开放生成源码读取；原始证据和签名包的 native 保存入口可以保持字节不进入渲染进程。 */
+export function binaryRequest(path: string, signal?: AbortSignal): Promise<Response> {
+    return hostTransport
+        ? hostTransport.binary(path, signal)
+        : fetch("/api/v1" + path, { credentials: "same-origin", signal, redirect: "error" });
+}
+
 /**
  * 将非 2xx JSON 体映射为带 code/status/requestId 的错误，供 Notice 与适配器统一展示。
  * 401 已由 request 触发会话过期事件；调用方只消费可读 message。
@@ -73,6 +99,7 @@ export async function request<T>(
     signal?: AbortSignal,
     headers?: Record<string, string>,
 ): Promise<T> {
+    if (hostTransport) return (await hostTransport.json(path, method, data, signal, headers)) as T;
     const response = await fetch("/api/v1" + path, {
         method,
         credentials: "same-origin",
@@ -85,15 +112,8 @@ export async function request<T>(
         ...(data === undefined ? {} : { body: JSON.stringify(data) }),
     });
     const body = await response.json();
-    if (response.status === 401)
-        window.dispatchEvent(new Event("veriq:session-expired"));
-    if (!response.ok)
-        throw new ApiError(
-            body.code,
-            body.message,
-            response.status,
-            body.requestId,
-        );
+    if (response.status === 401) window.dispatchEvent(new Event("veriq:session-expired"));
+    if (!response.ok) throw new ApiError(body.code, body.message, response.status, body.requestId);
     if (body.data?.csrfToken) csrfToken = body.data.csrfToken;
     return body.data as T;
 }
@@ -105,15 +125,13 @@ export const api = {
     setup: () => request<Schemas["SetupDTO"]>("/setup"),
     initialize: (data: Schemas["SetupRequest"]) =>
         request<Schemas["UserDTO"]>("/setup", "POST", data),
-    login: (data: Schemas["LoginRequest"]) =>
-        request<Session>("/auth/login", "POST", data),
+    login: (data: Schemas["LoginRequest"]) => request<Session>("/auth/login", "POST", data),
     session: () => request<Session>("/auth/session"),
     logout: () => request<Schemas["Empty"]>("/auth/logout", "POST", {}),
     account: () => request<User>("/account"),
     sessions: (options: SessionListQuery = {}) =>
         request<AccountSessions>("/account/sessions" + queryString({ ...options })),
-    revokeOwn: () =>
-        request<Schemas["Empty"]>("/account/sessions/revoke", "POST", {}),
+    revokeOwn: () => request<Schemas["Empty"]>("/account/sessions/revoke", "POST", {}),
     password: (data: Schemas["ChangePasswordRequest"]) =>
         request<Schemas["Empty"]>("/account/password", "POST", data),
     resetRequest: (email: string) =>
@@ -121,15 +139,11 @@ export const api = {
     resetConfirm: (data: Schemas["ResetPasswordRequest"]) =>
         request<Schemas["Empty"]>("/auth/password-reset/confirm", "POST", data),
     users: (options: UserListQuery = {}) =>
-        request<Schemas["AdminUsersDTO"]>(
-            "/admin/users" + queryString({ ...options }),
-        ),
-    createUser: (data: Schemas["CreateUserRequest"]) =>
-        request<User>("/admin/users", "POST", data),
+        request<Schemas["AdminUsersDTO"]>("/admin/users" + queryString({ ...options })),
+    createUser: (data: Schemas["CreateUserRequest"]) => request<User>("/admin/users", "POST", data),
     updateUser: (id: string, data: Schemas["UpdateUserRequest"]) =>
         request<User>(`/admin/users/${id}`, "PATCH", data),
-    resetLink: (id: string) =>
-        request<ResetLink>(`/admin/users/${id}/reset-link`, "POST", {}),
+    resetLink: (id: string) => request<ResetLink>(`/admin/users/${id}/reset-link`, "POST", {}),
     revokeUser: (id: string) =>
         request<Schemas["Empty"]>(`/admin/users/${id}/sessions/revoke`, "POST", {}),
     workspaces: (cursor?: string, signal?: AbortSignal) =>
@@ -140,21 +154,11 @@ export const api = {
             signal,
         ),
     workspace: (id: string, signal?: AbortSignal) =>
-        request<Schemas["WorkspaceDTO"]>(
-            `/workspaces/${id}`,
-            "GET",
-            undefined,
-            signal,
-        ),
+        request<Schemas["WorkspaceDTO"]>(`/workspaces/${id}`, "GET", undefined, signal),
     createWorkspace: (data: Schemas["WorkspaceWrite"], signal?: AbortSignal) =>
         request<Schemas["WorkspaceDTO"]>("/workspaces", "POST", data, signal),
     renameWorkspace: (id: string, name: string, signal?: AbortSignal) =>
-        request<Schemas["WorkspaceDTO"]>(
-            `/workspaces/${id}`,
-            "PATCH",
-            { name },
-            signal,
-        ),
+        request<Schemas["WorkspaceDTO"]>(`/workspaces/${id}`, "PATCH", { name }, signal),
     archiveWorkspace: (id: string, signal?: AbortSignal) =>
         request<Schemas["Empty"]>(`/workspaces/${id}`, "DELETE", undefined, signal),
     members: (id: string, cursor?: string, signal?: AbortSignal) =>
@@ -164,25 +168,10 @@ export const api = {
             undefined,
             signal,
         ),
-    updateMember: (
-        ws: string,
-        id: string,
-        data: Schemas["MemberWrite"],
-        signal?: AbortSignal,
-    ) =>
-        request<Schemas["MemberDTO"]>(
-            `/workspaces/${ws}/members/${id}`,
-            "PUT",
-            data,
-            signal,
-        ),
+    updateMember: (ws: string, id: string, data: Schemas["MemberWrite"], signal?: AbortSignal) =>
+        request<Schemas["MemberDTO"]>(`/workspaces/${ws}/members/${id}`, "PUT", data, signal),
     removeMember: (ws: string, id: string, signal?: AbortSignal) =>
-        request<Schemas["Empty"]>(
-            `/workspaces/${ws}/members/${id}`,
-            "DELETE",
-            undefined,
-            signal,
-        ),
+        request<Schemas["Empty"]>(`/workspaces/${ws}/members/${id}`, "DELETE", undefined, signal),
     invitations: (id: string, cursor?: string, signal?: AbortSignal) =>
         request<Schemas["InvitationSummaryDTOPageEnvelope"]["data"]>(
             `/workspaces/${id}/invitations` + queryString({ cursor }),
@@ -191,12 +180,7 @@ export const api = {
             signal,
         ),
     invite: (id: string, data: Schemas["InviteRequest"], signal?: AbortSignal) =>
-        request<Schemas["InviteDTO"]>(
-            `/workspaces/${id}/invitations`,
-            "POST",
-            data,
-            signal,
-        ),
+        request<Schemas["InviteDTO"]>(`/workspaces/${id}/invitations`, "POST", data, signal),
     revokeInvitation: (ws: string, id: string, signal?: AbortSignal) =>
         request<Schemas["Empty"]>(
             `/workspaces/${ws}/invitations/${id}`,
@@ -228,12 +212,7 @@ export type Runtime = Schemas["RuntimeDTO"];
  * enrollment inspect/approve 跨空间，但 grant/trust/revoke 始终绑定 workspace 路径。
  */
 export const runtimeApi = {
-    delivery: (
-        ws: string,
-        id: string,
-        allowCredentialDelivery: boolean,
-        signal?: AbortSignal,
-    ) =>
+    delivery: (ws: string, id: string, allowCredentialDelivery: boolean, signal?: AbortSignal) =>
         request<Runtime>(
             `/workspaces/${ws}/runtimes/${id}/credential-delivery`,
             "PUT",
@@ -254,48 +233,14 @@ export const runtimeApi = {
             { userCode },
             signal,
         ),
-    approve: (
-        id: string,
-        data: Schemas["EnrollmentApprove"],
-        signal?: AbortSignal,
-    ) =>
-        request<Runtime>(
-            `/runtime-enrollments/${id}/approve`,
-            "POST",
-            data,
-            signal,
-        ),
-    grants: (
-        ws: string,
-        id: string,
-        data: Schemas["RuntimeGrantWrite"],
-        signal?: AbortSignal,
-    ) =>
-        request<Runtime>(
-            `/workspaces/${ws}/runtimes/${id}/grants`,
-            "PUT",
-            data,
-            signal,
-        ),
-    trust: (
-        ws: string,
-        id: string,
-        data: Schemas["RuntimeTrustWrite"],
-        signal?: AbortSignal,
-    ) =>
-        request<Runtime>(
-            `/workspaces/${ws}/runtimes/${id}/trust`,
-            "PUT",
-            data,
-            signal,
-        ),
+    approve: (id: string, data: Schemas["EnrollmentApprove"], signal?: AbortSignal) =>
+        request<Runtime>(`/runtime-enrollments/${id}/approve`, "POST", data, signal),
+    grants: (ws: string, id: string, data: Schemas["RuntimeGrantWrite"], signal?: AbortSignal) =>
+        request<Runtime>(`/workspaces/${ws}/runtimes/${id}/grants`, "PUT", data, signal),
+    trust: (ws: string, id: string, data: Schemas["RuntimeTrustWrite"], signal?: AbortSignal) =>
+        request<Runtime>(`/workspaces/${ws}/runtimes/${id}/trust`, "PUT", data, signal),
     revoke: (ws: string, id: string, signal?: AbortSignal) =>
-        request<Runtime>(
-            `/workspaces/${ws}/runtimes/${id}/revoke`,
-            "POST",
-            {},
-            signal,
-        ),
+        request<Runtime>(`/workspaces/${ws}/runtimes/${id}/revoke`, "POST", {}, signal),
     accounts: (ws: string, cursor?: string, signal?: AbortSignal) =>
         request<Schemas["ServiceAccountDTOPageEnvelope"]["data"]>(
             `/workspaces/${ws}/service-accounts` + queryString({ cursor }),
@@ -331,8 +276,18 @@ export const runtimeApi = {
  * CloudReportAdapter.subscribe 用其拉取 runs/.../events/stream，禁止缓冲整包到内存。
  */
 export async function streamRequest(path: string, data: unknown, signal: AbortSignal) {
-    const response = await fetch("/api/v1" + path, {method: "POST", credentials: "same-origin", signal,
-        headers: {"Content-Type":"application/json", "X-CSRF-Token":csrfToken}, body:JSON.stringify(data)});
-    if (!response.ok) { const body=await response.json(); if(response.status===401) window.dispatchEvent(new Event("veriq:session-expired")); throw new ApiError(body.code,body.message,response.status,body.requestId); }
+    if (hostTransport) return hostTransport.stream(path, data, signal);
+    const response = await fetch("/api/v1" + path, {
+        method: "POST",
+        credentials: "same-origin",
+        signal,
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
+        body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+        const body = await response.json();
+        if (response.status === 401) window.dispatchEvent(new Event("veriq:session-expired"));
+        throw new ApiError(body.code, body.message, response.status, body.requestId);
+    }
     return response;
 }

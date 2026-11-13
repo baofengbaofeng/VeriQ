@@ -5,8 +5,7 @@
 import canonicalizeModule from "canonicalize";
 // canonicalize 2.x ships an ESM default declaration for its CommonJS export.
 const canonicalize = canonicalizeModule as unknown as (value: unknown) => string | undefined;
-import { Ajv2020 } from "ajv/dist/2020.js";
-import addFormats from "ajv-formats";
+import { schemaValidator } from "./validators.js";
 import schema from "../schemas/platform-v1.schema.json" with { type: "json" };
 
 export type * from "./types.generated.js";
@@ -21,10 +20,6 @@ export interface ValidationIssue {
     code: "SCHEMA_VIOLATION" | "INVALID_JSON";
     message: string;
 }
-
-const ajv = new Ajv2020({ allErrors: true, strict: true, validateFormats: true });
-addFormats.default(ajv);
-ajv.addSchema(schema);
 
 function portableJson(value: unknown, ancestors = new Set<object>()): boolean {
     if (value === null || typeof value === "string" || typeof value === "boolean") return true;
@@ -55,7 +50,7 @@ export function validateSchema(schemaName: string, value: unknown): ValidationIs
         return [
             { path: "", code: "INVALID_JSON", message: "Expected finite, portable JSON values" },
         ];
-    const validate = ajv.getSchema(`${schema.$id}#/$defs/${schemaName}`)!;
+    const validate = schemaValidator(schemaName);
     if (validate(value)) return [];
     return (validate.errors ?? []).map((error) => ({
         path: error.instancePath,

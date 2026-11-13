@@ -63,16 +63,16 @@ Both libraries reject NaN/Infinity, unsafe integers outside ±9,007,199,254,740,
 
 `ResourceDocumentV1` is `{kind, document}` with a strict kind/document union:
 
-| kind | document type | Required fields beyond schemaVersion `1.0` |
-| --- | --- | --- |
-| CASE | CaseDslV1 | caseKey, title, kind READ/WRITE, roleKey, catalogVersionId, steps |
-| ELEMENT_CATALOG | ElementCatalogV1 | elements: key/locator records |
-| ASSERTION_TEMPLATE | AssertionTemplateV1 | assertions; optional parameter type map |
-| DATASET | DatasetV1 | columns type map, rows of `{key, values}` |
-| FLOW | FlowV1 | steps; optional parameter type map |
-| FIXTURE | FixtureV1 | prepare/query/cleanup endpoints, inputSchema, outputSchema, ttlSeconds |
-| SUITE | SuiteV1 | cases with pinned versionId; optional datasetVersionId/roleKeys/browsers |
-| ENVIRONMENT | EnvironmentV1 | baseURL, apiBaseURL, allowedOrigins, locale, timezone, roles |
+| kind               | document type       | Required fields beyond schemaVersion `1.0`                               |
+| ------------------ | ------------------- | ------------------------------------------------------------------------ |
+| CASE               | CaseDslV1           | caseKey, title, kind READ/WRITE, roleKey, catalogVersionId, steps        |
+| ELEMENT_CATALOG    | ElementCatalogV1    | elements: key/locator records                                            |
+| ASSERTION_TEMPLATE | AssertionTemplateV1 | assertions; optional parameter type map                                  |
+| DATASET            | DatasetV1           | columns type map, rows of `{key, values}`                                |
+| FLOW               | FlowV1              | steps; optional parameter type map                                       |
+| FIXTURE            | FixtureV1           | prepare/query/cleanup endpoints, inputSchema, outputSchema, ttlSeconds   |
+| SUITE              | SuiteV1             | cases with pinned versionId; optional datasetVersionId/roleKeys/browsers |
+| ENVIRONMENT        | EnvironmentV1       | baseURL, apiBaseURL, allowedOrigins, locale, timezone, roles             |
 
 Every fixed document field is declared and unknown fields are rejected. Intentional dictionaries are limited to named maps or JSON business data. `FixtureV1.query.method` is GET. `EnvironmentV1` optionally carries fixtureBaseURL/buildSha; each role carries roleKey, authAdapterVersionId, secretRef and secretVersionId, plus optional allowedIdentityIds. Environment snapshots and bundles contain credential references only, not passwords, device tokens, cookies or storageState.
 
@@ -80,14 +80,14 @@ Every fixed document field is declared and unknown fields are rejected. Intentio
 
 Every step has id and a supported action. Optional shared fields are critical, beforeAssertions, observers, afterAssertions, extract, timeoutMs and failurePolicy (`STOP_CASE` / `CONTINUE`). Action-specific required fields are:
 
-| action | Required action fields |
-| --- | --- |
-| goto | path |
-| click/check/uncheck | target |
-| fill/press/selectOption/upload | target, value |
-| reload | none |
-| apiRequest | method, path; optional query/body/headers |
-| callFlow | versionId; optional parameters |
+| action                         | Required action fields                    |
+| ------------------------------ | ----------------------------------------- |
+| goto                           | path                                      |
+| click/check/uncheck            | target                                    |
+| fill/press/selectOption/upload | target, value                             |
+| reload                         | none                                      |
+| apiRequest                     | method, path; optional query/body/headers |
+| callFlow                       | versionId; optional parameters            |
 
 Fill/press values are strings; selectOption accepts a string or nonempty string array; upload accepts nonempty safe bundle-relative file paths. Paths are origin-relative and reject executable URL schemes. Templates permit only `{{data.identifier}}` and `{{vars.identifier}}` dotted data access; no eval, JSONPath or executable expressions. Complete-placeholder type preservation and substitution are compiler/SDK semantics.
 
@@ -101,11 +101,11 @@ Extraction records source (`request:<observerId>` or `response:<observerId>`), p
 
 ## Immutable snapshots and compiled assets
 
-| Type | Required fields |
-| --- | --- |
-| AssetVersionV1 | resourceId, versionId, kind, sha256, document; kind/document strict union |
-| AssetSnapshotV1 | schemaVersion, workspaceId, sourceHash, engineVersion, entryCaseVersionIds, assets |
-| CompiledAssetBundle | schemaVersion, sourceHash, engineVersion, compilerVersion, runnerSdkVersion, entrypoints, files, dependencies |
+| Type                | Required fields                                                                                                                                                                                            |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AssetVersionV1      | resourceId, versionId, kind, sha256, document; kind/document strict union                                                                                                                                  |
+| AssetSnapshotV1     | schemaVersion, workspaceId, sourceHash, engineVersion, entryCaseVersionIds, assets                                                                                                                         |
+| CompiledAssetBundle | schemaVersion, sourceHash, engineVersion, compilerVersion, runnerSdkVersion, entrypoints, files, dependencies                                                                                              |
 | ExecutionSnapshotV1 | schemaVersion, workspaceId, runId, caseExecutionId, caseVersionId, assetSourceHash, environmentVersionId, environment, roleKey, browser, variables, secretVersions, namespace, attemptNo; optional dataRow |
 
 `FileEntry` is `{path, sha256, sizeBytes}`; paths exclude absolute paths, traversal and backslashes. The importer must additionally reject links, normalization collisions, oversized archives and inconsistent hashes. Dependencies are `{name, version, integrity}` with exact semantic version strings. Generated TS files are immutable artifacts and are identified by the file manifest; DSL remains editable source. `secretVersions` consists of `{secretRef, versionId}` references. attemptNo is 1 or 2, reflecting at most one whole-case retry.
@@ -124,23 +124,23 @@ Every download requires DeviceToken and current `X-VeriQ-Lease-Token` / `X-VeriQ
 
 Return original `application/octet-stream` bytes without an envelope, transformation or JSON reserialization. Verify SHA-256 over exact received bytes before parsing/execution. All references use the same Workspace/Attempt route and proof headers:
 
-| Reference | Exact downloaded content |
-| --- | --- |
-| `claim.snapshotSha256` | JobManifestV1 bytes |
-| manifest `snapshotSha256` | Frozen AssetSnapshotV1 for VALIDATE; ExecutionSnapshotV1/retained cleanup context for TEST/CLEANUP |
-| TEST `executionSnapshotSha256` | Same ExecutionSnapshotV1 subject; equals manifest snapshotSha256 |
-| TEST `compiledBundleSha256` | CompiledAssetBundle descriptor bytes |
-| compiled `files[].sha256` | File bytes; also verify sizeBytes, then use the validated bundle-relative path locally |
+| Reference                      | Exact downloaded content                                                                           |
+| ------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `claim.snapshotSha256`         | JobManifestV1 bytes                                                                                |
+| manifest `snapshotSha256`      | Frozen AssetSnapshotV1 for VALIDATE; ExecutionSnapshotV1/retained cleanup context for TEST/CLEANUP |
+| TEST `executionSnapshotSha256` | Same ExecutionSnapshotV1 subject; equals manifest snapshotSha256                                   |
+| TEST `compiledBundleSha256`    | CompiledAssetBundle descriptor bytes                                                               |
+| compiled `files[].sha256`      | File bytes; also verify sizeBytes, then use the validated bundle-relative path locally             |
 
 Claim → manifest → subject/bundle → files therefore needs no UUID lookup, guessed storage path or browser credentials. T09 implements this exact-byte Artifact pipeline and current assignment authorization; T12 extends storage, reporting and raw-evidence access policy.
 
 `JobManifestV1` common fields are schemaVersion, workspaceId, jobId, snapshotSha256 and engineVersion. Its snapshotSha256 identifies the frozen subject snapshot, distinct from the outer claim's manifest hash. Kind-specific fields:
 
-| kind | Additional required fields | Frozen subject |
-| --- | --- | --- |
-| TEST | caseExecutionId, caseVersionId, compiledBundleSha256, executionSnapshotSha256 | ExecutionSnapshotV1; snapshotSha256 and executionSnapshotSha256 must agree |
-| VALIDATE | resourceId, revision, sourceHash | AssetSnapshotV1 of immutable draft-validation closure |
-| CLEANUP | maintenanceId, fixtureVersionId, namespace, cleanupRef | Original execution snapshot/cleanup context retained by the maintenance record; cleanupRef is an opaque authorized reference, not a secret or arbitrary local path |
+| kind     | Additional required fields                                                    | Frozen subject                                                                                                                                                     |
+| -------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| TEST     | caseExecutionId, caseVersionId, compiledBundleSha256, executionSnapshotSha256 | ExecutionSnapshotV1; snapshotSha256 and executionSnapshotSha256 must agree                                                                                         |
+| VALIDATE | resourceId, revision, sourceHash                                              | AssetSnapshotV1 of immutable draft-validation closure                                                                                                              |
+| CLEANUP  | maintenanceId, fixtureVersionId, namespace, cleanupRef                        | Original execution snapshot/cleanup context retained by the maintenance record; cleanupRef is an opaque authorized reference, not a secret or arbitrary local path |
 
 Workspace/subject/hash agreement and immutable cleanup provenance are server/Runtime semantic checks. TEST, VALIDATE and CLEANUP share the same claim/lease/terminal protocol. Only browser-requiring jobs occupy browser capacity; no duplicate queue or internal Cron is implied.
 
@@ -150,19 +150,19 @@ Workspace/subject/hash agreement and immutable cleanup provenance are server/Run
 
 `ExecutionEventV1` is a strict union with common schemaVersion, attemptId, sequence (positive safe integer), type, timestamp (RFC3339), optional stepId/assertionId, and a typed payload. Step-related events require stepId; assertion results also require assertionId.
 
-| type | Payload shape |
-| --- | --- |
-| ATTEMPT_STARTED | engineVersion, sourceHash |
-| PHASE_CHANGED | phase |
-| STEP_STARTED | empty object |
-| STEP_FINISHED | status, durationMs; optional errorCode/message |
-| ASSERTION_RESULT | status, severity, expectedSource, expected, actual, durationMs; optional errorCode |
-| OBSERVER_RESULT | observerId, matchedCount, windowMode, durationMs, ambiguous, correlated requests |
-| VARIABLE_EXTRACTED | name, valueType |
-| LOG | level, message |
-| CLEANUP_RESULT | cleanupStatus; optional errorCode |
-| ARTIFACT_CREATED | artifactId, file, kind |
-| ATTEMPT_FINISHED | outcome, cleanupStatus |
+| type               | Payload shape                                                                      |
+| ------------------ | ---------------------------------------------------------------------------------- |
+| ATTEMPT_STARTED    | engineVersion, sourceHash                                                          |
+| PHASE_CHANGED      | phase                                                                              |
+| STEP_STARTED       | empty object                                                                       |
+| STEP_FINISHED      | status, durationMs; optional errorCode/message                                     |
+| ASSERTION_RESULT   | status, severity, expectedSource, expected, actual, durationMs; optional errorCode |
+| OBSERVER_RESULT    | observerId, matchedCount, windowMode, durationMs, ambiguous, correlated requests   |
+| VARIABLE_EXTRACTED | name, valueType                                                                    |
+| LOG                | level, message                                                                     |
+| CLEANUP_RESULT     | cleanupStatus; optional errorCode                                                  |
+| ARTIFACT_CREATED   | artifactId, file, kind                                                             |
+| ATTEMPT_FINISHED   | outcome, cleanupStatus                                                             |
 
 `actual` is `{present:false}` for MISSING or `{present:true,value:<JSON>}` for present values, including null. Raw business/cleanup/evidence results must be retained by downstream reporting; an exit code does not establish complete success. Sequence continuity, duplicate handling, required evidence and outcome reduction remain server/report responsibilities.
 
@@ -276,7 +276,7 @@ The generated executable ABI is an ESM named export from `@veriq/runner-sdk`:
 
 ```ts
 interface RunnerSdkV1 {
-  registerCase(plan: CompiledCase, source: AssetSnapshotV1): void;
+    registerCase(plan: CompiledCase, source: AssetSnapshotV1): void;
 }
 ```
 
@@ -392,17 +392,17 @@ Service-token Run admission remains denied until T16 supplies a real scoped plan
 
 The actual device routes are:
 
-| Method and path | Request / response |
-| --- | --- |
-| POST `/internal/v1/jobs/claim` | ClaimRequest → ClaimDTO or 204 |
-| POST `/internal/v1/attempts/{id}/activate` | leaseToken, fencingToken → attemptId, activated:true, fencingToken |
-| POST `/internal/v1/attempts/{id}/heartbeat` | HeartbeatRequest → HeartbeatDTO |
-| POST `/internal/v1/attempts/{id}/events` | EventBatchRequest → acceptedThrough |
-| POST `/internal/v1/attempts/{id}/artifact-uploads` | proof + kind, filename, contentType, sha256, sizeBytes, sensitivity → artifactId, uploadUrl, method:PUT, expiresAt |
-| PUT returned uploadUrl + `?offset=N` | raw octets + proof headers → artifactId, receivedBytes, complete |
-| GET `/internal/v1/workspaces/{ws}/attempts/{id}/content/{sha256}` | proof headers → original bytes |
-| POST `/internal/v1/attempts/{id}/finish` | FinishRequest → saved FinishDTO |
-| POST `/internal/v1/attempts/{id}/reconcile` | fencingToken, processStopped, cleanupStatus, stoppedAt → attemptId, capacityReleased, auditId |
+| Method and path                                                   | Request / response                                                                                                 |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| POST `/internal/v1/jobs/claim`                                    | ClaimRequest → ClaimDTO or 204                                                                                     |
+| POST `/internal/v1/attempts/{id}/activate`                        | leaseToken, fencingToken → attemptId, activated:true, fencingToken                                                 |
+| POST `/internal/v1/attempts/{id}/heartbeat`                       | HeartbeatRequest → HeartbeatDTO                                                                                    |
+| POST `/internal/v1/attempts/{id}/events`                          | EventBatchRequest → acceptedThrough                                                                                |
+| POST `/internal/v1/attempts/{id}/artifact-uploads`                | proof + kind, filename, contentType, sha256, sizeBytes, sensitivity → artifactId, uploadUrl, method:PUT, expiresAt |
+| PUT returned uploadUrl + `?offset=N`                              | raw octets + proof headers → artifactId, receivedBytes, complete                                                   |
+| GET `/internal/v1/workspaces/{ws}/attempts/{id}/content/{sha256}` | proof headers → original bytes                                                                                     |
+| POST `/internal/v1/attempts/{id}/finish`                          | FinishRequest → saved FinishDTO                                                                                    |
+| POST `/internal/v1/attempts/{id}/reconcile`                       | fencingToken, processStopped, cleanupStatus, stoppedAt → attemptId, capacityReleased, auditId                      |
 
 POST requests use `Authorization: Bearer <DeviceToken>` and JSON proof fields. PUT/GET
 use `X-VeriQ-Lease-Token` and `X-VeriQ-Fencing-Token`. Native routes reject a foreign Origin; an omitted or same-service Origin is allowed
@@ -656,7 +656,6 @@ it does not infer cancellation from arbitrary error text or erase an existing fa
 An unfinished assertion interrupted by abort emits no fabricated ASSERTION_RESULT. The step
 reports its interruption and CASE_FINISHED retains any earlier FAILED business facts. The
 existing reducer and its cancellation completeness rules remain unchanged.
-
 
 T10 fix1 supersedes stop-time process scanning as positive proof. The fixed installed Linux
 `build/veriq_runner` guardian sets `PR_SET_CHILD_SUBREAPER` before forking the worker, then
@@ -921,9 +920,16 @@ Carried contract corrections: maintenance allows all four registered operations 
 and known values; history/audit declare their actual `after` queries; AI context/cancel and
 other AI routes advertise employee Cookie/CSRF only, with no unsupported ServiceToken scope.
 
-
 ## 生产静态与构建信息 / Production static and build information
 
 `GET /api/v1/build-info` 使用既有严格 `BuildInfoDTOEnvelope`，不增减四个公开字段。正式模式启动时验证包内 `static/dist` 的完整库存和构建身份；`staticManifestHash` 是 `static-manifest.json` 原始字节 SHA-256，而不是 Vite 模块图哈希。没有发行输入的开发服务返回结构化 `503 BUILD_INFO_UNAVAILABLE`。完整路径、哈希循环排除、私有元数据和 T18 生成边界见 [ADR 0019](decisions/0019-production-static-inventory.md)。
 
 The endpoint retains the existing strict four-field DTO and envelope. Production verifies the installed full inventory before serving. The manifest hash covers exact `static-manifest.json` bytes, rather than Vite's module graph. Development without release inputs returns structured `503 BUILD_INFO_UNAVAILABLE`. ADR 0019 records the inventory wire format, private metadata and T18 writer/release boundary.
+
+## 桌面宿主与本机协议 / Desktop host and local protocol
+
+桌面复用既有平台 OpenAPI，未新增 Server Run、DSL 或设备 token 模式。`DesktopBridge` 是本机内部类型边界：云端调用使用明确枚举的 `operationId`、结构化参数和契约正文，由宿主重新绑定当前 Workspace；Cookie / CSRF 只属于独立 Electron Session，设备身份只属于独立 Node24 Agent。报告流同时限制待连接与活动句柄，总计最多四条；切换工作区或注销撤销旧流。`operations.generated.*` 和宿主校验闭包由 `apps/desktop/scripts/generate-operations.mjs` 读取共享 OpenAPI 与平台模式生成，服务端新增端点不会自动扩张桌面权限。
+
+本机启动准备使用独立的 `startupId` 和 `preparing` 状态，尚未创建 Run 时不伪造 Run ID。取消启动必须引用当前准备事务，取消执行必须匹配当前持久化 Run；旧标识不能中止新任务。离线执行的可选 `headless` 默认为 `true`，可见模式要求已探测到匹配的完整浏览器，选择与实际能力写入本机执行记录。原始证据经当前范围检查和原生确认后保存或查看，renderer 不接收文件路径或原始字节。
+
+Desktop uses the existing platform API and schemas. Its private bridge maps a finite operation catalog to authenticated host requests; employee Cookie/CSRF and device credentials remain separate. Pending and active report streams share a four-slot limit and are revoked on scope changes. Local preparation IDs are distinct from Run IDs, and cancellation targets the current owner. Optional offline `headless` defaults to true; headed mode requires the matched full browser. Native evidence handling does not grant the renderer filesystem access.

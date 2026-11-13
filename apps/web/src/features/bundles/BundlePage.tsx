@@ -179,6 +179,11 @@ export function BundleWorkspaceView({
         });
     const download = (id: string) =>
         operation(async () => {
+            if (adapter.install) {
+                await adapter.install(id, combined);
+                setStatus("已下载并验签 / Downloaded and verified");
+                return;
+            }
             const blob = await adapter.download(id, combined);
             combined.throwIfAborted();
             const url = URL.createObjectURL(blob),

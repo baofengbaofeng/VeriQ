@@ -575,6 +575,12 @@ function AttemptDetails({
                             <>
                                 <button
                                     onClick={() => {
+                                        if (adapter.nativeArtifact) {
+                                            void adapter
+                                                .nativeArtifact(attemptId, a.id, "save", active)
+                                                .catch((e) => setError(String(e)));
+                                            return;
+                                        }
                                         void adapter
                                             .download(attemptId, a.id, active)
                                             .then((blob) => {
@@ -600,9 +606,32 @@ function AttemptDetails({
                                 >
                                     {t("download")} {a.kind}
                                 </button>
+                                {a.kind === "TRACE" && adapter.nativeArtifact && (
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            void adapter
+                                                .nativeArtifact?.(attemptId, a.id, "trace", active)
+                                                .catch((e) => setError(String(e)))
+                                        }
+                                    >
+                                        打开 Trace / Open Trace
+                                    </button>
+                                )}
                                 {a.kind === "SCREENSHOT" && (
                                     <button
                                         onClick={() => {
+                                            if (adapter.nativeArtifact) {
+                                                void adapter
+                                                    .nativeArtifact(
+                                                        attemptId,
+                                                        a.id,
+                                                        "preview",
+                                                        active,
+                                                    )
+                                                    .catch((e) => setError(String(e)));
+                                                return;
+                                            }
                                             void adapter
                                                 .download(attemptId, a.id, active)
                                                 .then((blob) => {

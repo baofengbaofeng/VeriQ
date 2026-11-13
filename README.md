@@ -18,22 +18,22 @@ AI 是可选辅助：用于生成结构化草稿、边界建议与失败分析�
 
 首发目标包含以下全部 14 个模块，内部研发阶段不作为完整 MVP 交付。Electron 桌面 GUI 属于首发范围，CLI 与无人值守 Agent 同时保留。
 
-| 编号 | 模块 | 交付目标 |
-| --- | --- | --- |
-| F01 | 安装与系统初始化 | 部署、数据库迁移、管理员创建、配置校验、健康检查、示例资源 |
-| F02 | 自有用户 | 登录/退出、邀请或管理员创建、密码重置、禁用、会话撤销 |
-| F03 | Workspace | 一项目一空间、多空间成员、角色、切换、资源隔离与审计 |
-| F04 | 页面与元素 | testId/role 定位、记录 key、作用域、目录版本与引用影响 |
-| F05 | 用例 | 步骤与 JSON 编辑、数据驱动、变量、公共流程、草稿、校验、发布、差异与归档 |
-| F06 | 操作与断言 | UI、URL、请求/响应、JSON 字段/Schema、持久化、最终一致性、模板版本与预期依据 |
-| F07 | 环境与身份 | 前后端地址、域名约束、语言/时区、业务角色、凭证引用与构建版本 |
-| F08 | 测试数据 | fixture 契约、隔离准备、结果查询、幂等清理与崩溃补偿 |
-| F09 | Runtime | 云端/本地运行、设备注册、自检、私有/共享授权、撤销与实际进程命名 |
-| F10 | 执行 | 手动与 HTTP 触发、队列、容量、租约、心跳、取消、重跑与整用例重试 |
-| F11 | 报告 | 实时进度、步骤/断言差异、请求关联、截图、Trace 下载与本地查看、历史、门禁与 JUnit |
-| F12 | 本地离线 | 依赖闭包导出、签名校验、本地凭证、独立执行、离线报告、幂等导入与来源标识 |
-| F13 | AI 辅助 | Provider 配置与连接校验、结构化草稿、审核、失败分析、预算与调用记录 |
-| F14 | 产品运维 | 同源发布、升级、备份恢复、保留期、日志指标、第三方许可、手册与验收报告 |
+| 编号 | 模块             | 交付目标                                                                          |
+| ---- | ---------------- | --------------------------------------------------------------------------------- |
+| F01  | 安装与系统初始化 | 部署、数据库迁移、管理员创建、配置校验、健康检查、示例资源                        |
+| F02  | 自有用户         | 登录/退出、邀请或管理员创建、密码重置、禁用、会话撤销                             |
+| F03  | Workspace        | 一项目一空间、多空间成员、角色、切换、资源隔离与审计                              |
+| F04  | 页面与元素       | testId/role 定位、记录 key、作用域、目录版本与引用影响                            |
+| F05  | 用例             | 步骤与 JSON 编辑、数据驱动、变量、公共流程、草稿、校验、发布、差异与归档          |
+| F06  | 操作与断言       | UI、URL、请求/响应、JSON 字段/Schema、持久化、最终一致性、模板版本与预期依据      |
+| F07  | 环境与身份       | 前后端地址、域名约束、语言/时区、业务角色、凭证引用与构建版本                     |
+| F08  | 测试数据         | fixture 契约、隔离准备、结果查询、幂等清理与崩溃补偿                              |
+| F09  | Runtime          | 云端/本地运行、设备注册、自检、私有/共享授权、撤销与实际进程命名                  |
+| F10  | 执行             | 手动与 HTTP 触发、队列、容量、租约、心跳、取消、重跑与整用例重试                  |
+| F11  | 报告             | 实时进度、步骤/断言差异、请求关联、截图、Trace 下载与本地查看、历史、门禁与 JUnit |
+| F12  | 本地离线         | 依赖闭包导出、签名校验、本地凭证、独立执行、离线报告、幂等导入与来源标识          |
+| F13  | AI 辅助          | Provider 配置与连接校验、结构化草稿、审核、失败分析、预算与调用记录               |
+| F14  | 产品运维         | 同源发布、升级、备份恢复、保留期、日志指标、第三方许可、手册与验收报告            |
 
 收费、支付、订阅、移动端、任意上传代码执行、复杂视觉基线及离线双向编辑同步不在当前确认范围内。
 
@@ -76,18 +76,18 @@ flowchart TB
 
 工程基线的精确依赖版本与许可记录见 [ADR 0003](docs/decisions/0003-engineering-baseline.md)、仓库锁文件和 [第三方声明](THIRD_PARTY_NOTICES.md)。已完成的契约检查不替代后续业务、浏览器与各目标 OS 的发布验收。
 
-| 层次 | 目标技术 |
-| --- | --- |
-| 控制服务 | Python 3.12、Tornado 6.6.1 系列、SQLAlchemy 2.0、Alembic、asyncmy |
-| 数据库 | MySQL 8.4 LTS |
-| Web | React 18、TypeScript、Vite 6、Tailwind 3、ESM、react-router-dom 7.18.5、TanStack Query 5、Radix/CVA、i18next |
-| 执行 | 独立 Node24 LTS、Playwright Test、共享编译器与 Runner SDK |
-| 本地持久化 | 独立 Node24 内置 SQLite，执行占用、报告与上传状态持久化 |
-| 桌面 | Electron + React、main/preload/renderer 分层、白名单类型化 IPC |
-| 契约 | JSON Schema、OpenAPI、Pydantic 2、jsonschema、Ajv |
-| 报告与制品 | Playwright HTML/JUnit/Trace，本地文件存储默认、S3 适配可选 |
-| AI | Provider SDK 适配，按需接入 Midscene |
-| 构建与测试 | pnpm、uv、build、Hatchling、pytest/pytest-asyncio、Vitest、Playwright |
+| 层次       | 目标技术                                                                                                     |
+| ---------- | ------------------------------------------------------------------------------------------------------------ |
+| 控制服务   | Python 3.12、Tornado 6.6.1 系列、SQLAlchemy 2.0、Alembic、asyncmy                                            |
+| 数据库     | MySQL 8.4 LTS                                                                                                |
+| Web        | React 18、TypeScript、Vite 6、Tailwind 3、ESM、react-router-dom 7.18.5、TanStack Query 5、Radix/CVA、i18next |
+| 执行       | 独立 Node24 LTS、Playwright Test、共享编译器与 Runner SDK                                                    |
+| 本地持久化 | 独立 Node24 内置 SQLite，执行占用、报告与上传状态持久化                                                      |
+| 桌面       | Electron + React、main/preload/renderer 分层、白名单类型化 IPC                                               |
+| 契约       | JSON Schema、OpenAPI、Pydantic 2、jsonschema、Ajv                                                            |
+| 报告与制品 | Playwright HTML/JUnit/Trace，本地文件存储默认、S3 适配可选                                                   |
+| AI         | Provider SDK 适配，按需接入 Midscene                                                                         |
+| 构建与测试 | pnpm、uv、build、Hatchling、pytest/pytest-asyncio、Vitest、Playwright                                        |
 
 目标兼容范围为服务端 Linux x64、本地 Runtime/桌面 Windows 11 x64 与 Ubuntu 24.04 x64；这些平台须分别完成真实构建与验收后才宣称支持。
 
@@ -201,22 +201,22 @@ AI is optional assistance for structured drafts, boundary suggestions, and failu
 
 The first release targets all 14 modules below. Internal milestones are not a complete MVP. The Electron desktop GUI is in first-release scope; CLI and unattended Agent remain as well.
 
-| ID | Module | Delivery goal |
-| --- | --- | --- |
-| F01 | Install and system init | Deploy, DB migration, admin bootstrap, config validation, health checks, sample resources |
-| F02 | First-party users | Login/logout, invite or admin create, password reset, disable, session revoke |
-| F03 | Workspace | One project per space, multi-space membership, roles, switch, isolation and audit |
-| F04 | Pages and elements | testId/role locators, record keys, scopes, catalog versions and reference impact |
-| F05 | Cases | Step and JSON editing, data-driven runs, variables, shared flows, draft, validate, publish, diff, archive |
-| F06 | Actions and assertions | UI, URL, request/response, JSON field/Schema, persistence, eventual consistency, template versions and expected basis |
-| F07 | Environments and identity | Front/back URLs, domain constraints, locale/timezone, business roles, credential refs and build versions |
-| F08 | Test data | Fixture contracts, isolated prepare, result query, idempotent cleanup and crash compensation |
-| F09 | Runtime | Cloud/local run, device registration, self-check, private/shared grants, revoke, real process names |
-| F10 | Execution | Manual and HTTP trigger, queue, capacity, lease, heartbeat, cancel, rerun, whole-case retry |
-| F11 | Reports | Live progress, step/assertion diffs, request correlation, screenshots, Trace download and local view, history, gates, JUnit |
-| F12 | Local offline | Dependency-closure export, signature verify, local credentials, standalone run, offline reports, idempotent import and provenance |
-| F13 | AI assistance | Provider config and connectivity check, structured drafts, review, failure analysis, budget and call records |
-| F14 | Product operations | Same-origin release, upgrade, backup/restore, retention, logs/metrics, third-party notices, manuals and acceptance report |
+| ID  | Module                    | Delivery goal                                                                                                                     |
+| --- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| F01 | Install and system init   | Deploy, DB migration, admin bootstrap, config validation, health checks, sample resources                                         |
+| F02 | First-party users         | Login/logout, invite or admin create, password reset, disable, session revoke                                                     |
+| F03 | Workspace                 | One project per space, multi-space membership, roles, switch, isolation and audit                                                 |
+| F04 | Pages and elements        | testId/role locators, record keys, scopes, catalog versions and reference impact                                                  |
+| F05 | Cases                     | Step and JSON editing, data-driven runs, variables, shared flows, draft, validate, publish, diff, archive                         |
+| F06 | Actions and assertions    | UI, URL, request/response, JSON field/Schema, persistence, eventual consistency, template versions and expected basis             |
+| F07 | Environments and identity | Front/back URLs, domain constraints, locale/timezone, business roles, credential refs and build versions                          |
+| F08 | Test data                 | Fixture contracts, isolated prepare, result query, idempotent cleanup and crash compensation                                      |
+| F09 | Runtime                   | Cloud/local run, device registration, self-check, private/shared grants, revoke, real process names                               |
+| F10 | Execution                 | Manual and HTTP trigger, queue, capacity, lease, heartbeat, cancel, rerun, whole-case retry                                       |
+| F11 | Reports                   | Live progress, step/assertion diffs, request correlation, screenshots, Trace download and local view, history, gates, JUnit       |
+| F12 | Local offline             | Dependency-closure export, signature verify, local credentials, standalone run, offline reports, idempotent import and provenance |
+| F13 | AI assistance             | Provider config and connectivity check, structured drafts, review, failure analysis, budget and call records                      |
+| F14 | Product operations        | Same-origin release, upgrade, backup/restore, retention, logs/metrics, third-party notices, manuals and acceptance report         |
 
 Billing, payments, subscriptions, mobile, arbitrary uploaded-code execution, complex visual baselines, and offline bidirectional edit sync are outside the currently confirmed scope.
 
@@ -259,18 +259,18 @@ Business schedules are driven by external middleware calling authenticated HTTP 
 
 Exact dependency versions and license records are in [ADR 0003](docs/decisions/0003-engineering-baseline.md), lockfiles, and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Completed contract checks do not replace later business, browser, and per-OS release acceptance.
 
-| Layer | Target stack |
-| --- | --- |
-| Control service | Python 3.12, Tornado 6.6.1 series, SQLAlchemy 2.0, Alembic, asyncmy |
-| Database | MySQL 8.4 LTS |
-| Web | React 18, TypeScript, Vite 6, Tailwind 3, ESM, react-router-dom 7.18.5, TanStack Query 5, Radix/CVA, i18next |
-| Execution | Pinned Node24 LTS, Playwright Test, shared compiler and Runner SDK |
-| Local persistence | Node24 built-in SQLite for execution occupancy, reports, and upload state |
-| Desktop | Electron + React, main/preload/renderer split, allowlisted typed IPC |
-| Contracts | JSON Schema, OpenAPI, Pydantic 2, jsonschema, Ajv |
-| Reports and artifacts | Playwright HTML/JUnit/Trace; local file storage default, optional S3 |
-| AI | Provider SDK adapters, Midscene on demand |
-| Build and test | pnpm, uv, build, Hatchling, pytest/pytest-asyncio, Vitest, Playwright |
+| Layer                 | Target stack                                                                                                 |
+| --------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Control service       | Python 3.12, Tornado 6.6.1 series, SQLAlchemy 2.0, Alembic, asyncmy                                          |
+| Database              | MySQL 8.4 LTS                                                                                                |
+| Web                   | React 18, TypeScript, Vite 6, Tailwind 3, ESM, react-router-dom 7.18.5, TanStack Query 5, Radix/CVA, i18next |
+| Execution             | Pinned Node24 LTS, Playwright Test, shared compiler and Runner SDK                                           |
+| Local persistence     | Node24 built-in SQLite for execution occupancy, reports, and upload state                                    |
+| Desktop               | Electron + React, main/preload/renderer split, allowlisted typed IPC                                         |
+| Contracts             | JSON Schema, OpenAPI, Pydantic 2, jsonschema, Ajv                                                            |
+| Reports and artifacts | Playwright HTML/JUnit/Trace; local file storage default, optional S3                                         |
+| AI                    | Provider SDK adapters, Midscene on demand                                                                    |
+| Build and test        | pnpm, uv, build, Hatchling, pytest/pytest-asyncio, Vitest, Playwright                                        |
 
 Target compatibility is server Linux x64 and local Runtime/desktop on Windows 11 x64 and Ubuntu 24.04 x64. Support claims require real builds and acceptance on each platform.
 
@@ -359,3 +359,9 @@ Planned quality gates include Python/TypeScript unit tests, cross-language contr
 ## License
 
 This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**; see [LICENSE](LICENSE) for the full terms. Third-party dependency licenses are verified separately and shipped with SBOM and notices.
+
+## 桌面工作台 / Desktop workspace
+
+完整本地 GUI 的使用流程、生命周期、受限宿主边界与源码构建见[桌面指南](docs/desktop.md)。窗口、独立 Node24 Agent 与业务 Chromium 分开运行；已下载资源、生成源码和报告可在平台断网时使用。
+
+See the [desktop guide](docs/desktop.md) for the bundled GUI, lifecycle, source builds and host boundary. Installer production and target-OS verification remain separate release gates.

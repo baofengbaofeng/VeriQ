@@ -1,0 +1,720 @@
+{
+    "login": {
+        "path": "/api/v1/auth/login",
+        "method": "POST",
+        "ids": [],
+        "queries": {},
+        "request": "LoginRequest",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "session": {
+        "path": "/api/v1/auth/session",
+        "method": "GET",
+        "ids": [],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "logout": {
+        "path": "/api/v1/auth/logout",
+        "method": "POST",
+        "ids": [],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "listWorkspaces": {
+        "path": "/api/v1/workspaces",
+        "method": "GET",
+        "ids": [],
+        "queries": {
+            "cursor": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100,
+                "default": 25
+            },
+            "archived": {
+                "type": "boolean"
+            }
+        },
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "getWorkspace": {
+        "path": "/api/v1/workspaces/{workspaceId}",
+        "method": "GET",
+        "ids": ["workspaceId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "listResources": {
+        "path": "/api/v1/workspaces/{workspaceId}/resources",
+        "method": "GET",
+        "ids": ["workspaceId"],
+        "queries": {
+            "cursor": {
+                "type": "string"
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100,
+                "default": 25
+            },
+            "kind": {
+                "$ref": "#/components/schemas/ResourceKind"
+            },
+            "status": {
+                "enum": ["DRAFT", "PUBLISHED", "ARCHIVED"]
+            }
+        },
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "createResource": {
+        "path": "/api/v1/workspaces/{workspaceId}/resources",
+        "method": "POST",
+        "ids": ["workspaceId"],
+        "queries": {},
+        "request": "ResourceCreate",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "getResource": {
+        "path": "/api/v1/workspaces/{workspaceId}/resources/{resourceId}",
+        "method": "GET",
+        "ids": ["workspaceId", "resourceId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "updateResource": {
+        "path": "/api/v1/workspaces/{workspaceId}/resources/{resourceId}",
+        "method": "PATCH",
+        "ids": ["workspaceId", "resourceId"],
+        "queries": {},
+        "request": "ResourceUpdate",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "getDraft": {
+        "path": "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/draft",
+        "method": "GET",
+        "ids": ["workspaceId", "resourceId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "updateDraft": {
+        "path": "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/draft",
+        "method": "PUT",
+        "ids": ["workspaceId", "resourceId"],
+        "queries": {},
+        "request": "DraftWrite",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "validateResource": {
+        "path": "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/validate",
+        "method": "POST",
+        "ids": ["workspaceId", "resourceId"],
+        "queries": {},
+        "request": "ValidationRequest",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "publishResource": {
+        "path": "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/publish",
+        "method": "POST",
+        "ids": ["workspaceId", "resourceId"],
+        "queries": {},
+        "request": "PublishRequest",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "listVersions": {
+        "path": "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/versions",
+        "method": "GET",
+        "ids": ["workspaceId", "resourceId"],
+        "queries": {
+            "cursor": {
+                "type": "string"
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100,
+                "default": 25
+            }
+        },
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "getVersion": {
+        "path": "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/versions/{versionId}",
+        "method": "GET",
+        "ids": ["workspaceId", "resourceId", "versionId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "listDependents": {
+        "path": "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/dependents",
+        "method": "GET",
+        "ids": ["workspaceId", "resourceId"],
+        "queries": {
+            "cursor": {
+                "type": "string"
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100,
+                "default": 25
+            }
+        },
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "listProviders": {
+        "path": "/api/v1/workspaces/{workspaceId}/ai/providers",
+        "method": "GET",
+        "ids": ["workspaceId"],
+        "queries": {
+            "cursor": {
+                "type": "string"
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100,
+                "default": 30
+            }
+        },
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "createProvider": {
+        "path": "/api/v1/workspaces/{workspaceId}/ai/providers",
+        "method": "POST",
+        "ids": ["workspaceId"],
+        "queries": {},
+        "request": "ProviderWrite",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "getProvider": {
+        "path": "/api/v1/workspaces/{workspaceId}/ai/providers/{providerId}",
+        "method": "GET",
+        "ids": ["workspaceId", "providerId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "updateProvider": {
+        "path": "/api/v1/workspaces/{workspaceId}/ai/providers/{providerId}",
+        "method": "PUT",
+        "ids": ["workspaceId", "providerId"],
+        "queries": {},
+        "request": "ProviderWrite",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "deleteProvider": {
+        "path": "/api/v1/workspaces/{workspaceId}/ai/providers/{providerId}",
+        "method": "DELETE",
+        "ids": ["workspaceId", "providerId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "listRuns": {
+        "path": "/api/v1/workspaces/{workspaceId}/runs",
+        "method": "GET",
+        "ids": ["workspaceId"],
+        "queries": {
+            "cursor": {
+                "type": "string"
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100,
+                "default": 30
+            }
+        },
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "createRun": {
+        "path": "/api/v1/workspaces/{workspaceId}/runs",
+        "method": "POST",
+        "ids": ["workspaceId"],
+        "queries": {},
+        "request": "RunCreate",
+        "idempotency": true,
+        "kind": "json"
+    },
+    "getRun": {
+        "path": "/api/v1/workspaces/{workspaceId}/runs/{runId}",
+        "method": "GET",
+        "ids": ["workspaceId", "runId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "cancelRun": {
+        "path": "/api/v1/workspaces/{workspaceId}/runs/{runId}/cancel",
+        "method": "POST",
+        "ids": ["workspaceId", "runId"],
+        "queries": {},
+        "request": "CancelRequest",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "rerun": {
+        "path": "/api/v1/workspaces/{workspaceId}/runs/{runId}/rerun",
+        "method": "POST",
+        "ids": ["workspaceId", "runId"],
+        "queries": {},
+        "request": "TriggerRequest",
+        "idempotency": true,
+        "kind": "json"
+    },
+    "getRunReport": {
+        "path": "/api/v1/workspaces/{workspaceId}/runs/{runId}/report",
+        "method": "GET",
+        "ids": ["workspaceId", "runId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "getJob": {
+        "path": "/api/v1/workspaces/{workspaceId}/jobs/{jobId}",
+        "method": "GET",
+        "ids": ["workspaceId", "jobId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "listRuntimes": {
+        "path": "/api/v1/workspaces/{workspaceId}/runtimes",
+        "method": "GET",
+        "ids": ["workspaceId"],
+        "queries": {
+            "cursor": {
+                "type": "string"
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100,
+                "default": 30
+            }
+        },
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "getRuntime": {
+        "path": "/api/v1/workspaces/{workspaceId}/runtimes/{runtimeId}",
+        "method": "GET",
+        "ids": ["workspaceId", "runtimeId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "updateRuntimeGrants": {
+        "path": "/api/v1/workspaces/{workspaceId}/runtimes/{runtimeId}/grants",
+        "method": "PUT",
+        "ids": ["workspaceId", "runtimeId"],
+        "queries": {},
+        "request": "RuntimeGrantWrite",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "updateRuntimeTrust": {
+        "path": "/api/v1/workspaces/{workspaceId}/runtimes/{runtimeId}/trust",
+        "method": "PUT",
+        "ids": ["workspaceId", "runtimeId"],
+        "queries": {},
+        "request": "RuntimeTrustWrite",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "revokeRuntime": {
+        "path": "/api/v1/workspaces/{workspaceId}/runtimes/{runtimeId}/revoke",
+        "method": "POST",
+        "ids": ["workspaceId", "runtimeId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "approveEnrollment": {
+        "path": "/api/v1/runtime-enrollments/{enrollmentId}/approve",
+        "method": "POST",
+        "ids": ["enrollmentId"],
+        "queries": {},
+        "request": "EnrollmentApprove",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "createBundle": {
+        "path": "/api/v1/workspaces/{workspaceId}/bundles",
+        "method": "POST",
+        "ids": ["workspaceId"],
+        "queries": {},
+        "request": "BundleCreate",
+        "idempotency": true,
+        "kind": "json"
+    },
+    "listBundles": {
+        "path": "/api/v1/workspaces/{workspaceId}/bundles",
+        "method": "GET",
+        "ids": ["workspaceId"],
+        "queries": {
+            "cursor": {
+                "type": "string"
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100,
+                "default": 30
+            }
+        },
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "getBundle": {
+        "path": "/api/v1/workspaces/{workspaceId}/bundles/{bundleId}",
+        "method": "GET",
+        "ids": ["workspaceId", "bundleId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "getBundleManifest": {
+        "path": "/api/v1/workspaces/{workspaceId}/bundles/{bundleId}/manifest",
+        "method": "GET",
+        "ids": ["workspaceId", "bundleId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "testProvider": {
+        "path": "/api/v1/workspaces/{workspaceId}/ai/providers/{providerId}/connection-tests",
+        "method": "POST",
+        "ids": ["workspaceId", "providerId"],
+        "queries": {},
+        "request": "AiConnectionRequest",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "generateDraft": {
+        "path": "/api/v1/workspaces/{workspaceId}/ai/generations",
+        "method": "POST",
+        "ids": ["workspaceId"],
+        "queries": {},
+        "request": "GenerationRequest",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "listGenerations": {
+        "path": "/api/v1/workspaces/{workspaceId}/ai/generations",
+        "method": "GET",
+        "ids": ["workspaceId"],
+        "queries": {
+            "cursor": {
+                "type": "string"
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100,
+                "default": 30
+            }
+        },
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "getGeneration": {
+        "path": "/api/v1/workspaces/{workspaceId}/ai/generations/{generationId}",
+        "method": "GET",
+        "ids": ["workspaceId", "generationId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "reviewGeneration": {
+        "path": "/api/v1/workspaces/{workspaceId}/ai/generations/{generationId}/review",
+        "method": "POST",
+        "ids": ["workspaceId", "generationId"],
+        "queries": {},
+        "request": "GenerationReview",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "getWorkspaceAudit": {
+        "path": "/api/v1/workspaces/{workspaceId}/audit",
+        "method": "GET",
+        "ids": ["workspaceId"],
+        "queries": {
+            "after": {
+                "$ref": "#/components/schemas/Id"
+            }
+        },
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "getValidationReceipt": {
+        "path": "/api/v1/workspaces/{workspaceId}/jobs/{jobId}/validation-receipt",
+        "method": "GET",
+        "ids": ["workspaceId", "jobId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "getSetup": {
+        "path": "/api/v1/setup",
+        "method": "GET",
+        "ids": [],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "getAccount": {
+        "path": "/api/v1/account",
+        "method": "GET",
+        "ids": [],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "previewResourceValidation": {
+        "path": "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/validation-preview",
+        "method": "GET",
+        "ids": ["workspaceId", "resourceId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "listCredentials": {
+        "path": "/api/v1/workspaces/{workspaceId}/credentials",
+        "method": "GET",
+        "ids": ["workspaceId"],
+        "queries": {
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+            },
+            "cursor": {
+                "type": "string"
+            }
+        },
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "createCredential": {
+        "path": "/api/v1/workspaces/{workspaceId}/credentials",
+        "method": "POST",
+        "ids": ["workspaceId"],
+        "queries": {},
+        "request": "CredentialCreate",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "rotateCredential": {
+        "path": "/api/v1/workspaces/{workspaceId}/credentials/{secretRef}/versions",
+        "method": "POST",
+        "ids": ["workspaceId", "secretRef"],
+        "queries": {},
+        "request": "CredentialRotate",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "revokeCredential": {
+        "path": "/api/v1/workspaces/{workspaceId}/credentials/{secretRef}/versions/{versionId}/revoke",
+        "method": "POST",
+        "ids": ["workspaceId", "secretRef", "versionId"],
+        "queries": {},
+        "request": "EmptyObject",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "listAuthAdapters": {
+        "path": "/api/v1/workspaces/{workspaceId}/auth-adapters",
+        "method": "GET",
+        "ids": ["workspaceId"],
+        "queries": {
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+            },
+            "cursor": {
+                "type": "string"
+            }
+        },
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "createAuthAdapter": {
+        "path": "/api/v1/workspaces/{workspaceId}/auth-adapters",
+        "method": "POST",
+        "ids": ["workspaceId"],
+        "queries": {},
+        "request": "AuthAdapterCreate",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "revokeAuthAdapter": {
+        "path": "/api/v1/workspaces/{workspaceId}/auth-adapters/{versionId}/revoke",
+        "method": "POST",
+        "ids": ["workspaceId", "versionId"],
+        "queries": {},
+        "request": "EmptyObject",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "inspectEnrollment": {
+        "path": "/api/v1/runtime-enrollments/inspect",
+        "method": "POST",
+        "ids": [],
+        "queries": {},
+        "request": "EnrollmentInspect",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "updateRuntimeCredentialDelivery": {
+        "path": "/api/v1/workspaces/{workspaceId}/runtimes/{runtimeId}/credential-delivery",
+        "method": "PUT",
+        "ids": ["workspaceId", "runtimeId"],
+        "queries": {},
+        "request": "RuntimeCredentialDeliveryWrite",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "getPublishedCompiledSource": {
+        "path": "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/versions/{versionId}/compiled-source",
+        "method": "GET",
+        "ids": ["workspaceId", "resourceId", "versionId"],
+        "queries": {
+            "path": {
+                "type": "string"
+            }
+        },
+        "request": null,
+        "idempotency": false,
+        "kind": "source"
+    },
+    "streamRunReport": {
+        "path": "/api/v1/workspaces/{workspaceId}/runs/{runId}/events/stream",
+        "method": "POST",
+        "ids": ["workspaceId", "runId"],
+        "queries": {},
+        "request": "ReportStreamRequest",
+        "idempotency": false,
+        "kind": "stream"
+    },
+    "getAttemptHistory": {
+        "path": "/api/v1/workspaces/{workspaceId}/attempts/{attemptId}/history",
+        "method": "GET",
+        "ids": ["workspaceId", "attemptId"],
+        "queries": {
+            "after": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+            }
+        },
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "getAttemptArtifacts": {
+        "path": "/api/v1/workspaces/{workspaceId}/attempts/{attemptId}/artifacts",
+        "method": "GET",
+        "ids": ["workspaceId", "attemptId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "downloadAttemptArtifact": {
+        "path": "/api/v1/workspaces/{workspaceId}/attempts/{attemptId}/artifacts/{artifactId}",
+        "method": "GET",
+        "ids": ["workspaceId", "attemptId", "artifactId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "binary"
+    },
+    "getReportDisplay": {
+        "path": "/api/v1/workspaces/{workspaceId}/runs/{runId}/attempts/{attemptId}/display",
+        "method": "GET",
+        "ids": ["workspaceId", "runId", "attemptId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "previewAiContext": {
+        "path": "/api/v1/workspaces/{workspaceId}/ai/context",
+        "method": "POST",
+        "ids": ["workspaceId"],
+        "queries": {},
+        "request": "GenerationRequest",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "cancelGeneration": {
+        "path": "/api/v1/workspaces/{workspaceId}/ai/generations/{generationId}/cancel",
+        "method": "POST",
+        "ids": ["workspaceId", "generationId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    }
+}

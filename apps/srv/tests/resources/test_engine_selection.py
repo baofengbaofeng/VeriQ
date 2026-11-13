@@ -13,7 +13,7 @@ from test_auth import setup, login
 from test_workspace import workspace
 from test_publish import create
 from veriq_server.auth.authorization import WorkspaceScope
-from veriq_server.db import User, Job, Artifact
+from veriq_server.db import User, Job, Artifact, ResourceVersion
 from veriq_server.service import Problem, lock_installation
 from veriq_server.services.resource import ResourceService
 from veriq_server.services.engines import ApprovedEngines
@@ -76,3 +76,67 @@ def test_unknown_engine_cannot_become_approved_by_selection(tmp_path) -> None:
     with pytest.raises(Problem) as rejected:
         ApprovedEngines(settings).require(settings.validation_engine_version)
     assert rejected.value.code == "ENGINE_NOT_APPROVED"
+
+
+async def test_selected_engine_publishes_through_http_with_matching_receipt(site) -> None:
+    """非默认引擎的发布必须沿用同一 HTTP 应用的配置，并精确绑定当前成功校验回执；这里复用现有发布服务夹具测试配置传递，真实生产器编译与浏览器执行另由桌面完整验收证明。
+
+    旧测试只检查新引擎不能覆盖已发布修订，错误的默认引擎回退也可能产生同样的 409。
+    本例创建全新资源并要求 201，因而漏传引擎配置会稳定失败。
+    发布结果必须保留回执来源摘要和明确的 1.0.0 版本。
+    """
+    import httpx
+    from tornado.httpserver import HTTPServer
+    from tornado.netutil import bind_sockets
+    from test_publish import queue, completed
+    from veriq_server.app import make_app
+
+    client, database = site
+    await setup(client)
+    sockets = bind_sockets(0, "127.0.0.1")
+    origin = f"http://127.0.0.1:{sockets[0].getsockname()[1]}"
+    settings = Settings(
+        database_url=database.engine.url.render_as_string(hide_password=False),
+        public_url=origin,
+        master_key="a" * 64,
+        signing_key="b" * 64,
+        environment="development",
+        validation_engine_version="1.0.0",
+    )
+    application = make_app(settings, database)
+    server = HTTPServer(application)
+    server.add_sockets(sockets)
+    try:
+        async with httpx.AsyncClient(base_url=origin, headers={"Origin": origin}) as current:
+            state = await current.get("/api/v1/setup")
+            current.headers["X-CSRF-Token"] = state.json()["data"]["csrfToken"]
+            assert (await login(current)).status_code == 200
+            workspace_id = await workspace(current, "selected-engine-publish")
+            path = await create(current, workspace_id)
+            preview, job = await queue(current, path)
+            assert preview["engineVersion"] == "1.0.0"
+            receipt_id, snapshot = await completed(database, job["id"])
+            receipt = (
+                await current.get(
+                    f"/api/v1/workspaces/{workspace_id}/jobs/{job['id']}/validation-receipt"
+                )
+            ).json()["data"]
+            assert receipt["engineVersion"] == "1.0.0"
+            response = await current.post(
+                path + "/publish",
+                json={"revision": preview["revision"], "validationReceiptId": receipt_id},
+            )
+            assert response.status_code == 201, response.text
+            published = response.json()["data"]
+            async with database.sessions() as session:
+                persisted = await session.get(ResourceVersion, published["id"])
+                assert persisted is not None
+                assert persisted.engine_version == receipt["engineVersion"] == "1.0.0"
+                assert persisted.receipt_id == receipt_id
+                assert persisted.source_hash == receipt["sourceHash"] == snapshot["sourceHash"]
+                assert persisted.workspace_id == workspace_id
+                assert persisted.id == snapshot["validationTarget"]["versionId"]
+    finally:
+        server.stop()
+        await server.close_all_connections()
+        await application.settings["reset_dispatcher"].close()

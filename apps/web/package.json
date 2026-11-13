@@ -34,6 +34,15 @@
         "dev": "vite",
         "build": "tsc --noEmit && vite build",
         "check": "tsc --noEmit && biome lint src tests vite.config.ts playwright.config.ts && prettier --check src tests vite.config.ts playwright.config.ts",
-        "test:e2e": "playwright test"
+        "test:e2e": "playwright test",
+        "build:desktop": "pnpm build:desktop:types && vite build --config vite.desktop.config.ts",
+        "build:desktop:types": "tsc -p tsconfig.desktop.json"
+    },
+    "exports": {
+        "./desktop": {
+            "types": "./dist-desktop/types/desktop.d.ts",
+            "import": "./dist-desktop/index.js"
+        },
+        "./desktop.css": "./dist-desktop/web.css"
     }
 }

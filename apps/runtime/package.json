@@ -1,31 +1,32 @@
 {
-  "name": "@veriq/runtime",
-  "dependencies": {
-    "@playwright/test": "1.65.0",
-    "@veriq/compiler": "workspace:*",
-    "@veriq/contracts": "workspace:*",
-    "@veriq/runner-sdk": "workspace:*",
-    "commander": "14.0.3",
-    "env-paths": "3.0.0",
-    "pino": "10.4.0",
-    "proper-lockfile": "4.1.2",
-    "yauzl": "3.4.0"
-  },
-  "devDependencies": {
-    "@types/node": "24.10.1",
-    "@types/proper-lockfile": "4.1.4",
-    "@types/yauzl": "3.4.0",
-    "tsx": "4.23.15",
-    "typescript": "5.9.3"
-  },
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "license": "AGPL-3.0-only",
-  "scripts": {
-    "test": "pnpm build:launcher && node --import tsx --test tests/*.test.ts",
-    "check": "tsc --noEmit",
-    "dev": "node --import tsx src/cli.ts",
-    "build:launcher": "node scripts/build-launcher.mjs"
-  }
+    "name": "@veriq/runtime",
+    "dependencies": {
+        "@playwright/test": "1.65.0",
+        "@veriq/compiler": "workspace:*",
+        "@veriq/contracts": "workspace:*",
+        "@veriq/runner-sdk": "workspace:*",
+        "commander": "14.0.3",
+        "env-paths": "3.0.0",
+        "pino": "10.4.0",
+        "proper-lockfile": "4.1.2",
+        "yauzl": "3.4.0",
+        "playwright-core": "1.65.0"
+    },
+    "devDependencies": {
+        "@types/node": "24.10.1",
+        "@types/proper-lockfile": "4.1.4",
+        "@types/yauzl": "3.4.0",
+        "tsx": "4.23.15",
+        "typescript": "5.9.3"
+    },
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "license": "AGPL-3.0-only",
+    "scripts": {
+        "test": "pnpm build:launcher && node --import tsx --test tests/*.test.ts",
+        "check": "tsc --noEmit",
+        "dev": "node --import tsx src/cli.ts",
+        "build:launcher": "node scripts/build-launcher.mjs"
+    }
 }

@@ -230,3 +230,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+/apps/web/dist-desktop/
+/apps/desktop/out/
+
+/apps/desktop/build/
