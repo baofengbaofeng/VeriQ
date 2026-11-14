@@ -579,9 +579,11 @@ assert production_starts_without_node_or_chrome is True
 - [x] Step 4：运行组件、IPC、安全和真实Electron测试；检查UI崩溃/窗口关闭不丢后台执行。
 - [x] Step 5：同步契约、安装说明并提交。
 
-## T20：Windows/Linux桌面与Runtime发行
+## T20：Mac双架构优先的桌面与Runtime发行
 
 **依赖：** T19
+
+**2026-11-14范围修订：** macOS Intel x64、Apple Silicon arm64均为MVP最高优先级；Windows11 x64、Ubuntu24.04 x64保留、优先级较低。Mac最低系统版本和原生进程树停止证明未定，先完成[范围记录](../specs/macos-mvp-scope.md)中的决定；不得借平台扩展降低现有停止、凭据或离网验收标准。已有Windows/Linux证据继续保留，不能映射为Mac通过。
 
 **Files：** apps/desktop/electron-builder.yml；scripts/build_runtime.mjs；tests/compatibility/process-names.spec.ts；docs/operations/runtime-install.md；对应CI工作流。
 
@@ -589,7 +591,7 @@ assert production_starts_without_node_or_chrome is True
 
 - [ ] Step 1：测试安装后的实际进程名、离网依赖、后台/托盘、停止进程树、单实例、升级/卸载和签名校验。
 - [ ] Step 2：在对应OS运行pnpm compatibility:runtime，确认未实现行为失败。
-- [ ] Step 3：electron-builder发行GUI/Agent/Runner和浏览器；Linux与Windows独立构建验收，不另引入Rust桌面壳。
+- [ ] Step 3：electron-builder发行GUI/Agent/Runner和浏览器；macOS x64、macOS arm64、Windows x64、Ubuntu x64独立构建验收，优先Mac两架构，不另引入Rust桌面壳。Mac补齐Keychain、Cookie实际保护、私有文件适配、进程监督、菜单栏/Dock及真实架构依赖闭包。
 - [ ] Step 4：各OS验证安装包并保存产物/日志；没有正式签名证书时标记开发包，暂停正式签名发布并询问用户。
 - [ ] Step 5：同步兼容矩阵和用户说明并提交。
 

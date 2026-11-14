@@ -6,7 +6,7 @@
 
 服务端构建、前端入 wheel、离线安装校验、引擎候选与独立晋升工具的代码已通过独立审查及取消/晋升问题修复复审。固定浏览器 SDK 136 项检查通过，行覆盖率 91.46%；这不代表最终集成门禁完成。默认构建仍被历史 lint、格式和注释规范阻断，当前包明确标记 UNVERIFIED。Electron 桌面 GUI 模块已通过独立审查，支持平台断网时使用缓存资源运行和查看报告。原生发行仍在开发：Windows Server 与 Ubuntu 已有原生 IPC、系统保险库及空初始化恢复的真实目标验证，Cookie 磁盘保护与重启读回也已验证；Ubuntu 源码 7 项 GUI 回归通过。Windows 仍有 3 项 ACL/所有者测试失败，Windows11/Ubuntu 安装和完整产品验收尚未完成，目前没有正式安装包。详见[里程碑](docs/plans/milestones.md)和[构建发行指南](docs/release.md)。
 
-仓库当前已落地 `apps/srv`（Tornado 控制服务）、`apps/web`（React 管理台）、`apps/runtime`（Agent/CLI/离线执行）、`packages/{contracts,compiler,runner-sdk,ui}`；`apps/desktop` 已包含 main/preload/renderer、本地打包界面和独立 Agent 入口；两平台安装发行及剩余原生能力仍在推进。贡献与智能体须遵循根目录 `AGENTS.md` 中的编码规范（4 空格缩进、中文注释、英文日志等）。
+仓库当前已落地 `apps/srv`（Tornado 控制服务）、`apps/web`（React 管理台）、`apps/runtime`（Agent/CLI/离线执行）、`packages/{contracts,compiler,runner-sdk,ui}`；`apps/desktop` 已包含 main/preload/renderer、本地打包界面和独立 Agent 入口。首发桌面范围已加入 Mac Intel x64 与 Apple Silicon arm64，优先级高于仍需交付的 Windows/Ubuntu；Mac 原生适配与安装验收尚未完成，见 [Mac 范围与兼容性记录](docs/specs/macos-mvp-scope.md)。贡献与智能体须遵循根目录 `AGENTS.md` 中的编码规范（4 空格缩进、中文注释、英文日志等）。
 
 ## 为什么做 VeriQ
 
@@ -89,7 +89,7 @@ flowchart TB
 | AI         | Provider SDK 适配，按需接入 Midscene                                                                         |
 | 构建与测试 | pnpm、uv、build、Hatchling、pytest/pytest-asyncio、Vitest、Playwright                                        |
 
-目标兼容范围为服务端 Linux x64、本地 Runtime/桌面 Windows 11 x64 与 Ubuntu 24.04 x64；这些平台须分别完成真实构建与验收后才宣称支持。
+目标兼容范围为服务端 Linux x64；本地 Runtime/桌面优先交付 macOS Intel x64 与 Apple Silicon arm64，Windows 11 x64 与 Ubuntu 24.04 x64 保留在 MVP 范围、优先级较低。Mac 最低系统版本待确认：2020 年的 Big Sur 11 与当前锁定运行栈存在冲突，不能宣称已支持。所有目标须分别完成真实构建与验收后才宣称支持。
 
 ## 开发检查
 
@@ -154,7 +154,7 @@ veriq/
 
 生产路由须区分 API、静态文件与登记的 SPA 页面：未知 API 和缺失静态资源返回真实 404，登记页面支持深链接刷新。凭证不得写入前端构建产物，用户证据不放入静态发布目录。
 
-桌面安装包走独立 Windows/Linux 构建与验收流程，包含本地 GUI、Agent/Runner 及所需依赖。服务端打包成功不能代替桌面或 Windows 验证。以上为待实现的发布契约，具体步骤见[需求与技术规格](docs/specs/veriq-1.0.md)及[实施计划](docs/plans/veriq-1.0.md)。
+桌面安装包按 macOS x64、macOS arm64、Windows x64、Ubuntu x64 分别构建与验收，包含本地 GUI、Agent/Runner 及所需依赖；Mac 双架构优先。共享业务代码之外，凭据库、进程监督、原生文件访问与桌面生命周期仍需平台适配。服务端打包成功不能代替桌面验证。以上为待实现的发布契约，具体步骤见[需求与技术规格](docs/specs/veriq-1.0.md)、[Mac 范围记录](docs/specs/macos-mvp-scope.md)及[实施计划](docs/plans/veriq-1.0.md)。
 
 ## Workspace 与命名规则
 
@@ -272,7 +272,7 @@ Exact dependency versions and license records are in [ADR 0003](docs/decisions/0
 | AI                    | Provider SDK adapters, Midscene on demand                                                                    |
 | Build and test        | pnpm, uv, build, Hatchling, pytest/pytest-asyncio, Vitest, Playwright                                        |
 
-Target compatibility is server Linux x64 and local Runtime/desktop on Windows 11 x64 and Ubuntu 24.04 x64. Support claims require real builds and acceptance on each platform.
+Target compatibility is server Linux x64, with macOS Intel x64 and Apple Silicon arm64 as the highest-priority desktop/Runtime MVP targets. Windows 11 x64 and Ubuntu 24.04 x64 remain required at lower priority. Mac implementation and installed acceptance are pending; the requested Big Sur 11 baseline conflicts with the frozen runtime stack, and the minimum version is awaiting confirmation. See [Mac scope and compatibility](docs/specs/macos-mvp-scope.md). Support claims require real builds and acceptance on each platform.
 
 ## Development checks
 
@@ -337,7 +337,7 @@ The release entry is `./build.sh`; `--with-tests` is the default alias, and `--s
 
 Production routing must distinguish API, static files, and registered SPA pages: unknown APIs and missing static assets return real 404s; registered pages support deep-link refresh. Credentials must not be baked into frontend build artifacts; user evidence must not land in the static publish directory.
 
-Desktop installers follow separate Windows/Linux build and acceptance flows that include local GUI, Agent/Runner, and required dependencies. A successful server package does not replace desktop or Windows verification. These release contracts are still to be fully implemented; see the [requirements and technical spec](docs/specs/veriq-1.0.md) and [implementation plan](docs/plans/veriq-1.0.md).
+Desktop installers require separate macOS x64, macOS arm64, Windows x64 and Ubuntu x64 build and acceptance flows, prioritizing both Mac architectures. They include local GUI, Agent/Runner and required dependencies. Business code is shared, while credentials, process supervision, native file access and desktop lifecycle need platform adapters. A successful server package does not replace desktop verification. These release contracts are still to be fully implemented; see the [requirements and technical spec](docs/specs/veriq-1.0.md), [Mac scope record](docs/specs/macos-mvp-scope.md) and [implementation plan](docs/plans/veriq-1.0.md).
 
 ## Workspace and naming rules
 

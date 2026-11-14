@@ -9,6 +9,7 @@
 - User approved exact React Router/react-router-dom7.18.5; keep React18 and Vite6.
 - Human-readable project name is VeriQ in comments, docs, specs/plans, API/GUI titles and generated documentation; keep lower-case technical identifiers.
 - Full first-release scope F01-F14, including an Electron desktop GUI; a partial loop is not the MVP.
+- Desktop/Runtime MVP requires macOS Intel x64 and Apple Silicon arm64 at highest priority; Windows11 x64 and Ubuntu24.04 x64 remain required at lower priority. macOS minimum-version and process-containment decisions remain open; see docs/specs/macos-mvp-scope.md. Do not treat requirements as implemented support or silently weaken stop proof.
 - Python3.12/Tornado 6.6.1/SQLAlchemy2/MySQL8.4; React18/Vite6/Tailwind3; Node24/TypeScript/Playwright execution.
 - Workspace is the resource/authorization boundary. Validate nested references, downloads, events and imports.
 - Every platform table starts with veriq_; Alembic table veriq_alembic_version.

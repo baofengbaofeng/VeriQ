@@ -6,13 +6,13 @@
 
 保留 Electron45.3.1、electron-vite6.0.0、electron-builder26.18.1，独立执行器使用 Node24.22.1；业务浏览器为 Playwright1.65.0 对应的完整 Chromium158.0.8127.18/rev1254。Electron 内嵌 Node24.22.2 和 UI Chromium156 分别记录，不能替代独立执行器和业务浏览器。
 
-支持目标为 Windows11 x64、Ubuntu24.04 x64，另有 Linux 无桌面云端 Runtime。当前开发宿主 Debian13、托管 Windows Server 构建以及 Ubuntu 虚拟显示测试，各自只能证明实际执行的内容。真实安装、托盘、凭据库、跨用户访问、升级和离网验收不能互相替代。
+2026-11-14用户修订支持目标：macOS Intel x64与Apple Silicon arm64均为完整MVP、最高优先级；Windows11 x64、Ubuntu24.04 x64保留、优先级较低，另有Linux无桌面云端Runtime。Mac最低版本与原生监督设计尚未决定，见[范围与兼容性记录](../specs/macos-mvp-scope.md)；本ADR原有Windows/Linux机制不构成Mac已实现的依据。当前开发宿主Debian13、托管Windows Server构建以及Ubuntu虚拟显示测试，各自只能证明实际执行的内容。真实安装、托盘、凭据库、跨用户访问、升级和离网验收不能互相替代。
 
 ## 成熟组件比较与选择
 
 | 能力 | 候选与许可 | 决定及依据 | 尚需验证 |
 | --- | --- | --- | --- |
-| 桌面打包 | 已锁 electron-builder26.18.1，MIT | 继续复用，首批 NSIS x64 与 Ubuntu .deb，另交独立 Runtime 归档 | 各 OS 实际安装、卸载、离网系统依赖和签名状态 |
+| 桌面打包 | 已锁 electron-builder26.18.1，MIT | 继续复用；Mac双架构优先，具体载体待Mac设计确认；原NSIS x64与Ubuntu .deb仍需交付，另交独立Runtime归档 | 各OS/架构实际安装、卸载、离网系统依赖和签名状态；Mac当前未实现 |
 | 归档 | 已锁 tar7.5.22，BlueOak-1.0.0 | 作为 Runtime/构建的明确依赖，替换固定 GNU tar 路径；保留路径、类型、长度和 hash 校验 | 确定性生成、危险成员拒绝、Windows 原生路径与旧包兼容 |
 | TS 载入 | 已锁 tsx4.23.15，MIT | 独立 Runtime 明确携带，含 esbuild0.28.2 对应平台二进制 | 实际安装闭包；两平台离线 npm 缓存不能只含构建宿主的可选包 |
 | Windows 进程树 | Win32 Job Object | 薄原生 guardian 使用系统所有权、挂起启动和 Job 排空；保持未知停止隔离 | 实际 HANDLE/创建时间、后代、Job 嵌套、异常退出与 Unicode 参数 |

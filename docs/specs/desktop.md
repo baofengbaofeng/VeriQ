@@ -2,6 +2,8 @@
 
 日期：2026-11-10。用户明确要求本地Runtime提供类似本地软件的图形界面。本文覆盖此前“首版仅CLI、不建设桌面界面”的描述；桌面GUI属于首发完整MVP，CLI与无人值守Agent继续保留。按用户确认采用Electron桌面方向，精确依赖版本仍须锁定。
 
+2026-11-14范围修订：macOS Intel x64、Apple Silicon arm64均为首发必需、最高优先级；Windows11 x64、Ubuntu24.04 x64仍属MVP、优先级较低。Mac最低版本、与固定工具链的冲突及原生适配待决事项见[Mac范围与兼容性记录](macos-mvp-scope.md)。目标范围不代表现有代码已兼容或完成安装验收。
+
 ## 必须提供的桌面能力
 
 - 原生安装、桌面/开始菜单入口、独立窗口、单实例、托盘、后台状态、版本与诊断。
@@ -35,7 +37,7 @@
 - Electron main使用contextIsolation、关闭renderer Node集成、启用适用的sandbox；preload只暴露白名单类型化IPC，验证参数与sender。设备token、密钥、spawn和任意文件访问不暴露给renderer。
 - Agent与UI之间使用受限本机IPC，服务端凭证不嵌入桌面前端；不开放无认证本地HTTP控制接口。
 - CLI、桌面和云端共用编译器/SDK/结果协议，不实现两套测试引擎。
-- 服务端仍按web build→Python static/dist→wheel统一发布；桌面产物由独立Windows/Linux流水线打包，包含GUI/Agent/Runner及所需依赖。
+- 服务端仍按web build→Python static/dist→wheel统一发布；桌面产物按macOS x64、macOS arm64、Windows x64、Ubuntu x64分别构建，优先完成Mac两架构，包含GUI/Agent/Runner及所需依赖。共享业务代码不替代各平台凭据库、进程监督、原生文件和生命周期适配。
 - 新增桌面构建/签名、GUI E2E、断网GUI、托盘/退出、崩溃重连、IPC授权与进程命名验收。升级/回滚使用签名校验并兼容引擎；执行中不强制更新。
 
 ## 完整MVP验收追加
