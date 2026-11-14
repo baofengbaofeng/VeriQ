@@ -5,7 +5,7 @@
     "license": "AGPL-3.0-only",
     "packageManager": "pnpm@11.25.0",
     "engines": {
-        "node": ">=24.22.1 <25",
+        "node": ">=24 <25",
         "pnpm": "11.25.0"
     },
     "scripts": {
