@@ -42,7 +42,7 @@ AI模块开箱提供完整配置和操作引导；实际模型调用使用用户
 - 开发时前后端分开启动；生产先构建前端，复制到后端包static/dist，再统一发布。
 - 所有已确认模块在首发版本可用；第三方包候选不要求全部集成同类能力。
 
-本稿按“自建Tornado控制面、复用成熟组件、不fork整站”编制，审阅确认后作为实施基线。代码包采用Node24LTS与Playwright Test，Python后端不运行TS浏览器测试。服务端目标仍为Linux x64。2026-11-14用户明确将macOS Intel x64、Apple Silicon arm64纳入完整MVP并设为最高优先级；Windows11 x64、Ubuntu24.04 x64仍必须交付、优先级较低。Mac最低版本已确认为macOS14（Sonoma），测试必须使用宿主macOS原生Chrome，原生进程监督机制仍须按[Mac范围与兼容性记录](macos-mvp-scope.md)解决，当前尚未实现或验收，其他OS/arch不自动纳入。
+本稿按“自建Tornado控制面、复用成熟组件、不fork整站”编制，审阅确认后作为实施基线。代码包采用Node24LTS与Playwright Test，Python后端不运行TS浏览器测试。服务端目标仍为Linux x64。2026-11-14用户明确将macOS Intel x64、Apple Silicon arm64纳入完整MVP并设为最高优先级；Windows11 x64、Ubuntu24.04 x64仍必须交付、优先级较低。Mac最低版本已确认为macOS14（Sonoma），测试必须使用宿主macOS原生Chrome，Mac停止验收按用户确认的[受控进程停止设计](macos-controlled-stop.md)实施，当前尚未实现或验收，其他OS/arch不自动纳入。
 
 ## 3. 开源复用与技术选型
 
@@ -227,7 +227,7 @@ MySQL短事务按固定顺序锁global/workspace/runtime/environment容量和资
 
 超时：动作10秒、UI5秒、网络15秒、准备60秒、业务120秒、独立清理30秒、Run30分钟。嵌套等待受剩余总预算限制。
 
-取消先标记并停止新领取，Runtime中断操作、取消监听、清理、终止进程树后释放容量。无法确认停止时保留未知/失联状态和补偿，不直接标成功或安全重派。联网Runtime丢租约停止，不自动改离线继续。租约过期撤销结果写入权，但不证明原进程已经停止：对应设备/容量/独占资源进入QUARANTINED，收到停止证明或管理员审计解除后才复用；不通过盲目回收slot掩盖可能仍在运行的浏览器。
+取消先标记并停止新领取，Runtime中断操作、取消监听、清理，再按平台已确认范围验证停止后释放容量：Linux/Windows保留全部后代排空证明；Mac核验受控Worker/Chrome退出，不承诺任意游离后代内核级全清理，具体登记、回执与恢复见[Mac停止设计](macos-controlled-stop.md)。无法确认停止时保留未知/失联状态和补偿，不直接标成功或安全重派。联网Runtime丢租约停止，不自动改离线继续。租约过期撤销结果写入权，但不证明原进程已经停止：对应设备/容量/独占资源进入QUARANTINED，收到停止证明或管理员审计解除后才复用；不通过盲目回收slot掩盖可能仍在运行的浏览器。
 
 ## 12. HTTP触发与维护
 
@@ -339,7 +339,7 @@ Runtime产物在对应Windows/Linux构建与测试job产生，含原生入口、
 
 ## 19. 安装、配置、升级与运维
 
-开箱提供两种服务端安装：Docker Compose（API+MySQL，制品默认volume）和Python3.12部署包（venv+wheelhouse）。独立本地Runtime提供Windows/Linux安装与卸载、开机启动/停止说明。Compose的可选demo profile包含示例业务与fixture；初始化向导导入示例Workspace/目录/套件，并按Runtime实际网络映射URL。
+开箱提供两种服务端安装：Docker Compose（API+MySQL，制品默认volume）和Python3.12部署包（venv+wheelhouse）。独立本地Runtime提供Mac双架构优先及Windows/Ubuntu的安装卸载、登录或开机启动/停止说明。Compose的可选demo profile包含示例业务与fixture；初始化向导导入示例Workspace/目录/套件，并按Runtime实际网络映射URL。
 
 配置优先CLI > VERIQ_环境变量 > 配置文件 >默认。默认仅非敏感值；DB、加密主密钥、签名密钥和对外URL必须显式配置或通过安全安装流程生成。主密钥不存数据库或静态文件；密钥丢失的恢复影响写入手册。
 

@@ -23,7 +23,7 @@
 | 固定组件 | 官方版本资料中的 macOS 边界 | 对 VeriQ 的影响 |
 | --- | --- | --- |
 | Electron 45.3.1 | Ventura 13 起，Intel/ARM | UI 壳本身不能覆盖 Big Sur 11 |
-| 独立 Node 24.22.1 | x64、arm64 均为 13.5 起的 Tier 1 | 不可将 Electron 内嵌 Node 或系统 Node 代替独立运行引擎 |
+| 独立Node24.x；已核验参考版本24.22.1 | 参考版本的x64、arm64均为13.5起的Tier 1 | 用户要求Node兼容门槛为24.x；每个发行仍记录并核验实际具体版本/hash，不将Electron内嵌Node或任意系统Node代替其角色 |
 | Playwright 1.65.0 / 配套 Chrome 158.0.8127.18 | 固定下载矩阵对 macOS 13 及以下不提供这两类目标，14 起提供 | 完整产品最低macOS14已获用户确认；尚无真机验收 |
 
 已决定：保持固定运行栈，支持目标从macOS14起；不支持macOS11、12、13。不得只降低 `minimumSystemVersion`、静默降级依赖、改用任意系统浏览器后声称解决兼容。官方资产元数据存在不代表已下载验证、构建或运行成功。
@@ -47,18 +47,15 @@
 
 Keychain 两类实现的权限与签名模型见 Apple [TN3137](https://developer.apple.com/documentation/technotes/tn3137-on-mac-keychains)。默认 file-based Keychain 与 data-protection Keychain 不能混为一种机制；选择需要结合固定 helper 布局及真实用户会话验证。
 
-## 4. 原生进程监督：仍未解决的架构问题
+## 4. 已确认的原生进程停止范围
 
-原有规格要求同一 Attempt 的完整进程树停止后才能自动释放容量；未知必须隔离。Linux subreaper 与 Windows Job 各有内核维护的后代边界。Mac 不能直接套用 Linux 实现：
+用户已接受Mac正常停止以受控Worker和Chrome确实退出为准，检测到不确定时保持隔离并人工恢复，不承诺任意游离后代由内核自动清理。最低14、宿主原生Chrome及该停止范围均已确定，不再重复列为待用户选择；实现与真机证据尚未完成。
 
-- kqueue 的 `NOTE_TRACK` 等标志在 Apple XNU 中被拒绝，不能引用 FreeBSD 行为声称 Darwin 支持递归追踪。
-- 进程组、PID/PPID 扫描或根进程退出，无法覆盖已有真实反例中的空环境、脱离进程组并成为孤儿的后代；不能据此生成 `DRAINED`。
-- Endpoint Security 是待研究候选，需要 Apple 单独批准的 entitlement、root 与用户 Full Disk Access；普通 Developer ID、公证或自签不能替代。已核验事件身份及丢事件计数，但尚未证明事件流收敛与完整排空，不能宣称方案已成立。
-- Linux VM曾作为研究备选，会改变浏览器实际运行OS、资源占用与本地可见浏览器体验。用户现已要求宿主macOS原生Chrome，**该替代方案已排除**，不得继续按可选架构实施。
+按[受控停止设计](macos-controlled-stop.md)与[实施子计划](../plans/macos-controlled-stop.md)推进：复用Playwright BrowserServer公共API和受控进程登记/退出观察；停止回执明确标识范围，不能写成Linux/Windows的全后代DRAINED证明。Linux subreaper和Windows Job继续保留原有强保证；未知不能自动释放容量。
 
-官方依据：[Apple XNU 进程事件实现](https://github.com/apple-oss-distributions/xnu/blob/xnu-12377.1.9/bsd/kern/kern_event.c#L1100)、[Endpoint Security entitlement](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.endpoint-security.client)、[es_new_client](https://developer.apple.com/documentation/endpointsecurity/es_new_client(_:_:))。
+此前可行性研究仍约束实现：kqueue的NOTE_TRACK不受支持，进程组或PID扫描不构成退出事实；Endpoint Security另需Apple批准/root/FDA且没有已证实的全排空通路，本方案不依赖；Linux VM浏览器已被用户排除。Darwin公开peer认证/定点退出观察及私有fd存储须真实验证，不能用未核实的私有API补成就绪。
 
-后续必须先形成可验证的实现方案，再按用户要求核对涉及承诺或架构的变化。不得隐藏为“各 OS 只需改打包”，也不得为了继续编码而放松停止标准。
+官方依据：[Apple XNU进程事件实现](https://github.com/apple-oss-distributions/xnu/blob/xnu-12377.1.9/bsd/kern/kern_event.c#L1100)、[Endpoint Security entitlement](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.endpoint-security.client)。这些资料是先前研究依据，不是Mac实现或测试通过记录。
 
 ## 5. 证书与用户提前准备事项
 
@@ -76,8 +73,8 @@ Keychain 两类实现的权限与签名模型见 Apple [TN3137](https://develope
 | --- | --- | --- |
 | 1 | 同步已确认范围至 README、规格、计划和里程碑 | 本文随范围修订提供；不改变已有实际验证结论 |
 | 2 | 完成公共凭据故障状态与显式恢复入口 | `ae38f0a`及修复`b2baf88`通过独立定向复审；最终48项桌面单测通过，适用host/renderer严格检查通过；不依赖Mac原生机制，不代表GUI/目标OS验收 |
-| 3 | 落实最低macOS与完整进程监督方案 | 最低14已确认；监督方案仍需可行性依据和设计核对 |
-| 4 | 扩展四组目标的平台合同，再按确认设计实施原生适配、依赖库存和双架构构建 | 合同切片`986a2d8`已复审；原生适配和运行仍待实施，能力就绪须真实证明，不能绕过未决监督设计 |
+| 3 | 落实最低macOS与受控进程停止 | 最低14、宿主原生Chrome、受控停止范围均已确认；具体实现/真机验收仍待完成 |
+| 4 | 扩展四组目标的平台合同，再按确认设计实施原生适配、依赖库存和双架构构建 | 合同切片`986a2d8`已复审；原生适配和运行仍待实施，能力就绪须真实证明，不能绕过受控停止设计与实际验证 |
 | 5 | 两类 Mac 原生安装与全功能验收 | 待实际 Intel / Apple Silicon 设备或适当目标环境；用户尚未确认设备可用性 |
 | 6 | 完成较低优先级 Windows/Ubuntu 发行及 T21–T23 | 全部仍在首发范围；保留原有实现、失败和证据，不重新归零 |
 
