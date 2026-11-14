@@ -137,7 +137,7 @@ jobs:
               shell: bash
               run: |
                   set -euo pipefail
-                  node --import tsx --test tests/native/darwin-business.test.ts 2>&1 | tee "$VERIQ_MAC_EVIDENCE/business.log"
+                  node --import tsx --test --test-reporter=tap tests/native/darwin-business.test.ts 2>&1 | tee "$VERIQ_MAC_EVIDENCE/business.log"
             - name: Always bind source and actual build inputs
               if: always()
               shell: bash

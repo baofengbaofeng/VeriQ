@@ -40,3 +40,33 @@ test("the optional Darwin deadline leaves the actual Linux kernel drain unchange
         await child.exited;
     } finally { await processes.terminateAttempt("legacy-deadline", "TEST_FINALLY"); await rm(root, { recursive: true, force: true }); }
 });
+
+/** 诊断等待器使用真实 HTTP 监听对象和 AbortSignal 验证提前完成、拒绝与取消都会返回控制流，finally 必须关闭本次资源并移除监听；这些 Promise 只表示夹具调度结果，不伪造 SDK 用例结果、原生停止证明或浏览器退出事实。 */
+for (const scenario of ["fulfilled", "rejected", "cancelled", "ready"] as const) test(`business diagnostic watch releases owned resource after ${scenario}`, async () => {
+    const { createServer } = await import("node:http");
+    const { default: EventEmitter } = await import("node:events");
+    const helper = await import("./fixtures/business-engine.ts");
+    const server = createServer((_request, response) => response.end());
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const controller = new AbortController(), before = EventEmitter.getEventListeners(controller.signal, "abort").length;
+    let finish!: (value: number) => void, reject!: (error: Error) => void;
+    const running = new Promise<number>((resolve, fail) => { finish = resolve; reject = fail; });
+    let watch: { waitFor(ready: Promise<unknown>, phase: "BARRIER" | "STOP"): Promise<void>; result(): Promise<number>; close(): void } | undefined;
+    try {
+        const factory = Reflect.get(helper, "watchBusinessRun");
+        assert.equal(typeof factory, "function", "Business diagnostics need an immediate run completion/rejection observer");
+        watch = factory(running, controller.signal);
+        const readiness = scenario === "ready" ? Promise.resolve() : new Promise<void>(() => {});
+        const observed = watch!.waitFor(readiness, "BARRIER");
+        if (scenario === "fulfilled") { finish(7); await assert.rejects(observed, /BUSINESS_RUN_COMPLETED_BEFORE_BARRIER/); }
+        if (scenario === "rejected") { reject(new Error("private-unprinted-source")); await assert.rejects(observed, /BUSINESS_RUN_REJECTED_BEFORE_BARRIER/); }
+        if (scenario === "cancelled") { controller.abort(new Error("private-unprinted-cancellation")); await assert.rejects(observed, /BUSINESS_TEST_CANCELLED/); }
+        if (scenario === "ready") { await observed; finish(7); assert.equal(await watch!.result(), 7); }
+    } finally {
+        finish(7);
+        watch?.close();
+        await new Promise<void>((resolve, fail) => server.close((error) => error ? fail(error) : resolve()));
+    }
+    assert.equal(server.listening, false);
+    assert.equal(EventEmitter.getEventListeners(controller.signal, "abort").length, before);
+});

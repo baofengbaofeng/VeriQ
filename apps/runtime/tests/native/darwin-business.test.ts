@@ -13,7 +13,7 @@ import { DatabaseSync } from "node:sqlite";
 import { execFileSync } from "node:child_process";
 import { chromium, type BrowserServer } from "playwright-core";
 import { fromBuffer, type ZipFile } from "yauzl";
-import { fixture, buildBusinessEngine, onlineBusiness } from "../fixtures/business-engine.ts";
+import { fixture, buildBusinessEngine, onlineBusiness, watchBusinessRun, emitBusinessDiagnostic } from "../fixtures/business-engine.ts";
 import { createDarwinSource } from "../../src/execution/darwin-source.ts";
 import { ProcessSupervisor, type OwnedProcess } from "../../src/execution/processes.ts";
 import { runOffline, recoverOffline } from "../../src/offline/run.ts";
@@ -23,23 +23,75 @@ import { LocalReports } from "../../src/offline/reports.ts";
 import { LocalStore } from "../../src/offline/store.ts";
 import { uploadOffline } from "../../src/offline/upload.ts";
 import { darwinNative, type DarwinPrivateDirectory } from "../../src/native/darwin.ts";
-import { privateDirectory, readPrivate, updatePrivate } from "../../src/offline/config.ts";
+import { privateDirectory, readPrivate, updatePrivate, readBoundedFile } from "../../src/offline/config.ts";
 import { AttemptBroker, createDarwinBrokerDirectory } from "../../src/execution/broker.ts";
 import { id } from "../../../../packages/compiler/tests/helpers.ts";
 
 assert.equal(process.platform, "darwin", "Actual macOS is required; all-skip Linux is not business evidence");
 let root: string;
+let activeBusinessFixtures = 0, retainBusinessRoot = false;
 let engine: Awaited<ReturnType<typeof buildBusinessEngine>>;
 before(async () => {
     root = await mkdtemp(join(await realpath(tmpdir()), "veriq-c2b2-"));
     engine = await buildBusinessEngine(root);
 }, { timeout: 180000 });
-after(async () => { await rm(root, { recursive: true, force: true }); });
+after(async () => {
+    if (activeBusinessFixtures || retainBusinessRoot) console.log(JSON.stringify({ businessRootCleanup: { retained: true, activeFixtures: activeBusinessFixtures, cleanupUnconfirmed: retainBusinessRoot } }));
+    else await rm(root, { recursive: true, force: true });
+});
+
+/** 私有控制成员与第三方异常只在夹具内转换为固定阶段，TAP 不得借 JSON 语法片段、错误 cause 或动态 message 输出端点和控制 nonce；真正的原始对象与结果仍由测试保留，诊断只输出受限枚举与布尔分类。 */
+function privateJson(bytes: string | Buffer): any {
+    try { return JSON.parse(bytes.toString()); }
+    catch { throw new Error("PRIVATE_TEST_JSON_INVALID"); }
+}
+function reportNativeFailure(phase: "OFFLINE_RUN" | "BROWSER_LAUNCH" | "FIXTURE_CLEANUP", error: unknown): void {
+    const value = error instanceof Error ? error.message : "";
+    const codes = new Set(["LOCAL_OWNERSHIP_LOST", "LOCAL_CAPACITY_HELD", "DARWIN_CONTROLLED_START_FAILED", "DARWIN_ATTEMPT_STOPPING", "PROCESS_STOP_UNCONFIRMED", "COMMIT_UNCONFIRMED", "UNSAFE_CONFIGURATION", "UNSAFE_DESTINATION", "BUNDLE_DESTINATION_EXISTS", "INVALID_OFFLINE_RESULT"]);
+    console.log(JSON.stringify({ nativeFailure: { phase, error: true, code: codes.has(value) ? value : "OTHER", moduleMissing: /ERR_MODULE_NOT_FOUND|Cannot find module/.test(value), connectionError: /browserType\.connect|ECONNREFUSED|WebSocket/.test(value) } }));
+}
+
+/** 夹具收尾只等待原对象的实际操作，并共用首次收尾得到的现有 source 上限绝对期限；到期或拒绝只产生未确认失败，不猜测 PID、不调用 test-force-exit，也不会把随后由夹具终止得到的事实写回产品停止回执。 */
+async function fixtureBefore<T>(operation: Promise<T>, deadline: number): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+        const result = await Promise.race([
+            operation.then((value) => ({ ok: true as const, value }), () => ({ ok: false as const })),
+            new Promise<{ ok: false }>((resolve) => { timer = setTimeout(() => resolve({ ok: false }), Math.max(0, deadline - performance.now())); }),
+        ]);
+        if (!result.ok) throw new Error("OWNED_FIXTURE_CLEANUP_UNCONFIRMED");
+        return result.value;
+    } finally { clearTimeout(timer); }
+}
+
+/** Playwright 的真实错误正文只在测试内存分类，投影有限错误数量和预先固定的连接、模块、类型与断言特征；既不复制错误消息、源码片段和堆栈，也不由某个分类直接推断 SDK 根因或受控停止成功，实际修复仍须协调者按新证据裁定。 */
+async function reportPlaywrightFacts(path: string): Promise<void> {
+    const facts = { readable: false, errorStrings: 0, connection: false, moduleMissing: false, typeError: false, referenceError: false, syntaxError: false, assertion: false };
+    try {
+        const value = privateJson(await readBoundedFile(path, 2 * 1024 * 1024));
+        let visited = 0;
+        const visit = (item: unknown, field: string, depth: number): void => {
+            if (++visited > 10000 || depth > 24) return;
+            if (typeof item === "string" && ["message", "stack", "error"].includes(field)) {
+                facts.errorStrings++;
+                facts.connection ||= /browserType\.connect|ECONNREFUSED|WebSocket/.test(item);
+                facts.moduleMissing ||= /ERR_MODULE_NOT_FOUND|Cannot find module/.test(item);
+                facts.typeError ||= /TypeError/.test(item);
+                facts.referenceError ||= /ReferenceError/.test(item);
+                facts.syntaxError ||= /SyntaxError|Unexpected token|does not provide an export/.test(item);
+                facts.assertion ||= /AssertionError|expect\(|Expected:|Received:/.test(item);
+            } else if (item && typeof item === "object") for (const [key, child] of Object.entries(item)) visit(child, key, depth + 1);
+        };
+        visit(value, "root", 0);
+        facts.readable = true;
+    } catch { }
+    console.log(JSON.stringify({ playwrightDiagnostic: facts }));
+}
 
 /** ZIP 解析只复用已有 yauzl，以输入、条目数量、单项及总解压字节四重限额读取真实归档；条目名字同样受扫描，嵌套只允许 HTML 选定数据与 Trace 两层，不把压缩原字节未命中当成已检查正文。 */
 async function scanArchive(bytes: Buffer, check: (bytes: Buffer) => void): Promise<number> {
     assert.ok(bytes.length <= 32 * 1024 * 1024, "Archive input limit");
-    const zip = await new Promise<ZipFile>((resolve, reject) => fromBuffer(bytes, { lazyEntries: true }, (error, value) => error ? reject(error) : resolve(value!)));
+    const zip = await new Promise<ZipFile>((resolve, reject) => fromBuffer(bytes, { lazyEntries: true }, (error, value) => error ? reject(new Error("ARTIFACT_ZIP_OPEN_FAILED")) : resolve(value!)));
     let entries = 0, total = 0;
     try {
         await new Promise<void>((resolve, reject) => {
@@ -67,16 +119,20 @@ async function scanArchive(bytes: Buffer, check: (bytes: Buffer) => void): Promi
             });
             zip.readEntry();
         });
-    } finally { zip.close(); }
+    } catch { throw new Error("ARTIFACT_ZIP_DECODE_FAILED"); }
+    finally { zip.close(); }
     return entries;
 }
 
 /** 观察器只保留测试内存中的完整端点和随机路径，检查 URL/JSON/百分号/base64 编码；产品私有 invocation/PW config 不属于上传容器，报告 JSON、JUnit、HTML 内嵌 ZIP 与 Trace 解压正文则必须逐项经过真实读取。 */
 async function observeBusiness(run: (inspect: (bytes: Buffer, name: string) => Promise<void>) => Promise<void>, connectFailure = false, expectedHeadless?: boolean) {
+    activeBusinessFixtures++;
     const endpoints: string[] = [], servers: BrowserServer[] = [];
     const launchServer = chromium.launchServer.bind(chromium);
     const start = ProcessSupervisor.prototype.start;
     let buffers = 0, archives = 0, members = 0, hits = 0, json = 0, html = 0, junit = 0, traces = 0;
+    let runReturned = false, scanComplete = false;
+    const owned: OwnedProcess[] = [];
     let currentContainer = "raw";
     const containers: Record<string, number> = {}, fields: Record<string, number> = {};
     const check = (bytes: Buffer) => {
@@ -115,12 +171,15 @@ async function observeBusiness(run: (inspect: (bytes: Buffer, name: string) => P
             members += await scanArchive(Buffer.from(embedded[1]!, "base64"), check);
         }
         if (name.endsWith(".zip")) { archives++; traces++; currentContainer = "trace.zip:decoded"; members += await scanArchive(bytes, check); }
+        if (hits > 0) throw new Error("PRIVATE_ENDPOINT_DISCLOSURE");
     };
     chromium.launchServer = async (options) => {
         assert.equal(options?.executablePath, chromium.executablePath());
         assert.equal(options?.chromiumSandbox, true);
         if (expectedHeadless !== undefined) assert.equal(options?.headless, expectedHeadless);
-        const server = await launchServer(options);
+        let server: BrowserServer;
+        try { server = await launchServer(options); }
+        catch (error) { reportNativeFailure("BROWSER_LAUNCH", error); throw new Error("NATIVE_BROWSER_LAUNCH_FAILED"); }
         servers.push(server);
         const endpoint = server.wsEndpoint();
         endpoints.push(endpoint);
@@ -134,8 +193,12 @@ async function observeBusiness(run: (inspect: (bytes: Buffer, name: string) => P
     };
     ProcessSupervisor.prototype.start = async function (...args: Parameters<typeof start>) {
         const child = await start.apply(this, args);
-        const invocation = JSON.parse(await readFile(join(args[1].cwd, "invocation.json"), "utf8"));
+        owned.push(child);
+        const invocation = privateJson(await readFile(join(args[1].cwd, "invocation.json"), "utf8"));
         const exited = child.exited.then(async (value) => {
+            console.log(JSON.stringify({ nativeWorkerExit: { code: value.code, signal: [null, "SIGINT", "SIGTERM", "SIGKILL"].includes(value.signal) ? value.signal : "OTHER" } }));
+            await emitBusinessDiagnostic("WORKER_EXIT", args[1].cwd, undefined);
+            await reportPlaywrightFacts(join(invocation.tmp, "playwright.json"));
             const visit = async (directory: string): Promise<void> => {
                 for (const item of await readdir(directory, { withFileTypes: true })) {
                     const path = join(directory, item.name);
@@ -151,16 +214,33 @@ async function observeBusiness(run: (inspect: (bytes: Buffer, name: string) => P
     };
     try {
         await run(inspect);
+        runReturned = true;
         assert.ok(endpoints.length > 0 && json > 0 && html > 0 && junit > 0, "Actual reports and endpoint observations are required");
         if (!connectFailure) assert.ok(traces > 0, "Actual Trace archives are required");
-        console.log(JSON.stringify({ endpointScan: { buffers, archives, members, hits, containers, fields, json, html, junit, traces } }));
+        scanComplete = true;
         assert.equal(hits, 0, "PRIVATE_ENDPOINT_DISCLOSURE: affected delivery must pause; diagnostics contain counts only");
     } finally {
+        console.log(JSON.stringify({ endpointScan: { coverage: buffers === 0 ? "unreached" : scanComplete ? "complete" : "partial", runReturned, buffers, archives, members, hits, containers, fields, json, html, junit, traces } }));
         ProcessSupervisor.prototype.start = start;
         chromium.launchServer = launchServer;
-        for (const server of servers) {
-            const child = server.process();
-            if (child.exitCode === null && child.signalCode === null) await server.kill();
+        const deadline = performance.now() + 30000;
+        try {
+            for (const process of owned) {
+                if (process.child.exitCode === null && process.child.signalCode === null) process.child.kill("SIGKILL");
+                await fixtureBefore(process.exited, deadline);
+            }
+            for (const server of servers) {
+                const child = server.process();
+                if (child.exitCode === null && child.signalCode === null) {
+                    const exited = new Promise<void>((resolve) => child.once("exit", () => resolve()));
+                    await fixtureBefore(server.kill(), deadline);
+                    await fixtureBefore(exited, deadline);
+                }
+            }
+        } catch (error) { retainBusinessRoot = true; reportNativeFailure("FIXTURE_CLEANUP", error); throw new Error("OWNED_FIXTURE_CLEANUP_UNCONFIRMED"); }
+        finally {
+            activeBusinessFixtures--;
+            if (hits > 0) throw new Error("PRIVATE_ENDPOINT_DISCLOSURE");
         }
     }
 }
@@ -197,7 +277,7 @@ for (const failing of [false, true]) test(`offline actual frozen engine ${failin
         await secrets.set({ issuerId: f.issuer.issuerId, workspaceId: id(99), secretRef: "reader", versionId: id(14) }, { token: "local-test-only" });
         const local = join(f.dir, "local"), source = await createDarwinSource({ temporaryDirectory: root });
         await observeBusiness(async (inspect) => {
-            const result = await runOffline(bundle, { trust: f.trust, root: local, secrets, releaseDirectory: engine.release, browserExecutable: chromium.executablePath(), darwinSource: source, deviceId: id(90), headless: false });
+            const result = await diagnosedOfflineRun(bundle, { trust: f.trust, root: local, secrets, releaseDirectory: engine.release, browserExecutable: chromium.executablePath(), darwinSource: source, deviceId: id(90), headless: false });
             assert.equal(result.outcome, failing ? "FAILED" : "PASSED");
             assert.equal(result.attempts[0]!.processStopScope, "CONTROLLED_WORKER_BROWSER");
             assert.equal(result.attempts[0]!.processStopped, true);
@@ -309,39 +389,96 @@ test("Darwin broker validates UTF8 boundary and transports through an owned shor
 });
 
 /** 本夹具在真实离线包周围提供实际业务服务器、可取消请求与原 BrowserServer 句柄，异常后只终止本次真正创建的 Chrome 并等原对象退出；不以 PID 查询补证明，也不把启动取消或提交不确定性假称没有派生。 */
-async function offlineScenario(run: (value: { local: string; config: Parameters<typeof runOffline>[1]; bundle: Awaited<ReturnType<typeof verifyBundle>>; controller: AbortController; page: Promise<void> }) => Promise<void>, timeoutMs = 30000) {
+async function offlineScenario(run: (value: { local: string; config: Parameters<typeof runOffline>[1]; bundle: Awaited<ReturnType<typeof verifyBundle>>; controller: AbortController; page: Promise<void>; abort(): void; cleanupDeadline(): number }) => Promise<void>, timeoutMs = 30000, testSignal?: AbortSignal) {
+    activeBusinessFixtures++;
     let page!: () => void;
     const observed = new Promise<void>((resolve) => { page = resolve; });
     const server = createServer((request, response) => {
         if (request.url === "/me") { response.setHeader("Content-Type", "application/json"); response.end(JSON.stringify({ id: "reader" })); }
         else page();
     });
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-    const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
-    const f = await fixture(engine.distribution, origin), local = join(f.dir, "local"), controller = new AbortController();
-    const servers: BrowserServer[] = [], launch = chromium.launchServer.bind(chromium);
-    chromium.launchServer = async (options) => { const server = await launch(options); servers.push(server); return server; };
+    let origin = "";
+    const controller = new AbortController(), servers: { server: BrowserServer; exited: Promise<void> }[] = [], owned: OwnedProcess[] = [];
+    const launch = chromium.launchServer.bind(chromium), start = ProcessSupervisor.prototype.start;
+    let deadline: number | undefined;
+    const cleanupDeadline = () => deadline ??= performance.now() + timeoutMs;
+    const abort = () => { cleanupDeadline(); controller.abort(); };
+    testSignal?.addEventListener("abort", abort, { once: true });
+    if (testSignal?.aborted) abort();
+    let f: Awaited<ReturnType<typeof fixture>> | undefined;
+    chromium.launchServer = async (options) => {
+        let server: BrowserServer;
+        try { server = await launch(options); }
+        catch (error) { reportNativeFailure("BROWSER_LAUNCH", error); throw new Error("NATIVE_BROWSER_LAUNCH_FAILED"); }
+        const child = server.process();
+        const exited = child.exitCode !== null || child.signalCode !== null ? Promise.resolve() : new Promise<void>((resolve) => child.once("exit", () => resolve()));
+        servers.push({ server, exited });
+        return server;
+    };
+    ProcessSupervisor.prototype.start = async function (...args) {
+        const child = await start.apply(this, args);
+        owned.push(child);
+        return child;
+    };
     try {
+        if (testSignal?.aborted) throw new Error("BUSINESS_TEST_CANCELLED");
+        await new Promise<void>((resolve, reject) => {
+            server.once("error", () => reject(new Error("NATIVE_HTTP_FIXTURE_START_FAILED")));
+            server.listen(0, "127.0.0.1", resolve);
+        });
+        origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+        f = await fixture(engine.distribution, origin);
+        const local = join(f.dir, "local");
         const bundle = await verifyBundle(await f.archive(), { trust: f.trust, destination: join(f.dir, "installed") });
         const secrets = new SecretStore(join(f.dir, "secrets"));
         await secrets.set({ issuerId: f.issuer.issuerId, workspaceId: id(99), secretRef: "reader", versionId: id(14) }, { token: "local-test-only" });
         const source = await createDarwinSource({ temporaryDirectory: root, stopTimeoutMs: timeoutMs });
-        await run({ local, config: { root: local, trust: f.trust, secrets, releaseDirectory: engine.release, browserExecutable: chromium.executablePath(), darwinSource: source, deviceId: id(90), signal: controller.signal }, bundle, controller, page: observed });
+        await run({ local, config: { root: local, trust: f.trust, secrets, releaseDirectory: engine.release, browserExecutable: chromium.executablePath(), darwinSource: source, deviceId: id(90), signal: controller.signal }, bundle, controller, page: observed, abort, cleanupDeadline });
     } finally {
-        controller.abort();
-        chromium.launchServer = launch;
-        for (const server of servers) {
-            const child = server.process();
-            if (child.exitCode === null && child.signalCode === null) {
-                const exit = new Promise<void>((resolve) => child.once("exit", () => resolve()));
-                await server.kill();
-                await exit;
+        abort();
+        let cleanupConfirmed = true;
+        try {
+            for (const child of owned) {
+                try {
+                    if (child.child.exitCode === null && child.child.signalCode === null) child.child.kill("SIGKILL");
+                    await fixtureBefore(child.exited, cleanupDeadline());
+                } catch { cleanupConfirmed = false; }
             }
+            for (const { server, exited } of servers) {
+                try {
+                    const child = server.process();
+                    if (child.exitCode === null && child.signalCode === null) await fixtureBefore(server.kill(), cleanupDeadline());
+                    await fixtureBefore(exited, cleanupDeadline());
+                } catch { cleanupConfirmed = false; }
+            }
+        } finally {
+            chromium.launchServer = launch;
+            ProcessSupervisor.prototype.start = start;
+            testSignal?.removeEventListener("abort", abort);
+            server.closeAllConnections();
+            try { if (server.listening) await fixtureBefore(new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())), cleanupDeadline()); }
+            catch { cleanupConfirmed = false; }
+            activeBusinessFixtures--;
+            let directoryRetired = false;
+            try {
+                if (!cleanupConfirmed) { retainBusinessRoot = true; throw new Error("OWNED_FIXTURE_CLEANUP_UNCONFIRMED"); }
+                try { await f?.close(); directoryRetired = true; }
+                catch { retainBusinessRoot = true; throw new Error("OWNED_FIXTURE_DIRECTORY_UNCONFIRMED"); }
+            } finally { console.log(JSON.stringify({ nativeFixtureCleanup: { ownedObjectsOnly: true, workers: owned.length, browsers: servers.length, ownedObjectsConfirmed: cleanupConfirmed, directoryRetired } })); }
         }
-        server.closeAllConnections();
-        await new Promise<void>((resolve) => server.close(() => resolve()));
-        await f.close();
     }
+}
+
+/** 离线操作一创建就附加拒绝处理，结果的有界阶段投影在目录清理前完成；异常只输出固定代码和类型分类，不能把内部错误 cause 或私有控制配置交给 TAP，同时原始业务枚举与停止断言保持不变。 */
+function diagnosedOfflineRun(bundle: Parameters<typeof runOffline>[0], config: Parameters<typeof runOffline>[1]) {
+    return runOffline(bundle, config).then(async (result) => {
+        const work = join(config.root, "work", result.attempts[0]?.attemptId ?? "unreached");
+        await emitBusinessDiagnostic("OFFLINE", work, result);
+        return result;
+    }, (error: unknown) => {
+        reportNativeFailure("OFFLINE_RUN", error);
+        throw new Error("NATIVE_OFFLINE_RUN_FAILED");
+    });
 }
 
 /** 取消在真实页面请求已到达后发生，CLI 必须按同代授权退出并完成观察封存，在线与离线的终结调用数均保持一次；这里不把取消 ACK 或 BrowserServer.close 返回单独作为停止结论。 */
@@ -350,7 +487,7 @@ test("offline real running CLI cancellation immediately uses one stop operation 
     let calls = 0;
     ProcessSupervisor.prototype.terminateAttempt = function (...args) { calls++; return terminate.apply(this, args); };
     try {
-        const running = runOffline(bundle, config);
+        const running = diagnosedOfflineRun(bundle, config);
         await page;
         const at = performance.now();
         controller.abort();
@@ -361,7 +498,7 @@ test("offline real running CLI cancellation immediately uses one stop operation 
         assert.equal(result.attempts[0]!.processStopScope, "CONTROLLED_WORKER_BROWSER");
         assert.equal(calls, 1);
         assert.ok(performance.now() - at < 30000);
-        const proof = JSON.parse(await readFile(join(local, "processes", `${result.attempts[0]!.attemptId}.controlled.json`), "utf8"));
+        const proof = privateJson(await readFile(join(local, "processes", `${result.attempts[0]!.attemptId}.controlled.json`), "utf8"));
         assert.equal(proof.outer.code, 130);
         assert.equal(proof.scope, "CONTROLLED_WORKER_BROWSER");
         const store = await LocalStore.open(local);
@@ -401,7 +538,7 @@ test("offline cancel while awaiting actual start closes admission without late b
     };
     ProcessSupervisor.prototype.terminateAttempt = function (...args) { stops++; return terminate.apply(this, args); };
     try {
-        const result = await runOffline(bundle, config);
+        const result = await diagnosedOfflineRun(bundle, config);
         assert.equal(result.outcome, "CANCELLED");
         assert.equal(starts, 1);
         assert.equal(stops, 1);
@@ -428,7 +565,7 @@ for (const invalid of ["expired", "nan", "infinity"] as const) test(`actual Darw
         return owned;
     };
     try {
-        const result = await runOffline(bundle, config);
+        const result = await diagnosedOfflineRun(bundle, config);
         assert.equal(tested, true);
         assert.equal(result.attempts[0]!.processStopped, false);
         assert.notEqual(result.outcome, "PASSED");
@@ -451,7 +588,7 @@ test("actual private invocation publication uncertainty cannot become NO_PROCESS
         } satisfies DarwinPrivateDirectory;
     };
     try {
-        const result = await runOffline(bundle, config);
+        const result = await diagnosedOfflineRun(bundle, config);
         assert.equal(publications, 1);
         assert.equal(result.attempts[0]!.processStopped, false);
         assert.equal(result.attempts[0]!.processStopScope, undefined);
@@ -470,7 +607,7 @@ test("online RUNNING journal publication uncertainty blocks business START and p
         if (!path.endsWith("/attempts")) return directory;
         return { read: directory.read.bind(directory), entries: directory.entries.bind(directory), createExclusive: directory.createExclusive.bind(directory), remove: directory.remove.bind(directory), close: directory.close.bind(directory), replace(name, temporary, bytes, limit) {
             directory.replace(name, temporary, bytes, limit);
-            if (!publications && name.endsWith(".json") && JSON.parse(bytes.toString()).state === "RUNNING") { publications++; throw Object.assign(new Error("TEST_COMMIT_UNCONFIRMED"), { code: "COMMIT_UNCONFIRMED" }); }
+            if (!publications && name.endsWith(".json") && privateJson(bytes).state === "RUNNING") { publications++; throw Object.assign(new Error("TEST_COMMIT_UNCONFIRMED"), { code: "COMMIT_UNCONFIRMED" }); }
         } } satisfies DarwinPrivateDirectory;
     };
     ProcessSupervisor.prototype.start = async function (...args) {
@@ -501,7 +638,7 @@ test("offline actual RUNNING commit uncertainty retains capacity and never sends
         return { ...child, send(message: unknown) { if ((message as { type: string }).type === "START") businessStarts++; child.send(message); } };
     };
     try {
-        await assert.rejects(runOffline(bundle, config));
+        await assert.rejects(diagnosedOfflineRun(bundle, config));
         assert.equal(injected, true);
         assert.equal(businessStarts, 0);
         const store = await LocalStore.open(local);
@@ -525,13 +662,13 @@ test("offline real retry retains both launch generations and CONTROLLED report s
         const secrets = new SecretStore(join(f.dir, "secrets")), local = join(f.dir, "local");
         await secrets.set({ issuerId: f.issuer.issuerId, workspaceId: id(99), secretRef: "reader", versionId: id(14) }, { token: "local-test-only" });
         const source = await createDarwinSource({ temporaryDirectory: root });
-        const result = await runOffline(bundle, { root: local, trust: f.trust, secrets, releaseDirectory: engine.release, browserExecutable: chromium.executablePath(), darwinSource: source, deviceId: id(90), retry: true });
+        const result = await diagnosedOfflineRun(bundle, { root: local, trust: f.trust, secrets, releaseDirectory: engine.release, browserExecutable: chromium.executablePath(), darwinSource: source, deviceId: id(90), retry: true });
         assert.equal(result.outcome, "UNSTABLE");
         assert.equal(result.attempts.length, 2);
         for (const [index, attempt] of result.attempts.entries()) {
             assert.equal(attempt.processStopped, true);
             assert.equal(attempt.processStopScope, "CONTROLLED_WORKER_BROWSER");
-            const proof = JSON.parse(await readFile(join(local, "processes", `${attempt.attemptId}.controlled.json`), "utf8"));
+            const proof = privateJson(await readFile(join(local, "processes", `${attempt.attemptId}.controlled.json`), "utf8"));
             assert.equal(proof.ownerGeneration, index + 1);
         }
         const snapshot = await new LocalReports(local, () => true).snapshot(result.workspaceId, result.localRunId);
@@ -586,7 +723,7 @@ test("online actual controlled history cannot reconcile a different claim genera
         assert.ok(result.completion);
         const journals = darwinNative().openPrivateDirectory(join(directory, "agent", "attempts"), false);
         try {
-            const name = `${result.stop.attemptId}.json`, record = JSON.parse(journals.read(name, 65536).toString());
+            const name = `${result.stop.attemptId}.json`, record = privateJson(journals.read(name, 65536));
             if (run === 1) record.claim.fencingToken++;
             else record.claim.jobKind = "VALIDATE";
             journals.replace(name, `.${randomUUID()}.tmp`, Buffer.from(JSON.stringify(record)), 65536);
@@ -601,7 +738,7 @@ test("online actual controlled history cannot reconcile a different claim genera
 });
 
 /** 持久取消通过第二个真实 SQLite 连接写入，故意不派发 AbortSignal，实际 Chrome 已创建但 BrowserServer 返回受测试闸门控制；后台必须在释放闸门前观察取消并关闭启动准入，不能等待完整 start 返回或把未赋值 child 当成未派生。 */
-test("persisted offline cancellation closes pending real BrowserServer admission before barrier release", { timeout: 180000 }, async () => offlineScenario(async ({ config, bundle, local }) => {
+test("persisted offline cancellation closes pending real BrowserServer admission before barrier release", { timeout: 180000 }, async (context) => offlineScenario(async ({ config, bundle, local, abort, cleanupDeadline }) => {
     const launch = chromium.launchServer.bind(chromium), start = ProcessSupervisor.prototype.start, terminate = ProcessSupervisor.prototype.terminateAttempt;
     let entered!: () => void, release!: () => void, stopped!: () => void;
     const atBarrier = new Promise<void>((resolve) => { entered = resolve; });
@@ -625,21 +762,23 @@ test("persisted offline cancellation closes pending real BrowserServer admission
     };
     let timeout: ReturnType<typeof setTimeout> | undefined;
     let running: ReturnType<typeof runOffline> | undefined;
+    let watch: ReturnType<typeof watchBusinessRun<Awaited<ReturnType<typeof runOffline>>>> | undefined;
     try {
-        running = runOffline(bundle, config);
-        await atBarrier;
+        running = diagnosedOfflineRun(bundle, config);
+        watch = watchBusinessRun(running, context.signal);
+        await watch.waitFor(atBarrier, "BARRIER");
         const connection = await LocalStore.open(local);
         const owner = connection.active()!;
         const at = performance.now();
         try { connection.cancel(owner.workspaceId, owner.runId); } finally { connection.close(); }
-        await Promise.race([firstStop, new Promise<never>((_resolve, reject) => { timeout = setTimeout(() => reject(new Error("PERSISTED_CANCEL_OBSERVATION_LATE")), 600); })]);
+        await watch.waitFor(Promise.race([firstStop, new Promise<never>((_resolve, reject) => { timeout = setTimeout(() => reject(new Error("PERSISTED_CANCEL_OBSERVATION_LATE")), 600); })]), "STOP");
         clearTimeout(timeout);
         assert.ok(performance.now() - at < 600, "Polling budget is100ms plus bounded500ms scheduler allowance");
         assert.equal(config.signal!.aborted, false);
         assert.equal(stopCalls, 1);
         released = true;
         release();
-        const result = await running;
+        const result = await watch.result();
         assert.equal(result.outcome, "CANCELLED");
         assert.equal(result.attempts[0]!.processStopped, false);
         assert.equal(result.attempts[0]!.processStopScope, undefined);
@@ -649,12 +788,16 @@ test("persisted offline cancellation closes pending real BrowserServer admission
         clearTimeout(timeout);
         released = true;
         release();
-        await running?.catch(() => {});
-        chromium.launchServer = launch;
-        ProcessSupervisor.prototype.start = start;
-        ProcessSupervisor.prototype.terminateAttempt = terminate;
+        abort();
+        try { if (watch) await fixtureBefore(watch.outcome, cleanupDeadline()); }
+        finally {
+            watch?.close();
+            chromium.launchServer = launch;
+            ProcessSupervisor.prototype.start = start;
+            ProcessSupervisor.prototype.terminateAttempt = terminate;
+        }
     }
-}));
+}, 30000, context.signal));
 
 /** Mac 发布只允许本次独占根在 rename 时暂存七百权限，所有内部目录和成员必须已经只读；返回前通过原 fd 将同一个根封为五百，测试比较真实 inode 并拒绝覆盖已有目标，不能由字符串 chmod 修复已安装或用户目录。 */
 test("Darwin bundle publication renames only its owned writable root and returns a fully sealed tree", async () => {
@@ -718,7 +861,7 @@ test("Darwin post-publication fd seal uncertainty retains the published sealed i
 });
 
 /** 启动闸门内的取消查询若真实 SQLite 包装报告读取不确定，观察器必须走同一首次停止并关闭后端准入；测试只在实际 Chrome 已创建后注入固定读取错误，不伪造取消位、不派发用户信号，也不把失败解释成正常业务成功。 */
-test("pending-start persisted cancellation read failure closes admission with one conservative stop", { timeout: 180000 }, async () => offlineScenario(async ({ config, bundle }) => {
+test("pending-start persisted cancellation read failure closes admission with one conservative stop", { timeout: 180000 }, async (context) => offlineScenario(async ({ config, bundle, abort, cleanupDeadline }) => {
     const launch = chromium.launchServer.bind(chromium), cancelled = LocalStore.prototype.cancelled, terminate = ProcessSupervisor.prototype.terminateAttempt;
     let entered!: () => void, release!: () => void, stopped!: () => void;
     const atBarrier = new Promise<void>((resolve) => { entered = resolve; }), barrier = new Promise<void>((resolve) => { release = resolve; }), firstStop = new Promise<void>((resolve) => { stopped = resolve; });
@@ -726,16 +869,18 @@ test("pending-start persisted cancellation read failure closes admission with on
     chromium.launchServer = async (options) => { const server = await launch(options); entered(); await barrier; return server; };
     LocalStore.prototype.cancelled = function (runId) { if (armed) throw new Error("TEST_SQLITE_READ_UNCONFIRMED"); return cancelled.call(this, runId); };
     ProcessSupervisor.prototype.terminateAttempt = function (...args) { stops++; stopped(); return terminate.apply(this, args); };
+    let watch: ReturnType<typeof watchBusinessRun<Awaited<ReturnType<typeof runOffline>>>> | undefined;
     try {
-        running = runOffline(bundle, config);
-        await atBarrier;
+        running = diagnosedOfflineRun(bundle, config);
+        watch = watchBusinessRun(running, context.signal);
+        await watch.waitFor(atBarrier, "BARRIER");
         armed = true;
-        await Promise.race([firstStop, new Promise<never>((_resolve, reject) => { timer = setTimeout(() => reject(new Error("CANCEL_READ_FAILURE_OBSERVATION_LATE")), 600); })]);
+        await watch.waitFor(Promise.race([firstStop, new Promise<never>((_resolve, reject) => { timer = setTimeout(() => reject(new Error("CANCEL_READ_FAILURE_OBSERVATION_LATE")), 600); })]), "STOP");
         clearTimeout(timer);
         assert.equal(stops, 1);
         armed = false;
         release();
-        const result = await running;
+        const result = await watch.result();
         assert.equal(result.outcome, "ERROR");
         assert.equal(result.attempts[0]!.failureCode, "LOCAL_CANCELLATION_READ_FAILED");
         assert.equal(result.attempts[0]!.processStopped, false);
@@ -745,9 +890,13 @@ test("pending-start persisted cancellation read failure closes admission with on
         clearTimeout(timer);
         armed = false;
         release();
-        await running?.catch(() => {});
-        chromium.launchServer = launch;
-        LocalStore.prototype.cancelled = cancelled;
-        ProcessSupervisor.prototype.terminateAttempt = terminate;
+        abort();
+        try { if (watch) await fixtureBefore(watch.outcome, cleanupDeadline()); }
+        finally {
+            watch?.close();
+            chromium.launchServer = launch;
+            LocalStore.prototype.cancelled = cancelled;
+            ProcessSupervisor.prototype.terminateAttempt = terminate;
+        }
     }
-}));
+}, 30000, context.signal));

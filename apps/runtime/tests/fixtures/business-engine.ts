@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { generateKeyPairSync, sign, createHash, randomUUID } from "node:crypto";
 import { mkdtemp, mkdir, writeFile, readFile, copyFile, rm, chmod, readdir, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, dirname, resolve } from "node:path";
+import { join, dirname, resolve, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import { createServer } from "node:http";
@@ -12,6 +12,7 @@ import { canonicalBytes, assetSourceBytes, validateSchema, type ExecutionSnapsho
 import { snapshot, asset, id } from "../../../../packages/compiler/tests/helpers.ts";
 import { TrustStore, type IssuerTrust } from "../../src/offline/trust.ts";
 import { loadRelease } from "../../src/execution/release.ts";
+import { readBoundedFile } from "../../src/offline/config.ts";
 import { DeviceStore, RuntimeClient } from "../../src/enrollment.ts";
 import { DeviceSession } from "../../src/agent/credentials.ts";
 import { AgentClient, type Claim } from "../../src/agent/transport.ts";
@@ -580,6 +581,7 @@ export async function onlineBusiness(options: {
     assert(address && typeof address !== 'string');
     origin = `http://127.0.0.1:${address.port}`;
     let session: DeviceSession | undefined;
+    let retainRoot = false;
     try {
         const { release, distribution } = await buildBusinessEngine(root);
         const source = snapshot([{ id: 'open', action: 'goto', path: '/' }, { id: 'status', action: 'apiRequest', method: 'GET', path: '/status', observers: [{ id: 'response', method: 'GET', path: '/status', window: { mode: 'UNTIL_ACTION_SETTLED', quietMs: 0 } }], afterAssertions: [{ id: 'ready', type: 'responseField', source: 'response:response', pointer: '/ok', operator: 'equals', expected: true, severity: 'BLOCK', expectedSource: 'REQ-ready' }] }], [asset(3, 'FIXTURE', { schemaVersion: '1.0', prepare: { method: 'POST', path: '/prepare' }, query: { method: 'GET', path: '/query' }, cleanup: { method: 'POST', path: '/cleanup' }, inputSchema: { type: 'object' }, outputSchema: { type: 'object' }, ttlSeconds: 60 })], { fixtureVersionId: id(3) });
@@ -602,8 +604,17 @@ export async function onlineBusiness(options: {
             const manifestHash = put(canonicalBytes(manifest));
             const claim: Claim = { jobId: id(60), jobKind: 'TEST', attemptId: id(80 + run), leaseToken: 'test-lease-token', fencingToken: 1, expiresAt: new Date(Date.now() + 60000).toISOString(), serverTime: new Date().toISOString(), leaseDurationMs: 60000, activationRequired: true, snapshotUrl: `/internal/v1/workspaces/${id(99)}/attempts/${id(80 + run)}/content/${manifestHash}`, snapshotSha256: manifestHash };
             previous = claim;
-            const result = await supervisor.runAttempt({ claim, requestStarted: performance.now(), responseReceived: performance.now() }, options.signal ?? new AbortController().signal);
+            let result: AttemptResult;
+            try { result = await supervisor.runAttempt({ claim, requestStarted: performance.now(), responseReceived: performance.now() }, options.signal ?? new AbortController().signal); }
+            catch (error) {
+                if (!options.darwinSource) throw error;
+                retainRoot = true;
+                await emitBusinessDiagnostic("ONLINE", join(root, "agent/work", claim.attemptId), { rejected: true, stop: { reason: error instanceof Error ? error.message : undefined } });
+                throw new Error("NATIVE_ONLINE_RUN_FAILED");
+            }
+            if (options.darwinSource && !result.stop.processStopped) retainRoot = true;
             results.push(result);
+            if (options.darwinSource) await emitBusinessDiagnostic("ONLINE", join(root, "agent/work", claim.attemptId), result);
             await options.inspect?.({ result, uploads, events, root, run, supervisor });
             if (!result.completion && !options.darwinSource) {
                 try { process.stderr.write('guardian: '+await readFile(join(root,'agent/processes',claim.attemptId+'.drained.json.error'),'utf8')); } catch {}
@@ -632,7 +643,7 @@ export async function onlineBusiness(options: {
                 assert.equal(result.stop.processStopScope, "CONTROLLED_WORKER_BROWSER");
                 break;
             }
-            assert(result.completion, `missing actual completion: ${JSON.stringify(result.stop)}`);
+            assert(result.completion, options.darwinSource ? "Missing actual completion; see bounded business diagnostics" : `missing actual completion: ${JSON.stringify(result.stop)}`);
             assert.equal(result.stop.processStopped, true);
             assert.equal(result.stop.processStopScope, (options.darwinSource ? "CONTROLLED_WORKER_BROWSER" : "FULL_DESCENDANT_TREE"));
             assert.equal(result.completion.processStopScope, result.stop.processStopScope);
@@ -663,7 +674,84 @@ export async function onlineBusiness(options: {
     finally {
         await session?.close();
         server.closeAllConnections();
-        server.close();
-        await rm(root, { recursive: true, force: true });
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+        if (options.darwinSource && retainRoot) console.log(JSON.stringify({ onlineFixtureCleanup: { retained: true, processStopUnconfirmed: true } }));
+        else await rm(root, { recursive: true, force: true });
     }
+}
+
+/** 业务夹具在创建执行 Promise 的同一同步轮次安装完成与拒绝观察，readiness 不能单独等待而忽略提前结束或 Node 测试取消；原异常仅留在内存，固定阶段错误交给 TAP，避免私有控制内容被原始 message、cause 或堆栈片段带入日志。 */
+export function watchBusinessRun<T>(running: Promise<T>, signal: AbortSignal) {
+    const outcome = running.then(
+        (value) => ({ state: "fulfilled" as const, value }),
+        (error: unknown) => ({ state: "rejected" as const, error }),
+    );
+    let cancelled!: () => void;
+    const cancellation = new Promise<{ state: "cancelled" }>((resolve) => { cancelled = () => resolve({ state: "cancelled" }); });
+    signal.addEventListener("abort", cancelled, { once: true });
+    if (signal.aborted) cancelled();
+    return {
+        outcome,
+        async waitFor(readiness: Promise<unknown>, phase: "BARRIER" | "STOP"): Promise<void> {
+            if (signal.aborted) throw new Error("BUSINESS_TEST_CANCELLED");
+            const value = await Promise.race([cancellation, outcome, readiness.then(() => ({ state: "ready" as const }), () => ({ state: "readiness-failed" as const }))]);
+            if (value.state === "ready") return;
+            if (value.state === "cancelled") throw new Error("BUSINESS_TEST_CANCELLED");
+            if (value.state === "readiness-failed") throw new Error("BUSINESS_READINESS_REJECTED");
+            throw new Error(value.state === "fulfilled" ? `BUSINESS_RUN_COMPLETED_BEFORE_${phase}` : `BUSINESS_RUN_REJECTED_BEFORE_${phase}`);
+        },
+        async result(): Promise<T> {
+            const value = await outcome;
+            if (value.state === "rejected") throw new Error("BUSINESS_RUN_REJECTED");
+            return value.value;
+        },
+        close(): void { signal.removeEventListener("abort", cancelled); },
+    };
+}
+
+/** 诊断仅投影受信 worker 的固定阶段枚举、业务枚举与布尔事实，私有 JSON 读取先限制六万五千字节再解析；随机控制绑定、原始错误、配置正文及路径均不输出，未知代码用 OTHER 表示而不把来源字符串直接复制到日志。 */
+export async function emitBusinessDiagnostic(phase: "ONLINE" | "OFFLINE" | "WORKER_EXIT", work: string, result: unknown): Promise<void> {
+    if (process.platform !== "darwin") return;
+    const choices = new Set(["PASSED", "FAILED", "ERROR", "CANCELLED", "INCOMPLETE", "UNSTABLE", "CONTROLLED_WORKER_BROWSER", "FULL_DESCENDANT_TREE", "NO_PROCESS_SPAWNED", "READY", "TEST", "VALIDATE", "CLEANUP", "SPAWNING", "RUNNING", "STOPPED", "INSTALL_FAILED", "COMPILER_EXTRACTION_FAILED", "COMPILER_PROCESS_FAILED", "PLAYWRIGHT_PROCESS_FAILED", "CONTROLLED_COMMAND_MANAGEMENT_FAILED", "PROCESS_STOP_UNCONFIRMED", "MISSING_CASE_RESULT", "DARWIN_CONTROLLED_START_FAILED", "DARWIN_ATTEMPT_STOPPING", "USER_CANCELLED", "COMPLETED", "EXECUTION_ERROR", "LOCAL_CANCELLATION_READ_FAILED", "REQUIRED_EVIDENCE_MISSING", "WORKER_COMMAND_FAILED", "PLAYWRIGHT_PROCESS_FAILED", "COMPILED_PROVENANCE_MISMATCH", "COMPILATION_FAILED", "UNKNOWN_ELEMENT", "ASSET_VALIDATION_FAILED", "INVALID_COMPLETION", "INVALID_EXECUTION_SNAPSHOT", "INVALID_COMPILED_BUNDLE", "UNAPPROVED_ENGINE_BYTES", "OFFLINE_EXECUTION_ERROR", "LOCAL_OWNERSHIP_LOST", "CONTROLLED_OWNER_MISMATCH", "WORKER_COMMAND_TIMEOUT", "INVALID_CREDENTIAL", "AUTH_IDENTITY_FAILED"]);
+    const fixed = (value: unknown) => typeof value === "string" && choices.has(value) ? value : value === undefined ? "ABSENT" : "OTHER";
+    const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" ? value as Record<string, unknown> : {};
+    const read = async (name: string) => {
+        let present = false;
+        try {
+            const path = join(work, name), info = await (await import("node:fs/promises")).lstat(path);
+            present = true;
+            if (!info.isFile() || info.isSymbolicLink() || info.size > 65536) return { present, readable: false, data: {} as Record<string, unknown> };
+            return { present, readable: true, data: object(JSON.parse((await readBoundedFile(path, 65536, true)).toString("utf8"))) };
+        } catch { return { present, readable: false, data: {} as Record<string, unknown> }; }
+    };
+    const value = object(result), stop = object(value.stop), completion = object(value.completion);
+    const attempts = Array.isArray(value.attempts) ? value.attempts : [];
+    const attempt = object(attempts[0]);
+    const worker = await read("worker-result.json"), failure = await read("worker-failure.json");
+    const commandFacts: { readable: boolean; frames: number; intents: number; exits: number; seals: number; exitCodes: (number | null)[] } = { readable: false, frames: 0, intents: 0, exits: 0, seals: 0, exitCodes: [] };
+    try {
+        const path = join(dirname(dirname(work)), "controlled-journals", basename(work), "command.jsonl");
+        const bytes = await readBoundedFile(path, 1024 * 1024, true);
+        const lines = bytes.toString("utf8").trim().split("\n");
+        if (lines.length > 4096) throw new Error("DIAGNOSTIC_FRAME_LIMIT");
+        for (const line of lines) {
+            const frame = object(JSON.parse(line));
+            commandFacts.frames++;
+            if (frame.type === "INTENT") commandFacts.intents++;
+            if (frame.type === "SEAL") commandFacts.seals++;
+            if (frame.type === "EXITED") {
+                commandFacts.exits++;
+                if (commandFacts.exitCodes.length < 8) commandFacts.exitCodes.push(typeof frame.exitCode === "number" && Number.isSafeInteger(frame.exitCode) ? frame.exitCode : null);
+            }
+        }
+        commandFacts.readable = true;
+    } catch { }
+    console.log(JSON.stringify({ businessDiagnostic: {
+        phase, runRejected: value.rejected === true, completion: !!value.completion, attempts: attempts.length,
+        processStopped: phase === "WORKER_EXIT" ? null : phase === "ONLINE" ? stop.processStopped === true : attempt.processStopped === true,
+        scope: fixed(phase === "ONLINE" ? stop.processStopScope : attempt.processStopScope),
+        reason: fixed(phase === "ONLINE" ? stop.reason : attempt.failureCode), outcome: fixed(phase === "ONLINE" ? completion.businessOutcome : value.outcome),
+        workerResultPresent: worker.present, workerResultReadable: worker.readable, workerKind: fixed(worker.data.kind), workerFailure: fixed(worker.data.failureCode),
+        failurePresent: failure.present, failureReadable: failure.readable, failureCode: fixed(failure.data.failureCode), commandFacts,
+    } }));
 }
