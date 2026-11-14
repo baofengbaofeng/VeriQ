@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { trackObservedCli } from "../src/execution/controlled-child.ts";
 import { validateJournal } from "../src/execution/controlled-child-protocol.mjs";
+import type { ObserverBinding } from "../src/execution/controlled-child-protocol.mjs";
 
 const preload = fileURLToPath(new URL("../src/execution/controlled-child-preload.mjs", import.meta.url));
 const binding = {
@@ -370,6 +371,164 @@ test("Linux fixture owner reaps a live child after CLI active exit is rejected",
         assert.deepEqual(JSON.parse(output), { cliCode: 73, verified: false, aliveAfterCliExit: true, reaped: true });
     } finally {
         await exit;
+        rmSync(root, { recursive: true, force: true });
+    }
+});
+
+/** 启动后的取消必须等待真实 CLI 通过 IPC 确认主体已运行，然后才可授权并让其正常退出；缺失动态接口、拒绝有效绑定或者不验证封存日志都会破坏本例的结果。 */
+test("live cancellation authorizes after IPC readiness and is idempotent", async () => {
+    await withCli(`process.on('message',()=>{process.disconnect();process.exitCode=130;});process.send('ready');`, async ({ child, fd }) => {
+        const expected = { ...binding };
+        const observed = trackObservedCli(child, { journalFd: fd, expectedBinding: expected });
+        assert.equal(await new Promise((resolve) => child.once("message", resolve)), "ready");
+        const final = observed.verifyFinal();
+        expected.ownerGeneration = 99;
+        const authorization = { ...binding };
+        observed.authorizeCancellation(authorization);
+        observed.authorizeCancellation({ ...binding });
+        authorization.nonce = "b".repeat(64);
+        child.send("finish");
+        assert.deepEqual(await observed.exited, { kind: "exit", code: 130, signal: null });
+        assert.deepEqual(await final, { ok: true, exitCode: 130, objects: [], coverage: "DIRECT_ASYNC_CHILDREN" });
+    });
+});
+
+/** 每个错误字段和恶意结构都在独立真实 CLI 上尝试授权，随后仍以一百三十正常退出以检验权限没有被失败调用提升；异常 getter 也只能映射为固定拒绝错误。 */
+test("live cancellation rejects stale and malformed bindings without granting authority", async () => {
+    const invalid: unknown[] = [null, [], {}, { ...binding, extra: true }, { ...binding, version: 2 },
+        { ...binding, ownerGeneration: 8 }, { ...binding, nonce: "b".repeat(64) },
+        { ...binding, attemptId: "33333333-3333-3333-3333-333333333333" },
+        { ...binding, commandSlot: "44444444-4444-4444-4444-444444444444" },
+        { ...binding, get nonce() { throw new Error("fixture getter"); } }];
+    let reads = 0;
+    invalid.push({ ...binding, get ownerGeneration() { return ++reads === 1 ? 7 : 8; } });
+    for (const candidate of invalid) {
+        await withCli(`process.on('message',()=>{process.disconnect();process.exitCode=130;});process.send('ready');`, async ({ child, fd }) => {
+            const observed = trackObservedCli(child, { journalFd: fd, expectedBinding: binding });
+            assert.equal(await new Promise((resolve) => child.once("message", resolve)), "ready");
+            assert.throws(() => observed.authorizeCancellation(candidate as ObserverBinding), { message: "CONTROLLED_CHILD_CANCELLATION_REJECTED" });
+            child.send("finish");
+            assert.deepEqual(await observed.verifyFinal(), { ok: false, reason: "CLI_EXIT_REJECTED" });
+        });
+    }
+});
+
+/** 已授权取消只改变正常一百三十的准入条件，不能绕过信号、专用失败码或缺失观察日志；同样真实退出后的二次授权仍须拒绝，即便之前有效授权已经成功。 */
+test("live cancellation still rejects signals, observer failure and incomplete journal", async () => {
+    for (const [body, marker] of [
+        ["process.exitCode=73", undefined],
+        ["process.kill(process.pid,'SIGTERM')", undefined],
+        ["process.exitCode=130", null],
+    ] as const) {
+        await withCli(`process.on('message',()=>{process.disconnect();${body};});process.send('ready');`, async ({ child, fd }) => {
+            const observed = trackObservedCli(child, { journalFd: fd, expectedBinding: binding });
+            assert.equal(await new Promise((resolve) => child.once("message", resolve)), "ready");
+            observed.authorizeCancellation(binding);
+            child.send("finish");
+            assert.equal((await observed.verifyFinal()).ok, false);
+            assert.throws(() => observed.authorizeCancellation(binding), { message: "CONTROLLED_CHILD_CANCELLATION_REJECTED" });
+        }, marker === null ? { marker } : {});
+    }
+});
+
+/** 真实 exit 分发中的前置监听器会先于观察器执行，此时 ChildProcess 已有退出字段而内部 finish 尚未运行；两个回调顺序都必须拒绝补授权，避免验证前的空隙使取消码洗白。 */
+test("live cancellation rejects both earlier and later actual exit callbacks", async () => {
+    for (const earlier of [true, false]) {
+        await withCli(`process.on('message',()=>{process.disconnect();process.exitCode=130;});process.send('ready');`, async ({ child, fd }) => {
+            let observed: ReturnType<typeof trackObservedCli>;
+            let rejection: unknown;
+            const authorize = () => {
+                try { observed.authorizeCancellation(binding); } catch (error) { rejection = error; }
+            };
+            if (earlier) child.once("exit", authorize);
+            observed = trackObservedCli(child, { journalFd: fd, expectedBinding: binding });
+            if (!earlier) child.once("exit", authorize);
+            assert.equal(await new Promise((resolve) => child.once("message", resolve)), "ready");
+            child.send("finish");
+            await observed.exited;
+            assert.equal((rejection as Error)?.message, "CONTROLLED_CHILD_CANCELLATION_REJECTED");
+            assert.deepEqual(await observed.verifyFinal(), { ok: false, reason: "CLI_EXIT_REJECTED" });
+        });
+    }
+});
+
+/** 真实派生失败和观察超时都关闭授权窗口，超时后的 CLI 仍通过 IPC 存活且描述符可读取；清理使用独立真实 exit promise，观察失败本身不能替代所有者等待退出。 */
+test("live cancellation rejects actual error and timeout while retaining borrowed fd", async () => {
+    const child = spawn("/veriq-no-such-node-c2a1", [], { stdio: "ignore" });
+    const observed = trackObservedCli(child, { journalFd: -1, expectedBinding: binding });
+    assert.deepEqual(await observed.exited, { kind: "failure", reason: "CLI_ERROR" });
+    assert.throws(() => observed.authorizeCancellation(binding), { message: "CONTROLLED_CHILD_CANCELLATION_REJECTED" });
+    assert.deepEqual(await observed.verifyFinal(), { ok: false, reason: "CLI_ERROR" });
+    await withCli(`process.on('message',value=>{if(value==='ping')process.send('alive');else{process.disconnect();process.exitCode=130;}});process.send('ready');`, async ({ child, fd, exit }) => {
+        const ready = new Promise((resolve) => child.once("message", resolve));
+        const observed = trackObservedCli(child, { journalFd: fd, expectedBinding: binding, timeoutMs: 100 });
+        assert.equal(await ready, "ready");
+        assert.deepEqual(await observed.exited, { kind: "failure", reason: "CLI_TIMEOUT" });
+        assert.throws(() => observed.authorizeCancellation(binding), { message: "CONTROLLED_CHILD_CANCELLATION_REJECTED" });
+        assert.equal(child.exitCode, null);
+        assert.equal(child.signalCode, null);
+        assert.doesNotThrow(() => readFileSync(fd));
+        const alive = new Promise((resolve) => child.once("message", resolve));
+        child.send("ping");
+        assert.equal(await alive, "alive");
+        child.send("finish");
+        assert.equal(await exit, 130);
+        assert.deepEqual(await observed.verifyFinal(), { ok: false, reason: "CLI_TIMEOUT" });
+    });
+});
+
+/** 兼容的启动时授权和期望身份同样属于注册快照，后续修改 options 或把原来过时代际改成当前代际都不能增加权限；相反已匹配授权不因原对象被改坏而丢失。 */
+test("live cancellation preserves legacy option snapshots", async () => {
+    for (const accepted of [true, false]) {
+        await withCli(`process.on('message',()=>{process.disconnect();process.exitCode=130;});process.send('ready');`, async ({ child, fd }) => {
+            const expected = { ...binding };
+            const authorization = { ...binding, ownerGeneration: accepted ? 7 : 8 };
+            const options = { journalFd: fd, expectedBinding: expected, authorizedCancellation: authorization };
+            const observed = trackObservedCli(child, options);
+            assert.equal(await new Promise((resolve) => child.once("message", resolve)), "ready");
+            expected.nonce = "b".repeat(64);
+            authorization.ownerGeneration = accepted ? 8 : 7;
+            options.authorizedCancellation = { ...binding };
+            child.send("finish");
+            assert.equal((await observed.verifyFinal()).ok, accepted);
+        });
+    }
+});
+
+/** 独立驱动只使用原生 Node 的动态 MJS 导入并清除继承加载器环境，随后亲自持有带 preload 的 CLI 与日志 FD；真正封存对象退出是断言目标，导出存在并不能代替运行证据。 */
+test("native node imports shared MJS and verifies a real preloaded CLI", async () => {
+    const root = mkdtempSync(join(tmpdir(), "veriq-c2a1-node-"));
+    const env = { ...process.env };
+    delete env.NODE_OPTIONS;
+    delete env.VERIQ_CHILD_OBSERVER;
+    try {
+        const driver = `import assert from 'node:assert/strict';
+            import {spawn} from 'node:child_process';
+            import {openSync,closeSync} from 'node:fs';
+            const {trackObservedCli}=await import(${JSON.stringify(new URL("../src/execution/controlled-child.mjs", import.meta.url).href)});
+            const binding=${JSON.stringify(binding)};
+            const fd=openSync(${JSON.stringify(join(root, "journal"))},'wx+',0o600);
+            const child=spawn(process.execPath,['--import',${JSON.stringify(preload)},'--input-type=module','-e',
+                "import {spawn} from 'node:child_process';const child=spawn(process.execPath,['-e','process.exit(0)'],{stdio:'ignore'});child.once('exit',()=>process.send('ready'));process.on('message',()=>{process.disconnect();process.exitCode=130;});"],
+                {env:{...process.env,VERIQ_CHILD_OBSERVER:JSON.stringify({...binding,fd:4})},stdio:['ignore','ignore','inherit','ipc',fd]});
+            const exit=new Promise((resolve,reject)=>{child.once('exit',resolve);child.once('error',reject);});
+            try {
+                const observed=trackObservedCli(child,{journalFd:fd,expectedBinding:binding});
+                assert.equal(await new Promise(resolve=>child.once('message',resolve)),'ready');
+                observed.authorizeCancellation(binding);child.send('finish');
+                const result=await observed.verifyFinal();
+                assert.equal(result.ok,true);assert.equal(result.exitCode,130);assert.equal(result.objects.length,1);
+                assert.equal(result.objects[0].exitCode,0);console.log(JSON.stringify(result));
+            } finally {if(child.exitCode===null&&child.signalCode===null)child.kill('SIGKILL');await exit;closeSync(fd);}`;
+        const driverChild = spawn(process.execPath, ["--input-type=module", "-e", driver], { env, stdio: ["ignore", "pipe", "pipe"] });
+        let output = "";
+        let errors = "";
+        driverChild.stdout!.on("data", (bytes) => { output += bytes.toString(); });
+        driverChild.stderr!.on("data", (bytes) => { errors += bytes.toString(); });
+        const code = await new Promise((resolve, reject) => { driverChild.once("exit", resolve); driverChild.once("error", reject); });
+        assert.equal(code, 0, errors);
+        assert.equal(JSON.parse(output).coverage, "DIRECT_ASYNC_CHILDREN");
+    } finally {
         rmSync(root, { recursive: true, force: true });
     }
 });

@@ -115,7 +115,7 @@ jobs:
                       if (info.isDirectory()) for (const name of readdirSync(path)) await walk(join(path, name));
                       else await add(path);
                   };
-                  const source = execFileSync("git", ["ls-files", "apps/runtime/native/darwin", "apps/runtime/src/native/darwin.ts", "apps/runtime/src/execution/records.ts", "apps/runtime/src/credentials/files.ts", "apps/runtime/scripts/build-darwin.mjs", "apps/runtime/package.json", "apps/runtime/tests/native/darwin-private-files.test.ts", "apps/runtime/tests/native/darwin-private-files-fault.cc", ".github/workflows/runtime-native-macos.yml", "pnpm-lock.yaml", "pnpm-workspace.yaml"], {encoding:"utf8", maxBuffer:65536}).trim().split("\n").filter(Boolean);
+                  const source = execFileSync("git", ["ls-files", "apps/runtime/native/darwin", "apps/runtime/src/native/darwin.ts", "apps/runtime/src/execution/records.ts", "apps/runtime/src/execution/controlled-child*", "apps/runtime/tests/controlled-child.test.ts", "apps/runtime/tests/fixtures/controlled-child-owner.py", "apps/runtime/src/credentials/files.ts", "apps/runtime/scripts/build-darwin.mjs", "apps/runtime/package.json", "apps/runtime/tests/native/darwin-private-files.test.ts", "apps/runtime/tests/native/darwin-private-files-fault.cc", ".github/workflows/runtime-native-macos.yml", "pnpm-lock.yaml", "pnpm-workspace.yaml"], {encoding:"utf8", maxBuffer:65536}).trim().split("\n").filter(Boolean);
                   for (const path of source) await add(path);
                   await add(process.execPath);
                   await walk(join(process.env.RUNNER_TEMP, "veriq-node-headers"));
