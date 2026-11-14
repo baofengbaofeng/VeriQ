@@ -11,11 +11,15 @@ import {
     symlink,
     unlink,
     chmod,
+    link,
+    readdir,
+    readlink,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative, dirname } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { createHash } from "node:crypto";
 // @ts-expect-error 夹具准备工具由 Node 直接执行而不属于 Runtime 应用的声明接口，测试通过其真实文件与执行边界观察行为；这里保留单行命名空间导入，使 TypeScript 的预期声明缺失标记准确绑定导入位置，不为测试维护第二套生产类型定义。
 import * as fixtureStage from "../scripts/restricted-fixture-stage.mjs";
 const {
@@ -88,6 +92,119 @@ test("owned fixture copy rejects external package links before creating destinat
         await symlink("../outside", join(source, "external"));
         await assert.rejects(stageOwnedFixture(source, target), /FIXTURE_LINK_OUTSIDE/);
         await assert.rejects(lstat(target), { code: "ENOENT" });
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+});
+
+/** 副本拥有者不能从源文件继承而须由实际复制调用者确定，测试逐项读取普通文件、目录与内部链接的真实属性；源包含硬链接和不同执行权限，确保权限规范化不会通过任何共享 inode 改变源树，也不会把身份摘要混入原有字节库存哈希。 */
+test("owned fixture copy verifies caller ownership separately from bytes and preserves every source attribute", async () => {
+    const root = await mkdtemp(join(tmpdir(), "veriq-fixture-ownership-"));
+    const source = join(root, "source"),
+        target = join(root, "target");
+    async function attributes(directory: string, member = ""): Promise<any[]> {
+        const path = join(directory, member),
+            entry = await lstat(path);
+        const current = {
+            path: member,
+            dev: entry.dev,
+            ino: entry.ino,
+            nlink: entry.nlink,
+            uid: entry.uid,
+            gid: entry.gid,
+            mode: entry.mode,
+            ...(entry.isSymbolicLink()
+                ? { link: await readlink(path) }
+                : entry.isFile()
+                  ? {
+                        sha256: createHash("sha256")
+                            .update(await readFile(path))
+                            .digest("hex"),
+                    }
+                  : { directory: true }),
+        };
+        const children = entry.isDirectory()
+            ? (
+                  await Promise.all(
+                      (await readdir(path))
+                          .sort()
+                          .map((name) => attributes(directory, join(member, name))),
+                  )
+              ).flat()
+            : [];
+        return [current, ...children];
+    }
+    try {
+        await mkdir(join(source, "nested"), { recursive: true });
+        await writeFile(join(source, "data.json"), '{"fixture":"owned"}\n');
+        await chmod(join(source, "data.json"), 0o640);
+        await link(join(source, "data.json"), join(source, "alias.json"));
+        await writeFile(join(source, "nested/tool.mjs"), 'export const marker = "owned";\n');
+        await chmod(join(source, "nested/tool.mjs"), 0o710);
+        await symlink("nested/tool.mjs", join(source, "internal"));
+        await chmod(join(source, "nested"), 0o700);
+        const before = await attributes(source);
+        const result = await stageOwnedFixture(source, target);
+        const copied = await attributes(target),
+            sourceInodes = new Set(before.map((entry) => `${entry.dev}:${entry.ino}`));
+        assert.deepEqual(await attributes(source), before);
+        for (const entry of copied) {
+            assert(
+                !sourceInodes.has(`${entry.dev}:${entry.ino}`),
+                "No copied member may share any source inode",
+            );
+            if (entry.link) {
+                assert.equal(entry.link, "nested/tool.mjs");
+                continue;
+            }
+            assert.equal(entry.uid, process.getuid!());
+            assert.equal(entry.gid, process.getgid!());
+            assert.equal(
+                entry.mode & 0o7777,
+                entry.directory || entry.path === "nested/tool.mjs" ? 0o755 : 0o644,
+            );
+        }
+        assert.deepEqual(result.ownership, {
+            uid: process.getuid!(),
+            gid: process.getgid!(),
+            regularFiles: 3,
+            directories: 2,
+        });
+        assert.equal(
+            result.inventorySha256,
+            createHash("sha256").update(JSON.stringify(result.inventory)).digest("hex"),
+        );
+        assert(
+            result.inventory.every(
+                (entry: any) => entry.uid === undefined && entry.gid === undefined,
+            ),
+            "Byte inventory remains independent from copied ownership",
+        );
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+});
+
+test("owned fixture copy refuses a linked target parent before creating or normalizing copied members", async () => {
+    const root = await mkdtemp(join(tmpdir(), "veriq-fixture-parent-link-"));
+    const source = join(root, "source"),
+        outside = join(root, "outside"),
+        linked = join(root, "linked"),
+        target = join(linked, "target");
+    try {
+        await mkdir(source);
+        await mkdir(outside);
+        await symlink(outside, linked);
+        await writeFile(join(source, "data"), "owned source", { mode: 0o600 });
+        await writeFile(join(outside, "sentinel"), "untouched", { mode: 0o600 });
+        const before = await lstat(join(source, "data")),
+            sentinel = await lstat(join(outside, "sentinel"));
+        await assert.rejects(stageOwnedFixture(source, target), /FIXTURE_TARGET_PARENT_LINKED/);
+        await assert.rejects(lstat(join(outside, "target")), { code: "ENOENT" });
+        assert.equal(await readFile(join(outside, "sentinel"), "utf8"), "untouched");
+        assert.equal((await lstat(join(outside, "sentinel"))).mode, sentinel.mode);
+        assert.equal((await lstat(join(source, "data"))).mode, before.mode);
+        assert.equal((await lstat(join(source, "data"))).ino, before.ino);
     } finally {
         await rm(root, { recursive: true, force: true });
     }

@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import { createHash, randomUUID } from "node:crypto";
-import { createReadStream } from "node:fs";
+import { constants, createReadStream } from "node:fs";
 import {
     chmod,
     cp,
@@ -18,6 +18,7 @@ import {
     readFile,
     writeFile,
     rm,
+    open,
 } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, dirname, basename } from "node:path";
 const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -25,27 +26,33 @@ const contained = (root, path) => {
     const part = relative(root, path);
     return part !== ".." && !part.startsWith("../") && !isAbsolute(part);
 };
-async function inspect(root, normalize = false) {
+const attributesOf = (path, entry, type) => ({
+    path,
+    type,
+    dev: entry.dev,
+    ino: entry.ino,
+    nlink: entry.nlink,
+    mode: entry.mode,
+    uid: entry.uid,
+    gid: entry.gid,
+});
+
+/** 库存观察必须始终只读，普通文件和目录的身份、拥有者与模式同字节哈希一起保留，符号链接则单独记录自身属性和内部目标；所有复制前后的完整证明都先完成，不能在扫描途中 chmod 或 chown 后才发现目标仍共享源 inode 而破坏原文件。 */
+async function inspect(root) {
     const entries = [];
     const attributes = [];
     let bytes = 0;
     async function visit(directory) {
         const current = await lstat(directory);
         assert(current.isDirectory() && !current.isSymbolicLink(), "FIXTURE_DIRECTORY_INVALID");
-        attributes.push({
-            path: relative(root, directory),
-            dev: current.dev,
-            ino: current.ino,
-            mode: current.mode,
-            uid: current.uid,
-        });
-        if (normalize) await chmod(directory, 0o755);
+        attributes.push(attributesOf(relative(root, directory), current, "directory"));
         for (const name of (await readdir(directory)).sort()) {
             const path = join(directory, name),
                 entry = await lstat(path),
                 member = relative(root, path);
             assert(entries.length < 50000, "FIXTURE_ENTRY_LIMIT");
             if (entry.isSymbolicLink()) {
+                attributes.push(attributesOf(member, entry, "symlink"));
                 const link = await readlink(path);
                 assert(
                     !isAbsolute(link) && contained(root, await realpath(path)),
@@ -62,25 +69,72 @@ async function inspect(root, normalize = false) {
                 const hash = createHash("sha256");
                 for await (const chunk of createReadStream(path)) hash.update(chunk);
                 const executable = !!(entry.mode & 0o111);
-                attributes.push({
-                    path: member,
-                    dev: entry.dev,
-                    ino: entry.ino,
-                    mode: entry.mode,
-                    uid: entry.uid,
-                });
+                attributes.push(attributesOf(member, entry, "file"));
                 entries.push({
                     path: member,
                     sizeBytes: entry.size,
                     sha256: hash.digest("hex"),
                     executable,
                 });
-                if (normalize) await chmod(path, executable ? 0o755 : 0o644);
             }
         }
     }
     await visit(root);
     return { entries, bytes, attributes };
+}
+
+function proveIndependentCopy(before, copied) {
+    assert.deepEqual(copied.entries, before.entries, "FIXTURE_COPY_CHANGED");
+    assert.equal(copied.bytes, before.bytes, "FIXTURE_COPY_CHANGED");
+    assert.equal(
+        copied.attributes.length,
+        before.attributes.length,
+        "FIXTURE_COPY_MEMBERS_CHANGED",
+    );
+    const originals = new Set(before.attributes.map((entry) => `${entry.dev}:${entry.ino}`));
+    const byPath = new Map(copied.attributes.map((entry) => [entry.path, entry]));
+    for (const entry of before.attributes) {
+        const targetEntry = byPath.get(entry.path);
+        assert(targetEntry?.type === entry.type, "FIXTURE_COPY_TYPE_CHANGED");
+        assert(
+            !originals.has(`${targetEntry.dev}:${targetEntry.ino}`),
+            "FIXTURE_COPY_SHARED_INODE",
+        );
+    }
+}
+
+/** Linux 的 copyFile 会在权限允许时保留源 UID 和 GID，因此必须对已经完整证明独立的新副本建立调用者拥有的代码边界；每次修改都持有 O_NOFOLLOW 打开的实际普通文件或目录句柄并重验 inode，符号链接完全排除，失败不会返回可用库存或触碰原树。 */
+async function normalizeCopiedOwnership(target, copied) {
+    const uid = process.getuid(),
+        gid = process.getgid();
+    const files = copied.attributes.filter((entry) => entry.type === "file");
+    const directories = copied.attributes.filter((entry) => entry.type === "directory");
+    for (const entry of [...files, ...directories.toReversed()]) {
+        const path = join(target, entry.path),
+            directory = entry.type === "directory";
+        const handle = await open(
+            path,
+            constants.O_RDONLY |
+                constants.O_NOFOLLOW |
+                constants.O_NONBLOCK |
+                (directory ? constants.O_DIRECTORY : 0),
+        );
+        try {
+            const actual = await handle.stat();
+            assert(
+                actual.dev === entry.dev &&
+                    actual.ino === entry.ino &&
+                    actual.nlink === entry.nlink &&
+                    (directory ? actual.isDirectory() : actual.isFile()),
+                "FIXTURE_COPY_IDENTITY_CHANGED",
+            );
+            if (actual.uid !== uid || actual.gid !== gid) await handle.chown(uid, gid);
+            await handle.chmod(directory || (entry.mode & 0o111) !== 0 ? 0o755 : 0o644);
+        } finally {
+            await handle.close();
+        }
+    }
+    return { uid, gid, regularFiles: files.length, directories: directories.length };
 }
 
 /** 输入必须是 pnpm 冻结导出的完整目录，所有包链接均在该目录内；复制前后逐文件哈希相等且实际 inode 独立才返回可启动副本，并记录容量与库存摘要，原目录的权限、身份与内容都不能被副本的权限规范化影响。 */
@@ -89,6 +143,11 @@ export async function stageOwnedFixture(source, target) {
     assert.equal(await realpath(source), resolve(source), "FIXTURE_SOURCE_LINKED");
     assert(!contained(source, target) && !contained(target, source), "FIXTURE_COPY_OVERLAP");
     await assert.rejects(lstat(target), { code: "ENOENT" });
+    assert.equal(
+        await realpath(dirname(target)),
+        resolve(dirname(target)),
+        "FIXTURE_TARGET_PARENT_LINKED",
+    );
     const before = await inspect(source);
     const space = await statfs(dirname(target), { bigint: true });
     assert(
@@ -102,15 +161,35 @@ export async function stageOwnedFixture(source, target) {
         errorOnExist: true,
         force: false,
     });
-    const after = await inspect(target, true);
-    assert.deepEqual(after.entries, before.entries, "FIXTURE_COPY_CHANGED");
-    assert.equal(after.bytes, before.bytes, "FIXTURE_COPY_CHANGED");
-    const copied = new Map(after.attributes.map((entry) => [entry.path, entry]));
-    for (const entry of before.attributes) {
-        const targetEntry = copied.get(entry.path);
+    assert.equal(await realpath(target), resolve(target), "FIXTURE_TARGET_LINKED");
+    const copied = await inspect(target);
+    proveIndependentCopy(before, copied);
+    assert.deepEqual(await inspect(source), before, "FIXTURE_SOURCE_CHANGED");
+    const ownership = await normalizeCopiedOwnership(target, copied);
+    const after = await inspect(target);
+    proveIndependentCopy(before, after);
+    const originalCopies = new Map(copied.attributes.map((entry) => [entry.path, entry]));
+    for (const entry of after.attributes) {
+        const previous = originalCopies.get(entry.path);
         assert(
-            targetEntry && (targetEntry.dev !== entry.dev || targetEntry.ino !== entry.ino),
-            "FIXTURE_COPY_SHARED_INODE",
+            previous &&
+                entry.dev === previous.dev &&
+                entry.ino === previous.ino &&
+                entry.nlink === previous.nlink,
+            "FIXTURE_COPY_IDENTITY_CHANGED",
+        );
+        if (entry.type === "symlink") {
+            assert.deepEqual(entry, previous, "FIXTURE_COPY_LINK_CHANGED");
+            continue;
+        }
+        assert(
+            entry.uid === ownership.uid && entry.gid === ownership.gid,
+            "FIXTURE_COPY_OWNER_INVALID",
+        );
+        assert.equal(
+            entry.mode & 0o7777,
+            entry.type === "directory" || (previous.mode & 0o111) !== 0 ? 0o755 : 0o644,
+            "FIXTURE_COPY_MODE_INVALID",
         );
     }
     assert.deepEqual(await inspect(source), before, "FIXTURE_SOURCE_CHANGED");
@@ -121,6 +200,7 @@ export async function stageOwnedFixture(source, target) {
         availableBytes: String(space.bavail * space.bsize),
         inventorySha256: digest(JSON.stringify(before.entries)),
         inventory: before.entries,
+        ownership,
     };
 }
 
