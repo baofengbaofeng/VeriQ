@@ -41,7 +41,9 @@ Windows 使用明确当前账户 SID 的受限本机管道，拒绝远程客户�
 
 Windows 停止事件将 nonce、guardian PID/完整 FILETIME、Worker PID/完整 FILETIME 共同绑定为同一关系；原生调用持有两个真实进程句柄，核验 SID 与创建时间后才打开匹配事件。单独真实的身份字段不能跨 Attempt 拼接。拒绝、超时或未知状态不关闭已有 guardian 控制连接，只有匹配 DRAINED 证明才释放；否则关闭 stdin 本身就可能终止整个 Job。`0547d3b` 已用同一组18项实际 Windows Server 测试完成已复现所有权缺陷的 RED→GREEN，取消时序、完整集成和目标安装验收仍待交付。
 
-原生构建显式启用与编译器 EH1 一致的 STL 异常模式，移除 Node 头文件默认的 `_HAS_EXCEPTIONS=0`；Windows CI 保存并校验实际生成项目的宏与异常配置，不将请求参数当实际值。调度和构造故障测试目标默认关闭，只在显式测试构建中生成，普通模块不导出测试操作；测试二进制独立存放，正式安装库存必须排除它们。构造中途失败必须立即释放实际获得的管道和回调引用，不能依赖未来 GC；`86d50fb` 已有21项实际验证通过，恶意不读客户端的响应关闭及其余完整集成仍待交付。
+原生构建显式启用与编译器 EH1 一致的 STL 异常模式，移除 Node 头文件默认的 `_HAS_EXCEPTIONS=0`；Windows CI 保存并校验实际生成项目的宏与异常配置，不将请求参数当实际值。调度和构造故障测试目标默认关闭，只在显式测试构建中生成，普通模块不导出测试操作；测试二进制独立存放，正式安装库存必须排除它们。构造中途失败必须立即释放实际获得的管道和回调引用，不能依赖未来 GC；`86d50fb` 已有21项实际验证通过，`a8603da`同一22项验证响应关闭竞争修复；其余完整集成仍待交付。
+
+Windows 私有配置通过有限系统适配使用 `NtCreateFile` 逐组件相对父目录句柄打开，拒绝重解析点，并在同一文件句柄完成 ACL、类型、大小检查和有界读取；新私有目录从创建时具有当前 SID 的保护继承 DACL，既有公开对象直接拒绝。原子替换先刷新自有临时文件，再用 `NtSetInformationFile(FileRenameInformation)` 绑定同一源句柄、父目录句柄和单个目标名称，提交后刷新同一文件；提交后错误返回不确定性，不能假称回滚或重放回调。不向 JavaScript 暴露任意 NT 操作、原始句柄或通用 FFI；仅复用系统 ntdll 链接，不分发系统 DLL。`c6a5a22` 的29项实际 Windows Server 测试及三个模块导入观测通过，但 Node/SQLite 子文件继承、完整消费者、安装和断电恢复仍有独立验证要求。此前 Win32 重命名调用的参数错误内部原因未确定，补终止字符的比较未解决该错误；不能将 API 替换描述为已证明某个未观测内部原因。
 
 桌面默认使用系统凭据库，锁定、缺失、不可用和错误不能都折叠为缺凭据。凭据库不可用时明确失败，不自动降级。大型载荷使用标准认证加密，密钥独立保存在 OS vault，元数据绑定 profile、purpose、精确引用和版本。当前设备 token、旧/新轮换 token 与业务凭据一起纳入；迁移须显式进行，在停止且独占的 profile 中写入、读回核验和记录进度，再删除旧明文。中途失败保留可恢复事实。
 
@@ -64,3 +66,5 @@ Retain the frozen Electron toolchain, independent Node24.22.1 and full Playwrigh
 Reuse locked tar/tsx, Win32 Jobs, Credential Manager and Linux Secret Service through narrow native adapters. node-addon-api8.9.2 is selected as build-only assistance, subject to actual acquisition and target graph verification. Do not introduce unchanged keyring2.1.2 while its native advisory disposition remains unresolved. Desktop vault keys protect standard authenticated encrypted payloads; explicit restricted-file mode is permitted for unattended Linux, without a silent desktop downgrade or an encryption claim.
 
 Private IPC validates the actual user, operation and bounded frames. Updates must honor preparing, active, online and quarantined ownership and actual stop proof. Candidate NSIS/.deb/standalone artifacts are development unsigned until formal signing is configured and authorized; checksums are not publisher authenticity. Large payload work runs on target CI, preserving existing evidence. These decisions do not claim implementation, target acceptance or complete MVP delivery.
+
+Windows private configuration now uses finite handle-relative NtCreateFile/NtSetInformationFile operations, with same-handle ACL/read checks and explicit post-commit uncertainty. Source c6a5a22 passes the unchanged29 real Windows Server cases and actual system-import observations. This does not establish power-loss durability, complete consumer integration or installed Windows11 acceptance.
