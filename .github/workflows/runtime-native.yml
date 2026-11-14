@@ -56,7 +56,7 @@ jobs:
               shell: pwsh
               working-directory: apps/runtime
               run: |
-                  node --import tsx --test tests/native/windows.test.ts tests/native/windows-scheduling.test.ts tests/native/windows-constructor.test.ts tests/native/windows-response-close.test.ts tests/native/windows-private-config.test.ts tests/native/windows-profile.test.ts tests/pipe-framing.test.ts 2>&1 | Tee-Object -FilePath (Join-Path $env:VERIQ_NATIVE_EVIDENCE 'windows-native.log')
+                  node --import tsx --test tests/native/windows.test.ts tests/native/windows-scheduling.test.ts tests/native/windows-constructor.test.ts tests/native/windows-response-close.test.ts tests/native/windows-private-config.test.ts tests/native/windows-profile.test.ts tests/pipe-framing.test.ts tests/vault-envelope.test.ts 2>&1 | Tee-Object -FilePath (Join-Path $env:VERIQ_NATIVE_EVIDENCE 'windows-native.log')
                   exit $LASTEXITCODE
             - name: Preserve source binding and final disk observation
               if: always()
