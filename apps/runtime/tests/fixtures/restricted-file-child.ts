@@ -1,8 +1,19 @@
 /** 此有限子程序只在临时 Linux CI 的自有专用账户和 bind 卷内运行，实际跨进程创建、读取与退休凭据并检查权限拒绝；所有业务值均为公开合成标记，随机原始密钥绝不写入输出，测试不声称 OS vault、机器掉电或正式部署持久性验收。 */
 import assert from "node:assert/strict";
 import { isIndependentNode24 } from "../../src/node-version.ts";
-import { chmod, lstat, readFile, readdir, rename, symlink, unlink } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import {
+    chmod,
+    lstat,
+    readFile,
+    readdir,
+    readlink,
+    realpath,
+    rename,
+    symlink,
+    unlink,
+} from "node:fs/promises";
+import { isAbsolute, join, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { homedir, userInfo } from "node:os";
 import { randomBytes, randomUUID } from "node:crypto";
 import { VaultFiles } from "../../src/credentials/files.ts";
@@ -15,7 +26,7 @@ import { updatePrivate } from "../../src/offline/config.ts";
 assert.equal(process.platform, "linux");
 assert(isIndependentNode24(process.versions));
 const [phase, volume, uid] = process.argv.slice(2);
-assert(volume && uid && ["seed", "restart", "retired"].includes(phase!));
+assert(volume && uid && ["closure", "seed", "restart", "retired"].includes(phase!));
 const codeRoot = resolve(import.meta.dirname, "../..");
 const code = await lstat(codeRoot),
     source = await lstat(import.meta.filename);
@@ -67,6 +78,8 @@ const facts: Record<string, unknown> = {
     executable: process.execPath,
     mode: "restricted-file",
     encryptionAtRest: false,
+    networkNamespace: await readlink("/proc/self/ns/net"),
+    tsxCacheDisabled: process.env.TSX_DISABLE_CACHE === "1",
 };
 const status = await readFile("/proc/self/status", "utf8");
 const procUid = /^Uid:\s+([0-9\s]+)$/m.exec(status)?.[1]?.trim().split(/\s+/).map(Number);
@@ -79,7 +92,29 @@ assert.equal(/^NoNewPrivs:\s+(\d+)$/m.exec(status)?.[1], "1");
 Object.assign(facts, { procUid, procGid, noNewPrivileges: true });
 assert.equal(process.getuid!(), Number(uid));
 assert.equal((await backend.probe(AbortSignal.timeout(5000))).status, "ready");
-if (phase === "seed") {
+if (phase === "closure") {
+    /** 此枚举必须经过 tsx 所用的 esbuild 转换才能在默认 Node24 类型擦除模式下执行，随后逐个真实导入部署 manifest 的生产公共入口；只记录最终落在副本树内的入口，不调用浏览器、CLI 或控制平台，从而单独证明准备闭包的离网装载能力。 */
+    enum LoaderMarker {
+        Ready = "tsx-esbuild",
+    }
+    const manifest = JSON.parse(await readFile(join(codeRoot, "package.json"), "utf8"));
+    const loadedPackages = [];
+    for (const name of Object.keys({
+        ...manifest.dependencies,
+        ...manifest.optionalDependencies,
+    }).sort()) {
+        const url = import.meta.resolve(name),
+            path = await realpath(fileURLToPath(url)),
+            member = relative(codeRoot, path);
+        assert(
+            !isAbsolute(member) && member !== ".." && !member.startsWith("../"),
+            "FIXTURE_PUBLIC_ENTRY_OUTSIDE",
+        );
+        await import(name);
+        loadedPackages.push({ name, path });
+    }
+    Object.assign(facts, { loaderMarker: LoaderMarker.Ready, loadedPackages });
+} else if (phase === "seed") {
     await profile.transaction(async (tx) => {
         await tx.set(ref, "synthetic-owned-restricted-value");
         await tx.saveDevice(device, true);

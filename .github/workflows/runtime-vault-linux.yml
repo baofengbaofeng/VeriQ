@@ -35,6 +35,7 @@ jobs:
                   sudo apt-get install -y --no-install-recommends gcc libc6-dev pkg-config libsecret-1-dev libglib2.0-bin dbus gnome-keyring 2>&1 | tee "$VERIQ_VAULT_EVIDENCE/apt-install.log"
                   npm install --prefix "$RUNNER_TEMP/veriq-node-tools" pnpm@11.25.0 --ignore-scripts
                   node "$RUNNER_TEMP/veriq-node-tools/node_modules/pnpm/bin/pnpm.cjs" install --frozen-lockfile --ignore-scripts
+                  node apps/runtime/scripts/restricted-fixture-stage.mjs prepare "$VERIQ_VAULT_EVIDENCE" "$RUNNER_TEMP/veriq-node-tools/node_modules/pnpm/bin/pnpm.cjs"
             - name: Capture actual selected package closure and licenses
               working-directory: apps/runtime
               run: node scripts/vault-linux-evidence.mjs packages
@@ -53,10 +54,6 @@ jobs:
               run: |
                   set -o pipefail
                   node --import tsx --test tests/vault-envelope.test.ts tests/vault-integration.test.ts tests/vault-history.test.ts tests/vault-deletion.test.ts tests/restricted-file.test.ts tests/restricted-operation.test.ts tests/restricted-fixture-stage.test.ts tests/vault-linux.test.ts tests/distribution.test.ts tests/native/linux-vault.test.ts 2>&1 | tee "$VERIQ_VAULT_EVIDENCE/vault-tests.log"
-            - name: Prepare isolated locked dependency closure for the dedicated fixture account
-              timeout-minutes: 3
-              working-directory: apps/runtime
-              run: node scripts/restricted-fixture-stage.mjs prepare "$VERIQ_VAULT_EVIDENCE" "$RUNNER_TEMP/veriq-node-tools/node_modules/pnpm/bin/pnpm.cjs"
             - name: Verify explicit managed file mode on an owned account and persistent bind volume
               timeout-minutes: 4
               working-directory: apps/runtime
@@ -64,7 +61,7 @@ jobs:
               run: |
                   set -o pipefail
                   veriq_fixture_node="$(command -v node)"
-                  sudo "$veriq_fixture_node" scripts/restricted-file-fixture.mjs test "$VERIQ_VAULT_EVIDENCE" 2>&1 | tee "$VERIQ_VAULT_EVIDENCE/restricted-file-test.log"
+                  sudo "$veriq_fixture_node" scripts/restricted-file-fixture.mjs test "$VERIQ_VAULT_EVIDENCE" "$RUNNER_TEMP" 2>&1 | tee "$VERIQ_VAULT_EVIDENCE/restricted-file-test.log"
             - name: Always confirm owned restricted-file account and mount cleanup
               if: always()
               working-directory: apps/runtime
