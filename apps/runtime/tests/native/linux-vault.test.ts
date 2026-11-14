@@ -378,6 +378,18 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
                 };
             },
         );
+        await t.test(
+            "formal Secret Service explicitly recovers an empty missing-key initialization",
+            async () => {
+                const { verifyEmptyInitialization } = await import(
+                    "../fixtures/vault-initialization.ts"
+                );
+                facts.initializationRecovery = await verifyEmptyInitialization(
+                    join(root, "pending-profile"),
+                    productionOptions,
+                );
+            },
+        );
         await t.test("real locked collection and prompt-producing unlock are refused", async () => {
             assert.equal(await direct(driver, "V1 lock\n"), "V1 ok\n");
             assert.equal((await backend.probe(signal())).status, "locked");

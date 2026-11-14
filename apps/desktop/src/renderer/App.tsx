@@ -1109,6 +1109,23 @@ export function App() {
                                 >
                                     迁移本机凭据 / Migrate local credentials
                                 </button>
+                                <p>
+                                    初始化中断且尚无凭据时，可明确恢复空保险库。已激活档案缺钥不会被替换；请先停止执行与在线领取。
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        void action(async () =>
+                                            setDiagnostics(
+                                                await bridge.local({
+                                                    operation: "recoverCredentialInitialization",
+                                                }),
+                                            ),
+                                        )
+                                    }
+                                >
+                                    恢复空保险库初始化 / Recover empty vault initialization
+                                </button>
                                 {diagnostics !== undefined && (
                                     <pre data-testid="diagnostics">
                                         {JSON.stringify(diagnostics, null, 2)}

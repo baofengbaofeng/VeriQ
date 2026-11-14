@@ -236,6 +236,11 @@ export class DeviceStore {
         if (!this.profile) throw new Error("VAULT_CONTEXT_REQUIRED");
         await this.profile.migrate();
     }
+    /** 用户明确恢复未完成初始化时复用系统后端和持续停止所有权，只处理没有任何业务密文的初始档案；活动密钥缺失、残留数据、冲突或系统不可用仍拒绝，调用方不会取得密钥或自动回退到明文。 */
+    async recoverCredentialInitialization(): Promise<void> {
+        if (!this.profile) throw new Error("VAULT_CONTEXT_REQUIRED");
+        await this.profile.recoverInitialization();
+    }
     /**
      * 公开方法 prepare 创建私有配置目录并准备设备文件锁：供 Agent 启动前调用，标注导出符号 prepare 供检索。
      */

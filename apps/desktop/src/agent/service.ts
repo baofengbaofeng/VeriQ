@@ -292,6 +292,7 @@ export class DesktopAgent {
             stop: [],
             recover: [],
             migrateCredentials: [],
+            recoverCredentialInitialization: [],
         };
         if (!Object.hasOwn(permitted, operation)) throw new Error("AGENT_OPERATION_DENIED");
         object(message, ["operation", ...permitted[operation]!]);
@@ -311,6 +312,7 @@ export class DesktopAgent {
             "clearBundle",
             "recover",
             "migrateCredentials",
+            "recoverCredentialInitialization",
         ];
         if (!guarded.includes(operation)) return this.execute(operation, message);
         if (this.transition || this.interruptions || this.run || this.online)
@@ -354,6 +356,10 @@ export class DesktopAgent {
         await privateDirectory(this.root);
         startup?.signal.throwIfAborted();
         if (operation === "status") return this.state();
+        if (operation === "recoverCredentialInitialization") {
+            await this.device.recoverCredentialInitialization();
+            return { recovered: true, credentialMode: "os-vault" };
+        }
         if (operation === "migrateCredentials") {
             await this.device.migrateCredentials();
             return { migrated: true, credentialMode: "os-vault" };

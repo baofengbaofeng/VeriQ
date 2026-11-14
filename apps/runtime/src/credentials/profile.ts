@@ -49,6 +49,14 @@ const FILE = /^record-[0-9a-f-]{36}\.json$/;
 const INDEX = "profile.json";
 const JOURNAL = "transaction.json";
 const STAGED = "profile-next.json";
+const INITIALIZATION = "initialization.json";
+type Initialization = {
+    version: 1;
+    profileId: string;
+    state: "pending" | "active";
+    previous: Array<{ keyVersion: string; keyHash: string; status: "pending" | "absent" }>;
+    next: { keyVersion: string; keyHash: string };
+};
 const QUOTA = 1024 * 1024;
 const digest = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 function fail(status: string): never {
@@ -96,6 +104,44 @@ function parseManifest(wire: string): Manifest {
         fail("profile-corrupt");
     return value;
 }
+/** 显式恢复日志只保存未激活版本的随机密钥校验值与精确退休结果，最多保留一百二十八个历史意图以限制损坏数据开销；旧新版本必须唯一且属于同一档案，日志不能自行引入业务条目、路径或系统凭据目标。 */
+function parseInitialization(wire: string): Initialization {
+    let value: Initialization;
+    try {
+        value = JSON.parse(wire) as Initialization;
+    } catch {
+        return fail("initialization-corrupt");
+    }
+    if (
+        !value ||
+        value.version !== 1 ||
+        !UUID.test(value.profileId) ||
+        !["pending", "active"].includes(value.state) ||
+        Object.keys(value).sort().join() !== "next,previous,profileId,state,version" ||
+        !value.next ||
+        Object.keys(value.next).sort().join() !== "keyHash,keyVersion" ||
+        !UUID.test(value.next.keyVersion) ||
+        !HASH.test(value.next.keyHash) ||
+        !Array.isArray(value.previous) ||
+        value.previous.length < 1 ||
+        value.previous.length > 128 ||
+        value.previous.some(
+            (entry) =>
+                !entry ||
+                Object.keys(entry).sort().join() !== "keyHash,keyVersion,status" ||
+                !UUID.test(entry.keyVersion) ||
+                !HASH.test(entry.keyHash) ||
+                !["pending", "absent"].includes(entry.status) ||
+                (value.state === "active" && entry.status !== "absent"),
+        ) ||
+        new Set([...value.previous.map((entry) => entry.keyVersion), value.next.keyVersion])
+            .size !==
+            value.previous.length + 1
+    )
+        fail("initialization-corrupt");
+    return value;
+}
+
 function businessSlot(ref: SecretReference) {
     return JSON.stringify([ref.issuerId, ref.workspaceId, ref.secretRef, ref.versionId]);
 }
@@ -538,6 +584,152 @@ export class CredentialProfile {
 
     /** 显式迁移在整个读取、密文发布、完整核验与明文退休期间持有 Agent 停止所有权和同一档案事务锁；正在运行的 Agent 会使获取失败，不能把一次性状态检查视为持续停止证明或绕过已有运行者。 */
     async migrate(): Promise<void> {
+        await this.withStoppedProfile((root) =>
+            this.withTransaction((tx) => tx.migrate(root), true),
+        );
+    }
+
+    /** 用户显式请求才允许恢复确实空的未激活初始化，原版本必须精确读为缺失才能建立新随机版本；同一档案身份保持，旧意图及逐版本缺失证明持续保存在非秘密日志，活动凭据、残留密文和未知状态一律不能被重置。 */
+    async recoverInitialization(): Promise<void> {
+        await this.withStoppedProfile(() =>
+            this.withLockedFiles(async (_root, files) => {
+                const wire = await files.read(INDEX);
+                if (wire === undefined) fail("initialization-not-pending");
+                let manifest = parseManifest(wire);
+                const logged = await files.read(INITIALIZATION);
+                let journal = logged === undefined ? undefined : parseInitialization(logged);
+                if (manifest.state === "active" && journal?.state !== "pending")
+                    fail("initialization-not-pending");
+                if (
+                    Object.keys(manifest.entries).length ||
+                    !(await files.containsOnly([INDEX, INITIALIZATION]))
+                )
+                    fail("initialization-data-present");
+                if (journal) {
+                    if (journal.profileId !== manifest.profileId) fail("initialization-conflict");
+                    const previous = journal.previous.at(-1)!;
+                    if (
+                        manifest.keyVersion === previous.keyVersion &&
+                        manifest.keyHash === previous.keyHash &&
+                        manifest.state === "initializing"
+                    ) {
+                        manifest = { ...manifest, ...journal.next };
+                        await files.write(INDEX, JSON.stringify(manifest));
+                    } else if (
+                        manifest.keyVersion !== journal.next.keyVersion ||
+                        manifest.keyHash !== journal.next.keyHash
+                    ) {
+                        fail("initialization-conflict");
+                    }
+                }
+                const readKey = async () => {
+                    const result = await this.options.backend.get(
+                        { profileId: manifest.profileId, keyVersion: manifest.keyVersion },
+                        AbortSignal.timeout(5000),
+                    );
+                    if (result.status === "missing") return false;
+                    if (result.status !== "ok") fail(result.status);
+                    try {
+                        if (result.key.length !== 32 || digest(result.key) !== manifest.keyHash)
+                            fail("key-conflict");
+                    } finally {
+                        result.key.fill(0);
+                    }
+                    return true;
+                };
+                /** 旧版本只能在显式记录的档案范围内退休，先核对随机密钥校验值再调用精确 delete；修改失败或删除后无法确认缺失都保留 pending，下一次仅按原意图核验，不把不确定返回伪装为密钥已清理。 */
+                const retire = async () => {
+                    if (!journal) return;
+                    for (const previous of journal.previous) {
+                        if (previous.status === "absent") continue;
+                        const scope = {
+                            profileId: journal.profileId,
+                            keyVersion: previous.keyVersion,
+                        };
+                        const result = await this.options.backend.get(
+                            scope,
+                            AbortSignal.timeout(5000),
+                        );
+                        if (result.status === "ok") {
+                            try {
+                                if (
+                                    result.key.length !== 32 ||
+                                    digest(result.key) !== previous.keyHash
+                                )
+                                    fail("key-conflict");
+                            } finally {
+                                result.key.fill(0);
+                            }
+                            const removed = await this.options.backend.delete(
+                                scope,
+                                AbortSignal.timeout(5000),
+                            );
+                            if (!["ok", "missing"].includes(removed.status)) fail(removed.status);
+                            const after = await this.options.backend.get(
+                                scope,
+                                AbortSignal.timeout(5000),
+                            );
+                            if (after.status === "ok") {
+                                after.key.fill(0);
+                                fail("mutation-unconfirmed");
+                            }
+                            if (after.status !== "missing") fail(after.status);
+                        } else if (result.status !== "missing") fail(result.status);
+                        previous.status = "absent";
+                        await files.write(INITIALIZATION, JSON.stringify(journal));
+                    }
+                };
+                let present = await readKey();
+                if (!present) {
+                    if (manifest.state !== "initializing") fail("key-missing");
+                    await retire();
+                    if ((journal?.previous.length ?? 0) >= 128)
+                        fail("initialization-recovery-limit");
+                    const key = randomBytes(32);
+                    try {
+                        const next = { keyVersion: randomUUID(), keyHash: digest(key) };
+                        journal = {
+                            version: 1,
+                            profileId: manifest.profileId,
+                            state: "pending",
+                            previous: [
+                                ...(journal?.previous ?? []),
+                                {
+                                    keyVersion: manifest.keyVersion,
+                                    keyHash: manifest.keyHash,
+                                    status: "pending",
+                                },
+                            ],
+                            next,
+                        };
+                        await files.write(INITIALIZATION, JSON.stringify(journal));
+                        manifest = { ...manifest, ...next };
+                        await files.write(INDEX, JSON.stringify(manifest));
+                        const result = await this.options.backend.set(
+                            { profileId: manifest.profileId, keyVersion: manifest.keyVersion },
+                            key,
+                            AbortSignal.timeout(5000),
+                        );
+                        if (result.status !== "ok") fail(result.status);
+                        present = await readKey();
+                        if (!present) fail("key-missing");
+                    } finally {
+                        key.fill(0);
+                    }
+                }
+                manifest.state = "active";
+                await files.write(INDEX, JSON.stringify(manifest));
+                await retire();
+                if (journal) {
+                    journal.state = "active";
+                    await files.write(INITIALIZATION, JSON.stringify(journal));
+                }
+            }),
+        );
+    }
+
+    /** 迁移与空初始化恢复共享同一持续停止边界，执行记录、在线所有权和离线 SQLite 占用全部通过后才调用私有操作；资源始终按事务、数据库、Agent 和桌面所有权逆序释放，失败不会授权强杀或清理未知执行。 */
+    private async withStoppedProfile<T>(run: (root: VaultFiles) => Promise<T>): Promise<T> {
         const root = await VaultFiles.acquire(this.directory);
         let owner: VaultFiles | undefined;
         let release: (() => Promise<void>) | undefined;
@@ -574,7 +766,7 @@ export class CredentialProfile {
             }
             executions = await LocalStore.open(join(this.directory, "offline"));
             idle = executions.holdIdle();
-            await this.withTransaction((tx) => tx.migrate(root), true);
+            return await run(root);
         } finally {
             try {
                 try {
@@ -610,10 +802,76 @@ export class CredentialProfile {
         run: (transaction: CredentialTransaction) => Promise<T>,
         migrating: boolean,
     ): Promise<T> {
+        return this.withLockedFiles(async (root, files) => {
+            let key: Buffer | undefined;
+            try {
+                if (!migrating) {
+                    if ((await files.read("migration.json")) !== undefined)
+                        fail("migration-required");
+                    for (const legacy of ["local-secrets.json", "device.json", "rotation.json"])
+                        if ((await root.read(legacy)) !== undefined) fail("migration-required");
+                }
+                const initialization = await files.read(INITIALIZATION);
+                const recovery =
+                    initialization === undefined ? undefined : parseInitialization(initialization);
+                if (recovery?.state === "pending") fail("initialization-recovery-required");
+                const wire = await files.read(INDEX);
+                let manifest: Manifest;
+                if (wire === undefined) {
+                    if (!(await files.empty())) fail("profile-missing");
+                    key = randomBytes(32);
+                    manifest = {
+                        version: 1,
+                        profileId: randomUUID(),
+                        keyVersion: randomUUID(),
+                        keyHash: digest(key),
+                        state: "initializing",
+                        entries: {},
+                    };
+                    await files.write(INDEX, JSON.stringify(manifest));
+                    const result = await this.options.backend.set(
+                        { profileId: manifest.profileId, keyVersion: manifest.keyVersion },
+                        key,
+                        AbortSignal.timeout(5000),
+                    );
+                    if (result.status !== "ok") fail(result.status);
+                } else manifest = parseManifest(wire);
+                if (
+                    recovery &&
+                    (manifest.profileId !== recovery.profileId ||
+                        manifest.keyVersion !== recovery.next.keyVersion ||
+                        manifest.keyHash !== recovery.next.keyHash ||
+                        manifest.state !== "active")
+                )
+                    fail("initialization-conflict");
+                const result = await this.options.backend.get(
+                    { profileId: manifest.profileId, keyVersion: manifest.keyVersion },
+                    AbortSignal.timeout(5000),
+                );
+                if (result.status !== "ok")
+                    fail(result.status === "missing" ? "key-missing" : result.status);
+                key?.fill(0);
+                key = result.key;
+                if (key.length !== 32 || digest(key) !== manifest.keyHash) fail("key-conflict");
+                if (manifest.state === "initializing") {
+                    manifest.state = "active";
+                    await files.write(INDEX, JSON.stringify(manifest));
+                }
+                manifest = await recover(files, manifest, key);
+                return await run(new CredentialTransaction(files, manifest, key));
+            } finally {
+                key?.fill(0);
+            }
+        });
+    }
+
+    /** 凭据事务与显式初始化恢复只复用同一个档案锁和有限文件会话，不嵌套取得设备锁；所有异常在资源释放后继续传播，调用方没有自动重放业务函数、系统写入或未知文件发布的机会。 */
+    private async withLockedFiles<T>(
+        run: (root: VaultFiles, files: VaultFiles) => Promise<T>,
+    ): Promise<T> {
         const root = await VaultFiles.acquire(this.directory);
         let release: (() => Promise<void>) | undefined;
         let files: VaultFiles | undefined;
-        let key: Buffer | undefined;
         try {
             release = await lockfile.lock(this.directory, {
                 realpath: false,
@@ -623,49 +881,8 @@ export class CredentialProfile {
                     : {}),
             });
             files = await VaultFiles.acquire(join(this.directory, "vault"));
-            if (!migrating) {
-                if ((await files.read("migration.json")) !== undefined) fail("migration-required");
-                for (const legacy of ["local-secrets.json", "device.json", "rotation.json"])
-                    if ((await root.read(legacy)) !== undefined) fail("migration-required");
-            }
-            const wire = await files.read(INDEX);
-            let manifest: Manifest;
-            if (wire === undefined) {
-                if (!(await files.empty())) fail("profile-missing");
-                key = randomBytes(32);
-                manifest = {
-                    version: 1,
-                    profileId: randomUUID(),
-                    keyVersion: randomUUID(),
-                    keyHash: digest(key),
-                    state: "initializing",
-                    entries: {},
-                };
-                await files.write(INDEX, JSON.stringify(manifest));
-                const result = await this.options.backend.set(
-                    { profileId: manifest.profileId, keyVersion: manifest.keyVersion },
-                    key,
-                    AbortSignal.timeout(5000),
-                );
-                if (result.status !== "ok") fail(result.status);
-            } else manifest = parseManifest(wire);
-            const result = await this.options.backend.get(
-                { profileId: manifest.profileId, keyVersion: manifest.keyVersion },
-                AbortSignal.timeout(5000),
-            );
-            if (result.status !== "ok")
-                fail(result.status === "missing" ? "key-missing" : result.status);
-            key?.fill(0);
-            key = result.key;
-            if (key.length !== 32 || digest(key) !== manifest.keyHash) fail("key-conflict");
-            if (manifest.state === "initializing") {
-                manifest.state = "active";
-                await files.write(INDEX, JSON.stringify(manifest));
-            }
-            manifest = await recover(files, manifest, key);
-            return await run(new CredentialTransaction(files, manifest, key));
+            return await run(root, files);
         } finally {
-            key?.fill(0);
             try {
                 await files?.close();
             } finally {

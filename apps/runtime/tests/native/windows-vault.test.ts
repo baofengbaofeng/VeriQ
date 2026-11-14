@@ -356,3 +356,14 @@ test("Windows helper exits when its actual owning parent dies with control open"
         await own.cleanup();
     }
 });
+
+/** 当前用户真实 Credential Manager 中的随机旧版本必须确实缺失，才能通过显式空初始化恢复建立新版本并使用生产消费者；该测试只记录范围内的验证结果，清理精确旧新目标，严格 owner 与已有真实停止断言均保持不变。 */
+test("real Windows vault recovers an explicitly abandoned empty initialization", async () =>
+    fixture(async (root, _backend, distribution) => {
+        const { verifyEmptyInitialization } = await import("../fixtures/vault-initialization.ts");
+        const result = await verifyEmptyInitialization(
+            join(root, "pending-profile"),
+            installedCredentials(distribution),
+        );
+        assert.equal(result.consumerReadback, true);
+    }));

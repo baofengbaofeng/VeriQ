@@ -429,6 +429,17 @@ const secret = program
     .command("secret")
     .description("Exact local credential mappings; never print values");
 secret
+    .command("recover-initialization")
+    .description(
+        "Explicitly recover an empty pending OS-vault initialization; never replace an active missing key",
+    )
+    .action(async () => {
+        await store().recoverCredentialInitialization();
+        process.stdout.write(
+            "Empty OS-vault initialization recovered; prior key intents retained.\n",
+        );
+    });
+secret
     .command("migrate")
     .description(
         "Explicitly migrate stopped local credentials to the OS vault; verify encrypted data before retiring plaintext",

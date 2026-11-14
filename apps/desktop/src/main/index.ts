@@ -276,6 +276,7 @@ async function local(input: unknown) {
         "onlineStart",
         "onlineStop",
         "migrateCredentials",
+        "recoverCredentialInitialization",
         "clearBundle",
         "recover",
     ];

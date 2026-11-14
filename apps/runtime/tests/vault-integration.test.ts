@@ -443,3 +443,338 @@ catch(error){process.exitCode=String(error.message).includes('locked')?41:42;}fi
         assert.equal(accepted.signal, null);
         assert.equal(accepted.status, 0, accepted.stderr);
     }));
+
+/** 大量短条目从真实受限旧文件一次迁移到独立认证记录，业务聚合仍小于一兆而密文总量实际超过两兆；测试核验全部引用并检查旧文件退休，防止把单文件信封上限误用作整个保险库容量或只覆盖单个大 storageState。 */
+test("many short credentials preserve one MiB business quota beyond two MiB aggregate ciphertext", async () =>
+    fixture(async (directory, backend) => {
+        const { CredentialProfile } = await import("../src/credentials/profile.ts");
+        const { updatePrivate } = await import("../src/offline/config.ts");
+        const values: Record<string, string> = {};
+        const refs = Array.from({ length: 4000 }, (_, index) => ({
+            ...reference,
+            secretRef: `entry${String(index).padStart(4, "0")}`,
+        }));
+        for (const ref of refs)
+            values[JSON.stringify([ref.issuerId, ref.workspaceId, ref.secretRef, ref.versionId])] =
+                "synthetic-short-value-".padEnd(96, "x");
+        assert(Buffer.byteLength(JSON.stringify(values)) < 1024 * 1024);
+        await updatePrivate(directory, "local-secrets.json", () => values);
+        const profile = new CredentialProfile(directory, { backend });
+        await profile.migrate();
+        const records = (await readdir(join(directory, "vault"))).filter((name) =>
+            name.startsWith("record-"),
+        );
+        assert.equal(records.length, refs.length);
+        let encryptedBytes = 0;
+        for (const name of records) {
+            const bytes = await readFile(join(directory, "vault", name));
+            encryptedBytes += bytes.length;
+            assert.equal(bytes.includes(Buffer.from("synthetic-short-value-")), false);
+        }
+        assert(encryptedBytes > 2 * 1024 * 1024);
+        await profile.transaction(async (transaction) => {
+            for (const ref of refs)
+                assert.equal(
+                    await transaction.resolve(ref),
+                    "synthetic-short-value-".padEnd(96, "x"),
+                );
+        });
+        await assert.rejects(readFile(join(directory, "local-secrets.json")), { code: "ENOENT" });
+        assert.equal(backend.writes, 1);
+    }));
+
+/** 故障注入只包裹真实持久文件写入后的返回边界，密文、清单、日志及恢复仍执行正式实现；准备态未知失败保持旧值，发布后未知失败恢复新值，两者都不得再次运行调用方回调或生成替代系统密钥。 */
+test("interrupted staged and unconfirmed published transactions recover exact values without replay", async () =>
+    fixture(async (directory, backend) => {
+        const { mock } = await import("node:test");
+        const { VaultFiles } = await import("../src/credentials/files.ts");
+        const { CredentialProfile } = await import("../src/credentials/profile.ts");
+        const profile = new CredentialProfile(directory, { backend });
+        for (const member of ["profile-next.json", "profile.json"]) {
+            await profile.transaction((tx) => tx.set(reference, "previous"));
+            const original = VaultFiles.prototype.write;
+            let interrupted = false;
+            const fault = mock.method(
+                VaultFiles.prototype,
+                "write",
+                async function (
+                    this: Awaited<ReturnType<typeof VaultFiles.acquire>>,
+                    name: string,
+                    value: string,
+                ) {
+                    await original.call(this, name, value);
+                    if (!interrupted && name === member) {
+                        interrupted = true;
+                        throw new Error("VAULT_COMMIT_UNCONFIRMED");
+                    }
+                },
+            );
+            let calls = 0;
+            try {
+                await assert.rejects(
+                    profile.transaction(async (tx) => {
+                        calls++;
+                        await tx.set(reference, "replacement");
+                    }),
+                    /VAULT_COMMIT_UNCONFIRMED/,
+                );
+            } finally {
+                fault.mock.restore();
+            }
+            assert.equal(interrupted, true);
+            assert.equal(calls, 1);
+            assert.equal(
+                await profile.transaction((tx) => tx.resolve(reference)),
+                member === "profile.json" ? "replacement" : "previous",
+            );
+            assert.equal(calls, 1);
+            for (const name of ["transaction.json", "profile-next.json"])
+                await assert.rejects(readFile(join(directory, "vault", name)), { code: "ENOENT" });
+            assert.equal(
+                (await readdir(join(directory, "vault"))).filter((name) =>
+                    name.startsWith("record-"),
+                ).length,
+                1,
+            );
+        }
+        assert.equal(backend.writes, 1);
+    }));
+
+/** 显式迁移在所有密文已经核验后遇到第二个明文成员退休错误，必须保留 verified 日志和仍未删除的原字节；正常消费者继续要求迁移，随后恢复只退休剩余固定成员，不重新写入主密钥或丢失已发布业务与设备数据。 */
+test("partial plaintext retirement remains explicit and resumes verified migration", async () =>
+    fixture(async (directory, backend) => {
+        const { mock } = await import("node:test");
+        const { VaultFiles } = await import("../src/credentials/files.ts");
+        const { CredentialProfile } = await import("../src/credentials/profile.ts");
+        const { updatePrivate } = await import("../src/offline/config.ts");
+        const slot = JSON.stringify([
+            reference.issuerId,
+            reference.workspaceId,
+            reference.secretRef,
+            reference.versionId,
+        ]);
+        await updatePrivate(directory, "local-secrets.json", () => ({
+            [slot]: "legacy-recovery-value",
+        }));
+        await updatePrivate(directory, "device.json", () => device);
+        const before = await readFile(join(directory, "device.json"));
+        const original = VaultFiles.prototype.remove;
+        const fault = mock.method(
+            VaultFiles.prototype,
+            "remove",
+            async function (this: Awaited<ReturnType<typeof VaultFiles.acquire>>, name: string) {
+                if (name === "device.json") throw new Error("SYNTHETIC_RETIREMENT_FAILURE");
+                return original.call(this, name);
+            },
+        );
+        try {
+            await assert.rejects(
+                new CredentialProfile(directory, { backend }).migrate(),
+                /SYNTHETIC_RETIREMENT_FAILURE/,
+            );
+        } finally {
+            fault.mock.restore();
+        }
+        assert.equal(
+            JSON.parse(await readFile(join(directory, "vault/migration.json"), "utf8")).phase,
+            "verified",
+        );
+        await assert.rejects(readFile(join(directory, "local-secrets.json")), { code: "ENOENT" });
+        assert.deepEqual(await readFile(join(directory, "device.json")), before);
+        await assert.rejects(
+            new DeviceStore(directory, { backend }).load(),
+            /VAULT_MIGRATION_REQUIRED/,
+        );
+        await new CredentialProfile(directory, { backend }).migrate();
+        assert.deepEqual(await new DeviceStore(directory, { backend }).load(), device);
+        assert.equal(
+            await new SecretStore(directory, { backend }).resolve(reference),
+            "legacy-recovery-value",
+        );
+        await assert.rejects(readFile(join(directory, "device.json")), { code: "ENOENT" });
+        await assert.rejects(readFile(join(directory, "vault/migration.json")), { code: "ENOENT" });
+        assert.equal(backend.writes, 1);
+    }));
+
+/** 初始化中断且系统确实没有原版本密钥时，只有显式恢复才可建立新版本，并保持同一档案身份；原意图与精确退休事实必须留在非秘密日志，普通消费者重复访问不能自动生成新密钥或覆盖已发布凭据。 */
+test("explicit empty initialization recovery changes only missing key version and preserves intent", async () =>
+    fixture(async (directory, backend) => {
+        const { CredentialProfile } = await import("../src/credentials/profile.ts");
+        const profile = new CredentialProfile(directory, { backend });
+        backend.uncertain = true;
+        await assert.rejects(
+            new SecretStore(directory, { backend }).set(reference, "not-published"),
+            /VAULT_MUTATION_UNCONFIRMED/,
+        );
+        backend.keys.clear();
+        backend.uncertain = false;
+        const before = JSON.parse(await readFile(join(directory, "vault/profile.json"), "utf8"));
+        await assert.rejects(
+            new SecretStore(directory, { backend }).resolve(reference),
+            /VAULT_KEY_MISSING/,
+        );
+        assert.equal(backend.writes, 1);
+        await profile.recoverInitialization();
+        const after = JSON.parse(await readFile(join(directory, "vault/profile.json"), "utf8"));
+        assert.equal(after.profileId, before.profileId);
+        assert.notEqual(after.keyVersion, before.keyVersion);
+        assert.equal(after.state, "active");
+        assert.deepEqual(after.entries, {});
+        const recovery = JSON.parse(
+            await readFile(join(directory, "vault/initialization.json"), "utf8"),
+        );
+        assert.deepEqual(recovery.previous, [
+            { keyVersion: before.keyVersion, keyHash: before.keyHash, status: "absent" },
+        ]);
+        assert.equal(recovery.state, "active");
+        assert.equal(backend.writes, 2);
+        await new SecretStore(directory, { backend }).set(reference, "after-explicit-recovery");
+        assert.equal(
+            await new SecretStore(directory, { backend }).resolve(reference),
+            "after-explicit-recovery",
+        );
+        assert.equal(backend.writes, 2);
+    }));
+
+/** 活动档案缺钥、系统锁定和残留密文不是空初始化，显式恢复也必须拒绝而保留现有索引与秘密文件；该测试直接操作自有测试后端或文件制造这些状态，拒绝路径不得创建替代密钥或退休旧版本。 */
+test("initialization recovery refuses active missing keys locked vaults and residual ciphertext", async () =>
+    fixture(async (directory, backend) => {
+        const { CredentialProfile } = await import("../src/credentials/profile.ts");
+        const profile = new CredentialProfile(directory, { backend });
+        const store = new SecretStore(directory, { backend });
+        backend.uncertain = true;
+        await assert.rejects(store.set(reference, "unpublished"), /VAULT_MUTATION_UNCONFIRMED/);
+        backend.uncertain = false;
+        const before = await readFile(join(directory, "vault/profile.json"));
+        backend.state = "locked";
+        await assert.rejects(profile.recoverInitialization(), /VAULT_LOCKED/);
+        assert.deepEqual(await readFile(join(directory, "vault/profile.json")), before);
+        backend.state = "ok";
+        const { VaultFiles } = await import("../src/credentials/files.ts");
+        const files = await VaultFiles.acquire(join(directory, "vault"));
+        const stray = "record-11111111-1111-4111-8111-111111111111.json";
+        try {
+            await files.write(stray, "synthetic residual");
+            await assert.rejects(
+                profile.recoverInitialization(),
+                /VAULT_INITIALIZATION_DATA_PRESENT/,
+            );
+            assert.equal(await files.read(stray), "synthetic residual");
+            await files.remove(stray);
+        } finally {
+            await files.close();
+        }
+        await store.set(reference, "active-secret");
+        backend.keys.clear();
+        await assert.rejects(profile.recoverInitialization(), /VAULT_INITIALIZATION_NOT_PENDING/);
+        assert.equal(backend.writes, 1);
+    }));
+
+/** 新版本系统写入后旧版本才迟到时，恢复只清理同一显式日志中校验值匹配的旧钥；删除返回不确定会保留 pending 并阻断正常消费者，再次显式恢复只确认原版本缺失，不重放新钥写入或更换已验证的新版本。 */
+test("initialization retirement uncertainty preserves exact late key cleanup without rewriting replacement", async () =>
+    fixture(async (directory, backend) => {
+        const { CredentialProfile } = await import("../src/credentials/profile.ts");
+        backend.uncertain = true;
+        await assert.rejects(
+            new SecretStore(directory, { backend }).set(reference, "unpublished"),
+            /VAULT_MUTATION_UNCONFIRMED/,
+        );
+        const [oldScope, oldKey] = [...backend.keys.entries()][0]!;
+        backend.keys.clear();
+        backend.uncertain = false;
+        let uncertainDelete = true;
+        const delegated: VaultKeyBackend = {
+            get: (scope) => backend.get(scope),
+            probe: () => backend.probe(),
+            async set(scope, key) {
+                const result = await backend.set(scope, key);
+                backend.keys.set(oldScope, Buffer.from(oldKey));
+                return result;
+            },
+            async delete(scope) {
+                const result = await backend.delete(scope);
+                if (uncertainDelete) {
+                    uncertainDelete = false;
+                    return { status: "mutation-unconfirmed" };
+                }
+                return result;
+            },
+        };
+        try {
+            const profile = new CredentialProfile(directory, { backend: delegated });
+            await assert.rejects(profile.recoverInitialization(), /VAULT_MUTATION_UNCONFIRMED/);
+            const pending = JSON.parse(
+                await readFile(join(directory, "vault/initialization.json"), "utf8"),
+            );
+            assert.equal(pending.state, "pending");
+            assert.equal(pending.previous[0].status, "pending");
+            assert.equal(backend.keys.has(oldScope), false);
+            await assert.rejects(
+                new SecretStore(directory, { backend: delegated }).resolve(reference),
+                /VAULT_INITIALIZATION_RECOVERY_REQUIRED/,
+            );
+            await profile.recoverInitialization();
+            const completed = JSON.parse(
+                await readFile(join(directory, "vault/initialization.json"), "utf8"),
+            );
+            assert.deepEqual(completed.next, pending.next);
+            assert.equal(completed.previous[0].status, "absent");
+            assert.equal(completed.state, "active");
+            assert.equal(backend.writes, 2);
+        } finally {
+            oldKey.fill(0);
+        }
+    }));
+
+/** 恢复意图已经落盘而下一清单发布未执行时，重启必须保留两个确切旧意图并另建未激活版本，不能复用已丢失随机密钥的摘要；测试在真实日志写回后注入中断，最后核验每个退休范围与唯一可用系统密钥。 */
+test("initialization recovery resumes a durable intent interrupted before manifest publication", async () =>
+    fixture(async (directory, backend) => {
+        const { CredentialProfile } = await import("../src/credentials/profile.ts");
+        const { VaultFiles } = await import("../src/credentials/files.ts");
+        const { mock } = await import("node:test");
+        backend.uncertain = true;
+        await assert.rejects(
+            new SecretStore(directory, { backend }).set(reference, "unpublished"),
+            /VAULT_MUTATION_UNCONFIRMED/,
+        );
+        backend.keys.clear();
+        backend.uncertain = false;
+        const original = VaultFiles.prototype.write;
+        let injected = false;
+        const fault = mock.method(
+            VaultFiles.prototype,
+            "write",
+            async function (
+                this: Awaited<ReturnType<typeof VaultFiles.acquire>>,
+                name: string,
+                value: string,
+            ) {
+                await original.call(this, name, value);
+                if (name === "initialization.json" && !injected) {
+                    injected = true;
+                    throw new Error("VAULT_COMMIT_UNCONFIRMED");
+                }
+            },
+        );
+        try {
+            await assert.rejects(
+                new CredentialProfile(directory, { backend }).recoverInitialization(),
+                /VAULT_COMMIT_UNCONFIRMED/,
+            );
+        } finally {
+            fault.mock.restore();
+        }
+        const intent = JSON.parse(
+            await readFile(join(directory, "vault/initialization.json"), "utf8"),
+        );
+        assert.equal(backend.writes, 1);
+        await new CredentialProfile(directory, { backend }).recoverInitialization();
+        const completed = JSON.parse(
+            await readFile(join(directory, "vault/initialization.json"), "utf8"),
+        );
+        assert.equal(completed.previous.length, 2);
+        assert.deepEqual(completed.previous[1], { ...intent.next, status: "absent" });
+        assert.equal(completed.state, "active");
+        assert.equal(backend.keys.size, 1);
+        assert.equal(backend.writes, 2);
+    }));

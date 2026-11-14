@@ -416,7 +416,7 @@ static void vaultMember(const std::wstring& path) {
     const auto& name = parsed.parts.back();
     const bool record = name.size() == 48 && name.substr(0, 7) == L"record-" && name.substr(43) == L".json" &&
         name.substr(7, 36).find_first_not_of(L"0123456789abcdef-") == std::wstring::npos;
-    require(record || name == L"profile.json" || name == L"profile-next.json" || name == L"transaction.json" || name == L"migration.json", "NATIVE_VAULT_PATH_INVALID");
+    require(record || name == L"profile.json" || name == L"profile-next.json" || name == L"transaction.json" || name == L"migration.json" || name == L"initialization.json", "NATIVE_VAULT_PATH_INVALID");
 }
 /** 保险库读取固定为两兆字节上限并返回实际同句柄读取的字节，调用方不能传入更大额度或其他用途名称；普通配置读取及其原有测试保持原入口，从而不会因信封编码增加而扩大一般文件授权。 */
 static Napi::Value readVaultFile(const Napi::CallbackInfo& info) {

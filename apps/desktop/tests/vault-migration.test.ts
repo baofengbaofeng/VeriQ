@@ -59,3 +59,57 @@ test("DesktopAgent exposes explicit migration through its guarded finite dispatc
         await rm(directory, { recursive: true, force: true });
     }
 });
+
+/** GUI 的初始化恢复必须经过同一个有限命令门闩，测试后端首写确实丢失且未产生业务密文；派发完成仅返回非秘密模式摘要，再用真实消费者验证新版本可用，不能靠按钮回显声称缺失主密钥已恢复。 */
+test("DesktopAgent exposes explicit empty key initialization recovery", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "veriq-desktop-initialization-"));
+    const keys = new Map<string, Buffer>();
+    let failFirst = true;
+    const backend: VaultKeyBackend = {
+        async get(scope) {
+            const key = keys.get(JSON.stringify(scope));
+            return key ? { status: "ok", key: Buffer.from(key) } : { status: "missing" };
+        },
+        async set(scope, key) {
+            if (failFirst) {
+                failFirst = false;
+                return { status: "mutation-unconfirmed" };
+            }
+            keys.set(JSON.stringify(scope), Buffer.from(key));
+            return { status: "ok" };
+        },
+        async delete(scope) {
+            return { status: keys.delete(JSON.stringify(scope)) ? "ok" : "missing" };
+        },
+        async probe() {
+            return { status: "ready" };
+        },
+    };
+    const ownership = await acquireDesktopProfileOwner(directory);
+    try {
+        const { DeviceStore } = await import("../../runtime/src/enrollment.ts");
+        const device = new DeviceStore(directory, { backend });
+        await assert.rejects(device.load(), /VAULT_MUTATION_UNCONFIRMED/);
+        const agent = new DesktopAgent(
+            directory,
+            {
+                origin: "https://control.example",
+                engineDirectory: join(directory, "engine"),
+                browserExecutable: join(directory, "absent-browser"),
+            },
+            { backend, desktopOwner: ownership.owner },
+        );
+        assert.deepEqual(await agent.dispatch({ operation: "recoverCredentialInitialization" }), {
+            recovered: true,
+            credentialMode: "os-vault",
+        });
+        await assert.rejects(device.load(), { code: "ENOENT" });
+        await assert.rejects(
+            agent.dispatch({ operation: "recoverCredentialInitialization", force: true }),
+            /AGENT_OPERATION_DENIED|INVALID/,
+        );
+    } finally {
+        await ownership.release();
+        await rm(directory, { recursive: true, force: true });
+    }
+});

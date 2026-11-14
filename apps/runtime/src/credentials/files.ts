@@ -12,9 +12,13 @@ function member(name: string) {
 }
 function vaultMember(name: string): boolean {
     if (
-        ["profile.json", "profile-next.json", "transaction.json", "migration.json"].includes(
-            name,
-        ) ||
+        [
+            "profile.json",
+            "profile-next.json",
+            "transaction.json",
+            "migration.json",
+            "initialization.json",
+        ].includes(name) ||
         /^record-[0-9a-f-]{36}\.json$/.test(name)
     )
         return true;
@@ -102,6 +106,25 @@ export class VaultFiles {
         );
         try {
             return (await directory.read()) === null;
+        } finally {
+            await directory.close();
+        }
+    }
+    /** 空初始化恢复只能接触清单和自身有限日志，任何密文、事务记录或未知临时成员都会阻止换钥；目录迭代最多检查允许数量再加一个成员，既不读取秘密内容，也不把无法检查的条目忽略为可安全重置。 */
+    async containsOnly(names: string[]): Promise<boolean> {
+        for (const name of names) {
+            if (!vaultMember(name)) throw new Error("VAULT_FILE_NAME_INVALID");
+        }
+        const directory = await opendir(
+            this.handle ? `/proc/self/fd/${this.handle.fd}` : this.directory,
+        );
+        try {
+            for (let index = 0; index <= names.length; index++) {
+                const entry = await directory.read();
+                if (entry === null) return true;
+                if (!names.includes(entry.name)) return false;
+            }
+            return false;
         } finally {
             await directory.close();
         }
