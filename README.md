@@ -362,6 +362,6 @@ This project is licensed under the **GNU Affero General Public License v3.0 (AGP
 
 ## 桌面工作台 / Desktop workspace
 
-完整本地 GUI 的使用流程、生命周期、受限宿主边界与源码构建见[桌面指南](docs/desktop.md)。窗口、独立 Node24 Agent 与业务 Chromium 分开运行；已下载资源、生成源码和报告可在平台断网时使用。
+完整本地 GUI 的使用流程、生命周期、受限宿主边界与源码构建见[桌面指南](docs/desktop.md)。本机全凭据退役的明确确认、恢复记录及与设备撤销的区别见[凭据退役说明](docs/runtime-credentials.md)。窗口、独立 Node24 Agent 与业务 Chromium 分开运行；已下载资源、生成源码和报告可在平台断网时使用。
 
-See the [desktop guide](docs/desktop.md) for the bundled GUI, lifecycle, source builds and host boundary. Installer production and target-OS verification remain separate release gates.
+See the [desktop guide](docs/desktop.md) for the bundled GUI, lifecycle, source builds and host boundary. See [local credential retirement](docs/runtime-credentials.md) for explicit confirmation, recovery facts and the separate server-revocation boundary. Installer production and target-OS verification remain separate release gates.
