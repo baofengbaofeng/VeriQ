@@ -944,7 +944,7 @@ export type CompiledAssetBundle = {
   validationOnly?: boolean;
 };
 /**
- * VeriQ Runtime能力合同仅允许linux/x64、win32/x64、darwin/x64及darwin/arm64；Mac目标最低系统为macOS14，但合同接受不代表设备通过原生执行、进程监督、凭据或安装验收。
+ * VeriQ Runtime能力合同仅允许linux/x64、win32/x64、darwin/x64及darwin/arm64；Mac目标最低系统为macOS15，但合同接受不代表设备通过原生执行、进程监督、凭据或安装验收。
  *
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "RuntimeCapabilitiesV1".
