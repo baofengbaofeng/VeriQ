@@ -49,7 +49,9 @@ preload最先捕获公开`process.exit`。观察器故障为粘滞状态，日�
 
 CLI消费控制FD环境标记后立即删除标记；fork继承`--import`时子preload无标记完全被动，不装退出handler、不写日志，也不得误关Playwright子进程的fd3 IPC。日志FD只显式传给所属CLI；普通fork不继承写权限，此行为必须用真实继承测试核验。协议不承担同进程恶意任意JavaScript隔离；DSL、配置、reporter及preload均沿用固定可信发行库存。
 
-ProcessRecords和VaultFiles目前依赖Linux`/proc/self/fd`，Mac的B切片补有限目录fd相对操作：逐级openat拒绝链接，同fd检查owner/type/mode，受限成员读取和有界枚举，自有临时文件刷新后renameat发布并刷新父目录；提交后不确定性继续传播。只读历史不修权限、不删文件。CLI日志由此接口预开普通FD，不能用pipe执行fsync或校验后重新按字符串路径打开替代。Mac socket按实际sockaddr_un字节上限校验，不沿用Linux108字节常量。
+ProcessRecords和VaultFiles目前依赖Linux`/proc/self/fd`，Mac的B切片补有限目录fd相对操作：逐级openat拒绝链接，同fd检查owner/type/mode及Darwin扩展ACL，受限成员读取和有界枚举，自有临时文件刷新后renameat发布并刷新父目录；提交后不确定性继续传播。只读历史不修权限、不删文件。CLI日志由此接口预开普通FD，不能用pipe执行fsync或校验后重新按字符串路径打开替代。Mac socket按实际sockaddr_un字节上限校验，不沿用Linux108字节常量。
+
+Darwin的0700/0600不能单独排除扩展ACL授予其他主体的访问；私有文件层须在同FD接受无ACL、空ACL或合法有界的全DENY列表，拒绝任何ALLOW、未知项或查询错误，且不自动改写已有ACL。新对象可能继承ACL，须在写入秘密或交付FD前核验。该要求已由B原生实现及两架构各44项实际测试覆盖；后续运行时集成仍须保持，不由POSIX模式检查替代。
 
 本路线不依赖kqueue、`proc_pidinfo`、NOTE_TRACK或PID扫描作为停止正证明。Agent、outer或CLI崩溃而没有完整有效的已提交证明时仍隔离；不能以重新查PID补齐已丢失的原始句柄。Keychain与全部目标OS证据仍需完成。
 

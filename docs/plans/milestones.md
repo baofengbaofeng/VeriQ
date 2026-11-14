@@ -214,7 +214,7 @@
 
 | 最新交付项 | 状态与完成说明 | 尚待交付/上下文 |
 | --- | --- | --- |
-| Mac范围与平台基线 | 用户确认macOS15 Sequoia起；Intel x64、Apple Silicon arm64均P0；标准CI计划使用`macos-15-intel`/`macos-15` | macOS14已不在当前支持目标；尚未完成Mac原生执行与安装验收，不能由Linux或Windows结果推导 |
+| Mac范围与平台基线 | 用户确认macOS15 Sequoia起；Intel x64、Apple Silicon arm64均P0；实际CI已使用`macos-15-intel`/`macos-15` | macOS14已不在当前支持目标；尚未完成Mac原生执行与安装验收，不能由Linux或Windows结果推导 |
 | 停止范围合同A1 | `3847ebe`独立规格/质量审查通过；真实MySQL/编译/HTTP相关384项、Node合同287项通过 | Darwin正回执须明确受控或真实未派生范围；false仍隔离、历史不补造范围；尚未开放Mac |
 | Runtime停止范围A2 | `aaf2f03`及修复`6496b3b`通过独立规格/质量复审；原70项及修复后51项相关测试通过，strict通过 | 自身journal staging中断仅隔离对应Attempt，其它任务继续真实停止/对账；保留默认私有历史及原Linux/Windows证明。Windows在线journal父目录持久能力未完成，明确失败关闭 |
 | Node24.x兼容 | `06be5a7`与`547c67f`审查通过，开发/CI/引擎接受稳定`>=24 <25`，各发行保留实际版本/hash | CI实际Node24.22.2已执行；未实际运行24.20.0二进制，不把版本边界单测当该目标验收 |
@@ -223,7 +223,9 @@
 | 隔离依赖闭包准备 | 已定位legacy pnpm deploy内部关闭frozen；改为非legacy的RAM探针复用44包/下载0后因缺完整metadata停止 | 根lock hash未变不证明冻结闭包；应在CI在线准备阶段生成真正冻结生产闭包，再独立离线验证业务运行；尚无隔离挂载四阶段正证据 |
 | 最新源码检查点CI | 已复审范围与恢复代码`e2f7508`已推送开发分支；[Ubuntu桌面](https://github.com/baofengbaofeng/VeriQ/actions/runs/43583684288)49单测/2显示/86Runtime/2Cookie/7GUI通过、零跳过；本轮原始日志已保存 | [Linux](https://github.com/baofengbaofeng/VeriQ/actions/runs/43583684311)80项通过后仍失败于冻结离线部署准备；[Windows](https://github.com/baofengbaofeng/VeriQ/actions/runs/43583684297)93/96通过、仍有原3项ACL失败；[服务](https://github.com/baofengbaofeng/VeriQ/actions/runs/43583684285)仍失败于web-check。本轮制品未重复下载/重hash，不复用上一提交的源码核验结论 |
 | CLI受控子进程观察器C1 | `755316c`独立规格/质量审查通过；24项相关测试、strict及实际Node24.22.1能力自检通过；真实Playwright CLI并发/失败替换、不请求浏览器 | 仅真实直接异步子进程；不生成停止回执、不释放容量、不开放Darwin；Mac双架构/Chrome、B私有fd、C2集成仍待完成。全仓注释门禁最近4.5115%、267条，仍失败 |
-| 下一工程切片 | [停止实施计划](macos-controlled-stop.md)：C1已完成，继续B私有fd、C2 BrowserServer集成、D双架构发行 | 不再以kqueue/非child peer身份链作为正回执依赖；公开Stability1通道须具体Node自检；全仓注释门禁仍失败（最近4.5115%、267条） |
+| Darwin私有文件基础B | `747d4e0`及`4966090`通过独立规格/质量复审；[实际双Mac CI run43591900310](https://github.com/baofengbaofeng/VeriQ/actions/runs/43591900310)每架构44项通过、零跳过，实际Mach-O最低版本15.0；同FD权限/ACL、私有读写、提交失败、资源交接故障均有覆盖 | Intel实际Node24.19.0、ARM实际24.22.2；官方制品摘要、每架构13个源码/构建输入hash及24个原始证据成员已核验，二进制摘要仍为CI观察。复审发现的External接管前FD泄漏有真实两架构42通过/2失败→44通过证据；不开放执行/doctor/Keychain/安装就绪 |
+| C1实际Mac补充证据 | B最终CI中两架构各21项通过、1项Linux专属跳过，strict通过；保留原Linux24项通过记录 | 不能记为22项Mac通过，不代表Chrome或受控停止集成已完成 |
+| 下一工程切片 | [停止实施计划](macos-controlled-stop.md)：B与C1已完成，继续C2命令所有权/BrowserServer集成、D双架构发行 | 不再以kqueue/非child peer身份链作为正回执依赖；公开Stability1通道须具体Node自检；全仓注释门禁仍失败（最近4.5115%、267条），C++审计覆盖仍待T22补齐 |
 
 
 | 项目 | 当前事实 | 剩余事项与接续约束 |

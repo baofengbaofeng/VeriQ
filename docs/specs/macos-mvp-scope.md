@@ -28,7 +28,7 @@
 
 已决定：保留已选运行栈及每发行具体版本身份，产品支持目标从macOS15起；不支持macOS14及以下。不得只降低 `minimumSystemVersion`、静默降级依赖、改用任意系统浏览器后声称解决兼容。官方资产元数据存在不代表已下载验证、构建或运行成功。
 
-CI计划采用标准标签`macos-15-intel`（Intel）与`macos-15`（Apple Silicon）分别验证；镜像可用性不代表产品已通过验收。GitHub macOS14退役是此次基线调整的依据，不再等待14设备。标签及退役记录见[GitHub标准Runner表](https://github.com/github/docs/blob/d59b2631959db46d71ca5f7748ec04311c6d0870/data/reusables/actions/supported-github-runners.md)与[Runner镜像记录](https://github.com/actions/runner-images/blob/95e6f51a068507e8f43d061d2166a39d0ef36ce8/README.md)。
+CI已配置标准标签`macos-15-intel`（Intel）与`macos-15`（Apple Silicon）分别验证；镜像可用性不代表产品已通过验收。首轮真实双架构测试已复现私有文件接口的Linux路径依赖；B适配及独立复审已完成，两架构各44项通过，运行时、Keychain与安装验收仍待完成。GitHub macOS14退役是此次基线调整的依据，不再等待14设备。标签及退役记录见[GitHub标准Runner表](https://github.com/github/docs/blob/d59b2631959db46d71ca5f7748ec04311c6d0870/data/reusables/actions/supported-github-runners.md)与[Runner镜像记录](https://github.com/actions/runner-images/blob/95e6f51a068507e8f43d061d2166a39d0ef36ce8/README.md)。
 
 核验依据为固定版本官方源码：[Electron README](https://github.com/electron/electron/blob/v45.3.1/README.md)、[Node BUILDING.md](https://github.com/nodejs/node/blob/v24.22.1/BUILDING.md)、[Playwright 浏览器版本](https://github.com/microsoft/playwright/blob/v1.65.0/packages/playwright-core/browsers.json)、[Playwright 下载矩阵](https://github.com/microsoft/playwright/blob/v1.65.0/packages/playwright-core/src/server/registry/index.ts)。访问日期为本文更新日期；需要实际目标验证后才能形成最终兼容矩阵。
 
@@ -41,7 +41,7 @@ CI计划采用标准标签`macos-15-intel`（Intel）与`macos-15`（Apple Silic
 | 平台合同 | `986a2d8`已实现并通过独立切片复审 | Schema/OpenAPI/生成类型与桌面派生Schema严格限制linux/x64、win32/x64、darwin/x64、darwin/arm64；251项契约及196项Python兼容检查通过。契约表达不证明主机系统版本或执行就绪 |
 | 物理依赖闭包 | Node、Chrome、esbuild、原生组件均按平台产生 | 分别验证 x64/arm64；不能复制 Linux node_modules 或仅将 Electron 做 universal 就视为整个 Runtime 通用 |
 | `.app` 与完整性 | Mac Framework 有真实内部符号链接，当前库存拒绝所有链接 | 先核实际固定资产，再设计保留签名的有限规则；禁止全局放开链接、任意路径或盲目展平 bundle |
-| 私有文件 | 当前非 Windows 路径使用 `/proc/self/fd` | Darwin 没有该接口；需有限的目录句柄相对访问适配，继续校验 owner、类型、权限及提交不确定性 |
+| 私有文件 | B已实现Darwin公开POSIX目录句柄相对访问；`4966090`复审通过 | 双架构各44项实际测试通过；继续保持同FD owner、类型、权限、扩展ACL及提交不确定性检查，C2须保活File至真实CLI退出和最终核验 |
 | Runtime Keychain | 现有后端是 Windows Credential Manager / Linux Secret Service | 复用有限 helper 协议与标准加密信封；明确 Keychain 实现、签名身份及无交互策略，不能以明文 fallback 通过 |
 | Electron Cookie | Mac 使用 Keychain，现有生产保护门未开放 Darwin | 最终签名 bundle 的 fuse、真实 provider、SQLite 密文、重启、锁定及旧 Cookie 退役均需真实验证 |
 | 桌面生命周期 | 菜单栏、Dock、activate、登录项及安装路径存在平台差异 | 区分窗口关闭、退出 UI、停止 Agent、取消任务；保留后台执行与恢复能力 |
