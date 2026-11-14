@@ -944,6 +944,42 @@ export type CompiledAssetBundle = {
   validationOnly?: boolean;
 };
 /**
+ * VeriQ Runtime能力合同仅允许linux/x64、win32/x64、darwin/x64及darwin/arm64；Mac目标最低系统为macOS14，但合同接受不代表设备通过原生执行、进程监督、凭据或安装验收。
+ *
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "RuntimeCapabilitiesV1".
+ */
+export type RuntimeCapabilitiesV1 = {
+  engineVersion: Version;
+  os: "linux" | "win32" | "darwin";
+  arch: "x64" | "arm64";
+  /**
+   * @minItems 0
+   */
+  browsers: Browser[];
+  /**
+   * @minItems 1
+   */
+  jobKinds?: ["TEST" | "VALIDATE" | "CLEANUP", ...("TEST" | "VALIDATE" | "CLEANUP")[]];
+} & RuntimeCapabilitiesV11;
+export type RuntimeCapabilitiesV11 =
+  | {
+      os: "linux";
+      arch: "x64";
+    }
+  | {
+      os: "win32";
+      arch: "x64";
+    }
+  | {
+      os: "darwin";
+      arch: "x64";
+    }
+  | {
+      os: "darwin";
+      arch: "arm64";
+    };
+/**
  * Supported RFC3339 profile: real Gregorian date, year 0001-9999, T/t separator, seconds 00-59, optional fractional seconds, mandatory Z/z or numeric offset (00-23:00-59). No leap seconds, spaces or surrounding whitespace. Emit UTC uppercase T/Z for server timestamps.
  *
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1643,23 +1679,6 @@ export interface ExecutionSnapshotV1 {
 export interface CaseEntrypointV1 {
   caseVersionId: Id;
   path: FilePath;
-}
-/**
- * This interface was referenced by `ContractDefinitions`'s JSON-Schema
- * via the `definition` "RuntimeCapabilitiesV1".
- */
-export interface RuntimeCapabilitiesV1 {
-  engineVersion: Version;
-  os: "linux" | "win32";
-  arch: "x64";
-  /**
-   * @minItems 0
-   */
-  browsers: Browser[];
-  /**
-   * @minItems 1
-   */
-  jobKinds?: ["TEST" | "VALIDATE" | "CLEANUP", ...("TEST" | "VALIDATE" | "CLEANUP")[]];
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema

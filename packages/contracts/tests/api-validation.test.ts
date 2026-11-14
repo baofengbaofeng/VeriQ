@@ -292,3 +292,13 @@ test("execution tokens have independent plan scopes and maintenance supports all
         false,
     );
 });
+
+/** Runtime 能力通过规范引用同时约束公开注册与内部认领的声明，复用跨语言样本检查四组目标和非法字段；这里的 Mac 正例仅证明合同接受，不证明设备具备执行、监督或安装能力。 */
+const runtimeCapabilityFixtures: { name: string; value: unknown; valid: boolean }[] =
+    fixtures.filter((sample: { schema: string }) => sample.schema === "RuntimeCapabilitiesV1");
+test.each(runtimeCapabilityFixtures)(
+    "OpenAPI runtime capability contract: $name",
+    ({ value, valid }) => {
+        expect(validate("RuntimeCapabilitiesV1", value)).toBe(valid);
+    },
+);

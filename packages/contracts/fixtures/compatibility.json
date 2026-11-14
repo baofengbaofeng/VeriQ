@@ -4875,5 +4875,332 @@
       "cases": []
     },
     "valid": false
-  }
+  },
+    {
+        "name": "runtime-capabilities-linux-x64-contract-only",
+        "schema": "RuntimeCapabilitiesV1",
+        "value": {
+            "engineVersion": "1.0.0",
+            "os": "linux",
+            "arch": "x64",
+            "browsers": [
+                "chromium"
+            ]
+        },
+        "valid": true
+    },
+    {
+        "name": "runtime-capabilities-win32-x64-contract-only",
+        "schema": "RuntimeCapabilitiesV1",
+        "value": {
+            "engineVersion": "1.0.0",
+            "os": "win32",
+            "arch": "x64",
+            "browsers": [
+                "chromium"
+            ]
+        },
+        "valid": true
+    },
+    {
+        "name": "runtime-capabilities-darwin-x64-contract-only",
+        "schema": "RuntimeCapabilitiesV1",
+        "value": {
+            "engineVersion": "1.0.0",
+            "os": "darwin",
+            "arch": "x64",
+            "browsers": [
+                "chromium"
+            ]
+        },
+        "valid": true
+    },
+    {
+        "name": "runtime-capabilities-darwin-arm64-contract-only",
+        "schema": "RuntimeCapabilitiesV1",
+        "value": {
+            "engineVersion": "1.0.0",
+            "os": "darwin",
+            "arch": "arm64",
+            "browsers": [
+                "chromium"
+            ]
+        },
+        "valid": true
+    },
+    {
+        "name": "runtime-capabilities-linux-arm64-contract-only",
+        "schema": "RuntimeCapabilitiesV1",
+        "value": {
+            "engineVersion": "1.0.0",
+            "os": "linux",
+            "arch": "arm64",
+            "browsers": [
+                "chromium"
+            ]
+        },
+        "valid": false
+    },
+    {
+        "name": "runtime-capabilities-win32-arm64-contract-only",
+        "schema": "RuntimeCapabilitiesV1",
+        "value": {
+            "engineVersion": "1.0.0",
+            "os": "win32",
+            "arch": "arm64",
+            "browsers": [
+                "chromium"
+            ]
+        },
+        "valid": false
+    },
+    {
+        "name": "runtime-capabilities-linux-ia32-contract-only",
+        "schema": "RuntimeCapabilitiesV1",
+        "value": {
+            "engineVersion": "1.0.0",
+            "os": "linux",
+            "arch": "ia32",
+            "browsers": [
+                "chromium"
+            ]
+        },
+        "valid": false
+    },
+    {
+        "name": "runtime-capabilities-win32-ia32-contract-only",
+        "schema": "RuntimeCapabilitiesV1",
+        "value": {
+            "engineVersion": "1.0.0",
+            "os": "win32",
+            "arch": "ia32",
+            "browsers": [
+                "chromium"
+            ]
+        },
+        "valid": false
+    },
+    {
+        "name": "runtime-capabilities-darwin-ia32-contract-only",
+        "schema": "RuntimeCapabilitiesV1",
+        "value": {
+            "engineVersion": "1.0.0",
+            "os": "darwin",
+            "arch": "ia32",
+            "browsers": [
+                "chromium"
+            ]
+        },
+        "valid": false
+    },
+    {
+        "name": "runtime-capabilities-freebsd-x64-contract-only",
+        "schema": "RuntimeCapabilitiesV1",
+        "value": {
+            "engineVersion": "1.0.0",
+            "os": "freebsd",
+            "arch": "x64",
+            "browsers": [
+                "chromium"
+            ]
+        },
+        "valid": false
+    },
+    {
+        "name": "runtime-capabilities-freebsd-arm64-contract-only",
+        "schema": "RuntimeCapabilitiesV1",
+        "value": {
+            "engineVersion": "1.0.0",
+            "os": "freebsd",
+            "arch": "arm64",
+            "browsers": [
+                "chromium"
+            ]
+        },
+        "valid": false
+    },
+    {
+        "name": "runtime-capabilities-freebsd-ia32-contract-only",
+        "schema": "RuntimeCapabilitiesV1",
+        "value": {
+            "engineVersion": "1.0.0",
+            "os": "freebsd",
+            "arch": "ia32",
+            "browsers": [
+                "chromium"
+            ]
+        },
+        "valid": false
+    },
+    {
+        "name": "runtime-capabilities-unknown-x64-contract-only",
+        "schema": "RuntimeCapabilitiesV1",
+        "value": {
+            "engineVersion": "1.0.0",
+            "os": "unknown",
+            "arch": "x64",
+            "browsers": [
+                "chromium"
+            ]
+        },
+        "valid": false
+    },
+    {
+        "name": "runtime-capabilities-darwin-unknown-contract-only",
+        "schema": "RuntimeCapabilitiesV1",
+        "value": {
+            "engineVersion": "1.0.0",
+            "os": "darwin",
+            "arch": "unknown",
+            "browsers": [
+                "chromium"
+            ]
+        },
+        "valid": false
+    },
+    {
+        "name": "runtime-capabilities-missing-engineVersion",
+        "schema": "RuntimeCapabilitiesV1",
+        "value": {
+            "os": "linux",
+            "arch": "x64",
+            "browsers": [
+                "chromium"
+            ]
+        },
+        "valid": false
+    },
+    {
+        "name": "runtime-capabilities-missing-os",
+        "schema": "RuntimeCapabilitiesV1",
+        "value": {
+            "engineVersion": "1.0.0",
+            "arch": "x64",
+            "browsers": [
+                "chromium"
+            ]
+        },
+        "valid": false
+    },
+    {
+        "name": "runtime-capabilities-missing-arch",
+        "schema": "RuntimeCapabilitiesV1",
+        "value": {
+            "engineVersion": "1.0.0",
+            "os": "linux",
+            "browsers": [
+                "chromium"
+            ]
+        },
+        "valid": false
+    },
+    {
+        "name": "runtime-capabilities-missing-browsers",
+        "schema": "RuntimeCapabilitiesV1",
+        "value": {
+            "engineVersion": "1.0.0",
+            "os": "linux",
+            "arch": "x64"
+        },
+        "valid": false
+    },
+    {
+        "name": "runtime-capabilities-empty-browsers",
+        "schema": "RuntimeCapabilitiesV1",
+        "value": {
+            "engineVersion": "1.0.0",
+            "os": "linux",
+            "arch": "x64",
+            "browsers": []
+        },
+        "valid": true
+    },
+    {
+        "name": "runtime-capabilities-all-job-kinds",
+        "schema": "RuntimeCapabilitiesV1",
+        "value": {
+            "engineVersion": "1.0.0",
+            "os": "linux",
+            "arch": "x64",
+            "browsers": [
+                "chromium"
+            ],
+            "jobKinds": [
+                "TEST",
+                "VALIDATE",
+                "CLEANUP"
+            ]
+        },
+        "valid": true
+    },
+    {
+        "name": "runtime-capabilities-extra-property",
+        "schema": "RuntimeCapabilitiesV1",
+        "value": {
+            "engineVersion": "1.0.0",
+            "os": "linux",
+            "arch": "x64",
+            "browsers": [
+                "chromium"
+            ],
+            "ready": true
+        },
+        "valid": false
+    },
+    {
+        "name": "runtime-capabilities-invalid-version",
+        "schema": "RuntimeCapabilitiesV1",
+        "value": {
+            "engineVersion": "latest",
+            "os": "linux",
+            "arch": "x64",
+            "browsers": [
+                "chromium"
+            ]
+        },
+        "valid": false
+    },
+    {
+        "name": "runtime-capabilities-invalid-browser",
+        "schema": "RuntimeCapabilitiesV1",
+        "value": {
+            "engineVersion": "1.0.0",
+            "os": "linux",
+            "arch": "x64",
+            "browsers": [
+                "unknown"
+            ]
+        },
+        "valid": false
+    },
+    {
+        "name": "runtime-capabilities-empty-job-kinds",
+        "schema": "RuntimeCapabilitiesV1",
+        "value": {
+            "engineVersion": "1.0.0",
+            "os": "linux",
+            "arch": "x64",
+            "browsers": [
+                "chromium"
+            ],
+            "jobKinds": []
+        },
+        "valid": false
+    },
+    {
+        "name": "runtime-capabilities-invalid-job-kind",
+        "schema": "RuntimeCapabilitiesV1",
+        "value": {
+            "engineVersion": "1.0.0",
+            "os": "linux",
+            "arch": "x64",
+            "browsers": [
+                "chromium"
+            ],
+            "jobKinds": [
+                "unknown"
+            ]
+        },
+        "valid": false
+    }
 ]
