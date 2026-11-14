@@ -32,6 +32,7 @@ import { ExecutionSupervisor } from "../../../runtime/src/execution/supervisor.t
 import { object } from "../main/policy";
 import { probeBrowser } from "./browser-capability";
 import { routingOverride } from "../shared/routing";
+import { credentialIssue, type CredentialIssue } from "../shared/credential-status";
 
 type S = PlatformComponents["schemas"];
 type CachedBundle = {
@@ -208,11 +209,14 @@ export class DesktopAgent {
         const store = await LocalStore.open(this.executionRoot);
         try {
             let device: { id: string; workspaceId: string } | undefined;
+            let credentialError: CredentialIssue | undefined;
             try {
                 const config = await this.device.load();
                 device = { id: config.runnerId, workspaceId: config.workspaceId };
             } catch (error) {
-                if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+                /** 后台已能响应 IPC 并不代表凭据可用，锁定、旧格式与损坏只投影为有限失败状态；这里只处理设备读取，SQLite、历史和缓存错误继续抛出，显式凭据操作仍由原 Runtime 约束执行。 */
+                if (!(error instanceof Error && "code" in error && error.code === "ENOENT"))
+                    credentialError = credentialIssue(error);
             }
             if (!this.selectedWorkspace) {
                 try {
@@ -247,6 +251,7 @@ export class DesktopAgent {
                       }
                     : {}),
                 device,
+                ...(credentialError ? { credentialError } : {}),
                 bundles: await this.catalog(),
                 error: this.lastError,
                 workspaceId: this.selectedWorkspace,
@@ -384,6 +389,14 @@ export class DesktopAgent {
         }
         if (operation === "doctor") return this.diagnose(true);
         if (operation === "enroll") {
+            /** 新登记必须先确认当前档案确实没有设备，锁定、旧格式或缺密钥都不能取得远端新审批码；即使 renderer 绕过禁用按钮也保持相同拒绝，最终写入仍由 Runtime 的只创建事务防止并发覆盖。 */
+            try {
+                await this.device.load();
+                throw new Error("ALREADY_ENROLLED");
+            } catch (error) {
+                if (!(error instanceof Error && "code" in error && error.code === "ENOENT"))
+                    throw error;
+            }
             const result = await this.diagnose(false);
             if (!result.ok || !result.capabilities) throw new Error("RUNTIME_DOCTOR_FAILED");
             this.pendingEnrollment = await new RuntimeClient(this.config.origin).begin(

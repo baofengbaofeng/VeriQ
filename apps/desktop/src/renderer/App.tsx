@@ -12,6 +12,7 @@ import {
 } from "@veriq/web/desktop";
 import type { PlatformComponents } from "@veriq/contracts";
 import type { DesktopState } from "../shared/bridge";
+import { credentialGuidance } from "../shared/credential-status";
 import { cloudAdapters, localResources, DesktopLocalReports } from "./adapters";
 
 type S = PlatformComponents["schemas"];
@@ -407,8 +408,16 @@ export function App() {
                                 <p>
                                     {agent?.device
                                         ? `设备 ${agent.device.id} · Workspace ${agent.device.workspaceId}`
-                                        : "尚未绑定设备。 / Device is not enrolled."}
+                                        : agent?.credentialError
+                                          ? "设备凭据暂不可读。 / Device credentials are not readable."
+                                          : "尚未绑定设备。 / Device is not enrolled."}
                                 </p>
+                                {agent?.credentialError && (
+                                    <p role="alert" data-testid="credential-status">
+                                        {agent.credentialError} ·{" "}
+                                        {credentialGuidance[agent.credentialError]}
+                                    </p>
+                                )}
                                 <div className="toolbar">
                                     <label>
                                         设备名称 / Device name
@@ -419,6 +428,7 @@ export function App() {
                                     </label>
                                     <button
                                         type="button"
+                                        disabled={!!agent?.credentialError}
                                         onClick={() =>
                                             void action(async () =>
                                                 setEnrollment(

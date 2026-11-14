@@ -1,4 +1,5 @@
 import type { PlatformComponents } from "@veriq/contracts";
+import type { CredentialIssue } from "./credential-status";
 import type { CloudOperation } from "./operations.generated";
 type S = PlatformComponents["schemas"];
 
@@ -35,6 +36,7 @@ export interface AgentState {
         uploadError: string | null;
     }[];
     error?: string;
+    credentialError?: CredentialIssue;
     headedAvailable: boolean;
     browser: { available: boolean; version?: string; source: string };
 }

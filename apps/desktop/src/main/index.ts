@@ -32,6 +32,7 @@ import { openNativeImage } from "./image-window";
 import { withArtifactExport } from "./artifact-export";
 import { bundledAssetPath } from "./asset-path";
 import { routingOverride } from "../shared/routing";
+import { assertAgentReconfigurationAllowed } from "../shared/credential-status";
 import type { CloudOperation } from "../shared/operations.generated";
 import type { DesktopState } from "../shared/bridge";
 import {
@@ -450,8 +451,7 @@ function installBridge() {
                     throw new Error("PROXY_INVALID");
                 try {
                     const active = object(await client.call({ operation: "status" }));
-                    if (active.active || active.online || active.device)
-                        throw new Error("UNBIND_DEVICE_BEFORE_ORIGIN_CHANGE");
+                    assertAgentReconfigurationAllowed(active);
                 } catch (error) {
                     if (
                         !(error instanceof Error) ||
