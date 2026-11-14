@@ -1,0 +1,259 @@
+{
+    "scope": "Existing locked @electron/fuses 1.8.0 promoted to direct desktop dependency for Cookie fuse verification; no package version delta",
+    "candidate": "fef3143a98e9a50fe26e858f95ddba1b8b8ae8e5",
+    "package": {
+        "name": "@electron/fuses",
+        "version": "1.8.0",
+        "license": "MIT",
+        "dist": {
+            "shasum": "ad34d3cc4703b1258b83f6989917052cfc1490a0",
+            "tarball": "https://registry.npmjs.org/@electron/fuses/-/fuses-1.8.0.tgz",
+            "fileCount": 16,
+            "integrity": "sha512-zx0EIq78WlY/lBb1uXlziZmDZI4ubcCXIMJ4uGjXzZW0nS19TjSPeXPAjzzTmKQlJUZm0SbmZhPKP7tuQ1SsEw==",
+            "signatures": [
+                {
+                    "sig": "MEQCIAcQ5IOwOo2JL26rlUcm9eepCJ9iSErXXyr7AoGd4AocAiBjNKxfpD4B0jqFPwG3+DLtlQ5uOvJE9AZTflZ9/hi25Q==",
+                    "keyid": "SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA"
+                }
+            ],
+            "unpackedSize": 51164
+        },
+        "lockIntegrity": "sha512-zx0EIq78WlY/lBb1uXlziZmDZI4ubcCXIMJ4uGjXzZW0nS19TjSPeXPAjzzTmKQlJUZm0SbmZhPKP7tuQ1SsEw==",
+        "lockMatchesRegistry": true,
+        "installedLicenseSha256": "24e49a190cf97a2127e0588981e82ff6e4357632278c9ab510f328a2689eca53"
+    },
+    "installedClosure": [
+        {
+            "name": "@electron/fuses",
+            "version": "1.8.0",
+            "license": "MIT",
+            "packageJsonSha256": "c34cd964aa7db7f7b0b5a413923e5b5264fbabcfd90a883c0219efebe79ba845",
+            "dependencies": {
+                "chalk": "^4.1.1",
+                "fs-extra": "^9.0.1",
+                "minimist": "^1.2.5"
+            }
+        },
+        {
+            "name": "chalk",
+            "version": "4.1.2",
+            "license": "MIT",
+            "packageJsonSha256": "9cd907d34a45cb73b5c8a459d5602a36ccd456794665c529a3a5b0f02e196f26",
+            "dependencies": {
+                "ansi-styles": "^4.1.0",
+                "supports-color": "^7.1.0"
+            }
+        },
+        {
+            "name": "ansi-styles",
+            "version": "4.3.0",
+            "license": "MIT",
+            "packageJsonSha256": "d405f010681d53f77691015e98461f8484b2afe6a9edfdd2ddb27b1e8a8e883d",
+            "dependencies": {
+                "color-convert": "^2.0.1"
+            }
+        },
+        {
+            "name": "color-convert",
+            "version": "2.0.1",
+            "license": "MIT",
+            "packageJsonSha256": "9471d21744ca3137410448da6b3bd7b30ee91d42edce3b82ebcbf84faef74fb4",
+            "dependencies": {
+                "color-name": "~1.1.4"
+            }
+        },
+        {
+            "name": "color-name",
+            "version": "1.1.4",
+            "license": "MIT",
+            "packageJsonSha256": "4a557ea373907e4643badb89ff21b3f4b969d20631086d78eab2e03d05c2efa4",
+            "dependencies": {}
+        },
+        {
+            "name": "supports-color",
+            "version": "7.2.0",
+            "license": "MIT",
+            "packageJsonSha256": "d410a772f9f64b224482ec13815a4bbf1837c533e1be04b3687755c48b2efa1f",
+            "dependencies": {
+                "has-flag": "^4.0.0"
+            }
+        },
+        {
+            "name": "has-flag",
+            "version": "4.0.0",
+            "license": "MIT",
+            "packageJsonSha256": "3fef4b52efbeabeadfffd5994e90b1025eb24263286e34170675956637d368b1",
+            "dependencies": {}
+        },
+        {
+            "name": "fs-extra",
+            "version": "9.1.0",
+            "license": "MIT",
+            "packageJsonSha256": "528b7d9a7708b1694510f752f286e7ef70f669fb604411645909252b3f99cd96",
+            "dependencies": {
+                "at-least-node": "^1.0.0",
+                "graceful-fs": "^4.2.0",
+                "jsonfile": "^6.0.1",
+                "universalify": "^2.0.0"
+            }
+        },
+        {
+            "name": "at-least-node",
+            "version": "1.0.0",
+            "license": "ISC",
+            "packageJsonSha256": "cf26ac7a79b89eed8c70f7ee8b5195ed925f535b7c52577b9034702e7117fbc5",
+            "dependencies": {}
+        },
+        {
+            "name": "graceful-fs",
+            "version": "4.2.11",
+            "license": "ISC",
+            "packageJsonSha256": "5747d4ba6b17165c6ecac30ab3a331715f41c7ad546e1f1574dab1bdcb116181",
+            "dependencies": {}
+        },
+        {
+            "name": "jsonfile",
+            "version": "6.2.1",
+            "license": "MIT",
+            "packageJsonSha256": "df710d3401289ba32728b5459ac334bf99b18259900ca22b2401f48d92892613",
+            "dependencies": {
+                "universalify": "^2.0.0"
+            }
+        },
+        {
+            "name": "universalify",
+            "version": "2.0.1",
+            "license": "MIT",
+            "packageJsonSha256": "10e53f10939bb8a4a73af6e06829b670bbf9da66a36edcc644441852806b87ee",
+            "dependencies": {}
+        },
+        {
+            "name": "minimist",
+            "version": "1.2.8",
+            "license": "MIT",
+            "packageJsonSha256": "252881f6a068a3e70386706d88a694b5e8e9e053b6d9f309fd9a329e651bbf81",
+            "dependencies": {}
+        }
+    ],
+    "osv": {
+        "time": "2026-11-14T04:20:11.386027+00:00",
+        "request": {
+            "queries": [
+                {
+                    "package": {
+                        "name": "@electron/fuses",
+                        "ecosystem": "npm"
+                    },
+                    "version": "1.8.0"
+                },
+                {
+                    "package": {
+                        "name": "chalk",
+                        "ecosystem": "npm"
+                    },
+                    "version": "4.1.2"
+                },
+                {
+                    "package": {
+                        "name": "ansi-styles",
+                        "ecosystem": "npm"
+                    },
+                    "version": "4.3.0"
+                },
+                {
+                    "package": {
+                        "name": "color-convert",
+                        "ecosystem": "npm"
+                    },
+                    "version": "2.0.1"
+                },
+                {
+                    "package": {
+                        "name": "color-name",
+                        "ecosystem": "npm"
+                    },
+                    "version": "1.1.4"
+                },
+                {
+                    "package": {
+                        "name": "supports-color",
+                        "ecosystem": "npm"
+                    },
+                    "version": "7.2.0"
+                },
+                {
+                    "package": {
+                        "name": "has-flag",
+                        "ecosystem": "npm"
+                    },
+                    "version": "4.0.0"
+                },
+                {
+                    "package": {
+                        "name": "fs-extra",
+                        "ecosystem": "npm"
+                    },
+                    "version": "9.1.0"
+                },
+                {
+                    "package": {
+                        "name": "at-least-node",
+                        "ecosystem": "npm"
+                    },
+                    "version": "1.0.0"
+                },
+                {
+                    "package": {
+                        "name": "graceful-fs",
+                        "ecosystem": "npm"
+                    },
+                    "version": "4.2.11"
+                },
+                {
+                    "package": {
+                        "name": "jsonfile",
+                        "ecosystem": "npm"
+                    },
+                    "version": "6.2.1"
+                },
+                {
+                    "package": {
+                        "name": "universalify",
+                        "ecosystem": "npm"
+                    },
+                    "version": "2.0.1"
+                },
+                {
+                    "package": {
+                        "name": "minimist",
+                        "ecosystem": "npm"
+                    },
+                    "version": "1.2.8"
+                }
+            ]
+        },
+        "response": {
+            "results": [
+                {},
+                {},
+                {},
+                {},
+                {},
+                {},
+                {},
+                {},
+                {},
+                {},
+                {},
+                {},
+                {}
+            ]
+        }
+    },
+    "limits": [
+        "Exact queried package versions and timestamp only; not a complete release security assessment",
+        "Original shared Electron package is never modified; only CI-owned independent copy is fused",
+        "Target OS Cookie database encryption and restart evidence remains pending at candidate push",
+        "Distribution must preserve upstream license texts"
+    ]
+}
