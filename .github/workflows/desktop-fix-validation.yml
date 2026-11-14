@@ -130,7 +130,7 @@ jobs:
               run: |
                   set -o pipefail
                   test -x apps/runtime/build/veriq_runner
-                  pnpm --filter @veriq/runtime exec node --import tsx --test tests/runtime.test.ts tests/renewal.test.ts tests/distribution.test.ts tests/offline-store.test.ts tests/supervisor.test.ts tests/vault-envelope.test.ts tests/vault-integration.test.ts tests/vault-history.test.ts tests/vault-deletion.test.ts 2>&1 | tee "$VERIQ_DESKTOP_EVIDENCE/runtime-affected.log"
+                  pnpm --filter @veriq/runtime exec node --import tsx --test tests/runtime.test.ts tests/renewal.test.ts tests/distribution.test.ts tests/offline-store.test.ts tests/supervisor.test.ts tests/vault-envelope.test.ts tests/vault-integration.test.ts tests/vault-history.test.ts tests/vault-deletion.test.ts tests/restricted-file.test.ts tests/restricted-operation.test.ts 2>&1 | tee "$VERIQ_DESKTOP_EVIDENCE/runtime-affected.log"
             - name: Run the composed actual GUI suite with visible Chromium acceptance
               env:
                   DEBUG: pw:browser

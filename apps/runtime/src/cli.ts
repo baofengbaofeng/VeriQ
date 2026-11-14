@@ -14,9 +14,11 @@ import { TrustStore, type IssuerTrust } from "./offline/trust.ts";
 import { verifyBundle } from "./offline/verify.ts";
 import { downloadBundle } from "./offline/download.ts";
 import { SecretStore, type SecretReference } from "./credentials/store.ts";
+import { managedFileCredentials } from "./credentials/restricted-file.ts";
+import type { CredentialOptions } from "./credentials/profile.ts";
 import { installedCredentials } from "./credentials/host.ts";
 import { openTrace } from "./trace.ts";
-/** Development CLI. Native launcher/process names and vault packaging are T20. */
+/** CLI 在独立角色入口校验完整发行库存，凭据模式只由受信任启动参数选择；源码入口的完整库存接入仍单独验证，业务参数不得指定保险库辅助程序或把后端失败解释为明文授权。 */
 import { Command } from "commander";
 import pino from "pino";
 import { join, dirname, basename } from "node:path";
@@ -48,13 +50,72 @@ const entryDistribution = ["veriq_cli", "veriq_agent"].includes(entryRole)
     : undefined;
 if (entryDistribution)
     assertRuntimeRole(entryDistribution, entryRole === "veriq_agent" ? "agent" : "cli");
-const entryCredentials = entryDistribution ? installedCredentials(entryDistribution) : undefined;
+let entryCredentials: CredentialOptions | undefined;
 const program = new Command()
     .name("veriq_cli")
     .description("VeriQ Runtime enrollment and diagnostics (development)")
     .version(entryDistribution?.productVersion ?? "0.1.0");
 program.option("--config-dir <directory>", "Private development configuration directory");
 program.option("--distribution-root <directory>", "Installed Runtime distribution root");
+program.option(
+    "--credential-mode <mode>",
+    "Credential backend: os-vault or explicit managed Linux restricted-file",
+    "os-vault",
+);
+program.option(
+    "--managed-service-uid <uid>",
+    "Exact dedicated nonroot Linux service UID for restricted-file mode",
+);
+program.option(
+    "--persistent-volume <directory>",
+    "Existing private external persistent mount containing --config-dir",
+);
+program.option(
+    "--acknowledge-unencrypted-storage",
+    "Acknowledge restricted-file provides no encryption at rest",
+);
+/** 服务文件模式必须由命令行明确选择并完整核验，不能因默认保险库构造失败而落入此分支；选择不改变设备执行位置或控制平台信任等级，未选模式却携带服务参数同样拒绝，避免操作者误以为限制已经生效。 */
+program.hook("preAction", async () => {
+    const options = program.opts<{
+        credentialMode: string;
+        managedServiceUid?: string;
+        persistentVolume?: string;
+        acknowledgeUnencryptedStorage?: boolean;
+        configDir?: string;
+    }>();
+    if (options.credentialMode === "restricted-file") {
+        if (
+            !options.managedServiceUid ||
+            !/^[1-9][0-9]*$/.test(options.managedServiceUid) ||
+            !options.configDir ||
+            !options.persistentVolume ||
+            options.acknowledgeUnencryptedStorage !== true
+        )
+            throw new Error("RESTRICTED_FILE_CONTEXT_REQUIRED");
+        entryCredentials = await managedFileCredentials({
+            mode: "restricted-file",
+            managedHeadless: true,
+            serviceUid: Number(options.managedServiceUid),
+            persistentVolume: options.persistentVolume,
+            profileDirectory: options.configDir,
+            acknowledgeUnencryptedStorage: true,
+        });
+        process.stderr.write(
+            "Credential mode: restricted-file; no encryption at rest. Configured service UID and private mounted volume verified.\n",
+        );
+    } else {
+        if (
+            options.credentialMode !== "os-vault" ||
+            options.managedServiceUid !== undefined ||
+            options.persistentVolume !== undefined ||
+            options.acknowledgeUnencryptedStorage !== undefined
+        )
+            throw new Error("CREDENTIAL_MODE_INVALID");
+        if (!entryDistribution && program.getOptionValueSource("credentialMode") === "cli")
+            throw new Error("RUNTIME_VAULT_CAPABILITY_UNVERIFIED");
+        entryCredentials = entryDistribution ? installedCredentials(entryDistribution) : undefined;
+    }
+});
 
 /** 原生角色入口从物理可执行文件推导安装根，显式根仅供可信启动器传入且仍校验角色身份；开发 node 入口保持原来的源码探测，缺失安装清单绝不静默回落到开发依赖或系统浏览器。 */
 async function installedDistribution() {
@@ -448,22 +509,24 @@ secret
 secret
     .command("recover-initialization")
     .description(
-        "Explicitly recover an empty pending OS-vault initialization; never replace an active missing key",
+        "Explicitly recover an empty pending credential initialization; never replace an active missing key",
     )
     .action(async () => {
         await store().recoverCredentialInitialization();
         process.stdout.write(
-            "Empty OS-vault initialization recovered; prior key intents retained.\n",
+            "Empty credential initialization recovered; prior key intents retained.\n",
         );
     });
 secret
     .command("migrate")
     .description(
-        "Explicitly migrate stopped local credentials to the OS vault; verify encrypted data before retiring plaintext",
+        "Explicitly migrate stopped local credentials using the selected mode; verify readback before retiring legacy files",
     )
     .action(async () => {
         await store().migrateCredentials();
-        process.stdout.write("Local credentials migrated and verified using the OS vault.\n");
+        process.stdout.write(
+            `Local credentials migrated and verified; credential mode: ${program.opts<{ credentialMode: string }>().credentialMode}.\n`,
+        );
     });
 for (const name of ["set", "remove"]) {
     const command = secret

@@ -5,6 +5,8 @@ import { join, parse, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 
 const LIMIT = 2 * 1024 * 1024;
+/** 只有显式 Linux 服务文件模式会使用此精确双 UUID 成员，它保存在独立 restricted-keys 目录且承载未加密随机密钥；每份记录单独限制为五百一十二字节，Windows 原生保险库白名单不增加该名字，也不能借此放宽一般配置容量。 */
+const RAW_KEY = /^raw-key-[0-9a-f-]{36}-[0-9a-f-]{36}\.json$/;
 function member(name: string) {
     if (!/^[a-z0-9][a-z0-9.-]{0,100}$/.test(name) || name.includes(".."))
         throw new Error("VAULT_FILE_NAME_INVALID");
@@ -20,13 +22,15 @@ function vaultMember(name: string): boolean {
             "initialization.json",
             "deletion.json",
         ].includes(name) ||
-        /^record-[0-9a-f-]{36}\.json$/.test(name)
+        /^record-[0-9a-f-]{36}\.json$/.test(name) ||
+        RAW_KEY.test(name)
     )
         return true;
     if (["local-secrets.json", "device.json", "rotation.json"].includes(name)) return false;
     throw new Error("VAULT_FILE_NAME_INVALID");
 }
 function fileLimit(name: string) {
+    if (RAW_KEY.test(name)) return 512;
     return vaultMember(name) ? LIMIT : name === "local-secrets.json" ? 1024 * 1024 : 65536;
 }
 function missing(error: unknown) {
