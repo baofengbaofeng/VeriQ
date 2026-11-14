@@ -469,6 +469,7 @@ public:
      * 返回值是独立字节向量，文件句柄不泄漏给普通调用者。
      * 正式用途 JSON 和 UTF8 解码留给已有 TS 消费者。
      */
+    std::vector<uint8_t> read(const std::string& name, size_t limit) {
         auto file = checked(name, limit);
         auto bytes = darwin::read(file.get(), limit);
         file.close("read.close");
