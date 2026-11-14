@@ -28,7 +28,7 @@
 
 已决定：保留已选运行栈及每发行具体版本身份，产品支持目标从macOS15起；不支持macOS14及以下。不得只降低 `minimumSystemVersion`、静默降级依赖、改用任意系统浏览器后声称解决兼容。官方资产元数据存在不代表已下载验证、构建或运行成功。
 
-CI已配置标准标签`macos-15-intel`（Intel）与`macos-15`（Apple Silicon）分别验证；镜像可用性不代表产品已通过验收。首轮真实双架构测试已复现私有文件接口的Linux路径依赖；B适配及独立复审已完成，两架构各44项通过，运行时、Keychain与安装验收仍待完成。GitHub macOS14退役是此次基线调整的依据，不再等待14设备。标签及退役记录见[GitHub标准Runner表](https://github.com/github/docs/blob/d59b2631959db46d71ca5f7748ec04311c6d0870/data/reusables/actions/supported-github-runners.md)与[Runner镜像记录](https://github.com/actions/runner-images/blob/95e6f51a068507e8f43d061d2166a39d0ef36ce8/README.md)。
+CI已配置标准标签`macos-15-intel`（Intel）与`macos-15`（Apple Silicon）分别验证；镜像可用性不代表产品已通过验收。首轮真实双架构测试已复现私有文件接口的Linux路径依赖；B适配及独立复审已完成，两架构各44项通过，源码受控业务组件也已完成双架构验证，Keychain、GUI与完整安装验收仍待完成。GitHub macOS14退役是此次基线调整的依据，不再等待14设备。标签及退役记录见[GitHub标准Runner表](https://github.com/github/docs/blob/d59b2631959db46d71ca5f7748ec04311c6d0870/data/reusables/actions/supported-github-runners.md)与[Runner镜像记录](https://github.com/actions/runner-images/blob/95e6f51a068507e8f43d061d2166a39d0ef36ce8/README.md)。
 
 核验依据为固定版本官方源码：[Electron README](https://github.com/electron/electron/blob/v45.3.1/README.md)、[Node BUILDING.md](https://github.com/nodejs/node/blob/v24.22.1/BUILDING.md)、[Playwright 浏览器版本](https://github.com/microsoft/playwright/blob/v1.65.0/packages/playwright-core/browsers.json)、[Playwright 下载矩阵](https://github.com/microsoft/playwright/blob/v1.65.0/packages/playwright-core/src/server/registry/index.ts)。访问日期为本文更新日期；需要实际目标验证后才能形成最终兼容矩阵。
 
@@ -81,9 +81,9 @@ Darwin私有目录的`replace(name, temporary, ...)`只接受严格的`.<小写U
 | --- | --- | --- |
 | 1 | 同步已确认范围至 README、规格、计划和里程碑 | 本文随范围修订提供；不改变已有实际验证结论 |
 | 2 | 完成公共凭据故障状态与显式恢复入口 | `ae38f0a`及修复`b2baf88`通过独立定向复审；最终48项桌面单测通过，适用host/renderer严格检查通过；不依赖Mac原生机制，不代表GUI/目标OS验收 |
-| 3 | 落实最低macOS与受控进程停止 | 最低15、宿主原生Chrome、受控停止范围均已确认；具体实现/真机验收仍待完成 |
-| 4 | 扩展四组目标的平台合同，再按确认设计实施原生适配、依赖库存和双架构构建 | 合同切片`986a2d8`已复审；原生适配和运行仍待实施，能力就绪须真实证明，不能绕过受控停止设计与实际验证 |
-| 5 | 两类 Mac 原生安装与全功能验收 | 待实际 Intel / Apple Silicon 设备或适当目标环境；用户尚未确认设备可用性 |
+| 3 | 落实最低macOS与受控进程停止 | 最低15、宿主原生Chrome、受控停止范围均已确认；源码私有文件/受控业务组件已验，完整安装与真机产品验收待完成 |
+| 4 | 扩展四组目标的平台合同，再按确认设计实施原生适配、依赖库存和双架构构建 | 合同切片`986a2d8`及B/C源码组件已验；继续系统凭据、完整库存与发行接入，就绪须实际证明，不能绕过受控停止设计 |
+| 5 | 两类 Mac 原生安装与全功能验收 | 用户已确认可安排两架构独立测试环境；具体访问/独立登录会话、签名输入和实际验收记录仍待落实 |
 | 6 | 完成较低优先级 Windows/Ubuntu 发行及 T21–T23 | 全部仍在首发范围；保留原有实现、失败和证据，不重新归零 |
 
 每个 Mac 架构都需留下构建来源与实际依赖、安装、无终端 GUI、联网/离线运行、真实可见/无头浏览器、同 Attempt 停止、Keychain/Cookie、托盘/Dock/后台、升级回滚与签名状态的对应证据。不能以开发宿主、另一架构、源码测试或一次启动成功代替。
