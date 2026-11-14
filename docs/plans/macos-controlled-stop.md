@@ -9,7 +9,7 @@
 | B Darwin私有文件基础 | 有限目录fd相对操作、普通私有日志FD与原子持久发布 | 新native/darwin源与Node-API适配/build脚本；records、credentials/files及历史守卫 | 两架构实际build；symlink/owner/权限/长度/提交失败，缺能力明确失败 | `747d4e0`及修复`4966090`独立规格/质量复审通过；两架构各44项通过、零跳过；不代表Mac执行或安装就绪 |
 | C1 可移植CLI观察器 | 可信preload保留实际ChildProcess；单写者普通FD日志与最终严格验证；具体Node自检 | execution下新观察器/协议/验证器与真实子进程测试；暂不开放Darwin入口 | READY/意图/退出/seal；缺失与乱序、短写/刷新失败、fork被动继承、late spawn同步73、正常0/1及授权取消130 | `755316c`独立规格/质量审查通过；Linux24项通过；B的实际Mac CI中两架构各21项通过、1项Linux专属跳过；未接Darwin执行 |
 | C2 受控所有权集成 | Agent持有BrowserServer/outer worker；命令实际退出与C1日志结清；CONTROLLED_STOPPED | 新darwin-processes；worker/provider；在线/离线PW config与B私有FD | 原生Chrome真实执行/退出；CLI/worker/owner故障；完整集合结清才正回执；保留Linux/Windows强证明 | C2a1/C2a2/C2b1及C2b2 `6cba5cc`完成源码组件复审；双Mac各26业务项通过、五组完整交付扫描零命中；未开放安装/Keychain/doctor ready |
-| D1 Runtime Keychain helper | 用户已选独立文件型Keychain辅助进程；有限V1、无交互、锁定拒绝、无明文回退 | 独立Security.framework原生源/固定构建；非变更协议与独立会话验收工具 | 标准双MacCI只构建/不变更存储；真实存取/锁定/删除在独立可丢弃账户会话；不更改现有CI登录钥匙串 | 开始实现准备；只交付helper及工具，TS宿主/完整库存/doctor/GUI门待后续接入，不将设备可安排视为实际验收 |
+| D1 Runtime Keychain helper | 用户已选独立文件型Keychain辅助进程；有限V1、无交互、锁定拒绝、无明文回退 | 独立Security.framework原生源/固定构建；非变更协议与独立会话验收工具 | 标准双MacCI只构建/不变更存储；真实存取/锁定/删除在独立可丢弃账户会话；不更改现有CI登录钥匙串 | `e46b9fe`及构建修正`0be0480`已有检查点；双Mac各7项非持久测试通过，真实存取与最终审查未完成；TS宿主/完整库存/doctor/GUI门仍关闭 |
 | D 入口与发行验收 | 真实ready后开放Darwin；完整库存/路径/角色与独立Node；双架构工作流 | distribution/paths/doctor/CLI、构建与发行说明、Mac目标CI | 无终端GUI/离线/同Attempt停止/恢复/安装升级与证据；不能用单测代替 | 待实施 |
 
 执行约束：采用subagent，单一产品writer、独立规格与质量审查；每切片按真实行为RED→GREEN和适用全套，不反复碰绿，不改超时掩盖失败。Node兼容门槛的当前用户修正优先完成，正式发行继续记录实际具体版本/hash，不以浮动范围代替身份。
@@ -44,3 +44,5 @@ C2a2 `878f487`实现直接命令真实对象/退出等待、双日志共用C1协
 C2b1 `8733434`→`3371b8a`→修复`af3aeaf`已通过独立定向复审，四项MEDIUM全部关闭。实际双Mac每架构所有权18项、证明格式5项通过且零跳过，保留既有B44/命令17通过及观察器28通过/1项Linux专属跳过。使用固定原生Chrome for Testing 158、公开BrowserServer/真实退出、B私有日志与CONTROLLED_STOPPED配对；全局历史另匹配Claim种类和代际。故障后未知写者的原始File保持锚定，组件夹具有真实继承FD写者，但不声称实际outer→CLI孤儿祖先链或真正Agent进程崩溃验收。
 
 C2b2 `90b88d2`→`6cba5cc`已完成在线/离线真实引擎接入及四轮定向修复，最终独立规格/质量复审无新增阻塞。[双Mac run43626491019](https://github.com/baofengbaofeng/VeriQ/actions/runs/43626491019)每架构26项全部通过，五组完整交付扫描零命中、两项真实JSON交付阻断负例通过；每架构63个源码/构建输入hash、官方摘要与原始库存已核验。私有配置编译缓存按精确来源单独归类，复制、引用或嵌入交付仍拒绝；原生stdio忽略与本地实际CLI输出扫描的证据分开。[同源码桌面 run43626491063](https://github.com/baofengbaofeng/VeriQ/actions/runs/43626491063)完整SDK144通过/1项Windows专属跳过、行覆盖率91.97%，七项实际GUI通过，629源码hash核验。该结果只关闭源码业务组件；D的Keychain/Cookie、完整发行库存、Mac GUI与安装仍未交付。
+
+D1检查点`0be0480`的[标准双Mac run43631690713](https://github.com/baofengbaofeng/VeriQ/actions/runs/43631690713)每架构7项非持久测试全部通过，既有B44/命令17/观察器28通过及1项Linux专属跳过、业务26项均保留通过。官方制品摘要、原始库存、每架构71个源码输入及helper实际架构/最低15.0/系统框架链接已核验；未执行真实钥匙串存储。独立[失败基线 run43631984648](https://github.com/baofengbaofeng/VeriQ/actions/runs/43631984648)只替换测试helper为明确stub，每架构5通过/2失败，证明测试会拒绝错误返回，不作为实现前或真实OS存取RED。并发重复写入、拒绝前后语义状态与ACL负例仍在补齐，完成后的源码必须重新验证与独立审查。
