@@ -1,7 +1,9 @@
 /** 可移植回归只验证可信能力拒绝和既有内核后端的合同，不修改 process.platform、不模拟 Mac 文件语义，也不把这组通过数算入真实 Mac 业务；新接口缺省与坏数据都必须在业务下载或受控派生之前保持失败关闭。 */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, rm, realpath } from "node:fs/promises";
+import { mkdtemp, rm, realpath, mkdir, writeFile, copyFile, unlink, symlink } from "node:fs/promises";
+import { writeFileSync, renameSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ExecutionSupervisor, type SupervisorOptions } from "../src/execution/supervisor.ts";
@@ -80,6 +82,71 @@ test("business report roles distinguish actual report entry from referenced view
     for (const path of ["html/trace/index.html", "html/trace/snapshot.html", "html/data/attachment.html"]) assert.equal(classify(path), "DATA");
     assert.equal(classify("playwright.json"), "JSON");
     assert.equal(classify("case/trace.zip"), "TRACE");
+});
+
+/** 真实小目录保留私有配置及其成对编译缓存，以相同端点标记检验操作输入不会冒充交付文件；复制到报告、伪造缓存目录、损坏来源、引用缓存及缓存内 Trace 都必须重新触发扫描，不能靠目录名排除阳性。 */
+test("business artifact walk separates proven private input cache and still rejects delivered copies and references", { skip: process.platform === "win32" }, async () => {
+    const { visitBusinessArtifacts } = await import("./fixtures/business-engine.ts");
+    const root = await mkdtemp(join(await realpath(tmpdir()), "veriq-cache-role-"));
+    const work = join(root, "work"), tmp = join(root, "tmp"), marker = "ws://127.0.0.1:12345/private-operational-test-marker";
+    try {
+        await mkdir(work, { mode: 0o700 }); await mkdir(tmp, { mode: 0o700 });
+        const config = join(work, "playwright.config.mjs"), source = `export default ${JSON.stringify({ use: { connectOptions: { wsEndpoint: marker } } })};`;
+        await writeFile(config, source, { mode: 0o600 });
+        const canonical = await realpath(config), hash = createHash("sha1").update(canonical).digest("hex").slice(0, 10);
+        const cache = join(tmp, `playwright-transform-cache-${process.geteuid?.()}`, hash.slice(0, 2));
+        await mkdir(cache, { recursive: true, mode: 0o700 });
+        const stem = `${hash}_abcdef0_playwrightconfig`, js = join(cache, stem + ".js"), map = join(cache, stem + ".map");
+        const code = `// ${createHash("sha1").update(source).digest("hex")}\n${source}`;
+        const mapping = JSON.stringify({ version: 3, sources: [canonical], sourcesContent: [source], names: [], mappings: "" });
+        await writeFile(js, code, { mode: 0o600 }); await writeFile(map, mapping, { mode: 0o600 });
+        await writeFile(join(tmp, "playwright.json"), '{"safe":true}', { mode: 0o600 });
+        let inventoryFiles = 0, inventoryBytes = 0, reference: (bytes: Buffer) => boolean = () => false;
+        const seen: string[] = [];
+        const inspect = async (bytes: Buffer, name: string) => {
+            seen.push(name);
+            if (bytes.includes(marker) || reference(bytes)) throw new Error("PRIVATE_ENDPOINT_DISCLOSURE");
+        };
+        const walk = () => visitBusinessArtifacts(tmp, work, inspect, (inventory) => {
+            inventoryFiles = inventory.files; inventoryBytes = inventory.bytes; reference = inventory.containsReference;
+            assert.equal(inventory.sha256.length, inventory.files);
+        });
+        await walk();
+        assert.equal(inventoryFiles, 2); assert.equal(inventoryBytes, Buffer.byteLength(code + mapping));
+        assert.deepEqual(seen, ["playwright.json"]);
+        assert.ok(Buffer.byteLength(source + code + mapping) < 16 * 1024);
+        const alias = join(root, "work-alias"); await symlink(work, alias);
+        await visitBusinessArtifacts(tmp, alias, inspect, (inventory) => assert.equal(inventory.files, 2));
+        await assert.rejects(visitBusinessArtifacts(tmp, work, inspect, () => {
+            const replacement = join(cache, "replacement.js"); writeFileSync(replacement, code, { mode: 0o600 }); renameSync(replacement, js);
+        }), /OPERATIONAL_INPUT_CHANGED/);
+        await assert.rejects(visitBusinessArtifacts(tmp, work, inspect, () => { writeFileSync(config, source + " "); }), /OPERATIONAL_INPUT_CHANGED/);
+        await writeFile(config, source);
+        const data = join(tmp, "html", "data"); await mkdir(data, { recursive: true, mode: 0o700 });
+        for (const original of [js, map]) {
+            const copy = join(data, "attachment"); await copyFile(original, copy);
+            await assert.rejects(walk(), /PRIVATE_ENDPOINT_DISCLOSURE/); await unlink(copy);
+        }
+        const disguised = join(data, `playwright-transform-cache-${process.geteuid?.()}`, hash.slice(0, 2));
+        await mkdir(disguised, { recursive: true, mode: 0o700 }); await copyFile(map, join(disguised, stem + ".map"));
+        await assert.rejects(walk(), /PRIVATE_ENDPOINT_DISCLOSURE/); await rm(join(data, `playwright-transform-cache-${process.geteuid?.()}`), { recursive: true });
+        for (const [path, corrupt, original] of [[map, mapping.replace(source.replaceAll('"', '\\"'), "OTHER_SOURCE"), mapping], [js, code.replace(/^\/\/ [a-f0-9]{40}/, "// invalid"), code]] as const) {
+            await writeFile(path, corrupt); await assert.rejects(walk(), /PRIVATE_ENDPOINT_DISCLOSURE/); await writeFile(path, original);
+        }
+        await unlink(map); await assert.rejects(walk(), /PRIVATE_ENDPOINT_DISCLOSURE/);
+        await symlink(config, map); await assert.rejects(walk(), /PRIVATE_ENDPOINT_DISCLOSURE/); await unlink(map);
+        await writeFile(map, mapping, { mode: 0o600 });
+        await writeFile(join(cache, "trace.zip"), marker);
+        await assert.rejects(walk(), /PRIVATE_ENDPOINT_DISCLOSURE/); assert.ok(seen.some((path) => path.endsWith("/trace.zip"))); await unlink(join(cache, "trace.zip"));
+        for (const value of [js, stem + ".map", encodeURIComponent(map), Buffer.from(js).toString("base64")]) {
+            await writeFile(join(data, "reference.txt"), value);
+            await assert.rejects(walk(), /PRIVATE_ENDPOINT_DISCLOSURE/);
+        }
+        await unlink(join(data, "reference.txt"));
+        assert.equal(reference(Buffer.from(JSON.stringify({ source: js }))), true);
+        assert.equal(reference(Buffer.from("safe decoded archive member")), false);
+        await walk();
+    } finally { await rm(root, { recursive: true, force: true }); }
 });
 
 test("failed artifact observation preserves actual resource exit facts and blocks delivery", async () => {

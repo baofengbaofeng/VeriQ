@@ -33,13 +33,21 @@ function forms(endpoints: readonly string[]) {
 function parsed(bytes: Buffer): ObjectValue {
     if (!bytes.length || bytes.length > LIMIT) fail();
     const value: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
-    const queue: [unknown, number][] = [[value, 0]];
-    let nodes = 0;
-    while (queue.length) {
-        const [entry, depth] = queue.pop()!;
-        if (++nodes > 200000 || depth > 64) fail();
-        if (entry && typeof entry === "object") for (const child of Object.values(entry)) queue.push([child, depth + 1]);
+    /** 根节点先占一个名额，后续节点必须在读取成员与递归之前通过数量和深度检查；数组逐项索引、对象逐项检查自有属性，不物化完整值数组或待处理元组，使显式遍历栈只随已限制的深度增长。 */
+    let nodes = 1;
+    function visit(entry: unknown, depth: number): void {
+        if (!entry || typeof entry !== "object") return;
+        const child = (key: string | number) => {
+            if (++nodes > 200000 || depth >= 64) fail();
+            visit((entry as Record<string | number, unknown>)[key], depth + 1);
+        };
+        if (Array.isArray(entry)) {
+            for (let index = 0; index < entry.length; index++) child(index);
+        } else {
+            for (const key in entry) if (Object.hasOwn(entry, key)) child(key);
+        }
     }
+    visit(value, 0);
     if (!object(value) || !object(value.config) || !Array.isArray(value.suites) || !object(value.stats)) fail();
     return value;
 }

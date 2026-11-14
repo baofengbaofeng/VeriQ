@@ -151,6 +151,68 @@ test.skipIf(process.platform === "win32")("real public Playwright connection fai
     }
 });
 
+/** 独立小堆子进程先真实解析完整 JSON，再用透明代理计数宽容器的成员读取；只输出固定状态与计数，不改变解析结果或生产接口，借此区分及时拒绝和先物化全部子节点后才拒绝，避免故意触发宿主内存耗尽。 */
+async function traversalProbe(kind: "array" | "object", members: number) {
+    const program = String.raw`
+import { verifyEndpointJson } from ${JSON.stringify(new URL("../src/endpoint-json-reporter.ts", import.meta.url).href)};
+const kind = process.argv[1], members = Number(process.argv[2]);
+if (!["array", "object"].includes(kind) || !Number.isInteger(members) || members < 1 || members > 200001) process.exit(2);
+const wide = kind === "array" ? "[" + "0,".repeat(members - 1) + "0]" : "{" + Array.from({ length: members }, (_, index) => '"m' + index + '":0').join(",") + "}";
+const bytes = Buffer.from('{"config":{"projects":[],"filteredProjects":[{"use":{"connectOptions":{"wsEndpoint":"VERIQ_PRIVATE_ENDPOINT"}}}]},"suites":[],"stats":{},"wide":' + wide + '}');
+if (bytes.length > 3 * 1024 * 1024) process.exit(3);
+const original = JSON.parse;
+let reads = 0, status = "ACCEPTED";
+JSON.parse = (...args) => {
+    const value = original(...args);
+    value.wide = new Proxy(value.wide, { get(target, key, receiver) {
+        if (typeof key === "string" && Object.hasOwn(target, key) && key !== "length") reads++;
+        return Reflect.get(target, key, receiver);
+    } });
+    return value;
+};
+try { verifyEndpointJson(bytes, ["ws://127.0.0.1:12345/0123456789abcdef0123456789abcdef"]); }
+catch (error) { status = error instanceof Error && error.message === "REPORT_PRIVACY_UNCONFIRMED" ? error.message : "UNEXPECTED_FAILURE"; }
+finally { JSON.parse = original; }
+process.stdout.write(JSON.stringify({ status, reads, bytes: bytes.length }));
+`;
+    const result = await command(process.execPath, ["--max-old-space-size=128", "--input-type=module", "-e", program, kind, String(members)], process.cwd());
+    expect(result.code).toBe(0);
+    expect(result.stderr.length).toBe(0);
+    const counts = JSON.parse(result.stdout.toString()) as { status: string; reads: number; bytes: number };
+    expect(counts.bytes).toBeLessThanOrEqual(3 * 1024 * 1024);
+    process.stdout.write("JSON_TRAVERSAL_PROBE " + JSON.stringify({ kind, members, ...counts }) + "\n");
+    return counts;
+}
+
+test("endpoint JSON traversal probe accepts small real parsed containers", async () => {
+    for (const kind of ["array", "object"] as const) {
+        const counts = await traversalProbe(kind, 1024);
+        expect(counts.status).toBe("ACCEPTED");
+        expect(counts.reads).toBe(2048);
+    }
+});
+
+test.each(["array", "object"] as const)("endpoint JSON traversal bounds wide %s child admission", async (kind) => {
+    const counts = await traversalProbe(kind, 200001);
+    expect(counts.status).toBe("REPORT_PRIVACY_UNCONFIRMED");
+    expect(counts.reads).toBeLessThan(200000);
+});
+
+test("endpoint JSON traversal preserves exact node and depth limits", async () => {
+    const { verifyEndpointJson } = await import("../src/endpoint-json-reporter.js");
+    const endpoint = "ws://127.0.0.1:12345/0123456789abcdef0123456789abcdef";
+    const report = () => ({ config: { projects: [], filteredProjects: [{ use: { connectOptions: { wsEndpoint: "VERIQ_PRIVATE_ENDPOINT" } } }] }, suites: [], stats: {} });
+    const verify = (extra: unknown) => verifyEndpointJson(Buffer.from(JSON.stringify({ ...report(), extra })), [endpoint]);
+    let nested: unknown = 0;
+    for (let depth = 0; depth < 63; depth++) nested = { nested };
+    expect(() => verify(nested)).not.toThrow();
+    expect(() => verify({ nested })).toThrow("REPORT_PRIVACY_UNCONFIRMED");
+    const counts = await traversalProbe("array", 199989);
+    expect(counts.status).toBe("ACCEPTED");
+    expect(counts.reads).toBe(399978);
+    expect((await traversalProbe("array", 199990)).status).toBe("REPORT_PRIVACY_UNCONFIRMED");
+});
+
 /** 纯 JSON 门禁对已知配置字段以外的残留保持失败，未知结果字段绝不被删除来换取通过；文件测试都使用独占私有目录，超限样本仅建立一份稀疏 inode 并先由同一描述符元数据拒绝，绝不分配三十二兆内容。 */
 test.skipIf(process.platform === "win32")("endpoint JSON gate refuses missing malformed residual symlink oversized and nonprivate files", async () => {
     const fs = await import("node:fs/promises");

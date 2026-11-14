@@ -5,7 +5,7 @@ import fs from "node:fs/promises";
 import { syncBuiltinESMExports } from "node:module";
 import { mkdtemp, realpath, rm, readFile, readdir, mkdir, writeFile, chmod, lstat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, basename, relative } from "node:path";
+import { join, basename } from "node:path";
 import { createServer } from "node:http";
 import { createConnection } from "node:net";
 import { randomUUID, createHash } from "node:crypto";
@@ -13,7 +13,7 @@ import { DatabaseSync } from "node:sqlite";
 import { execFileSync } from "node:child_process";
 import { chromium, type BrowserServer } from "playwright-core";
 import { fromBuffer, type ZipFile } from "yauzl";
-import { fixture, buildBusinessEngine, onlineBusiness, watchBusinessRun, emitBusinessDiagnostic, businessArtifactRole, observeBusinessExit } from "../fixtures/business-engine.ts";
+import { fixture, buildBusinessEngine, onlineBusiness, watchBusinessRun, emitBusinessDiagnostic, businessArtifactRole, visitBusinessArtifacts, observeBusinessExit } from "../fixtures/business-engine.ts";
 import { createDarwinSource } from "../../src/execution/darwin-source.ts";
 import { ProcessSupervisor, type OwnedProcess } from "../../src/execution/processes.ts";
 import { runOffline, recoverOffline } from "../../src/offline/run.ts";
@@ -132,6 +132,8 @@ async function observeBusiness(label: "ONLINE_ASSERT_FAIL_PASS" | "ONLINE_CONNEC
     const start = ProcessSupervisor.prototype.start;
     let buffers = 0, archives = 0, members = 0, hits = 0, json = 0, html = 0, junit = 0, traces = 0;
     let runReturned = false, scanComplete = false;
+    const operationalInputs = { files: 0, bytes: 0, referenceHits: 0, sha256: [] as string[] };
+    const operationalReferences: ((bytes: Buffer) => boolean)[] = [];
     const owned: OwnedProcess[] = [];
     const observations: { exited: Promise<unknown>; assertClean(): void }[] = [];
     const assertClean = () => { if (hits > 0) throw new Error("PRIVATE_ENDPOINT_DISCLOSURE"); for (const observation of observations) observation.assertClean(); };
@@ -139,6 +141,11 @@ async function observeBusiness(label: "ONLINE_ASSERT_FAIL_PASS" | "ONLINE_CONNEC
     const containers: Record<string, number> = {}, fields: Record<string, number> = {};
     const check = (bytes: Buffer) => {
         buffers++;
+        /** 引用检查覆盖同一个原始字节和归档成员入口，避免端点仅存在于未交付缓存时把报告中的缓存链接当作安全；任何已验证操作输入的引用仍计入总命中和独立桶，原工作流的阳性阻断条件保持有效。 */
+        if (operationalReferences.some((contains) => contains(bytes))) {
+            hits++; operationalInputs.referenceHits++;
+            containers["operational-input-reference"] = (containers["operational-input-reference"] ?? 0) + 1;
+        }
         for (const endpoint of endpoints) {
             const token = new URL(endpoint).pathname.slice(1);
             for (const value of [endpoint, token]) {
@@ -203,14 +210,12 @@ async function observeBusiness(label: "ONLINE_ASSERT_FAIL_PASS" | "ONLINE_CONNEC
             console.log(JSON.stringify({ nativeWorkerExit: { code: value.code, signal: [null, "SIGINT", "SIGTERM", "SIGKILL"].includes(value.signal) ? value.signal : "OTHER" } }));
             await emitBusinessDiagnostic("WORKER_EXIT", args[1].cwd, undefined);
             await reportPlaywrightFacts(join(invocation.tmp, "playwright.json"));
-            const visit = async (directory: string): Promise<void> => {
-                for (const item of await readdir(directory, { withFileTypes: true })) {
-                    const path = join(directory, item.name);
-                    if (item.isDirectory() && item.name !== "npm-cache") await visit(path);
-                    else if (item.isFile()) await inspect(await readBoundedFile(path, 32 * 1024 * 1024), relative(invocation.tmp, path));
-                }
-            };
-            await visit(invocation.tmp);
+            /** 配置编译缓存只有在来源、成对文件及稳定内容均已确认时才进入独立操作清单；回调先登记引用检查，再扫描所有真实交付字节和解码成员，因此复制、嵌入或引用缓存仍增加阳性计数并阻断原交付门禁。 */
+            await visitBusinessArtifacts(invocation.tmp, args[1].cwd, inspect, (inventory) => {
+                operationalInputs.files += inventory.files; operationalInputs.bytes += inventory.bytes;
+                operationalInputs.sha256.push(...inventory.sha256);
+                operationalReferences.push(inventory.containsReference);
+            });
         });
         observations.push(observation);
         return { ...child, exited: observation.exited };
@@ -225,7 +230,7 @@ async function observeBusiness(label: "ONLINE_ASSERT_FAIL_PASS" | "ONLINE_CONNEC
         scanComplete = true;
         assert.equal(hits, 0, "PRIVATE_ENDPOINT_DISCLOSURE: affected delivery must pause; diagnostics contain counts only");
     } finally {
-        console.log(JSON.stringify({ endpointScan: { label, coverage: buffers === 0 ? "unreached" : scanComplete ? "complete" : "partial", runReturned, buffers, archives, members, hits, containers, fields, json, html, junit, traces, stdio: { policy: "IGNORED", stdoutBytes: 0, stderrBytes: 0 } } }));
+        console.log(JSON.stringify({ endpointScan: { label, coverage: buffers === 0 ? "unreached" : scanComplete ? "complete" : "partial", runReturned, buffers, archives, members, hits, containers, fields, json, html, junit, traces, operationalInputs, stdio: { policy: "IGNORED", stdoutBytes: 0, stderrBytes: 0 } } }));
         const deadline = performance.now() + 30000;
         try {
             for (const process of owned) {

@@ -1,9 +1,10 @@
 /** 业务测试共享真实编译、签名包与 HTTP 控制夹具构造，生产代码不导入此文件；真实引擎由固定 queue-fixture 构建 SDK、contracts、compiler 和离线依赖闭包，HTTP 响应仅代表本地 Node 控制夹具而非 Python/MySQL 服务验收。 */
 import assert from "node:assert/strict";
 import { generateKeyPairSync, sign, createHash, randomUUID } from "node:crypto";
-import { mkdtemp, mkdir, writeFile, readFile, copyFile, rm, chmod, readdir, realpath } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, copyFile, rm, chmod, readdir, realpath, open, lstat } from "node:fs/promises";
+import { constants, type Stats } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, dirname, resolve, basename } from "node:path";
+import { join, dirname, resolve, basename, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import { createServer } from "node:http";
@@ -770,6 +771,76 @@ export function businessArtifactRole(path: string): "JSON" | "JUNIT" | "MAIN_HTM
     if (path.endsWith(".xml")) return "JUNIT";
     if (path.endsWith(".zip")) return "TRACE";
     return "DATA";
+}
+/** 操作输入的来源分类必须绑定同一无链接普通文件的实际读取和前后身份，缓存不是交付豁免目录；再次使用分类时复核内容摘要和元数据，任何替换或写入都使观察失败，不能沿用先前已经失效的来源判断。 */
+async function businessInputFile(path: string) {
+    const same = (a: Stats, b: Stats) => a.dev === b.dev && a.ino === b.ino && a.uid === b.uid && a.mode === b.mode && a.nlink === b.nlink && a.size === b.size && a.mtimeMs === b.mtimeMs && a.ctimeMs === b.ctimeMs;
+    if (await realpath(path) !== path) throw new Error("OPERATIONAL_INPUT_UNCONFIRMED");
+    const fd = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    try {
+        const stat = await fd.stat();
+        if (!stat.isFile() || stat.nlink !== 1 || stat.uid !== process.getuid?.() || stat.size > 32 * 1024 * 1024 || !same(stat, await lstat(path))) throw new Error("OPERATIONAL_INPUT_UNCONFIRMED");
+        const bytes = Buffer.alloc(stat.size);
+        let offset = 0;
+        while (offset < bytes.length) {
+            const result = await fd.read(bytes, offset, bytes.length - offset, offset);
+            if (!result.bytesRead) throw new Error("OPERATIONAL_INPUT_UNCONFIRMED");
+            offset += result.bytesRead;
+        }
+        if (!same(stat, await fd.stat()) || !same(stat, await lstat(path))) throw new Error("OPERATIONAL_INPUT_UNCONFIRMED");
+        return { bytes, sha256: sha(bytes), same: (other: Stats) => same(stat, other) };
+    } finally { await fd.close(); }
+}
+
+/** 扫描范围沿用真实收集器的临时目录，只把规范化配置路径对应且来源内容相等的成对编译缓存列为私有操作输入；所有目录仍继续遍历，复制到报告或归档的内容与引用必须由同一检查回调拒绝，清单计数不充当交付零命中证据。 */
+export async function visitBusinessArtifacts(tmp: string, work: string, inspect: (bytes: Buffer, name: string) => Promise<void>, operational: (inventory: { files: number; bytes: number; sha256: string[]; containsReference: (bytes: Buffer) => boolean }) => void): Promise<void> {
+    const inputs = new Map<string, Awaited<ReturnType<typeof businessInputFile>>>();
+    let config: { path: string; file: Awaited<ReturnType<typeof businessInputFile>> } | undefined;
+    const canonicalTmp = await realpath(tmp);
+    try {
+        const parent = await lstat(canonicalTmp);
+        if (!parent.isDirectory() || parent.uid !== process.getuid?.() || parent.mode & 0o077) throw new Error("OPERATIONAL_INPUT_UNCONFIRMED");
+        const namedConfig = join(work, "playwright.config.mjs");
+        if (!(await lstat(namedConfig)).isFile()) throw new Error("OPERATIONAL_INPUT_UNCONFIRMED");
+        const configPath = await realpath(namedConfig), source = await businessInputFile(configPath);
+        const pathHash = createHash("sha1").update(configPath).digest("hex").slice(0, 10);
+        const directory = join(`playwright-transform-cache-${process.geteuid?.()}`, pathHash.slice(0, 2));
+        const names = (await readdir(join(canonicalTmp, directory))).filter((name) => new RegExp(`^${pathHash}_[a-f0-9]{7}_playwrightconfig\\.(js|map)$`).test(name)).sort();
+        if (names.length !== 2 || !names[0]!.endsWith(".js") || names[1] !== names[0]!.slice(0, -3) + ".map") throw new Error("OPERATIONAL_INPUT_UNCONFIRMED");
+        const js = await businessInputFile(join(canonicalTmp, directory, names[0]!)), map = await businessInputFile(join(canonicalTmp, directory, names[1]!));
+        const mapping = JSON.parse(map.bytes.toString("utf8")), newline = js.bytes.indexOf(10);
+        if (mapping.version !== 3 || !Array.isArray(mapping.sourcesContent) || mapping.sourcesContent.length !== 1 || mapping.sourcesContent[0] !== source.bytes.toString("utf8") || newline !== 43 || js.bytes.subarray(0, newline).toString() !== "// " + createHash("sha1").update(js.bytes.subarray(newline + 1)).digest("hex")) throw new Error("OPERATIONAL_INPUT_UNCONFIRMED");
+        config = { path: configPath, file: source };
+        inputs.set(join(directory, names[0]!), js); inputs.set(join(directory, names[1]!), map);
+    } catch { inputs.clear(); config = undefined; }
+    const references = new Set<string>();
+    for (const name of inputs.keys()) {
+        for (const path of [join(tmp, name), join(canonicalTmp, name), name, basename(name)]) {
+            for (const form of [path, encodeURI(path), encodeURIComponent(path), JSON.stringify(path).slice(1, -1), Buffer.from(path).toString("base64"), Buffer.from(path).toString("base64url")]) references.add(form);
+        }
+    }
+    const forms = [...references].map((value) => Buffer.from(value));
+    operational({ files: inputs.size, bytes: [...inputs.values()].reduce((sum, file) => sum + file.bytes.length, 0), sha256: [...inputs.values()].map((file) => file.sha256), containsReference: (bytes) => forms.some((form) => bytes.includes(form)) });
+    const unchanged = async (path: string, expected: Awaited<ReturnType<typeof businessInputFile>>) => {
+        const current = await businessInputFile(path);
+        if (current.sha256 !== expected.sha256 || !expected.same(await lstat(path))) throw new Error("OPERATIONAL_INPUT_CHANGED");
+    };
+    const visit = async (directory: string): Promise<void> => {
+        for (const item of await readdir(directory, { withFileTypes: true })) {
+            const path = join(directory, item.name);
+            if (item.isDirectory() && item.name !== "npm-cache") await visit(path);
+            else if (item.isFile()) {
+                const name = relative(tmp, path), input = inputs.get(name);
+                if (input) { await unchanged(config!.path, config!.file); await unchanged(join(canonicalTmp, name), input); }
+                else await inspect(await readBoundedFile(path, 32 * 1024 * 1024), name);
+            }
+        }
+    };
+    await visit(tmp);
+    if (config) {
+        await unchanged(config.path, config.file);
+        for (const [name, file] of inputs) await unchanged(join(canonicalTmp, name), file);
+    }
 }
 /** 异步 artifact 扫描结果独立于真实资源退出事实，观察失败只固定粘性拒绝状态而不制造新的退出拒绝；拥有者必须等待返回 promise 完成并检查门禁后再交付或恢复共享补丁，原始扫描异常永不进入日志或派生退出见证。 */
 export function observeBusinessExit<T>(exited: Promise<T>, observe: () => Promise<void>) {
