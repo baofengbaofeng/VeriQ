@@ -185,7 +185,7 @@ inline void replacePrivateFile(const std::wstring& directory, const std::wstring
         parent.validate();
         writeAll(file.value, bytes);
         requireWin32(FlushFileBuffers(file.value) != 0, "NATIVE_PRIVATE_FLUSH_FAILED");
-        const size_t size = offsetof(FILE_RENAME_INFO, FileName) + name.size() * sizeof(wchar_t);
+        const size_t size = offsetof(FILE_RENAME_INFO, FileName) + (name.size() + 1) * sizeof(wchar_t);
         std::vector<BYTE> storage(size);
         auto* rename = reinterpret_cast<FILE_RENAME_INFO*>(storage.data());
         rename->ReplaceIfExists = TRUE;
