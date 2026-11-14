@@ -421,6 +421,35 @@ struct Entries { std::vector<std::string> names; bool overflow = false; };
  */
 class Directory {
     Descriptor fd_;
+    std::vector<Descriptor> cookieParents_;
+    /** Cookie 专用目录核验始终使用原始持有描述符，最终存储目录保持当前 uid 与精确七百模式，中间应用目录只放行无组或其他写入及特殊位的模式；两者都必须继续拒绝扩展 ACL 授权而不能回退普通祖先规则。
+     * 文件路径重命名不导致重新打开，检查的是最初遍历得到的目录 inode。
+     * 此 helper 不导出目录数字，不创建对象也不修复模式或 ACL。
+     */
+    static void verifyCookieDirectory(int fd, bool final) {
+        const auto info = metadata(fd);
+        require(S_ISDIR(info.st_mode) && info.st_uid == ::getuid() &&
+            (final ? (info.st_mode & 07777) == 0700 : (info.st_mode & 07022) == 0),
+            final ? "directory.private" : "directory.safe");
+        verifyPrivateAcl(fd);
+    }
+    /** Cookie 每次临界观察点返回后都重新验证同一批关键目录描述符，保留的应用根和布局中间目录不能因初次检查成功就被遗忘；最终目录另按严格七百要求复核，不重新走路径或放宽成一般 B 祖先政策。
+     * 保留集合只含有限布局中的两个或三个中间目录，更高系统祖先不被升级为应用私有目录。
+     * 验证失败由原有拥有者释放资源，不删除 Cookie 或自动修权限后继续。
+     */
+    void verifyCookieDirectories() {
+        for (const auto& parent : cookieParents_) verifyCookieDirectory(parent.get(), false);
+        verifyCookieDirectory(fd_.get(), true);
+    }
+    /** Cookie 正常返回前必须显式关闭最终目录及保留的关键中间目录，顺序从存储目录向应用根释放且每次 close 都先撤销所有权；任何必要关闭失败交外层按是否已 unlink 保留原错误或提交不确定，而不重试数字。
+     * 异常展开时其余 Descriptor 只做资源兜底，不把清理替代明确成功或提交确认。
+     * 缺失成员也走同一必要关闭路径，关闭失败不能被 false 隐藏。
+     */
+    void closeCookieDirectories() {
+        fd_.close("cookie.directory-close");
+        for (auto parent = cookieParents_.rbegin(); parent != cookieParents_.rend(); ++parent)
+            parent->close("cookie.parent-close");
+    }
     /** 成员只通过持有目录描述符相对打开一次，NOFOLLOW 拒绝链接而 NONBLOCK 避免 FIFO 阻塞，CLOEXEC 阻止未显式映射的句柄泄漏；取得描述符还不代表授权成功，调用者必须继续核同 fd 元数据与 ACL。
      * 打开失败保留 errno，只有实际 ENOENT 可以解释为成员缺失。
      * 参数先完成单组件检查，不能通过名称离开已授权目录。
@@ -465,8 +494,10 @@ class Directory {
 public:
     /** 目录内部构造只移动逐级核验完成的描述符，未完成的路径链无法从 JavaScript 构造此对象；所有后续操作相对这个 inode 执行，保留原路径字符串并不是权限来源或文件查找后备。
      * 父路径后来重命名不改变此拥有者身份。
+     * Cookie 额外移动固定布局中间目录的原始拥有者，一般目录调用传入空集合且保持原有生命周期。
      */
-    explicit Directory(Descriptor&& fd) : fd_(std::move(fd)) {}
+    Directory(Descriptor&& fd, std::vector<Descriptor>&& cookieParents)
+        : fd_(std::move(fd)), cookieParents_(std::move(cookieParents)) {}
     /** 绝对路径从根逐级 openat 并拒绝任何链接，create 为真才尝试七百模式 mkdirat，EEXIST 仍必须重新安全打开；最终当前 uid 与精确七百模式不符合就失败，不修权限或自动解析系统别名。
      * 根和系统祖先不要求私有 uid 或模式，否则合法用户目录无法遍历。
      * 每级 fstat 确认目录身份，O_DIRECTORY 与 NOFOLLOW 同时约束实际打开。
@@ -480,6 +511,7 @@ public:
         Descriptor parent(openAt(AT_FDCWD, "/", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC,
             0, "directory.root"));
         require(S_ISDIR(metadata(parent.get()).st_mode), "directory.root-type");
+        std::vector<Descriptor> cookieParents;
         size_t start = 1, index = 0;
         while (start < path.size()) {
             /** 路径解析只提取下一个有限组件并在触碰文件系统之前验证名字，拒绝内部双斜杠或点组件；绝对根拥有者保留到下一层目录实际打开和检查成功，不依赖字符串拼接形成新的授权路径。
@@ -511,11 +543,14 @@ public:
              * 这里不创建、chmod 或清 ACL，兼容只读与可执行权限并不意味着授予其他写入者。
              */
             if (index >= safeFrom && end != std::string::npos) {
-                require(info.st_uid == ::getuid() && (info.st_mode & 07022) == 0,
-                    "directory.safe");
-                verifyPrivateAcl(next.get());
+                verifyCookieDirectory(next.get(), false);
             }
-            parent.close();
+            /** 已进入 Cookie 关键目录之后把原父拥有者移动到有限保留集合，保证后续观察点仍能检查同一个真实目录；更高祖先及所有一般目录调用继续立即明确关闭旧父描述符，不通过路径重开重建这份授权。
+             * safeFrom 默认 npos 时 index 永不大于它，因此既有 B 调用不保留任何额外目录。
+             * 子目录已成功打开并核验后才移动父拥有者，分配失败时两侧仍由 RAII 清理。
+             */
+            if (index > safeFrom) cookieParents.push_back(std::move(parent));
+            else parent.close();
             parent = std::move(next);
             if (end == std::string::npos) break;
             start = end + 1;
@@ -525,7 +560,7 @@ public:
         require(S_ISDIR(info.st_mode) && info.st_uid == ::getuid() &&
             (info.st_mode & 07777) == 0700, "directory.private");
         verifyPrivateAcl(parent.get());
-        return std::make_unique<Directory>(std::move(parent));
+        return std::make_unique<Directory>(std::move(parent), std::move(cookieParents));
     }
     /** 目录读取把单个成员描述符从检查持有到完整有界读取和显式关闭结束，中途不按名字重开；读取成功但必要关闭失败也传播错误，不让宿主把未完成的资源操作当成完整可用的记录观察。
      * 返回值是独立字节向量，文件句柄不泄漏给普通调用者。
@@ -727,7 +762,8 @@ public:
             catch (const Failure& error) {
                 if (error.number != ENOENT || error.phase != "member.open" ||
                     std::string(error.what()) != "ENOENT") throw;
-                fd_.close("cookie.directory-close");
+                verifyCookieDirectories();
+                closeCookieDirectories();
                 return false;
             }
             const auto before = metadata(file.get());
@@ -739,6 +775,7 @@ public:
              * 同名缺失属于身份变化，不能在已经打开成员之后降级为幂等缺失。
              */
             const auto verify = [&]() {
+                verifyCookieDirectories();
                 const auto after = metadata(file.get());
                 regularMetadata(after, maximumCookieBytes);
                 verifyPrivateAcl(file.get());
@@ -753,7 +790,7 @@ public:
                 sync(fd_.get(), "cookie.directory-sync");
             }
             file.close("cookie.close");
-            fd_.close("cookie.directory-close");
+            closeCookieDirectories();
             return true;
         } catch (const Failure& error) {
             if (removed) throw Failure("COMMIT_UNCONFIRMED", error.phase, error.number);
