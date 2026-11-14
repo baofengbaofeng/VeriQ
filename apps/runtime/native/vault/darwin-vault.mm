@@ -21,12 +21,14 @@ bool uuid(const std::string &value) {
     }
     return true;
 }
+/** 账户组件使用每个原始 ASCII 字节的规范小写十六进制表示，编码结果自身不含分隔符也不会受平台字符串大小写折叠影响；这里保留 UUID 的原始字符身份，而不是把输入先转成统一大小写再产生可能冲突的名称。 */
 std::string component(const std::string &value) {
     const char *digits = "0123456789abcdef";
     std::string result;
     for (uint8_t byte : value) { result.push_back(digits[byte >> 4]); result.push_back(digits[byte & 15]); }
     return result;
 }
+/** 固定账户名称只由已经验证的档案和版本组成，中间唯一斜杠分隔两个等长十六进制组件；不会搜索相近版本或最新版本，也不允许请求传入额外服务名，因此读取与删除均能重复绑定同一个逻辑条目。 */
 NSString *account(const std::string &profile, const std::string &version) {
     require(uuid(profile) && uuid(version));
     return [NSString stringWithUTF8String:(component(profile) + "/" + component(version)).c_str()];
@@ -40,6 +42,7 @@ std::string encode(const uint8_t *bytes) {
     require(encoded && [encoded lengthOfBytesUsingEncoding:NSASCIIStringEncoding] == 43);
     return encoded.UTF8String;
 }
+/** 解码入口要求精确长度和 URL 安全字母表，Foundation 返回的字节还必须是三十二字节且重编码完全相等；验证失败时传入的作用域缓冲仍由析构覆盖，非规范尾位不能通过宽松的系统解码器进入存储请求。 */
 void decode(const std::string &text, Secret &key) {
     require(text.size() == 43 && text.find_first_not_of("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_") == std::string::npos);
     NSString *base64 = [NSString stringWithUTF8String:text.c_str()];
@@ -48,9 +51,8 @@ void decode(const std::string &text, Secret &key) {
     require(data.length == 32);
     key.bytes.resize(32);
     memcpy(key.bytes.data(), data.bytes, 32);
-    std::string canonical = encode(key.bytes.data());
-    const bool equal = canonical == text;
-    wipe(canonical.data(), canonical.size());
+    SecretText canonical(encode(key.bytes.data()));
+    const bool equal = canonical.value == text;
     require(equal);
 }
 
@@ -61,6 +63,7 @@ std::string status(SecKeychainRef keychain, OSStatus error) {
     if (error == errSecNoDefaultKeychain || error == errSecNoSuchKeychain || error == errSecNotAvailable || error == errSecInvalidKeychain) return "unavailable";
     return "failed";
 }
+/** 查询字典始终包含本次实际持有的唯一钥匙串引用与固定服务及精确账户，调用点只能增加返回类型或当前条目引用等约束；默认全局搜索列表不会参与查询，也不允许通过缺省字段扩大到其他产品或其他存储。 */
 NSMutableDictionary *query(SecKeychainRef keychain, NSString *name) {
     return [@{(__bridge id)kSecClass: (__bridge id)kSecClassGenericPassword,
         (__bridge id)kSecAttrService: @"VeriQ/RuntimeVault/v1", (__bridge id)kSecAttrAccount: name,
@@ -90,9 +93,11 @@ OSStatus findItem(SecKeychainRef keychain, NSString *name, SecAccessRef expected
     item.value = static_cast<SecKeychainItemRef>(const_cast<void *>(CFRetain(reference)));
     Owned<SecAccessRef> access;
     require(SecKeychainItemCopyAccess(item.value, &access.value) == errSecSuccess);
+    require(access.value != nullptr);
     require(verifiedAccess(access.value, expected));
     return errSecSuccess;
 }
+/** 秘密读取复用已经核验的条目引用并同时保留精确存储和账户约束，避免属性检查后通过重新泛查读到另一个候选；返回值必须是完整 CFData 且长度恰为三十二，否则由上层根据修改阶段保留失败或不确定状态。 */
 void readKey(SecKeychainRef keychain, NSString *name, SecKeychainItemRef item, Secret &key) {
     NSMutableDictionary *request = query(keychain, name);
     request[(__bridge id)kSecMatchItemList] = @[(__bridge id)item];
@@ -123,6 +128,7 @@ NSDictionary *testConfiguration() {
     require([parsed isKindOfClass:[NSDictionary class]]);
     return parsed;
 }
+/** 专用存储入口仅在测试编译中存在，要求当前 UID、安全会话、父关系和随机夹具文件形状全部相符；它只打开控制器已经创建的自有文件而不创建或选择默认存储，且这些检查不被宣称为任意同用户进程隔离。 */
 SecKeychainRef testStore(NSDictionary *config) {
     require([config[@"mode"] isEqual:@"store"] && [config[@"disposable"] isEqual:@YES]);
     require([config[@"uid"] unsignedLongLongValue] == getuid() && getuid() == geteuid() && getuid() != 0);
@@ -135,9 +141,39 @@ SecKeychainRef testStore(NSDictionary *config) {
     require([path isKindOfClass:[NSString class]] && path.length < 1024 && [path hasPrefix:@"/private/tmp/veriq-d1-"] && [path hasSuffix:@"/owned.keychain-db"]);
     struct stat info {};
     require(lstat(path.fileSystemRepresentation, &info) == 0 && S_ISREG(info.st_mode) && info.st_uid == getuid() && !(info.st_mode & 0077));
-    SecKeychainRef keychain = nullptr;
-    require(SecKeychainOpen(path.fileSystemRepresentation, &keychain) == errSecSuccess);
-    return keychain;
+    Owned<SecKeychainRef> keychain;
+    require(SecKeychainOpen(path.fileSystemRepresentation, &keychain.value) == errSecSuccess && keychain.value);
+    const SecKeychainRef result = keychain.value;
+    keychain.value = nullptr;
+    return result;
+}
+
+/** 只有专用控制器启动的测试编译目标可以执行此只读检查，它读取同一自有存储中精确条目的真实三十二字节值；这里故意独立于被测 ACL 检查器，以证明拒绝前后材料未变，但仍由系统 ACL 授权且禁止提示和修改。 */
+std::string inspectValue(SecKeychainRef keychain, NSString *name) {
+    NSMutableDictionary *request = query(keychain, name);
+    request[(__bridge id)kSecReturnData] = @YES;
+    request[(__bridge id)kSecMatchLimit] = (__bridge id)kSecMatchLimitAll;
+    Owned<CFTypeRef> result;
+    require(SecItemCopyMatching((__bridge CFDictionaryRef)request, &result.value) == errSecSuccess);
+    require(result.value && CFGetTypeID(result.value) == CFArrayGetTypeID());
+    CFArrayRef values = static_cast<CFArrayRef>(result.value);
+    require(CFArrayGetCount(values) == 1);
+    CFTypeRef data = CFArrayGetValueAtIndex(values, 0);
+    require(data && CFGetTypeID(data) == CFDataGetTypeID() && CFDataGetLength(static_cast<CFDataRef>(data)) == 32);
+    SecretText encoded(encode(CFDataGetBytePtr(static_cast<CFDataRef>(data))));
+    std::string response = "V1 ok " + encoded.value + "\n";
+    return response;
+}
+
+/** 竞争测试的屏障只使用额外继承的私有控制套接字，V1 输入仍由 EOF 监视线程独占；就绪字节仅在真实缺失查询之后发出，控制器释放前不调用新增，任何异常都会结束本次操作而不是猜测另一进程状态。 */
+void raceBarrier() {
+    struct stat info {};
+    require(fstat(4, &info) == 0 && S_ISSOCK(info.st_mode));
+    require(write(4, "R", 1) == 1);
+    char release = 0;
+    ssize_t count;
+    do { count = read(4, &release, 1); } while (count < 0 && errno == EINTR);
+    require(count == 1 && release == 'G');
 }
 #endif
 
@@ -171,6 +207,12 @@ std::string execute(const std::vector<std::string> &parts, Secret &incoming) {
         if (!(state & kSecReadPermStatus)) return "V1 failed\n";
         if (parts[1] == "probe") return "V1 ready\n";
         NSString *name = account(parts[2], parts[3]);
+#ifdef VERIQ_VAULT_TESTING
+        if ([configuration[@"inspection"] isEqual:@YES]) {
+            require(parts[1] == "get");
+            return inspectValue(keychain.value, name);
+        }
+#endif
         Owned<SecAccessRef> expected(restrictedAccess());
         require(verifiedAccess(expected.value, expected.value));
         Owned<SecKeychainItemRef> item;
@@ -183,19 +225,25 @@ std::string execute(const std::vector<std::string> &parts, Secret &incoming) {
             request[(__bridge id)kSecMatchItemList] = @[(__bridge id)item.value];
             mutating = true;
             error = SecItemDelete((__bridge CFDictionaryRef)request);
+#ifdef VERIQ_VAULT_TESTING
+            if ([configuration[@"fault"] isEqual:@"after-delete"]) _exit(127);
+#endif
             return error == errSecSuccess ? "V1 ok\n" : "V1 mutation-unconfirmed\n";
         }
         Secret previous;
         if (item.value) readKey(keychain.value, name, item.value, previous);
         if (parts[1] == "get") {
             if (!item.value) return "V1 missing\n";
-            std::string encoded = encode(previous.bytes.data());
-            std::string response = "V1 ok " + encoded + "\n";
-            wipe(encoded.data(), encoded.size());
+            SecretText encoded(encode(previous.bytes.data()));
+            std::string response = "V1 ok " + encoded.value + "\n";
             return response;
         }
         if (item.value) return previous.bytes == incoming.bytes ? "V1 ok\n" : "V1 failed\n";
         require(state & kSecWritePermStatus);
+#ifdef VERIQ_VAULT_TESTING
+        const bool racing = [configuration[@"barrier"] isEqual:@YES];
+        if (racing) raceBarrier();
+#endif
         NSDictionary *request = @{(__bridge id)kSecClass: (__bridge id)kSecClassGenericPassword,
             (__bridge id)kSecAttrService: @"VeriQ/RuntimeVault/v1", (__bridge id)kSecAttrAccount: name,
             (__bridge id)kSecUseKeychain: (__bridge id)keychain.value, (__bridge id)kSecAttrAccess: (__bridge id)expected.value,
@@ -203,13 +251,15 @@ std::string execute(const std::vector<std::string> &parts, Secret &incoming) {
         mutating = true;
         error = SecItemAdd((__bridge CFDictionaryRef)request, nullptr);
         if (error != errSecSuccess && error != errSecDuplicateItem) return "V1 mutation-unconfirmed\n";
+        const bool duplicate = error == errSecDuplicateItem;
 #ifdef VERIQ_VAULT_TESTING
+        if (racing) require(write(4, duplicate ? "D" : "A", 1) == 1);
         if ([configuration[@"fault"] isEqual:@"after-add"]) _exit(127);
 #endif
         Owned<SecKeychainItemRef> inserted;
         require(findItem(keychain.value, name, expected.value, inserted) == errSecSuccess);
         readKey(keychain.value, name, inserted.value, previous);
-        return previous.bytes == incoming.bytes ? "V1 ok\n" : "V1 mutation-unconfirmed\n";
+        return previous.bytes == incoming.bytes ? "V1 ok\n" : duplicate ? "V1 failed\n" : "V1 mutation-unconfirmed\n";
     } catch (...) {
         return mutating ? "V1 mutation-unconfirmed\n" : "V1 " + status(keychain.value, errSecAuthFailed) + "\n";
     }

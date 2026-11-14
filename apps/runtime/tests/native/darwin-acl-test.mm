@@ -87,26 +87,6 @@ void parentDeath(const char *self) {
     }
 }
 
-Bytes snapshot(SecAccessRef access) {
-    RawAccess raw(access);
-    Bytes result = raw.ownerSubject;
-    number(result, raw.owner->Delegate);
-    std::vector<Bytes> entries;
-    for (const auto &entry : raw.values) {
-        Bytes item = entry.subject;
-        number(item, entry.delegate);
-        number(item, entry.rights.size());
-        for (auto right : entry.rights) number(item, right);
-        item.insert(item.end(), entry.validity.begin(), entry.validity.end());
-        number(item, entry.tag.size());
-        item.insert(item.end(), entry.tag.begin(), entry.tag.end());
-        entries.push_back(std::move(item));
-    }
-    std::sort(entries.begin(), entries.end());
-    for (const auto &entry : entries) { number(result, entry.size()); result.insert(result.end(), entry.begin(), entry.end()); }
-    return result;
-}
-
 /** 重新执行的是同一个固定测试二进制，子进程导出后立即退出，父进程要求实际 waitpid 成功且完整读取有界数据；该检查只证明新模板的重复性，不声称持久条目重新打开或签名升级已经兼容。 */
 Bytes restartSnapshot(const char *self) {
     int descriptors[2];
@@ -159,6 +139,18 @@ void rejectsTree(SecAccessRef expected, unsigned scenario) {
         }
         if (scenario == 5) raw.nodes = 4096;
         if (scenario == 6) list.ListType = 0xffffffff;
+        if (scenario == 8) raw.allocations.resize(8192);
+        if (scenario == 9) {
+            raw.dataBytes = 1048576;
+            node->ElementType = CSSM_LIST_ELEMENT_DATUM;
+            node->Element.Word.Length = 1;
+            node->Element.Word.Data = static_cast<uint8_t *>(malloc(1));
+        }
+        if (scenario == 10) {
+            node->ElementType = CSSM_LIST_ELEMENT_DATUM;
+            node->Element.Word.Length = 1;
+            node->Element.Word.Data = reinterpret_cast<uint8_t *>(node) + 1;
+        }
         Bytes out;
         raw.list(out, list, scenario == 7 ? 33 : 0);
         _exit(1);
@@ -175,6 +167,55 @@ void rejectsGrant(SecAccessRef expected, CFArrayRef rights) {
     require(SecACLUpdateAuthorizations(added.value, rights) == errSecSuccess);
     require(!verifiedAccess(changed.value, expected));
 }
+
+/** 不透明代码主体的数据只在测试中逐字节改变而不解释私有签名格式，定位依据是公开的主体类型而非猜测路径或摘要布局；修改后的公开导入必须失败或被验证器拒绝，不能因为显示路径相同而忽略实际主体差异。 */
+bool changeCodeDatum(CSSM_LIST &list, bool codeSubject = false) {
+    if (list.Head && list.Head->ElementType == CSSM_LIST_ELEMENT_WORDID && list.Head->WordID == CSSM_ACL_SUBJECT_TYPE_CODE_SIGNATURE)
+        codeSubject = true;
+    for (auto *node = list.Head; node; node = node->NextElement) {
+        if (codeSubject && node->ElementType == CSSM_LIST_ELEMENT_DATUM && node->Element.Word.Length) {
+            node->Element.Word.Data[0] ^= 1;
+            return true;
+        }
+        if (node->ElementType == CSSM_LIST_ELEMENT_SUBLIST && changeCodeDatum(node->Element.Sublist, codeSubject)) return true;
+    }
+    return false;
+}
+
+/** 公开 CSSM 导入仅用于创建脱离存储的恶意权限候选，逐项改变所有者、委托、未知权利或完整代码主体后观察真实验证结果；这些候选不持久化，也不声称已经模拟了签名升级或系统隐藏有效期条件。 */
+void rejectsAlteration(SecAccessRef expected, unsigned scenario) {
+    RawAccess raw(expected);
+    CSSM_ACL_ENTRY_PROTOTYPE *secret = nullptr, *metadata = nullptr;
+    for (uint32 index = 0; index < raw.count; ++index) {
+        auto &entry = raw.entries[index].EntryPublicInfo;
+        for (uint32 right = 0; right < entry.Authorization.NumberOfAuthTags; ++right) {
+            if (entry.Authorization.AuthTags[right] == CSSM_ACL_AUTHORIZATION_DECRYPT) secret = &entry;
+            if (entry.Authorization.AuthTags[right] == CSSM_ACL_AUTHORIZATION_ENCRYPT) metadata = &entry;
+        }
+    }
+    require(secret && metadata);
+    if (scenario == 0) raw.owner->Delegate = CSSM_TRUE;
+    if (scenario == 1) secret->Delegate = CSSM_TRUE;
+    if (scenario == 2) raw.owner->TypedSubject.Head->WordID = CSSM_ACL_SUBJECT_TYPE_ANY;
+    if (scenario == 3) secret->Authorization.AuthTags[0] = 0x7fffffff;
+    if (scenario == 4) require(changeCodeDatum(secret->TypedSubject));
+    if (scenario == 5) metadata->TypedSubject.Head->WordID = 0x7fffffff;
+    Owned<SecAccessRef> changed;
+    const OSStatus imported = SecAccessCreateFromOwnerAndACL(raw.owner, raw.count, raw.entries, &changed.value);
+    require(imported != errSecSuccess || (changed.value && !verifiedAccess(changed.value, expected)));
+}
+
+/** 两个真实可信应用对象形成比单 helper 模板更宽的主体，验证器必须拒绝整个备选授权而不是只找到一个匹配程序就放行；第二个应用仅作为内存身份对象，不执行该程序，也不改变任何钥匙串或系统信任设置。 */
+void rejectsSecondPrincipal(SecAccessRef expected) {
+    Owned<SecTrustedApplicationRef> self, other;
+    require(SecTrustedApplicationCreateFromPath(nullptr, &self.value) == errSecSuccess);
+    require(SecTrustedApplicationCreateFromPath("/usr/bin/true", &other.value) == errSecSuccess);
+    const void *values[] = {self.value, other.value};
+    Owned<CFArrayRef> applications(CFArrayCreate(nullptr, values, 2, &kCFTypeArrayCallBacks));
+    Owned<SecAccessRef> changed;
+    require(SecAccessCreate(CFSTR("VeriQ Runtime Vault v1"), applications.value, &changed.value) == errSecSuccess);
+    require(!verifiedAccess(changed.value, expected));
+}
 }
 
 /** 测试入口只接受内部快照分支或无参数检查，所有系统 API 均局限于内存权限对象及真实子进程；任何失败只返回静态退出码，父调用者据此保留未验证状态，不输出原始 ACL、路径或系统异常文本。 */
@@ -186,7 +227,7 @@ int main(int argc, char **argv) {
             Owned<SecAccessRef> expected(restrictedAccess());
             require(verifiedAccess(expected.value, expected.value));
             if (argc == 2 && std::string(argv[1]) == "--snapshot") {
-                const Bytes bytes = snapshot(expected.value);
+                const Bytes bytes = accessSnapshot(expected.value);
                 size_t offset = 0;
                 while (offset < bytes.size()) {
                     ssize_t count = write(1, bytes.data() + offset, bytes.size() - offset);
@@ -201,12 +242,15 @@ int main(int argc, char **argv) {
             require(_NSGetExecutablePath(source, &length) == 0 && realpath(source, path));
             parentDeath(path);
             require(restartSnapshot(path) == restartSnapshot(path));
-            for (unsigned index = 0; index < 8; ++index) rejectsTree(expected.value, index);
+            for (unsigned index = 0; index < 11; ++index) rejectsTree(expected.value, index);
+            for (unsigned index = 0; index < 6; ++index) rejectsAlteration(expected.value, index);
+            rejectsSecondPrincipal(expected.value);
             rejectsGrant(expected.value, (__bridge CFArrayRef)@[(__bridge id)kSecACLAuthorizationDecrypt]);
             rejectsGrant(expected.value, (__bridge CFArrayRef)@[(__bridge id)kSecACLAuthorizationAny]);
             rejectsGrant(expected.value, (__bridge CFArrayRef)@[]);
             rejectsGrant(expected.value, (__bridge CFArrayRef)@[(__bridge id)kSecACLAuthorizationChangeOwner]);
             rejectsGrant(expected.value, (__bridge CFArrayRef)@[(__bridge id)kSecACLAuthorizationChangeACL]);
+            rejectsGrant(expected.value, (__bridge CFArrayRef)@[(__bridge id)kSecACLAuthorizationDecrypt, (__bridge id)kSecACLAuthorizationKeychainItemRead]);
             rejectsGrant(expected.value, (__bridge CFArrayRef)@[@"VERIQ_UNKNOWN_RIGHT"]);
             Owned<SecAccessRef> metadata(restrictedAccess());
             Owned<SecACLRef> added;

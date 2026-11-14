@@ -20,12 +20,10 @@ test("dedicated session proves persistent exact-scope storage and refusal behavi
         assert.equal(await fixture.matches(profile, version, key), true);
         assert.equal(await fixture.status("get", profile.toUpperCase(), version), "missing");
         assert.equal(await fixture.status("get", version, profile), "missing");
-        const raced = await Promise.all([
-            fixture.status("set", version, version, key),
-            fixture.status("set", version, version, key),
-        ]);
+        assert.equal(await fixture.race(version, version, key, key), true);
+        assert.equal(await fixture.matches(version, version, key), true);
         assert.equal(
-            raced.every((value) => value === "ok"),
+            await fixture.race("21234567-89ab-cdef-0123-456789abcdef", version, key, different),
             true,
         );
         await fixture.control("lock");
@@ -34,7 +32,16 @@ test("dedicated session proves persistent exact-scope storage and refusal behavi
         assert.equal(await fixture.matches(profile, version, key), true);
         assert.equal(await fixture.status("delete", profile, version), "ok");
         assert.equal(await fixture.status("get", profile, version), "missing");
-        for (const policy of ["broad", "empty", "any", "second", "owner", "denied"] as const) {
+        for (const policy of [
+            "broad",
+            "empty",
+            "any",
+            "second",
+            "owner",
+            "mixed",
+            "unknown",
+            "denied",
+        ] as const) {
             await fixture.control("seed", {
                 policy,
                 profile,
@@ -44,7 +51,7 @@ test("dedicated session proves persistent exact-scope storage and refusal behavi
             assert.equal(await fixture.status("get", profile, version), "failed");
             assert.equal(await fixture.status("set", profile, version, different), "failed");
             assert.equal(await fixture.status("delete", profile, version), "failed");
-            assert.equal(await fixture.unchanged(profile, version, key), true);
+            assert.equal(await fixture.unchanged(profile, version), true);
             await fixture.control("remove", { profile, version });
         }
         assert.equal(await fixture.uncertainRecovery(profile, version, key), true);

@@ -19,6 +19,7 @@ export function requireMac() {
         throw new Error("DARWIN_VAULT_TARGET_REQUIRED");
 }
 
+/** 独立测试调用选项仅描述固定构建成员的协议输入、继承配置以及取消观察，不作为正式凭据后端的能力对象；期限始终限制在五十到五千毫秒，测试门闩与额外参数负例不会进入生产可执行程序的运行选择接口。 */
 type Options = {
     args?: string[];
     capability?: object | undefined;
@@ -27,6 +28,7 @@ type Options = {
     timeoutMs?: number;
     cancel?: boolean;
 };
+/** 调用观察把实际 close 确认、退出码和停止原因分别记录，不能由超时信号推导 exitConfirmed；响应缓冲只供调用者在内存中验证并随后覆盖，原始 stderr 和系统异常对象不属于此公开测试结果类型。 */
 type Observation = {
     code: number | null;
     exitConfirmed: boolean;
@@ -145,6 +147,20 @@ export async function dedicatedFixture() {
             resolve();
         }),
     );
+    /** 控制器错误也必须等待真实 close 才能交回调用方，最多一秒的退出核对与五秒请求期限分别计量；超过核对期限保留明确未知结果，不把已经调用 kill 当成控制器及其自有存储都完成清理。 */
+    const confirmedExit = async () => {
+        if (closed) return;
+        await new Promise<void>((resolve, reject) => {
+            const timer = setTimeout(
+                () => reject(new Error("DARWIN_VAULT_CONTROLLER_EXIT_UNCONFIRMED")),
+                1000,
+            );
+            void exited.then(() => {
+                clearTimeout(timer);
+                resolve();
+            });
+        });
+    };
     child.on("error", () => failure?.(new Error("DARWIN_VAULT_CONTROLLER_FAILED")));
     child.stdin.on("error", () => {});
     child.stderr.on("data", (bytes: Buffer) => {
@@ -182,6 +198,10 @@ export async function dedicatedFixture() {
         operation: string,
         fields: object = {},
     ): Promise<Record<string, unknown>> => {
+        const frame = (fields as { frame?: unknown }).frame;
+        const mutation =
+            operation === "race" ||
+            (operation === "run" && typeof frame === "string" && /^V1 (set|delete) /.test(frame));
         let complete!: () => void;
         const prior = sequence;
         sequence = new Promise<void>((resolve) => {
@@ -208,6 +228,15 @@ export async function dedicatedFixture() {
                 };
                 child.stdin.write(JSON.stringify({ operation, ...fields }) + "\n");
             });
+        } catch {
+            if (!closed) child.kill("SIGKILL");
+            pending.fill(0);
+            await confirmedExit();
+            throw new Error(
+                mutation
+                    ? "DARWIN_VAULT_MUTATION_UNCONFIRMED"
+                    : "DARWIN_VAULT_CONTROLLER_OPERATION_FAILED",
+            );
         } finally {
             complete();
         }
@@ -216,7 +245,7 @@ export async function dedicatedFixture() {
         await command("create", { attestation });
     } catch {
         child.kill("SIGKILL");
-        await exited;
+        await confirmedExit();
         throw new Error("DARWIN_VAULT_SESSION_REFUSED");
     }
     const call = async (
@@ -244,6 +273,7 @@ export async function dedicatedFixture() {
         };
     };
     return {
+        /** 普通状态调用只允许既有 V1 固定状态回执且要求原生进程已经正常退出，任何含密钥的读取回复都不能误入此解析器；原始管道缓冲在返回或抛错之前覆盖，测试断言只能得到不会泄漏材料的状态字符串。 */
         async status(operation: string, profile: string, version: string, key?: Buffer) {
             const result = await call(operation, profile, version, key);
             try {
@@ -251,12 +281,17 @@ export async function dedicatedFixture() {
                     /^V1 (ok|missing|failed|locked|unavailable|mutation-unconfirmed)\n$/.exec(
                         result.bytes.toString("ascii"),
                     );
-                if (result.code !== 0 || !match) throw new Error("DARWIN_VAULT_RESPONSE_INVALID");
+                if (result.code !== 0 || !match) {
+                    if (operation === "set" || operation === "delete")
+                        return "mutation-unconfirmed";
+                    throw new Error("DARWIN_VAULT_RESPONSE_INVALID");
+                }
                 return match[1];
             } finally {
                 result.bytes.fill(0);
             }
         },
+        /** 精确版本读取通过新的真实 helper 进程完成，并在内存里与期望三十二字节的规范 V1 编码比较；实际回复和期望缓冲都在 finally 中覆盖，失败仅返回布尔而不让断言框架打印两个密钥的字节差异。 */
         async matches(profile: string, version: string, key: Buffer) {
             const result = await call("get", profile, version);
             const expected = Buffer.from(`V1 ok ${key.toString("base64url")}\n`);
@@ -267,40 +302,78 @@ export async function dedicatedFixture() {
                 expected.fill(0);
             }
         },
+        /** 测试管理操作只交给已经完成会话声明的固定控制器，调用方不能选择任意可执行程序或钥匙串路径；方法等待该操作的明确结果并由控制器负责真正的 lock 或 unlock，不在 TypeScript 中模拟锁定标志。 */
         async control(operation: string, fields: object = {}) {
             await command(operation, fields);
         },
-        async unchanged(profile: string, version: string, key: Buffer) {
+        /** 两个真实 helper 在控制器内同时启动并停在已确认缺失的写入边界，测试要求真实系统返回一次新增和一次重复；返回值只包含计数、布尔和退出事实，不把排队串行调用误当作竞争，也不输出任一密钥正文。 */
+        async race(profile: string, version: string, first: Buffer, second: Buffer) {
+            const reply = await command("race", {
+                profile,
+                version,
+                keys: [first.toString("base64url"), second.toString("base64url")],
+            });
+            return (
+                reply.absent === 2 &&
+                reply.added === 1 &&
+                reply.duplicate === 1 &&
+                reply.exited === 2 &&
+                reply.outcomes === true &&
+                reply.readback === true
+            );
+        },
+        /** 未变化证明要求控制器实际重读目标材料、公开 ACL 和非秘密属性三个独立结果都成立，任何不可读取或不匹配都不会降级成主密文文件未变；调用方只接收布尔组合，底层材料和权限主体保持在私有通道内。 */
+        async unchanged(profile: string, version: string) {
             const reply = await command("unchanged", {
                 profile,
                 version,
-                key: key.toString("base64"),
             });
-            return reply.unchanged === true;
+            return (
+                reply.valueUnchanged === true &&
+                reply.aclUnchanged === true &&
+                reply.attributesUnchanged === true
+            );
         },
+        /** 测试故障分别在系统新增和删除返回后使 helper 死亡，调用器先确认没有确定性成功回复且进程确实退出，再用同一档案版本只读核对；新增读回原材料而删除读回缺失，两种结果都不能由死亡本身推导或自动重放。 */
         async uncertainRecovery(profile: string, version: string, key: Buffer) {
             const result = await call("set", profile, version, key, "after-add");
             const uncertain = result.code !== 0 && result.bytes.length === 0;
             result.bytes.fill(0);
             const recovered = await call("get", profile, version);
             const expected = Buffer.from(`V1 ok ${key.toString("base64url")}\n`);
+            let verified: boolean;
             try {
-                return uncertain && recovered.code === 0 && recovered.bytes.equals(expected);
+                verified = uncertain && recovered.code === 0 && recovered.bytes.equals(expected);
             } finally {
                 expected.fill(0);
                 recovered.bytes.fill(0);
             }
+            if (!verified) return false;
+            const deletion = await call("delete", profile, version, undefined, "after-delete");
+            const deletionUncertain = deletion.code !== 0 && deletion.bytes.length === 0;
+            deletion.bytes.fill(0);
+            const missing = await call("get", profile, version);
+            try {
+                return (
+                    deletionUncertain &&
+                    missing.code === 0 &&
+                    missing.bytes.equals(Buffer.from("V1 missing\n"))
+                );
+            } finally {
+                missing.bytes.fill(0);
+            }
         },
+        /** 夹具清理要求控制器显式完成自有存储删除并关闭自身进程，错误路径也覆盖积累的私有响应并有界核对实际退出；若内核没有确认退出则抛出未知清理错误，而不是让 finally 结束被误解为系统状态已经恢复。 */
         async cleanup() {
             try {
                 await command("cleanup");
                 child.stdin.end();
-                await exited;
+                await confirmedExit();
             } finally {
                 pending.fill(0);
                 if (!closed) {
                     child.kill("SIGKILL");
-                    await exited;
+                    await confirmedExit();
                 }
             }
         },
