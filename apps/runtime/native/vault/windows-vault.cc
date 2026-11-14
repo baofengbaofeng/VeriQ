@@ -91,7 +91,8 @@ std::string execute(const std::vector<std::string>& parts) {
     const auto name = target(parts[2], parts[3]);
     if (operation == "delete") {
         if (CredDeleteW(name.c_str(), CRED_TYPE_GENERIC, 0)) return "V1 ok\n";
-        return "V1 " + failure(GetLastError()) + "\n";
+        /** 删除调用已经进入系统凭据服务，除明确不存在之外的错误不能证明服务未提交；保留不确定状态给档案恢复处理，不能把未知 RPC 或系统失败折叠成可安全重放的普通失败。 */
+        return GetLastError() == ERROR_NOT_FOUND ? "V1 missing\n" : "V1 mutation-unconfirmed\n";
     }
     Credential previous;
     const bool found = CredReadW(name.c_str(), CRED_TYPE_GENERIC, 0, &previous.value) != 0;
@@ -113,9 +114,9 @@ std::string execute(const std::vector<std::string>& parts) {
     credential.CredentialBlob = key.data();
     credential.Persist = CRED_PERSIST_LOCAL_MACHINE;
     const BOOL written = CredWriteW(&credential, 0);
-    const DWORD result = written ? ERROR_SUCCESS : GetLastError();
     SecureZeroMemory(key.data(), key.size());
-    return written ? "V1 ok\n" : "V1 " + failure(result) + "\n";
+    /** CredWrite 已经收到一次完整修改请求，失败返回没有提供跨服务提交回执，因此所有未成功返回都保守保留提交不确定；调用方只能按原精确版本读回对账，不生成替代密钥或直接重放写入。 */
+    return written ? "V1 ok\n" : "V1 mutation-unconfirmed\n";
 }
 }
 
