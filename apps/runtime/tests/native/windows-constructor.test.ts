@@ -76,7 +76,13 @@ for (const scenario of [
             if (failures.length) context.diagnostic(`Constructor fault evidence retained: ${root}`);
             else {
                 try {
-                    await rm(root, { recursive: true, force: true });
+                    /** 已独立证明自有宿主自然退出并通过全部资源断言后，文件系统仍可能短暂拒绝删除角色映像；仅用 Node 文档化的有限清理重试处理 EBUSY 等删除状态，不延长产品关闭预算或把重试当作进程退出证据。 */
+                    await rm(root, {
+                        recursive: true,
+                        force: true,
+                        maxRetries: 3,
+                        retryDelay: 100,
+                    });
                 } catch (error) {
                     failures.push(error);
                     context.diagnostic(`Constructor profile removal failed: ${root}`);

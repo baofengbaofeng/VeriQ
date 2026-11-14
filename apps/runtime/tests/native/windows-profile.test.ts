@@ -29,6 +29,12 @@ import { loadRuntimeDistribution } from "../../src/distribution.ts";
 assert.equal(process.platform, "win32");
 const native = windowsNative();
 const powershell = join(process.env.SystemRoot!, "System32/WindowsPowerShell/v1.0/powershell.exe");
+const powershellEnvironment = {
+    ...Object.fromEntries(
+        Object.entries(process.env).filter(([name]) => name.toLowerCase() !== "psmodulepath"),
+    ),
+    PSModulePath: join(dirname(powershell), "Modules"),
+};
 const encoded = (script: string) => [
     "-NoLogo",
     "-NoProfile",
@@ -78,16 +84,16 @@ async function inheritedAcl(paths: string[]) {
         encoded(`
 $ErrorActionPreference='Stop'
 $records = @(ConvertFrom-Json $env:VERIQ_OWNED_PATHS | ForEach-Object {
-    $acl = Get-Acl -LiteralPath $_
+    $acl = if ([System.IO.Directory]::Exists($_)) { [System.IO.Directory]::GetAccessControl($_) } else { [System.IO.File]::GetAccessControl($_) }
     $rules = @($acl.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier]) | ForEach-Object {
         @{ sid=$_.IdentityReference.Value; inherited=$_.IsInherited; allow=($_.AccessControlType -eq 'Allow') }
     })
-    @{ path=$_; rules=$rules }
+    @{ path=$_; owner=$acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value; rules=$rules }
 })
 ConvertTo-Json -InputObject $records -Depth 5 -Compress
 `),
         {
-            env: { ...process.env, VERIQ_OWNED_PATHS: JSON.stringify(paths) },
+            env: { ...powershellEnvironment, VERIQ_OWNED_PATHS: JSON.stringify(paths) },
             timeout: 10000,
             maxBuffer: 65536,
             windowsHide: true,
@@ -154,6 +160,8 @@ test("Windows DeviceStore creates private credentials and refuses a second enrol
             /ALREADY_ENROLLED/,
         );
         assert.deepEqual(await store.load(), device);
+        await store.remove();
+        await assert.rejects(store.load(), { code: "ENOENT" });
     });
 });
 
@@ -175,8 +183,13 @@ test("Windows DeviceStore rejects existing public credentials without changing b
         const before = await readFile(path);
         const results = await Promise.allSettled([
             assert.rejects(store.load(), /NATIVE_ACL_NOT_PRIVATE|Unsafe device/),
-            readFile(path).then((bytes) => assert.deepEqual(bytes, before)),
+            assert.rejects(store.remove(), /NATIVE_ACL_NOT_PRIVATE/),
         ]);
+        results.push(
+            ...(await Promise.allSettled([
+                readFile(path).then((bytes) => assert.deepEqual(bytes, before)),
+            ])),
+        );
         assert.deepEqual(
             results.filter((result) => result.status === "rejected"),
             [],
@@ -201,7 +214,7 @@ try { [Console]::Out.WriteLine('HELD'); [Console]::Out.Flush(); [Console]::In.Re
 finally { $file.Dispose() }
 `),
             {
-                env: { ...process.env, VERIQ_OWNED_FILE: path },
+                env: { ...powershellEnvironment, VERIQ_OWNED_FILE: path },
                 stdio: ["pipe", "pipe", "pipe"],
                 windowsHide: true,
             },

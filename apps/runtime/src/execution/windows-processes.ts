@@ -1,6 +1,5 @@
 /** Windows Attempt 监督器把持久身份日志与原生 Job 守护的 START 门相连，业务输出和可信状态分帧处理；停止只接受匹配 SID、nonce、精确创建时间的排空证明，守护消失而无证明时保留隔离状态。 */
 import { spawn } from "node:child_process";
-import { lstat, readFile, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
@@ -32,16 +31,20 @@ export class WindowsProcesses {
     private async save(journal: Journal) {
         const native = windowsNative();
         native.privatePath(this.directory, true);
-        const temporary = this.path(journal.attemptId) + `.${randomUUID()}.tmp`;
-        native.writePrivate(temporary, JSON.stringify(journal));
-        await rename(temporary, this.path(journal.attemptId));
+        this.path(journal.attemptId);
+        native.replacePrivate(
+            this.directory,
+            `${journal.attemptId}.process.json`,
+            `.${randomUUID()}.tmp`,
+            JSON.stringify(journal),
+        );
     }
     /** 启动先创建私有日志，再让守护挂起并归属 Job；只有 READY 中的双进程身份与内核查询一致且 RUNNING 日志落盘后才允许原生 START，因此取消或宿主死亡不会留下已运行却尚未登记的业务进程。 */
     async start(id: string, command: Command): Promise<OwnedProcess> {
         const native = windowsNative();
         if (this.live.has(id)) throw new Error("PROCESS_ALREADY_RUNNING");
         try {
-            await lstat(this.path(id));
+            native.readPrivateFile(this.path(id), 2048);
             throw new Error("PROCESS_JOURNAL_EXISTS");
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
@@ -235,9 +238,7 @@ export class WindowsProcesses {
     private async proof(journal: Journal) {
         try {
             const path = this.path(journal.attemptId, true);
-            windowsNative().privatePath(path, false);
-            if ((await lstat(path)).size > 2048) return false;
-            const proof = JSON.parse(await readFile(path, "utf8"));
+            const proof = JSON.parse(windowsNative().readPrivateFile(path, 2048).toString("utf8"));
             const guardian = windowsNative().identity(journal.guardianPid!);
             return (
                 proof.version === 1 &&
@@ -264,9 +265,7 @@ export class WindowsProcesses {
         const native = windowsNative();
         let journal: Journal;
         try {
-            native.privatePath(this.path(id), false);
-            if ((await lstat(this.path(id))).size > 2048) return receipt(false, "UNKNOWN_PROCESS");
-            journal = JSON.parse(await readFile(this.path(id), "utf8"));
+            journal = JSON.parse(native.readPrivateFile(this.path(id), 2048).toString("utf8"));
         } catch {
             return receipt(false, "UNKNOWN_PROCESS");
         }

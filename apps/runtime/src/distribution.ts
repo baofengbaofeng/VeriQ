@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { lstat, readFile, readdir, realpath } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join, resolve, basename } from "node:path";
 import type { ExecutionPaths } from "./execution/paths.ts";
 import { loadRelease } from "./execution/release.ts";
 import { doctor } from "./doctor.ts";
@@ -18,6 +18,14 @@ export interface RuntimeDistribution {
     agentEntry: string;
     cliEntry: string;
     execution: ExecutionPaths;
+}
+
+const nativeCapabilities = new WeakMap<RuntimeDistribution, string>();
+/** 原生能力只属于本解析器完整核验后返回的发行对象，不能靠具有相同字段的档案 JSON 或调用者自报路径获得；此取值接口不重新搜索源码、全局模块或配置目录，也不把完整性校验误称为发布签名。 */
+export function verifiedNativeAddon(distribution: RuntimeDistribution): string {
+    const path = nativeCapabilities.get(distribution);
+    if (!path) throw new Error("RUNTIME_NATIVE_CAPABILITY_UNVERIFIED");
+    return path;
 }
 
 /** 清单内所有成员必须是可移植的普通相对路径，不能引用父目录、盘符或 NTFS 备用数据流；这条检查在任何宿主上使用同一规则，避免 Linux 生产器认可 Windows 会另行解释的路径。 */
@@ -110,7 +118,7 @@ export async function loadRuntimeDistribution(directory: string): Promise<Runtim
     const engineDirectory = join(root, "engines", manifest.engineVersion);
     take(`engines/${manifest.engineVersion}/inventory.json`);
     take("execution/archive.mjs");
-    return {
+    const distribution: RuntimeDistribution = {
         root,
         productVersion: manifest.productVersion,
         engineVersion: manifest.engineVersion,
@@ -134,6 +142,26 @@ export async function loadRuntimeDistribution(directory: string): Promise<Runtim
             compileEntry: take("execution/compile-entry.mjs"),
         },
     };
+    /** Windows 原生成员必须属于完整库存，真实安装角色还须先匹配物理执行路径才绑定；普通 Node 的只读解析不会装载自报目录中的代码，Electron 则由可信资源入口显式绑定后才读取档案。 */
+    if (process.platform === "win32") {
+        nativeCapabilities.set(distribution, take("native/veriq_native.node"));
+        const role = basename(process.execPath)
+            .replace(/\.exe$/i, "")
+            .toLowerCase();
+        if (["veriq_agent", "veriq_cli", "veriq_runner"].includes(role)) {
+            const expected =
+                role === "veriq_agent"
+                    ? distribution.agentExecutable
+                    : role === "veriq_cli"
+                      ? distribution.cliExecutable
+                      : distribution.execution.runnerExecutable;
+            if (resolve(process.execPath) !== expected || process.versions.node !== "24.22.1")
+                throw new Error("RUNTIME_ROLE_MISMATCH");
+            const { bindWindowsDistribution } = await import("./native/windows.ts");
+            bindWindowsDistribution(distribution);
+        }
+    }
+    return Object.freeze(distribution);
 }
 
 /** CLI、云端与桌面使用同一发行自检流程，必须先完整装载选定引擎才向已有浏览器探测提供组件版本；只有所有实际检查成功才申报库存 engineVersion，不能把 SDK 包号当成运行发行身份。 */

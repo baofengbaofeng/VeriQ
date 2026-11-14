@@ -393,9 +393,18 @@ static Napi::Value readPrivateFile(const Napi::CallbackInfo& info) {
 /** 替换入口只接受私有目录、正式成员名、宿主随机临时名和有界正文，原子提交由持有句柄的原生层完成；提交后刷新失败会明确抛出不确定性错误，上层不得因此重跑更新回调或声称原值已经回滚。 */
 static Napi::Value replacePrivate(const Napi::CallbackInfo& info) {
     try {
-        require(info.Length() == 4 && info[0].IsString() && info[1].IsString() && info[2].IsString() && info[3].IsString(), "NATIVE_FILE_ARGUMENTS_INVALID");
+        require((info.Length() == 4 || (info.Length() == 5 && info[4].IsBoolean())) && info[0].IsString() && info[1].IsString() && info[2].IsString() && info[3].IsString(), "NATIVE_FILE_ARGUMENTS_INVALID");
         replacePrivateFile(wide(info[0].As<Napi::String>().Utf8Value()), wide(info[1].As<Napi::String>().Utf8Value()),
-            wide(info[2].As<Napi::String>().Utf8Value()), info[3].As<Napi::String>().Utf8Value());
+            wide(info[2].As<Napi::String>().Utf8Value()), info[3].As<Napi::String>().Utf8Value(), info.Length() == 5 && info[4].As<Napi::Boolean>().Value());
+        return info.Env().Undefined();
+    } catch (const NativeFailure& error) { return fileFailure(info, error); }
+    catch (const std::exception& error) { Napi::Error::New(info.Env(), error.what()).ThrowAsJavaScriptException(); return info.Env().Undefined(); }
+}
+/** 私有文件退休只接受一个经过父链与 ACL 校验的普通成员，实际删除由已持有文件句柄完成；只有系统明确不存在才映射为 ENOENT，不把访问拒绝当作成功，也不承诺物理擦除或断电目录持久化。 */
+static Napi::Value removePrivate(const Napi::CallbackInfo& info) {
+    try {
+        require(info.Length() == 1 && info[0].IsString(), "NATIVE_FILE_ARGUMENTS_INVALID");
+        removePrivateFile(wide(info[0].As<Napi::String>().Utf8Value()));
         return info.Env().Undefined();
     } catch (const NativeFailure& error) { return fileFailure(info, error); }
     catch (const std::exception& error) { Napi::Error::New(info.Env(), error.what()).ThrowAsJavaScriptException(); return info.Env().Undefined(); }
@@ -429,6 +438,7 @@ static Napi::Object initialize(Napi::Env env, Napi::Object exports) {
         exports.Set("writePrivate", Napi::Function::New(env, writePrivate));
         exports.Set("readPrivateFile", Napi::Function::New(env, readPrivateFile));
         exports.Set("replacePrivate", Napi::Function::New(env, replacePrivate));
+        exports.Set("removePrivate", Napi::Function::New(env, removePrivate));
         exports.Set("takePipeDiagnostics", Napi::Function::New(env, takePipeDiagnostics));
         exports.Set("sid", Napi::String::New(env, utf8(currentSid())));
     } catch (const std::exception& error) { Napi::Error::New(env, error.what()).ThrowAsJavaScriptException(); }

@@ -16,7 +16,10 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { readFile, writeFile, open, lstat, copyFile } from "node:fs/promises";
 import { spawn, execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { loadRuntimeDistribution } from "../../../runtime/src/distribution.ts";
+import {
+    loadRuntimeDistribution,
+    type RuntimeDistribution,
+} from "../../../runtime/src/distribution.ts";
 import { DesktopAgentClient } from "../agent/client";
 import { HostSession, controlOrigin } from "./session";
 import { object, parseSchema, resolveOperation } from "./policy";
@@ -68,6 +71,7 @@ protocol.registerSchemesAsPrivileged([
 let window: BrowserWindow | undefined;
 let tray: Tray | undefined;
 let quitting = false;
+let installed: RuntimeDistribution | undefined;
 let host: HostSession;
 let origin = "http://127.0.0.1:8888";
 let proxy = "";
@@ -122,9 +126,6 @@ async function ensureAgent(): Promise<void> {
         )
             throw error;
     }
-    const installed = app.isPackaged
-        ? await loadRuntimeDistribution(join(process.resourcesPath, "runtime"))
-        : undefined;
     const agentNode = installed?.agentExecutable ?? node24;
     const version = await promisify(execFile)(agentNode, ["--version"], { timeout: 10000 });
     if (version.stdout.trim() !== "v24.22.1") throw new Error("INDEPENDENT_NODE24_REQUIRED");
@@ -583,6 +584,14 @@ function installBridge() {
  */
 async function main() {
     await app.whenReady();
+    /** 正式 Electron 入口从自身资源布局核验独立 Runtime 并绑定原生能力，再读取任何私有档案；配置无法指定 addon 路径，库存失败也不能因为已有后台可连接而跳过本次宿主的启动授权。 */
+    installed = app.isPackaged
+        ? await loadRuntimeDistribution(join(process.resourcesPath, "runtime"))
+        : undefined;
+    if (installed && process.platform === "win32") {
+        const { bindWindowsDistribution } = await import("../../../runtime/src/native/windows.ts");
+        bindWindowsDistribution(installed);
+    }
     await privateDirectory(profile);
     try {
         const config = await readPrivate<{ origin: string; proxy: string }>(

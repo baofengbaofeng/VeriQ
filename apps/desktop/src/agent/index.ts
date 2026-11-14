@@ -1,11 +1,12 @@
-import { join } from "node:path";
-import { mkdir, unlink } from "node:fs/promises";
+import { join, basename, dirname } from "node:path";
+import { unlink } from "node:fs/promises";
 import lockfile from "proper-lockfile";
 import { AttemptBroker } from "../../../runtime/src/execution/broker.ts";
 import {
     privateDirectory,
     readPrivate,
     updatePrivate,
+    removePrivate,
 } from "../../../runtime/src/offline/config.ts";
 import { loadRuntimeDistribution, assertRuntimeRole } from "../../../runtime/src/distribution.ts";
 import { DesktopAgent, type AgentConfiguration } from "./service";
@@ -14,16 +15,21 @@ import { DesktopAgent, type AgentConfiguration } from "./service";
 async function main() {
     if (process.versions.node !== "24.22.1") throw new Error("INDEPENDENT_NODE24_REQUIRED");
     process.title = "veriq_agent";
+    /** 安装根从真实 Agent 角色可执行文件的固定发行布局取得，在任何档案访问前完成库存和原生能力绑定；开发 Node 入口保持原契约，档案中的 distributionRoot 只能与已核验根一致，不能授权装载新代码。 */
+    const installed = /^veriq_agent(?:\.exe)?$/i.test(basename(process.execPath))
+        ? await loadRuntimeDistribution(dirname(dirname(dirname(process.execPath))))
+        : undefined;
+    if (installed) assertRuntimeRole(installed, "agent");
     const root = process.argv[2];
     if (!root) throw new Error("AGENT_PROFILE_REQUIRED");
     await privateDirectory(root);
     const owner = join(root, "desktop-owner");
-    await mkdir(owner, { recursive: true, mode: 0o700 });
+    await privateDirectory(owner);
     const release = await lockfile.lock(owner, { retries: 0 });
     const config = await readPrivate<AgentConfiguration>(root, "desktop-config.json");
-    if (config.distributionRoot) {
-        const installed = await loadRuntimeDistribution(config.distributionRoot);
-        assertRuntimeRole(installed, "agent");
+    if (config.distributionRoot && config.distributionRoot !== installed?.root)
+        throw new Error("RUNTIME_CONFIGURATION_MISMATCH");
+    if (installed) {
         config.engineDirectory = installed.engineDirectory;
         config.engineVersion = installed.engineVersion;
         config.browserExecutable = installed.browserExecutable;
@@ -38,8 +44,15 @@ async function main() {
             await service.dispatch({ operation: "stop" });
             await broker.close();
         } finally {
-            await release();
-            await unlink(join(root, "desktop-agent.json")).catch(() => {});
+            try {
+                await removePrivate(root, "desktop-agent.json").catch(
+                    (error: NodeJS.ErrnoException) => {
+                        if (error.code !== "ENOENT") throw error;
+                    },
+                );
+            } finally {
+                await release();
+            }
         }
     };
     const broker = new AttemptBroker(

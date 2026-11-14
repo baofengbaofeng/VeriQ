@@ -1,6 +1,8 @@
 /** Windows 原生模块只在真实 Windows 分支延迟装载，Linux 的既有进程与套接字路径不接触该依赖；接口只描述有限私有传输、ACL 和身份操作，不向业务脚本提供任意系统调用或原始句柄。 */
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { basename } from "node:path";
+import { verifiedNativeAddon, type RuntimeDistribution } from "../distribution.ts";
 
 /** 原生进程身份使用字符串保存完整 FILETIME 和 SID，避免 JavaScript 数字精度丢失造成 PID 重用判断失效；running 来自已打开内核进程句柄，而不是映像名称或系统进程列表猜测。 */
 export interface WindowsIdentity {
@@ -29,15 +31,40 @@ export interface WindowsNative {
     writePrivate(path: string, content: string): void;
     /** 私有读取在原生层持有同一文件句柄完成 ACL、重解析与大小检查后才返回有限字节，调用者不会先检查字符串路径再通过另一个文件描述符读取，因此配置内容不能被中间路径替换转移。 */
     readPrivateFile(path: string, limit: number): Buffer;
-    /** 原子更新只在已验证的目录句柄下创建随机临时成员并提交正式名称，提交后的刷新不确定性原样抛出；该接口不会执行回调、自动重试或在原生失败时回退到普通 Node 文件写入。 */
-    replacePrivate(directory: string, name: string, temporary: string, content: string): void;
+    /** 原子更新在已验证父句柄下创建临时成员并提交，首次注册可明确禁止覆盖；提交后刷新不确定性原样抛出，不执行回调、自动重试或回退普通 Node 文件写入，默认仍保持既有替换行为。 */
+    replacePrivate(
+        directory: string,
+        name: string,
+        temporary: string,
+        content: string,
+        createOnly?: boolean,
+    ): void;
+    /** 退休仅针对有限普通私有成员并在原生持有的父链及文件句柄上完成，未知权限或重解析错误继续上抛；成功表示删除标记和句柄释放完成，不代表存储介质已擦除或目录断电持久化。 */
+    removePrivate(path: string): void;
     takePipeDiagnostics(): Array<{ phase: string; code: string; win32: number; checks: number }>;
 }
 let loaded: WindowsNative | undefined;
-/** 构建期产生的 Node-API 模块通过标准 Node 加载器进入宿主，缺失或 ABI 错误直接失败；此处没有下载、编译、公共传输或额外 node.exe 回退，安装路径后续由已核验库存的构建布局提供。 */
+let loadedPath: string | undefined;
+let installedPath: string | undefined;
+/** 安装宿主仅能绑定完整库存解析器颁发的原生能力，先前装载的开发模块或另一发行不能被静默替换；绑定立即使用标准 Node 加载器检查真实模块，失败不会继续读取私有档案或回退其它代码位置。 */
+export function bindWindowsDistribution(distribution: RuntimeDistribution): void {
+    const path = verifiedNativeAddon(distribution);
+    if ((loadedPath && loadedPath !== path) || (installedPath && installedPath !== path))
+        throw new Error("WINDOWS_NATIVE_BINDING_CHANGED");
+    installedPath = path;
+    windowsNative();
+}
+/** 构建期产生的 Node-API 模块通过标准 Node 加载器进入宿主，安装角色必须先绑定已核验库存能力；普通开发 Node 保留明确源码布局，已安装角色缺失能力时不搜索全局模块、配置路径或开发副本。 */
 export function windowsNative(): WindowsNative {
     if (process.platform !== "win32") throw new Error("WINDOWS_NATIVE_PLATFORM_REQUIRED");
-    return (loaded ??= createRequire(import.meta.url)(
-        fileURLToPath(new URL("../../build/Release/veriq_native.node", import.meta.url)),
-    ) as WindowsNative);
+    if (!installedPath && /^veriq_(agent|cli|runner)(?:\.exe)?$/i.test(basename(process.execPath)))
+        throw new Error("WINDOWS_NATIVE_DISTRIBUTION_REQUIRED");
+    const path =
+        installedPath ??
+        fileURLToPath(new URL("../../build/Release/veriq_native.node", import.meta.url));
+    if (!loaded) {
+        loaded = createRequire(import.meta.url)(path) as WindowsNative;
+        loadedPath = path;
+    }
+    return loaded;
 }

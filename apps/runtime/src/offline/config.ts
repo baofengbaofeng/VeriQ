@@ -91,6 +91,7 @@ export async function updatePrivate<T>(
     const release = await lockfile.lock(directory, {
         realpath: false,
         retries: 0,
+        ...(process.platform === "win32" ? { lockfilePath: join(directory, ".config.lock") } : {}),
     });
     const temporaryName = `.${randomUUID()}.tmp`;
     const tmp = join(directory, temporaryName);
@@ -121,4 +122,14 @@ export async function updatePrivate<T>(
         if (process.platform !== "win32") await unlink(tmp).catch(() => {});
         await release();
     }
+}
+
+/** 私有配置退休在 Windows 使用已授权父链下的真实文件句柄删除，Linux 保留原有 unlink 语义；调用方只能明确处理 ENOENT，权限拒绝和未知错误不能被当成已经清空配置或自动重试更新回调。 */
+export async function removePrivate(directory: string, name: string): Promise<void> {
+    if (process.platform === "win32") {
+        const { windowsNative } = await import("../native/windows.ts");
+        windowsNative().removePrivate(join(directory, name));
+        return;
+    }
+    await unlink(join(directory, name));
 }

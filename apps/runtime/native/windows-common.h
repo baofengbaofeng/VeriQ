@@ -92,8 +92,9 @@ public:
     PrivateSecurity(const PrivateSecurity&) = delete;
     PrivateSecurity& operator=(const PrivateSecurity&) = delete;
 };
-/** ACL 检查通过已打开句柄进行，拒绝可重解析目标与非当前用户所有者；只有单一当前用户允许项且 DACL 受保护才算私有，不能把 chmod 在 Windows 上的成功当作访问隔离证据。 */
-inline void verifyPrivate(HANDLE handle, SE_OBJECT_TYPE type = SE_FILE_OBJECT) {
+/** ACL 检查通过已打开句柄拒绝非当前用户所有者与额外允许项，默认仍要求保护且非继承的单一当前 SID；文件适配器仅在已持有私有父链时允许继承项，管道与内核对象不使用此例外。 */
+inline void verifyPrivate(HANDLE handle, SE_OBJECT_TYPE type = SE_FILE_OBJECT, bool privateParent = false) {
+    require(!privateParent || type == SE_FILE_OBJECT, "NATIVE_ACL_NOT_PRIVATE");
     PSID owner = nullptr;
     PACL acl = nullptr;
     PSECURITY_DESCRIPTOR descriptor = nullptr;
@@ -109,13 +110,14 @@ inline void verifyPrivate(HANDLE handle, SE_OBJECT_TYPE type = SE_FILE_OBJECT) {
     if (acl) checks |= 2;
     if (acl && acl->AceCount == 1) checks |= 4;
     if (owner && acl && acl->AceCount == 1 && ConvertSidToStringSidW(owner, &ownerText) &&
-        GetSecurityDescriptorControl(descriptor, &control, &revision) && (control & SE_DACL_PROTECTED) &&
+        GetSecurityDescriptorControl(descriptor, &control, &revision) && ((control & SE_DACL_PROTECTED) || privateParent) &&
         GetAce(acl, 0, &rawAce)) {
         checks |= 8;
         auto* ace = static_cast<ACCESS_ALLOWED_ACE*>(rawAce);
         if (ace->Header.AceType == ACCESS_ALLOWED_ACE_TYPE) checks |= 16;
         if (!(ace->Header.AceFlags & INHERITED_ACE)) checks |= 32;
-        if (ace->Header.AceType == ACCESS_ALLOWED_ACE_TYPE && !(ace->Header.AceFlags & INHERITED_ACE) &&
+        if (ace->Header.AceType == ACCESS_ALLOWED_ACE_TYPE && (!(ace->Header.AceFlags & INHERITED_ACE) || privateParent) &&
+            ((control & SE_DACL_PROTECTED) || (ace->Header.AceFlags & INHERITED_ACE)) &&
             ConvertSidToStringSidW(&ace->SidStart, &aceText)) {
             const auto sid = currentSid();
             if (sid == ownerText) checks |= 64;

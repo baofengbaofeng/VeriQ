@@ -114,23 +114,43 @@ public:
     }
     /** 返回值只供本编译单元内部的相对文件操作使用，链对象保留实际句柄所有权直到操作完成；JavaScript 层只能选择有限文件操作，不能取得该句柄或把它用于其它任意系统调用。 */
     HANDLE handle() const { return directories.back().value; }
+    /** 从最终父目录向上寻找最近的受保护私有锚点，中间每个继承目录仍必须只有当前 SID；公共系统祖先位于锚点之外可以存在，但不能用一个未验证父目录替继承对象授予权限。 */
+    void verifyPrivateDirectory() const {
+        for (size_t index = directories.size(); index > 0; --index) {
+            try { verifyPrivate(directories[index - 1].value); return; }
+            catch (const NativeFailure& error) {
+                if (std::string(error.what()) != "NATIVE_ACL_NOT_PRIVATE" || index == 1) throw;
+                verifyPrivate(directories[index - 1].value, SE_FILE_OBJECT, true);
+            }
+        }
+        throw NativeFailure("NATIVE_ACL_NOT_PRIVATE");
+    }
     /** 重查所有已持有祖先的重解析属性可以发现持续的目录变更，但安全性同时来自相对父对象而非检查后再走路径；即使名称在外部被尝试改动，读取与提交也不会重新解析到另一个目录树。 */
     void validate() const {
         for (const auto& directory : directories)
             require(plainFile(directory.value) & FILE_ATTRIBUTE_DIRECTORY, "NATIVE_DIRECTORY_REQUIRED");
     }
 };
+/** 保护文件保持原有严格授权，继承文件则必须同时证明已持有父链的私有锚点及自己的唯一当前 SID；同一文件句柄继续参与读取或提交，不能检查完继承来源后按路径重新打开另一个对象。 */
+inline void verifyPrivateChild(HANDLE file, const DirectoryChain& parent) {
+    try { verifyPrivate(file); }
+    catch (const NativeFailure& error) {
+        if (std::string(error.what()) != "NATIVE_ACL_NOT_PRIVATE") throw;
+        parent.verifyPrivateDirectory();
+        verifyPrivate(file, SE_FILE_OBJECT, true);
+    }
+}
 /** 私有路径入口保留旧有检查接口，同时把目录创建和最终对象获取都接入稳定祖先链；已有公共目录或文件只会失败，创建新目录时的继承标志不会被用于给历史不可信对象悄悄收紧权限。 */
 inline void ensurePrivatePath(const std::wstring& input, bool create) {
     const FilePath path(input);
     if (create || path.parts.empty()) {
         DirectoryChain directory(path, path.parts.size(), create);
-        verifyPrivate(directory.handle());
+        directory.verifyPrivateDirectory();
     } else {
         DirectoryChain parent(path, path.parts.size() - 1);
         auto file = relativeFile(parent.handle(), path.parts.back(), READ_CONTROL | FILE_READ_ATTRIBUTES,
             FILE_OPEN, 0, FILE_SHARE_READ | FILE_SHARE_WRITE);
-        verifyPrivate(file.value);
+        verifyPrivateChild(file.value, parent);
         parent.validate();
     }
 }
@@ -139,10 +159,10 @@ inline std::vector<char> readPrivateBytes(const std::wstring& input, size_t limi
     const FilePath path(input);
     require(!path.parts.empty() && limit <= 1024 * 1024, "NATIVE_FILE_LIMIT");
     DirectoryChain parent(path, path.parts.size() - 1);
-    verifyPrivate(parent.handle());
+    parent.verifyPrivateDirectory();
     auto file = relativeFile(parent.handle(), path.parts.back(), READ_CONTROL | FILE_READ_ATTRIBUTES | FILE_READ_DATA,
         FILE_OPEN, FILE_NON_DIRECTORY_FILE, FILE_SHARE_READ | FILE_SHARE_DELETE);
-    verifyPrivate(file.value);
+    verifyPrivateChild(file.value, parent);
     LARGE_INTEGER size{};
     requireWin32(GetFileSizeEx(file.value, &size) != 0, "NATIVE_PRIVATE_READ_FAILED");
     require(size.QuadPart >= 0 && static_cast<ULONGLONG>(size.QuadPart) <= limit, "NATIVE_FILE_LIMIT");
@@ -162,7 +182,7 @@ inline void createPrivateFile(const std::wstring& input, const std::string& byte
     const FilePath path(input);
     require(!path.parts.empty() && bytes.size() <= 1024 * 1024, "NATIVE_FILE_LIMIT");
     DirectoryChain parent(path, path.parts.size() - 1, false, FILE_ADD_FILE);
-    verifyPrivate(parent.handle());
+    parent.verifyPrivateDirectory();
     PrivateSecurity security;
     auto file = relativeFile(parent.handle(), path.parts.back(), GENERIC_WRITE | READ_CONTROL | FILE_READ_ATTRIBUTES,
         FILE_CREATE, FILE_NON_DIRECTORY_FILE | FILE_WRITE_THROUGH, 0, security.attributes.lpSecurityDescriptor);
@@ -171,9 +191,9 @@ inline void createPrivateFile(const std::wstring& input, const std::string& byte
     writeAll(file.value, bytes);
     requireWin32(FlushFileBuffers(file.value) != 0, "NATIVE_PRIVATE_FLUSH_FAILED");
 }
-/** 原子替换始终使用同一临时文件句柄与已持有的目标目录，正式名称只是一段经校验的 basename；提交前异常删除自有临时对象，提交后的刷新失败明确保留不确定性，不回滚或重跑上层更新函数。 */
+/** 原子发布始终使用同一临时文件句柄与已持有目标目录，首次注册可明确禁止覆盖而普通更新保留替换语义；提交前异常删除自有临时对象，提交后的刷新失败保留不确定性，不回滚或重跑上层更新函数。 */
 inline void replacePrivateFile(const std::wstring& directory, const std::wstring& name,
-    const std::wstring& temporary, const std::string& bytes) {
+    const std::wstring& temporary, const std::string& bytes, bool createOnly = false) {
     fileComponent(name); fileComponent(temporary);
     require(temporary.size() == 41 && temporary.front() == L'.' && temporary.substr(37) == L".tmp" &&
         temporary.substr(1, 36).find_first_not_of(L"0123456789abcdef-") == std::wstring::npos && name != temporary,
@@ -181,11 +201,12 @@ inline void replacePrivateFile(const std::wstring& directory, const std::wstring
     require(bytes.size() <= 1024 * 1024, "NATIVE_FILE_LIMIT");
     const FilePath path(directory);
     DirectoryChain parent(path, path.parts.size(), false, FILE_ADD_FILE);
-    verifyPrivate(parent.handle());
+    parent.verifyPrivateDirectory();
     try {
         auto previous = relativeFile(parent.handle(), name, READ_CONTROL | FILE_READ_ATTRIBUTES,
             FILE_OPEN, FILE_NON_DIRECTORY_FILE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE);
-        verifyPrivate(previous.value);
+        verifyPrivateChild(previous.value, parent);
+        if (createOnly) throw NativeFailure("NATIVE_PRIVATE_ALREADY_EXISTS", ERROR_FILE_EXISTS);
     } catch (const NativeFailure& error) {
         if (error.win32 != ERROR_FILE_NOT_FOUND) throw;
     }
@@ -201,7 +222,7 @@ inline void replacePrivateFile(const std::wstring& directory, const std::wstring
         const size_t size = offsetof(NativeFileRenameInformation, FileName) + name.size() * sizeof(wchar_t);
         std::vector<BYTE> storage(size);
         auto* rename = reinterpret_cast<NativeFileRenameInformation*>(storage.data());
-        rename->ReplaceIfExists = TRUE;
+        rename->ReplaceIfExists = createOnly ? FALSE : TRUE;
         rename->RootDirectory = parent.handle();
         rename->FileNameLength = static_cast<DWORD>(name.size() * sizeof(wchar_t));
         std::memcpy(rename->FileName, name.data(), rename->FileNameLength);
@@ -228,5 +249,24 @@ inline void replacePrivateFile(const std::wstring& directory, const std::wstring
         }
         throw;
     }
+}
+/** 私有成员退休只打开已验证父目录中的一个普通文件，并通过实际文件句柄设置删除状态；缺失与拒绝保留原始错误，不能把路径 unlink 用作 ACL 检查之后的第二次名称解析。 */
+inline void removePrivateFile(const std::wstring& input) {
+    const FilePath path(input);
+    require(!path.parts.empty(), "NATIVE_PATH_INVALID");
+    DirectoryChain parent(path, path.parts.size() - 1);
+    parent.verifyPrivateDirectory();
+    auto file = relativeFile(parent.handle(), path.parts.back(), DELETE | READ_CONTROL | FILE_READ_ATTRIBUTES,
+        FILE_OPEN, FILE_NON_DIRECTORY_FILE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE);
+    verifyPrivateChild(file.value, parent);
+    parent.validate();
+    LARGE_INTEGER size{};
+    requireWin32(GetFileSizeEx(file.value, &size) != 0, "NATIVE_PRIVATE_REMOVE_FAILED");
+    require(size.QuadPart >= 0 && size.QuadPart <= 1024 * 1024, "NATIVE_FILE_LIMIT");
+    FILE_DISPOSITION_INFO remove{TRUE};
+    requireWin32(SetFileInformationByHandle(file.value, FileDispositionInfo, &remove, sizeof(remove)) != 0,
+        "NATIVE_PRIVATE_REMOVE_FAILED");
+    const HANDLE removed = std::exchange(file.value, INVALID_HANDLE_VALUE);
+    requireWin32(CloseHandle(removed) != 0, "NATIVE_PRIVATE_REMOVE_UNCONFIRMED");
 }
 }

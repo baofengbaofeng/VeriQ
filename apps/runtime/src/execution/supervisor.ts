@@ -20,6 +20,7 @@ import { monitorStorage } from './storage.ts';
 import { loadRelease, sha256 } from './release.ts';
 import { developmentExecutionPaths, containedPath, type ExecutionPaths } from './paths.ts';
 import { offlineWorkerEnvironment } from '../offline/worker-environment.ts';
+import { privateDirectory, readPrivate, updatePrivate } from '../offline/config.ts';
 /**
  * 公开接口 ClaimedAttempt 绑定一次认领结果与收发单调时刻：供 leaseDeadline 换算与 runAttempt 使用。
  */
@@ -72,6 +73,11 @@ export class ExecutionSupervisor {
     constructor(private options: SupervisorOptions) { this.processes = new ProcessSupervisor(join(options.root, 'processes'), 500, options.execution?.guardianExecutable); }
     private async journal(value: AttemptJournal) {
         const directory = join(this.options.root, 'attempts');
+        /** Windows 恢复日志与设备配置共享持有父目录的原子发布，避免旧 Node rename 再次按路径解析；日志提交失败不授权业务启动，提交不确定性直接传给既有恢复与隔离流程。 */
+        if (process.platform === 'win32') {
+            await updatePrivate(directory, `${value.claim.attemptId}.json`, () => value);
+            return;
+        }
         await mkdir(directory, { recursive: true, mode: 0o700 });
         const path = join(directory, `${value.claim.attemptId}.json`), temporary = `${path}.${randomUUID()}`;
         await writeFile(temporary, JSON.stringify(value), { mode: 0o600, flag: 'wx', flush: true });
@@ -86,12 +92,15 @@ export class ExecutionSupervisor {
      */
     async recover(): Promise<(StopReceipt & {claimRequestId?: string})[]> {
         const directory = join(this.options.root, 'attempts');
-        await mkdir(directory, { recursive: true, mode: 0o700 });
+        if (process.platform === 'win32') await privateDirectory(directory);
+        else await mkdir(directory, { recursive: true, mode: 0o700 });
         const receipts: (StopReceipt & {claimRequestId?: string})[] = [];
         for (const name of await readdir(directory)) {
             if (!name.endsWith('.json'))
                 continue;
-            const record = await json<AttemptJournal>(join(directory, name));
+            const record = process.platform === 'win32'
+                ? await readPrivate<AttemptJournal>(directory, name)
+                : await json<AttemptJournal>(join(directory, name));
             const stop = ['ALLOCATED', 'ACTIVATING', 'ACTIVATED'].includes(record.state)
                 ? { attemptId: record.claim.attemptId, processStopped: true, reason: 'NO_PROCESS_SPAWNED', stoppedAt: new Date().toISOString() }
                 : await this.terminateAttempt(record.claim.attemptId, 'AGENT_RECOVERY');

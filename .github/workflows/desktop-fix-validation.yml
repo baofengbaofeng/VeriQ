@@ -122,6 +122,12 @@ jobs:
                   set -o pipefail
                   python tests/e2e/test_ci_userns.py 2>&1 | tee "$VERIQ_DESKTOP_EVIDENCE/userns-boundary-tests.log"
                   python tests/e2e/ci_userns.py prepare
+            - name: Verify affected Runtime behavior with the actual matched browser
+              timeout-minutes: 5
+              run: |
+                  set -o pipefail
+                  test -x apps/runtime/build/veriq_runner
+                  pnpm --filter @veriq/runtime exec node --import tsx --test tests/runtime.test.ts tests/renewal.test.ts tests/distribution.test.ts tests/offline-store.test.ts tests/supervisor.test.ts 2>&1 | tee "$VERIQ_DESKTOP_EVIDENCE/runtime-affected.log"
             - name: Run the composed actual GUI suite with visible Chromium acceptance
               env:
                   DEBUG: pw:browser
