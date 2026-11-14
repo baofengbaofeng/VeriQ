@@ -79,6 +79,12 @@ struct Constructors {
 template<class Core> Napi::Object wrap(Napi::Env env, Napi::FunctionReference& constructor,
         std::unique_ptr<Core> value) {
     auto* transfer = new Transfer<Core>(std::move(value));
+    /** 独立测试在实际资源已经移入 Transfer 而 External 尚未接管的窗口注入失败，直接观察此异常路径是否仍有作用域拥有者；生产目标不编译观察点，也没有运行时故障开关或新增导出。
+     * 此阶段位于真实 File 创建和必要刷新之后，不使用伪造描述符替代资源。
+     */
+#ifdef VERIQ_DARWIN_PRIVATE_TESTS
+    testPoint("token.file-before-external", -1);
+#endif
     auto token = Napi::External<Transfer<Core>>::New(env, transfer,
         [](Napi::Env, Transfer<Core>* owned) { delete owned; });
     return constructor.New({token});
@@ -301,6 +307,12 @@ Napi::Object initialize(Napi::Env env, Napi::Object exports) {
                 require(info.Length() == 2 && info[1].IsBoolean(), "directory.open.arguments");
                 auto* constructors = static_cast<Constructors*>(info.Data());
                 auto* transfer = new Transfer<Directory>(Directory::open(text(info[0]), info[1].As<Napi::Boolean>().Value()));
+                /** 目录令牌另有相同的 External 前交接窗口，独立调度必须分别覆盖它以避免只修 File 路径；测试通过现有同 fd ACL 观察点核实际目录关闭，生产没有公开目录数字或任意采用接口。
+                 * 这里不创建内存压力，只在确切交接阶段确定性抛一次固定 EIO。
+                 */
+#ifdef VERIQ_DARWIN_PRIVATE_TESTS
+                testPoint("token.directory-before-external", -1);
+#endif
                 auto token = Napi::External<Transfer<Directory>>::New(info.Env(), transfer,
                     [](Napi::Env, Transfer<Directory>* owned) { delete owned; });
                 return constructors->directory.New({token, constructors->file.Value()});

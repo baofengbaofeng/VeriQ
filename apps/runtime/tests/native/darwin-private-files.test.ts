@@ -779,6 +779,128 @@ for (const order of ["prod-first", "fault-first"]) {
     });
 }
 
+/** 转移令牌测试只记录由现有原生 ACL 观察点借出的本次真实描述符和 inode 身份，不新增目录 fd 导出或任意数字采用接口；身份仅用于断言关闭与清理已知泄漏，不能授予正式产品访问另一个文件的能力。
+ * dev 与 ino 来自观察点当时同一 fstat，避免 finally 误关后来复用的陌生对象。
+ * 每个样本只持有自己的捕获值，测试间不共享数字状态。
+ * Native File/Directory 仍保留正常关闭责任，测试没有构造假的 FileHandle。
+ */
+interface CapturedDescriptor {
+    fd: number;
+    dev: number;
+    ino: number;
+}
+
+/** 令牌创建失败后的描述符必须真实关闭，断言直接调用 fstat 并要求 EBADF；不是只看固定异常代码或文件仍存在就假定资源已释放，也不会把其他内核错误吞成正确关闭。
+ * 捕获缺失会先让 assert 失败，防止没有执行实际原生观察点的假通过。
+ * 同步 fstat 不创建新描述符，观察本身不会改变被测数字的分配。
+ * 关闭状态独立于目录成员存在，文件可能已持久创建但不能留下无主活 fd。
+ * 此 helper 不调用 close，因此不会由断言自己修复被测泄漏。
+ */
+function assertCapturedClosed(value: CapturedDescriptor | undefined): void {
+    assert.ok(value, "Native descriptor must be captured before token handoff");
+    assert.throws(() => fstatSync(value.fd), (error: unknown) =>
+        error instanceof Error && (error as NodeJS.ErrnoException).code === "EBADF");
+}
+
+/** 首轮真实 RED 仍需清理本次确定泄漏的自有描述符，finally 只在数字的 dev/ino 仍匹配捕获对象时关闭；已经关闭或被复用的陌生对象不触碰，清理发生在失败断言之后，不能把修复结果冒充原生通过。
+ * 这里只补偿两个确定性样本，不制造真实内存压力或无限重复失败。
+ * 原始 Transfer 堆分配缺口仍由产品 RAII 修复，测试清理不等于修正实现。
+ * EBADF 是唯一可以忽略的清理查询错误，其他失败继续使测试失败。
+ * 此路径仅属于独立测试代码，生产没有从数字接管所有权的函数。
+ */
+function cleanupCaptured(value: CapturedDescriptor | undefined): void {
+    if (!value) return;
+    try {
+        const info = fstatSync(value.fd);
+        if (info.dev === value.dev && info.ino === value.ino) closeSync(value.fd);
+    } catch (error) {
+        if (!(error instanceof Error) || (error as NodeJS.ErrnoException).code !== "EBADF") throw error;
+    }
+}
+
+/** 正常令牌交接后只有交付对象拥有关闭责任，明确关闭后复用同一内核数字，再次关闭旧对象必须保留新文件；至多三十二个自有空文件仅填补数字下方空槽以取得精确复用，不把测试变成描述符压力实验。
+ * 每个打开的 Node 文件都记录独立 inode，反复 close 不能删除或误关这些拥有者。
+ * 循环达到固定上限仍未复用就明确失败，不无限打开或降低断言。
+ * finally 关闭所有测试自己打开的数字，包含提前失败或意外异常。
+ * 交付对象在复用检查期间仍强引用存活，不能靠 GC 恰好没有运行来掩盖主动重复关闭。
+ * File 与 Directory 两条构造路径都执行同一单拥有者生命周期断言。
+ */
+function assertOneOwnerAfterClose(directory: string, captured: CapturedDescriptor, close: () => void): void {
+    const replacements: CapturedDescriptor[] = [];
+    try {
+        for (let index = 0; index < 32; index++) {
+            const fd = openSync(join(directory, `token-reuse-${index}`), "wx+", 0o600);
+            const info = fstatSync(fd);
+            replacements.push({ fd, dev: info.dev, ino: info.ino });
+            if (fd >= captured.fd) break;
+        }
+        assert.equal(replacements.some((value) => value.fd === captured.fd), true);
+        close(); close();
+        for (const value of replacements) {
+            const info = fstatSync(value.fd);
+            assert.equal(info.dev, value.dev); assert.equal(info.ino, value.ino);
+        }
+    } finally { for (const value of replacements) closeSync(value.fd); }
+}
+
+/** File 已独占创建并完成刷新后，External 注册终结器之前的确定性失败必须立即释放实际文件描述符；原先裸 Transfer 在此时没有作用域拥有者，本用例先取得真实 RED，再以同一断言验证 RAII 修正。
+ * 观察点捕获的是新建普通文件 fd，不使用猜测数字或 Node 内部活句柄名单。
+ * 注入发生在现有 bare new 之后、External::New 之前，精确覆盖审查发现的窗口。
+ * 失败后要求 EBADF，不能由 finally 的补偿清理制造成功。
+ * 清空故障后正常 File 构造仍须持有有效 inode 到显式关闭。
+ * 关闭后精确数字复用断言覆盖单拥有者与重复关闭，不改变正式 API。
+ * 已持久创建成员保留给 fixture 清理，不以删除文件替代关闭无主描述符。
+ * 预期异常必须来自 token.file-before-external，文件准备或模式错误不能充作本轮 RED。
+ * 正常样本使用另一个成员名，避免 O_EXCL 重名掩盖修正后的交付行为。
+ * finally 的匹配关闭只在所有关闭断言之后执行，不能改变被记录的失败结论。
+ */
+test("File token prehandoff failure closes its real descriptor and keeps one normal owner", mac, async () =>
+    faultFixture((directory, session, native) => {
+        let captured: CapturedDescriptor | undefined;
+        native.setHook("acl.get", (fd) => { const info = fstatSync(fd); captured = { fd, dev: info.dev, ino: info.ino }; });
+        native.setFault("token.file-before-external", "error", 1);
+        try {
+            assert.throws(() => session.createExclusive("token-failure"), failure("DARWIN_PRIVATE_IO", "token.file-before-external"));
+            assertCapturedClosed(captured);
+            native.resetFaults();
+            const normal = session.createExclusive("normal-owner");
+            const info = fstatSync(normal.fd), owned = { fd: normal.fd, dev: info.dev, ino: info.ino };
+            try { assert.equal(info.isFile(), true); normal.close(); assertCapturedClosed(owned);
+                assertOneOwnerAfterClose(directory, owned, () => normal.close()); }
+            finally { normal.close(); }
+        } finally { native.resetFaults(); cleanupCaptured(captured); }
+    }));
+
+/** Directory 完成逐级打开与私有核验后也会进入相同的 External 前窗口，失败必须关闭实际目录 fd；不能只修 File helper 而留下目录路径的同类裸拥有者泄漏，两条路径分别独立取得真实 Mac 失败证据。
+ * Directory 仍不公开 fd，测试仅借现有 ACL 观察点捕获实际原生数字。
+ * 失败后没有返回会话对象，因此释放不能依赖调用者事后 close。
+ * 清空故障后的正常目录拥有者必须可用并保持同一 fstat 身份。
+ * 显式关闭与随后数字复用证明这里只有一个关闭责任，不会误关新的 Node 文件。
+ * 首轮 RED finally 只清自己匹配的泄漏 fd，避免污染原先四十二个用例。
+ * 不修改系统目录、账户或全局策略，也不使用真实 OOM 或压力循环。
+ * 同一目录的正常交付安排在预期失败之后，验证拒绝没有破坏模块构造状态。
+ * 捕获是存在目录的实际 inode 身份，真实 ENOENT 不可能满足这个准备条件。
+ * 正式导出和上一轮加载隔离断言全部保持，两个新增样本只扩充交接失败覆盖。
+ */
+test("Directory token prehandoff failure closes its real descriptor and keeps one normal owner", mac, async () =>
+    fixture(async (directory) => {
+        const native = createRequire(import.meta.url)("../../build/native-tests/veriq_private_files_fault.node") as FaultNative;
+        let captured: CapturedDescriptor | undefined;
+        native.setHook("acl.get", (fd) => { const info = fstatSync(fd); captured = { fd, dev: info.dev, ino: info.ino }; });
+        native.setFault("token.directory-before-external", "error", 1);
+        try {
+            assert.throws(() => native.openPrivateDirectory(directory, false), failure("DARWIN_PRIVATE_IO", "token.directory-before-external"));
+            assertCapturedClosed(captured);
+            native.resetFaults();
+            let owned: CapturedDescriptor | undefined;
+            native.setHook("acl.get", (fd) => { const info = fstatSync(fd); owned = { fd, dev: info.dev, ino: info.ino }; });
+            const normal = native.openPrivateDirectory(directory, false);
+            try { assert.ok(owned); assert.equal(fstatSync(owned.fd).isDirectory(), true); normal.close();
+                assertCapturedClosed(owned); assertOneOwnerAfterClose(directory, owned, () => normal.close()); }
+            finally { normal.close(); }
+        } finally { native.resetFaults(); cleanupCaptured(captured); }
+    }));
+
 /** 保险库正常路径直接调用已有会话的空目录判断、原子写入、读取和退休接口，确认后续实现必须连接真实业务消费者；测试仅使用公开合成正文，不启动系统凭据库、进程监督或 Chrome，也不依赖任何原生替身。
  * acquire 操作的目标是已存在的私有目录，避免用缺失目录解释当前 Mac 的打开失败。
  * 初始 empty 检查观察新目录，写入后 containsOnly 则观察同一会话内已发布的正式成员。
