@@ -24,6 +24,31 @@ test("Agent reconfiguration preserves existing active online and enrolled guards
         });
 });
 
+/** 未传入保险库上下文的源码档案仍使用 device.json 的真实缺文件结果表示尚未绑定，收紧系统异常分类不能阻止首次登记；后续缺失引擎库存的明确路径证明请求已越过凭据前检，而不是把设备缺席异常直接抛回。 */
+test("DesktopAgent preserves a genuinely unenrolled source profile", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "veriq-desktop-unenrolled-"));
+    try {
+        const agent = new DesktopAgent(directory, {
+            origin: "https://control.example",
+            engineDirectory: join(directory, "engine"),
+            browserExecutable: join(directory, "absent-browser"),
+        });
+        const status = (await agent.dispatch({ operation: "status" })) as {
+            credentialError?: string;
+            device?: unknown;
+        };
+        assert.equal(status.credentialError, undefined);
+        assert.equal(status.device, undefined);
+        assert.doesNotThrow(() => assertAgentReconfigurationAllowed(status));
+        await assert.rejects(agent.dispatch({ operation: "enroll", name: "first-device" }), {
+            code: "ENOENT",
+            path: join(directory, "engine/inventory.json"),
+        });
+    } finally {
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
 test("DesktopAgent exposes explicit migration through its guarded finite dispatch", async () => {
     const directory = await mkdtemp(join(tmpdir(), "veriq-desktop-vault-"));
     const keys = new Map<string, Buffer>();
@@ -173,12 +198,15 @@ test("DesktopAgent keeps credential failures visible without exposing secrets or
         | "unavailable"
         | "failed"
         | "unexpected"
+        | "enoent"
         | "null"
         | "undefined"
         | undefined;
     let sets = 0;
     const backend: VaultKeyBackend = {
         async get(scope) {
+            if (blocked === "enoent")
+                throw Object.assign(new Error("backend service entry missing"), { code: "ENOENT" });
             if (blocked === "null") throw null;
             if (blocked === "undefined") throw undefined;
             if (blocked === "unexpected")
@@ -226,6 +254,7 @@ test("DesktopAgent keeps credential failures visible without exposing secrets or
             ["unavailable", "VAULT_UNAVAILABLE"],
             ["failed", "VAULT_FAILED"],
             ["unexpected", "CREDENTIAL_ACCESS_FAILED"],
+            ["enoent", "CREDENTIAL_ACCESS_FAILED"],
             ["null", "CREDENTIAL_ACCESS_FAILED"],
             ["undefined", "CREDENTIAL_ACCESS_FAILED"],
         ] as const) {
@@ -234,6 +263,37 @@ test("DesktopAgent keeps credential failures visible without exposing secrets or
                 credentialError?: string;
                 device?: unknown;
             };
+            /** 后端服务自身的条目缺失不能证明设备登记不存在，必须同时核对公开状态、控制源保护和登记前检的真实结果；引擎故意缺失以识别越过凭据前检的路径，不能把后续诊断失败当作安全拒绝。 */
+            if (mode === "enoent") {
+                let reconfigurationAllowed = true;
+                try {
+                    assertAgentReconfigurationAllowed(status);
+                } catch {
+                    reconfigurationAllowed = false;
+                }
+                const enrollmentError = await agent
+                    .dispatch({ operation: "enroll", name: "replacement" })
+                    .then(
+                        () => undefined,
+                        (error: unknown) => error,
+                    );
+                assert.deepEqual(
+                    {
+                        credentialError: status.credentialError,
+                        reconfigurationAllowed,
+                        enrollmentError:
+                            enrollmentError instanceof Error
+                                ? enrollmentError.message
+                                : enrollmentError,
+                    },
+                    {
+                        credentialError: "CREDENTIAL_ACCESS_FAILED",
+                        reconfigurationAllowed: false,
+                        enrollmentError: "CREDENTIAL_ACCESS_FAILED",
+                    },
+                );
+                assert(!JSON.stringify(status).includes("backend service entry missing"));
+            }
             assert.equal(status.credentialError, code);
             assert.throws(() => assertAgentReconfigurationAllowed(status), {
                 message: "UNBIND_DEVICE_BEFORE_ORIGIN_CHANGE",

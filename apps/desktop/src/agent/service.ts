@@ -73,6 +73,7 @@ const failure = (error: unknown) =>
 /** 桌面后台是已有 Runtime 的本机操作入口，执行、验签、持久化和回传都委托原实现；进程不依赖 Electron 生命周期，状态只返回无密钥摘要与明确的活动占用事实。 */
 export class DesktopAgent {
     private readonly device: DeviceStore;
+    private readonly credentialProfile: boolean;
     private readonly trust: TrustStore;
     private readonly secrets: SecretStore;
     private readonly executionRoot: string;
@@ -121,6 +122,7 @@ export class DesktopAgent {
         this.headedCapability = probeBrowser(config.headedExecutable, true);
         this.browserCapability = probeBrowser(config.browserExecutable, false);
         this.device = new DeviceStore(root, credentials);
+        this.credentialProfile = credentials !== undefined;
         this.trust = new TrustStore(root);
         this.secrets = new SecretStore(root, credentials);
         this.executionRoot = join(root, "offline");
@@ -184,6 +186,19 @@ export class DesktopAgent {
         return config;
     }
 
+    /** 设备缺席只接受当前存储路径的明确事实，保险库事务已有专用缺登记标识而后端系统错误不具备此含义；源码文件模式保留精确 device.json 的缺文件以及 Windows 既有有限原生缺路径合同，避免未知 ENOENT 放开绑定与控制源保护。 */
+    private deviceNotEnrolled(error: unknown): boolean {
+        if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) return false;
+        if (this.credentialProfile) return error.message === "DEVICE_NOT_ENROLLED";
+        return (
+            ("path" in error && error.path === join(this.root, "device.json")) ||
+            (process.platform === "win32" &&
+                error.message === "NATIVE_PATH_UNAVAILABLE" &&
+                "win32" in error &&
+                (error.win32 === 2 || error.win32 === 3))
+        );
+    }
+
     /** 状态接口读取真实持久拥有者、历史和当前进程句柄，而不以界面忙碌状态推测执行是否结束；即使另一个请求停在签名包准备阶段，本方法也应独立返回可观察的准备标识和取消状态。
      * 每次状态读取独立打开 LocalStore，并在 finally 中关闭 SQLite 句柄。
      * 活动拥有者来自数据库，UI 崩溃后仍可恢复同一个 Run 和 Attempt。
@@ -215,8 +230,7 @@ export class DesktopAgent {
                 device = { id: config.runnerId, workspaceId: config.workspaceId };
             } catch (error) {
                 /** 后台已能响应 IPC 并不代表凭据可用，锁定、旧格式与损坏只投影为有限失败状态；这里只处理设备读取，SQLite、历史和缓存错误继续抛出，显式凭据操作仍由原 Runtime 约束执行。 */
-                if (!(error instanceof Error && "code" in error && error.code === "ENOENT"))
-                    credentialError = credentialIssue(error);
+                if (!this.deviceNotEnrolled(error)) credentialError = credentialIssue(error);
             }
             if (!this.selectedWorkspace) {
                 try {
@@ -390,13 +404,14 @@ export class DesktopAgent {
         if (operation === "doctor") return this.diagnose(true);
         if (operation === "enroll") {
             /** 新登记必须先确认当前档案确实没有设备，锁定、旧格式或缺密钥都不能取得远端新审批码；即使 renderer 绕过禁用按钮也保持相同拒绝，最终写入仍由 Runtime 的只创建事务防止并发覆盖。 */
+            let enrolled = false;
             try {
                 await this.device.load();
-                throw new Error("ALREADY_ENROLLED");
+                enrolled = true;
             } catch (error) {
-                if (!(error instanceof Error && "code" in error && error.code === "ENOENT"))
-                    throw error;
+                if (!this.deviceNotEnrolled(error)) throw new Error(credentialIssue(error));
             }
+            if (enrolled) throw new Error("ALREADY_ENROLLED");
             const result = await this.diagnose(false);
             if (!result.ok || !result.capabilities) throw new Error("RUNTIME_DOCTOR_FAILED");
             this.pendingEnrollment = await new RuntimeClient(this.config.origin).begin(
