@@ -236,6 +236,11 @@ export class DeviceStore {
         if (!this.profile) throw new Error("VAULT_CONTEXT_REQUIRED");
         await this.profile.migrate();
     }
+    /** 整体退役接口只删除本机凭据档案中的全部秘密用途与精确密钥，保留不可自动重建的非秘密完成标记及公开配置；它不调用控制平台撤销设备，也不等于注销或单用途清空，调用者必须明确确认本机永久退役。 */
+    async deleteCredentials(): Promise<void> {
+        if (!this.profile) throw new Error("VAULT_CONTEXT_REQUIRED");
+        await this.profile.deleteCredentials();
+    }
     /** 用户明确恢复未完成初始化时复用系统后端和持续停止所有权，只处理没有任何业务密文的初始档案；活动密钥缺失、残留数据、冲突或系统不可用仍拒绝，调用方不会取得密钥或自动回退到明文。 */
     async recoverCredentialInitialization(): Promise<void> {
         if (!this.profile) throw new Error("VAULT_CONTEXT_REQUIRED");

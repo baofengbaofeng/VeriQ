@@ -429,6 +429,23 @@ const secret = program
     .command("secret")
     .description("Exact local credential mappings; never print values");
 secret
+    .command("delete-profile")
+    .description(
+        "Permanently retire this local credential profile; keep trust/history and do not revoke the server device",
+    )
+    .option(
+        "--confirm-all",
+        "Confirm deleting every local credential purpose and exact vault key; use a new profile directory afterward",
+    )
+    .action(async (options: { confirmAll?: boolean }) => {
+        if (options.confirmAll !== true)
+            throw new Error("CREDENTIAL_PROFILE_DELETE_CONFIRMATION_REQUIRED");
+        await store().deleteCredentials();
+        process.stdout.write(
+            "Local credential profile retired; trust/history retained. Server device revocation is separate. Use a new profile directory for future credentials.\n",
+        );
+    });
+secret
     .command("recover-initialization")
     .description(
         "Explicitly recover an empty pending OS-vault initialization; never replace an active missing key",

@@ -18,6 +18,7 @@ function vaultMember(name: string): boolean {
             "transaction.json",
             "migration.json",
             "initialization.json",
+            "deletion.json",
         ].includes(name) ||
         /^record-[0-9a-f-]{36}\.json$/.test(name)
     )

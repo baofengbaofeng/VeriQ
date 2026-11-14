@@ -7,6 +7,7 @@ import { LocalStore } from "../offline/store.ts";
 import { validateSchema, type JsonValue } from "@veriq/contracts";
 import type { VaultKeyBackend } from "./backend.ts";
 import { openEnvelope, sealEnvelope, type EnvelopeBinding } from "./envelope.ts";
+import { readCredentialDeletion, requireNotDeleting, retireCredentialFiles } from "./deletion.ts";
 import { VaultFiles } from "./files.ts";
 import {
     acquireDesktopProfileOwner,
@@ -590,10 +591,60 @@ export class CredentialProfile {
         );
     }
 
+    /** 用户明确删除全部凭据时保持整个档案停止且排他，只退役业务、设备和轮换密文及精确系统密钥；信任根、公钥、历史与非秘密配置继续保留，完成标记阻止普通调用自动重建，部分失败只能显式继续原意图。 */
+    async deleteCredentials(): Promise<void> {
+        await this.withStoppedProfile(() =>
+            this.withLockedFiles(async (root, files) => {
+                for (const legacy of ["local-secrets.json", "device.json", "rotation.json"])
+                    if ((await root.read(legacy)) !== undefined) fail("migration-required");
+                const pending = await readCredentialDeletion(files);
+                if (pending) return retireCredentialFiles(files, this.options.backend, pending);
+                for (const name of [JOURNAL, STAGED, "migration.json"])
+                    if ((await files.read(name)) !== undefined) fail("deletion-recovery-required");
+                const wire = await files.read(INDEX);
+                if (wire === undefined) fail("profile-missing");
+                const manifest = parseManifest(wire);
+                const initialization = await files.read(INITIALIZATION);
+                const recovery =
+                    initialization === undefined ? undefined : parseInitialization(initialization);
+                if (
+                    recovery &&
+                    (recovery.state !== "active" ||
+                        recovery.profileId !== manifest.profileId ||
+                        recovery.next.keyVersion !== manifest.keyVersion ||
+                        recovery.next.keyHash !== manifest.keyHash)
+                )
+                    fail("initialization-recovery-required");
+                await retireCredentialFiles(files, this.options.backend, {
+                    version: 1,
+                    profileId: manifest.profileId,
+                    manifestHash: digest(wire),
+                    state: "pending",
+                    records: [
+                        ...new Set(Object.values(manifest.entries).map((entry) => entry.file)),
+                    ],
+                    keys: [
+                        ...(recovery?.previous ?? []).map((entry) => ({
+                            keyVersion: entry.keyVersion,
+                            keyHash: entry.keyHash,
+                            status: "pending" as const,
+                        })),
+                        {
+                            keyVersion: manifest.keyVersion,
+                            keyHash: manifest.keyHash,
+                            status: "pending",
+                        },
+                    ],
+                });
+            }),
+        );
+    }
+
     /** 用户显式请求才允许恢复确实空的未激活初始化，原版本必须精确读为缺失才能建立新随机版本；同一档案身份保持，旧意图及逐版本缺失证明持续保存在非秘密日志，活动凭据、残留密文和未知状态一律不能被重置。 */
     async recoverInitialization(): Promise<void> {
         await this.withStoppedProfile(() =>
             this.withLockedFiles(async (_root, files) => {
+                await requireNotDeleting(files);
                 const wire = await files.read(INDEX);
                 if (wire === undefined) fail("initialization-not-pending");
                 let manifest = parseManifest(wire);
@@ -800,6 +851,7 @@ export class CredentialProfile {
         return this.withLockedFiles(async (root, files) => {
             let key: Buffer | undefined;
             try {
+                await requireNotDeleting(files);
                 if (!migrating) {
                     if ((await files.read("migration.json")) !== undefined)
                         fail("migration-required");

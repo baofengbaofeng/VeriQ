@@ -16,8 +16,13 @@ async function observeAcl(context: TestContext, paths: string[]) {
     try {
         const script = `
 $ErrorActionPreference='Stop'
+$ProgressPreference='SilentlyContinue'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
-$records = @(foreach ($path in @(ConvertFrom-Json $env:VERIQ_COOKIE_OWNED_PATHS)) {
+$ownedPaths = ConvertFrom-Json -InputObject $env:VERIQ_COOKIE_OWNED_PATHS
+if ($ownedPaths -isnot [System.Array] -or $ownedPaths.Count -ne 3) { throw 'OWNED_ACL_PATH_ARRAY_INVALID' }
+$records = @(for ($index = 0; $index -lt $ownedPaths.Count; $index++) {
+    $path = $ownedPaths[$index]
+    if ($path -isnot [string] -or [string]::IsNullOrWhiteSpace($path)) { throw 'OWNED_ACL_PATH_TYPE_INVALID' }
     if (![System.IO.File]::Exists($path) -and ![System.IO.Directory]::Exists($path)) {
         @{ path=$path; missing=$true }
         continue
@@ -28,6 +33,7 @@ $records = @(foreach ($path in @(ConvertFrom-Json $env:VERIQ_COOKIE_OWNED_PATHS)
     })
     @{ path=$path; owner=$acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value; protected=$acl.AreAccessRulesProtected; rules=$rules }
 })
+if ($records.Count -ne 3) { throw 'OWNED_ACL_RECORD_COUNT_INVALID' }
 ConvertTo-Json -InputObject $records -Depth 5 -Compress
 `;
         const executable = join(

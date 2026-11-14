@@ -367,3 +367,14 @@ test("real Windows vault recovers an explicitly abandoned empty initialization",
         );
         assert.equal(result.consumerReadback, true);
     }));
+
+/** 真实 Credential Manager 中的随机独立档案包含业务、设备和轮换三种用途，整体退役后必须实际查无精确密钥并拒绝重启自动初始化；测试保留公开标记与非秘密删除记录，不能把本机结果冒充控制平台撤销或磁盘物理擦除。 */
+test("real Windows vault retires every credential purpose and confirms the exact key missing", async () =>
+    fixture(async (root, _backend, distribution) => {
+        const { verifyCredentialDeletion } = await import("../fixtures/vault-deletion.ts");
+        const result = await verifyCredentialDeletion(
+            join(root, "retired-profile"),
+            installedCredentials(distribution),
+        );
+        assert.equal(result.exactKeyActuallyMissing, true);
+    }));

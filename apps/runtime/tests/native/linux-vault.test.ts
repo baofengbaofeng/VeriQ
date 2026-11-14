@@ -390,6 +390,16 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
                 );
             },
         );
+        await t.test(
+            "formal Secret Service retires all credential purposes with exact missing readback",
+            async () => {
+                const { verifyCredentialDeletion } = await import("../fixtures/vault-deletion.ts");
+                facts.credentialDeletion = await verifyCredentialDeletion(
+                    join(root, "retired-profile"),
+                    productionOptions,
+                );
+            },
+        );
         await t.test("real locked collection and prompt-producing unlock are refused", async () => {
             assert.equal(await direct(driver, "V1 lock\n"), "V1 ok\n");
             assert.equal((await backend.probe(signal())).status, "locked");
