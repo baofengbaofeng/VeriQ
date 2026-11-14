@@ -67,7 +67,8 @@ Napi::Object initializePrivateFileFaults(Napi::Env env, Napi::Object exports) {
             require(phase.size() <= 80, "test.fault.phase");
             schedule->phase = phase;
             schedule->action = action == "eintr" ? 1 : action == "short" ? 2 :
-                action == "zero" ? 3 : action == "error" ? 4 : 0;
+                action == "zero" ? 3 : action == "error" ? 4 : action == "acl-absent" ? 5 :
+                action == "acl-empty" ? 6 : action == "acl-denied" ? 7 : action == "acl-unknown" ? 8 : 0;
             require(schedule->action != 0, "test.fault.action");
             schedule->remaining = limit(info[2], 128);
             return info.Env().Undefined();

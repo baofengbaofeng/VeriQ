@@ -193,6 +193,28 @@ inline void regular(const struct stat& info, size_t limit) {
         (info.st_mode & 07777) == 0600 && info.st_nlink == 1 && info.st_size >= 0 &&
         static_cast<uint64_t>(info.st_size) <= limit, "file.private");
 }
+/** ACL 查询包装在生产构建只调用公开同 fd 接口，独立测试目标才能选择缺少属性、真实空 ACL 对象或查询错误表示；这样可以行为验证 ENOENT 仅属于 ACL 属性缺失，不会被业务层误认成文件不存在。
+ * acl_init(0) 创建真实可验证和迭代的空 ACL，不伪造 iterator 成功规则。
+ * EACCES 与未给 errno 的空返回都必须保留检查失败。
+ * 这些表示选择由编译宏完全隔离，生产不存在动作分支或导出。
+ * 测试始终使用已核验且确实存在的普通 fixture 成员，不能借缺失文件达成通过。
+ * 返回的非空 ACL 仍由下面的同一验证、有限迭代和释放路径处理。
+ * 缺少 ACL 属性不表示允许其他 owner 或宽 Unix 模式，普通元数据检查先于此查询。
+ * 公开系统查询仍是所有未匹配测试动作的默认路径。
+ */
+inline acl_t queryAcl(int fd) {
+#ifdef VERIQ_DARWIN_PRIVATE_TESTS
+    const int action = testPoint("acl.get", fd);
+    if (action == 5) { errno = ENOENT; return nullptr; }
+    if (action == 6) return ::acl_init(0);
+    if (action == 7) { errno = EACCES; return nullptr; }
+    if (action == 8) { errno = 0; return nullptr; }
+#else
+    testPoint("acl.get", fd);
+#endif
+    return ::acl_get_fd_np(fd, ACL_TYPE_EXTENDED);
+}
+
 /** Darwin 的扩展 ACL 可以在精确 Unix 私有模式之外授予访问，因此最终目录和普通文件必须在同一 fd 上另核 ACL；只接受不存在、空列表或完整有界且全部 DENY 的列表，任何 ALLOW 包括继承或仅继承项都拒绝。
  * 查询使用公开 acl_get_fd_np，不按路径重开、不解析用户组、不修改现有 ACL。
  * 已验证 fd 上 ENOENT 仅表示 FILESEC_ACL 属性不存在，在内部消化而不变成凭据文件缺失。
@@ -201,9 +223,8 @@ inline void regular(const struct stat& info, size_t limit) {
  * DENY 只能收紧权限，后续读写若被其阻止仍保留真实系统失败，不尝试修复或删除 ACL。
  */
 inline void verifyPrivateAcl(int fd) {
-    testPoint("acl.get", fd);
     errno = 0;
-    acl_t acl = ::acl_get_fd_np(fd, ACL_TYPE_EXTENDED);
+    acl_t acl = queryAcl(fd);
     /** ACL 不存在与文件不存在是两种不同事实，这里已经持有且核验文件描述符，因此空指针伴随 ENOENT 只在此处解释为缺少扩展 ACL；任何其他编号都保持 ACL 检查失败，不能从业务读取接口返回 undefined。
      * 有效的空 ACL 则会返回非空对象，后面的迭代器走单独空列表分支。
      * 这项兼容来自 Darwin FILESEC_ACL 属性的公开实现语义。
@@ -369,6 +390,11 @@ public:
      */
     void close() { fd_.close(); }
 };
+/** 枚举结果保留有限完整名字与额外成员已被观察到的事实，空 names 只有同时没有 overflow 才能表示空目录；正式调用者继续核用途语法，不能把截断或未知对象过滤后当作完整可信历史。
+ * names 最多为调用者 limit 项，overflow 只记录第 limit 加一项的存在。
+ * 每次结果由独立游标生成，不共享上一次扫描位置。
+ * 结构没有原始目录描述符，不能被用于任意文件系统授权。
+ */
 struct Entries { std::vector<std::string> names; bool overflow = false; };
 
 /** 目录对象从根逐级获得无链接目录描述符，祖先只要求真实目录，最终目录另核当前 uid 与精确七百权限；持有后所有操作仅使用该描述符，所以父路径重命名或旧路径替换链接不改变授权锚点。
