@@ -589,7 +589,7 @@ test("online actual controlled history cannot reconcile a different claim genera
             const name = `${result.stop.attemptId}.json`, record = JSON.parse(journals.read(name, 65536).toString());
             if (run === 1) record.claim.fencingToken++;
             else record.claim.jobKind = "VALIDATE";
-            journals.replace(name, `${result.stop.attemptId}.json.${randomUUID()}`, Buffer.from(JSON.stringify(record)), 65536);
+            journals.replace(name, `.${randomUUID()}.tmp`, Buffer.from(JSON.stringify(record)), 65536);
         } finally { journals.close(); }
         const recovered = (await supervisor.recover()).find((receipt) => receipt.attemptId === result.stop.attemptId)!;
         assert.equal(recovered.processStopped, false);
