@@ -83,14 +83,20 @@ async function inheritedAcl(paths: string[]) {
         powershell,
         encoded(`
 $ErrorActionPreference='Stop'
-$records = @(ConvertFrom-Json $env:VERIQ_OWNED_PATHS | ForEach-Object {
-    $acl = if ([System.IO.Directory]::Exists($_)) { [System.IO.Directory]::GetAccessControl($_) } else { [System.IO.File]::GetAccessControl($_) }
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$paths = ConvertFrom-Json $env:VERIQ_OWNED_PATHS
+$pipelineInputs = @(ConvertFrom-Json $env:VERIQ_OWNED_PATHS | ForEach-Object {
+    @{ type=$_.GetType().FullName; count=@($_).Count }
+})
+$records = @(foreach ($path in $paths) {
+    if ($path -isnot [string]) { throw 'OWNED_ACL_PATH_NOT_STRING' }
+    $acl = if ([System.IO.Directory]::Exists($path)) { [System.IO.Directory]::GetAccessControl($path) } else { [System.IO.File]::GetAccessControl($path) }
     $rules = @($acl.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier]) | ForEach-Object {
         @{ sid=$_.IdentityReference.Value; inherited=$_.IsInherited; allow=($_.AccessControlType -eq 'Allow') }
     })
-    @{ path=$_; owner=$acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value; rules=$rules }
+    @{ path=$path; inputType=$path.GetType().FullName; owner=$acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value; rules=$rules }
 })
-ConvertTo-Json -InputObject $records -Depth 5 -Compress
+ConvertTo-Json -InputObject @{ inputCount=@($paths).Count; pipelineInputs=$pipelineInputs; records=$records } -Depth 5 -Compress
 `),
         {
             env: { ...powershellEnvironment, VERIQ_OWNED_PATHS: JSON.stringify(paths) },
@@ -99,17 +105,32 @@ ConvertTo-Json -InputObject $records -Depth 5 -Compress
             windowsHide: true,
         },
     );
-    const records = JSON.parse(stdout) as Array<{
-        path: string;
-        rules: Array<{ sid: string; inherited: boolean; allow: boolean }>;
-    }>;
-    assert.equal(records.length, paths.length);
-    for (const record of records) {
+    const observed = JSON.parse(stdout) as {
+        inputCount: number;
+        pipelineInputs: Array<{ type: string; count: number }>;
+        records: Array<{
+            path: string;
+            inputType: string;
+            owner: string;
+            rules: Array<{ sid: string; inherited: boolean; allow: boolean }>;
+        }>;
+    };
+    console.log(`Owned ACL probe before assertions: ${JSON.stringify(observed)}`);
+    assert.equal(observed.inputCount, paths.length);
+    assert.equal(observed.records.length, paths.length);
+    assert.equal(new Set(paths).size, paths.length);
+    assert.deepEqual(
+        observed.records.map((record) => record.path),
+        paths,
+    );
+    for (const record of observed.records) {
+        assert.equal(record.inputType, "System.String");
+        assert.equal(record.owner, native.sid);
         assert(record.rules.length > 0);
         for (const rule of record.rules)
             assert.deepEqual(rule, { sid: native.sid, inherited: true, allow: true });
     }
-    return records;
+    return observed;
 }
 
 /** Node、SQLite 与 proper-lockfile 都使用自身正常创建流程，父目录从创建起提供当前 SID 继承；实际子文件能被有限私有接口接受，SQLite WAL 和锁目录也不能短暂借用公共默认 ACL。 */
