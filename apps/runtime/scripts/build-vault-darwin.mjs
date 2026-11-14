@@ -27,7 +27,9 @@ const execute = async (file, args) =>
             encoding: "utf8",
         })
     ).stdout;
-const compiler = await realpath((await execute("/usr/bin/xcrun", ["--find", "clang++"])).trim());
+/** 系统 clang++ 可能只是指向 clang 的符号链接，但驱动根据调用名称选择是否隐式链接 C++ 标准库；执行时保留 xcrun 返回的 C++ 驱动名称，规范物理路径仅用于工具身份哈希，不能用身份归一化改变构建语义。 */
+const compilerDriver = (await execute("/usr/bin/xcrun", ["--find", "clang++"])).trim();
+const compiler = await realpath(compilerDriver);
 const sdk = await realpath((await execute("/usr/bin/xcrun", ["--show-sdk-path"])).trim());
 const digest = async (path) => ({
     path,
@@ -107,7 +109,7 @@ for (const job of jobs) {
         "-o",
         output,
     ];
-    await execute(compiler, args);
+    await execute(compilerDriver, args);
     const architecture = (await execute("/usr/bin/lipo", ["-archs", output])).trim();
     const loadCommands = await execute("/usr/bin/otool", ["-l", output]);
     if (
@@ -139,8 +141,9 @@ const facts = {
     platform: process.platform,
     arch: process.arch,
     node: process.version,
+    compilerDriver,
     compiler: await digest(compiler),
-    compilerVersion: await execute(compiler, ["--version"]),
+    compilerVersion: await execute(compilerDriver, ["--version"]),
     sdk,
     sdkVersion: (await execute("/usr/bin/xcrun", ["--show-sdk-version"])).trim(),
     records,
