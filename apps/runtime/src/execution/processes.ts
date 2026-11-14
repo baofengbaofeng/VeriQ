@@ -342,12 +342,11 @@ export class ProcessSupervisor {
         return this.windows ? this.windows.active() : this.darwin ? this.darwin.active() : [...this.live.keys()];
     }
     /**
-     * 公开方法 terminateAttempt 请求守护进程停机并等待排空证明：缺少 ECHILD 证明则 processStopped 为 false。
-     * 恢复路径据此隔离未知进程容量。
+     * 公开方法 terminateAttempt 按实际平台停止拥有的对象并等待证明，Darwin 可接收当前 Node performance.now 毫秒绝对期限且首次调用粘滞；Linux/Windows 保留原排空行为并忽略该可选参数，缺少实际证明时继续隔离容量。
      */
-    terminateAttempt(id: string, reason: string): Promise<StopReceipt> {
+    terminateAttempt(id: string, reason: string, deadlineMonotonicMs?: number): Promise<StopReceipt> {
         if (this.windows) return this.windows.terminateAttempt(id, reason);
-        if (this.darwin) return this.darwin.terminateAttempt(id, reason);
+        if (this.darwin) return this.darwin.terminateAttempt(id, reason, deadlineMonotonicMs);
         const existing = this.stopping.get(id);
         if (existing) return existing;
         const operation = this.stop(id, reason).finally(() => this.stopping.delete(id));

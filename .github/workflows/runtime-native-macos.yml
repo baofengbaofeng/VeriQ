@@ -131,6 +131,13 @@ jobs:
                   set -euo pipefail
                   node --import tsx --test tests/controlled-proof.test.ts 2>&1 | tee "$VERIQ_MAC_EVIDENCE/controlled-proof.log"
                   node --import tsx --test tests/native/darwin-controlled-processes.test.ts 2>&1 | tee "$VERIQ_MAC_EVIDENCE/controlled-processes.log"
+            - name: Verify actual source business engine and decoded artifact confidentiality independently
+              id: business_tests
+              working-directory: apps/runtime
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  node --import tsx --test tests/native/darwin-business.test.ts 2>&1 | tee "$VERIQ_MAC_EVIDENCE/business.log"
             - name: Always bind source and actual build inputs
               if: always()
               shell: bash
@@ -158,7 +165,7 @@ jobs:
                       if (info.isDirectory()) for (const name of readdirSync(path)) await walk(join(path, name));
                       else await add(path);
                   };
-                  const source = execFileSync("git", ["ls-files", "apps/runtime/native/darwin", "apps/runtime/src/native/darwin.ts", "apps/runtime/src/node-version.ts", "apps/runtime/src/execution/processes.ts", "apps/runtime/src/execution/darwin-*", "apps/runtime/src/execution/records.ts", "apps/runtime/src/execution/stopped-history.ts", "apps/runtime/src/execution/controlled-child*", "apps/runtime/src/execution/controlled-command*", "apps/runtime/src/execution/worker.mjs", "apps/runtime/src/distribution.ts", "apps/desktop/scripts/stage-runtime.mjs", "apps/runtime/tests/controlled-proof.test.ts", "apps/runtime/tests/native/darwin-controlled-processes.test.ts", "apps/runtime/tests/fixtures/darwin-controlled-worker.mjs", "apps/runtime/tests/vault-history.test.ts", "apps/runtime/tests/controlled-command.test.ts", "apps/runtime/tests/worker-portability.test.ts", "apps/runtime/tests/distribution.test.ts", "apps/runtime/tests/native/windows-profile.test.ts", "apps/runtime/tests/fixtures/vault-distribution.ts", "apps/runtime/tests/fixtures/windows-vault.ts", "apps/runtime/tests/controlled-child.test.ts", "apps/runtime/tests/fixtures/controlled-child-owner.py", "apps/runtime/src/credentials/files.ts", "apps/runtime/scripts/build-darwin.mjs", "apps/runtime/package.json", "apps/runtime/tests/native/darwin-private-files.test.ts", "apps/runtime/tests/native/darwin-private-files-fault.cc", ".github/workflows/runtime-native-macos.yml", "pnpm-lock.yaml", "pnpm-workspace.yaml"], {encoding:"utf8", maxBuffer:65536}).trim().split("\n").filter(Boolean);
+                  const source = execFileSync("git", ["ls-files", "apps/runtime/native/darwin", "apps/runtime/src/native/darwin.ts", "apps/runtime/src/node-version.ts", "apps/runtime/src/execution/processes.ts", "apps/runtime/src/execution/darwin-*", "apps/runtime/src/execution/records.ts", "apps/runtime/src/execution/stopped-history.ts", "apps/runtime/src/execution/controlled-child*", "apps/runtime/src/execution/controlled-command*", "apps/runtime/src/execution/worker.mjs", "apps/runtime/src/distribution.ts", "apps/desktop/scripts/stage-runtime.mjs", "apps/runtime/tests/controlled-proof.test.ts", "apps/runtime/tests/native/darwin-controlled-processes.test.ts", "apps/runtime/tests/fixtures/darwin-controlled-worker.mjs", "apps/runtime/tests/vault-history.test.ts", "apps/runtime/tests/controlled-command.test.ts", "apps/runtime/tests/worker-portability.test.ts", "apps/runtime/tests/distribution.test.ts", "apps/runtime/tests/native/windows-profile.test.ts", "apps/runtime/tests/fixtures/vault-distribution.ts", "apps/runtime/tests/fixtures/windows-vault.ts", "apps/runtime/tests/controlled-child.test.ts", "apps/runtime/tests/fixtures/controlled-child-owner.py", "apps/runtime/src/execution/supervisor.ts", "apps/runtime/src/execution/broker.ts", "apps/runtime/src/offline/run.ts", "apps/runtime/src/offline/config.ts", "apps/runtime/src/offline/store.ts", "apps/runtime/tests/native/darwin-business.test.ts", "apps/runtime/tests/fixtures/business-engine.ts", "apps/runtime/tests/darwin-business-contract.test.ts", "apps/runtime/tests/offline-store.test.ts", "apps/runtime/tests/offline.test.ts", "apps/runtime/tests/physical.test.ts", "packages/runner-sdk/tests/queue-fixture.ts", "packages/runner-sdk/tests/distribution.ts", "packages/compiler/tests/helpers.ts", "apps/runtime/src/credentials/files.ts", "apps/runtime/scripts/build-darwin.mjs", "apps/runtime/package.json", "apps/runtime/tests/native/darwin-private-files.test.ts", "apps/runtime/tests/native/darwin-private-files-fault.cc", ".github/workflows/runtime-native-macos.yml", "pnpm-lock.yaml", "pnpm-workspace.yaml"], {encoding:"utf8", maxBuffer:65536}).trim().split("\n").filter(Boolean);
                   for (const path of source) await add(path);
                   await add(process.execPath);
                   await walk(join(process.env.RUNNER_TEMP, "veriq-node-headers"));
@@ -176,6 +183,7 @@ jobs:
                   VERIQ_MAC_UPLOAD: ${{ runner.temp }}/veriq-mac-private-upload-${{ matrix.arch }}
                   BUILD_OUTCOME: ${{ steps.native_build.outcome }}
                   TEST_OUTCOME: ${{ steps.private_tests.outcome }}
+                  BUSINESS_OUTCOME: ${{ steps.business_tests.outcome }}
               shell: bash
               run: |
                   set -euo pipefail
@@ -220,7 +228,7 @@ jobs:
                           }
                       } finally { closeSync(fd); }
                   }
-                  writeFileSync(join(destination,"inventory.json"),JSON.stringify({source:process.env.GITHUB_SHA,arch:process.env.EXPECTED_ARCH,build:process.env.BUILD_OUTCOME,tests:process.env.TEST_OUTCOME,inventory},null,4));
+                  writeFileSync(join(destination,"inventory.json"),JSON.stringify({source:process.env.GITHUB_SHA,arch:process.env.EXPECTED_ARCH,build:process.env.BUILD_OUTCOME,tests:process.env.TEST_OUTCOME,business:process.env.BUSINESS_OUTCOME,inventory},null,4));
                   JS
             - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
               if: always()

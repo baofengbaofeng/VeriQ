@@ -1,0 +1,599 @@
+/** 此入口只在真实 macOS15 原生宿主运行完整业务，复用现有真实 SDK/compiler/npm 离线闭包与 Playwright CLI；所有扫描在私有配置之外执行，诊断只输出计数，任何真实端点命中都会令当前交付门禁失败并保留窄范围泄漏结论。 */
+import assert from "node:assert/strict";
+import { test, before, after } from "node:test";
+import { mkdtemp, realpath, rm, readFile, readdir, mkdir, writeFile, chmod, lstat } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, basename } from "node:path";
+import { createServer } from "node:http";
+import { createConnection } from "node:net";
+import { randomUUID, createHash } from "node:crypto";
+import { DatabaseSync } from "node:sqlite";
+import { execFileSync } from "node:child_process";
+import { chromium, type BrowserServer } from "playwright-core";
+import { fromBuffer, type ZipFile } from "yauzl";
+import { fixture, buildBusinessEngine, onlineBusiness } from "../fixtures/business-engine.ts";
+import { createDarwinSource } from "../../src/execution/darwin-source.ts";
+import { ProcessSupervisor, type OwnedProcess } from "../../src/execution/processes.ts";
+import { runOffline, recoverOffline } from "../../src/offline/run.ts";
+import { verifyBundle } from "../../src/offline/verify.ts";
+import { SecretStore } from "../../src/credentials/store.ts";
+import { LocalReports } from "../../src/offline/reports.ts";
+import { LocalStore } from "../../src/offline/store.ts";
+import { uploadOffline } from "../../src/offline/upload.ts";
+import { darwinNative, type DarwinPrivateDirectory } from "../../src/native/darwin.ts";
+import { privateDirectory, readPrivate, updatePrivate } from "../../src/offline/config.ts";
+import { AttemptBroker, createDarwinBrokerDirectory } from "../../src/execution/broker.ts";
+import { id } from "../../../../packages/compiler/tests/helpers.ts";
+
+assert.equal(process.platform, "darwin", "Actual macOS is required; all-skip Linux is not business evidence");
+let root: string;
+let engine: Awaited<ReturnType<typeof buildBusinessEngine>>;
+before(async () => {
+    root = await mkdtemp(join(await realpath(tmpdir()), "veriq-c2b2-"));
+    engine = await buildBusinessEngine(root);
+}, { timeout: 180000 });
+after(async () => { await rm(root, { recursive: true, force: true }); });
+
+/** ZIP 解析只复用已有 yauzl，以输入、条目数量、单项及总解压字节四重限额读取真实归档；条目名字同样受扫描，嵌套只允许 HTML 选定数据与 Trace 两层，不把压缩原字节未命中当成已检查正文。 */
+async function scanArchive(bytes: Buffer, check: (bytes: Buffer) => void): Promise<number> {
+    assert.ok(bytes.length <= 32 * 1024 * 1024, "Archive input limit");
+    const zip = await new Promise<ZipFile>((resolve, reject) => fromBuffer(bytes, { lazyEntries: true }, (error, value) => error ? reject(error) : resolve(value!)));
+    let entries = 0, total = 0;
+    try {
+        await new Promise<void>((resolve, reject) => {
+            zip.on("error", reject);
+            zip.on("end", resolve);
+            zip.on("entry", (entry) => {
+                try {
+                    assert.ok(++entries <= 4096 && entry.uncompressedSize <= 16 * 1024 * 1024 && (total += entry.uncompressedSize) <= 64 * 1024 * 1024, "Archive expansion limit");
+                    check(Buffer.from(entry.fileName));
+                    zip.openReadStream(entry, (error, stream) => {
+                        if (error) { reject(error); return; }
+                        const chunks: Buffer[] = [];
+                        let size = 0;
+                        stream!.on("error", reject);
+                        stream!.on("data", (chunk: Buffer) => {
+                            size += chunk.length;
+                            if (size > entry.uncompressedSize) { stream!.destroy(new Error("ARCHIVE_ENTRY_LIMIT")); return; }
+                            chunks.push(chunk);
+                        });
+                        stream!.on("end", () => {
+                            try { check(Buffer.concat(chunks)); zip.readEntry(); } catch (error) { reject(error); }
+                        });
+                    });
+                } catch (error) { reject(error); }
+            });
+            zip.readEntry();
+        });
+    } finally { zip.close(); }
+    return entries;
+}
+
+/** 观察器只保留测试内存中的完整端点和随机路径，检查 URL/JSON/百分号/base64 编码；产品私有 invocation/PW config 不属于上传容器，报告 JSON、JUnit、HTML 内嵌 ZIP 与 Trace 解压正文则必须逐项经过真实读取。 */
+async function observeBusiness(run: (inspect: (bytes: Buffer, name: string) => Promise<void>) => Promise<void>, connectFailure = false, expectedHeadless?: boolean) {
+    const endpoints: string[] = [], servers: BrowserServer[] = [];
+    const launchServer = chromium.launchServer.bind(chromium);
+    const start = ProcessSupervisor.prototype.start;
+    let buffers = 0, archives = 0, members = 0, hits = 0, json = 0, html = 0, junit = 0, traces = 0;
+    let currentContainer = "raw";
+    const containers: Record<string, number> = {}, fields: Record<string, number> = {};
+    const check = (bytes: Buffer) => {
+        buffers++;
+        for (const endpoint of endpoints) {
+            const token = new URL(endpoint).pathname.slice(1);
+            for (const value of [endpoint, token]) {
+                const forms = new Set([value, encodeURIComponent(value), encodeURI(value), JSON.stringify(value).slice(1, -1), Buffer.from(value).toString("base64"), Buffer.from(value).toString("base64url")]);
+                if ([...forms].some((form) => form.length > 0 && bytes.includes(Buffer.from(form)))) {
+                    hits++;
+                    containers[currentContainer] = (containers[currentContainer] ?? 0) + 1;
+                    let visited = 0;
+                    const identify = (value: unknown, field: string, depth: number): void => {
+                        if (++visited > 10000 || depth > 24) return;
+                        if (typeof value === "string" && [...forms].some((form) => form.length > 0 && value.includes(form))) fields[field] = (fields[field] ?? 0) + 1;
+                        else if (value && typeof value === "object") for (const [key, child] of Object.entries(value)) identify(child, /^(?:message|stack|error|errors|stdout|stderr|source|url|wsEndpoint|text)$/.test(key) ? key : field, depth + 1);
+                    };
+                    for (const line of bytes.toString().split("\n").slice(0, 10000)) {
+                        try { identify(JSON.parse(line), "other", 0); } catch { }
+                    }
+                }
+            }
+        }
+    };
+    const inspect = async (bytes: Buffer, name: string) => {
+        currentContainer = name.endsWith(".zip") ? "trace.zip" : name.endsWith(".html") ? "report.html" : name.endsWith(".xml") ? "junit.xml" : name.endsWith("playwright.json") ? "playwright.json" : name.includes("events-completion") ? "events-completion" : name.includes("offline-result") ? "offline-result-report" : "referenced-data";
+        check(bytes);
+        if (name.endsWith("playwright.json")) json++;
+        if (name.endsWith(".xml")) junit++;
+        if (name.endsWith(".html")) {
+            html++;
+            const embedded = bytes.toString().match(/(?:data:application\/zip;base64,)([A-Za-z0-9+/=]+)/);
+            assert.ok(embedded, "HTML must contain the actual embedded report ZIP");
+            archives++;
+            currentContainer = "report.html:decoded-zip";
+            members += await scanArchive(Buffer.from(embedded[1]!, "base64"), check);
+        }
+        if (name.endsWith(".zip")) { archives++; traces++; currentContainer = "trace.zip:decoded"; members += await scanArchive(bytes, check); }
+    };
+    chromium.launchServer = async (options) => {
+        assert.equal(options?.executablePath, chromium.executablePath());
+        assert.equal(options?.chromiumSandbox, true);
+        if (expectedHeadless !== undefined) assert.equal(options?.headless, expectedHeadless);
+        const server = await launchServer(options);
+        servers.push(server);
+        const endpoint = server.wsEndpoint();
+        endpoints.push(endpoint);
+        if (connectFailure) {
+            const broken = new URL(endpoint);
+            broken.port = "1";
+            endpoints.push(broken.href);
+            server.wsEndpoint = () => broken.href;
+        }
+        return server;
+    };
+    ProcessSupervisor.prototype.start = async function (...args: Parameters<typeof start>) {
+        const child = await start.apply(this, args);
+        const invocation = JSON.parse(await readFile(join(args[1].cwd, "invocation.json"), "utf8"));
+        const exited = child.exited.then(async (value) => {
+            const visit = async (directory: string): Promise<void> => {
+                for (const item of await readdir(directory, { withFileTypes: true })) {
+                    const path = join(directory, item.name);
+                    if (item.isDirectory() && item.name !== "npm-cache") await visit(path);
+                    else if (item.isFile() && (directory.includes("/html/data") || /(?:playwright\.json|\.xml|\.html|\.zip)$/.test(item.name))) await inspect(await readFile(path), item.name);
+                }
+            };
+            await visit(invocation.tmp);
+            return value;
+        });
+        void exited.catch(() => {});
+        return { ...child, exited };
+    };
+    try {
+        await run(inspect);
+        assert.ok(endpoints.length > 0 && json > 0 && html > 0 && junit > 0, "Actual reports and endpoint observations are required");
+        if (!connectFailure) assert.ok(traces > 0, "Actual Trace archives are required");
+        console.log(JSON.stringify({ endpointScan: { buffers, archives, members, hits, containers, fields, json, html, junit, traces } }));
+        assert.equal(hits, 0, "PRIVATE_ENDPOINT_DISCLOSURE: affected delivery must pause; diagnostics contain counts only");
+    } finally {
+        ProcessSupervisor.prototype.start = start;
+        chromium.launchServer = launchServer;
+        for (const server of servers) {
+            const child = server.process();
+            if (child.exitCode === null && child.signalCode === null) await server.kill();
+        }
+    }
+}
+
+/** 线上业务复用原 physical 的真实失败与第二次成功，并在清理前扫描实际上传和报告容器；HTTP 夹具只确认传输封套，容量、fence 服务事务和真实 MySQL 结论仍由独立 Linux 服务门禁证明。 */
+test("online actual SDK assertion FAIL/PASS preserves CONTROLLED proof and scans decoded artifacts", { timeout: 240000 }, async () => {
+    const source = await createDarwinSource({ temporaryDirectory: root });
+    await observeBusiness(async (inspect) => onlineBusiness({ darwinSource: source, browserExecutable: chromium.executablePath(), inspect: async ({ result, uploads, events }) => {
+        for (const upload of uploads.values()) await inspect(upload.bytes, upload.filename);
+        await inspect(Buffer.from(JSON.stringify({ completion: result.completion, events })), "events-completion.json");
+    } }));
+});
+
+test("online actual CLI connection FAIL scans errors and decoded reports without exposing endpoint", { timeout: 180000 }, async () => {
+    const source = await createDarwinSource({ temporaryDirectory: root });
+    await observeBusiness(async (inspect) => onlineBusiness({ darwinSource: source, connectFailure: true, inspect: async ({ result, uploads, events }) => {
+        for (const upload of uploads.values()) await inspect(upload.bytes, upload.filename);
+        await inspect(Buffer.from(JSON.stringify({ completion: result.completion, events })), "events-completion.json");
+    } }), true);
+});
+
+/** 离线执行只访问测试业务 HTTP 页面而没有控制平台客户端，正常与断言失败均走真正冻结 npm 闭包和 CLI；重新打开 SQLite 报告与恢复入口保留同代受控范围，不把普通业务失败解释为进程生命周期失败。 */
+for (const failing of [false, true]) test(`offline actual frozen engine ${failing ? "assertion FAIL" : "PASS"} reopens scoped report without platform`, { timeout: 180000 }, async () => {
+    const server = createServer((request, response) => {
+        response.setHeader("Content-Type", request.url === "/me" ? "application/json" : "text/html");
+        response.end(request.url === "/me" ? JSON.stringify({ id: "reader" }) : '<div data-testid="name">Ready</div>');
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+    const f = await fixture(engine.distribution, origin, failing ? origin + "/wrong" : origin + "/");
+    try {
+        const bundle = await verifyBundle(await f.archive(), { trust: f.trust, destination: join(f.dir, "installed") });
+        const secrets = new SecretStore(join(f.dir, "secrets"));
+        await secrets.set({ issuerId: f.issuer.issuerId, workspaceId: id(99), secretRef: "reader", versionId: id(14) }, { token: "local-test-only" });
+        const local = join(f.dir, "local"), source = await createDarwinSource({ temporaryDirectory: root });
+        await observeBusiness(async (inspect) => {
+            const result = await runOffline(bundle, { trust: f.trust, root: local, secrets, releaseDirectory: engine.release, browserExecutable: chromium.executablePath(), darwinSource: source, deviceId: id(90), headless: false });
+            assert.equal(result.outcome, failing ? "FAILED" : "PASSED");
+            assert.equal(result.attempts[0]!.processStopScope, "CONTROLLED_WORKER_BROWSER");
+            assert.equal(result.attempts[0]!.processStopped, true);
+            const reports = new LocalReports(local, () => true), snapshot = await reports.snapshot(result.workspaceId, result.localRunId);
+            assert.equal(snapshot.reports[0]!.cases[0]!.attempts[0]!.facts.processStopScope, "CONTROLLED_WORKER_BROWSER");
+            assert.equal(snapshot.reports[0]!.gateNow.passed, false);
+            for (const artifact of result.attempts[0]!.artifacts) await inspect(await reports.readRaw(result.workspaceId, result.localRunId, result.attempts[0]!.attemptId, artifact.artifactId!), artifact.path);
+            await inspect(Buffer.from(JSON.stringify({ result, snapshot })), "offline-result-report.json");
+
+            const received = new Map<string, Buffer>(), metadata = new Map<string, { sizeBytes: number; sha256: string; path: string }>();
+            let imports = 0, observedScope = 0, uploadFailed = false;
+            const transport = createServer(async (request, response) => {
+                try {
+                    const chunks: Buffer[] = [];
+                    for await (const chunk of request) chunks.push(chunk);
+                    const bytes = Buffer.concat(chunks), path = request.url!.split("?")[0]!;
+                    const reply = (data: unknown) => { response.setHeader("Content-Type", "application/json"); response.end(JSON.stringify({ data })); };
+                    assert.equal(request.headers["idempotency-key"], "offline_" + result.localRunId);
+                    if (path.endsWith("/result-import-uploads")) {
+                        const key = randomUUID();
+                        received.set(key, Buffer.alloc(0));
+                        metadata.set(key, JSON.parse(bytes.toString()).file);
+                        reply({ id: key, uploadUrl: `/internal/v1/workspaces/${result.workspaceId}/result-import-uploads/${key}` });
+                    } else if (path.includes("/result-import-uploads/")) {
+                        const key = path.split("/").pop()!;
+                        const combined = Buffer.concat([received.get(key)!, bytes]);
+                        received.set(key, combined);
+                        reply({ receivedBytes: combined.length, complete: combined.length === metadata.get(key)!.sizeBytes });
+                    } else if (path.endsWith("/result-imports")) {
+                        for (const [key, content] of received) {
+                            assert.equal(content.length, metadata.get(key)!.sizeBytes);
+                            assert.equal(createHash("sha256").update(content).digest("hex"), metadata.get(key)!.sha256);
+                        }
+                        const imported = JSON.parse(bytes.toString());
+                        observedScope += imported.attempts.filter((attempt: { processStopScope: string }) => attempt.processStopScope === "CONTROLLED_WORKER_BROWSER").length;
+                        await inspect(bytes, "offline-result-report.json");
+                        imports++;
+                        reply({ id: id(88), runId: id(89), localRunId: result.localRunId, source: "OFFLINE_IMPORT", officialGatePassed: false, duplicate: imports > 1 });
+                    } else throw new Error("UNEXPECTED_IMPORT_PATH");
+                } catch { uploadFailed = true; response.statusCode = 500; response.end(); }
+            });
+            await new Promise<void>((resolve) => transport.listen(0, "127.0.0.1", resolve));
+            try {
+                const configuration = { server: `http://127.0.0.1:${(transport.address() as { port: number }).port}`, workspaceId: result.workspaceId, deviceToken: "synthetic-import-device" };
+                const first = await uploadOffline(local, result.localRunId, configuration);
+                const repeated = await uploadOffline(local, result.localRunId, configuration);
+                assert.equal(first.runId, repeated.runId);
+                assert.equal(imports, 2);
+                assert.equal(observedScope, 2);
+                assert.equal(uploadFailed, false);
+                assert.ok(received.size >= result.attempts[0]!.artifacts.length);
+                for (const [key, bytes] of received) await inspect(bytes, metadata.get(key)!.path);
+            } finally { transport.closeAllConnections(); await new Promise<void>((resolve) => transport.close(() => resolve())); }
+
+            assert.equal(await recoverOffline(local), undefined);
+            const store = await LocalStore.open(local);
+            try { assert.equal(store.active(), undefined); assert.equal(store.result(result.workspaceId, result.localRunId).attempts[0]!.processStopScope, "CONTROLLED_WORKER_BROWSER"); } finally { store.close(); }
+        }, false, false);
+    } finally { server.closeAllConnections(); await new Promise<void>((resolve) => server.close(() => resolve())); await f.close(); }
+});
+
+/** 私有配置真实读取与发布使用 B 能力，宽权限、ALLOW ACL 和超过调用者限额都拒绝；这里不修复对象权限，提交失败保留不确定性，公开大包读取也不会因此扩大原生两兆硬上限。 */
+test("Darwin private config rejects insecure mode and ALLOW ACL without repair", async () => {
+    const directory = join(root, "private-config");
+    await privateDirectory(directory);
+    await updatePrivate(directory, "config.json", () => ({ value: "private" }));
+    assert.deepEqual(await readPrivate(directory, "config.json"), { value: "private" });
+    await chmod(directory, 0o755);
+    await assert.rejects(privateDirectory(directory));
+    assert.equal((await lstat(directory)).mode & 0o777, 0o755);
+    await chmod(directory, 0o700);
+    execFileSync("chmod", ["+a", "everyone allow read,search", directory]);
+    try { await assert.rejects(readPrivate(directory, "config.json")); } finally { execFileSync("chmod", ["-N", directory]); }
+});
+
+/** Broker 只使用可信短临时根的独占目录，构造器按实际 UTF8 字节拒绝 sockaddr_un 溢出；业务根再长也不会被静默 realpath，真实传输仍验证 nonce、EOF 以及关闭后只退休当前拥有的套接字和标记目录。 */
+test("Darwin broker validates UTF8 boundary and transports through an owned short B directory", async () => {
+    assert.doesNotThrow(() => new AttemptBroker("x".repeat(103), async () => null));
+    assert.throws(() => new AttemptBroker("x".repeat(104), async () => null), /IPC_PATH_INVALID/);
+    assert.doesNotThrow(() => new AttemptBroker("中".repeat(34), async () => null));
+    assert.throws(() => new AttemptBroker("中".repeat(35), async () => null), /IPC_PATH_INVALID/);
+    assert.throws(() => new AttemptBroker("bad\0path", async () => null), /IPC_PATH_INVALID/);
+    const owned = await createDarwinBrokerDirectory();
+    const broker = new AttemptBroker(join(owned.path, "control.sock"), async () => ({ received: true }));
+    try {
+        await broker.open();
+        const reply = await new Promise<string>((resolve, reject) => {
+            const socket = createConnection(broker.path);
+            let bytes = "";
+            socket.on("connect", () => socket.end(JSON.stringify({ nonce: broker.nonce }) + "\n"));
+            socket.on("error", reject);
+            socket.on("data", (chunk) => { bytes += chunk; });
+            socket.on("end", () => resolve(bytes));
+        });
+        assert.equal(JSON.parse(reply).value.received, true);
+        assert.equal((await lstat(broker.path)).mode & 0o777, 0o600);
+    } finally { await broker.close(); await owned.close(); }
+    await assert.rejects(lstat(owned.path), { code: "ENOENT" });
+    const denied = await createDarwinBrokerDirectory(), deniedBroker = new AttemptBroker(join(denied.path, "control.sock"), async () => null);
+    execFileSync("chmod", ["+a", "everyone allow read,search", denied.path]);
+    try {
+        await assert.rejects(deniedBroker.open());
+        await assert.rejects(lstat(deniedBroker.path), { code: "ENOENT" });
+    } finally {
+        execFileSync("chmod", ["-N", denied.path]);
+        await deniedBroker.close();
+        await denied.close();
+    }
+});
+
+/** 本夹具在真实离线包周围提供实际业务服务器、可取消请求与原 BrowserServer 句柄，异常后只终止本次真正创建的 Chrome 并等原对象退出；不以 PID 查询补证明，也不把启动取消或提交不确定性假称没有派生。 */
+async function offlineScenario(run: (value: { local: string; config: Parameters<typeof runOffline>[1]; bundle: Awaited<ReturnType<typeof verifyBundle>>; controller: AbortController; page: Promise<void> }) => Promise<void>, timeoutMs = 30000) {
+    let page!: () => void;
+    const observed = new Promise<void>((resolve) => { page = resolve; });
+    const server = createServer((request, response) => {
+        if (request.url === "/me") { response.setHeader("Content-Type", "application/json"); response.end(JSON.stringify({ id: "reader" })); }
+        else page();
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+    const f = await fixture(engine.distribution, origin), local = join(f.dir, "local"), controller = new AbortController();
+    const servers: BrowserServer[] = [], launch = chromium.launchServer.bind(chromium);
+    chromium.launchServer = async (options) => { const server = await launch(options); servers.push(server); return server; };
+    try {
+        const bundle = await verifyBundle(await f.archive(), { trust: f.trust, destination: join(f.dir, "installed") });
+        const secrets = new SecretStore(join(f.dir, "secrets"));
+        await secrets.set({ issuerId: f.issuer.issuerId, workspaceId: id(99), secretRef: "reader", versionId: id(14) }, { token: "local-test-only" });
+        const source = await createDarwinSource({ temporaryDirectory: root, stopTimeoutMs: timeoutMs });
+        await run({ local, config: { root: local, trust: f.trust, secrets, releaseDirectory: engine.release, browserExecutable: chromium.executablePath(), darwinSource: source, deviceId: id(90), signal: controller.signal }, bundle, controller, page: observed });
+    } finally {
+        controller.abort();
+        chromium.launchServer = launch;
+        for (const server of servers) {
+            const child = server.process();
+            if (child.exitCode === null && child.signalCode === null) {
+                const exit = new Promise<void>((resolve) => child.once("exit", () => resolve()));
+                await server.kill();
+                await exit;
+            }
+        }
+        server.closeAllConnections();
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+        await f.close();
+    }
+}
+
+/** 取消在真实页面请求已到达后发生，CLI 必须按同代授权退出并完成观察封存，在线与离线的终结调用数均保持一次；这里不把取消 ACK 或 BrowserServer.close 返回单独作为停止结论。 */
+test("offline real running CLI cancellation immediately uses one stop operation and actual CONTROLLED proof", { timeout: 180000 }, async () => offlineScenario(async ({ local, config, bundle, controller, page }) => {
+    const terminate = ProcessSupervisor.prototype.terminateAttempt;
+    let calls = 0;
+    ProcessSupervisor.prototype.terminateAttempt = function (...args) { calls++; return terminate.apply(this, args); };
+    try {
+        const running = runOffline(bundle, config);
+        await page;
+        const at = performance.now();
+        controller.abort();
+        assert.equal(calls, 1, "Cancellation must initiate stop synchronously");
+        const result = await running;
+        assert.equal(result.outcome, "CANCELLED");
+        assert.equal(result.attempts[0]!.processStopped, true);
+        assert.equal(result.attempts[0]!.processStopScope, "CONTROLLED_WORKER_BROWSER");
+        assert.equal(calls, 1);
+        assert.ok(performance.now() - at < 30000);
+        const proof = JSON.parse(await readFile(join(local, "processes", `${result.attempts[0]!.attemptId}.controlled.json`), "utf8"));
+        assert.equal(proof.outer.code, 130);
+        assert.equal(proof.scope, "CONTROLLED_WORKER_BROWSER");
+        const store = await LocalStore.open(local);
+        try { assert.equal(store.active(), undefined); } finally { store.close(); }
+    } finally { ProcessSupervisor.prototype.terminateAttempt = terminate; }
+}));
+
+test("online actual page cancellation immediately supplies lease-clamped monotonic deadline once", { timeout: 180000 }, async () => {
+    const source = await createDarwinSource({ temporaryDirectory: root }), controller = new AbortController();
+    const terminate = ProcessSupervisor.prototype.terminateAttempt;
+    const deadlines: number[] = [];
+    ProcessSupervisor.prototype.terminateAttempt = function (attemptId, reason, deadline) {
+        assert.ok(typeof deadline === "number" && Number.isFinite(deadline), "Online Darwin cancellation requires an absolute finite deadline");
+        assert.ok(deadline <= performance.now() + 59000 && deadline > performance.now(), "Deadline must clamp the remaining 60s lease minus 1s");
+        deadlines.push(deadline);
+        return terminate.call(this, attemptId, reason, deadline);
+    };
+    try {
+        await onlineBusiness({ darwinSource: source, signal: controller.signal, expectCancelled: true, onPage: () => {
+            controller.abort();
+            assert.equal(deadlines.length, 1, "Online abort must initiate stop before any prewait");
+        } });
+        assert.equal(deadlines.length, 1);
+    } finally { ProcessSupervisor.prototype.terminateAttempt = terminate; }
+});
+
+/** 启动中的取消发生在真实 start 已同步登记且尚未返回 child 的窗口，后台准入必须立即关闭；后续 start 拒绝与 finally 复用首次停止，SQLite 保留隔离，不允许重贴恢复代际或把空 child 当成未派生。 */
+test("offline cancel while awaiting actual start closes admission without late business START", { timeout: 180000 }, async () => offlineScenario(async ({ config, bundle, controller, local }) => {
+    const start = ProcessSupervisor.prototype.start, terminate = ProcessSupervisor.prototype.terminateAttempt;
+    let stops = 0, starts = 0;
+    ProcessSupervisor.prototype.start = function (...args) {
+        starts++;
+        const pending = start.apply(this, args);
+        controller.abort();
+        assert.equal(stops, 1, "Start admission must close before awaiting the child");
+        return pending;
+    };
+    ProcessSupervisor.prototype.terminateAttempt = function (...args) { stops++; return terminate.apply(this, args); };
+    try {
+        const result = await runOffline(bundle, config);
+        assert.equal(result.outcome, "CANCELLED");
+        assert.equal(starts, 1);
+        assert.equal(stops, 1);
+        assert.equal(result.attempts[0]!.processStopped, false);
+        assert.equal(result.attempts[0]!.processStopScope, undefined);
+        const store = await LocalStore.open(local);
+        try { assert.equal(store.active()?.state, "QUARANTINED"); } finally { store.close(); }
+    } finally { ProcessSupervisor.prototype.start = start; ProcessSupervisor.prototype.terminateAttempt = terminate; }
+}));
+
+/** 过期和非有限截止在真实 worker 已登记但尚未 START 时触发，终结 promise 必须粘滞且立即保守失败；之后更长的预算不能延长首次租约，也不能因浏览器或 worker 最终退出而改写未知证明。 */
+for (const invalid of ["expired", "nan", "infinity"] as const) test(`actual Darwin ${invalid} stop deadline closes admission and remains sticky`, { timeout: 180000 }, async () => offlineScenario(async ({ config, bundle }) => {
+    const start = ProcessSupervisor.prototype.start;
+    let tested = false;
+    ProcessSupervisor.prototype.start = async function (...args) {
+        const owned = await start.apply(this, args);
+        tested = true;
+        const deadline = invalid === "expired" ? performance.now() - 1 : invalid === "nan" ? NaN : Infinity;
+        const at = performance.now(), first = this.terminateAttempt(args[0], "TEST_EXPIRED", deadline);
+        assert.equal(this.terminateAttempt(args[0], "TEST_EXTENSION", at + 30000), first);
+        assert.equal((await first).processStopped, false);
+        assert.ok(performance.now() - at < 1000, "Expired deadline cannot wait for a fresh graceful budget");
+        await owned.exited;
+        return owned;
+    };
+    try {
+        const result = await runOffline(bundle, config);
+        assert.equal(tested, true);
+        assert.equal(result.attempts[0]!.processStopped, false);
+        assert.notEqual(result.outcome, "PASSED");
+    } finally { ProcessSupervisor.prototype.start = start; }
+}));
+
+/** 原生目录包装只在真实 replace 完成后注入不确定结果，全部实际 B 文件核验、刷新及 Chrome 生命周期仍保留；私有 invocation 已经可见也不能宣称没有派生，重开恢复继续保留未知容量。 */
+test("actual private invocation publication uncertainty cannot become NO_PROCESS or release offline owner", { timeout: 180000 }, async () => offlineScenario(async ({ config, bundle, local }) => {
+    const native = darwinNative(), open = native.openPrivateDirectory.bind(native);
+    let publications = 0;
+    native.openPrivateDirectory = (path, create) => {
+        const directory = open(path, create);
+        if (!path.includes("/work/")) return directory;
+        return {
+            read: directory.read.bind(directory), entries: directory.entries.bind(directory), createExclusive: directory.createExclusive.bind(directory), remove: directory.remove.bind(directory), close: directory.close.bind(directory),
+            replace(name, temporary, bytes, limit) {
+                directory.replace(name, temporary, bytes, limit);
+                if (name === "invocation.json") { publications++; throw Object.assign(new Error("TEST_COMMIT_UNCONFIRMED"), { code: "COMMIT_UNCONFIRMED" }); }
+            },
+        } satisfies DarwinPrivateDirectory;
+    };
+    try {
+        const result = await runOffline(bundle, config);
+        assert.equal(publications, 1);
+        assert.equal(result.attempts[0]!.processStopped, false);
+        assert.equal(result.attempts[0]!.processStopScope, undefined);
+        assert.notEqual(result.outcome, "PASSED");
+        assert.equal((await recoverOffline(local))?.processStopped, false);
+    } finally { native.openPrivateDirectory = open; }
+}));
+
+/** 线上 RUNNING 发布故障发生于真实 B 原子提交之后，outer 已存在而业务 START 尚未发送；后续只能复用真实受控停止结论，不能用 child 或普通路径提交猜测没有派生，也不能继续进入页面或上传成功完成清单。 */
+test("online RUNNING journal publication uncertainty blocks business START and preserves controlled stopping", { timeout: 180000 }, async () => {
+    const source = await createDarwinSource({ temporaryDirectory: root });
+    const native = darwinNative(), open = native.openPrivateDirectory.bind(native), start = ProcessSupervisor.prototype.start;
+    let publications = 0, businessStarts = 0;
+    native.openPrivateDirectory = (path, create) => {
+        const directory = open(path, create);
+        if (!path.endsWith("/attempts")) return directory;
+        return { read: directory.read.bind(directory), entries: directory.entries.bind(directory), createExclusive: directory.createExclusive.bind(directory), remove: directory.remove.bind(directory), close: directory.close.bind(directory), replace(name, temporary, bytes, limit) {
+            directory.replace(name, temporary, bytes, limit);
+            if (!publications && JSON.parse(bytes.toString()).state === "RUNNING") { publications++; throw Object.assign(new Error("TEST_COMMIT_UNCONFIRMED"), { code: "COMMIT_UNCONFIRMED" }); }
+        } } satisfies DarwinPrivateDirectory;
+    };
+    ProcessSupervisor.prototype.start = async function (...args) {
+        const child = await start.apply(this, args);
+        return { ...child, send(message: unknown) { if ((message as { type: string }).type === "START") businessStarts++; child.send(message); } };
+    };
+    try {
+        await onlineBusiness({ darwinSource: source, expectIncomplete: true, expectedStop: true });
+        assert.equal(publications, 1);
+        assert.equal(businessStarts, 0);
+    } finally { native.openPrivateDirectory = open; ProcessSupervisor.prototype.start = start; }
+});
+
+/** SQLite 的故障点先执行真实 RUNNING COMMIT 再抛错，因此调用方手中的旧 SPAWNING token 不能授权后续状态写入；停止仍立即执行，持久占用保持可恢复未知，不能在 finally 中用状态失配释放容量或补发业务 START。 */
+test("offline actual RUNNING commit uncertainty retains capacity and never sends late START", { timeout: 180000 }, async () => offlineScenario(async ({ config, bundle, local }) => {
+    const exec = DatabaseSync.prototype.exec, start = ProcessSupervisor.prototype.start;
+    let injected = false, businessStarts = 0;
+    DatabaseSync.prototype.exec = function (sql: string) {
+        if (!injected && sql === "COMMIT" && this.prepare("SELECT state FROM veriq_local_owner WHERE singleton=1").get()?.state === "RUNNING") {
+            exec.call(this, sql);
+            injected = true;
+            throw new Error("TEST_COMMIT_UNCONFIRMED");
+        }
+        return exec.call(this, sql);
+    };
+    ProcessSupervisor.prototype.start = async function (...args) {
+        const child = await start.apply(this, args);
+        return { ...child, send(message: unknown) { if ((message as { type: string }).type === "START") businessStarts++; child.send(message); } };
+    };
+    try {
+        await assert.rejects(runOffline(bundle, config));
+        assert.equal(injected, true);
+        assert.equal(businessStarts, 0);
+        const store = await LocalStore.open(local);
+        try { assert.equal(store.active()?.state, "RUNNING"); assert.equal(store.unspawnedStop(store.active()!), undefined); } finally { store.close(); }
+    } finally { DatabaseSync.prototype.exec = exec; ProcessSupervisor.prototype.start = start; }
+}));
+
+/** 真正重试为每个 Attempt 写独立控制证明，第二次 LAUNCH 使用 SQLite 已提交的新代际而不是覆盖第一份历史；断言失败后通过仍显示 UNSTABLE，重开报告保留两个受控范围，不把新 owner generation 重贴到旧 proof。 */
+test("offline real retry retains both launch generations and CONTROLLED report scopes", { timeout: 240000 }, async () => {
+    let firstPage = true;
+    const server = createServer((request, response) => {
+        if (request.url === "/me") { response.setHeader("Content-Type", "application/json"); response.end(JSON.stringify({ id: "reader" })); return; }
+        if (request.url === "/" && firstPage) { firstPage = false; response.writeHead(302, { location: "/wrong" }); response.end(); return; }
+        response.setHeader("Content-Type", "text/html");
+        response.end('<div data-testid="name">Ready</div>');
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`, f = await fixture(engine.distribution, origin);
+    try {
+        const bundle = await verifyBundle(await f.archive(), { trust: f.trust, destination: join(f.dir, "installed") });
+        const secrets = new SecretStore(join(f.dir, "secrets")), local = join(f.dir, "local");
+        await secrets.set({ issuerId: f.issuer.issuerId, workspaceId: id(99), secretRef: "reader", versionId: id(14) }, { token: "local-test-only" });
+        const source = await createDarwinSource({ temporaryDirectory: root });
+        const result = await runOffline(bundle, { root: local, trust: f.trust, secrets, releaseDirectory: engine.release, browserExecutable: chromium.executablePath(), darwinSource: source, deviceId: id(90), retry: true });
+        assert.equal(result.outcome, "UNSTABLE");
+        assert.equal(result.attempts.length, 2);
+        for (const [index, attempt] of result.attempts.entries()) {
+            assert.equal(attempt.processStopped, true);
+            assert.equal(attempt.processStopScope, "CONTROLLED_WORKER_BROWSER");
+            const proof = JSON.parse(await readFile(join(local, "processes", `${attempt.attemptId}.controlled.json`), "utf8"));
+            assert.equal(proof.ownerGeneration, index + 1);
+        }
+        const snapshot = await new LocalReports(local, () => true).snapshot(result.workspaceId, result.localRunId);
+        assert.equal(snapshot.reports[0]!.cases[0]!.attempts.length, 2);
+        assert.ok(snapshot.reports[0]!.cases[0]!.attempts.every((attempt) => attempt.facts.processStopScope === "CONTROLLED_WORKER_BROWSER"));
+    } finally { server.closeAllConnections(); await new Promise<void>((resolve) => server.close(() => resolve())); await f.close(); }
+});
+
+/** 即使停止先于任何实际 start 登记，首次终结也必须关闭该 Attempt 的未来准入，否则旧去重 promise 可能遮蔽后来创建的活进程；非法可见模式和下载目录同样必须在 Chrome 派生之前由真实受信入口拒绝。 */
+test("Darwin first stop closes future admission and rejects untrusted browser options", async () => {
+    const source = await createDarwinSource({ temporaryDirectory: root }), directory = join(root, "admission"), work = join(directory, "work");
+    await mkdir(work, { recursive: true, mode: 0o700 });
+    const processes = new ProcessSupervisor(join(directory, "processes"), 500, undefined, source), attemptId = randomUUID();
+    const command = { executable: process.execPath, args: ["-e", "process.exit(0)"], cwd: work };
+    await processes.terminateAttempt(attemptId, "CLOSED_BEFORE_START");
+    await assert.rejects(processes.start(attemptId, command, { kind: "TEST", ownerGeneration: 1, prepare() {} }), /DARWIN_ATTEMPT_STOPPING/);
+    await assert.rejects(processes.start(randomUUID(), command, { kind: "TEST", ownerGeneration: 1, headless: "false" as unknown as boolean, prepare() {} }), /INVALID_BROWSER_MODE/);
+    await assert.rejects(processes.start(randomUUID(), command, { kind: "TEST", ownerGeneration: 1, downloadsPath: root, prepare() {} }), /DARWIN_DOWNLOAD_DIRECTORY_INVALID/);
+});
+
+/** 最终日志读取故障发生在真实 outer 与 CLI 已经结束之后，仍不能把普通 EOF、业务断言结果或已返回读字节提升成受控停止；包装保留实际 B File 拥有者，只注入读取结果不确定性，生产终结路径必须保留未知范围和容量。 */
+test("online actual final B journal read uncertainty prevents delivery and positive scope", { timeout: 180000 }, async () => {
+    const source = await createDarwinSource({ temporaryDirectory: root }), native = darwinNative(), open = native.openPrivateDirectory.bind(native);
+    let reads = 0;
+    native.openPrivateDirectory = (path, create) => {
+        const directory = open(path, create);
+        if (!path.includes("/controlled-journals/")) return directory;
+        return { read: directory.read.bind(directory), entries: directory.entries.bind(directory), replace: directory.replace.bind(directory), remove: directory.remove.bind(directory), close: directory.close.bind(directory), createExclusive(name) {
+            const file = directory.createExclusive(name);
+            if (name !== "command.jsonl") return file;
+            return { get fd() { return file.fd; }, close: file.close.bind(file), read(limit) {
+                file.read(limit);
+                reads++;
+                throw new Error("TEST_READ_UNCONFIRMED");
+            } };
+        } } satisfies DarwinPrivateDirectory;
+    };
+    try {
+        await onlineBusiness({ darwinSource: source, expectIncomplete: true, expectedStop: false, inspect: async ({ result }) => {
+            assert.equal(result.stop.processStopScope, undefined);
+            assert.equal(result.completion, undefined);
+        } });
+        assert.equal(reads, 1);
+    } finally { native.openPrivateDirectory = open; }
+});
+
+/** 真实业务先生成完整停止证明，再只改变在线 journal 中的 Claim fence，恢复必须拒绝把有效旧 proof 借给不同代际；此测试不重写 proof、不伪造进程退出，也不以 HTTP 夹具的 reconcile ACK 代替服务端真实容量事务。 */
+test("online actual controlled history cannot reconcile a different claim generation or kind", { timeout: 240000 }, async () => {
+    const source = await createDarwinSource({ temporaryDirectory: root });
+    let checked = 0;
+    await onlineBusiness({ darwinSource: source, inspect: async ({ root: directory, result, supervisor, run }) => {
+        assert.ok(result.completion);
+        const journals = darwinNative().openPrivateDirectory(join(directory, "agent", "attempts"), false);
+        try {
+            const name = `${result.stop.attemptId}.json`, record = JSON.parse(journals.read(name, 65536).toString());
+            if (run === 1) record.claim.fencingToken++;
+            else record.claim.jobKind = "VALIDATE";
+            journals.replace(name, `${result.stop.attemptId}.json.${randomUUID()}`, Buffer.from(JSON.stringify(record)), 65536);
+        } finally { journals.close(); }
+        const recovered = (await supervisor.recover()).find((receipt) => receipt.attemptId === result.stop.attemptId)!;
+        assert.equal(recovered.processStopped, false);
+        assert.equal(recovered.processStopScope, undefined);
+        assert.equal(recovered.reason, "CONTROLLED_OWNER_MISMATCH");
+        checked++;
+    } });
+    assert.equal(checked, 2);
+});

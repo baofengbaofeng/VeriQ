@@ -33,6 +33,9 @@ export interface DarwinLaunchContext {
 export interface DarwinControlledLaunch {
     kind: "TEST" | "VALIDATE" | "CLEANUP";
     ownerGeneration: number;
+    /** 可见模式仅接受宿主传入的实际布尔值，下载目录只能指向本次私有工作目录内的固定 downloads 子目录；这两个有限字段不开放任意浏览器参数、可执行路径或来自 Job 的 LaunchOptions。 */
+    headless?: boolean;
+    downloadsPath?: string;
     prepare(context: DarwinLaunchContext): void | Promise<void>;
 }
 

@@ -21,8 +21,10 @@ import {
     type Outcome,
 } from "@veriq/contracts";
 import type { CaseResult } from "@veriq/runner-sdk";
+import { ProcessRecords } from "../execution/records.ts";
 import { ProcessSupervisor, type StopReceipt, type OwnedProcess } from "../execution/processes.ts";
-import { AttemptBroker } from "../execution/broker.ts";
+import { AttemptBroker, createDarwinBrokerDirectory } from "../execution/broker.ts";
+import { requireDarwinSource, type DarwinSourceCapability } from "../execution/darwin-source.ts";
 import { executionEvent, sdkFact, type Fact, type SdkEvent } from "../execution/events.ts";
 import { loadRelease, sha256 } from "../execution/release.ts";
 import { monitorStorage } from "../execution/storage.ts";
@@ -48,6 +50,8 @@ export interface OfflineConfig {
     browserExecutable: string;
     /** 离线宿主从完整发行清单选择执行角色及辅助模块路径，签名包仅选择受支持引擎版本而不携带可执行路径；源码开发调用可缺省，已安装入口必须显式提供已验证配置。 */
     execution?: ExecutionPaths;
+    /** 当前源码宿主可显式借用工厂私有品牌能力，真实平台核验后才连接 Darwin 受控后端；离线包、Job 和 renderer 不能反序列化此对象，缺失能力不会因 headless、路径或系统名称而自动开放执行。 */
+    darwinSource?: DarwinSourceCapability;
     deviceId: string;
     debug?: boolean;
     /** 桌面宿主可以明确选择可见浏览器，默认仍保持无头执行；此字段只影响当前启动配置，不修改签名业务快照，宿主必须先证明安装的浏览器具备所选择的显示能力。 */
@@ -226,6 +230,7 @@ async function attempt(
     result: OfflineAttemptV1;
     owner: Ownership;
 }> {
+    const source = config.darwinSource === undefined ? undefined : requireDarwinSource(config.darwinSource);
     let owner = ownership;
     const runId = execution.runId,
         work = join(config.root, "work", attemptId),
@@ -240,8 +245,32 @@ async function attempt(
         failure: string | undefined,
         spawning = false;
     let monitor: ReturnType<typeof monitorStorage> | undefined;
-    const controller = new AbortController(),
-        abort = () => controller.abort();
+    let brokerDirectory: Awaited<ReturnType<typeof createDarwinBrokerDirectory>> | undefined;
+    let startIssued = false, stopOperation: Promise<StopReceipt> | undefined;
+    const controller = new AbortController();
+    /** Darwin 的首次取消立即调用并保存唯一终结操作，start 尚未返回 child 时也已同步登记准入；后续轮询、存储错误和 finally 共享同一预算，不以 ACK、短等待或未赋值的 child 推断已经退出或没有派生。 */
+    const stopOnce = (why: string) => stopOperation ??= processes.terminateAttempt(attemptId, why);
+    const unspawned = async () => {
+        if (spawning) return;
+        if (source) {
+            let records: ProcessRecords | undefined;
+            try {
+                records = await ProcessRecords.open(join(config.root, "processes"));
+                if (records) for (const suffix of ["process.json", "controlled.json", "drained.json"]) {
+                    try { await records.read(`${attemptId}.${suffix}`, 65536); return; }
+                    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") return; }
+                }
+            } catch { return; }
+            finally { await records?.close(); }
+        }
+        return store.unspawnedStop(owner);
+    };
+    const stopRequest = (why: string) => {
+        failure ??= why;
+        controller.abort();
+        if (source && startIssued) void stopOnce(failure).catch(() => {});
+    };
+    const abort = () => stopRequest("USER_CANCELLED");
     config.signal?.addEventListener("abort", abort, { once: true });
     if (config.signal?.aborted) abort();
     const append = (fact: Fact) =>
@@ -290,8 +319,13 @@ async function attempt(
                 context,
             );
         const release = await loadRelease(config.releaseDirectory, checked.manifest.engineVersion);
-        await mkdir(work, { recursive: true, mode: 0o700 });
-        tmp = await mkdtemp(join(tmpdir(), "veriq-o-"));
+        if (source) source.native.openPrivateDirectory(work, true).close();
+        else await mkdir(work, { recursive: true, mode: 0o700 });
+        tmp = await mkdtemp(join(source?.temporaryDirectory ?? tmpdir(), "veriq-o-"));
+        if (source) {
+            source.native.openPrivateDirectory(tmp, false).close();
+            brokerDirectory = await createDarwinBrokerDirectory();
+        }
         const write = async (path: string, bytes: Uint8Array) => {
             await mkdir(dirname(join(work, path)), { recursive: true, mode: 0o700 });
             await writeFile(join(work, path), bytes, { mode: 0o600, flag: "wx" });
@@ -323,7 +357,7 @@ async function attempt(
         }
         await write("execution.json", canonicalBytes(execution));
         await write("release.json", canonicalBytes(release.entry));
-        broker = new AttemptBroker(join(tmp, "control.sock"), async (message) => {
+        broker = new AttemptBroker(join(brokerDirectory?.path ?? tmp, "control.sock"), async (message) => {
             if (message.type === "status")
                 return { cancelled: controller.signal.aborted || store.cancelled(runId) };
             if (message.type === "credential") {
@@ -356,7 +390,7 @@ async function attempt(
                 if (
                     evidence.kind !== "DOWNLOAD" ||
                     evidence.sensitivity !== "CREDENTIAL_RESTRICTED" ||
-                    !containedPath(tmp!, resolve(evidence.path))
+                    !containedPath(source ? join(work, "downloads") : tmp!, resolve(evidence.path))
                 )
                     throw new Error("UNSAFE_EVIDENCE");
                 await add(evidence.path, "DOWNLOAD", `download-${artifacts.length}.bin`);
@@ -372,14 +406,14 @@ async function attempt(
             tmp,
             socket: broker.path,
             nonce: broker.nonce,
-            downloads: join(tmp, "downloads"),
+            downloads: join(source ? work : tmp, "downloads"),
             downloadLimit: 16 * 1024 * 1024,
             npmCli: executionPaths.npmCli,
             tsx: executionPaths.tsx,
             localDraftCompile: checked.dslOnly,
         };
         await mkdir(invocation.downloads, { mode: 0o700 });
-        await write("invocation.json", canonicalBytes(invocation));
+        if (!source) await write("invocation.json", canonicalBytes(invocation));
         for (const file of ["provider.mjs", "compile-entry.mjs"])
             await copyFile(
                 file === "provider.mjs"
@@ -412,7 +446,7 @@ async function attempt(
                 },
             },
         };
-        await write("playwright.config.mjs", Buffer.from(`export default ${JSON.stringify(pw)};`));
+        if (!source) await write("playwright.config.mjs", Buffer.from(`export default ${JSON.stringify(pw)};`));
         if (controller.signal.aborted || store.cancelled(runId)) throw new Error("USER_CANCELLED");
         const environment = offlineWorkerEnvironment(
             tmp,
@@ -424,17 +458,31 @@ async function attempt(
         /** 在尝试提交启动意图之前关闭未派生快捷路径，SQLite 提交抛错也不能继续使用内存中的旧 ALLOCATED；只有完整成功取得新代际状态之后才允许调用原生监督器拉起进程。 */
         spawning = true;
         owner = store.spawning(runId, attemptId, owner);
-        child = await processes.start(attemptId, {
+        if (controller.signal.aborted || store.cancelled(runId)) throw new Error("USER_CANCELLED");
+        startIssued = true;
+        const starting = processes.start(attemptId, {
             executable: executionPaths.runnerExecutable,
             args: [executionPaths.workerEntry, join(work, "invocation.json")],
             cwd: work,
             env: environment,
-        });
-        store.ensureOwner(owner);
+        }, source ? {
+            kind: "TEST", ownerGeneration: owner.generation, headless: config.headless ?? true, downloadsPath: invocation.downloads,
+            prepare: (context) => {
+                if (controller.signal.aborted || store.cancelled(runId)) throw new Error("USER_CANCELLED");
+                if (!context.wsEndpoint) throw new Error("DARWIN_BROWSER_ENDPOINT_REQUIRED");
+                context.publish("invocation.json", Buffer.from(canonicalBytes({ ...invocation, controlled: context.controlled })));
+                const { launchOptions: _launchOptions, ...use } = pw.use;
+                context.publish("playwright.config.mjs", Buffer.from(`export default ${JSON.stringify({ ...pw, use: { ...use, connectOptions: { wsEndpoint: context.wsEndpoint } } })};`));
+            },
+        } : undefined);
+        if ((controller.signal.aborted || store.cancelled(runId)) && source) stopRequest("USER_CANCELLED");
+        child = await starting;
+        if (controller.signal.aborted || store.cancelled(runId)) { stopRequest("USER_CANCELLED"); throw new Error("USER_CANCELLED"); }
+        owner = store.running(runId, attemptId, owner);
+        if (controller.signal.aborted || store.cancelled(runId)) { stopRequest("USER_CANCELLED"); throw new Error("USER_CANCELLED"); }
         monitor = monitorStorage(tmp, 64 * 1024 * 1024, async (why) => {
-            failure = why;
-            controller.abort();
-            await processes.terminateAttempt(attemptId, why);
+            stopRequest(why);
+            await stopOnce(why);
         });
         child.send({ type: "START" });
         let exited = false;
@@ -444,11 +492,10 @@ async function attempt(
         while (!exited && !controller.signal.aborted && !store.cancelled(runId))
             await Promise.race([child.exited, delay(100)]);
         if (!exited) {
-            controller.abort();
-            failure ??= "USER_CANCELLED";
-            await Promise.race([child.exited, delay(1000)]);
+            stopRequest("USER_CANCELLED");
+            if (!source) await Promise.race([child.exited, delay(1000)]);
         }
-        stop = await processes.terminateAttempt(attemptId, failure ?? "COMPLETED");
+        stop = await stopOnce(failure ?? "COMPLETED");
         if (!stop.processStopped) throw new Error("PROCESS_STOP_UNCONFIRMED");
         if (!caseResult) {
             try {
@@ -486,9 +533,9 @@ async function attempt(
     } finally {
         monitor?.close();
         config.signal?.removeEventListener("abort", abort);
-        await broker?.close();
-        stop ??= (!spawning ? store.unspawnedStop(owner) : undefined)
-            ?? await processes.terminateAttempt(attemptId, failure ?? "EXECUTION_ERROR");
+        stop ??= stopOperation ? await stopOperation : (await unspawned())
+            ?? await stopOnce(failure ?? "EXECUTION_ERROR");
+        try { await broker?.close(); } finally { await brokerDirectory?.close(); }
         owner = store.stopped(runId, stop, owner);
         if (stop.processStopped) {
             if (tmp) await rm(tmp, { recursive: true, force: true });
@@ -546,6 +593,7 @@ export async function runOffline(
     bundle: Pick<VerifiedBundle, "directory">,
     config: OfflineConfig,
 ): Promise<OfflineResultV1> {
+    if (config.darwinSource !== undefined) requireDarwinSource(config.darwinSource);
     if (config.headless !== undefined && typeof config.headless !== "boolean")
         throw new Error("INVALID_BROWSER_MODE");
     const checked = await reverifyInstalled(bundle.directory, {
@@ -564,6 +612,7 @@ export async function runOffline(
             join(config.root, "processes"),
             500,
             config.execution?.guardianExecutable,
+            config.darwinSource,
         );
     const startedAt = new Date().toISOString();
     let attemptId = randomUUID();

@@ -175,6 +175,19 @@ export class LocalStore {
             return { ...owner, state: "SPAWNING" };
         });
     }
+    /** 启动准入只接受当前 SQLite 已提交的 SPAWNING 所有权，事务提交后才返回 RUNNING 令牌；代际沿用实际 LAUNCH 而不递增，旧状态与旧代际均失败关闭，调用方必须更新令牌后才能写事件、检查所有权或保存停止回执。 */
+    running(runId: string, attemptId: string, owner: Ownership): Ownership {
+        return this.transaction(() => {
+            this.requireOwner(owner);
+            if (owner.runId !== runId || owner.attemptId !== attemptId || owner.state !== "SPAWNING")
+                throw new Error("LOCAL_OWNERSHIP_LOST");
+            const changed = this.db.prepare(
+                "UPDATE veriq_local_owner SET state='RUNNING' WHERE run_id=? AND attempt_id=? AND generation=? AND state='SPAWNING'",
+            ).run(runId, attemptId, owner.generation);
+            if (changed.changes !== 1) throw new Error("LOCAL_OWNERSHIP_LOST");
+            return { ...owner, state: "RUNNING" };
+        });
+    }
     /**
      * 公开方法 claimRecovery 在恢复路径声明代际所有权：拒绝过期或旁路代际接管存活执行（claimRecovery/LOCAL_CAPACITY_HELD）。
      */

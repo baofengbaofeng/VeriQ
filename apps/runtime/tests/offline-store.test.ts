@@ -171,3 +171,31 @@ test("two OS processes compete for one durable local context", async () => {
         await rm(dir, { recursive: true, force: true });
     }
 });
+
+/** 启动完成只推进相同持久代际的状态而不重贴新代际，旧 SPAWNING 令牌及重复提交必须拒绝；重开后 RUNNING 仍持有容量，既不能借内存状态释放，也不能成为没有派生的停止依据。 */
+test("running admission commits the launch generation and rejects stale state after reopen", async () => {
+    const { LocalStore } = await import("../src/offline/store.ts");
+    const directory = await mkdtemp(join(tmpdir(), "veriq-local-running-"));
+    let store = await LocalStore.open(directory);
+    try {
+        const runId = randomUUID(), attemptId = randomUUID();
+        const allocated = store.reserve(randomUUID(), runId, attemptId);
+        const spawning = store.spawning(runId, attemptId, allocated);
+        const running = store.running(runId, attemptId, spawning);
+        assert.equal(running.generation, spawning.generation);
+        assert.equal(running.state, "RUNNING");
+        assert.throws(() => store.running(runId, attemptId, spawning), /LOCAL_OWNERSHIP_LOST/);
+        assert.throws(() => store.running(runId, attemptId, running), /LOCAL_OWNERSHIP_LOST/);
+        store.close();
+        store = await LocalStore.open(directory);
+        assert.deepEqual({ ...store.active() }, running);
+        assert.equal(store.unspawnedStop(running), undefined);
+        const recovery = store.claimRecovery(running)!;
+        assert.equal(recovery.state, "RECOVERING");
+        assert.equal(recovery.generation, running.generation + 1);
+        assert.throws(() => store.ensureOwner(running), /LOCAL_OWNERSHIP_LOST/);
+    } finally {
+        store.close();
+        await rm(directory, { recursive: true, force: true });
+    }
+});
