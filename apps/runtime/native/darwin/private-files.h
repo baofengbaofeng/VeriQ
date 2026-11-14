@@ -19,7 +19,18 @@
 #include <utility>
 #include <vector>
 
-namespace veriq::darwin {
+/** 生产与故障目标必须拥有不同的 C++ 符号及 ObjectWrap 类型身份，因为 Darwin 会合并跨动态模块的同名弱 inline 定义；仅改变宏内函数正文违反同一定义规则，可能让测试对象静默调用生产无操作观察点。
+ * 独立命名空间覆盖所有核心类型与内联函数，而不是只改导出初始化名字。
+ * 正式目标始终使用 darwin，测试编译宏才选择 darwin_private_tests。
+ * Node-API 表面接口保持一致，二进制之间不共享原生对象或构造令牌。
+ * 两种实际加载顺序另由全新 Node 子进程回归验证，不能依赖本进程偶然符号选择。
+ */
+#ifdef VERIQ_DARWIN_PRIVATE_TESTS
+#define VERIQ_DARWIN_NAMESPACE darwin_private_tests
+#else
+#define VERIQ_DARWIN_NAMESPACE darwin
+#endif
+namespace veriq::VERIQ_DARWIN_NAMESPACE {
 constexpr size_t maximumBytes = 2 * 1024 * 1024;
 constexpr size_t maximumEntries = 8192;
 constexpr unsigned retryLimit = 64;
@@ -384,7 +395,7 @@ public:
     /** 父层读取始终使用最初交付的同一 inode 且不移动共享 offset，必要的 owner、模式、单链接和长度检查每次重新执行；未等实际 CLI 退出就读到暂时 EOF 不在此 API 中升级为最终停止证明。
      * 调用者的 C1 一兆日志额度仍应显式传入。
      */
-    std::vector<uint8_t> read(size_t limit) { return darwin::read(fd_.get(), limit); }
+    std::vector<uint8_t> read(size_t limit) { return VERIQ_DARWIN_NAMESPACE::read(fd_.get(), limit); }
     /** 关闭只释放此 File 当前拥有的原始描述符，重复调用没有副作用且错误后也不恢复整数状态；宿主必须在实际 CLI 退出和最终验证后调用，不能用关闭父层 fd 替代子进程退出事实。
      * C1 自身只借用数字，不替父层执行这个关闭。
      */
@@ -497,7 +508,7 @@ public:
      */
     std::vector<uint8_t> read(const std::string& name, size_t limit) {
         auto file = checked(name, limit);
-        auto bytes = darwin::read(file.get(), limit);
+        auto bytes = VERIQ_DARWIN_NAMESPACE::read(file.get(), limit);
         file.close("read.close");
         return bytes;
     }

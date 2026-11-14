@@ -8,7 +8,7 @@
 #define VERIQ_DARWIN_PRIVATE_TESTS 1
 #include "../../native/darwin/addon.cc"
 
-namespace veriq::darwin {
+namespace veriq::VERIQ_DARWIN_NAMESPACE {
 /** 调度状态只属于独立测试模块当前线程的 Node 环境，不读取任何产品环境变量；重复次数有固定上限，支持持续 EINTR 的终止断言而不在测试中制造永久忙等。
  * callback 的持久引用在环境清理前释放，不跨线程复用。
  * reset 在每个 finally 调用，故障不会泄漏到下一个正常行为样本。
@@ -50,7 +50,7 @@ int testPoint(const char* phase, int fd) {
  * hook 仅用于真实文件变化，不伪造 fstat 结果或修改正式校验代码。
  */
 Napi::Object initializePrivateFileFaults(Napi::Env env, Napi::Object exports) {
-    using namespace veriq::darwin;
+    using namespace veriq::VERIQ_DARWIN_NAMESPACE;
     schedule = new Schedule();
     env.AddCleanupHook([](Schedule* owned) { delete owned; schedule = nullptr; }, schedule);
     initialize(env, exports);

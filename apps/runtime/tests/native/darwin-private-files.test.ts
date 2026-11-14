@@ -11,6 +11,7 @@ import { mkdtemp, realpath, rm, writeFile, mkdir, chmod, symlink, link, rename, 
 import { readFileSync, writeFileSync, renameSync, truncateSync, appendFileSync, openSync, closeSync, fstatSync, writeSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -742,6 +743,40 @@ for (const [action, accepted] of [
             native.resetFaults();
             assert.equal(session.read("value", 64).toString(), "public");
         }));
+}
+
+/** Darwin 动态模块的同名弱内联符号曾让独立故障对象静默执行生产空观察点，因此两个加载顺序都必须在全新 Node 进程中实际触发故障；只在当前已加载进程追加断言不足以排除先加载模块占用符号的影响。
+ * prod-first 先加载生产模块，覆盖首轮实际四十例看到的调度失效。
+ * fault-first 先加载故障模块，防止反向合并给正式模块意外授予故障能力。
+ * 两模块打开同一真实 fixture 的独立目录会话，接口形状相同但原生类型身份不同。
+ * 故障计划先设置，再执行正式 replace，正式写入必须成功且不能消耗故障计数。
+ * 随后的故障 replace 必须在 replace.write 阶段抛固定 EIO，不能因没有 hook 而发布。
+ * 原生正式导出仍只有 openPrivateDirectory，不接受调度或任意描述符采用。
+ * 子进程实际退出状态与 stderr 一起检查，准备错误不算观察点正确激活。
+ * 子进程最终 reset、close、rm，顺序保留故障撤销和资源拥有者责任。
+ * 路径通过参数数组传入，Node eval 不拼接用户文件名或 shell 代码。
+ * fixture 从系统真实 tmp 根创建，仍不让产品自动解析系统别名。
+ * 原先四十例行为断言全部保留，这两例只是加载隔离的因果回归。
+ * 本地 Linux 的显式 skip 不作为上述任一加载顺序通过的证据。
+ */
+for (const order of ["prod-first", "fault-first"]) {
+    test(`production and fault module activation stays isolated in a fresh process: ${order}`, mac, () => {
+        const script = [
+            'import assert from "node:assert/strict";import {createRequire} from "node:module";import {mkdtempSync,realpathSync,rmSync} from "node:fs";import {join} from "node:path";import {tmpdir} from "node:os";import {randomUUID} from "node:crypto";',
+            'const require=createRequire(import.meta.url),[order,production,faultPath]=process.argv.slice(1),loaded={};',
+            'for(const key of order==="prod-first"?["prod","fault"]:["fault","prod"])loaded[key]=require(key==="prod"?production:faultPath);',
+            'const directory=mkdtempSync(join(realpathSync(tmpdir()),"veriq-module-isolation-")),prod=loaded.prod.openPrivateDirectory(directory,false),fault=loaded.fault.openPrivateDirectory(directory,false);',
+            'try{',
+            '    loaded.fault.setFault("replace.write","error",1);prod.replace("production",`.${randomUUID()}.tmp`,Buffer.from("public"),64);assert.equal(prod.read("production",64).toString(),"public");',
+            '    assert.throws(()=>fault.replace("fault",`.${randomUUID()}.tmp`,Buffer.from("public"),64),error=>error.code==="DARWIN_PRIVATE_IO"&&error.phase==="replace.write");assert.deepEqual(Object.keys(loaded.prod),["openPrivateDirectory"]);',
+            '}finally{loaded.fault.resetFaults();fault.close();prod.close();rmSync(directory,{recursive:true,force:true});}',
+        ].join("\n");
+        const child = spawnSync(process.execPath, ["--input-type=module", "-e", script, order,
+            fileURLToPath(new URL("../../build/darwin/veriq_private_files.node", import.meta.url)),
+            fileURLToPath(new URL("../../build/native-tests/veriq_private_files_fault.node", import.meta.url)),
+        ], { encoding: "utf8" });
+        assert.equal(child.status, 0, child.stderr);
+    });
 }
 
 /** 保险库正常路径直接调用已有会话的空目录判断、原子写入、读取和退休接口，确认后续实现必须连接真实业务消费者；测试仅使用公开合成正文，不启动系统凭据库、进程监督或 Chrome，也不依赖任何原生替身。

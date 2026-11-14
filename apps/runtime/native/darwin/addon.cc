@@ -6,7 +6,7 @@
 #include <cmath>
 #include "private-files.h"
 
-namespace veriq::darwin {
+namespace veriq::VERIQ_DARWIN_NAMESPACE {
 /** 每个边界调用都显式捕获原生失败，避免系统异常跨过 Node-API ABI 或把秘密拼进消息；未知 C++ 异常使用同一内部错误码，JavaScript 测试回调异常仍原样保留以暴露断言失败。
  * code 为 ENOENT 的唯一来源是实际 errno，不根据字符串路径或错误消息猜测缺失。
  * phase 仅取实现中的固定字面量，不包含成员名。
