@@ -4296,6 +4296,9 @@
             ],
             "additionalProperties": false
           }
+        },
+        "processStopScope": {
+          "$ref": "#/$defs/ProcessStopScope"
         }
       },
       "required": [
@@ -5656,6 +5659,9 @@
             "UNKNOWN"
           ],
           "description": "Actual business request observation through Context closure. Missing means UNKNOWN; not sufficient without approved expected metadata."
+        },
+        "processStopScope": {
+          "$ref": "#/$defs/ProcessStopScope"
         }
       },
       "required": [
@@ -5726,6 +5732,9 @@
         },
         "namespace": {
           "$ref": "#/$defs/Key"
+        },
+        "processStopScope": {
+          "$ref": "#/$defs/ProcessStopScope"
         }
       },
       "required": [
@@ -5799,6 +5808,9 @@
         },
         "engineInventorySha256": {
           "$ref": "#/$defs/Sha256"
+        },
+        "processStopScope": {
+          "$ref": "#/$defs/ProcessStopScope"
         }
       },
       "required": [
@@ -5870,6 +5882,9 @@
           "items": {
             "$ref": "#/$defs/CompilerDiagnosticV1"
           }
+        },
+        "processStopScope": {
+          "$ref": "#/$defs/ProcessStopScope"
         }
       },
       "required": [
@@ -6394,6 +6409,14 @@
         "browsers"
       ],
       "additionalProperties": false
+    },
+    "ProcessStopScope": {
+      "type": "string",
+      "enum": [
+        "FULL_DESCENDANT_TREE",
+        "CONTROLLED_WORKER_BROWSER",
+        "NO_PROCESS_SPAWNED"
+      ]
     }
   }
 }

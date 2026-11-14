@@ -2,7 +2,6 @@
 无内置 Cron；外部调度命中这些端点。过期未知进程隔离容量直至 stop 调和。
 """
 
-
 from datetime import datetime, timedelta
 import json
 from hashlib import sha256
@@ -31,6 +30,7 @@ from ..settings import Settings
 from .capacity import CapacityService
 from .jobs import database_time
 from .runtime import RuntimeService
+from .process_stop import validate_process_stop_claim
 from .service_account import ServiceAccountService
 
 
@@ -38,6 +38,7 @@ class MaintenanceService:
     """执行幂等维护动作并写入 MaintenanceReceipt，必要时派生 CLEANUP Job，MaintenanceService 遵守本文件边界。
     MaintenanceService 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     def __init__(self, session: AsyncSession, settings: Settings):
         """注入会话与 Settings，读取保留天数与槽位相关配置，MaintenanceService.__init__ 遵守本文件边界。
         __init__ 实现于 apps/srv/src/veriq_server/services/maintenance.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
@@ -546,6 +547,10 @@ class MaintenanceService:
             )
         if facts["fencingToken"] != attempt.fencing_token:
             raise Problem(409, "STALE_FENCE", "Stop confirmation does not match Attempt")
+        # 当前设备、Workspace 和 fence 均已核对；范围校验在任何容量变更之前执行，false 则始终继续原隔离分支以便未知停止仍能被可靠报告。
+        validate_process_stop_claim(
+            runtime.capabilities, facts["processStopped"], facts.get("processStopScope")
+        )
         if facts["processStopped"]:
             await CapacityService(self.session, self.settings).release(attempt)
             if attempt.phase != "FINISHED":
@@ -558,7 +563,6 @@ class MaintenanceService:
                 from .completion import CompletionService
 
                 await CompletionService(self.session, self.settings).aggregate_job(job, attempt)
-            attempt.facts = {**attempt.facts, "stopConfirmation": facts}
         else:
             await CapacityService(self.session, self.settings).quarantine(attempt)
             if attempt.phase != "FINISHED":
@@ -578,6 +582,12 @@ class MaintenanceService:
                 from .completion import CompletionService
 
                 await CompletionService(self.session, self.settings).aggregate_job(job, attempt)
+        # 两个分支及已 FINISHED 历史都记录本次停止事实；先移除旧范围再拷贝当前实际字段，避免无范围的 false 被之前的正保证污染或重建 facts 时丢失。
+        retained = {k: v for k, v in attempt.facts.items() if k != "processStopScope"}
+        retained.update({"stopConfirmation": facts, "processStopped": facts["processStopped"]})
+        if "processStopScope" in facts:
+            retained["processStopScope"] = facts["processStopScope"]
+        attempt.facts = retained
         record = AuditLog(
             id=str(uuid4()),
             action="attempt.stop_confirmed" if facts["processStopped"] else "attempt.stop_unknown",

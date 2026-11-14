@@ -3018,6 +3018,7 @@ export interface components {
                 pathStatus: "EXACT" | "REDACTED";
                 message: string;
             }[];
+            processStopScope?: components["schemas"]["ProcessStopScope"];
         };
         OfflineResultV1: {
             /** @constant */
@@ -3554,6 +3555,7 @@ export interface components {
             processStopped: boolean;
             cleanupStatus: components["schemas"]["CleanupStatus"];
             stoppedAt: components["schemas"]["Timestamp"];
+            processStopScope?: components["schemas"]["ProcessStopScope"];
         };
         ReconcileDTO: {
             attemptId: components["schemas"]["Id"];
@@ -4391,6 +4393,8 @@ export interface components {
             data: components["schemas"]["ServiceTokenPage"];
             requestId: components["schemas"]["Id"];
         };
+        /** @enum {string} */
+        ProcessStopScope: "FULL_DESCENDANT_TREE" | "CONTROLLED_WORKER_BROWSER" | "NO_PROCESS_SPAWNED";
         /** @description JSON used only in interpolated DSL fields, recursively restricted to SafeString bindings. */
         BindingJsonValue: ContractBindingJsonValue;
         BindingJsonObject: {
@@ -4566,6 +4570,7 @@ export interface components {
              * @enum {string}
              */
             retrySafety?: "READ_ONLY_OBSERVED" | "WRITE_POSSIBLE" | "UNKNOWN";
+            processStopScope?: components["schemas"]["ProcessStopScope"];
         };
         ValidateSuccessCompletionManifestV1: {
             /** @constant */
@@ -4583,6 +4588,7 @@ export interface components {
             kind: "VALIDATE";
             compiledBundleSha256: components["schemas"]["Sha256"];
             engineInventorySha256: components["schemas"]["Sha256"];
+            processStopScope?: components["schemas"]["ProcessStopScope"];
         };
         ValidateFailureCompletionManifestV1: {
             /** @constant */
@@ -4601,6 +4607,7 @@ export interface components {
             engineInventorySha256: components["schemas"]["Sha256"];
             failureCode: string;
             diagnostics?: components["schemas"]["CompilerDiagnosticV1"][];
+            processStopScope?: components["schemas"]["ProcessStopScope"];
         };
         ValidateCompletionManifestV1: components["schemas"]["ValidateSuccessCompletionManifestV1"] | components["schemas"]["ValidateFailureCompletionManifestV1"];
         CleanupCompletionManifestV1: {
@@ -4618,6 +4625,7 @@ export interface components {
             kind: "CLEANUP";
             fixtureVersionId: components["schemas"]["Id"];
             namespace: components["schemas"]["Key"];
+            processStopScope?: components["schemas"]["ProcessStopScope"];
         };
     };
     responses: never;

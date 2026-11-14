@@ -302,3 +302,18 @@ test.each(runtimeCapabilityFixtures)(
         expect(validate("RuntimeCapabilitiesV1", value)).toBe(valid);
     },
 );
+
+// 停止范围只描述客户端声明的保证边界，旧请求可以继续省略该字段，但显式空值和未知字符串必须由共同的正式合同拒绝以防传播错误事实。
+test("reconciliation accepts only explicit known scopes and retains legacy omission", () => {
+    const value = {
+        fencingToken: 1,
+        processStopped: false,
+        cleanupStatus: "PENDING",
+        stoppedAt: "2026-11-14T00:00:00Z",
+    };
+    expect(validate("ReconcileRequest", value)).toBe(true);
+    for (const scope of ["FULL_DESCENDANT_TREE", "CONTROLLED_WORKER_BROWSER", "NO_PROCESS_SPAWNED"])
+        expect(validate("ReconcileRequest", { ...value, processStopScope: scope })).toBe(true);
+    for (const scope of [null, "UNKNOWN", false, 7])
+        expect(validate("ReconcileRequest", { ...value, processStopScope: scope })).toBe(false);
+});

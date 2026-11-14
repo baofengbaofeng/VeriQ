@@ -1158,6 +1158,11 @@ export type ActualValueV1 =
 export type ArtifactSensitivity = "REDACTED" | "CREDENTIAL_RESTRICTED";
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "ProcessStopScope".
+ */
+export type ProcessStopScope = "FULL_DESCENDANT_TREE" | "CONTROLLED_WORKER_BROWSER" | "NO_PROCESS_SPAWNED";
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "ValidateCompletionManifestV1".
  */
 export type ValidateCompletionManifestV1 = ValidateSuccessCompletionManifestV1 | ValidateFailureCompletionManifestV1;
@@ -1325,6 +1330,7 @@ export interface ContractDefinitions {
   BundleSelectionV1?: BundleSelectionV1;
   OfflineArtifactV1?: OfflineArtifactV1;
   OfflineExecutionChoicesV1?: OfflineExecutionChoicesV1;
+  ProcessStopScope?: ProcessStopScope;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1872,6 +1878,7 @@ export interface OfflineAttemptV1 {
     pathStatus: "EXACT" | "REDACTED";
     message: string;
   }[];
+  processStopScope?: ProcessStopScope;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -2155,6 +2162,7 @@ export interface TestCompletionManifestV1 {
    * Actual business request observation through Context closure. Missing means UNKNOWN; not sufficient without approved expected metadata.
    */
   retrySafety?: "READ_ONLY_OBSERVED" | "WRITE_POSSIBLE" | "UNKNOWN";
+  processStopScope?: ProcessStopScope;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -2178,6 +2186,7 @@ export interface ValidateSuccessCompletionManifestV1 {
   kind: "VALIDATE";
   compiledBundleSha256: Sha256;
   engineInventorySha256: Sha256;
+  processStopScope?: ProcessStopScope;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -2207,6 +2216,7 @@ export interface ValidateFailureCompletionManifestV1 {
    * @maxItems 100
    */
   diagnostics?: CompilerDiagnosticV1[];
+  processStopScope?: ProcessStopScope;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -2240,6 +2250,7 @@ export interface CleanupCompletionManifestV1 {
   kind: "CLEANUP";
   fixtureVersionId: Id;
   namespace: Key;
+  processStopScope?: ProcessStopScope;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema

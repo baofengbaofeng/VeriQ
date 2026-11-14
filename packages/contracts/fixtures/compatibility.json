@@ -5202,5 +5202,796 @@
             ]
         },
         "valid": false
+    },
+    {
+        "name": "process-stop-TestCompletionManifestV1-FULL_DESCENDANT_TREE",
+        "schema": "TestCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "FAILED",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [],
+            "requiredEvidence": [],
+            "processStopped": true,
+            "kind": "TEST",
+            "caseVersionId": "22222222-2222-4222-8222-222222222222",
+            "expectedPlansSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "processStopScope": "FULL_DESCENDANT_TREE"
+        },
+        "valid": true
+    },
+    {
+        "name": "process-stop-TestCompletionManifestV1-CONTROLLED_WORKER_BROWSER",
+        "schema": "TestCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "FAILED",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [],
+            "requiredEvidence": [],
+            "processStopped": true,
+            "kind": "TEST",
+            "caseVersionId": "22222222-2222-4222-8222-222222222222",
+            "expectedPlansSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "processStopScope": "CONTROLLED_WORKER_BROWSER"
+        },
+        "valid": true
+    },
+    {
+        "name": "process-stop-TestCompletionManifestV1-NO_PROCESS_SPAWNED",
+        "schema": "TestCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "FAILED",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [],
+            "requiredEvidence": [],
+            "processStopped": true,
+            "kind": "TEST",
+            "caseVersionId": "22222222-2222-4222-8222-222222222222",
+            "expectedPlansSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "processStopScope": "NO_PROCESS_SPAWNED"
+        },
+        "valid": true
+    },
+    {
+        "name": "process-stop-TestCompletionManifestV1-None",
+        "schema": "TestCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "FAILED",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [],
+            "requiredEvidence": [],
+            "processStopped": true,
+            "kind": "TEST",
+            "caseVersionId": "22222222-2222-4222-8222-222222222222",
+            "expectedPlansSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "processStopScope": null
+        },
+        "valid": false
+    },
+    {
+        "name": "process-stop-TestCompletionManifestV1-UNKNOWN",
+        "schema": "TestCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "FAILED",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [],
+            "requiredEvidence": [],
+            "processStopped": true,
+            "kind": "TEST",
+            "caseVersionId": "22222222-2222-4222-8222-222222222222",
+            "expectedPlansSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "processStopScope": "UNKNOWN"
+        },
+        "valid": false
+    },
+    {
+        "name": "process-stop-TestCompletionManifestV1-False",
+        "schema": "TestCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "FAILED",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [],
+            "requiredEvidence": [],
+            "processStopped": true,
+            "kind": "TEST",
+            "caseVersionId": "22222222-2222-4222-8222-222222222222",
+            "expectedPlansSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "processStopScope": false
+        },
+        "valid": false
+    },
+    {
+        "name": "process-stop-TestCompletionManifestV1-7",
+        "schema": "TestCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "FAILED",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [],
+            "requiredEvidence": [],
+            "processStopped": true,
+            "kind": "TEST",
+            "caseVersionId": "22222222-2222-4222-8222-222222222222",
+            "expectedPlansSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "processStopScope": 7
+        },
+        "valid": false
+    },
+    {
+        "name": "process-stop-CleanupCompletionManifestV1-FULL_DESCENDANT_TREE",
+        "schema": "CleanupCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "FAILED",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [],
+            "requiredEvidence": [],
+            "processStopped": true,
+            "kind": "CLEANUP",
+            "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+            "namespace": "scope_test",
+            "processStopScope": "FULL_DESCENDANT_TREE"
+        },
+        "valid": true
+    },
+    {
+        "name": "process-stop-CleanupCompletionManifestV1-CONTROLLED_WORKER_BROWSER",
+        "schema": "CleanupCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "FAILED",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [],
+            "requiredEvidence": [],
+            "processStopped": true,
+            "kind": "CLEANUP",
+            "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+            "namespace": "scope_test",
+            "processStopScope": "CONTROLLED_WORKER_BROWSER"
+        },
+        "valid": true
+    },
+    {
+        "name": "process-stop-CleanupCompletionManifestV1-NO_PROCESS_SPAWNED",
+        "schema": "CleanupCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "FAILED",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [],
+            "requiredEvidence": [],
+            "processStopped": true,
+            "kind": "CLEANUP",
+            "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+            "namespace": "scope_test",
+            "processStopScope": "NO_PROCESS_SPAWNED"
+        },
+        "valid": true
+    },
+    {
+        "name": "process-stop-CleanupCompletionManifestV1-None",
+        "schema": "CleanupCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "FAILED",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [],
+            "requiredEvidence": [],
+            "processStopped": true,
+            "kind": "CLEANUP",
+            "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+            "namespace": "scope_test",
+            "processStopScope": null
+        },
+        "valid": false
+    },
+    {
+        "name": "process-stop-CleanupCompletionManifestV1-UNKNOWN",
+        "schema": "CleanupCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "FAILED",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [],
+            "requiredEvidence": [],
+            "processStopped": true,
+            "kind": "CLEANUP",
+            "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+            "namespace": "scope_test",
+            "processStopScope": "UNKNOWN"
+        },
+        "valid": false
+    },
+    {
+        "name": "process-stop-CleanupCompletionManifestV1-False",
+        "schema": "CleanupCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "FAILED",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [],
+            "requiredEvidence": [],
+            "processStopped": true,
+            "kind": "CLEANUP",
+            "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+            "namespace": "scope_test",
+            "processStopScope": false
+        },
+        "valid": false
+    },
+    {
+        "name": "process-stop-CleanupCompletionManifestV1-7",
+        "schema": "CleanupCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "FAILED",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [],
+            "requiredEvidence": [],
+            "processStopped": true,
+            "kind": "CLEANUP",
+            "fixtureVersionId": "11111111-1111-4111-8111-111111111111",
+            "namespace": "scope_test",
+            "processStopScope": 7
+        },
+        "valid": false
+    },
+    {
+        "name": "process-stop-ValidateSuccessCompletionManifestV1-FULL_DESCENDANT_TREE",
+        "schema": "ValidateSuccessCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "PASSED",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [],
+            "requiredEvidence": [],
+            "processStopped": true,
+            "kind": "VALIDATE",
+            "compiledBundleSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "engineInventorySha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "processStopScope": "FULL_DESCENDANT_TREE"
+        },
+        "valid": true
+    },
+    {
+        "name": "process-stop-ValidateSuccessCompletionManifestV1-CONTROLLED_WORKER_BROWSER",
+        "schema": "ValidateSuccessCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "PASSED",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [],
+            "requiredEvidence": [],
+            "processStopped": true,
+            "kind": "VALIDATE",
+            "compiledBundleSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "engineInventorySha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "processStopScope": "CONTROLLED_WORKER_BROWSER"
+        },
+        "valid": true
+    },
+    {
+        "name": "process-stop-ValidateSuccessCompletionManifestV1-NO_PROCESS_SPAWNED",
+        "schema": "ValidateSuccessCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "PASSED",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [],
+            "requiredEvidence": [],
+            "processStopped": true,
+            "kind": "VALIDATE",
+            "compiledBundleSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "engineInventorySha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "processStopScope": "NO_PROCESS_SPAWNED"
+        },
+        "valid": true
+    },
+    {
+        "name": "process-stop-ValidateSuccessCompletionManifestV1-None",
+        "schema": "ValidateSuccessCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "PASSED",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [],
+            "requiredEvidence": [],
+            "processStopped": true,
+            "kind": "VALIDATE",
+            "compiledBundleSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "engineInventorySha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "processStopScope": null
+        },
+        "valid": false
+    },
+    {
+        "name": "process-stop-ValidateSuccessCompletionManifestV1-UNKNOWN",
+        "schema": "ValidateSuccessCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "PASSED",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [],
+            "requiredEvidence": [],
+            "processStopped": true,
+            "kind": "VALIDATE",
+            "compiledBundleSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "engineInventorySha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "processStopScope": "UNKNOWN"
+        },
+        "valid": false
+    },
+    {
+        "name": "process-stop-ValidateSuccessCompletionManifestV1-False",
+        "schema": "ValidateSuccessCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "PASSED",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [],
+            "requiredEvidence": [],
+            "processStopped": true,
+            "kind": "VALIDATE",
+            "compiledBundleSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "engineInventorySha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "processStopScope": false
+        },
+        "valid": false
+    },
+    {
+        "name": "process-stop-ValidateSuccessCompletionManifestV1-7",
+        "schema": "ValidateSuccessCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "PASSED",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [],
+            "requiredEvidence": [],
+            "processStopped": true,
+            "kind": "VALIDATE",
+            "compiledBundleSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "engineInventorySha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "processStopScope": 7
+        },
+        "valid": false
+    },
+    {
+        "name": "process-stop-ValidateFailureCompletionManifestV1-FULL_DESCENDANT_TREE",
+        "schema": "ValidateFailureCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "ERROR",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [
+                {
+                    "path": "compile.log",
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "sizeBytes": 1,
+                    "sensitivity": "REDACTED"
+                }
+            ],
+            "requiredEvidence": [
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            ],
+            "processStopped": true,
+            "kind": "VALIDATE",
+            "engineInventorySha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "failureCode": "COMPILE_FAILED",
+            "processStopScope": "FULL_DESCENDANT_TREE"
+        },
+        "valid": true
+    },
+    {
+        "name": "process-stop-ValidateFailureCompletionManifestV1-CONTROLLED_WORKER_BROWSER",
+        "schema": "ValidateFailureCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "ERROR",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [
+                {
+                    "path": "compile.log",
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "sizeBytes": 1,
+                    "sensitivity": "REDACTED"
+                }
+            ],
+            "requiredEvidence": [
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            ],
+            "processStopped": true,
+            "kind": "VALIDATE",
+            "engineInventorySha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "failureCode": "COMPILE_FAILED",
+            "processStopScope": "CONTROLLED_WORKER_BROWSER"
+        },
+        "valid": true
+    },
+    {
+        "name": "process-stop-ValidateFailureCompletionManifestV1-NO_PROCESS_SPAWNED",
+        "schema": "ValidateFailureCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "ERROR",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [
+                {
+                    "path": "compile.log",
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "sizeBytes": 1,
+                    "sensitivity": "REDACTED"
+                }
+            ],
+            "requiredEvidence": [
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            ],
+            "processStopped": true,
+            "kind": "VALIDATE",
+            "engineInventorySha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "failureCode": "COMPILE_FAILED",
+            "processStopScope": "NO_PROCESS_SPAWNED"
+        },
+        "valid": true
+    },
+    {
+        "name": "process-stop-ValidateFailureCompletionManifestV1-None",
+        "schema": "ValidateFailureCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "ERROR",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [
+                {
+                    "path": "compile.log",
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "sizeBytes": 1,
+                    "sensitivity": "REDACTED"
+                }
+            ],
+            "requiredEvidence": [
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            ],
+            "processStopped": true,
+            "kind": "VALIDATE",
+            "engineInventorySha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "failureCode": "COMPILE_FAILED",
+            "processStopScope": null
+        },
+        "valid": false
+    },
+    {
+        "name": "process-stop-ValidateFailureCompletionManifestV1-UNKNOWN",
+        "schema": "ValidateFailureCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "ERROR",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [
+                {
+                    "path": "compile.log",
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "sizeBytes": 1,
+                    "sensitivity": "REDACTED"
+                }
+            ],
+            "requiredEvidence": [
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            ],
+            "processStopped": true,
+            "kind": "VALIDATE",
+            "engineInventorySha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "failureCode": "COMPILE_FAILED",
+            "processStopScope": "UNKNOWN"
+        },
+        "valid": false
+    },
+    {
+        "name": "process-stop-ValidateFailureCompletionManifestV1-False",
+        "schema": "ValidateFailureCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "ERROR",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [
+                {
+                    "path": "compile.log",
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "sizeBytes": 1,
+                    "sensitivity": "REDACTED"
+                }
+            ],
+            "requiredEvidence": [
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            ],
+            "processStopped": true,
+            "kind": "VALIDATE",
+            "engineInventorySha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "failureCode": "COMPILE_FAILED",
+            "processStopScope": false
+        },
+        "valid": false
+    },
+    {
+        "name": "process-stop-ValidateFailureCompletionManifestV1-7",
+        "schema": "ValidateFailureCompletionManifestV1",
+        "value": {
+            "schemaVersion": "1.0",
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "jobManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "businessOutcome": "ERROR",
+            "cleanupStatus": "NOT_REQUIRED",
+            "evidence": [
+                {
+                    "path": "compile.log",
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "sizeBytes": 1,
+                    "sensitivity": "REDACTED"
+                }
+            ],
+            "requiredEvidence": [
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            ],
+            "processStopped": true,
+            "kind": "VALIDATE",
+            "engineInventorySha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "failureCode": "COMPILE_FAILED",
+            "processStopScope": 7
+        },
+        "valid": false
+    },
+    {
+        "name": "process-stop-OfflineAttemptV1-FULL_DESCENDANT_TREE",
+        "schema": "OfflineAttemptV1",
+        "value": {
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "caseVersionId": "11111111-1111-4111-8111-111111111111",
+            "attemptNo": 1,
+            "outcome": "PASSED",
+            "cleanupStatus": "SUCCEEDED",
+            "lastSequence": 1,
+            "events": [
+                {
+                    "schemaVersion": "1.0",
+                    "attemptId": "11111111-1111-4111-8111-111111111111",
+                    "sequence": 1,
+                    "type": "ATTEMPT_FINISHED",
+                    "timestamp": "2026-11-10T12:01:00Z",
+                    "payload": {
+                        "outcome": "PASSED",
+                        "cleanupStatus": "SUCCEEDED"
+                    }
+                }
+            ],
+            "artifacts": [],
+            "processStopScope": "FULL_DESCENDANT_TREE"
+        },
+        "valid": true
+    },
+    {
+        "name": "process-stop-OfflineAttemptV1-CONTROLLED_WORKER_BROWSER",
+        "schema": "OfflineAttemptV1",
+        "value": {
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "caseVersionId": "11111111-1111-4111-8111-111111111111",
+            "attemptNo": 1,
+            "outcome": "PASSED",
+            "cleanupStatus": "SUCCEEDED",
+            "lastSequence": 1,
+            "events": [
+                {
+                    "schemaVersion": "1.0",
+                    "attemptId": "11111111-1111-4111-8111-111111111111",
+                    "sequence": 1,
+                    "type": "ATTEMPT_FINISHED",
+                    "timestamp": "2026-11-10T12:01:00Z",
+                    "payload": {
+                        "outcome": "PASSED",
+                        "cleanupStatus": "SUCCEEDED"
+                    }
+                }
+            ],
+            "artifacts": [],
+            "processStopScope": "CONTROLLED_WORKER_BROWSER"
+        },
+        "valid": true
+    },
+    {
+        "name": "process-stop-OfflineAttemptV1-NO_PROCESS_SPAWNED",
+        "schema": "OfflineAttemptV1",
+        "value": {
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "caseVersionId": "11111111-1111-4111-8111-111111111111",
+            "attemptNo": 1,
+            "outcome": "PASSED",
+            "cleanupStatus": "SUCCEEDED",
+            "lastSequence": 1,
+            "events": [
+                {
+                    "schemaVersion": "1.0",
+                    "attemptId": "11111111-1111-4111-8111-111111111111",
+                    "sequence": 1,
+                    "type": "ATTEMPT_FINISHED",
+                    "timestamp": "2026-11-10T12:01:00Z",
+                    "payload": {
+                        "outcome": "PASSED",
+                        "cleanupStatus": "SUCCEEDED"
+                    }
+                }
+            ],
+            "artifacts": [],
+            "processStopScope": "NO_PROCESS_SPAWNED"
+        },
+        "valid": true
+    },
+    {
+        "name": "process-stop-OfflineAttemptV1-None",
+        "schema": "OfflineAttemptV1",
+        "value": {
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "caseVersionId": "11111111-1111-4111-8111-111111111111",
+            "attemptNo": 1,
+            "outcome": "PASSED",
+            "cleanupStatus": "SUCCEEDED",
+            "lastSequence": 1,
+            "events": [
+                {
+                    "schemaVersion": "1.0",
+                    "attemptId": "11111111-1111-4111-8111-111111111111",
+                    "sequence": 1,
+                    "type": "ATTEMPT_FINISHED",
+                    "timestamp": "2026-11-10T12:01:00Z",
+                    "payload": {
+                        "outcome": "PASSED",
+                        "cleanupStatus": "SUCCEEDED"
+                    }
+                }
+            ],
+            "artifacts": [],
+            "processStopScope": null
+        },
+        "valid": false
+    },
+    {
+        "name": "process-stop-OfflineAttemptV1-UNKNOWN",
+        "schema": "OfflineAttemptV1",
+        "value": {
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "caseVersionId": "11111111-1111-4111-8111-111111111111",
+            "attemptNo": 1,
+            "outcome": "PASSED",
+            "cleanupStatus": "SUCCEEDED",
+            "lastSequence": 1,
+            "events": [
+                {
+                    "schemaVersion": "1.0",
+                    "attemptId": "11111111-1111-4111-8111-111111111111",
+                    "sequence": 1,
+                    "type": "ATTEMPT_FINISHED",
+                    "timestamp": "2026-11-10T12:01:00Z",
+                    "payload": {
+                        "outcome": "PASSED",
+                        "cleanupStatus": "SUCCEEDED"
+                    }
+                }
+            ],
+            "artifacts": [],
+            "processStopScope": "UNKNOWN"
+        },
+        "valid": false
+    },
+    {
+        "name": "process-stop-OfflineAttemptV1-False",
+        "schema": "OfflineAttemptV1",
+        "value": {
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "caseVersionId": "11111111-1111-4111-8111-111111111111",
+            "attemptNo": 1,
+            "outcome": "PASSED",
+            "cleanupStatus": "SUCCEEDED",
+            "lastSequence": 1,
+            "events": [
+                {
+                    "schemaVersion": "1.0",
+                    "attemptId": "11111111-1111-4111-8111-111111111111",
+                    "sequence": 1,
+                    "type": "ATTEMPT_FINISHED",
+                    "timestamp": "2026-11-10T12:01:00Z",
+                    "payload": {
+                        "outcome": "PASSED",
+                        "cleanupStatus": "SUCCEEDED"
+                    }
+                }
+            ],
+            "artifacts": [],
+            "processStopScope": false
+        },
+        "valid": false
+    },
+    {
+        "name": "process-stop-OfflineAttemptV1-7",
+        "schema": "OfflineAttemptV1",
+        "value": {
+            "attemptId": "11111111-1111-4111-8111-111111111111",
+            "caseVersionId": "11111111-1111-4111-8111-111111111111",
+            "attemptNo": 1,
+            "outcome": "PASSED",
+            "cleanupStatus": "SUCCEEDED",
+            "lastSequence": 1,
+            "events": [
+                {
+                    "schemaVersion": "1.0",
+                    "attemptId": "11111111-1111-4111-8111-111111111111",
+                    "sequence": 1,
+                    "type": "ATTEMPT_FINISHED",
+                    "timestamp": "2026-11-10T12:01:00Z",
+                    "payload": {
+                        "outcome": "PASSED",
+                        "cleanupStatus": "SUCCEEDED"
+                    }
+                }
+            ],
+            "artifacts": [],
+            "processStopScope": 7
+        },
+        "valid": false
     }
 ]

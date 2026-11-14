@@ -1,4 +1,3 @@
-
 import asyncio
 import pytest
 import json
@@ -180,6 +179,7 @@ async def test_managed_real_compilation_finishes_once_and_can_publish(site, tmp_
         "evidence": [],
         "requiredEvidence": [],
         "processStopped": True,
+        "processStopScope": "FULL_DESCENDANT_TREE",
         "compiledBundleSha256": bundle_hash,
         "engineInventorySha256": records["inventoryHash"],
     }
@@ -320,7 +320,10 @@ async def test_managed_real_compilation_finishes_once_and_can_publish(site, tmp_
     from veriq_server.db import Attempt
 
     async with db.sessions() as session:
-        finished_at = (await session.get(Attempt, claim["attemptId"])).finished_at
+        finished = await session.get(Attempt, claim["attemptId"])
+        assert finished.facts["processStopped"] is True
+        assert finished.facts["processStopScope"] == "FULL_DESCENDANT_TREE"
+        finished_at = finished.finished_at
         assert finished_at is not None
 
     async with db.sessions.begin() as session:
@@ -493,6 +496,7 @@ async def exercise_test_protocol(
             "evidence": [entry],
             "requiredEvidence": [evidence_hash],
             "processStopped": True,
+            "processStopScope": "FULL_DESCENDANT_TREE",
         }
         digest = await upload(
             c, d, claim, canonical_bytes(completion), "completion.json", "MANIFEST"
@@ -513,6 +517,17 @@ async def exercise_test_protocol(
         assert result.json()["data"]["outcome"] == (
             "INCOMPLETE" if missing_artifact_event else status
         )
+        from veriq_server.db import Attempt
+
+        async with db.sessions() as session:
+            finished = await session.get(Attempt, claim["attemptId"])
+            assert finished.facts["processStopped"] is True
+            assert finished.facts["processStopScope"] == "FULL_DESCENDANT_TREE"
+        report = await c.get(f"/api/v1/workspaces/{ws}/runs/{run_id}/report")
+        assert report.status_code == 200, report.text
+        reported = report.json()["data"]["cases"][0]["attempts"][-1]["facts"]
+        assert reported["processStopped"] is True
+        assert reported["processStopScope"] == "FULL_DESCENDANT_TREE"
         if cancel_retry and index == 0:
             from veriq_server.db import Attempt, Job, CaseExecution, Run
 
@@ -617,6 +632,7 @@ async def exercise_compiler_failure(c, db, ws, d, claim, records, output, base, 
         "evidence": [entry],
         "requiredEvidence": [log_hash],
         "processStopped": True,
+        "processStopScope": "FULL_DESCENDANT_TREE",
         "engineInventorySha256": records["inventoryHash"],
         "failureCode": "ASSET_VALIDATION_FAILED",
     }
@@ -636,7 +652,12 @@ async def exercise_compiler_failure(c, db, ws, d, claim, records, output, base, 
     assert (await c.post(endpoint + "/finish", json=finish, headers=auth(d))).json()[
         "data"
     ] == result.json()["data"]
+    from veriq_server.db import Attempt
+
     async with db.sessions() as session:
+        finished = await session.get(Attempt, claim["attemptId"])
+        assert finished.facts["processStopped"] is True
+        assert finished.facts["processStopScope"] == "FULL_DESCENDANT_TREE"
         assert not (
             await session.execute(
                 select(ValidationReceipt).where(ValidationReceipt.job_id == job_id)

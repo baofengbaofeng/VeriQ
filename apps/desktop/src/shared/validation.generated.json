@@ -3823,6 +3823,9 @@
                         "required": ["code", "path", "pathStatus", "message"],
                         "additionalProperties": false
                     }
+                },
+                "processStopScope": {
+                    "$ref": "#/$defs/ProcessStopScope"
                 }
             },
             "required": [
@@ -4977,6 +4980,9 @@
                     "type": "string",
                     "enum": ["READ_ONLY_OBSERVED", "WRITE_POSSIBLE", "UNKNOWN"],
                     "description": "Actual business request observation through Context closure. Missing means UNKNOWN; not sufficient without approved expected metadata."
+                },
+                "processStopScope": {
+                    "$ref": "#/$defs/ProcessStopScope"
                 }
             },
             "required": [
@@ -5047,6 +5053,9 @@
                 },
                 "namespace": {
                     "$ref": "#/$defs/Key"
+                },
+                "processStopScope": {
+                    "$ref": "#/$defs/ProcessStopScope"
                 }
             },
             "required": [
@@ -5120,6 +5129,9 @@
                 },
                 "engineInventorySha256": {
                     "$ref": "#/$defs/Sha256"
+                },
+                "processStopScope": {
+                    "$ref": "#/$defs/ProcessStopScope"
                 }
             },
             "required": [
@@ -5191,6 +5203,9 @@
                     "items": {
                         "$ref": "#/$defs/CompilerDiagnosticV1"
                     }
+                },
+                "processStopScope": {
+                    "$ref": "#/$defs/ProcessStopScope"
                 }
             },
             "required": [
@@ -5644,6 +5659,10 @@
             },
             "required": ["browsers"],
             "additionalProperties": false
+        },
+        "ProcessStopScope": {
+            "type": "string",
+            "enum": ["FULL_DESCENDANT_TREE", "CONTROLLED_WORKER_BROWSER", "NO_PROCESS_SPAWNED"]
         },
         "api_Id": {
             "$ref": "#/$defs/Id"
@@ -7361,6 +7380,9 @@
                 },
                 "stoppedAt": {
                     "$ref": "#/$defs/api_Timestamp"
+                },
+                "processStopScope": {
+                    "$ref": "#/$defs/api_ProcessStopScope"
                 }
             },
             "required": ["fencingToken", "processStopped", "cleanupStatus", "stoppedAt"],
@@ -10352,6 +10374,9 @@
             },
             "required": ["data", "requestId"],
             "additionalProperties": false
+        },
+        "api_ProcessStopScope": {
+            "$ref": "#/$defs/ProcessStopScope"
         }
     }
 }

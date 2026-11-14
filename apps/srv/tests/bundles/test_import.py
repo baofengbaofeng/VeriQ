@@ -1,4 +1,3 @@
-
 from uuid import uuid4
 import sys
 import pytest
@@ -869,3 +868,39 @@ async def test_archived_workspace_blocks_import_replay_and_new_upload(approved_m
     assert response.status_code == 409 and response.json()["code"] == "WORKSPACE_ARCHIVED", (
         response.text
     )
+
+
+# 离线历史只保存原始回执实际提供的字段，不依据当前导入设备猜测旧平台；报告中的同一事实还必须保持原有非官方门禁，不能释放任何在线容量。
+@pytest.mark.parametrize(
+    "scope", [None, "FULL_DESCENDANT_TREE", "CONTROLLED_WORKER_BROWSER", "NO_PROCESS_SPAWNED"]
+)
+async def test_import_preserves_declared_process_scope_without_inventing_history(
+    approved_metadata, site, scope
+):
+    """将不同停止范围的离线结果送入真实导入端点并读取报告，校验原样保留实际提供的字段、旧结果保持缺字段，以及非官方可信门禁与在线容量始终未被提升或释放。"""
+    from sqlalchemy import select
+    from veriq_server.db import OfflineAttempt, CapacityPool
+
+    c, db, ws, payload, _ = await imported_fixture(approved_metadata, site)
+    attempt = payload["attempts"][0]
+    if scope is not None:
+        attempt["processStopped"] = False
+        attempt["processStopScope"] = scope
+    response = await c.post(f"/api/v1/workspaces/{ws}/result-imports", json=payload)
+    assert response.status_code == 201, response.text
+    assert response.json()["data"]["officialGatePassed"] is False
+    async with db.sessions() as session:
+        saved = (await session.execute(select(OfflineAttempt))).scalar_one()
+        assert ("processStopScope" in saved.facts) is (scope is not None)
+        assert ("processStopped" in saved.facts) is (scope is not None)
+        if scope is not None:
+            assert saved.facts["processStopScope"] == scope
+            assert saved.facts["processStopped"] is False
+        assert not (await session.execute(select(CapacityPool))).first()
+    run_id = response.json()["data"]["runId"]
+    report = await c.get(f"/api/v1/workspaces/{ws}/runs/{run_id}/report")
+    assert report.status_code == 200, report.text
+    facts = report.json()["data"]["cases"][0]["attempts"][0]["facts"]
+    assert ("processStopScope" in facts) is (scope is not None)
+    if scope is not None:
+        assert facts["processStopScope"] == scope and facts["processStopped"] is False

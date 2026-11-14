@@ -18974,6 +18974,9 @@
           },
           "stoppedAt": {
             "$ref": "#/components/schemas/Timestamp"
+          },
+          "processStopScope": {
+            "$ref": "#/components/schemas/ProcessStopScope"
           }
         },
         "required": [
@@ -22641,6 +22644,9 @@
           "requestId"
         ],
         "additionalProperties": false
+      },
+      "ProcessStopScope": {
+        "$ref": "../schemas/platform-v1.schema.json#/$defs/ProcessStopScope"
       }
     }
   }

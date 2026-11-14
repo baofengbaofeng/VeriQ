@@ -3,7 +3,6 @@ verify_archive 校验清单哈希与公钥；expected_variants 决定缺失变�
 重复 Idempotency-Key 返回既有回执，不覆盖不同清单。
 """
 
-
 import asyncio
 import base64
 import io
@@ -197,6 +196,7 @@ class ImportService:
     """编排授权、验档、事实校验与幂等落库，禁止跨 Workspace 导入，ImportService 遵守本文件边界，失败返回稳定 Problem。
     ImportService 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
     """
+
     def __init__(
         self,
         session: AsyncSession,
@@ -634,6 +634,10 @@ class ImportService:
                     "evidence": "INCOMPLETE",
                 }
             )
+            # 离线归约同样保留原始回执实际提供的停止字段，不读取导入者当前 Runtime 猜测历史平台，也不补造旧结果未声明的范围或改变证据完整性门禁。
+            for field in ("processStopped", "processStopScope"):
+                if field in attempt:
+                    facts[field] = attempt[field]
             prior = group["attempts"]
             if attempt["attemptNo"] != len(prior) + 1 or len(prior) >= 2:
                 raise Problem(422, "INVALID_OFFLINE_RETRY", "Attempt ordering differs")
