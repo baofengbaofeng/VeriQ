@@ -10,6 +10,7 @@
 | --- | --- | --- |
 | 产品目标 | 企业 PC Web 自动化冒烟/回归平台；20 人以内、同时提交约 10 个 Run | 常规运行必须直接执行固定版本 TypeScript/Playwright，不依赖模型 |
 | 首发范围 | F01–F14 全部模块，包括 Electron 桌面 GUI、Mac双架构/Windows/Ubuntu Runtime、安装与运维 | Mac Intel x64及Apple Silicon arm64最高优先级；Windows11 x64、Ubuntu24.04 x64较低优先级但仍须交付；尚未达到开箱即用标准 |
+| MVP 完成度 | 约74%：23项主任务等权，17项已完成模块审查；2项代码完成待验收、1项开发中、3项尚待交付 | 仅按主里程碑验收状态统计，不按代码行数或工时；T20的已完成切片不提前计为整任务完成，最终集成与发行仍须T23通过 |
 | 实施任务 | T01–T12、T14–T17、T19 共17项模块已审查；T18代码及重要修复已审查，正式发行待验收 | 不重做已完成实现；T18仍需T22/T23关闭正常发行和目标环境验收 |
 | AI 模块 | T13 代码与修复复审已完成，实际外部 Provider 验收未完成 | 不能把协议模拟、无模型运行成功当成实际 Provider 通过 |
 | 后续工作 | T20–T23 共4项实现/整体验收继续；T13/T18保留指定实际验收 | T19 `bac5162`→`eb2dc4e`六项Important复审全部关闭、新增0；实际六GUI一次通过，现推进T20原生所有权/IPC切片；发行身份切片已实现 |
@@ -228,7 +229,8 @@
 | 共享观察器与取消授权C2a1 | `1e40a59`通过独立规格/质量审查；Linux29项通过；[双Mac CI run43594067804](https://github.com/baofengbaofeng/VeriQ/actions/runs/43594067804)每架构文件保护44项通过，观察器28项通过/1项Linux专属跳过，标准Runtime check通过 | 唯一MJS运行实现、TS兼容转发，启动后同代取消必须在实际退出前授权；22个源码/构建输入hash及制品摘要已逐架构核验。本地pnpm缓存同步guard曾在tsc前失败，直接已有TS5.9.3通过，不能把本地该命令记为通过；不开放Mac ready或停止回执 |
 | macOS15契约说明一致性 | `f848020`独立规格/质量审查通过；canonical/OpenAPI声明源及TS/桌面派生说明共五文件同步为15，官方生成检查及格式化后重复生成一致 | 只修正说明，未更改类型、枚举或运行时行为；实际最低系统验证仍依赖目标测试与安装验收 |
 | 命令所有权与Worker运行闭包C2a2 | `878f487`独立规格/质量审查通过；Linux67项通过、零跳过；[双Mac CI run43596963246](https://github.com/baofengbaofeng/VeriQ/actions/runs/43596963246)每架构新增命令17项通过、文件保护44项通过、观察器28项通过/1项Linux专属跳过，标准类型检查通过 | 实际ChildProcess、超时后真实退出等待、同代取消、双日志及八个MJS闭包已实现；33个源码/构建输入hash与制品摘要已逐架构核验。原并发替换测试改为条件屏障，保留两Worker和>=3对象断言；1项LOW：命令测试300ms期限可能早于ready，留T22处理；未验证完整Mac Worker/Chrome、安装或ready |
-| 下一工程切片 | [停止实施计划](macos-controlled-stop.md)：B、C1及C2a1/C2a2已完成，继续C2b1 BrowserServer所有权/停止证明、C2b2在线离线业务接入、D双架构发行 | 不再以kqueue/非child peer身份链作为正回执依赖；公开Stability1通道须具体Node自检；全仓注释门禁仍失败（`878f487`实施报告4.9456%、265条），C++审计覆盖及LOW测试竞态仍待T22/最终审查 |
+| Darwin原生所有权与私有证明C2b1 | `3371b8a`及修复`af3aeaf`独立定向复审通过，四项MEDIUM全部关闭；[双Mac CI run43602660494](https://github.com/baofengbaofeng/VeriQ/actions/runs/43602660494)每架构原生组件18项、证明格式5项通过、零跳过，标准类型检查通过；既有B44/命令17及观察器28通过/1项Linux专属跳过保留 | 43个源码/构建输入hash、29个原始证据成员及制品摘要已核验。固定原生Chrome158/public BrowserServer、真实退出、私有日志与受控证明/历史已接入source-only入口；修复未知CLI写者File过早释放、错误目录成员、Claim种类错配及取消测试gate。原始File锚定夹具不等于真正Agent OS崩溃/实际孤儿祖先链；完整业务引擎、在线离线、安装/Keychain/GUI就绪仍待交付 |
+| 下一工程切片 | [停止实施计划](macos-controlled-stop.md)：B、C1、C2a1/C2a2/C2b1完成，继续C2b2在线离线完整引擎与报告接入、D双架构发行 | 不再以kqueue/非child peer身份链作为正回执依赖；公开Stability1通道须具体Node自检；全仓注释门禁仍失败，C++审计覆盖及LOW测试竞态仍待T22/最终审查；整T20与MVP百分比不因子切片提前计完 |
 
 
 | 项目 | 当前事实 | 剩余事项与接续约束 |
