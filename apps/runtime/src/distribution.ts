@@ -168,8 +168,9 @@ export async function loadRuntimeDistribution(directory: string): Promise<Runtim
             bindWindowsDistribution(distribution);
         }
     }
-    if (process.platform === "linux" && paths.has("native/vault/veriq_agent"))
-        vaultCapabilities.set(distribution, take("native/vault/veriq_agent"));
+    const vaultMember = `native/vault/veriq_agent${suffix}`;
+    if (["linux", "win32"].includes(process.platform) && paths.has(vaultMember))
+        vaultCapabilities.set(distribution, take(vaultMember));
     return Object.freeze(distribution);
 }
 

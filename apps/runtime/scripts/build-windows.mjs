@@ -1,4 +1,4 @@
-/** Windows 原生构建是显式开发步骤，binding.gyp 放在 native 子目录避免依赖安装时隐式编译；目标流水线使用已锁定 node-gyp 与官方 Node 头文件，成功后只把两个本次产物复制到 Runtime 开发布局供真实角色测试。 */
+/** Windows 原生构建是显式开发步骤，binding.gyp 放在 native 子目录避免依赖安装时隐式编译；目标流水线使用已锁定 node-gyp 与官方 Node 头文件，成功后只把本次正式 guardian、addon 与有限凭据 helper 复制到各自固定 Runtime 开发布局供真实角色测试。 */
 import { execFileSync } from "node:child_process";
 import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { createReadStream } from "node:fs";
@@ -35,6 +35,11 @@ for (const name of ["veriq_native.node", "veriq_guardian.exe"]) {
         new URL(`build/Release/${name}`, root),
     );
 }
+await mkdir(new URL("build/vault/", root), { recursive: true });
+await copyFile(
+    new URL("native/build/Release/veriq_vault.exe", root),
+    new URL("build/vault/veriq_agent.exe", root),
+);
 if (testSchedules) {
     await mkdir(new URL("build/native-tests/", root), { recursive: true });
     for (const name of [
@@ -42,6 +47,7 @@ if (testSchedules) {
         "veriq_guardian_scheduled.exe",
         "veriq_constructor_fault.node",
         "veriq_response_scheduled.node",
+        "veriq_vault_wait.exe",
     ]) {
         await copyFile(
             new URL(`native/build/Release/${name}`, root),
@@ -89,6 +95,7 @@ if (process.env.VERIQ_NATIVE_EVIDENCE) {
     let version;
     for (const name of [
         "veriq_native.node",
+        "veriq_vault.exe",
         ...(testSchedules ? ["veriq_constructor_fault.node", "veriq_response_scheduled.node"] : []),
     ]) {
         const path = fileURLToPath(new URL(`native/build/Release/${name}`, root));
@@ -107,12 +114,23 @@ if (process.env.VERIQ_NATIVE_EVIDENCE) {
         if (!observedVersion || (version !== undefined && version !== observedVersion))
             throw new Error("NATIVE_IMPORT_TOOL_VERSION_UNAVAILABLE");
         version = observedVersion;
+        const required =
+            name === "veriq_vault.exe"
+                ? [
+                      "CredReadW",
+                      "CredWriteW",
+                      "CredDeleteW",
+                      "CredFree",
+                      "CryptBinaryToStringA",
+                      "CryptStringToBinaryA",
+                  ]
+                : ["NtCreateFile", "NtSetInformationFile", "RtlNtStatusToDosError"];
         const matched =
-            /ntdll\.dll/i.test(imports) &&
-            /\bNtCreateFile\b/.test(imports) &&
-            /\bNtSetInformationFile\b/.test(imports) &&
-            /\bRtlNtStatusToDosError\b/.test(imports);
-        targets.push({ name, sha256: await hash(path), matched });
+            required.every((symbol) => new RegExp(`\\b${symbol}\\b`).test(imports)) &&
+            (name === "veriq_vault.exe"
+                ? /advapi32\.dll/i.test(imports) && /crypt32\.dll/i.test(imports)
+                : /ntdll\.dll/i.test(imports));
+        targets.push({ name, sha256: await hash(path), required, matched });
     }
     await writeFile(
         join(evidence, "native-imports.json"),
