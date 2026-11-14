@@ -105,8 +105,25 @@ export async function nativeCall(
     });
 }
 
-/** 内存测试程序自行比较跨重启模板并检查恶意类型树，标准输出仅允许固定成功标记；调用者不会将 ACL 的路径、签名数据或任何底层错误对象附加到断言差异和流水线日志中。 */
+/** 内存测试先用合成系统状态检查生产共用错误边界，再比较跨重启模板和恶意类型树，标准输出只接受固定标记；这些回归不访问持久存储，调用者也不会把 ACL、签名数据或原始系统异常加入测试日志。 */
 export async function runMemoryChecks(): Promise<boolean> {
+    const status = await nativeCall(nativePaths.memory, "", { args: ["--status-regression"] });
+    const statusPassed =
+        status.exitConfirmed &&
+        status.code === 0 &&
+        status.bytes.equals(Buffer.from("SECURITY_STATUS_CHECKS_PASSED\n"));
+    const expectedFailure =
+        status.exitConfirmed &&
+        status.code === 1 &&
+        status.bytes.equals(Buffer.from("SECURITY_STATUS_CHECKS_FAILED\n"));
+    status.bytes.fill(0);
+    if (!statusPassed) {
+        throw new Error(
+            expectedFailure
+                ? "DARWIN_SECURITY_STATUS_REGRESSION_FAILED"
+                : "DARWIN_SECURITY_STATUS_REGRESSION_PROTOCOL_INVALID",
+        );
+    }
     const result = await nativeCall(nativePaths.memory, "");
     const ok =
         result.exitConfirmed &&

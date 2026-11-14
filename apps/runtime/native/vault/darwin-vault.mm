@@ -57,11 +57,11 @@ void decode(const std::string &text, Secret &key) {
 }
 
 /** 用户是否锁定只能由当前请求已经持有的同一钥匙串引用证明，交互被拒绝但仍然解锁属于失败而不是锁定；已知的默认存储或服务缺失单独返回不可用，未知错误永不变成条目不存在。 */
-std::string status(SecKeychainRef keychain, OSStatus error) {
+std::string status(SecKeychainRef keychain, OSStatus error, bool mutation = false) {
+    if (mutation) return securityFailureStatus(error, errSecParam, 0, keychain != nullptr, true);
     SecKeychainStatus state = 0;
-    if (keychain && SecKeychainGetStatus(keychain, &state) == errSecSuccess && !(state & kSecUnlockStateStatus)) return "locked";
-    if (error == errSecNoDefaultKeychain || error == errSecNoSuchKeychain || error == errSecNotAvailable || error == errSecInvalidKeychain) return "unavailable";
-    return "failed";
+    const OSStatus stateError = keychain ? SecKeychainGetStatus(keychain, &state) : errSecParam;
+    return securityFailureStatus(error, stateError, state, keychain != nullptr, false);
 }
 /** 查询字典始终包含本次实际持有的唯一钥匙串引用与固定服务及精确账户，调用点只能增加返回类型或当前条目引用等约束；默认全局搜索列表不会参与查询，也不允许通过缺省字段扩大到其他产品或其他存储。 */
 NSMutableDictionary *query(SecKeychainRef keychain, NSString *name) {
@@ -92,7 +92,7 @@ OSStatus findItem(SecKeychainRef keychain, NSString *name, SecAccessRef expected
     require(reference && CFGetTypeID(reference) == SecKeychainItemGetTypeID());
     item.value = static_cast<SecKeychainItemRef>(const_cast<void *>(CFRetain(reference)));
     Owned<SecAccessRef> access;
-    require(SecKeychainItemCopyAccess(item.value, &access.value) == errSecSuccess);
+    requireSecurity(SecKeychainItemCopyAccess(item.value, &access.value));
     require(access.value != nullptr);
     require(verifiedAccess(access.value, expected));
     return errSecSuccess;
@@ -103,7 +103,7 @@ void readKey(SecKeychainRef keychain, NSString *name, SecKeychainItemRef item, S
     request[(__bridge id)kSecMatchItemList] = @[(__bridge id)item];
     request[(__bridge id)kSecReturnData] = @YES;
     Owned<CFTypeRef> result;
-    require(SecItemCopyMatching((__bridge CFDictionaryRef)request, &result.value) == errSecSuccess);
+    requireSecurity(SecItemCopyMatching((__bridge CFDictionaryRef)request, &result.value));
     require(result.value && CFGetTypeID(result.value) == CFDataGetTypeID() && CFDataGetLength(static_cast<CFDataRef>(result.value)) == 32);
     key.bytes.resize(32);
     memcpy(key.bytes.data(), CFDataGetBytePtr(static_cast<CFDataRef>(result.value)), 32);
@@ -261,7 +261,7 @@ std::string execute(const std::vector<std::string> &parts, Secret &incoming) {
         readKey(keychain.value, name, inserted.value, previous);
         return previous.bytes == incoming.bytes ? "V1 ok\n" : duplicate ? "V1 failed\n" : "V1 mutation-unconfirmed\n";
     } catch (...) {
-        return mutating ? "V1 mutation-unconfirmed\n" : "V1 " + status(keychain.value, errSecAuthFailed) + "\n";
+        return "V1 " + status(keychain.value, securityFailureCode(std::current_exception()), mutating) + "\n";
     }
 }
 }

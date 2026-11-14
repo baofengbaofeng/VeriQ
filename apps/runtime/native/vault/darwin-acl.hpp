@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <exception>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -22,6 +23,36 @@ using Bytes = std::vector<uint8_t>;
 constexpr size_t frameLimit = 512;
 /** 本辅助程序的断言只携带固定错误标识并通过受保护的异常出口失败关闭，不把系统描述、请求字段或秘密材料拼接到异常文本；调用方负责根据修改是否开始区分普通失败与不确定结果。 */
 inline void require(bool value) { if (!value) throw std::runtime_error("VAULT_REQUEST_FAILED"); }
+
+/** Security 调用错误使用独立类型保存系统返回码，而结构或策略拒绝仍使用普通固定异常；该类型不生成系统描述或携带请求正文，只允许统一出口按原始状态分类，因此不会把秘密材料加入异常日志。 */
+struct SecurityFailure final : std::exception {
+    OSStatus code;
+    /** 构造只保存已经返回的系统状态，不发起额外查询或将状态解释成成功回执；这样可以在释放本地引用后保留原始失败原因，最终是否锁定仍必须由当前请求持有的实际钥匙串引用核验。 */
+    explicit SecurityFailure(OSStatus value) noexcept : code(value) {}
+    /** 异常文本始终是固定英文标识，不把平台消息、路径或被拒绝的条目内容输出到调用者；具体错误码仅在同一进程的类型化分支内部使用，正常 V1 回复仍限制为已有的有限状态。 */
+    const char *what() const noexcept override { return "VAULT_SECURITY_FAILED"; }
+};
+
+/** 此次 RED 抽取把真实 Security 返回值集中到同一生产边界，但暂时保留旧的布尔断言行为以让回归真实失败；测试和生产读取均调用此函数，后续修复无需增加生产故障选择器或另一份仅供测试的错误适配器。 */
+inline void requireSecurity(OSStatus error) { require(error == errSecSuccess); }
+
+/** 统一错误出口只从已经捕获的类型化 Security 异常提取原始状态，普通结构或策略异常继续映射为通用拒绝；函数不查询任何存储，生产 catch 与非持久回归共享这段实现而不各自复制一套错误解释逻辑。 */
+inline OSStatus securityFailureCode(std::exception_ptr error) noexcept {
+    if (!error) return errSecAuthFailed;
+    try { std::rethrow_exception(error); }
+    catch (const SecurityFailure &failure) { return failure.code; }
+    catch (...) { return errSecAuthFailed; }
+}
+
+/** 状态分类接收操作错误及同一持有引用的实际状态查询结果，修改不确定优先于所有其它状态；当前 RED 抽取保留旧版只识别操作侧不可用错误的行为，回归会独立指出状态查询失败被丢失的问题而不伪称实际服务停机。 */
+inline const char *securityFailureStatus(OSStatus operation, OSStatus stateError,
+        SecKeychainStatus state, bool heldReference, bool mutation) {
+    if (mutation) return "mutation-unconfirmed";
+    if (heldReference && stateError == errSecSuccess && !(state & kSecUnlockStateStatus)) return "locked";
+    if (operation == errSecNoDefaultKeychain || operation == errSecNoSuchKeychain ||
+        operation == errSecNotAvailable || operation == errSecInvalidKeychain) return "unavailable";
+    return "failed";
+}
 /** 明确属于本程序的可变缓冲通过 volatile 字节写入清理逻辑长度，避免编译器把结束生命周期前的覆盖优化掉；函数不访问已经释放的容量，也不承诺处理系统库或不可变对象保留的副本。 */
 inline void wipe(void *data, size_t length) {
     volatile uint8_t *bytes = static_cast<volatile uint8_t *>(data);

@@ -9,6 +9,36 @@
 
 using namespace veriq;
 namespace {
+/** 状态回归只向生产共用的错误边界及分类器传入明确标注的合成公开 OSStatus，不调用钥匙串服务或假称已经观察到服务故障；测试核验原码传播、真实状态事实的分类约定及修改不确定优先级，失败只输出固定标识。 */
+bool securityStatusRegression() {
+    const auto captured = [](OSStatus code) {
+        try { requireSecurity(code); return static_cast<OSStatus>(errSecSuccess); }
+        catch (...) { return securityFailureCode(std::current_exception()); }
+    };
+    const SecKeychainStatus unlocked = kSecUnlockStateStatus | kSecReadPermStatus;
+    bool correct = captured(errSecSuccess) == errSecSuccess;
+    const OSStatus unavailable[] = {errSecNotAvailable, errSecNoDefaultKeychain, errSecNoSuchKeychain, errSecInvalidKeychain};
+    for (OSStatus code : unavailable) {
+        const OSStatus observed = captured(code);
+        correct = observed == code && correct;
+        correct = strcmp(securityFailureStatus(observed, errSecAuthFailed, 0, true, false), "unavailable") == 0 && correct;
+        correct = strcmp(securityFailureStatus(errSecAuthFailed, code, 0, true, false), "unavailable") == 0 && correct;
+    }
+    OSStatus structural = errSecSuccess;
+    try { require(false); }
+    catch (...) { structural = securityFailureCode(std::current_exception()); }
+    correct = structural == errSecAuthFailed && correct;
+    correct = strcmp(securityFailureStatus(structural, errSecSuccess, unlocked, true, false), "failed") == 0 && correct;
+    correct = strcmp(securityFailureStatus(errSecAuthFailed, errSecNotAvailable, 0, true, false), "unavailable") == 0 && correct;
+    correct = strcmp(securityFailureStatus(errSecAuthFailed, errSecAuthFailed, 0, true, false), "failed") == 0 && correct;
+    correct = strcmp(securityFailureStatus(errSecAuthFailed, errSecSuccess, 0, true, false), "locked") == 0 && correct;
+    correct = strcmp(securityFailureStatus(errSecAuthFailed, errSecSuccess, 0, false, false), "failed") == 0 && correct;
+    correct = strcmp(securityFailureStatus(errSecItemNotFound, errSecSuccess, unlocked, true, false), "failed") == 0 && correct;
+    correct = strcmp(securityFailureStatus(errSecNotAvailable, errSecSuccess, 0, true, true), "mutation-unconfirmed") == 0 && correct;
+    correct = strcmp(securityFailureStatus(errSecAuthFailed, errSecNotAvailable, 0, false, true), "mutation-unconfirmed") == 0 && correct;
+    return correct;
+}
+
 /** 真正的父死亡检查由一个重新执行的专用父进程持有 helper 输入，直到祖先进程完成精确 PID 的内核退出观察注册才离开；父进程保留未回收的 child 关系，防止注册前 PID 被回收或用名称扫描替代真实所有权。 */
 int pipeOwner(const char *self) {
     try {
@@ -218,8 +248,14 @@ void rejectsSecondPrincipal(SecAccessRef expected) {
 }
 }
 
-/** 测试入口只接受内部快照分支或无参数检查，所有系统 API 均局限于内存权限对象及真实子进程；任何失败只返回静态退出码，父调用者据此保留未验证状态，不输出原始 ACL、路径或系统异常文本。 */
+/** 测试入口只接受内部快照、合成状态回归或无参数检查，系统 API 局限于内存权限对象及真实子进程；失败只返回静态退出码和固定标识，父调用者据此保留未验证状态，不输出原始 ACL、路径或系统异常文本。 */
 int main(int argc, char **argv) {
+    if (argc == 2 && std::string(argv[1]) == "--status-regression") {
+        const bool passed = securityStatusRegression();
+        const char *result = passed ? "SECURITY_STATUS_CHECKS_PASSED\n" : "SECURITY_STATUS_CHECKS_FAILED\n";
+        if (write(1, result, strlen(result)) != static_cast<ssize_t>(strlen(result))) return 2;
+        return passed ? 0 : 1;
+    }
     if (argc == 2 && std::string(argv[1]) == "--owner") return pipeOwner(argv[0]);
     @autoreleasepool {
         try {
