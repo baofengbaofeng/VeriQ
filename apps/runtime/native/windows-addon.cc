@@ -452,6 +452,39 @@ static Napi::Value removeVaultFile(const Napi::CallbackInfo& info) {
     } catch (const NativeFailure& error) { return fileFailure(info, error); }
     catch (const std::exception& error) { Napi::Error::New(info.Env(), error.what()).ThrowAsJavaScriptException(); return info.Env().Undefined(); }
 }
+/** Cookie 退役入口仅接受本应用固定分区两个已知布局中的四个数据库成员，六十四兆上限只用于元数据核验而不读取秘密；父链、真实文件句柄、严格当前拥有者和无重解析规则全部沿用，未知错误不会转换为不存在。 */
+static Napi::Value privateCookieFile(const Napi::CallbackInfo& info) {
+    try {
+        require(info.Length() == 2 && info[0].IsString() && info[1].IsBoolean(), "NATIVE_FILE_ARGUMENTS_INVALID");
+        const FilePath path(wide(info[0].As<Napi::String>().Utf8Value()));
+        const size_t count = path.parts.size();
+        require(count >= 3, "NATIVE_COOKIE_MEMBER_INVALID");
+        const auto& name = path.parts.back();
+        require(name == L"Cookies" || name == L"Cookies-wal" || name == L"Cookies-shm" || name == L"Cookies-journal", "NATIVE_COOKIE_MEMBER_INVALID");
+        const size_t partition = path.parts[count - 2] == L"Network" ? count - 3 : count - 2;
+        require(partition >= 1 && path.parts[partition] == L"veriq-host" && path.parts[partition - 1] == L"Partitions", "NATIVE_COOKIE_MEMBER_INVALID");
+        const bool retire = info[1].As<Napi::Boolean>().Value();
+        DirectoryChain parent(path, count - 1);
+        parent.verifyPrivateDirectory();
+        auto file = relativeFile(parent.handle(), name, READ_CONTROL | FILE_READ_ATTRIBUTES | (retire ? DELETE : 0),
+            FILE_OPEN, FILE_NON_DIRECTORY_FILE, 0);
+        verifyPrivateChild(file.value, parent);
+        parent.validate();
+        LARGE_INTEGER size{};
+        requireWin32(GetFileSizeEx(file.value, &size) != 0, "NATIVE_COOKIE_METADATA_FAILED");
+        require(size.QuadPart >= 0 && size.QuadPart <= 64LL * 1024 * 1024, "NATIVE_FILE_LIMIT");
+        if (retire) {
+            FILE_DISPOSITION_INFO remove{TRUE};
+            requireWin32(SetFileInformationByHandle(file.value, FileDispositionInfo, &remove, sizeof(remove)) != 0, "NATIVE_COOKIE_RETIRE_FAILED");
+            const HANDLE removed = std::exchange(file.value, INVALID_HANDLE_VALUE);
+            requireWin32(CloseHandle(removed) != 0, "NATIVE_COOKIE_RETIRE_UNCONFIRMED");
+        }
+        return Napi::Boolean::New(info.Env(), true);
+    } catch (const NativeFailure& error) {
+        if (error.win32 == ERROR_FILE_NOT_FOUND || error.win32 == ERROR_PATH_NOT_FOUND) return Napi::Boolean::New(info.Env(), false);
+        return fileFailure(info, error);
+    } catch (const std::exception& error) { Napi::Error::New(info.Env(), error.what()).ThrowAsJavaScriptException(); return info.Env().Undefined(); }
+}
 /** 诊断读取只能返回当前进程最近有界的固定错误记录并清空缓冲区，不接收文件路径或筛选表达式；测试在资源关闭后收集这些记录定位原生阶段，原始客户端断言与清理异常仍独立保留，不能被诊断替代。 */
 static Napi::Value takePipeDiagnostics(const Napi::CallbackInfo& info) {
     try {
@@ -485,6 +518,7 @@ static Napi::Object initialize(Napi::Env env, Napi::Object exports) {
         exports.Set("removeVaultFile", Napi::Function::New(env, removeVaultFile));
         exports.Set("replacePrivate", Napi::Function::New(env, replacePrivate));
         exports.Set("removePrivate", Napi::Function::New(env, removePrivate));
+        exports.Set("privateCookieFile", Napi::Function::New(env, privateCookieFile));
         exports.Set("takePipeDiagnostics", Napi::Function::New(env, takePipeDiagnostics));
         exports.Set("sid", Napi::String::New(env, utf8(currentSid())));
     } catch (const std::exception& error) { Napi::Error::New(env, error.what()).ThrowAsJavaScriptException(); }

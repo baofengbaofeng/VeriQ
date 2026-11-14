@@ -54,7 +54,7 @@ jobs:
                   uv sync --project apps/srv --frozen --all-groups
                   pnpm install --frozen-lockfile
                   pnpm --filter @veriq/runner-sdk exec playwright install --with-deps chromium
-                  sudo apt-get install --yes --no-install-recommends xvfb xauth x11-utils imagemagick libxtst6
+                  sudo apt-get install --yes --no-install-recommends xvfb xauth x11-utils imagemagick libxtst6 dbus gnome-keyring libglib2.0-bin
                   pnpm --filter @veriq/desktop exec node <<'JS'
                   // 首次解析成熟依赖可能向标准输出写下载诊断，因此只通过文件接口写入验证过的可执行路径；两项都校验成功后才追加环境记录，日志不能被当成 GitHub 环境文件语法解析。
                   const fs = require('node:fs');
@@ -75,6 +75,8 @@ jobs:
                   });
                   fs.appendFileSync(environmentFile, lines.join('\n') + '\n');
                   JS
+            - name: Prepare independent Electron with verified Cookie encryption fuse
+              run: node apps/desktop/scripts/prepare-cookie-electron.mjs
             - name: Produce a separate unapproved current-source candidate
               run: |
                   set -o pipefail
@@ -120,6 +122,7 @@ jobs:
                   VERIQ_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
               run: |
                   set -o pipefail
+                  python tests/e2e/test_cookie_session.py 2>&1 | tee "$VERIQ_DESKTOP_EVIDENCE/cookie-session-tests.log"
                   python tests/e2e/test_ci_userns.py 2>&1 | tee "$VERIQ_DESKTOP_EVIDENCE/userns-boundary-tests.log"
                   python tests/e2e/ci_userns.py prepare
             - name: Verify affected Runtime behavior with the actual matched browser
@@ -133,7 +136,7 @@ jobs:
                   DEBUG: pw:browser
               run: |
                   set -o pipefail
-                  xvfb-run -a -s '-screen 0 1280x800x24 -nolisten tcp' pnpm desktop:test 2>&1 | tee "$VERIQ_DESKTOP_EVIDENCE/desktop-composed.log"
+                  python tests/e2e/cookie_session.py xvfb-run -a -s '-screen 0 1280x800x24 -nolisten tcp' bash -c 'pnpm --filter @veriq/desktop exec node --import tsx --test tests/native/cookie-electron.test.ts && pnpm desktop:test' 2>&1 | tee "$VERIQ_DESKTOP_EVIDENCE/desktop-composed.log"
                   python - <<'PY'
                   import json, os
                   from pathlib import Path
@@ -147,9 +150,12 @@ jobs:
                   assert stopped['processStopped'] is True and stopped['journalState'] == 'STOPPED'
                   assert stopped['windowGone'] is True and stopped['ownedPidsExited'] is True
                   stats = results['stats']
-                  assert stats['expected'] == 6 and stats['unexpected'] == 0 and stats['skipped'] == 0 and stats['flaky'] == 0
-                  print('Composed GUI acceptance verified: 6 passed, 0 skipped; actual headed window and stop observations present')
+                  assert stats['expected'] == 7 and stats['unexpected'] == 0 and stats['skipped'] == 0 and stats['flaky'] == 0
+                  print('Composed GUI acceptance verified: 7 passed, 0 skipped; actual headed window and stop observations present')
                   PY
+            - name: Always confirm owned Cookie service cleanup
+              if: always()
+              run: python tests/e2e/cookie_session.py cleanup
             - name: Remove only this job's temporary user namespace profiles
               if: always()
               env:
@@ -166,6 +172,7 @@ jobs:
                       .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/*.png
                       .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/headed-*.json
                       .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/gui-results.json
+                      .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/cookie-*.json
                       .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/source-production-binding.json
                       .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/candidate-inventory.json
                       .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/compiled-binding.json

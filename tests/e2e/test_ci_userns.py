@@ -145,6 +145,46 @@ class CiUsernsBoundaryTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "CI_PROFILE_OWNERSHIP_MISMATCH"):
                 ci_userns.owned_file(path, text)
 
+    def test_cookie_copy_requires_exact_path_and_independent_bound_bytes(self):
+        """Cookie 策略只接收固定构建目录中经证据绑定的独立副本，并继续核对共享源字节未变；测试用自有小文件模拟身份而不执行 Electron，篡改副本、硬链接和任意外部路径都必须在策略加载前拒绝。"""
+        import hashlib
+
+        with tempfile.TemporaryDirectory(prefix="veriq-cookie-copy-") as directory:
+            root = Path(directory)
+            evidence = root / "evidence"
+            evidence.mkdir()
+            source = root / "apps/desktop/node_modules/electron/dist/electron"
+            selected = root / "apps/desktop/build/electron-cookie/electron"
+            source.parent.mkdir(parents=True)
+            selected.parent.mkdir(parents=True)
+            source.write_bytes(b"original")
+            selected.write_bytes(b"modified")
+            record = {
+                "original": str(source),
+                "executable": str(selected),
+                "originalSha256": hashlib.sha256(b"original").hexdigest(),
+                "modifiedSha256": hashlib.sha256(b"modified").hexdigest(),
+                "packageVersion": "45.3.1",
+                "toolVersion": "1.8.0",
+                "before": {"version": "1", "1": 48},
+                "after": {"version": "1", "1": 49},
+                "independentCopy": True,
+                "sourceUnchanged": True,
+            }
+            (evidence / "cookie-fuses.json").write_text(json.dumps(record))
+            self.assertEqual(ci_userns.cookie_electron(root, evidence), selected)
+            selected.write_bytes(b"tampered")
+            with self.assertRaisesRegex(ValueError, "CI_COOKIE_COPY_INVALID"):
+                ci_userns.cookie_electron(root, evidence)
+            selected.unlink()
+            selected.hardlink_to(source)
+            with self.assertRaisesRegex(ValueError, "CI_COOKIE_COPY_INVALID"):
+                ci_userns.cookie_electron(root, evidence)
+            record["executable"] = str(root / "other/electron")
+            (evidence / "cookie-fuses.json").write_text(json.dumps(record))
+            with self.assertRaisesRegex(ValueError, "CI_COOKIE_COPY_INVALID"):
+                ci_userns.cookie_electron(root, evidence)
+
     def test_partial_install_drains_only_owned_entries_and_keeps_failure_visible(self):
         """受控状态表示第一份策略已加载、第二份只有文件、第三份未安装，清理必须仅对实际加载者发卸载命令并收回两份自有文件；卸载失败时继续其它条目但最终返回失败，不能强删仍加载的策略后假称已完成。"""
         stem = "veriq-t19-99999999999999-1"

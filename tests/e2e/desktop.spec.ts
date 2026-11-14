@@ -1428,3 +1428,119 @@ test("component-only startup projection cancels its exact reservation", async ()
         await browser.close();
     }
 });
+
+/** 真实 Cookie 验收通过生产 main 的保护门闩建立持久 Session，写入公开合成值后关闭所有自有进程再独立读取 SQLite；重启同一档案必须恢复同一 Cookie，数据库空明文列和实际提供者密文均需成立，不能以 safeStorage 可用替代磁盘证据。 */
+test("production Cookie session persists protected rows and restores after restart", async () => {
+    const { DatabaseSync } = await import("node:sqlite");
+    const { stat, writeFile } = await import("node:fs/promises");
+    const root = resolve("../..");
+    const profile = await mkdtemp("/tmp/veriq-cookie-gui-");
+    const value = "VeriQ-public-synthetic-cookie-check-2026";
+    let electron: Awaited<ReturnType<typeof _electron.launch>> | undefined;
+    let agentPid: number | undefined;
+    const launch = async () => {
+        electron = await _electron.launch({
+            chromiumSandbox: true,
+            executablePath: process.env.VERIQ_TEST_ELECTRON!,
+            args: [resolve(".")],
+            env: {
+                ...applicationEnvironment,
+                VERIQ_DESKTOP_PROFILE: profile,
+                VERIQ_DESKTOP_NODE: process.execPath,
+                VERIQ_DESKTOP_ENGINE: engine.directory,
+                VERIQ_DESKTOP_ENGINE_VERSION: engine.version,
+                VERIQ_DESKTOP_BROWSER: resolve(
+                    root,
+                    ".superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell",
+                ),
+            },
+        });
+        const page = await electron.firstWindow({ timeout: 10000 });
+        await expect
+            .poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.pid)
+            .toBeGreaterThan(0);
+        agentPid = (await page.evaluate(() => window.veriq.state())).agent?.pid;
+        return electron;
+    };
+    try {
+        const first = await launch();
+        const observation = await first.evaluate(async ({ session, safeStorage }, synthetic) => {
+            const target = session.fromPartition("persist:veriq-host");
+            await target.cookies.set({
+                url: "https://cookie.veriq.invalid/",
+                name: "veriq_cookie_protection_test",
+                value: synthetic,
+                secure: true,
+                httpOnly: true,
+                sameSite: "strict",
+                expirationDate: Math.floor(Date.now() / 1000) + 3600,
+            });
+            await target.cookies.flushStore();
+            const encrypted = await safeStorage.encryptStringAsync("VeriQ public provider probe");
+            const decrypted = await safeStorage.decryptStringAsync(encrypted);
+            return {
+                path: target.storagePath,
+                provider: encrypted.subarray(0, 3).toString("ascii"),
+                roundtrip:
+                    decrypted.result === "VeriQ public provider probe" &&
+                    !decrypted.shouldReEncrypt,
+                backend: safeStorage.getSelectedStorageBackend(),
+            };
+        }, value);
+        expect(observation.path).toBe(resolve(profile, "electron/Partitions/veriq-host"));
+        expect(observation.roundtrip).toBe(true);
+        expect(["v11", "v12"]).toContain(observation.provider);
+        expect(observation.backend).not.toBe("basic_text");
+        await teardownDesktop(electron, profile, agentPid);
+        electron = undefined;
+        agentPid = undefined;
+        const databasePath = resolve(observation.path!, "Cookies");
+        expect((await stat(databasePath)).size).toBeLessThan(64 * 1024 * 1024);
+        const database = new DatabaseSync(databasePath, { readOnly: true, timeout: 3000 });
+        let provider: string;
+        try {
+            const rows = database
+                .prepare("SELECT value, encrypted_value FROM cookies WHERE host_key=? AND name=?")
+                .all("cookie.veriq.invalid", "veriq_cookie_protection_test");
+            expect(rows).toHaveLength(1);
+            expect(rows[0]!.value).toBe("");
+            const encrypted = Buffer.from(rows[0]!.encrypted_value as Uint8Array);
+            provider = encrypted.subarray(0, 3).toString("ascii");
+            expect(provider).toBe(observation.provider);
+            expect(encrypted.length).toBeGreaterThan(32);
+            expect(encrypted.includes(Buffer.from(value))).toBe(false);
+        } finally {
+            database.close();
+        }
+        expect((await readFile(databasePath)).includes(Buffer.from(value))).toBe(false);
+        const reopened = await launch();
+        const restored = await reopened.evaluate(async ({ session }) =>
+            session.fromPartition("persist:veriq-host").cookies.get({
+                url: "https://cookie.veriq.invalid/",
+                name: "veriq_cookie_protection_test",
+            }),
+        );
+        expect(restored).toHaveLength(1);
+        expect(restored[0]!.value).toBe(value);
+        await writeFile(
+            resolve(process.env.VERIQ_DESKTOP_EVIDENCE!, "cookie-database.json"),
+            JSON.stringify(
+                {
+                    provider,
+                    backend: observation.backend,
+                    probeRoundtrip: true,
+                    cookieRows: 1,
+                    plaintextColumnEmpty: true,
+                    plaintextAbsentFromDatabase: true,
+                    restoredAfterRestart: true,
+                    source: "production persist:veriq-host session",
+                },
+                null,
+                4,
+            ) + "\n",
+        );
+    } finally {
+        await teardownDesktop(electron, profile, agentPid);
+    }
+    await rm(profile, { recursive: true, force: true });
+});

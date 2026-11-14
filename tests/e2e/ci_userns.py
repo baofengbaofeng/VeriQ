@@ -116,6 +116,37 @@ def snapshot(evidence: Path) -> dict[str, Any]:
     }
 
 
+def cookie_electron(root: Path, evidence: Path) -> Path:
+    """仅允许 fuse 生产器新建并逐字节核验的固定 Electron 副本进入三个既有 QA 策略之一，同时确认共享包未变；策略入口再次检查真实身份和摘要，拒绝硬链接、符号链接、证据篡改和来源不一致，不接受任意可执行路径。"""
+    source = (root / "apps/desktop/node_modules/electron/dist/electron").resolve(
+        strict=True
+    )
+    selected = root / "apps/desktop/build/electron-cookie/electron"
+    record = json.loads((evidence / "cookie-fuses.json").read_bytes())
+    info = selected.lstat()
+    original = source.stat()
+    if (
+        not stat.S_ISREG(info.st_mode)
+        or info.st_nlink != 1
+        or (info.st_dev, info.st_ino) == (original.st_dev, original.st_ino)
+        or selected.resolve(strict=True) != selected
+        or record.get("original") != str(source)
+        or record.get("executable") != str(selected)
+        or record.get("packageVersion") != "45.3.1"
+        or record.get("toolVersion") != "1.8.0"
+        or record.get("independentCopy") is not True
+        or record.get("sourceUnchanged") is not True
+        or record.get("after", {}).get("version") != "1"
+        or record.get("after", {}).get("1") != 49
+    ):
+        raise ValueError("CI_COOKIE_COPY_INVALID")
+    for path, key in [(source, "originalSha256"), (selected, "modifiedSha256")]:
+        with path.open("rb") as stream:
+            if hashlib.file_digest(stream, "sha256").hexdigest() != record.get(key):
+                raise ValueError("CI_COOKIE_COPY_INVALID")
+    return selected
+
+
 def binaries(root: Path, evidence: Path) -> dict[str, Any]:
     """白名单只接受本工作区官方 Electron 包和固定 Playwright1254 分发路径，逐个确认真实普通可执行文件、非 SUID 权限及字节摘要；浏览器另执行实际版本探测，Electron 的内嵌版本仍由后续真实窗口单独记录。"""
     browser_root = (root / ".superpowers/cache/playwright").resolve(strict=True)
@@ -128,7 +159,7 @@ def binaries(root: Path, evidence: Path) -> dict[str, Any]:
     if json.loads((package / "package.json").read_bytes())["version"] != "45.3.1":
         raise ValueError("CI_ELECTRON_PACKAGE_MISMATCH")
     selected = {
-        "electron": package / "dist/electron",
+        "electron": cookie_electron(root, evidence),
         "shell": browser_root
         / "chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell",
         "chrome": browser_root / "chromium-1254/chrome-linux64/chrome",

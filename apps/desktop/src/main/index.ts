@@ -4,6 +4,7 @@ import {
     ipcMain,
     protocol,
     session,
+    safeStorage,
     net,
     Tray,
     Menu,
@@ -22,6 +23,8 @@ import {
 } from "../../../runtime/src/distribution.ts";
 import { DesktopAgentClient } from "../agent/client";
 import { HostSession, controlOrigin } from "./session";
+import { requireCookieProtection } from "./cookie-protection";
+import { prepareCookieStorage } from "./cookie-migration";
 import { object, parseSchema, resolveOperation } from "./policy";
 import { authorizeSender } from "./scope";
 import { openNativeTrace } from "./trace-window";
@@ -604,6 +607,22 @@ async function main() {
     } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
+    const cookieProtection = await requireCookieProtection(safeStorage);
+    console.log("VeriQ Cookie protection verified:", JSON.stringify(cookieProtection));
+    await prepareCookieStorage(profile, app.getPath("sessionData"), async () => {
+        const result = await dialog.showMessageBox({
+            type: "warning",
+            title: "VeriQ",
+            message:
+                "删除旧登录 Cookie 并重新登录？ / Remove legacy login cookies and sign in again?",
+            detail: "旧 Cookie 数据库及其日志可能以明文保存。仅删除 VeriQ 的这些文件；不会删除设备身份或业务凭据，也不保证介质擦除。 / Only VeriQ login cookie files are removed; device and business credentials remain. This does not guarantee physical erasure.",
+            buttons: ["取消 / Cancel", "删除并重新登录 / Remove and sign in again"],
+            defaultId: 0,
+            cancelId: 0,
+            noLink: true,
+        });
+        return result.response === 1;
+    });
     const auth = session.fromPartition("persist:veriq-host");
     await auth.setProxy(proxy ? { proxyRules: proxy } : { mode: "system" });
     host = new HostSession(auth, origin);
