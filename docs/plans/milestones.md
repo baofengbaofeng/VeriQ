@@ -1,6 +1,6 @@
 # VeriQ 1.0 交付里程碑与 Agent 接续状态
 
-> 状态快照：2026-11-14（北京时间）。早期恢复基线为`master e5d5a6b`；最新已将用户合并后的`origin/master b42004c`同步进入功能分支，保留其PR18/19合并记录。T19模块及修复`eb2dc4e`已复审，T20仍在分切片实施（最新状态见第6节）；正式发行待验收。本文汇总已确认范围、已落地代码、验收缺口和接续上下文；不新增功能范围，也不替代需求规格。
+> 状态快照：2026-11-15（北京时间）。早期恢复基线为`master e5d5a6b`；最新已将用户合并后的`origin/master b42004c`同步进入功能分支，保留其PR18/19合并记录。T19模块及修复`eb2dc4e`已复审，T20仍在分切片实施（最新状态见第6节）；正式发行待验收。本文汇总已确认范围、已落地代码、验收缺口和接续上下文；不新增功能范围，也不替代需求规格。
 >
 > **用户已明确恢复开发，目标为完整 MVP 交付。** 从最新 master 建立隔离功能工作区，按 T16–T23 继续子 Agent 开发及独立审查。恢复开发不等于批准实际付费 Provider 调用、正式发布或外部部署；相关验收仍需具体配置和授权。
 
@@ -164,7 +164,7 @@
 | R20-06 / T20 | 无桌面Linux显式restricted-file及目标夹具 | `4a1d494`已有实现，`ae314b4`修正隔离夹具入口；实际正向验收未过 | `4a1d494`真实Linux原76项单测通过，新专用用户/挂载夹具在首次seed进入业务前因`/home/runner/package.json`权限失败，正常及always清理已核验；`ae314b4`改为固定pnpm离线deploy后仅复制自有隔离目录，阶段测试通过但尚未重做完整目标夹具。不能把入口修正或绑定卷进程重启当成实际后端/掉电持久性通过；此模式仍非桌面fallback |
 | R20-07 / T20 | Mac双架构平台能力合同 | `986a2d8`已通过独立切片复审 | 仅允许linux/x64、win32/x64、darwin/x64、darwin/arm64，保留原字段与未知值拒绝；canonical/OpenAPI/生成TS/桌面派生Schema一致。251项合同、196项Python兼容、25个桌面生产验证样本及4项policy通过，适用strict/生成检查通过；未开放doctor或Mac执行就绪，不能代替原生Chrome/监督/Keychain/安装验收 |
 | R20-08 / T20 | Node24兼容门槛与具体发行身份 | `06be5a7`及统一切片`547c67f`已通过独立规格/质量审查；实际目标验收待完成 | 用户本机24.20.0触发原门槛，现按>=24<25统一开发/构建/独立执行检查，CI跟随24.x；每个发行仍精确核验其清单具体Node版本/hash/角色路径。核心Runtime7项、桌面入口1项、构建版本矩阵16项通过；补充Runtime58/59，唯一海量凭据用例ENOSPC未过；实际24.20、GUI和目标CI未执行，不声称完整发行通过 |
-| R20-09 / T20 | Mac受控停止范围与实施设计 | 范围已获用户确认；设计经builder复核，产品实现待推进 | 最低15、宿主原生Chrome、受控Worker/Chrome退出正常停止、未知隔离/人工恢复；不承诺任意游离后代全清理，Linux/Windows强保证保留。按[设计](../specs/macos-controlled-stop.md)/[A1–D子计划](macos-controlled-stop.md)推进，不能以设计、合同或PID扫描代替实际Mac退出证据 |
+| R20-09 / T20 | Mac受控停止范围与实施设计 | 范围已获用户确认；源码受控业务组件已验，完整发行接入待完成 | 最低15、宿主原生Chrome、受控Worker/Chrome退出正常停止、未知隔离/人工恢复；不承诺任意游离后代全清理，Linux/Windows强保证保留。按[设计](../specs/macos-controlled-stop.md)/[A1–D子计划](macos-controlled-stop.md)推进，不能以设计、合同或PID扫描代替实际Mac退出证据 |
 | R21-01 / T21 | 部署与快速开始 | 有开发说明，不是完整生产安装 | Compose(API+MySQL+volume)、可选 demo/runtime profile、Python venv+wheelhouse、服务/systemd、可照做的初始化与网络映射 |
 | R21-02 / T21 | 配置和迁移 | 基础优先级/CLI 已有 | CLI>VERIQ_>文件>默认；显式安全密钥/URL/DB；生产单迁移 job；只读包+外置数据/配置，实际预检/健康诊断 |
 | R21-03 / T21 | 备份恢复/轮换/兼容 | 尚未完成整体验收 | DB/制品/所需密钥一致备份恢复；密钥轮换/rekey；升级不覆盖配置；不兼容回滚拒绝；数据库/Runtime/安装包兼容矩阵 |
@@ -230,7 +230,12 @@
 | macOS15契约说明一致性 | `f848020`独立规格/质量审查通过；canonical/OpenAPI声明源及TS/桌面派生说明共五文件同步为15，官方生成检查及格式化后重复生成一致 | 只修正说明，未更改类型、枚举或运行时行为；实际最低系统验证仍依赖目标测试与安装验收 |
 | 命令所有权与Worker运行闭包C2a2 | `878f487`独立规格/质量审查通过；Linux67项通过、零跳过；[双Mac CI run43596963246](https://github.com/baofengbaofeng/VeriQ/actions/runs/43596963246)每架构新增命令17项通过、文件保护44项通过、观察器28项通过/1项Linux专属跳过，标准类型检查通过 | 实际ChildProcess、超时后真实退出等待、同代取消、双日志及八个MJS闭包已实现；33个源码/构建输入hash与制品摘要已逐架构核验。原并发替换测试改为条件屏障，保留两Worker和>=3对象断言；1项LOW：命令测试300ms期限可能早于ready，留T22处理；未验证完整Mac Worker/Chrome、安装或ready |
 | Darwin原生所有权与私有证明C2b1 | `3371b8a`及修复`af3aeaf`独立定向复审通过，四项MEDIUM全部关闭；[双Mac CI run43602660494](https://github.com/baofengbaofeng/VeriQ/actions/runs/43602660494)每架构原生组件18项、证明格式5项通过、零跳过，标准类型检查通过；既有B44/命令17及观察器28通过/1项Linux专属跳过保留 | 43个源码/构建输入hash、29个原始证据成员及制品摘要已核验。固定原生Chrome158/public BrowserServer、真实退出、私有日志与受控证明/历史已接入source-only入口；修复未知CLI写者File过早释放、错误目录成员、Claim种类错配及取消测试gate。原始File锚定夹具不等于真正Agent OS崩溃/实际孤儿祖先链；完整业务引擎、在线离线、安装/Keychain/GUI就绪仍待交付 |
-| 下一工程切片 | [停止实施计划](macos-controlled-stop.md)：B、C1、C2a1/C2a2/C2b1完成，继续C2b2在线离线完整引擎与报告接入、D双架构发行 | 不再以kqueue/非child peer身份链作为正回执依赖；公开Stability1通道须具体Node自检；全仓注释门禁仍失败，C++审计覆盖及LOW测试竞态仍待T22/最终审查；整T20与MVP百分比不因子切片提前计完 |
+| 在线/离线完整业务C2b2 | `fa3a384`及`7759b24`接入业务执行、取消与私有发布；初审两项Important已修复复审，后续原生夹具及业务验收仍未闭合。`e464e5f`补充有限诊断和失败清理，[双Mac run43614856117](https://github.com/baofengbaofeng/VeriQ/actions/runs/43614856117)每架构23项实际结束：7通过、16失败、0取消/跳过 | 两架构各58个源码/构建输入hash及官方制品摘要已核验。报告扫描器误把普通HTML视为主报告，并使退出见证拒绝、清理重叠；连接失败的报告扫描另有3种端点形式命中，四份扫描均未完整覆盖，不能宣称隐私通过。正实施公开SDK fixture边界及扫描/清理修正；须同一候选的完整SDK、双Mac业务集与完整报告扫描，再独立累计复审；后续新增用例及准确总数见下行 |
+| C2b2公开API与交付校验候选 | `d59e5a2`加入公开worker fixture连接异常保护、最终JSON报告处理及在线/离线独立交付校验；[双Mac run43623551745](https://github.com/baofengbaofeng/VeriQ/actions/runs/43623551745)每架构26项实际结束：21通过、5失败、0取消/跳过，两项真实JSON交付阻断负例均通过 | 五组扫描仍为部分覆盖并检出2/3种端点形式，未通过验收。相同子进程环境的有界复现定位到私有配置编译缓存副本，实际报告及引用扫描零命中；不能据此替代Mac原文件身份核验。独立复审另发现节点限额前分配过多遍历内存，该候选需第4轮修正；修正与最终验证见下行，停止证明与交付扫描要求保留 |
+| C2b2完整SDK与Ubuntu桌面检查 | [`d59e5a2` run43623551691](https://github.com/baofengbaofeng/VeriQ/actions/runs/43623551691)完整SDK140项通过、1项Windows专属契约跳过，16文件、行覆盖率91.95%；另49桌面单测、2显示、88Runtime、2真实Cookie及7GUI通过，GUI约2分钟 | 官方制品摘要、629个源码hash及候选库存摘要已核验；该制品为未批准测试候选，原始ZIP保留在上游，协调者在内存核验，未另存本地副本。不等于正常发行、Mac安装、Keychain或完整T20验收；第4轮源变更仍须重新验证受影响门禁 |
+| C2b2组件最终验证 | `6cba5cc`第4轮独立规格/质量复审通过，新增C/I/M均0；[双Mac run43626491019](https://github.com/baofengbaofeng/VeriQ/actions/runs/43626491019)每架构26项全部通过、0失败/取消/跳过；在线/离线五组完整交付扫描零命中，两项真实JSON交付阻断负例通过 | 各63个源码/构建输入hash、官方制品摘要、原始库存及最低系统15.0已核验；私有输入缓存以实际路径/源码映射/字节身份单独归类，引用或复制到交付内容仍阻断，缓存内Trace继续扫描。原生stdout/stderr实际忽略，不冒充已捕获扫描；本地真实CLI输出扫描另有证据。只完成源码业务组件，Keychain/Cookie、完整发行库存、Mac GUI/安装及T20整体仍未完成 |
+| C2b2最终SDK/GUI回归 | [`6cba5cc` run43626491063](https://github.com/baofengbaofeng/VeriQ/actions/runs/43626491063)完整SDK144项通过、1项Windows专属契约跳过，行覆盖率91.97%；49桌面单测、2显示、88Runtime、2真实Cookie及7实际GUI通过，0GUI跳过/flaky，约2.1分钟 | 官方制品摘要、629个源码hash及候选库存摘要在内存核验，保留选定原始日志，完整ZIP保留上游。便携合同/监督/SQLite另有同源码29项通过，本行88项为宿主工作流固定选择集，统计分开；与Mac两架构源码组件结果共同闭合C2b2，不能替代正常发行与四组目标安装验收 |
+| 下一工程切片 | [停止实施计划](macos-controlled-stop.md)：B、C1、C2a1/C2a2/C2b1/C2b2源码组件完成，继续D阶段Keychain、Cookie、完整库存与双架构发行 | 不再以kqueue/非child peer身份链作为正回执依赖；公开Stability1通道须具体Node自检；全仓注释门禁仍失败，C++审计覆盖及LOW测试竞态仍待T22/最终审查；整T20与MVP百分比不因子切片提前计完 |
 
 
 | 项目 | 当前事实 | 剩余事项与接续约束 |
@@ -306,6 +311,7 @@
 | D13 T16-M2 方法匹配 | 非阻塞遗留；T22/最终复审 | 计划detail POST、collection PUT/DELETE参数不匹配导致500而非405 | 按action/method提前拒绝；实际HTTP负例，保留认证/CSRF |
 | D14 T18-M1 注释坐标 | 非阻塞遗留；T22/最终复审 | TypeScript UTF-16偏移直接用于Python码点数组，合法emoji尾注释可IndexError或误计 | 统一坐标/Node侧残余计数，验证BMP/nonBMP/无尾换行/多行，保留原计数范围和门槛 |
 | D15 T18-M2 版本资料 | 非阻塞遗留；T22/最终复审 | `--engine-version`可选，而wheel内release/version.json固定candidate1.0.0 | 从实际候选生成/核对包内外product/compiler/SDK/engine版本，不能交付互相矛盾资料或改写旧身份 |
+| D16 Mac人工恢复 | 必须闭合；T21/T23 | 服务端已有Workspace管理员人工确认释放隔离容量的接口并保留审计；本地丢失原始进程对象且无有效证明时，自动恢复仍保持隔离，尚缺完整人工归档/恢复流程 | 补齐显式人工确认、原始UNKNOWN证据保留、旧代隔离、幂等归档和本地占用释放；不得生成假的CONTROLLED_STOPPED/DRAINED或将人工确认当自动停止证明，凭据迁移的历史门禁须单独验证 |
 
 ## 9. 验证证据：如何解释“已完成”
 
@@ -386,6 +392,7 @@
 | 本地工作资料 | 当前可能存在`.superpowers/sdd/veriq-1/`下的progress/current-state/brief/report/evidence；它们被忽略，其他机器/Agent不保证存在 |
 | 可移交依据 | 本文、规格、计划、ADR、代码/提交是可取得的依据；若本地日志缺失，据代码补适用验证，不伪造原始结果，不整段重做已完成任务 |
 | 密钥和测试环境 | 不将DSN、密码、API key、设备token、本地绝对机器状态写入仓库。真实Provider只用独立持久配置，不放可重置`veriq_test` |
+| Mac凭据与独立验收 | 用户已确认原生文件型Keychain及可安排Intel/ARM独立测试环境；独立helper、锁定拒绝、无明文回退。实际Cookie锁定、签名升级和安装仍待独立登录会话验收，不修改现有CI登录钥匙串；详见[Mac范围记录](../specs/macos-mvp-scope.md) |
 | 现有测试约束 | DB套件（包括启动DB的Web/Agent测试）串行使用约定flock；本地环境重建时重新确认专用库/引擎清单/浏览器，而不是把旧路径当存在 |
 | 暂停后恢复 | 用户已明确恢复；从实际Git和本台账定位当前任务，T16–T18代码已审查，不因旧暂停或SDK失败记录重做已完成实现 |
 
@@ -395,6 +402,7 @@
 | --- | --- | --- |
 | 全部源代码、锁、迁移、公共契约 | 已有核心；T16–T23待补 | 对应commit、变更范围、兼容性、未完成项 |
 | 服务端wheel/wheelhouse/tar/OCI及同源Web | 待交付 | 静态manifest与代码版本、实际干净安装、目标ABI、无Node/Chrome启动 |
+| macOS15+ Intel/Apple Silicon桌面与Runtime包 | 最高优先级，待交付；用户可安排双架构独立测试环境 | 每架构原生Chrome、完整库存、实际安装/GUI/停止/Keychain/Cookie冷启动与锁定/升级及签名状态证据；源码组件CI不能替代安装验收 |
 | Windows11/Ubuntu24.04桌面与Runtime包 | 待交付 | 对应OS构建/安装/进程名/停止/vault/离网/升级/签名证据 |
 | 示例应用/Workspace/测试数据 | 部分已有 | 实际网络可达URL、正常角色与fixture边界、可重现操作，不是假的成功结果 |
 | 用户/接入/管理员/运维/故障手册 | 部分已有 | 新环境按文档安装、跑通、诊断、升级、恢复的实际记录 |

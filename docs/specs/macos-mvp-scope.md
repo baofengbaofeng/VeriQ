@@ -42,12 +42,18 @@ CI已配置标准标签`macos-15-intel`（Intel）与`macos-15`（Apple Silicon�
 | 物理依赖闭包 | Node、Chrome、esbuild、原生组件均按平台产生 | 分别验证 x64/arm64；不能复制 Linux node_modules 或仅将 Electron 做 universal 就视为整个 Runtime 通用 |
 | `.app` 与完整性 | Mac Framework 有真实内部符号链接，当前库存拒绝所有链接 | 先核实际固定资产，再设计保留签名的有限规则；禁止全局放开链接、任意路径或盲目展平 bundle |
 | 私有文件 | B已实现Darwin公开POSIX目录句柄相对访问；`4966090`复审通过 | 双架构各44项实际测试通过；继续保持同FD owner、类型、权限、扩展ACL及提交不确定性检查，C2须保活File至真实CLI退出和最终核验 |
-| Runtime Keychain | 现有后端是 Windows Credential Manager / Linux Secret Service | 复用有限 helper 协议与标准加密信封；明确 Keychain 实现、签名身份及无交互策略，不能以明文 fallback 通过 |
+| Runtime Keychain | 用户已确认采用原生文件型 Keychain；Mac 适配待实现 | 复用有限 helper 协议与标准加密信封，通过独立辅助进程存取；锁定或访问失败时拒绝执行，无明文 fallback，签名身份及无交互策略须实际验证 |
 | Electron Cookie | Mac 使用 Keychain，现有生产保护门未开放 Darwin | 最终签名 bundle 的 fuse、真实 provider、SQLite 密文、重启、锁定及旧 Cookie 退役均需真实验证 |
 | 桌面生命周期 | 菜单栏、Dock、activate、登录项及安装路径存在平台差异 | 区分窗口关闭、退出 UI、停止 Agent、取消任务；保留后台执行与恢复能力 |
 | 安装与升级 | Mac 安装载体及签名布局尚待设计 | 双架构独立产物是研究建议，尚非用户已选方案；必须核验执行中升级拒绝、兼容回滚与卸载保留数据 |
 
-Keychain 两类实现的权限与签名模型见 Apple [TN3137](https://developer.apple.com/documentation/technotes/tn3137-on-mac-keychains)。默认 file-based Keychain 与 data-protection Keychain 不能混为一种机制；选择需要结合固定 helper 布局及真实用户会话验证。
+Darwin私有目录的`replace(name, temporary, ...)`只接受严格的`.<小写UUID>.tmp`临时成员名（41字节）；业务暂存意图名与底层发布临时名是两个参数，不可互相替代。调用方须保留按Attempt识别的中断意图与提交不确定性，不通过放宽原生名称规则修复调用错误。
+
+用户于2026-11-14明确选择原生文件型（file-based）Keychain，保持独立辅助进程架构，不改为需要新增应用封装、签名授权和 provisioning profile 的 Data Protection 路线。两类实现的权限与签名模型见 Apple [TN3137](https://developer.apple.com/documentation/technotes/tn3137-on-mac-keychains)；实际签名身份、无交互策略和升级连续性仍须验证。
+
+私有测试路径不代表Keychain操作对用户偏好无影响：`SecKeychainCreate`可能更新持久搜索列表并在缺失时设置默认钥匙串，删除也会更新偏好；先创建再恢复设置不能作为隔离方案。Keychain模块在标准CI现有账户中仅执行构建及无钥匙串存储变更的协议检查，真实创建、锁定、删除必须在明确授权的独立可丢弃测试账户/会话进行，不以改变HOME或不支持的Dynamic偏好域代替隔离。
+
+用户已确认可以安排 macOS15及以上的 Intel 与 Apple Silicon 独立测试环境。Cookie 冷启动、锁定与恢复，以及安装、签名升级验收必须在独立账户的真实登录会话中进行。现有标准 CI 的钥匙串默认值、搜索列表、登录存储及信任配置不得为此修改或锁定；Runtime 私有测试钥匙串的结果不替代 Electron Cookie 验收。测试环境可安排不代表已提供访问、签名资料或实际通过，后续须交付可运行的验收工具与对应记录。
 
 ## 4. 已确认的原生进程停止范围
 
