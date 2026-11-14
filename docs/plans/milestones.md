@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | 产品目标 | 企业 PC Web 自动化冒烟/回归平台；20 人以内、同时提交约 10 个 Run | 常规运行必须直接执行固定版本 TypeScript/Playwright，不依赖模型 |
 | 首发范围 | F01–F14 全部模块，包括 Electron 桌面 GUI、Mac双架构/Windows/Ubuntu Runtime、安装与运维 | Mac Intel x64及Apple Silicon arm64最高优先级；Windows11 x64、Ubuntu24.04 x64较低优先级但仍须交付；尚未达到开箱即用标准 |
-| MVP 完成度 | 约74%：23项主任务等权，17项已完成模块审查；2项代码完成待验收、1项开发中、3项尚待交付 | 仅按主里程碑验收状态统计，不按代码行数或工时；T20的已完成切片不提前计为整任务完成，最终集成与发行仍须T23通过 |
+| MVP 完成度 | 约74%：23项主任务等权，17项已完成模块审查；2项代码完成待验收、2项开发中、2项尚待交付 | 仅按主里程碑验收状态统计，不按代码行数或工时；T20的已完成切片不提前计为整任务完成，最终集成与发行仍须T23通过 |
 | 实施任务 | T01–T12、T14–T17、T19 共17项模块已审查；T18代码及重要修复已审查，正式发行待验收 | 不重做已完成实现；T18仍需T22/T23关闭正常发行和目标环境验收 |
 | AI 模块 | T13 代码与修复复审已完成，实际外部 Provider 验收未完成 | 不能把协议模拟、无模型运行成功当成实际 Provider 通过 |
 | 后续工作 | T20–T23 共4项实现/整体验收继续；T13/T18保留指定实际验收 | T19 `bac5162`→`eb2dc4e`六项Important复审全部关闭、新增0；实际六GUI一次通过，现推进T20原生所有权/IPC切片；发行身份切片已实现 |
@@ -127,7 +127,7 @@
 | T18 构建与服务端发行 | T17 | 代码完成·待验收 | 默认完整门禁、Hatch/stage/wheel/离线安装、SBOM/引擎及独立晋升；两项Important修复复审通过 | `3995648`/`dc95f26`；27项fix回归、当前UNVERIFIED wheel安装通过；正常发行/Ubuntu/OCI及M1/M2仍开放 |
 | T19 Electron 全 GUI | T10/T11/T12/T14/T15 | 已完成·模块及Fix1复审 | `bac5162`→`eb2dc4e`：完整本地界面、有限IPC、独立Node24、云端编辑/编译发布、签名下载、断网执行、报告/Trace/幂等回传与故障恢复；实际6GUI/34unit/2display通过 | I1–I6全部关闭，新增C/I/M均0；Windows/POSIX路径单测不等于安装验收，目标OS/vault/发行、Provider和全仓质量仍待T20–T23 |
 | T20 Mac双架构优先的Runtime发行 | T19 | 进行中·公共/Windows/Linux切片；Mac原生实现待完成 | [ADR0021](../decisions/0021-runtime-distribution.md)；已有发行身份、原生IPC/私有文件、Linux Secret Service、Windows Credential Manager与迁移/恢复/退役的实际目标证据；不等于Mac实现 | Mac最低15、宿主原生Chrome及受控停止范围均已确认，原生实现/两架构验收未完成；公共凭据状态切片已定向复审，见R20-05；Windows3项ACL失败及原有默认兼容、完整闭包/安装等缺口保留；整任务未复审 |
-| T21 安装运维 | T12/T16/T18/T20 | 待开工 | 基础 init/migrate/配置/原始证据维护已有，完整产品运维未完成 | Compose/离线包、备份恢复/轮换、生命周期、指标及遗留 M1 |
+| T21 安装运维 | T12/T16/T18/T20 | 进行中·A1模块已审 | a69df16实现同物理MySQL会话的迁移互斥；真实RED及39项相关测试通过，独立规格/质量审查C0/I0/M1 | Minor为两调用竞争测试需加强真实数据库等待及不重叠观测，转T22；Compose/离线包、readiness、备份恢复/轮换、兼容矩阵、生命周期、指标/保留期及人工恢复仍待交付，A1不计整T21完成 |
 | T22 全模块 UX/示例/接入 | T11/T12/T13/T15/T16/T19/T21 | 待开工 | 现有局部页面/后端示例/说明不是完整示例向导或完整手册 | 全菜单真实操作、中英文/键盘、示例与前后端规范、遗留 UX |
 | T23 1.0 完整验收 | T01–T22 | 待开工 | 尚无完整产品发行验收结论 | 全范围矩阵、10 Run、故障/篡改/权限、5–10 流程×≥5 轮、实际 Provider/OS、整分支审查 |
 
@@ -222,7 +222,7 @@
 | 已核验Ubuntu桌面CI | [`d3cf39e` run43577219410](https://github.com/baofengbaofeng/VeriQ/actions/runs/43577219410)成功：49桌面单测、2显示、86Runtime、2真实Cookie、7GUI通过且零跳过 | 官方artifact摘要、592源码hash及库存绑定已核验；7GUI实际157.222秒、同Attempt真实停止、Cookie密文/重启及清理证据通过。已查看截图：本机任务图为SPAWNING、可见Chrome图为about:blank，不据此称最终业务通过；不等于安装包或Mac验收 |
 | 最新Linux/Windows/服务CI | Linux80项单测通过后依赖准备失败；Windows96项中93通过/3项既有ACL失败、真实Cookie另1项通过；服务web-check失败 | [Linux](https://github.com/baofengbaofeng/VeriQ/actions/runs/43577219452)、[Windows](https://github.com/baofengbaofeng/VeriQ/actions/runs/43577219462)、[服务](https://github.com/baofengbaofeng/VeriQ/actions/runs/43577219476)均保留失败，不称全绿 |
 | 隔离依赖闭包准备 | 已定位legacy pnpm deploy内部关闭frozen；改为非legacy的RAM探针复用44包/下载0后因缺完整metadata停止 | 根lock hash未变不证明冻结闭包；应在CI在线准备阶段生成真正冻结生产闭包，再独立离线验证业务运行；尚无隔离挂载四阶段正证据 |
-| Linux冻结闭包修复候选 | `632b5fa`改用官方非legacy冻结部署，核对根/派生/current三锁全生产图与库存、真实独立复制及成功结果绑定；新增专用UID网络命名空间与公共入口装载检查。相关95项测试通过，独立规格/质量审查新增C/I/M均0 | 现有registry和1440分钟包龄政策、依赖/锁均未改；本地小文件图与合成执行器不能代替真实部署。对应源码的Linux CI、实际loader/专用UID/禁网/CLI退役及always清理尚待核验，不提前关闭验收缺口 |
+| Linux冻结闭包修复候选 | `632b5fa`改用官方非legacy冻结部署，95项相关测试通过、独立审查新增C/I/M均0；[`98987a2` run43652888398](https://github.com/baofengbaofeng/VeriQ/actions/runs/43652888398)实际冻结准备/三锁/库存通过，所选124项测试通过，registry和1440分钟包龄政策保持 | 后续closure因副本文件UID1001而期望root UID0失败，完整夹具未通过；已定位Node/libuv复制保留原属主，57be922已规范新副本身份，新增两项行为RED后47项stage测试通过，第1轮定向复审I1已修复/新增0；新源码真实跨UID与完整业务复验仍待完成。官方摘要、252个源码hash、67包与67peer快照和7输入已核验，失败后的账户/挂载/文件及部署清理均通过；不能将准备通过写成完整业务通过 |
 | 最新源码检查点CI | 已复审范围与恢复代码`e2f7508`已推送开发分支；[Ubuntu桌面](https://github.com/baofengbaofeng/VeriQ/actions/runs/43583684288)49单测/2显示/86Runtime/2Cookie/7GUI通过、零跳过；本轮原始日志已保存 | [Linux](https://github.com/baofengbaofeng/VeriQ/actions/runs/43583684311)80项通过后仍失败于冻结离线部署准备；[Windows](https://github.com/baofengbaofeng/VeriQ/actions/runs/43583684297)93/96通过、仍有原3项ACL失败；[服务](https://github.com/baofengbaofeng/VeriQ/actions/runs/43583684285)仍失败于web-check。本轮制品未重复下载/重hash，不复用上一提交的源码核验结论 |
 | CLI受控子进程观察器C1 | `755316c`独立规格/质量审查通过；24项相关测试、strict及实际Node24.22.1能力自检通过；真实Playwright CLI并发/失败替换、不请求浏览器 | 仅真实直接异步子进程；不生成停止回执、不释放容量、不开放Darwin；Mac双架构/Chrome、B私有fd、C2集成仍待完成。全仓注释门禁最近4.5115%、267条，仍失败 |
 | Darwin私有文件基础B | `747d4e0`及`4966090`通过独立规格/质量复审；[实际双Mac CI run43591900310](https://github.com/baofengbaofeng/VeriQ/actions/runs/43591900310)每架构44项通过、零跳过，实际Mach-O最低版本15.0；同FD权限/ACL、私有读写、提交失败、资源交接故障均有覆盖 | Intel实际Node24.19.0、ARM实际24.22.2；官方制品摘要、每架构13个源码/构建输入hash及24个原始证据成员已核验，二进制摘要仍为CI观察。复审发现的External接管前FD泄漏有真实两架构42通过/2失败→44通过证据；不开放执行/doctor/Keychain/安装就绪 |
