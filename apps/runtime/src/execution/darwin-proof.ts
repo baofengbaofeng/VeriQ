@@ -119,6 +119,7 @@ export function validateControlledPair(record: unknown, proof: unknown, expected
             || !exact(proof.journals, ["commands", "cli"]) || !summary(proof.journals.commands, journal.kind === "TEST" ? 3 : 2, false)
             || !summary(proof.journals.cli, LIMITS.objects, true)) return false;
         const commands = proof.journals.commands as unknown as ControlledJournalSummary, cli = proof.journals.cli as unknown as ControlledJournalSummary;
+        if (commands.count === 0 && !journal.cancellationAuthorized) return false;
         return commands.count === 3 ? cli.bytes > 0 : cli.count === 0 && cli.bytes === 0;
     } catch {
         return false;

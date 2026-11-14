@@ -71,17 +71,24 @@ export async function requireStoppedHistory(root: string): Promise<void> {
             if (isPreSpawnState(record.state, "ONLINE")) {
                 if (
                     processNames.has(`${id}.process.json`) ||
-                    processNames.has(`${id}.drained.json`)
+                    processNames.has(`${id}.drained.json`) ||
+                    processNames.has(`${id}.controlled.json`)
                 )
                     throw new Error("UNEXPECTED_PROCESS_HISTORY");
             } else {
                 if (
                     !["SPAWNING", "RUNNING", "STOPPED"].includes(String(record.state)) ||
                     !processNames.delete(`${id}.process.json`) ||
-                    !processNames.delete(`${id}.drained.json`) ||
+                    !processNames.delete(`${id}.${process.platform === "darwin" ? "controlled" : "drained"}.json`) ||
                     !(await processes.confirmStopped(id))
                 )
                     throw new Error("UNPROVED_PROCESS_HISTORY");
+                /** Darwin 在线历史必须继续绑定服务端原有 fencingToken，不能让另一个合法私有过程证明替代本次 Claim 的代际；这里仅观察已经提交的源记录，未接入业务写入流程前不补造 nonce 或修改旧代记录。 */
+                if (process.platform === "darwin") {
+                    const processRecord = await records!.read(`${id}.process.json`, 65536) as { ownerGeneration?: unknown };
+                    if (processRecord.ownerGeneration !== (record.claim as { fencingToken: number }).fencingToken)
+                        throw new Error("UNPROVED_PROCESS_HISTORY");
+                }
             }
         }
         if (processNames.size) throw new Error("ORPHAN_PROCESS_HISTORY");

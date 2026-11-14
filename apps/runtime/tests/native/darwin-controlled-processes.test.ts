@@ -9,9 +9,12 @@ import { randomUUID } from "node:crypto";
 import { createServer, type Socket } from "node:net";
 import { chromium, type BrowserServer } from "playwright-core";
 import type { ChildProcess } from "node:child_process";
+import childProcess from "node:child_process";
+import { syncBuiltinESMExports } from "node:module";
 import { ProcessSupervisor, type OwnedProcess } from "../../src/execution/processes.ts";
 import { ProcessRecords } from "../../src/execution/records.ts";
 import { requireStoppedHistory } from "../../src/execution/stopped-history.ts";
+import { darwinNative } from "../../src/native/darwin.ts";
 
 assert.equal(process.platform, "darwin", "This suite requires actual macOS; Linux is not substitute evidence");
 const worker = fileURLToPath(new URL("../fixtures/darwin-controlled-worker.mjs", import.meta.url));
@@ -27,6 +30,16 @@ async function fixture(run: (f: { root: string; work: string; processes: Process
     const work = join(root, "work");
     await mkdir(work, { mode: 0o700 });
     const servers: BrowserServer[] = [], exits: Promise<unknown>[] = [];
+    const previousSecret = process.env.VERIQ_AGENT_TEST_SECRET;
+    process.env.VERIQ_AGENT_TEST_SECRET = "public-fixture-agent-only-secret";
+    const children: { child: ChildProcess; exited: Promise<void> }[] = [];
+    const originalSpawn = childProcess.spawn;
+    childProcess.spawn = ((...args: any[]) => {
+        const child = (originalSpawn as (...args: any[]) => ChildProcess)(...args);
+        if (child.pid) children.push({ child, exited: new Promise<void>((resolve) => { child.once("exit", () => resolve()); }) });
+        return child;
+    }) as typeof childProcess.spawn;
+    syncBuiltinESMExports();
     const launchServer = chromium.launchServer.bind(chromium);
     chromium.launchServer = async (options) => {
         assert.equal(options?.executablePath, chromium.executablePath());
@@ -35,10 +48,16 @@ async function fixture(run: (f: { root: string; work: string; processes: Process
         assert.equal(options?.port, 0);
         assert.ok(!options?.args?.includes("--no-sandbox"));
         for (const key of ["NODE_OPTIONS", "DEBUG", "DYLD_INSERT_LIBRARIES", "VERIQ_AGENT_TEST_SECRET"]) assert.equal(options?.env?.[key], undefined);
+        assert.deepEqual(Object.keys(options!.env!).sort(), ["HOME", "LANG", "PATH", "TMPDIR"]);
+        assert.ok(options!.env!.HOME!.startsWith(root + "/"));
+        assert.ok(options!.env!.TMPDIR!.startsWith(root + "/"));
         const server = await launchServer(options);
         servers.push(server);
         const child = server.process();
-        exits.push(new Promise((resolve) => { child.once("exit", resolve); }));
+        exits.push(new Promise((resolve) => {
+            if (child.exitCode !== null || child.signalCode !== null) resolve(undefined);
+            else child.once("exit", resolve);
+        }));
         return server;
     };
     const id = randomUUID();
@@ -64,8 +83,14 @@ async function fixture(run: (f: { root: string; work: string; processes: Process
             const child = server.process();
             if (child.exitCode === null && child.signalCode === null) await server.kill();
         }
+        for (const { child } of children) if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+        await Promise.all(children.map(({ exited }) => exited));
         await Promise.all(exits);
         chromium.launchServer = launchServer;
+        childProcess.spawn = originalSpawn;
+        syncBuiltinESMExports();
+        if (previousSecret === undefined) delete process.env.VERIQ_AGENT_TEST_SECRET;
+        else process.env.VERIQ_AGENT_TEST_SECRET = previousSecret;
         await rm(root, { recursive: true, force: true });
     }
 }
@@ -131,6 +156,18 @@ test("authorized cancellation closes actual CLI, outer and Chrome before proof",
     }
 }));
 
+/** 尚未公开 START 的真实 outer 已经装好控制监听，停止必须先取得匹配取消 ACK 才能私下释放闸门进入取消分支；该测试若收到业务 START 或执行任一命令就无法得到预期的空前缀封存，且 ACK 自身不能替代真实退出。 */
+test("bound cancellation before business START seals empty prefix and actually exits", async () => fixture(async ({ root, processes, id, launch }) => {
+    const owned = await launch();
+    const stopped = processes.terminateAttempt(id, "CANCELLED_BEFORE_START");
+    assert.throws(() => owned.send({ type: "START" }), /STOPPING/);
+    assert.equal((await stopped).processStopped, true);
+    assert.equal((await owned.exited).code, 130);
+    const value = JSON.parse(await readFile(join(root, "processes", `${id}.controlled.json`), "utf8"));
+    assert.equal(value.journals.commands.count, 0);
+    assert.equal(value.journals.cli.bytes, 0);
+}));
+
 /** 观察故障的退出码与缺少封存不能被随后真实退出抹除，原始日志会保留用于排查且重启只能得出未确认；这里的故障属于组件边界，不能把同进程夹具当成真实 Agent 操作系统崩溃的验收。 */
 for (const scenario of ["missing-seal", "cli-fault", "outer-signal"]) test(`${scenario} remains unknown after actual member exits`, async () => fixture(async ({ root, processes, id, launch }) => {
     const owned = await launch(scenario);
@@ -142,7 +179,7 @@ for (const scenario of ["missing-seal", "cli-fault", "outer-signal"]) test(`${sc
 
 test("missing or stale actual Worker READY cannot register or publish proof", async () => {
     for (const scenario of ["no-ready", "stale-ready"]) await fixture(async ({ root, processes, id, launch }) => {
-        await assert.rejects(launch(scenario), /READY|PROTOCOL|TIMEOUT/);
+        await assert.rejects(launch(scenario, "VALIDATE"), /READY|PROTOCOL|TIMEOUT/);
         assert.equal((await processes.terminateAttempt(id, "FAULT")).processStopped, false);
         assert.equal(await new ProcessSupervisor(join(root, "processes")).confirmStopped(id), false);
     }, 1500);
@@ -166,6 +203,66 @@ test("cancellation during preparation closes admission before a late startup can
     assert.equal((await stopped).processStopped, false);
 }));
 
+/** Chrome 只有经过持久停止授权后的实际退出才能进入正证明，先前公共 server.kill 造成的异常消失必须保持故障；准备失败同样不能因为缺少 outer 句柄而返回未派生，这两种路径的测试仍持有实际 server 负责 finally 清理。 */
+test("unexpected actual Chrome exit and preparation failure stay quarantined", async () => {
+    await fixture(async ({ processes, id, launch, servers }) => {
+        const owned = await launch();
+        await servers[0]!.kill();
+        await new Promise<void>((resolve) => {
+            const child = servers[0]!.process();
+            if (child.exitCode !== null || child.signalCode !== null) resolve();
+            else child.once("exit", () => resolve());
+        });
+        assert.equal((await processes.terminateAttempt(id, "CHROME_LOST")).processStopped, false);
+        await owned.exited;
+    });
+    await fixture(async ({ processes, id, launch }) => {
+        await assert.rejects(launch("normal", "TEST", () => { throw new Error("TEST_PREPARE_FAILED"); }), /START_FAILED/);
+        assert.equal((await processes.terminateAttempt(id, "PREPARE_FAILED")).processStopped, false);
+    });
+});
+
+/** 公共 launchServer 可能已经派生 Chrome 却在返回句柄以前拒绝，组件此时必须保守保持未知而不能自行扫描补领对象；测试包装仍保留真实 server 供 finally 清理，这只验证公开 API 部分失败边界，不伪装后端实际取得了所有权。 */
+test("public browser launch rejection after actual spawn never claims no process", async () => fixture(async ({ processes, id, launch }) => {
+    const trackedLaunch = chromium.launchServer;
+    chromium.launchServer = async (options) => {
+        await trackedLaunch(options);
+        throw new Error("TEST_LAUNCH_REJECTED_AFTER_SPAWN");
+    };
+    try {
+        await assert.rejects(launch(), /START_FAILED/);
+        const receipt = await processes.terminateAttempt(id, "LAUNCH_UNKNOWN");
+        assert.equal(receipt.processStopped, false);
+        assert.equal(receipt.processStopScope, undefined);
+    } finally { chromium.launchServer = trackedLaunch; }
+}));
+
+/** 提交故障在真实 B 已经发布并刷新 proof 后抛出不确定结果，不替换原生文件行为或伪造 OS 退出；过程记录必须继续停在 RUNNING，使随后只读恢复拒绝这个半配对，即使完整 proof 字节已经在目录中可见也不能释放容量。 */
+test("proof publication uncertainty leaves restart history unconfirmed", async () => {
+    const native = darwinNative(), open = native.openPrivateDirectory.bind(native);
+    native.openPrivateDirectory = (path, create) => {
+        const directory = open(path, create);
+        if (path.endsWith("/processes") && create) {
+            const replace = directory.replace.bind(directory);
+            directory.replace = (name, temporary, bytes, limit) => {
+                replace(name, temporary, bytes, limit);
+                if (name.endsWith(".controlled.json")) throw Object.assign(new Error("TEST_COMMIT_UNCONFIRMED"), { code: "COMMIT_UNCONFIRMED" });
+            };
+        }
+        return directory;
+    };
+    try {
+        await fixture(async ({ root, processes, id, launch }) => {
+            const owned = await launch("normal", "VALIDATE");
+            owned.send({ type: "START" });
+            await owned.exited;
+            assert.equal((await processes.terminateAttempt(id, "COMPLETED")).processStopped, false);
+            assert.equal(JSON.parse(await readFile(join(root, "processes", `${id}.process.json`), "utf8")).state, "RUNNING");
+            assert.equal(await new ProcessSupervisor(join(root, "processes")).confirmStopped(id), false);
+        });
+    } finally { native.openPrivateDirectory = open; }
+});
+
 /** 正式历史读取只接受 Darwin 对应的两份提交成员，混入旧平台 proof、孤立成员或不同 fence 都不能通过；观察前后逐字节相同表明迁移不会修复权限、删除 staging 或把不确定历史改成受控停止。 */
 test("private history rejects mixed proofs, orphan members and stale claim generation read-only", async () => fixture(async ({ root, processes, id, launch }) => {
     const owned = await launch("normal", "VALIDATE");
@@ -178,6 +275,12 @@ test("private history rejects mixed proofs, orphan members and stale claim gener
     const history = { claim, state: "STOPPED", work: join(root, "work", id) };
     await writeFile(join(attempts, `${id}.json`), JSON.stringify(history), { mode: 0o600 });
     await requireStoppedHistory(root);
+    assert.throws(() => new ProcessSupervisor(join(root, "other-processes"), 500, undefined, {} as any), /CAPABILITY/);
+    const otherId = randomUUID(), otherIntent = join(root, "processes", `${otherId}.process.json`);
+    await writeFile(otherIntent, JSON.stringify({ state: "SPAWNING", attemptId: otherId }), { mode: 0o600 });
+    assert.equal(await processes.confirmStopped(id), true, "another recognized active intent cannot invalidate the selected committed proof");
+    await assert.rejects(requireStoppedHistory(root), /RECOVERY/);
+    await rm(otherIntent);
     const recordPath = join(root, "processes", `${id}.process.json`), before = await readFile(recordPath);
     await writeFile(join(root, "processes", `${id}.drained.json`), "{}", { mode: 0o600 });
     assert.equal(await processes.confirmStopped(id), false);

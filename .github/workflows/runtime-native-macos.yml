@@ -195,6 +195,16 @@ jobs:
                       const segments = info.size <= 2097152 ? [[name,0,info.size]] : [[name+".first-segment",0,1048576],[name+".last-segment",info.size-1048576,1048576]];
                       const fd = openSync(path,"r");
                       try {
+                          const scan = Buffer.alloc(65536);
+                          let position = 0, tail = "";
+                          while (position < info.size) {
+                              const count = readSync(fd,scan,0,Math.min(scan.length,info.size-position),position);
+                              if (!count) throw Error("MAC_EVIDENCE_SHORT_READ");
+                              const text = tail + scan.subarray(0,count).toString("utf8");
+                              if (/wss?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):[0-9]+\/[a-zA-Z0-9_-]{8,}/.test(text)) throw Error("MAC_PRIVATE_ENDPOINT_LEAK");
+                              tail = text.slice(-512);
+                              position += count;
+                          }
                           for (const [output,offset,length] of segments) {
                               total += length;
                               if (total > 16777216) throw Error("MAC_EVIDENCE_TOTAL_LIMIT");

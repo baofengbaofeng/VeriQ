@@ -57,6 +57,9 @@ test("controlled proof bounds roster and distinguishes planned absence and autho
     for (const invalid of [{ bytes: 1048577, count: 3, sha256: "a".repeat(64) }, { bytes: 1, count: 4, sha256: "a".repeat(64) }, { bytes: 1, count: 3, sha256: "x".repeat(64) }, { bytes: 1, count: 3, sha256: "a".repeat(64), objects: [] }]) {
         assert.equal(validateControlledPair(journal(), { ...proof(), journals: { ...proof().journals, commands: invalid } }, expected), false);
     }
+    const emptyPrefix = { ...proof(), journals: { commands: summary(Buffer.from("sealed-empty-prefix"), 0), cli: summary(Buffer.alloc(0), 0) } };
+    assert.equal(validateControlledPair(journal(), emptyPrefix, expected), false);
+    assert.equal(validateControlledPair({ ...journal(), cancellationAuthorized: true }, emptyPrefix, expected), true);
 });
 
 /** 手工字节遵循唯一 C1 帧协议而不调用生产日志生成器，故删掉封存或放宽角色顺序会被实际验证结果捕获；这些结构测试明确不提供 CLI、outer 或浏览器真实退出的替代证据。 */
