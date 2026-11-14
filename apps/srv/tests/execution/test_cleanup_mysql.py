@@ -1,4 +1,3 @@
-
 from uuid import uuid4
 import json
 from sqlalchemy import select, text
@@ -228,22 +227,45 @@ async def test_cleanup_uses_same_queue_scoped_actor_and_waits_for_unknown_proces
         "evidence": [],
         "requiredEvidence": [],
         "processStopped": True,
+        "processStopScope": "CONTROLLED_WORKER_BROWSER",
     }
     digest = await upload(c, d, claim, canonical_bytes(completion), "completion.json", "MANIFEST")
-    result = await c.post(
-        endpoint + "/finish",
-        json={
-            **proof,
-            "kind": "CLEANUP",
-            "outcome": "PASSED",
-            "manifestSha256": digest,
-            "lastSequence": len(events),
-            "cleanupStatus": "SUCCEEDED",
-        },
-        headers=auth(d),
-    )
+    from veriq_server.db import Runtime
+
+    async with db.sessions.begin() as session:
+        runtime = await session.get(Runtime, d["runnerId"])
+        runtime.capabilities = {**runtime.capabilities, "os": "darwin"}
+    finish = {
+        **proof,
+        "kind": "CLEANUP",
+        "outcome": "PASSED",
+        "manifestSha256": digest,
+        "lastSequence": len(events),
+        "cleanupStatus": "SUCCEEDED",
+    }
+    for scope in [None, "FULL_DESCENDANT_TREE"]:
+        wrong = {k: v for k, v in completion.items() if k != "processStopScope"}
+        if scope is not None:
+            wrong["processStopScope"] = scope
+        wrong_hash = await upload(
+            c, d, claim, canonical_bytes(wrong), "wrong-scope.json", "MANIFEST"
+        )
+        denied = await c.post(
+            endpoint + "/finish", json={**finish, "manifestSha256": wrong_hash}, headers=auth(d)
+        )
+        assert (
+            denied.status_code == 409 and denied.json()["code"] == "PROCESS_STOP_SCOPE_INVALID"
+        ), denied.text
+        async with db.sessions() as session:
+            attempt = await session.get(Attempt, claim["attemptId"])
+            assert attempt.capacity_state == "HELD" and attempt.finish_receipt is None
+            assert (await session.get(CapacityPool, "00/global/cleanup")).used == 1
+    result = await c.post(endpoint + "/finish", json=finish, headers=auth(d))
     assert result.status_code == 200, result.text
     assert result.json()["data"]["outcome"] == "PASSED"
     async with db.sessions() as session:
+        attempt = await session.get(Attempt, claim["attemptId"])
+        assert attempt.facts["processStopped"] is True
+        assert attempt.facts["processStopScope"] == "CONTROLLED_WORKER_BROWSER"
         assert (await session.get(CapacityPool, "00/global/browser")).used == 0
         assert (await session.get(CapacityPool, "00/global/cleanup")).used == 0

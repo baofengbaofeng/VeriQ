@@ -636,21 +636,47 @@ async def test_dependency_limit_counts_root_and_pending_ancestors(site, monkeypa
     assert response.json()["code"] == "DEPENDENCY_LIMIT"
 
 
-async def test_engine_change_cannot_republish_same_immutable_revision(site, monkeypatch):
-    from veriq_server.services import resource as services
+async def test_engine_change_cannot_republish_same_immutable_revision(site):
+    """通过真实第二个应用实例使用新引擎配置重新校验同一修订，必须生成不同来源的任务并拒绝覆盖旧发布版本；测试不再修改模块常量，因为 HTTP 服务已由显式 Settings 注入选择。
+
+    两个应用共享隔离数据库，但分别拥有确定的运行配置。
+    新预览与新 Job 的差异在创建回执前明确验证。
+    旧版本仍由原应用读取，确认历史响应没有被新配置改写。
+    """
+    import httpx
+    from tornado.httpserver import HTTPServer
+    from tornado.netutil import bind_sockets
+    from veriq_server.app import make_app
+    from veriq_server.settings import Settings
 
     c, db = site
     await setup(c)
     await login(c)
     ws = await workspace(c)
     path = await create(c, ws)
-    old, _, _ = await publish(c, db, path)
-    monkeypatch.setattr(services, "ENGINE_VERSION", "0.2.0")
-    p, job = await queue(c, path)
-    receipt, _ = await completed(db, job["id"])
-    response = await c.post(path + "/publish", json={"revision": 1, "validationReceiptId": receipt})
-    assert response.status_code == 409, response.text
-    assert (await c.get(path + "/versions/" + old["id"])).json()["data"] == old
+    old, _, original_snapshot = await publish(c, db, path)
+    sockets = bind_sockets(0, "127.0.0.1")
+    origin = f"http://127.0.0.1:{sockets[0].getsockname()[1]}"
+    settings = Settings(database_url=db.engine.url.render_as_string(hide_password=False), public_url=origin, master_key="a" * 64, signing_key="b" * 64, environment="development", validation_engine_version="0.2.0")
+    application = make_app(settings, db)
+    server = HTTPServer(application)
+    server.add_sockets(sockets)
+    try:
+        async with httpx.AsyncClient(base_url=origin, headers={"Origin": origin}) as current:
+            state = await current.get("/api/v1/setup")
+            current.headers["X-CSRF-Token"] = state.json()["data"]["csrfToken"]
+            assert (await login(current)).status_code == 200
+            preview, job = await queue(current, path)
+            assert preview["engineVersion"] == "0.2.0"
+            assert preview["sourceHash"] != original_snapshot["sourceHash"]
+            receipt, _ = await completed(db, job["id"])
+            response = await current.post(path + "/publish", json={"revision": 1, "validationReceiptId": receipt})
+            assert response.status_code == 409, response.text
+            assert (await c.get(path + "/versions/" + old["id"])).json()["data"] == old
+    finally:
+        server.stop()
+        await server.close_all_connections()
+        await application.settings["reset_dispatcher"].close()
 
 
 @pytest.mark.parametrize("changed_bytes", [False, True])

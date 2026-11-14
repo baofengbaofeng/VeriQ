@@ -1,0 +1,10 @@
+{
+    "public_url": "https://veriq.example.com",
+    "host": "0.0.0.0",
+    "port": 8888,
+    "environment": "production",
+    "artifact_directory": "/var/lib/veriq/artifacts",
+    "bundle_issuer_path": "/var/lib/veriq/issuer/issuer.json",
+    "approved_engine_inventory_path": "/etc/veriq/approved-engine-inventory.json",
+    "validation_engine_version": "1.0.0"
+}

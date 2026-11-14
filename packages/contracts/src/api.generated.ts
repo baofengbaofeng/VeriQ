@@ -2739,15 +2739,36 @@ export interface components {
             dependencies: components["schemas"]["DependencyVersion"][];
             validationOnly?: boolean;
         } & unknown;
+        /** @description VeriQ Runtime能力合同仅允许linux/x64、win32/x64、darwin/x64及darwin/arm64；Mac目标最低系统为macOS15，但合同接受不代表设备通过原生执行、进程监督、凭据或安装验收。 */
         RuntimeCapabilitiesV1: {
             engineVersion: components["schemas"]["Version"];
             /** @enum {string} */
-            os: "linux" | "win32";
-            /** @constant */
-            arch: "x64";
+            os: "linux" | "win32" | "darwin";
+            /** @enum {string} */
+            arch: "x64" | "arm64";
             browsers: components["schemas"]["Browser"][];
             jobKinds?: ("TEST" | "VALIDATE" | "CLEANUP")[];
-        };
+        } & ({
+            /** @constant */
+            os: "linux";
+            /** @constant */
+            arch: "x64";
+        } | {
+            /** @constant */
+            os: "win32";
+            /** @constant */
+            arch: "x64";
+        } | {
+            /** @constant */
+            os: "darwin";
+            /** @constant */
+            arch: "x64";
+        } | {
+            /** @constant */
+            os: "darwin";
+            /** @constant */
+            arch: "arm64";
+        });
         ClaimRequest: {
             runnerId: components["schemas"]["Id"];
             clientRequestId: components["schemas"]["Id"];
@@ -2997,6 +3018,7 @@ export interface components {
                 pathStatus: "EXACT" | "REDACTED";
                 message: string;
             }[];
+            processStopScope?: components["schemas"]["ProcessStopScope"];
         };
         OfflineResultV1: {
             /** @constant */
@@ -3533,6 +3555,7 @@ export interface components {
             processStopped: boolean;
             cleanupStatus: components["schemas"]["CleanupStatus"];
             stoppedAt: components["schemas"]["Timestamp"];
+            processStopScope?: components["schemas"]["ProcessStopScope"];
         };
         ReconcileDTO: {
             attemptId: components["schemas"]["Id"];
@@ -4370,6 +4393,8 @@ export interface components {
             data: components["schemas"]["ServiceTokenPage"];
             requestId: components["schemas"]["Id"];
         };
+        /** @enum {string} */
+        ProcessStopScope: "FULL_DESCENDANT_TREE" | "CONTROLLED_WORKER_BROWSER" | "NO_PROCESS_SPAWNED";
         /** @description JSON used only in interpolated DSL fields, recursively restricted to SafeString bindings. */
         BindingJsonValue: ContractBindingJsonValue;
         BindingJsonObject: {
@@ -4545,6 +4570,7 @@ export interface components {
              * @enum {string}
              */
             retrySafety?: "READ_ONLY_OBSERVED" | "WRITE_POSSIBLE" | "UNKNOWN";
+            processStopScope?: components["schemas"]["ProcessStopScope"];
         };
         ValidateSuccessCompletionManifestV1: {
             /** @constant */
@@ -4562,6 +4588,7 @@ export interface components {
             kind: "VALIDATE";
             compiledBundleSha256: components["schemas"]["Sha256"];
             engineInventorySha256: components["schemas"]["Sha256"];
+            processStopScope?: components["schemas"]["ProcessStopScope"];
         };
         ValidateFailureCompletionManifestV1: {
             /** @constant */
@@ -4580,6 +4607,7 @@ export interface components {
             engineInventorySha256: components["schemas"]["Sha256"];
             failureCode: string;
             diagnostics?: components["schemas"]["CompilerDiagnosticV1"][];
+            processStopScope?: components["schemas"]["ProcessStopScope"];
         };
         ValidateCompletionManifestV1: components["schemas"]["ValidateSuccessCompletionManifestV1"] | components["schemas"]["ValidateFailureCompletionManifestV1"];
         CleanupCompletionManifestV1: {
@@ -4597,6 +4625,7 @@ export interface components {
             kind: "CLEANUP";
             fixtureVersionId: components["schemas"]["Id"];
             namespace: components["schemas"]["Key"];
+            processStopScope?: components["schemas"]["ProcessStopScope"];
         };
     };
     responses: never;
@@ -5051,7 +5080,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Empty"];
+            };
+        };
         responses: {
             /** @description Success. */
             200: {

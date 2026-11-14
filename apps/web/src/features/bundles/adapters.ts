@@ -4,7 +4,7 @@
  */
 
 import type { PlatformComponents } from "@veriq/contracts";
-import { request, ApiError } from "../../api";
+import { request, ApiError, binaryRequest } from "../../api";
 type S = PlatformComponents["schemas"];
 /**
  * BundleDTO 别名：描述已签发离线包的元数据与下载句柄，不含明文凭证。下载前需确认用户有该空间权限；下载前必须确认当前用户具备该空间权限。
@@ -16,15 +16,13 @@ export type Bundle = S["BundleDTO"];
  * export 必须传入幂等键，防止网络重试产生重复包。
  */
 export interface BundleAdapter {
+    /** 桌面安装操作把已发布包直接交给宿主下载与验签，不向渲染进程交付任意路径或归档字节；浏览器未提供此入口时仍沿用原有的显式文件下载流程。 */
+    install?(id: string, signal?: AbortSignal): Promise<void>;
     list(
         cursor?: string,
         signal?: AbortSignal,
     ): Promise<{ items: Bundle[]; nextCursor: string | null }>;
-    export(
-        selection: S["BundleCreate"],
-        key: string,
-        signal?: AbortSignal,
-    ): Promise<Bundle>;
+    export(selection: S["BundleCreate"], key: string, signal?: AbortSignal): Promise<Bundle>;
     download(id: string, signal?: AbortSignal): Promise<Blob>;
 }
 /**
@@ -48,20 +46,14 @@ export class CloudBundleAdapter implements BundleAdapter {
             "Idempotency-Key": key,
         });
     async download(id: string, signal?: AbortSignal) {
-        const response = await fetch(
-            `/api/v1${this.base()}/${encodeURIComponent(id)}/download`,
-            { credentials: "same-origin", signal, redirect: "error" },
+        const response = await binaryRequest(
+            `${this.base()}/${encodeURIComponent(id)}/download`,
+            signal,
         );
         if (!response.ok) {
             const body = await response.json();
-            if (response.status === 401)
-                window.dispatchEvent(new Event("veriq:session-expired"));
-            throw new ApiError(
-                body.code,
-                body.message,
-                response.status,
-                body.requestId,
-            );
+            if (response.status === 401) window.dispatchEvent(new Event("veriq:session-expired"));
+            throw new ApiError(body.code, body.message, response.status, body.requestId);
         }
         const blob = await response.blob();
         if (blob.size > 64 * 1024 * 1024) throw new Error("BUNDLE_TOO_LARGE");
@@ -74,10 +66,8 @@ export class CloudBundleAdapter implements BundleAdapter {
  */
 export class LocalBundleAdapter implements BundleAdapter {
     constructor(private host: BundleAdapter) {}
-    list = (cursor?: string, signal?: AbortSignal) =>
-        this.host.list(cursor, signal);
+    list = (cursor?: string, signal?: AbortSignal) => this.host.list(cursor, signal);
     export = (selection: S["BundleCreate"], key: string, signal?: AbortSignal) =>
         this.host.export(selection, key, signal);
-    download = (id: string, signal?: AbortSignal) =>
-        this.host.download(id, signal);
+    download = (id: string, signal?: AbortSignal) => this.host.download(id, signal);
 }

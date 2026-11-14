@@ -2,9 +2,11 @@
 
 面向企业 PC Web 系统的自动化冒烟与回归平台，以版本化测试资产和确定性 Playwright TypeScript 执行为核心，连接云端 Runtime、本地桌面客户端与离线执行。
 
-**当前状态：开发中 / 尚未发布。** 账户与 Workspace、版本化测试资产、确定性编译器与 Runner SDK、fixture 与业务身份、Runtime 授权、统一队列及 Linux Agent 实际执行已有实现。八类资产编辑、编译发布、版本源码预览，以及实时结构化报告、受限证据、本机 Trace 查看、File/S3 存储与原始证据保留期维护已通过独立审查。AI 配置、预算、结构化草稿审核及失败分析已有实现并通过代码复审，实际外部 Provider 验收仍待用户授权和独立配置。签名包、可信公钥缓存、只读验证、本地凭证，以及真实离线执行、SQLite 持久化报告、取消恢复和幂等回传已通过独立复审；外部 HTTP 计划触发、独立服务令牌、计划与令牌管理界面及 CI 门禁已通过独立审查及重要问题修复复审；生产同源静态服务、完整文件清单校验和构建信息已通过独立审查及修复复审；Electron 桌面客户端与正式发行等工作仍在推进。目前没有正式安装包，下述功能清单是 1.0 交付目标。
+**当前状态：开发中 / 尚未发布。** 账户与 Workspace、版本化测试资产、确定性编译器与 Runner SDK、fixture 与业务身份、Runtime 授权、统一队列及 Linux Agent 实际执行已有实现。八类资产编辑、编译发布、版本源码预览，以及实时结构化报告、受限证据、本机 Trace 查看、File/S3 存储与原始证据保留期维护已通过独立审查。AI 配置、预算、结构化草稿审核及失败分析已有实现并通过代码复审，实际外部 Provider 验收仍待用户授权和独立配置。签名包、可信公钥缓存、只读验证、本地凭证，以及真实离线执行、SQLite 持久化报告、取消恢复和幂等回传已通过独立复审；外部 HTTP 计划触发、独立服务令牌、计划与令牌管理界面及 CI 门禁已通过独立审查及重要问题修复复审；生产同源静态服务、完整文件清单校验和构建信息已通过独立审查及修复复审。
 
-仓库当前已落地 `apps/srv`（Tornado 控制服务）、`apps/web`（React 管理台）、`apps/runtime`（Agent/CLI/离线执行）、`packages/{contracts,compiler,runner-sdk,ui}`；`apps/desktop` 目前主要为 Electron 包占位，源码与发行流程仍在推进。贡献与智能体须遵循根目录 `AGENTS.md` 中的编码规范（4 空格缩进、中文注释、英文日志等）。
+服务端构建、前端入 wheel、离线安装校验、引擎候选与独立晋升工具的代码已通过独立审查及取消/晋升问题修复复审。固定浏览器 SDK 136 项检查通过，行覆盖率 91.46%；这不代表最终集成门禁完成。默认构建仍被历史 lint、格式和注释规范阻断，当前包明确标记 UNVERIFIED。Electron 桌面 GUI 模块已通过独立审查，支持平台断网时使用缓存资源运行和查看报告。原生发行仍在开发：Windows Server 与 Ubuntu 已有原生 IPC、系统保险库及空初始化恢复的真实目标验证，Cookie 磁盘保护与重启读回也已验证；Ubuntu 源码 7 项 GUI 回归通过。Windows 仍有 3 项 ACL/所有者测试失败，Windows11/Ubuntu 安装和完整产品验收尚未完成，目前没有正式安装包。详见[里程碑](docs/plans/milestones.md)和[构建发行指南](docs/release.md)。
+
+仓库当前已落地 `apps/srv`（Tornado 控制服务）、`apps/web`（React 管理台）、`apps/runtime`（Agent/CLI/离线执行）、`packages/{contracts,compiler,runner-sdk,ui}`；`apps/desktop` 已包含 main/preload/renderer、本地打包界面和独立 Agent 入口。首发桌面范围已加入 Mac Intel x64 与 Apple Silicon arm64，优先级高于仍需交付的 Windows/Ubuntu；Mac 原生适配与安装验收尚未完成，见 [Mac 范围与兼容性记录](docs/specs/macos-mvp-scope.md)。贡献与智能体须遵循根目录 `AGENTS.md` 中的编码规范（4 空格缩进、中文注释、英文日志等）。
 
 ## 为什么做 VeriQ
 
@@ -16,22 +18,22 @@ AI 是可选辅助：用于生成结构化草稿、边界建议与失败分析�
 
 首发目标包含以下全部 14 个模块，内部研发阶段不作为完整 MVP 交付。Electron 桌面 GUI 属于首发范围，CLI 与无人值守 Agent 同时保留。
 
-| 编号 | 模块 | 交付目标 |
-| --- | --- | --- |
-| F01 | 安装与系统初始化 | 部署、数据库迁移、管理员创建、配置校验、健康检查、示例资源 |
-| F02 | 自有用户 | 登录/退出、邀请或管理员创建、密码重置、禁用、会话撤销 |
-| F03 | Workspace | 一项目一空间、多空间成员、角色、切换、资源隔离与审计 |
-| F04 | 页面与元素 | testId/role 定位、记录 key、作用域、目录版本与引用影响 |
-| F05 | 用例 | 步骤与 JSON 编辑、数据驱动、变量、公共流程、草稿、校验、发布、差异与归档 |
-| F06 | 操作与断言 | UI、URL、请求/响应、JSON 字段/Schema、持久化、最终一致性、模板版本与预期依据 |
-| F07 | 环境与身份 | 前后端地址、域名约束、语言/时区、业务角色、凭证引用与构建版本 |
-| F08 | 测试数据 | fixture 契约、隔离准备、结果查询、幂等清理与崩溃补偿 |
-| F09 | Runtime | 云端/本地运行、设备注册、自检、私有/共享授权、撤销与实际进程命名 |
-| F10 | 执行 | 手动与 HTTP 触发、队列、容量、租约、心跳、取消、重跑与整用例重试 |
-| F11 | 报告 | 实时进度、步骤/断言差异、请求关联、截图、Trace 下载与本地查看、历史、门禁与 JUnit |
-| F12 | 本地离线 | 依赖闭包导出、签名校验、本地凭证、独立执行、离线报告、幂等导入与来源标识 |
-| F13 | AI 辅助 | Provider 配置与连接校验、结构化草稿、审核、失败分析、预算与调用记录 |
-| F14 | 产品运维 | 同源发布、升级、备份恢复、保留期、日志指标、第三方许可、手册与验收报告 |
+| 编号 | 模块             | 交付目标                                                                          |
+| ---- | ---------------- | --------------------------------------------------------------------------------- |
+| F01  | 安装与系统初始化 | 部署、数据库迁移、管理员创建、配置校验、健康检查、示例资源                        |
+| F02  | 自有用户         | 登录/退出、邀请或管理员创建、密码重置、禁用、会话撤销                             |
+| F03  | Workspace        | 一项目一空间、多空间成员、角色、切换、资源隔离与审计                              |
+| F04  | 页面与元素       | testId/role 定位、记录 key、作用域、目录版本与引用影响                            |
+| F05  | 用例             | 步骤与 JSON 编辑、数据驱动、变量、公共流程、草稿、校验、发布、差异与归档          |
+| F06  | 操作与断言       | UI、URL、请求/响应、JSON 字段/Schema、持久化、最终一致性、模板版本与预期依据      |
+| F07  | 环境与身份       | 前后端地址、域名约束、语言/时区、业务角色、凭证引用与构建版本                     |
+| F08  | 测试数据         | fixture 契约、隔离准备、结果查询、幂等清理与崩溃补偿                              |
+| F09  | Runtime          | 云端/本地运行、设备注册、自检、私有/共享授权、撤销与实际进程命名                  |
+| F10  | 执行             | 手动与 HTTP 触发、队列、容量、租约、心跳、取消、重跑与整用例重试                  |
+| F11  | 报告             | 实时进度、步骤/断言差异、请求关联、截图、Trace 下载与本地查看、历史、门禁与 JUnit |
+| F12  | 本地离线         | 依赖闭包导出、签名校验、本地凭证、独立执行、离线报告、幂等导入与来源标识          |
+| F13  | AI 辅助          | Provider 配置与连接校验、结构化草稿、审核、失败分析、预算与调用记录               |
+| F14  | 产品运维         | 同源发布、升级、备份恢复、保留期、日志指标、第三方许可、手册与验收报告            |
 
 收费、支付、订阅、移动端、任意上传代码执行、复杂视觉基线及离线双向编辑同步不在当前确认范围内。
 
@@ -74,24 +76,24 @@ flowchart TB
 
 工程基线的精确依赖版本与许可记录见 [ADR 0003](docs/decisions/0003-engineering-baseline.md)、仓库锁文件和 [第三方声明](THIRD_PARTY_NOTICES.md)。已完成的契约检查不替代后续业务、浏览器与各目标 OS 的发布验收。
 
-| 层次 | 目标技术 |
-| --- | --- |
-| 控制服务 | Python 3.12、Tornado 6.6.1 系列、SQLAlchemy 2.0、Alembic、asyncmy |
-| 数据库 | MySQL 8.4 LTS |
-| Web | React 18、TypeScript、Vite 6、Tailwind 3、ESM、react-router-dom 7.18.5、TanStack Query 5、Radix/CVA、i18next |
-| 执行 | 独立 Node24 LTS、Playwright Test、共享编译器与 Runner SDK |
-| 本地持久化 | 独立 Node24 内置 SQLite，执行占用、报告与上传状态持久化 |
-| 桌面 | Electron + React、main/preload/renderer 分层、白名单类型化 IPC |
-| 契约 | JSON Schema、OpenAPI、Pydantic 2、jsonschema、Ajv |
-| 报告与制品 | Playwright HTML/JUnit/Trace，本地文件存储默认、S3 适配可选 |
-| AI | Provider SDK 适配，按需接入 Midscene |
-| 构建与测试 | pnpm、uv、build、Hatchling、pytest/pytest-asyncio、Vitest、Playwright |
+| 层次       | 目标技术                                                                                                     |
+| ---------- | ------------------------------------------------------------------------------------------------------------ |
+| 控制服务   | Python 3.12、Tornado 6.6.1 系列、SQLAlchemy 2.0、Alembic、asyncmy                                            |
+| 数据库     | MySQL 8.4 LTS                                                                                                |
+| Web        | React 18、TypeScript、Vite 6、Tailwind 3、ESM、react-router-dom 7.18.5、TanStack Query 5、Radix/CVA、i18next |
+| 执行       | 独立 Node24 LTS、Playwright Test、共享编译器与 Runner SDK                                                    |
+| 本地持久化 | 独立 Node24 内置 SQLite，执行占用、报告与上传状态持久化                                                      |
+| 桌面       | Electron + React、main/preload/renderer 分层、白名单类型化 IPC                                               |
+| 契约       | JSON Schema、OpenAPI、Pydantic 2、jsonschema、Ajv                                                            |
+| 报告与制品 | Playwright HTML/JUnit/Trace，本地文件存储默认、S3 适配可选                                                   |
+| AI         | Provider SDK 适配，按需接入 Midscene                                                                         |
+| 构建与测试 | pnpm、uv、build、Hatchling、pytest/pytest-asyncio、Vitest、Playwright                                        |
 
-目标兼容范围为服务端 Linux x64、本地 Runtime/桌面 Windows 11 x64 与 Ubuntu 24.04 x64；这些平台须分别完成真实构建与验收后才宣称支持。
+目标兼容范围为服务端 Linux x64；本地 Runtime/桌面优先交付 macOS Intel x64 与 Apple Silicon arm64，Windows 11 x64 与 Ubuntu 24.04 x64 保留在 MVP 范围、优先级较低。Mac 最低系统版本已确认为 macOS 15（Sequoia），测试必须使用宿主 macOS 的原生 Chrome；两架构的原生适配与安装验收仍未完成。所有目标须分别完成真实构建与验收后才宣称支持。
 
 ## 开发检查
 
-使用 Python 3.12.14、uv 0.13.5、Node 24.22.1 与 pnpm 11.25.0，在仓库根目录执行：
+使用 Python 3.12.14、uv 0.13.5、Node 24.x（`>=24 <25`）与 pnpm 11.25.0，在仓库根目录执行；CI 跟随 `24.x`；正式候选记录实际打包的具体 Node 版本，并按发行清单与 hash 校验角色身份：
 
 ```sh
 uv sync --project apps/srv --frozen --all-groups
@@ -101,17 +103,17 @@ pnpm test
 pnpm check
 ```
 
-当前 `pnpm test` 执行公共契约、编译器、Runner SDK 与 Runtime 测试（SDK 和 Runtime 自检测试需要本机 Chromium，Linux Runtime 测试还会使用开发主机的 `cc` 构建薄启动器；产品包将预编译提供），`pnpm check` 检查契约/编译器/SDK/Runtime TypeScript 与生成文件是否同步；完整平台验收入口仍待后续任务交付。这些命令用于开发检查，不是启动完整产品的安装命令。公共接口、工具配置与更多检查命令见[契约说明](docs/contracts.md)。
+当前 `pnpm test` 执行公共契约、编译器、Runner SDK 与 Runtime 测试（SDK 和 Runtime 自检测试需要本机 Chromium，Linux Runtime 测试还会使用开发主机的 `cc` 构建薄启动器；产品包将预编译提供），`pnpm check` 检查契约/编译器/SDK/Runtime/桌面 TypeScript 与生成文件是否同步；默认 `./build.sh` 发行入口已实现，会执行额外真实门禁，目前仍被已登记的质量债阻断。这些命令用于开发检查，不是启动完整产品的安装命令。公共接口、工具配置与更多检查命令见[契约说明](docs/contracts.md)。
 
 账户与 Workspace 模块可在开发环境运行：安全配置 MySQL、初始化管理员、分别启动 Tornado 与 Vite 的步骤见[开发指南](docs/development.md)。后端入口为 `veriq_server`；当前界面提供真实的安装、认证、用户管理、空间切换、成员与邀请功能，完整测试平台仍待后续模块交付。
 
-版本化资产 API 支持八类资源、草稿修订、依赖、校验预览与排队、不可变发布规则。服务端已实现受信编译完成回执和发布校验，要求当前 MANAGED 设备、有效租约/fencing、批准的引擎清单及真实上传文件；Linux 开发 Agent 已接入实际编译、浏览器执行与完成回执；生产引擎清单和原生发行包仍须由发布任务交付，不会把排队任务当作已验证发布。字段与哈希协议见[契约说明](docs/contracts.md)及[资产验证决策](docs/decisions/0005-immutable-asset-validation.md)。fixture 示例、业务身份隔离、外部 TTL 补偿及受限 Trace 策略见[后端接入](docs/integration/backend.md)；当前 Attempt 凭证授权已接入真实设备、执行请求者和独立下发授权校验，原始制品与结构化报告已实施独立访问控制。AI 配置、预算、人工审核和实际 Provider 验收边界见 [AI 使用说明](docs/ai.md)。
+版本化资产 API 支持八类资源、草稿修订、依赖、校验预览与排队、不可变发布规则。服务端已实现受信编译完成回执和发布校验，要求当前 MANAGED 设备、有效租约/fencing、批准的引擎清单及真实上传文件；Linux 开发 Agent 已接入实际编译、浏览器执行与完成回执；生产引擎清单和原生发行包仍须由发布任务交付，不会把排队任务当作已验证发布。字段与哈希协议见[契约说明](docs/contracts.md)及[资产验证决策](docs/decisions/0005-immutable-asset-validation.md)。稳定 testId、重复记录、组件与操作断言关联见[前端接入](docs/integration/frontend.md)。fixture 示例、业务身份隔离、外部 TTL 补偿及受限 Trace 策略见[后端接入](docs/integration/backend.md)；当前 Attempt 凭证授权已接入真实设备、执行请求者和独立下发授权校验，原始制品与结构化报告已实施独立访问控制。AI 配置、预算、人工审核和实际 Provider 验收边界见 [AI 使用说明](docs/ai.md)。
 
 Linux Agent 开发需先执行 `pnpm --filter @veriq/runtime build:launcher` 再 `runtime start`（Runtime 测试命令会自动构建）。该步骤仅在构建期使用 C 编译器。已安装 Agent 需要预编译的 `build/veriq_runner` 辅助进程，缺失则失败关闭。生产原生打包仍属后续发行任务；本地 Agent 运行时不要求 Python、MySQL、C 编译器、bwrap 或 unshare。
 
 ## 当前仓库结构
 
-下面是仓库里已经存在的目录。`apps/desktop` 目前只有 Electron 包声明，还没有 main/preload/renderer 源码。发行用的 `scripts/`、`deploy/` 和 `build.sh` 还没有加入仓库；对应任务落地时再创建，不提前放空目录。
+下面是仓库里已经存在的目录。`apps/desktop` 已包含 main/preload/renderer、独立 Agent 和本地界面；`scripts/`、`deploy/` 和 `build.sh` 包含实际构建、校验与部署工具。完整安装包及正式发行验收仍在推进，源码运行记录不代表目标 OS 已完成安装验收。
 
 JavaScript 依赖由仓库根的 pnpm 工作区统一锁定，声明写在各包的 `package.json`。Python 依赖只写在 `apps/srv/pyproject.toml`。
 
@@ -125,15 +127,18 @@ veriq/
 │   │       ├── migrations/        # 随 wheel 发布
 │   │       └── static/dist/       # 暂存前端产物，强制入正式 wheel
 │   ├── runtime/
-│   │   ├── native/                # Linux 薄启动器源码
+│   │   ├── native/                # Linux guardian / Windows Job 与私有 IPC 源码
 │   │   └── build/                 # 本地 veriq_runner，不提交
-│   └── desktop/                   # Electron 包占位
+│   └── desktop/                   # Electron main/preload/renderer 与独立 Agent
 ├── packages/
 │   ├── contracts/                 # JSON Schema、OpenAPI 与样例
 │   ├── compiler/
 │   ├── runner-sdk/
 │   └── ui/                        # Web / 桌面共享组件
 ├── fixtures/demo-app/             # 示例业务；运行依赖来自 apps/srv
+├── scripts/                       # 构建、引擎、安装校验与 CI 工具
+├── deploy/                        # 离线安装、容器与启动资料
+├── build.sh                       # 默认完整门禁；当前仍有明确阻塞
 └── docs/
     ├── specs/                     # 需求与桌面规格
     └── plans/                     # 实施计划
@@ -145,9 +150,11 @@ veriq/
 
 **生产模式：** 先构建 React，再将 `apps/web/dist` 暂存至 `apps/srv/src/veriq_server/static/dist`，最后构建 Python wheel。正式 wheel 必须包含完整静态资源、迁移和版本资料；缺少 `index.html` 或资源清单时构建失败。干净环境安装 wheel 后，Tornado 通过同一端口提供 API 与静态页面，服务端运行时不依赖 Node/pnpm/浏览器。
 
+构建入口为 `./build.sh`，`--with-tests` 与默认一致；`--skip-tests --reason "原因"` 不跳过静态或完整性检查。当前正常构建失败且不创建成功发行目录；使用方式和候选边界见[发行指南](docs/release.md)。
+
 生产路由须区分 API、静态文件与登记的 SPA 页面：未知 API 和缺失静态资源返回真实 404，登记页面支持深链接刷新。凭证不得写入前端构建产物，用户证据不放入静态发布目录。
 
-桌面安装包走独立 Windows/Linux 构建与验收流程，包含本地 GUI、Agent/Runner 及所需依赖。服务端打包成功不能代替桌面或 Windows 验证。以上为待实现的发布契约，具体步骤见[需求与技术规格](docs/specs/veriq-1.0.md)及[实施计划](docs/plans/veriq-1.0.md)。
+桌面安装包按 macOS x64、macOS arm64、Windows x64、Ubuntu x64 分别构建与验收，包含本地 GUI、Agent/Runner 及所需依赖；Mac 双架构优先。共享业务代码之外，凭据库、进程监督、原生文件访问与桌面生命周期仍需平台适配。服务端打包成功不能代替桌面验证。以上为待实现的发布契约，具体步骤见[需求与技术规格](docs/specs/veriq-1.0.md)、[Mac 范围记录](docs/specs/macos-mvp-scope.md)及[实施计划](docs/plans/veriq-1.0.md)。
 
 ## Workspace 与命名规则
 
@@ -178,9 +185,11 @@ veriq/
 
 VeriQ is an automated smoke and regression platform for enterprise PC web systems. It centers on versioned test assets and deterministic Playwright TypeScript execution, and connects cloud Runtimes, a local desktop client, and offline execution.
 
-**Current status: under development / not released.** Accounts and Workspaces, versioned test assets, the deterministic compiler and Runner SDK, fixtures and business identities, Runtime authorization, the unified queue, and real Linux Agent execution are implemented. Editing for the eight asset kinds, compile/publish, version source preview, live structured reports, restricted evidence, local Trace viewing, File/S3 storage, and raw-evidence retention maintenance have passed independent review. AI configuration, budgets, structured draft review, and failure analysis are implemented and code-reviewed; real external Provider acceptance still needs user authorization and separate configuration. Signed bundles, trusted public-key cache, read-only verification, local credentials, real offline execution, SQLite-persisted reports, cancel/resume, and idempotent upload have passed independent re-review. External HTTP plan triggers, independent service tokens, plan/token management UI and CI gates have passed independent review and scoped fix re-review; Production same-origin static serving, complete file-inventory validation and build identity have passed independent review and scoped fixes; Electron desktop client work and formal releases are still in progress. There is no formal installer yet; the feature list below is the 1.0 delivery target.
+**Current status: under development / not released.** Accounts and Workspaces, versioned test assets, the deterministic compiler and Runner SDK, fixtures and business identities, Runtime authorization, the unified queue, and real Linux Agent execution are implemented. Editing for the eight asset kinds, compile/publish, version source preview, live structured reports, restricted evidence, local Trace viewing, File/S3 storage, and raw-evidence retention maintenance have passed independent review. AI configuration, budgets, structured draft review, and failure analysis are implemented and code-reviewed; real external Provider acceptance still needs user authorization and separate configuration. Signed bundles, trusted public-key cache, read-only verification, local credentials, real offline execution, SQLite-persisted reports, cancel/resume, and idempotent upload have passed independent re-review. External HTTP plan triggers, independent service tokens, plan/token management UI and CI gates have passed independent review and scoped fix re-review; Production same-origin static serving, complete file-inventory validation and build identity have passed independent review and scoped fixes.
 
-The repository currently includes `apps/srv` (Tornado control service), `apps/web` (React console), `apps/runtime` (Agent/CLI/offline execution), and `packages/{contracts,compiler,runner-sdk,ui}`. `apps/desktop` is mainly an Electron package placeholder; desktop sources and release flows are still advancing. Contributors and coding agents must follow the coding standards in root `AGENTS.md` (4-space indentation, Chinese source comments, English logs, and related rules).
+Server build tooling, frontend-in-wheel packaging, offline installation checks, engine candidates and separate promotion have passed independent review and scoped cancellation/promotion fixes. The pinned-browser SDK gate passed 136 tests with 91.46% line coverage; this does not close final integration gates. Default builds remain blocked by existing lint, formatting and comment-policy debt, and current candidates are explicitly UNVERIFIED. The Electron desktop GUI module has passed independent review and supports cached runs and local reports while disconnected. Native distribution remains in progress: native IPC, system vaults and explicit empty-initialization recovery have real Windows Server and Ubuntu target evidence, including protected Cookie databases and restart readback. Seven Ubuntu source-GUI cases passed. Three Windows ACL/owner tests still fail; Windows11/Ubuntu installation and complete-product acceptance remain pending; there is no formal installer yet. See [milestones](docs/plans/milestones.md) and [release tooling](docs/release.md).
+
+The repository currently includes `apps/srv` (Tornado control service), `apps/web` (React console), `apps/runtime` (Agent/CLI/offline execution), and `packages/{contracts,compiler,runner-sdk,ui}`. `apps/desktop` contains main/preload/renderer, bundled local UI and an independent Agent entry; target installers and remaining native capabilities are in progress. Contributors and coding agents must follow the coding standards in root `AGENTS.md` (4-space indentation, Chinese source comments, English logs, and related rules).
 
 ## Why VeriQ
 
@@ -192,22 +201,22 @@ AI is optional assistance for structured drafts, boundary suggestions, and failu
 
 The first release targets all 14 modules below. Internal milestones are not a complete MVP. The Electron desktop GUI is in first-release scope; CLI and unattended Agent remain as well.
 
-| ID | Module | Delivery goal |
-| --- | --- | --- |
-| F01 | Install and system init | Deploy, DB migration, admin bootstrap, config validation, health checks, sample resources |
-| F02 | First-party users | Login/logout, invite or admin create, password reset, disable, session revoke |
-| F03 | Workspace | One project per space, multi-space membership, roles, switch, isolation and audit |
-| F04 | Pages and elements | testId/role locators, record keys, scopes, catalog versions and reference impact |
-| F05 | Cases | Step and JSON editing, data-driven runs, variables, shared flows, draft, validate, publish, diff, archive |
-| F06 | Actions and assertions | UI, URL, request/response, JSON field/Schema, persistence, eventual consistency, template versions and expected basis |
-| F07 | Environments and identity | Front/back URLs, domain constraints, locale/timezone, business roles, credential refs and build versions |
-| F08 | Test data | Fixture contracts, isolated prepare, result query, idempotent cleanup and crash compensation |
-| F09 | Runtime | Cloud/local run, device registration, self-check, private/shared grants, revoke, real process names |
-| F10 | Execution | Manual and HTTP trigger, queue, capacity, lease, heartbeat, cancel, rerun, whole-case retry |
-| F11 | Reports | Live progress, step/assertion diffs, request correlation, screenshots, Trace download and local view, history, gates, JUnit |
-| F12 | Local offline | Dependency-closure export, signature verify, local credentials, standalone run, offline reports, idempotent import and provenance |
-| F13 | AI assistance | Provider config and connectivity check, structured drafts, review, failure analysis, budget and call records |
-| F14 | Product operations | Same-origin release, upgrade, backup/restore, retention, logs/metrics, third-party notices, manuals and acceptance report |
+| ID  | Module                    | Delivery goal                                                                                                                     |
+| --- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| F01 | Install and system init   | Deploy, DB migration, admin bootstrap, config validation, health checks, sample resources                                         |
+| F02 | First-party users         | Login/logout, invite or admin create, password reset, disable, session revoke                                                     |
+| F03 | Workspace                 | One project per space, multi-space membership, roles, switch, isolation and audit                                                 |
+| F04 | Pages and elements        | testId/role locators, record keys, scopes, catalog versions and reference impact                                                  |
+| F05 | Cases                     | Step and JSON editing, data-driven runs, variables, shared flows, draft, validate, publish, diff, archive                         |
+| F06 | Actions and assertions    | UI, URL, request/response, JSON field/Schema, persistence, eventual consistency, template versions and expected basis             |
+| F07 | Environments and identity | Front/back URLs, domain constraints, locale/timezone, business roles, credential refs and build versions                          |
+| F08 | Test data                 | Fixture contracts, isolated prepare, result query, idempotent cleanup and crash compensation                                      |
+| F09 | Runtime                   | Cloud/local run, device registration, self-check, private/shared grants, revoke, real process names                               |
+| F10 | Execution                 | Manual and HTTP trigger, queue, capacity, lease, heartbeat, cancel, rerun, whole-case retry                                       |
+| F11 | Reports                   | Live progress, step/assertion diffs, request correlation, screenshots, Trace download and local view, history, gates, JUnit       |
+| F12 | Local offline             | Dependency-closure export, signature verify, local credentials, standalone run, offline reports, idempotent import and provenance |
+| F13 | AI assistance             | Provider config and connectivity check, structured drafts, review, failure analysis, budget and call records                      |
+| F14 | Product operations        | Same-origin release, upgrade, backup/restore, retention, logs/metrics, third-party notices, manuals and acceptance report         |
 
 Billing, payments, subscriptions, mobile, arbitrary uploaded-code execution, complex visual baselines, and offline bidirectional edit sync are outside the currently confirmed scope.
 
@@ -250,24 +259,24 @@ Business schedules are driven by external middleware calling authenticated HTTP 
 
 Exact dependency versions and license records are in [ADR 0003](docs/decisions/0003-engineering-baseline.md), lockfiles, and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Completed contract checks do not replace later business, browser, and per-OS release acceptance.
 
-| Layer | Target stack |
-| --- | --- |
-| Control service | Python 3.12, Tornado 6.6.1 series, SQLAlchemy 2.0, Alembic, asyncmy |
-| Database | MySQL 8.4 LTS |
-| Web | React 18, TypeScript, Vite 6, Tailwind 3, ESM, react-router-dom 7.18.5, TanStack Query 5, Radix/CVA, i18next |
-| Execution | Pinned Node24 LTS, Playwright Test, shared compiler and Runner SDK |
-| Local persistence | Node24 built-in SQLite for execution occupancy, reports, and upload state |
-| Desktop | Electron + React, main/preload/renderer split, allowlisted typed IPC |
-| Contracts | JSON Schema, OpenAPI, Pydantic 2, jsonschema, Ajv |
-| Reports and artifacts | Playwright HTML/JUnit/Trace; local file storage default, optional S3 |
-| AI | Provider SDK adapters, Midscene on demand |
-| Build and test | pnpm, uv, build, Hatchling, pytest/pytest-asyncio, Vitest, Playwright |
+| Layer                 | Target stack                                                                                                 |
+| --------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Control service       | Python 3.12, Tornado 6.6.1 series, SQLAlchemy 2.0, Alembic, asyncmy                                          |
+| Database              | MySQL 8.4 LTS                                                                                                |
+| Web                   | React 18, TypeScript, Vite 6, Tailwind 3, ESM, react-router-dom 7.18.5, TanStack Query 5, Radix/CVA, i18next |
+| Execution             | Pinned Node24 LTS, Playwright Test, shared compiler and Runner SDK                                           |
+| Local persistence     | Node24 built-in SQLite for execution occupancy, reports, and upload state                                    |
+| Desktop               | Electron + React, main/preload/renderer split, allowlisted typed IPC                                         |
+| Contracts             | JSON Schema, OpenAPI, Pydantic 2, jsonschema, Ajv                                                            |
+| Reports and artifacts | Playwright HTML/JUnit/Trace; local file storage default, optional S3                                         |
+| AI                    | Provider SDK adapters, Midscene on demand                                                                    |
+| Build and test        | pnpm, uv, build, Hatchling, pytest/pytest-asyncio, Vitest, Playwright                                        |
 
-Target compatibility is server Linux x64 and local Runtime/desktop on Windows 11 x64 and Ubuntu 24.04 x64. Support claims require real builds and acceptance on each platform.
+Target compatibility is server Linux x64, with macOS Intel x64 and Apple Silicon arm64 as the highest-priority desktop/Runtime MVP targets. Windows 11 x64 and Ubuntu 24.04 x64 remain required at lower priority. Mac implementation and installed acceptance are pending; the confirmed minimum is macOS 15 (Sequoia) for both Mac architectures, and tests must use host-native macOS Chrome. See [Mac scope and compatibility](docs/specs/macos-mvp-scope.md). Support claims require real builds and acceptance on each platform.
 
 ## Development checks
 
-With Python 3.12.14, uv 0.13.5, Node 24.22.1, and pnpm 11.25.0, from the repository root:
+With Python 3.12.14, uv 0.13.5, Node 24.x (`>=24 <25`), and pnpm 11.25.0, from the repository root. CI follows `24.x`; each release candidate records its actual bundled Node version and verifies role identity against its manifest and hashes:
 
 ```sh
 uv sync --project apps/srv --frozen --all-groups
@@ -277,17 +286,17 @@ pnpm test
 pnpm check
 ```
 
-`pnpm test` runs shared contracts, compiler, Runner SDK, and Runtime tests (SDK and Runtime doctor tests need local Chromium; Linux Runtime tests also use host `cc` to build the thin launcher; product packages will ship it prebuilt). `pnpm check` verifies contracts/compiler/SDK/Runtime TypeScript and generated files stay in sync. Full platform acceptance entry points are still pending later tasks. These commands are development checks, not a full product install. See [contracts](docs/contracts.md) for public interfaces, tooling, and additional checks.
+`pnpm test` runs shared contracts, compiler, Runner SDK, and Runtime tests (SDK and Runtime doctor tests need local Chromium; Linux Runtime tests also use host `cc` to build the thin launcher; product packages will ship it prebuilt). `pnpm check` verifies contracts/compiler/SDK/Runtime/desktop TypeScript and generated files stay in sync. The default `./build.sh` release entry now exists and enforces additional real gates, which currently fail on recorded quality debt. These commands are development checks, not a full product install. See [contracts](docs/contracts.md) for public interfaces, tooling, and additional checks.
 
 Accounts and Workspace modules can run in development: secure MySQL setup, admin bootstrap, and separate Tornado/Vite startup are in the [development guide](docs/development.md). The backend entrypoint is `veriq_server`. The current UI provides real install, auth, user management, space switching, members, and invites; the full testing platform still needs remaining modules.
 
-Versioned asset APIs support eight resource kinds, draft revisions, dependencies, validation preview and queueing, and immutable publish rules. The server implements trusted compile completion receipts and publish validation that require a current MANAGED device, valid lease/fencing, an approved engine manifest, and real uploaded files. The Linux development Agent is wired for real compile, browser execution, and completion receipts. Production engine manifests and native packages must still come from release tasks; queued work must not be treated as verified publish. Field and hash protocols are in [contracts](docs/contracts.md) and [immutable asset validation](docs/decisions/0005-immutable-asset-validation.md). Fixture samples, business-identity isolation, external TTL compensation, and restricted Trace policy are in [backend integration](docs/integration/backend.md). Current Attempt credential grants validate real devices, execution requesters, and independent delivery authorization; raw artifacts and structured reports already use separate access control. AI configuration, budgets, human review, and Provider acceptance boundaries are in [AI usage](docs/ai.md).
+Versioned asset APIs support eight resource kinds, draft revisions, dependencies, validation preview and queueing, and immutable publish rules. The server implements trusted compile completion receipts and publish validation that require a current MANAGED device, valid lease/fencing, an approved engine manifest, and real uploaded files. The Linux development Agent is wired for real compile, browser execution, and completion receipts. Production engine manifests and native packages must still come from release tasks; queued work must not be treated as verified publish. Field and hash protocols are in [contracts](docs/contracts.md) and [immutable asset validation](docs/decisions/0005-immutable-asset-validation.md). Stable test IDs, record identity, component integration and action/assertion correlation are in [frontend integration](docs/integration/frontend.md). Fixture samples, business-identity isolation, external TTL compensation, and restricted Trace policy are in [backend integration](docs/integration/backend.md). Current Attempt credential grants validate real devices, execution requesters, and independent delivery authorization; raw artifacts and structured reports already use separate access control. AI configuration, budgets, human review, and Provider acceptance boundaries are in [AI usage](docs/ai.md).
 
 Linux Agent development requires `pnpm --filter @veriq/runtime build:launcher` before `runtime start` (the Runtime test command builds it automatically). This uses a C compiler at build time only. Installed Agents require the precompiled `build/veriq_runner` helper; missing helpers fail closed. Production native packaging remains a later release task. No Python, MySQL, C compiler, bwrap, or unshare is a local Agent runtime prerequisite.
 
 ## Current repository layout
 
-The tree below is what exists in the repository today. `apps/desktop` currently has the Electron package manifest and does not yet contain main, preload, or renderer sources. Release helpers such as `scripts/`, `deploy/`, and `build.sh` are not in the tree; add them when those tasks land instead of creating empty directories now.
+The tree below reflects existing code. `apps/desktop` includes main/preload/renderer, an independent Agent and local UI; `scripts/`, `deploy/`, and `build.sh` contain build, verification and deployment tools. Complete installers and formal release acceptance remain in progress; source execution is not installed-target acceptance.
 
 JavaScript dependencies are locked once by the pnpm workspace at the repository root, and each package declares its own dependencies. Python dependencies are declared only in `apps/srv/pyproject.toml`.
 
@@ -301,15 +310,18 @@ veriq/
 │   │       ├── migrations/        # shipped in the wheel
 │   │       └── static/dist/       # staged frontend assets required in the release wheel
 │   ├── runtime/
-│   │   ├── native/                # Linux thin-launcher source
+│   │   ├── native/                # Linux guardian / Windows Job and private IPC source
 │   │   └── build/                 # local veriq_runner, not committed
-│   └── desktop/                   # Electron package placeholder
+│   └── desktop/                   # Electron main/preload/renderer and independent Agent
 ├── packages/
 │   ├── contracts/                 # JSON Schema, OpenAPI, and samples
 │   ├── compiler/
 │   ├── runner-sdk/
 │   └── ui/                        # shared web / desktop components
 ├── fixtures/demo-app/             # sample business app; run it with apps/srv
+├── scripts/                       # build, engine, install verification and CI tools
+├── deploy/                        # offline install, container and startup files
+├── build.sh                       # complete default gates; known blockers remain
 └── docs/
     ├── specs/                     # requirements and desktop specs
     └── plans/                     # implementation plans
@@ -319,11 +331,13 @@ veriq/
 
 **Development mode:** Vite and Tornado start separately on ports 5173 and 8888. Vite proxies API and needed event connections and keeps HMR; Runtime starts independently. Editable backend installs do not require prebuilt frontend assets.
 
+The release entry is `./build.sh`; `--with-tests` is the default alias, and `--skip-tests --reason "reason"` preserves static and integrity checks. Current normal builds fail without creating a successful release output; see the [release guide](docs/release.md).
+
 **Production mode:** Build React first, stage `apps/web/dist` into `apps/srv/src/veriq_server/static/dist`, then build the Python wheel. The release wheel must include full static assets, migrations, and version metadata; missing `index.html` or the asset manifest fails the build. After a clean-environment wheel install, Tornado serves API and static pages on one port; the server runtime does not depend on Node/pnpm/browsers.
 
 Production routing must distinguish API, static files, and registered SPA pages: unknown APIs and missing static assets return real 404s; registered pages support deep-link refresh. Credentials must not be baked into frontend build artifacts; user evidence must not land in the static publish directory.
 
-Desktop installers follow separate Windows/Linux build and acceptance flows that include local GUI, Agent/Runner, and required dependencies. A successful server package does not replace desktop or Windows verification. These release contracts are still to be fully implemented; see the [requirements and technical spec](docs/specs/veriq-1.0.md) and [implementation plan](docs/plans/veriq-1.0.md).
+Desktop installers require separate macOS x64, macOS arm64, Windows x64 and Ubuntu x64 build and acceptance flows, prioritizing both Mac architectures. They include local GUI, Agent/Runner and required dependencies. Business code is shared, while credentials, process supervision, native file access and desktop lifecycle need platform adapters. A successful server package does not replace desktop verification. These release contracts are still to be fully implemented; see the [requirements and technical spec](docs/specs/veriq-1.0.md), [Mac scope record](docs/specs/macos-mvp-scope.md) and [implementation plan](docs/plans/veriq-1.0.md).
 
 ## Workspace and naming rules
 
@@ -345,3 +359,9 @@ Planned quality gates include Python/TypeScript unit tests, cross-language contr
 ## License
 
 This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**; see [LICENSE](LICENSE) for the full terms. Third-party dependency licenses are verified separately and shipped with SBOM and notices.
+
+## 桌面工作台 / Desktop workspace
+
+完整本地 GUI 的使用流程、生命周期、受限宿主边界与源码构建见[桌面指南](docs/desktop.md)。本机全凭据退役的明确确认、恢复记录及与设备撤销的区别见[凭据退役说明](docs/runtime-credentials.md)。窗口、独立 Node24 Agent 与业务 Chromium 分开运行；已下载资源、生成源码和报告可在平台断网时使用。
+
+See the [desktop guide](docs/desktop.md) for the bundled GUI, lifecycle, source builds and host boundary. See [local credential retirement](docs/runtime-credentials.md) for explicit confirmation, recovery facts and the separate server-revocation boundary. Installer production and target-OS verification remain separate release gates.

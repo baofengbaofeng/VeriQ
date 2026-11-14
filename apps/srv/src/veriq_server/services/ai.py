@@ -3,7 +3,6 @@ sanitize 去除受保护字段；测试可在无真实模型凭据下覆盖失�
 review 仅在人工确认后进入可编辑草稿，取消与预算超限返回稳定错误码。
 """
 
-
 from contextlib import asynccontextmanager
 from decimal import Decimal, ROUND_CEILING
 from hashlib import sha256
@@ -132,6 +131,7 @@ class AiService:
     """编排提供方 CRUD、生成、预览、取消与审核，强制 Workspace 与预算边界，AiService 遵守本文件边界。
     AiService 属于 AI 辅助路径：无有效 Provider 时不得假装成功，模型输出不得自动发布为正式资产。
     """
+
     def __init__(
         self,
         db: Database,
@@ -796,7 +796,9 @@ class AiService:
                     r = await repo.resource(v.resource_id)
                     if r.kind != kind or r.status == "ARCHIVED":
                         raise Problem(422, "INVALID_REFERENCE", "Referenced version is unavailable")
-                resources = ResourceService(s, user, self.registry)
+                resources = ResourceService(
+                    s, user, self.registry, engine_version=self.settings.validation_engine_version
+                )
                 if g.data.get("resourceId"):
                     if data.get("revision") != g.data["revision"]:
                         raise Problem(

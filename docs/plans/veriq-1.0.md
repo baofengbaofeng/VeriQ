@@ -531,6 +531,8 @@ assert path_traversal.status in (403, 404)
 
 ## T18：前端先构建、wheel强制入包与服务端发行
 
+**状态：** 代码实现及重要问题修复复审已通过（`3995648`、`dc95f26`）；正式发行验收仍待T22/T23。27项取消/新鲜校验回归及Debian下当前wheel安装通过；默认构建因真实Web lint失败，M1/M2及全仓规范、目标Ubuntu/OCI仍未关闭。参见[里程碑](milestones.md)与[发行指南](../release.md)。
+
 **依赖：** T17
 
 **Files（拟创建/修改）：**
@@ -545,7 +547,7 @@ assert path_traversal.status in (403, 404)
 
 **Interfaces：** build_release(options: BuildOptions) -> ReleaseManifest；必须顺序web check/build→stage→srv检查测试→wheel→干净安装→原子output。
 
-- [ ] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
+- [x] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```python
 assert wheel.has('veriq_server/static/dist/index.html')
@@ -554,28 +556,34 @@ assert release.tests_skipped is False
 assert production_starts_without_node_or_chrome is True
 ```
 
-- [ ] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest tests/acceptance/test_server_package.py -q`；失败必须来自缺失行为，而非测试环境拼写错误。
-- [ ] **Step 3：实现上述接口与文件。** Hatchling hook区分editable与正式wheel；干净checkout无dist可安装开发依赖，正式构建缺dist失败；gitignore静态目录真实入wheel、无重复资源、无旧assets、版本一致、离线wheelhouse、正常默认全测、紧急跳过记录原因、SBOM/NOTICE/hash完整。
-- [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
-- [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t18 前端先构建、wheel强制入包与服务端发行`。有新决策先更新ADR，不扩展到下一任务。
+- [x] **Step 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest tests/acceptance/test_server_package.py -q`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [x] **Step 3：实现上述接口与文件。** Hatchling hook区分editable与正式wheel；干净checkout无dist可安装开发依赖，正式构建缺dist失败；gitignore静态目录真实入wheel、无重复资源、无旧assets、版本一致、离线wheelhouse、正常默认全测、紧急跳过记录原因、SBOM/NOTICE/hash完整。
+- [x] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
+- [x] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t18 前端先构建、wheel强制入包与服务端发行`。有新决策先更新ADR，不扩展到下一任务。
+
+**未完成的发行验收：** 最终源码/锁/static绑定的默认完整门禁、Python/TS核心覆盖率、B05有效说明与历史格式/类型债、目标Ubuntu24.04及独立OCI实测。当前候选为UNVERIFIED，不因上述实现活动已执行而宣称正常发行或完整MVP交付。
 
 ## T19：完整Electron桌面图形界面
 
 **依赖：** T10/T11/T12/T14/T15
 
+**状态：** 模块及六项重要修复复审已通过（`bac5162`→`eb2dc4e`，新增C/I/M为0）；精确源码六GUI/34unit/2display通过。Windows11/Ubuntu安装、原生托盘/vault/签名及全产品/Provider/质量门禁仍由T20–T23完成，见[里程碑](milestones.md)。
+
 **Files：** apps/desktop/package.json；apps/desktop/electron.vite.config.ts；apps/desktop/src/main/index.ts；apps/desktop/src/preload/index.ts；apps/desktop/src/renderer/；packages/ui/；tests/e2e/desktop.spec.ts。
 
 **Interfaces：** DesktopBridge为白名单类型化IPC；CloudResourceAdapter与LocalResourceAdapter共享资源视图；AgentClient连接受限本机IPC，不开启无认证控制端口。
 
-- [ ] Step 1：写桌面真实E2E，覆盖登录/Workspace、设备绑定、下载、独立执行、取消、报告、回传、设置、自检和托盘。Renderer不得直接获得进程/任意文件/密钥能力。
-- [ ] Step 2：运行pnpm desktop:test并确认缺功能时失败，保存证据。
-- [ ] Step 3：实现全部桌面界面和Cloud/Local适配；本地静态UI随包，无平台连接也能操作缓存；UI与独立Node24 Agent生命周期分离。
-- [ ] Step 4：运行组件、IPC、安全和真实Electron测试；检查UI崩溃/窗口关闭不丢后台执行。
-- [ ] Step 5：同步契约、安装说明并提交。
+- [x] Step 1：写桌面真实E2E，覆盖登录/Workspace、设备绑定、下载、独立执行、取消、报告、回传、设置、自检和托盘入口（原生目标托盘验收归T20）。Renderer不得直接获得进程/任意文件/密钥能力。
+- [x] Step 2：运行pnpm desktop:test并确认缺功能时失败，保存证据。
+- [x] Step 3：实现全部桌面界面和Cloud/Local适配；本地静态UI随包，无平台连接也能操作缓存；UI与独立Node24 Agent生命周期分离。
+- [x] Step 4：运行组件、IPC、安全和真实Electron测试；检查UI崩溃/窗口关闭不丢后台执行。
+- [x] Step 5：同步契约、安装说明并提交。
 
-## T20：Windows/Linux桌面与Runtime发行
+## T20：Mac双架构优先的桌面与Runtime发行
 
 **依赖：** T19
+
+**2026-11-14范围修订：** macOS Intel x64、Apple Silicon arm64均为MVP最高优先级；Windows11 x64、Ubuntu24.04 x64保留、优先级较低。Mac最低系统已确认为macOS15（Sequoia），测试必须用宿主原生Chrome；Mac已确认受控Worker/Chrome退出、未知隔离和人工恢复，按[停止子计划](macos-controlled-stop.md)实施；Linux/Windows现有全后代停止保证及凭据/离网验收标准保留；Mac按明确的受控范围验收。已有Windows/Linux证据继续保留，不能映射为Mac通过。
 
 **Files：** apps/desktop/electron-builder.yml；scripts/build_runtime.mjs；tests/compatibility/process-names.spec.ts；docs/operations/runtime-install.md；对应CI工作流。
 
@@ -583,7 +591,7 @@ assert production_starts_without_node_or_chrome is True
 
 - [ ] Step 1：测试安装后的实际进程名、离网依赖、后台/托盘、停止进程树、单实例、升级/卸载和签名校验。
 - [ ] Step 2：在对应OS运行pnpm compatibility:runtime，确认未实现行为失败。
-- [ ] Step 3：electron-builder发行GUI/Agent/Runner和浏览器；Linux与Windows独立构建验收，不另引入Rust桌面壳。
+- [ ] Step 3：electron-builder发行GUI/Agent/Runner和浏览器；macOS x64、macOS arm64、Windows x64、Ubuntu x64独立构建验收，优先Mac两架构，不另引入Rust桌面壳。Mac补齐Keychain、Cookie实际保护、私有文件适配、进程监督、菜单栏/Dock及真实架构依赖闭包。
 - [ ] Step 4：各OS验证安装包并保存产物/日志；没有正式签名证书时标记开发包，暂停正式签名发布并询问用户。
 - [ ] Step 5：同步兼容矩阵和用户说明并提交。
 

@@ -14,11 +14,16 @@ import { TrustStore, type IssuerTrust } from "./offline/trust.ts";
 import { verifyBundle } from "./offline/verify.ts";
 import { downloadBundle } from "./offline/download.ts";
 import { SecretStore, type SecretReference } from "./credentials/store.ts";
+import { managedFileCredentials } from "./credentials/restricted-file.ts";
+import type { CredentialOptions } from "./credentials/profile.ts";
+import { installedCredentials } from "./credentials/host.ts";
 import { openTrace } from "./trace.ts";
-/** Development CLI. Native launcher/process names and vault packaging are T20. */
+/** CLI 在独立角色入口校验完整发行库存，凭据模式只由受信任启动参数选择；源码入口的完整库存接入仍单独验证，业务参数不得指定保险库辅助程序或把后端失败解释为明文授权。 */
 import { Command } from "commander";
 import pino from "pino";
-import { join } from "node:path";
+import { join, dirname, basename } from "node:path";
+import { loadRuntimeDistribution, assertRuntimeRole, diagnoseRelease } from "./distribution.ts";
+import { spawn } from "node:child_process";
 import { DeviceSession } from "./agent/credentials.ts";
 import { AgentClient } from "./agent/transport.ts";
 import { claimLoop } from "./agent/claim-loop.ts";
@@ -39,11 +44,132 @@ const logger = pino(
     },
     pino.destination(2),
 );
+const entryRole = basename(process.execPath).replace(/\.exe$/i, "");
+const entryDistribution = ["veriq_cli", "veriq_agent"].includes(entryRole)
+    ? await loadRuntimeDistribution(dirname(dirname(dirname(process.execPath))))
+    : undefined;
+if (entryDistribution)
+    assertRuntimeRole(entryDistribution, entryRole === "veriq_agent" ? "agent" : "cli");
+let entryCredentials: CredentialOptions | undefined;
 const program = new Command()
     .name("veriq_cli")
     .description("VeriQ Runtime enrollment and diagnostics (development)")
-    .version("0.1.0");
+    .version(entryDistribution?.productVersion ?? "0.1.0");
 program.option("--config-dir <directory>", "Private development configuration directory");
+program.option("--distribution-root <directory>", "Installed Runtime distribution root");
+program.option(
+    "--credential-mode <mode>",
+    "Credential backend: os-vault or explicit managed Linux restricted-file",
+    "os-vault",
+);
+program.option(
+    "--managed-service-uid <uid>",
+    "Exact dedicated nonroot Linux service UID for restricted-file mode",
+);
+program.option(
+    "--persistent-volume <directory>",
+    "Existing private external persistent mount containing --config-dir",
+);
+program.option(
+    "--acknowledge-unencrypted-storage",
+    "Acknowledge restricted-file provides no encryption at rest",
+);
+/** 服务文件模式必须由命令行明确选择并完整核验，不能因默认保险库构造失败而落入此分支；选择不改变设备执行位置或控制平台信任等级，未选模式却携带服务参数同样拒绝，避免操作者误以为限制已经生效。 */
+program.hook("preAction", async () => {
+    const options = program.opts<{
+        credentialMode: string;
+        managedServiceUid?: string;
+        persistentVolume?: string;
+        acknowledgeUnencryptedStorage?: boolean;
+        configDir?: string;
+    }>();
+    if (options.credentialMode === "restricted-file") {
+        if (
+            !options.managedServiceUid ||
+            !/^[1-9][0-9]*$/.test(options.managedServiceUid) ||
+            !options.configDir ||
+            !options.persistentVolume ||
+            options.acknowledgeUnencryptedStorage !== true
+        )
+            throw new Error("RESTRICTED_FILE_CONTEXT_REQUIRED");
+        entryCredentials = await managedFileCredentials({
+            mode: "restricted-file",
+            managedHeadless: true,
+            serviceUid: Number(options.managedServiceUid),
+            persistentVolume: options.persistentVolume,
+            profileDirectory: options.configDir,
+            acknowledgeUnencryptedStorage: true,
+        });
+        process.stderr.write(
+            "Credential mode: restricted-file; no encryption at rest. Configured service UID and private mounted volume verified.\n",
+        );
+    } else {
+        if (
+            options.credentialMode !== "os-vault" ||
+            options.managedServiceUid !== undefined ||
+            options.persistentVolume !== undefined ||
+            options.acknowledgeUnencryptedStorage !== undefined
+        )
+            throw new Error("CREDENTIAL_MODE_INVALID");
+        if (!entryDistribution && program.getOptionValueSource("credentialMode") === "cli")
+            throw new Error("RUNTIME_VAULT_CAPABILITY_UNVERIFIED");
+        entryCredentials = entryDistribution ? installedCredentials(entryDistribution) : undefined;
+    }
+});
+
+/** 原生角色入口从物理可执行文件推导安装根，显式根仅供可信启动器传入且仍校验角色身份；开发 node 入口保持原来的源码探测，缺失安装清单绝不静默回落到开发依赖或系统浏览器。 */
+async function installedDistribution() {
+    const role = basename(process.execPath).replace(/\.exe$/i, "");
+    const root =
+        program.opts<{ distributionRoot?: string }>().distributionRoot ??
+        (["veriq_cli", "veriq_agent"].includes(role)
+            ? dirname(dirname(dirname(process.execPath)))
+            : undefined);
+    if (!root) return;
+    const installed = await loadRuntimeDistribution(root);
+    assertRuntimeRole(installed, role === "veriq_agent" ? "agent" : "cli");
+    return installed;
+}
+
+/** 注册与诊断共享完整发行核验，安装模式只允许清单中钉选的浏览器与引擎；调用者可选择控制 Origin 而不能通过 CLI 参数替换安装执行代码，避免登记出实际无法执行的组件版本。 */
+async function nativeDoctor(options: { server?: string; browserExecutable?: string }) {
+    const installed = await installedDistribution();
+    if (!installed)
+        return doctor({
+            ...options,
+            executablePath: options.browserExecutable,
+            signal: controller.signal,
+        });
+    if (options.browserExecutable && options.browserExecutable !== installed.browserExecutable)
+        throw new Error("RUNTIME_CONFIGURATION_MISMATCH");
+    return diagnoseRelease({
+        ...installed,
+        ...(options.server ? { server: options.server } : {}),
+        signal: controller.signal,
+    });
+}
+
+/** 安装 CLI 启动在线服务时必须转交给真实 Agent 角色 Node，而不是只修改当前 CLI 的进程标题；参数按原始数组传递，父进程等待真实退出，并把取消信号传给会执行既有排空协议的 Agent。 */
+async function startInstalledAgent(
+    installed: NonNullable<Awaited<ReturnType<typeof installedDistribution>>>,
+) {
+    controller.signal.throwIfAborted();
+    const child = spawn(installed.agentExecutable, [installed.cliEntry, ...process.argv.slice(2)], {
+        stdio: "inherit",
+    });
+    const cancel = () => {
+        child.kill("SIGTERM");
+    };
+    controller.signal.addEventListener("abort", cancel, { once: true });
+    try {
+        process.exitCode = await new Promise<number>((resolve, reject) => {
+            child.once("error", reject);
+            child.once("exit", (code) => resolve(code ?? 1));
+        });
+    } finally {
+        controller.signal.removeEventListener("abort", cancel);
+    }
+}
 const controller = new AbortController();
 process.once("SIGINT", () => controller.abort());
 process.once("SIGTERM", () => controller.abort());
@@ -53,7 +179,8 @@ program
     .command("open <file>")
     .description("Open a downloaded Trace locally using pinned Playwright")
     .action((file: string) => openTrace(file, controller.signal));
-const store = () => new DeviceStore(program.opts<{ configDir?: string }>().configDir);
+const store = () =>
+    new DeviceStore(program.opts<{ configDir?: string }>().configDir, entryCredentials);
 const common = (command: Command) =>
     command.option(
         "--browser-executable <path>",
@@ -65,11 +192,7 @@ common(
         .description("Inspect Node, engine/SDK, browser launch and optional control network")
         .option("--server <origin>", "Control service origin"),
 ).action(async (options: { server?: string; browserExecutable?: string }) => {
-    const result = await doctor({
-        server: options.server,
-        executablePath: options.browserExecutable,
-        signal: controller.signal,
-    });
+    const result = await nativeDoctor(options);
     for (const c of result.checks)
         process.stdout.write(`${c.ok ? "PASS" : "FAIL"} ${c.name}: ${c.detail}\n`);
     process.exitCode = result.ok ? 0 : 1;
@@ -89,11 +212,7 @@ common(
         if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
     }
     const client = new RuntimeClient(options.server);
-    const diagnostics = await doctor({
-        server: options.server,
-        executablePath: options.browserExecutable,
-        signal: controller.signal,
-    });
+    const diagnostics = await nativeDoctor(options);
     if (!diagnostics.ok || !diagnostics.capabilities) throw new Error("DOCTOR_FAILED");
     const enrollment = await client.begin(
         options.name,
@@ -144,11 +263,7 @@ common(
                 throw error;
         }
         const client = new RuntimeClient(options.server);
-        const diagnostics = await doctor({
-            server: options.server,
-            executablePath: options.browserExecutable,
-            signal: controller.signal,
-        });
+        const diagnostics = await nativeDoctor(options);
         if (!diagnostics.ok || !diagnostics.capabilities) throw new Error("DOCTOR_FAILED");
         let secret = "";
         const timeout = setTimeout(() => process.stdin.destroy(new Error("INPUT_TIMEOUT")), 30_000);
@@ -184,7 +299,7 @@ program
         await s.ensureStopped();
         if (options.localOnly) {
             await s.remove();
-            await new SecretStore(s.directory).clear();
+            await new SecretStore(s.directory, entryCredentials).clear();
             process.stdout.write(
                 "Local device credential removed. Remote revocation was not attempted. The server credential may still be valid; revoke the device in the Web console or wait for expiry.\n",
             );
@@ -207,7 +322,7 @@ program
             alreadyRejected = true;
         }
         await s.remove();
-        await new SecretStore(s.directory).clear();
+        await new SecretStore(s.directory, entryCredentials).clear();
         process.stdout.write(
             alreadyRejected
                 ? "Server already rejected this device credential; local credential removed. You can enroll again. Revoke the device in the Web console if you also need to prevent future reuse.\n"
@@ -248,11 +363,35 @@ program
 const runtime = program.command("runtime").description("Run and control the online Linux Agent");
 runtime
     .command("start")
-    .requiredOption("--release-dir <path>", "Operator-approved fixed engine release directory")
-    .requiredOption("--browser-executable <path>", "Pinned Playwright browser executable")
+    .option("--release-dir <path>", "Operator-approved fixed engine release directory")
+    .option("--browser-executable <path>", "Pinned Playwright browser executable")
     .option("--once", "Process at most one claim, then stop")
     .action(async (options: { releaseDir: string; browserExecutable: string; once?: boolean }) => {
         if (process.platform !== "linux") throw new Error("UNSUPPORTED_PROCESS_PLATFORM");
+        const installed = await installedDistribution();
+        if (installed && entryRole !== "veriq_agent") {
+            await startInstalledAgent(installed);
+            return;
+        }
+        if (installed) assertRuntimeRole(installed, "agent");
+        if (
+            installed &&
+            ((options.releaseDir && options.releaseDir !== installed.engineDirectory) ||
+                (options.browserExecutable &&
+                    options.browserExecutable !== installed.browserExecutable))
+        )
+            throw new Error("RUNTIME_CONFIGURATION_MISMATCH");
+        const releaseDirectory = installed?.engineDirectory ?? options.releaseDir;
+        const browserExecutable = installed?.browserExecutable ?? options.browserExecutable;
+        if (!releaseDirectory || !browserExecutable)
+            throw new Error("RUNTIME_CONFIGURATION_REQUIRED");
+        const diagnostics = await diagnoseRelease({
+            engineDirectory: releaseDirectory,
+            engineVersion: installed?.engineVersion ?? "1.0.0",
+            browserExecutable,
+            signal: controller.signal,
+        });
+        if (!diagnostics.ok || !diagnostics.capabilities) throw new Error("DOCTOR_FAILED");
         process.title = "veriq_agent";
         const profile = store(),
             config = await profile.load(),
@@ -268,18 +407,21 @@ runtime
                 await transport.request<
                     import("@veriq/contracts").PlatformComponents["schemas"]["RuntimeDTO"]
                 >("/internal/v1/runtime");
+            if (info.capabilities.engineVersion !== diagnostics.capabilities.engineVersion)
+                throw new Error("RUNTIME_CAPABILITY_MISMATCH_REENROLL");
             const supervisor = new ExecutionSupervisor({
                 root,
                 client: transport,
-                releaseDirectory: options.releaseDir,
-                browserExecutable: options.browserExecutable,
+                releaseDirectory,
+                browserExecutable,
+                ...(installed ? { execution: installed.execution } : {}),
             });
             await claimLoop({
                 client: transport,
                 supervisor,
                 root,
                 runnerId: config.runnerId,
-                capabilities: info.capabilities,
+                capabilities: diagnostics.capabilities,
                 signal: controller.signal,
                 ...(options.once ? { once: true } : {}),
             });
@@ -347,6 +489,45 @@ trust
 const secret = program
     .command("secret")
     .description("Exact local credential mappings; never print values");
+secret
+    .command("delete-profile")
+    .description(
+        "Permanently retire this local credential profile; keep trust/history and do not revoke the server device",
+    )
+    .option(
+        "--confirm-all",
+        "Confirm deleting every local credential purpose and exact vault key; use a new profile directory afterward",
+    )
+    .action(async (options: { confirmAll?: boolean }) => {
+        if (options.confirmAll !== true)
+            throw new Error("CREDENTIAL_PROFILE_DELETE_CONFIRMATION_REQUIRED");
+        await store().deleteCredentials();
+        process.stdout.write(
+            "Local credential profile retired; trust/history retained. Server device revocation is separate. Use a new profile directory for future credentials.\n",
+        );
+    });
+secret
+    .command("recover-initialization")
+    .description(
+        "Explicitly recover an empty pending credential initialization; never replace an active missing key",
+    )
+    .action(async () => {
+        await store().recoverCredentialInitialization();
+        process.stdout.write(
+            "Empty credential initialization recovered; prior key intents retained.\n",
+        );
+    });
+secret
+    .command("migrate")
+    .description(
+        "Explicitly migrate stopped local credentials using the selected mode; verify readback before retiring legacy files",
+    )
+    .action(async () => {
+        await store().migrateCredentials();
+        process.stdout.write(
+            `Local credentials migrated and verified; credential mode: ${program.opts<{ credentialMode: string }>().credentialMode}.\n`,
+        );
+    });
 for (const name of ["set", "remove"]) {
     const command = secret
         .command(name)
@@ -363,7 +544,7 @@ for (const name of ["set", "remove"]) {
                 versionId: options.version,
             };
             await new TrustStore(store().directory).issuer(ref.issuerId);
-            const local = new SecretStore(store().directory);
+            const local = new SecretStore(store().directory, entryCredentials);
             if (name === "remove") await local.remove(ref);
             else {
                 let input = "";
@@ -382,8 +563,8 @@ program
     .command("run")
     .description("Execute a signed installed bundle without the control service")
     .requiredOption("--offline <directory>", "Installed signed bundle directory")
-    .requiredOption("--release-dir <directory>", "Installed approved engine release")
-    .requiredOption("--browser-executable <path>", "Installed test browser")
+    .option("--release-dir <directory>", "Installed approved engine release")
+    .option("--browser-executable <path>", "Installed test browser")
     .option("--debug", "Explicit expired/unvalidated DEBUG execution")
     .option("--retry", "One safe whole-case retry at most")
     .option("--base-url <url>", "Explicit authorized public baseURL override")
@@ -398,7 +579,19 @@ program
             baseUrl?: string;
             fixtureUrl?: string;
         }) => {
-            process.title = "veriq";
+            const installed = await installedDistribution();
+            if (
+                installed &&
+                ((options.releaseDir && options.releaseDir !== installed.engineDirectory) ||
+                    (options.browserExecutable &&
+                        options.browserExecutable !== installed.browserExecutable))
+            )
+                throw new Error("RUNTIME_CONFIGURATION_MISMATCH");
+            const releaseDirectory = installed?.engineDirectory ?? options.releaseDir;
+            const browserExecutable = installed?.browserExecutable ?? options.browserExecutable;
+            if (!releaseDirectory || !browserExecutable)
+                throw new Error("RUNTIME_CONFIGURATION_REQUIRED");
+            process.title = "veriq_cli";
             const profile = store().directory;
             await updatePrivate<{ id: string }>(
                 profile,
@@ -415,9 +608,10 @@ program
                 {
                     trust: new TrustStore(profile),
                     root: localRoot(),
-                    secrets: new SecretStore(profile),
-                    releaseDirectory: options.releaseDir,
-                    browserExecutable: options.browserExecutable,
+                    secrets: new SecretStore(profile, entryCredentials),
+                    releaseDirectory,
+                    browserExecutable,
+                    ...(installed ? { execution: installed.execution } : {}),
                     deviceId: identity.id,
                     debug: !!options.debug,
                     retry: !!options.retry,

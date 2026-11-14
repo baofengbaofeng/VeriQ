@@ -3119,6 +3119,18 @@
       "version": "0.1.0",
       "license": "MIT",
       "homepage": "https://github.com/sindresorhus/yocto-queue#readme"
+    },
+    {
+      "name": "@biomejs/biome",
+      "version": "2.6.7",
+      "license": "MIT OR Apache-2.0",
+      "scope": "T18 development-only build tooling"
+    },
+    {
+      "name": "@biomejs/cli-linux-x64",
+      "version": "2.6.7",
+      "license": "MIT OR Apache-2.0",
+      "scope": "T18 development-only build tooling"
     }
   ]
 }

@@ -767,6 +767,7 @@ test("disconnected missing credential failure is durable without a platform requ
         assert.equal(result.outcome, "ERROR");
         assert.equal(result.attempts[0]?.failureCode, "LOCAL_CREDENTIAL_MISSING");
         assert.equal(result.attempts[0]?.processStopped, true);
+        assert.equal(result.attempts[0]?.processStopScope, "NO_PROCESS_SPAWNED");
         const store = await LocalStore.open(join(f.dir, "local"));
         assert.deepEqual(store.result(result.workspaceId, result.localRunId), result);
         assert.equal(store.active(), undefined);
@@ -793,6 +794,7 @@ test("disconnected missing credential failure is durable without a platform requ
             for await (const chunk of req) body += chunk;
             const sent = JSON.parse(body);
             assert.equal(sent.localRunId, result.localRunId);
+            assert.equal(sent.attempts[0].processStopScope, "NO_PROCESS_SPAWNED");
             key = String(req.headers["idempotency-key"]);
             received++;
             res.setHeader("content-type", "application/json");
@@ -947,6 +949,7 @@ test(
                 ),
             );
             assert.equal(result.attempts[0]!.processStopped, true);
+            assert.equal(result.attempts[0]!.processStopScope, "FULL_DESCENDANT_TREE");
             assert.equal(result.revocationStatus, "UNKNOWN");
             const trace = result.attempts[0]!.artifacts.find((a) => a.kind === "TRACE");
             assert(trace);
@@ -954,6 +957,7 @@ test(
             const reports = new LocalReports(join(f.dir, "local"), () => true);
             const reportSnapshot = await reports.snapshot(result.workspaceId, result.localRunId);
             assert.equal(reportSnapshot.reports[0]!.gateNow.passed, false);
+            assert.equal((reportSnapshot.reports[0]!.cases[0]!.attempts[0]!.facts as Record<string, unknown>).processStopScope, "FULL_DESCENDANT_TREE");
             assert.equal(reportSnapshot.reports[0]!.statistics.firstPassCount, 1);
             const { LocalReportAdapter } = await import(
                 new URL("../../web/src/features/reports/adapters.ts", import.meta.url).href
@@ -1066,6 +1070,36 @@ test(
                 retried.attempts[0]!.execution!.namespace,
                 retried.attempts[1]!.execution!.namespace,
             );
+            /** 故障仅注入真实 SQLite 已写入 SPAWNING 事务的 COMMIT 操作，后续回滚、停止和报告仍走生产流程；未提交意图不能因内存 owner 仍是 ALLOCATED 而产生未派生回执，也不能因开启重试而再次派生。 */
+            const { DatabaseSync } = await import("node:sqlite");
+            const originalExec = DatabaseSync.prototype.exec;
+            let injected = false;
+            const commitFault = mock.method(DatabaseSync.prototype, "exec", function(this: InstanceType<typeof DatabaseSync>, sql: string) {
+                if (!injected && sql === "COMMIT" && this.prepare("SELECT state FROM veriq_local_owner WHERE singleton=1").get()?.state === "SPAWNING") {
+                    injected = true;
+                    throw new Error("SQLITE_COMMIT_FAILED");
+                }
+                return originalExec.call(this, sql);
+            });
+            try {
+                const faultRoot = join(f.dir, "commit-fault");
+                const faultResult = await runOffline(bundle, {
+                    trust: f.trust, root: faultRoot, secrets, releaseDirectory: release,
+                    browserExecutable: process.env.VERIQ_TEST_CHROMIUM ?? "/usr/bin/chromium",
+                    deviceId: id(90), retry: true,
+                });
+                assert.equal(injected, true);
+                assert.equal(faultResult.attempts.length, 1);
+                assert.equal(faultResult.attempts[0]!.processStopped, false);
+                assert.equal(faultResult.attempts[0]!.processStopScope, undefined);
+                const faultStore = await LocalStore.open(faultRoot);
+                assert.equal(faultStore.active()?.state, "QUARANTINED");
+                assert.deepEqual(faultStore.result(faultResult.workspaceId, faultResult.localRunId), faultResult);
+                faultStore.close();
+                await assert.rejects(readFile(join(faultRoot, "processes", `${faultResult.attempts[0]!.attemptId}.process.json`)), { code: "ENOENT" });
+            } finally {
+                commitFault.mock.restore();
+            }
             hang = true;
             let reached = new Promise<void>((resolve) => {
                 observed = resolve;
@@ -1086,6 +1120,7 @@ test(
             const cancelledResult = await cancelled;
             assert.equal(cancelledResult.outcome, "CANCELLED");
             assert.equal(cancelledResult.attempts[0]!.processStopped, true);
+            assert.equal(cancelledResult.attempts[0]!.processStopScope, "FULL_DESCENDANT_TREE");
             const { spawn } = await import("node:child_process");
             reached = new Promise<void>((resolve) => {
                 observed = resolve;
@@ -1120,8 +1155,13 @@ test(
             const { recoverOffline } = await import("../src/offline/run.ts");
             const recovered = await recoverOffline(join(f.dir, "local"));
             assert.equal(recovered?.processStopped, true);
+            assert.equal(recovered?.processStopScope, "FULL_DESCENDANT_TREE");
             const recoveredStore = await LocalStore.open(join(f.dir, "local"));
             assert.equal(recoveredStore.active(), undefined);
+            const recoveredRun = recoveredStore.history(id(99)).find(row =>
+                recoveredStore.result(id(99), String(row.id)).attempts.some(attempt => attempt.attemptId === recovered?.attemptId));
+            assert(recoveredRun);
+            assert.equal(recoveredStore.result(id(99), String(recoveredRun.id)).attempts.find(attempt => attempt.attemptId === recovered?.attemptId)!.processStopScope, "FULL_DESCENDANT_TREE");
             assert(recoveredStore.history(id(99)).some((r) => r.state === "FINISHED"));
             recoveredStore.close();
         } finally {

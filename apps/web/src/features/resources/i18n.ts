@@ -3,7 +3,7 @@
  * 报告模块通过 addResourceBundle 挂接 reports ns；AI 使用独立实例。
  */
 
-import i18next from "i18next";
+import i18next, { type i18n } from "i18next";
 import { initReactI18next } from "react-i18next";
 const zh = {
     resources: "资源 / Resources",
@@ -65,14 +65,12 @@ const en: typeof zh = {
     invalid: "Correct validation issues",
     conflict:
         "The remote draft changed. Your local content is retained; compare before reapplying.",
-    readonly:
-        "Read only: your role, archive state or local snapshot does not allow changes.",
+    readonly: "Read only: your role, archive state or local snapshot does not allow changes.",
     impact: "Reference impact",
     versions: "Immutable versions and diff",
     source: "Actual generated TypeScript (read only)",
     noSource: "Publish and select a version to inspect actual generated files.",
-    queued:
-        "Waiting for an available managed compiler Runtime; queued is not validated.",
+    queued: "Waiting for an available managed compiler Runtime; queued is not validated.",
     success: "Compilation validated",
     archive: "Archive",
     restore: "Restore",
@@ -85,18 +83,16 @@ const en: typeof zh = {
  * 已初始化的共享编辑器 i18n，默认中文，interpolation.escapeValue=false 以允许内嵌标记。
  * ResourcePage 与 EnvironmentPage 均注入此实例。
  */
-export const editorI18n = i18next.createInstance();
-void editorI18n
-    .use(initReactI18next)
-    .init({
-        resources: { zh: { translation: zh }, en: { translation: en } },
-        lng: "zh",
-        fallbackLng: "en",
-        interpolation: { escapeValue: false },
-        initImmediate: false,
-    });
+export const editorI18n: i18n = i18next.createInstance();
+void editorI18n.use(initReactI18next).init({
+    resources: { zh: { translation: zh }, en: { translation: en } },
+    lng: "zh",
+    fallbackLng: "en",
+    interpolation: { escapeValue: false },
+    initImmediate: false,
+});
 /**
  * 预置 { i18n: editorI18n }，供 useTranslation(..., useEditorTranslationOptions) 少写样板。
  * 不要把 aiI18n 混入此对象。
  */
-export const useEditorTranslationOptions = { i18n: editorI18n };
+export const useEditorTranslationOptions: { i18n: i18n } = { i18n: editorI18n };

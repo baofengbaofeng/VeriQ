@@ -292,3 +292,28 @@ test("execution tokens have independent plan scopes and maintenance supports all
         false,
     );
 });
+
+/** Runtime 能力通过规范引用同时约束公开注册与内部认领的声明，复用跨语言样本检查四组目标和非法字段；这里的 Mac 正例仅证明合同接受，不证明设备具备执行、监督或安装能力。 */
+const runtimeCapabilityFixtures: { name: string; value: unknown; valid: boolean }[] =
+    fixtures.filter((sample: { schema: string }) => sample.schema === "RuntimeCapabilitiesV1");
+test.each(runtimeCapabilityFixtures)(
+    "OpenAPI runtime capability contract: $name",
+    ({ value, valid }) => {
+        expect(validate("RuntimeCapabilitiesV1", value)).toBe(valid);
+    },
+);
+
+// 停止范围只描述客户端声明的保证边界，旧请求可以继续省略该字段，但显式空值和未知字符串必须由共同的正式合同拒绝以防传播错误事实。
+test("reconciliation accepts only explicit known scopes and retains legacy omission", () => {
+    const value = {
+        fencingToken: 1,
+        processStopped: false,
+        cleanupStatus: "PENDING",
+        stoppedAt: "2026-11-14T00:00:00Z",
+    };
+    expect(validate("ReconcileRequest", value)).toBe(true);
+    for (const scope of ["FULL_DESCENDANT_TREE", "CONTROLLED_WORKER_BROWSER", "NO_PROCESS_SPAWNED"])
+        expect(validate("ReconcileRequest", { ...value, processStopScope: scope })).toBe(true);
+    for (const scope of [null, "UNKNOWN", false, 7])
+        expect(validate("ReconcileRequest", { ...value, processStopScope: scope })).toBe(false);
+});

@@ -4,8 +4,12 @@
  */
 
 import { useEffect, useRef } from "react";
+/** Monaco 的精简编辑器入口不会提前登记所有功能服务，语言模式的异步加载却可能随后启用这些功能；首次创建编辑器前导入官方注册集合，防止离线分包顺序产生未知服务错误。 */
+import "monaco-editor/features/register.all";
 import * as monaco from "monaco-editor/editor";
 import "monaco-editor/language/json/monaco.contribution";
+/** TypeScript 的语言服务只订阅语言激活事件，不会自行登记语言标识；必须同时加载同版官方语言定义，使只读生成源码真正创建 TypeScript 模型并启动匹配的本地语言 worker。 */
+import "monaco-editor/languages/definitions/typescript/register";
 import "monaco-editor/language/typescript/monaco.contribution";
 import EditorWorker from "monaco-editor/editor/editor.worker?worker";
 import JsonWorker from "monaco-editor/language/json/json.worker?worker";

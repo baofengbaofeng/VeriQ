@@ -194,6 +194,8 @@ test('actual approved generated TS runs with fresh browser/fixture/workdir and r
             }
             assert(result.completion, `missing actual completion: ${JSON.stringify(result.stop)}`);
             assert.equal(result.stop.processStopped, true);
+            assert.equal(result.stop.processStopScope, "FULL_DESCENDANT_TREE");
+            assert.equal(result.completion.processStopScope, result.stop.processStopScope);
             assert(result.files.some(f => f.kind === 'TRACE' && f.file.sensitivity === 'CREDENTIAL_RESTRICTED' && f.file.sizeBytes > 0));
             assert.deepEqual(supervisor.processes.active(), []);
             await rm(join(root, 'agent/work', claim.attemptId), { recursive: true, force: true });
@@ -205,6 +207,7 @@ test('actual approved generated TS runs with fresh browser/fixture/workdir and r
         assert.equal(recovered.completion, undefined);
         assert.equal(recovered.stop.processStopped, true);
         assert.equal(recovered.stop.reason, 'NETWORK_UNAVAILABLE');
+        assert.equal(recovered.stop.processStopScope, 'NO_PROCESS_SPAWNED');
         assert.equal(fixtures.length, 2);
         assert.deepEqual(supervisor.processes.active(), []);
         assert.equal(results[0]!.completion!.businessOutcome, 'FAILED');

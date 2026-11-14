@@ -2,9 +2,9 @@
  * 本文件编排 Claimed Attempt 的激活、编译、派生子进程与证据收集：崩溃恢复后对账停机：租约耗尽时必须排空进程树。
  */
 
-import { mkdtemp, mkdir, readFile, writeFile, copyFile, readdir, rm, rename } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, copyFile, readdir, rm, rename, open, lstat, unlink, type FileHandle } from 'node:fs/promises';
+import { constants } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -14,11 +14,16 @@ import { RuntimeError } from '../enrollment.ts';
 import { leaseDeadline } from '../lease.ts';
 import { AgentClient, type Claim } from '../agent/transport.ts';
 import { Heartbeat } from '../agent/heartbeat.ts';
+import { isPreSpawnState } from './pre-spawn.ts';
+import { ProcessRecords } from './records.ts';
 import { ProcessSupervisor, type StopReceipt, type OwnedProcess } from './processes.ts';
 import { EventBuffer } from './events.ts';
 import { AttemptBroker } from './broker.ts';
 import { monitorStorage } from './storage.ts';
 import { loadRelease, sha256 } from './release.ts';
+import { developmentExecutionPaths, containedPath, type ExecutionPaths } from './paths.ts';
+import { offlineWorkerEnvironment } from '../offline/worker-environment.ts';
+import { privateDirectory } from '../offline/config.ts';
 /**
  * 公开接口 ClaimedAttempt 绑定一次认领结果与收发单调时刻：供 leaseDeadline 换算与 runAttempt 使用。
  */
@@ -53,13 +58,15 @@ export interface SupervisorOptions {
     releaseDirectory: string;
     browserExecutable: string;
     storageLimit?: number;
-    npmExecutable?: string;
+    /** 独立安装入口提供已验证的角色与辅助模块物理路径，缺省只适用于现有源码开发调用；业务 Job 不可覆盖这个宿主设置，Runner 子进程继续继承自身固定 Node 的 execPath。 */
+    execution?: ExecutionPaths;
 }
 interface AttemptJournal {
     claimRequestId?: string;
     claim: Claim;
     state: 'ALLOCATED' | 'ACTIVATING' | 'ACTIVATED' | 'SPAWNING' | 'RUNNING' | 'STOPPED';
     work: string;
+    stop?: StopReceipt;
 }
 const json = async <T>(path: string): Promise<T> => JSON.parse(await readFile(path, 'utf8')) as T;
 /**
@@ -67,13 +74,70 @@ const json = async <T>(path: string): Promise<T> => JSON.parse(await readFile(pa
  */
 export class ExecutionSupervisor {
     readonly processes: ProcessSupervisor;
-    constructor(private options: SupervisorOptions) { this.processes = new ProcessSupervisor(join(options.root, 'processes')); }
+    constructor(private options: SupervisorOptions) { this.processes = new ProcessSupervisor(join(options.root, 'processes'), 500, options.execution?.guardianExecutable); }
     private async journal(value: AttemptJournal) {
+        /** 在线日志仅接受具有可核目录提交条件的平台，现有 Windows 原子替换只刷新文件句柄而无父目录持久承诺；此处明确失败关闭，不吞掉不支持错误，也不借用路径写入来开放 Darwin。 */
+        if (process.platform !== 'linux') throw new Error('ONLINE_JOURNAL_DURABILITY_UNSUPPORTED');
         const directory = join(this.options.root, 'attempts');
-        await mkdir(directory, { recursive: true, mode: 0o700 });
-        const path = join(directory, `${value.claim.attemptId}.json`), temporary = `${path}.${randomUUID()}`;
-        await writeFile(temporary, JSON.stringify(value), { mode: 0o600, flag: 'wx', flush: true });
-        await rename(temporary, path);
+        await privateDirectory(directory);
+        const parent = await open(directory, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+        const path = join(`/proc/self/fd/${parent.fd}`, `${value.claim.attemptId}.json`);
+        const temporary = `${path}.${randomUUID()}`;
+        let staged: FileHandle | undefined, published = false;
+        try {
+            const info = await parent.stat();
+            if (info.uid !== process.getuid!() || (info.mode & 0o777) !== 0o700)
+                throw new Error('UNSAFE_CONFIGURATION');
+            staged = await open(temporary, 'wx', 0o600);
+            await staged.writeFile(JSON.stringify(value));
+            await staged.sync();
+            await rename(temporary, path);
+            published = true;
+            /** 文件刷新仅保证临时对象内容，目录刷新才确认原子发布的名称；任何一次失败都向上传播，派生门不会因为内存状态已改写或磁盘上偶然可见新内容而提前打开。 */
+            await parent.sync();
+        } catch (error) {
+            /** 只退休本次 wx 创建且尚未发布的原始临时 inode，旧 staging 和被替换的名称都保留以供显式恢复；写入、刷新或 rename 失败不能留下自有可清理垃圾，也不能借清理掩盖未知提交或删除别人的记录。 */
+            if (staged && !published) {
+                const owned = await staged.stat();
+                const current = await lstat(temporary).catch(missing => {
+                    if ((missing as NodeJS.ErrnoException).code !== 'ENOENT') throw missing;
+                });
+                if (current?.isFile() && current.dev === owned.dev && current.ino === owned.ino) {
+                    await unlink(temporary);
+                    await parent.sync();
+                }
+            }
+            throw error;
+        } finally {
+            try { await staged?.close(); }
+            finally { await parent.close(); }
+        }
+    }
+    /** 未派生判定只接受当前明确提交完成的前置状态，既不依赖内存 child 句柄缺失也不解释错误 reason；恢复还必须排除私有原生记录中的启动意图，以免旧发布窗口中的不一致被当成容量释放授权。 */
+    private async unspawned(record: AttemptJournal, committed: boolean): Promise<StopReceipt | undefined> {
+        if (!committed || process.platform !== 'linux' || !isPreSpawnState(record.state, 'ONLINE')) return;
+        /** 旧日志的发布曾缺父目录刷新，单看白名单还不足以排除残留原生启动意图；通过既有私有记录会话检查同一 Attempt 的进程与证明成员，任一存在或读取不确定都转交真实停止而非推断根进程消失。 */
+        try {
+            const records = await ProcessRecords.open(join(this.options.root, 'processes'));
+            if (records) {
+                try {
+                    for (const suffix of ['process.json', 'drained.json']) {
+                        try {
+                            await records.read(`${record.claim.attemptId}.${suffix}`, 65536);
+                            return;
+                        } catch (error) {
+                            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return;
+                        }
+                    }
+                } finally {
+                    await records.close();
+                }
+            }
+        } catch {
+            return;
+        }
+        return { attemptId: record.claim.attemptId, processStopped: true,
+            processStopScope: 'NO_PROCESS_SPAWNED', reason: 'NO_PROCESS_SPAWNED', stoppedAt: new Date().toISOString() };
     }
     /**
      * 公开方法 terminateAttempt 委托 ProcessSupervisor 执行停机：在恢复路径上对未排空进程隔离容量。
@@ -84,21 +148,44 @@ export class ExecutionSupervisor {
      */
     async recover(): Promise<(StopReceipt & {claimRequestId?: string})[]> {
         const directory = join(this.options.root, 'attempts');
-        await mkdir(directory, { recursive: true, mode: 0o700 });
         const receipts: (StopReceipt & {claimRequestId?: string})[] = [];
-        for (const name of await readdir(directory)) {
-            if (!name.endsWith('.json'))
-                continue;
-            const record = await json<AttemptJournal>(join(directory, name));
-            const stop = ['ALLOCATED', 'ACTIVATING', 'ACTIVATED'].includes(record.state)
-                ? { attemptId: record.claim.attemptId, processStopped: true, reason: 'NO_PROCESS_SPAWNED', stoppedAt: new Date().toISOString() }
-                : await this.terminateAttempt(record.claim.attemptId, 'AGENT_RECOVERY');
-            await this.reconcile(record.claim, stop, 'PENDING');
-            receipts.push({...stop, ...(record.claimRequestId ? {claimRequestId: record.claimRequestId} : {})});
+        /** 恢复中的白名单是容量释放依据，必须复用实际私有记录能力读取，不能按路径跟随链接或接受宽权限文件；同一只读会话保持目录身份，旧历史也不会在核验前被收紧权限或改写。 */
+        const records = await ProcessRecords.open(directory);
+        if (!records) return receipts;
+        try {
+            const { names, interrupted } = await records.journalNames(4096);
+            const recovered = new Set<string>();
+            for (const name of names) {
+                if (!name.endsWith('.json')) continue;
+                const record = await records.read(name, 65536) as AttemptJournal;
+                /** 临时对象可能包含尚未结清的 SPAWNING，即便旧正式日志仍是前置状态也不能走未派生快捷路径；只隔离受影响 Attempt，其余正式日志继续执行原有内核停止核验和对账。 */
+                let stop = await this.unspawned(record, !interrupted.has(record.claim.attemptId))
+                    ?? await this.terminateAttempt(record.claim.attemptId, 'AGENT_RECOVERY');
+                recovered.add(record.claim.attemptId);
+                if (interrupted.has(record.claim.attemptId) && !stop.processStopped && stop.reason === 'UNKNOWN_PROCESS')
+                    stop.reason = 'JOURNAL_STAGING_UNCONFIRMED';
+                if (stop.processStopped && stop.processStopScope !== 'NO_PROCESS_SPAWNED') record.state = 'STOPPED';
+                record.stop = stop;
+                try {
+                    await this.journal(record);
+                } catch {
+                    if (stop.processStopScope === 'NO_PROCESS_SPAWNED')
+                        stop = { attemptId: record.claim.attemptId, processStopped: false, reason: 'JOURNAL_COMMIT_UNCONFIRMED', stoppedAt: new Date().toISOString() };
+                }
+                await this.reconcile(record.claim, stop, 'PENDING');
+                receipts.push({...stop, ...(record.claimRequestId ? {claimRequestId: record.claimRequestId} : {})});
+            }
+            /** 仅有临时成员时没有已提交 Claim 或 fence 可用于网络对账，仍返回明确未知以阻止 claimLoop 再认领；不删除旧文件，不凭临时 JSON 内容发信号或制造未派生成功，其他已提交 Attempt 的对账已经完成。 */
+            for (const id of interrupted) {
+                if (!recovered.has(id)) receipts.push({ attemptId: id, processStopped: false,
+                    reason: 'JOURNAL_STAGING_UNCONFIRMED', stoppedAt: new Date().toISOString() });
+            }
+        } finally {
+            await records.close();
         }
         return receipts;
     }
-    private reconcile(claim: Claim, stop: StopReceipt, cleanupStatus: CleanupStatus) { return this.options.client.request(`/internal/v1/attempts/${claim.attemptId}/reconcile`, 'POST', { fencingToken: claim.fencingToken, processStopped: stop.processStopped, cleanupStatus, stoppedAt: stop.stoppedAt }); }
+    private reconcile(claim: Claim, stop: StopReceipt, cleanupStatus: CleanupStatus) { return this.options.client.request(`/internal/v1/attempts/${claim.attemptId}/reconcile`, 'POST', { fencingToken: claim.fencingToken, processStopped: stop.processStopped, ...(stop.processStopScope !== undefined ? { processStopScope: stop.processStopScope } : {}), cleanupStatus, stoppedAt: stop.stoppedAt }); }
     /**
      * 公开方法 runAttempt 在租约预算内激活并执行一次 Claim：心跳、存储监控与 fencing 贯穿全程：完成后上传证据并提交 CompletionManifest。
      */
@@ -107,11 +194,19 @@ export class ExecutionSupervisor {
         leaseDeadline({ ...claim, leaseExpiresAt: claim.expiresAt }, assignment.requestStarted, assignment.responseReceived);
         if (process.platform !== 'linux')
             throw new Error('UNSUPPORTED_PROCESS_PLATFORM');
+        const executionPaths = this.options.execution ?? developmentExecutionPaths();
         const work = join(this.options.root, 'work', claim.attemptId);
         await mkdir(work, { recursive: true, mode: 0o700 });
         const tmp = await mkdtemp(join(tmpdir(), 'veriq-a-')); // Chromium AF_UNIX paths must fit108 bytes.
         const record: AttemptJournal = { claim, state: 'ALLOCATED', work, ...(assignment.claimRequestId ? {claimRequestId: assignment.claimRequestId} : {}) };
-        await this.journal(record);
+        let journalCommitted = false;
+        const commit = async () => {
+            /** 每次提交开始先撤销内存中的持久判定，异常时不恢复旧白名单；尤其 ACTIVATING 或 ACTIVATED 写入出错不能被 catch 当作已落盘的未派生证明，SPAWNING 提交成功才允许实际派生。 */
+            journalCommitted = false;
+            await this.journal(record);
+            journalCommitted = true;
+        };
+        await commit();
         const client = this.options.client, events = new EventBuffer(claim, client), controller = new AbortController();
         let reason: string | undefined, child: OwnedProcess | undefined, broker: AttemptBroker | undefined, monitor: ReturnType<typeof monitorStorage> | undefined;
         let stop: StopReceipt | undefined, caseResult: CaseResult | undefined, manifest: JobManifestV1 | undefined;
@@ -210,7 +305,7 @@ export class ExecutionSupervisor {
                         path: string;
                         sensitivity: 'CREDENTIAL_RESTRICTED';
                     };
-                    if (evidence.kind !== 'DOWNLOAD' || evidence.sensitivity !== 'CREDENTIAL_RESTRICTED' || !resolve(evidence.path).startsWith(resolve(tmp) + '/'))
+                    if (evidence.kind !== 'DOWNLOAD' || evidence.sensitivity !== 'CREDENTIAL_RESTRICTED' || !containedPath(tmp, resolve(evidence.path)))
                         throw new Error('UNSAFE_EVIDENCE');
                     const bytes = await readFile(evidence.path);
                     const name = `download-${files.length}.bin`;
@@ -221,12 +316,12 @@ export class ExecutionSupervisor {
                 throw new Error('INVALID_IPC_OPERATION');
             });
             await broker.open();
-            const invocation = { kind: manifest.kind, work, tmp, socket: broker.path, nonce: broker.nonce, downloads: join(tmp, 'downloads'), downloadLimit: 16 * 1024 * 1024, npm: this.options.npmExecutable ?? join(dirname(process.execPath), 'npm'), tsx: fileURLToPath(import.meta.resolve('tsx')) };
+            const invocation = { kind: manifest.kind, work, tmp, socket: broker.path, nonce: broker.nonce, downloads: join(tmp, 'downloads'), downloadLimit: 16 * 1024 * 1024, npmCli: executionPaths.npmCli, tsx: executionPaths.tsx };
             await mkdir(invocation.downloads, { mode: 0o700 });
             await write('invocation.json', canonicalBytes(invocation));
             await write('release.json', canonicalBytes(release.entry));
             for (const file of ['provider.mjs', 'compile-entry.mjs'])
-                await copyFile(fileURLToPath(new URL(file, import.meta.url)), join(work, file));
+                await copyFile(file === 'provider.mjs' ? executionPaths.providerEntry : executionPaths.compileEntry, join(work, file));
             if (bundle && execution) {
                 const entry = bundle.entrypoints.find(e => e.caseVersionId === execution!.caseVersionId);
                 if (!entry)
@@ -237,10 +332,10 @@ export class ExecutionSupervisor {
             if (controller.signal.aborted)
                 throw new Error('ATTEMPT_STOPPING');
             record.state = 'ACTIVATING';
-            await this.journal(record);
+            await commit();
             await client.request(`/internal/v1/attempts/${claim.attemptId}/activate`, 'POST', { leaseToken: claim.leaseToken, fencingToken: claim.fencingToken }, controller.signal);
             record.state = 'ACTIVATED';
-            await this.journal(record);
+            await commit();
             heartbeat.activated();
             if (controller.signal.aborted)
                 throw new Error('ATTEMPT_STOPPING');
@@ -249,10 +344,10 @@ export class ExecutionSupervisor {
             monitor = monitorStorage(tmp, this.options.storageLimit ?? 64 * 1024 * 1024, async (why) => { stopRequest(why); if (child)
                 await this.terminateAttempt(claim.attemptId, why); });
             record.state = 'SPAWNING';
-            await this.journal(record);
-            child = await this.processes.start(claim.attemptId, { executable: process.execPath, args: [fileURLToPath(new URL('worker.mjs', import.meta.url)), join(work, 'invocation.json')], cwd: work, env: { PATH: `${dirname(process.execPath)}:/usr/bin:/bin`, TMPDIR: tmp, XDG_CACHE_HOME: join(tmp, 'cache'), XDG_CONFIG_HOME: join(tmp, 'config'), VERIQ_EXECUTION_CONTEXT_MODULE: join(work, 'provider.mjs') } });
+            await commit();
+            child = await this.processes.start(claim.attemptId, { executable: executionPaths.runnerExecutable, args: [executionPaths.workerEntry, join(work, 'invocation.json')], cwd: work, env: offlineWorkerEnvironment(tmp, join(work, 'provider.mjs'), true, process.env, { runnerExecutable: executionPaths.runnerExecutable }) });
             record.state = 'RUNNING';
-            await this.journal(record);
+            await commit();
             if (controller.signal.aborted)
                 throw new Error('ATTEMPT_STOPPING');
             child.send({ type: 'START' });
@@ -267,7 +362,8 @@ export class ExecutionSupervisor {
             if (!stop.processStopped)
                 throw new Error('PROCESS_STOP_UNCONFIRMED');
             record.state = 'STOPPED';
-            await this.journal(record);
+            record.stop = stop;
+            await commit();
             monitor.close();
             const workerResult = await json<{
                 kind: string;
@@ -327,7 +423,7 @@ export class ExecutionSupervisor {
                 events.append({ type: 'ARTIFACT_CREATED', payload: { artifactId, file: file.file, kind: file.kind } });
             }
             const evidence = files.map(f => f.file), requiredEvidence = files.filter(f => ['TRACE', 'LOG'].includes(f.kind)).map(f => f.file.sha256);
-            const common = { schemaVersion: '1.0' as const, attemptId: claim.attemptId, jobManifestSha256: claim.snapshotSha256, cleanupStatus, evidence, requiredEvidence, processStopped: true as const };
+            const common = { schemaVersion: '1.0' as const, attemptId: claim.attemptId, jobManifestSha256: claim.snapshotSha256, cleanupStatus, evidence, requiredEvidence, processStopped: true as const, ...(stop.processStopScope !== undefined ? { processStopScope: stop.processStopScope } : {}) };
             let completion: CompletionManifestV1;
             if (manifest.kind === 'TEST')
                 completion = { ...common, kind: 'TEST', retrySafety: caseResult!.retrySafety ?? 'UNKNOWN', businessOutcome: caseResult!.businessOutcome, caseVersionId: manifest.caseVersionId, expectedPlansSha256: sha256(await readFile(join(work, 'metadata/expected-plans.json'))) };
@@ -357,7 +453,17 @@ export class ExecutionSupervisor {
             if (stop)
                 stop.reason = failure;
             reason ??= failure;
-            stop ??= child ? await this.terminateAttempt(claim.attemptId, reason ?? 'EXECUTION_ERROR') : { attemptId: claim.attemptId, processStopped: record.state !== 'SPAWNING', reason: record.state === 'SPAWNING' ? 'UNKNOWN_PROCESS' : failure, stoppedAt: new Date().toISOString() };
+            stop ??= await this.unspawned(record, journalCommitted)
+                ?? await this.terminateAttempt(claim.attemptId, reason ?? 'EXECUTION_ERROR');
+            if (stop.processStopScope === 'NO_PROCESS_SPAWNED') stop.reason = failure;
+            record.stop = stop;
+            try {
+                await commit();
+            } catch {
+                /** 正常进程停止仍由独立内核证明支持，但未派生结论不能跨越当前日志提交失败继续释放容量；保留失败返回值且不覆盖磁盘上可能仍是旧代际的内容，供下一次显式恢复重新核验。 */
+                if (stop.processStopScope === 'NO_PROCESS_SPAWNED')
+                    stop = { attemptId: claim.attemptId, processStopped: false, reason: 'JOURNAL_COMMIT_UNCONFIRMED', stoppedAt: new Date().toISOString() };
+            }
             await this.reconcile(claim, stop, caseResult?.cleanupStatus ?? (child ? 'PENDING' : 'NOT_REQUIRED')).catch(() => { });
             return { stop, files };
         }

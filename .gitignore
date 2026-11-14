@@ -214,6 +214,7 @@ node_modules/
 *.tsbuildinfo
 /output/
 /work/
+/apps/srv/src/veriq_server/release/engine-inventory.json
 /.superpowers/
 
 # Ruff stuff:
@@ -229,3 +230,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+/apps/web/dist-desktop/
+/apps/desktop/out/
+
+/apps/desktop/build/

@@ -1,8 +1,8 @@
 packages:
-  - apps/web
-  - apps/desktop
-  - apps/runtime
-  - packages/*
+    - apps/web
+    - apps/desktop
+    - apps/runtime
+    - packages/*
 
 minimumReleaseAge: 1440
 strictPeerDependencies: true
@@ -12,9 +12,11 @@ storeDir: .pnpm-store
 enableGlobalVirtualStore: false
 verifyDepsBeforeRun: error
 overrides:
-  monaco-editor>dompurify: 3.4.17
-  vitest>vite: 6.4.5
+    "app-builder-lib@26.18.1>minimatch": 11.0.1
+    "@electron/universal@2.0.3>minimatch": 11.0.1
+    monaco-editor>dompurify: 3.4.17
+    vitest>vite: 6.4.5
 allowBuilds:
-  esbuild: true
-  electron: true
-  electron-winstaller: true
+    esbuild: true
+    electron: true
+    electron-winstaller: true

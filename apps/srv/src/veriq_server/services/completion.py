@@ -3,7 +3,6 @@ finish 校验围栏与租约后写入 outcome；validation 生成 ValidationRece
 retry_is_safe 判断失败是否允许整案重试，避免不安全副作用重放。
 """
 
-
 import json
 from hashlib import sha256
 from typing import Any
@@ -23,12 +22,14 @@ from .jobs import require_requester, database_time
 from .lease import LeaseService
 from .results import reduce_test, aggregate
 from .runtime import RuntimeService
+from .process_stop import validate_process_stop_claim
 
 
 class CompletionService:
     """在租约证明下完成 Attempt 收尾、事件持久化与结果聚合，CompletionService 遵守本文件边界，失败返回稳定 Problem。
     CompletionService 实现于 apps/srv/src/veriq_server/services/completion.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
+
     def __init__(self, session: AsyncSession, settings: Settings):
         """注入会话与 Settings，供租约校验与重试策略读取，CompletionService.__init__ 遵守本文件边界。
         __init__ 实现于 apps/srv/src/veriq_server/services/completion.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
@@ -117,6 +118,10 @@ class CompletionService:
             or manifest["cleanupStatus"] != data["cleanupStatus"]
         ):
             raise Problem(409, "INVALID_COMPLETION", "Completion does not match frozen assignment")
+        # 完成清单先通过身份、租约和原始字节绑定后才校验范围，保证任何归约或发布回执都不会把错平台的正声明变成可释放的在线容量证明。
+        validate_process_stop_claim(
+            runtime.capabilities, manifest["processStopped"], manifest.get("processStopScope")
+        )
         events = [
             r.document
             for r in (
@@ -235,6 +240,10 @@ class CompletionService:
                 if status == "SUCCEEDED" and evidence_complete
                 else "INCOMPLETE",
             }
+        # 各 kind 的归约器只裁定业务结果；停止布尔值与实际提供的范围单独保留，历史清单未声明范围时不得替它补造全后代或受控集合的保证。
+        facts["processStopped"] = manifest["processStopped"]
+        if "processStopScope" in manifest:
+            facts["processStopScope"] = manifest["processStopScope"]
         was_cancelled = job.state == "CANCEL_REQUESTED"
         attempt.phase, attempt.outcome, attempt.facts = "FINISHED", facts["outcome"], facts
         if attempt.finished_at is None:

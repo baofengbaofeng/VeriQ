@@ -23,6 +23,7 @@ test("owned Linux process group stops its real descendants and excludes parent s
         assert.equal((await readFile(`/proc/${observed.pid}/comm`, "utf8")).trim(), "veriq_runner");
         const receipt = await processes.terminateAttempt("attempt-one", "USER_CANCELLED");
         assert.equal(receipt.processStopped, true);
+        assert.equal(receipt.processStopScope, "FULL_DESCENDANT_TREE");
         assert.equal(await processes.isRunning(observed.child), false);
         assert.deepEqual(processes.active(), []);
     } finally {
@@ -37,6 +38,7 @@ test("an unrecognized journal never claims process stop or releases quarantine",
         const processes = new ProcessSupervisor(directory);
         const receipt = await processes.terminateAttempt("unknown", "RECOVERY");
         assert.equal(receipt.processStopped, false);
+        assert.equal(receipt.processStopScope, undefined);
         assert.equal(receipt.reason, "UNKNOWN_PROCESS");
     } finally {
         await rm(directory, { recursive: true, force: true });
@@ -114,6 +116,7 @@ test("a restarted supervisor reconciles an owned live group, while changed start
         await writeFile(path, original, { mode: 0o600 });
         const stopped = await recovered.terminateAttempt("recovery", "RECOVERY");
         assert.equal(stopped.processStopped, true);
+        assert.equal(stopped.processStopScope, "FULL_DESCENDANT_TREE");
         assert.equal(await recovered.isRunning(child.pid), false);
     } finally {
         await first.terminateAttempt("recovery", "TEST_FINALLY");
@@ -137,6 +140,7 @@ test("stop also confirms detached descendant process groups, as used by browser 
         detached = Number(await child.firstLine());
         const stopped = await supervisor.terminateAttempt("detached", "CANCELLED");
         assert.equal(stopped.processStopped, true);
+        assert.equal(stopped.processStopScope, "FULL_DESCENDANT_TREE");
         assert.equal(await supervisor.isRunning(detached), false);
     } finally {
         if (detached && (await supervisor.isRunning(detached))) process.kill(-detached, "SIGKILL");
@@ -166,6 +170,7 @@ test("a changed execution UID in the private journal cannot authorize signalling
         );
         const receipt = await supervisor.terminateAttempt("uid", "RECOVERY");
         assert.equal(receipt.processStopped, false);
+        assert.equal(receipt.processStopScope, undefined);
         assert.equal(await supervisor.isRunning(child.pid), true);
     } finally {
         if (original) await writeFile(path, original, { mode: 0o600 });
@@ -193,6 +198,7 @@ test("orphaned detached child with an empty environment cannot survive a positiv
         await worker.exited;
         const stopped = await supervisor.terminateAttempt("orphan", "REVIEW");
         assert.equal(stopped.processStopped, true);
+        assert.equal(stopped.processStopScope, "FULL_DESCENDANT_TREE");
         assert.equal(await supervisor.isRunning(detached), false);
     } finally {
         if (detached && (await supervisor.isRunning(detached))) process.kill(-detached, "SIGKILL");
@@ -221,6 +227,7 @@ test("guardian death cannot become positive stop even when the known worker is k
         await gone;
         const receipt = await supervisor.terminateAttempt("lost", "GUARDIAN_LOST");
         assert.equal(receipt.processStopped, false);
+        assert.equal(receipt.processStopScope, undefined);
         assert.equal(await supervisor.isRunning(detached), true);
     } finally {
         if (detached && (await supervisor.isRunning(detached))) process.kill(-detached, "SIGKILL");
@@ -376,6 +383,7 @@ test("a changed ownership nonce cannot authorize signalling or reuse a later pro
         );
         const receipt = await supervisor.terminateAttempt("uid", "RECOVERY");
         assert.equal(receipt.processStopped, false);
+        assert.equal(receipt.processStopScope, undefined);
         assert.equal(await supervisor.isRunning(child.pid), true);
     } finally {
         if (original) await writeFile(path, original, { mode: 0o600 });

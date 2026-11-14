@@ -1,8 +1,7 @@
 /**
- * 本文件对运行环境做真实自检：核对 Node24.22.1、引擎包、Chromium 渲染与可选控制 Origin：结果非信任证明（doctor）。
+ * 本文件对运行环境做真实自检：核对稳定独立 Node24.x、引擎包、Chromium 渲染与可选控制 Origin：结果非信任证明（doctor）。
  */
 
-/** Real diagnostics; reported capabilities are never a trust attestation. */
 import { access, readFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -11,6 +10,8 @@ import { arch, platform } from "node:os";
 import { chromium } from "@playwright/test";
 import { controlOrigin } from "./enrollment.ts";
 import type { Capabilities } from "./enrollment.ts";
+import { isIndependentNode24 } from "./node-version.ts";
+import type { EngineRelease } from "./execution/release.ts";
 
 /**
  * 公开接口 DoctorResult 保存逐项检查的 name/ok/detail 与可选 capabilities：ok 只表示探测通过而非授权（DoctorResult）。
@@ -29,12 +30,15 @@ export async function doctor(
         server?: string | undefined;
         executablePath?: string | undefined;
         signal?: AbortSignal | undefined;
+        /** 安装发行可要求实际浏览器返回精确版本，不能因为另一个浏览器也能渲染页面就申报钉选执行能力；此要求只增加身份校验，不改变现有启动参数、沙箱策略或设备信任级别。 */
+        expectedBrowserVersion?: string;
+        /** 发行上下文只接受调用方已经整体核验库存后提取的组件版本，避免打包后源码包不可解析造成误报；此字段本身不是签名或哈希证明，未提供时仍使用原有包解析路径及兼容版本检查。 */
+        distribution?: Pick<EngineRelease["entry"], "compilerVersion" | "runnerSdkVersion">;
     } = {},
 ): Promise<DoctorResult> {
     const checks: DoctorResult["checks"] = [];
-    const check = (name: string, ok: boolean, detail: string) =>
-        checks.push({ name, ok, detail });
-    check("Node", process.versions.node === "24.22.1", process.versions.node);
+    const check = (name: string, ok: boolean, detail: string) => checks.push({ name, ok, detail });
+    check("Node", isIndependentNode24(process.versions), process.versions.node);
     check(
         "OS / architecture",
         ["linux", "win32"].includes(platform()) && arch() === "x64",
@@ -44,12 +48,25 @@ export async function doctor(
     let engineVersion = "";
     for (const name of ["@veriq/compiler", "@veriq/runner-sdk"])
         try {
-            const entry = require.resolve(name);
-            const manifest = JSON.parse(
-                await readFile(resolve(dirname(entry), "../package.json"), "utf8"),
-            ) as { version: string };
-            check(name, manifest.version === "0.1.0", manifest.version);
-            engineVersion = manifest.version;
+            let version: string;
+            if (options.distribution) {
+                version =
+                    name === "@veriq/compiler"
+                        ? options.distribution.compilerVersion
+                        : options.distribution.runnerSdkVersion;
+            } else {
+                const entry = require.resolve(name);
+                const manifest = JSON.parse(
+                    await readFile(resolve(dirname(entry), "../package.json"), "utf8"),
+                ) as { version: string };
+                version = manifest.version;
+            }
+            check(
+                name,
+                version === "0.1.0",
+                version + (options.distribution ? " (verified distribution)" : ""),
+            );
+            engineVersion = version;
         } catch {
             check(name, false, "Package unavailable");
         }
@@ -68,6 +85,12 @@ export async function doctor(
             headless: true,
             timeout: 10_000,
         });
+        if (options.expectedBrowserVersion)
+            check(
+                "browser version",
+                browser.version() === options.expectedBrowserVersion,
+                browser.version(),
+            );
         const cancel = () => {
             void browser?.close();
         };
@@ -109,11 +132,7 @@ export async function doctor(
                 response.ok ? "Control endpoint reachable" : `HTTP ${response.status}`,
             );
         } catch {
-            check(
-                "control network",
-                false,
-                "Control endpoint unreachable or invalid",
-            );
+            check("control network", false, "Control endpoint unreachable or invalid");
         }
     }
     const ok = checks.every((c) => c.ok);
@@ -122,18 +141,14 @@ export async function doctor(
         checks,
         ...(ok
             ? {
-                    capabilities: {
-                        engineVersion,
-                        os: platform() as "linux" | "win32",
-                        arch: "x64" as const,
-                        browsers: ["chromium" as const],
-                        jobKinds: [
-                            "TEST" as const,
-                            "VALIDATE" as const,
-                            "CLEANUP" as const,
-                        ],
-                    },
-                }
+                  capabilities: {
+                      engineVersion,
+                      os: platform() as "linux" | "win32",
+                      arch: "x64" as const,
+                      browsers: ["chromium" as const],
+                      jobKinds: ["TEST" as const, "VALIDATE" as const, "CLEANUP" as const],
+                  },
+              }
             : {}),
     };
 }

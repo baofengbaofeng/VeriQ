@@ -125,3 +125,34 @@ def test_plan_management_does_not_advertise_execution_bearer_authority():
     ]:
         for operation in paths[path].values():
             assert all("ServiceToken" not in security for security in operation["security"])
+
+
+# 正式 OpenAPI 校验应与共享完成清单采用相同枚举，在进入服务校验前拒绝空值和未知类型，同时允许历史请求完全省略停止范围而不被自动补造字段。
+@pytest.mark.parametrize("scope", [None, "UNKNOWN", False, 7])
+def test_reconcile_rejects_invalid_scope(scope):
+    """服务入口使用的正式 OpenAPI 校验器必须拒绝范围的空值、未知字符串和错误类型，让这些无效声明在进入停止服务之前得到与 Node 一致的合同拒绝结果。"""
+    body = {
+        "fencingToken": 1,
+        "processStopped": False,
+        "cleanupStatus": "PENDING",
+        "stoppedAt": "2026-11-14T00:00:00Z",
+        "processStopScope": scope,
+    }
+    with pytest.raises(ValidationError):
+        validate_api("ReconcileRequest", body)
+
+
+@pytest.mark.parametrize(
+    "scope", [None, "FULL_DESCENDANT_TREE", "CONTROLLED_WORKER_BROWSER", "NO_PROCESS_SPAWNED"]
+)
+def test_reconcile_accepts_known_scope_and_legacy_omission(scope):
+    """三个已定义范围必须可以作为请求正文传到服务，历史客户端完全省略字段时同样保持可报告性，兼容行为不能靠默认填充范围或自动转换请求类型实现。"""
+    body = {
+        "fencingToken": 1,
+        "processStopped": False,
+        "cleanupStatus": "PENDING",
+        "stoppedAt": "2026-11-14T00:00:00Z",
+    }
+    if scope is not None:
+        body["processStopScope"] = scope
+    validate_api("ReconcileRequest", body)

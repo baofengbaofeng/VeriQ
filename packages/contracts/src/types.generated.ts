@@ -944,6 +944,42 @@ export type CompiledAssetBundle = {
   validationOnly?: boolean;
 };
 /**
+ * VeriQ Runtime能力合同仅允许linux/x64、win32/x64、darwin/x64及darwin/arm64；Mac目标最低系统为macOS15，但合同接受不代表设备通过原生执行、进程监督、凭据或安装验收。
+ *
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "RuntimeCapabilitiesV1".
+ */
+export type RuntimeCapabilitiesV1 = {
+  engineVersion: Version;
+  os: "linux" | "win32" | "darwin";
+  arch: "x64" | "arm64";
+  /**
+   * @minItems 0
+   */
+  browsers: Browser[];
+  /**
+   * @minItems 1
+   */
+  jobKinds?: ["TEST" | "VALIDATE" | "CLEANUP", ...("TEST" | "VALIDATE" | "CLEANUP")[]];
+} & RuntimeCapabilitiesV11;
+export type RuntimeCapabilitiesV11 =
+  | {
+      os: "linux";
+      arch: "x64";
+    }
+  | {
+      os: "win32";
+      arch: "x64";
+    }
+  | {
+      os: "darwin";
+      arch: "x64";
+    }
+  | {
+      os: "darwin";
+      arch: "arm64";
+    };
+/**
  * Supported RFC3339 profile: real Gregorian date, year 0001-9999, T/t separator, seconds 00-59, optional fractional seconds, mandatory Z/z or numeric offset (00-23:00-59). No leap seconds, spaces or surrounding whitespace. Emit UTC uppercase T/Z for server timestamps.
  *
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1122,6 +1158,11 @@ export type ActualValueV1 =
 export type ArtifactSensitivity = "REDACTED" | "CREDENTIAL_RESTRICTED";
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "ProcessStopScope".
+ */
+export type ProcessStopScope = "FULL_DESCENDANT_TREE" | "CONTROLLED_WORKER_BROWSER" | "NO_PROCESS_SPAWNED";
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "ValidateCompletionManifestV1".
  */
 export type ValidateCompletionManifestV1 = ValidateSuccessCompletionManifestV1 | ValidateFailureCompletionManifestV1;
@@ -1289,6 +1330,7 @@ export interface ContractDefinitions {
   BundleSelectionV1?: BundleSelectionV1;
   OfflineArtifactV1?: OfflineArtifactV1;
   OfflineExecutionChoicesV1?: OfflineExecutionChoicesV1;
+  ProcessStopScope?: ProcessStopScope;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1646,23 +1688,6 @@ export interface CaseEntrypointV1 {
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
- * via the `definition` "RuntimeCapabilitiesV1".
- */
-export interface RuntimeCapabilitiesV1 {
-  engineVersion: Version;
-  os: "linux" | "win32";
-  arch: "x64";
-  /**
-   * @minItems 0
-   */
-  browsers: Browser[];
-  /**
-   * @minItems 1
-   */
-  jobKinds?: ["TEST" | "VALIDATE" | "CLEANUP", ...("TEST" | "VALIDATE" | "CLEANUP")[]];
-}
-/**
- * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "ClaimRequest".
  */
 export interface ClaimRequest {
@@ -1853,6 +1878,7 @@ export interface OfflineAttemptV1 {
     pathStatus: "EXACT" | "REDACTED";
     message: string;
   }[];
+  processStopScope?: ProcessStopScope;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -2136,6 +2162,7 @@ export interface TestCompletionManifestV1 {
    * Actual business request observation through Context closure. Missing means UNKNOWN; not sufficient without approved expected metadata.
    */
   retrySafety?: "READ_ONLY_OBSERVED" | "WRITE_POSSIBLE" | "UNKNOWN";
+  processStopScope?: ProcessStopScope;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -2159,6 +2186,7 @@ export interface ValidateSuccessCompletionManifestV1 {
   kind: "VALIDATE";
   compiledBundleSha256: Sha256;
   engineInventorySha256: Sha256;
+  processStopScope?: ProcessStopScope;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -2188,6 +2216,7 @@ export interface ValidateFailureCompletionManifestV1 {
    * @maxItems 100
    */
   diagnostics?: CompilerDiagnosticV1[];
+  processStopScope?: ProcessStopScope;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -2221,6 +2250,7 @@ export interface CleanupCompletionManifestV1 {
   kind: "CLEANUP";
   fixtureVersionId: Id;
   namespace: Key;
+  processStopScope?: ProcessStopScope;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema

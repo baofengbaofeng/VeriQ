@@ -217,6 +217,8 @@ class ReportService:
                     "errorCode",
                     "retryReasonCode",
                     "diagnostics",
+                    "processStopped",
+                    "processStopScope",
                 }
             }
             case_id = by_case[attempt.job_id]

@@ -2,20 +2,24 @@
  * 本文件是离线宿主的受限私有配置访问缝：渲染进程不得获得路径、令牌或密钥：读写均施加字节与模式约束（config/UNSAFE_CONFIGURATION）。
  */
 
-/** Restricted native config seam. Renderer never receives paths, tokens, or secrets. */
 import { mkdir, lstat, chmod, open, rename, unlink } from "node:fs/promises";
 import { constants } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import lockfile from "proper-lockfile";
 /**
- * 公开函数 privateDirectory 解析并创建 mode-0700 私有配置目录：供宿主侧持久化信任根与本机密钥。
+ * 私有目录用于宿主持久配置而不是 renderer 文件操作，Windows 在创建时使用当前 SID 可继承保护 DACL 并拒绝祖先重解析；Linux 保留目录类型检查和 0700 权限收紧，不把两种权限模型互相替代。
  */
 export async function privateDirectory(directory: string) {
+    if (process.platform === "win32") {
+        /** Windows 能力模块只在真实平台分支内按固定模块标识延迟导入，避免 Linux 测试入口加载仅供原生宿主使用的 ESM 位置逻辑；模块自身原有装载规则保持不变，配置内容不能选择插件路径或触发回退。 */
+        const { windowsNative } = await import("../native/windows.ts");
+        windowsNative().privatePath(directory, true);
+        return;
+    }
     await mkdir(directory, { recursive: true, mode: 0o700 });
     const st = await lstat(directory);
-    if (!st.isDirectory() || st.isSymbolicLink())
-        throw new Error("UNSAFE_CONFIGURATION");
+    if (!st.isDirectory() || st.isSymbolicLink()) throw new Error("UNSAFE_CONFIGURATION");
     await chmod(directory, 0o700);
 }
 /**
@@ -26,6 +30,11 @@ export async function readBoundedFile(
     limit: number,
     restricted = false,
 ): Promise<Buffer> {
+    /** Windows 私有读取由实际原生文件句柄贯穿授权与读取，不能在验证 DACL 后再调用 Node 按路径重新打开；未受限的公开包读取保留既有库存校验流程，Linux 的描述符与权限合同也保持不变。 */
+    if (restricted && process.platform === "win32") {
+        const { windowsNative } = await import("../native/windows.ts");
+        return windowsNative().readPrivateFile(path, limit);
+    }
     const before = await lstat(path);
     if (!before.isFile() || before.isSymbolicLink() || before.size > limit)
         throw new Error("UNSAFE_CONFIGURATION");
@@ -41,12 +50,7 @@ export async function readBoundedFile(
         const result = Buffer.alloc(st.size);
         let offset = 0;
         while (offset < result.length) {
-            const { bytesRead } = await fd.read(
-                result,
-                offset,
-                result.length - offset,
-                offset,
-            );
+            const { bytesRead } = await fd.read(result, offset, result.length - offset, offset);
             if (!bytesRead) throw new Error("FILE_CHANGED");
             offset += bytesRead;
         }
@@ -59,25 +63,24 @@ export async function readBoundedFile(
 /**
  * 公开函数 readPrivate 从私有目录读取命名 JSON 配置：供信任根与本机密钥等宿主状态使用（readPrivate/UNSAFE_CONFIGURATION）。
  */
-export async function readPrivate<T>(
-    directory: string,
-    name: string,
-): Promise<T> {
+export async function readPrivate<T>(directory: string, name: string): Promise<T> {
+    if (process.platform === "win32") {
+        const { windowsNative } = await import("../native/windows.ts");
+        return JSON.parse(
+            windowsNative()
+                .readPrivateFile(join(directory, name), 1024 * 1024)
+                .toString("utf8"),
+        ) as T;
+    }
     const parent = await lstat(directory);
-    if (
-        !parent.isDirectory() ||
-        parent.isSymbolicLink() ||
-        (process.platform !== "win32" && parent.mode & 0o077)
-    )
+    if (!parent.isDirectory() || parent.isSymbolicLink() || parent.mode & 0o077)
         throw new Error("UNSAFE_CONFIGURATION");
     return JSON.parse(
-        (await readBoundedFile(join(directory, name), 1024 * 1024, true)).toString(
-            "utf8",
-        ),
+        (await readBoundedFile(join(directory, name), 1024 * 1024, true)).toString("utf8"),
     ) as T;
 }
 /**
- * 公开函数 updatePrivate 原子更新私有 JSON 配置：经临时文件替换并保持 0600 权限：防止半写状态被渲染层读到。
+ * 私有 JSON 更新在合作锁内读取上一代并只执行一次调用方回调，内容超限或回调失败不提交；Windows 使用原生句柄原子替换并保留提交不确定性，Linux 保持既有私有临时文件刷新与 rename 流程。
  */
 export async function updatePrivate<T>(
     directory: string,
@@ -88,8 +91,10 @@ export async function updatePrivate<T>(
     const release = await lockfile.lock(directory, {
         realpath: false,
         retries: 0,
+        ...(process.platform === "win32" ? { lockfilePath: join(directory, ".config.lock") } : {}),
     });
-    const tmp = join(directory, `.${randomUUID()}.tmp`);
+    const temporaryName = `.${randomUUID()}.tmp`;
+    const tmp = join(directory, temporaryName);
     try {
         let old: T | undefined;
         try {
@@ -98,8 +103,13 @@ export async function updatePrivate<T>(
             if (!(e instanceof Error && "code" in e && e.code === "ENOENT")) throw e;
         }
         const value = JSON.stringify(update(old));
-        if (Buffer.byteLength(value) > 1024 * 1024)
-            throw new Error("CONFIGURATION_LIMIT");
+        if (Buffer.byteLength(value) > 1024 * 1024) throw new Error("CONFIGURATION_LIMIT");
+        /** Windows 提交使用原生持有的父目录与临时文件句柄完成，刷新失败的不确定性直接返回调用方；回调只执行一次，后续 finally 仅释放合作锁，不按旧临时字符串删除可能已经更换的文件。 */
+        if (process.platform === "win32") {
+            const { windowsNative } = await import("../native/windows.ts");
+            windowsNative().replacePrivate(directory, name, temporaryName, value);
+            return;
+        }
         const fd = await open(tmp, "wx", 0o600);
         try {
             await fd.writeFile(value);
@@ -109,7 +119,17 @@ export async function updatePrivate<T>(
         }
         await rename(tmp, join(directory, name));
     } finally {
-        await unlink(tmp).catch(() => {});
+        if (process.platform !== "win32") await unlink(tmp).catch(() => {});
         await release();
     }
+}
+
+/** 私有配置退休在 Windows 使用已授权父链下的真实文件句柄删除，Linux 保留原有 unlink 语义；调用方只能明确处理 ENOENT，权限拒绝和未知错误不能被当成已经清空配置或自动重试更新回调。 */
+export async function removePrivate(directory: string, name: string): Promise<void> {
+    if (process.platform === "win32") {
+        const { windowsNative } = await import("../native/windows.ts");
+        windowsNative().removePrivate(join(directory, name));
+        return;
+    }
+    await unlink(join(directory, name));
 }
