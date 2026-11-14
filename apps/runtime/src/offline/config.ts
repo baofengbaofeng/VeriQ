@@ -7,12 +7,13 @@ import { constants } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import lockfile from "proper-lockfile";
-import { windowsNative } from "../native/windows.ts";
 /**
  * 私有目录用于宿主持久配置而不是 renderer 文件操作，Windows 在创建时使用当前 SID 可继承保护 DACL 并拒绝祖先重解析；Linux 保留目录类型检查和 0700 权限收紧，不把两种权限模型互相替代。
  */
 export async function privateDirectory(directory: string) {
     if (process.platform === "win32") {
+        /** Windows 能力模块只在真实平台分支内按固定模块标识延迟导入，避免 Linux 测试入口加载仅供原生宿主使用的 ESM 位置逻辑；模块自身原有装载规则保持不变，配置内容不能选择插件路径或触发回退。 */
+        const { windowsNative } = await import("../native/windows.ts");
         windowsNative().privatePath(directory, true);
         return;
     }
@@ -30,8 +31,10 @@ export async function readBoundedFile(
     restricted = false,
 ): Promise<Buffer> {
     /** Windows 私有读取由实际原生文件句柄贯穿授权与读取，不能在验证 DACL 后再调用 Node 按路径重新打开；未受限的公开包读取保留既有库存校验流程，Linux 的描述符与权限合同也保持不变。 */
-    if (restricted && process.platform === "win32")
+    if (restricted && process.platform === "win32") {
+        const { windowsNative } = await import("../native/windows.ts");
         return windowsNative().readPrivateFile(path, limit);
+    }
     const before = await lstat(path);
     if (!before.isFile() || before.isSymbolicLink() || before.size > limit)
         throw new Error("UNSAFE_CONFIGURATION");
@@ -61,12 +64,14 @@ export async function readBoundedFile(
  * 公开函数 readPrivate 从私有目录读取命名 JSON 配置：供信任根与本机密钥等宿主状态使用（readPrivate/UNSAFE_CONFIGURATION）。
  */
 export async function readPrivate<T>(directory: string, name: string): Promise<T> {
-    if (process.platform === "win32")
+    if (process.platform === "win32") {
+        const { windowsNative } = await import("../native/windows.ts");
         return JSON.parse(
             windowsNative()
                 .readPrivateFile(join(directory, name), 1024 * 1024)
                 .toString("utf8"),
         ) as T;
+    }
     const parent = await lstat(directory);
     if (!parent.isDirectory() || parent.isSymbolicLink() || parent.mode & 0o077)
         throw new Error("UNSAFE_CONFIGURATION");
@@ -100,6 +105,7 @@ export async function updatePrivate<T>(
         if (Buffer.byteLength(value) > 1024 * 1024) throw new Error("CONFIGURATION_LIMIT");
         /** Windows 提交使用原生持有的父目录与临时文件句柄完成，刷新失败的不确定性直接返回调用方；回调只执行一次，后续 finally 仅释放合作锁，不按旧临时字符串删除可能已经更换的文件。 */
         if (process.platform === "win32") {
+            const { windowsNative } = await import("../native/windows.ts");
             windowsNative().replacePrivate(directory, name, temporaryName, value);
             return;
         }
