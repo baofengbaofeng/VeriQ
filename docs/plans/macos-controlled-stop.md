@@ -5,7 +5,7 @@
 | 切片 | 交付 | 主要文件/调用点 | 验证门槛 | 状态 |
 | --- | --- | --- | --- | --- |
 | A1 范围合同与服务端 | `processStopScope`保留、Darwin正回执缺/错范围拒绝，未知隔离，历史兼容 | contracts源/生成物/桌面派生Schema；completion、maintenance、import_result及适用报告facts | Node/Python正负样本，真实服务finish/reconcile不误释放容量，跨Workspace/fence仍有效 | `3847ebe`实现、独立审查通过；Python384项/Node287项通过；不代表Mac ready |
-| A2 Runtime与离线传播 | Linux/Windows经原证明后声明原范围；真正未派生明确标注；offline store/result/report全链保存范围 | processes、windows-processes、supervisor、offline/run/store/reports及生成完成清单 | 既有内核证明未弱化；未知不变成NO_PROCESS；重启/导出/导入不丢范围 | `aaf2f03`实现，70项受影响测试通过；独立审查中 |
+| A2 Runtime与离线传播 | Linux/Windows经原证明后声明原范围；真正未派生明确标注；offline store/result/report全链保存范围 | processes、windows-processes、supervisor、offline/run/store/reports及生成完成清单 | 既有内核证明未弱化；未知不变成NO_PROCESS；重启/导出/导入不丢范围 | `aaf2f03`及`6496b3b`独立复审通过；原70项/修复51项通过，含真实staging中断恢复；不代表Mac ready |
 | B Darwin私有文件基础 | 有限目录fd相对操作、普通私有日志FD与原子持久发布 | 新native/darwin源与Node-API适配/build脚本；records、credentials/files及历史守卫 | 两架构实际build；symlink/owner/权限/长度/提交失败，缺能力明确失败 | 待实施 |
 | C1 可移植CLI观察器 | 可信preload保留实际ChildProcess；单写者普通FD日志与最终严格验证；具体Node自检 | execution下新观察器/协议/验证器与真实子进程测试；暂不开放Darwin入口 | READY/意图/退出/seal；缺失与乱序、短写/刷新失败、fork被动继承、late spawn同步73、正常0/1及授权取消130 | 待实施 |
 | C2 受控所有权集成 | Agent持有BrowserServer/outer worker；命令实际退出与C1日志结清；CONTROLLED_STOPPED | 新darwin-processes；worker/provider；在线/离线PW config与B私有FD | 原生Chrome真实执行/退出；CLI/worker/owner故障；完整集合结清才正回执；保留Linux/Windows强证明 | 待实施 |
