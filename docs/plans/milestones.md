@@ -218,10 +218,12 @@
 | 停止范围合同A1 | `3847ebe`独立规格/质量审查通过；真实MySQL/编译/HTTP相关384项、Node合同287项通过 | Darwin正回执须明确受控或真实未派生范围；false仍隔离、历史不补造范围；尚未开放Mac |
 | Runtime停止范围A2 | `aaf2f03`及修复`6496b3b`通过独立规格/质量复审；原70项及修复后51项相关测试通过，strict通过 | 自身journal staging中断仅隔离对应Attempt，其它任务继续真实停止/对账；保留默认私有历史及原Linux/Windows证明。Windows在线journal父目录持久能力未完成，明确失败关闭 |
 | Node24.x兼容 | `06be5a7`与`547c67f`审查通过，开发/CI/引擎接受稳定`>=24 <25`，各发行保留实际版本/hash | CI实际Node24.22.2已执行；未实际运行24.20.0二进制，不把版本边界单测当该目标验收 |
-| 最新Ubuntu桌面CI | [`d3cf39e` run43577219410](https://github.com/baofengbaofeng/VeriQ/actions/runs/43577219410)成功：49桌面单测、2显示、86Runtime、2真实Cookie、7GUI通过且零跳过 | 官方artifact摘要、592源码hash及库存绑定已核验；7GUI实际157.222秒、同Attempt真实停止、Cookie密文/重启及清理证据通过。已查看截图：本机任务图为SPAWNING、可见Chrome图为about:blank，不据此称最终业务通过；不等于安装包或Mac验收 |
+| 已核验Ubuntu桌面CI | [`d3cf39e` run43577219410](https://github.com/baofengbaofeng/VeriQ/actions/runs/43577219410)成功：49桌面单测、2显示、86Runtime、2真实Cookie、7GUI通过且零跳过 | 官方artifact摘要、592源码hash及库存绑定已核验；7GUI实际157.222秒、同Attempt真实停止、Cookie密文/重启及清理证据通过。已查看截图：本机任务图为SPAWNING、可见Chrome图为about:blank，不据此称最终业务通过；不等于安装包或Mac验收 |
 | 最新Linux/Windows/服务CI | Linux80项单测通过后依赖准备失败；Windows96项中93通过/3项既有ACL失败、真实Cookie另1项通过；服务web-check失败 | [Linux](https://github.com/baofengbaofeng/VeriQ/actions/runs/43577219452)、[Windows](https://github.com/baofengbaofeng/VeriQ/actions/runs/43577219462)、[服务](https://github.com/baofengbaofeng/VeriQ/actions/runs/43577219476)均保留失败，不称全绿 |
 | 隔离依赖闭包准备 | 已定位legacy pnpm deploy内部关闭frozen；改为非legacy的RAM探针复用44包/下载0后因缺完整metadata停止 | 根lock hash未变不证明冻结闭包；应在CI在线准备阶段生成真正冻结生产闭包，再独立离线验证业务运行；尚无隔离挂载四阶段正证据 |
-| 下一工程切片 | [停止实施计划](macos-controlled-stop.md)：C1可信CLI真实ChildProcess观察器、B私有fd、C2 BrowserServer集成、D双架构发行 | 不再以kqueue/非child peer身份链作为正回执依赖；公开Stability1通道须具体Node自检；全仓注释门禁仍失败（最近4.5036%、267条） |
+| 最新源码检查点CI | 已复审范围与恢复代码`e2f7508`已推送开发分支；[Ubuntu桌面](https://github.com/baofengbaofeng/VeriQ/actions/runs/43583684288)49单测/2显示/86Runtime/2Cookie/7GUI通过、零跳过；本轮原始日志已保存 | [Linux](https://github.com/baofengbaofeng/VeriQ/actions/runs/43583684311)80项通过后仍失败于冻结离线部署准备；[Windows](https://github.com/baofengbaofeng/VeriQ/actions/runs/43583684297)93/96通过、仍有原3项ACL失败；[服务](https://github.com/baofengbaofeng/VeriQ/actions/runs/43583684285)仍失败于web-check。本轮制品未重复下载/重hash，不复用上一提交的源码核验结论 |
+| CLI受控子进程观察器C1 | `755316c`独立规格/质量审查通过；24项相关测试、strict及实际Node24.22.1能力自检通过；真实Playwright CLI并发/失败替换、不请求浏览器 | 仅真实直接异步子进程；不生成停止回执、不释放容量、不开放Darwin；Mac双架构/Chrome、B私有fd、C2集成仍待完成。全仓注释门禁最近4.5115%、267条，仍失败 |
+| 下一工程切片 | [停止实施计划](macos-controlled-stop.md)：C1已完成，继续B私有fd、C2 BrowserServer集成、D双架构发行 | 不再以kqueue/非child peer身份链作为正回执依赖；公开Stability1通道须具体Node自检；全仓注释门禁仍失败（最近4.5115%、267条） |
 
 
 | 项目 | 当前事实 | 剩余事项与接续约束 |
