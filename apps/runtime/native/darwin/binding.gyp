@@ -15,13 +15,30 @@
         }
     },
     "targets": [
-        { "target_name": "veriq_private_files", "sources": ["addon.cc"] }
+        {
+            "target_name": "veriq_private_files",
+            "sources": ["addon.cc"],
+            "xcode_settings": {
+                "MACOSX_DEPLOYMENT_TARGET": "15.0",
+                "GCC_ENABLE_CPP_EXCEPTIONS": "YES",
+                "CLANG_CXX_LANGUAGE_STANDARD": "c++17",
+                "CLANG_CXX_LIBRARY": "libc++",
+                "OTHER_CPLUSPLUSFLAGS": ["-fexceptions"]
+            }
+        }
     ],
     "conditions": [
         ["veriq_native_tests==1", {
             "targets": [{
                 "target_name": "veriq_private_files_fault",
-                "sources": ["../../tests/native/darwin-private-files-fault.cc"]
+                "sources": ["../../tests/native/darwin-private-files-fault.cc"],
+                "xcode_settings": {
+                    "MACOSX_DEPLOYMENT_TARGET": "15.0",
+                    "GCC_ENABLE_CPP_EXCEPTIONS": "YES",
+                    "CLANG_CXX_LANGUAGE_STANDARD": "c++17",
+                    "CLANG_CXX_LIBRARY": "libc++",
+                    "OTHER_CPLUSPLUSFLAGS": ["-fexceptions"]
+                }
             }]
         }]
     ]
