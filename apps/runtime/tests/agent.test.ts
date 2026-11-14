@@ -53,7 +53,7 @@ test("historical reconciliation preserves the exact newer lost claim request", a
         },
     } as unknown as import("../src/agent/transport.ts").AgentClient;
     try {
-        await mkdir(join(directory, "attempts"));
+        await mkdir(join(directory, "attempts"), { mode: 0o700 });
         await writeFile(
             join(directory, "attempts/old.json"),
             JSON.stringify({
@@ -61,6 +61,7 @@ test("historical reconciliation preserves the exact newer lost claim request", a
                 work: directory,
                 claim: { attemptId: "33333333-3333-4333-8333-333333333333", fencingToken: 1 },
             }),
+            { mode: 0o600 },
         );
         await writeFile(
             join(directory, "claim-request.json"),
@@ -112,7 +113,7 @@ test("only the correlated acknowledged recovery clears its own pending claim req
         },
     } as unknown as import("../src/agent/transport.ts").AgentClient;
     try {
-        await mkdir(join(directory, "attempts"));
+        await mkdir(join(directory, "attempts"), { mode: 0o700 });
         await writeFile(
             join(directory, "attempts/old.json"),
             JSON.stringify({
@@ -121,6 +122,7 @@ test("only the correlated acknowledged recovery clears its own pending claim req
                 work: directory,
                 claim: { attemptId: "33333333-3333-4333-8333-333333333333", fencingToken: 1 },
             }),
+            { mode: 0o600 },
         );
         await writeFile(
             join(directory, "claim-request.json"),
@@ -152,15 +154,14 @@ test("only the correlated acknowledged recovery clears its own pending claim req
 });
 
 test("an installation missing its native launcher fails closed without compiling or spawning", async () => {
-    const { mkdir, copyFile, readdir } = await import("node:fs/promises");
-    const { pathToFileURL } = await import("node:url");
+    const { cp, symlink, writeFile, readdir } = await import("node:fs/promises");
+    const { pathToFileURL, fileURLToPath } = await import("node:url");
     const root = await mkdtemp(join(tmpdir(), "veriq-t10-no-launcher-"));
     try {
-        await mkdir(join(root, "src/execution"), { recursive: true });
-        await copyFile(
-            new URL("../src/execution/processes.ts", import.meta.url),
-            join(root, "src/execution/processes.ts"),
-        );
+        /** 缺守护程序的安装夹具仍保留完整真实源码布局与外部依赖解析，避免单独复制入口后先因其间接模块缺失而失败；仅不提供 build 下的原生 launcher，断言必须实际到达业务派生前的正式能力检查。 */
+        await cp(new URL("../src", import.meta.url), join(root, "src"), { recursive: true });
+        await symlink(fileURLToPath(new URL("../node_modules", import.meta.url)), join(root, "node_modules"), "dir");
+        await writeFile(join(root, "package.json"), JSON.stringify({ type: "module" }));
         const { ProcessSupervisor } = await import(
             pathToFileURL(join(root, "src/execution/processes.ts")).href
         );
@@ -173,7 +174,8 @@ test("an installation missing its native launcher fails closed without compiling
             }),
             /NATIVE_LAUNCHER_REQUIRED/,
         );
-        assert.deepEqual(await readdir(root), ["src"]);
+        assert.deepEqual(supervisor.active(), []);
+        assert.deepEqual(await readdir(root), ["node_modules", "package.json", "src"]);
     } finally {
         await rm(root, { recursive: true, force: true });
     }

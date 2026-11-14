@@ -421,8 +421,9 @@ async function attempt(
             process.env,
             { runnerExecutable: executionPaths.runnerExecutable },
         );
-        owner = store.spawning(runId, attemptId, owner);
+        /** 在尝试提交启动意图之前关闭未派生快捷路径，SQLite 提交抛错也不能继续使用内存中的旧 ALLOCATED；只有完整成功取得新代际状态之后才允许调用原生监督器拉起进程。 */
         spawning = true;
+        owner = store.spawning(runId, attemptId, owner);
         child = await processes.start(attemptId, {
             executable: executionPaths.runnerExecutable,
             args: [executionPaths.workerEntry, join(work, "invocation.json")],
@@ -486,14 +487,8 @@ async function attempt(
         monitor?.close();
         config.signal?.removeEventListener("abort", abort);
         await broker?.close();
-        stop ??= spawning
-            ? await processes.terminateAttempt(attemptId, failure ?? "EXECUTION_ERROR")
-            : {
-                  attemptId,
-                  processStopped: true,
-                  reason: "NO_PROCESS_SPAWNED",
-                  stoppedAt: new Date().toISOString(),
-              };
+        stop ??= (!spawning ? store.unspawnedStop(owner) : undefined)
+            ?? await processes.terminateAttempt(attemptId, failure ?? "EXECUTION_ERROR");
         owner = store.stopped(runId, stop, owner);
         if (stop.processStopped) {
             if (tmp) await rm(tmp, { recursive: true, force: true });
@@ -533,6 +528,7 @@ async function attempt(
             artifacts,
             execution,
             processStopped: stop.processStopped,
+            ...(stop.processStopScope !== undefined ? { processStopScope: stop.processStopScope } : {}),
             retrySafety: caseResult?.retrySafety ?? "UNKNOWN",
             sourceKind: checked.dslOnly ? "DRAFT_DEBUG" : "PUBLISHED",
             variantKey: variantKey(execution),
@@ -706,18 +702,9 @@ export async function recoverOffline(root: string): Promise<StopReceipt | undefi
             owner = store.claimRecovery(observed);
         }
         if (!owner) throw new Error("LOCAL_OWNERSHIP_CHANGED");
-        const stop =
-            owner.state === "RECOVERING_UNSPAWNED"
-                ? {
-                      attemptId: owner.attemptId,
-                      processStopped: true,
-                      reason: "NO_PROCESS_SPAWNED",
-                      stoppedAt: new Date().toISOString(),
-                  }
-                : await new ProcessSupervisor(join(root, "processes")).terminateAttempt(
-                      owner.attemptId,
-                      "LOCAL_RECOVERY",
-                  );
+        const stop = store.unspawnedStop(owner)
+            ?? await new ProcessSupervisor(join(root, "processes")).terminateAttempt(
+                owner.attemptId, "LOCAL_RECOVERY");
         owner = store.stopped(owner.runId, stop, owner);
         const result = store.result(owner.workspaceId, owner.runId);
         result.outcome = "INCOMPLETE";
@@ -733,6 +720,8 @@ export async function recoverOffline(root: string): Promise<StopReceipt | undefi
             );
             attempt.lastSequence = attempt.events.length;
             attempt.processStopped = stop.processStopped;
+            if (stop.processStopScope !== undefined) attempt.processStopScope = stop.processStopScope;
+            else delete attempt.processStopScope;
             attempt.outcome = "INCOMPLETE";
             attempt.failureCode = "LOCAL_RECOVERY";
         }

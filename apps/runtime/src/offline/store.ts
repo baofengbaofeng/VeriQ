@@ -7,6 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import { chmod, lstat } from "node:fs/promises";
 import { join } from "node:path";
 import { validateSchema, type ExecutionEventV1, type OfflineResultV1 } from "@veriq/contracts";
+import { isPreSpawnState } from "../execution/pre-spawn.ts";
 import type { StopReceipt } from "../execution/processes.ts";
 import { privateDirectory } from "./config.ts";
 /**
@@ -117,6 +118,7 @@ export class LocalStore {
         const current = this.active();
         if (
             !current ||
+            current.workspaceId !== owner.workspaceId ||
             current.runId !== owner.runId ||
             current.attemptId !== owner.attemptId ||
             current.generation !== owner.generation ||
@@ -178,7 +180,7 @@ export class LocalStore {
      */
     claimRecovery(observed: Ownership): Ownership | undefined {
         return this.transaction(() => {
-            const state = ["ALLOCATED", "RECOVERING_UNSPAWNED"].includes(observed.state)
+            const state = isPreSpawnState(observed.state, "OFFLINE")
                 ? "RECOVERING_UNSPAWNED"
                 : "RECOVERING";
             const changed = this.db
@@ -225,17 +227,27 @@ export class LocalStore {
             return next;
         });
     }
+    /** 未派生回执必须在事务内重新核验持久所有权及代际，调用方修改对象中的状态不能改变数据库事实；启动中与一般恢复状态均不具备此权限，缺少有效白名单时返回空值并要求调用真实停止。 */
+    unspawnedStop(owner: Ownership): StopReceipt | undefined {
+        return this.transaction(() => {
+            const current = this.requireOwner(owner);
+            if (!isPreSpawnState(current.state, "OFFLINE")) return;
+            return { attemptId: current.attemptId, processStopped: true,
+                processStopScope: "NO_PROCESS_SPAWNED", reason: "NO_PROCESS_SPAWNED",
+                stoppedAt: new Date().toISOString() };
+        });
+    }
     /**
      * 公开方法 stopped 记录停机回执并释放或隔离占用：processStopped=false 时保留隔离语义（stopped/LOCAL_OWNERSHIP_LOST）。
      */
     stopped(runId: string, receipt: StopReceipt, owner: Ownership): Ownership {
         return this.transaction(() => {
-            this.requireOwner(owner);
+            const current = this.requireOwner(owner);
             if (
-                owner.runId !== runId ||
-                owner.attemptId !== receipt.attemptId ||
-                (receipt.reason === "NO_PROCESS_SPAWNED" &&
-                    !["ALLOCATED", "RECOVERING_UNSPAWNED"].includes(owner.state))
+                current.runId !== runId ||
+                current.attemptId !== receipt.attemptId ||
+                ((receipt.processStopScope === "NO_PROCESS_SPAWNED" || receipt.reason === "NO_PROCESS_SPAWNED") &&
+                    !isPreSpawnState(current.state, "OFFLINE"))
             )
                 throw new Error("LOCAL_OWNERSHIP_LOST");
             this.db
@@ -243,7 +255,18 @@ export class LocalStore {
                     "INSERT INTO veriq_local_stops VALUES(?,?,?) ON CONFLICT(attempt_id) DO UPDATE SET receipt=excluded.receipt",
                 )
                 .run(receipt.attemptId, runId, JSON.stringify(receipt));
-            const next = { ...owner, state: receipt.processStopped ? "STOPPED" : "QUARANTINED" };
+            /** 停止回执和报告检查点同事务提交，避免宿主恰在停机后崩溃时只保存释放状态却丢失范围；旧记录没有声明时不补值，本次失败回执也不沿用先前结果中的成功范围。 */
+            const row = this.authorize(current.workspaceId, runId);
+            if (row.result) {
+                const result = JSON.parse(String(row.result)) as OfflineResultV1;
+                const attempt = result.attempts.find((item) => item.attemptId === receipt.attemptId);
+                if (!attempt) throw new Error("LOCAL_OWNERSHIP_LOST");
+                attempt.processStopped = receipt.processStopped;
+                if (receipt.processStopScope !== undefined) attempt.processStopScope = receipt.processStopScope;
+                else delete attempt.processStopScope;
+                this.checkpoint(result, current);
+            }
+            const next = { ...current, state: receipt.processStopped ? "STOPPED" : "QUARANTINED" };
             this.db
                 .prepare("UPDATE veriq_local_owner SET state=? WHERE singleton=1")
                 .run(next.state);

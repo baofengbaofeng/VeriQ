@@ -72,6 +72,7 @@ test("Windows guardian contains renamed role Node and drains its detached descen
         assert.equal(typeof journal.guardianStartTime, "string");
         const stopped = await processes.terminateAttempt("windows-tree", "NATIVE_TEST_FINISHED");
         assert.equal(stopped.processStopped, true);
+        assert.equal(stopped.processStopScope, "FULL_DESCENDANT_TREE");
         assert.equal(await processes.isRunning(owned.pid), false);
         assert.equal(await processes.isRunning(observed.child), false);
     } catch (error) {
@@ -123,6 +124,7 @@ test("Windows denied stop preserves worker progress until authentic ownership is
         await writeFile(journalPath, JSON.stringify({ ...journal, nonce: randomUUID() }));
         const denied = await processes.terminateAttempt("ownership", "DENIED_OWNERSHIP_TEST");
         assert.equal(denied.processStopped, false);
+        assert.equal(denied.processStopScope, undefined);
         assert.equal(denied.reason, "PROCESS_IDENTITY_UNKNOWN");
         const challenge = randomUUID();
         await writeFile(challengePath, challenge);
@@ -158,6 +160,7 @@ test("Windows denied stop preserves worker progress until authentic ownership is
         await writeFile(journalPath, authenticJournal);
         const stopped = await processes.terminateAttempt("ownership", "AUTHENTIC_OWNERSHIP_TEST");
         assert.equal(stopped.processStopped, true);
+        assert.equal(stopped.processStopScope, "FULL_DESCENDANT_TREE");
         assert.equal(await processes.isRunning(owned.pid), false);
         const proof = JSON.parse(
             await readFile(join(root, "processes/ownership.drained.json"), "utf8"),
@@ -371,6 +374,7 @@ test("Windows nonrunning journal guardian cannot close the actual live guardian"
             "NONRUNNING_GUARDIAN_TEST",
         );
         assert.equal(denied.processStopped, false);
+        assert.equal(denied.processStopScope, undefined);
         assert.equal(denied.reason, "CONTAINMENT_LOST");
         await scenario.requireProgress(["exited-guardian"]);
     });
@@ -389,6 +393,7 @@ test("Windows changed worker creation time cannot authorize stopping its live jo
             "CHANGED_WORKER_TIME_TEST",
         );
         assert.equal(denied.processStopped, false);
+        assert.equal(denied.processStopScope, undefined);
         await scenario.requireProgress(["worker-time"]);
     });
 });
@@ -405,6 +410,7 @@ test("Windows guardian identity and another attempt nonce cannot stop either job
             "CROSS_ATTEMPT_NONCE_TEST",
         );
         assert.equal(denied.processStopped, false);
+        assert.equal(denied.processStopScope, undefined);
         await scenario.requireProgress(["nonce-a", "nonce-b"]);
     });
 });

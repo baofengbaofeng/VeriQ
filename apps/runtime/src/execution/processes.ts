@@ -13,15 +13,16 @@ import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { Readable, Writable } from "node:stream";
+import type { ProcessStopScope } from "@veriq/contracts";
 import { ProcessRecords } from "./records.ts";
 import { WindowsProcesses } from "./windows-processes.ts";
 /**
- * 公开接口 StopReceipt 记录 Attempt 停机回执：含 processStopped、原因字符串与 stoppedAt。
- * 供恢复与控制面对账使用。
+ * 停止回执分别记录是否已确认与实际核验的进程范围，缺失范围保持未声明；新范围只能由本次平台证明或持久未派生状态产生，读取旧回执不会补写或升级其保证。
  */
 export interface StopReceipt {
     attemptId: string;
     processStopped: boolean;
+    processStopScope?: ProcessStopScope;
     reason: string;
     stoppedAt: string;
 }
@@ -420,9 +421,11 @@ export class ProcessSupervisor {
         this.live.delete(id);
     }
     private async stop(id: string, reason: string): Promise<StopReceipt> {
+        /** 范围仅随本次真实排空成功分支声明，所有身份、nonce 与原生证明核验仍在下方完成；失败回执不借根进程消失补成全后代保证，旧证明本次重新核验后才生成新的明确范围。 */
         const receipt = (processStopped: boolean, why = reason): StopReceipt => ({
             attemptId: id,
             processStopped,
+            ...(processStopped ? { processStopScope: "FULL_DESCENDANT_TREE" as const } : {}),
             reason: why,
             stoppedAt: new Date().toISOString(),
         });

@@ -78,6 +78,9 @@ test("migration observes a real drained history without signaling a live worker 
             assert.equal(await processes.isRunning(child.pid), true);
             const receipt = await processes.terminateAttempt(id, "TEST_STOP");
             assert.equal(receipt.processStopped, true);
+            await updatePrivate(attempts, `${id}.json`, () => ({
+                claim: value, state: "STOPPED", work: join(directory, "agent", "work", id), stop: receipt,
+            }));
             const names = [
                 join(attempts, `${id}.json`),
                 join(records, `${id}.process.json`),
@@ -86,6 +89,23 @@ test("migration observes a real drained history without signaling a live worker 
             const before = await Promise.all(names.map((name) => readFile(name)));
             await profile.migrate();
             assert.deepEqual(await Promise.all(names.map((name) => readFile(name))), before);
+            for (const stop of [
+                { ...receipt, attemptId: randomUUID() },
+                { ...receipt, processStopScope: "NO_PROCESS_SPAWNED" },
+                { ...receipt, processStopScope: "CONTROLLED_WORKER_BROWSER" },
+                { ...receipt, processStopScope: "UNKNOWN" },
+                { ...receipt, processStopped: "true" },
+                { ...receipt, stoppedAt: "not-a-timestamp" },
+                { ...receipt, extra: true },
+            ]) {
+                await updatePrivate(attempts, `${id}.json`, () => ({
+                    claim: value, state: "STOPPED", work: join(directory, "agent", "work", id), stop,
+                }));
+                await assert.rejects(profile.migrate(), /VAULT_RUNTIME_RECOVERY_REQUIRED/);
+            }
+            await updatePrivate(attempts, `${id}.json`, () => ({
+                claim: value, state: "STOPPED", work: join(directory, "agent", "work", id), stop: receipt,
+            }));
             const proof = JSON.parse(before[2]!.toString());
             await updatePrivate(records, `${id}.drained.json`, () => ({
                 ...proof,
@@ -110,6 +130,13 @@ test("migration accepts valid pre-spawn history but rejects a process orphan and
         };
         await updatePrivate(attempts, `${id}.json`, () => record);
         await profile.migrate();
+        const stop = { attemptId: id, processStopped: true, processStopScope: "NO_PROCESS_SPAWNED",
+            reason: "NO_PROCESS_SPAWNED", stoppedAt: new Date().toISOString() };
+        await updatePrivate(attempts, `${id}.json`, () => ({ ...record, stop }));
+        await profile.migrate();
+        await updatePrivate(attempts, `${id}.json`, () => ({ ...record, state: "STOPPED",
+            stop: { ...stop, processStopScope: "FULL_DESCENDANT_TREE" } }));
+        await assert.rejects(profile.migrate(), /VAULT_RUNTIME_RECOVERY_REQUIRED/);
         await updatePrivate(attempts, `${id}.json`, () => ({
             ...record,
             claim: { attemptId: id },

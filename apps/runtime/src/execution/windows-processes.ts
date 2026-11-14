@@ -285,9 +285,11 @@ export class WindowsProcesses {
         }
     }
     private async stop(id: string, reason: string): Promise<StopReceipt> {
+        /** 范围仅随本次真实排空成功分支声明，所有身份、nonce 与原生证明核验仍在下方完成；失败回执不借根进程消失补成全后代保证，旧证明本次重新核验后才生成新的明确范围。 */
         const receipt = (processStopped: boolean, why = reason): StopReceipt => ({
             attemptId: id,
             processStopped,
+            ...(processStopped ? { processStopScope: "FULL_DESCENDANT_TREE" as const } : {}),
             reason: why,
             stoppedAt: new Date().toISOString(),
         });
