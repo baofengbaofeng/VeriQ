@@ -28,7 +28,6 @@ jobs:
             PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
             EXPECTED_ARCH: ${{ matrix.arch }}
             VERIQ_MAC_EVIDENCE: ${{ github.workspace }}/.superpowers/sdd/veriq-1/evidence/t20/mac-private-fd-b/${{ github.sha }}/${{ matrix.arch }}
-            VERIQ_MAC_UPLOAD: ${{ runner.temp }}/veriq-mac-private-upload-${{ matrix.arch }}
         steps:
             - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
             - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -131,6 +130,7 @@ jobs:
             - name: Stage bounded raw evidence and explicit segment inventory
               if: always()
               env:
+                  VERIQ_MAC_UPLOAD: ${{ runner.temp }}/veriq-mac-private-upload-${{ matrix.arch }}
                   BUILD_OUTCOME: ${{ steps.native_build.outcome }}
                   TEST_OUTCOME: ${{ steps.private_tests.outcome }}
               shell: bash
