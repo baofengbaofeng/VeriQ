@@ -19,6 +19,10 @@ async function fixture() {
         "execution/worker.mjs",
         "execution/provider.mjs",
         "execution/compile-entry.mjs",
+        "execution/controlled-command.mjs",
+        "execution/controlled-child.mjs",
+        "execution/controlled-child-protocol.mjs",
+        "execution/controlled-child-preload.mjs",
         "npm/bin/npm-cli.js",
         "node_modules/tsx/dist/loader.mjs",
         "browser/chrome-linux64/chrome",
@@ -156,5 +160,21 @@ test("installed role binds exact verified Node identity and rejects copied capab
         if (electron) Object.defineProperty(process.versions, "electron", electron);
         else Reflect.deleteProperty(process.versions, "electron");
         await rm(root, { recursive: true, force: true });
+    }
+});
+
+/** Worker 的普通 Node 相对导入必须全部属于发行物理库存，逐个删除新闭包成员及其清单项后仍应拒绝；旧合成发行不能靠把必需成员标成可选继续获得执行路径能力。 */
+test("distribution requires the complete controlled command runtime closure", async () => {
+    for (const name of ["controlled-command.mjs", "controlled-child.mjs", "controlled-child-protocol.mjs", "controlled-child-preload.mjs"]) {
+        const { root, manifest } = await fixture();
+        try {
+            const path = "execution/" + name;
+            manifest.files = manifest.files.filter((entry) => entry.path !== path);
+            await rm(join(root, path), { force: true });
+            await writeFile(join(root, "runtime-manifest.json"), JSON.stringify(manifest));
+            await assert.rejects(loadRuntimeDistribution(root), /RUNTIME_MEMBER_MISSING/);
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
     }
 });

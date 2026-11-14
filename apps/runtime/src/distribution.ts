@@ -128,6 +128,8 @@ export async function loadRuntimeDistribution(directory: string): Promise<Runtim
     const engineDirectory = join(root, "engines", manifest.engineVersion);
     take(`engines/${manifest.engineVersion}/inventory.json`);
     take("execution/archive.mjs");
+    /** Worker 用普通 Node 相对加载同一受审命令闭包，全部运行成员必须先核库存；声明文件只服务类型检查而不属于安装执行依赖，缺失任何 MJS 均不能退回源码目录。 */
+    for (const name of ["controlled-command.mjs", "controlled-child.mjs", "controlled-child-protocol.mjs", "controlled-child-preload.mjs"]) take("execution/" + name);
     const distribution: RuntimeDistribution = {
         root,
         productVersion: manifest.productVersion,

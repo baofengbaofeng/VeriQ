@@ -242,12 +242,15 @@ test("fixed Playwright public CLI closes concurrent and replacement worker roste
         }
     }, { args: [cli, "test", "--config=playwright.config.cjs", "--workers=2", "--reporter=line"], setup(root) {
         const modulePath = require.resolve("@playwright/test");
-        writeFileSync(join(root, "playwright.config.cjs"), "module.exports={fullyParallel:true,retries:0,timeout:5000,outputDir:'./results'};");
-        writeFileSync(join(root, "workers.spec.cjs"), `const {test,expect}=require(${JSON.stringify(modulePath)});
-            test('a failure replaces worker',()=>expect(1).toBe(2));
-            test('b passes',()=>expect(2).toBe(2));
-            test('c passes in replacement',()=>expect(3).toBe(3));
-            test('d passes',()=>expect(4).toBe(4));`);
+        writeFileSync(join(root, "playwright.config.cjs"), "module.exports={fullyParallel:false,retries:0,timeout:5000,outputDir:'./results'};");
+        // 两个文件分别占用初始 worker：失败用例等同伴就绪才退出，同伴又等替换用例写标记才通过，因此不能由第二个 worker 提前做完所有工作而省略真实失败替换对象。
+        writeFileSync(join(root, "a.spec.cjs"), `const {test,expect}=require(${JSON.stringify(modulePath)});
+            const {existsSync,writeFileSync}=require('node:fs');
+            test('a failure replaces worker',async()=>{await expect.poll(()=>existsSync('b-ready')).toBe(true);expect(1).toBe(2);});
+            test('a replacement becomes ready',()=>writeFileSync('replacement-ready','ready'));`);
+        writeFileSync(join(root, "b.spec.cjs"), `const {test,expect}=require(${JSON.stringify(modulePath)});
+            const {existsSync,writeFileSync}=require('node:fs');
+            test('b overlaps both original and replacement',async()=>{writeFileSync('b-ready','ready');await expect.poll(()=>existsSync('replacement-ready')).toBe(true);});`);
         return [];
     } });
 });
