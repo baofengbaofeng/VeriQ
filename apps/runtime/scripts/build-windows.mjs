@@ -110,6 +110,7 @@ if (process.env.VERIQ_NATIVE_EVIDENCE) {
         const matched =
             /ntdll\.dll/i.test(imports) &&
             /\bNtCreateFile\b/.test(imports) &&
+            /\bNtSetInformationFile\b/.test(imports) &&
             /\bRtlNtStatusToDosError\b/.test(imports);
         targets.push({ name, sha256: await hash(path), matched });
     }

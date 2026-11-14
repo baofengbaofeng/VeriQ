@@ -5,7 +5,20 @@
 #include <cstddef>
 #include <cstring>
 
+/** 用户态 SDK 的 winternl.h 未声明这个公开系统入口，因此这里只补齐官方固定签名；调用点仅允许已持有文件的相对名称提交，不向 JavaScript 导出信息类别、原始句柄或任意 NT 操作能力。 */
+extern "C" NTSYSAPI NTSTATUS NTAPI NtSetInformationFile(HANDLE FileHandle, PIO_STATUS_BLOCK IoStatusBlock,
+    PVOID FileInformation, ULONG Length, FILE_INFORMATION_CLASS FileInformationClass);
+
 namespace veriq {
+/** FileRenameInformation 使用官方 FILE_RENAME_INFORMATION 的 BOOLEAN 与计数 UTF16 布局，用户态 SDK 没有提供该结构时在内部精确定义；不混用 Win32 FILE_RENAME_INFO 的路径解释或扩展标志。 */
+struct NativeFileRenameInformation {
+    BOOLEAN ReplaceIfExists;
+    HANDLE RootDirectory;
+    ULONG FileNameLength;
+    WCHAR FileName[1];
+};
+static_assert(offsetof(NativeFileRenameInformation, RootDirectory) == sizeof(HANDLE));
+static_assert(offsetof(NativeFileRenameInformation, FileName) == 2 * sizeof(HANDLE) + sizeof(ULONG));
 /** 单个成员名不能包含路径分隔、备用数据流或 Windows 会裁剪的尾随字符，所有层级都由已持有的父目录选择；临时名与正式名经过相同校验，避免相对打开重新引入目录穿越或隐含的设备命名解释。 */
 inline void fileComponent(const std::wstring& name) {
     require(!name.empty() && name.size() <= 255 && name != L"." && name != L".." &&
@@ -185,16 +198,27 @@ inline void replacePrivateFile(const std::wstring& directory, const std::wstring
         parent.validate();
         writeAll(file.value, bytes);
         requireWin32(FlushFileBuffers(file.value) != 0, "NATIVE_PRIVATE_FLUSH_FAILED");
-        const size_t size = offsetof(FILE_RENAME_INFO, FileName) + (name.size() + 1) * sizeof(wchar_t);
+        const size_t size = offsetof(NativeFileRenameInformation, FileName) + name.size() * sizeof(wchar_t);
         std::vector<BYTE> storage(size);
-        auto* rename = reinterpret_cast<FILE_RENAME_INFO*>(storage.data());
+        auto* rename = reinterpret_cast<NativeFileRenameInformation*>(storage.data());
         rename->ReplaceIfExists = TRUE;
         rename->RootDirectory = parent.handle();
         rename->FileNameLength = static_cast<DWORD>(name.size() * sizeof(wchar_t));
         std::memcpy(rename->FileName, name.data(), rename->FileNameLength);
         parent.validate();
-        requireWin32(SetFileInformationByHandle(file.value, FileRenameInfo, rename, static_cast<DWORD>(size)) != 0, "NATIVE_PRIVATE_COMMIT_FAILED");
+        /** 同步文件句柄按官方 FileRenameInformation 类别提交计数名称，实际 NTSTATUS 和 IO_STATUS_BLOCK 都必须成功；异常的非失败状态不能假称未提交或删除临时对象，避免把未知结果当成可以重放的回滚。 */
+        IO_STATUS_BLOCK statusBlock{};
+        statusBlock.Status = static_cast<NTSTATUS>(0xC0000001UL);
+        const NTSTATUS status = NtSetInformationFile(file.value, &statusBlock, rename,
+            static_cast<ULONG>(size), static_cast<FILE_INFORMATION_CLASS>(10));
+        if (status != 0) {
+            if (status >= 0) committed = true;
+            throw NativeFailure(committed ? "NATIVE_PRIVATE_COMMIT_UNCONFIRMED" : "NATIVE_PRIVATE_COMMIT_FAILED",
+                RtlNtStatusToDosError(status));
+        }
         committed = true;
+        if (statusBlock.Status != 0)
+            throw NativeFailure("NATIVE_PRIVATE_COMMIT_UNCONFIRMED", RtlNtStatusToDosError(statusBlock.Status));
         requireWin32(FlushFileBuffers(file.value) != 0, "NATIVE_PRIVATE_COMMIT_UNCONFIRMED");
     } catch (...) {
         if (!committed) {
