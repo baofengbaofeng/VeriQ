@@ -52,7 +52,11 @@ jobs:
               shell: bash
               run: |
                   set -o pipefail
-                  node --import tsx --test tests/vault-envelope.test.ts tests/vault-integration.test.ts tests/vault-history.test.ts tests/vault-deletion.test.ts tests/restricted-file.test.ts tests/restricted-operation.test.ts tests/vault-linux.test.ts tests/distribution.test.ts tests/native/linux-vault.test.ts 2>&1 | tee "$VERIQ_VAULT_EVIDENCE/vault-tests.log"
+                  node --import tsx --test tests/vault-envelope.test.ts tests/vault-integration.test.ts tests/vault-history.test.ts tests/vault-deletion.test.ts tests/restricted-file.test.ts tests/restricted-operation.test.ts tests/restricted-fixture-stage.test.ts tests/vault-linux.test.ts tests/distribution.test.ts tests/native/linux-vault.test.ts 2>&1 | tee "$VERIQ_VAULT_EVIDENCE/vault-tests.log"
+            - name: Prepare isolated locked dependency closure for the dedicated fixture account
+              timeout-minutes: 3
+              working-directory: apps/runtime
+              run: node scripts/restricted-fixture-stage.mjs prepare "$VERIQ_VAULT_EVIDENCE" "$RUNNER_TEMP/veriq-node-tools/node_modules/pnpm/bin/pnpm.cjs"
             - name: Verify explicit managed file mode on an owned account and persistent bind volume
               timeout-minutes: 4
               working-directory: apps/runtime
@@ -68,6 +72,10 @@ jobs:
               run: |
                   veriq_fixture_node="$(command -v node)"
                   sudo "$veriq_fixture_node" scripts/restricted-file-fixture.mjs cleanup "$VERIQ_VAULT_EVIDENCE"
+            - name: Always clean the owned isolated fixture deployment
+              if: always()
+              working-directory: apps/runtime
+              run: node scripts/restricted-fixture-stage.mjs cleanup "$VERIQ_VAULT_EVIDENCE"
             - name: Always confirm owned daemon cleanup
               if: always()
               working-directory: apps/runtime

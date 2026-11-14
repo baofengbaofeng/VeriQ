@@ -1,8 +1,9 @@
 /** 本脚本只在临时 Ubuntu CI 中创建一次性专用账户及单个自有 bind 挂载，固定 Node 子程序通过真实文件模式验证重启和清理；状态记录绑定随机身份与实际挂载 inode，正常及 always 清理均拒绝触碰不匹配对象，不修改现有账户或全局挂载。 */
 import assert from "node:assert/strict";
+import { stageOwnedFixture } from "./restricted-fixture-stage.mjs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { chmod, chown, lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -176,10 +177,47 @@ if (mode === "cleanup") {
     assert.equal(await group(state.username), undefined);
     await save("restricted-file-state.json", state);
     const observations = [];
+    let staged;
     try {
         await mkdir(state.root, { mode: 0o711 });
         await chmod(state.root, 0o711);
         await writeFile(join(state.root, ".owned"), nonce, { mode: 0o600, flag: "wx" });
+        const deployment = JSON.parse(
+            await readFile(join(evidence, "restricted-file-deployment.json"), "utf8"),
+        );
+        assert.equal(deployment.source, join(deployment.root, "runtime"));
+        assert.equal(await readFile(join(deployment.root, ".owned"), "utf8"), deployment.nonce);
+        staged = join(state.root, "code/apps/runtime");
+        await mkdir(join(state.root, "code/apps"), { recursive: true, mode: 0o755 });
+        await chmod(join(state.root, "code"), 0o755);
+        await chmod(join(state.root, "code/apps"), 0o755);
+        const tsconfigBase = await readFile(join(runtime, "../../tsconfig.base.json"));
+        const basePath = join(state.root, "code/tsconfig.base.json");
+        await writeFile(basePath, tsconfigBase, { flag: "wx", mode: 0o644 });
+        await chmod(basePath, 0o644);
+        assert.deepEqual(await readFile(basePath), tsconfigBase);
+        const inventory = await stageOwnedFixture(deployment.source, staged);
+        for (const member of [
+            "package.json",
+            "src/cli.ts",
+            "tests/fixtures/restricted-file-child.ts",
+        ]) {
+            assert.deepEqual(
+                await readFile(join(staged, member)),
+                await readFile(join(runtime, member)),
+                "FIXTURE_SOURCE_MISMATCH",
+            );
+        }
+        const code = await lstat(staged);
+        assert.equal(code.uid, 0);
+        assert.equal(code.mode & 0o777, 0o755);
+        await save("restricted-file-staging.json", {
+            ...inventory,
+            root: staged,
+            tsconfigBaseSha256: createHash("sha256").update(tsconfigBase).digest("hex"),
+            ownerUid: code.uid,
+            mode: code.mode & 0o777,
+        });
         await run("/usr/sbin/useradd", [
             "--system",
             "--no-create-home",
@@ -244,6 +282,7 @@ if (mode === "cleanup") {
                     ...args,
                 ],
                 {
+                    cwd: staged,
                     env: {
                         PATH: "/usr/sbin:/usr/bin:/sbin:/bin",
                         LANG: "C.UTF-8",
@@ -257,6 +296,10 @@ if (mode === "cleanup") {
                 assert.equal(result.stderr, "");
                 const facts = JSON.parse(result.stdout);
                 assert.equal(facts.phase, phase);
+                assert.equal(facts.codeRoot, staged);
+                assert.equal(facts.cwd, staged);
+                assert.equal(facts.sourceOwnerUid, 0);
+                assert.equal(facts.sourceMode, 0o644);
                 assert.equal(facts.uid, user.uid);
                 assert.equal(facts.euid, user.uid);
                 assert.equal(facts.gid, user.gid);
@@ -267,12 +310,12 @@ if (mode === "cleanup") {
                 assert.equal(facts.executable, process.execPath);
             } else assert.match(result.stderr, /no encryption at rest/);
         };
-        const source = join(runtime, "tests/fixtures/restricted-file-child.ts"),
+        const source = join(staged, "tests/fixtures/restricted-file-child.ts"),
             volume = join(state.root, "volume");
         await child("seed", [source, "seed", volume, String(user.uid)]);
         await child("restart", [source, "restart", volume, String(user.uid)]);
         await child("cli-retire", [
-            join(runtime, "src/cli.ts"),
+            join(staged, "src/cli.ts"),
             "--config-dir",
             join(volume, "profile"),
             "--credential-mode",

@@ -1,7 +1,7 @@
 /** 此有限子程序只在临时 Linux CI 的自有专用账户和 bind 卷内运行，实际跨进程创建、读取与退休凭据并检查权限拒绝；所有业务值均为公开合成标记，随机原始密钥绝不写入输出，测试不声称 OS vault、机器掉电或正式部署持久性验收。 */
 import assert from "node:assert/strict";
 import { chmod, lstat, readFile, readdir, rename, symlink, unlink } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { homedir, userInfo } from "node:os";
 import { randomBytes, randomUUID } from "node:crypto";
 import { VaultFiles } from "../../src/credentials/files.ts";
@@ -15,6 +15,14 @@ assert.equal(process.platform, "linux");
 assert.equal(process.versions.node, "24.22.1");
 const [phase, volume, uid] = process.argv.slice(2);
 assert(volume && uid && ["seed", "restart", "retired"].includes(phase!));
+const codeRoot = resolve(import.meta.dirname, "../..");
+const code = await lstat(codeRoot),
+    source = await lstat(import.meta.filename);
+assert.equal(process.cwd(), codeRoot);
+assert.equal(code.uid, 0);
+assert.equal(code.mode & 0o777, 0o755);
+assert.equal(source.uid, 0);
+assert.equal(source.mode & 0o777, 0o644);
 const directory = join(volume, "profile");
 const policy = {
     mode: "restricted-file" as const,
@@ -42,6 +50,10 @@ const device = {
 };
 const facts: Record<string, unknown> = {
     phase,
+    codeRoot,
+    cwd: process.cwd(),
+    sourceOwnerUid: source.uid,
+    sourceMode: source.mode & 0o777,
     uid: process.getuid!(),
     euid: process.geteuid!(),
     gid: process.getgid!(),
