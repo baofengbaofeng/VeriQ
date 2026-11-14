@@ -296,7 +296,7 @@ public:
     }
 };
 
-/** 模块入口只创建当前环境的类引用并导出目录打开函数，生产目标没有任意描述符采用、调度开关或测试导出；每次打开都重新执行真实目录链校验，缺少公开 POSIX 能力时不回退 JavaScript 路径访问。
+/** 模块入口只创建当前环境的类引用并导出目录打开及有限 Cookie 元数据函数，生产目标没有任意描述符采用、调度开关或测试导出；缺少公开 POSIX 能力时不回退 JavaScript 路径访问。
  * 构建目标要求 Node-API 九，两个架构各自编译并加载本架构 Mach-O。
  * 初始化函数不探测 Chrome、Keychain 或执行就绪，也不改变任何平台门。
  */
@@ -324,6 +324,18 @@ Napi::Object initialize(Napi::Env env, Napi::Object exports) {
                 return constructors->directory.New({token, constructors->file.Value()});
             });
         }, "openPrivateDirectory", constructors));
+    /** Cookie 接口先固定真实字符串与显式退休布尔参数，当前检查点仅提供可编译且可加载的连接桩供双架构观察缺失行为；实际文件能力必须等真实原生 RED 证据确认后才能补齐，不能把缺模块或编译错算作失败验证。
+     * 桩不打开、创建或删除任何文件，也不修改既有目录会话能力。
+     * 后续正式实现继续沿用同一个 Node-API 边界，不增加宿主加载或生产就绪入口。
+     */
+    exports.Set("privateCookieFile", Napi::Function::New(env,
+        [](const Napi::CallbackInfo& info) -> Napi::Value {
+            return boundary(info.Env(), [&]() -> Napi::Value {
+                require(info.Length() == 2 && info[1].IsBoolean(), "cookie.arguments");
+                text(info[0]);
+                throw Failure("DARWIN_COOKIE_UNIMPLEMENTED", "cookie.pending");
+            });
+        }, "privateCookieFile"));
     return exports;
 }
 }
