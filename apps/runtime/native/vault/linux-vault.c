@@ -107,6 +107,7 @@ static const char *error_status(GError *error, gboolean mutation) {
     return "failed";
 }
 
+/** GNOME keyring 的返回协议会把保存的二进制秘密标为 text/plain，标签不代表需要文本解码；仅兼容这两个已知标签且仍要求原始载荷严格三十二字节，禁止截断、编码转换或把其他格式当成有效密钥。 */
 static gboolean read_key(SecretItem *item, guchar key[32], GError **error) {
     if (!secret_item_load_secret_sync(item, NULL, error)) return FALSE;
     SecretValue *value = secret_item_get_secret(item);
@@ -114,7 +115,8 @@ static gboolean read_key(SecretItem *item, guchar key[32], GError **error) {
     gsize size = 0;
     const gchar *bytes = secret_value_get(value, &size);
     const gchar *content_type = secret_value_get_content_type(value);
-    gboolean valid = bytes && size == 32 && content_type && strcmp(content_type, "application/octet-stream") == 0;
+    gboolean valid = bytes && size == 32 && content_type &&
+        (strcmp(content_type, "application/octet-stream") == 0 || strcmp(content_type, "text/plain") == 0);
     if (valid) memcpy(key, bytes, 32);
     secret_value_unref(value);
     return valid;
@@ -162,6 +164,29 @@ static const char *operate(char **parts, guchar *input, gchar **output) {
     if (g_list_length(items) > 1) goto cleanup;
     SecretItem *item = items ? SECRET_ITEM(items->data) : NULL;
     if (item && secret_item_get_locked(item)) { status = "locked"; goto cleanup; }
+#ifdef VERIQ_VAULT_TEST_DRIVER
+    /** 独立测试驱动只报告实际读取的字节数量和固定类型分类，失败时仅报告有限错误域类别及数字代码；不输出秘密、属性值、任意 MIME 文本或系统错误消息，这个诊断操作不编入正式辅助程序。 */
+    if (strcmp(parts[1], "shape") == 0) {
+        if (!item) { status = "missing"; goto cleanup; }
+        if (!secret_item_load_secret_sync(item, NULL, &error)) {
+            const char *domain = !error ? "none" : error->domain == SECRET_ERROR ? "secret" :
+                error->domain == G_IO_ERROR ? "gio" : error->domain == G_DBUS_ERROR ? "dbus" : "other";
+            *output = g_strdup_printf("%s %d", domain, error ? error->code : 0);
+            status = "key-shape-error"; goto cleanup;
+        }
+        SecretValue *value = secret_item_get_secret(item);
+        if (!value) { status = "failed"; goto cleanup; }
+        gsize size = 0;
+        (void)secret_value_get(value, &size);
+        const gchar *content_type = secret_value_get_content_type(value);
+        const char *kind = !content_type ? "missing" :
+            strcmp(content_type, "application/octet-stream") == 0 ? "octet-stream" :
+            strcmp(content_type, "text/plain") == 0 ? "text-plain" : "other";
+        *output = g_strdup_printf("%" G_GSIZE_FORMAT " %s", size, kind);
+        secret_value_unref(value);
+        status = "key-shape"; goto cleanup;
+    }
+#endif
     if (strcmp(parts[1], "get") == 0) {
         guchar existing[32];
         if (!item) { status = "missing"; goto cleanup; }
@@ -219,6 +244,9 @@ int main(int argc, char **argv) {
     probe = probe || (count == 2 && (strcmp(parts[1], "lock") == 0 || strcmp(parts[1], "prompt") == 0));
 #endif
     gboolean get_delete = count == 4 && (strcmp(parts[1], "get") == 0 || strcmp(parts[1], "delete") == 0);
+#ifdef VERIQ_VAULT_TEST_DRIVER
+    get_delete = get_delete || (count == 4 && strcmp(parts[1], "shape") == 0);
+#endif
     gboolean set = count == 5 && strcmp(parts[1], "set") == 0;
 #ifdef VERIQ_VAULT_TEST_DRIVER
     set = set || (count == 5 && strcmp(parts[1], "duplicate") == 0);

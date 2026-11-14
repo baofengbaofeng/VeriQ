@@ -255,7 +255,12 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
         await t.test(
             "production binary refuses test commands and malformed empty frames",
             async () => {
-                for (const frame of ["V1 prompt\n", "V1 lock\n", "\n"])
+                for (const frame of [
+                    "V1 prompt\n",
+                    "V1 lock\n",
+                    `V1 shape ${scope.profileId} ${scope.keyVersion}\n`,
+                    "\n",
+                ])
                     assert.equal(
                         await direct(join(fixture.root, "native/vault/veriq_agent"), frame, 2),
                         "",
@@ -275,6 +280,13 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
             async () => {
                 assert.equal((await backend.get(scope, signal())).status, "missing");
                 assert.equal((await backend.set(scope, key, signal())).status, "ok");
+                const shape = await direct(
+                    driver,
+                    `V1 shape ${scope.profileId} ${scope.keyVersion}\n`,
+                );
+                facts.keyShape = { response: shape.trim(), separateTestBinary: true };
+                process.stdout.write("VAULT_KEY_SHAPE " + shape);
+                assert.match(shape, /^V1 key-shape 32 (octet-stream|text-plain)\n$/);
                 assert.equal((await backend.set(scope, Buffer.from(key), signal())).status, "ok");
                 assert.equal(
                     (await backend.set(scope, randomBytes(32), signal())).status,
