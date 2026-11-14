@@ -1,6 +1,11 @@
 name: Runtime private macOS files verification
 on:
     workflow_dispatch:
+        inputs:
+            vault_baseline:
+                description: Run the reproducible nonpersistent D1 parser failure baseline
+                type: boolean
+                default: false
     push:
         branches: [codex/veriq-mvp-completion]
         paths:
@@ -59,6 +64,25 @@ jobs:
               run: |
                   set -euo pipefail
                   node scripts/build-darwin.mjs "$RUNNER_TEMP/veriq-node-headers" --test-schedules 2>&1 | tee "$VERIQ_MAC_EVIDENCE/native-build.log"
+            - name: Build standalone D1 vault members without accessing Keychain stores
+              id: vault_build
+              working-directory: apps/runtime
+              env:
+                  VERIQ_D1_BASELINE: ${{ inputs.vault_baseline || false }}
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  node scripts/build-vault-darwin.mjs --tests 2>&1 | tee "$VERIQ_MAC_EVIDENCE/vault-build.log"
+                  if [ "$VERIQ_D1_BASELINE" = true ]; then
+                      node scripts/build-vault-darwin.mjs --red-candidate 2>&1 | tee "$VERIQ_MAC_EVIDENCE/vault-red-build.log"
+                  fi
+            - name: Verify only D1 protocol liveness and in-memory ACL behavior
+              id: vault_tests
+              working-directory: apps/runtime
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  node --import tsx --test tests/native/darwin-vault.test.ts 2>&1 | tee "$VERIQ_MAC_EVIDENCE/vault-nonpersistent.log"
             - name: Inspect actual Mach-O targets and generated compilation settings
               id: native_identity
               working-directory: apps/runtime
@@ -167,11 +191,14 @@ jobs:
                   };
                   const source = execFileSync("git", ["ls-files", "apps/runtime/native/darwin", "apps/runtime/src/native/darwin.ts", "apps/runtime/src/node-version.ts", "apps/runtime/src/execution/processes.ts", "apps/runtime/src/execution/darwin-*", "apps/runtime/src/execution/records.ts", "apps/runtime/src/execution/stopped-history.ts", "apps/runtime/src/execution/controlled-child*", "apps/runtime/src/execution/controlled-command*", "apps/runtime/src/execution/worker.mjs", "apps/runtime/src/distribution.ts", "apps/desktop/scripts/stage-runtime.mjs", "apps/runtime/tests/controlled-proof.test.ts", "apps/runtime/tests/native/darwin-controlled-processes.test.ts", "apps/runtime/tests/fixtures/darwin-controlled-worker.mjs", "apps/runtime/tests/vault-history.test.ts", "apps/runtime/tests/controlled-command.test.ts", "apps/runtime/tests/worker-portability.test.ts", "apps/runtime/tests/distribution.test.ts", "apps/runtime/tests/native/windows-profile.test.ts", "apps/runtime/tests/fixtures/vault-distribution.ts", "apps/runtime/tests/fixtures/windows-vault.ts", "apps/runtime/tests/controlled-child.test.ts", "apps/runtime/tests/fixtures/controlled-child-owner.py", "apps/runtime/src/execution/supervisor.ts", "apps/runtime/src/execution/broker.ts", "apps/runtime/src/offline/run.ts", "apps/runtime/src/offline/config.ts", "apps/runtime/src/offline/store.ts", "apps/runtime/src/offline/verify.ts", "apps/runtime/tests/native/darwin-business.test.ts", "apps/runtime/tests/fixtures/business-engine.ts", "apps/runtime/tests/darwin-business-contract.test.ts", "apps/runtime/tests/offline-store.test.ts", "apps/runtime/tests/offline.test.ts", "apps/runtime/tests/physical.test.ts", "packages/runner-sdk/src/register-case.ts", "packages/runner-sdk/src/controlled-browser.ts", "packages/runner-sdk/src/endpoint-json-reporter.ts", "packages/runner-sdk/tests/controlled-browser.test.ts", "packages/runner-sdk/tests/queue-fixture.ts", "packages/runner-sdk/tests/distribution.ts", "packages/compiler/tests/helpers.ts", "apps/runtime/src/credentials/files.ts", "apps/runtime/scripts/build-darwin.mjs", "apps/runtime/package.json", "apps/runtime/tests/native/darwin-private-files.test.ts", "apps/runtime/tests/native/darwin-private-files-fault.cc", ".github/workflows/runtime-native-macos.yml", ".github/workflows/desktop-fix-validation.yml", "pnpm-lock.yaml", "pnpm-workspace.yaml"], {encoding:"utf8", maxBuffer:65536}).trim().split("\n").filter(Boolean);
                   for (const path of source) await add(path);
+                  for (const path of ["apps/runtime/native/vault/darwin-vault.mm", "apps/runtime/native/vault/darwin-acl.hpp", "apps/runtime/scripts/build-vault-darwin.mjs", "apps/runtime/tests/native/darwin-vault.test.ts", "apps/runtime/tests/native/darwin-vault-dedicated.test.ts", "apps/runtime/tests/native/darwin-vault-controller.mm", "apps/runtime/tests/native/darwin-acl-test.mm", "apps/runtime/tests/fixtures/darwin-vault.ts"]) await add(path);
                   await add(process.execPath);
                   await walk(join(process.env.RUNNER_TEMP, "veriq-node-headers"));
                   await walk("apps/runtime/native/darwin/build");
                   await walk("apps/runtime/build/darwin");
                   await walk("apps/runtime/build/native-tests");
+                  await walk("apps/runtime/build/vault-darwin");
+                  await walk("apps/runtime/build/vault-darwin-test");
                   const require = createRequire(resolve("apps/runtime/package.json"));
                   try { await walk(resolve(require.resolve("node-addon-api/package.json"), "..")); }
                   catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
@@ -184,6 +211,8 @@ jobs:
                   BUILD_OUTCOME: ${{ steps.native_build.outcome }}
                   TEST_OUTCOME: ${{ steps.private_tests.outcome }}
                   BUSINESS_OUTCOME: ${{ steps.business_tests.outcome }}
+                  VAULT_BUILD_OUTCOME: ${{ steps.vault_build.outcome }}
+                  VAULT_TEST_OUTCOME: ${{ steps.vault_tests.outcome }}
               shell: bash
               run: |
                   set -euo pipefail
@@ -251,7 +280,7 @@ jobs:
                           }
                       } finally { closeSync(fd); }
                   }
-                  writeFileSync(join(destination,"inventory.json"),JSON.stringify({source:process.env.GITHUB_SHA,arch:process.env.EXPECTED_ARCH,build:process.env.BUILD_OUTCOME,tests:process.env.TEST_OUTCOME,business:process.env.BUSINESS_OUTCOME,businessExpected:26,mandatoryScanLabels:["ONLINE_ASSERT_FAIL_PASS","ONLINE_CONNECT_FAIL","OFFLINE_PASS","OFFLINE_ASSERT_FAIL","OFFLINE_CONNECT_FAIL"],intentionalGateLabels:["ONLINE_JSON_INVALID","OFFLINE_JSON_INVALID"],nativeStdio:"IGNORED",inventory},null,4));
+                  writeFileSync(join(destination,"inventory.json"),JSON.stringify({source:process.env.GITHUB_SHA,arch:process.env.EXPECTED_ARCH,build:process.env.BUILD_OUTCOME,tests:process.env.TEST_OUTCOME,business:process.env.BUSINESS_OUTCOME,vaultBuild:process.env.VAULT_BUILD_OUTCOME,vaultNonpersistentTests:process.env.VAULT_TEST_OUTCOME,vaultPersistentAcceptance:"PENDING_DEDICATED_SESSION",businessExpected:26,mandatoryScanLabels:["ONLINE_ASSERT_FAIL_PASS","ONLINE_CONNECT_FAIL","OFFLINE_PASS","OFFLINE_ASSERT_FAIL","OFFLINE_CONNECT_FAIL"],intentionalGateLabels:["ONLINE_JSON_INVALID","OFFLINE_JSON_INVALID"],nativeStdio:"IGNORED",inventory},null,4));
                   JS
             - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
               if: always()
