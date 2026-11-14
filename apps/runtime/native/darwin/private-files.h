@@ -13,6 +13,7 @@
 #include <cerrno>
 #include <cstdint>
 #include <cstdio>
+#include <exception>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -441,14 +442,27 @@ class Directory {
         for (const auto& parent : cookieParents_) verifyCookieDirectory(parent.get(), false);
         verifyCookieDirectory(fd_.get(), true);
     }
+    /** Cookie 目录关闭只接收当前原始拥有者与有限保留父集合，每个 close 都明确尝试且先撤销数字所有权，一次失败不能让其他必需关闭静默降级成析构；完成全部尝试后原样重抛首个异常，避免后续清理覆盖首个真实错误。
+     * 部分布局缺失时这些拥有者仍在遍历栈上，成功返回之前必须在此确认全部关闭结果。
+     * 完整布局也复用相同阶段与顺序，发布后的错误仍由已有 removed 状态转换为提交不确定。
+     */
+    static void closeCookieOwners(Descriptor& current, std::vector<Descriptor>& parents) {
+        std::exception_ptr first;
+        const auto close = [&](Descriptor& owner, const char* phase) {
+            try { owner.close(phase); }
+            catch (...) { if (!first) first = std::current_exception(); }
+        };
+        close(current, "cookie.directory-close");
+        for (auto parent = parents.rbegin(); parent != parents.rend(); ++parent)
+            close(*parent, "cookie.parent-close");
+        if (first) std::rethrow_exception(first);
+    }
     /** Cookie 正常返回前必须显式关闭最终目录及保留的关键中间目录，顺序从存储目录向应用根释放且每次 close 都先撤销所有权；任何必要关闭失败交外层按是否已 unlink 保留原错误或提交不确定，而不重试数字。
-     * 异常展开时其余 Descriptor 只做资源兜底，不把清理替代明确成功或提交确认。
+     * 固定 helper 尝试所有仍持有目录再重抛首个错误，析构仅为其他异常路径提供资源兜底。
      * 缺失成员也走同一必要关闭路径，关闭失败不能被 false 隐藏。
      */
     void closeCookieDirectories() {
-        fd_.close("cookie.directory-close");
-        for (auto parent = cookieParents_.rbegin(); parent != cookieParents_.rend(); ++parent)
-            parent->close("cookie.parent-close");
+        closeCookieOwners(fd_, cookieParents_);
     }
     /** 成员只通过持有目录描述符相对打开一次，NOFOLLOW 拒绝链接而 NONBLOCK 避免 FIFO 阻塞，CLOEXEC 阻止未显式映射的句柄泄漏；取得描述符还不代表授权成功，调用者必须继续核同 fd 元数据与 ACL。
      * 打开失败保留 errno，只有实际 ENOENT 可以解释为成员缺失。
@@ -503,6 +517,7 @@ public:
      * 每级 fstat 确认目录身份，O_DIRECTORY 与 NOFOLLOW 同时约束实际打开。
      * 关闭旧父描述符成功后才移动到下一层，失败不会继续创建后代。
      * 路径整体和每个组件都有长度限制，解析没有无限或递归遍历。
+     * 仅 Cookie 指定 safeFrom 且 create=false 时，真实目录缺失并确认全部已取得目录关闭成功后返回 nullptr；默认一般入口仍抛原异常。
      */
     static std::unique_ptr<Directory> open(const std::string& path, bool create,
             size_t safeFrom = std::string::npos) {
@@ -534,8 +549,22 @@ public:
                 while (result != 0 && errno == EINTR && ++attempts < retryLimit);
                 if (result != 0 && errno != EEXIST) systemFailure("directory.mkdir");
             }
-            Descriptor next(openAt(parent.get(), part.c_str(),
-                O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC, 0, "directory.open"));
+            Descriptor next;
+            try {
+                next = Descriptor(openAt(parent.get(), part.c_str(),
+                    O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC, 0, "directory.open"));
+            } catch (const Failure& error) {
+                /** 只有 Cookie 只读遍历允许真实缺少布局目录返回空拥有者，原父与保留集合必须尚未展开并全部明确关闭成功；任何关闭异常直接保留，不能在析构之后由外层把 ENOENT 转成成功缺失。
+                 * safeFrom 默认 npos 或 create 为真时保持一般 B 的原始异常行为，不新增通用可空目录入口。
+                 * 当前父可能是尚未完成布局的中间目录，这里只释放原拥有者，不按路径重开或误用最终七百模式。
+                 */
+                if (!create && safeFrom != std::string::npos && error.number == ENOENT &&
+                    error.phase == "directory.open" && std::string(error.what()) == "ENOENT") {
+                    closeCookieOwners(parent, cookieParents);
+                    return nullptr;
+                }
+                throw;
+            }
             const auto info = metadata(next.get());
             require(S_ISDIR(info.st_mode), "directory.type");
             /** Cookie 的应用根与固定布局中间目录可以保留 Electron 既有七百五十五模式，但必须真实 uid 拥有且没有组或其他写入、特殊位或扩展授权；更高祖先沿用 B 的无链接目录政策，最终目录另按七百严格检查。
@@ -805,7 +834,7 @@ public:
 
 /** Cookie 路径必须先完整验证所有原始组件和两个已知布局的四个精确成员，之后才允许任何目录打开或缺失分类；六十四兆元数据能力不能用于任意私有目录下同名文件，也不做 realpath 规范化或权限修复。
  * 应用根至少占一个真实组件，Partitions/veriq-host 与可选 Network 保持精确大小写。
- * 只有已允许布局的真实目录打开 ENOENT 可直接返回 false，其余失败和提交不确定全部保留。
+ * 只有内部 Cookie 遍历确认真实目录缺失并明确关闭全部已取得目录后的空拥有者可返回 false，关闭失败及提交不确定全部保留。
  * 文件名、正文、路径和原始 fd 均不通过这个同步布尔接口交付给调用者。
  */
 inline bool privateCookieFile(const std::string& path, bool retire) {
@@ -830,14 +859,8 @@ inline bool privateCookieFile(const std::string& path, bool retire) {
     require(count >= (network ? 5 : 4), "cookie.layout");
     const size_t host = count - (network ? 3 : 2);
     require(parts[host] == "veriq-host" && parts[host - 1] == "Partitions", "cookie.layout");
-    std::unique_ptr<Directory> directory;
-    try {
-        directory = Directory::open(path.substr(0, path.rfind('/')), false, host - 2);
-    } catch (const Failure& error) {
-        if (error.number == ENOENT && error.phase == "directory.open" &&
-            std::string(error.what()) == "ENOENT") return false;
-        throw;
-    }
+    auto directory = Directory::open(path.substr(0, path.rfind('/')), false, host - 2);
+    if (!directory) return false;
     return directory->cookie(name, retire);
 }
 }
