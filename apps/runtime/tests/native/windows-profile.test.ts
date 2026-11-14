@@ -356,7 +356,7 @@ async function distribution(root: string, includeNative: boolean) {
         JSON.stringify({
             schemaVersion: 1,
             productVersion: "1.0.0-dev.t20",
-            nodeVersion: "24.22.1",
+            nodeVersion: process.versions.node,
             platform: "win32",
             arch: process.arch,
             engineVersion: "1.0.3-t20",

@@ -1,5 +1,5 @@
 /**
- * 本文件对运行环境做真实自检：核对 Node24.22.1、引擎包、Chromium 渲染与可选控制 Origin：结果非信任证明（doctor）。
+ * 本文件对运行环境做真实自检：核对稳定独立 Node24.x、引擎包、Chromium 渲染与可选控制 Origin：结果非信任证明（doctor）。
  */
 
 import { access, readFile } from "node:fs/promises";
@@ -10,6 +10,7 @@ import { arch, platform } from "node:os";
 import { chromium } from "@playwright/test";
 import { controlOrigin } from "./enrollment.ts";
 import type { Capabilities } from "./enrollment.ts";
+import { isIndependentNode24 } from "./node-version.ts";
 import type { EngineRelease } from "./execution/release.ts";
 
 /**
@@ -37,7 +38,7 @@ export async function doctor(
 ): Promise<DoctorResult> {
     const checks: DoctorResult["checks"] = [];
     const check = (name: string, ok: boolean, detail: string) => checks.push({ name, ok, detail });
-    check("Node", process.versions.node === "24.22.1", process.versions.node);
+    check("Node", isIndependentNode24(process.versions), process.versions.node);
     check(
         "OS / architecture",
         ["linux", "win32"].includes(platform()) && arch() === "x64",

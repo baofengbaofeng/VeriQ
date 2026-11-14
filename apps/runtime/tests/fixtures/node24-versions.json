@@ -1,0 +1,66 @@
+[
+    {
+        "version": "24.0.0",
+        "supported": true
+    },
+    {
+        "version": "24.20.0",
+        "supported": true
+    },
+    {
+        "version": "24.22.1",
+        "supported": true
+    },
+    {
+        "version": "24.99.99",
+        "supported": true
+    },
+    {
+        "version": "23.99.0",
+        "supported": false
+    },
+    {
+        "version": "25.0.0",
+        "supported": false
+    },
+    {
+        "version": "24.20.0-rc.1",
+        "supported": false
+    },
+    {
+        "version": "24.20.0+build",
+        "supported": false
+    },
+    {
+        "version": "024.20.0",
+        "supported": false
+    },
+    {
+        "version": "24.020.0",
+        "supported": false
+    },
+    {
+        "version": "24.20.00",
+        "supported": false
+    },
+    {
+        "version": "24.20",
+        "supported": false
+    },
+    {
+        "version": "24.20.0.1",
+        "supported": false
+    },
+    {
+        "version": "v24.20.0",
+        "supported": false
+    },
+    {
+        "version": "24.1000000000.0",
+        "supported": false
+    },
+    {
+        "version": "",
+        "supported": false
+    }
+]

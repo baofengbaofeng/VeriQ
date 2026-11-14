@@ -4,7 +4,7 @@
 
 ## 已有约束与版本
 
-保留 Electron45.3.1、electron-vite6.0.0、electron-builder26.18.1，独立执行器使用 Node24.22.1；业务浏览器为 Playwright1.65.0 对应的完整 Chromium158.0.8127.18/rev1254。Electron 内嵌 Node24.22.2 和 UI Chromium156 分别记录，不能替代独立执行器和业务浏览器。
+保留 Electron45.3.1、electron-vite6.0.0、electron-builder26.18.1，独立执行器兼容稳定 Node24.x（`>=24 <25`），CI 跟随 `24.x`，每个候选固定并记录实际打包的具体 Node 版本；业务浏览器为 Playwright1.65.0 对应的完整 Chromium158.0.8127.18/rev1254。Electron 内嵌 Node24.22.2 和 UI Chromium156 分别记录，不能替代独立执行器和业务浏览器。
 
 2026-11-14用户修订支持目标：macOS Intel x64与Apple Silicon arm64均为完整MVP、最高优先级；Windows11 x64、Ubuntu24.04 x64保留、优先级较低，另有Linux无桌面云端Runtime。Mac最低版本已确认为macOS14（Sonoma），测试必须使用宿主macOS原生Chrome，原生监督设计仍未决定，见[范围与兼容性记录](../specs/macos-mvp-scope.md)；本ADR原有Windows/Linux机制不构成Mac已实现的依据。当前开发宿主Debian13、托管Windows Server构建以及Ubuntu虚拟显示测试，各自只能证明实际执行的内容。真实安装、托盘、凭据库、跨用户访问、升级和离网验收不能互相替代。
 
@@ -29,7 +29,7 @@
 
 ## 独立发行闭包与身份
 
-GUI 随包携带本地页面。Agent、CLI、Worker、编译 helper、运行依赖、Node 角色文件、浏览器和引擎放在真正的 ASAR 外资源目录；独立 Node 不依赖 Electron 的虚拟文件系统、仓库源码链接、全局工具或在线下载。实际可执行文件名为 veriq、veriq_agent、veriq_runner，CLI 可为 veriq_cli；每个进程的执行路径、hash 与 OS 名称均须核验。原生 guardian 和角色 Node 可以在不同目录各自使用 veriq_runner 名称，所有权通过实际句柄与启动身份区分。
+GUI 随包携带本地页面。Agent、CLI、Worker、编译 helper、运行依赖、Node 角色文件、浏览器和引擎放在真正的 ASAR 外资源目录；独立 Node 不依赖 Electron 的虚拟文件系统、仓库源码链接、全局工具或在线下载。实际可执行文件名为 veriq、veriq_agent、veriq_runner，CLI 可为 veriq_cli；每个进程的执行路径、hash 与 OS 名称均须核验。完整库存核验后的原始发行对象私有绑定清单具体 Node 版本，角色实测版本必须精确一致；复制对象或同主版本的其它 Node 不继承执行能力。既有24.22.1库存与真实审计事实不改写。原生 guardian 和角色 Node 可以在不同目录各自使用 veriq_runner 名称，所有权通过实际句柄与启动身份区分。
 
 npm 使用固定 Node 发行物中的 npm-cli.js 和完整依赖，通过角色 Node 调用，不依赖 npm.cmd、系统 npm 或 shell 拼接。固定 Node 归档内实际 npm 版本与依赖图仍需在获取时记录。生产 Runtime 不要求 Python、MySQL、cc、pnpm 或开发 checkout。
 
@@ -61,7 +61,7 @@ Node、Electron、完整 Chrome 的压缩元数据合计约 Linux363MB、Windows
 
 # ADR 0021: independent Runtime and native distribution
 
-Retain the frozen Electron toolchain, independent Node24.22.1 and full Playwright-matched Chrome158. Stage actual role executables, JS/helper/dependency closure, npm, browser and verified engines outside ASAR. Product, engine, compiler and SDK identities remain distinct and immutable. Windows11 and Ubuntu24.04 installed acceptance require their actual targets.
+Retain the frozen Electron toolchain, independent stable Node24.x (`>=24 <25`) and full Playwright-matched Chrome158. Stage actual role executables, JS/helper/dependency closure, npm, browser and verified engines outside ASAR. CI follows `24.x`; each candidate records its actual bundled Node version. Complete inventory hashes, physical role paths and the exact recorded Node version remain mandatory, with execution capability bound to the original verified distribution object. Existing 24.22.1 artifacts and evidence remain unchanged. Product, engine, compiler and SDK identities remain distinct and immutable. Windows11 and Ubuntu24.04 installed acceptance require their actual targets.
 
 Reuse locked tar/tsx, Win32 Jobs, Credential Manager and Linux Secret Service through narrow native adapters. node-addon-api8.9.2 is selected as build-only assistance, subject to actual acquisition and target graph verification. Do not introduce unchanged keyring2.1.2 while its native advisory disposition remains unresolved. Desktop vault keys protect standard authenticated encrypted payloads; explicit restricted-file mode is permitted for unattended Linux, without a silent desktop downgrade or an encryption claim.
 

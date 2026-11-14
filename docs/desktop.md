@@ -31,7 +31,7 @@ GNOME 环境不能假设系统提供托盘，界面会说明最小化回退。�
 
 ## 开发构建 / Source build
 
-需要锁定 Node24.22.1、pnpm11.25.0、Electron45.3.1 与 Playwright1.65.0 的匹配测试浏览器。Electron 内嵌 Node 和 Chromium 仅服务 UI，不能替代独立执行引擎。桌面最终分发需要完整携带运行依赖，不能依赖开发工作区。
+需要稳定 Node24.x（`>=24 <25`）、pnpm11.25.0、Electron45.3.1 与 Playwright1.65.0 的匹配测试浏览器。Electron 内嵌 Node 和 Chromium 仅服务 UI，不能替代独立执行引擎。桌面最终分发需要完整携带运行依赖，不能依赖开发工作区。每个候选记录具体打包 Node 版本及库存 hash，安装角色路径与实测版本必须精确匹配该清单；旧24.22.1证据保持原样。
 
 ```sh
 pnpm --filter @veriq/desktop build
@@ -45,15 +45,15 @@ The desktop check generates shared Web declarations before checking both strict 
 
 可信开发启动器设置以下路径后运行 Electron 的 `apps/desktop` 入口；这些值不能通过 renderer 修改：
 
-| 环境变量 / Variable            | 用途 / Purpose                                            |
-| ------------------------------ | --------------------------------------------------------- |
-| `VERIQ_DESKTOP_PROFILE`        | 私有本机档案 / Private local profile                      |
-| `VERIQ_DESKTOP_NODE`           | 独立 Node24.22.1 可执行文件 / Independent Node executable |
-| `VERIQ_DESKTOP_ENGINE`         | 已核验引擎发行目录 / Verified engine distribution         |
-| `VERIQ_DESKTOP_ENGINE_VERSION` | 对应发行版本，默认 `1.0.0` / Matching engine version      |
-| `VERIQ_DESKTOP_BROWSER`        | Playwright 匹配浏览器 / Matched test browser              |
-| `VERIQ_DESKTOP_HEADED_BROWSER` | 可选完整可见 Chromium / Optional matched headed Chromium  |
-| `VERIQ_TEST_ELECTRON`          | GUI E2E 使用的真实 Electron / Actual E2E executable       |
+| 环境变量 / Variable            | 用途 / Purpose                                                      |
+| ------------------------------ | ------------------------------------------------------------------- |
+| `VERIQ_DESKTOP_PROFILE`        | 私有本机档案 / Private local profile                                |
+| `VERIQ_DESKTOP_NODE`           | 独立稳定 Node24.x 可执行文件 / Independent stable Node24 executable |
+| `VERIQ_DESKTOP_ENGINE`         | 已核验引擎发行目录 / Verified engine distribution                   |
+| `VERIQ_DESKTOP_ENGINE_VERSION` | 对应发行版本，默认 `1.0.0` / Matching engine version                |
+| `VERIQ_DESKTOP_BROWSER`        | Playwright 匹配浏览器 / Matched test browser                        |
+| `VERIQ_DESKTOP_HEADED_BROWSER` | 可选完整可见 Chromium / Optional matched headed Chromium            |
+| `VERIQ_TEST_ELECTRON`          | GUI E2E 使用的真实 Electron / Actual E2E executable                 |
 
 `pnpm desktop:test` 顺序执行真实冷窗口、生产候选工作流、断网报告及生命周期、离线源码和联网编辑器验收；测试不自动重试。测试需要隔离的 MySQL 测试配置、实际已核验引擎候选、匹配浏览器、桌面显示和可用 Chromium sandbox。所有数据库夹具共用 `/tmp/veriq-t12-db.lock`。缺少这些条件不是产品失败，也不能当作验收通过。测试状态和证据均为私有本机文件，不提交仓库。
 
@@ -61,7 +61,7 @@ The GUI suite uses a real Electron process with Chromium sandbox explicitly enab
 
 ## 干净检出的 GUI 验收 / Fresh-checkout GUI acceptance
 
-[Desktop focused verification](../.github/workflows/desktop-fix-validation.yml) 固定 Ubuntu24.04、Node24.22.1、Python3.12.14、MySQL8.4.13、锁定依赖及匹配浏览器；开发分支 push 自动运行。工作流只创建隔离测试发行与数据库，不发布安装包。生产器输出的 `1.0.2-t19-fix1` 是未批准的测试候选，夹具只在本轮私有签发者下通过正式 `promote_engine` 验证并晋升它。
+[Desktop focused verification](../.github/workflows/desktop-fix-validation.yml) 固定 Ubuntu24.04、Python3.12.14、MySQL8.4.13、锁定依赖及匹配浏览器，Node 跟随 `24.x`；开发分支 push 自动运行。工作流只创建隔离测试发行与数据库，不发布安装包。生产器输出的 `1.0.2-t19-fix1` 是未批准的测试候选，夹具只在本轮私有签发者下通过正式 `promote_engine` 验证并晋升它。
 
 The focused branch workflow contains the complete fresh-checkout setup, exact action/image pins and artifact allowlist. Its separate candidate is only approved inside the isolated test fixture; it is not a released engine.
 

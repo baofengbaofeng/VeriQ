@@ -21,6 +21,7 @@ import {
     loadRuntimeDistribution,
     type RuntimeDistribution,
 } from "../../../runtime/src/distribution.ts";
+import { isNode24Version } from "../../../runtime/src/node-version.ts";
 import { DesktopAgentClient } from "../agent/client";
 import { HostSession, controlOrigin } from "./session";
 import { requireCookieProtection } from "./cookie-protection";
@@ -96,7 +97,7 @@ const runtime = {
 /** 连接已有后台优先于拉起新进程，只有明确的不可用或首次档案缺失才进入启动路径；已损坏的描述文件与未知错误必须原样失败，避免错误重启抢占仍在执行的同一档案。
  * 先调用真实 status，成功说明该 nonce 和 socket 对应的后台能处理协议。
  * 仅看到 socket 文件存在不足以证明进程可用，因此不采用文件存在即成功。
- * 启动配置写入之前，固定 Node 可执行文件必须实际返回 v24.22.1。
+ * 启动配置写入之前，选定 Node 必须实测为稳定24.x，安装发行还须与清单具体版本一致。
  * 版本探测使用 execFile 和参数数组，不经 shell 拼接。
  * 十秒版本探测只限制这个工具查询，不改变业务用例时限。
  * 后台配置写入使用私有原子配置接口，包含当前明确选择的控制 Origin。
@@ -132,7 +133,13 @@ async function ensureAgent(): Promise<void> {
     }
     const agentNode = installed?.agentExecutable ?? node24;
     const version = await promisify(execFile)(agentNode, ["--version"], { timeout: 10000 });
-    if (version.stdout.trim() !== "v24.22.1") throw new Error("INDEPENDENT_NODE24_REQUIRED");
+    const actualNode = version.stdout.trim();
+    if (
+        !actualNode.startsWith("v") ||
+        !isNode24Version(actualNode.slice(1)) ||
+        (installed && actualNode !== `v${installed.nodeVersion}`)
+    )
+        throw new Error("INDEPENDENT_NODE24_REQUIRED");
     await updatePrivate(profile, "desktop-config.json", () => ({
         origin,
         ...(installed

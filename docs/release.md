@@ -2,7 +2,7 @@
 
 `./build.sh` 是正常发行入口；`--with-tests` 与默认相同。`--skip-tests --reason "incident reference"` 只跳过动态测试，仍执行类型、lint、格式、注释、静态库存、wheel 和干净安装检查。常规 CI 拒绝 `testsSkipped=true`。当前历史格式与 B05 注释债由 T22 整改；门禁失败时没有正常成功发行，独立验证的候选也不能冒充已发布版本。
 
-固定工具为 Python3.12.14、uv0.13.5、Node24.22.1、pnpm11.25.0。构建执行 frozen 安装、Web tsc/Biome/Prettier、Vite、完整文件暂存、Python 与核心 TS 覆盖率至少75%、真实 MySQL/浏览器测试、Hatch wheel 和仓库外离线安装。测试使用独立 `veriq_test` 与同一 `/tmp/veriq-t12-db.lock`，私有 `.superpowers/sdd/veriq-1/test-env.json` 由开发者或 CI 安全提供，不提交凭证。缺条件失败。
+固定工具为 Python3.12.14、uv0.13.5、pnpm11.25.0；Node 接受稳定24.x（`>=24 <25`），CI 跟随 `24.x`，`.node-version` 推荐24大版本。每次构建将实际探测工具版本写入 `release.json.tools` 与 `evidence/tool-versions.json`；每个 Runtime 候选固定其实际打包的具体 Node 版本并记录在清单，完整库存 hash 校验后仍须核对实际角色路径及精确版本，不搜索系统 Node 或使用 Electron 内嵌 Node 替代。旧24.22.1产物与证据保持原样。构建执行 frozen 安装、Web tsc/Biome/Prettier、Vite、完整文件暂存、Python 与核心 TS 覆盖率至少75%、真实 MySQL/浏览器测试、Hatch wheel 和仓库外离线安装。测试使用独立 `veriq_test` 与同一 `/tmp/veriq-t12-db.lock`，私有 `.superpowers/sdd/veriq-1/test-env.json` 由开发者或 CI 安全提供，不提交凭证。缺条件失败。
 
 正常裸包在 Ubuntu24.04 x64/Python3.12 上制作并实际安装验证。Debian 开发机的候选验证不代替目标 OS 验收。Dockerfile 使用固定 Python 镜像摘要，容器另行启动验证。服务镜像只含 Python 控制面，不含 Node 或浏览器。部署需要外部 HTTPS 终结代理；仅向本机暴露8888，配置 `public_url` 为实际 HTTPS 源。
 

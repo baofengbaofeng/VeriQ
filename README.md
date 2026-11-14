@@ -93,7 +93,7 @@ flowchart TB
 
 ## 开发检查
 
-使用 Python 3.12.14、uv 0.13.5、Node 24.x（`>=24 <25`）与 pnpm 11.25.0，在仓库根目录执行；CI 与正式发行仍使用钉选的 Node 24.22.1：
+使用 Python 3.12.14、uv 0.13.5、Node 24.x（`>=24 <25`）与 pnpm 11.25.0，在仓库根目录执行；CI 跟随 `24.x`；正式候选记录实际打包的具体 Node 版本，并按发行清单与 hash 校验角色身份：
 
 ```sh
 uv sync --project apps/srv --frozen --all-groups
@@ -276,7 +276,7 @@ Target compatibility is server Linux x64, with macOS Intel x64 and Apple Silicon
 
 ## Development checks
 
-With Python 3.12.14, uv 0.13.5, Node 24.x (`>=24 <25`), and pnpm 11.25.0, from the repository root. CI and formal releases continue to use pinned Node 24.22.1:
+With Python 3.12.14, uv 0.13.5, Node 24.x (`>=24 <25`), and pnpm 11.25.0, from the repository root. CI follows `24.x`; each release candidate records its actual bundled Node version and verifies role identity against its manifest and hashes:
 
 ```sh
 uv sync --project apps/srv --frozen --all-groups

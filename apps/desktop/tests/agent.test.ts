@@ -14,7 +14,7 @@ test("independent Node24 agent reports an idle durable profile", async () => {
         });
         const status = await agent.dispatch({ operation: "status" });
         assert.equal(typeof status, "object");
-        assert.equal((status as { node: string }).node, "24.22.1");
+        assert.equal((status as { node: string }).node, process.versions.node);
         assert.equal((status as { active: unknown }).active, null);
         assert.deepEqual((status as { bundles: unknown[] }).bundles, []);
         assert(!JSON.stringify(status).includes("deviceToken"));

@@ -27,7 +27,7 @@ jobs:
                   python-version: 3.12.14
             - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
               with:
-                  node-version: 24.22.1
+                  node-version: 24.x
             - name: Install pinned build tools into runner temporary directories
               run: |
                   python -m pip install --target "$RUNNER_TEMP/veriq-python-tools" uv==0.13.5

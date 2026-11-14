@@ -43,7 +43,7 @@ export async function vaultDistribution(helper?: Uint8Array) {
             JSON.stringify({
                 schemaVersion: 1,
                 productVersion: "1.0.0-dev.t20",
-                nodeVersion: "24.22.1",
+                nodeVersion: process.versions.node,
                 platform: "linux",
                 arch: process.arch,
                 engineVersion: "1.0.3-t20",

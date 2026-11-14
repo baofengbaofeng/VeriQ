@@ -4,7 +4,7 @@ This document freezes the T01 interfaces for following tasks. It describes contr
 
 ## Developer commands
 
-Use Python 3.12.14, uv 0.13.5, Node 24.22.1 and pnpm 11.25.0. From the repository root:
+Use Python 3.12.14, uv 0.13.5, stable Node24.x (`>=24 <25`) and pnpm 11.25.0; CI follows `24.x`. From the repository root:
 
 ```sh
 uv sync --project apps/srv --frozen --all-groups

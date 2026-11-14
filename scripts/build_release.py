@@ -206,16 +206,30 @@ def build_release(options: BuildOptions) -> ReleaseManifest:
 
             if sys.version_info[:2] != (3, 12) or platform.machine() != "x86_64":
                 raise ValueError("Release requires Python 3.12 and Linux x64")
+            tool_versions = {}
             for tool, expected in [
-                ("node", "v24.22.1"),
+                ("node", ""),
                 ("pnpm", "11.25.0"),
                 ("uv", "uv 0.13.5"),
             ]:
                 actual = managed.run(
                     [tool, "--version"], text=True, check=True, stdout=subprocess.PIPE
                 ).stdout.strip()
-                if not actual.startswith(expected):
+                # Node 兼容条件只接受有限位数的规范稳定二十四主版本，不能把建议的大版本字符串写成实测身份；其余工具继续沿用原有版本门禁，探测成功后才形成候选构建记录。
+                compatible = (
+                    re.fullmatch(
+                        r"v24\.(?:0|[1-9][0-9]{0,8})\.(?:0|[1-9][0-9]{0,8})", actual
+                    )
+                    is not None
+                    if tool == "node"
+                    else actual.startswith(expected)
+                )
+                if not compatible:
                     raise ValueError(f"Unsupported release tool version: {tool}")
+                tool_versions[tool] = actual
+            (run / "tool-versions.json").write_text(
+                json.dumps(tool_versions, indent=2) + "\n"
+            )
             commit = managed.run(
                 ["git", "rev-parse", "HEAD"],
                 cwd=root,
@@ -453,7 +467,7 @@ def build_release(options: BuildOptions) -> ReleaseManifest:
             shutil.copy2(run / "installation/server-sbom.json", candidate / "SBOM.json")
             npm_metadata = npm_sbom(root, candidate / "frontend", managed.run)
             shutil.copytree(run / "installation", candidate / "evidence/installation")
-            for name in ("source-binding.json", "commands.json"):
+            for name in ("source-binding.json", "commands.json", "tool-versions.json"):
                 shutil.copy2(run / name, candidate / "evidence" / name)
             shutil.copy2(
                 root / "apps/srv/src/veriq_server/static/dist/static-manifest.json",
@@ -467,6 +481,7 @@ def build_release(options: BuildOptions) -> ReleaseManifest:
                 "version": info["version"],
                 "buildId": identifier,
                 "commit": commit,
+                "tools": tool_versions,
                 "staticManifestHash": info["staticManifestHash"],
                 "testsSkipped": options.skip_tests,
                 "skipReason": options.reason,

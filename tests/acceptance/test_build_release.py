@@ -367,3 +367,52 @@ def test_detached_descendant_exceeding_grace_is_killed_before_unlock(tmp_path):
     test_build_cancellation_holds_lock_until_stage_descendants_stop(
         tmp_path, 15, "build", True, force_kill=True
     )
+
+
+@pytest.mark.parametrize(
+    "case",
+    json.loads((ROOT / "apps/runtime/tests/fixtures/node24-versions.json").read_text()),
+    ids=lambda case: case["version"] or "empty",
+)
+def test_release_probes_compatible_node_and_records_actual_tools(
+    tmp_path, monkeypatch, case
+):
+    """发行构建先调用真实子进程探测工具版本，稳定 Node24 候选应进入后续源码校验并留下实测记录，其它版本必须在安装前失败；轻量工具只替代外部二进制，进程监督、构建入口与记录文件仍使用正式实现。
+
+    Git 固定失败是明确的终点，避免测试安装依赖或运行数据库与浏览器。
+    共同矩阵覆盖 JavaScript 与 Python 边界，不能只改一个语言的规则。
+    """
+    import os
+
+    spec = importlib.util.spec_from_file_location(
+        "veriq_node_policy_build", ROOT / "scripts/build_release.py"
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    tools = tmp_path / "bin"
+    tools.mkdir()
+    versions = {"node": "v" + case["version"], "pnpm": "11.25.0", "uv": "uv 0.13.5"}
+    for name, value in versions.items():
+        tool = tools / name
+        tool.write_text(f"#!{sys.executable}\nprint({value!r})\n")
+        tool.chmod(0o700)
+    git = tools / "git"
+    git.write_text(f"#!{sys.executable}\nraise SystemExit(42)\n")
+    git.chmod(0o700)
+    monkeypatch.setenv("PATH", str(tools) + os.pathsep + os.environ["PATH"])
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    if case["supported"]:
+        with pytest.raises(subprocess.CalledProcessError) as error:
+            module.build_release(module.BuildOptions(checkout))
+        assert error.value.returncode == 42
+        records = list((checkout / "work").glob("release-*/tool-versions.json"))
+        assert len(records) == 1
+        assert json.loads(records[0].read_text()) == versions
+    else:
+        with pytest.raises(ValueError, match="Unsupported release tool version: node"):
+            module.build_release(module.BuildOptions(checkout))
+        assert not list((checkout / "work").glob("release-*/tool-versions.json"))
+    assert not (checkout / "output").exists()

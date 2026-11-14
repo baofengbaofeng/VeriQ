@@ -10,11 +10,12 @@ import {
 } from "../../../runtime/src/offline/config.ts";
 import { loadRuntimeDistribution, assertRuntimeRole } from "../../../runtime/src/distribution.ts";
 import { DesktopAgent, type AgentConfiguration } from "./service";
+import { isIndependentNode24 } from "../../../runtime/src/node-version.ts";
 import { installedCredentials } from "../../../runtime/src/credentials/host.ts";
 
 /** 独立 Node24 后台入口只读取宿主已经写入的私有配置，通过现有 nonce broker 提供受限本机命令；锁持有期间才可删除陈旧 socket，防止并发 UI 启动抢占存活后台。 */
 async function main() {
-    if (process.versions.node !== "24.22.1") throw new Error("INDEPENDENT_NODE24_REQUIRED");
+    if (!isIndependentNode24(process.versions)) throw new Error("INDEPENDENT_NODE24_REQUIRED");
     process.title = "veriq_agent";
     /** 安装根从真实 Agent 角色可执行文件的固定发行布局取得，在任何档案访问前完成库存和原生能力绑定；开发 Node 入口保持原契约，档案中的 distributionRoot 只能与已核验根一致，不能授权装载新代码。 */
     const installed = /^veriq_agent(?:\.exe)?$/i.test(basename(process.execPath))

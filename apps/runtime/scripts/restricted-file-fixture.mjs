@@ -1,5 +1,6 @@
 /** 本脚本只在临时 Ubuntu CI 中创建一次性专用账户及单个自有 bind 挂载，固定 Node 子程序通过真实文件模式验证重启和清理；状态记录绑定随机身份与实际挂载 inode，正常及 always 清理均拒绝触碰不匹配对象，不修改现有账户或全局挂载。 */
 import assert from "node:assert/strict";
+import { isIndependentNode24 } from "../src/node-version.ts";
 import { stageOwnedFixture } from "./restricted-fixture-stage.mjs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -10,7 +11,7 @@ import { fileURLToPath } from "node:url";
 
 assert.equal(process.platform, "linux");
 assert.equal(process.getuid(), 0);
-assert.equal(process.versions.node, "24.22.1");
+assert(isIndependentNode24(process.versions));
 const [mode, evidence] = process.argv.slice(2);
 assert(["test", "cleanup"].includes(mode) && evidence && isAbsolute(evidence));
 const runtime = fileURLToPath(new URL("../", import.meta.url));

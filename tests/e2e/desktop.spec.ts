@@ -110,7 +110,7 @@ test("bundled desktop opens offline with strict renderer and independent Node24"
         await expect(page.getByRole("heading", { name: "工作台", exact: true })).toBeVisible();
         await expect
             .poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.node)
-            .toBe("24.22.1");
+            .toBe(process.versions.node);
         expect(
             await page.evaluate(() => ({
                 process: typeof Reflect.get(window, "process"),
@@ -274,7 +274,7 @@ test("production candidate completes the real desktop offline workflow", async (
         await expect(page.getByRole("heading", { name: "工作台", exact: true })).toBeVisible();
         await expect
             .poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.node)
-            .toBe("24.22.1");
+            .toBe(process.versions.node);
         agentPid = (await page.evaluate(() => window.veriq.state())).agent?.pid;
         await page.getByLabel("邮箱 / Email").fill("desktop-admin@example.com");
         await page.getByLabel("密码 / Password").fill("Desktop password 123!");

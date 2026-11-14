@@ -1,5 +1,6 @@
 /** 此有限子程序只在临时 Linux CI 的自有专用账户和 bind 卷内运行，实际跨进程创建、读取与退休凭据并检查权限拒绝；所有业务值均为公开合成标记，随机原始密钥绝不写入输出，测试不声称 OS vault、机器掉电或正式部署持久性验收。 */
 import assert from "node:assert/strict";
+import { isIndependentNode24 } from "../../src/node-version.ts";
 import { chmod, lstat, readFile, readdir, rename, symlink, unlink } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { homedir, userInfo } from "node:os";
@@ -12,7 +13,7 @@ import { DeviceStore } from "../../src/enrollment.ts";
 import { updatePrivate } from "../../src/offline/config.ts";
 
 assert.equal(process.platform, "linux");
-assert.equal(process.versions.node, "24.22.1");
+assert(isIndependentNode24(process.versions));
 const [phase, volume, uid] = process.argv.slice(2);
 assert(volume && uid && ["seed", "restart", "retired"].includes(phase!));
 const codeRoot = resolve(import.meta.dirname, "../..");

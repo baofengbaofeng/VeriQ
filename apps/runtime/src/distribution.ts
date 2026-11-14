@@ -5,11 +5,13 @@ import { join, resolve, basename } from "node:path";
 import type { ExecutionPaths } from "./execution/paths.ts";
 import { loadRelease } from "./execution/release.ts";
 import { doctor } from "./doctor.ts";
+import { isNode24Version, isIndependentNode24 } from "./node-version.ts";
 
 /** 安装发行描述只保存经过物理库存校验后的路径和独立版本，签名来源认证由安装器负责而不是由自报清单代替；运行前仍须载入所选引擎库存并验证真实 Node 与浏览器能力。 */
 export interface RuntimeDistribution {
     root: string;
     productVersion: string;
+    nodeVersion: string;
     engineVersion: string;
     engineDirectory: string;
     browserExecutable: string;
@@ -20,6 +22,7 @@ export interface RuntimeDistribution {
     execution: ExecutionPaths;
 }
 
+const nodeIdentities = new WeakMap<RuntimeDistribution, string>();
 const nativeCapabilities = new WeakMap<RuntimeDistribution, string>();
 const vaultCapabilities = new WeakMap<RuntimeDistribution, string>();
 /** 保险库辅助程序只能从已完整核验的固定发行成员获得执行能力，旧库存仍可只读解析但请求此能力必须明确失败；复制发行对象字段、档案路径或环境变量均不能授权源码与全局程序作为替代入口。 */
@@ -76,7 +79,7 @@ export async function loadRuntimeDistribution(directory: string): Promise<Runtim
     const version = /^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/;
     if (
         manifest.schemaVersion !== 1 ||
-        manifest.nodeVersion !== "24.22.1" ||
+        !isNode24Version(manifest.nodeVersion) ||
         manifest.platform !== process.platform ||
         manifest.arch !== process.arch ||
         !version.test(manifest.productVersion ?? "") ||
@@ -128,6 +131,7 @@ export async function loadRuntimeDistribution(directory: string): Promise<Runtim
     const distribution: RuntimeDistribution = {
         root,
         productVersion: manifest.productVersion,
+        nodeVersion: manifest.nodeVersion,
         engineVersion: manifest.engineVersion,
         engineDirectory,
         browserExecutable: take(
@@ -149,6 +153,8 @@ export async function loadRuntimeDistribution(directory: string): Promise<Runtim
             compileEntry: take("execution/compile-entry.mjs"),
         },
     };
+    /** 具体 Node 身份仅在完整物理库存通过后绑定到原始返回对象，公开版本只供诊断展示；浅复制或手工修改字段不能继承这个能力，后续角色检查仍要求真实进程与该私有版本完全一致。 */
+    nodeIdentities.set(distribution, manifest.nodeVersion);
     /** Windows 原生成员必须属于完整库存，真实安装角色还须先匹配物理执行路径才绑定；普通 Node 的只读解析不会装载自报目录中的代码，Electron 则由可信资源入口显式绑定后才读取档案。 */
     if (process.platform === "win32") {
         nativeCapabilities.set(distribution, take("native/veriq_native.node"));
@@ -162,7 +168,11 @@ export async function loadRuntimeDistribution(directory: string): Promise<Runtim
                     : role === "veriq_cli"
                       ? distribution.cliExecutable
                       : distribution.execution.runnerExecutable;
-            if (resolve(process.execPath) !== expected || process.versions.node !== "24.22.1")
+            if (
+                resolve(process.execPath) !== expected ||
+                !isIndependentNode24(process.versions) ||
+                process.versions.node !== nodeIdentities.get(distribution)
+            )
                 throw new Error("RUNTIME_ROLE_MISMATCH");
             const { bindWindowsDistribution } = await import("./native/windows.ts");
             bindWindowsDistribution(distribution);
@@ -202,6 +212,10 @@ export async function diagnoseRelease(options: {
 /** 已安装的独立入口必须由对应物理角色 Node 执行，不能以 Electron 内置 Node 或另一个同版本系统 Node 冒充；路径校验配合此前库存摘要，失败时不注册设备也不进入工作领取循环。 */
 export function assertRuntimeRole(distribution: RuntimeDistribution, role: "agent" | "cli") {
     const wanted = role === "agent" ? distribution.agentExecutable : distribution.cliExecutable;
-    if (resolve(process.execPath) !== wanted || process.versions.node !== "24.22.1")
+    if (
+        resolve(process.execPath) !== wanted ||
+        !isIndependentNode24(process.versions) ||
+        process.versions.node !== nodeIdentities.get(distribution)
+    )
         throw new Error("RUNTIME_ROLE_MISMATCH");
 }

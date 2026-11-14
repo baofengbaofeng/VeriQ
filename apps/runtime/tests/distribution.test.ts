@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm, symlink } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { createHash } from "node:crypto";
-import { loadRuntimeDistribution } from "../src/distribution.ts";
+import { loadRuntimeDistribution, assertRuntimeRole } from "../src/distribution.ts";
 
 /** 安装路径测试只创建几字节的合成发行文件来检查宿主解析边界，既不伪造 Node 或浏览器验收，也不下载实际载荷；真实发动执行前仍须独立校验角色版本与完整引擎库存。 */
 async function fixture() {
@@ -90,6 +90,71 @@ test("distribution rejects linked members and unsafe manifest paths", async () =
         await writeFile(join(root, "runtime-manifest.json"), JSON.stringify(manifest));
         await assert.rejects(loadRuntimeDistribution(root), /RUNTIME_MANIFEST_INVALID/);
     } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+});
+
+/** 同一完整库存可明确声明不同稳定 Node24 候选，版本值必须规范且不能接受其它主版本或预发布；逐项重写真实清单再调用正式加载器，原有二十四点二十二点一历史样本仍保留而不是批量改写旧事实。 */
+test("distribution validates stable Node24 manifest versions", async () => {
+    const cases = JSON.parse(
+        await readFile(new URL("./fixtures/node24-versions.json", import.meta.url), "utf8"),
+    ) as { version: string; supported: boolean }[];
+    const { root, manifest } = await fixture();
+    try {
+        for (const { version, supported } of [
+            ...cases,
+            { version: "24.20.0\n", supported: false },
+        ]) {
+            manifest.nodeVersion = version;
+            await writeFile(join(root, "runtime-manifest.json"), JSON.stringify(manifest));
+            if (supported) {
+                const loaded = await loadRuntimeDistribution(root);
+                assert.equal((loaded as unknown as { nodeVersion: string }).nodeVersion, version);
+            } else await assert.rejects(loadRuntimeDistribution(root), /RUNTIME_MANIFEST_INVALID/);
+        }
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+});
+
+/** 角色执行必须同时满足原始发行能力、真实路径和该库存声明的具体版本，同为稳定 Node24 不能替代精确发行身份；进程属性替换只是边界注入，不声称真实二十四点二十执行验收，也不复制或安装另一份 Node 二进制。 */
+test("installed role binds exact verified Node identity and rejects copied capabilities", async () => {
+    const { root, manifest } = await fixture();
+    const node = Object.getOwnPropertyDescriptor(process.versions, "node")!;
+    const executable = process.execPath;
+    const electron = Object.getOwnPropertyDescriptor(process.versions, "electron");
+    try {
+        manifest.nodeVersion = "24.20.0";
+        await writeFile(join(root, "runtime-manifest.json"), JSON.stringify(manifest));
+        const loaded = await loadRuntimeDistribution(root);
+        for (const role of ["agent", "cli"] as const) {
+            process.execPath = role === "agent" ? loaded.agentExecutable : loaded.cliExecutable;
+            Object.defineProperty(process.versions, "node", { ...node, value: "24.20.0" });
+            assert.doesNotThrow(() => assertRuntimeRole(loaded, role));
+            assert.throws(() => assertRuntimeRole({ ...loaded }, role), /RUNTIME_ROLE_MISMATCH/);
+            Object.defineProperty(process.versions, "node", { ...node, value: "24.22.1" });
+            assert.throws(() => assertRuntimeRole(loaded, role), /RUNTIME_ROLE_MISMATCH/);
+            assert.throws(
+                () =>
+                    assertRuntimeRole({ ...loaded, nodeVersion: "24.22.1" } as typeof loaded, role),
+                /RUNTIME_ROLE_MISMATCH/,
+            );
+        }
+        process.execPath = executable;
+        Object.defineProperty(process.versions, "node", { ...node, value: "24.20.0" });
+        assert.throws(() => assertRuntimeRole(loaded, "agent"), /RUNTIME_ROLE_MISMATCH/);
+        process.execPath = loaded.agentExecutable;
+        Object.defineProperty(process.versions, "electron", {
+            configurable: true,
+            value: "45.3.1",
+        });
+        assert.throws(() => assertRuntimeRole(loaded, "agent"), /RUNTIME_ROLE_MISMATCH/);
+        assert.equal(Object.isFrozen(loaded), true);
+    } finally {
+        process.execPath = executable;
+        Object.defineProperty(process.versions, "node", node);
+        if (electron) Object.defineProperty(process.versions, "electron", electron);
+        else Reflect.deleteProperty(process.versions, "electron");
         await rm(root, { recursive: true, force: true });
     }
 });
