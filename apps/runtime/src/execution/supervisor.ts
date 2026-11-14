@@ -6,6 +6,7 @@ import { mkdtemp, mkdir, readFile, writeFile, copyFile, readdir, rm, rename, ope
 import { constants } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { canonicalBytes, validateSchema, type JobManifestV1, type CompletionManifestV1, type CompiledAssetBundle, type ExecutionSnapshotV1, type EvidenceFileEntryV1, type CleanupStatus } from '@veriq/contracts';
@@ -25,7 +26,7 @@ import { monitorStorage } from './storage.ts';
 import { loadRelease, sha256 } from './release.ts';
 import { developmentExecutionPaths, containedPath, type ExecutionPaths } from './paths.ts';
 import { offlineWorkerEnvironment } from '../offline/worker-environment.ts';
-import { privateDirectory } from '../offline/config.ts';
+import { privateDirectory, readBoundedFile } from '../offline/config.ts';
 /**
  * 公开接口 ClaimedAttempt 绑定一次认领结果与收发单调时刻：供 leaseDeadline 换算与 runAttempt 使用。
  */
@@ -259,6 +260,9 @@ export class ExecutionSupervisor {
         let stop: StopReceipt | undefined, caseResult: CaseResult | undefined, manifest: JobManifestV1 | undefined;
         const files: LocalEvidence[] = [];
         let startIssued = false, stopOperation: Promise<StopReceipt> | undefined;
+        let privateEndpoint: string | undefined, retainPrivateReports = false;
+        const pendingDownloads: string[] = [];
+        const privacyReporter = join(work, 'node_modules/@veriq/runner-sdk/src/endpoint-json-reporter.js');
         let heartbeat!: Heartbeat;
         /** 第一次停止同步保存唯一操作，正在 await start 的调用也已经拥有后端登记而必须关闭准入；Darwin 预算在此夹紧租约剩余量减一秒，之后 catch 与正常收尾复用同一 promise，不先等待业务 ACK 或退出再发送取消。 */
         const stopOnce = (why: string) => stopOperation ??= this.terminateAttempt(claim.attemptId, why,
@@ -363,6 +367,7 @@ export class ExecutionSupervisor {
                     };
                     if (evidence.kind !== 'DOWNLOAD' || evidence.sensitivity !== 'CREDENTIAL_RESTRICTED' || !containedPath(this.source ? join(work, 'downloads') : tmp, resolve(evidence.path)))
                         throw new Error('UNSAFE_EVIDENCE');
+                    if (this.source) { pendingDownloads.push(evidence.path); return {}; }
                     const bytes = await readFile(evidence.path);
                     const name = `download-${files.length}.bin`;
                     await writeFile(join(work, name), bytes, { mode: 0o600, flag: 'wx' });
@@ -411,9 +416,10 @@ export class ExecutionSupervisor {
                     context.publish('invocation.json', Buffer.from(canonicalBytes({ ...invocation, controlled: context.controlled })));
                     if (playwrightConfig) {
                         if (!context.wsEndpoint) throw new Error('DARWIN_BROWSER_ENDPOINT_REQUIRED');
+                        privateEndpoint = context.wsEndpoint;
                         const use = { ...(playwrightConfig.use as Record<string, unknown>), connectOptions: { wsEndpoint: context.wsEndpoint } };
                         delete (use as Record<string, unknown>).launchOptions;
-                        context.publish('playwright.config.mjs', Buffer.from(`export default ${JSON.stringify({ ...playwrightConfig, use })};`));
+                        context.publish('playwright.config.mjs', Buffer.from(`export default ${JSON.stringify({ ...playwrightConfig, reporter: [...playwrightConfig.reporter as unknown[], [privacyReporter, { outputFile: join(tmp, 'playwright.json') }]], use })};`));
                     }
                 },
             } : undefined);
@@ -439,6 +445,23 @@ export class ExecutionSupervisor {
             record.stop = stop;
             await commit();
             monitor.close();
+            /** 源码浏览器端点只保留在本次宿主闭包；真实 CLI 与停止证明完成后，先从冻结 SDK 的纯标准库模块独立复核最终 JSON，再允许下载证据读取、附件复制、哈希、元数据或完成提交，任何未知状态保留私有原始报告而失败关闭。 */
+            if (this.source && manifest.kind === 'TEST') {
+                if (controller.signal.aborted) throw new Error(reason ?? 'ATTEMPT_STOPPING');
+                try {
+                    this.source.native.openPrivateDirectory(tmp, false).close();
+                    if (!privateEndpoint) throw new Error('REPORT_PRIVACY_UNCONFIRMED');
+                    const gate = await import(pathToFileURL(privacyReporter).href) as { verifyEndpointJsonFile?: (path: string, endpoints: readonly string[]) => Promise<void> };
+                    if (typeof gate.verifyEndpointJsonFile !== 'function') throw new Error('REPORT_PRIVACY_UNCONFIRMED');
+                    await gate.verifyEndpointJsonFile(join(tmp, 'playwright.json'), [privateEndpoint]);
+                    this.source.native.openPrivateDirectory(tmp, false).close();
+                } catch { retainPrivateReports = true; throw new Error('REPORT_PRIVACY_UNCONFIRMED'); }
+                for (const path of pendingDownloads) {
+                    const bytes = await readBoundedFile(path, 16 * 1024 * 1024), name = `download-${files.length}.bin`;
+                    await writeFile(join(work, name), bytes, { mode: 0o600, flag: 'wx' });
+                    files.push({ kind: 'DOWNLOAD', localPath: join(work, name), file: { path: name, sha256: sha256(bytes), sizeBytes: bytes.length, sensitivity: 'CREDENTIAL_RESTRICTED' } });
+                }
+            }
             const workerResult = await json<{
                 kind: string;
                 businessOutcome: 'PASSED' | 'ERROR';
@@ -551,7 +574,7 @@ export class ExecutionSupervisor {
             if (stop?.processStopped)
                 for (const path of ['node_modules', 'tmp/npm-cache'])
                     await rm(join(work, path), { recursive: true, force: true });
-            if (stop?.processStopped) await rm(tmp, { recursive: true, force: true });
+            if (stop?.processStopped && !retainPrivateReports) await rm(tmp, { recursive: true, force: true });
         }
     }
     private async resolveCredential(claim: Claim, reference: {

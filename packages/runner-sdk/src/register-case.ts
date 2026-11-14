@@ -4,7 +4,8 @@
 
 import { RetryObservation, type RetrySafety } from "./retry-safety.js";
 import { EvidencePolicy, type RestrictedEvidence } from "./evidence.js";
-import { test, type Page, type TestInfo, type Route } from "@playwright/test";
+import { type Page, type TestInfo, type Route } from "@playwright/test";
+import { controlledBrowserTest as test } from "./controlled-browser.js";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import { pathToFileURL } from "node:url";

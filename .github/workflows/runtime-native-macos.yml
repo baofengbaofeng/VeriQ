@@ -165,7 +165,7 @@ jobs:
                       if (info.isDirectory()) for (const name of readdirSync(path)) await walk(join(path, name));
                       else await add(path);
                   };
-                  const source = execFileSync("git", ["ls-files", "apps/runtime/native/darwin", "apps/runtime/src/native/darwin.ts", "apps/runtime/src/node-version.ts", "apps/runtime/src/execution/processes.ts", "apps/runtime/src/execution/darwin-*", "apps/runtime/src/execution/records.ts", "apps/runtime/src/execution/stopped-history.ts", "apps/runtime/src/execution/controlled-child*", "apps/runtime/src/execution/controlled-command*", "apps/runtime/src/execution/worker.mjs", "apps/runtime/src/distribution.ts", "apps/desktop/scripts/stage-runtime.mjs", "apps/runtime/tests/controlled-proof.test.ts", "apps/runtime/tests/native/darwin-controlled-processes.test.ts", "apps/runtime/tests/fixtures/darwin-controlled-worker.mjs", "apps/runtime/tests/vault-history.test.ts", "apps/runtime/tests/controlled-command.test.ts", "apps/runtime/tests/worker-portability.test.ts", "apps/runtime/tests/distribution.test.ts", "apps/runtime/tests/native/windows-profile.test.ts", "apps/runtime/tests/fixtures/vault-distribution.ts", "apps/runtime/tests/fixtures/windows-vault.ts", "apps/runtime/tests/controlled-child.test.ts", "apps/runtime/tests/fixtures/controlled-child-owner.py", "apps/runtime/src/execution/supervisor.ts", "apps/runtime/src/execution/broker.ts", "apps/runtime/src/offline/run.ts", "apps/runtime/src/offline/config.ts", "apps/runtime/src/offline/store.ts", "apps/runtime/src/offline/verify.ts", "apps/runtime/tests/native/darwin-business.test.ts", "apps/runtime/tests/fixtures/business-engine.ts", "apps/runtime/tests/darwin-business-contract.test.ts", "apps/runtime/tests/offline-store.test.ts", "apps/runtime/tests/offline.test.ts", "apps/runtime/tests/physical.test.ts", "packages/runner-sdk/tests/queue-fixture.ts", "packages/runner-sdk/tests/distribution.ts", "packages/compiler/tests/helpers.ts", "apps/runtime/src/credentials/files.ts", "apps/runtime/scripts/build-darwin.mjs", "apps/runtime/package.json", "apps/runtime/tests/native/darwin-private-files.test.ts", "apps/runtime/tests/native/darwin-private-files-fault.cc", ".github/workflows/runtime-native-macos.yml", "pnpm-lock.yaml", "pnpm-workspace.yaml"], {encoding:"utf8", maxBuffer:65536}).trim().split("\n").filter(Boolean);
+                  const source = execFileSync("git", ["ls-files", "apps/runtime/native/darwin", "apps/runtime/src/native/darwin.ts", "apps/runtime/src/node-version.ts", "apps/runtime/src/execution/processes.ts", "apps/runtime/src/execution/darwin-*", "apps/runtime/src/execution/records.ts", "apps/runtime/src/execution/stopped-history.ts", "apps/runtime/src/execution/controlled-child*", "apps/runtime/src/execution/controlled-command*", "apps/runtime/src/execution/worker.mjs", "apps/runtime/src/distribution.ts", "apps/desktop/scripts/stage-runtime.mjs", "apps/runtime/tests/controlled-proof.test.ts", "apps/runtime/tests/native/darwin-controlled-processes.test.ts", "apps/runtime/tests/fixtures/darwin-controlled-worker.mjs", "apps/runtime/tests/vault-history.test.ts", "apps/runtime/tests/controlled-command.test.ts", "apps/runtime/tests/worker-portability.test.ts", "apps/runtime/tests/distribution.test.ts", "apps/runtime/tests/native/windows-profile.test.ts", "apps/runtime/tests/fixtures/vault-distribution.ts", "apps/runtime/tests/fixtures/windows-vault.ts", "apps/runtime/tests/controlled-child.test.ts", "apps/runtime/tests/fixtures/controlled-child-owner.py", "apps/runtime/src/execution/supervisor.ts", "apps/runtime/src/execution/broker.ts", "apps/runtime/src/offline/run.ts", "apps/runtime/src/offline/config.ts", "apps/runtime/src/offline/store.ts", "apps/runtime/src/offline/verify.ts", "apps/runtime/tests/native/darwin-business.test.ts", "apps/runtime/tests/fixtures/business-engine.ts", "apps/runtime/tests/darwin-business-contract.test.ts", "apps/runtime/tests/offline-store.test.ts", "apps/runtime/tests/offline.test.ts", "apps/runtime/tests/physical.test.ts", "packages/runner-sdk/src/register-case.ts", "packages/runner-sdk/src/controlled-browser.ts", "packages/runner-sdk/src/endpoint-json-reporter.ts", "packages/runner-sdk/tests/controlled-browser.test.ts", "packages/runner-sdk/tests/queue-fixture.ts", "packages/runner-sdk/tests/distribution.ts", "packages/compiler/tests/helpers.ts", "apps/runtime/src/credentials/files.ts", "apps/runtime/scripts/build-darwin.mjs", "apps/runtime/package.json", "apps/runtime/tests/native/darwin-private-files.test.ts", "apps/runtime/tests/native/darwin-private-files-fault.cc", ".github/workflows/runtime-native-macos.yml", ".github/workflows/desktop-fix-validation.yml", "pnpm-lock.yaml", "pnpm-workspace.yaml"], {encoding:"utf8", maxBuffer:65536}).trim().split("\n").filter(Boolean);
                   for (const path of source) await add(path);
                   await add(process.execPath);
                   await walk(join(process.env.RUNNER_TEMP, "veriq-node-headers"));
@@ -188,10 +188,33 @@ jobs:
               run: |
                   set -euo pipefail
                   node --input-type=module <<'JS'
-                  import { mkdirSync, readdirSync, lstatSync, openSync, readSync, closeSync, writeFileSync } from "node:fs";
+                  import { mkdirSync, readdirSync, lstatSync, openSync, readSync, closeSync, writeFileSync, existsSync } from "node:fs";
                   import { createHash } from "node:crypto";
                   import { join } from "node:path";
                   const destination = process.env.VERIQ_MAC_UPLOAD;
+                  // 完整日志先检查安全计数中的阳性结果，任何命中都在创建上传目录之前阻断；该门禁不把预期 JSON 交付负例的 partial/unreached 当作完整保密通过，也不复制任何私密 artifact 正文。
+                  const businessLog = join(process.env.VERIQ_MAC_EVIDENCE,"business.log");
+                  if (existsSync(businessLog)) {
+                      const businessFd = openSync(businessLog,"r");
+                      try {
+                          const chunk = Buffer.alloc(65536);
+                          let position = 0, pending = "";
+                          while (true) {
+                              const count = readSync(businessFd,chunk,0,chunk.length,position);
+                              if (!count) break;
+                              position += count;
+                              pending += chunk.subarray(0,count).toString("utf8");
+                              const lines = pending.split("\n"); pending = lines.pop();
+                              for (const line of lines) {
+                                  const match = line.match(/^\s*(?:#\s*)?(\{"endpointScan":.*\})\s*$/);
+                                  if (match && JSON.parse(match[1]).endpointScan.hits > 0) throw Error("MAC_PRIVATE_ENDPOINT_LEAK");
+                              }
+                              if (pending.length > 65536) throw Error("MAC_EVIDENCE_LINE_LIMIT");
+                          }
+                          const match = pending.match(/^\s*(?:#\s*)?(\{"endpointScan":.*\})\s*$/);
+                          if (match && JSON.parse(match[1]).endpointScan.hits > 0) throw Error("MAC_PRIVATE_ENDPOINT_LEAK");
+                      } finally { closeSync(businessFd); }
+                  }
                   mkdirSync(destination, {recursive:true,mode:0o700});
                   const files = readdirSync(process.env.VERIQ_MAC_EVIDENCE).sort();
                   if (files.length > 48) throw Error("MAC_EVIDENCE_FILE_LIMIT");
@@ -228,7 +251,7 @@ jobs:
                           }
                       } finally { closeSync(fd); }
                   }
-                  writeFileSync(join(destination,"inventory.json"),JSON.stringify({source:process.env.GITHUB_SHA,arch:process.env.EXPECTED_ARCH,build:process.env.BUILD_OUTCOME,tests:process.env.TEST_OUTCOME,business:process.env.BUSINESS_OUTCOME,inventory},null,4));
+                  writeFileSync(join(destination,"inventory.json"),JSON.stringify({source:process.env.GITHUB_SHA,arch:process.env.EXPECTED_ARCH,build:process.env.BUILD_OUTCOME,tests:process.env.TEST_OUTCOME,business:process.env.BUSINESS_OUTCOME,businessExpected:26,mandatoryScanLabels:["ONLINE_ASSERT_FAIL_PASS","ONLINE_CONNECT_FAIL","OFFLINE_PASS","OFFLINE_ASSERT_FAIL","OFFLINE_CONNECT_FAIL"],intentionalGateLabels:["ONLINE_JSON_INVALID","OFFLINE_JSON_INVALID"],nativeStdio:"IGNORED",inventory},null,4));
                   JS
             - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
               if: always()

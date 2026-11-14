@@ -70,3 +70,61 @@ for (const scenario of ["fulfilled", "rejected", "cancelled", "ready"] as const)
     assert.equal(server.listening, false);
     assert.equal(EventEmitter.getEventListeners(controller.signal, "abort").length, before);
 });
+
+/** 主报告角色来自实际收集器的固定路径及交付别名，viewer 和被引用 HTML 依然保留原始字节扫描，但不能被要求拥有主报告内嵌 ZIP；这个合同避免普通 viewer 资产使退出事实观察器变成异步拒绝并污染下一项夹具的恢复顺序。 */
+test("business report roles distinguish actual report entry from referenced viewer HTML", async () => {
+    const helper = await import("./fixtures/business-engine.ts");
+    const classify = Reflect.get(helper, "businessArtifactRole");
+    assert.equal(typeof classify, "function");
+    for (const path of ["html/index.html", "report.html"]) assert.equal(classify(path), "MAIN_HTML");
+    for (const path of ["html/trace/index.html", "html/trace/snapshot.html", "html/data/attachment.html"]) assert.equal(classify(path), "DATA");
+    assert.equal(classify("playwright.json"), "JSON");
+    assert.equal(classify("case/trace.zip"), "TRACE");
+});
+
+test("failed artifact observation preserves actual resource exit facts and blocks delivery", async () => {
+    const { createServer } = await import("node:http");
+    const helper = await import("./fixtures/business-engine.ts");
+    const observe = Reflect.get(helper, "observeBusinessExit");
+    assert.equal(typeof observe, "function");
+    const server = createServer();
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    try {
+        const facts = { code: 1, signal: null };
+        const exit = new Promise<typeof facts>((resolve) => server.close(() => resolve(facts)));
+        const observation = observe(exit, async () => { throw new Error("private-unprinted-source"); });
+        assert.equal(await observation.exited, facts);
+        assert.throws(() => observation.assertClean(), /BUSINESS_ARTIFACT_SCAN_FAILED/);
+        assert.equal(server.listening, false);
+    } finally { if (server.listening) await new Promise<void>((resolve) => server.close(() => resolve())); }
+});
+
+/** 真实 HTTP 观察保持在本次拥有的资源内，扫描故障必须立即被粘性门禁吸收而非派生退出拒绝；旧补丁直到观察完成才恢复，下一补丁只能在收尾完成后取得所有权，验证异步解析失败不会越过测试边界覆写后续用例的函数。 */
+test("business observation settles before owned patch restoration and the next fixture", async () => {
+    const { createServer } = await import("node:http");
+    const { observeBusinessExit } = await import("./fixtures/business-engine.ts");
+    let entered!: () => void, release!: () => void;
+    const started = new Promise<void>((resolve) => { entered = resolve; });
+    const server = createServer((_request, response) => { release = () => response.end(); entered(); });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+    const target = { patch: "original" }, facts = { code: 1, signal: null };
+    target.patch = "first";
+    const observation = observeBusinessExit(Promise.resolve(facts), async () => { await fetch(origin); throw new Error("OBSERVATION_TEST_FAILURE"); });
+    let derivedRejected = false;
+    const derived = observation.exited.then(() => {}, () => { derivedRejected = true; });
+    const cleanup = (async () => { try { return await Promise.allSettled([observation.exited]); } finally { target.patch = "original"; } })();
+    try {
+        await started; assert.equal(target.patch, "first");
+        release();
+        const settled = await cleanup; await derived;
+        assert.equal(settled[0]!.status, "fulfilled");
+        assert.equal(derivedRejected, false);
+        assert.throws(() => observation.assertClean(), /BUSINESS_ARTIFACT_SCAN_FAILED/);
+        assert.equal(target.patch, "original"); target.patch = "next";
+        await Promise.resolve(); assert.equal(target.patch, "next");
+    } finally {
+        release?.(); await cleanup; await derived;
+        server.closeAllConnections(); await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+});

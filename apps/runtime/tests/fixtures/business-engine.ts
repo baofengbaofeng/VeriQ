@@ -456,6 +456,7 @@ export async function onlineBusiness(options: {
     expectIncomplete?: boolean;
     expectedStop?: boolean;
     onPage?: () => void;
+    beforeDelivery?: () => void;
     inspect?: (value: { result: AttemptResult; uploads: Map<string, { bytes: Buffer; sha256: string; filename: string }>; events: Record<string, unknown>[]; root: string; run: number; supervisor: ExecutionSupervisor }) => Promise<void>;
 } = {}) {
     const root = await mkdtemp(join(await realpath(tmpdir()), 'veriq-t10-physical-'));
@@ -590,7 +591,13 @@ export async function onlineBusiness(options: {
         await store.save({ server: origin, runnerId: id(70), workspaceId: id(99), deviceToken: currentToken, expiresAt: '2027-01-01T00:00:00Z' });
         session = new DeviceSession(store, new RuntimeClient(origin));
         await session.open();
-        const supervisor = new ExecutionSupervisor({ root: join(root, 'agent'), client: new AgentClient(session), releaseDirectory: release, browserExecutable: options.browserExecutable ?? '/usr/bin/chromium', ...(options.darwinSource ? { darwinSource: options.darwinSource } : {}) });
+        const client = new AgentClient(session), request = client.request.bind(client), binary = client.binary.bind(client);
+        client.request = <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
+            if (path.endsWith('/artifact-uploads') || path.endsWith('/finish')) options.beforeDelivery?.();
+            return request<T>(path, method, body, signal);
+        };
+        client.binary = (path, proof, signal, bytes) => { if (bytes) options.beforeDelivery?.(); return binary(path, proof, signal, bytes); };
+        const supervisor = new ExecutionSupervisor({ root: join(root, 'agent'), client, releaseDirectory: release, browserExecutable: options.browserExecutable ?? '/usr/bin/chromium', ...(options.darwinSource ? { darwinSource: options.darwinSource } : {}) });
         const results = [];
         let previous: Claim | undefined;
         for (run = 1; run <= 2; run++) {
@@ -712,7 +719,7 @@ export function watchBusinessRun<T>(running: Promise<T>, signal: AbortSignal) {
 /** 诊断仅投影受信 worker 的固定阶段枚举、业务枚举与布尔事实，私有 JSON 读取先限制六万五千字节再解析；随机控制绑定、原始错误、配置正文及路径均不输出，未知代码用 OTHER 表示而不把来源字符串直接复制到日志。 */
 export async function emitBusinessDiagnostic(phase: "ONLINE" | "OFFLINE" | "WORKER_EXIT", work: string, result: unknown): Promise<void> {
     if (process.platform !== "darwin") return;
-    const choices = new Set(["PASSED", "FAILED", "ERROR", "CANCELLED", "INCOMPLETE", "UNSTABLE", "CONTROLLED_WORKER_BROWSER", "FULL_DESCENDANT_TREE", "NO_PROCESS_SPAWNED", "READY", "TEST", "VALIDATE", "CLEANUP", "SPAWNING", "RUNNING", "STOPPED", "INSTALL_FAILED", "COMPILER_EXTRACTION_FAILED", "COMPILER_PROCESS_FAILED", "PLAYWRIGHT_PROCESS_FAILED", "CONTROLLED_COMMAND_MANAGEMENT_FAILED", "PROCESS_STOP_UNCONFIRMED", "MISSING_CASE_RESULT", "DARWIN_CONTROLLED_START_FAILED", "DARWIN_ATTEMPT_STOPPING", "USER_CANCELLED", "COMPLETED", "EXECUTION_ERROR", "LOCAL_CANCELLATION_READ_FAILED", "REQUIRED_EVIDENCE_MISSING", "WORKER_COMMAND_FAILED", "PLAYWRIGHT_PROCESS_FAILED", "COMPILED_PROVENANCE_MISMATCH", "COMPILATION_FAILED", "UNKNOWN_ELEMENT", "ASSET_VALIDATION_FAILED", "INVALID_COMPLETION", "INVALID_EXECUTION_SNAPSHOT", "INVALID_COMPILED_BUNDLE", "UNAPPROVED_ENGINE_BYTES", "OFFLINE_EXECUTION_ERROR", "LOCAL_OWNERSHIP_LOST", "CONTROLLED_OWNER_MISMATCH", "WORKER_COMMAND_TIMEOUT", "INVALID_CREDENTIAL", "AUTH_IDENTITY_FAILED"]);
+    const choices = new Set(["PASSED", "FAILED", "ERROR", "CANCELLED", "INCOMPLETE", "UNSTABLE", "CONTROLLED_WORKER_BROWSER", "FULL_DESCENDANT_TREE", "NO_PROCESS_SPAWNED", "READY", "TEST", "VALIDATE", "CLEANUP", "SPAWNING", "RUNNING", "STOPPED", "INSTALL_FAILED", "COMPILER_EXTRACTION_FAILED", "COMPILER_PROCESS_FAILED", "PLAYWRIGHT_PROCESS_FAILED", "CONTROLLED_COMMAND_MANAGEMENT_FAILED", "PROCESS_STOP_UNCONFIRMED", "MISSING_CASE_RESULT", "DARWIN_CONTROLLED_START_FAILED", "DARWIN_ATTEMPT_STOPPING", "USER_CANCELLED", "COMPLETED", "EXECUTION_ERROR", "LOCAL_CANCELLATION_READ_FAILED", "REQUIRED_EVIDENCE_MISSING", "WORKER_COMMAND_FAILED", "PLAYWRIGHT_PROCESS_FAILED", "COMPILED_PROVENANCE_MISMATCH", "COMPILATION_FAILED", "UNKNOWN_ELEMENT", "ASSET_VALIDATION_FAILED", "INVALID_COMPLETION", "INVALID_EXECUTION_SNAPSHOT", "INVALID_COMPILED_BUNDLE", "UNAPPROVED_ENGINE_BYTES", "OFFLINE_EXECUTION_ERROR", "LOCAL_OWNERSHIP_LOST", "CONTROLLED_OWNER_MISMATCH", "WORKER_COMMAND_TIMEOUT", "INVALID_CREDENTIAL", "AUTH_IDENTITY_FAILED", "REPORT_PRIVACY_UNCONFIRMED"]);
     const fixed = (value: unknown) => typeof value === "string" && choices.has(value) ? value : value === undefined ? "ABSENT" : "OTHER";
     const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" ? value as Record<string, unknown> : {};
     const read = async (name: string) => {
@@ -754,4 +761,22 @@ export async function emitBusinessDiagnostic(phase: "ONLINE" | "OFFLINE" | "WORK
         workerResultPresent: worker.present, workerResultReadable: worker.readable, workerKind: fixed(worker.data.kind), workerFailure: fixed(worker.data.failureCode),
         failurePresent: failure.present, failureReadable: failure.readable, failureCode: fixed(failure.data.failureCode), commandFacts,
     } }));
+}
+
+/** 主报告分类严格来自实际收集器的固定入口或交付别名，所有其他 HTML 和附件仍逐字节接受 DATA 扫描；退出观察器将扫描失败留在独立粘性门禁，原进程退出事实永远不因归档解析异常变成拒绝，从而允许宿主按原始生命周期完成停止。 */
+export function businessArtifactRole(path: string): "JSON" | "JUNIT" | "MAIN_HTML" | "TRACE" | "DATA" {
+    if (path === "report.html" || path === "html/index.html") return "MAIN_HTML";
+    if (path === "playwright.json") return "JSON";
+    if (path.endsWith(".xml")) return "JUNIT";
+    if (path.endsWith(".zip")) return "TRACE";
+    return "DATA";
+}
+/** 异步 artifact 扫描结果独立于真实资源退出事实，观察失败只固定粘性拒绝状态而不制造新的退出拒绝；拥有者必须等待返回 promise 完成并检查门禁后再交付或恢复共享补丁，原始扫描异常永不进入日志或派生退出见证。 */
+export function observeBusinessExit<T>(exited: Promise<T>, observe: () => Promise<void>) {
+    let failed = false;
+    const observed = exited.then(async (facts) => {
+        try { await observe(); } catch { failed = true; }
+        return facts;
+    });
+    return { exited: observed, assertClean(): void { if (failed) throw new Error("BUSINESS_ARTIFACT_SCAN_FAILED"); } };
 }

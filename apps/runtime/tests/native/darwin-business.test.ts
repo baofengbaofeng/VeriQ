@@ -5,7 +5,7 @@ import fs from "node:fs/promises";
 import { syncBuiltinESMExports } from "node:module";
 import { mkdtemp, realpath, rm, readFile, readdir, mkdir, writeFile, chmod, lstat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, basename } from "node:path";
+import { join, basename, relative } from "node:path";
 import { createServer } from "node:http";
 import { createConnection } from "node:net";
 import { randomUUID, createHash } from "node:crypto";
@@ -13,7 +13,7 @@ import { DatabaseSync } from "node:sqlite";
 import { execFileSync } from "node:child_process";
 import { chromium, type BrowserServer } from "playwright-core";
 import { fromBuffer, type ZipFile } from "yauzl";
-import { fixture, buildBusinessEngine, onlineBusiness, watchBusinessRun, emitBusinessDiagnostic } from "../fixtures/business-engine.ts";
+import { fixture, buildBusinessEngine, onlineBusiness, watchBusinessRun, emitBusinessDiagnostic, businessArtifactRole, observeBusinessExit } from "../fixtures/business-engine.ts";
 import { createDarwinSource } from "../../src/execution/darwin-source.ts";
 import { ProcessSupervisor, type OwnedProcess } from "../../src/execution/processes.ts";
 import { runOffline, recoverOffline } from "../../src/offline/run.ts";
@@ -125,7 +125,7 @@ async function scanArchive(bytes: Buffer, check: (bytes: Buffer) => void): Promi
 }
 
 /** 观察器只保留测试内存中的完整端点和随机路径，检查 URL/JSON/百分号/base64 编码；产品私有 invocation/PW config 不属于上传容器，报告 JSON、JUnit、HTML 内嵌 ZIP 与 Trace 解压正文则必须逐项经过真实读取。 */
-async function observeBusiness(run: (inspect: (bytes: Buffer, name: string) => Promise<void>) => Promise<void>, connectFailure = false, expectedHeadless?: boolean) {
+async function observeBusiness(label: "ONLINE_ASSERT_FAIL_PASS" | "ONLINE_CONNECT_FAIL" | "OFFLINE_PASS" | "OFFLINE_ASSERT_FAIL" | "OFFLINE_CONNECT_FAIL", run: (inspect: (bytes: Buffer, name: string) => Promise<void>, assertClean: () => void) => Promise<void>, connectFailure = false, expectedHeadless?: boolean) {
     activeBusinessFixtures++;
     const endpoints: string[] = [], servers: BrowserServer[] = [];
     const launchServer = chromium.launchServer.bind(chromium);
@@ -133,6 +133,8 @@ async function observeBusiness(run: (inspect: (bytes: Buffer, name: string) => P
     let buffers = 0, archives = 0, members = 0, hits = 0, json = 0, html = 0, junit = 0, traces = 0;
     let runReturned = false, scanComplete = false;
     const owned: OwnedProcess[] = [];
+    const observations: { exited: Promise<unknown>; assertClean(): void }[] = [];
+    const assertClean = () => { if (hits > 0) throw new Error("PRIVATE_ENDPOINT_DISCLOSURE"); for (const observation of observations) observation.assertClean(); };
     let currentContainer = "raw";
     const containers: Record<string, number> = {}, fields: Record<string, number> = {};
     const check = (bytes: Buffer) => {
@@ -158,11 +160,12 @@ async function observeBusiness(run: (inspect: (bytes: Buffer, name: string) => P
         }
     };
     const inspect = async (bytes: Buffer, name: string) => {
-        currentContainer = name.endsWith(".zip") ? "trace.zip" : name.endsWith(".html") ? "report.html" : name.endsWith(".xml") ? "junit.xml" : name.endsWith("playwright.json") ? "playwright.json" : name.includes("events-completion") ? "events-completion" : name.includes("offline-result") ? "offline-result-report" : "referenced-data";
+        const role = businessArtifactRole(name);
+        currentContainer = role === "TRACE" ? "trace.zip" : role === "MAIN_HTML" ? "report.html" : role === "JUNIT" ? "junit.xml" : role === "JSON" ? "playwright.json" : name.includes("events-completion") ? "events-completion" : name.includes("offline-result") ? "offline-result-report" : "referenced-data";
         check(bytes);
-        if (name.endsWith("playwright.json")) json++;
-        if (name.endsWith(".xml")) junit++;
-        if (name.endsWith(".html")) {
+        if (role === "JSON") json++;
+        if (role === "JUNIT") junit++;
+        if (role === "MAIN_HTML") {
             html++;
             const embedded = bytes.toString().match(/(?:data:application\/zip;base64,)([A-Za-z0-9+/=]+)/);
             assert.ok(embedded, "HTML must contain the actual embedded report ZIP");
@@ -170,7 +173,7 @@ async function observeBusiness(run: (inspect: (bytes: Buffer, name: string) => P
             currentContainer = "report.html:decoded-zip";
             members += await scanArchive(Buffer.from(embedded[1]!, "base64"), check);
         }
-        if (name.endsWith(".zip")) { archives++; traces++; currentContainer = "trace.zip:decoded"; members += await scanArchive(bytes, check); }
+        if (role === "TRACE") { archives++; traces++; currentContainer = "trace.zip:decoded"; members += await scanArchive(bytes, check); }
         if (hits > 0) throw new Error("PRIVATE_ENDPOINT_DISCLOSURE");
     };
     chromium.launchServer = async (options) => {
@@ -195,7 +198,8 @@ async function observeBusiness(run: (inspect: (bytes: Buffer, name: string) => P
         const child = await start.apply(this, args);
         owned.push(child);
         const invocation = privateJson(await readFile(join(args[1].cwd, "invocation.json"), "utf8"));
-        const exited = child.exited.then(async (value) => {
+        const observation = observeBusinessExit(child.exited, async () => {
+            const value = await child.exited;
             console.log(JSON.stringify({ nativeWorkerExit: { code: value.code, signal: [null, "SIGINT", "SIGTERM", "SIGKILL"].includes(value.signal) ? value.signal : "OTHER" } }));
             await emitBusinessDiagnostic("WORKER_EXIT", args[1].cwd, undefined);
             await reportPlaywrightFacts(join(invocation.tmp, "playwright.json"));
@@ -203,26 +207,25 @@ async function observeBusiness(run: (inspect: (bytes: Buffer, name: string) => P
                 for (const item of await readdir(directory, { withFileTypes: true })) {
                     const path = join(directory, item.name);
                     if (item.isDirectory() && item.name !== "npm-cache") await visit(path);
-                    else if (item.isFile() && (directory.includes("/html/data") || /(?:playwright\.json|\.xml|\.html|\.zip)$/.test(item.name))) await inspect(await readFile(path), item.name);
+                    else if (item.isFile()) await inspect(await readBoundedFile(path, 32 * 1024 * 1024), relative(invocation.tmp, path));
                 }
             };
             await visit(invocation.tmp);
-            return value;
         });
-        void exited.catch(() => {});
-        return { ...child, exited };
+        observations.push(observation);
+        return { ...child, exited: observation.exited };
     };
     try {
-        await run(inspect);
+        await run(inspect, assertClean);
         runReturned = true;
+        await Promise.all(observations.map((observation) => observation.exited));
+        assertClean();
         assert.ok(endpoints.length > 0 && json > 0 && html > 0 && junit > 0, "Actual reports and endpoint observations are required");
-        if (!connectFailure) assert.ok(traces > 0, "Actual Trace archives are required");
+        assert.ok(traces > 0, "Actual Trace archives are required");
         scanComplete = true;
         assert.equal(hits, 0, "PRIVATE_ENDPOINT_DISCLOSURE: affected delivery must pause; diagnostics contain counts only");
     } finally {
-        console.log(JSON.stringify({ endpointScan: { coverage: buffers === 0 ? "unreached" : scanComplete ? "complete" : "partial", runReturned, buffers, archives, members, hits, containers, fields, json, html, junit, traces } }));
-        ProcessSupervisor.prototype.start = start;
-        chromium.launchServer = launchServer;
+        console.log(JSON.stringify({ endpointScan: { label, coverage: buffers === 0 ? "unreached" : scanComplete ? "complete" : "partial", runReturned, buffers, archives, members, hits, containers, fields, json, html, junit, traces, stdio: { policy: "IGNORED", stdoutBytes: 0, stderrBytes: 0 } } }));
         const deadline = performance.now() + 30000;
         try {
             for (const process of owned) {
@@ -237,8 +240,11 @@ async function observeBusiness(run: (inspect: (bytes: Buffer, name: string) => P
                     await fixtureBefore(exited, deadline);
                 }
             }
+            await fixtureBefore(Promise.allSettled(observations.map((observation) => observation.exited)), deadline);
         } catch (error) { retainBusinessRoot = true; reportNativeFailure("FIXTURE_CLEANUP", error); throw new Error("OWNED_FIXTURE_CLEANUP_UNCONFIRMED"); }
         finally {
+            ProcessSupervisor.prototype.start = start;
+            chromium.launchServer = launchServer;
             activeBusinessFixtures--;
             if (hits > 0) throw new Error("PRIVATE_ENDPOINT_DISCLOSURE");
         }
@@ -248,7 +254,7 @@ async function observeBusiness(run: (inspect: (bytes: Buffer, name: string) => P
 /** 线上业务复用原 physical 的真实失败与第二次成功，并在清理前扫描实际上传和报告容器；HTTP 夹具只确认传输封套，容量、fence 服务事务和真实 MySQL 结论仍由独立 Linux 服务门禁证明。 */
 test("online actual SDK assertion FAIL/PASS preserves CONTROLLED proof and scans decoded artifacts", { timeout: 240000 }, async () => {
     const source = await createDarwinSource({ temporaryDirectory: root });
-    await observeBusiness(async (inspect) => onlineBusiness({ darwinSource: source, browserExecutable: chromium.executablePath(), inspect: async ({ result, uploads, events }) => {
+    await observeBusiness("ONLINE_ASSERT_FAIL_PASS", async (inspect, assertClean) => onlineBusiness({ beforeDelivery: assertClean, darwinSource: source, browserExecutable: chromium.executablePath(), inspect: async ({ result, uploads, events }) => {
         for (const upload of uploads.values()) await inspect(upload.bytes, upload.filename);
         await inspect(Buffer.from(JSON.stringify({ completion: result.completion, events })), "events-completion.json");
     } }));
@@ -256,14 +262,14 @@ test("online actual SDK assertion FAIL/PASS preserves CONTROLLED proof and scans
 
 test("online actual CLI connection FAIL scans errors and decoded reports without exposing endpoint", { timeout: 180000 }, async () => {
     const source = await createDarwinSource({ temporaryDirectory: root });
-    await observeBusiness(async (inspect) => onlineBusiness({ darwinSource: source, connectFailure: true, inspect: async ({ result, uploads, events }) => {
+    await observeBusiness("ONLINE_CONNECT_FAIL", async (inspect, assertClean) => onlineBusiness({ beforeDelivery: assertClean, darwinSource: source, connectFailure: true, inspect: async ({ result, uploads, events }) => {
         for (const upload of uploads.values()) await inspect(upload.bytes, upload.filename);
         await inspect(Buffer.from(JSON.stringify({ completion: result.completion, events })), "events-completion.json");
     } }), true);
 });
 
 /** 离线执行只访问测试业务 HTTP 页面而没有控制平台客户端，正常与断言失败均走真正冻结 npm 闭包和 CLI；重新打开 SQLite 报告与恢复入口保留同代受控范围，不把普通业务失败解释为进程生命周期失败。 */
-for (const failing of [false, true]) test(`offline actual frozen engine ${failing ? "assertion FAIL" : "PASS"} reopens scoped report without platform`, { timeout: 180000 }, async () => {
+async function offlineReportScenario(failing: boolean, connectFailure = false) {
     const server = createServer((request, response) => {
         response.setHeader("Content-Type", request.url === "/me" ? "application/json" : "text/html");
         response.end(request.url === "/me" ? JSON.stringify({ id: "reader" }) : '<div data-testid="name">Ready</div>');
@@ -276,9 +282,10 @@ for (const failing of [false, true]) test(`offline actual frozen engine ${failin
         const secrets = new SecretStore(join(f.dir, "secrets"));
         await secrets.set({ issuerId: f.issuer.issuerId, workspaceId: id(99), secretRef: "reader", versionId: id(14) }, { token: "local-test-only" });
         const local = join(f.dir, "local"), source = await createDarwinSource({ temporaryDirectory: root });
-        await observeBusiness(async (inspect) => {
+        await observeBusiness(connectFailure ? "OFFLINE_CONNECT_FAIL" : failing ? "OFFLINE_ASSERT_FAIL" : "OFFLINE_PASS", async (inspect, assertClean) => {
             const result = await diagnosedOfflineRun(bundle, { trust: f.trust, root: local, secrets, releaseDirectory: engine.release, browserExecutable: chromium.executablePath(), darwinSource: source, deviceId: id(90), headless: false });
-            assert.equal(result.outcome, failing ? "FAILED" : "PASSED");
+            assertClean();
+            assert.equal(result.outcome, connectFailure ? "ERROR" : failing ? "FAILED" : "PASSED");
             assert.equal(result.attempts[0]!.processStopScope, "CONTROLLED_WORKER_BROWSER");
             assert.equal(result.attempts[0]!.processStopped, true);
             const reports = new LocalReports(local, () => true), snapshot = await reports.snapshot(result.workspaceId, result.localRunId);
@@ -321,6 +328,7 @@ for (const failing of [false, true]) test(`offline actual frozen engine ${failin
             });
             await new Promise<void>((resolve) => transport.listen(0, "127.0.0.1", resolve));
             try {
+                assertClean();
                 const configuration = { server: `http://127.0.0.1:${(transport.address() as { port: number }).port}`, workspaceId: result.workspaceId, deviceToken: "synthetic-import-device" };
                 const first = await uploadOffline(local, result.localRunId, configuration);
                 const repeated = await uploadOffline(local, result.localRunId, configuration);
@@ -335,9 +343,11 @@ for (const failing of [false, true]) test(`offline actual frozen engine ${failin
             assert.equal(await recoverOffline(local), undefined);
             const store = await LocalStore.open(local);
             try { assert.equal(store.active(), undefined); assert.equal(store.result(result.workspaceId, result.localRunId).attempts[0]!.processStopScope, "CONTROLLED_WORKER_BROWSER"); } finally { store.close(); }
-        }, false, false);
+        }, connectFailure, false);
     } finally { server.closeAllConnections(); await new Promise<void>((resolve) => server.close(() => resolve())); await f.close(); }
-});
+}
+for (const failing of [false, true]) test(`offline actual frozen engine ${failing ? "assertion FAIL" : "PASS"} reopens scoped report without platform`, { timeout: 180000 }, async () => offlineReportScenario(failing));
+test("offline actual CLI connection FAIL scans errors and decoded reports without exposing endpoint", { timeout: 180000 }, async () => offlineReportScenario(false, true));
 
 /** 私有配置真实读取与发布使用 B 能力，宽权限、ALLOW ACL 和超过调用者限额都拒绝；这里不修复对象权限，提交失败保留不确定性，公开大包读取也不会因此扩大原生两兆硬上限。 */
 test("Darwin private config rejects insecure mode and ALLOW ACL without repair", async () => {
@@ -900,3 +910,79 @@ test("pending-start persisted cancellation read failure closes admission with on
         }
     }
 }, 30000, context.signal));
+
+
+/** 在同一个真实 CLI 已返回一的进程对象上破坏最终 JSON，观察器只保存故障而仍返回原始退出事实；这两个独立门禁负例不属于完整保密扫描组，必须证明报告拒绝并不损伤实际 CONTROLLED 停机回执，而且不会产生附件、交付请求或可读本地证据。 */
+async function invalidFinalJson(label: "ONLINE_JSON_INVALID" | "OFFLINE_JSON_INVALID", run: () => Promise<void>) {
+    const start = ProcessSupervisor.prototype.start, launch = chromium.launchServer.bind(chromium);
+    const observations: { exited: Promise<unknown>; assertClean(): void }[] = [];
+    const children: OwnedProcess[] = [], servers: BrowserServer[] = [];
+    let faults = 0, actualCliFailure = 0;
+    chromium.launchServer = async (options) => {
+        const server = await launch(options); servers.push(server);
+        const endpoint = new URL(server.wsEndpoint()); endpoint.port = "1";
+        server.wsEndpoint = () => endpoint.href;
+        return server;
+    };
+    ProcessSupervisor.prototype.start = async function (...args: Parameters<typeof start>) {
+        const child = await start.apply(this, args); children.push(child);
+        const invocation = privateJson(await readFile(join(args[1].cwd, "invocation.json")));
+        const observation = observeBusinessExit(child.exited, async () => {
+            const facts = await child.exited;
+            assert.equal(facts.code, 1);
+            actualCliFailure++;
+            const json = join(invocation.tmp, "playwright.json");
+            assert.equal((await lstat(json)).isFile(), true);
+            await writeFile(json, "{", { mode: 0o600 }); faults++;
+        });
+        observations.push(observation);
+        return { ...child, exited: observation.exited };
+    };
+    try {
+        await run();
+        await Promise.all(observations.map((observation) => observation.exited));
+        for (const observation of observations) observation.assertClean();
+        assert.equal(faults, 1); assert.equal(actualCliFailure, 1);
+        console.log(JSON.stringify({ jsonDeliveryGate: { label, ordinaryCliExitOne: actualCliFailure, injected: faults, blocked: true, privacyScanCoverage: "EXPECTED_UNREACHED" } }));
+    } finally {
+        const deadline = performance.now() + 30000;
+        try {
+            for (const child of children) {
+                if (child.child.exitCode === null && child.child.signalCode === null) child.child.kill("SIGKILL");
+                await fixtureBefore(child.exited, deadline);
+            }
+            for (const server of servers) {
+                const child = server.process();
+                if (child.exitCode === null && child.signalCode === null) {
+                    const exited = new Promise<void>((resolve) => child.once("exit", () => resolve()));
+                    await fixtureBefore(server.kill(), deadline); await fixtureBefore(exited, deadline);
+                }
+            }
+            await fixtureBefore(Promise.allSettled(observations.map((observation) => observation.exited)), deadline);
+        } finally { ProcessSupervisor.prototype.start = start; chromium.launchServer = launch; }
+    }
+}
+
+test("online independent JSON gate blocks every artifact and finish request after actual CLI exit one", { timeout: 180000 }, async () => {
+    const source = await createDarwinSource({ temporaryDirectory: root });
+    let deliveries = 0;
+    await invalidFinalJson("ONLINE_JSON_INVALID", async () => onlineBusiness({ darwinSource: source, expectIncomplete: true, expectedStop: true, beforeDelivery: () => { deliveries++; }, inspect: async ({ result, uploads, events }) => {
+        assert.equal(result.completion, undefined); assert.equal(result.stop.reason, "REPORT_PRIVACY_UNCONFIRMED");
+        assert.equal(result.stop.processStopScope, "CONTROLLED_WORKER_BROWSER");
+        assert.equal(result.files.length, 0); assert.equal(uploads.size, 0); assert.equal(deliveries, 0);
+        assert.equal(events.filter((event) => event.type === "ARTIFACT_CREATED").length, 0);
+    } }));
+});
+
+test("offline independent JSON gate blocks evidence and local report bytes after actual CLI exit one", { timeout: 180000 }, async () => offlineScenario(async ({ local, config, bundle }) => {
+    await invalidFinalJson("OFFLINE_JSON_INVALID", async () => {
+        const result = await diagnosedOfflineRun(bundle, config), attempt = result.attempts[0]!;
+        assert.equal(result.outcome, "ERROR"); assert.equal(attempt.failureCode, "REPORT_PRIVACY_UNCONFIRMED");
+        assert.equal(attempt.processStopped, true); assert.equal(attempt.processStopScope, "CONTROLLED_WORKER_BROWSER");
+        assert.equal(attempt.artifacts.length, 0); assert.equal(attempt.events.filter((event) => event.type === "ARTIFACT_CREATED").length, 0);
+        const reports = new LocalReports(local, () => true), snapshot = await reports.snapshot(result.workspaceId, result.localRunId);
+        assert.equal(snapshot.artifacts[attempt.attemptId]!.length, 0);
+        await assert.rejects(reports.readRaw(result.workspaceId, result.localRunId, attempt.attemptId, randomUUID()), /LOCAL_ARTIFACT_NOT_FOUND/);
+        await assert.rejects(lstat(join(local, "work", attempt.attemptId, "evidence")), { code: "ENOENT" });
+    });
+}));
