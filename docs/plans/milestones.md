@@ -1,6 +1,6 @@
 # VeriQ 1.0 交付里程碑与 Agent 接续状态
 
-> 状态快照：2026-11-13（UTC）。恢复基线：`master` 提交 `e5d5a6bb93cc5cf7b9496defc3f0995ab47c8384`；本轮已审查功能分支代码 `eb2dc4e`（T19模块及修复复审；正式发行待验收）。本文汇总已确认范围、已落地代码、验收缺口和接续上下文；不新增功能范围，也不替代需求规格。
+> 状态快照：2026-11-14（UTC）。恢复基线：`master` 提交 `e5d5a6bb93cc5cf7b9496defc3f0995ab47c8384`；本轮已审查功能分支代码 `eb2dc4e`（T19模块及修复复审；正式发行待验收）。本文汇总已确认范围、已落地代码、验收缺口和接续上下文；不新增功能范围，也不替代需求规格。
 >
 > **用户已明确恢复开发，目标为完整 MVP 交付。** 从最新 master 建立隔离功能工作区，按 T16–T23 继续子 Agent 开发及独立审查。恢复开发不等于批准实际付费 Provider 调用、正式发布或外部部署；相关验收仍需具体配置和授权。
 
@@ -213,8 +213,13 @@
 | 完整所有权绑定验证 | `0547d3b`，[run43516230443](https://github.com/baofengbaofeng/VeriQ/actions/runs/43516230443)：同一18项全部通过、0跳过，6.904秒；已退出guardian/篡改Worker时间/交叉nonce三项均先在真实Windows失败，再验证拒绝后的四个Worker各继续至少25步 | 停止事件绑定nonce、guardian PID/FILETIME及Worker PID/FILETIME；只有匹配DRAINED才释放；159源码精确LF→CRLF，取消时序/完整IPC/存储/Worker及CLI集成仍未完成 |
 | 取消时序实际验证 | `1f94450`，[run43518451578](https://github.com/baofengbaofeng/VeriQ/actions/runs/43518451578)：同一19项全部通过、0跳过，8.260秒；控制线程在取消前无挂起I/O、随后进入读取的受控窗口先失败后通过，首次停止已取得匹配DRAINED | 独立默认关闭测试编译体复用生产算法，不称与生产二进制逐字节相同；线程真实退出才join，共用原有5秒总预算；超时自终止分支尚未独立故障验证 |
 | 编译一致性与部分构造验证 | `86d50fb`，[run43521783803](https://github.com/baofengbaofeng/VeriQ/actions/runs/43521783803)：同一21项全部通过、0跳过，8.681秒；5个原生目标的10份实际配置均为STL异常1/无0、EH Sync；构造失败后立即重绑、两个宿主均自然exit0 | 显式注入标准线程创建异常，不称自然OS资源耗尽；原Node默认STL异常0与EH1冲突已修正；165源码精确LF→CRLF，2931原生输入hash仅CI元数据记录；非全T20/Win11验收 |
-| 当前Ubuntu源码GUI | `0547d3b`，[run43516230417](https://github.com/baofengbaofeng/VeriQ/actions/runs/43516230417)：新引擎/build/全包类型/34unit/2display及6项GUI全部通过、0重试/跳过/不稳定，133.972秒 | 同Attempt `ee4f70cf-b96a-4bfb-9a48-81fb7e38da33`可见158及真实停止通过，三份临时策略清理成功；不是安装或Windows验收；原37/fbf记录保留 |
+| 历史Ubuntu源码GUI | `0547d3b`，[run43516230417](https://github.com/baofengbaofeng/VeriQ/actions/runs/43516230417)：新引擎/build/全包类型/34unit/2display及6项GUI全部通过、0重试/跳过/不稳定，133.972秒 | 同Attempt `ee4f70cf-b96a-4bfb-9a48-81fb7e38da33`可见158及真实停止通过，三份临时策略清理成功；不是安装或Windows验收；原37/fbf记录保留 |
 | 引擎与构建证据 | Ubuntu GUI使用独立未批准`1.0.3-t20-0547d3bca22e513eab13dba6ba375af85054949c`，canonical`a6b44809…`、raw`82d30007…`；522源码与Git blob一致 | 70条compiled hash为CI记录，compiled字节未下载独立重hash；未晋升、不覆盖T19候选；旧09候选保留为历史 |
+| 响应线程停止验证 | `a8603da`，[run43525281741](https://github.com/baofengbaofeng/VeriQ/actions/runs/43525281741)：22项通过、0失败/跳过，9.487秒；真实取消未命中且客户端尚未读取的窗口中，首次关闭14.143毫秒、宿主自然退出0 | 修复已复现的响应排空竞争；受控窗口不等于覆盖所有调度，不代表整个Windows集成完成 |
+| 最近通过的Ubuntu源码GUI | `a8603da`，[run43525281773](https://github.com/baofengbaofeng/VeriQ/actions/runs/43525281773)：34unit、2display及6GUI一次通过，GUI136.984秒、0重试/跳过/不稳定；530源码与Git一致 | 同Attempt真实浏览器停止和三份策略清理通过；源码GUI不能替代安装、vault或Windows11验收；后续32版本发生下列回归 |
+| Windows私有配置实际负例 | `5bd3f20`，[run43526810304](https://github.com/baofengbaofeng/VeriQ/actions/runs/43526810304)：29项中22通过、7失败、0跳过；新增目录/文件ACL、公开文件拒绝及祖先junction拒绝确实失败 | `32de25f`已实现同句柄校验/读取、相对父句柄创建与原子提交；7项尚未验证转绿，不能声称私有存储完成 |
+| 私有存储构建验证 | `37e63c0`，[run43530726993](https://github.com/baofengbaofeng/VeriQ/actions/runs/43530726993)：6原生目标编译成功；证据采集的dumpbin帮助命令退出1100导致流水线失败；169源码精确LF→CRLF | 已修正前一版本C2668数字重载歧义；导入证据与29项行为测试均未执行，正在修复工具观测，不能记为行为通过或失败 |
+| 桌面模块格式回归 | `32de25f`，[run43530180686](https://github.com/baofengbaofeng/VeriQ/actions/runs/43530180686)：34unit/2display通过，GUI启动因新增Windows模块静态导入触发import.meta格式错误而失败；532源码与Git一致，临时策略清理通过 | 六项GUI未执行；必须修复模块边界并重跑完整GUI，不能沿用a860结果覆盖新源码；正常服务器同版本仍失败于web-check |
 | 正常服务器发行 | [run43498685897](https://github.com/baofengbaofeng/VeriQ/actions/runs/43498685897)仍在Web检查失败：Biome145errors/38warnings/132infos，检查53文件 | 132infos不是132个格式失败文件；T22整改、T23同一最终源码重新执行正常完整门禁，不使用跳过测试代替 |
 | 接续顺序 | 继续原生所有权/取消/IPC和完整Worker/CLI集成；不要重复已完成预研或初始13项诊断 | 再做系统凭据/迁移、真实依赖闭包/安装升级、目标OS验收和整T20独立复审；之后继续T21–T23 |
 
