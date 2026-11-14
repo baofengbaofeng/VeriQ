@@ -225,7 +225,9 @@
 | CLI受控子进程观察器C1 | `755316c`独立规格/质量审查通过；24项相关测试、strict及实际Node24.22.1能力自检通过；真实Playwright CLI并发/失败替换、不请求浏览器 | 仅真实直接异步子进程；不生成停止回执、不释放容量、不开放Darwin；Mac双架构/Chrome、B私有fd、C2集成仍待完成。全仓注释门禁最近4.5115%、267条，仍失败 |
 | Darwin私有文件基础B | `747d4e0`及`4966090`通过独立规格/质量复审；[实际双Mac CI run43591900310](https://github.com/baofengbaofeng/VeriQ/actions/runs/43591900310)每架构44项通过、零跳过，实际Mach-O最低版本15.0；同FD权限/ACL、私有读写、提交失败、资源交接故障均有覆盖 | Intel实际Node24.19.0、ARM实际24.22.2；官方制品摘要、每架构13个源码/构建输入hash及24个原始证据成员已核验，二进制摘要仍为CI观察。复审发现的External接管前FD泄漏有真实两架构42通过/2失败→44通过证据；不开放执行/doctor/Keychain/安装就绪 |
 | C1实际Mac补充证据 | B最终CI中两架构各21项通过、1项Linux专属跳过，strict通过；保留原Linux24项通过记录 | 不能记为22项Mac通过，不代表Chrome或受控停止集成已完成 |
-| 下一工程切片 | [停止实施计划](macos-controlled-stop.md)：B与C1已完成，继续C2命令所有权/BrowserServer集成、D双架构发行 | 不再以kqueue/非child peer身份链作为正回执依赖；公开Stability1通道须具体Node自检；全仓注释门禁仍失败（最近4.5115%、267条），C++审计覆盖仍待T22补齐 |
+| 共享观察器与取消授权C2a1 | `1e40a59`通过独立规格/质量审查；Linux29项通过；[双Mac CI run43594067804](https://github.com/baofengbaofeng/VeriQ/actions/runs/43594067804)每架构文件保护44项通过，观察器28项通过/1项Linux专属跳过，标准Runtime check通过 | 唯一MJS运行实现、TS兼容转发，启动后同代取消必须在实际退出前授权；22个源码/构建输入hash及制品摘要已逐架构核验。本地pnpm缓存同步guard曾在tsc前失败，直接已有TS5.9.3通过，不能把本地该命令记为通过；不开放Mac ready或停止回执 |
+| macOS15契约说明一致性 | `f848020`独立规格/质量审查通过；canonical/OpenAPI声明源及TS/桌面派生说明共五文件同步为15，官方生成检查及格式化后重复生成一致 | 只修正说明，未更改类型、枚举或运行时行为；实际最低系统验证仍依赖目标测试与安装验收 |
+| 下一工程切片 | [停止实施计划](macos-controlled-stop.md)：B、C1及C2a1已完成，继续C2a2命令所有权/完整staging、C2b BrowserServer/停止证明、D双架构发行 | 不再以kqueue/非child peer身份链作为正回执依赖；公开Stability1通道须具体Node自检；全仓注释门禁仍失败（`1e40a59`实施报告4.9402%、267条），C++审计覆盖仍待T22补齐 |
 
 
 | 项目 | 当前事实 | 剩余事项与接续约束 |

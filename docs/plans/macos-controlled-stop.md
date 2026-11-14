@@ -8,7 +8,7 @@
 | A2 Runtime与离线传播 | Linux/Windows经原证明后声明原范围；真正未派生明确标注；offline store/result/report全链保存范围 | processes、windows-processes、supervisor、offline/run/store/reports及生成完成清单 | 既有内核证明未弱化；未知不变成NO_PROCESS；重启/导出/导入不丢范围 | `aaf2f03`及`6496b3b`独立复审通过；原70项/修复51项通过，含真实staging中断恢复；不代表Mac ready |
 | B Darwin私有文件基础 | 有限目录fd相对操作、普通私有日志FD与原子持久发布 | 新native/darwin源与Node-API适配/build脚本；records、credentials/files及历史守卫 | 两架构实际build；symlink/owner/权限/长度/提交失败，缺能力明确失败 | `747d4e0`及修复`4966090`独立规格/质量复审通过；两架构各44项通过、零跳过；不代表Mac执行或安装就绪 |
 | C1 可移植CLI观察器 | 可信preload保留实际ChildProcess；单写者普通FD日志与最终严格验证；具体Node自检 | execution下新观察器/协议/验证器与真实子进程测试；暂不开放Darwin入口 | READY/意图/退出/seal；缺失与乱序、短写/刷新失败、fork被动继承、late spawn同步73、正常0/1及授权取消130 | `755316c`独立规格/质量审查通过；Linux24项通过；B的实际Mac CI中两架构各21项通过、1项Linux专属跳过；未接Darwin执行 |
-| C2 受控所有权集成 | Agent持有BrowserServer/outer worker；命令实际退出与C1日志结清；CONTROLLED_STOPPED | 新darwin-processes；worker/provider；在线/离线PW config与B私有FD | 原生Chrome真实执行/退出；CLI/worker/owner故障；完整集合结清才正回执；保留Linux/Windows强证明 | 待实施 |
+| C2 受控所有权集成 | Agent持有BrowserServer/outer worker；命令实际退出与C1日志结清；CONTROLLED_STOPPED | 新darwin-processes；worker/provider；在线/离线PW config与B私有FD | 原生Chrome真实执行/退出；CLI/worker/owner故障；完整集合结清才正回执；保留Linux/Windows强证明 | 前置C2a1 `1e40a59`已复审，见下；命令/BrowserServer与停止证明集成待实施 |
 | D 入口与发行验收 | 真实ready后开放Darwin；完整库存/路径/角色与独立Node；双架构工作流 | distribution/paths/doctor/CLI、构建与发行说明、Mac目标CI | 无终端GUI/离线/同Attempt停止/恢复/安装升级与证据；不能用单测代替 | 待实施 |
 
 执行约束：采用subagent，单一产品writer、独立规格与质量审查；每切片按真实行为RED→GREEN和适用全套，不反复碰绿，不改超时掩盖失败。Node兼容门槛的当前用户修正优先完成，正式发行继续记录实际具体版本/hash，不以浮动范围代替身份。
@@ -35,3 +35,5 @@ B/C不再依赖非child peer认证或kqueue观察；可信CLI使用公开Node通
 采用[设计第4节](../specs/macos-controlled-stop.md)的链式真实ChildProcess路线，先做不开放Darwin的C1，再以B/C2接入。普通私有FD单写者、READY先于CLI主体、连续seq、持久INTENT、完整退出后的唯一末尾SEAL、故障粘滞与同步退出73均为正回执前提。0/1属于正常业务退出；只有本代授权取消才接受130，且仍须同一套完整退出证明。同步helper无法证明退出则未知。首次C1不修改全局Node兼容范围，也不把Linux行为测试写成Mac验收。
 
 该工程调整保持用户批准的受控Worker/Chrome停止范围，减少额外peer身份基础的依赖，不扩大为任意后代内核排空。后续还须固定CLI真实fork/替换worker、具体Node自检及两架构Chrome测试，不能只有合成子进程单测。
+
+C2a1已将父侧观察器集中为唯一普通MJS实现，保留TS接口转发，并增加实际CLI存活期间的同代取消授权；真实退出、error或timeout之后不能补授权。`1e40a59`通过独立规格与质量审查，Linux29项通过；实际双Mac CI每架构29项中28项通过、1项Linux专属跳过，标准Runtime类型检查通过。该结果不代表Worker、Chrome或完整受控集合已停止；后续C2a2须接入命令所有权和完整发行依赖闭包，C2b须接入Agent与持久停止证明。
