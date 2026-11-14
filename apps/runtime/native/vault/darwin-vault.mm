@@ -165,6 +165,28 @@ std::string inspectValue(SecKeychainRef keychain, NSString *name) {
     return response;
 }
 
+/** 专用拒绝观察直接向系统请求精确条目的秘密数据，不经过生产策略验证器，前后均查询同一实际引用的解锁状态；只有明确授权拒绝或禁止交互错误算拒绝，私有控制端仅发送布尔事实，意外读到的数据不编码或输出。 */
+std::string observeReadDenial(SecKeychainRef keychain, NSString *name) {
+    struct stat channel {};
+    require(fstat(4, &channel) == 0 && S_ISSOCK(channel.st_mode));
+    NSMutableDictionary *request = query(keychain, name);
+    request[(__bridge id)kSecReturnData] = @YES;
+    request[(__bridge id)kSecMatchLimit] = (__bridge id)kSecMatchLimitAll;
+    SecKeychainStatus before = 0, after = 0;
+    const OSStatus beforeError = SecKeychainGetStatus(keychain, &before);
+    Owned<CFTypeRef> result;
+    const OSStatus error = SecItemCopyMatching((__bridge CFDictionaryRef)request, &result.value);
+    const OSStatus afterError = SecKeychainGetStatus(keychain, &after);
+    const bool denied = error == errSecAuthFailed || error == errSecInteractionNotAllowed || error == errSecInteractionRequired;
+    const char facts[] = {
+        beforeError == errSecSuccess && (before & kSecUnlockStateStatus) ? 'U' : 'F',
+        denied ? 'D' : 'F',
+        afterError == errSecSuccess && (after & kSecUnlockStateStatus) ? 'U' : 'F'
+    };
+    require(write(4, facts, sizeof(facts)) == sizeof(facts));
+    return "V1 " + status(keychain, error) + "\n";
+}
+
 /** 竞争测试的屏障只使用额外继承的私有控制套接字，V1 输入仍由 EOF 监视线程独占；就绪字节仅在真实缺失查询之后发出，控制器释放前不调用新增，任何异常都会结束本次操作而不是猜测另一进程状态。 */
 void raceBarrier() {
     struct stat info {};
@@ -208,6 +230,10 @@ std::string execute(const std::vector<std::string> &parts, Secret &incoming) {
         if (parts[1] == "probe") return "V1 ready\n";
         NSString *name = account(parts[2], parts[3]);
 #ifdef VERIQ_VAULT_TESTING
+        if ([configuration[@"observeReadDenial"] isEqual:@YES]) {
+            require(parts[1] == "get");
+            return observeReadDenial(keychain.value, name);
+        }
         if ([configuration[@"inspection"] isEqual:@YES]) {
             require(parts[1] == "get");
             return inspectValue(keychain.value, name);

@@ -33,8 +33,8 @@ struct SecurityFailure final : std::exception {
     const char *what() const noexcept override { return "VAULT_SECURITY_FAILED"; }
 };
 
-/** 此次 RED 抽取把真实 Security 返回值集中到同一生产边界，但暂时保留旧的布尔断言行为以让回归真实失败；测试和生产读取均调用此函数，后续修复无需增加生产故障选择器或另一份仅供测试的错误适配器。 */
-inline void requireSecurity(OSStatus error) { require(error == errSecSuccess); }
+/** Security 调用在这个共用边界保留真实失败码，避免条目元数据成功后发生的服务故障被普通策略拒绝掩盖；成功不抛异常，结构检查仍使用独立断言，因此分类器只能把明确的系统不可用事实映射为 unavailable。 */
+inline void requireSecurity(OSStatus error) { if (error != errSecSuccess) throw SecurityFailure(error); }
 
 /** 统一错误出口只从已经捕获的类型化 Security 异常提取原始状态，普通结构或策略异常继续映射为通用拒绝；函数不查询任何存储，生产 catch 与非持久回归共享这段实现而不各自复制一套错误解释逻辑。 */
 inline OSStatus securityFailureCode(std::exception_ptr error) noexcept {
@@ -44,13 +44,15 @@ inline OSStatus securityFailureCode(std::exception_ptr error) noexcept {
     catch (...) { return errSecAuthFailed; }
 }
 
-/** 状态分类接收操作错误及同一持有引用的实际状态查询结果，修改不确定优先于所有其它状态；当前 RED 抽取保留旧版只识别操作侧不可用错误的行为，回归会独立指出状态查询失败被丢失的问题而不伪称实际服务停机。 */
+/** 状态分类同时保留操作错误及同一持有引用的实际状态查询结果，修改不确定优先于所有其它状态；锁定必须有成功查询的真实标志，已知存储或服务不可用则可由任一实际系统调用证明，未知失败不推断缺失。 */
 inline const char *securityFailureStatus(OSStatus operation, OSStatus stateError,
         SecKeychainStatus state, bool heldReference, bool mutation) {
     if (mutation) return "mutation-unconfirmed";
     if (heldReference && stateError == errSecSuccess && !(state & kSecUnlockStateStatus)) return "locked";
     if (operation == errSecNoDefaultKeychain || operation == errSecNoSuchKeychain ||
         operation == errSecNotAvailable || operation == errSecInvalidKeychain) return "unavailable";
+    if (heldReference && (stateError == errSecNoDefaultKeychain || stateError == errSecNoSuchKeychain ||
+        stateError == errSecNotAvailable || stateError == errSecInvalidKeychain)) return "unavailable";
     return "failed";
 }
 /** 明确属于本程序的可变缓冲通过 volatile 字节写入清理逻辑长度，避免编译器把结束生命周期前的覆盖优化掉；函数不访问已经释放的容量，也不承诺处理系统库或不可变对象保留的副本。 */

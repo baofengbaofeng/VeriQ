@@ -351,6 +351,23 @@ export async function dedicatedFixture() {
                 reply.attributesUnchanged === true
             );
         },
+        /** 独立系统拒绝检查要求被拒绝的 helper 实际尝试秘密读取并观察自身前后解锁，控制器另行核验真实状态及值、ACL、属性未变；所有事实与正常退出都必须成立，缺失字段或任何错误均不能被当作策略拒绝已有覆盖。 */
+        async readDenial(profile: string, version: string) {
+            const reply = await command("read-denial", { profile, version });
+            return [
+                "readAttempted",
+                "osDenied",
+                "helperUnlockedBefore",
+                "helperUnlockedAfter",
+                "controllerUnlockedBefore",
+                "controllerUnlockedAfter",
+                "exitConfirmed",
+                "classifiedFailed",
+                "valueUnchanged",
+                "aclUnchanged",
+                "attributesUnchanged",
+            ].every((field) => reply[field] === true);
+        },
         /** 测试故障分别在系统新增和删除返回后使 helper 死亡，调用器先确认没有确定性成功回复且进程确实退出，再用同一档案版本只读核对；新增读回原材料而删除读回缺失，两种结果都不能由死亡本身推导或自动重放。 */
         async uncertainRecovery(profile: string, version: string, key: Buffer) {
             const result = await call("set", profile, version, key, "after-add");

@@ -23,6 +23,8 @@ bool securityStatusRegression() {
         correct = observed == code && correct;
         correct = strcmp(securityFailureStatus(observed, errSecAuthFailed, 0, true, false), "unavailable") == 0 && correct;
         correct = strcmp(securityFailureStatus(errSecAuthFailed, code, 0, true, false), "unavailable") == 0 && correct;
+        correct = strcmp(securityFailureStatus(errSecAuthFailed, code, 0, false, false), "failed") == 0 && correct;
+        correct = strcmp(securityFailureStatus(observed, code, 0, true, true), "mutation-unconfirmed") == 0 && correct;
     }
     OSStatus structural = errSecSuccess;
     try { require(false); }

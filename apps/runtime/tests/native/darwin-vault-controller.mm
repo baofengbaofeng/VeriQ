@@ -272,13 +272,15 @@ struct Fixture {
     }
 
     /** 控制器只启动固定子程序并持有其 stdin 到实际完成，额外配置和屏障使用独立继承端点且不进入参数或环境；所有句柄在异常路径由所有权对象关闭，真实子进程未退出时仍阻止删除其可能正在使用的存储。 */
-    std::unique_ptr<Child> start(NSDictionary *request, bool barrier = false, bool inspection = false) {
+    std::unique_ptr<Child> start(NSDictionary *request, bool barrier = false, bool inspection = false, bool observeReadDenial = false) {
         require(created && [request[@"frame"] isKindOfClass:[NSString class]]);
+        require(!(observeReadDenial && (barrier || inspection)));
         NSData *frame = [request[@"frame"] dataUsingEncoding:NSASCIIStringEncoding];
         require(frame && frame.length < 512);
         NSDictionary *configuration = @{ @"mode": @"store", @"disposable": @YES, @"uid": facts[@"uid"],
             @"session": facts[@"session"], @"parent": @(getpid()), @"path": [NSString stringWithUTF8String:path.c_str()],
-            @"fault": request[@"fault"] ?: @"", @"barrier": @(barrier), @"inspection": @(inspection) };
+            @"fault": request[@"fault"] ?: @"", @"barrier": @(barrier), @"inspection": @(inspection),
+            @"observeReadDenial": @(observeReadDenial) };
         NSData *capability = [NSJSONSerialization dataWithJSONObject:configuration options:0 error:nullptr];
         require(capability && capability.length < 4096);
         Pair input, output, configurationPipe, barrierPipe(true);
@@ -404,6 +406,28 @@ struct Fixture {
             @"primaryCiphertextUnchanged": @(baseline == ciphertext(path))};
     }
 
+    /** 系统拒绝观察仅用于控制器可读取而 helper 被拒绝的既有基线条目，启动前后独立查询控制器持有存储的真实解锁状态；私有端须证明实际读调用及前后解锁，随后核对正常退出与原值、公开 ACL 和属性均未变化。 */
+    NSDictionary *readDenial(NSDictionary *request) {
+        require(created && controllerReader && baselineAccount && [baselineAccount isEqual:account(request)]);
+        SecKeychainStatus before = 0, after = 0;
+        require(SecKeychainGetStatus(store.value, &before) == errSecSuccess && (before & kSecUnlockStateStatus));
+        auto child = start(@{@"frame": [NSString stringWithFormat:@"V1 get %@ %@\n", request[@"profile"], request[@"version"]]}, false, false, true);
+        const auto deadline = Clock::now() + std::chrono::milliseconds(3500);
+        child->event('U', deadline);
+        child->event('D', deadline);
+        child->event('U', deadline);
+        child->collect(deadline);
+        require(child->code() == 0 && child->equals("V1 failed\n"));
+        require(SecKeychainGetStatus(store.value, &after) == errSecSuccess && (after & kSecUnlockStateStatus));
+        NSDictionary *proof = unchanged(request);
+        return @{@"ok": @YES, @"readAttempted": @YES, @"osDenied": @YES,
+            @"helperUnlockedBefore": @YES, @"helperUnlockedAfter": @YES,
+            @"controllerUnlockedBefore": @YES, @"controllerUnlockedAfter": @YES,
+            @"exitConfirmed": @YES, @"classifiedFailed": @YES,
+            @"valueUnchanged": proof[@"valueUnchanged"], @"aclUnchanged": proof[@"aclUnchanged"],
+            @"attributesUnchanged": proof[@"attributesUnchanged"]};
+    }
+
     /** 权限拒绝负例使用真正的私有钥匙串条目，模板以测试 helper 身份创建后仅在夹具中增加或替换受测权限；生产程序永远不能调用这些修改入口，拒绝后的检查比较整个持久密文文件而不修复被拒绝的条目。 */
     void seed(NSDictionary *request) {
         require(created);
@@ -485,6 +509,7 @@ int main(int argc, char **) {
                     else if ([operation isEqual:@"seed"]) fixture.seed(request);
                     else if ([operation isEqual:@"remove"]) fixture.remove(request);
                     else if ([operation isEqual:@"unchanged"]) { send(fixture.unchanged(request)); continue; }
+                    else if ([operation isEqual:@"read-denial"]) { send(fixture.readDenial(request)); continue; }
                     else if ([operation isEqual:@"cleanup"]) fixture.cleanup();
                     else require(false);
                     send(@{@"ok": @YES});
