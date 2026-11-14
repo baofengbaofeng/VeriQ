@@ -3,6 +3,13 @@ import { constants } from "node:fs";
 import { open, opendir, type FileHandle } from "node:fs/promises";
 import { join, parse, resolve } from "node:path";
 
+/** 在线日志临时成员只允许原 writer 产生的 Attempt 名称与小写 UUIDv4 后缀，不能把任意点号文件或原生记录临时名称纳入恢复；名称本身仅定位不确定 Attempt，永远不等于提交成功或停止证明。 */
+function stagedAttempt(name: string): string | undefined {
+    return /^([a-zA-Z0-9_-]{1,100})\.json\.[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.exec(
+        name,
+    )?.[1];
+}
+
 /** 只读记录会话不创建或收紧已有目录，不删除历史与临时文件；每个成员必须经过固定字符约束，目录扫描和文件读取各有硬上限，调用方用 finally 关闭持有句柄以明确观察生命周期。 */
 export class ProcessRecords {
     private constructor(
@@ -41,13 +48,19 @@ export class ProcessRecords {
             throw error;
         }
     }
-    private path(name: string) {
-        if (!/^[a-zA-Z0-9_-]{1,100}\.(?:json|process\.json|drained\.json)$/.test(name))
+    private path(name: string, journalStaging = false) {
+        if (
+            !/^[a-zA-Z0-9_-]{1,100}\.(?:json|process\.json|drained\.json)$/.test(name) &&
+            !(journalStaging && stagedAttempt(name))
+        )
             throw new Error("PROCESS_RECORD_NAME_INVALID");
         return this.handle ? `/proc/self/fd/${this.handle.fd}/${name}` : join(this.directory, name);
     }
     /** 历史枚举至多返回约定数量的普通文件，额外成员、链接或子目录立即阻止观察；不排序后丢弃、不只挑选看似可识别的记录，避免孤立进程日志或未知残留被过滤成可安全迁移的空目录。 */
     async names(limit: number): Promise<string[]> {
+        return this.listNames(limit, false);
+    }
+    private async listNames(limit: number, journalStaging: boolean): Promise<string[]> {
         const directory = await opendir(
             this.handle ? `/proc/self/fd/${this.handle.fd}` : this.directory,
         );
@@ -58,24 +71,42 @@ export class ProcessRecords {
                 if (!entry) return names;
                 if (!entry.isFile() || names.length >= limit)
                     throw new Error("PROCESS_RECORD_LIMIT_OR_TYPE");
-                this.path(entry.name);
+                this.path(entry.name, journalStaging);
                 names.push(entry.name);
             }
         } finally {
             await directory.close();
         }
     }
+    /** 在线恢复只在此专用入口识别有界私有 staging，原生证明与历史迁移仍使用严格 names/read；临时内容可能因中断只写了一半，因此只核验同 fd 类型、owner、模式和字节上限并标记未知，不解析或授权其状态。 */
+    async journalNames(limit: number): Promise<{ names: string[]; interrupted: Set<string> }> {
+        const names: string[] = [],
+            interrupted = new Set<string>();
+        for (const name of await this.listNames(limit, true)) {
+            const id = stagedAttempt(name);
+            if (id) {
+                await this.bytes(name, 65536, true);
+                interrupted.add(id);
+            } else names.push(name);
+        }
+        return { names, interrupted };
+    }
     /** 私有记录读取固定上限内的严格 UTF8 JSON，Linux 不按检查前的文件路径重新打开或无限读取增长文件；权限、类型、拥有者与长度都在同一描述符核验，Windows 由既有原生有限接口执行同类约束。 */
     async read(name: string, limit: number): Promise<unknown> {
+        return JSON.parse(
+            new TextDecoder("utf-8", { fatal: true }).decode(await this.bytes(name, limit)),
+        );
+    }
+    private async bytes(name: string, limit: number, journalStaging = false): Promise<Buffer> {
         if (!Number.isSafeInteger(limit) || limit < 1 || limit > 65536)
             throw new Error("PROCESS_RECORD_LIMIT_INVALID");
         let bytes: Buffer;
         if (process.platform === "win32") {
             const { windowsNative } = await import("../native/windows.ts");
-            bytes = windowsNative().readPrivateFile(this.path(name), limit);
+            bytes = windowsNative().readPrivateFile(this.path(name, journalStaging), limit);
         } else {
             const handle = await open(
-                this.path(name),
+                this.path(name, journalStaging),
                 constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
             );
             try {
@@ -100,7 +131,7 @@ export class ProcessRecords {
                 await handle.close();
             }
         }
-        return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+        return bytes;
     }
     /** 结束会话只释放本次打开的目录描述符，不尝试清理历史或修复访问模式；观察失败后的再次执行必须重新读取实际文件，不能复用已经失效的目录身份或先前解析所得的停止结论。 */
     async close(): Promise<void> {

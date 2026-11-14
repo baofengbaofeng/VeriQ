@@ -2,7 +2,7 @@
  * 本文件编排 Claimed Attempt 的激活、编译、派生子进程与证据收集：崩溃恢复后对账停机：租约耗尽时必须排空进程树。
  */
 
-import { mkdtemp, mkdir, readFile, writeFile, copyFile, readdir, rm, rename, open } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, copyFile, readdir, rm, rename, open, lstat, unlink, type FileHandle } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -81,18 +81,36 @@ export class ExecutionSupervisor {
         const directory = join(this.options.root, 'attempts');
         await privateDirectory(directory);
         const parent = await open(directory, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+        const path = join(`/proc/self/fd/${parent.fd}`, `${value.claim.attemptId}.json`);
+        const temporary = `${path}.${randomUUID()}`;
+        let staged: FileHandle | undefined, published = false;
         try {
             const info = await parent.stat();
             if (info.uid !== process.getuid!() || (info.mode & 0o777) !== 0o700)
                 throw new Error('UNSAFE_CONFIGURATION');
-            const path = join(`/proc/self/fd/${parent.fd}`, `${value.claim.attemptId}.json`);
-            const temporary = `${path}.${randomUUID()}`;
-            await writeFile(temporary, JSON.stringify(value), { mode: 0o600, flag: 'wx', flush: true });
+            staged = await open(temporary, 'wx', 0o600);
+            await staged.writeFile(JSON.stringify(value));
+            await staged.sync();
             await rename(temporary, path);
+            published = true;
             /** 文件刷新仅保证临时对象内容，目录刷新才确认原子发布的名称；任何一次失败都向上传播，派生门不会因为内存状态已改写或磁盘上偶然可见新内容而提前打开。 */
             await parent.sync();
+        } catch (error) {
+            /** 只退休本次 wx 创建且尚未发布的原始临时 inode，旧 staging 和被替换的名称都保留以供显式恢复；写入、刷新或 rename 失败不能留下自有可清理垃圾，也不能借清理掩盖未知提交或删除别人的记录。 */
+            if (staged && !published) {
+                const owned = await staged.stat();
+                const current = await lstat(temporary).catch(missing => {
+                    if ((missing as NodeJS.ErrnoException).code !== 'ENOENT') throw missing;
+                });
+                if (current?.isFile() && current.dev === owned.dev && current.ino === owned.ino) {
+                    await unlink(temporary);
+                    await parent.sync();
+                }
+            }
+            throw error;
         } finally {
-            await parent.close();
+            try { await staged?.close(); }
+            finally { await parent.close(); }
         }
     }
     /** 未派生判定只接受当前明确提交完成的前置状态，既不依赖内存 child 句柄缺失也不解释错误 reason；恢复还必须排除私有原生记录中的启动意图，以免旧发布窗口中的不一致被当成容量释放授权。 */
@@ -135,11 +153,17 @@ export class ExecutionSupervisor {
         const records = await ProcessRecords.open(directory);
         if (!records) return receipts;
         try {
-            for (const name of await records.names(4096)) {
+            const { names, interrupted } = await records.journalNames(4096);
+            const recovered = new Set<string>();
+            for (const name of names) {
                 if (!name.endsWith('.json')) continue;
                 const record = await records.read(name, 65536) as AttemptJournal;
-                let stop = await this.unspawned(record, true)
+                /** 临时对象可能包含尚未结清的 SPAWNING，即便旧正式日志仍是前置状态也不能走未派生快捷路径；只隔离受影响 Attempt，其余正式日志继续执行原有内核停止核验和对账。 */
+                let stop = await this.unspawned(record, !interrupted.has(record.claim.attemptId))
                     ?? await this.terminateAttempt(record.claim.attemptId, 'AGENT_RECOVERY');
+                recovered.add(record.claim.attemptId);
+                if (interrupted.has(record.claim.attemptId) && !stop.processStopped && stop.reason === 'UNKNOWN_PROCESS')
+                    stop.reason = 'JOURNAL_STAGING_UNCONFIRMED';
                 if (stop.processStopped && stop.processStopScope !== 'NO_PROCESS_SPAWNED') record.state = 'STOPPED';
                 record.stop = stop;
                 try {
@@ -150,6 +174,11 @@ export class ExecutionSupervisor {
                 }
                 await this.reconcile(record.claim, stop, 'PENDING');
                 receipts.push({...stop, ...(record.claimRequestId ? {claimRequestId: record.claimRequestId} : {})});
+            }
+            /** 仅有临时成员时没有已提交 Claim 或 fence 可用于网络对账，仍返回明确未知以阻止 claimLoop 再认领；不删除旧文件，不凭临时 JSON 内容发信号或制造未派生成功，其他已提交 Attempt 的对账已经完成。 */
+            for (const id of interrupted) {
+                if (!recovered.has(id)) receipts.push({ attemptId: id, processStopped: false,
+                    reason: 'JOURNAL_STAGING_UNCONFIRMED', stoppedAt: new Date().toISOString() });
             }
         } finally {
             await records.close();
