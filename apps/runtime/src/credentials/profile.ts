@@ -2,6 +2,7 @@
 import { randomBytes, randomUUID, createHash, createHmac } from "node:crypto";
 import { join } from "node:path";
 import lockfile from "proper-lockfile";
+import { requireStoppedHistory } from "../execution/stopped-history.ts";
 import { LocalStore } from "../offline/store.ts";
 import { validateSchema, type JsonValue } from "@veriq/contracts";
 import type { VaultKeyBackend } from "./backend.ts";
@@ -757,13 +758,7 @@ export class CredentialProfile {
                 .catch(() => {
                     throw new Error("AGENT_RUNNING_STOP_FIRST");
                 });
-            /** 在线恢复记录必须先由现有执行恢复流程对账，单独 STOPPED 文本不是新的排空证明；此处只读取固定目录的一个成员便可拒绝，避免迁移递归扫描或解析无界工作目录，更不会主动杀死任何进程。 */
-            const attempts = await VaultFiles.acquire(join(this.directory, "agent", "attempts"));
-            try {
-                if (!(await attempts.empty())) fail("runtime-recovery-required");
-            } finally {
-                await attempts.close();
-            }
+            await requireStoppedHistory(join(this.directory, "agent"));
             executions = await LocalStore.open(join(this.directory, "offline"));
             idle = executions.holdIdle();
             return await run(root);

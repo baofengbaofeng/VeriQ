@@ -43,6 +43,7 @@ jobs:
               shell: bash
               run: |
                   set -o pipefail
+                  node scripts/build-launcher.mjs 2>&1 | tee "$VERIQ_VAULT_EVIDENCE/guardian-build.log"
                   node scripts/build-vault-linux.mjs 2>&1 | tee "$VERIQ_VAULT_EVIDENCE/production-build.log"
                   node scripts/build-vault-linux.mjs --test-driver 2>&1 | tee "$VERIQ_VAULT_EVIDENCE/test-driver-build.log"
             - name: Verify real private Secret Service and bounded helper lifecycle
@@ -51,7 +52,7 @@ jobs:
               shell: bash
               run: |
                   set -o pipefail
-                  node --import tsx --test tests/vault-envelope.test.ts tests/vault-integration.test.ts tests/vault-linux.test.ts tests/distribution.test.ts tests/native/linux-vault.test.ts 2>&1 | tee "$VERIQ_VAULT_EVIDENCE/vault-tests.log"
+                  node --import tsx --test tests/vault-envelope.test.ts tests/vault-integration.test.ts tests/vault-history.test.ts tests/vault-linux.test.ts tests/distribution.test.ts tests/native/linux-vault.test.ts 2>&1 | tee "$VERIQ_VAULT_EVIDENCE/vault-tests.log"
             - name: Always confirm owned daemon cleanup
               if: always()
               working-directory: apps/runtime

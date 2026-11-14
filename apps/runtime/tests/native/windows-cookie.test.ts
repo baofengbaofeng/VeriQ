@@ -50,15 +50,50 @@ ConvertTo-Json -InputObject $records -Depth 5 -Compress
                 env: { ...process.env, VERIQ_COOKIE_OWNED_PATHS: JSON.stringify(paths) },
             },
         );
-        assert.equal(result.stderr, "");
+        context.diagnostic(
+            "Owned Cookie ACL command result: " +
+                JSON.stringify({
+                    executable,
+                    sid: windowsNative().sid,
+                    exitCode: 0,
+                    stdout: result.stdout,
+                    stderr: result.stderr,
+                }),
+        );
         context.diagnostic(
             "Owned Cookie ACL observation: " +
-                JSON.stringify({ sid: windowsNative().sid, records: JSON.parse(result.stdout) }),
+                JSON.stringify({
+                    sid: windowsNative().sid,
+                    records: JSON.parse(result.stdout),
+                    stderrEmpty: result.stderr.length === 0,
+                }),
         );
+        assert.equal(result.stderr, "");
     } catch (error) {
+        const observed = error as {
+            name?: string;
+            code?: string | number;
+            signal?: string;
+            killed?: boolean;
+            stdout?: string;
+            stderr?: string;
+        };
         context.diagnostic(
             "Owned Cookie ACL observation failed: " +
-                (error instanceof Error ? error.name : "UNKNOWN_ERROR"),
+                JSON.stringify({
+                    name: observed?.name ?? "UNKNOWN_ERROR",
+                    code: observed?.code,
+                    signal: observed?.signal,
+                    killed: observed?.killed,
+                    stdout:
+                        typeof observed?.stdout === "string"
+                            ? observed.stdout.slice(0, 16384)
+                            : undefined,
+                    stderr:
+                        typeof observed?.stderr === "string"
+                            ? observed.stderr.slice(0, 16384)
+                            : undefined,
+                }),
         );
     }
 }

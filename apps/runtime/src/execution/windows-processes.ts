@@ -229,6 +229,35 @@ export class WindowsProcesses {
         this.stopping.set(id, operation);
         return operation;
     }
+    /** 凭据迁移只观察既有停止日志及匹配 SID、nonce 和双进程创建时间的原生排空证明，不向守护发送停止事件；任何私有读取或身份核验失败都保持未确认，不能通过缺失 PID 或人工 STOPPED 文本放行。 */
+    async confirmStopped(id: string): Promise<boolean> {
+        try {
+            const native = windowsNative();
+            const journal = JSON.parse(
+                native.readPrivateFile(this.path(id), 2048).toString("utf8"),
+            ) as Journal;
+            if (
+                !journal ||
+                journal.attemptId !== id ||
+                journal.sid !== native.sid ||
+                journal.state !== "STOPPED" ||
+                typeof journal.nonce !== "string" ||
+                !/^[0-9a-f-]{36}$/.test(journal.nonce) ||
+                !Number.isSafeInteger(journal.pid) ||
+                journal.pid! <= 1 ||
+                !Number.isSafeInteger(journal.guardianPid) ||
+                journal.guardianPid! <= 1 ||
+                typeof journal.startTime !== "string" ||
+                !/^[0-9]+$/.test(journal.startTime) ||
+                typeof journal.guardianStartTime !== "string" ||
+                !/^[0-9]+$/.test(journal.guardianStartTime)
+            )
+                return false;
+            return await this.proof(journal);
+        } catch {
+            return false;
+        }
+    }
     private release(id: string) {
         const child = this.live.get(id)?.child;
         for (const stream of child?.stdio ?? []) stream?.destroy();
