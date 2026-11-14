@@ -49,7 +49,8 @@ export type LocalOperation =
               | "unbind"
               | "onlineStart"
               | "onlineStop"
-              | "recover";
+              | "recover"
+              | "migrateCredentials";
       }
     | { operation: "select"; workspaceId: string }
     | { operation: "enroll"; name: string }

@@ -1,6 +1,6 @@
 import { join, basename, dirname } from "node:path";
 import { unlink } from "node:fs/promises";
-import lockfile from "proper-lockfile";
+import { acquireDesktopProfileOwner } from "../../../runtime/src/credentials/ownership.ts";
 import { AttemptBroker } from "../../../runtime/src/execution/broker.ts";
 import {
     privateDirectory,
@@ -10,6 +10,7 @@ import {
 } from "../../../runtime/src/offline/config.ts";
 import { loadRuntimeDistribution, assertRuntimeRole } from "../../../runtime/src/distribution.ts";
 import { DesktopAgent, type AgentConfiguration } from "./service";
+import { installedCredentials } from "../../../runtime/src/credentials/host.ts";
 
 /** 独立 Node24 后台入口只读取宿主已经写入的私有配置，通过现有 nonce broker 提供受限本机命令；锁持有期间才可删除陈旧 socket，防止并发 UI 启动抢占存活后台。 */
 async function main() {
@@ -20,12 +21,12 @@ async function main() {
         ? await loadRuntimeDistribution(dirname(dirname(dirname(process.execPath))))
         : undefined;
     if (installed) assertRuntimeRole(installed, "agent");
+    const credentials = installed ? installedCredentials(installed) : undefined;
     const root = process.argv[2];
     if (!root) throw new Error("AGENT_PROFILE_REQUIRED");
     await privateDirectory(root);
-    const owner = join(root, "desktop-owner");
-    await privateDirectory(owner);
-    const release = await lockfile.lock(owner, { retries: 0 });
+    const ownership = await acquireDesktopProfileOwner(root);
+    const release = ownership.release;
     const config = await readPrivate<AgentConfiguration>(root, "desktop-config.json");
     if (config.distributionRoot && config.distributionRoot !== installed?.root)
         throw new Error("RUNTIME_CONFIGURATION_MISMATCH");
@@ -35,7 +36,11 @@ async function main() {
         config.browserExecutable = installed.browserExecutable;
         config.headedExecutable = installed.browserExecutable;
     }
-    const service = new DesktopAgent(root, config);
+    const service = new DesktopAgent(
+        root,
+        config,
+        credentials ? { ...credentials, desktopOwner: ownership.owner } : undefined,
+    );
     let stopping = false;
     const stop = async () => {
         if (stopping) return;

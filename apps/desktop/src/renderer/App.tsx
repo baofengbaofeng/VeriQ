@@ -1092,6 +1092,23 @@ export function App() {
                                         恢复中断执行 / Recover interrupted run
                                     </button>
                                 </div>
+                                <p>
+                                    停止本机执行和在线领取后，可显式迁移旧凭据。迁移会核验系统保险库和加密数据，再移除旧明文文件。
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        void action(async () =>
+                                            setDiagnostics(
+                                                await bridge.local({
+                                                    operation: "migrateCredentials",
+                                                }),
+                                            ),
+                                        )
+                                    }
+                                >
+                                    迁移本机凭据 / Migrate local credentials
+                                </button>
                                 {diagnostics !== undefined && (
                                     <pre data-testid="diagnostics">
                                         {JSON.stringify(diagnostics, null, 2)}

@@ -409,6 +409,49 @@ static Napi::Value removePrivate(const Napi::CallbackInfo& info) {
     } catch (const NativeFailure& error) { return fileFailure(info, error); }
     catch (const std::exception& error) { Napi::Error::New(info.Env(), error.what()).ThrowAsJavaScriptException(); return info.Env().Undefined(); }
 }
+/** 保险库扩展仅允许固定清单、恢复日志及随机记录成员，最大两兆字节承载原有一兆业务载荷的认证编码开销；通用配置入口继续保持一兆限制，拥有者、父链、真实句柄与原子提交规则完全复用而不放宽。 */
+static void vaultMember(const std::wstring& path) {
+    const FilePath parsed(path);
+    require(parsed.parts.size() >= 2 && parsed.parts[parsed.parts.size() - 2] == L"vault", "NATIVE_VAULT_PATH_INVALID");
+    const auto& name = parsed.parts.back();
+    const bool record = name.size() == 48 && name.substr(0, 7) == L"record-" && name.substr(43) == L".json" &&
+        name.substr(7, 36).find_first_not_of(L"0123456789abcdef-") == std::wstring::npos;
+    require(record || name == L"profile.json" || name == L"profile-next.json" || name == L"transaction.json" || name == L"migration.json", "NATIVE_VAULT_PATH_INVALID");
+}
+/** 保险库读取固定为两兆字节上限并返回实际同句柄读取的字节，调用方不能传入更大额度或其他用途名称；普通配置读取及其原有测试保持原入口，从而不会因信封编码增加而扩大一般文件授权。 */
+static Napi::Value readVaultFile(const Napi::CallbackInfo& info) {
+    try {
+        require(info.Length() == 1 && info[0].IsString(), "NATIVE_FILE_ARGUMENTS_INVALID");
+        const auto path = wide(info[0].As<Napi::String>().Utf8Value());
+        vaultMember(path);
+        const auto bytes = readPrivateBytes(path, 2 * 1024 * 1024, 2 * 1024 * 1024);
+        return Napi::Buffer<char>::Copy(info.Env(), bytes.data(), bytes.size());
+    } catch (const NativeFailure& error) { return fileFailure(info, error); }
+    catch (const std::exception& error) { Napi::Error::New(info.Env(), error.what()).ThrowAsJavaScriptException(); return info.Env().Undefined(); }
+}
+/** 保险库发布只增加固定用途密文的容量，不增加路径回退、任意原生操作或额外权限；同一父目录与源句柄完成刷新和重命名，既有提交不确定错误原样保留，由上层有限恢复日志处理。 */
+static Napi::Value replaceVaultFile(const Napi::CallbackInfo& info) {
+    try {
+        require(info.Length() == 4 && info[0].IsString() && info[1].IsString() && info[2].IsString() && info[3].IsString(), "NATIVE_FILE_ARGUMENTS_INVALID");
+        const auto directory = wide(info[0].As<Napi::String>().Utf8Value());
+        const auto name = wide(info[1].As<Napi::String>().Utf8Value());
+        vaultMember(directory + L"\\" + name);
+        replacePrivateFile(directory, name, wide(info[2].As<Napi::String>().Utf8Value()), info[3].As<Napi::String>().Utf8Value(), false, 2 * 1024 * 1024);
+        return info.Env().Undefined();
+    } catch (const NativeFailure& error) { return fileFailure(info, error); }
+    catch (const std::exception& error) { Napi::Error::New(info.Env(), error.what()).ThrowAsJavaScriptException(); return info.Env().Undefined(); }
+}
+/** 保险库记录退休保留固定名称和两兆字节上限，在已校验父链与文件句柄中设置删除标志；未知失败不能转换为不存在，也不会改用 Node 路径删除以绕过已有严格的拥有者检查。 */
+static Napi::Value removeVaultFile(const Napi::CallbackInfo& info) {
+    try {
+        require(info.Length() == 1 && info[0].IsString(), "NATIVE_FILE_ARGUMENTS_INVALID");
+        const auto path = wide(info[0].As<Napi::String>().Utf8Value());
+        vaultMember(path);
+        removePrivateFile(path, 2 * 1024 * 1024);
+        return info.Env().Undefined();
+    } catch (const NativeFailure& error) { return fileFailure(info, error); }
+    catch (const std::exception& error) { Napi::Error::New(info.Env(), error.what()).ThrowAsJavaScriptException(); return info.Env().Undefined(); }
+}
 /** 诊断读取只能返回当前进程最近有界的固定错误记录并清空缓冲区，不接收文件路径或筛选表达式；测试在资源关闭后收集这些记录定位原生阶段，原始客户端断言与清理异常仍独立保留，不能被诊断替代。 */
 static Napi::Value takePipeDiagnostics(const Napi::CallbackInfo& info) {
     try {
@@ -437,6 +480,9 @@ static Napi::Object initialize(Napi::Env env, Napi::Object exports) {
         exports.Set("privatePath", Napi::Function::New(env, privatePath));
         exports.Set("writePrivate", Napi::Function::New(env, writePrivate));
         exports.Set("readPrivateFile", Napi::Function::New(env, readPrivateFile));
+        exports.Set("readVaultFile", Napi::Function::New(env, readVaultFile));
+        exports.Set("replaceVaultFile", Napi::Function::New(env, replaceVaultFile));
+        exports.Set("removeVaultFile", Napi::Function::New(env, removeVaultFile));
         exports.Set("replacePrivate", Napi::Function::New(env, replacePrivate));
         exports.Set("removePrivate", Napi::Function::New(env, removePrivate));
         exports.Set("takePipeDiagnostics", Napi::Function::New(env, takePipeDiagnostics));

@@ -272,6 +272,7 @@ async function local(input: unknown) {
         "upload",
         "onlineStart",
         "onlineStop",
+        "migrateCredentials",
         "clearBundle",
         "recover",
     ];

@@ -155,9 +155,9 @@ inline void ensurePrivatePath(const std::wstring& input, bool create) {
     }
 }
 /** 配置读取在同一已验证句柄上完成大小检查与全部字节读取，不经过 Node 路径重开；读句柄拒绝并发原位写入但允许已验证写入者原子替换名称，因此本次读取仍获得旧文件的一份完整内容。 */
-inline std::vector<char> readPrivateBytes(const std::wstring& input, size_t limit) {
+inline std::vector<char> readPrivateBytes(const std::wstring& input, size_t limit, size_t maximum = 1024 * 1024) {
     const FilePath path(input);
-    require(!path.parts.empty() && limit <= 1024 * 1024, "NATIVE_FILE_LIMIT");
+    require(!path.parts.empty() && maximum <= 2 * 1024 * 1024 && limit <= maximum, "NATIVE_FILE_LIMIT");
     DirectoryChain parent(path, path.parts.size() - 1);
     parent.verifyPrivateDirectory();
     auto file = relativeFile(parent.handle(), path.parts.back(), READ_CONTROL | FILE_READ_ATTRIBUTES | FILE_READ_DATA,
@@ -193,12 +193,12 @@ inline void createPrivateFile(const std::wstring& input, const std::string& byte
 }
 /** 原子发布始终使用同一临时文件句柄与已持有目标目录，首次注册可明确禁止覆盖而普通更新保留替换语义；提交前异常删除自有临时对象，提交后的刷新失败保留不确定性，不回滚或重跑上层更新函数。 */
 inline void replacePrivateFile(const std::wstring& directory, const std::wstring& name,
-    const std::wstring& temporary, const std::string& bytes, bool createOnly = false) {
+    const std::wstring& temporary, const std::string& bytes, bool createOnly = false, size_t maximum = 1024 * 1024) {
     fileComponent(name); fileComponent(temporary);
     require(temporary.size() == 41 && temporary.front() == L'.' && temporary.substr(37) == L".tmp" &&
         temporary.substr(1, 36).find_first_not_of(L"0123456789abcdef-") == std::wstring::npos && name != temporary,
         "NATIVE_TEMPORARY_NAME_INVALID");
-    require(bytes.size() <= 1024 * 1024, "NATIVE_FILE_LIMIT");
+    require(maximum <= 2 * 1024 * 1024 && bytes.size() <= maximum, "NATIVE_FILE_LIMIT");
     const FilePath path(directory);
     DirectoryChain parent(path, path.parts.size(), false, FILE_ADD_FILE);
     parent.verifyPrivateDirectory();
@@ -251,7 +251,7 @@ inline void replacePrivateFile(const std::wstring& directory, const std::wstring
     }
 }
 /** 私有成员退休只打开已验证父目录中的一个普通文件，并通过实际文件句柄设置删除状态；缺失与拒绝保留原始错误，不能把路径 unlink 用作 ACL 检查之后的第二次名称解析。 */
-inline void removePrivateFile(const std::wstring& input) {
+inline void removePrivateFile(const std::wstring& input, size_t maximum = 1024 * 1024) {
     const FilePath path(input);
     require(!path.parts.empty(), "NATIVE_PATH_INVALID");
     DirectoryChain parent(path, path.parts.size() - 1);
@@ -262,7 +262,7 @@ inline void removePrivateFile(const std::wstring& input) {
     parent.validate();
     LARGE_INTEGER size{};
     requireWin32(GetFileSizeEx(file.value, &size) != 0, "NATIVE_PRIVATE_REMOVE_FAILED");
-    require(size.QuadPart >= 0 && size.QuadPart <= 1024 * 1024, "NATIVE_FILE_LIMIT");
+    require(maximum <= 2 * 1024 * 1024 && size.QuadPart >= 0 && static_cast<ULONGLONG>(size.QuadPart) <= maximum, "NATIVE_FILE_LIMIT");
     FILE_DISPOSITION_INFO remove{TRUE};
     requireWin32(SetFileInformationByHandle(file.value, FileDispositionInfo, &remove, sizeof(remove)) != 0,
         "NATIVE_PRIVATE_REMOVE_FAILED");

@@ -41,6 +41,12 @@ export interface WindowsNative {
     ): void;
     /** 退休仅针对有限普通私有成员并在原生持有的父链及文件句柄上完成，未知权限或重解析错误继续上抛；成功表示删除标记和句柄释放完成，不代表存储介质已擦除或目录断电持久化。 */
     removePrivate(path: string): void;
+    /** 保险库专用入口只接受固定 vault 目录下的清单、日志及随机记录名称，容量限定为两兆字节以容纳认证信封；一般私有配置仍保持原额度，三个操作继续使用原生同句柄拥有者与父链校验。 */
+    readVaultFile(path: string): Buffer;
+    /** 保险库替换限定固定目录成员与两兆字节正文，沿用同父目录和源文件句柄完成刷新与原子发布；提交后错误继续表示结果不确定，调用方必须读取恢复日志而不能重放业务更新或退回普通路径写入。 */
+    replaceVaultFile(directory: string, name: string, temporary: string, content: string): void;
+    /** 保险库退休只删除当前用户拥有的有界普通成员，验证仍由已持有父链和实际文件句柄完成；成功不表示物理擦除，未知删除或关闭错误必须传播，不能把访问拒绝归类为不存在后继续清理其他用途。 */
+    removeVaultFile(path: string): void;
     takePipeDiagnostics(): Array<{ phase: string; code: string; win32: number; checks: number }>;
 }
 let loaded: WindowsNative | undefined;

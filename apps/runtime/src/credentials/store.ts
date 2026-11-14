@@ -5,6 +5,7 @@
 import type { JsonValue } from "@veriq/contracts";
 import { validateSchema } from "@veriq/contracts";
 import { readPrivate, updatePrivate } from "../offline/config.ts";
+import { CredentialProfile, type CredentialOptions } from "./profile.ts";
 /**
  * 公开类型 SecretReference 钉选 issuer/workspace/secretRef/versionId。
  * 四元组缺一不可。
@@ -27,24 +28,26 @@ function key(ref: SecretReference) {
         ![ref.workspaceId, ref.versionId].every((v) => /^[0-9a-f-]{36}$/i.test(v))
     )
         throw new Error("INVALID_SECRET_REFERENCE");
-    return JSON.stringify([
-        ref.issuerId,
-        ref.workspaceId,
-        ref.secretRef,
-        ref.versionId,
-    ]);
+    return JSON.stringify([ref.issuerId, ref.workspaceId, ref.secretRef, ref.versionId]);
 }
 /**
- * 公开类 SecretStore 在私有配置中持久化本机密钥：原生保险库接入留给安装形态：开发期使用受限文件缝（SecretStore/INVALID_SECRET_VALUE）。
+ * SecretStore 在显式凭据上下文中使用同一档案事务保护每个完整引用的密文，锁定、认证和缺钥保持不同错误；现有无上下文分支暂供既有开发契约与迁移源读取，安装入口必须注入经过库存核验的系统后端。
  */
 export class SecretStore {
-    constructor(readonly directory: string) {}
+    private profile?: CredentialProfile;
+    constructor(
+        readonly directory: string,
+        options?: CredentialOptions,
+    ) {
+        if (options) this.profile = new CredentialProfile(directory, options);
+    }
     /**
      * 公开方法 set 校验 JsonValue 后按钉选引用写入本机密钥表：覆盖同引用旧值（set/INVALID_SECRET_VALUE）。
      */
     async set(ref: SecretReference, value: SecretValue) {
-        if (validateSchema("JsonValue", value).length)
-            throw new Error("INVALID_SECRET_VALUE");
+        if (validateSchema("JsonValue", value).length) throw new Error("INVALID_SECRET_VALUE");
+        key(ref);
+        if (this.profile) return this.profile.transaction((tx) => tx.set(ref, value));
         await updatePrivate<Record<string, JsonValue>>(
             this.directory,
             "local-secrets.json",
@@ -55,6 +58,8 @@ export class SecretStore {
      * 公开方法 remove 删除指定钉选引用的本机密钥：不影响其他版本条目（remove/LOCAL_CREDENTIAL_MISSING）。
      */
     async remove(ref: SecretReference) {
+        key(ref);
+        if (this.profile) return this.profile.transaction((tx) => tx.removeBusiness(ref));
         await updatePrivate<Record<string, JsonValue>>(
             this.directory,
             "local-secrets.json",
@@ -69,6 +74,7 @@ export class SecretStore {
      * 公开方法 clear 清空本机密钥表：用于开发目录重置：不影响信任根或其他私有配置（clear/LOCAL_CREDENTIAL_MISSING）。
      */
     async clear() {
+        if (this.profile) return this.profile.transaction((tx) => tx.removeBusiness());
         await updatePrivate<Record<string, JsonValue>>(
             this.directory,
             "local-secrets.json",
@@ -80,6 +86,7 @@ export class SecretStore {
      */
     async resolve(ref: SecretReference): Promise<SecretValue> {
         const pin = key(ref);
+        if (this.profile) return this.profile.transaction((tx) => tx.resolve(ref));
         try {
             const data = await readPrivate<Record<string, JsonValue>>(
                 this.directory,

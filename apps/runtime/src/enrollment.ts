@@ -9,6 +9,13 @@ import { privateDirectory, readBoundedFile, removePrivate } from "./offline/conf
 import { randomBytes, randomUUID } from "node:crypto";
 import envPaths from "env-paths";
 import lockfile from "proper-lockfile";
+import { VaultFiles } from "./credentials/files.ts";
+import {
+    CredentialProfile,
+    type CredentialOptions,
+    type CredentialTransaction,
+    type Rotation,
+} from "./credentials/profile.ts";
 import { validateSchema, type PlatformComponents } from "@veriq/contracts";
 type Schemas = PlatformComponents["schemas"];
 /**
@@ -89,7 +96,7 @@ export class RuntimeClient {
             throw new RuntimeError(signal?.aborted ? "CANCELLED" : "NETWORK_UNAVAILABLE", 0);
         }
         if (response.status === 204) return undefined as T;
-        // Bound the body before parsing, including untrusted proxy/error responses.
+        // 控制面响应在解析前按实际传输字节限制为六万五千五百三十六，代理和错误正文也受同一限制；达到上限即取消 reader 并返回固定错误，避免把秘密响应或无限输入转交日志和解析器。
         const reader = response.body?.getReader();
         let size = 0;
         const chunks: Uint8Array[] = [];
@@ -219,13 +226,25 @@ export class RuntimeClient {
  */
 export class DeviceStore {
     directory: string;
-    constructor(directory = envPaths("veriq", { suffix: "" }).config) {
+    private profile?: CredentialProfile;
+    constructor(directory = envPaths("veriq", { suffix: "" }).config, options?: CredentialOptions) {
         this.directory = directory;
+        if (options) this.profile = new CredentialProfile(directory, options);
+    }
+    /** 用户显式请求迁移时委托同一凭据上下文取得停止所有权并核验全部旧用途，返回值不包含秘密；没有安全上下文的开发调用不能把这次请求解释为明文模式认可或自动选择另一种后端。 */
+    async migrateCredentials(): Promise<void> {
+        if (!this.profile) throw new Error("VAULT_CONTEXT_REQUIRED");
+        await this.profile.migrate();
     }
     /**
      * 公开方法 prepare 创建私有配置目录并准备设备文件锁：供 Agent 启动前调用，标注导出符号 prepare 供检索。
      */
     async prepare() {
+        if (this.profile) {
+            const files = await VaultFiles.acquire(this.directory);
+            await files.close();
+            return;
+        }
         if (process.platform === "win32") {
             await privateDirectory(this.directory);
             return;
@@ -240,6 +259,15 @@ export class DeviceStore {
      * 公开方法 load 读取本机 DeviceConfig：文件缺失或损坏时失败关闭：不返回部分令牌，标注导出符号 load。
      */
     async load(): Promise<DeviceConfig> {
+        if (this.profile)
+            return this.profile.transaction(async (tx) => {
+                const value = await tx.device();
+                controlOrigin(value.server);
+                const { server: _, ...receipt } = value;
+                if (validateSchema("DeviceCredentialsDTO", receipt).length)
+                    throw new Error("Invalid device configuration");
+                return value;
+            });
         const file = join(this.directory, "device.json");
         let value: DeviceConfig;
         if (process.platform === "win32") {
@@ -267,6 +295,7 @@ export class DeviceStore {
      * 公开方法 save 原子写入 DeviceConfig：保持 0600 权限：避免半写状态被并发读者看到，标注 save。
      */
     async save(config: DeviceConfig) {
+        if (this.profile) return this.profile.transaction((tx) => tx.saveDevice(config, true));
         await this.prepare();
         const release = await lockfile.lock(this.directory, {
             retries: 0,
@@ -325,6 +354,7 @@ export class DeviceStore {
      * 公开方法 renew 在需要时轮换设备令牌并原子保存：恢复未完成的轮换候选：防止双主凭证，标注导出符号 renew 供检索。
      */
     async renew(client: RuntimeClient): Promise<DeviceConfig> {
+        if (this.profile) return this.profile.transaction((tx) => this.renewVault(tx, client));
         await this.prepare();
         const release = await lockfile.lock(this.directory, {
             retries: 0,
@@ -437,6 +467,60 @@ export class DeviceStore {
             await release();
         }
     }
+    /** 加密轮换在同一档案事务锁内读取当前设备与候选，原请求在网络失败后保留而不生成替代秘密；正式设备发布后才退休候选，任何提交不确定性直接上抛，下一次显式恢复按同一请求和当前代际判断。 */
+    private async renewVault(
+        tx: CredentialTransaction,
+        client: RuntimeClient,
+    ): Promise<DeviceConfig> {
+        const current = await tx.device();
+        controlOrigin(current.server);
+        const { server: _, ...oldReceipt } = current;
+        if (validateSchema("DeviceCredentialsDTO", oldReceipt).length)
+            throw new Error("Invalid device configuration");
+        if (current.server !== client.server) throw new Error("DEVICE_PRINCIPAL_CHANGED");
+        let pending: Rotation | undefined = await tx.rotation();
+        if (!pending) {
+            pending = {
+                previous: current,
+                clientRequestId: randomUUID(),
+                replacementToken: randomBytes(32).toString("base64url"),
+            };
+            await tx.saveRotation(pending);
+        }
+        if (
+            pending.previous.server !== current.server ||
+            pending.previous.runnerId !== current.runnerId ||
+            pending.previous.workspaceId !== current.workspaceId
+        )
+            throw new Error("DEVICE_PRINCIPAL_CHANGED");
+        if (current.deviceToken === pending.replacementToken) {
+            await tx.removeDevice(true);
+            return current;
+        }
+        if (current.deviceToken !== pending.previous.deviceToken)
+            throw new Error("DEVICE_CREDENTIAL_CHANGED");
+        const receipt = await client.request<Schemas["DeviceCredentialsDTO"]>(
+            "/internal/v1/runtime/token/rotate",
+            "POST",
+            {
+                clientRequestId: pending.clientRequestId,
+                replacementToken: pending.replacementToken,
+            },
+            current.deviceToken,
+        );
+        if (
+            receipt.runnerId !== current.runnerId ||
+            receipt.workspaceId !== current.workspaceId ||
+            receipt.deviceToken !== pending.replacementToken
+        )
+            throw new Error("DEVICE_PRINCIPAL_CHANGED");
+        if (JSON.stringify(await tx.device()) !== JSON.stringify(current))
+            throw new Error("DEVICE_CREDENTIAL_CHANGED");
+        const replacement = { ...current, ...receipt };
+        await tx.saveDevice(replacement, false);
+        await tx.removeDevice(true);
+        return replacement;
+    }
     /**
      * 公开方法 ensureStopped 确认本机 Agent 控制通道已停止：避免在旧进程仍存活时覆盖配置（ensureStopped）。
      */
@@ -455,6 +539,8 @@ export class DeviceStore {
      * 公开方法 hasPendingRotation 检测是否存在未完成的令牌轮换候选：供启动恢复路径决定续写策略（hasPendingRotation）。
      */
     async hasPendingRotation() {
+        if (this.profile)
+            return this.profile.transaction(async (tx) => (await tx.rotation()) !== undefined);
         if (process.platform === "win32") {
             try {
                 await readBoundedFile(join(this.directory, "rotation.json"), 65536, true);
@@ -476,6 +562,21 @@ export class DeviceStore {
      * 公开方法 remove 删除本机设备配置：不自动清除离线信任根：显式删档才移除签发者绑定，标注导出符号 remove 供检索。
      */
     async remove() {
+        if (this.profile) {
+            await this.prepare();
+            const owner = join(this.directory, "agent-owner");
+            const ownerFiles = await VaultFiles.acquire(owner);
+            await ownerFiles.close();
+            const release = await lockfile.lock(owner, { retries: 0 }).catch(() => {
+                throw new Error("AGENT_RUNNING_STOP_FIRST");
+            });
+            try {
+                await this.profile.transaction((tx) => tx.removeDevice());
+            } finally {
+                await release();
+            }
+            return;
+        }
         await this.prepare();
         const owner = join(this.directory, "agent-owner");
         if (process.platform === "win32") await privateDirectory(owner);

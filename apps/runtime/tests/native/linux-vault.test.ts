@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, readFile, readlink, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, readlink, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { setTimeout as delay } from "node:timers/promises";
@@ -48,6 +48,7 @@ async function until(check: () => Promise<boolean>, timeout = 5000) {
     }
 }
 
+/** 正式消费者组合在同一自有 Secret Service 会话中使用完整发行能力构造后端，迁移和重启读回经过真实 helper；合成值仅用于确认磁盘没有明文，日志只记录是否成功及生命周期，不打印业务值或系统密钥。 */
 test("real private Secret Service lifecycle, prompt refusal and owned helper termination", async (t) => {
     assert.equal(process.platform, "linux");
     const evidence = process.env.VERIQ_VAULT_EVIDENCE;
@@ -323,6 +324,60 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
                 assert.equal((await backend.delete(upper, signal())).status, "ok");
             },
         );
+        const productionProfile = join(root, "production-profile");
+        const productionReference = {
+            issuerId: "owned",
+            workspaceId: randomUUID(),
+            secretRef: "login",
+            versionId: randomUUID(),
+        };
+        const productionDevice = {
+            server: "https://control.example",
+            runnerId: randomUUID(),
+            workspaceId: productionReference.workspaceId,
+            deviceToken: "synthetic-production-device-token",
+            expiresAt: "2027-12-01T00:00:00Z",
+        };
+        const { installedCredentials } = await import("../../src/credentials/host.ts");
+        const { CredentialProfile } = await import("../../src/credentials/profile.ts");
+        const { SecretStore } = await import("../../src/credentials/store.ts");
+        const { DeviceStore } = await import("../../src/enrollment.ts");
+        const productionOptions = installedCredentials(fixture.distribution);
+        await t.test(
+            "production consumers migrate and persist through the verified formal OS helper",
+            async () => {
+                await new SecretStore(productionProfile).set(productionReference, {
+                    password: "synthetic-production-password",
+                });
+                await new DeviceStore(productionProfile).save(productionDevice);
+                await assert.rejects(
+                    new DeviceStore(productionProfile, productionOptions).load(),
+                    /VAULT_MIGRATION_REQUIRED/,
+                );
+                await new CredentialProfile(productionProfile, productionOptions).migrate();
+                assert.deepEqual(
+                    await new DeviceStore(productionProfile, productionOptions).load(),
+                    productionDevice,
+                );
+                assert.deepEqual(
+                    await new SecretStore(productionProfile, productionOptions).resolve(
+                        productionReference,
+                    ),
+                    { password: "synthetic-production-password" },
+                );
+                const members = await readdir(join(productionProfile, "vault"));
+                for (const name of members) {
+                    const wire = await readFile(join(productionProfile, "vault", name), "utf8");
+                    assert.equal(wire.includes("synthetic-production-password"), false);
+                    assert.equal(wire.includes(productionDevice.deviceToken), false);
+                }
+                facts.productionConsumers = {
+                    formalHelper: true,
+                    migrationReadback: true,
+                    ciphertextOnly: true,
+                };
+            },
+        );
         await t.test("real locked collection and prompt-producing unlock are refused", async () => {
             assert.equal(await direct(driver, "V1 lock\n"), "V1 ok\n");
             assert.equal((await backend.probe(signal())).status, "locked");
@@ -350,6 +405,31 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
                     newDaemon: daemon.identity,
                     nonemptyPassword: true,
                     sameKey: true,
+                };
+            },
+        );
+        await t.test(
+            "production profile reopens after the real password-protected daemon restart",
+            async () => {
+                const reopened = installedCredentials(fixture.distribution);
+                assert.deepEqual(
+                    await new SecretStore(productionProfile, reopened).resolve(productionReference),
+                    { password: "synthetic-production-password" },
+                );
+                assert.deepEqual(
+                    await new DeviceStore(productionProfile, reopened).load(),
+                    productionDevice,
+                );
+                await new DeviceStore(productionProfile, reopened).remove();
+                assert.deepEqual(
+                    await new SecretStore(productionProfile, reopened).resolve(productionReference),
+                    { password: "synthetic-production-password" },
+                );
+                await new SecretStore(productionProfile, reopened).clear();
+                facts.productionRestart = {
+                    sameValues: true,
+                    purposeIsolation: true,
+                    cleared: true,
                 };
             },
         );

@@ -14,6 +14,7 @@ import { TrustStore, type IssuerTrust } from "./offline/trust.ts";
 import { verifyBundle } from "./offline/verify.ts";
 import { downloadBundle } from "./offline/download.ts";
 import { SecretStore, type SecretReference } from "./credentials/store.ts";
+import { installedCredentials } from "./credentials/host.ts";
 import { openTrace } from "./trace.ts";
 /** Development CLI. Native launcher/process names and vault packaging are T20. */
 import { Command } from "commander";
@@ -47,6 +48,7 @@ const entryDistribution = ["veriq_cli", "veriq_agent"].includes(entryRole)
     : undefined;
 if (entryDistribution)
     assertRuntimeRole(entryDistribution, entryRole === "veriq_agent" ? "agent" : "cli");
+const entryCredentials = entryDistribution ? installedCredentials(entryDistribution) : undefined;
 const program = new Command()
     .name("veriq_cli")
     .description("VeriQ Runtime enrollment and diagnostics (development)")
@@ -116,7 +118,8 @@ program
     .command("open <file>")
     .description("Open a downloaded Trace locally using pinned Playwright")
     .action((file: string) => openTrace(file, controller.signal));
-const store = () => new DeviceStore(program.opts<{ configDir?: string }>().configDir);
+const store = () =>
+    new DeviceStore(program.opts<{ configDir?: string }>().configDir, entryCredentials);
 const common = (command: Command) =>
     command.option(
         "--browser-executable <path>",
@@ -235,7 +238,7 @@ program
         await s.ensureStopped();
         if (options.localOnly) {
             await s.remove();
-            await new SecretStore(s.directory).clear();
+            await new SecretStore(s.directory, entryCredentials).clear();
             process.stdout.write(
                 "Local device credential removed. Remote revocation was not attempted. The server credential may still be valid; revoke the device in the Web console or wait for expiry.\n",
             );
@@ -258,7 +261,7 @@ program
             alreadyRejected = true;
         }
         await s.remove();
-        await new SecretStore(s.directory).clear();
+        await new SecretStore(s.directory, entryCredentials).clear();
         process.stdout.write(
             alreadyRejected
                 ? "Server already rejected this device credential; local credential removed. You can enroll again. Revoke the device in the Web console if you also need to prevent future reuse.\n"
@@ -425,6 +428,15 @@ trust
 const secret = program
     .command("secret")
     .description("Exact local credential mappings; never print values");
+secret
+    .command("migrate")
+    .description(
+        "Explicitly migrate stopped local credentials to the OS vault; verify encrypted data before retiring plaintext",
+    )
+    .action(async () => {
+        await store().migrateCredentials();
+        process.stdout.write("Local credentials migrated and verified using the OS vault.\n");
+    });
 for (const name of ["set", "remove"]) {
     const command = secret
         .command(name)
@@ -441,7 +453,7 @@ for (const name of ["set", "remove"]) {
                 versionId: options.version,
             };
             await new TrustStore(store().directory).issuer(ref.issuerId);
-            const local = new SecretStore(store().directory);
+            const local = new SecretStore(store().directory, entryCredentials);
             if (name === "remove") await local.remove(ref);
             else {
                 let input = "";
@@ -505,7 +517,7 @@ program
                 {
                     trust: new TrustStore(profile),
                     root: localRoot(),
-                    secrets: new SecretStore(profile),
+                    secrets: new SecretStore(profile, entryCredentials),
                     releaseDirectory,
                     browserExecutable,
                     ...(installed ? { execution: installed.execution } : {}),

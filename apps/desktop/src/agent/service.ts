@@ -10,6 +10,7 @@ import type {
 import { validateSchema } from "@veriq/contracts";
 import { DeviceStore, RuntimeClient, controlOrigin } from "../../../runtime/src/enrollment.ts";
 import { SecretStore, type SecretReference } from "../../../runtime/src/credentials/store.ts";
+import type { CredentialOptions } from "../../../runtime/src/credentials/profile.ts";
 import { TrustStore, type IssuerTrust } from "../../../runtime/src/offline/trust.ts";
 import { downloadBundle } from "../../../runtime/src/offline/download.ts";
 import { verifyBundle, reverifyInstalled } from "../../../runtime/src/offline/verify.ts";
@@ -113,13 +114,14 @@ export class DesktopAgent {
     constructor(
         readonly root: string,
         readonly config: AgentConfiguration,
+        credentials?: CredentialOptions,
     ) {
         controlOrigin(config.origin);
         this.headedCapability = probeBrowser(config.headedExecutable, true);
         this.browserCapability = probeBrowser(config.browserExecutable, false);
-        this.device = new DeviceStore(root);
+        this.device = new DeviceStore(root, credentials);
         this.trust = new TrustStore(root);
-        this.secrets = new SecretStore(root);
+        this.secrets = new SecretStore(root, credentials);
         this.executionRoot = join(root, "offline");
     }
 
@@ -289,6 +291,7 @@ export class DesktopAgent {
             clearBundle: ["bundleId"],
             stop: [],
             recover: [],
+            migrateCredentials: [],
         };
         if (!Object.hasOwn(permitted, operation)) throw new Error("AGENT_OPERATION_DENIED");
         object(message, ["operation", ...permitted[operation]!]);
@@ -307,6 +310,7 @@ export class DesktopAgent {
             "removeCredential",
             "clearBundle",
             "recover",
+            "migrateCredentials",
         ];
         if (!guarded.includes(operation)) return this.execute(operation, message);
         if (this.transition || this.interruptions || this.run || this.online)
@@ -350,6 +354,10 @@ export class DesktopAgent {
         await privateDirectory(this.root);
         startup?.signal.throwIfAborted();
         if (operation === "status") return this.state();
+        if (operation === "migrateCredentials") {
+            await this.device.migrateCredentials();
+            return { migrated: true, credentialMode: "os-vault" };
+        }
         if (operation === "select") {
             const workspace = id(message.workspaceId);
             const cached = (await this.catalog()).some(
