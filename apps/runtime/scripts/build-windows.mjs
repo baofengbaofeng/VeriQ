@@ -79,13 +79,6 @@ if (process.env.VERIQ_NATIVE_EVIDENCE) {
     ).trim();
     if (!/^\d+\.\d+\.\d+$/.test(toolVersion)) throw new Error("NATIVE_IMPORT_TOOL_UNAVAILABLE");
     const dumpbin = join(installation, "VC/Tools/MSVC", toolVersion, "bin/Hostx64/x64/dumpbin.exe");
-    const versionOutput = execFileSync(dumpbin, ["/?"], {
-        encoding: "utf8",
-        timeout: 10000,
-        maxBuffer: 256 * 1024,
-    });
-    const version = versionOutput.split(/\r?\n/).find((line) => /Version [0-9.]+/.test(line));
-    if (!version) throw new Error("NATIVE_IMPORT_TOOL_VERSION_UNAVAILABLE");
     /** 工具和被检查模块仅流式计算摘要，记录与本次实际导入输出绑定的字节身份；既不复制系统 DLL，也不把工具版本字符串误认为编译器、运行库或所有目标系统都已固定到相同版本。 */
     const hash = async (path) => {
         const digest = createHash("sha256");
@@ -93,17 +86,27 @@ if (process.env.VERIQ_NATIVE_EVIDENCE) {
         return digest.digest("hex");
     };
     const targets = [];
+    let version;
     for (const name of [
         "veriq_native.node",
         ...(testSchedules ? ["veriq_constructor_fault.node", "veriq_response_scheduled.node"] : []),
     ]) {
         const path = fileURLToPath(new URL(`native/build/Release/${name}`, root));
-        const imports = execFileSync(dumpbin, ["/nologo", "/imports", path], {
+        const imports = execFileSync(dumpbin, ["/imports", path], {
             encoding: "utf8",
             timeout: 10000,
             maxBuffer: 256 * 1024,
         });
         await writeFile(join(evidence, `${name}.imports.log`), imports);
+        /** 实际导入命令成功返回的标题才用于记录工具版本，帮助开关的非零退出不能冒充执行失败或成功；每个模块都要求同一非空版本标题，真正的导入错误仍由 execFileSync 原样抛出并阻止构建通过。 */
+        const observedVersion = imports
+            .split(/\r?\n/)
+            .find((line) =>
+                /^Microsoft \(R\) COFF\/PE Dumper Version [0-9]+(?:\.[0-9]+)+\b/.test(line),
+            );
+        if (!observedVersion || (version !== undefined && version !== observedVersion))
+            throw new Error("NATIVE_IMPORT_TOOL_VERSION_UNAVAILABLE");
+        version = observedVersion;
         const matched =
             /ntdll\.dll/i.test(imports) &&
             /\bNtCreateFile\b/.test(imports) &&
