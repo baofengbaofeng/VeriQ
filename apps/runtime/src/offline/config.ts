@@ -5,7 +5,6 @@
 import { mkdir, lstat, chmod, open, rename, unlink } from "node:fs/promises";
 import { constants } from "node:fs";
 import { join, dirname, basename } from "node:path";
-import { darwinNative } from "../native/darwin.ts";
 import { randomUUID } from "node:crypto";
 import lockfile from "proper-lockfile";
 /**
@@ -13,6 +12,7 @@ import lockfile from "proper-lockfile";
  */
 export async function privateDirectory(directory: string) {
     if (process.platform === "darwin") {
+        const { darwinNative } = await import("../native/darwin.ts");
         const directoryHandle = darwinNative().openPrivateDirectory(directory, true);
         directoryHandle.close();
         return;
@@ -43,6 +43,7 @@ export async function readBoundedFile(
     }
     /** Darwin 受限读取持有原生父目录直至读完同一实际成员，B 层检查类型、所有者、模式及扩展 ACL；公开包不走这一分支，因此既有大包额度不会变成原生私有文件额度，也不先按路径检查再重新打开。 */
     if (restricted && process.platform === "darwin") {
+        const { darwinNative } = await import("../native/darwin.ts");
         const directoryHandle = darwinNative().openPrivateDirectory(dirname(path), false);
         try { return directoryHandle.read(basename(path), limit); }
         finally { directoryHandle.close(); }
@@ -77,6 +78,7 @@ export async function readBoundedFile(
  */
 export async function readPrivate<T>(directory: string, name: string): Promise<T> {
     if (process.platform === "darwin") {
+        const { darwinNative } = await import("../native/darwin.ts");
         const directoryHandle = darwinNative().openPrivateDirectory(directory, false);
         try { return JSON.parse(directoryHandle.read(name, 1024 * 1024).toString("utf8")) as T; }
         finally { directoryHandle.close(); }
@@ -115,6 +117,7 @@ export async function updatePrivate<T>(
     try {
         /** Darwin 更新在合作锁内保留同一原生目录，从读取旧值到原子发布均使用此能力；刷新之后的提交不确定性原样传播，finally 不通用 unlink 临时名，不会把已经发布或已被替换的对象作为回滚垃圾删除。 */
         if (process.platform === "darwin") {
+            const { darwinNative } = await import("../native/darwin.ts");
             const directoryHandle = darwinNative().openPrivateDirectory(directory, false);
             try {
                 let old: T | undefined;
@@ -157,6 +160,7 @@ export async function updatePrivate<T>(
 /** 私有配置退休在 Windows 使用已授权父链下的真实文件句柄删除，Linux 保留原有 unlink 语义；调用方只能明确处理 ENOENT，权限拒绝和未知错误不能被当成已经清空配置或自动重试更新回调。 */
 export async function removePrivate(directory: string, name: string): Promise<void> {
     if (process.platform === "darwin") {
+        const { darwinNative } = await import("../native/darwin.ts");
         const directoryHandle = darwinNative().openPrivateDirectory(directory, false);
         try { directoryHandle.remove(name, 1024 * 1024); }
         finally { directoryHandle.close(); }

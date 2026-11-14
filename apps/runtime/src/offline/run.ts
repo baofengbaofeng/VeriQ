@@ -247,6 +247,7 @@ async function attempt(
     let monitor: ReturnType<typeof monitorStorage> | undefined;
     let brokerDirectory: Awaited<ReturnType<typeof createDarwinBrokerDirectory>> | undefined;
     let startIssued = false, stopOperation: Promise<StopReceipt> | undefined;
+    let cancellationObserver: ReturnType<typeof setInterval> | undefined;
     const controller = new AbortController();
     /** Darwin 的首次取消立即调用并保存唯一终结操作，start 尚未返回 child 时也已同步登记准入；后续轮询、存储错误和 finally 共享同一预算，不以 ACK、短等待或未赋值的 child 推断已经退出或没有派生。 */
     const stopOnce = (why: string) => stopOperation ??= processes.terminateAttempt(attemptId, why);
@@ -460,6 +461,12 @@ async function attempt(
         owner = store.spawning(runId, attemptId, owner);
         if (controller.signal.aborted || store.cancelled(runId)) throw new Error("USER_CANCELLED");
         startIssued = true;
+        /** 持久取消由其他 SQLite 连接写入而不会派发当前 AbortSignal，因此在实际启动准入之前武装相同一百毫秒观察；启动仍在等待 Chrome 或 READY 时也走首次停止操作，读取异常同样关闭准入，finally 清除后才允许关闭数据库。 */
+        if (source) cancellationObserver = setInterval(() => {
+            if (controller.signal.aborted) return;
+            try { if (store.cancelled(runId)) stopRequest("USER_CANCELLED"); }
+            catch { stopRequest("LOCAL_CANCELLATION_READ_FAILED"); }
+        }, 100);
         const starting = processes.start(attemptId, {
             executable: executionPaths.runnerExecutable,
             args: [executionPaths.workerEntry, join(work, "invocation.json")],
@@ -531,6 +538,7 @@ async function attempt(
     } catch (error) {
         failure ??= code(error);
     } finally {
+        clearInterval(cancellationObserver);
         monitor?.close();
         config.signal?.removeEventListener("abort", abort);
         stop ??= stopOperation ? await stopOperation : (await unspawned())

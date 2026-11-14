@@ -771,3 +771,51 @@ test(
         }
     },
 );
+
+/** 发布前失败只清理本次仍匹配原 inode 的 staging，测试通过真实重命名与替换观察清理边界；新对象即使占据同一旧字符串也不能被 chmod 或删除，既有目标中的用户成员同样必须保持原字节而不被导入覆盖。 */
+test("publication failure cleans only unchanged owned staging and preserves substituted directories", async () => {
+    const fs = await import("node:fs/promises");
+    const { syncBuiltinESMExports } = await import("node:module");
+    for (const substitute of [false, true]) {
+        const f = await fixture(), rename = fs.default.rename;
+        let staging = "", moved = "";
+        const injection = mock.method(fs.default, "rename", async (source: Parameters<typeof rename>[0], destination: Parameters<typeof rename>[1]) => {
+            if (String(source).includes("/.veriq-bundle-")) {
+                staging = String(source);
+                if (substitute) {
+                    moved = join(f.dir, "original-staging");
+                    await rename(source, moved);
+                    await fs.mkdir(staging, { mode: 0o700 });
+                    await writeFile(join(staging, "user.txt"), "retained", { mode: 0o600 });
+                }
+                throw Object.assign(new Error("TEST_PUBLICATION_FAILED"), { code: "EACCES" });
+            }
+            return rename(source, destination);
+        });
+        syncBuiltinESMExports();
+        try {
+            const destination = join(f.dir, "installed");
+            await assert.rejects(verifyBundle(await f.archive(), { trust: f.trust, destination }), /TEST_PUBLICATION_FAILED/);
+            assert.ok(staging);
+            await assert.rejects(fs.lstat(destination), { code: "ENOENT" });
+            if (substitute) {
+                assert.equal(await readFile(join(staging, "user.txt"), "utf8"), "retained");
+                assert.ok((await readFile(join(moved, "manifest.json"))).length > 0);
+            } else await assert.rejects(fs.lstat(staging), { code: "ENOENT" });
+        } finally { injection.mock.restore(); syncBuiltinESMExports(); await f.close(); }
+    }
+});
+
+test("publication destination guard preserves existing members and rejects linked targets", async () => {
+    const fs = await import("node:fs/promises"), f = await fixture();
+    try {
+        const destination = join(f.dir, "existing"), linked = join(f.dir, "linked");
+        await fs.mkdir(destination, { mode: 0o700 });
+        await writeFile(join(destination, "user.txt"), "retained", { mode: 0o600 });
+        await fs.symlink(destination, linked, "dir");
+        for (const path of [destination, linked]) await assert.rejects(verifyBundle(await f.archive(), { trust: f.trust, destination: path }), /BUNDLE_DESTINATION_EXISTS/);
+        assert.equal(await readFile(join(destination, "user.txt"), "utf8"), "retained");
+        assert.equal((await fs.lstat(linked)).isSymbolicLink(), true);
+        assert.equal((await readdir(f.dir)).some((name) => name.startsWith(".veriq-bundle-")), false);
+    } finally { await f.close(); }
+});

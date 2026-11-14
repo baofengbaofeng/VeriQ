@@ -90,7 +90,12 @@ export class ExecutionSupervisor {
             try {
                 const bytes = Buffer.from(JSON.stringify(value));
                 if (bytes.length > 65536) throw new Error('ATTEMPT_JOURNAL_LIMIT');
-                parent.replace(`${value.claim.attemptId}.json`, `${value.claim.attemptId}.json.${randomUUID()}`, bytes, 65536);
+                /** B 内部临时名固定为 UUID，另以原 A2 名称先发布同 Attempt 的启动意图；最终日志与意图退休全部确认后才算提交，任何一步不确定都保留可识别 staging 或原生孤立项，不借错误回滚删除未知发布。 */
+                const staging = `${value.claim.attemptId}.json.${randomUUID()}`;
+                parent.createExclusive(staging).close();
+                parent.replace(staging, `.${randomUUID()}.tmp`, bytes, 65536);
+                parent.replace(`${value.claim.attemptId}.json`, `.${randomUUID()}.tmp`, bytes, 65536);
+                parent.remove(staging, 65536);
             } finally { parent.close(); }
             return;
         }

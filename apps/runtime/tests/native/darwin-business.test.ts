@@ -1,6 +1,8 @@
 /** 此入口只在真实 macOS15 原生宿主运行完整业务，复用现有真实 SDK/compiler/npm 离线闭包与 Playwright CLI；所有扫描在私有配置之外执行，诊断只输出计数，任何真实端点命中都会令当前交付门禁失败并保留窄范围泄漏结论。 */
 import assert from "node:assert/strict";
 import { test, before, after } from "node:test";
+import fs from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
 import { mkdtemp, realpath, rm, readFile, readdir, mkdir, writeFile, chmod, lstat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, basename } from "node:path";
@@ -468,7 +470,7 @@ test("online RUNNING journal publication uncertainty blocks business START and p
         if (!path.endsWith("/attempts")) return directory;
         return { read: directory.read.bind(directory), entries: directory.entries.bind(directory), createExclusive: directory.createExclusive.bind(directory), remove: directory.remove.bind(directory), close: directory.close.bind(directory), replace(name, temporary, bytes, limit) {
             directory.replace(name, temporary, bytes, limit);
-            if (!publications && JSON.parse(bytes.toString()).state === "RUNNING") { publications++; throw Object.assign(new Error("TEST_COMMIT_UNCONFIRMED"), { code: "COMMIT_UNCONFIRMED" }); }
+            if (!publications && name.endsWith(".json") && JSON.parse(bytes.toString()).state === "RUNNING") { publications++; throw Object.assign(new Error("TEST_COMMIT_UNCONFIRMED"), { code: "COMMIT_UNCONFIRMED" }); }
         } } satisfies DarwinPrivateDirectory;
     };
     ProcessSupervisor.prototype.start = async function (...args) {
@@ -597,3 +599,155 @@ test("online actual controlled history cannot reconcile a different claim genera
     } });
     assert.equal(checked, 2);
 });
+
+/** 持久取消通过第二个真实 SQLite 连接写入，故意不派发 AbortSignal，实际 Chrome 已创建但 BrowserServer 返回受测试闸门控制；后台必须在释放闸门前观察取消并关闭启动准入，不能等待完整 start 返回或把未赋值 child 当成未派生。 */
+test("persisted offline cancellation closes pending real BrowserServer admission before barrier release", { timeout: 180000 }, async () => offlineScenario(async ({ config, bundle, local }) => {
+    const launch = chromium.launchServer.bind(chromium), start = ProcessSupervisor.prototype.start, terminate = ProcessSupervisor.prototype.terminateAttempt;
+    let entered!: () => void, release!: () => void, stopped!: () => void;
+    const atBarrier = new Promise<void>((resolve) => { entered = resolve; });
+    const barrier = new Promise<void>((resolve) => { release = resolve; });
+    const firstStop = new Promise<void>((resolve) => { stopped = resolve; });
+    let stopCalls = 0, businessStarts = 0, released = false;
+    chromium.launchServer = async (options) => {
+        const server = await launch(options);
+        entered();
+        await barrier;
+        return server;
+    };
+    ProcessSupervisor.prototype.start = async function (...args) {
+        const child = await start.apply(this, args);
+        return { ...child, send(message: unknown) { if ((message as { type: string }).type === "START") businessStarts++; child.send(message); } };
+    };
+    ProcessSupervisor.prototype.terminateAttempt = function (...args) {
+        stopCalls++;
+        if (stopCalls === 1) { assert.equal(released, false); stopped(); }
+        return terminate.apply(this, args);
+    };
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    let running: ReturnType<typeof runOffline> | undefined;
+    try {
+        running = runOffline(bundle, config);
+        await atBarrier;
+        const connection = await LocalStore.open(local);
+        const owner = connection.active()!;
+        const at = performance.now();
+        try { connection.cancel(owner.workspaceId, owner.runId); } finally { connection.close(); }
+        await Promise.race([firstStop, new Promise<never>((_resolve, reject) => { timeout = setTimeout(() => reject(new Error("PERSISTED_CANCEL_OBSERVATION_LATE")), 600); })]);
+        clearTimeout(timeout);
+        assert.ok(performance.now() - at < 600, "Polling budget is100ms plus bounded500ms scheduler allowance");
+        assert.equal(config.signal!.aborted, false);
+        assert.equal(stopCalls, 1);
+        released = true;
+        release();
+        const result = await running;
+        assert.equal(result.outcome, "CANCELLED");
+        assert.equal(result.attempts[0]!.processStopped, false);
+        assert.equal(result.attempts[0]!.processStopScope, undefined);
+        assert.equal(businessStarts, 0);
+        assert.equal(stopCalls, 1);
+    } finally {
+        clearTimeout(timeout);
+        released = true;
+        release();
+        await running?.catch(() => {});
+        chromium.launchServer = launch;
+        ProcessSupervisor.prototype.start = start;
+        ProcessSupervisor.prototype.terminateAttempt = terminate;
+    }
+}));
+
+/** Mac 发布只允许本次独占根在 rename 时暂存七百权限，所有内部目录和成员必须已经只读；返回前通过原 fd 将同一个根封为五百，测试比较真实 inode 并拒绝覆盖已有目标，不能由字符串 chmod 修复已安装或用户目录。 */
+test("Darwin bundle publication renames only its owned writable root and returns a fully sealed tree", async () => {
+    const f = await fixture(), rename = fs.rename;
+    let renamed = 0, originalIdentity: { dev: number; ino: number } | undefined;
+    fs.rename = async (source, target) => {
+        if (String(source).includes("/.veriq-bundle-")) {
+            const info = await lstat(source);
+            originalIdentity = { dev: info.dev, ino: info.ino };
+            assert.equal(info.mode & 0o777, 0o700);
+            renamed++;
+        }
+        return rename(source, target);
+    };
+    syncBuiltinESMExports();
+    try {
+        const destination = join(f.dir, "sealed");
+        const bundle = await verifyBundle(await f.archive(), { trust: f.trust, destination });
+        assert.equal(renamed, 1);
+        const current = await lstat(bundle.directory);
+        assert.equal(current.dev, originalIdentity!.dev);
+        assert.equal(current.ino, originalIdentity!.ino);
+        const sealed = async (directory: string): Promise<void> => {
+            assert.equal((await lstat(directory)).mode & 0o777, 0o500);
+            for (const item of await readdir(directory, { withFileTypes: true })) {
+                const path = join(directory, item.name);
+                if (item.isDirectory()) await sealed(path);
+                else assert.equal((await lstat(path)).mode & 0o777, 0o400);
+            }
+        };
+        await sealed(destination);
+        await assert.rejects(verifyBundle(await f.archive(), { trust: f.trust, destination }), /BUNDLE_DESTINATION_EXISTS/);
+        assert.equal((await lstat(destination)).ino, current.ino);
+    } finally { fs.rename = rename; syncBuiltinESMExports(); await f.close(); }
+});
+
+/** fd 封存先真实成功再注入不确定性，发布后的同一树必须保留且接口拒绝成功返回；finally 不得拿已经退出 staging 所有权的 installed 字符串去改权限或递归删除，更不能因此覆盖调用者原有目录。 */
+test("Darwin post-publication fd seal uncertainty retains the published sealed inode without success", async () => {
+    const f = await fixture(), open = fs.open;
+    let seals = 0;
+    fs.open = async (...args: Parameters<typeof open>) => {
+        const handle = await open(...args);
+        if (String(args[0]).includes("/.veriq-bundle-") && (await handle.stat()).isDirectory()) {
+            const chmod = handle.chmod.bind(handle);
+            handle.chmod = async (mode) => {
+                await chmod(mode);
+                if (mode === 0o500) { seals++; throw new Error("TEST_SEAL_COMMIT_UNCONFIRMED"); }
+            };
+        }
+        return handle;
+    };
+    syncBuiltinESMExports();
+    try {
+        const destination = join(f.dir, "uncertain");
+        await assert.rejects(verifyBundle(await f.archive(), { trust: f.trust, destination }), /TEST_SEAL_COMMIT_UNCONFIRMED/);
+        assert.equal(seals, 1);
+        assert.equal((await lstat(destination)).mode & 0o777, 0o500);
+        assert.ok((await readFile(join(destination, "manifest.json"))).length > 0);
+        await assert.rejects(verifyBundle(await f.archive(), { trust: f.trust, destination }), /BUNDLE_DESTINATION_EXISTS/);
+    } finally { fs.open = open; syncBuiltinESMExports(); await f.close(); }
+});
+
+/** 启动闸门内的取消查询若真实 SQLite 包装报告读取不确定，观察器必须走同一首次停止并关闭后端准入；测试只在实际 Chrome 已创建后注入固定读取错误，不伪造取消位、不派发用户信号，也不把失败解释成正常业务成功。 */
+test("pending-start persisted cancellation read failure closes admission with one conservative stop", { timeout: 180000 }, async () => offlineScenario(async ({ config, bundle }) => {
+    const launch = chromium.launchServer.bind(chromium), cancelled = LocalStore.prototype.cancelled, terminate = ProcessSupervisor.prototype.terminateAttempt;
+    let entered!: () => void, release!: () => void, stopped!: () => void;
+    const atBarrier = new Promise<void>((resolve) => { entered = resolve; }), barrier = new Promise<void>((resolve) => { release = resolve; }), firstStop = new Promise<void>((resolve) => { stopped = resolve; });
+    let armed = false, stops = 0, timer: ReturnType<typeof setTimeout> | undefined, running: ReturnType<typeof runOffline> | undefined;
+    chromium.launchServer = async (options) => { const server = await launch(options); entered(); await barrier; return server; };
+    LocalStore.prototype.cancelled = function (runId) { if (armed) throw new Error("TEST_SQLITE_READ_UNCONFIRMED"); return cancelled.call(this, runId); };
+    ProcessSupervisor.prototype.terminateAttempt = function (...args) { stops++; stopped(); return terminate.apply(this, args); };
+    try {
+        running = runOffline(bundle, config);
+        await atBarrier;
+        armed = true;
+        await Promise.race([firstStop, new Promise<never>((_resolve, reject) => { timer = setTimeout(() => reject(new Error("CANCEL_READ_FAILURE_OBSERVATION_LATE")), 600); })]);
+        clearTimeout(timer);
+        assert.equal(stops, 1);
+        armed = false;
+        release();
+        const result = await running;
+        assert.equal(result.outcome, "ERROR");
+        assert.equal(result.attempts[0]!.failureCode, "LOCAL_CANCELLATION_READ_FAILED");
+        assert.equal(result.attempts[0]!.processStopped, false);
+        assert.equal(result.attempts[0]!.processStopScope, undefined);
+        assert.equal(stops, 1);
+    } finally {
+        clearTimeout(timer);
+        armed = false;
+        release();
+        await running?.catch(() => {});
+        chromium.launchServer = launch;
+        LocalStore.prototype.cancelled = cancelled;
+        ProcessSupervisor.prototype.terminateAttempt = terminate;
+    }
+}));

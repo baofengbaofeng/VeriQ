@@ -4,7 +4,7 @@
 
 import { createServer, type Server, type Socket } from "node:net";
 import { chmod, unlink, mkdtemp, lstat, rmdir } from "node:fs/promises";
-import { randomBytes, createHash } from "node:crypto";
+import { randomBytes, createHash, randomUUID } from "node:crypto";
 import { resolve, dirname } from "node:path";
 import { darwinNative, type DarwinPrivateDirectory } from "../native/darwin.ts";
 import { windowsNative } from "../native/windows.ts";
@@ -17,7 +17,7 @@ export async function createDarwinBrokerDirectory(): Promise<{ path: string; clo
     const marker = randomBytes(32);
     try {
         identity = await lstat(path);
-        directory.replace(".owner", ".owner.tmp", marker, 64);
+        directory.replace(".owner", `.${randomUUID()}.tmp`, marker, 64);
     } catch (error) {
         directory.close();
         throw error;
