@@ -317,7 +317,7 @@ test("Windows helper exits when its actual owning parent dies with control open"
                 "-NoProfile",
                 "-NonInteractive",
                 "-Command",
-                `$ErrorActionPreference='Stop'; Get-Process -Id ${pid} | Select-Object Id,ProcessName,Path | ConvertTo-Json -Compress`,
+                `$ErrorActionPreference='Stop'; [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); Get-Process -Id ${pid} | Select-Object Id,ProcessName,Path | ConvertTo-Json -Compress`,
             ],
             { timeout: 10000, maxBuffer: 4096, windowsHide: true },
         );
