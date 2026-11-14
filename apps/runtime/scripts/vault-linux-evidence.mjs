@@ -2,10 +2,10 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createHash } from "node:crypto";
-import { lstat, mkdir, readFile, readdir, readlink, rm, statfs, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, readdir, realpath, rm, statfs, writeFile } from "node:fs/promises";
 import { join, basename, dirname, resolve } from "node:path";
 import { tmpdir } from "node:os";
-import { setTimeout as delay } from "node:timers/promises";
+import { fileURLToPath } from "node:url";
 
 const directory = process.env.VERIQ_VAULT_EVIDENCE;
 if (!directory || process.platform !== "linux") throw new Error("VAULT_EVIDENCE_CONTEXT_REQUIRED");
@@ -175,58 +175,41 @@ if (mode === "packages") {
     });
     if (finalFreeBytes < 2147483648n) throw new Error("VAULT_BUILD_DISK_RESERVE_EXHAUSTED");
 } else if (mode === "cleanup") {
-    const observations = [],
-        errors = [];
-    let registry;
+    const helper = new URL("./vault-linux-cleanup.py", import.meta.url);
+    let checked;
     try {
-        registry = JSON.parse(await readFile(join(directory, "fixture-ownership.json"), "utf8"));
-    } catch (error) {
-        if (error.code !== "ENOENT") throw error;
-    }
-    for (const owner of [...(registry?.processes ?? [])].reverse()) {
-        const inspect = async () => {
-            try {
-                const bytes = await readFile(`/proc/${owner.pid}/stat`, "utf8");
-                const parts = bytes.slice(bytes.lastIndexOf(")") + 2).split(" ");
-                if (parts[19] !== owner.start) return "replaced";
-                if (parts[0] === "Z") return "exited-zombie";
-                if ((await readlink(`/proc/${owner.pid}/exe`)) !== owner.executable)
-                    throw new Error("VAULT_CLEANUP_IDENTITY_MISMATCH");
-                return "owned-running";
-            } catch (error) {
-                if (error.code === "ENOENT" || error.code === "ESRCH") return "absent";
-                throw error;
-            }
+        checked = JSON.parse(
+            await run(
+                "/usr/bin/python3",
+                ["-I", fileURLToPath(helper), join(directory, "fixture-ownership.json")],
+                256 * 1024,
+            ),
+        );
+        if (
+            !Array.isArray(checked.observations) ||
+            !Array.isArray(checked.errors) ||
+            !Array.isArray(checked.ownedRoots)
+        )
+            throw new Error("VAULT_PIDFD_RESULT_INVALID");
+        checked.pidfd = {
+            ...checked.pidfd,
+            executable: await realpath("/usr/bin/python3"),
+            executableSha256: hash(await readFile("/usr/bin/python3")),
+            helperSha256: hash(await readFile(helper)),
         };
-        try {
-            let state = await inspect();
-            if (state === "owned-running") {
-                process.kill(owner.pid, "SIGCONT");
-                process.kill(owner.pid, "SIGTERM");
-                const limit = performance.now() + 1500;
-                while ((state = await inspect()) === "owned-running" && performance.now() < limit)
-                    await delay(25);
-                if (state === "owned-running") {
-                    process.kill(owner.pid, "SIGKILL");
-                    const killLimit = performance.now() + 1000;
-                    while (
-                        (state = await inspect()) === "owned-running" &&
-                        performance.now() < killLimit
-                    )
-                        await delay(25);
-                }
-            }
-            observations.push({ ...owner, state });
-            if (state === "owned-running") errors.push("VAULT_CLEANUP_EXIT_UNCONFIRMED");
-        } catch (error) {
-            if (error.code === "ESRCH")
-                observations.push({ ...owner, state: "absent-after-signal" });
-            else errors.push(error.message);
-        }
+    } catch {
+        checked = {
+            registryPresent: false,
+            observations: [],
+            ownedRoots: [],
+            errors: ["VAULT_PIDFD_TOOL_UNAVAILABLE"],
+            pidfd: { supported: false },
+        };
     }
+    const { observations, errors } = checked;
     const roots = [];
     if (!errors.length)
-        for (const path of registry?.roots ?? []) {
+        for (const path of checked.ownedRoots) {
             try {
                 if (
                     dirname(path) !== tmpdir() ||
@@ -250,6 +233,12 @@ if (mode === "packages") {
                 else errors.push(error.message);
             }
         }
-    await save("always-cleanup.json", { registryPresent: !!registry, observations, roots, errors });
+    await save("always-cleanup.json", {
+        registryPresent: checked.registryPresent,
+        observations,
+        roots,
+        errors,
+        pidfd: checked.pidfd,
+    });
     if (errors.length) throw new Error("VAULT_CLEANUP_FAILED");
 } else throw new Error("VAULT_EVIDENCE_MODE_INVALID");

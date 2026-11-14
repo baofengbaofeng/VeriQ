@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { randomBytes } from "node:crypto";
-import { mkdtemp, readFile, readlink, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readlink, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawn, execFile } from "node:child_process";
@@ -281,18 +281,45 @@ test(
         );
         try {
             assert(child.pid);
-            const stat = await readFile(`/proc/${child.pid}/stat`, "utf8");
+            const procStat = await readFile(`/proc/${child.pid}/stat`, "utf8");
+            const owner = {
+                pid: child.pid,
+                start: procStat.slice(procStat.lastIndexOf(")") + 2).split(" ")[19],
+                executable: await readlink(`/proc/${child.pid}/exe`),
+                uid: process.getuid!(),
+            };
+            await writeFile(
+                join(evidence, "fixture-ownership.json"),
+                JSON.stringify({ roots: [root], processes: [{ ...owner, uid: owner.uid + 1 }] }),
+                { mode: 0o600 },
+            );
+            await assert.rejects(
+                promisify(execFile)(
+                    process.execPath,
+                    ["scripts/vault-linux-evidence.mjs", "cleanup"],
+                    { env: { ...process.env, VERIQ_VAULT_EVIDENCE: evidence }, timeout: 5000 },
+                ),
+            );
+            const refused = JSON.parse(
+                await readFile(join(evidence, "always-cleanup.json"), "utf8"),
+            );
+            assert(refused.errors.length > 0);
+            assert.equal(refused.roots.length, 0);
+            assert((await stat(root)).isDirectory());
+            assert.doesNotThrow(() => process.kill(child.pid!, 0));
+            process.stdout.write("VAULT_PIDFD_UID_REFUSAL " + JSON.stringify(refused) + "\n");
             await writeFile(
                 join(evidence, "fixture-ownership.json"),
                 JSON.stringify({
                     roots: [root],
                     processes: [
+                        owner,
                         {
-                            pid: child.pid,
-                            start: stat.slice(stat.lastIndexOf(")") + 2).split(" ")[19],
-                            executable: await readlink(`/proc/${child.pid}/exe`),
+                            pid: process.pid,
+                            start: "0",
+                            executable: process.execPath,
+                            uid: process.getuid!(),
                         },
-                        { pid: process.pid, start: "0", executable: process.execPath },
                     ],
                 }),
                 { mode: 0o600 },
@@ -311,7 +338,14 @@ test(
             const result = await exited;
             assert.equal(result.signal, "SIGTERM");
             const facts = JSON.parse(await readFile(join(evidence, "always-cleanup.json"), "utf8"));
+            process.stdout.write("VAULT_PIDFD_OBSERVATION " + JSON.stringify(facts) + "\n");
             assert.deepEqual(facts.errors, []);
+            const stopped = facts.observations.find(
+                (value: { pid: number }) => value.pid === child.pid,
+            );
+            assert.equal(stopped.signalMechanism, "pidfd_send_signal");
+            assert.equal(stopped.exitObservedBy, "pidfd_poll");
+            assert.equal(facts.pidfd.supported, true);
             assert.equal(
                 facts.observations.find((value: { pid: number }) => value.pid === process.pid)
                     .state,
