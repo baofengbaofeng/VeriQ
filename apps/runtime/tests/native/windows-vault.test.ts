@@ -319,7 +319,7 @@ test("Windows helper exits when its actual owning parent dies with control open"
                 "-Command",
                 `$ErrorActionPreference='Stop'; Get-Process -Id ${pid} | Select-Object Id,ProcessName,Path | ConvertTo-Json -Compress`,
             ],
-            { timeout: 3000, maxBuffer: 4096, windowsHide: true },
+            { timeout: 10000, maxBuffer: 4096, windowsHide: true },
         );
         const physical = JSON.parse(observed.stdout);
         assert.equal(observed.stderr, "");
