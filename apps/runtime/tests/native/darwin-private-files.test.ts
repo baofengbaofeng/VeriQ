@@ -1341,7 +1341,77 @@ for (const change of ["replace", "mode", "grow"]) {
     );
 }
 
-/** 删除前系统失败必须保留原成员，unlink 成功后的父目录刷新和两个必要 close 失败必须保留提交不确定，不能回滚重建或返回 false；原有有限故障调度定位这些真实操作阶段。
+/** 临界观察点改变应用根、固定布局中间目录或最终存储目录的实际模式及 ACL 后必须拒绝检查与退役，不能只在初次遍历验证父链再仅核文件身份，所有原目录描述符的授权政策都应持续成立。
+ * mode 与 ACL 变化由真实系统调用产生，检查和最后一次 unlink 观察点分别覆盖。
+ * 拒绝后原字节、变化后的模式或 ACL 都保留，权限恢复仅属于 finally 的自有夹具清理。
+ */
+for (const phase of ["cookie.checked", "cookie.unlink"]) {
+    for (const change of ["mode", "acl"]) {
+        test(
+            `cookie rechecks held directory policy after ${phase} mutation: ${change}`,
+            mac,
+            async () => {
+                const native = createRequire(import.meta.url)(
+                    "../../build/native-tests/veriq_private_files_fault.node",
+                ) as FaultNative;
+                try {
+                    await cookieFixture(
+                        true,
+                        async (root, directory) => {
+                            const path = join(directory, "Cookies");
+                            for (const target of [
+                                root,
+                                join(root, "Partitions"),
+                                join(root, "Partitions", "veriq-host"),
+                                directory,
+                            ]) {
+                                for (const retire of phase === "cookie.checked"
+                                    ? [false, true]
+                                    : [true]) {
+                                    await writeFile(path, "public-directory-mutation", {
+                                        mode: 0o600,
+                                    });
+                                    const original = (await stat(target)).mode & 0o7777;
+                                    let expectedAcl: string | undefined;
+                                    native.setHook(phase, () => {
+                                        if (change === "mode")
+                                            execFileSync("/bin/chmod", ["777", target]);
+                                        else {
+                                            acl(target, "everyone allow search");
+                                            expectedAcl = aclSnapshot(target);
+                                        }
+                                    });
+                                    try {
+                                        assert.throws(
+                                            () => native.privateCookieFile(path, retire),
+                                            failure("DARWIN_PRIVATE_INVALID"),
+                                        );
+                                        assert.equal(
+                                            readFileSync(path, "utf8"),
+                                            "public-directory-mutation",
+                                        );
+                                        if (change === "mode")
+                                            assert.equal((await stat(target)).mode & 0o7777, 0o777);
+                                        else assert.equal(aclSnapshot(target), expectedAcl);
+                                    } finally {
+                                        native.resetFaults();
+                                        if (change === "acl") acl(target);
+                                        await chmod(target, original);
+                                    }
+                                }
+                            }
+                        },
+                        native,
+                    );
+                } finally {
+                    native.resetFaults();
+                }
+            },
+        );
+    }
+}
+
+/** 删除前系统失败必须保留原成员，unlink 成功后的父目录刷新和所有必要 close 失败必须保留提交不确定，不能回滚重建或返回 false；原有有限故障调度定位这些真实操作阶段。
  * 故障后的实际名字存在性独立于错误码核验，因此错误分类和副作用必须同时正确。
  * 后续缺失检查只说明当前不存在，不把它解释成先前未确认提交已经获得持久证明。
  */
@@ -1350,6 +1420,7 @@ for (const [phase, removed] of [
     ["cookie.directory-sync", true],
     ["cookie.close", true],
     ["cookie.directory-close", true],
+    ["cookie.parent-close", true],
 ] as const) {
     test(`cookie retirement preserves commit uncertainty: ${phase}`, mac, async () => {
         const native = createRequire(import.meta.url)(
@@ -1361,12 +1432,19 @@ for (const [phase, removed] of [
                 async (_root, directory) => {
                     const path = join(directory, "Cookies");
                     await writeFile(path, "public-retire", { mode: 0o600 });
+                    let captured: CapturedDescriptor | undefined;
+                    if (phase === "cookie.parent-close")
+                        native.setHook("acl.get", (fd) => {
+                            const info = fstatSync(fd);
+                            captured = { fd, dev: info.dev, ino: info.ino };
+                        });
                     native.setFault(phase, "error", 1);
                     assert.throws(
                         () => native.privateCookieFile(path, true),
                         failure(removed ? "COMMIT_UNCONFIRMED" : "DARWIN_PRIVATE_IO", phase),
                     );
                     native.resetFaults();
+                    if (phase === "cookie.parent-close") assertCapturedClosed(captured);
                     if (removed) {
                         await assert.rejects(stat(path), failure("ENOENT"));
                         assert.equal(native.privateCookieFile(path, false), false);
