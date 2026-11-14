@@ -1102,7 +1102,7 @@ test(
 );
 
 /** 链接、硬链接、目录、FIFO 与 Unix socket 都用真实成员占用固定 Cookie 名字，两个操作必须及时拒绝且保留该对象，捕获跟随链接、阻塞打开或只按后缀允许未知类型的错误实现。
- * socket 先在短的自有临时路径监听后重命名，避免宿主 sockaddr 路径长度影响被测文件类型边界。
+ * socket 单独在解析后的 /tmp 下建立自有短目录并核对 bind 路径少于一百零四字节，避免 TMPDIR 过长使类型夹具在调用原生接口之前失败。
  * 所有异常对象按项清理，源普通文件的公开字节独立核验，没有权限修复或账户变更。
  */
 test(
@@ -1138,19 +1138,27 @@ test(
             execFileSync("mkfifo", ["-m", "600", path]);
             reject();
             await rm(path);
-            const server = createServer();
-            await new Promise<void>((resolve, reject) => {
-                server.once("error", reject);
-                server.listen(join(root, "s"), resolve);
-            });
+            const socketRoot = await mkdtemp(join(await realpath("/tmp"), "veriq-cookie-socket-"));
+            const socketPath = join(socketRoot, "s"),
+                server = createServer();
             try {
-                await rename(join(root, "s"), path);
+                assert.ok(
+                    Buffer.byteLength(socketPath) < 104,
+                    "Socket fixture bind path must fit sockaddr_un",
+                );
+                await new Promise<void>((resolve, reject) => {
+                    server.once("error", reject);
+                    server.listen(socketPath, resolve);
+                });
+                await rename(socketPath, path);
                 reject();
             } finally {
-                await new Promise<void>((resolve, reject) =>
-                    server.close((error) => (error ? reject(error) : resolve())),
-                );
+                if (server.listening)
+                    await new Promise<void>((resolve, reject) =>
+                        server.close((error) => (error ? reject(error) : resolve())),
+                    );
                 await rm(path, { force: true });
+                await rm(socketRoot, { recursive: true, force: true });
             }
             await writeFile(path, "public-mode", { mode: 0o644 });
             reject();
