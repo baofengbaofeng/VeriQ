@@ -42,7 +42,7 @@ CI已配置标准标签`macos-15-intel`（Intel）与`macos-15`（Apple Silicon�
 | 物理依赖闭包 | Node、Chrome、esbuild、原生组件均按平台产生 | 分别验证 x64/arm64；不能复制 Linux node_modules 或仅将 Electron 做 universal 就视为整个 Runtime 通用 |
 | `.app` 与完整性 | Mac Framework 有真实内部符号链接，当前库存拒绝所有链接 | 先核实际固定资产，再设计保留签名的有限规则；禁止全局放开链接、任意路径或盲目展平 bundle |
 | 私有文件 | B已实现Darwin公开POSIX目录句柄相对访问；`4966090`复审通过 | 双架构各44项实际测试通过；继续保持同FD owner、类型、权限、扩展ACL及提交不确定性检查，C2须保活File至真实CLI退出和最终核验 |
-| Runtime Keychain | 用户已确认采用原生文件型 Keychain；独立 helper 已有双架构安全 CI 检查点，仍在完善实现 | 复用有限 helper 协议与标准加密信封，通过独立辅助进程存取；锁定或访问失败时拒绝执行，无明文 fallback，签名身份及无交互策略须实际验证 |
+| Runtime Keychain | 用户已确认采用原生文件型 Keychain；独立 helper 及工具已完成源码复审和双架构安全 CI，真实存取待验收 | 复用有限 helper 协议与标准加密信封，通过独立辅助进程存取；锁定或访问失败时拒绝执行，无明文 fallback，签名身份及无交互策略须实际验证 |
 | Electron Cookie | Mac 使用 Keychain，现有生产保护门未开放 Darwin | 最终签名 bundle 的 fuse、真实 provider、SQLite 密文、重启、锁定及旧 Cookie 退役均需真实验证 |
 | 桌面生命周期 | 菜单栏、Dock、activate、登录项及安装路径存在平台差异 | 区分窗口关闭、退出 UI、停止 Agent、取消任务；保留后台执行与恢复能力 |
 | 安装与升级 | Mac 安装载体及签名布局尚待设计 | 双架构独立产物是研究建议，尚非用户已选方案；必须核验执行中升级拒绝、兼容回滚与卸载保留数据 |

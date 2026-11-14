@@ -29,6 +29,20 @@ pnpm --filter @veriq/runtime test:vault:darwin
 
 专用测试前必须重新执行上述带 `--tests`、不带 `--red-candidate` 的构建。`--red-candidate` 仅用于明确的失败基线，会将测试 helper 替换为 stub；其结果不是实际存取验收，也不能用于交付安装包。
 
+## 可选的独立 CI 只读预检
+
+仓库现有 Mac 工作流提供独立的手动会话预检模式：
+
+```bash
+gh workflow run runtime-native-macos.yml --ref codex/veriq-mvp-completion -f session_preflight=true -f vault_baseline=false
+```
+
+它在两类新建的 GitHub hosted 作业中只构建既有原生成员并调用控制器 `session` 操作。普通测试作业在该模式跳过；预检本身不运行测试 suite，不生成可丢弃会话声明，不执行持久钥匙串操作。`session_preflight` 与 `vault_baseline` 同时启用会在 checkout/build 前失败。此模式不影响常规 push 和原有 baseline 模式。
+
+`1b77b39` 的[首次双架构预检](https://github.com/baofengbaofeng/VeriQ/actions/runs/43639551338)均通过当前控制器的非 root UID/安全会话谓词，源码与制品已核验。`getlogin_r` 返回的是继承登录名，不能自动认定为实际控制台用户；会话标识和图形访问标志也不单独证明控制台已完成登录。报告因此固定保留 `consoleLoginCompletion: NOT_PROVEN`、`accountDisposability: NOT_ATTESTED`、`persistentOperations: NOT_RUN` 和 `tests: NOT_RUN`。
+
+真实 Runtime 私有存储、Electron Cookie、生产默认钥匙串和签名安装分别验收。只读预检通过不是运行持久测试的授权；后续须落实独立环境及对应操作范围。
+
 ## 配置独立登录会话
 
 在专用账户的 Terminal 中获取控制器实际观察到的会话事实：
