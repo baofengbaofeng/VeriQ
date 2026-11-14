@@ -1584,3 +1584,91 @@ test(
         }
     },
 );
+
+/** 部分存在的 Cookie 布局必须在原目录拥有者仍活着时明确关闭后才能返回缺失，真实 Network 子目录缺少时既检查无故障 false，也检查当前目录及保留父目录关闭错误不能被外层 ENOENT 分类吞掉。
+ * 三个真实目录分别是应用根、Partitions 和 veriq-host，观察同 fd 身份并验证正常与故障调用后均已关闭。
+ * 关闭观察点来自既有独立调度模块，顺序验证确保一次错误之后仍明确尝试其余自有目录，而不只依赖无异常析构。
+ */
+for (const phase of ["cookie.directory-close", "cookie.parent-close"]) {
+    for (const retire of [false, true]) {
+        test(
+            `cookie missing Network layout preserves required close failures: ${retire ? "retire" : "metadata"} ${phase}`,
+            mac,
+            async () => {
+                const native = createRequire(import.meta.url)(
+                    "../../build/native-tests/veriq_private_files_fault.node",
+                ) as FaultNative;
+                try {
+                    await cookieFixture(
+                        true,
+                        async (_root, directory) => {
+                            await rm(directory, { recursive: true });
+                            const path = join(directory, "Cookies");
+                            const calls: Array<{ owned: CapturedDescriptor[]; closed: number[] }> =
+                                [];
+                            const observe = () => {
+                                const call = {
+                                    owned: [] as CapturedDescriptor[],
+                                    closed: [] as number[],
+                                };
+                                calls.push(call);
+                                const watchParents = () =>
+                                    native.setHook("cookie.parent-close", (fd) => {
+                                        call.closed.push(fd);
+                                        if (call.closed.length < 3) watchParents();
+                                    });
+                                const capture = () =>
+                                    native.setHook("acl.get", (fd) => {
+                                        const info = fstatSync(fd);
+                                        call.owned.push({ fd, dev: info.dev, ino: info.ino });
+                                        if (call.owned.length < 3) capture();
+                                        else {
+                                            for (const owned of call.owned) {
+                                                const current = fstatSync(owned.fd);
+                                                assert.equal(current.dev, owned.dev);
+                                                assert.equal(current.ino, owned.ino);
+                                            }
+                                            native.setHook("cookie.directory-close", (fd) => {
+                                                call.closed.push(fd);
+                                                watchParents();
+                                            });
+                                        }
+                                    });
+                                capture();
+                                return call;
+                            };
+                            try {
+                                const ordinary = observe();
+                                assert.equal(native.privateCookieFile(path, retire), false);
+                                assert.equal(ordinary.owned.length, 3);
+                                for (const owned of ordinary.owned) assertCapturedClosed(owned);
+                                native.resetFaults();
+                                const fault = observe();
+                                native.setFault(phase, "error", 1);
+                                assert.throws(
+                                    () => native.privateCookieFile(path, retire),
+                                    failure("DARWIN_PRIVATE_IO", phase),
+                                );
+                                assert.equal(fault.owned.length, 3);
+                                for (const owned of fault.owned) assertCapturedClosed(owned);
+                                for (const call of calls)
+                                    assert.deepEqual(
+                                        call.closed,
+                                        call.owned.map((owned) => owned.fd).reverse(),
+                                    );
+                                assert.deepEqual(await readdir(join(directory, "..")), []);
+                            } finally {
+                                native.resetFaults();
+                                for (const call of calls)
+                                    for (const owned of call.owned) cleanupCaptured(owned);
+                            }
+                        },
+                        native,
+                    );
+                } finally {
+                    native.resetFaults();
+                }
+            },
+        );
+    }
+}
