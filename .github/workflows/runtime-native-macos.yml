@@ -1,0 +1,74 @@
+name: Runtime private macOS files verification
+on:
+    workflow_dispatch:
+    push:
+        branches: [codex/veriq-mvp-completion]
+        paths:
+            - .github/workflows/runtime-native-macos.yml
+            - apps/runtime/**
+            - packages/**
+            - pnpm-lock.yaml
+            - pnpm-workspace.yaml
+permissions:
+    contents: read
+jobs:
+    macos-private-files:
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - runner: macos-15-intel
+                      arch: x64
+                    - runner: macos-15
+                      arch: arm64
+        runs-on: ${{ matrix.runner }}
+        timeout-minutes: 20
+        env:
+            ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+            PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+            EXPECTED_ARCH: ${{ matrix.arch }}
+            VERIQ_MAC_EVIDENCE: ${{ github.workspace }}/.superpowers/sdd/veriq-1/evidence/t20/mac-private-fd-b/${{ github.sha }}/${{ matrix.arch }}
+        steps:
+            - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+              with:
+                  node-version: 24.x
+            - name: Assert actual macOS 15 native target and record source identity
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  mkdir -p "$VERIQ_MAC_EVIDENCE"
+                  sw_vers | tee "$VERIQ_MAC_EVIDENCE/os.log"
+                  uname -m | tee "$VERIQ_MAC_EVIDENCE/cpu.log"
+                  test "$(sw_vers -productVersion | cut -d. -f1)" = 15
+                  node --input-type=module -e 'import assert from "node:assert/strict"; import { createHash } from "node:crypto"; import { readFileSync } from "node:fs"; assert.equal(process.platform,"darwin"); assert.equal(process.arch,process.env.EXPECTED_ARCH); assert.match(process.versions.node,/^24\./); const hash=p=>createHash("sha256").update(readFileSync(p)).digest("hex"); console.log(JSON.stringify({source:process.env.GITHUB_SHA,platform:process.platform,arch:process.arch,node:process.version,nodeSha256:hash(process.execPath),lockSha256:hash("pnpm-lock.yaml"),workflowSha256:hash(".github/workflows/runtime-native-macos.yml"),testsSha256:hash("apps/runtime/tests/native/darwin-private-files.test.ts"),phase:"existing-consumer-red-checkpoint"},null,4));' | tee "$VERIQ_MAC_EVIDENCE/identity.json"
+                  xcodebuild -version | tee "$VERIQ_MAC_EVIDENCE/xcode.log"
+                  xcrun --show-sdk-version | tee "$VERIQ_MAC_EVIDENCE/sdk.log"
+                  clang --version | tee "$VERIQ_MAC_EVIDENCE/clang.log"
+                  python3 --version 2>&1 | tee "$VERIQ_MAC_EVIDENCE/python.log"
+            - name: Install pinned tools and frozen dependencies without unrelated assets
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  npm install --prefix "$RUNNER_TEMP/veriq-node-tools" pnpm@11.25.0 --ignore-scripts 2>&1 | tee "$VERIQ_MAC_EVIDENCE/pnpm-tool.log"
+                  node "$RUNNER_TEMP/veriq-node-tools/node_modules/pnpm/bin/pnpm.cjs" install --frozen-lockfile --ignore-scripts 2>&1 | tee "$VERIQ_MAC_EVIDENCE/dependencies.log"
+            - name: Observe existing formal file consumers on the actual Mac target
+              working-directory: apps/runtime
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  node --import tsx --test tests/native/darwin-private-files.test.ts 2>&1 | tee "$VERIQ_MAC_EVIDENCE/private-files.log"
+            - name: Preserve bounded nonsecret raw observations even after failure
+              if: always()
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  mkdir -p "$VERIQ_MAC_EVIDENCE"
+                  node --input-type=module -e 'import { readdirSync, statSync } from "node:fs"; import { join } from "node:path"; const files=readdirSync(process.env.VERIQ_MAC_EVIDENCE); if(files.length>16)throw Error("MAC_EVIDENCE_FILE_LIMIT"); for(const file of files)if(statSync(join(process.env.VERIQ_MAC_EVIDENCE,file)).size>2097152)throw Error("MAC_EVIDENCE_BYTES_LIMIT");'
+            - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+              if: always()
+              with:
+                  name: runtime-private-macos-${{ matrix.arch }}-${{ github.sha }}
+                  path: .superpowers/sdd/veriq-1/evidence/t20/mac-private-fd-b/${{ github.sha }}/${{ matrix.arch }}/*
+                  include-hidden-files: true
+                  if-no-files-found: warn
