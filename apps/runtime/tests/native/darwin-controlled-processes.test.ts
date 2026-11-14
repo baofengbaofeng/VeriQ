@@ -14,10 +14,15 @@ import { syncBuiltinESMExports } from "node:module";
 import { ProcessSupervisor, type OwnedProcess } from "../../src/execution/processes.ts";
 import { ProcessRecords } from "../../src/execution/records.ts";
 import { requireStoppedHistory } from "../../src/execution/stopped-history.ts";
-import { darwinNative } from "../../src/native/darwin.ts";
+import { darwinNative, type DarwinPrivateDirectory, type DarwinPrivateFile } from "../../src/native/darwin.ts";
 
 assert.equal(process.platform, "darwin", "This suite requires actual macOS; Linux is not substitute evidence");
 const worker = fileURLToPath(new URL("../fixtures/darwin-controlled-worker.mjs", import.meta.url));
+
+/** 原生成员方法可能具有不可写属性，故测试只用普通对象委托并绑定真实 B 接收者，不修改 NAPI 实例；每个读写、刷新和关闭仍执行实际原生实现，有限覆写只用于观察真实 File 生命周期或在真实发布之后注入不确定结果。 */
+function delegateDirectory(directory: DarwinPrivateDirectory, overrides: Partial<DarwinPrivateDirectory>): DarwinPrivateDirectory {
+    return { read: directory.read.bind(directory), entries: directory.entries.bind(directory), createExclusive: directory.createExclusive.bind(directory), replace: directory.replace.bind(directory), remove: directory.remove.bind(directory), close: directory.close.bind(directory), ...overrides };
+}
 
 /** 原始 BrowserServer 与实际 Chrome 对象由测试额外保留用于故障后的可靠清理，包装仍执行真实公共 launchServer 且核对 sandbox 与端点约束；finally 仅操作本次所得原对象并等 exit，不扫描 PID 或删除未退出写者仍需的日志。 */
 async function fixture(run: (f: { root: string; work: string; processes: ProcessSupervisor; id: string; launch: (scenario?: string, kind?: "TEST" | "VALIDATE" | "CLEANUP", prepare?: (context: any) => Promise<void> | void) => Promise<OwnedProcess>; servers: BrowserServer[] }) => Promise<void>, timeoutMs = 30000) {
@@ -166,7 +171,66 @@ test("bound cancellation before business START seals empty prefix and actually e
     const value = JSON.parse(await readFile(join(root, "processes", `${id}.controlled.json`), "utf8"));
     assert.equal(value.journals.commands.count, 0);
     assert.equal(value.journals.cli.bytes, 0);
+    const trace = (await readFile(join(root, "work", "gate.jsonl"), "utf8")).trim().split("\n").map((line) => JSON.parse(line).type);
+    assert.deepEqual(trace, ["CANCEL_INSTALLED", "ACK_SENT", "START_RECEIVED", "GATE_RELEASED"]);
 }));
+
+/** 错误或缺少 ACK 不能释放已经取消的 START 闸门，夹具与生产 Worker 一样只在独立 START 消息后继续；期限不延长且只用真实所持对象清理，不能凭 ACK、outer 最终被强停或空 CLI 日志获得停止正证明。 */
+for (const scenario of ["missing-ack", "stale-ack"]) test(`${scenario} keeps the actual pre-START gate closed`, async () => fixture(async ({ root, processes, id, launch }) => {
+    const owned = await launch(scenario, "VALIDATE");
+    assert.equal((await processes.terminateAttempt(id, "CANCELLED_BEFORE_START")).processStopped, false);
+    await owned.exited;
+    const trace = (await readFile(join(root, "work", "gate.jsonl"), "utf8")).trim().split("\n").map((line) => JSON.parse(line).type);
+    assert.ok(trace.includes("CANCEL_INSTALLED"));
+    assert.ok(!trace.includes("START_RECEIVED"));
+    assert.ok(!trace.includes("GATE_RELEASED"));
+    const commands = await readFile(join(root, "controlled-journals", id, "command.jsonl"), "utf8");
+    assert.ok(!commands.includes('"type":"INTENT"'));
+    assert.ok(!commands.includes('"type":"SEAL"'));
+}, 1500));
+
+/** 这个组件故障夹具由测试父进程实际持有一个继承同一 CLI 日志 fd4 的 Node 写者，并让已登记 outer 在未封存时退出；它验证未知写者尚活时原 B File 不能被回收，明确不冒充真实 outer 到 CLI 的孤儿祖先链或 Agent 操作系统崩溃。 */
+test("unsealed outer exit retains the original CLI File while an inherited writer is alive", async () => {
+    const native = darwinNative(), open = native.openPrivateDirectory.bind(native);
+    let original: DarwinPrivateFile | undefined, closeCalls = 0;
+    native.openPrivateDirectory = (path, create) => {
+        const directory = open(path, create);
+        if (!path.includes("/controlled-journals/") || !create) return directory;
+        return delegateDirectory(directory, { createExclusive(name) {
+            const file = directory.createExclusive(name);
+            if (name !== "cli.jsonl") return file;
+            original = file;
+            return { get fd() { return file.fd; }, read: file.read.bind(file), close() { closeCalls++; file.close(); } };
+        } });
+    };
+    try {
+        await fixture(async ({ processes, id, launch, root }) => {
+            const outer = await launch("normal", "VALIDATE");
+            assert.ok(original);
+            const writer = childProcess.spawn(process.execPath, ["--input-type=module", "-e", "import {writeSync,fsyncSync} from 'node:fs'; process.on('message', message => { if(message.type === 'APPEND') {writeSync(4,'live-writer\\n'); fsyncSync(4); process.send({type:'APPENDED'});}}); process.send({type:'WRITER_READY'});"], { stdio: ["ignore", "ignore", "ignore", "ipc", original.fd] });
+            const writerExit = new Promise<void>((resolve) => writer.once("exit", () => resolve()));
+            const ready = new Promise<unknown>((resolve) => writer.once("message", resolve));
+            try {
+                assert.deepEqual(await ready, { type: "WRITER_READY" });
+                outer.child.kill("SIGTERM");
+                await outer.exited;
+                assert.equal((await processes.terminateAttempt(id, "OUTER_LOST")).processStopped, false);
+                const appended = new Promise<unknown>((resolve) => writer.once("message", resolve));
+                writer.send({ type: "APPEND" });
+                assert.deepEqual(await appended, { type: "APPENDED" });
+                assert.equal(writer.exitCode, null);
+                assert.equal(closeCalls, 0, "Agent must retain the original parent File owner while CLI writer is unknown");
+                assert.equal(original.read(1048576).toString(), "live-writer\n");
+                assert.equal(await processes.confirmStopped(id), false);
+                assert.ok((await readFile(join(root, "controlled-journals", id, "cli.jsonl"), "utf8")).includes("live-writer"));
+            } finally {
+                if (writer.exitCode === null && writer.signalCode === null) writer.kill("SIGKILL");
+                await writerExit;
+                original.close();
+            }
+        });
+    } finally { native.openPrivateDirectory = open; }
+});
 
 /** 观察故障的退出码与缺少封存不能被随后真实退出抹除，原始日志会保留用于排查且重启只能得出未确认；这里的故障属于组件边界，不能把同进程夹具当成真实 Agent 操作系统崩溃的验收。 */
 for (const scenario of ["missing-seal", "cli-fault", "outer-signal"]) test(`${scenario} remains unknown after actual member exits`, async () => fixture(async ({ root, processes, id, launch }) => {
@@ -240,14 +304,16 @@ test("public browser launch rejection after actual spawn never claims no process
 /** 提交故障在真实 B 已经发布并刷新 proof 后抛出不确定结果，不替换原生文件行为或伪造 OS 退出；过程记录必须继续停在 RUNNING，使随后只读恢复拒绝这个半配对，即使完整 proof 字节已经在目录中可见也不能释放容量。 */
 test("proof publication uncertainty leaves restart history unconfirmed", async () => {
     const native = darwinNative(), open = native.openPrivateDirectory.bind(native);
+    let publications = 0;
     native.openPrivateDirectory = (path, create) => {
         const directory = open(path, create);
         if (path.endsWith("/processes") && create) {
-            const replace = directory.replace.bind(directory);
-            directory.replace = (name, temporary, bytes, limit) => {
-                replace(name, temporary, bytes, limit);
-                if (name.endsWith(".controlled.json")) throw Object.assign(new Error("TEST_COMMIT_UNCONFIRMED"), { code: "COMMIT_UNCONFIRMED" });
-            };
+            const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(directory), "replace");
+            console.log(JSON.stringify({ boundary: "native-directory-replace-attributes", writable: descriptor?.writable ?? null, configurable: descriptor?.configurable ?? null }));
+            return delegateDirectory(directory, { replace(name, temporary, bytes, limit) {
+                directory.replace(name, temporary, bytes, limit);
+                if (name.endsWith(".controlled.json")) { publications++; throw Object.assign(new Error("TEST_COMMIT_UNCONFIRMED"), { code: "COMMIT_UNCONFIRMED" }); }
+            } });
         }
         return directory;
     };
@@ -257,6 +323,8 @@ test("proof publication uncertainty leaves restart history unconfirmed", async (
             owned.send({ type: "START" });
             await owned.exited;
             assert.equal((await processes.terminateAttempt(id, "COMPLETED")).processStopped, false);
+            assert.equal(publications, 1, "fault must occur after actual controlled proof publication");
+            assert.equal(JSON.parse(await readFile(join(root, "processes", `${id}.controlled.json`), "utf8")).state, "CONTROLLED_STOPPED");
             assert.equal(JSON.parse(await readFile(join(root, "processes", `${id}.process.json`), "utf8")).state, "RUNNING");
             assert.equal(await new ProcessSupervisor(join(root, "processes")).confirmStopped(id), false);
         });
@@ -271,16 +339,24 @@ test("private history rejects mixed proofs, orphan members and stale claim gener
     assert.equal((await processes.terminateAttempt(id, "COMPLETED")).processStopped, true);
     const attempts = join(root, "attempts");
     await mkdir(attempts, { mode: 0o700 });
-    const claim = { jobId: randomUUID(), attemptId: id, jobKind: "TEST", leaseToken: "public-component-history", fencingToken: 7, expiresAt: "2026-11-14T02:00:00Z", serverTime: "2026-11-14T01:59:00Z", leaseDurationMs: 60000, activationRequired: true, snapshotUrl: "https://control.example/snapshot", snapshotSha256: "a".repeat(64) };
+    const claim = { jobId: randomUUID(), attemptId: id, jobKind: "VALIDATE", leaseToken: "public-component-history", fencingToken: 7, expiresAt: "2026-11-14T02:00:00Z", serverTime: "2026-11-14T01:59:00Z", leaseDurationMs: 60000, activationRequired: true, snapshotUrl: "https://control.example/snapshot", snapshotSha256: "a".repeat(64) };
     const history = { claim, state: "STOPPED", work: join(root, "work", id) };
     await writeFile(join(attempts, `${id}.json`), JSON.stringify(history), { mode: 0o600 });
     await requireStoppedHistory(root);
+    await writeFile(join(attempts, `${id}.json`), JSON.stringify({ ...history, claim: { ...claim, jobKind: "TEST" } }), { mode: 0o600 });
+    await assert.rejects(requireStoppedHistory(root), /RECOVERY/);
+    await writeFile(join(attempts, `${id}.json`), JSON.stringify(history), { mode: 0o600 });
     assert.throws(() => new ProcessSupervisor(join(root, "other-processes"), 500, undefined, {} as any), /CAPABILITY/);
     const otherId = randomUUID(), otherIntent = join(root, "processes", `${otherId}.process.json`);
     await writeFile(otherIntent, JSON.stringify({ state: "SPAWNING", attemptId: otherId }), { mode: 0o600 });
     assert.equal(await processes.confirmStopped(id), true, "another recognized active intent cannot invalidate the selected committed proof");
     await assert.rejects(requireStoppedHistory(root), /RECOVERY/);
     await rm(otherIntent);
+    const wrongRole = join(root, "processes", "unexpected.json");
+    await writeFile(wrongRole, "{}", { mode: 0o600 });
+    assert.equal(await processes.confirmStopped(id), false);
+    await assert.rejects(requireStoppedHistory(root), /RECOVERY/);
+    await rm(wrongRole);
     const recordPath = join(root, "processes", `${id}.process.json`), before = await readFile(recordPath);
     await writeFile(join(root, "processes", `${id}.drained.json`), "{}", { mode: 0o600 });
     assert.equal(await processes.confirmStopped(id), false);

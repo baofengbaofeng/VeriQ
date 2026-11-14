@@ -8,7 +8,7 @@ import type { Command, OwnedProcess, StopReceipt } from "./processes.ts";
 import { ProcessRecords } from "./records.ts";
 import { requireDarwinSource, type DarwinControlledLaunch, type DarwinLaunchContext, type DarwinSourceCapability, type DarwinSourceState } from "./darwin-source.ts";
 import { validateBinding, LIMITS } from "./controlled-child-protocol.mjs";
-import { validateControlledPair, verifyControlledJournals, type ControlledExitFact, type DarwinControlledProof, type DarwinProcessRecord } from "./darwin-proof.ts";
+import { isControlledProcessMember, validateControlledPair, verifyControlledJournals, type ControlledExitFact, type DarwinControlledProof, type DarwinProcessRecord } from "./darwin-proof.ts";
 
 interface Observation {
     child: ChildProcess;
@@ -24,6 +24,7 @@ interface Attempt {
     proved: boolean;
     businessStarted: boolean;
     ready: boolean;
+    journalsVerified: boolean;
     ack: Promise<void>;
     acknowledge(): void;
     outer?: Observation;
@@ -86,7 +87,7 @@ export class DarwinProcesses {
         let acknowledge!: () => void;
         const entry: Attempt = {
             record: { version: 1, platform: "darwin", attemptId: id, uid: process.getuid!(), kind: launch.kind, ownerGeneration: binding.ownerGeneration, nonce: binding.nonce, commandBinding: binding, cliBinding, state: "SPAWNING", outerPlanned: true, browserPlanned: launch.kind === "TEST", cancellationAuthorized: false, browserStopAuthorized: false },
-            starting: undefined!, settled: false, closed: false, fault: false, proved: false, businessStarted: false, ready: false,
+            starting: undefined!, settled: false, closed: false, fault: false, proved: false, businessStarted: false, ready: false, journalsVerified: false,
             ack: new Promise((resolve) => { acknowledge = resolve; }), acknowledge: () => acknowledge(), directories: [],
         };
         this.attempts.set(id, entry);
@@ -237,6 +238,7 @@ export class DarwinProcesses {
             records = await ProcessRecords.open(this.directory);
             if (!records) return false;
             const names = new Set(await records.names(8192));
+            if ([...names].some((name) => !isControlledProcessMember(name))) return false;
             if (!names.has(`${id}.process.json`) || !names.has(`${id}.controlled.json`) || names.has(`${id}.drained.json`)) return false;
             return validateControlledPair(await records.read(`${id}.process.json`, 65536), await records.read(`${id}.controlled.json`, 65536), { attemptId: id, uid: process.getuid!() });
         } catch { return false; } finally {
@@ -252,6 +254,7 @@ export class DarwinProcesses {
 
     /** 关闭 File 仅发生于原始写者退出以后且最终快照已经读取，目录清理也只关闭本次拥有者而不删除证据；错误路径若仍可能有迟到启动或写者就继续持有这些对象，不能提前关闭借出的数字描述符冒充容量释放。 */
     private closeFiles(entry: Attempt): void {
+        if (entry.outer && !entry.journalsVerified) throw new Error("DARWIN_JOURNAL_WRITER_UNKNOWN");
         entry.commandFile?.close();
         delete entry.commandFile;
         entry.cliFile?.close();
@@ -259,9 +262,9 @@ export class DarwinProcesses {
         for (const directory of entry.directories.splice(0)) directory.close();
     }
 
-    /** 故障后的文件回收只在启动已经结束且所有本次取得的原对象真正退出后执行，等待没有新期限也不会改变负回执或容量隔离；若某个对象永不退出，强 File 引用继续保留，不能因为停止 promise 已经返回而关闭仍可能被写入的日志。 */
+    /** outer 和 Chrome 退出不能单独证明借出 CLI 日志的写者已经退出，故原 outer 存在但 C1 最终闭合尚未核验时保留全部 File 与目录锚点；当前源码切片没有猜测孤儿生命周期的恢复能力，后续真实退出也不能自动绕过这道保留条件。 */
     private deferCleanup(entry: Attempt): void {
-        if (!entry.settled) return;
+        if (!entry.settled || (entry.outer && !entry.journalsVerified)) return;
         void Promise.all([entry.outer?.exited, entry.chrome?.exited]).then(() => {
             try {
                 this.closeFiles(entry);
@@ -292,6 +295,7 @@ export class DarwinProcesses {
                 const commands = entry.commandFile.read(LIMITS.fileBytes), cli = entry.cliFile.read(LIMITS.fileBytes);
                 if (!commands.equals(entry.commandFile.read(LIMITS.fileBytes)) || !cli.equals(entry.cliFile.read(LIMITS.fileBytes))) throw new Error("DARWIN_JOURNAL_CHANGED");
                 journals = verifyControlledJournals(entry.record, commands, cli);
+                entry.journalsVerified = true;
             } else entry.fault = true;
         } catch { entry.fault = true; }
         try {

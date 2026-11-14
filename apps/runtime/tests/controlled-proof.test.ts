@@ -89,3 +89,20 @@ test("both final journals require fixed prefix, complete seals and CLI exit auth
     const empty = frames(binding, []);
     assert.deepEqual(verifyControlledJournals({ ...journal(), cancellationAuthorized: true }, empty, Buffer.alloc(0)), { commands: summary(empty, 0), cli: summary(Buffer.alloc(0), 0) });
 });
+
+/** 共享记录读取器也服务 attempts 目录，因此 Darwin 停止确认必须另核 processes 角色白名单；普通 JSON、未知后缀和 staging 不能混入合法选中证明，而其他已识别的活动过程成员仍保持独立。 */
+test("controlled process directory rejects bare JSON roles and preserves recognized active members", async () => {
+    const module = await implementation();
+    assert.ok("isControlledProcessMember" in module, "process-role validator must be implemented");
+    for (const name of [`${attemptId}.process.json`, `${attemptId}.controlled.json`, `${attemptId}.drained.json`, "other-active.process.json"]) assert.equal(module.isControlledProcessMember(name), true, name);
+    for (const name of ["unexpected.json", `${attemptId}.json`, `${attemptId}.process.json.tmp`, ".stage", "nested/member.process.json"]) assert.equal(module.isControlledProcessMember(name), false, name);
+});
+
+/** 私有过程和证明彼此匹配仍不能代替 Claim 的业务任务身份，无浏览器的验证或清理不能冒充 TEST；本纯测试只验证身份边，真实 Darwin 历史读取继续由原生组件 suite 独立覆盖。 */
+test("controlled history binds Claim kind, generation and Attempt to the process identity", async () => {
+    const module = await implementation();
+    assert.ok("matchesControlledClaim" in module, "Claim/process identity validator must be implemented");
+    const claim = { attemptId, jobKind: "TEST", fencingToken: 7 };
+    assert.equal(module.matchesControlledClaim(journal(), claim), true);
+    for (const changed of [{ ...claim, jobKind: "VALIDATE" }, { ...claim, jobKind: "CLEANUP" }, { ...claim, fencingToken: 8 }, { ...claim, attemptId: "99999999-9999-9999-9999-999999999999" }, {}]) assert.equal(module.matchesControlledClaim(journal(), changed), false);
+});

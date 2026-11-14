@@ -85,6 +85,19 @@ export function parseDarwinProcessRecord(value: unknown): DarwinProcessRecord {
     return structuredClone(value) as unknown as DarwinProcessRecord;
 }
 
+/** processes 目录与 attempts 目录共享有限私有 JSON 读取器，但本用途只承认过程及平台证明后缀；其他合法活动过程仍可与选中证明并存，普通 JSON 和 staging 则不能借共享名称语法绕过未知成员的失败关闭边界。 */
+export function isControlledProcessMember(name: string): boolean {
+    return /^[a-zA-Z0-9_-]{1,100}\.(?:process|controlled|drained)\.json$/.test(name);
+}
+
+/** 在线历史的 Claim 与私有过程记录必须同时绑定 Attempt、已有 fencingToken 和业务任务种类；验证与清理计划没有浏览器，因此即使自身受控证明完整，也绝不能替代 TEST Claim 所要求的不同受控集合。 */
+export function matchesControlledClaim(record: unknown, claim: unknown): boolean {
+    try {
+        const journal = parseDarwinProcessRecord(record);
+        return object(claim) && journal.attemptId === claim.attemptId && journal.ownerGeneration === claim.fencingToken && journal.kind === claim.jobKind;
+    } catch { return false; }
+}
+
 /** 摘要的字节和数量独立受原日志协议及固定角色边界限制，空 CLI 使用空字节的 SHA256 而不是缺少成员；任何额外 roster 内容或超限都拒绝，避免历史解析器接受大小无界或语义含糊的私有证明。 */
 function summary(value: unknown, limit: number, empty: boolean): boolean {
     return exact(value, ["bytes", "count", "sha256"]) && Number.isSafeInteger(value.bytes) && Number(value.bytes) >= (empty ? 0 : 1)

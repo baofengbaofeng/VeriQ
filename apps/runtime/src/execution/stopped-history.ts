@@ -4,6 +4,7 @@ import { validateSchema } from "@veriq/contracts";
 import { isPreSpawnState } from "./pre-spawn.ts";
 import { ProcessRecords } from "./records.ts";
 import { ProcessSupervisor } from "./processes.ts";
+import { matchesControlledClaim } from "./darwin-proof.ts";
 
 /** 可选回执只作为已保存的客户端事实接受严格结构校验，不能取代下方实际进程成员与内核证明；旧回执不补范围，未派生范围只能配对白名单状态，平台不适用的受控声明也不会变成迁移授权。 */
 function validStop(value: unknown, id: string, state: string): boolean {
@@ -85,8 +86,8 @@ export async function requireStoppedHistory(root: string): Promise<void> {
                     throw new Error("UNPROVED_PROCESS_HISTORY");
                 /** Darwin 在线历史必须继续绑定服务端原有 fencingToken，不能让另一个合法私有过程证明替代本次 Claim 的代际；这里仅观察已经提交的源记录，未接入业务写入流程前不补造 nonce 或修改旧代记录。 */
                 if (process.platform === "darwin") {
-                    const processRecord = await records!.read(`${id}.process.json`, 65536) as { ownerGeneration?: unknown };
-                    if (processRecord.ownerGeneration !== (record.claim as { fencingToken: number }).fencingToken)
+                    const processRecord = await records!.read(`${id}.process.json`, 65536);
+                    if (!matchesControlledClaim(processRecord, record.claim))
                         throw new Error("UNPROVED_PROCESS_HISTORY");
                 }
             }
