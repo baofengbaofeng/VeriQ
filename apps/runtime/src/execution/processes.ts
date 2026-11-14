@@ -16,6 +16,7 @@ import { Readable, Writable } from "node:stream";
 import type { ProcessStopScope } from "@veriq/contracts";
 import { ProcessRecords } from "./records.ts";
 import { WindowsProcesses } from "./windows-processes.ts";
+import type { DarwinControlledLaunch, DarwinSourceCapability } from "./darwin-source.ts";
 /**
  * 停止回执分别记录是否已确认与实际核验的进程范围，缺失范围保持未声明；新范围只能由本次平台证明或持久未派生状态产生，读取旧回执不会补写或升级其保证。
  */
@@ -99,6 +100,7 @@ export class ProcessSupervisor {
         private directory: string,
         private graceMs = 500,
         private launcherPath = launcher,
+        darwinSource?: DarwinSourceCapability,
     ) {
         if (process.platform === "win32")
             this.windows = new WindowsProcesses(directory, launcherPath);
@@ -132,7 +134,7 @@ export class ProcessSupervisor {
     /**
      * 公开方法 start 先选择平台实现并写入进程日志，再拉起受信任的原生守护等待 READY 与 worker 身份校验通过；未支持的平台和重复 Attempt 都在业务执行前失败，不能绕过平台所有权协议。
      */
-    async start(id: string, command: Command): Promise<OwnedProcess> {
+    async start(id: string, command: Command, controlledLaunch?: DarwinControlledLaunch): Promise<OwnedProcess> {
         if (this.windows) return this.windows.start(id, command);
         if (process.platform !== "linux") throw new Error("UNSUPPORTED_PROCESS_PLATFORM");
         if (this.live.has(id)) throw new Error("PROCESS_ALREADY_RUNNING");
