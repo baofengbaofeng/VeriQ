@@ -17,7 +17,7 @@ template<class Call> Napi::Value boundary(Napi::Env env, Call call) {
         auto error = Napi::Error::New(env, failure.what());
         error.Set("code", failure.what());
         error.Set("phase", failure.phase);
-        error.Set("errno", failure.number);
+        error.Set("errno", Napi::Number::New(env, failure.number));
         error.ThrowAsJavaScriptException();
     } catch (const Napi::Error& error) { error.ThrowAsJavaScriptException(); }
     catch (...) {
