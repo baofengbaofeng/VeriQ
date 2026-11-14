@@ -1,6 +1,6 @@
 # VeriQ：Mac 首发范围、兼容性与开发接续
 
-更新：2026-11-14（UTC）。本文记录用户已确认的范围、固定工具链核验结果与未决事项，补充主规格和桌面规格；不是已批准的新原生架构、安装报告或支持声明。已有 Windows/Linux 实现及真实失败、成功证据继续保留。
+更新：2026-11-14（北京时间）。本文记录用户已确认的范围、固定工具链核验结果与未决事项，补充主规格和桌面规格；不是已批准的新原生架构、安装报告或支持声明。已有 Windows/Linux 实现及真实失败、成功证据继续保留。
 
 ## 1. 已确认范围与优先级
 
@@ -12,19 +12,21 @@
 | Ubuntu 24.04 x64 | 仍必须交付 | 较低 | 已有源码 GUI、系统凭据与进程监督证据，完整安装、离网及升级验收未完成 |
 | 服务端 Linux x64 | 原有部署范围不变 | 原计划 | Python 控制服务运行时不要求 Node 或浏览器；生产先构建前端并随 wheel 发布 |
 
+用户已进一步明确：Mac测试必须使用**宿主macOS的原生Chrome**，不能用Linux虚拟机中的浏览器代替；继续使用固定Playwright配套版本，不将这句话解释为任意系统Chrome可替代固定引擎。
+
 四组桌面目标都必须完成 F01–F14 中适用的本地功能。优先级调整不删除 Windows/Ubuntu，不允许把 Mac 仅打包成功当作完整客户端交付。
 
-## 2. 最低系统版本：要求与冲突
+## 2. 已确认最低系统版本：macOS 14（Sonoma）
 
-用户希望以 2020 年发布的 macOS 作为最低要求，同时提出参考当前最新版向前回溯三个大版本。2020 年版本为 **macOS Big Sur 11**；两种描述不能未经确认就当作同一固定基线。当前固定版本存在以下边界：
+用户先前提出参考2020年系统；核验固定工具链后，用户在获知Sonoma于2023年发布后回复“OK”，现确认两架构均以 **macOS 14（Sonoma）** 为最低版本，替代先前Big Sur 11设想。不再将最低版本列为待确认；实现与真机验收仍须完成。当前固定版本存在以下边界：
 
 | 固定组件 | 官方版本资料中的 macOS 边界 | 对 VeriQ 的影响 |
 | --- | --- | --- |
 | Electron 45.3.1 | Ventura 13 起，Intel/ARM | UI 壳本身不能覆盖 Big Sur 11 |
 | 独立 Node 24.22.1 | x64、arm64 均为 13.5 起的 Tier 1 | 不可将 Electron 内嵌 Node 或系统 Node 代替独立运行引擎 |
-| Playwright 1.65.0 / 配套 Chrome 158.0.8127.18 | 固定下载矩阵对 macOS 13 及以下不提供这两类目标，14 起提供 | 保持固定运行栈时，建议完整产品最低为 macOS 14；尚未得到用户确认，也没有真机验收 |
+| Playwright 1.65.0 / 配套 Chrome 158.0.8127.18 | 固定下载矩阵对 macOS 13 及以下不提供这两类目标，14 起提供 | 完整产品最低macOS14已获用户确认；尚无真机验收 |
 
-待决定：是否接受 macOS 14 起，或坚持 Big Sur 11 并重新评估受维护的完整工具链与范围。不得只降低 `minimumSystemVersion`、静默降级依赖、改用任意系统浏览器后声称解决兼容。官方资产元数据存在不代表已下载验证、构建或运行成功。
+已决定：保持固定运行栈，支持目标从macOS14起；不支持macOS11、12、13。不得只降低 `minimumSystemVersion`、静默降级依赖、改用任意系统浏览器后声称解决兼容。官方资产元数据存在不代表已下载验证、构建或运行成功。
 
 核验依据为固定版本官方源码：[Electron README](https://github.com/electron/electron/blob/v45.3.1/README.md)、[Node BUILDING.md](https://github.com/nodejs/node/blob/v24.22.1/BUILDING.md)、[Playwright 浏览器版本](https://github.com/microsoft/playwright/blob/v1.65.0/packages/playwright-core/browsers.json)、[Playwright 下载矩阵](https://github.com/microsoft/playwright/blob/v1.65.0/packages/playwright-core/src/server/registry/index.ts)。访问日期为本文更新日期；需要实际目标验证后才能形成最终兼容矩阵。
 
@@ -34,7 +36,7 @@
 
 | 事项 | 当前缺口 | 接续要求 |
 | --- | --- | --- |
-| 平台合同 | 能力 Schema 仍仅有 linux/win32、x64 | 统一 Schema/OpenAPI/生成类型与样本，明确只覆盖批准的四组桌面 OS/arch；契约可表达目标不等于运行器已具备该能力 |
+| 平台合同 | `986a2d8`已实现并通过独立切片复审 | Schema/OpenAPI/生成类型与桌面派生Schema严格限制linux/x64、win32/x64、darwin/x64、darwin/arm64；251项契约及196项Python兼容检查通过。契约表达不证明主机系统版本或执行就绪 |
 | 物理依赖闭包 | Node、Chrome、esbuild、原生组件均按平台产生 | 分别验证 x64/arm64；不能复制 Linux node_modules 或仅将 Electron 做 universal 就视为整个 Runtime 通用 |
 | `.app` 与完整性 | Mac Framework 有真实内部符号链接，当前库存拒绝所有链接 | 先核实际固定资产，再设计保留签名的有限规则；禁止全局放开链接、任意路径或盲目展平 bundle |
 | 私有文件 | 当前非 Windows 路径使用 `/proc/self/fd` | Darwin 没有该接口；需有限的目录句柄相对访问适配，继续校验 owner、类型、权限及提交不确定性 |
@@ -52,7 +54,7 @@ Keychain 两类实现的权限与签名模型见 Apple [TN3137](https://develope
 - kqueue 的 `NOTE_TRACK` 等标志在 Apple XNU 中被拒绝，不能引用 FreeBSD 行为声称 Darwin 支持递归追踪。
 - 进程组、PID/PPID 扫描或根进程退出，无法覆盖已有真实反例中的空环境、脱离进程组并成为孤儿的后代；不能据此生成 `DRAINED`。
 - Endpoint Security 是待研究候选，需要 Apple 单独批准的 entitlement、root 与用户 Full Disk Access；普通 Developer ID、公证或自签不能替代。已核验事件身份及丢事件计数，但尚未证明事件流收敛与完整排空，不能宣称方案已成立。
-- Linux VM 是另一个待评估方向，会改变浏览器实际运行 OS、资源占用与本地可见浏览器体验，不是常规适配，不得自行采用。
+- Linux VM曾作为研究备选，会改变浏览器实际运行OS、资源占用与本地可见浏览器体验。用户现已要求宿主macOS原生Chrome，**该替代方案已排除**，不得继续按可选架构实施。
 
 官方依据：[Apple XNU 进程事件实现](https://github.com/apple-oss-distributions/xnu/blob/xnu-12377.1.9/bsd/kern/kern_event.c#L1100)、[Endpoint Security entitlement](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.endpoint-security.client)、[es_new_client](https://developer.apple.com/documentation/endpointsecurity/es_new_client(_:_:))。
 
@@ -74,8 +76,8 @@ Keychain 两类实现的权限与签名模型见 Apple [TN3137](https://develope
 | --- | --- | --- |
 | 1 | 同步已确认范围至 README、规格、计划和里程碑 | 本文随范围修订提供；不改变已有实际验证结论 |
 | 2 | 完成公共凭据故障状态与显式恢复入口 | `ae38f0a`及修复`b2baf88`通过独立定向复审；最终48项桌面单测通过，适用host/renderer严格检查通过；不依赖Mac原生机制，不代表GUI/目标OS验收 |
-| 3 | 核对最低 macOS 与完整进程监督方案 | 待用户确认兼容性取舍；监督方案尚需可行性依据和设计核对 |
-| 4 | 按已确认设计实施合同、原生适配、依赖库存和双架构构建 | Mac 产品实现未完成；不能按此文直接绕过未决设计 |
+| 3 | 落实最低macOS与完整进程监督方案 | 最低14已确认；监督方案仍需可行性依据和设计核对 |
+| 4 | 扩展四组目标的平台合同，再按确认设计实施原生适配、依赖库存和双架构构建 | 合同切片`986a2d8`已复审；原生适配和运行仍待实施，能力就绪须真实证明，不能绕过未决监督设计 |
 | 5 | 两类 Mac 原生安装与全功能验收 | 待实际 Intel / Apple Silicon 设备或适当目标环境；用户尚未确认设备可用性 |
 | 6 | 完成较低优先级 Windows/Ubuntu 发行及 T21–T23 | 全部仍在首发范围；保留原有实现、失败和证据，不重新归零 |
 

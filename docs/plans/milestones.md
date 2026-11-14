@@ -19,7 +19,7 @@
 
 ### 状态口径
 
-2026-11-14用户追加Mac两架构并调整优先级，详见[Mac范围与兼容性记录](../specs/macos-mvp-scope.md)。Mac原生适配、安装与真机验收均未完成；2020年Big Sur 11要求与固定完整运行栈至少14的兼容边界冲突，待用户确认。Mac进程监督尚无满足原停止证明的已选实现，不能以普通进程组、扫描或未验证ES候选替代。下文历史Windows/Linux实际结果按当时平台保留，不推导Mac通过。
+2026-11-14用户追加Mac两架构并调整优先级，详见[Mac范围与兼容性记录](../specs/macos-mvp-scope.md)。Mac原生适配、安装与真机验收均未完成；用户现已确认最低macOS14（Sonoma）及宿主macOS原生Chrome，替代先前Big Sur 11设想并排除Linux虚拟机浏览器替代；这不代表完成真机验收。Mac进程监督尚无满足原停止证明的已选实现，不能以普通进程组、扫描或未验证ES候选替代。下文历史Windows/Linux实际结果按当时平台保留，不推导Mac通过。
 
 | 标记 | 定义 | 可以据此声称什么 |
 | --- | --- | --- |
@@ -125,7 +125,7 @@
 | T17 生产同源服务 | T02/T11 | 已完成·模块 | 唯一工厂、包内完整文件库存、已登记SPA GET/HEAD、API/静态404、缓存/范围/条件响应、build-info和健康兼容；HTML策略两轮修复复审关闭 | `4b58a4c`、`0f48d6e`、`67779ed`；[ADR0019](../decisions/0019-production-static-inventory.md)；stage/wheel已由T18交付，正式目标发行待验收 |
 | T18 构建与服务端发行 | T17 | 代码完成·待验收 | 默认完整门禁、Hatch/stage/wheel/离线安装、SBOM/引擎及独立晋升；两项Important修复复审通过 | `3995648`/`dc95f26`；27项fix回归、当前UNVERIFIED wheel安装通过；正常发行/Ubuntu/OCI及M1/M2仍开放 |
 | T19 Electron 全 GUI | T10/T11/T12/T14/T15 | 已完成·模块及Fix1复审 | `bac5162`→`eb2dc4e`：完整本地界面、有限IPC、独立Node24、云端编辑/编译发布、签名下载、断网执行、报告/Trace/幂等回传与故障恢复；实际6GUI/34unit/2display通过 | I1–I6全部关闭，新增C/I/M均0；Windows/POSIX路径单测不等于安装验收，目标OS/vault/发行、Provider和全仓质量仍待T20–T23 |
-| T20 Mac双架构优先的Runtime发行 | T19 | 进行中·公共/Windows/Linux切片；Mac原生设计待决 | [ADR0021](../decisions/0021-runtime-distribution.md)；已有发行身份、原生IPC/私有文件、Linux Secret Service、Windows Credential Manager与迁移/恢复/退役的实际目标证据；不等于Mac实现 | Mac最低系统及强停止方案待确认，原生实现/两架构验收未完成；公共凭据状态切片已定向复审，见R20-05；Windows3项ACL失败及原有默认兼容、完整闭包/安装等缺口保留；整任务未复审 |
+| T20 Mac双架构优先的Runtime发行 | T19 | 进行中·公共/Windows/Linux切片；Mac原生设计待决 | [ADR0021](../decisions/0021-runtime-distribution.md)；已有发行身份、原生IPC/私有文件、Linux Secret Service、Windows Credential Manager与迁移/恢复/退役的实际目标证据；不等于Mac实现 | Mac最低系统已确认14，强停止方案仍待解决，原生实现/两架构验收未完成；公共凭据状态切片已定向复审，见R20-05；Windows3项ACL失败及原有默认兼容、完整闭包/安装等缺口保留；整任务未复审 |
 | T21 安装运维 | T12/T16/T18/T20 | 待开工 | 基础 init/migrate/配置/原始证据维护已有，完整产品运维未完成 | Compose/离线包、备份恢复/轮换、生命周期、指标及遗留 M1 |
 | T22 全模块 UX/示例/接入 | T11/T12/T13/T15/T16/T19/T21 | 待开工 | 现有局部页面/后端示例/说明不是完整示例向导或完整手册 | 全菜单真实操作、中英文/键盘、示例与前后端规范、遗留 UX |
 | T23 1.0 完整验收 | T01–T22 | 待开工 | 尚无完整产品发行验收结论 | 全范围矩阵、10 Run、故障/篡改/权限、5–10 流程×≥5 轮、实际 Provider/OS、整分支审查 |
@@ -158,9 +158,10 @@
 | R20-01 / T20 | 独立 Runtime 和浏览器分发 | Linux dev helper 不是发行物 | 固定 Node24 与 Electron ABI 分离；编译器/SDK/锁/浏览器按 OS/arch 分发，全离网安装不共用 node_modules，不要求本机 Python/MySQL/cc |
 | R20-02 / T20 | 原生进程、存储与停止 | Linux subreaper 有实际证据 | Windows 原生 Job/进程树与 Ubuntu 路径实测；OS vault；所有自有进程真实命名；未知停止继续隔离 |
 | R20-03 / T20 | 安装升级卸载/签名 | 待交付 | Mac x64/arm64优先，Windows/Ubuntu仍须交付；安装包、启动停止/自启动、升级回滚、数据保留、签名/摘要校验；执行中不强更；开发签名与正式签名分开 |
-| R20-04 / T20 | Mac双架构原生适配 | 范围已确认；实现与真机验收未完成 | 按[Mac记录](../specs/macos-mvp-scope.md)解决最低系统与监督设计，完成平台合同、Keychain/Cookie、私有文件、原生依赖与.app库存、菜单栏/Dock/登录项及完整离网运行 |
+| R20-04 / T20 | Mac双架构原生适配 | 范围已确认；实现与真机验收未完成 | 按[Mac记录](../specs/macos-mvp-scope.md)落实已确认macOS14基线并解决监督设计，完成平台合同、Keychain/Cookie、私有文件、原生依赖与.app库存、菜单栏/Dock/登录项及完整离网运行 |
 | R20-05 / T20 | 公共凭据故障状态与操作保护 | `ae38f0a`及`b2baf88`已通过独立定向复审 | status有限码区分不可读/未绑定，拒绝新登记和改origin，迁移/恢复入口保留；审查复现的未知后端ENOENT误判已RED→GREEN修复，I1关闭、新增C/I/M均0。最终固定`b2baf88`完整桌面48项通过，适用strict与格式检查通过；未做本轮GUI/原生OS验收；`ae38f0a`全仓注释审计4.505848%、267违规仍属B05/T22阻塞 |
 | R20-06 / T20 | 无桌面Linux显式restricted-file及目标夹具 | `4a1d494`已有实现，`ae314b4`修正隔离夹具入口；实际正向验收未过 | `4a1d494`真实Linux原76项单测通过，新专用用户/挂载夹具在首次seed进入业务前因`/home/runner/package.json`权限失败，正常及always清理已核验；`ae314b4`改为固定pnpm离线deploy后仅复制自有隔离目录，阶段测试通过但尚未重做完整目标夹具。不能把入口修正或绑定卷进程重启当成实际后端/掉电持久性通过；此模式仍非桌面fallback |
+| R20-07 / T20 | Mac双架构平台能力合同 | `986a2d8`已通过独立切片复审 | 仅允许linux/x64、win32/x64、darwin/x64、darwin/arm64，保留原字段与未知值拒绝；canonical/OpenAPI/生成TS/桌面派生Schema一致。251项合同、196项Python兼容、25个桌面生产验证样本及4项policy通过，适用strict/生成检查通过；未开放doctor或Mac执行就绪，不能代替原生Chrome/监督/Keychain/安装验收 |
 | R21-01 / T21 | 部署与快速开始 | 有开发说明，不是完整生产安装 | Compose(API+MySQL+volume)、可选 demo/runtime profile、Python venv+wheelhouse、服务/systemd、可照做的初始化与网络映射 |
 | R21-02 / T21 | 配置和迁移 | 基础优先级/CLI 已有 | CLI>VERIQ_>文件>默认；显式安全密钥/URL/DB；生产单迁移 job；只读包+外置数据/配置，实际预检/健康诊断 |
 | R21-03 / T21 | 备份恢复/轮换/兼容 | 尚未完成整体验收 | DB/制品/所需密钥一致备份恢复；密钥轮换/rekey；升级不覆盖配置；不兼容回滚拒绝；数据库/Runtime/安装包兼容矩阵 |
@@ -262,7 +263,7 @@
 | B01a 浏览器差异 | 可移植选择已审查；历史因果未证实 | SDK测试使用显式`VERIQ_TEST_CHROMIUM`或官方固定浏览器，生成子进程一致；正式阶段使用158/revision1254 | 保留固定版本、原时限/worker与业务断言；本次通过不证明旧156是故障原因 |
 | B01b 诊断隔离 | 必须保留的教训 | 历史一次 DEBUG 传到生成测试子进程，触发合成保护值泄漏断言；正常 Runtime 的显式子环境与该诊断不同 | 新观测不污染生成子进程；不能把受污染诊断命令当全绿或据此推断正常运行泄漏 |
 | B02 实际 Provider | 待授权/配置；T13/T23 | 尚未确认实际 endpoint/model/预算并安全配置真实 key；没有进行实际外部调用 | 先明确服务/模型/预算与调用许可，在独立持久配置安全填 key；记录合成输入、实际 usage/cost/结果。此前建议不是授权，“继续”不是付费调用许可 |
-| B03 目标OS/发行 | 发布阻塞；T18/T20/T23 | Mac双架构原生设计与实际验收未完成；既有Linux/Windows Server源码验证不等于四组目标安装验收 | 先解决Mac最低版本与强停止机制；四组目标逐一真实构建安装、生命周期/vault/离网/升级/签名与报告；正式签名凭证不足时仅保留明确标记的候选 |
+| B03 目标OS/发行 | 发布阻塞；T18/T20/T23 | Mac双架构原生设计与实际验收未完成；既有Linux/Windows Server源码验证不等于四组目标安装验收 | 落实macOS14基线并解决Mac强停止机制；四组目标逐一真实构建安装、生命周期/vault/离网/升级/签名与报告；正式签名凭证不足时仅保留明确标记的候选 |
 | B04 全量/覆盖率 | 发布阻塞；T22整改/T23最终验证 | 当前默认构建冻结安装通过后Web lint145 errors失败，后续未到达；单独格式132文件失败、四处旧CI mypy错误，完整Python/TS覆盖未验收 | 最终同一源码/锁/static的正常完整门禁及testsSkipped=false产物；当前SDK91.46%和组件安装不替代全链 |
 | B05 编码规范 | 发布阻塞；T18工具已交付/T22整改/T23复核 | T18初始399固定syntax-comments-v1计328源码（含测试/legacy、仅排除两生成合同）2914注释/62494代码=4.4551%，280首行违规；Fix1未宣称消除该差距；早期5.70%为不同方法/范围 | 先修D14偏移；固定范围和>40%门槛，按职责/不变量/行为补充有效中文说明、首行≥60/公开API/英文日志及格式类型，人工审查无灌水 |
 | D01 history/audit after | 已关闭·T16 | 原缺少的after分页查询已同步规范/生成类型及适用检查 | 后续接口修改保持真实游标和契约一致，不再作为未开工事项 |

@@ -6,7 +6,7 @@
 
 保留 Electron45.3.1、electron-vite6.0.0、electron-builder26.18.1，独立执行器使用 Node24.22.1；业务浏览器为 Playwright1.65.0 对应的完整 Chromium158.0.8127.18/rev1254。Electron 内嵌 Node24.22.2 和 UI Chromium156 分别记录，不能替代独立执行器和业务浏览器。
 
-2026-11-14用户修订支持目标：macOS Intel x64与Apple Silicon arm64均为完整MVP、最高优先级；Windows11 x64、Ubuntu24.04 x64保留、优先级较低，另有Linux无桌面云端Runtime。Mac最低版本与原生监督设计尚未决定，见[范围与兼容性记录](../specs/macos-mvp-scope.md)；本ADR原有Windows/Linux机制不构成Mac已实现的依据。当前开发宿主Debian13、托管Windows Server构建以及Ubuntu虚拟显示测试，各自只能证明实际执行的内容。真实安装、托盘、凭据库、跨用户访问、升级和离网验收不能互相替代。
+2026-11-14用户修订支持目标：macOS Intel x64与Apple Silicon arm64均为完整MVP、最高优先级；Windows11 x64、Ubuntu24.04 x64保留、优先级较低，另有Linux无桌面云端Runtime。Mac最低版本已确认为macOS14（Sonoma），测试必须使用宿主macOS原生Chrome，原生监督设计仍未决定，见[范围与兼容性记录](../specs/macos-mvp-scope.md)；本ADR原有Windows/Linux机制不构成Mac已实现的依据。当前开发宿主Debian13、托管Windows Server构建以及Ubuntu虚拟显示测试，各自只能证明实际执行的内容。真实安装、托盘、凭据库、跨用户访问、升级和离网验收不能互相替代。
 
 ## 成熟组件比较与选择
 

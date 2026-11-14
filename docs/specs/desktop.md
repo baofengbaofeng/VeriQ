@@ -2,7 +2,7 @@
 
 日期：2026-11-10。用户明确要求本地Runtime提供类似本地软件的图形界面。本文覆盖此前“首版仅CLI、不建设桌面界面”的描述；桌面GUI属于首发完整MVP，CLI与无人值守Agent继续保留。按用户确认采用Electron桌面方向，精确依赖版本仍须锁定。
 
-2026-11-14范围修订：macOS Intel x64、Apple Silicon arm64均为首发必需、最高优先级；Windows11 x64、Ubuntu24.04 x64仍属MVP、优先级较低。Mac最低版本、与固定工具链的冲突及原生适配待决事项见[Mac范围与兼容性记录](macos-mvp-scope.md)。目标范围不代表现有代码已兼容或完成安装验收。
+2026-11-14范围修订：macOS Intel x64、Apple Silicon arm64均为首发必需、最高优先级；Windows11 x64、Ubuntu24.04 x64仍属MVP、优先级较低。Mac最低版本已确认为macOS14（Sonoma），测试必须使用宿主macOS的原生Chrome；原生适配待决事项见[Mac范围与兼容性记录](macos-mvp-scope.md)。目标范围不代表现有代码已兼容或完成安装验收。
 
 ## 必须提供的桌面能力
 

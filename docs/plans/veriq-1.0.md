@@ -583,7 +583,7 @@ assert production_starts_without_node_or_chrome is True
 
 **依赖：** T19
 
-**2026-11-14范围修订：** macOS Intel x64、Apple Silicon arm64均为MVP最高优先级；Windows11 x64、Ubuntu24.04 x64保留、优先级较低。Mac最低系统版本和原生进程树停止证明未定，先完成[范围记录](../specs/macos-mvp-scope.md)中的决定；不得借平台扩展降低现有停止、凭据或离网验收标准。已有Windows/Linux证据继续保留，不能映射为Mac通过。
+**2026-11-14范围修订：** macOS Intel x64、Apple Silicon arm64均为MVP最高优先级；Windows11 x64、Ubuntu24.04 x64保留、优先级较低。Mac最低系统已确认为macOS14（Sonoma），测试必须用宿主原生Chrome；原生进程树停止证明仍未定，按[范围记录](../specs/macos-mvp-scope.md)中的决定；不得借平台扩展降低现有停止、凭据或离网验收标准。已有Windows/Linux证据继续保留，不能映射为Mac通过。
 
 **Files：** apps/desktop/electron-builder.yml；scripts/build_runtime.mjs；tests/compatibility/process-names.spec.ts；docs/operations/runtime-install.md；对应CI工作流。
 
