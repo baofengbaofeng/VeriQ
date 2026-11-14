@@ -2,6 +2,7 @@
 import { constants } from "node:fs";
 import { open, opendir, type FileHandle } from "node:fs/promises";
 import { join, parse, resolve } from "node:path";
+import type { DarwinPrivateDirectory } from "../native/darwin.ts";
 
 /** 在线日志临时成员只允许原 writer 产生的 Attempt 名称与小写 UUIDv4 后缀，不能把任意点号文件或原生记录临时名称纳入恢复；名称本身仅定位不确定 Attempt，永远不等于提交成功或停止证明。 */
 function stagedAttempt(name: string): string | undefined {
@@ -15,6 +16,7 @@ export class ProcessRecords {
     private constructor(
         private directory: string,
         private handle?: FileHandle,
+        private darwin?: DarwinPrivateDirectory,
     ) {}
     /** 打开只读记录目录时逐级拒绝 Linux 符号链接，最终目录必须属于当前用户且保持七百权限；Windows 使用同一原生当前 SID 政策，不因迁移需要而接受管理员拥有者或重新配置原有访问控制。 */
     static async open(directory: string): Promise<ProcessRecords | undefined> {
@@ -25,6 +27,12 @@ export class ProcessRecords {
                 const { windowsNative } = await import("../native/windows.ts");
                 windowsNative().privatePath(directory, false);
                 return new ProcessRecords(directory);
+            }
+            /** Darwin 使用独立原生目录拥有者保持无链接祖先链及最终私有身份，避免落入 Linux 的 proc 路径；只读打开不创建或修改历史，真实 ENOENT 继续由外层按既有缺失语义处理。 */
+            if (process.platform === "darwin") {
+                const { darwinNative } = await import("../native/darwin.ts");
+                return new ProcessRecords(directory, undefined,
+                    darwinNative().openPrivateDirectory(directory, false));
             }
             handle = await open(parse(directory).root, constants.O_RDONLY | constants.O_DIRECTORY);
             for (const part of directory
@@ -61,6 +69,13 @@ export class ProcessRecords {
         return this.listNames(limit, false);
     }
     private async listNames(limit: number, journalStaging: boolean): Promise<string[]> {
+        /** Darwin 枚举使用独立目录游标并观察限额外的首个成员，非普通或不私有项由原生拒绝；此层仍逐项执行正式或 staging 名称语法，不把未知历史或超额扫描过滤成可迁移集合。 */
+        if (this.darwin) {
+            const { names, overflow } = this.darwin.entries(limit);
+            if (overflow) throw new Error("PROCESS_RECORD_LIMIT_OR_TYPE");
+            for (const name of names) this.path(name, journalStaging);
+            return names;
+        }
         const directory = await opendir(
             this.handle ? `/proc/self/fd/${this.handle.fd}` : this.directory,
         );
@@ -101,7 +116,11 @@ export class ProcessRecords {
         if (!Number.isSafeInteger(limit) || limit < 1 || limit > 65536)
             throw new Error("PROCESS_RECORD_LIMIT_INVALID");
         let bytes: Buffer;
-        if (process.platform === "win32") {
+        if (this.darwin) {
+            /** 名称检查与原生字节读取分别保持用途和文件身份边界，staging 仅允许该专用调用且仍受六万五千五百三十六字节限额；返回字节仍交既有严格 UTF8 和 JSON 解码，不授权任何停止状态。 */
+            this.path(name, journalStaging);
+            bytes = this.darwin.read(name, limit);
+        } else if (process.platform === "win32") {
             const { windowsNative } = await import("../native/windows.ts");
             bytes = windowsNative().readPrivateFile(this.path(name, journalStaging), limit);
         } else {
@@ -135,6 +154,7 @@ export class ProcessRecords {
     }
     /** 结束会话只释放本次打开的目录描述符，不尝试清理历史或修复访问模式；观察失败后的再次执行必须重新读取实际文件，不能复用已经失效的目录身份或先前解析所得的停止结论。 */
     async close(): Promise<void> {
+        this.darwin?.close();
         await this.handle?.close();
     }
 }

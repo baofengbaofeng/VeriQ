@@ -28,6 +28,7 @@ jobs:
             PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
             EXPECTED_ARCH: ${{ matrix.arch }}
             VERIQ_MAC_EVIDENCE: ${{ github.workspace }}/.superpowers/sdd/veriq-1/evidence/t20/mac-private-fd-b/${{ github.sha }}/${{ matrix.arch }}
+            VERIQ_MAC_UPLOAD: ${{ runner.temp }}/veriq-mac-private-upload-${{ matrix.arch }}
         steps:
             - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
             - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -41,7 +42,7 @@ jobs:
                   sw_vers | tee "$VERIQ_MAC_EVIDENCE/os.log"
                   uname -m | tee "$VERIQ_MAC_EVIDENCE/cpu.log"
                   test "$(sw_vers -productVersion | cut -d. -f1)" = 15
-                  node --input-type=module -e 'import assert from "node:assert/strict"; import { createHash } from "node:crypto"; import { readFileSync } from "node:fs"; assert.equal(process.platform,"darwin"); assert.equal(process.arch,process.env.EXPECTED_ARCH); assert.match(process.versions.node,/^24\./); const hash=p=>createHash("sha256").update(readFileSync(p)).digest("hex"); console.log(JSON.stringify({source:process.env.GITHUB_SHA,platform:process.platform,arch:process.arch,node:process.version,nodeSha256:hash(process.execPath),lockSha256:hash("pnpm-lock.yaml"),workflowSha256:hash(".github/workflows/runtime-native-macos.yml"),testsSha256:hash("apps/runtime/tests/native/darwin-private-files.test.ts"),phase:"existing-consumer-red-checkpoint"},null,4));' | tee "$VERIQ_MAC_EVIDENCE/identity.json"
+                  node --input-type=module -e 'import assert from "node:assert/strict"; import { createHash } from "node:crypto"; import { readFileSync } from "node:fs"; assert.equal(process.platform,"darwin"); assert.equal(process.arch,process.env.EXPECTED_ARCH); assert.match(process.versions.node,/^24\./); const hash=p=>createHash("sha256").update(readFileSync(p)).digest("hex"); console.log(JSON.stringify({source:process.env.GITHUB_SHA,platform:process.platform,arch:process.arch,node:process.version,nodeSha256:hash(process.execPath),lockSha256:hash("pnpm-lock.yaml"),workflowSha256:hash(".github/workflows/runtime-native-macos.yml"),testsSha256:hash("apps/runtime/tests/native/darwin-private-files.test.ts"),phase:"native-private-files"},null,4));' | tee "$VERIQ_MAC_EVIDENCE/identity.json"
                   xcodebuild -version | tee "$VERIQ_MAC_EVIDENCE/xcode.log"
                   xcrun --show-sdk-version | tee "$VERIQ_MAC_EVIDENCE/sdk.log"
                   clang --version | tee "$VERIQ_MAC_EVIDENCE/clang.log"
@@ -52,23 +53,126 @@ jobs:
                   set -euo pipefail
                   npm install --prefix "$RUNNER_TEMP/veriq-node-tools" pnpm@11.25.0 --ignore-scripts 2>&1 | tee "$VERIQ_MAC_EVIDENCE/pnpm-tool.log"
                   node "$RUNNER_TEMP/veriq-node-tools/node_modules/pnpm/bin/pnpm.cjs" install --frozen-lockfile --ignore-scripts 2>&1 | tee "$VERIQ_MAC_EVIDENCE/dependencies.log"
+            - name: Build only the Darwin production and independent fault addons
+              id: native_build
+              working-directory: apps/runtime
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  node scripts/build-darwin.mjs "$RUNNER_TEMP/veriq-node-headers" --test-schedules 2>&1 | tee "$VERIQ_MAC_EVIDENCE/native-build.log"
+            - name: Inspect actual Mach-O targets and generated compilation settings
+              id: native_identity
+              working-directory: apps/runtime
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  for target in build/darwin/veriq_private_files.node build/native-tests/veriq_private_files_fault.node; do
+                      name="$(basename "$target")"
+                      file "$target" | tee "$VERIQ_MAC_EVIDENCE/$name.file.log"
+                      lipo -archs "$target" | tee "$VERIQ_MAC_EVIDENCE/$name.arch.log"
+                      otool -l "$target" > "$VERIQ_MAC_EVIDENCE/$name.load.log"
+                      otool -L "$target" | tee "$VERIQ_MAC_EVIDENCE/$name.links.log"
+                  done
+                  node --input-type=module -e 'import assert from "node:assert/strict"; import { readFileSync, writeFileSync } from "node:fs"; import { join } from "node:path"; const root=process.env.VERIQ_MAC_EVIDENCE; const expected=process.arch==="arm64"?"arm64":"x86_64"; for(const name of ["veriq_private_files.node","veriq_private_files_fault.node"]){assert.equal(readFileSync(join(root,name+".arch.log"),"utf8").trim(),expected); assert.match(readFileSync(join(root,name+".load.log"),"utf8"),/\b(?:minos|version) 15\.0(?:\.0)?\b/);} const settings=["veriq_private_files","veriq_private_files_fault"].map(name=>({name,settings:readFileSync("native/darwin/build/"+name+".target.mk","utf8")})); writeFileSync(join(root,"compile-settings.json"),JSON.stringify(settings,null,4)); for(const item of settings){assert.match(item.settings,/-fexceptions/); assert.doesNotMatch(item.settings,/-fno-exceptions/); assert.match(item.settings,/-std=(?:gnu\+\+17|c\+\+17)/); assert.match(item.settings,/-mmacosx-version-min=15\.0/); assert.match(item.settings,/NAPI_VERSION=9/);} '
+                  node --input-type=module -e 'import {createRequire} from "node:module"; const require=createRequire(import.meta.url); const addon=require("./build/darwin/veriq_private_files.node"); if(JSON.stringify(Object.keys(addon))!==JSON.stringify(["openPrivateDirectory"]))throw Error("DARWIN_PRODUCTION_EXPORTS_INVALID"); console.log(JSON.stringify({loaded:true,exports:Object.keys(addon),node:process.version,arch:process.arch}));' | tee "$VERIQ_MAC_EVIDENCE/addon-load.json"
             - name: Observe existing formal file consumers on the actual Mac target
+              id: private_tests
               working-directory: apps/runtime
               shell: bash
               run: |
                   set -euo pipefail
                   node --import tsx --test tests/native/darwin-private-files.test.ts 2>&1 | tee "$VERIQ_MAC_EVIDENCE/private-files.log"
-            - name: Preserve bounded nonsecret raw observations even after failure
+            - name: Verify Runtime strict types and concrete Node observer capability
+              working-directory: apps/runtime
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  node "$RUNNER_TEMP/veriq-node-tools/node_modules/pnpm/bin/pnpm.cjs" check 2>&1 | tee "$VERIQ_MAC_EVIDENCE/runtime-strict.log"
+                  node --import tsx --test tests/controlled-child.test.ts 2>&1 | tee "$VERIQ_MAC_EVIDENCE/observer-capability.log"
+            - name: Always bind source and actual build inputs
               if: always()
               shell: bash
               run: |
                   set -euo pipefail
                   mkdir -p "$VERIQ_MAC_EVIDENCE"
-                  node --input-type=module -e 'import { readdirSync, statSync } from "node:fs"; import { join } from "node:path"; const files=readdirSync(process.env.VERIQ_MAC_EVIDENCE); if(files.length>16)throw Error("MAC_EVIDENCE_FILE_LIMIT"); for(const file of files)if(statSync(join(process.env.VERIQ_MAC_EVIDENCE,file)).size>2097152)throw Error("MAC_EVIDENCE_BYTES_LIMIT");'
+                  node --input-type=module <<'JS'
+                  import { createHash } from "node:crypto";
+                  import { createReadStream, lstatSync, readdirSync, writeFileSync, existsSync } from "node:fs";
+                  import { execFileSync } from "node:child_process";
+                  import { createRequire } from "node:module";
+                  import { join, resolve } from "node:path";
+                  const inputs = [];
+                  const add = async (path) => {
+                      const info = lstatSync(path);
+                      if (!info.isFile()) return;
+                      if (inputs.length >= 4096) throw Error("MAC_BUILD_INPUT_LIMIT");
+                      const digest = createHash("sha256");
+                      for await (const bytes of createReadStream(path)) digest.update(bytes);
+                      inputs.push({ path, bytes: info.size, sha256: digest.digest("hex") });
+                  };
+                  const walk = async (path) => {
+                      if (!existsSync(path)) return;
+                      const info = lstatSync(path);
+                      if (info.isDirectory()) for (const name of readdirSync(path)) await walk(join(path, name));
+                      else await add(path);
+                  };
+                  const source = execFileSync("git", ["ls-files", "apps/runtime/native/darwin", "apps/runtime/src/native/darwin.ts", "apps/runtime/src/execution/records.ts", "apps/runtime/src/credentials/files.ts", "apps/runtime/scripts/build-darwin.mjs", "apps/runtime/package.json", "apps/runtime/tests/native/darwin-private-files.test.ts", "apps/runtime/tests/native/darwin-private-files-fault.cc", ".github/workflows/runtime-native-macos.yml", "pnpm-lock.yaml", "pnpm-workspace.yaml"], {encoding:"utf8", maxBuffer:65536}).trim().split("\n").filter(Boolean);
+                  for (const path of source) await add(path);
+                  await add(process.execPath);
+                  await walk(join(process.env.RUNNER_TEMP, "veriq-node-headers"));
+                  await walk("apps/runtime/native/darwin/build");
+                  await walk("apps/runtime/build/darwin");
+                  await walk("apps/runtime/build/native-tests");
+                  const require = createRequire(resolve("apps/runtime/package.json"));
+                  try { await walk(resolve(require.resolve("node-addon-api/package.json"), "..")); }
+                  catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
+                  writeFileSync(join(process.env.VERIQ_MAC_EVIDENCE,"source-build-inputs.json"), JSON.stringify({source:process.env.GITHUB_SHA,inputs},null,4));
+                  JS
+            - name: Stage bounded raw evidence and explicit segment inventory
+              if: always()
+              env:
+                  BUILD_OUTCOME: ${{ steps.native_build.outcome }}
+                  TEST_OUTCOME: ${{ steps.private_tests.outcome }}
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  node --input-type=module <<'JS'
+                  import { mkdirSync, readdirSync, lstatSync, openSync, readSync, closeSync, writeFileSync } from "node:fs";
+                  import { createHash } from "node:crypto";
+                  import { join } from "node:path";
+                  const destination = process.env.VERIQ_MAC_UPLOAD;
+                  mkdirSync(destination, {recursive:true,mode:0o700});
+                  const files = readdirSync(process.env.VERIQ_MAC_EVIDENCE).sort();
+                  if (files.length > 32) throw Error("MAC_EVIDENCE_FILE_LIMIT");
+                  const inventory = [];
+                  let total = 0;
+                  for (const name of files) {
+                      const path = join(process.env.VERIQ_MAC_EVIDENCE,name), info = lstatSync(path);
+                      if (!info.isFile() || !/^[a-zA-Z0-9._-]+$/.test(name)) throw Error("MAC_EVIDENCE_TYPE_INVALID");
+                      const segments = info.size <= 2097152 ? [[name,0,info.size]] : [[name+".first-segment",0,1048576],[name+".last-segment",info.size-1048576,1048576]];
+                      const fd = openSync(path,"r");
+                      try {
+                          for (const [output,offset,length] of segments) {
+                              total += length;
+                              if (total > 16777216) throw Error("MAC_EVIDENCE_TOTAL_LIMIT");
+                              const bytes = Buffer.alloc(length);
+                              let read = 0;
+                              while (read < length) {
+                                  const count = readSync(fd,bytes,read,length-read,offset+read);
+                                  if (!count) throw Error("MAC_EVIDENCE_SHORT_READ");
+                                  read += count;
+                              }
+                              writeFileSync(join(destination,output),bytes,{mode:0o600,flag:"wx"});
+                              inventory.push({original:name,originalBytes:info.size,output,offset,length,segmented:info.size>2097152,sha256:createHash("sha256").update(bytes).digest("hex")});
+                          }
+                      } finally { closeSync(fd); }
+                  }
+                  writeFileSync(join(destination,"inventory.json"),JSON.stringify({source:process.env.GITHUB_SHA,arch:process.env.EXPECTED_ARCH,build:process.env.BUILD_OUTCOME,tests:process.env.TEST_OUTCOME,inventory},null,4));
+                  JS
             - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
               if: always()
               with:
                   name: runtime-private-macos-${{ matrix.arch }}-${{ github.sha }}
-                  path: .superpowers/sdd/veriq-1/evidence/t20/mac-private-fd-b/${{ github.sha }}/${{ matrix.arch }}/*
+                  path: ${{ runner.temp }}/veriq-mac-private-upload-${{ matrix.arch }}/*
                   include-hidden-files: true
                   if-no-files-found: warn

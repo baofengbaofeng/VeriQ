@@ -31,6 +31,7 @@
         "check": "tsc --noEmit",
         "dev": "node --import tsx src/cli.ts",
         "build:launcher": "node scripts/build-launcher.mjs",
-        "build:native:windows": "node scripts/build-windows.mjs"
+        "build:native:windows": "node scripts/build-windows.mjs",
+        "build:native:darwin": "node scripts/build-darwin.mjs"
     }
 }

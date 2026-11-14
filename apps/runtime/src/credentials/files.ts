@@ -3,6 +3,7 @@ import { constants } from "node:fs";
 import { open, opendir, mkdir, rename, unlink, type FileHandle } from "node:fs/promises";
 import { join, parse, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
+import type { DarwinPrivateDirectory } from "../native/darwin.ts";
 
 const LIMIT = 2 * 1024 * 1024;
 /** 只有显式 Linux 服务文件模式会使用此精确双 UUID 成员，它保存在独立 restricted-keys 目录且承载未加密随机密钥；每份记录单独限制为五百一十二字节，Windows 原生保险库白名单不增加该名字，也不能借此放宽一般配置容量。 */
@@ -42,6 +43,7 @@ export class VaultFiles {
     private constructor(
         readonly directory: string,
         private handle?: FileHandle,
+        private darwin?: DarwinPrivateDirectory,
     ) {}
 
     /** 打开档案逐级拒绝符号链接并从创建时使用私有模式，已有最终目录必须由当前用户拥有且权限恰为七百；Windows 委托既有当前 SID 与无重解析父链规则，不改变管理员拥有者政策。 */
@@ -51,6 +53,12 @@ export class VaultFiles {
             const { windowsNative } = await import("../native/windows.ts");
             windowsNative().privatePath(directory, true);
             return new VaultFiles(directory);
+        }
+        /** Darwin 会话从根取得真实目录描述符并仅在显式创建时 mkdir，已有目录的 owner 和模式绝不自动修复；缺少正式原生模块或安装能力时保持失败，不退回 Linux proc 或普通字符串路径访问。 */
+        if (process.platform === "darwin") {
+            const { darwinNative } = await import("../native/darwin.ts");
+            return new VaultFiles(directory, undefined,
+                darwinNative().openPrivateDirectory(directory, true));
         }
         let parent = await open(parse(directory).root, constants.O_RDONLY | constants.O_DIRECTORY);
         try {
@@ -106,6 +114,8 @@ export class VaultFiles {
 
     /** 初始化只需判断目录是否已有任何成员，不枚举或读取其秘密内容，目录迭代器在首次观察后立即关闭；已有密文、日志或临时残留均阻止把丢失清单当作新档案，实际文件读写仍走各平台私有句柄校验。 */
     async empty(): Promise<boolean> {
+        /** 零额度枚举仍检查首个真实成员并返回 overflow，未知项或非普通项不会被忽略成空档案；原生元数据错误继续传播，调用方不能借初始化路径重置含有异常历史的目录。 */
+        if (this.darwin) return !this.darwin.entries(0).overflow;
         const directory = await opendir(
             this.handle ? `/proc/self/fd/${this.handle.fd}` : this.directory,
         );
@@ -119,6 +129,11 @@ export class VaultFiles {
     async containsOnly(names: string[]): Promise<boolean> {
         for (const name of names) {
             if (!vaultMember(name)) throw new Error("VAULT_FILE_NAME_INVALID");
+        }
+        /** Darwin 扫描至允许数量外一个成员并独立验证真实类型与私有元数据，允许名字下的目录或链接同样拒绝；未知普通成员返回 false，扫描检查失败保持异常，不因名称白名单就授权恢复。 */
+        if (this.darwin) {
+            const result = this.darwin.entries(names.length);
+            return !result.overflow && result.names.every((name) => names.includes(name));
         }
         const directory = await opendir(
             this.handle ? `/proc/self/fd/${this.handle.fd}` : this.directory,
@@ -137,6 +152,13 @@ export class VaultFiles {
     /** 私有读取只将真正不存在映射为未定义，所有权限、大小、拥有者和读取变化均保留失败；读取在同一描述符上按已观测大小完成且最多两兆字节，不能由文件持续增长制造无限内存分配。 */
     async read(name: string): Promise<string | undefined> {
         try {
+            /** Darwin 使用所持目录内的普通文件描述符完成有界读取，成员名和各用途的小额度仍在此层确定；只有实际 ENOENT 被外层映射为缺失，严格 UTF8 解码失败不会被当作空配置或可恢复新档案。 */
+            if (this.darwin) {
+                member(name);
+                return new TextDecoder("utf-8", { fatal: true }).decode(
+                    this.darwin.read(name, fileLimit(name)),
+                );
+            }
             if (process.platform === "win32") {
                 const { windowsNative } = await import("../native/windows.ts");
                 return (
@@ -172,6 +194,17 @@ export class VaultFiles {
         if (!vaultMember(name)) throw new Error("VAULT_FILE_NAME_INVALID");
         if (Buffer.byteLength(value) > LIMIT) throw new Error("VAULT_ENVELOPE_LIMIT");
         const temporary = `.${randomUUID()}.tmp`;
+        /** Darwin 原生提交分别核验已有成员额度和新正文硬上限，完整写入、文件刷新、发布与父目录刷新全部成功才返回；提交后错误转成既有保险库不确定语义，不自动回滚内容或重放上层事务。 */
+        if (this.darwin) {
+            try {
+                this.darwin.replace(name, temporary, Buffer.from(value), fileLimit(name));
+            } catch (error) {
+                if ((error as NodeJS.ErrnoException).code === "COMMIT_UNCONFIRMED")
+                    throw new Error("VAULT_COMMIT_UNCONFIRMED");
+                throw error;
+            }
+            return;
+        }
         if (process.platform === "win32") {
             const { windowsNative } = await import("../native/windows.ts");
             windowsNative().replaceVaultFile(this.directory, name, temporary, value);
@@ -211,6 +244,18 @@ export class VaultFiles {
     /** 退休只针对当前私有目录中的有界普通成员，真正缺失可作为已完成而未知错误必须传播；Linux 的删除随后刷新已持有目录，Windows 保留原生删除标记与关闭语义，不声称物理擦除。 */
     async remove(name: string): Promise<void> {
         try {
+            /** Darwin 退休先核已打开成员身份再删除同名 inode 并刷新父目录，缺失继续由外层处理为幂等完成；删除后必要刷新或关闭失败保留保险库提交不确定，不把可见缺失冒充持久成功。 */
+            if (this.darwin) {
+                member(name);
+                try {
+                    this.darwin.remove(name, fileLimit(name));
+                } catch (error) {
+                    if ((error as NodeJS.ErrnoException).code === "COMMIT_UNCONFIRMED")
+                        throw new Error("VAULT_COMMIT_UNCONFIRMED");
+                    throw error;
+                }
+                return;
+            }
             if (process.platform === "win32") {
                 const { windowsNative } = await import("../native/windows.ts");
                 if (vaultMember(name)) windowsNative().removeVaultFile(this.path(name));
@@ -235,6 +280,7 @@ export class VaultFiles {
 
     /** 事务结束后释放当前文件会话拥有的目录描述符，不触碰系统密钥或其他档案的连接；调用方应在 finally 执行，关闭异常仍需上报而不能被当作已经得到新的持久化保证。 */
     async close(): Promise<void> {
+        this.darwin?.close();
         await this.handle?.close();
     }
 }
