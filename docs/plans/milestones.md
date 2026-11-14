@@ -225,7 +225,7 @@
 | 配置/发行模块接入 | `c62c510`已通过设备私有创建/只创建一次/读取/注销、公开文件拒绝注销且保留字节、缺少原生模块拒绝、真实角色加载库存模块等实际Windows测试；恢复日志改用同句柄操作 | `baffe88`同35项为34通过/1失败；4项产品负例已转绿，原29项通过；尚未完成全部Node/SQLite子文件所有者及完整IPC/Worker集成 |
 | Windows运行权限待用户选择 | [run43537611993](https://github.com/baofengbaofeng/VeriQ/actions/runs/43537611993)：真实5个Node/锁/SQLite/WAL/SHM成员所有者为Administrators，唯一继承Allow ACE为当前用户；首次所有者断言失败，后续原生子文件断言未执行 | 已向用户核对普通权限运行并拒绝管理员启动，或同时支持管理员；相关策略冻结，未放宽所有者检查、修改token/UAC或创建测试账户；PowerShell数组输入问题已由实际类型记录确认并修正 |
 | 系统凭据基础 | `74a6e0d`已实现标准AES-256-GCM信封和有限密钥后端契约；`ffb30ba`实际新增10项加密测试在Windows和Ubuntu均通过，Ubuntu Runtime44项及6GUI通过 | 现有消费者尚未接入；持久化、迁移、默认选择及Windows Credential Manager仍待完成；不得把内存密钥单测当成系统保险库验收 |
-| Linux系统保险库适配 | `4e4ef0d`/`176ae42`新增固定库存libsecret辅助程序、5秒期限/取消、禁止隐式prompt、真实父死亡退出及pidfd测试清理；[首次Ubuntu验证](https://github.com/baofengbaofeng/VeriQ/actions/runs/43546413370)正式/独立测试程序编译成功，32项中27通过、5失败、0跳过 | 首次写入通过，第二次同值恢复及读取失败；已发现GNOME Keyring返回内容类型与适配器预期不一致，修正和同组验证进行中。真实清理通过，181源码hash与提交核验一致；尚非系统保险库通过或安装验收。实际libsecret0.21.4-1build3、GNOME46.1-2ubuntu0.2，依赖与许可记录已采集，不宣称全部漏洞审计通过 |
+| Linux系统保险库适配 | `4e4ef0d`/`176ae42`提供固定库存libsecret辅助程序、5秒期限/取消、禁止隐式prompt、真实父死亡退出及pidfd测试清理；`df8776b`兼容GNOME返回类型后，[同组Ubuntu验证](https://github.com/baofengbaofeng/VeriQ/actions/runs/43547230359)32项全部通过、0跳过，7.361秒 | [首次27通过/5失败](https://github.com/baofengbaofeng/VeriQ/actions/runs/43546413370)保留：首次创建成功，第二次同值恢复失败，根因为GNOME把原始32字节返回为text/plain；实际类型、同值/冲突/范围、非空密码重启保留、锁后拒绝prompt、期限取消及父死亡已验证。181源码hash与提交一致，38次helper操作及13个自有进程均退出，清理无错误。实际libsecret0.21.4-1build3、GNOME46.1-2ubuntu0.2；这是私有目标服务验证，消费者接入、登录会话/无人值守策略及安装验收仍未完成，不宣称全漏洞审计通过 |
 | 接续顺序 | 继续原生所有权/取消/IPC和完整Worker/CLI集成；不要重复已完成预研或初始13项诊断 | 再做系统凭据/迁移、真实依赖闭包/安装升级、目标OS验收和整T20独立复审；之后继续T21–T23 |
 
 ## 7. 最近一次完成的 T15：必须保留的上下文
