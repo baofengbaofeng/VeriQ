@@ -16,17 +16,19 @@
 
 四组桌面目标都必须完成 F01–F14 中适用的本地功能。优先级调整不删除 Windows/Ubuntu，不允许把 Mac 仅打包成功当作完整客户端交付。
 
-## 2. 已确认最低系统版本：macOS 14（Sonoma）
+## 2. 最新确认最低系统版本：macOS 15（Sequoia）
 
-用户先前提出参考2020年系统；核验固定工具链后，用户在获知Sonoma于2023年发布后回复“OK”，现确认两架构均以 **macOS 14（Sonoma）** 为最低版本，替代先前Big Sur 11设想。不再将最低版本列为待确认；实现与真机验收仍须完成。当前固定版本存在以下边界：
+用户先前提出参考2020年系统，随后接受过macOS14。2026-11-14，获知GitHub的macOS14托管镜像已于2026-11-02退役后，用户最新明确将两架构兼容与验收最低基线调整为 **macOS15（Sequoia）**。此前14及Big Sur 11设想均已被替代，最低版本不再待确认；实现与实际验收仍须完成。已核验的工具链参考版本边界如下：
 
 | 固定组件 | 官方版本资料中的 macOS 边界 | 对 VeriQ 的影响 |
 | --- | --- | --- |
 | Electron 45.3.1 | Ventura 13 起，Intel/ARM | UI 壳本身不能覆盖 Big Sur 11 |
 | 独立Node24.x；已核验参考版本24.22.1 | 参考版本的x64、arm64均为13.5起的Tier 1 | 用户要求Node兼容门槛为24.x；每个发行仍记录并核验实际具体版本/hash，不将Electron内嵌Node或任意系统Node代替其角色 |
-| Playwright 1.65.0 / 配套 Chrome 158.0.8127.18 | 固定下载矩阵对 macOS 13 及以下不提供这两类目标，14 起提供 | 完整产品最低macOS14已获用户确认；尚无真机验收 |
+| Playwright 1.65.0 / 配套 Chrome 158.0.8127.18 | 固定下载矩阵对 macOS 13 及以下不提供这两类目标，14 起提供 | 上游最低14不等于产品支持声明；VeriQ现以15为最低，尚无Mac实际验收 |
 
-已决定：保持固定运行栈，支持目标从macOS14起；不支持macOS11、12、13。不得只降低 `minimumSystemVersion`、静默降级依赖、改用任意系统浏览器后声称解决兼容。官方资产元数据存在不代表已下载验证、构建或运行成功。
+已决定：保留已选运行栈及每发行具体版本身份，产品支持目标从macOS15起；不支持macOS14及以下。不得只降低 `minimumSystemVersion`、静默降级依赖、改用任意系统浏览器后声称解决兼容。官方资产元数据存在不代表已下载验证、构建或运行成功。
+
+CI计划采用标准标签`macos-15-intel`（Intel）与`macos-15`（Apple Silicon）分别验证；镜像可用性不代表产品已通过验收。GitHub macOS14退役是此次基线调整的依据，不再等待14设备。标签及退役记录见[GitHub标准Runner表](https://github.com/github/docs/blob/d59b2631959db46d71ca5f7748ec04311c6d0870/data/reusables/actions/supported-github-runners.md)与[Runner镜像记录](https://github.com/actions/runner-images/blob/95e6f51a068507e8f43d061d2166a39d0ef36ce8/README.md)。
 
 核验依据为固定版本官方源码：[Electron README](https://github.com/electron/electron/blob/v45.3.1/README.md)、[Node BUILDING.md](https://github.com/nodejs/node/blob/v24.22.1/BUILDING.md)、[Playwright 浏览器版本](https://github.com/microsoft/playwright/blob/v1.65.0/packages/playwright-core/browsers.json)、[Playwright 下载矩阵](https://github.com/microsoft/playwright/blob/v1.65.0/packages/playwright-core/src/server/registry/index.ts)。访问日期为本文更新日期；需要实际目标验证后才能形成最终兼容矩阵。
 
@@ -49,11 +51,11 @@ Keychain 两类实现的权限与签名模型见 Apple [TN3137](https://develope
 
 ## 4. 已确认的原生进程停止范围
 
-用户已接受Mac正常停止以受控Worker和Chrome确实退出为准，检测到不确定时保持隔离并人工恢复，不承诺任意游离后代由内核自动清理。最低14、宿主原生Chrome及该停止范围均已确定，不再重复列为待用户选择；实现与真机证据尚未完成。
+用户已接受Mac正常停止以受控Worker和Chrome确实退出为准，检测到不确定时保持隔离并人工恢复，不承诺任意游离后代由内核自动清理。最低15、宿主原生Chrome及该停止范围均已确定，不再重复列为待用户选择；实现与真机证据尚未完成。
 
 按[受控停止设计](macos-controlled-stop.md)与[实施子计划](../plans/macos-controlled-stop.md)推进：复用Playwright BrowserServer公共API和受控进程登记/退出观察；停止回执明确标识范围，不能写成Linux/Windows的全后代DRAINED证明。Linux subreaper和Windows Job继续保留原有强保证；未知不能自动释放容量。
 
-此前可行性研究仍约束实现：kqueue的NOTE_TRACK不受支持，进程组或PID扫描不构成退出事实；Endpoint Security另需Apple批准/root/FDA且没有已证实的全排空通路，本方案不依赖；Linux VM浏览器已被用户排除。Darwin公开peer认证/定点退出观察及私有fd存储须真实验证，不能用未核实的私有API补成就绪。
+此前可行性研究仍约束实现：kqueue的NOTE_TRACK不受支持，进程组或PID扫描不构成退出事实；Endpoint Security另需Apple批准/root/FDA且没有已证实的全排空通路，本方案不依赖；Linux VM浏览器已被用户排除。当前工程路线改为可信CLI通过公开Node通道持有真实子进程对象，不依赖非child peer身份链；具体发行Node自检、Darwin私有fd存储和双架构实际退出仍须验证，不能用未核实API补成就绪。
 
 官方依据：[Apple XNU进程事件实现](https://github.com/apple-oss-distributions/xnu/blob/xnu-12377.1.9/bsd/kern/kern_event.c#L1100)、[Endpoint Security entitlement](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.endpoint-security.client)。这些资料是先前研究依据，不是Mac实现或测试通过记录。
 
@@ -73,7 +75,7 @@ Keychain 两类实现的权限与签名模型见 Apple [TN3137](https://develope
 | --- | --- | --- |
 | 1 | 同步已确认范围至 README、规格、计划和里程碑 | 本文随范围修订提供；不改变已有实际验证结论 |
 | 2 | 完成公共凭据故障状态与显式恢复入口 | `ae38f0a`及修复`b2baf88`通过独立定向复审；最终48项桌面单测通过，适用host/renderer严格检查通过；不依赖Mac原生机制，不代表GUI/目标OS验收 |
-| 3 | 落实最低macOS与受控进程停止 | 最低14、宿主原生Chrome、受控停止范围均已确认；具体实现/真机验收仍待完成 |
+| 3 | 落实最低macOS与受控进程停止 | 最低15、宿主原生Chrome、受控停止范围均已确认；具体实现/真机验收仍待完成 |
 | 4 | 扩展四组目标的平台合同，再按确认设计实施原生适配、依赖库存和双架构构建 | 合同切片`986a2d8`已复审；原生适配和运行仍待实施，能力就绪须真实证明，不能绕过受控停止设计与实际验证 |
 | 5 | 两类 Mac 原生安装与全功能验收 | 待实际 Intel / Apple Silicon 设备或适当目标环境；用户尚未确认设备可用性 |
 | 6 | 完成较低优先级 Windows/Ubuntu 发行及 T21–T23 | 全部仍在首发范围；保留原有实现、失败和证据，不重新归零 |

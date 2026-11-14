@@ -42,7 +42,7 @@ AI模块开箱提供完整配置和操作引导；实际模型调用使用用户
 - 开发时前后端分开启动；生产先构建前端，复制到后端包static/dist，再统一发布。
 - 所有已确认模块在首发版本可用；第三方包候选不要求全部集成同类能力。
 
-本稿按“自建Tornado控制面、复用成熟组件、不fork整站”编制，审阅确认后作为实施基线。代码包采用Node24LTS与Playwright Test，Python后端不运行TS浏览器测试。服务端目标仍为Linux x64。2026-11-14用户明确将macOS Intel x64、Apple Silicon arm64纳入完整MVP并设为最高优先级；Windows11 x64、Ubuntu24.04 x64仍必须交付、优先级较低。Mac最低版本已确认为macOS14（Sonoma），测试必须使用宿主macOS原生Chrome，Mac停止验收按用户确认的[受控进程停止设计](macos-controlled-stop.md)实施，当前尚未实现或验收，其他OS/arch不自动纳入。
+本稿按“自建Tornado控制面、复用成熟组件、不fork整站”编制，审阅确认后作为实施基线。代码包采用Node24LTS与Playwright Test，Python后端不运行TS浏览器测试。服务端目标仍为Linux x64。2026-11-14用户明确将macOS Intel x64、Apple Silicon arm64纳入完整MVP并设为最高优先级；Windows11 x64、Ubuntu24.04 x64仍必须交付、优先级较低。Mac最低版本已确认为macOS15（Sequoia），测试必须使用宿主macOS原生Chrome，Mac停止验收按用户确认的[受控进程停止设计](macos-controlled-stop.md)实施，当前尚未实现或验收，其他OS/arch不自动纳入。
 
 ## 3. 开源复用与技术选型
 

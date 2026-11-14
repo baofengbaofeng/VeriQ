@@ -89,7 +89,7 @@ flowchart TB
 | AI         | Provider SDK 适配，按需接入 Midscene                                                                         |
 | 构建与测试 | pnpm、uv、build、Hatchling、pytest/pytest-asyncio、Vitest、Playwright                                        |
 
-目标兼容范围为服务端 Linux x64；本地 Runtime/桌面优先交付 macOS Intel x64 与 Apple Silicon arm64，Windows 11 x64 与 Ubuntu 24.04 x64 保留在 MVP 范围、优先级较低。Mac 最低系统版本已确认为 macOS 14（Sonoma），测试必须使用宿主 macOS 的原生 Chrome；两架构的原生适配与安装验收仍未完成。所有目标须分别完成真实构建与验收后才宣称支持。
+目标兼容范围为服务端 Linux x64；本地 Runtime/桌面优先交付 macOS Intel x64 与 Apple Silicon arm64，Windows 11 x64 与 Ubuntu 24.04 x64 保留在 MVP 范围、优先级较低。Mac 最低系统版本已确认为 macOS 15（Sequoia），测试必须使用宿主 macOS 的原生 Chrome；两架构的原生适配与安装验收仍未完成。所有目标须分别完成真实构建与验收后才宣称支持。
 
 ## 开发检查
 
@@ -272,7 +272,7 @@ Exact dependency versions and license records are in [ADR 0003](docs/decisions/0
 | AI                    | Provider SDK adapters, Midscene on demand                                                                    |
 | Build and test        | pnpm, uv, build, Hatchling, pytest/pytest-asyncio, Vitest, Playwright                                        |
 
-Target compatibility is server Linux x64, with macOS Intel x64 and Apple Silicon arm64 as the highest-priority desktop/Runtime MVP targets. Windows 11 x64 and Ubuntu 24.04 x64 remain required at lower priority. Mac implementation and installed acceptance are pending; the confirmed minimum is macOS 14 (Sonoma) for both Mac architectures, and tests must use host-native macOS Chrome. See [Mac scope and compatibility](docs/specs/macos-mvp-scope.md). Support claims require real builds and acceptance on each platform.
+Target compatibility is server Linux x64, with macOS Intel x64 and Apple Silicon arm64 as the highest-priority desktop/Runtime MVP targets. Windows 11 x64 and Ubuntu 24.04 x64 remain required at lower priority. Mac implementation and installed acceptance are pending; the confirmed minimum is macOS 15 (Sequoia) for both Mac architectures, and tests must use host-native macOS Chrome. See [Mac scope and compatibility](docs/specs/macos-mvp-scope.md). Support claims require real builds and acceptance on each platform.
 
 ## Development checks
 
