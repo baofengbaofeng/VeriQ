@@ -21,6 +21,13 @@ export interface RuntimeDistribution {
 }
 
 const nativeCapabilities = new WeakMap<RuntimeDistribution, string>();
+const vaultCapabilities = new WeakMap<RuntimeDistribution, string>();
+/** 保险库辅助程序只能从已完整核验的固定发行成员获得执行能力，旧库存仍可只读解析但请求此能力必须明确失败；复制发行对象字段、档案路径或环境变量均不能授权源码与全局程序作为替代入口。 */
+export function verifiedVaultHelper(distribution: RuntimeDistribution): string {
+    const path = vaultCapabilities.get(distribution);
+    if (!path) throw new Error("RUNTIME_VAULT_CAPABILITY_UNVERIFIED");
+    return path;
+}
 /** 原生能力只属于本解析器完整核验后返回的发行对象，不能靠具有相同字段的档案 JSON 或调用者自报路径获得；此取值接口不重新搜索源码、全局模块或配置目录，也不把完整性校验误称为发布签名。 */
 export function verifiedNativeAddon(distribution: RuntimeDistribution): string {
     const path = nativeCapabilities.get(distribution);
@@ -161,6 +168,8 @@ export async function loadRuntimeDistribution(directory: string): Promise<Runtim
             bindWindowsDistribution(distribution);
         }
     }
+    if (process.platform === "linux" && paths.has("native/vault/veriq_agent"))
+        vaultCapabilities.set(distribution, take("native/vault/veriq_agent"));
     return Object.freeze(distribution);
 }
 
