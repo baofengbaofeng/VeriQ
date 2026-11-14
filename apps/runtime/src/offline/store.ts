@@ -36,14 +36,15 @@ export class LocalStore {
         } catch (e) {
             if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
         }
-        const db = new DatabaseSync(path);
+        /** 首次读取版本和切换日志模式也可能遇到另一进程持有的真实数据库锁，因此在创建连接时就设置既有三秒忙等待预算；后续所有权事务沿用同一预算，不增加重试或改变升级判断。 */
+        const db = new DatabaseSync(path, { timeout: 3000 });
         await chmod(path, 0o600);
         const version = Number(db.prepare("PRAGMA user_version").get()!.user_version);
         if (version > 2) {
             db.close();
             throw new Error("LOCAL_STORE_VERSION_UNSUPPORTED");
         }
-        db.exec(`PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=3000;
+        db.exec(`PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;
             CREATE TABLE IF NOT EXISTS veriq_local_runs (
                 id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, created_at TEXT NOT NULL,
                 state TEXT NOT NULL, result TEXT, upload_state TEXT NOT NULL DEFAULT 'PENDING',
