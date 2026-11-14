@@ -224,7 +224,8 @@
 | 正常服务器发行 | [run43498685897](https://github.com/baofengbaofeng/VeriQ/actions/runs/43498685897)仍在Web检查失败：Biome145errors/38warnings/132infos，检查53文件 | 132infos不是132个格式失败文件；T22整改、T23同一最终源码重新执行正常完整门禁，不使用跳过测试代替 |
 | 配置/发行模块接入 | `c62c510`已通过设备私有创建/只创建一次/读取/注销、公开文件拒绝注销且保留字节、缺少原生模块拒绝、真实角色加载库存模块等实际Windows测试；恢复日志改用同句柄操作 | `baffe88`同35项为34通过/1失败；4项产品负例已转绿，原29项通过；尚未完成全部Node/SQLite子文件所有者及完整IPC/Worker集成 |
 | Windows运行权限待用户选择 | [run43537611993](https://github.com/baofengbaofeng/VeriQ/actions/runs/43537611993)：真实5个Node/锁/SQLite/WAL/SHM成员所有者为Administrators，唯一继承Allow ACE为当前用户；首次所有者断言失败，后续原生子文件断言未执行 | 已向用户核对普通权限运行并拒绝管理员启动，或同时支持管理员；相关策略冻结，未放宽所有者检查、修改token/UAC或创建测试账户；PowerShell数组输入问题已由实际类型记录确认并修正 |
-| 系统凭据基础 | `74a6e0d`已实现标准AES-256-GCM信封和有限密钥后端契约；`ffb30ba`实际新增10项加密测试在Windows和Ubuntu均通过，Ubuntu Runtime44项及6GUI通过 | 现有消费者尚未接入；真实OS vault、持久化/迁移/默认选择/系统包闭包仍待完成。独立Linux libsecret适配已分派，采用有限helper处理期限/取消和禁止隐式prompt；Windows权限选择仍待用户 |
+| 系统凭据基础 | `74a6e0d`已实现标准AES-256-GCM信封和有限密钥后端契约；`ffb30ba`实际新增10项加密测试在Windows和Ubuntu均通过，Ubuntu Runtime44项及6GUI通过 | 现有消费者尚未接入；持久化、迁移、默认选择及Windows Credential Manager仍待完成；不得把内存密钥单测当成系统保险库验收 |
+| Linux系统保险库适配 | `4e4ef0d`/`176ae42`新增固定库存libsecret辅助程序、5秒期限/取消、禁止隐式prompt、真实父死亡退出及pidfd测试清理；[首次Ubuntu验证](https://github.com/baofengbaofeng/VeriQ/actions/runs/43546413370)正式/独立测试程序编译成功，32项中27通过、5失败、0跳过 | 首次写入通过，第二次同值恢复及读取失败；已发现GNOME Keyring返回内容类型与适配器预期不一致，修正和同组验证进行中。真实清理通过，181源码hash与提交核验一致；尚非系统保险库通过或安装验收。实际libsecret0.21.4-1build3、GNOME46.1-2ubuntu0.2，依赖与许可记录已采集，不宣称全部漏洞审计通过 |
 | 接续顺序 | 继续原生所有权/取消/IPC和完整Worker/CLI集成；不要重复已完成预研或初始13项诊断 | 再做系统凭据/迁移、真实依赖闭包/安装升级、目标OS验收和整T20独立复审；之后继续T21–T23 |
 
 ## 7. 最近一次完成的 T15：必须保留的上下文
