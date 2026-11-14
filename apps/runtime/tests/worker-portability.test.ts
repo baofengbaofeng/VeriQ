@@ -73,7 +73,7 @@ test("Windows worker environment uses bounded native paths without host secrets"
 });
 
 /** 受控 Worker 夹具仅提供几字节 npm、编译桥与归档，实际入口仍运行受审 worker 和新命令所有者；父进程保留两份普通私有 FD，始终等外层真实退出再读取及关闭日志。 */
-async function controlledWorker(cliSource: string, run: (value: { child: import("node:child_process").ChildProcess; exit: Promise<number | null>; root: string; binding: import("../src/execution/controlled-child-protocol.mjs").ObserverBinding; commands: import("node:fs/promises").FileHandle }) => Promise<void>, options: { npmSource?: string; preloadSource?: string } = {}) {
+async function controlledWorker(cliSource: string, run: (value: { child: import("node:child_process").ChildProcess; exit: Promise<number | null>; root: string; binding: import("../src/execution/controlled-child-protocol.mjs").ObserverBinding; commands: import("node:fs/promises").FileHandle; message: (type: string) => Promise<unknown> }) => Promise<void>, options: { npmSource?: string; preloadSource?: string; componentScenario?: string } = {}) {
     const { open } = await import("node:fs/promises");
     const { create } = await import("tar");
     const root = await mkdtemp(join(tmpdir(), "veriq-controlled-worker-"));
@@ -93,10 +93,33 @@ async function controlledWorker(cliSource: string, run: (value: { child: import(
     let child: import("node:child_process").ChildProcess | undefined;
     let exit: Promise<number | null> | undefined;
     try {
-        await writeFile(join(root, "invocation.json"), JSON.stringify({ kind: "TEST", work: root, tmp: join(root, "tmp"), npmCli: join(root, "npm.mjs"), tsx: join(root, "loader.mjs"), controlled: { commandBinding: binding, cliBinding: { ...binding, commandSlot: "33333333-3333-3333-3333-333333333333" }, commandJournalFd: 5, cliJournalFd: 4 } }));
-        child = fork(fileURLToPath(new URL("../src/execution/worker.mjs", import.meta.url)), [join(root, "invocation.json")], { execArgv: options.preloadSource ? ["--import", join(root, "test-preload.mjs")] : [], stdio: ["ignore", "ignore", "ignore", "ipc", cli.fd, commands.fd] });
+        await writeFile(join(root, "invocation.json"), JSON.stringify({ kind: options.componentScenario ? "VALIDATE" : "TEST", scenario: options.componentScenario, work: root, tmp: join(root, "tmp"), npmCli: join(root, "npm.mjs"), tsx: join(root, "loader.mjs"), controlled: { commandBinding: binding, cliBinding: { ...binding, commandSlot: "33333333-3333-3333-3333-333333333333" }, commandJournalFd: 5, cliJournalFd: 4 } }));
+        child = fork(fileURLToPath(new URL(options.componentScenario ? "./fixtures/darwin-controlled-worker.mjs" : "../src/execution/worker.mjs", import.meta.url)), [join(root, "invocation.json")], { execArgv: options.preloadSource ? ["--import", join(root, "test-preload.mjs")] : [], stdio: ["ignore", "ignore", "ignore", "ipc", cli.fd, commands.fd] });
         exit = new Promise((resolve, reject) => { child!.once("exit", resolve); child!.once("error", reject); });
-        await run({ child, exit, root, binding, commands });
+        /** 实际 READY 与测试 preload 的门消息可能在同一 IPC 批次到达，因此从 spawn 后立即建立有界按类型队列；消费 READY 不会丢弃紧随其后的测试屏障，真实退出而缺少目标帧则明确失败，不改变任何原有超时或取消断言。 */
+        const buffered: unknown[] = [];
+        const waiting = new Map<string, ((value: unknown) => void)[]>();
+        child.on("message", (value) => {
+            const type = String((value as { type?: unknown })?.type);
+            const consume = waiting.get(type)?.shift();
+            if (consume) consume(value);
+            else {
+                assert.ok(buffered.length < 16, "Worker control message buffer must remain bounded");
+                buffered.push(value);
+            }
+        });
+        const message = (type: string): Promise<unknown> => {
+            const index = buffered.findIndex((value) => (value as { type?: unknown })?.type === type);
+            if (index >= 0) return Promise.resolve(buffered.splice(index, 1)[0]);
+            return new Promise((resolve, reject) => {
+                const consumers = waiting.get(type) ?? [];
+                consumers.push(resolve);
+                waiting.set(type, consumers);
+                void exit!.then(() => reject(new Error("TEST_CONTROL_FRAME_MISSING")), reject);
+            });
+        };
+        assert.deepEqual(await message("CONTROLLED_READY"), { type: "CONTROLLED_READY", binding, pid: child.pid });
+        await run({ child, exit, root, binding, commands, message });
     } finally {
         if (child && child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
         await exit;
@@ -126,14 +149,31 @@ test("controlled worker distinguishes CLI business failure from management fault
 /** 可信取消可以先于 START 到达，Worker 先关闭本代准入才 ACK 并在 START 后封存空前缀；ACK 只证明控制请求被接受，最终日志仍须等外层实际退出后由父侧验证。 */
 test("controlled worker accepts generation-bound cancellation before START", async () => {
     const { validateJournal } = await import("../src/execution/controlled-child-protocol.mjs");
-    await controlledWorker("process.exitCode=0", async ({ child, exit, root, binding }) => {
-        const ack = new Promise((resolve) => child.once("message", resolve));
+    await controlledWorker("process.exitCode=0", async ({ child, exit, root, binding, message }) => {
+        const ack = message("CANCEL_ACK");
         child.send({ type: "CANCEL", binding });
         assert.deepEqual(await ack, { type: "CANCEL_ACK", binding });
         child.send({ type: "START" });
         assert.equal(await exit, 130);
         assert.equal(validateJournal(await readFile(join(root, "commands")), binding).objects.length, 0);
     });
+});
+
+/** Mac 组件夹具必须保留生产 Worker 的独立 START 闸门，取消 ACK 后仍能实际查询到门未释放，只有下一条 START 才进入空前缀退出；这在普通 Node 上验证夹具语义，不把它当成 Darwin 文件层或 Chrome 所有权证据。 */
+test("Darwin component fixture keeps cancellation ACK separate from START release", async () => {
+    await controlledWorker("", async ({ child, exit, root, binding, message }) => {
+        const ack = message("CANCEL_ACK");
+        child.send({ type: "CANCEL", binding });
+        assert.deepEqual(await ack, { type: "CANCEL_ACK", binding });
+        const status = message("TEST_GATE_STATUS");
+        child.send({ type: "TEST_GATE_STATUS" }, () => {});
+        const actual = await Promise.race([status.catch(() => "EXITED"), exit.then(() => "EXITED")]);
+        assert.deepEqual(actual, { type: "TEST_GATE_STATUS", released: false, cancelled: true });
+        child.send({ type: "START" });
+        assert.equal(await exit, 130);
+        const frames = (await readFile(join(root, "gate.jsonl"), "utf8")).trim().split("\n").map((line) => JSON.parse(line).type);
+        assert.deepEqual(frames, ["CANCEL_INSTALLED", "ACK_SENT", "START_RECEIVED", "GATE_RELEASED"]);
+    }, { componentScenario: "gate-inspection" });
 });
 
 /** 桌面 staging 在隔离的小目录中复制真实源码并计算摘要，两个目标均用普通 Node 加载所有者并激活真实 preload；此测试不安装依赖、不使用 checkout TypeScript loader 或展开发行引擎。 */
@@ -191,12 +231,12 @@ test("controlled worker waits for actual command exit after timeout observation 
         process.on('message',message=>{if(message.type==='TEST_RELEASE')originalKill.call(held,'SIGKILL');});
         process.on('newListener',event=>{if(event==='message')queueMicrotask(()=>process.send({type:'TEST_GATE_READY'}));});
     `;
-    await controlledWorker("", async ({ child, exit, root }) => {
+    await controlledWorker("", async ({ child, exit, root, message }) => {
         let exited = false;
         void exit.then(() => { exited = true; });
-        const gate = new Promise((resolve) => child.once("message", resolve));
+        const gate = message("TEST_GATE_READY");
         assert.deepEqual(await gate, { type: "TEST_GATE_READY" });
-        const timeoutSignal = new Promise((resolve) => child.once("message", resolve));
+        const timeoutSignal = message("TEST_TIMEOUT_SIGNAL");
         child.send({ type: "START" });
         assert.deepEqual(await timeoutSignal, { type: "TEST_TIMEOUT_SIGNAL" });
         assert.equal(exited, false);

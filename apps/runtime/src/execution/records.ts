@@ -58,7 +58,7 @@ export class ProcessRecords {
     }
     private path(name: string, journalStaging = false) {
         if (
-            !/^[a-zA-Z0-9_-]{1,100}\.(?:json|process\.json|drained\.json)$/.test(name) &&
+            !/^[a-zA-Z0-9_-]{1,100}\.(?:json|process\.json|drained\.json|controlled\.json)$/.test(name) &&
             !(journalStaging && stagedAttempt(name))
         )
             throw new Error("PROCESS_RECORD_NAME_INVALID");

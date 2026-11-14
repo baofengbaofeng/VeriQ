@@ -1,5 +1,5 @@
 /**
- * 本文件按真实平台分派 Attempt 监督器：Linux 保持原有子收割守护与 ECHILD 证明，Windows 使用独立 Job 守护；两条路径都只有在可信排空证明成立后才能认定进程已停止并释放容量。
+ * 本文件按真实平台分派 Attempt 监督器：Linux 保持子收割守护与 ECHILD 证明，Windows 使用独立 Job 守护，Darwin 只允许私有源码宿主能力启用受控对象所有权；各平台只在对应可信范围证明成立后确认停止。
  * 未知进程必须隔离容量。
  */
 
@@ -16,6 +16,8 @@ import { Readable, Writable } from "node:stream";
 import type { ProcessStopScope } from "@veriq/contracts";
 import { ProcessRecords } from "./records.ts";
 import { WindowsProcesses } from "./windows-processes.ts";
+import type { DarwinControlledLaunch, DarwinSourceCapability } from "./darwin-source.ts";
+import { DarwinProcesses } from "./darwin-processes.ts";
 /**
  * 停止回执分别记录是否已确认与实际核验的进程范围，缺失范围保持未声明；新范围只能由本次平台证明或持久未派生状态产生，读取旧回执不会补写或升级其保证。
  */
@@ -94,14 +96,18 @@ export class ProcessSupervisor {
     private live = new Map<string, OwnedProcess>();
     private stopping = new Map<string, Promise<StopReceipt>>();
     private windows: WindowsProcesses | undefined;
-    /** 安装宿主只能传入完整库存已核验的 guardian 路径，开发调用默认保持原目录；增加路径参数不改变持久身份日志、START 门或排空证明，无法访问所选二进制时仍在创建进程之前失败。 */
+    private darwin: DarwinProcesses | undefined;
+    /** 安装宿主只能传入完整库存已核验的 guardian 路径，开发调用默认保持原目录；第四参只接受真实 Darwin 源码宿主签发的私有能力，缺少该能力仍拒绝启动，Linux 与 Windows 的持久身份及原强证明不变。 */
     constructor(
         private directory: string,
         private graceMs = 500,
         private launcherPath = launcher,
+        darwinSource?: DarwinSourceCapability,
     ) {
         if (process.platform === "win32")
             this.windows = new WindowsProcesses(directory, launcherPath);
+        if (process.platform === "darwin")
+            this.darwin = new DarwinProcesses(directory, darwinSource);
     }
     private path(id: string) {
         if (!/^[a-zA-Z0-9_-]{1,100}$/.test(id)) throw new Error("INVALID_ATTEMPT_ID");
@@ -132,8 +138,9 @@ export class ProcessSupervisor {
     /**
      * 公开方法 start 先选择平台实现并写入进程日志，再拉起受信任的原生守护等待 READY 与 worker 身份校验通过；未支持的平台和重复 Attempt 都在业务执行前失败，不能绕过平台所有权协议。
      */
-    async start(id: string, command: Command): Promise<OwnedProcess> {
+    async start(id: string, command: Command, controlledLaunch?: DarwinControlledLaunch): Promise<OwnedProcess> {
         if (this.windows) return this.windows.start(id, command);
+        if (this.darwin) return this.darwin.start(id, command, controlledLaunch);
         if (process.platform !== "linux") throw new Error("UNSUPPORTED_PROCESS_PLATFORM");
         if (this.live.has(id)) throw new Error("PROCESS_ALREADY_RUNNING");
         // 启动前只检查安装宿主交入的固定守护路径是否可执行，业务 Job 无权选择该程序；缺少已构建组件时直接失败，不能通过搜索全局工具或临时编译改变发行组件身份。
@@ -320,10 +327,11 @@ export class ProcessSupervisor {
         }
     }
     /**
-     * 公开方法 isRunning 根据 /proc 状态判断 pid 是否仍为非僵尸存活进程：供停机路径确认业务 worker 去向。
+     * 活性查询按真实平台执行，Linux 保持 proc 状态读取而 Darwin 只接受仍保留原始对象的身份；Darwin 缺少对象时明确未知，不能把数字 PID 查询、进程消失或单对象退出作为集合停止证明。
      */
     async isRunning(pid: number) {
         if (this.windows) return this.windows.isRunning(pid);
+        if (this.darwin) return this.darwin.isRunning(pid);
         const proc = inspect(pid);
         return !!proc && !["Z", "X"].includes(proc.state);
     }
@@ -331,7 +339,7 @@ export class ProcessSupervisor {
      * 公开方法 active 返回当前仍登记为存活的 Attempt 标识列表：供恢复扫描与容量核算使用（active）（active）。
      */
     active() {
-        return this.windows ? this.windows.active() : [...this.live.keys()];
+        return this.windows ? this.windows.active() : this.darwin ? this.darwin.active() : [...this.live.keys()];
     }
     /**
      * 公开方法 terminateAttempt 请求守护进程停机并等待排空证明：缺少 ECHILD 证明则 processStopped 为 false。
@@ -339,6 +347,7 @@ export class ProcessSupervisor {
      */
     terminateAttempt(id: string, reason: string): Promise<StopReceipt> {
         if (this.windows) return this.windows.terminateAttempt(id, reason);
+        if (this.darwin) return this.darwin.terminateAttempt(id, reason);
         const existing = this.stopping.get(id);
         if (existing) return existing;
         const operation = this.stop(id, reason).finally(() => this.stopping.delete(id));
@@ -348,6 +357,7 @@ export class ProcessSupervisor {
     /** 迁移观察只接受已经持久化的停止状态、完整双进程身份和真实排空证明，并再次核验守护确已退出；该接口不发信号、不保存状态、不释放执行容量，缺失或无法解析的私有记录只会返回未确认。 */
     async confirmStopped(id: string): Promise<boolean> {
         if (this.windows) return this.windows.confirmStopped(id);
+        if (this.darwin) return this.darwin.confirmStopped(id);
         let records: ProcessRecords | undefined;
         try {
             this.path(id);

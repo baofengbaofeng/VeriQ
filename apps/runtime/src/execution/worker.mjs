@@ -46,6 +46,8 @@ await new Promise(resolve => {
             }
         }
     });
+    // 父 Agent 必须实际观察已经安装 START 与取消监听的同一个 outer 对象，才能持久登记后交还启动能力；此消息不表示任何命令已经退出，发送失败保持管理故障且不能由后续业务结果恢复。
+    if (owner && !managementFailed) process.send?.({ type: 'CONTROLLED_READY', binding: invocation.controlled.commandBinding, pid: process.pid }, error => { if (error) failManagement(); });
 });
 
 /** 受控路径显式保留管理结果与实际退出两个等待器，超时或 error 只使管理失败而不能解除原对象等待；无实际 exit 的 spawn error 保持挂起，交给后续 Agent 总期限隔离。 */

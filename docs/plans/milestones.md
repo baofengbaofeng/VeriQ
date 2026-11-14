@@ -227,7 +227,8 @@
 | C1实际Mac补充证据 | B最终CI中两架构各21项通过、1项Linux专属跳过，strict通过；保留原Linux24项通过记录 | 不能记为22项Mac通过，不代表Chrome或受控停止集成已完成 |
 | 共享观察器与取消授权C2a1 | `1e40a59`通过独立规格/质量审查；Linux29项通过；[双Mac CI run43594067804](https://github.com/baofengbaofeng/VeriQ/actions/runs/43594067804)每架构文件保护44项通过，观察器28项通过/1项Linux专属跳过，标准Runtime check通过 | 唯一MJS运行实现、TS兼容转发，启动后同代取消必须在实际退出前授权；22个源码/构建输入hash及制品摘要已逐架构核验。本地pnpm缓存同步guard曾在tsc前失败，直接已有TS5.9.3通过，不能把本地该命令记为通过；不开放Mac ready或停止回执 |
 | macOS15契约说明一致性 | `f848020`独立规格/质量审查通过；canonical/OpenAPI声明源及TS/桌面派生说明共五文件同步为15，官方生成检查及格式化后重复生成一致 | 只修正说明，未更改类型、枚举或运行时行为；实际最低系统验证仍依赖目标测试与安装验收 |
-| 下一工程切片 | [停止实施计划](macos-controlled-stop.md)：B、C1及C2a1已完成，继续C2a2命令所有权/完整staging、C2b BrowserServer/停止证明、D双架构发行 | 不再以kqueue/非child peer身份链作为正回执依赖；公开Stability1通道须具体Node自检；全仓注释门禁仍失败（`1e40a59`实施报告4.9402%、267条），C++审计覆盖仍待T22补齐 |
+| 命令所有权与Worker运行闭包C2a2 | `878f487`独立规格/质量审查通过；Linux67项通过、零跳过；[双Mac CI run43596963246](https://github.com/baofengbaofeng/VeriQ/actions/runs/43596963246)每架构新增命令17项通过、文件保护44项通过、观察器28项通过/1项Linux专属跳过，标准类型检查通过 | 实际ChildProcess、超时后真实退出等待、同代取消、双日志及八个MJS闭包已实现；33个源码/构建输入hash与制品摘要已逐架构核验。原并发替换测试改为条件屏障，保留两Worker和>=3对象断言；1项LOW：命令测试300ms期限可能早于ready，留T22处理；未验证完整Mac Worker/Chrome、安装或ready |
+| 下一工程切片 | [停止实施计划](macos-controlled-stop.md)：B、C1及C2a1/C2a2已完成，继续C2b1 BrowserServer所有权/停止证明、C2b2在线离线业务接入、D双架构发行 | 不再以kqueue/非child peer身份链作为正回执依赖；公开Stability1通道须具体Node自检；全仓注释门禁仍失败（`878f487`实施报告4.9456%、265条），C++审计覆盖及LOW测试竞态仍待T22/最终审查 |
 
 
 | 项目 | 当前事实 | 剩余事项与接续约束 |

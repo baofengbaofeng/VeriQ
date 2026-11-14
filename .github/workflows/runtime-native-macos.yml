@@ -94,6 +94,43 @@ jobs:
               run: |
                   set -euo pipefail
                   node --import tsx --test tests/controlled-command.test.ts 2>&1 | tee "$VERIQ_MAC_EVIDENCE/controlled-command.log"
+            - name: Provision only pinned native source-fixture Chrome and record identity
+              working-directory: apps/runtime
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  node node_modules/playwright-core/cli.js install chromium --no-shell 2>&1 | tee "$VERIQ_MAC_EVIDENCE/chrome-install.log"
+                  node --input-type=module <<'JS' | tee "$VERIQ_MAC_EVIDENCE/chrome-identity.json"
+                  import assert from "node:assert/strict";
+                  import { chromium } from "playwright-core";
+                  import { createRequire } from "node:module";
+                  import { appendFileSync, readFileSync } from "node:fs";
+                  import { createHash } from "node:crypto";
+                  import { execFileSync } from "node:child_process";
+                  const require = createRequire(import.meta.url);
+                  const pkg = require("playwright-core/package.json");
+                  const metadata = JSON.parse(readFileSync(require.resolve("playwright-core/package.json").replace(/package.json$/, "browsers.json"), "utf8"));
+                  const browser = metadata.browsers.find(value => value.name === "chromium");
+                  assert.equal(pkg.version, "1.65.0");
+                  assert.equal(browser.revision, "1254");
+                  assert.equal(browser.browserVersion, "158.0.8127.18");
+                  const path = chromium.executablePath();
+                  assert.match(path, /Google Chrome for Testing.app\/Contents\/MacOS\/Google Chrome for Testing$/);
+                  const version = execFileSync(path, ["--version"], { encoding: "utf8" }).trim();
+                  assert.match(version, /158\.0\.8127\.18/);
+                  const architecture = execFileSync("lipo", ["-archs", path], { encoding: "utf8" }).trim();
+                  assert.equal(architecture, process.arch === "arm64" ? "arm64" : "x86_64");
+                  console.log(JSON.stringify({ source: process.env.GITHUB_SHA, boundary: "source-component-only", playwright: pkg.version, revision: browser.revision, version, path, architecture, file: execFileSync("file", [path], { encoding: "utf8" }).trim(), sha256: createHash("sha256").update(readFileSync(path)).digest("hex") }, null, 4));
+                  appendFileSync(process.env.GITHUB_ENV, `VERIQ_TEST_CHROMIUM=${path}\n`);
+                  JS
+            - name: Verify finite controlled proof and actual Darwin ownership component
+              id: controlled_process_tests
+              working-directory: apps/runtime
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  node --import tsx --test tests/controlled-proof.test.ts 2>&1 | tee "$VERIQ_MAC_EVIDENCE/controlled-proof.log"
+                  node --import tsx --test tests/native/darwin-controlled-processes.test.ts 2>&1 | tee "$VERIQ_MAC_EVIDENCE/controlled-processes.log"
             - name: Always bind source and actual build inputs
               if: always()
               shell: bash
@@ -121,7 +158,7 @@ jobs:
                       if (info.isDirectory()) for (const name of readdirSync(path)) await walk(join(path, name));
                       else await add(path);
                   };
-                  const source = execFileSync("git", ["ls-files", "apps/runtime/native/darwin", "apps/runtime/src/native/darwin.ts", "apps/runtime/src/execution/records.ts", "apps/runtime/src/execution/controlled-child*", "apps/runtime/src/execution/controlled-command*", "apps/runtime/src/execution/worker.mjs", "apps/runtime/src/distribution.ts", "apps/desktop/scripts/stage-runtime.mjs", "apps/runtime/tests/controlled-command.test.ts", "apps/runtime/tests/worker-portability.test.ts", "apps/runtime/tests/distribution.test.ts", "apps/runtime/tests/native/windows-profile.test.ts", "apps/runtime/tests/fixtures/vault-distribution.ts", "apps/runtime/tests/fixtures/windows-vault.ts", "apps/runtime/tests/controlled-child.test.ts", "apps/runtime/tests/fixtures/controlled-child-owner.py", "apps/runtime/src/credentials/files.ts", "apps/runtime/scripts/build-darwin.mjs", "apps/runtime/package.json", "apps/runtime/tests/native/darwin-private-files.test.ts", "apps/runtime/tests/native/darwin-private-files-fault.cc", ".github/workflows/runtime-native-macos.yml", "pnpm-lock.yaml", "pnpm-workspace.yaml"], {encoding:"utf8", maxBuffer:65536}).trim().split("\n").filter(Boolean);
+                  const source = execFileSync("git", ["ls-files", "apps/runtime/native/darwin", "apps/runtime/src/native/darwin.ts", "apps/runtime/src/node-version.ts", "apps/runtime/src/execution/processes.ts", "apps/runtime/src/execution/darwin-*", "apps/runtime/src/execution/records.ts", "apps/runtime/src/execution/stopped-history.ts", "apps/runtime/src/execution/controlled-child*", "apps/runtime/src/execution/controlled-command*", "apps/runtime/src/execution/worker.mjs", "apps/runtime/src/distribution.ts", "apps/desktop/scripts/stage-runtime.mjs", "apps/runtime/tests/controlled-proof.test.ts", "apps/runtime/tests/native/darwin-controlled-processes.test.ts", "apps/runtime/tests/fixtures/darwin-controlled-worker.mjs", "apps/runtime/tests/vault-history.test.ts", "apps/runtime/tests/controlled-command.test.ts", "apps/runtime/tests/worker-portability.test.ts", "apps/runtime/tests/distribution.test.ts", "apps/runtime/tests/native/windows-profile.test.ts", "apps/runtime/tests/fixtures/vault-distribution.ts", "apps/runtime/tests/fixtures/windows-vault.ts", "apps/runtime/tests/controlled-child.test.ts", "apps/runtime/tests/fixtures/controlled-child-owner.py", "apps/runtime/src/credentials/files.ts", "apps/runtime/scripts/build-darwin.mjs", "apps/runtime/package.json", "apps/runtime/tests/native/darwin-private-files.test.ts", "apps/runtime/tests/native/darwin-private-files-fault.cc", ".github/workflows/runtime-native-macos.yml", "pnpm-lock.yaml", "pnpm-workspace.yaml"], {encoding:"utf8", maxBuffer:65536}).trim().split("\n").filter(Boolean);
                   for (const path of source) await add(path);
                   await add(process.execPath);
                   await walk(join(process.env.RUNNER_TEMP, "veriq-node-headers"));
@@ -149,7 +186,7 @@ jobs:
                   const destination = process.env.VERIQ_MAC_UPLOAD;
                   mkdirSync(destination, {recursive:true,mode:0o700});
                   const files = readdirSync(process.env.VERIQ_MAC_EVIDENCE).sort();
-                  if (files.length > 32) throw Error("MAC_EVIDENCE_FILE_LIMIT");
+                  if (files.length > 48) throw Error("MAC_EVIDENCE_FILE_LIMIT");
                   const inventory = [];
                   let total = 0;
                   for (const name of files) {
@@ -158,6 +195,16 @@ jobs:
                       const segments = info.size <= 2097152 ? [[name,0,info.size]] : [[name+".first-segment",0,1048576],[name+".last-segment",info.size-1048576,1048576]];
                       const fd = openSync(path,"r");
                       try {
+                          const scan = Buffer.alloc(65536);
+                          let position = 0, tail = "";
+                          while (position < info.size) {
+                              const count = readSync(fd,scan,0,Math.min(scan.length,info.size-position),position);
+                              if (!count) throw Error("MAC_EVIDENCE_SHORT_READ");
+                              const text = tail + scan.subarray(0,count).toString("utf8");
+                              if (/wss?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):[0-9]+\/[a-zA-Z0-9_-]{8,}/.test(text)) throw Error("MAC_PRIVATE_ENDPOINT_LEAK");
+                              tail = text.slice(-512);
+                              position += count;
+                          }
                           for (const [output,offset,length] of segments) {
                               total += length;
                               if (total > 16777216) throw Error("MAC_EVIDENCE_TOTAL_LIMIT");
