@@ -176,7 +176,7 @@ type DiagnosticFailure = (typeof diagnosticFailures)[number];
 type DiagnosticRecord = {
     schemaVersion: 1;
     stage: (typeof diagnosticStages)[number] | "OP" | "HR";
-    nativeOperation?: "seed" | "read-denial";
+    nativeOperation?: "seed" | "read-denial" | "remove";
     substage?: string;
     predicate?: boolean;
     eventFailure?: "poll-error" | "read-error" | "eof" | "marker" | "deadline";
@@ -484,11 +484,15 @@ function nativeOperationRecord(item: Record<string, unknown>): DiagnosticRecord 
         ) ||
         item.schemaVersion !== 1 ||
         item.stage !== "OP" ||
-        !["seed", "read-denial"].includes(item.nativeOperation as string) ||
+        !["seed", "read-denial", "remove"].includes(item.nativeOperation as string) ||
         typeof item.substage !== "string" ||
-        !(item.nativeOperation === "seed" ? nativeSeedStages : nativeDenialStages).includes(
-            item.substage,
-        ) ||
+        !(
+            item.nativeOperation === "remove"
+                ? ["input", "item-delete"]
+                : item.nativeOperation === "seed"
+                  ? nativeSeedStages
+                  : nativeDenialStages
+        ).includes(item.substage) ||
         !["entered", "passed", "failed"].includes(item.state as string)
     )
         return;
@@ -500,6 +504,34 @@ function nativeOperationRecord(item: Record<string, unknown>): DiagnosticRecord 
         "controllerExit",
         "controllerReply",
     ].filter((key) => key in item);
+    // 移除事实只绑定首次原始删除调用，入口及调用前失败均不得携带状态，成功必须明确保存系统零值；没有返回值的调用阶段保留失败未知，不允许借用 seed 或读取拒绝的字段来补全删除证明。
+    if (item.nativeOperation === "remove") {
+        if (facts.some((key) => key !== "osStatus")) return;
+        if (
+            "osStatus" in item &&
+            (typeof item.osStatus !== "number" ||
+                !Number.isInteger(item.osStatus) ||
+                item.osStatus < -2147483648 ||
+                item.osStatus > 2147483647)
+        )
+            return;
+        if (item.substage === "input") {
+            if (item.state === "passed" || facts.length) return;
+        } else if (
+            item.state === "entered" ||
+            (item.state === "passed" && item.osStatus !== 0) ||
+            (item.state === "failed" && item.osStatus === 0)
+        )
+            return;
+        return {
+            schemaVersion: 1,
+            stage: "OP",
+            state: item.state as DiagnosticRecord["state"],
+            nativeOperation: "remove",
+            substage: item.substage,
+            ...("osStatus" in item ? { osStatus: item.osStatus as number } : {}),
+        };
+    }
     if (item.state === "entered") {
         if (
             item.substage !== (item.nativeOperation === "seed" ? "input" : "baseline") ||
@@ -575,6 +607,18 @@ function nativeOperationRecord(item: Record<string, unknown>): DiagnosticRecord 
         >;
     }
     return safe;
+}
+
+/** 每个夹具最多接纳首次移除的入口和一个终态，校验同时用于流式过滤与已序列化报告的复核；只有入口而没有终态仍须标记不完整，第二次调用或重复终态不能冒充同一次删除的补充事实。 */
+function validRemoveSequence(records: readonly DiagnosticRecord[]): boolean {
+    const removes = records.filter(
+        (record) => record.stage === "OP" && record.nativeOperation === "remove",
+    );
+    return (
+        removes.length <= 2 &&
+        (!removes.length || removes[0]!.state === "entered") &&
+        (removes.length < 2 || removes[1]!.state !== "entered")
+    );
 }
 
 /** 私有读取证据按控制器传输观察与 helper 已执行事实分层重建，阶段之前没有执行的字段保持缺失；完整短路前缀必须逐项为真，状态整数不接受强制转换，未知传输不能伪装成系统错误或业务成功。 */
@@ -906,7 +950,12 @@ export function createDarwinDiagnosticFilter() {
                                     ),
                                 ),
                             );
-                            if (!item || (item.stage === "HR" && admittedReads.has(item.read!)))
+                            if (
+                                !item ||
+                                (item.stage === "HR" && admittedReads.has(item.read!)) ||
+                                (item.nativeOperation === "remove" &&
+                                    !validRemoveSequence([...records, item]))
+                            )
                                 rejected = true;
                             else {
                                 const size = Buffer.byteLength(JSON.stringify(item)) + 1;
@@ -1059,6 +1108,13 @@ export function collectDarwinDiagnostics(streams: Buffer[]) {
                         throw new Error();
                     const records = item.records.map(diagnosticRecord);
                     if (records.some((record) => !record)) throw new Error();
+                    if (
+                        !validRemoveSequence(records as DiagnosticRecord[]) ||
+                        (records.filter((record) => record?.nativeOperation === "remove").length ===
+                            1 &&
+                            !item.incomplete)
+                    )
+                        throw new Error();
                     const reads = records.filter((record) => record?.stage === "HR");
                     if (
                         new Set(reads.map((record) => record!.read)).size !== reads.length ||

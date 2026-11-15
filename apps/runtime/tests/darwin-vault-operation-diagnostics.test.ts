@@ -661,7 +661,7 @@ test("native privacy rejects every unapproved field on both codec paths", () => 
 });
 
 /** 两个健康专用用例分别增加十六条和四条观察，旧创建清理记录与最大有限概要一起经过共享预算；这里只证明合成记录的编码上限，不代表 Objective-C++ 生产者或真实钥匙串操作已经在本机执行。 */
-test("native legal worst case72 and case60 fit unchanged fixture and job caps", () => {
+test("native legal worst case74 and case62 fit unchanged fixture and job caps", () => {
     const stages = [
         "STARTUP",
         "NO_UI",
@@ -748,6 +748,8 @@ test("native legal worst case72 and case60 fit unchanged fixture and job caps", 
                       }),
             );
         }
+        push(nativeRecord("remove", "input", "entered"));
+        push(nativeRecord("remove", "item-delete", "failed", { osStatus: -2147483648 }));
         push(
             helperRecord("inspection", {
                 phase: "done",
@@ -785,7 +787,7 @@ test("native legal worst case72 and case60 fit unchanged fixture and job caps", 
         const summary = filter.finish(fixture);
         assert.equal(summary.rejected, false);
         assert.equal(summary.incomplete, false);
-        assert.equal(summary.records.length, fixture === 1 ? 72 : 60);
+        assert.equal(summary.records.length, fixture === 1 ? 74 : 62);
         assert.ok(nativeBytes <= 8192);
         assert.ok(Buffer.byteLength(JSON.stringify(summary)) <= 8192);
         assert.deepEqual(collect(summary).fixtures, [summary]);
@@ -1167,4 +1169,104 @@ test("reference lookup codec rejects incomplete target proof and mixed read prov
         { phase: "before", ...metadata, beforeStatus: 0, readStatus: -25293 },
     ])
         assert.equal(nativeSummary(helperRecord("denial", helper)).rejected, true);
+});
+
+/** 首次移除观察只保存原删除调用返回的数值，调用前失败和中途未返回都不能伪造系统状态；真实过滤器及报告消费者同时验证一次进入与最多一次终态，合成数据不被解释为已执行原生删除。 */
+test("first remove status preserves pre-call unknown and exact original API results", () => {
+    const entered = nativeRecord("remove", "input", "entered");
+    const terminals = [
+        nativeRecord("remove", "input", "failed"),
+        nativeRecord("remove", "item-delete", "failed"),
+        ...[-2147483648, -25293, -25308, -50, 2147483647].map((osStatus) =>
+            nativeRecord("remove", "item-delete", "failed", { osStatus }),
+        ),
+        nativeRecord("remove", "item-delete", "passed", { osStatus: 0 }),
+    ];
+    for (const terminal of terminals) {
+        const filter = vault.createDarwinDiagnosticFilter();
+        filter.operation("remove", "UNKNOWN");
+        filter.push(frame(entered));
+        filter.push(frame(terminal));
+        if (terminal.state === "failed") filter.fail("REFUSED");
+        filter.close(0, null);
+        const summary = filter.finish(1);
+        assert.equal(summary.rejected, false);
+        assert.equal(summary.incomplete, false);
+        assert.deepEqual(summary.records, [entered, terminal]);
+        assert.deepEqual(collect(summary).fixtures, [summary]);
+        if (!("osStatus" in terminal)) assert.ok(!("osStatus" in summary.records[1]!));
+        if (terminal.state === "failed") assert.equal(summary.firstFailure, "REFUSED");
+    }
+    const summaries = [1, 2].map((fixture) => {
+        const filter = vault.createDarwinDiagnosticFilter();
+        filter.push(frame(entered));
+        filter.close(null, "SIGKILL");
+        const summary = filter.finish(fixture);
+        assert.equal(summary.rejected, false);
+        assert.equal(summary.incomplete, true);
+        return summary;
+    });
+    const output = vault.collectDarwinDiagnostics(
+        summaries.map((summary) =>
+            Buffer.from("VERIQ_D1_DIAGNOSTICS " + JSON.stringify(summary) + "\n"),
+        ),
+    );
+    assert.deepEqual(output.fixtures, summaries);
+    assert.equal(output.rejected, false);
+});
+
+/** 删除状态只能出现在原调用子阶段且成功必须显式为零，布尔或字符串不能冒充系统整数；非法跨阶段字段、重复入口终态和秘密候选同时经过过滤器及直接报告消费，不能靠只检查正常路径掩盖接纳漏洞。 */
+test("first remove codec rejects false completion malformed facts and duplicate admission", () => {
+    const entered = nativeRecord("remove", "input", "entered");
+    const passed = nativeRecord("remove", "item-delete", "passed", { osStatus: 0 });
+    const invalid = [
+        nativeRecord("remove", "item-delete", "entered"),
+        nativeRecord("remove", "input", "entered", { osStatus: 0 }),
+        nativeRecord("remove", "input", "failed", { osStatus: -50 }),
+        nativeRecord("remove", "input", "passed"),
+        nativeRecord("remove", "done", "passed"),
+        nativeRecord("remove", "item-delete", "passed"),
+        nativeRecord("remove", "item-delete", "passed", { osStatus: -50 }),
+        nativeRecord("remove", "item-delete", "failed", { osStatus: 0 }),
+        ...["-50", true, false, null, -2147483649, 2147483648, 0.5].map((osStatus) =>
+            nativeRecord("remove", "item-delete", "failed", { osStatus }),
+        ),
+        ...[
+            "errno",
+            "predicate",
+            "eventFailure",
+            "controllerExit",
+            "controllerReply",
+            "account",
+            "key",
+        ].map((key) => nativeRecord("remove", "item-delete", "failed", { [key]: "SECRET_CANARY" })),
+        nativeRecord("seed", "item-delete", "failed", { osStatus: -50 }),
+        nativeRecord("read-denial", "item-delete", "failed", { osStatus: -50 }),
+    ];
+    const baseline = vault.createDarwinDiagnosticFilter().finish(1);
+    for (const record of invalid) {
+        const filter = vault.createDarwinDiagnosticFilter();
+        filter.push(frame(entered));
+        filter.push(frame(record));
+        const summary = filter.finish(1);
+        assert.equal(summary.rejected, true, JSON.stringify(record));
+        assert.deepEqual(summary.records, [entered]);
+        const output = collect({ ...baseline, records: [entered, record] });
+        assert.equal(output.rejected, true);
+        assert.ok(!JSON.stringify(output).includes("SECRET_CANARY"));
+    }
+    for (const records of [
+        [passed],
+        [entered, entered],
+        [entered, passed, passed],
+        [entered, passed, entered],
+    ]) {
+        const filter = vault.createDarwinDiagnosticFilter();
+        for (const record of records) filter.push(frame(record));
+        const summary = filter.finish(1);
+        assert.equal(summary.rejected, true);
+        assert.ok(summary.records.length <= 2);
+        assert.equal(collect({ ...baseline, records }).rejected, true);
+    }
+    assert.equal(collect({ ...baseline, incomplete: false, records: [entered] }).rejected, true);
 });

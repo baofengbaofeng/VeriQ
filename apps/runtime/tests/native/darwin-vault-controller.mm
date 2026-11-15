@@ -39,22 +39,22 @@ NSString *const diagnosticNames[] = {
     @"KEYCHAIN_STAT", @"CREATE_REPLY", @"CLEANUP_DELETE", @"CLEANUP_DIRECTORY", @"OP",
 };
 
-/** 操作子阶段只在控制器内存中前进，进入和终态仍各写一条记录而不逐步输出；这些固定名称覆盖 seed 与拒绝观察的原有边界，不记录账户或密文内容，也不把尚未返回的调用推断成失败状态码。 */
+/** 操作子阶段只在控制器内存中前进，进入和终态仍各写一条记录而不逐步输出；固定名称覆盖 seed、拒绝观察与首次移除的原有边界，不记录账户或密文，也不把尚未返回的调用推断成系统失败码。 */
 enum class NativeSubstage {
     INPUT, ACCOUNT, KEY, POLICY, TRUSTED, ARRAY, ACCESS, EXTRA_TRUSTED, EXTRA_ARRAY,
     ACL, AUTH, ADD, HELPER_START, HELPER_COLLECT, HELPER_FRAME, HELPER_DECODE,
     READ, READ_TYPE, VALUE, SNAPSHOT_MATCH, SNAPSHOT_SHAPE, SNAPSHOT_ITEM, SNAPSHOT_ACCESS,
     SNAPSHOT_EXPORT, CIPHER_OPEN, CIPHER_STAT, CIPHER_READ, BASELINE, STATUS_BEFORE,
-    EVENT_BEFORE, EVENT_DENIED, EVENT_AFTER, STATUS_AFTER, UNCHANGED_GUARD, DONE,
+    EVENT_BEFORE, EVENT_DENIED, EVENT_AFTER, STATUS_AFTER, UNCHANGED_GUARD, DONE, ITEM_DELETE,
 };
 NSString *const nativeSubstageNames[] = {
     @"input", @"account", @"key", @"policy", @"trusted", @"array", @"access", @"extra-trusted", @"extra-array",
     @"acl", @"auth", @"add", @"helper-start", @"helper-collect", @"helper-frame", @"helper-decode",
     @"read", @"read-type", @"value", @"snapshot-match", @"snapshot-shape", @"snapshot-item", @"snapshot-access",
     @"snapshot-export", @"cipher-open", @"cipher-stat", @"cipher-read", @"baseline", @"status-before",
-    @"event-before", @"event-denied", @"event-after", @"status-after", @"unchanged-guard", @"done",
+    @"event-before", @"event-denied", @"event-after", @"status-after", @"unchanged-guard", @"done", @"item-delete",
 };
-enum class NativeOperation { SEED, READ_DENIAL };
+enum class NativeOperation { SEED, READ_DENIAL, REMOVE };
 enum class NativeEventFailure { NONE, POLL_ERROR, READ_ERROR, EOF_CLOSED, MARKER, DEADLINE };
 NSString *const nativeEventNames[] = {nil, @"poll-error", @"read-error", @"eof", @"marker", @"deadline"};
 
@@ -84,7 +84,7 @@ class DiagnosticGate {
                     NSMutableDictionary *record = [@{@"schemaVersion": @1,
                         @"stage": diagnosticNames[static_cast<size_t>(stage)], @"state": state} mutableCopy];
                     if (stage == DiagnosticStage::OP) {
-                        record[@"nativeOperation"] = operation == NativeOperation::SEED ? @"seed" : @"read-denial";
+                        record[@"nativeOperation"] = operation == NativeOperation::SEED ? @"seed" : operation == NativeOperation::READ_DENIAL ? @"read-denial" : @"remove";
                         record[@"substage"] = nativeSubstageNames[static_cast<size_t>(substage)];
                         if (hasControllerReply) {
                             record[@"controllerExit"] = controllerExit < 0 ? (id)@"NON_NORMAL_OR_UNKNOWN" : @(controllerExit);
@@ -137,11 +137,11 @@ public:
     explicit DiagnosticGate(DiagnosticStage value, bool active = true) noexcept : stage(value), enabled(active) { emit(@"entered"); }
     /** 析构只补充尚未通过阶段的失败事实，不推断系统调用是否修改了存储，也不尝试清理或重试；因此原有 catch 先回复拒绝再清理的顺序以及外层可能强杀进程的竞争窗口保持原样。 */
     ~DiagnosticGate() noexcept { if (!passed) emit(@"failed"); }
-    /** 通过标志只在原谓词已通过后更新，日志失败不会撤回原来的成功结果或伪造清理确认；调用者依旧必须等待原控制协议回执和测试完成，不能把这里的阶段记录当作独立验收结果。 */
-    void pass() noexcept { if (stage == DiagnosticStage::OP) step(this, NativeSubstage::DONE); passed = true; emit(@"passed"); }
-    /** 每次被观察操作仅构造一次作用域，先写无结果的入口记录再复用当前子阶段槽；普通异常沿原路径展开时由既有析构写失败，突然退出没有终态时必须保留未知而不能猜测调用已经返回。 */
-    explicit DiagnosticGate(NativeOperation value) noexcept : stage(DiagnosticStage::OP), enabled(true), operation(value),
-        substage(value == NativeOperation::SEED ? NativeSubstage::INPUT : NativeSubstage::BASELINE) { emit(@"entered"); }
+    /** 通过标志只在原谓词已通过后更新，移除终态保留当前删除阶段与真实返回码而其余操作仍清空到 done；日志失败不撤回业务结果，调用者仍须等待原控制协议回执和测试完成。 */
+    void pass() noexcept { if (stage == DiagnosticStage::OP && operation != NativeOperation::REMOVE) step(this, NativeSubstage::DONE); passed = true; emit(@"passed"); }
+    /** 每次被观察操作仅构造一次作用域，先写无结果入口再复用当前子阶段槽，首次移除由所属夹具传入接纳位；未接纳调用不输出，异常沿原路径展开，未收到终态仍保留未知而不猜测系统结果。 */
+    explicit DiagnosticGate(NativeOperation value, bool active = true) noexcept : stage(DiagnosticStage::OP), enabled(active), operation(value),
+        substage(value == NativeOperation::READ_DENIAL ? NativeSubstage::BASELINE : NativeSubstage::INPUT) { emit(@"entered"); }
     /** 前进子阶段只修改有限内存槽并清除上一步返回事实，不执行系统查询、分配或日志输出；共享帮助函数没有观察器时保持空操作，因此正常命令不会产生额外诊断或借用前次 seed 的事实。 */
     static void step(DiagnosticGate *gate, NativeSubstage value) noexcept {
         if (!gate) return;
@@ -792,6 +792,7 @@ struct Fixture {
     NSString *baselineAccount = nil;
     bool controllerReader = false;
     ReadAdmission readAdmission;
+    bool removeObserved = false;
     bool created = false;
 
     /** 实际创建必须发生在会话声明核验和固定 helper 路径解析之后，密码来自系统随机源且只保存在当前对象；路径由 mkdtemp 生成，创建返回的实际路径和文件所有权必须再次相符，任何偏好副作用只属于已授权账户。 */
@@ -1107,13 +1108,17 @@ struct Fixture {
         baseline = ciphertext(path, gate);
         observation.pass();
     }
-    /** 单条负例的移除限定当前自有存储与固定产品服务，并重新验证账户作用域，避免循环测试中残留上一个被拒绝条目；这是控制器的夹具清理能力，生产 helper 仍须通过完整 ACL 验证才能执行自己的删除。 */
+    /** 单条负例移除仍限定自有存储、固定服务与精确账户，首次调用仅在原删除前后记录至多两条事实；调用前守卫失败不产生系统状态，删除返回值只求一次且原拒绝条件与控制器清理能力保持不变。 */
     void remove(NSDictionary *request) {
+        DiagnosticGate observation(NativeOperation::REMOVE, !removeObserved);
+        removeObserved = true;
         require(created);
         NSDictionary *query = @{(__bridge id)kSecClass: (__bridge id)kSecClassGenericPassword,
             (__bridge id)kSecAttrService: @"VeriQ/RuntimeVault/v1", (__bridge id)kSecAttrAccount: account(request),
             (__bridge id)kSecMatchSearchList: @[(__bridge id)store.value]};
-        require(SecItemDelete((__bridge CFDictionaryRef)query) == errSecSuccess);
+        DiagnosticGate::step(&observation, NativeSubstage::ITEM_DELETE);
+        require(DiagnosticGate::status(&observation, SecItemDelete((__bridge CFDictionaryRef)query)) == errSecSuccess);
+        observation.pass();
     }
 };
 }
