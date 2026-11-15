@@ -522,15 +522,13 @@ jobs:
             ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
             PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
             EXPECTED_ARCH: ${{ matrix.arch }}
-            VERIQ_PRIVATE_EVIDENCE: ${{ runner.temp }}/veriq-private-store-${{ matrix.arch }}
-            VERIQ_RUNNER_ENVIRONMENT: ${{ runner.environment }}
-            VERIQ_RUNNER_OS: ${{ runner.os }}
-            VERIQ_RUNNER_ARCH: ${{ runner.arch }}
             VERIQ_WORKFLOW_REF: ${{ github.workflow_ref }}
             VERIQ_WORKFLOW_SHA: ${{ github.workflow_sha }}
-            VERIQ_JOB: ${{ github.job }}
         steps:
             - name: Require disposable hosted context before checkout
+              env:
+                  VERIQ_PRIVATE_EVIDENCE: ${{ runner.temp }}/veriq-private-store-${{ matrix.arch }}
+                  VERIQ_RUNNER_ENVIRONMENT: ${{ runner.environment }}
               shell: bash
               run: |
                   set -euo pipefail
@@ -550,6 +548,12 @@ jobs:
                   node-version: 24.x
             # 当前任务把身份、四成员构建、只读会话、私有声明和两组既有测试放在同一个有界执行器内；各阶段先登记固定预算和未完成状态，任何首错都会阻断后续操作并留下单独的失败制品。
             - name: Observe same-job session and accept only the existing private-store suites
+              env:
+                  VERIQ_PRIVATE_EVIDENCE: ${{ runner.temp }}/veriq-private-store-${{ matrix.arch }}
+                  VERIQ_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+                  VERIQ_RUNNER_OS: ${{ runner.os }}
+                  VERIQ_RUNNER_ARCH: ${{ runner.arch }}
+                  VERIQ_JOB: ${{ github.job }}
               shell: bash
               run: |
                   set -euo pipefail
