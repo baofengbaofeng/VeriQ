@@ -36,9 +36,11 @@ export function WorkspacePage() {
         enabled: !!user,
     });
     const items = workspaces.data?.pages.flatMap((page) => page.items) ?? [];
+    // 空间管理页仅在未选择时采用首项，列表重取或续页不能替换用户正在查看的详情；手动选择即使暂时不在已加载页中，也由既有占位选项和详情查询维持归属。
+    const firstWorkspaceId = items[0]?.id;
     useEffect(() => {
-        if (!selected && items.length) select(items[0].id);
-    }, [items[0]?.id, selected]);
+        if (!selected && firstWorkspaceId) select(firstWorkspaceId);
+    }, [firstWorkspaceId, selected, select]);
     if (!user) return <Navigate to="/login" />;
     return (
         <Panel title="Workspaces">

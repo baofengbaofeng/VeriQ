@@ -27,9 +27,11 @@ export function BundlePage() {
         enabled: !!user,
     });
     const items = workspaces.data?.pages.flatMap((p) => p.items) ?? [];
+    // 离线包入口只在空间尚未选定时采用首项，列表引用更新不改变手动选择；适配器仍按空间标识缓存，使同空间的版本篮子与环境选择继续由原有子组件持有。
+    const firstWorkspaceId = items[0]?.id;
     useEffect(() => {
-        if (!selected && items.length) select(items[0]!.id);
-    }, [selected, items[0]?.id]);
+        if (!selected && firstWorkspaceId) select(firstWorkspaceId);
+    }, [firstWorkspaceId, selected, select]);
     const adapter = useMemo(() => new CloudBundleAdapter(selected), [selected]);
     if (!user) return <Navigate to="/login" />;
     const workspace = items.find((w) => w.id === selected);

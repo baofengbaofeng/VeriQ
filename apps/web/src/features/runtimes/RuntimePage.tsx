@@ -26,9 +26,11 @@ export function RuntimePage() {
         enabled: !!user,
     });
     const items = workspaces.data?.pages.flatMap((p) => p.items) ?? [];
+    // 设备页面的首项标识只负责补齐空选择，权限和归档状态仍从当前列表重新计算；无关列表刷新不应重挂载正在填写登记码或服务账号名称的同空间表单。
+    const firstWorkspaceId = items[0]?.id;
     useEffect(() => {
-        if (!selected && items.length) select(items[0]!.id);
-    }, [selected, items[0]?.id]);
+        if (!selected && firstWorkspaceId) select(firstWorkspaceId);
+    }, [firstWorkspaceId, selected, select]);
     if (!user) return <Navigate to="/login" />;
     const workspace = items.find((w) => w.id === selected);
     return (

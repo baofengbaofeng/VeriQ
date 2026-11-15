@@ -25,9 +25,11 @@ export function ExecutionPlansPage() {
         enabled: !!user,
     });
     const items = spaces.data?.pages.flatMap((p) => p.items) ?? [];
+    // 计划页只为尚未选择空间的入口补齐首项，后续分页或权限刷新不会覆盖手动选择；因此同空间的计划名称、固定版本及冲突输入仍由现有用户与空间键保留。
+    const firstWorkspaceId = items[0]?.id;
     useEffect(() => {
-        if (!selected && items.length) select(items[0]!.id);
-    }, [selected, items[0]?.id]);
+        if (!selected && firstWorkspaceId) select(firstWorkspaceId);
+    }, [firstWorkspaceId, selected, select]);
     if (!user) return <Navigate to="/login" />;
     const workspace = items.find((w) => w.id === selected);
     return (
