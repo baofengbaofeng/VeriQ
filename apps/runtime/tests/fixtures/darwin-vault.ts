@@ -615,14 +615,55 @@ function helperReadRecord(item: Record<string, unknown>): DiagnosticRecord | und
     if (!item.helper || typeof item.helper !== "object" || Array.isArray(item.helper)) return;
     const h = item.helper as Record<string, unknown>;
     const common = ["entry", "no-ui", "store", "status", "permission", "account", "dispatch"];
-    const phases =
-        item.read === "inspection"
-            ? [...common, "read", "array", "unique", "data32", "encoding", "done"]
-            : [...common, "channel", "before", "read", "after", "done"];
+    const lookupFlow = "lookupStatus" in h || h.phase === "lookup";
+    const phases = lookupFlow
+        ? [
+              "lookup",
+              "array",
+              "unique",
+              ...(item.read === "inspection"
+                  ? ["read", "data32", "encoding", "done"]
+                  : ["before", "read", "after", "done"]),
+          ]
+        : item.read === "inspection"
+          ? [...common, "read", "array", "unique", "data32", "encoding", "done"]
+          : [...common, "channel", "before", "read", "after", "done"];
     if (h.source !== "TEST_HELPER" || typeof h.phase !== "string" || !phases.includes(h.phase))
         return;
     const fields: string[] = [];
-    if (item.read === "inspection") {
+    // 新流程的数组和唯一事实来自同一次元数据查询，唯一同时包含类型、精确服务账户与引用守卫；旧记录没有查询槽时沿用原语义，不能把新流程查询错误塞进秘密读取状态以换取合法记录。
+    if (lookupFlow) {
+        fields.push("lookupStatus");
+        if (h.phase !== "lookup") {
+            if (h.lookupStatus !== 0) return;
+            const predicates = ["array", "unique"];
+            const index = predicates.includes(h.phase) ? predicates.indexOf(h.phase) : 2;
+            for (let n = 0; n < Math.min(index + 1, 2); n++) {
+                const key = predicates[n]!;
+                if (n < index && h[key] !== true) return;
+                if (key in h) fields.push(key);
+                else if (n < index) return;
+            }
+        }
+        if (
+            item.read === "inspection" &&
+            ["read", "data32", "encoding", "done"].includes(h.phase)
+        ) {
+            fields.push("readStatus");
+            const predicates = ["data32", "encoding"];
+            const index = h.phase === "done" ? 2 : predicates.indexOf(h.phase);
+            if (index >= 0) {
+                if (h.readStatus !== 0) return;
+                for (let n = 0; n < Math.min(index + 1, 2); n++) {
+                    const key = predicates[n]!;
+                    if (n < index && h[key] !== true) return;
+                    if (key in h) fields.push(key);
+                    else if (n < index) return;
+                }
+            }
+        }
+    }
+    if (item.read === "inspection" && !lookupFlow) {
         if (["read", "array", "unique", "data32", "encoding", "done"].includes(h.phase))
             fields.push("readStatus");
         const predicates = ["array", "unique", "data32", "encoding"];
@@ -636,7 +677,7 @@ function helperReadRecord(item: Record<string, unknown>): DiagnosticRecord | und
                 else if (n < index) return;
             }
         }
-    } else {
+    } else if (item.read === "denial") {
         if (["before", "read", "after", "done"].includes(h.phase)) fields.push("beforeStatus");
         if (["read", "after", "done"].includes(h.phase)) fields.push("readStatus");
         if (["after", "done"].includes(h.phase)) fields.push("afterStatus");
@@ -644,13 +685,15 @@ function helperReadRecord(item: Record<string, unknown>): DiagnosticRecord | und
     }
     // 当前调用尚未返回时允许它的状态缺失，已经进入下一步的状态则必须存在；这种区分保留异常发生在调用中与原状态返回后失败的不同事实，避免任何缺省零值变成成功。
     const optional =
-        h.phase === "read"
-            ? "readStatus"
-            : h.phase === "before"
-              ? "beforeStatus"
-              : h.phase === "after"
-                ? "afterStatus"
-                : undefined;
+        h.phase === "lookup"
+            ? "lookupStatus"
+            : h.phase === "read"
+              ? "readStatus"
+              : h.phase === "before"
+                ? "beforeStatus"
+                : h.phase === "after"
+                  ? "afterStatus"
+                  : undefined;
     if (Object.keys(h).some((key) => !["source", "phase", ...fields].includes(key))) return;
     const facts: Record<string, string | number | boolean> = {
         source: "TEST_HELPER",

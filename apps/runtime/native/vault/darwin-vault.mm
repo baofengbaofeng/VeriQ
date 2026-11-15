@@ -160,20 +160,47 @@ SecKeychainRef testStore(NSDictionary *config) {
     return result;
 }
 
-/** 只有专用控制器启动的测试编译目标可以执行此只读检查，它读取同一自有存储中精确条目的真实三十二字节值；这里故意独立于被测 ACL 检查器，以证明拒绝前后材料未变，但仍由系统 ACL 授权且禁止提示和修改。 */
-std::string inspectValue(SecKeychainRef keychain, NSString *name, test::ReadEvidence &observation) {
+/** 测试读取先在同一私有存储中取全部元数据与引用，唯一谓词同时核验数量、字典、精确服务账户及引用类型；此处不调用生产 ACL 准入，以便负例仍能独立向系统请求秘密，借用引用在容器释放前增加一次持有。 */
+SecKeychainItemRef testReadItem(SecKeychainRef keychain, NSString *name, test::ReadEvidence &observation) {
     NSMutableDictionary *request = query(keychain, name);
-    request[(__bridge id)kSecReturnData] = @YES;
+    request[(__bridge id)kSecReturnRef] = @YES;
+    request[(__bridge id)kSecReturnAttributes] = @YES;
     request[(__bridge id)kSecMatchLimit] = (__bridge id)kSecMatchLimitAll;
     Owned<CFTypeRef> result;
-    observation.step(test::ReadPhase::READ);
-    require(observation.status(test::ReadPhase::READ, SecItemCopyMatching((__bridge CFDictionaryRef)request, &result.value)) == errSecSuccess);
+    observation.step(test::ReadPhase::LOOKUP);
+    require(observation.status(test::ReadPhase::LOOKUP, SecItemCopyMatching((__bridge CFDictionaryRef)request, &result.value)) == errSecSuccess);
     observation.step(test::ReadPhase::ARRAY);
     require(observation.predicate(test::ReadPhase::ARRAY, result.value && CFGetTypeID(result.value) == CFArrayGetTypeID()));
     CFArrayRef values = static_cast<CFArrayRef>(result.value);
+    CFTypeRef reference = nullptr;
+    const auto exactItem = [&] {
+        if (CFArrayGetCount(values) != 1) return false;
+        CFTypeRef raw = CFArrayGetValueAtIndex(values, 0);
+        if (!raw || CFGetTypeID(raw) != CFDictionaryGetTypeID()) return false;
+        CFDictionaryRef attributes = static_cast<CFDictionaryRef>(raw);
+        CFTypeRef service = CFDictionaryGetValue(attributes, kSecAttrService);
+        CFTypeRef accountName = CFDictionaryGetValue(attributes, kSecAttrAccount);
+        if (!service || CFGetTypeID(service) != CFStringGetTypeID() ||
+            !accountName || CFGetTypeID(accountName) != CFStringGetTypeID() ||
+            !CFEqual(service, CFSTR("VeriQ/RuntimeVault/v1")) || !CFEqual(accountName, (__bridge CFStringRef)name)) return false;
+        reference = CFDictionaryGetValue(attributes, kSecValueRef);
+        return reference && CFGetTypeID(reference) == SecKeychainItemGetTypeID();
+    };
     observation.step(test::ReadPhase::UNIQUE);
-    require(observation.predicate(test::ReadPhase::UNIQUE, CFArrayGetCount(values) == 1));
-    CFTypeRef data = CFArrayGetValueAtIndex(values, 0);
+    require(observation.predicate(test::ReadPhase::UNIQUE, exactItem()));
+    return static_cast<SecKeychainItemRef>(const_cast<void *>(CFRetain(reference)));
+}
+
+/** 只有专用控制器启动的测试编译目标可以执行此只读检查，先验证全部元数据中的唯一精确条目再按持有引用读取；系统实际返回的单个 CFData 必须恰为三十二字节，诊断数组及唯一事实属于此前真实元数据守卫。 */
+std::string inspectValue(SecKeychainRef keychain, NSString *name, test::ReadEvidence &observation) {
+    Owned<SecKeychainItemRef> item(testReadItem(keychain, name, observation));
+    NSMutableDictionary *request = query(keychain, name);
+    request[(__bridge id)kSecMatchItemList] = @[(__bridge id)item.value];
+    request[(__bridge id)kSecReturnData] = @YES;
+    Owned<CFTypeRef> result;
+    observation.step(test::ReadPhase::READ);
+    require(observation.status(test::ReadPhase::READ, SecItemCopyMatching((__bridge CFDictionaryRef)request, &result.value)) == errSecSuccess);
+    CFTypeRef data = result.value;
     observation.step(test::ReadPhase::DATA32);
     require(observation.predicate(test::ReadPhase::DATA32, data && CFGetTypeID(data) == CFDataGetTypeID() && CFDataGetLength(static_cast<CFDataRef>(data)) == 32));
     observation.step(test::ReadPhase::ENCODING);
@@ -188,9 +215,10 @@ std::string observeReadDenial(SecKeychainRef keychain, NSString *name, test::Rea
     observation.step(test::ReadPhase::CHANNEL);
     struct stat channel {};
     require(fstat(4, &channel) == 0 && S_ISSOCK(channel.st_mode));
+    Owned<SecKeychainItemRef> item(testReadItem(keychain, name, observation));
     NSMutableDictionary *request = query(keychain, name);
+    request[(__bridge id)kSecMatchItemList] = @[(__bridge id)item.value];
     request[(__bridge id)kSecReturnData] = @YES;
-    request[(__bridge id)kSecMatchLimit] = (__bridge id)kSecMatchLimitAll;
     SecKeychainStatus before = 0, after = 0;
     observation.step(test::ReadPhase::BEFORE);
     const OSStatus beforeError = observation.status(test::ReadPhase::BEFORE, SecKeychainGetStatus(keychain, &before));

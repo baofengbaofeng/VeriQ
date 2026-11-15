@@ -10,8 +10,8 @@
 #include <climits>
 
 namespace veriq::test {
-enum class ReadPhase { ENTRY, NO_UI, STORE, STATUS, PERMISSION, ACCOUNT, DISPATCH, CHANNEL, BEFORE, READ, AFTER, ARRAY, UNIQUE, DATA32, ENCODING, DONE };
-inline NSString *const readPhaseNames[] = { @"entry", @"no-ui", @"store", @"status", @"permission", @"account", @"dispatch", @"channel", @"before", @"read", @"after", @"array", @"unique", @"data32", @"encoding", @"done" };
+enum class ReadPhase { ENTRY, NO_UI, STORE, STATUS, PERMISSION, ACCOUNT, DISPATCH, CHANNEL, BEFORE, READ, AFTER, ARRAY, UNIQUE, DATA32, ENCODING, DONE, LOOKUP };
+inline NSString *const readPhaseNames[] = { @"entry", @"no-ui", @"store", @"status", @"permission", @"account", @"dispatch", @"channel", @"before", @"read", @"after", @"array", @"unique", @"data32", @"encoding", @"done", @"lookup" };
 
 /** 诊断写入只尝试一次有界非阻塞发送，独立套接字的禁止 SIGPIPE 选项保护已关闭读端；长度错误、已满或失效端点只丢失证据，调用前 errno 始终恢复且不重试、不等待也不改变原操作结果。 */
 inline void writeReadPacket(int fd, const void *bytes, size_t length) noexcept {
@@ -27,8 +27,8 @@ class ReadEvidence {
     int descriptor = -1;
     bool denial = false;
     ReadPhase phase = ReadPhase::ENTRY;
-    bool hasBefore = false, hasRead = false, hasAfter = false, hasUnlocked = false;
-    OSStatus before = 0, readStatus = 0, after = 0;
+    bool hasBefore = false, hasRead = false, hasAfter = false, hasUnlocked = false, hasLookup = false;
+    OSStatus before = 0, readStatus = 0, after = 0, lookupStatus = 0;
     bool unlockedBefore = false, unlockedAfter = false;
     int predicates[4] {-1, -1, -1, -1};
 public:
@@ -59,15 +59,16 @@ public:
     ~ReadEvidence() noexcept { emit(); }
     /** 阶段前进发生在原操作之前，既不查询状态也不触发输出，先前真正返回的读取事实仍留在独立槽中；当前谓词尚未求值时对应槽保持缺失，因此不会借用上一条调用的布尔值。 */
     void step(ReadPhase value) noexcept { phase = value; }
-    /** 状态代理只接收原有 Security 调用的实际返回整数，再原样交回原判断表达式；三个状态槽分别绑定拒绝前、读取和拒绝后，不把初始守卫状态误记为秘密读取结果。 */
+    /** 状态代理只接收当前调用实际返回的整数，再原样交回原判断表达式；元数据查询有独立槽并随本次观察保留，秘密读取槽仍只绑定真实数据请求，查询失败不会借用或伪造拒绝读取状态。 */
     OSStatus status(ReadPhase value, OSStatus result) noexcept {
         phase = value;
+        if (value == ReadPhase::LOOKUP) { hasLookup = true; lookupStatus = result; }
         if (value == ReadPhase::BEFORE) { hasBefore = true; before = result; }
         if (value == ReadPhase::READ) { hasRead = true; readStatus = result; }
         if (value == ReadPhase::AFTER) { hasAfter = true; after = result; }
         return result;
     }
-    /** 四个形状槽只记录已求值的原始短路谓词，后续未执行槽保持未知且不触碰 CF 对象；编码槽由现有编码器内部条件写入，避免把编码异常误称为已经得到规范三十二字节回复。 */
+    /** 四个形状槽只记录已经求值的短路谓词，新查询流程的数组与唯一槽属于元数据且唯一包含完整精确目标守卫；数据和编码槽属于随后秘密读取，未执行槽保持缺失，旧记录的原始语义由解码器保留。 */
     bool predicate(ReadPhase value, bool result) noexcept {
         phase = value;
         const int slot = static_cast<int>(value) - static_cast<int>(ReadPhase::ARRAY);
@@ -85,6 +86,7 @@ public:
             @try {
                 NSMutableDictionary *record = [@{@"source": @"TEST_HELPER", @"read": denial ? @"denial" : @"inspection",
                     @"phase": readPhaseNames[static_cast<size_t>(phase)]} mutableCopy];
+                if (hasLookup) record[@"lookupStatus"] = @(lookupStatus);
                 if (hasBefore) record[@"beforeStatus"] = @(before);
                 if (hasRead) record[@"readStatus"] = @(readStatus);
                 if (hasAfter) record[@"afterStatus"] = @(after);

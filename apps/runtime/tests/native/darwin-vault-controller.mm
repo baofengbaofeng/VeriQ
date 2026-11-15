@@ -354,15 +354,47 @@ class ReadChannel {
         NSString *phase = value[@"phase"];
         NSArray *common = @[@"entry", @"no-ui", @"store", @"status", @"permission", @"account", @"dispatch"];
         NSArray *phases = denial ? @[@"channel", @"before", @"read", @"after", @"done"] : @[@"read", @"array", @"unique", @"data32", @"encoding", @"done"];
-        if (![phase isKindOfClass:[NSString class]] || (![common containsObject:phase] && ![phases containsObject:phase])) return nil;
+        const bool lookupFlow = value[@"lookupStatus"] != nil || [phase isEqual:@"lookup"];
+        if (lookupFlow) phases = denial ? @[@"lookup", @"array", @"unique", @"before", @"read", @"after", @"done"] : @[@"lookup", @"array", @"unique", @"read", @"data32", @"encoding", @"done"];
+        if (![phase isKindOfClass:[NSString class]] || (![phases containsObject:phase] && (lookupFlow || ![common containsObject:phase]))) return nil;
         NSMutableArray *fields = [NSMutableArray array];
         NSString *optional = nil;
+        /** 新流程先接受同次元数据查询的数组和完整唯一目标谓词，再允许独立秘密读取状态出现；旧记录没有查询槽时仍使用原来的阶段前缀，查询失败或形状失败绝不被补成授权拒绝事实。 */
+        if (lookupFlow) {
+            [fields addObject:@"lookupStatus"];
+            if (![phase isEqual:@"lookup"]) {
+                if (![value[@"lookupStatus"] isEqual:@0]) return nil;
+                NSArray *predicates = @[@"array", @"unique"];
+                const NSUInteger position = [predicates indexOfObject:phase];
+                const NSUInteger index = position == NSNotFound ? 2 : position;
+                for (NSUInteger n = 0; n < std::min(index + 1, static_cast<NSUInteger>(2)); ++n) {
+                    NSString *key = predicates[n];
+                    if (n < index && value[key] != (__bridge id)kCFBooleanTrue) return nil;
+                    if (value[key]) [fields addObject:key];
+                    else if (n < index) return nil;
+                }
+            }
+            if (!denial && [@[@"read", @"data32", @"encoding", @"done"] containsObject:phase]) {
+                [fields addObject:@"readStatus"];
+                NSArray *predicates = @[@"data32", @"encoding"];
+                const NSUInteger index = [phase isEqual:@"done"] ? 2 : [predicates indexOfObject:phase];
+                if (index != NSNotFound) {
+                    if (![value[@"readStatus"] isEqual:@0]) return nil;
+                    for (NSUInteger n = 0; n < std::min(index + 1, static_cast<NSUInteger>(2)); ++n) {
+                        NSString *key = predicates[n];
+                        if (n < index && value[key] != (__bridge id)kCFBooleanTrue) return nil;
+                        if (value[key]) [fields addObject:key];
+                        else if (n < index) return nil;
+                    }
+                }
+            }
+        }
         if (denial) {
             if ([@[@"before", @"read", @"after", @"done"] containsObject:phase]) [fields addObject:@"beforeStatus"];
             if ([@[@"read", @"after", @"done"] containsObject:phase]) [fields addObject:@"readStatus"];
             if ([@[@"after", @"done"] containsObject:phase]) [fields addObject:@"afterStatus"];
             if ([phase isEqual:@"done"]) [fields addObjectsFromArray:@[@"unlockedBefore", @"unlockedAfter"]];
-        } else {
+        } else if (!lookupFlow) {
             if ([phases containsObject:phase]) [fields addObject:@"readStatus"];
             NSArray *predicates = @[@"array", @"unique", @"data32", @"encoding"];
             const NSUInteger index = [phase isEqual:@"done"] ? 4 : [predicates indexOfObject:phase];
@@ -376,6 +408,7 @@ class ReadChannel {
                 }
             }
         }
+        if ([phase isEqual:@"lookup"]) optional = @"lookupStatus";
         if ([phase isEqual:@"before"]) optional = @"beforeStatus";
         if ([phase isEqual:@"read"]) optional = @"readStatus";
         if ([phase isEqual:@"after"]) optional = @"afterStatus";
@@ -608,6 +641,60 @@ int readEvidenceSelftest() {
             observation.unlocked(true, true); observation.emit();
             NSDictionary *record = channel.finish();
             check([record[@"transport"] isEqual:@"AVAILABLE"] && [record[@"helper"][@"readStatus"] isEqual:@(-25293)]);
+        }
+        /** 每个独立观察器重新从查询阶段开始，分别覆盖元数据错误、形状拒绝、真实读取槽及完整终态；这些合成状态仅验证实际写入器和解码器的来源分离，不调用 Security 或宣称本机系统授权成功。 */
+        for (bool denied : {false, true}) for (int variant = 0; variant < 7; ++variant) {
+            ReadChannel channel; channel.prepare(denied);
+            const int writer = fcntl(channel.childWriter(), F_DUPFD_CLOEXEC, 5);
+            check(writer >= 5); channel.closeWriter();
+            test::ReadEvidence observation(config(writer, denied));
+            observation.step(test::ReadPhase::LOOKUP);
+            if (variant > 0) observation.status(test::ReadPhase::LOOKUP, variant == 1 ? -25293 : 0);
+            if (variant > 1) observation.predicate(test::ReadPhase::ARRAY, variant != 2);
+            if (variant > 2) observation.predicate(test::ReadPhase::UNIQUE, variant != 3);
+            if (variant > 3) {
+                if (denied) observation.status(test::ReadPhase::BEFORE, 0);
+                observation.status(test::ReadPhase::READ, variant == 4 ? -50 : denied ? -25293 : 0);
+                if (variant > 4) {
+                    if (denied) {
+                        observation.status(test::ReadPhase::AFTER, 0);
+                        observation.unlocked(true, true);
+                    } else {
+                        observation.predicate(test::ReadPhase::DATA32, variant != 5);
+                        if (variant == 6) {
+                            observation.predicate(test::ReadPhase::ENCODING, true);
+                            observation.step(test::ReadPhase::DONE);
+                        }
+                    }
+                }
+            }
+            observation.emit();
+            NSDictionary *record = channel.finish();
+            NSDictionary *facts = record[@"helper"];
+            check([record[@"transport"] isEqual:@"AVAILABLE"]);
+            check(variant == 0 ? !facts[@"lookupStatus"] : [facts[@"lookupStatus"] isEqual:@(variant == 1 ? -25293 : 0)]);
+            if (variant < 4) check(!facts[@"readStatus"] && !facts[@"beforeStatus"] && !facts[@"unlockedBefore"]);
+            else check([facts[@"readStatus"] isEqual:@(variant == 4 ? -50 : denied ? -25293 : 0)]);
+            if (variant == 6) check([facts[@"unique"] isEqual:@YES] && [facts[denied ? @"unlockedAfter" : @"encoding"] isEqual:@YES]);
+        }
+        for (bool denied : {false, true}) for (NSDictionary *invalid in @[
+            @{@"phase": @"lookup", @"lookupStatus": @(-25293), @"readStatus": @(-25293)},
+            @{@"phase": @"array", @"lookupStatus": @(-50), @"array": @NO},
+            @{@"phase": @"unique", @"lookupStatus": @0, @"array": @NO, @"unique": @YES},
+            @{@"phase": @"read", @"lookupStatus": @0, @"array": @YES, @"unique": @NO, @"readStatus": @(-25293)},
+            @{@"phase": @"lookup", @"lookupStatus": @YES},
+            @{@"phase": @"lookup", @"lookupStatus": @"0"},
+            @{@"phase": @"lookup", @"lookupStatus": @0, @"key": @"SECRET_CANARY"}
+        ]) {
+            ReadChannel channel; channel.prepare(denied);
+            NSMutableDictionary *record = [invalid mutableCopy];
+            record[@"source"] = @"TEST_HELPER"; record[@"read"] = denied ? @"denial" : @"inspection";
+            NSData *json = [NSJSONSerialization dataWithJSONObject:record options:0 error:nullptr];
+            check(json && json.length < 512);
+            NSMutableData *line = [json mutableCopy]; [line appendBytes:"\n" length:1];
+            test::writeReadPacket(channel.childWriter(), line.bytes, line.length); channel.closeWriter();
+            NSDictionary *result = channel.finish();
+            check([result[@"transport"] isEqual:@"REJECTED"] && !result[@"helper"]);
         }
         const char *valid = "{\"read\":\"inspection\",\"source\":\"TEST_HELPER\",\"phase\":\"entry\"}\n";
         for (int variant = 0; variant < 8; ++variant) {

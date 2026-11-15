@@ -751,6 +751,7 @@ test("native legal worst case72 and case60 fit unchanged fixture and job caps", 
         push(
             helperRecord("inspection", {
                 phase: "done",
+                lookupStatus: 0,
                 readStatus: 0,
                 array: true,
                 unique: true,
@@ -761,6 +762,9 @@ test("native legal worst case72 and case60 fit unchanged fixture and job caps", 
         push(
             helperRecord("denial", {
                 phase: "done",
+                lookupStatus: 0,
+                array: true,
+                unique: true,
                 beforeStatus: -2147483648,
                 readStatus: -2147483648,
                 afterStatus: -2147483648,
@@ -1047,4 +1051,120 @@ test("helper raw status conventions fragmentation overflow and canonical provena
     assert.equal(summary.records.length, 1);
     assert.ok(malicious.every((byte) => byte === 0));
     assert.ok(!JSON.stringify(summary).includes("SECRET_CANARY"));
+});
+
+/** 引用锚定读取先证明元数据查询与完整唯一目标，再单独观察秘密读取状态；这些记录驱动实际共享过滤器及报告消费器，既保留旧记录兼容性，也防止元数据授权失败被误当成系统秘密读取拒绝。 */
+test("reference lookup evidence preserves metadata failures and actual data status separately", () => {
+    const metadata = { lookupStatus: 0, array: true, unique: true };
+    for (const read of ["inspection", "denial"]) {
+        const records = [
+            { phase: "lookup" },
+            ...[-50, -25293, -25308, -25315, -25300, 0].map((lookupStatus) => ({
+                phase: "lookup",
+                lookupStatus,
+            })),
+            { phase: "array", lookupStatus: 0 },
+            { phase: "array", lookupStatus: 0, array: false },
+            { phase: "unique", lookupStatus: 0, array: true },
+            { phase: "unique", lookupStatus: 0, array: true, unique: false },
+            ...(read === "inspection"
+                ? [
+                      { phase: "read", ...metadata },
+                      { phase: "read", ...metadata, readStatus: -50 },
+                      { phase: "data32", ...metadata, readStatus: 0, data32: false },
+                      {
+                          phase: "encoding",
+                          ...metadata,
+                          readStatus: 0,
+                          data32: true,
+                          encoding: false,
+                      },
+                      { phase: "done", ...metadata, readStatus: 0, data32: true, encoding: true },
+                  ]
+                : [
+                      { phase: "before", ...metadata },
+                      { phase: "before", ...metadata, beforeStatus: -50 },
+                      { phase: "read", ...metadata, beforeStatus: 0 },
+                      { phase: "after", ...metadata, beforeStatus: 0, readStatus: -25293 },
+                      ...[0, -50, -25293, -25308, -25315].map((readStatus) => ({
+                          phase: "done",
+                          ...metadata,
+                          beforeStatus: 0,
+                          readStatus,
+                          afterStatus: 0,
+                          unlockedBefore: true,
+                          unlockedAfter: true,
+                      })),
+                  ]),
+        ];
+        for (const helper of records) {
+            const record = helperRecord(read, helper);
+            const filter = vault.createDarwinDiagnosticFilter();
+            filter.push(frame(record));
+            filter.close(0, null);
+            const summary = filter.finish(1);
+            assert.equal(summary.rejected, false, JSON.stringify(helper));
+            assert.deepEqual(summary.records, [record]);
+            assert.deepEqual(collect(summary).fixtures, [summary]);
+            if (["lookup", "array", "unique"].includes(helper.phase)) {
+                assert.ok(!("readStatus" in summary.records[0]!.helper!));
+            }
+        }
+    }
+});
+
+/** 新查询路径只接受实际执行顺序的有限前缀，类型错误、缺失成功守卫和越阶段状态都必须失败关闭；显式查询事实不能与旧路径规则混用，额外秘密字段仍不得进入过滤后的记录或报告。 */
+test("reference lookup codec rejects incomplete target proof and mixed read provenance", () => {
+    const metadata = { lookupStatus: 0, array: true, unique: true };
+    const invalid = [
+        { phase: "lookup", lookupStatus: true },
+        { phase: "lookup", lookupStatus: "0" },
+        { phase: "lookup", lookupStatus: 2147483648 },
+        { phase: "lookup", lookupStatus: 0.5 },
+        { phase: "lookup", lookupStatus: -25293, readStatus: -25293 },
+        { phase: "lookup", lookupStatus: 0, array: true },
+        { phase: "array", lookupStatus: -50, array: false },
+        { phase: "array", lookupStatus: 0, array: 1 },
+        { phase: "unique", lookupStatus: 0, array: false, unique: false },
+        { phase: "unique", ...metadata, readStatus: 0 },
+        { phase: "read", lookupStatus: 0, array: true, unique: false, readStatus: -25293 },
+        { phase: "read", lookupStatus: -25293, array: true, unique: true, readStatus: -25293 },
+        { phase: "read", lookupStatus: 0, readStatus: 0 },
+        { phase: "data32", ...metadata, readStatus: -50, data32: true },
+        { phase: "done", ...metadata, readStatus: 0, data32: false, encoding: true },
+        { phase: "entry", lookupStatus: 0 },
+        { phase: "channel", lookupStatus: 0 },
+        { phase: "lookup", lookupStatus: 0, secret: "SECRET_CANARY" },
+    ];
+    for (const read of ["inspection", "denial"]) {
+        for (const helper of invalid) {
+            const record = helperRecord(read, helper);
+            const summary = nativeSummary(record);
+            assert.equal(summary.rejected, true, JSON.stringify(record));
+            assert.deepEqual(summary.records, []);
+            assert.ok(!JSON.stringify(collect(summary)).includes("SECRET_CANARY"));
+        }
+    }
+    for (const helper of [
+        {
+            phase: "done",
+            ...metadata,
+            beforeStatus: -50,
+            readStatus: -25293,
+            afterStatus: 0,
+            unlockedBefore: true,
+            unlockedAfter: true,
+        },
+        {
+            phase: "done",
+            ...metadata,
+            beforeStatus: 0,
+            readStatus: -25293,
+            afterStatus: -50,
+            unlockedBefore: true,
+            unlockedAfter: true,
+        },
+        { phase: "before", ...metadata, beforeStatus: 0, readStatus: -25293 },
+    ])
+        assert.equal(nativeSummary(helperRecord("denial", helper)).rejected, true);
 });
