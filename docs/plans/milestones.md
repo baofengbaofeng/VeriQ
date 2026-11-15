@@ -246,6 +246,7 @@
 | D2b1干净环境集成回归 | [`fbe3dd0` run43650821271](https://github.com/baofengbaofeng/VeriQ/actions/runs/43650821271)桌面unit66、Runtime受影响88、实际Cookie2及GUI7项全部通过；SDK144通过/1项Windows专属跳过，行覆盖率91.97%，GUI无跳过或flaky | 官方制品摘要、51个成员CRC、640个源码摘要和库存已核验；真实同Attempt可见浏览器停止、Cookie数据库/重启及隔离夹具清理通过。本地65/66旧产物失败仍是原始事实，干净构建通过证明须按正确前置步骤生成验证器；不替代正常发行、Mac原生安装或完整MVP验收 |
 | D3a Mac v2静态库存 | 701eb92新增独立静态验证器与公开[库存合同](../specs/runtime-manifest-v2.md)，161项定向测试（新155＋原schema1六项）通过，模块行覆盖99.45%/分支91.99%，独立规格/质量审查C/I/M均0 | 真实Linux文件树已验证严格预算/模式/hash、显式目录及有限Framework链接/循环，旧loader/ExecutionPaths/角色与ready入口不变。真实归档descriptor、Mac二进制/签名/安装由D3b及后续接入；本地pnpm metadata与全仓B05失败保留，不写成Mac原生发行验收完成 |
 | D3b1a Mac载荷输入核验 | `548fbd5`实现完整输入/receipt/静态依赖/peer/bin/engine核验和实际[inspect CLI](../specs/runtime-payload-inputs.md)；`af6db33`修复首次读取类别上限与跨角色证据总量，两项Important经原审查代理定向复审关闭 | 初轮215/215（新54＋原161），修复后四新suite67/67、类型/格式及改动文件中文说明检查通过；一项Framework空名称Minor留T22。固定五项归档/目标执行/来源/最终库存待验，未产Runtime候选；全仓B05上次测量4.7942%/264仍失败，不能称Mac安装或完整MVP完成 |
+| D3b1b-I 有界归档与prepare CLI | `57fbee2`实现真实Node tar.gz/Chrome ZIP两遍扫描与私有提取、CRC/范围/链接图、独立快照和提交/清理状态；`a7cfa30`修复提取磁盘错误分类及无链接Framework名称漏检，定向复审两项Important关闭 | 初轮组合137/137；修复后I两suite74/74、类型/格式及改动说明检查通过。前缀缩减路径边界、ZIP缺失mode的来源事实两项Minor留T22；全仓B05上次4.7347111156%/264仍失败。输出仅归档intake，不含完整Runtime候选、真实Mac执行、ready或安装验收 |
 | 下一工程切片 | [停止实施计划](macos-controlled-stop.md)：B、C1、C2a1/C2a2/C2b1/C2b2源码组件完成，继续D阶段Keychain、Cookie、完整库存与双架构发行 | 不再以kqueue/非child peer身份链作为正回执依赖；公开Stability1通道须具体Node自检；全仓注释门禁仍失败，C++审计覆盖及LOW测试竞态仍待T22/最终审查；整T20与MVP百分比不因子切片提前计完 |
 
 
