@@ -11,6 +11,28 @@ import { ProcessSupervisor } from "../src/execution/processes.ts";
 import { runOffline, type OfflineConfig } from "../src/offline/run.ts";
 import { requireDarwinSource, type DarwinSourceCapability } from "../src/execution/darwin-source.ts";
 import { updatePrivate, readPrivate } from "../src/offline/config.ts";
+import { leaseDeadline } from "../src/lease.ts";
+import { businessLeaseWindow } from "./fixtures/business-engine.ts";
+
+/** 失去激活回执的第三次探针必须提供恰好六十秒的租约窗口，注入固定及前进一毫秒的真实时间样本后交给生产截止计算校验，避免独立墙钟采样让有效探针提前失败而掩盖后续激活丢失断言。 */
+for (const step of [1, 0]) {
+    test(`business lease window accepts a ${step === 1 ? "one-millisecond advancing" : "fixed"} clock`, () => {
+        const timestamp = Date.parse("2026-11-15T12:00:00.000Z");
+        let reads = 0;
+        const window = businessLeaseWindow(() => timestamp + step * reads++);
+        const deadline = leaseDeadline(
+            {
+                serverTime: window.serverTime,
+                leaseExpiresAt: window.expiresAt,
+                leaseDurationMs: 60000,
+            },
+            100,
+            110,
+        );
+        assert.equal(deadline, 59100);
+        assert.equal(Date.parse(window.expiresAt) - Date.parse(window.serverTime), 60000);
+    });
+}
 
 test("serialized or asserted source objects cannot enable online or offline business", async () => {
     for (const value of [{}, Object.freeze({ supported: true, platform: "darwin" }), JSON.parse('{"darwinSource":true}')]) {

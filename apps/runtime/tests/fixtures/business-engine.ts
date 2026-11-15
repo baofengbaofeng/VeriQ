@@ -19,6 +19,18 @@ import { DeviceSession } from "../../src/agent/credentials.ts";
 import { AgentClient, type Claim } from "../../src/agent/transport.ts";
 import { ExecutionSupervisor, type AttemptResult } from "../../src/execution/supervisor.ts";
 import type { DarwinSourceCapability } from "../../src/execution/darwin-source.ts";
+
+/** 失去激活回执的第三次业务探针只采样一次时钟，以同一起点推导恰好六十秒的租约终点，避免毫秒推进扩大授权窗口；此夹具接口只覆盖认领时间，不改变尝试标识、生产校验或失败关闭断言。 */
+export function businessLeaseWindow(
+    now: () => number = Date.now,
+): Pick<Claim, "serverTime" | "expiresAt"> {
+    const serverTime = now();
+    return {
+        serverTime: new Date(serverTime).toISOString(),
+        expiresAt: new Date(serverTime + 60000).toISOString(),
+    };
+}
+
 const sha = (raw: Uint8Array) => createHash("sha256").update(raw).digest("hex");
 const hash = sha;
 async function cleanup(path: string) {
@@ -662,7 +674,11 @@ export async function onlineBusiness(options: {
         if (options.connectFailure || options.expectCancelled || options.expectIncomplete) return;
         assert.equal(serviceWorkerHits, 0);
         loseActivation = true;
-        const lost = { ...previous!, attemptId: id(84), serverTime: new Date().toISOString(), expiresAt: new Date(Date.now() + 60000).toISOString() };
+        const lost = {
+            ...previous!,
+            attemptId: id(84),
+            ...businessLeaseWindow(),
+        };
         const recovered = await supervisor.runAttempt({ claim: lost, requestStarted: performance.now(), responseReceived: performance.now() }, new AbortController().signal);
         assert.equal(recovered.completion, undefined);
         assert.equal(recovered.stop.processStopped, true);
