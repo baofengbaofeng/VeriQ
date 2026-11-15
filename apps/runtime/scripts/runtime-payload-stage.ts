@@ -1,5 +1,6 @@
+import { trackZipClosure, closeUntransferredZipFd } from "./runtime-payload-zip.ts";
 import { createHash, randomUUID } from "node:crypto";
-import { constants, open as openFd, close as closeFd, fstat, createReadStream } from "node:fs";
+import { constants, open as openFd, fstat, createReadStream } from "node:fs";
 import { join, dirname } from "node:path";
 import { finished } from "node:stream/promises";
 import { fromFdPromise, type Entry, type ZipFile } from "yauzl";
@@ -588,10 +589,9 @@ async function explicitZipModes(intake: IntakeResult, tx: ArchiveTransaction) {
         ),
     );
     let zip: ZipFile | undefined,
-        closed: Promise<void> | undefined,
-        failure: unknown,
+        closure: ReturnType<typeof trackZipClosure> | undefined,
         primary: unknown;
-    const abort = () => zip?.close();
+    const abort = () => closure?.request();
     try {
         const before = await new Promise<import("node:fs").Stats>((resolve, reject) =>
             fstat(fd!, (error, value) => (error ? reject(error) : resolve(value))),
@@ -631,10 +631,7 @@ async function explicitZipModes(intake: IntakeResult, tx: ArchiveTransaction) {
             strictFileNames: true,
         });
         fd = undefined;
-        closed = new Promise<void>((resolve) => zip!.once("close", resolve));
-        zip.on("error", (error: unknown) => {
-            failure ??= error;
-        });
+        closure = trackZipClosure(zip, tx);
         tx.signal?.addEventListener("abort", abort, { once: true });
         const expected = new Map(archive.members.map((member) => [member.path, member]));
         let count = 0,
@@ -676,21 +673,15 @@ async function explicitZipModes(intake: IntakeResult, tx: ArchiveTransaction) {
                 tx.fail("PAYLOAD_ARCHIVE_UNSUPPORTED");
             expected.delete(name);
         }
-        if (expected.size || failure) tx.fail("PAYLOAD_ARCHIVE_UNSUPPORTED");
+        if (expected.size || closure.failure()) tx.fail("PAYLOAD_ARCHIVE_UNSUPPORTED");
     } catch (error) {
         primary = error;
         throw error;
     } finally {
         tx.signal?.removeEventListener("abort", abort);
         try {
-            if (zip) {
-                if (zip.isOpen) zip.close();
-                await closed;
-                if (failure) throw failure;
-            } else if (fd !== undefined)
-                await new Promise<void>((resolve, reject) =>
-                    closeFd(fd!, (error) => (error ? reject(error) : resolve())),
-                );
+            if (closure) await closure.settle();
+            else if (fd !== undefined) await closeUntransferredZipFd(fd, tx);
         } catch (error) {
             tx.noteCloseFailure();
             if (!primary) throw error;

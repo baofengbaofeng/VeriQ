@@ -1,12 +1,12 @@
 /**
- * 跨页面复用的轻量 UI 原语：告警、表单字段、异步动作状态与带标题的 Panel 容器。样式类名依赖全局 style.css。
+ * 跨页面复用的轻量 UI 原语负责告警、原生表单字段、异步动作反馈和带标题的 Panel 容器，组件沿用全局 style.css 并让各页面继续拥有其业务数据。
  * 不绑定 Workspace；错误文案优先展示 ApiError.message。
  */
 
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useState, useCallback, useEffect, useRef, type FormEvent, type ReactNode } from "react";
 import { ApiError } from "./api";
 /**
- * 按 role=alert/status 展示 error 与成功 message，供登录、账户与管理表单复用同一反馈槽。
+ * 按 role=alert/status 分别展示传入的错误和成功消息，使登录、账户与管理员表单拥有一致且可被辅助技术识别的反馈区域，并保持消息文本由调用页面决定。
  * 仅渲染传入字符串，不做 i18n；调用方负责把 ApiError 转成可读文本。
  */
 export function Notice({ error, message }: { error?: string; message?: string }) {
@@ -26,7 +26,7 @@ export function Notice({ error, message }: { error?: string; message?: string })
     );
 }
 /**
- * 带 label/data-testid 的受控原生 input，按 type 限制 maxLength 与 autocomplete 策略。
+ * 带 label/data-testid 的非受控原生 input 保留浏览器必填及长度校验，并按字段类型选择 maxLength 与 autocomplete，使普通认证表单直接读取用户当前输入。
  * 用于认证与账户表单；资源 DSL 编辑请改用 features/resources/fields 的 RHF 字段。
  */
 export function Field({
@@ -64,36 +64,45 @@ export function Field({
     );
 }
 /**
- * 封装 busy/error/message 与 run()：串行执行异步动作，捕获 ApiError 并在 finally 清除 busy。
+ * 封装 busy/error/message 与引用稳定的 run，执行每次传入的异步操作并处理失败；只有当前挂载中的最新动作能够发布忙碌或错误状态，调用方仍负责业务结果所有权。
  * 页面用其驱动提交按钮 disabled 与 Notice，避免各表单各自维护一套加载状态。
  */
 export function useAction() {
     const [busy, setBusy] = useState(false),
         [error, setError] = useState(""),
         [message, setMessage] = useState("");
-    return {
-        busy,
-        error,
-        message,
-        setMessage,
-        run: async (fn: () => Promise<void>) => {
-            setBusy(true);
-            setError("");
-            setMessage("");
-            try {
-                await fn();
-            } catch (e) {
+    const mounted = useRef(false),
+        generation = useRef(0);
+    useEffect(() => {
+        mounted.current = true;
+        return () => {
+            mounted.current = false;
+            generation.current += 1;
+        };
+    }, []);
+    /** 每次调用仍立即执行本次传入的操作而不排队，代次仅决定谁能发布动作状态；较早完成或卸载后的错误与 finally 不得清除较新操作的忙碌状态或错误提示。 */
+    const run = useCallback(async (fn: () => Promise<void>): Promise<void> => {
+        const request = ++generation.current;
+        const current = () => mounted.current && generation.current === request;
+        if (!current()) return;
+        setBusy(true);
+        setError("");
+        setMessage("");
+        try {
+            await fn();
+        } catch (e) {
+            if (current())
                 setError(
                     e instanceof ApiError ? e.message : "Unable to reach VeriQ. Please try again.",
                 );
-            } finally {
-                setBusy(false);
-            }
-        },
-    };
+        } finally {
+            if (current()) setBusy(false);
+        }
+    }, []);
+    return { busy, error, message, setMessage, run };
 }
 /**
- * 阻止默认提交并把 FormData 转为 Record<string,string>，供 SignIn/Setup 等非 RHF 表单读取。
+ * 阻止浏览器默认提交并在本次提交时读取 FormData，转成普通认证及管理表单使用的字符串记录，保留非受控字段的当前值而不在输入过程中发起请求或提交状态。
  * 不校验字段；必填与长度由 Field 的原生 required/minLength 承担。
  */
 export function values(e: FormEvent<HTMLFormElement>) {

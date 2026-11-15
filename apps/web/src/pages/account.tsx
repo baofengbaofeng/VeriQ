@@ -3,13 +3,13 @@
  * 调用 api.account/sessions/password/revokeOwn；未登录重定向 /login。
  */
 
-import { useState, useContext, useEffect } from "react";
+import { useState, useContext, useEffect, useLayoutEffect, useCallback, useRef } from "react";
 import { Navigate } from "react-router-dom";
 import { api, type AccountSessions } from "../api";
 import { Auth } from "../auth-context";
 import { Notice, Field, useAction, values, Panel } from "../ui";
 /**
- * 拥有 sessions 列表与 limit 状态；loadSessions 支持 cursor 追加，改密成功后可要求重新登录。
+ * 以当前 user.id 和所选每页数量拥有会话列表及游标，首次加载与重试替换首屏、More 仅追加当前游标的一页，并在改密或撤销后通过身份刷新进入重新登录流程。
  * 不涉及 Workspace 资源；会话吊销后通过 refresh 同步 Auth。
  */
 export function Account() {
@@ -17,20 +17,45 @@ export function Account() {
         a = useAction();
     const [sessions, setSessions] = useState<AccountSessions | null>(null);
     const [limit, setLimit] = useState(25);
-    const loadSessions = async (cursor?: string) => {
-        const page = await api.sessions({ limit, cursor });
-        setSessions((previous) =>
-            cursor && previous
-                ? {
-                      items: [...previous.items, ...page.items],
-                      nextCursor: page.nextCursor,
-                  }
-                : page,
-        );
-    };
+    const userId = user?.id;
+    const key = JSON.stringify([userId, limit]);
+    const owner = useRef({ key, request: 0, mounted: false });
+    const { run } = a;
+    /** 身份和页大小共同拥有当前列表，布局阶段先失效旧请求并清空分页，避免新身份短暂展示旧行；此处只阻止过期结果发布，不会取消已经发往后端的 HTTP 请求。 */
+    useLayoutEffect(() => {
+        owner.current = { key, request: owner.current.request + 1, mounted: true };
+        setSessions(null);
+        return () => {
+            owner.current.mounted = false;
+            owner.current.request += 1;
+        };
+    }, [key]);
+    /** 未传游标时替换会话首屏，More 只追加当前游标对应的一页；调用开始与完成都核对身份和页大小，较早请求的错误也不会进入新列表的动作反馈区域或改变新游标。 */
+    const loadSessions = useCallback(
+        async (cursor?: string): Promise<void> => {
+            if (!userId || !owner.current.mounted || owner.current.key !== key) return;
+            const request = ++owner.current.request;
+            const current = () =>
+                owner.current.mounted &&
+                owner.current.key === key &&
+                owner.current.request === request;
+            try {
+                const page = await api.sessions({ limit, cursor });
+                if (!current()) return;
+                setSessions((previous) =>
+                    cursor && previous
+                        ? { items: [...previous.items, ...page.items], nextCursor: page.nextCursor }
+                        : page,
+                );
+            } catch (error) {
+                if (current()) throw error;
+            }
+        },
+        [key, limit, userId],
+    );
     useEffect(() => {
-        if (user) void a.run(() => loadSessions());
-    }, [user?.id, limit]);
+        if (userId) void run(() => loadSessions());
+    }, [userId, run, loadSessions]);
     if (!user) return <Navigate to="/login" />;
     const signedOut = async () => {
         await refresh();

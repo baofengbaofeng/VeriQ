@@ -1058,3 +1058,162 @@ test("R1 evidence budget rejects declarations whose combined integer size would 
         { code: "PAYLOAD_LIMIT" },
     );
 });
+
+/** 真实子进程只包装精确 owned 快照的单次关闭回调，实际系统关闭成功后才注入 EIO；父进程等待自然终止并记录保留目录之后才删除自己的夹具，十秒看门狗只能判失败，不能替生产结算。 */
+for (const scenario of ["normal", "close-eio"])
+    test(`finite ZIP close stage ${scenario}`, async (t) => {
+        const { spawnSync } = await import("node:child_process");
+        const { mkdtemp, rm, lstat, readdir } = await import("node:fs/promises");
+        const { tmpdir } = await import("node:os");
+        const root = await mkdtemp(join(tmpdir(), "veriq-zip-close-"));
+        try {
+            const child = spawnSync(
+                process.execPath,
+                [
+                    "--import",
+                    "tsx",
+                    "--input-type=module",
+                    "-e",
+                    String.raw`
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
+import { mkdir, lstat, readdir, readFile, statfs } from "node:fs/promises";
+import { join } from "node:path";
+import { ArchiveTransaction } from "./scripts/runtime-payload-transaction.ts";
+import { ArchiveScan, ArchiveBudget, archiveRejectionLine } from "./scripts/runtime-payload-archive.ts";
+import { scanZip } from "./scripts/runtime-payload-zip.ts";
+import { zipBytes } from "./tests/fixtures/runtime-payload-archives.ts";
+import { hash } from "./tests/fixtures/runtime-payload.ts";
+const root = process.env.VERIQ_ZIP_CLOSE_ROOT, scenario = process.env.VERIQ_ZIP_CLOSE_CASE;
+const output = join(root, "output"), input = join(root, "input");
+await mkdir(output, { mode: 0o700 });
+await mkdir(input, { mode: 0o700 });
+const space = await statfs(root, { bigint: true });
+assert.ok(space.bavail * space.bsize > 40n * 1024n ** 2n);
+const emit = (event, facts = {}) => console.log(JSON.stringify({ event, scenario, ...facts }));
+process.on("unhandledRejection", error => { emit("UNHANDLED_REJECTION", { message: String(error) }); process.exitCode = 91; });
+let target, expected, captured, calls = 0, opens = 0, injected = false, primary, tx;
+const controller = new AbortController();
+const originalOpen = fs.open, originalClose = fs.close, originalRead = fs.read;
+const identity = info => ({ dev: String(info.dev), ino: String(info.ino), size: String(info.size), nlink: String(info.nlink) });
+const matches = info => info.isFile() && info.dev === expected.dev && info.ino === expected.ino && info.size === expected.size && info.nlink === 1n;
+const restore = () => { fs.open = originalOpen; fs.close = originalClose; fs.read = originalRead; syncBuiltinESMExports(); };
+const install = (select, occurrence) => {
+    fs.open = function(path, ...args) {
+        if (!select(String(path)) || ++opens !== occurrence) return originalOpen.call(this, path, ...args);
+        target = String(path);
+        expected = fs.lstatSync(target, { bigint: true });
+        assert.ok(expected.isFile() && expected.nlink === 1n && expected.size <= 1024n ** 2n);
+        const callback = args.pop();
+        return originalOpen.call(this, path, ...args, (error, fd) => {
+            if (error) return callback(error, fd);
+            assert.ok(matches(fs.fstatSync(fd, { bigint: true })));
+            captured = fd;
+            emit("CAPTURE", { path: target, fd, identity: identity(expected) });
+            callback(null, fd);
+        });
+    };
+    fs.close = function(fd, callback) {
+        if (fd !== captured) return originalClose.call(this, fd, callback);
+        assert.equal(++calls, 1);
+        assert.ok(matches(fs.fstatSync(fd, { bigint: true })));
+        originalClose(fd, error => {
+            assert.ifError(error);
+            restore();
+            emit("ACTUAL_CLOSE", { calls, identity: identity(expected) });
+            if (scenario.endsWith("normal")) callback(null);
+            else { injected = true; callback(Object.assign(Error("OWNED_CLOSE_FAULT"), { code: "EIO" })); }
+        });
+    };
+    fs.read = function(fd, ...args) {
+        if (fd === captured && args[2] === 2018 && !injected && (scenario === "read-eio" || scenario === "cancel-eio")) {
+            injected = true;
+            if (scenario === "cancel-eio") controller.abort();
+            else { queueMicrotask(() => args.at(-1)(Object.assign(Error("OWNED_READ_FAULT"), { code: "EIO" }))); return; }
+        }
+        return originalRead.call(this, fd, ...args);
+    };
+    syncBuiltinESMExports();
+};
+const retain = async () => {
+    assert.equal(hash(await readFile(target)), snapshotHash);
+    const files = await readdir(output, { recursive: true });
+    assert.ok(files.some(path => path.endsWith(".lock")));
+    assert.ok(files.some(path => path.endsWith("snapshots/chrome.zip")));
+    emit("RETAINED", { target, identity: identity(await lstat(target, { bigint: true })), files });
+};
+let snapshotHash;
+
+const { fixture } = await import("./tests/fixtures/runtime-payload.ts");
+const { stageModel } = await import("./tests/fixtures/runtime-payload-stage.ts");
+const { stageMacRuntimePayload } = await import("./scripts/runtime-payload-stage.ts");
+await fixture(async f => {
+    snapshotHash = f.recipe.chrome.file.sha256;
+    install(path => path.startsWith(output + "/") && path.endsWith("/intakes/intake/snapshots/chrome.zip"), 1);
+    emit("SETUP_RESOLVED");
+    try {
+        const result = await stageMacRuntimePayload(await f.save(), f.expected, { inputRoot: f.root, outputParent: output, candidateName: "a".repeat(64) });
+        assert.equal(scenario, "normal");
+        assert.equal(result.committed, true);
+        assert.equal(result.cleanup, "CONFIRMED");
+        emit("SETTLED", { outcome: "success", cleanup: result.cleanup });
+    } catch (error) {
+        assert.equal(scenario, "close-eio");
+        assert.equal(error.code, "PAYLOAD_IO");
+        assert.equal(error.causeCode, "EIO");
+        assert.equal(error.phase, "INTAKE");
+        assert.equal(error.cleanup, "INCOMPLETE");
+        await retain();
+        assert.ok(!(await readdir(output)).includes("a".repeat(64)));
+        emit("SETTLED", { outcome: "rejected", code: error.code, causeCode: error.causeCode, phase: error.phase, cleanup: error.cleanup });
+    } finally { restore(); }
+}, await stageModel());
+assert.equal(calls, 1);
+`,
+                ],
+                {
+                    encoding: "utf8",
+                    timeout: 10000,
+                    env: {
+                        ...process.env,
+                        TMPDIR: root,
+                        TSX_DISABLE_CACHE: "1",
+                        VERIQ_ZIP_CLOSE_ROOT: root,
+                        VERIQ_ZIP_CLOSE_CASE: scenario,
+                    },
+                },
+            );
+            const paths = ["", ...(await readdir(root, { recursive: true }))];
+            const facts = await Promise.all(
+                paths.map(async (path) => {
+                    const info = await lstat(join(root, path));
+                    return {
+                        path,
+                        allocatedBytes: info.blocks * 512,
+                        ino: info.ino,
+                        sizeBytes: info.size,
+                    };
+                }),
+            );
+            t.diagnostic(
+                JSON.stringify({
+                    scenario,
+                    status: child.status,
+                    signal: child.signal,
+                    stdout: child.stdout,
+                    stderr: child.stderr,
+                    retainedAfterExit: facts,
+                }),
+            );
+            assert.ok(facts.reduce((sum, item) => sum + item.allocatedBytes, 0) <= 2 * 1024 ** 2);
+            assert.match(child.stdout, /SETUP_RESOLVED/);
+            assert.doesNotMatch(child.stdout + child.stderr, /UNHANDLED_REJECTION/);
+            assert.equal(child.status, 0, child.stdout + child.stderr);
+            assert.equal(child.signal, null);
+            assert.match(child.stdout, /SETTLED/);
+            assert.equal(child.stderr, "");
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
+    });

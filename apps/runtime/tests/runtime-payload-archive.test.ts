@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Header, Pax } from "tar";
-import { gunzipSync, gzipSync } from "node:zlib";
+import { crc32, gunzipSync, gzipSync } from "node:zlib";
 import { mkdtemp, rm, readFile, lstat, readdir, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -899,7 +899,7 @@ for (const scenario of rejectionTarCases) {
 for (const scenario of [
     "method",
     "flags",
-    "storedFlags",
+    "storedOptionsAndUnknownFlag",
     "host",
     "type",
     "dosMode",
@@ -925,8 +925,8 @@ for (const scenario of [
             bytes.writeUInt16LE(99, 8);
             bytes.writeUInt16LE(99, central + 10);
         }
-        if (scenario === "flags" || scenario === "storedFlags") {
-            const value = scenario === "flags" ? 0x10 : 2;
+        if (scenario === "flags" || scenario === "storedOptionsAndUnknownFlag") {
+            const value = scenario === "flags" ? 0x10 : 0x12;
             bytes.writeUInt16LE(value, 6);
             bytes.writeUInt16LE(value, central + 8);
         }
@@ -941,7 +941,7 @@ for (const scenario of [
             const event = JSON.parse(archiveRejectionLine(error)!);
             assert.equal(
                 event.reason,
-                ["method", "flags", "storedFlags"].includes(scenario)
+                ["method", "flags", "storedOptionsAndUnknownFlag"].includes(scenario)
                     ? "ZIP_METHOD_FLAGS"
                     : ["host", "type"].includes(scenario)
                       ? "ZIP_HOST_TYPE"
@@ -950,7 +950,7 @@ for (const scenario of [
             const flag =
                 scenario === "method"
                     ? "methodUnsupported"
-                    : scenario === "flags"
+                    : scenario === "flags" || scenario === "storedOptionsAndUnknownFlag"
                       ? "flagsUnsupported"
                       : scenario === "host"
                         ? "hostUnsupported"
@@ -958,6 +958,11 @@ for (const scenario of [
                           ? "typeUnsupported"
                           : scenario;
             assert.equal(event.details[flag], true);
+            if (scenario === "storedOptionsAndUnknownFlag") {
+                assert.equal(event.details.storedFlags, true);
+                assert.equal(event.details.flags, 0x12);
+                assert.equal(event.details.localFlags, 0x12);
+            }
             assert.equal(event.headerIndex, 1);
             assert.equal(event.memberIndex, 1);
             assert.equal(event.rawMode.value, bytes.readUInt32LE(central + 38) >>> 16);
@@ -1121,3 +1126,400 @@ test("archive rejection evidence missing raw mode and unchanged limit priority",
     );
     assert.equal(await tx.cleanup(), "NOT_NEEDED");
 });
+
+/** Stored 兼容案例只在成熟编码器生成的单成员微型归档中改变原始选项位，事务快照与双遍扫描始终消费同一字节；每例独占目录并在确认关闭后清理，同时核验实际磁盘分配和剩余空间。 */
+async function storedFixture(
+    bytes: Buffer,
+    inspect: (
+        tx: import("../scripts/runtime-payload-transaction.ts").ArchiveTransaction,
+        path: string,
+    ) => Promise<void>,
+) {
+    const { statfs } = await import("node:fs/promises"),
+        { ArchiveTransaction } = await import("../scripts/runtime-payload-transaction.ts");
+    const base = await mkdtemp(join(tmpdir(), "veriq-stored-options-")),
+        input = join(base, "input"),
+        output = join(base, "output");
+    await mkdir(input, { mode: 0o700 });
+    await mkdir(output, { mode: 0o700 });
+    const tx = new ArchiveTransaction(input, output, "scan");
+    try {
+        const free = await statfs(base);
+        assert.ok(free.bavail * free.bsize > 40 * 1024 ** 2);
+        assert.ok(bytes.length <= 1024 ** 2);
+        await tx.initialize();
+        tx.phase = "INTAKE";
+        const content = async function* () {
+            yield bytes;
+        };
+        const ref = await tx.write("snapshots/chrome.zip", content());
+        const path = join(tx.scratch, ref.path);
+        await tx.audit();
+        await inspect(tx, path);
+        assert.deepEqual(await readFile(path), bytes);
+        const allocated = async (path: string): Promise<number> => {
+            const info = await lstat(path);
+            let total = info.blocks * 512;
+            if (info.isDirectory())
+                for (const name of await readdir(path)) total += await allocated(join(path, name));
+            return total;
+        };
+        assert.ok((await allocated(base)) <= 2 * 1024 ** 2);
+    } finally {
+        assert.equal(await tx.cleanup(), "CONFIRMED");
+        await rm(base, { recursive: true, force: true });
+    }
+}
+
+/** 四种方法专属选项位均保持原值传入成熟 Stored 解码器，声明长度与 CRC 来自真实头部并由实际正文完成校验；第二遍必须得到相同成员摘要和完整正文，快照原字节不能被清零或重写。 */
+for (const flags of [0, 2, 4, 6]) {
+    test(`stored option bits ${flags} preserve exact body through two scans`, async () => {
+        const { ArchiveScan, ArchiveBudget } = await import(
+                "../scripts/runtime-payload-archive.ts"
+            ),
+            { scanZip } = await import("../scripts/runtime-payload-zip.ts");
+        const body = "s".repeat(2018),
+            bytes = zipBytes([{ path: "top/item", body }], 0),
+            central = bytes.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+        bytes.writeUInt16LE(flags, 6);
+        bytes.writeUInt16LE(flags, central + 8);
+        const original = Buffer.from(bytes);
+        assert.equal(bytes.readUInt32LE(18), body.length);
+        assert.equal(bytes.readUInt32LE(22), body.length);
+        assert.equal(bytes.readUInt32LE(central + 20), body.length);
+        assert.equal(bytes.readUInt32LE(central + 24), body.length);
+        assert.equal(bytes.readUInt32LE(14), crc32(Buffer.from(body)));
+        assert.equal(bytes.readUInt32LE(central + 16), crc32(Buffer.from(body)));
+        await storedFixture(bytes, async (tx, path) => {
+            const budget = new ArchiveBudget(),
+                first = new ArchiveScan("chrome", "top", tx, budget);
+            await scanZip(path, first, bytes.length);
+            assert.deepEqual(first.members, [
+                {
+                    path: "top/item",
+                    kind: "file",
+                    mode: 0o644,
+                    sizeBytes: body.length,
+                    sha256: hash(Buffer.from(body)),
+                },
+            ]);
+            assert.equal(first.expandedBytes, body.length);
+            await tx.plan(body.length, first.effective.size);
+            const second = new ArchiveScan("chrome", "top", tx, budget, first);
+            await scanZip(path, second, bytes.length);
+            assert.deepEqual(second.members, first.members);
+            assert.equal(second.expandedBytes, body.length);
+            assert.equal(await readFile(join(tx.scratch, "trees/chrome/top/item"), "utf8"), body);
+            const snapshot = await readFile(path);
+            assert.equal(snapshot.readUInt16LE(6), flags);
+            assert.equal(snapshot.readUInt16LE(central + 8), flags);
+            assert.deepEqual(snapshot, original);
+            await tx.audit();
+        });
+        assert.deepEqual(bytes, original);
+    });
+}
+
+/** 放行 Stored 方法不解释的选项位不能影响其它拒绝边界，以下每次只破坏真实微型 ZIP 的一个条件；加密输入允许先被成熟解析器判为格式错误，不能把更早的诚实失败伪装成诊断守卫命中。 */
+for (const scenario of [
+    "local0central4",
+    "local4central0",
+    "method",
+    "unknown",
+    "encrypted",
+    "strongEncryption",
+    "crc",
+    "storedSize",
+] as const) {
+    test(`stored option boundary still rejects ${scenario}`, async () => {
+        const { ArchiveScan, ArchiveBudget } = await import(
+                "../scripts/runtime-payload-archive.ts"
+            ),
+            { scanZip } = await import("../scripts/runtime-payload-zip.ts");
+        const bytes = zipBytes([{ path: "top/item", body: "s".repeat(2018) }], 0),
+            central = bytes.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+        const flags =
+            scenario === "unknown"
+                ? 0x14
+                : scenario === "encrypted"
+                  ? 5
+                  : scenario === "strongEncryption"
+                    ? 0x45
+                    : 4;
+        bytes.writeUInt16LE(scenario === "local0central4" ? 0 : flags, 6);
+        bytes.writeUInt16LE(scenario === "local4central0" ? 0 : flags, central + 8);
+        if (scenario === "method") {
+            bytes.writeUInt16LE(99, 8);
+            bytes.writeUInt16LE(99, central + 10);
+        }
+        if (scenario === "crc") bytes[30 + bytes.readUInt16LE(26)]! ^= 1;
+        if (scenario === "storedSize") {
+            bytes.writeUInt32LE(2019, 22);
+            bytes.writeUInt32LE(2019, central + 24);
+        }
+        const expected = scenario.startsWith("local")
+            ? "PAYLOAD_ARCHIVE_RANGE"
+            : scenario === "crc"
+              ? "PAYLOAD_ARCHIVE_CRC"
+              : scenario === "storedSize" ||
+                  scenario === "encrypted" ||
+                  scenario === "strongEncryption"
+                ? "PAYLOAD_ARCHIVE_FORMAT"
+                : "PAYLOAD_ARCHIVE_UNSUPPORTED";
+        await storedFixture(bytes, async (tx, path) => {
+            const scan = new ArchiveScan("chrome", "top", tx, new ArchiveBudget());
+            await assert.rejects(scanZip(path, scan, bytes.length), (error: unknown) => {
+                assert.ok(error instanceof RuntimePayloadError);
+                assert.equal(error.code, expected);
+                return true;
+            });
+            assert.deepEqual(await readdir(join(tx.scratch, "trees/chrome")), []);
+        });
+    });
+}
+
+/** 真实子进程只包装精确 owned 快照的单次关闭回调，实际系统关闭成功后才注入 EIO；父进程等待自然终止并记录保留目录之后才删除自己的夹具，十秒看门狗只能判失败，不能替生产结算。 */
+for (const scenario of [
+    "normal",
+    "close-eio",
+    "crc-eio",
+    "parser-eio",
+    "init-eio",
+    "unsupported-eio",
+    "cancel-eio",
+    "read-eio",
+    "crc-normal",
+    "parser-normal",
+])
+    test(`finite ZIP close archive ${scenario}`, async (t) => {
+        const { spawnSync } = await import("node:child_process");
+        const { mkdtemp, rm, lstat, readdir } = await import("node:fs/promises");
+        const { tmpdir } = await import("node:os");
+        const root = await mkdtemp(join(tmpdir(), "veriq-zip-close-"));
+        try {
+            const child = spawnSync(
+                process.execPath,
+                [
+                    "--import",
+                    "tsx",
+                    "--input-type=module",
+                    "-e",
+                    String.raw`
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
+import { mkdir, lstat, readdir, readFile, statfs } from "node:fs/promises";
+import { join } from "node:path";
+import { ArchiveTransaction } from "./scripts/runtime-payload-transaction.ts";
+import { ArchiveScan, ArchiveBudget, archiveRejectionLine } from "./scripts/runtime-payload-archive.ts";
+import { scanZip } from "./scripts/runtime-payload-zip.ts";
+import { zipBytes } from "./tests/fixtures/runtime-payload-archives.ts";
+import { hash } from "./tests/fixtures/runtime-payload.ts";
+const root = process.env.VERIQ_ZIP_CLOSE_ROOT, scenario = process.env.VERIQ_ZIP_CLOSE_CASE;
+const output = join(root, "output"), input = join(root, "input");
+await mkdir(output, { mode: 0o700 });
+await mkdir(input, { mode: 0o700 });
+const space = await statfs(root, { bigint: true });
+assert.ok(space.bavail * space.bsize > 40n * 1024n ** 2n);
+const emit = (event, facts = {}) => console.log(JSON.stringify({ event, scenario, ...facts }));
+process.on("unhandledRejection", error => { emit("UNHANDLED_REJECTION", { message: String(error) }); process.exitCode = 91; });
+let target, expected, captured, calls = 0, opens = 0, injected = false, primary, tx;
+const controller = new AbortController();
+const originalOpen = fs.open, originalClose = fs.close, originalRead = fs.read;
+const identity = info => ({ dev: String(info.dev), ino: String(info.ino), size: String(info.size), nlink: String(info.nlink) });
+const matches = info => info.isFile() && info.dev === expected.dev && info.ino === expected.ino && info.size === expected.size && info.nlink === 1n;
+const restore = () => { fs.open = originalOpen; fs.close = originalClose; fs.read = originalRead; syncBuiltinESMExports(); };
+const install = (select, occurrence) => {
+    fs.open = function(path, ...args) {
+        if (!select(String(path)) || ++opens !== occurrence) return originalOpen.call(this, path, ...args);
+        target = String(path);
+        expected = fs.lstatSync(target, { bigint: true });
+        assert.ok(expected.isFile() && expected.nlink === 1n && expected.size <= 1024n ** 2n);
+        const callback = args.pop();
+        return originalOpen.call(this, path, ...args, (error, fd) => {
+            if (error) return callback(error, fd);
+            assert.ok(matches(fs.fstatSync(fd, { bigint: true })));
+            captured = fd;
+            emit("CAPTURE", { path: target, fd, identity: identity(expected) });
+            callback(null, fd);
+        });
+    };
+    fs.close = function(fd, callback) {
+        if (fd !== captured) return originalClose.call(this, fd, callback);
+        assert.equal(++calls, 1);
+        assert.ok(matches(fs.fstatSync(fd, { bigint: true })));
+        originalClose(fd, error => {
+            assert.ifError(error);
+            restore();
+            emit("ACTUAL_CLOSE", { calls, identity: identity(expected) });
+            if (scenario.endsWith("normal")) callback(null);
+            else { injected = true; callback(Object.assign(Error("OWNED_CLOSE_FAULT"), { code: "EIO" })); }
+        });
+    };
+    fs.read = function(fd, ...args) {
+        if (fd === captured && args[2] === 2018 && !injected && (scenario === "read-eio" || scenario === "cancel-eio")) {
+            injected = true;
+            if (scenario === "cancel-eio") controller.abort();
+            else { queueMicrotask(() => args.at(-1)(Object.assign(Error("OWNED_READ_FAULT"), { code: "EIO" }))); return; }
+        }
+        return originalRead.call(this, fd, ...args);
+    };
+    syncBuiltinESMExports();
+};
+const retain = async () => {
+    assert.equal(hash(await readFile(target)), snapshotHash);
+    const files = await readdir(output, { recursive: true });
+    assert.ok(files.some(path => path.endsWith(".lock")));
+    assert.ok(files.some(path => path.endsWith("snapshots/chrome.zip")));
+    emit("RETAINED", { target, identity: identity(await lstat(target, { bigint: true })), files });
+};
+let snapshotHash;
+
+const body = "s".repeat(2018), top = "chrome-mac-x64";
+const bytes = zipBytes([{ path: top + "/item", body }], 0);
+if (scenario === "crc-eio" || scenario === "crc-normal") bytes[30 + bytes.readUInt16LE(26) + bytes.readUInt16LE(28) + 5] ^= 1;
+if (scenario === "parser-eio" || scenario === "parser-normal") bytes.writeUInt32LE(0, bytes.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02])));
+if (scenario === "init-eio") bytes.writeUInt32LE(0, bytes.length - 22);
+if (scenario === "unsupported-eio") { bytes.writeUInt16LE(9, 8); bytes.writeUInt16LE(9, bytes.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02])) + 10); }
+assert.ok(bytes.length <= 1024 ** 2);
+tx = new ArchiveTransaction(input, output, "candidate", controller.signal);
+await tx.initialize();
+const ref = await tx.write("snapshots/chrome.zip", (async function*() { yield bytes; })());
+await tx.audit();
+snapshotHash = ref.sha256;
+const fail = tx.fail.bind(tx);
+tx.fail = (...args) => { try { return fail(...args); } catch (error) { primary ??= error; throw error; } };
+const scan = new ArchiveScan("chrome", top, tx, new ArchiveBudget());
+const entry = scan.entry.bind(scan);
+scan.entry = async (...args) => {
+    try { return await entry(...args); }
+    catch (error) { if (scenario === "cancel-eio") primary ??= error; throw error; }
+};
+const destination = join(tx.scratch, ref.path);
+install(path => path === destination, 1);
+emit("SETUP_RESOLVED");
+const started = performance.now();
+try {
+    await scanZip(destination, scan, ref.sizeBytes);
+    assert.equal(scenario, "normal");
+    assert.equal(scan.members[0].sha256, hash(Buffer.from(body)));
+    assert.equal(await tx.cleanup(), "CONFIRMED");
+    emit("SETTLED", { outcome: "success", cleanup: "CONFIRMED" });
+} catch (error) {
+    assert.notEqual(scenario, "normal");
+    if (scenario === "parser-eio") assert.ok(performance.now() - started >= 4900);
+    const code = scenario.startsWith("crc") ? "PAYLOAD_ARCHIVE_CRC" : scenario === "cancel-eio" ? "PAYLOAD_CANCELLED" : scenario === "unsupported-eio" ? "PAYLOAD_ARCHIVE_UNSUPPORTED" : scenario === "close-eio" ? "PAYLOAD_IO" : "PAYLOAD_ARCHIVE_FORMAT";
+    assert.equal(error.code, code);
+    assert.equal(error, primary);
+    assert.equal(error.phase, scenario === "cancel-eio" ? "INPUTS" : "INTAKE");
+    assert.equal(error.causeCode, scenario === "close-eio" ? "EIO" : null);
+    const diagnostic = archiveRejectionLine(error);
+    if (scenario === "unsupported-eio") assert.ok(diagnostic?.includes("ZIP_METHOD_FLAGS"));
+    const cleanup = await tx.cleanup();
+    assert.equal(cleanup, scenario.endsWith("normal") ? "CONFIRMED" : "INCOMPLETE");
+    if (cleanup === "INCOMPLETE") await retain();
+    emit("SETTLED", { outcome: "rejected", code: error.code, causeCode: error.causeCode, phase: error.phase, cleanup, diagnostic, samePrimary: error === primary });
+} finally { restore(); }
+assert.equal(calls, 1);
+`,
+                ],
+                {
+                    encoding: "utf8",
+                    timeout: 10000,
+                    env: {
+                        ...process.env,
+                        TMPDIR: root,
+                        TSX_DISABLE_CACHE: "1",
+                        VERIQ_ZIP_CLOSE_ROOT: root,
+                        VERIQ_ZIP_CLOSE_CASE: scenario,
+                    },
+                },
+            );
+            const paths = ["", ...(await readdir(root, { recursive: true }))];
+            const facts = await Promise.all(
+                paths.map(async (path) => {
+                    const info = await lstat(join(root, path));
+                    return {
+                        path,
+                        allocatedBytes: info.blocks * 512,
+                        ino: info.ino,
+                        sizeBytes: info.size,
+                    };
+                }),
+            );
+            t.diagnostic(
+                JSON.stringify({
+                    scenario,
+                    status: child.status,
+                    signal: child.signal,
+                    stdout: child.stdout,
+                    stderr: child.stderr,
+                    retainedAfterExit: facts,
+                }),
+            );
+            assert.ok(facts.reduce((sum, item) => sum + item.allocatedBytes, 0) <= 2 * 1024 ** 2);
+            assert.match(child.stdout, /SETUP_RESOLVED/);
+            assert.doesNotMatch(child.stdout + child.stderr, /UNHANDLED_REJECTION/);
+            assert.equal(child.status, 0, child.stdout + child.stderr);
+            assert.equal(child.signal, null);
+            assert.match(child.stdout, /SETTLED/);
+            assert.equal(child.stderr, "");
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
+    });
+
+/** 公开事件顺序测试只检验共享结算器的记忆和终态粘性，不冒充真实文件描述符证据；提前 close、先读错后确认、关闭重入及迟到重复事件均使用真实事务 cleanup 判断是否错误释放了所属目录。 */
+for (const order of [
+    "already-closed",
+    "read-error-confirmed",
+    "error-late-close",
+    "duplicate-error",
+])
+    test(`finite ZIP lifecycle ${order}`, async () => {
+        const { EventEmitter } = await import("node:events");
+        const { ArchiveTransaction } = await import("../scripts/runtime-payload-transaction.ts");
+        const { trackZipClosure } = await import("../scripts/runtime-payload-zip.ts");
+        const root = await mkdtemp(join(tmpdir(), "veriq-close-order-"));
+        const input = join(root, "input"),
+            output = join(root, "output");
+        await mkdir(input);
+        await mkdir(output);
+        const tx = new ArchiveTransaction(input, output, "candidate");
+        await tx.initialize();
+        const first = Object.assign(new Error("FIRST_CLOSE_ERROR"), { code: "EIO" });
+        let calls = 0;
+        const zip = Object.assign(new EventEmitter(), {
+            isOpen: true,
+            close() {
+                calls++;
+                this.isOpen = false;
+                zip.emit(order.endsWith("confirmed") ? "close" : "error", first);
+            },
+        });
+        const closure = trackZipClosure(zip, tx);
+        try {
+            if (order === "already-closed") zip.emit("close");
+            if (order === "read-error-confirmed") zip.emit("error", first);
+            if (order === "already-closed" || order === "read-error-confirmed") {
+                await closure.settle();
+                assert.equal(await tx.cleanup(), "CONFIRMED");
+                assert.equal(calls, order === "already-closed" ? 0 : 1);
+            } else {
+                closure.request();
+                if (order === "duplicate-error")
+                    zip.emit("error", Object.assign(new Error("SECOND_ERROR"), { code: "EBADF" }));
+                await assert.rejects(closure.settle(), { code: "PAYLOAD_IO", causeCode: "EIO" });
+                assert.equal(closure.failure(), first);
+                assert.equal(await tx.cleanup(), "INCOMPLETE");
+                zip.emit("close");
+                zip.emit("error", new Error("LATE_ERROR"));
+                await assert.rejects(closure.settle(), { code: "PAYLOAD_IO", causeCode: "EIO" });
+                assert.equal(await tx.cleanup(), "INCOMPLETE");
+                await lstat(tx.scratch);
+                assert.equal(calls, 1);
+            }
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
+    });

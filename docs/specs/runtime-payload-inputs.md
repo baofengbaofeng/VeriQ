@@ -109,6 +109,8 @@ I 的独立来源身份观察在初次 b1a 后建立，涵盖实际 Ref、五树
 
 提取 sink 的受控文件系统错误在真实事务写入边界先统一分类，再经过 tar/ZIP 适配器；ENOSPC/EDQUOT 保留为 PAYLOAD_DISK_INSUFFICIENT 及原 causeCode，其它固定 errno 保留为 PAYLOAD_IO。未知错误和压缩格式/CRC 错误仍沿各适配器原路径处理，不把任意 parser 错误映成 IO；首错误不会被次要关闭故障覆盖，关闭不确认仍保留 INCOMPLETE。
 
+三个 ZIP 消费者（正文扫描、observer 原模式扫描、stage 显式模式核验）在普通和取消路径共用私有5000ms关闭结算期限，从首次请求关闭开始计时，终态清除计时器；无新增公开参数或环境配置。只以实际 close 事件确认 FD 关闭，isOpen=false 仅表示请求过关闭。关闭错误或期限内缺少确认时，先标记事务关闭未知，再进入外层 cleanup，保留 scratch、锁和快照并报告 INCOMPLETE；已有首错误、阶段和首拒诊断优先，未有首错时产生受控 PAYLOAD_IO（受控空间 errno 沿既有映射）。初始化尚未移交的 FD 也有限关闭，不重试同一数字 FD。迟到确认不能把已返回未知升级为成功或触发删除；合法但过慢的关闭同样保守保留，需人工恢复。此期限只解决关闭结算，不为归档正文的其它停滞建立新超时政策。
+
 ## 完整静态 Runtime stage
 
 `runtime-payload-stage.ts` 提供 `stageMacRuntimePayload(bytes, expected, options): Promise<Readonly<PayloadResult>>`。它接收相同原始 recipe、独立 expected 及 `StageOptions`，首次 await 前取得私有字节和固定选项，再真实重调 b1a 与 fresh intake；不接受旧报告代替本次核验。

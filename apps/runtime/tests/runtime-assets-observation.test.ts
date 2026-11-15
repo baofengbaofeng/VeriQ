@@ -807,3 +807,241 @@ emitArchiveFailure(error, 17);
         } else assert.equal(child.stderr, "");
     });
 }
+
+/** 实际观察助手先完成 Node 快照再读取带原始选项位的 Stored Chrome 成员，正文摘要与原模式必须来自成熟扫描结果；微型布局只得到原有待审状态，不能借兼容修正宣称官方来源或完整 Runtime 已通过验收。 */
+test("production snapshot helper observes stored options without rewriting flags", async () =>
+    assetsFixture(async (f) => {
+        const { statfs, lstat } = await import("node:fs/promises"),
+            { tarBytes, zipBytes } = await import("./fixtures/runtime-payload-archives.ts"),
+            { crc32 } = await import("node:zlib");
+        const free = await statfs(f.output);
+        assert.ok(free.bavail * free.bsize > 40 * 1024 ** 2);
+        const body = "s".repeat(2018),
+            memberPath =
+                "chrome-mac-x64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+            node = tarBytes([{ path: "node-v24.22.1-darwin-x64/bin/node", body: "tiny Node" }]),
+            chrome = zipBytes([{ path: memberPath, body }], 0),
+            central = chrome.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+        chrome.writeUInt16LE(4, 6);
+        chrome.writeUInt16LE(4, central + 8);
+        const original = Buffer.from(chrome);
+        assert.ok(node.length <= 1024 ** 2 && chrome.length <= 1024 ** 2);
+        assert.equal(chrome.readUInt32LE(central + 16), crc32(Buffer.from(body)));
+        const tx = new ArchiveTransaction(f.root, f.output, "stored-scan");
+        await tx.initialize();
+        try {
+            const refs = [
+                await tx.write("snapshots/node.tar.gz", once(node)),
+                await tx.write("snapshots/chrome.zip", once(chrome)),
+            ] as const;
+            const result = await scanObservedSnapshots(tx, "x64", refs);
+            assert.equal(result.archives[0].fileCount, 1);
+            assert.equal(result.archives[0].snapshot.sha256, fact("node", node).sha256);
+            assert.equal(result.archives[1].fileCount, 1);
+            assert.equal(result.archives[1].expandedBytes, body.length);
+            assert.equal(result.archives[1].crc, "ZIP_EACH_ENTRY");
+            assert.equal(result.archives[1].zipLocalDataRanges, "CHECKED");
+            assert.equal(result.chromeLayout.status, "REQUIRES_LAYOUT_REVIEW");
+            assert.equal(result.chromeLayout.executableFileObserved, true);
+            const members = JSON.parse(
+                await readFile(join(tx.scratch, "members/chrome.json"), "utf8"),
+            );
+            assert.deepEqual(members.members, [
+                {
+                    path: memberPath,
+                    kind: "file",
+                    mode: 0o644,
+                    sizeBytes: body.length,
+                    sha256: fact("body", Buffer.from(body)).sha256,
+                },
+            ]);
+            const modes = JSON.parse(
+                await readFile(join(tx.scratch, "evidence/zip-modes.json"), "utf8"),
+            );
+            assert.equal(modes.entries.length, 1);
+            assert.equal(modes.entries[0].state, "EXPLICIT_UNIX");
+            assert.equal(modes.entries[0].host, 3);
+            assert.equal(modes.entries[0].rawMode, 0o100644);
+            const snapshot = await readFile(join(tx.scratch, refs[1].path));
+            assert.deepEqual(snapshot, original);
+            assert.equal(snapshot.readUInt16LE(6), 4);
+            assert.equal(snapshot.readUInt16LE(central + 8), 4);
+            assert.deepEqual(await readdir(join(tx.scratch, "trees/chrome")), []);
+            assert.deepEqual(await readdir(join(tx.scratch, "trees/node")), []);
+            await tx.audit();
+            const allocated = async (path: string): Promise<number> => {
+                const info = await lstat(path);
+                let total = info.blocks * 512;
+                if (info.isDirectory())
+                    for (const name of await readdir(path))
+                        total += await allocated(join(path, name));
+                return total;
+            };
+            assert.ok((await allocated(f.root)) + (await allocated(f.output)) <= 2 * 1024 ** 2);
+        } finally {
+            assert.equal(await tx.cleanup(), "CONFIRMED");
+        }
+    }));
+
+/** 真实子进程只包装精确 owned 快照的单次关闭回调，实际系统关闭成功后才注入 EIO；父进程等待自然终止并记录保留目录之后才删除自己的夹具，十秒看门狗只能判失败，不能替生产结算。 */
+for (const scenario of ["normal", "close-eio"])
+    test(`finite ZIP close observer ${scenario}`, async (t) => {
+        const { spawnSync } = await import("node:child_process");
+        const { mkdtemp, rm, lstat, readdir } = await import("node:fs/promises");
+        const { tmpdir } = await import("node:os");
+        const root = await mkdtemp(join(tmpdir(), "veriq-zip-close-"));
+        try {
+            const child = spawnSync(
+                process.execPath,
+                [
+                    "--import",
+                    "tsx",
+                    "--input-type=module",
+                    "-e",
+                    String.raw`
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
+import { mkdir, lstat, readdir, readFile, statfs } from "node:fs/promises";
+import { join } from "node:path";
+import { ArchiveTransaction } from "./scripts/runtime-payload-transaction.ts";
+import { ArchiveScan, ArchiveBudget, archiveRejectionLine } from "./scripts/runtime-payload-archive.ts";
+import { scanZip } from "./scripts/runtime-payload-zip.ts";
+import { zipBytes } from "./tests/fixtures/runtime-payload-archives.ts";
+import { hash } from "./tests/fixtures/runtime-payload.ts";
+const root = process.env.VERIQ_ZIP_CLOSE_ROOT, scenario = process.env.VERIQ_ZIP_CLOSE_CASE;
+const output = join(root, "output"), input = join(root, "input");
+await mkdir(output, { mode: 0o700 });
+await mkdir(input, { mode: 0o700 });
+const space = await statfs(root, { bigint: true });
+assert.ok(space.bavail * space.bsize > 40n * 1024n ** 2n);
+const emit = (event, facts = {}) => console.log(JSON.stringify({ event, scenario, ...facts }));
+process.on("unhandledRejection", error => { emit("UNHANDLED_REJECTION", { message: String(error) }); process.exitCode = 91; });
+let target, expected, captured, calls = 0, opens = 0, injected = false, primary, tx;
+const controller = new AbortController();
+const originalOpen = fs.open, originalClose = fs.close, originalRead = fs.read;
+const identity = info => ({ dev: String(info.dev), ino: String(info.ino), size: String(info.size), nlink: String(info.nlink) });
+const matches = info => info.isFile() && info.dev === expected.dev && info.ino === expected.ino && info.size === expected.size && info.nlink === 1n;
+const restore = () => { fs.open = originalOpen; fs.close = originalClose; fs.read = originalRead; syncBuiltinESMExports(); };
+const install = (select, occurrence) => {
+    fs.open = function(path, ...args) {
+        if (!select(String(path)) || ++opens !== occurrence) return originalOpen.call(this, path, ...args);
+        target = String(path);
+        expected = fs.lstatSync(target, { bigint: true });
+        assert.ok(expected.isFile() && expected.nlink === 1n && expected.size <= 1024n ** 2n);
+        const callback = args.pop();
+        return originalOpen.call(this, path, ...args, (error, fd) => {
+            if (error) return callback(error, fd);
+            assert.ok(matches(fs.fstatSync(fd, { bigint: true })));
+            captured = fd;
+            emit("CAPTURE", { path: target, fd, identity: identity(expected) });
+            callback(null, fd);
+        });
+    };
+    fs.close = function(fd, callback) {
+        if (fd !== captured) return originalClose.call(this, fd, callback);
+        assert.equal(++calls, 1);
+        assert.ok(matches(fs.fstatSync(fd, { bigint: true })));
+        originalClose(fd, error => {
+            assert.ifError(error);
+            restore();
+            emit("ACTUAL_CLOSE", { calls, identity: identity(expected) });
+            if (scenario.endsWith("normal")) callback(null);
+            else { injected = true; callback(Object.assign(Error("OWNED_CLOSE_FAULT"), { code: "EIO" })); }
+        });
+    };
+    fs.read = function(fd, ...args) {
+        if (fd === captured && args[2] === 2018 && !injected && (scenario === "read-eio" || scenario === "cancel-eio")) {
+            injected = true;
+            if (scenario === "cancel-eio") controller.abort();
+            else { queueMicrotask(() => args.at(-1)(Object.assign(Error("OWNED_READ_FAULT"), { code: "EIO" }))); return; }
+        }
+        return originalRead.call(this, fd, ...args);
+    };
+    syncBuiltinESMExports();
+};
+const retain = async () => {
+    assert.equal(hash(await readFile(target)), snapshotHash);
+    const files = await readdir(output, { recursive: true });
+    assert.ok(files.some(path => path.endsWith(".lock")));
+    assert.ok(files.some(path => path.endsWith("snapshots/chrome.zip")));
+    emit("RETAINED", { target, identity: identity(await lstat(target, { bigint: true })), files });
+};
+let snapshotHash;
+
+const { tinyAssets } = await import("./tests/fixtures/runtime-assets.ts");
+const { scanObservedSnapshots } = await import("./scripts/runtime-assets-observation.ts");
+tx = new ArchiveTransaction(input, output, "candidate");
+await tx.initialize();
+const [node, chrome] = tinyAssets();
+const refs = [];
+for (const [path, bytes] of [["snapshots/node.tar.gz", node], ["snapshots/chrome.zip", chrome]]) refs.push(await tx.write(path, (async function*() { yield bytes; })()));
+snapshotHash = refs[1].sha256;
+const destination = join(tx.scratch, refs[1].path);
+install(path => path === destination, 2);
+emit("SETUP_RESOLVED");
+try {
+    const result = await scanObservedSnapshots(tx, "x64", refs);
+    assert.equal(scenario, "normal");
+    assert.equal(result.archives[1].fileCount, 3);
+    assert.equal(await tx.cleanup(), "CONFIRMED");
+    emit("SETTLED", { outcome: "success", cleanup: "CONFIRMED" });
+} catch (error) {
+    assert.equal(scenario, "close-eio");
+    assert.equal(error.code, "PAYLOAD_IO");
+    assert.equal(error.causeCode, "EIO");
+    assert.equal(error.phase, "INTAKE");
+    assert.equal(await tx.cleanup(), "INCOMPLETE");
+    await retain();
+    assert.ok(!(await readdir(tx.scratch, { recursive: true })).includes("evidence/zip-modes.json"));
+    emit("SETTLED", { outcome: "rejected", code: error.code, causeCode: error.causeCode, phase: error.phase, cleanup: "INCOMPLETE" });
+} finally { restore(); }
+assert.equal(opens, 2);
+assert.equal(calls, 1);
+`,
+                ],
+                {
+                    encoding: "utf8",
+                    timeout: 10000,
+                    env: {
+                        ...process.env,
+                        TMPDIR: root,
+                        TSX_DISABLE_CACHE: "1",
+                        VERIQ_ZIP_CLOSE_ROOT: root,
+                        VERIQ_ZIP_CLOSE_CASE: scenario,
+                    },
+                },
+            );
+            const paths = ["", ...(await readdir(root, { recursive: true }))];
+            const facts = await Promise.all(
+                paths.map(async (path) => {
+                    const info = await lstat(join(root, path));
+                    return {
+                        path,
+                        allocatedBytes: info.blocks * 512,
+                        ino: info.ino,
+                        sizeBytes: info.size,
+                    };
+                }),
+            );
+            t.diagnostic(
+                JSON.stringify({
+                    scenario,
+                    status: child.status,
+                    signal: child.signal,
+                    stdout: child.stdout,
+                    stderr: child.stderr,
+                    retainedAfterExit: facts,
+                }),
+            );
+            assert.ok(facts.reduce((sum, item) => sum + item.allocatedBytes, 0) <= 2 * 1024 ** 2);
+            assert.match(child.stdout, /SETUP_RESOLVED/);
+            assert.doesNotMatch(child.stdout + child.stderr, /UNHANDLED_REJECTION/);
+            assert.equal(child.status, 0, child.stdout + child.stderr);
+            assert.equal(child.signal, null);
+            assert.match(child.stdout, /SETTLED/);
+            assert.equal(child.stderr, "");
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
+    });
