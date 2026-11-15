@@ -149,11 +149,8 @@ export async function scanZip(path: string, scan: ArchiveScan, fileSize: number)
                     throw error;
                 }
             };
-            if (
-                ![0, 8].includes(entry.compressionMethod) ||
-                entry.generalPurposeBitFlag & ~0x80e ||
-                (entry.compressionMethod === 0 && entry.generalPurposeBitFlag & 6)
-            )
+            /** Stored 的 0x6 位没有本方法定义的解码含义，固定资产与成熟解码器的逐字节校验支持保留原值作为元数据；仍核对原始 local/central flags，诊断 storedFlags 只记录位存在而不单独拒绝。 */
+            if (![0, 8].includes(entry.compressionMethod) || entry.generalPurposeBitFlag & ~0x80e)
                 unsupported("ZIP_METHOD_FLAGS", {
                     methodUnsupported: ![0, 8].includes(entry.compressionMethod),
                     flagsUnsupported: !!(entry.generalPurposeBitFlag & ~0x80e),

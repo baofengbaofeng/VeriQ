@@ -807,3 +807,78 @@ emitArchiveFailure(error, 17);
         } else assert.equal(child.stderr, "");
     });
 }
+
+/** 实际观察助手先完成 Node 快照再读取带原始选项位的 Stored Chrome 成员，正文摘要与原模式必须来自成熟扫描结果；微型布局只得到原有待审状态，不能借兼容修正宣称官方来源或完整 Runtime 已通过验收。 */
+test("production snapshot helper observes stored options without rewriting flags", async () =>
+    assetsFixture(async (f) => {
+        const { statfs, lstat } = await import("node:fs/promises"),
+            { tarBytes, zipBytes } = await import("./fixtures/runtime-payload-archives.ts"),
+            { crc32 } = await import("node:zlib");
+        const free = await statfs(f.output);
+        assert.ok(free.bavail * free.bsize > 40 * 1024 ** 2);
+        const body = "s".repeat(2018),
+            memberPath =
+                "chrome-mac-x64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+            node = tarBytes([{ path: "node-v24.22.1-darwin-x64/bin/node", body: "tiny Node" }]),
+            chrome = zipBytes([{ path: memberPath, body }], 0),
+            central = chrome.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+        chrome.writeUInt16LE(4, 6);
+        chrome.writeUInt16LE(4, central + 8);
+        const original = Buffer.from(chrome);
+        assert.ok(node.length <= 1024 ** 2 && chrome.length <= 1024 ** 2);
+        assert.equal(chrome.readUInt32LE(central + 16), crc32(Buffer.from(body)));
+        const tx = new ArchiveTransaction(f.root, f.output, "stored-scan");
+        await tx.initialize();
+        try {
+            const refs = [
+                await tx.write("snapshots/node.tar.gz", once(node)),
+                await tx.write("snapshots/chrome.zip", once(chrome)),
+            ] as const;
+            const result = await scanObservedSnapshots(tx, "x64", refs);
+            assert.equal(result.archives[0].fileCount, 1);
+            assert.equal(result.archives[0].snapshot.sha256, fact("node", node).sha256);
+            assert.equal(result.archives[1].fileCount, 1);
+            assert.equal(result.archives[1].expandedBytes, body.length);
+            assert.equal(result.archives[1].crc, "ZIP_EACH_ENTRY");
+            assert.equal(result.archives[1].zipLocalDataRanges, "CHECKED");
+            assert.equal(result.chromeLayout.status, "REQUIRES_LAYOUT_REVIEW");
+            assert.equal(result.chromeLayout.executableFileObserved, true);
+            const members = JSON.parse(
+                await readFile(join(tx.scratch, "members/chrome.json"), "utf8"),
+            );
+            assert.deepEqual(members.members, [
+                {
+                    path: memberPath,
+                    kind: "file",
+                    mode: 0o644,
+                    sizeBytes: body.length,
+                    sha256: fact("body", Buffer.from(body)).sha256,
+                },
+            ]);
+            const modes = JSON.parse(
+                await readFile(join(tx.scratch, "evidence/zip-modes.json"), "utf8"),
+            );
+            assert.equal(modes.entries.length, 1);
+            assert.equal(modes.entries[0].state, "EXPLICIT_UNIX");
+            assert.equal(modes.entries[0].host, 3);
+            assert.equal(modes.entries[0].rawMode, 0o100644);
+            const snapshot = await readFile(join(tx.scratch, refs[1].path));
+            assert.deepEqual(snapshot, original);
+            assert.equal(snapshot.readUInt16LE(6), 4);
+            assert.equal(snapshot.readUInt16LE(central + 8), 4);
+            assert.deepEqual(await readdir(join(tx.scratch, "trees/chrome")), []);
+            assert.deepEqual(await readdir(join(tx.scratch, "trees/node")), []);
+            await tx.audit();
+            const allocated = async (path: string): Promise<number> => {
+                const info = await lstat(path);
+                let total = info.blocks * 512;
+                if (info.isDirectory())
+                    for (const name of await readdir(path))
+                        total += await allocated(join(path, name));
+                return total;
+            };
+            assert.ok((await allocated(f.root)) + (await allocated(f.output)) <= 2 * 1024 ** 2);
+        } finally {
+            assert.equal(await tx.cleanup(), "CONFIRMED");
+        }
+    }));

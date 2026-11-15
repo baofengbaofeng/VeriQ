@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Header, Pax } from "tar";
-import { gunzipSync, gzipSync } from "node:zlib";
+import { crc32, gunzipSync, gzipSync } from "node:zlib";
 import { mkdtemp, rm, readFile, lstat, readdir, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -899,7 +899,7 @@ for (const scenario of rejectionTarCases) {
 for (const scenario of [
     "method",
     "flags",
-    "storedFlags",
+    "storedOptionsAndUnknownFlag",
     "host",
     "type",
     "dosMode",
@@ -925,8 +925,8 @@ for (const scenario of [
             bytes.writeUInt16LE(99, 8);
             bytes.writeUInt16LE(99, central + 10);
         }
-        if (scenario === "flags" || scenario === "storedFlags") {
-            const value = scenario === "flags" ? 0x10 : 2;
+        if (scenario === "flags" || scenario === "storedOptionsAndUnknownFlag") {
+            const value = scenario === "flags" ? 0x10 : 0x12;
             bytes.writeUInt16LE(value, 6);
             bytes.writeUInt16LE(value, central + 8);
         }
@@ -941,7 +941,7 @@ for (const scenario of [
             const event = JSON.parse(archiveRejectionLine(error)!);
             assert.equal(
                 event.reason,
-                ["method", "flags", "storedFlags"].includes(scenario)
+                ["method", "flags", "storedOptionsAndUnknownFlag"].includes(scenario)
                     ? "ZIP_METHOD_FLAGS"
                     : ["host", "type"].includes(scenario)
                       ? "ZIP_HOST_TYPE"
@@ -950,7 +950,7 @@ for (const scenario of [
             const flag =
                 scenario === "method"
                     ? "methodUnsupported"
-                    : scenario === "flags"
+                    : scenario === "flags" || scenario === "storedOptionsAndUnknownFlag"
                       ? "flagsUnsupported"
                       : scenario === "host"
                         ? "hostUnsupported"
@@ -958,6 +958,11 @@ for (const scenario of [
                           ? "typeUnsupported"
                           : scenario;
             assert.equal(event.details[flag], true);
+            if (scenario === "storedOptionsAndUnknownFlag") {
+                assert.equal(event.details.storedFlags, true);
+                assert.equal(event.details.flags, 0x12);
+                assert.equal(event.details.localFlags, 0x12);
+            }
             assert.equal(event.headerIndex, 1);
             assert.equal(event.memberIndex, 1);
             assert.equal(event.rawMode.value, bytes.readUInt32LE(central + 38) >>> 16);
@@ -1121,3 +1126,154 @@ test("archive rejection evidence missing raw mode and unchanged limit priority",
     );
     assert.equal(await tx.cleanup(), "NOT_NEEDED");
 });
+
+/** Stored 兼容案例只在成熟编码器生成的单成员微型归档中改变原始选项位，事务快照与双遍扫描始终消费同一字节；每例独占目录并在确认关闭后清理，同时核验实际磁盘分配和剩余空间。 */
+async function storedFixture(
+    bytes: Buffer,
+    inspect: (
+        tx: import("../scripts/runtime-payload-transaction.ts").ArchiveTransaction,
+        path: string,
+    ) => Promise<void>,
+) {
+    const { statfs } = await import("node:fs/promises"),
+        { ArchiveTransaction } = await import("../scripts/runtime-payload-transaction.ts");
+    const base = await mkdtemp(join(tmpdir(), "veriq-stored-options-")),
+        input = join(base, "input"),
+        output = join(base, "output");
+    await mkdir(input, { mode: 0o700 });
+    await mkdir(output, { mode: 0o700 });
+    const tx = new ArchiveTransaction(input, output, "scan");
+    try {
+        const free = await statfs(base);
+        assert.ok(free.bavail * free.bsize > 40 * 1024 ** 2);
+        assert.ok(bytes.length <= 1024 ** 2);
+        await tx.initialize();
+        tx.phase = "INTAKE";
+        const content = async function* () {
+            yield bytes;
+        };
+        const ref = await tx.write("snapshots/chrome.zip", content());
+        const path = join(tx.scratch, ref.path);
+        await tx.audit();
+        await inspect(tx, path);
+        assert.deepEqual(await readFile(path), bytes);
+        const allocated = async (path: string): Promise<number> => {
+            const info = await lstat(path);
+            let total = info.blocks * 512;
+            if (info.isDirectory())
+                for (const name of await readdir(path)) total += await allocated(join(path, name));
+            return total;
+        };
+        assert.ok((await allocated(base)) <= 2 * 1024 ** 2);
+    } finally {
+        assert.equal(await tx.cleanup(), "CONFIRMED");
+        await rm(base, { recursive: true, force: true });
+    }
+}
+
+/** 四种方法专属选项位均保持原值传入成熟 Stored 解码器，声明长度与 CRC 来自真实头部并由实际正文完成校验；第二遍必须得到相同成员摘要和完整正文，快照原字节不能被清零或重写。 */
+for (const flags of [0, 2, 4, 6]) {
+    test(`stored option bits ${flags} preserve exact body through two scans`, async () => {
+        const { ArchiveScan, ArchiveBudget } = await import(
+                "../scripts/runtime-payload-archive.ts"
+            ),
+            { scanZip } = await import("../scripts/runtime-payload-zip.ts");
+        const body = "s".repeat(2018),
+            bytes = zipBytes([{ path: "top/item", body }], 0),
+            central = bytes.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+        bytes.writeUInt16LE(flags, 6);
+        bytes.writeUInt16LE(flags, central + 8);
+        const original = Buffer.from(bytes);
+        assert.equal(bytes.readUInt32LE(18), body.length);
+        assert.equal(bytes.readUInt32LE(22), body.length);
+        assert.equal(bytes.readUInt32LE(central + 20), body.length);
+        assert.equal(bytes.readUInt32LE(central + 24), body.length);
+        assert.equal(bytes.readUInt32LE(14), crc32(Buffer.from(body)));
+        assert.equal(bytes.readUInt32LE(central + 16), crc32(Buffer.from(body)));
+        await storedFixture(bytes, async (tx, path) => {
+            const budget = new ArchiveBudget(),
+                first = new ArchiveScan("chrome", "top", tx, budget);
+            await scanZip(path, first, bytes.length);
+            assert.deepEqual(first.members, [
+                {
+                    path: "top/item",
+                    kind: "file",
+                    mode: 0o644,
+                    sizeBytes: body.length,
+                    sha256: hash(Buffer.from(body)),
+                },
+            ]);
+            assert.equal(first.expandedBytes, body.length);
+            await tx.plan(body.length, first.effective.size);
+            const second = new ArchiveScan("chrome", "top", tx, budget, first);
+            await scanZip(path, second, bytes.length);
+            assert.deepEqual(second.members, first.members);
+            assert.equal(second.expandedBytes, body.length);
+            assert.equal(await readFile(join(tx.scratch, "trees/chrome/top/item"), "utf8"), body);
+            const snapshot = await readFile(path);
+            assert.equal(snapshot.readUInt16LE(6), flags);
+            assert.equal(snapshot.readUInt16LE(central + 8), flags);
+            assert.deepEqual(snapshot, original);
+            await tx.audit();
+        });
+        assert.deepEqual(bytes, original);
+    });
+}
+
+/** 放行 Stored 方法不解释的选项位不能影响其它拒绝边界，以下每次只破坏真实微型 ZIP 的一个条件；加密输入允许先被成熟解析器判为格式错误，不能把更早的诚实失败伪装成诊断守卫命中。 */
+for (const scenario of [
+    "local0central4",
+    "local4central0",
+    "method",
+    "unknown",
+    "encrypted",
+    "strongEncryption",
+    "crc",
+    "storedSize",
+] as const) {
+    test(`stored option boundary still rejects ${scenario}`, async () => {
+        const { ArchiveScan, ArchiveBudget } = await import(
+                "../scripts/runtime-payload-archive.ts"
+            ),
+            { scanZip } = await import("../scripts/runtime-payload-zip.ts");
+        const bytes = zipBytes([{ path: "top/item", body: "s".repeat(2018) }], 0),
+            central = bytes.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+        const flags =
+            scenario === "unknown"
+                ? 0x14
+                : scenario === "encrypted"
+                  ? 5
+                  : scenario === "strongEncryption"
+                    ? 0x45
+                    : 4;
+        bytes.writeUInt16LE(scenario === "local0central4" ? 0 : flags, 6);
+        bytes.writeUInt16LE(scenario === "local4central0" ? 0 : flags, central + 8);
+        if (scenario === "method") {
+            bytes.writeUInt16LE(99, 8);
+            bytes.writeUInt16LE(99, central + 10);
+        }
+        if (scenario === "crc") bytes[30 + bytes.readUInt16LE(26)]! ^= 1;
+        if (scenario === "storedSize") {
+            bytes.writeUInt32LE(2019, 22);
+            bytes.writeUInt32LE(2019, central + 24);
+        }
+        const expected = scenario.startsWith("local")
+            ? "PAYLOAD_ARCHIVE_RANGE"
+            : scenario === "crc"
+              ? "PAYLOAD_ARCHIVE_CRC"
+              : scenario === "storedSize" ||
+                  scenario === "encrypted" ||
+                  scenario === "strongEncryption"
+                ? "PAYLOAD_ARCHIVE_FORMAT"
+                : "PAYLOAD_ARCHIVE_UNSUPPORTED";
+        await storedFixture(bytes, async (tx, path) => {
+            const scan = new ArchiveScan("chrome", "top", tx, new ArchiveBudget());
+            await assert.rejects(scanZip(path, scan, bytes.length), (error: unknown) => {
+                assert.ok(error instanceof RuntimePayloadError);
+                assert.equal(error.code, expected);
+                return true;
+            });
+            assert.deepEqual(await readdir(join(tx.scratch, "trees/chrome")), []);
+        });
+    });
+}
