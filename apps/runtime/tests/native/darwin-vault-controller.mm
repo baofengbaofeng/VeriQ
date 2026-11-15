@@ -1,5 +1,6 @@
 /** 专用钥匙串控制器只在操作者明确授权的可丢弃图形登录会话中创建随机自有存储，创建和删除可能改变该账户的持久偏好；普通流水线不会运行此入口，实际 UID 或会话事实本身不被当作可丢弃授权。 */
 #include "../../native/vault/darwin-acl.hpp"
+#include "private-keychain-mode.hpp"
 #include <Security/AuthSession.h>
 #include <mach-o/dyld.h>
 #include <sys/stat.h>
@@ -24,14 +25,16 @@ enum class DiagnosticStage {
     STARTUP, NO_UI, RECEIVE, CREATE_STATE, LIVE_UID_LOGIN,
     LIVE_SECURITY_SESSION, LIVE_SESSION_BITS, ATTEST_DISPOSABLE, ATTEST_ACK,
     ATTEST_UID, ATTEST_LOGIN, ATTEST_SESSION, HELPER_REALPATH, HELPER_NAME,
-    HELPER_STAT, RANDOM, DIRECTORY, KEYCHAIN_CREATE, KEYCHAIN_PATH,
+    HELPER_STAT, RANDOM, DIRECTORY, DIRECTORY_BIND, KEYCHAIN_CREATE, KEYCHAIN_PATH,
+    KEYCHAIN_BIND, KEYCHAIN_MODE, KEYCHAIN_IDENTITY,
     KEYCHAIN_STAT, CREATE_REPLY, CLEANUP_DELETE, CLEANUP_DIRECTORY,
 };
 NSString *const diagnosticNames[] = {
     @"STARTUP", @"NO_UI", @"RECEIVE", @"CREATE_STATE", @"LIVE_UID_LOGIN",
     @"LIVE_SECURITY_SESSION", @"LIVE_SESSION_BITS", @"ATTEST_DISPOSABLE", @"ATTEST_ACK",
     @"ATTEST_UID", @"ATTEST_LOGIN", @"ATTEST_SESSION", @"HELPER_REALPATH", @"HELPER_NAME",
-    @"HELPER_STAT", @"RANDOM", @"DIRECTORY", @"KEYCHAIN_CREATE", @"KEYCHAIN_PATH",
+    @"HELPER_STAT", @"RANDOM", @"DIRECTORY", @"DIRECTORY_BIND", @"KEYCHAIN_CREATE", @"KEYCHAIN_PATH",
+    @"KEYCHAIN_BIND", @"KEYCHAIN_MODE", @"KEYCHAIN_IDENTITY",
     @"KEYCHAIN_STAT", @"CREATE_REPLY", @"CLEANUP_DELETE", @"CLEANUP_DIRECTORY",
 };
 
@@ -92,6 +95,8 @@ public:
     OSStatus status(OSStatus value) noexcept { hasStatus = true; statusValue = value; return value; }
     /** POSIX 整数失败紧接原调用保存 errno，后续日志不会覆盖实际错误号码，也不会增加文件或身份查询；成功结果不输出可能属于旧调用的 errno，调用点继续按原有返回值与短路条件判定。 */
     int posix(int value) noexcept { if (value < 0) { hasErrno = true; errnoValue = errno; } return value; }
+    /** 权限守卫只交回已在系统调用失败时保存的号码，零值表示没有 errno 的策略拒绝；诊断不得重新读取日志或析构可能改变的进程错误状态，也不得把固定异常正文或文件属性添加到记录。 */
+    void privateModeError(int value) noexcept { if (value != 0) { hasErrno = true; errnoValue = value; } }
     /** 路径和目录函数的空指针失败只保存即时 errno，不保存指针值或路径正文，也不重复解析或创建；指针仍原样交回原条件，从而维持现有短路语义和失败发生时对象赋值的先后顺序。 */
     template <typename T> T *posix(T *value) noexcept { if (!value) { hasErrno = true; errnoValue = errno; } return value; }
     /** 登录查询按自身错误返回约定保留失败号码而不记录用户名，负返回兼容路径读取即时 errno；这里不追加身份读取或重查会话，实际 UID 与登录条件仍只执行原先已经允许的一次判断。 */
@@ -349,6 +354,16 @@ struct Fixture {
         { DiagnosticGate gate(DiagnosticStage::DIRECTORY); require(gate.posix(mkdtemp(pattern))); gate.pass(); }
         directory = pattern;
         path = directory + "/owned.keychain-db";
+        const uid_t expectedOwner = getuid();
+        test::PrivateKeychainMode privateMode(directory, expectedOwner);
+        /** 守卫各阶段只在原生创建路径内调用，失败号码来自守卫捕获的实际系统调用而不是当前残留 errno；异常继续交给原来的拒绝及清理流程，观察器既不重试也不改变已创建标志的归属。 */
+        const auto guarded = [&](DiagnosticStage stage, auto operation) {
+            DiagnosticGate gate(stage);
+            try { operation(); }
+            catch (const test::PrivateModeFailure &failure) { gate.privateModeError(failure.error); throw; }
+            gate.pass();
+        };
+        guarded(DiagnosticStage::DIRECTORY_BIND, [&] { privateMode.bindDirectory(); });
         { DiagnosticGate gate(DiagnosticStage::KEYCHAIN_CREATE);
             const OSStatus error = gate.status(SecKeychainCreate(path.c_str(), static_cast<UInt32>(password.bytes.size()), password.bytes.data(), false, nullptr, &store.value));
             created = store.value != nullptr;
@@ -357,9 +372,14 @@ struct Fixture {
         char actual[PATH_MAX]; UInt32 length = sizeof(actual);
         { DiagnosticGate gate(DiagnosticStage::KEYCHAIN_PATH);
             require(gate.status(SecKeychainGetPath(store.value, &length, actual)) == errSecSuccess && std::string(actual, length) == path); gate.pass(); }
+        guarded(DiagnosticStage::KEYCHAIN_BIND, [&] { privateMode.bindFile(); });
+        guarded(DiagnosticStage::KEYCHAIN_MODE, [&] { privateMode.establishMode(); });
+        guarded(DiagnosticStage::KEYCHAIN_IDENTITY, [&] { privateMode.verifyIdentity(); });
         struct stat info {};
         { DiagnosticGate gate(DiagnosticStage::KEYCHAIN_STAT);
             require(gate.posix(lstat(path.c_str(), &info)) == 0 && gate.regularFile(S_ISREG(info.st_mode)) && gate.ownerMatches(info.st_uid == getuid()) && gate.privateMode(!(info.st_mode & 0077))); gate.pass(); }
+        /** 原有属性阶段只证明其自身短路链通过，随后显式关闭失败仍使整个创建请求拒绝且不会启动 helper；关闭错误不混入已完整求值的三个属性事实，异常析构继续保留首错而不重复关闭。 */
+        privateMode.close();
     }
     /** 清理首先要求跟踪集合为空，然后只删除本对象成功创建并仍持有引用的测试钥匙串和随机目录；任一步骤失败都会阻止成功回执，密码及基线秘密在正常路径覆盖，不恢复其他用户存储或搜索列表状态。 */
     void cleanup() {

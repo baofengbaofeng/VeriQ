@@ -93,6 +93,51 @@ jobs:
                   xcrun --show-sdk-version | tee "$VERIQ_MAC_EVIDENCE/sdk.log"
                   clang --version | tee "$VERIQ_MAC_EVIDENCE/clang.log"
                   python3 --version 2>&1 | tee "$VERIQ_MAC_EVIDENCE/python.log"
+            - name: Verify fresh private Keychain POSIX guard without accessing stores
+              timeout-minutes: 1
+              shell: bash
+              run: |
+                  node --input-type=module <<'NODE'
+                  import { execFileSync } from "node:child_process";
+                  import { createHash } from "node:crypto";
+                  import { mkdtempSync, readFileSync, rmdirSync, unlinkSync } from "node:fs";
+                  import { join } from "node:path";
+                  const options = { encoding: "utf8", timeout: 5000, maxBuffer: 65536, killSignal: "SIGKILL", stdio: ["ignore", "pipe", "pipe"] };
+                  const inputs = ["apps/runtime/tests/native/private-keychain-mode.hpp", "apps/runtime/tests/native/private-keychain-mode.test.cpp"];
+                  const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
+                  const fail = () => { throw new Error("PRIVATE_MODE_GUARD_REFUSED"); };
+                  // 此步骤只编译并执行固定 POSIX 守卫测试，运行前后都将头文件和测试源码与冻结 Git 提交逐字节绑定；日志仅输出有限通过数量和摘要，不启动钥匙串控制器或触发任何账户存储操作。
+                  try {
+                      if (process.platform !== "darwin" || process.arch !== process.env.EXPECTED_ARCH ||
+                          execFileSync("/usr/bin/uname", ["-m"], options).trim() !== (process.arch === "arm64" ? "arm64" : "x86_64") ||
+                          !/^15\./.test(execFileSync("/usr/bin/sw_vers", ["-productVersion"], options)) ||
+                          !/^[a-f0-9]{40}$/.test(process.env.GITHUB_SHA ?? "") ||
+                          execFileSync("/usr/bin/git", ["rev-parse", "HEAD"], options).trim() !== process.env.GITHUB_SHA) fail();
+                      const bind = () => inputs.map((path) => {
+                          const current = readFileSync(path);
+                          const frozen = execFileSync("/usr/bin/git", ["show", `${process.env.GITHUB_SHA}:${path}`], { ...options, encoding: "buffer" });
+                          if (!current.equals(frozen)) fail();
+                          return { path, sha256: hash(current) };
+                      });
+                      const before = bind();
+                      const directory = mkdtempSync(join(process.env.RUNNER_TEMP, "veriq-private-mode-"));
+                      const binary = join(directory, "guard-test");
+                      try {
+                          execFileSync("/usr/bin/clang++", ["-std=c++17", "-Wall", "-Wextra", "-Werror", "-pedantic", "-mmacosx-version-min=15.0", inputs[1], "-o", binary], { ...options, timeout: 30000 });
+                          const result = execFileSync(binary, [], { ...options, timeout: 15000 });
+                          if (result !== "PRIVATE_MODE_GUARD_PASS 22\n") fail();
+                      } finally {
+                          if (JSON.stringify(bind()) !== JSON.stringify(before)) fail();
+                      }
+                      // 编译器与测试都已同步返回成功后才删除本步骤拥有的二进制及空目录，任何超时或未知失败均保留现场；这种结算不承诺终止编译器的任意后代，也不递归删除未确认归属的对象。
+                      unlinkSync(binary);
+                      rmdirSync(directory);
+                      console.log(JSON.stringify({ code: "PRIVATE_MODE_GUARD_PASS", passed: 22, source: process.env.GITHUB_SHA, inputs: before }));
+                  } catch {
+                      console.error("PRIVATE_MODE_GUARD_FAILED");
+                      process.exitCode = 1;
+                  }
+                  NODE
             - name: Install pinned tools and frozen dependencies without unrelated assets
               shell: bash
               run: |
@@ -233,7 +278,7 @@ jobs:
                   };
                   const source = execFileSync("git", ["ls-files", "apps/runtime/native/darwin", "apps/runtime/src/native/darwin.ts", "apps/runtime/src/node-version.ts", "apps/runtime/src/execution/processes.ts", "apps/runtime/src/execution/darwin-*", "apps/runtime/src/execution/records.ts", "apps/runtime/src/execution/stopped-history.ts", "apps/runtime/src/execution/controlled-child*", "apps/runtime/src/execution/controlled-command*", "apps/runtime/src/execution/worker.mjs", "apps/runtime/src/distribution.ts", "apps/desktop/scripts/stage-runtime.mjs", "apps/runtime/tests/controlled-proof.test.ts", "apps/runtime/tests/native/darwin-controlled-processes.test.ts", "apps/runtime/tests/fixtures/darwin-controlled-worker.mjs", "apps/runtime/tests/vault-history.test.ts", "apps/runtime/tests/controlled-command.test.ts", "apps/runtime/tests/worker-portability.test.ts", "apps/runtime/tests/distribution.test.ts", "apps/runtime/tests/native/windows-profile.test.ts", "apps/runtime/tests/fixtures/vault-distribution.ts", "apps/runtime/tests/fixtures/windows-vault.ts", "apps/runtime/tests/controlled-child.test.ts", "apps/runtime/tests/fixtures/controlled-child-owner.py", "apps/runtime/src/execution/supervisor.ts", "apps/runtime/src/execution/broker.ts", "apps/runtime/src/offline/run.ts", "apps/runtime/src/offline/config.ts", "apps/runtime/src/offline/store.ts", "apps/runtime/src/offline/verify.ts", "apps/runtime/tests/native/darwin-business.test.ts", "apps/runtime/tests/fixtures/business-engine.ts", "apps/runtime/tests/darwin-business-contract.test.ts", "apps/runtime/tests/offline-store.test.ts", "apps/runtime/tests/offline.test.ts", "apps/runtime/tests/physical.test.ts", "packages/runner-sdk/src/register-case.ts", "packages/runner-sdk/src/controlled-browser.ts", "packages/runner-sdk/src/endpoint-json-reporter.ts", "packages/runner-sdk/tests/controlled-browser.test.ts", "packages/runner-sdk/tests/queue-fixture.ts", "packages/runner-sdk/tests/distribution.ts", "packages/compiler/tests/helpers.ts", "apps/runtime/src/credentials/files.ts", "apps/runtime/scripts/build-darwin.mjs", "apps/runtime/package.json", "apps/runtime/tests/native/darwin-private-files.test.ts", "apps/runtime/tests/native/darwin-private-files-fault.cc", ".github/workflows/runtime-native-macos.yml", ".github/workflows/desktop-fix-validation.yml", "pnpm-lock.yaml", "pnpm-workspace.yaml"], {encoding:"utf8", maxBuffer:65536}).trim().split("\n").filter(Boolean);
                   for (const path of source) await add(path);
-                  for (const path of ["apps/runtime/native/vault/darwin-vault.mm", "apps/runtime/native/vault/darwin-acl.hpp", "apps/runtime/scripts/build-vault-darwin.mjs", "apps/runtime/tests/native/darwin-vault.test.ts", "apps/runtime/tests/native/darwin-vault-dedicated.test.ts", "apps/runtime/tests/native/darwin-vault-controller.mm", "apps/runtime/tests/native/darwin-acl-test.mm", "apps/runtime/tests/fixtures/darwin-vault.ts"]) await add(path);
+                  for (const path of ["apps/runtime/native/vault/darwin-vault.mm", "apps/runtime/native/vault/darwin-acl.hpp", "apps/runtime/scripts/build-vault-darwin.mjs", "apps/runtime/tests/native/darwin-vault.test.ts", "apps/runtime/tests/native/darwin-vault-dedicated.test.ts", "apps/runtime/tests/native/darwin-vault-controller.mm", "apps/runtime/tests/native/private-keychain-mode.hpp", "apps/runtime/tests/native/private-keychain-mode.test.cpp", "apps/runtime/tests/native/darwin-acl-test.mm", "apps/runtime/tests/fixtures/darwin-vault.ts"]) await add(path);
                   await add(process.execPath);
                   await walk(join(process.env.RUNNER_TEMP, "veriq-node-headers"));
                   await walk("apps/runtime/native/darwin/build");
@@ -441,7 +486,7 @@ jobs:
                           "package.json", "pnpm-workspace.yaml", "apps/runtime/package.json",
                           "apps/runtime/scripts/build-vault-darwin.mjs",
                           "apps/runtime/native/vault/darwin-vault.mm", "apps/runtime/native/vault/darwin-acl.hpp",
-                          "apps/runtime/tests/native/darwin-vault-controller.mm",
+                          "apps/runtime/tests/native/darwin-vault-controller.mm", "apps/runtime/tests/native/private-keychain-mode.hpp", "apps/runtime/tests/native/private-keychain-mode.test.cpp",
                           "apps/runtime/tests/native/darwin-acl-test.mm", process.execPath].map((path) => ({
                               path, bytes: statSync(path).size,
                               sha256: createHash("sha256").update(readFileSync(path)).digest("hex"),
@@ -713,7 +758,7 @@ jobs:
                       report.inputs = [".github/workflows/runtime-native-macos.yml", "pnpm-lock.yaml", "pnpm-workspace.yaml",
                           "package.json", "apps/runtime/package.json", "apps/runtime/scripts/build-vault-darwin.mjs",
                           "apps/runtime/native/vault/darwin-vault.mm", "apps/runtime/native/vault/darwin-acl.hpp",
-                          "apps/runtime/tests/native/darwin-vault-controller.mm", "apps/runtime/tests/native/darwin-acl-test.mm",
+                          "apps/runtime/tests/native/darwin-vault-controller.mm", "apps/runtime/tests/native/private-keychain-mode.hpp", "apps/runtime/tests/native/private-keychain-mode.test.cpp", "apps/runtime/tests/native/darwin-acl-test.mm",
                           "apps/runtime/tests/fixtures/darwin-vault.ts", "apps/runtime/tests/native/darwin-vault.test.ts",
                           "apps/runtime/tests/native/darwin-vault-dedicated.test.ts", process.execPath].map(digest);
                       const installEnv = { PATH: process.env.PATH, HOME: process.env.HOME,
