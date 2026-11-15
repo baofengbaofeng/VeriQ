@@ -58,3 +58,9 @@ root 独立下载和核验小 artifact，并检查大 artifact 的服务端元�
 工作流收集回归通过已锁的 PyYAML6.0.3 提取真实 YAML 内的生产 inline Node 段，在自有临时根执行并检查实际标记、路径、字节、摘要和上传门控。开发环境应先按仓库指南备妥 Runtime 锁定依赖和 `uv sync --project apps/srv --frozen --all-groups` 对应的既有服务端开发环境；测试本身只执行 `uv run --offline --no-sync --project apps/srv python` 并将 UV_CACHE_DIR 指向测试自有目录，不安装/下载依赖，不增加产品运行时 Python 依赖。只运行两份资产测试可用 `node --import tsx --test tests/runtime-assets-acquisition.test.ts tests/runtime-assets-observation.test.ts`。边界案例用顺序稀疏自有文件并先核空闲与实际分配，不生成官方归档或请求网络。
 
 缺少编排步骤时，收集器现在使用固定 step-level GitHub outcome 事实：只有 bind/setup-node/dependencies 中明确的前置失败序列且 observe 为 skipped，才在私有 draft 合成 `steps.json`，记录 SETUP=FAIL（PAYLOAD_IO、NOT_NEEDED）以及 ACQUIRE/OBSERVE=NOT_RUN。现有有效步骤保留原字节和摘要，不会被合成内容覆盖；新步骤同样进入清单、两次审计和实际 metadata 预算。未知、已开始、失败或取消的编排若缺失有效步骤，则只产生带 `MISSING_EXECUTION_EVIDENCE` 原因的有限失败 fallback，不宣称 FULL 或推断 CLI 未运行。收集结果的 FULL 仅表示含这些真实失败事实的完整文件集合，不能把 setup 失败解释为 OBSERVED 或 Runtime 成功。
+
+归档格式拒绝现在可在原公共错误行之后输出一条 `ASSET_ARCHIVE_REJECTION` 诊断 JSON。它通过错误身份的私有弱表保留实际首错，事务清理完成、错误归一化后才由 observer CLI 写到既有 stderr/observe.log；不增加输入字段、CLI flag、错误枚举属性或公开入口参数，`observeMacRuntimeAssets(bytes, options)` 仍为两个参数，成功 stdout 不变。
+
+事件包含 schemaVersion1、node/chrome、有限扫描阶段与十二个固定 guard reason，以及可空的原头/有效成员索引、路径摘要及编码、原始和有效模式、数值类别与成熟解析器已经读取的字段。tar 最多保存一个512字节头及64KiB元数据正文的完整样本、长度和 SHA；ZIP 只记录公开头字段，不保存普通成员正文。整个单行 JSON（包括 base64 膨胀及换行）最多96KiB，捕获失败或超限则省略事件，不把截断内容声明为完整事实。原分类、拒绝顺序、资源限额和清理规则不变；输出失败保留原退出码。
+
+诊断属于未受信任且由当前十九个来源键实际字节绑定的观察证据，不授予格式准入、布局批准、Expected 或 Runtime ready。它复用既有日志和 artifact 配额；真实双架构原归档的具体拒绝原因仍须在 root 审核后的原生 Mac CI 中观测，后续任何与冻结格式政策冲突的接受行为需要另行决定。

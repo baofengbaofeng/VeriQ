@@ -4,7 +4,12 @@ import { finished } from "node:stream/promises";
 import { fromFdPromise, type Entry, type ZipFile } from "yauzl";
 import type { Readable } from "node:stream";
 import { RuntimePayloadError } from "./runtime-payload-inputs.ts";
-import type { ArchiveScan } from "./runtime-payload-archive.ts";
+import {
+    attachArchiveRejection,
+    setArchiveRejectionContext,
+    type ArchiveScan,
+    type ArchiveRejectionFacts,
+} from "./runtime-payload-archive.ts";
 
 /** ZIP 范围检查只消费公开的 local header offset、dataStart 与 central compressedSize，保证文件边界和各 local/data 区间互斥；不读取私有 cursor 或自造 EOCD、ZIP64 与 descriptor 解释器，因此不会声称验证公开 API 无法证明的全域语法。 */
 export class ZipRanges {
@@ -106,12 +111,55 @@ export async function scanZip(path: string, scan: ArchiveScan, fileSize: number)
                 entry.fileNameRaw.some((v) => v > 127)
             )
                 scan.tx.fail("PAYLOAD_ARCHIVE_RANGE");
+            const context: Omit<ArchiveRejectionFacts, "reason"> = {
+                archive: scan.kind,
+                stage: "ZIP_ENTRY",
+                headerIndex: count,
+                memberIndex: count,
+                path: entry.fileNameRaw,
+                size: entry.uncompressedSize,
+                rawMode: entry.externalFileAttributes >>> 16,
+                type: (entry.externalFileAttributes >>> 16) & 0o170000,
+                details: {
+                    versionMadeBy: entry.versionMadeBy,
+                    host: entry.versionMadeBy >>> 8,
+                    externalFileAttributes: entry.externalFileAttributes >>> 0,
+                    method: entry.compressionMethod,
+                    flags: entry.generalPurposeBitFlag,
+                    directorySuffix: entry.fileName.endsWith("/"),
+                    localMethod: local.compressionMethod,
+                    localFlags: local.generalPurposeBitFlag,
+                    compressedSize: entry.compressedSize,
+                    localCompressedSize: local.compressedSize,
+                    localUncompressedSize: local.uncompressedSize,
+                },
+            };
+            const unsupported = (
+                reason: ArchiveRejectionFacts["reason"],
+                details: ArchiveRejectionFacts["details"],
+            ): never => {
+                try {
+                    scan.tx.fail("PAYLOAD_ARCHIVE_UNSUPPORTED");
+                } catch (error) {
+                    attachArchiveRejection(error, {
+                        ...context,
+                        reason,
+                        details: { ...context.details, ...details },
+                    });
+                    throw error;
+                }
+            };
             if (
                 ![0, 8].includes(entry.compressionMethod) ||
                 entry.generalPurposeBitFlag & ~0x80e ||
                 (entry.compressionMethod === 0 && entry.generalPurposeBitFlag & 6)
             )
-                scan.tx.fail("PAYLOAD_ARCHIVE_UNSUPPORTED");
+                unsupported("ZIP_METHOD_FLAGS", {
+                    methodUnsupported: ![0, 8].includes(entry.compressionMethod),
+                    flagsUnsupported: !!(entry.generalPurposeBitFlag & ~0x80e),
+                    storedFlags:
+                        entry.compressionMethod === 0 && !!(entry.generalPurposeBitFlag & 6),
+                });
             if (
                 !(entry.generalPurposeBitFlag & 8) &&
                 ((local.compressedSize !== 0xffffffff &&
@@ -129,17 +177,27 @@ export async function scanZip(path: string, scan: ArchiveScan, fileSize: number)
                 (host !== 3 && host !== 0) ||
                 (host === 3 && ![0, 0o100000, 0o040000, 0o120000].includes(type))
             )
-                scan.tx.fail("PAYLOAD_ARCHIVE_UNSUPPORTED");
+                unsupported("ZIP_HOST_TYPE", {
+                    hostUnsupported: host !== 3 && host !== 0,
+                    typeUnsupported:
+                        host === 3 && ![0, 0o100000, 0o040000, 0o120000].includes(type),
+                });
             if (
                 (host === 0 && rawMode) ||
                 (directory && type && type !== 0o040000) ||
                 (!directory && type === 0o040000) ||
                 (entry.externalFileAttributes & 0x10 && !directory)
             )
-                scan.tx.fail("PAYLOAD_ARCHIVE_UNSUPPORTED");
+                unsupported("ZIP_DIRECTORY_MODE", {
+                    dosMode: host === 0 && !!rawMode,
+                    directoryType: directory && !!type && type !== 0o040000,
+                    fileType: !directory && type === 0o040000,
+                    dosDirectory: !!(entry.externalFileAttributes & 0x10) && !directory,
+                });
             const kind = type === 0o120000 ? "link" : directory ? "directory" : "file";
             const mode =
                 host === 3 && rawMode ? rawMode & 0o7777 : kind === "directory" ? 0o755 : 0o644;
+            setArchiveRejectionContext(scan, context);
             stream = await zip.openReadStreamPromise(entry);
             scan.tx.check();
             const completion = finished(stream);

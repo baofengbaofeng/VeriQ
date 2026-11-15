@@ -1,6 +1,7 @@
 import { basename, dirname, isAbsolute } from "node:path";
 import { RuntimePayloadError } from "./runtime-payload-inputs.ts";
 import { observeMacRuntimeAssets } from "./runtime-assets-observation.ts";
+import { emitArchiveFailure } from "./runtime-payload-archive.ts";
 import { InputReader, decode } from "./runtime-payload-tree.ts";
 
 /** 资产工具只接受冻结的显式且各出现一次的参数，所有宿主路径必须绝对而候选名由核心入口核可移植规则；不从环境变量、网络或隐式工作目录补齐来源，成功 stdout 只包含完整封存结果 JSON，诊断只用稳定英文分类。 */
@@ -70,8 +71,7 @@ try {
 } catch (error) {
     const known =
         error instanceof RuntimePayloadError ? error : new RuntimePayloadError("PAYLOAD_IO");
-    diagnostic(known.code, known.phase, known.cleanup);
-    process.exitCode = exit || 1;
+    emitArchiveFailure(known, exit || 1);
 } finally {
     clearTimeout(timer);
     process.removeListener("SIGINT", sigint);

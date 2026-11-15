@@ -24,6 +24,7 @@ import { ArchiveTransaction, controlledIoFailure } from "./runtime-payload-trans
 import {
     ArchiveScan,
     ArchiveBudget,
+    transferArchiveRejection,
     type StageOptions,
     type ArchiveMember,
 } from "./runtime-payload-archive.ts";
@@ -786,11 +787,14 @@ export async function assetFailure(tx: ArchiveTransaction, error: unknown): Prom
     const cleanup = await tx.cleanup(),
         known = controlledIoFailure(error);
     if (error instanceof RuntimePayloadError)
-        throw new RuntimePayloadError(
-            error.code,
-            error.causeCode,
-            cleanup === "NOT_NEEDED" ? error.cleanup : cleanup,
-            { phase: tx.phase, candidateDirectory: tx.directory },
+        throw transferArchiveRejection(
+            error,
+            new RuntimePayloadError(
+                error.code,
+                error.causeCode,
+                cleanup === "NOT_NEEDED" ? error.cleanup : cleanup,
+                { phase: tx.phase, candidateDirectory: tx.directory },
+            ),
         );
     tx.fail(known?.code ?? "PAYLOAD_IO", cleanup, known?.causeCode ?? null);
 }

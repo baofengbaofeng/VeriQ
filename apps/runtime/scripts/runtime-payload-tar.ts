@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { open } from "node:fs/promises";
 import { createGunzip } from "node:zlib";
@@ -6,7 +7,12 @@ import { once } from "node:events";
 import { Header, Pax, Parser, type ReadEntry } from "tar";
 import { RuntimePayloadError } from "./runtime-payload-inputs.ts";
 import { limits } from "./runtime-payload-tree.ts";
-import type { ArchiveScan } from "./runtime-payload-archive.ts";
+import {
+    attachArchiveRejection,
+    setArchiveRejectionContext,
+    type ArchiveScan,
+    type ArchiveRejectionFacts,
+} from "./runtime-payload-archive.ts";
 
 /** tar framing guard 只用成熟公开 Header 解释数字和校验和，把真实流分成有界 header、正文及 padding；它同时要求双零终止和有限零尾，不能因为 Parser 提前看到 EOF 就忽略后续 gzip trailer 损坏或非零垃圾。 */
 class TarFrames {
@@ -20,8 +26,39 @@ class TarFrames {
     private metaCount = 0;
     private meta: { header: Buffer; body: Buffer[]; type: string; size: number } | undefined;
     private afterMeta = false;
+    private index = 0;
+    private context: Omit<ArchiveRejectionFacts, "reason"> | undefined;
+    /** 每个 framing 拒绝都复用刚读到的成熟 Header 上下文，只在原本要抛错的位置附加诊断；捕获内部失败由弱表入口吸收，仍抛原先相同分类的异常，不继续解析或等待后续成员。 */
+    private unsupported(
+        reason: ArchiveRejectionFacts["reason"],
+        details: ArchiveRejectionFacts["details"] = {},
+        metadata?: Buffer,
+        unknownKey?: string,
+    ): never {
+        const error = new RuntimePayloadError("PAYLOAD_ARCHIVE_UNSUPPORTED");
+        try {
+            if (this.context)
+                attachArchiveRejection(error, {
+                    ...this.context,
+                    stage: metadata ? "TAR_METADATA" : "TAR_FRAME",
+                    reason,
+                    metadata,
+                    details: {
+                        ...this.context.details,
+                        ...details,
+                        unknownKeySha256:
+                            unknownKey === undefined
+                                ? null
+                                : createHash("sha256").update(unknownKey).digest("hex"),
+                    },
+                });
+        } catch {
+            // 这里的可选上下文合并与未知键摘要同样属于诊断而非归档准入，捕获或分配失败时仍必须抛下方原异常；不能让辅助事实构造遮蔽真实成员类型、元数据或权限拒绝。
+        }
+        throw error;
+    }
     /** 每个输入块只保留不足一个 header 或最多六十四 KiB 元数据，普通正文直接流过不累计；guard 在普通帧结束处向协调器报告边界，让下一成员必须等待当前正文、摘要及私有输出句柄全部完成后才进入成熟 Parser。 */
-    *feed(input: Buffer): Generator<{ bytes: Buffer; boundary: boolean }> {
+    *feed(input: Buffer, scan: ArchiveScan): Generator<{ bytes: Buffer; boundary: boolean }> {
         this.bytes += input.length;
         if (this.bytes > limits.total + 64 * 1024 ** 2)
             throw new RuntimePayloadError("PAYLOAD_LIMIT");
@@ -67,6 +104,7 @@ class TarFrames {
             const raw = rest.subarray(0, 512);
             rest = rest.subarray(512);
             const header = new Header(raw);
+            this.index++;
             if (header.nullBlock) {
                 if (this.afterMeta) throw new RuntimePayloadError("PAYLOAD_ARCHIVE_FORMAT");
                 this.zeros++;
@@ -85,6 +123,18 @@ class TarFrames {
                 "NextFileHasLongPath",
                 "NextFileHasLongLinkpath",
             ].includes(type);
+            this.context = {
+                archive: scan.kind,
+                stage: "TAR_FRAME",
+                headerIndex: this.index,
+                memberIndex: null,
+                path: header.path,
+                size,
+                rawMode: header.mode,
+                type,
+                header: raw,
+                details: { checksumValid: header.cksumValid },
+            };
             if (metadata) {
                 if (
                     size > 64 * 1024 ||
@@ -92,18 +142,23 @@ class TarFrames {
                     ++this.metaCount > 40000
                 )
                     throw new RuntimePayloadError("PAYLOAD_LIMIT");
-                if (!size) throw new RuntimePayloadError("PAYLOAD_ARCHIVE_UNSUPPORTED");
+                if (!size) this.unsupported("TAR_META_EMPTY");
                 this.metaBytes += size;
                 this.meta = { header: Buffer.from(raw), body: [], type, size };
                 this.afterMeta = true;
             } else {
                 if (!["File", "OldFile", "Directory", "SymbolicLink"].includes(type))
-                    throw new RuntimePayloadError("PAYLOAD_ARCHIVE_UNSUPPORTED");
+                    this.unsupported("TAR_ENTRY_TYPE");
                 if (size > limits.file) throw new RuntimePayloadError("PAYLOAD_LIMIT");
                 if ((type === "Directory" || type === "SymbolicLink") && size !== 0)
                     throw new RuntimePayloadError("PAYLOAD_ARCHIVE_FORMAT");
                 if (header.mode === undefined || header.mode < 0 || header.mode > 0o777)
-                    throw new RuntimePayloadError("PAYLOAD_ARCHIVE_UNSUPPORTED");
+                    this.unsupported("TAR_HEADER_MODE", {
+                        modeMissing: header.mode === undefined,
+                        modeNegative: (header.mode ?? 0) < 0,
+                        modeHigh: (header.mode ?? 0) > 0o777,
+                    });
+                setArchiveRejectionContext(scan, this.context);
                 this.afterMeta = false;
                 yield { bytes: raw, boundary: !size };
             }
@@ -119,14 +174,34 @@ class TarFrames {
             const text = body.toString("utf8"),
                 seen = new Set<string>();
             if (!text.endsWith("\n") || /[^\x20-\x7e\n]/.test(text))
-                throw new RuntimePayloadError("PAYLOAD_ARCHIVE_UNSUPPORTED");
+                this.unsupported(
+                    "TAR_PAX_TEXT",
+                    { missingNewline: !text.endsWith("\n"), nonAscii: /[^\x20-\x7e\n]/.test(text) },
+                    body,
+                );
+            let recordIndex = 0;
             for (const record of text.slice(0, -1).split("\n")) {
+                recordIndex++;
                 const match =
                     /^[0-9]+ (path|linkpath|mtime|atime|ctime|uid|gid|uname|gname)=([\x20-\x7e]*)$/.exec(
                         record,
                     );
                 if (!match || seen.has(match[1]!))
-                    throw new RuntimePayloadError("PAYLOAD_ARCHIVE_UNSUPPORTED");
+                    this.unsupported(
+                        "TAR_PAX_RECORD",
+                        {
+                            recordIndex,
+                            malformedOrUnknown: !match,
+                            duplicate: !!match && seen.has(match[1]!),
+                            approvedKey: match?.[1] ?? null,
+                        },
+                        body,
+                        !match &&
+                            record.indexOf(" ") >= 0 &&
+                            record.indexOf("=") > record.indexOf(" ")
+                            ? record.slice(record.indexOf(" ") + 1, record.indexOf("="))
+                            : undefined,
+                    );
                 const key = match[1] as
                     | "path"
                     | "linkpath"
@@ -146,19 +221,55 @@ class TarFrames {
                     (typeof value === "number" && (!Number.isSafeInteger(value) || value < 0)) ||
                     (typeof value === "string" && !value.length)
                 )
-                    throw new RuntimePayloadError("PAYLOAD_ARCHIVE_UNSUPPORTED");
+                    this.unsupported(
+                        "TAR_PAX_VALUE",
+                        {
+                            recordIndex,
+                            approvedKey: key,
+                            missing: value === undefined,
+                            invalidDate: value instanceof Date && !Number.isFinite(value.getTime()),
+                            invalidNumber:
+                                typeof value === "number" &&
+                                (!Number.isSafeInteger(value) || value < 0),
+                            emptyString: typeof value === "string" && !value.length,
+                            valueKind: value instanceof Date ? "DATE" : typeof value,
+                        },
+                        body,
+                    );
                 const roundtrip = Pax.parse(parsed.encodeField(key))[key];
                 if (
                     value instanceof Date
                         ? !(roundtrip instanceof Date) || value.getTime() !== roundtrip.getTime()
                         : value !== roundtrip
                 )
-                    throw new RuntimePayloadError("PAYLOAD_ARCHIVE_UNSUPPORTED");
+                    this.unsupported(
+                        "TAR_PAX_ROUNDTRIP",
+                        {
+                            recordIndex,
+                            approvedKey: key,
+                            valueKind: value instanceof Date ? "DATE" : typeof value,
+                            roundtripKind: roundtrip instanceof Date ? "DATE" : typeof roundtrip,
+                            dateMismatch:
+                                value instanceof Date &&
+                                (!(roundtrip instanceof Date) ||
+                                    value.getTime() !== roundtrip.getTime()),
+                            valueMismatch: !(value instanceof Date) && value !== roundtrip,
+                        },
+                        body,
+                    );
             }
         } else {
             const target = body.toString("utf8").replace(/\0+$/, "");
             if (!target || /[^\x20-\x7e]/.test(target) || Buffer.byteLength(target) > 1024)
-                throw new RuntimePayloadError("PAYLOAD_ARCHIVE_UNSUPPORTED");
+                this.unsupported(
+                    "TAR_GNU_TEXT",
+                    {
+                        empty: !target,
+                        nonAscii: /[^\x20-\x7e]/.test(target),
+                        tooLong: Buffer.byteLength(target) > 1024,
+                    },
+                    body,
+                );
         }
         this.meta = undefined;
         return {
@@ -252,7 +363,7 @@ export async function scanTar(path: string, scan: ArchiveScan): Promise<number> 
     try {
         for await (const value of gunzip) {
             scan.tx.check();
-            for (const frame of framing.feed(Buffer.from(value))) {
+            for (const frame of framing.feed(Buffer.from(value), scan)) {
                 if (failure) throw failure;
                 // 成熟 Parser 的正文循环仍以五百一十二字节为最小推进单位，不能先喂入非整块正文再单独等待短 padding；这里只延迟最多五百一十一字节并合并下一帧，成员边界必然全部交付后才等待消费者结束，背压仍逐次遵守。
                 const bytes = parserTail.length

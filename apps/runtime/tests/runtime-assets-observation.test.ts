@@ -721,3 +721,89 @@ for (const scenario of [
             await rm(base, { recursive: true, force: true });
         }
     });
+
+/** 归一化回归先让真实快照扫描产生带头事实的拒绝，再交正式失败出口清理事务并更换异常对象；仅被选中的首错诊断可随新对象保留，公开双参数入口和原错误字段不能因诊断扩展而改变。 */
+test("archive rejection normalization follows real cleanup without public API changes", async () => {
+    const { mkdtemp, mkdir, rm, statfs } = await import("node:fs/promises"),
+        { tmpdir } = await import("node:os"),
+        { RuntimePayloadError } = await import("../scripts/runtime-payload-inputs.ts"),
+        { assetFailure, observeMacRuntimeAssets } = await import(
+            "../scripts/runtime-assets-observation.ts"
+        ),
+        { archiveRejectionLine } = await import("../scripts/runtime-payload-archive.ts"),
+        { tarBytes } = await import("./fixtures/runtime-payload-archives.ts");
+    const base = await mkdtemp(join(tmpdir(), "veriq-normalized-rejection-"));
+    const input = join(base, "input"),
+        output = join(base, "output");
+    await mkdir(input, { mode: 0o700 });
+    await mkdir(output, { mode: 0o700 });
+    const tx = new ArchiveTransaction(input, output, "observed");
+    try {
+        const free = await statfs(base);
+        assert.ok(free.bavail * free.bsize > 40 * 1024 ** 2);
+        await tx.initialize();
+        tx.phase = "INTAKE";
+        const [, chrome] = tinyAssets();
+        const refs = [
+            await tx.write(
+                "snapshots/node.tar.gz",
+                once(tarBytes([{ path: "node-v24.22.1-darwin-x64/item", type: "FIFO" }])),
+            ),
+            await tx.write("snapshots/chrome.zip", once(chrome)),
+        ] as const;
+        let original: InstanceType<typeof RuntimePayloadError> | undefined;
+        await assert.rejects(scanObservedSnapshots(tx, "x64", refs), (error: unknown) => {
+            assert.ok(error instanceof RuntimePayloadError);
+            original = error;
+            return true;
+        });
+        assert.ok(original);
+        const selected = original;
+        const line = archiveRejectionLine(selected);
+        assert.ok(line);
+        await assert.rejects(assetFailure(tx, selected), (normalized: unknown) => {
+            assert.ok(normalized instanceof RuntimePayloadError);
+            assert.notEqual(normalized, selected);
+            assert.equal(normalized.code, selected.code);
+            assert.equal(normalized.causeCode, selected.causeCode);
+            assert.equal(normalized.cleanup, "CONFIRMED");
+            assert.equal(normalized.phase, "INTAKE");
+            assert.equal(archiveRejectionLine(normalized), line);
+            assert.deepEqual(Object.keys(normalized), Object.keys(selected));
+            return true;
+        });
+        assert.deepEqual(await readdir(output), []);
+        assert.equal(observeMacRuntimeAssets.length, 2);
+    } finally {
+        await tx.cleanup();
+        await rm(base, { recursive: true, force: true });
+    }
+});
+
+/** 输出回归在独立宿主 Node 子进程调用 CLI 实际使用的有限报告函数，并以关闭管道和异步写错误验证首错退出码；子进程没有官方来源伪装或目标程序，观察仅限原公共行顺序、单事件与空标准输出。 */
+for (const failure of ["none", "sync", "async"] as const) {
+    test(`archive rejection CLI emitter preserves primary outcome on ${failure} output`, () => {
+        const source = `
+import { RuntimePayloadError } from "./scripts/runtime-payload-inputs.ts";
+import { attachArchiveRejection, emitArchiveFailure } from "./scripts/runtime-payload-archive.ts";
+const error = new RuntimePayloadError("PAYLOAD_ARCHIVE_UNSUPPORTED", null, "CONFIRMED", { phase: "INTAKE", candidateDirectory: null });
+attachArchiveRejection(error, { archive: "node", stage: "TAR_FRAME", reason: "TAR_ENTRY_TYPE" });
+if (${JSON.stringify(failure)} === "sync") process.stderr.write = () => { throw Error("CLOSED_PIPE"); };
+if (${JSON.stringify(failure)} === "async") process.stderr.write = () => { queueMicrotask(() => process.stderr.emit("error", Error("CLOSED_PIPE"))); return false; };
+emitArchiveFailure(error, 17);
+`;
+        const child = spawnSync(
+            process.execPath,
+            ["--import", "tsx", "--input-type=module", "-e", source],
+            { encoding: "utf8" },
+        );
+        assert.equal(child.status, 17);
+        assert.equal(child.stdout, "");
+        if (failure === "none") {
+            const lines = child.stderr.trim().split("\n");
+            assert.equal(lines.length, 2);
+            assert.equal(lines[0], "PAYLOAD_ARCHIVE_UNSUPPORTED phase=INTAKE cleanup=CONFIRMED");
+            assert.equal(JSON.parse(lines[1]!).reason, "TAR_ENTRY_TYPE");
+        } else assert.equal(child.stderr, "");
+    });
+}
