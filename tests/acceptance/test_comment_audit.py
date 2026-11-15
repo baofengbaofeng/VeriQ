@@ -383,3 +383,41 @@ def test_missing_typescript_fails_through_real_node(repository: Path) -> None:
         _audit(repository)
     assert caught.value.returncode != 0
     assert caught.value.cmd == ["node", "scripts/comment_ranges.mjs"]
+
+
+@pytest.mark.parametrize("newline", ["\n", "\r\n", "\r"], ids=["lf", "crlf", "bare-cr"])
+def test_python_physical_newlines_preserve_the_code_denominator(
+    repository: Path, newline: str
+) -> None:
+    """Python 合法的三种物理换行必须产生相同的注释与代码行数，尤其裸回车不能让分词器把两行语句折叠到一行而将不足百分之四十的输入误判通过；真实审计报告同时固定分母、比例和门禁结果。
+
+    文件按原始字节写入并使用恰好六十个中文字的首行，排除质量违规对比例结果的干扰。
+    """
+    text = newline.join(["#" + "中" * 60, "x=1", "y=2", ""])
+    _write(repository, "sample.py", text)
+    assert (repository / "sample.py").read_bytes() == text.encode("utf-8")
+    report = _audit(repository)
+    assert report["files"] == [{"path": "sample.py", "commentLines": 1, "codeLines": 2}]
+    assert report["ratio"] == 1 / 3
+    assert report["violations"] == []
+    assert report["passed"] is False
+
+
+@pytest.mark.parametrize("newline", ["\n", "\r\n", "\r"], ids=["lf", "crlf", "bare-cr"])
+def test_python_docstring_and_inline_comment_keep_physical_line_positions(
+    repository: Path, newline: str
+) -> None:
+    """文档串由 AST 确认而同行注释由分词器定位，两者必须在所有合法物理换行下指向相同行号，防止裸回车让文档串的代码扣除误伤后续语句或让同行注释污染另一行的计数与首行判定。
+
+    第一行仅为有效文档串，第二行同时计入代码和注释，第三行只贡献代码，因此比例固定为二分之一。
+    """
+    _write(
+        repository,
+        "sample.py",
+        newline.join([f'"""{LONG}"""', f"x=1 #{LONG}", "y=2", ""]),
+    )
+    report = _audit(repository)
+    assert report["files"] == [{"path": "sample.py", "commentLines": 2, "codeLines": 2}]
+    assert report["ratio"] == 0.5
+    assert report["violations"] == []
+    assert report["passed"] is True

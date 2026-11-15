@@ -66,7 +66,10 @@ def audit(root: Path) -> dict[str, Any]:
         comments: set[int] = set()
         code: set[int] = set()
         if name.endswith(".py"):
-            for token in tokenize.generate_tokens(io.StringIO(text).readline):
+            # Python 分词器依赖逐个物理行读取，StringIO 必须启用通用换行以识别合法裸回车并与 AST 行号一致；转换仅作用于分词输入，供 Node 坐标遮罩使用的原始文本仍完整保留。
+            for token in tokenize.generate_tokens(
+                io.StringIO(text, newline=None).readline
+            ):
                 if token.type == tokenize.COMMENT:
                     blocks.append(
                         (token.start[0], token.end[0], token.string.lstrip("# "))
