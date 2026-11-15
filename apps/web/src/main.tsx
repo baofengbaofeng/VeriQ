@@ -1,5 +1,5 @@
 /**
- * Web 入口：探测 setup/session，注入 Auth，并按用户身份挂载带 WorkspaceProvider 的功能路由。
+ * Web 入口先探测安装状态再读取当前会话与账户，向 Auth 注入稳定刷新入口并按用户身份挂载各功能路由，使启动、重试和退出共享明确的异步结果发布边界。
  * 每个需空间作用域的路由用 user.id 作 Provider key，身份切换即清空查询与订阅。
  */
 
@@ -7,7 +7,7 @@ import { ExecutionPlansPage } from "./features/runs/ExecutionPlansPage";
 import { BundlePage } from "./features/bundles/BundlePage";
 import { AiPage } from "./features/ai/AiPage";
 import { ReportPage } from "./features/reports/ReportPage";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Link, Navigate, Route, Routes } from "react-router-dom";
 import { api, ApiError, type User } from "./api";
@@ -27,31 +27,74 @@ function App() {
         [ready, setReady] = useState(false),
         [initialized, setInitialized] = useState(false),
         [failure, setFailure] = useState("");
-    const refresh = async () => {
+    const mounted = useRef(false),
+        identityGeneration = useRef(0),
+        loadGeneration = useRef(0);
+    /** 会话探测与账户读取共用调用者分配的身份代次，每个 await 后都检查当前归属；过期事件先清除身份，旧成功及旧异常均不能重新发布已失效的账户或故障状态。 */
+    const readIdentity = useCallback(async (request: number): Promise<void> => {
+        const current = () => mounted.current && identityGeneration.current === request;
         try {
+            if (!current()) return;
             await api.session();
-            setUser(await api.account());
+            if (!current()) return;
+            const account = await api.account();
+            if (current()) setUser(account);
         } catch (e) {
+            if (!current()) return;
             if (e instanceof ApiError && e.status === 401) setUser(null);
             else throw e;
         }
-    };
-    const load = async () => {
+    }, []);
+    /** Auth 调用者继续使用同一稳定的异步刷新入口，每次调用都读取当前服务器会话而不捕获某个旧账户；它同时撤销尚未完成的启动发布权，让后续登录或账户变更成为当前身份来源。 */
+    const refresh = useCallback(async (): Promise<void> => {
+        loadGeneration.current += 1;
+        await readIdentity(++identityGeneration.current);
+    }, [readIdentity]);
+    /** 安装探测的所有权独立于身份探测，因此本轮匿名会话的正常 401 仍可完成启动；新的刷新、退出或卸载会使旧启动失效，防止旧 Retry 覆盖当前就绪或失败状态。 */
+    const load = useCallback(async (): Promise<void> => {
+        const request = ++loadGeneration.current;
+        const identityRequest = ++identityGeneration.current;
+        const current = () => mounted.current && loadGeneration.current === request;
         try {
+            if (!current()) return;
             setFailure("");
-            setInitialized((await api.setup()).initialized);
-            await refresh();
-            setReady(true);
+            const setup = await api.setup();
+            if (!current()) return;
+            setInitialized(setup.initialized);
+            await readIdentity(identityRequest);
+            if (current()) setReady(true);
         } catch {
-            setFailure("Unable to connect to VeriQ.");
+            if (current()) setFailure("Unable to connect to VeriQ.");
         }
-    };
+    }, [readIdentity]);
     useEffect(() => {
-        const expired = () => setUser(null);
+        mounted.current = true;
+        const expired = () => {
+            identityGeneration.current += 1;
+            setUser(null);
+        };
         window.addEventListener("veriq:session-expired", expired);
         void load();
-        return () => window.removeEventListener("veriq:session-expired", expired);
-    }, []);
+        return () => {
+            mounted.current = false;
+            identityGeneration.current += 1;
+            loadGeneration.current += 1;
+            window.removeEventListener("veriq:session-expired", expired);
+        };
+    }, [load]);
+    /** 退出意图在发送请求前就撤销旧身份读取的发布权，随后复用同一代次探测真正的退出结果；只有仍归属于这次退出的异常可以显示失败，避免旧 catch 干扰后续登录。 */
+    const logout = useCallback(async (): Promise<void> => {
+        const request = ++identityGeneration.current;
+        loadGeneration.current += 1;
+        try {
+            await api.logout();
+            if (mounted.current && identityGeneration.current === request)
+                await readIdentity(request);
+        } catch {
+            if (mounted.current && identityGeneration.current === request)
+                setFailure("Unable to sign out. Please retry.");
+        }
+    }, [readIdentity]);
     if (failure)
         return (
             <Panel title="VeriQ unavailable">
@@ -84,14 +127,7 @@ function App() {
                             <button
                                 type="button"
                                 data-testid="logout"
-                                onClick={() => {
-                                    void api
-                                        .logout()
-                                        .then(refresh)
-                                        .catch(() =>
-                                            setFailure("Unable to sign out. Please retry."),
-                                        );
-                                }}
+                                onClick={() => void logout()}
                             >
                                 Sign out
                             </button>
