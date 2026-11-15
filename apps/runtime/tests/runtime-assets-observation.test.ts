@@ -294,6 +294,25 @@ for (const scenario of [
                 mode: 0o600,
             });
             await writeFile(join(meta, "pnpm-install.log"), "small setup log", { mode: 0o600 });
+            const existingSteps = Buffer.from(
+                JSON.stringify([
+                    {
+                        step: "ACQUIRE",
+                        status: "PASS",
+                        code: null,
+                        cleanup: "CONFIRMED",
+                        actualBytes: null,
+                    },
+                    {
+                        step: "OBSERVE",
+                        status: "PASS",
+                        code: null,
+                        cleanup: "CONFIRMED",
+                        actualBytes: null,
+                    },
+                ]),
+            );
+            await writeFile(join(meta, "steps.json"), existingSteps, { mode: 0o600 });
             if (scenario === "normal" || scenario === "normal-truncated-log") {
                 await mkdir(join(meta, "nested/deep"), { recursive: true, mode: 0o700 });
                 await writeFile(
@@ -322,7 +341,7 @@ for (const scenario of [
             }
             if (scenario === "manifest-limit") {
                 await rm(join(meta, "status.json"));
-                await sparse("large.json", 16 * 1024 ** 2 - 1);
+                await sparse("large.json", 16 * 1024 ** 2 - 1 - existingSteps.length);
             }
             if (scenario === "normal-truncated-log") {
                 await rm(join(meta, "pnpm-install.log"));
@@ -372,6 +391,10 @@ fixIO.promises.open = async (path, ...args) => {
                     GITHUB_OUTPUT: output,
                     GITHUB_SHA: "a".repeat(40),
                     EXPECTED_ARCH: "x64",
+                    BIND_OUTCOME: "success",
+                    NODE_SETUP_OUTCOME: "success",
+                    DEPENDENCIES_OUTCOME: "success",
+                    ORCHESTRATION_OUTCOME: "success",
                 },
             });
             const markers = await readFile(output, "utf8");
@@ -448,12 +471,15 @@ fixIO.promises.open = async (path, ...args) => {
                     "nested",
                     "pnpm-install.log",
                     "status.json",
+                    "steps.json",
                 ]);
                 assert.deepEqual(manifest.files.map((f) => f.path).sort(), [
                     "nested/deep/source.json",
                     "pnpm-install.log",
                     "status.json",
+                    "steps.json",
                 ]);
+                assert.deepEqual(await readFile(join(uploaded, "steps.json")), existingSteps);
                 if (scenario === "normal-truncated-log") {
                     assert.equal(trace.sourceReads[join(meta, "pnpm-install.log")], 32700);
                     const log = await readFile(join(uploaded, "pnpm-install.log"), "utf8");
@@ -481,6 +507,216 @@ fixIO.promises.open = async (path, ...args) => {
                 assert.equal(failure.steps[1].status, "NOT_RUN");
                 assert.match(markers, /^collection=FAILURE$/m);
             }
+        } finally {
+            await rm(base, { recursive: true, force: true });
+        }
+    });
+
+/** 新场景执行实际工作流中的同一收集器，分别模拟安装失败、空证据根、已开始但缺步骤与已有正式步骤；只有真实工作流明确证明编排未运行时才允许合成 NOT_RUN，所有新字节均须在最终集合、清单摘要和固定预算中可独立观察。 */
+for (const scenario of [
+    "setup-logs-only",
+    "setup-empty",
+    "setup-bind-failure",
+    "setup-node-failure",
+    "missing-unknown",
+    "missing-started",
+    "missing-cancelled",
+    "missing-skipped-no-failure",
+    "invalid-existing",
+    "existing-valid",
+    "setup-added-quota",
+] as const)
+    test(`production setup evidence collector ${scenario}`, async () => {
+        const { mkdtemp, mkdir, writeFile, lstat, statfs, open, rm } = await import(
+            "node:fs/promises"
+        );
+        const { tmpdir } = await import("node:os"),
+            { createHash } = await import("node:crypto"),
+            { assetWorkflowSteps } = await import("./fixtures/runtime-assets.ts");
+        const base = await mkdtemp(join(tmpdir(), "veriq-setup-evidence-")),
+            root = join(base, "assets"),
+            meta = join(root, "metadata"),
+            output = join(base, "outputs");
+        await mkdir(root, { mode: 0o700 });
+        await mkdir(meta, { mode: 0o700 });
+        await writeFile(output, "", { mode: 0o600 });
+        try {
+            const space = await statfs(base, { bigint: true });
+            assert.ok(space.bavail * space.bsize > 40n * 1024n ** 2n);
+            const originalSteps = Buffer.from(
+                ' [\n  {"step":"ACQUIRE","status":"FAIL","code":"PAYLOAD_IO","cleanup":"INCOMPLETE","actualBytes":3},\n  {"step":"OBSERVE","status":"NOT_RUN","code":null,"cleanup":null,"actualBytes":null}\n ]\n',
+            );
+            if (scenario === "setup-logs-only") {
+                await writeFile(join(meta, "pnpm-install.log"), "installation failed", {
+                    mode: 0o600,
+                });
+                await writeFile(join(meta, "os.log"), "ProductVersion: 15.7", { mode: 0o600 });
+            }
+            if (scenario === "invalid-existing")
+                await writeFile(join(meta, "steps.json"), "[]", { mode: 0o600 });
+            if (scenario === "existing-valid")
+                await writeFile(join(meta, "steps.json"), originalSteps, { mode: 0o600 });
+            if (scenario === "setup-added-quota") {
+                const path = join(meta, "large.json"),
+                    fd = await open(path, "wx", 0o600);
+                try {
+                    await fd.truncate(16 * 1024 ** 2 - 1);
+                } finally {
+                    await fd.close();
+                }
+                assert.ok((await lstat(path, { bigint: true })).blocks * 512n <= 65536n);
+            }
+            const outcomes = {
+                BIND_OUTCOME: "success",
+                NODE_SETUP_OUTCOME: "success",
+                DEPENDENCIES_OUTCOME: "failure",
+                ORCHESTRATION_OUTCOME: "skipped",
+            };
+            if (scenario === "setup-empty" || scenario === "setup-bind-failure")
+                Object.assign(outcomes, {
+                    BIND_OUTCOME: "failure",
+                    NODE_SETUP_OUTCOME: "skipped",
+                    DEPENDENCIES_OUTCOME: "skipped",
+                });
+            if (scenario === "setup-node-failure")
+                Object.assign(outcomes, {
+                    NODE_SETUP_OUTCOME: "failure",
+                    DEPENDENCIES_OUTCOME: "skipped",
+                });
+            if (scenario === "missing-unknown")
+                Object.assign(outcomes, {
+                    BIND_OUTCOME: "",
+                    NODE_SETUP_OUTCOME: "",
+                    DEPENDENCIES_OUTCOME: "",
+                    ORCHESTRATION_OUTCOME: "",
+                });
+            if (scenario === "missing-started" || scenario === "existing-valid")
+                Object.assign(outcomes, {
+                    DEPENDENCIES_OUTCOME: "success",
+                    ORCHESTRATION_OUTCOME: "failure",
+                });
+            if (scenario === "missing-cancelled")
+                Object.assign(outcomes, {
+                    DEPENDENCIES_OUTCOME: "success",
+                    ORCHESTRATION_OUTCOME: "cancelled",
+                });
+            if (scenario === "missing-skipped-no-failure")
+                Object.assign(outcomes, { DEPENDENCIES_OUTCOME: "success" });
+            const steps = assetWorkflowSteps(join(base, "uv-cache")),
+                collector = steps.find((step) => step.id === "collect");
+            const code = (collector!.run as string).match(
+                /node --input-type=module <<'JS'\n([\s\S]*?)\nJS/,
+            )?.[1];
+            assert.ok(code);
+            const trace = `import setupIO from "node:fs"; import {syncBuiltinESMExports as setupSync} from "node:module"; const setupOpen=setupIO.promises.open;let setupSourceOpens=0;setupIO.promises.open=async(path,...args)=>{if(String(path).startsWith(process.env.ASSET_ROOT+"/metadata/"))setupSourceOpens++;return setupOpen(path,...args);};setupSync();process.on("exit",()=>process.stdout.write(JSON.stringify({sourceOpens:setupSourceOpens})+"\\n"));\n`;
+            const result = spawnSync(process.execPath, ["--input-type=module"], {
+                input: trace + code,
+                encoding: "utf8",
+                timeout: 15000,
+                maxBuffer: 65536,
+                env: {
+                    ...process.env,
+                    ...outcomes,
+                    ASSET_ROOT: root,
+                    GITHUB_OUTPUT: output,
+                    GITHUB_SHA: "a".repeat(40),
+                    EXPECTED_ARCH: "x64",
+                },
+            });
+            const markers = await readFile(output, "utf8");
+            assert.match(markers, /^ready=true$/m, result.stderr);
+            assert.match(markers, new RegExp(`^upload_root=${root}/upload$`, "m"));
+            const uploaded = join(root, "upload"),
+                manifestBytes = await readFile(join(uploaded, "manifest.json")),
+                manifest = JSON.parse(manifestBytes.toString("utf8")) as {
+                    files: { path: string; sizeBytes: number; sha256: string }[];
+                };
+            let metadataBytes = manifestBytes.length,
+                logBytes = 0;
+            for (const file of manifest.files) {
+                const bytes = await readFile(join(uploaded, file.path));
+                assert.equal(bytes.length, file.sizeBytes);
+                assert.equal(createHash("sha256").update(bytes).digest("hex"), file.sha256);
+                if (file.path.endsWith(".log")) logBytes += bytes.length;
+                else metadataBytes += bytes.length;
+            }
+            assert.ok(metadataBytes <= 16 * 1024 ** 2);
+            assert.ok(logBytes <= 8 * 1024 ** 2);
+            assert.match(
+                markers,
+                new RegExp(
+                    `^manifest_sha256=${createHash("sha256").update(manifestBytes).digest("hex")}$`,
+                    "m",
+                ),
+            );
+            if (
+                scenario.startsWith("missing-") ||
+                scenario === "invalid-existing" ||
+                scenario === "setup-added-quota"
+            ) {
+                assert.notEqual(result.status, 0);
+                assert.match(markers, /^collection=FAILURE$/m);
+                assert.deepEqual((await readdir(uploaded)).sort(), [
+                    "failure.json",
+                    "manifest.json",
+                ]);
+                const failure = JSON.parse(await readFile(join(uploaded, "failure.json"), "utf8"));
+                assert.equal(failure.status, "FAIL");
+                assert.ok(
+                    failure.steps.every(
+                        (s: { step: string }) => s.step !== "ACQUIRE" && s.step !== "OBSERVE",
+                    ),
+                );
+                if (scenario === "setup-added-quota") {
+                    assert.equal(failure.code, "ARTIFACT_LIMIT");
+                    assert.equal(JSON.parse(result.stdout).sourceOpens, 0);
+                } else assert.equal(failure.reason, "MISSING_EXECUTION_EVIDENCE");
+            } else {
+                assert.equal(result.status, 0, result.stderr);
+                assert.match(markers, /^collection=FULL$/m);
+                const bytes = await readFile(join(uploaded, "steps.json"));
+                assert.ok(
+                    manifest.files.some(
+                        (file) => file.path === "steps.json" && file.sizeBytes === bytes.length,
+                    ),
+                );
+                if (scenario === "existing-valid") {
+                    assert.deepEqual(bytes, originalSteps);
+                    assert.deepEqual(await readFile(join(meta, "steps.json")), originalSteps);
+                } else {
+                    const facts = JSON.parse(bytes.toString("utf8"));
+                    assert.deepEqual(
+                        facts.map((s: { step: string; status: string }) => [s.step, s.status]),
+                        [
+                            ["SETUP", "FAIL"],
+                            ["ACQUIRE", "NOT_RUN"],
+                            ["OBSERVE", "NOT_RUN"],
+                        ],
+                    );
+                    assert.equal(facts[0].code, "PAYLOAD_IO");
+                    assert.equal(facts[0].cleanup, "NOT_NEEDED");
+                    assert.equal(facts[1].code, null);
+                    assert.equal(facts[2].code, null);
+                    await assert.rejects(lstat(join(meta, "steps.json")), { code: "ENOENT" });
+                }
+            }
+            const env = collector!.env as Record<string, string>;
+            assert.equal(env.ORCHESTRATION_OUTCOME, "${{ steps.observe.outcome }}");
+            assert.equal(env.BIND_OUTCOME, "${{ steps.bind.outcome }}");
+            assert.equal(env.NODE_SETUP_OUTCOME, "${{ steps.node_setup.outcome }}");
+            assert.equal(env.DEPENDENCIES_OUTCOME, "${{ steps.dependencies.outcome }}");
+            assert.ok(steps.some((step) => step.id === "bind"));
+            assert.ok(steps.some((step) => step.id === "node_setup"));
+            assert.ok(steps.some((step) => step.id === "dependencies"));
+            const upload = steps.find((step) => step.id === "metadata_upload");
+            assert.equal(
+                upload!.if,
+                "always() && steps.collect.outputs.ready == 'true' && steps.collect.outputs.upload_root == format('{0}/upload', env.ASSET_ROOT)",
+            );
+            assert.equal(
+                (upload!.with as Record<string, unknown>).path,
+                "${{ env.ASSET_ROOT }}/upload/",
+            );
         } finally {
             await rm(base, { recursive: true, force: true });
         }

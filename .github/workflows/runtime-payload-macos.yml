@@ -54,6 +54,7 @@ jobs:
                   ref: ${{ github.sha }}
                   persist-credentials: false
             - name: Bind reviewed workflow commit before installation or source execution
+              id: bind
               shell: bash
               run: |
                   set -euo pipefail
@@ -75,9 +76,11 @@ jobs:
                   test "$(sw_vers -productVersion | cut -d. -f1)" = 15
                   if [ "$EXPECTED_ARCH" = arm64 ]; then test "$(uname -m)" = arm64; else test "$(uname -m)" = x86_64; fi
             - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+              id: node_setup
               with:
                   node-version: 24.22.1
             - name: Install pinned pnpm and frozen dependencies without asset scripts
+              id: dependencies
               shell: bash
               run: |
                   set -euo pipefail
@@ -186,6 +189,11 @@ jobs:
             - name: Complete bounded metadata artifact or fixed failure evidence
               id: collect
               if: always()
+              env:
+                  BIND_OUTCOME: ${{ steps.bind.outcome }}
+                  NODE_SETUP_OUTCOME: ${{ steps.node_setup.outcome }}
+                  DEPENDENCIES_OUTCOME: ${{ steps.dependencies.outcome }}
+                  ORCHESTRATION_OUTCOME: ${{ steps.observe.outcome }}
               shell: bash
               run: |
                   node --input-type=module <<'JS'
@@ -281,6 +289,43 @@ jobs:
                       } catch (error) { primary = error; throw error; }
                       finally { await closeAll([source, output], primary); }
                   };
+                  // 只有 GitHub 明确给出前置失败且编排 skipped 的固定阶段序列，缺步骤文件才可合成 CLI 未运行事实；已有有效步骤按原字节保留，未知或已开始的编排缺证据时进入有限失败集合，不能凭目录为空猜测执行结果。
+                  const setupSteps = input => {
+                      const existing = input.records.find(record => record.relative === "steps.json");
+                      if (existing) {
+                          if (existing.readBytes > 65536) reject("ARTIFACT_MISSING_STEPS");
+                          return null;
+                      }
+                      const setup = [process.env.BIND_OUTCOME, process.env.NODE_SETUP_OUTCOME, process.env.DEPENDENCIES_OUTCOME];
+                      const knownFailure = process.env.ORCHESTRATION_OUTCOME === "skipped" && [["failure", "skipped", "skipped"], ["success", "failure", "skipped"], ["success", "success", "failure"]].some(expected => expected.every((value, index) => setup[index] === value));
+                      if (!knownFailure) reject("ARTIFACT_MISSING_STEPS");
+                      const bytes = Buffer.from(JSON.stringify([{ step: "SETUP", status: "FAIL", code: "PAYLOAD_IO", cleanup: "NOT_NEEDED", actualBytes: null }, { step: "ACQUIRE", status: "NOT_RUN", code: null, cleanup: null, actualBytes: null }, { step: "OBSERVE", status: "NOT_RUN", code: null, cleanup: null, actualBytes: null }]));
+                      if (input.sums.metadata + bytes.length > metadataLimit) reject("ARTIFACT_LIMIT");
+                      return bytes;
+                  };
+                  const checkSteps = async fact => {
+                      let handle, primary;
+                      try {
+                          if (!fact || fact.sizeBytes > 65536) reject("ARTIFACT_MISSING_STEPS");
+                          handle = await open(join(draft, "steps.json"), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+                          const before = await handle.stat({ bigint: true });
+                          if (!before.isFile() || before.nlink !== 1n || before.size !== BigInt(fact.sizeBytes)) reject("ARTIFACT_MISSING_STEPS");
+                          const bytes = Buffer.alloc(fact.sizeBytes); let offset = 0;
+                          while (offset < bytes.length) {
+                              const read = await handle.read(bytes, offset, bytes.length - offset, offset);
+                              if (!read.bytesRead) reject("ARTIFACT_MISSING_STEPS"); offset += read.bytesRead;
+                          }
+                          if (digest(bytes) !== fact.sha256 || !same(before, await handle.stat({ bigint: true }))) reject("ARTIFACT_MISSING_STEPS");
+                          let steps;
+                          try { steps = JSON.parse(new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes)); } catch { reject("ARTIFACT_MISSING_STEPS"); }
+                          if (!Array.isArray(steps) || ![2, 3].includes(steps.length)) reject("ARTIFACT_MISSING_STEPS");
+                          const names = steps.length === 2 ? ["ACQUIRE", "OBSERVE"] : ["SETUP", "ACQUIRE", "OBSERVE"];
+                          for (const [index, step] of steps.entries()) {
+                              if (!step || typeof step !== "object" || Array.isArray(step) || Object.keys(step).sort().join(",") !== "actualBytes,cleanup,code,status,step" || step.step !== names[index] || !["NOT_RUN", "STARTED", "PASS", "FAIL"].includes(step.status) || !(step.code === null || (typeof step.code === "string" && /^PAYLOAD_[A-Z_]+$/.test(step.code))) || ![null, "NOT_NEEDED", "CONFIRMED", "INCOMPLETE"].includes(step.cleanup) || !(step.actualBytes === null || (Number.isSafeInteger(step.actualBytes) && step.actualBytes >= 0))) reject("ARTIFACT_MISSING_STEPS");
+                          }
+                      } catch (error) { primary = error; throw error; }
+                      finally { await closeAll([handle], primary); }
+                  };
                   // 清单自身没有循环自摘要，但其真实编码长度仍计入最终 metadata 配额，随后全部输出按 held FD 再流读核验；目录枚举必须恰好等于本次已登记集合，任何缺项、额外成员、链接或未确认关闭都会阻止上传资格产生。
                   const audit = async (base, facts) => {
                       const expected = new Map(facts.map(f => [f.path, f])); let metadata = 0, logs = 0, entries = 0;
@@ -339,18 +384,25 @@ jobs:
                   };
                   try {
                       await ownedRoot();
-                      const input = await enumerate(join(root, "metadata")); await createDraft();
+                      const input = await enumerate(join(root, "metadata")), synthesized = setupSteps(input); await createDraft();
                       const files = [];
                       for (const record of input.records) files.push(await copyBounded(record));
+                      if (synthesized) {
+                          await writeOwned(join(draft, "steps.json"), synthesized);
+                          files.push({ path: "steps.json", sizeBytes: synthesized.length, sha256: digest(synthesized) });
+                          files.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+                      }
+                      await checkSteps(files.find(file => file.path === "steps.json"));
                       for (const directory of input.directories) if (!same(directory.before, await lstat(directory.path, { bigint: true }))) reject("ARTIFACT_BOUNDARY");
                       await promote(files, "FULL", input.records.filter(r => r.truncated).map(r => ({ path: r.relative, originalSizeBytes: Number(r.before.size), retainedBytes: r.outputBytes })));
                   } catch (error) {
                       await abandonDraft();
                       const code = ["ARTIFACT_LIMIT", "ARTIFACT_BOUNDARY"].includes(error.code) ? error.code : "ARTIFACT_IO", cleanup = closureUnconfirmed ? "INCOMPLETE" : "CONFIRMED";
+                      const reason = error.code === "ARTIFACT_MISSING_STEPS" ? "MISSING_EXECUTION_EVIDENCE" : null;
                       try {
                           // 上一代关闭未知的 scratch 永远保留，cleanup 事实已经冻结在失败记录中；新失败集合使用另一个独占目录和独立关闭状态，不能因为旧 writer 尚未确认而删除旧根，也不能把它扫描进这份有限上传。
                           await createDraft();
-                          const failure = Buffer.from(JSON.stringify({ kind: "ASSET_EVIDENCE_COLLECTION_FAILURE", status: "FAIL", code, cleanup, steps: [{ step: "METADATA_COLLECTION", status: "FAIL", code, cleanup }, { step: "FULL_ARTIFACT_PROMOTION", status: "NOT_RUN", code: null, cleanup: null }] }));
+                          const failure = Buffer.from(JSON.stringify({ kind: "ASSET_EVIDENCE_COLLECTION_FAILURE", status: "FAIL", code, cleanup, reason, steps: [{ step: "METADATA_COLLECTION", status: "FAIL", code, cleanup }, { step: "FULL_ARTIFACT_PROMOTION", status: "NOT_RUN", code: null, cleanup: null }] }));
                           await writeOwned(join(draft, "failure.json"), failure);
                           await promote([{ path: "failure.json", sizeBytes: failure.length, sha256: digest(failure) }], "FAILURE");
                           console.error(`ARTIFACT_COLLECTION_FAILED code=${code} cleanup=${cleanup}`);
