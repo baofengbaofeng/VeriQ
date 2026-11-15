@@ -19,6 +19,82 @@ namespace {
 const char *acknowledgement = "I authorize Keychain preference changes in this disposable login session.";
 using Clock = std::chrono::steady_clock;
 
+/** 诊断阶段只描述现有启动、创建与清理边界，枚举与过滤器逐项核对且不接受运行时名称；这些事实不构成存储删除证明，阶段记录缺失仍须保留未知而不能从进程退出推导系统状态。 */
+enum class DiagnosticStage {
+    STARTUP, NO_UI, RECEIVE, CREATE_STATE, LIVE_UID_LOGIN,
+    LIVE_SECURITY_SESSION, LIVE_SESSION_BITS, ATTEST_DISPOSABLE, ATTEST_ACK,
+    ATTEST_UID, ATTEST_LOGIN, ATTEST_SESSION, HELPER_REALPATH, HELPER_NAME,
+    HELPER_STAT, RANDOM, DIRECTORY, KEYCHAIN_CREATE, KEYCHAIN_PATH,
+    KEYCHAIN_STAT, CREATE_REPLY, CLEANUP_DELETE, CLEANUP_DIRECTORY,
+};
+NSString *const diagnosticNames[] = {
+    @"STARTUP", @"NO_UI", @"RECEIVE", @"CREATE_STATE", @"LIVE_UID_LOGIN",
+    @"LIVE_SECURITY_SESSION", @"LIVE_SESSION_BITS", @"ATTEST_DISPOSABLE", @"ATTEST_ACK",
+    @"ATTEST_UID", @"ATTEST_LOGIN", @"ATTEST_SESSION", @"HELPER_REALPATH", @"HELPER_NAME",
+    @"HELPER_STAT", @"RANDOM", @"DIRECTORY", @"KEYCHAIN_CREATE", @"KEYCHAIN_PATH",
+    @"KEYCHAIN_STAT", @"CREATE_REPLY", @"CLEANUP_DELETE", @"CLEANUP_DIRECTORY",
+};
+
+/** 作用域观察器在原谓词执行前后写出固定 JSON，异常展开时仅标记当前阶段失败且从不捕获业务异常；写日志自身的错误被隔离并恢复 errno，原生调用次数、短路顺序和原始拒绝路径均不依赖观察是否成功。 */
+class DiagnosticGate {
+    inline static bool outputEnabled = false;
+    DiagnosticStage stage;
+    bool enabled, passed = false, hasStatus = false, hasErrno = false, hasStore = false;
+    OSStatus statusValue = 0;
+    int errnoValue = 0;
+    bool created = false, storeReferencePresent = false;
+    void emit(NSString *state) noexcept {
+        if (!enabled) return;
+        const int savedErrno = errno;
+        static size_t count = 0, total = 0;
+        static NSMutableData *waiting = nil;
+        try {
+            @try {
+                if (count < 96 && total < 8192) {
+                    NSMutableDictionary *record = [@{@"schemaVersion": @1,
+                        @"stage": diagnosticNames[static_cast<size_t>(stage)], @"state": state} mutableCopy];
+                    if (hasStatus) record[@"osStatus"] = @(statusValue);
+                    if (hasErrno) record[@"errno"] = @(errnoValue);
+                    if (hasStore) { record[@"created"] = @(created); record[@"storeReferencePresent"] = @(storeReferencePresent); }
+                    NSData *json = [NSJSONSerialization dataWithJSONObject:record options:0 error:nullptr];
+                    if (json && json.length < 512 && total + json.length + 1 <= 8192) {
+                        NSMutableData *line = [json mutableCopy];
+                        [line appendBytes:"\n" length:1];
+                        ++count; total += line.length;
+                        if (!outputEnabled) {
+                            if (!waiting) waiting = [NSMutableData data];
+                            [waiting appendData:line];
+                        } else {
+                            if (waiting) { (void)write(2, waiting.bytes, waiting.length); waiting = nil; }
+                            (void)write(2, line.bytes, line.length);
+                        }
+                    }
+                }
+            } @catch (...) {}
+        } catch (...) {}
+        errno = savedErrno;
+    }
+public:
+    /** 启动记录先留在有限内存中，只有原先那次忽略 SIGPIPE 的设置确实成功后才允许写管道；这避免观察器在处理已关闭 stderr 时提前终止进程，不调整原信号调用顺序或增加新的系统调用。 */
+    static void enableOutput(bool safe) noexcept { outputEnabled = safe; }
+    /** 进入记录只使用编译期阶段和布尔开关，普通后续请求不启用初始接收观察；构造器不执行安全或文件操作，失败观察也不向调用方抛出新的异常或改变既有请求的处理顺序。 */
+    explicit DiagnosticGate(DiagnosticStage value, bool active = true) noexcept : stage(value), enabled(active) { emit(@"entered"); }
+    /** 析构只补充尚未通过阶段的失败事实，不推断系统调用是否修改了存储，也不尝试清理或重试；因此原有 catch 先回复拒绝再清理的顺序以及外层可能强杀进程的竞争窗口保持原样。 */
+    ~DiagnosticGate() noexcept { if (!passed) emit(@"failed"); }
+    /** 通过标志只在原谓词已通过后更新，日志失败不会撤回原来的成功结果或伪造清理确认；调用者依旧必须等待原控制协议回执和测试完成，不能把这里的阶段记录当作独立验收结果。 */
+    void pass() noexcept { passed = true; emit(@"passed"); }
+    /** 系统状态从已执行的调用返回值立即保存，不再次调用任何 Security API 或查询错误描述；这里只记录有限数值供真实目标失败定位，原成功常量与后续短路谓词仍由调用点负责判断。 */
+    OSStatus status(OSStatus value) noexcept { hasStatus = true; statusValue = value; return value; }
+    /** POSIX 整数失败紧接原调用保存 errno，后续日志不会覆盖实际错误号码，也不会增加文件或身份查询；成功结果不输出可能属于旧调用的 errno，调用点继续按原有返回值与短路条件判定。 */
+    int posix(int value) noexcept { if (value < 0) { hasErrno = true; errnoValue = errno; } return value; }
+    /** 路径和目录函数的空指针失败只保存即时 errno，不保存指针值或路径正文，也不重复解析或创建；指针仍原样交回原条件，从而维持现有短路语义和失败发生时对象赋值的先后顺序。 */
+    template <typename T> T *posix(T *value) noexcept { if (!value) { hasErrno = true; errnoValue = errno; } return value; }
+    /** 登录查询按自身错误返回约定保留失败号码而不记录用户名，负返回兼容路径读取即时 errno；这里不追加身份读取或重查会话，实际 UID 与登录条件仍只执行原先已经允许的一次判断。 */
+    int login(int value) noexcept { if (value != 0) { hasErrno = true; errnoValue = value > 0 ? value : errno; } return value; }
+    /** 创建状态仅复制对象已经设置的标志与现有引用是否为空，绝不追加存储查询或转换成删除完成结论；尤其系统创建返回失败但引用存在时仍保留两个事实，让原有清理路径决定后续操作。 */
+    void store(bool wasCreated, bool referencePresent) noexcept { hasStore = true; created = wasCreated; storeReferencePresent = referencePresent; }
+};
+
 /** 控制通道采用 Foundation 解析单行有界 JSON，原始输入在解析完成后由作用域清理且永不写入日志；所有错误只返回静态布尔状态，控制器不会把框架异常或包含请求正文的系统描述交给外部测试报告。 */
 NSDictionary *receive() {
     Secret bytes;
@@ -54,28 +130,40 @@ NSDictionary *sessionFacts() {
     char login[256] {};
     SecuritySessionId session = 0;
     SessionAttributeBits attributes = 0;
-    require(getuid() != 0 && getuid() == geteuid() && getlogin_r(login, sizeof(login)) == 0);
-    require(SessionGetInfo(callerSecuritySession, &session, &attributes) == errSecSuccess && session != 0);
-    require((attributes & sessionHasGraphicAccess) && !(attributes & sessionIsRoot));
+    { DiagnosticGate gate(DiagnosticStage::LIVE_UID_LOGIN);
+        require(getuid() != 0 && getuid() == geteuid() && gate.login(getlogin_r(login, sizeof(login))) == 0); gate.pass(); }
+    { DiagnosticGate gate(DiagnosticStage::LIVE_SECURITY_SESSION);
+        require(gate.status(SessionGetInfo(callerSecuritySession, &session, &attributes)) == errSecSuccess && session != 0); gate.pass(); }
+    { DiagnosticGate gate(DiagnosticStage::LIVE_SESSION_BITS);
+        require((attributes & sessionHasGraphicAccess) && !(attributes & sessionIsRoot)); gate.pass(); }
     return @{ @"uid": @(getuid()), @"login": [NSString stringWithUTF8String:login], @"session": @(session) };
 }
 /** 创建夹具之前必须同时具有操作者的明确可丢弃声明、固定副作用确认文本和逐字段相等的实际会话事实；只知道 UID 或可以运行 sudo 不满足这里的授权条件，拒绝发生在任何钥匙串创建调用之前。 */
 void attest(NSDictionary *value, NSDictionary *facts) {
-    require([value isKindOfClass:[NSDictionary class]] && [value[@"disposable"] isEqual:@YES]);
-    require([value[@"acknowledgement"] isEqual:[NSString stringWithUTF8String:acknowledgement]]);
-    for (NSString *key in @[@"uid", @"login", @"session"]) require([value[key] isEqual:facts[key]]);
+    { DiagnosticGate gate(DiagnosticStage::ATTEST_DISPOSABLE);
+        require([value isKindOfClass:[NSDictionary class]] && [value[@"disposable"] isEqual:@YES]); gate.pass(); }
+    { DiagnosticGate gate(DiagnosticStage::ATTEST_ACK);
+        require([value[@"acknowledgement"] isEqual:[NSString stringWithUTF8String:acknowledgement]]); gate.pass(); }
+    size_t index = 0;
+    const DiagnosticStage stages[] = {DiagnosticStage::ATTEST_UID, DiagnosticStage::ATTEST_LOGIN, DiagnosticStage::ATTEST_SESSION};
+    for (NSString *key in @[@"uid", @"login", @"session"]) {
+        DiagnosticGate gate(stages[index++]); require([value[key] isEqual:facts[key]]); gate.pass();
+    }
 }
 
 /** 固定测试成员必须与控制器位于相同的真实构建目录，路径解析只在测试二进制内发生且不读取业务配置；父 PID 仅佐证继承关系，真正的存储授权仍来自显式会话声明和当前控制器拥有的随机目录。 */
 std::string helperPath() {
     char executable[PATH_MAX], physical[PATH_MAX];
     uint32_t size = sizeof(executable);
-    require(_NSGetExecutablePath(executable, &size) == 0 && realpath(executable, physical));
+    { DiagnosticGate gate(DiagnosticStage::HELPER_REALPATH);
+        require(_NSGetExecutablePath(executable, &size) == 0 && gate.posix(realpath(executable, physical))); gate.pass(); }
     std::string path(physical);
-    require(path.substr(path.find_last_of('/') + 1) == "veriq_keychain_controller");
+    { DiagnosticGate gate(DiagnosticStage::HELPER_NAME);
+        require(path.substr(path.find_last_of('/') + 1) == "veriq_keychain_controller"); gate.pass(); }
     path.replace(path.find_last_of('/') + 1, std::string::npos, "veriq_agent");
     struct stat info {};
-    require(lstat(path.c_str(), &info) == 0 && S_ISREG(info.st_mode) && info.st_uid == getuid() && !(info.st_mode & 0022));
+    { DiagnosticGate gate(DiagnosticStage::HELPER_STAT);
+        require(gate.posix(lstat(path.c_str(), &info)) == 0 && S_ISREG(info.st_mode) && info.st_uid == getuid() && !(info.st_mode & 0022)); gate.pass(); }
     return path;
 }
 /** 控制器自行验证两个精确 UUID 并按原字节编码账户，不能直接接收任意 Keychain account 或服务名称；这些规则与 helper 的 V1 作用域一致，确保注入负例、读回与删除始终属于本次请求声明的测试条目。 */
@@ -239,33 +327,43 @@ struct Fixture {
 
     /** 实际创建必须发生在会话声明核验和固定 helper 路径解析之后，密码来自系统随机源且只保存在当前对象；路径由 mkdtemp 生成，创建返回的实际路径和文件所有权必须再次相符，任何偏好副作用只属于已授权账户。 */
     void create(NSDictionary *attestation) {
-        require(!created && directory.empty());
+        { DiagnosticGate gate(DiagnosticStage::CREATE_STATE);
+            gate.store(created, store.value != nullptr); require(!created && directory.empty()); gate.pass(); }
         facts = sessionFacts();
         attest(attestation, facts);
         helper = helperPath();
-        require(SecRandomCopyBytes(kSecRandomDefault, password.bytes.size(), password.bytes.data()) == errSecSuccess);
+        { DiagnosticGate gate(DiagnosticStage::RANDOM);
+            require(gate.status(SecRandomCopyBytes(kSecRandomDefault, password.bytes.size(), password.bytes.data())) == errSecSuccess); gate.pass(); }
         char pattern[] = "/private/tmp/veriq-d1-XXXXXX";
-        require(mkdtemp(pattern));
+        { DiagnosticGate gate(DiagnosticStage::DIRECTORY); require(gate.posix(mkdtemp(pattern))); gate.pass(); }
         directory = pattern;
         path = directory + "/owned.keychain-db";
-        const OSStatus error = SecKeychainCreate(path.c_str(), static_cast<UInt32>(password.bytes.size()), password.bytes.data(), false, nullptr, &store.value);
-        created = store.value != nullptr;
-        require(error == errSecSuccess && created);
+        { DiagnosticGate gate(DiagnosticStage::KEYCHAIN_CREATE);
+            const OSStatus error = gate.status(SecKeychainCreate(path.c_str(), static_cast<UInt32>(password.bytes.size()), password.bytes.data(), false, nullptr, &store.value));
+            created = store.value != nullptr;
+            gate.store(created, store.value != nullptr);
+            require(error == errSecSuccess && created); gate.pass(); }
         char actual[PATH_MAX]; UInt32 length = sizeof(actual);
-        require(SecKeychainGetPath(store.value, &length, actual) == errSecSuccess && std::string(actual, length) == path);
+        { DiagnosticGate gate(DiagnosticStage::KEYCHAIN_PATH);
+            require(gate.status(SecKeychainGetPath(store.value, &length, actual)) == errSecSuccess && std::string(actual, length) == path); gate.pass(); }
         struct stat info {};
-        require(lstat(path.c_str(), &info) == 0 && S_ISREG(info.st_mode) && info.st_uid == getuid() && !(info.st_mode & 0077));
+        { DiagnosticGate gate(DiagnosticStage::KEYCHAIN_STAT);
+            require(gate.posix(lstat(path.c_str(), &info)) == 0 && S_ISREG(info.st_mode) && info.st_uid == getuid() && !(info.st_mode & 0077)); gate.pass(); }
     }
     /** 清理首先要求跟踪集合为空，然后只删除本对象成功创建并仍持有引用的测试钥匙串和随机目录；任一步骤失败都会阻止成功回执，密码及基线秘密在正常路径覆盖，不恢复其他用户存储或搜索列表状态。 */
     void cleanup() {
         require(children.empty());
         if (created) {
-            require(SecKeychainDelete(store.value) == errSecSuccess);
+            DiagnosticGate gate(DiagnosticStage::CLEANUP_DELETE);
+            gate.store(created, store.value != nullptr);
+            require(gate.status(SecKeychainDelete(store.value)) == errSecSuccess);
             created = false;
+            gate.store(created, store.value != nullptr); gate.pass();
         }
         if (!directory.empty()) {
-            require(rmdir(directory.c_str()) == 0);
-            directory.clear();
+            DiagnosticGate gate(DiagnosticStage::CLEANUP_DIRECTORY);
+            require(gate.posix(rmdir(directory.c_str())) == 0);
+            directory.clear(); gate.pass();
         }
         wipe(password.bytes.data(), password.bytes.size());
         wipe(baselineValue.bytes.data(), baselineValue.bytes.size());
@@ -489,19 +587,28 @@ int main(int argc, char **) {
     @autoreleasepool {
         Fixture fixture;
         try {
+            DiagnosticGate startup(DiagnosticStage::STARTUP);
             require(argc == 1);
-            rlimit core {0, 0}; require(setrlimit(RLIMIT_CORE, &core) == 0);
-            signal(SIGPIPE, SIG_IGN);
+            rlimit core {0, 0}; require(startup.posix(setrlimit(RLIMIT_CORE, &core)) == 0);
+            const auto pipeSignal = signal(SIGPIPE, SIG_IGN);
             signal(SIGCHLD, SIG_DFL);
+            DiagnosticGate::enableOutput(pipeSignal != SIG_ERR);
+            startup.pass();
+            DiagnosticGate noUIStage(DiagnosticStage::NO_UI);
             NoUI noUI;
+            noUIStage.pass();
+            bool initialEnvelope = true;
             for (;;) {
                 @autoreleasepool {
+                    DiagnosticGate envelope(DiagnosticStage::RECEIVE, initialEnvelope);
                     NSDictionary *request = receive();
-                    if (!request) break;
+                    if (!request) { envelope.pass(); break; }
                     NSString *operation = request[@"operation"];
                     require([operation isKindOfClass:[NSString class]]);
+                    envelope.pass(); initialEnvelope = false;
                     if ([operation isEqual:@"session"]) { send(sessionFacts()); continue; }
-                    if ([operation isEqual:@"create"]) fixture.create(request[@"attestation"]);
+                    bool createReply = false;
+                    if ([operation isEqual:@"create"]) { fixture.create(request[@"attestation"]); createReply = true; }
                     else if ([operation isEqual:@"run"]) { send(fixture.run(request)); continue; }
                     else if ([operation isEqual:@"race"]) { send(fixture.race(request)); continue; }
                     else if ([operation isEqual:@"lock"]) require(fixture.created && SecKeychainLock(fixture.store.value) == errSecSuccess);
@@ -512,7 +619,9 @@ int main(int argc, char **) {
                     else if ([operation isEqual:@"read-denial"]) { send(fixture.readDenial(request)); continue; }
                     else if ([operation isEqual:@"cleanup"]) fixture.cleanup();
                     else require(false);
+                    DiagnosticGate reply(DiagnosticStage::CREATE_REPLY, createReply);
                     send(@{@"ok": @YES});
+                    reply.pass();
                 }
             }
             fixture.cleanup();

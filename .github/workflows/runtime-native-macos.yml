@@ -562,6 +562,8 @@ jobs:
                   import { createHash } from "node:crypto";
                   import { readFileSync, writeFileSync, lstatSync, existsSync, mkdtempSync, chmodSync, unlinkSync, rmdirSync } from "node:fs";
                   import { join, resolve } from "node:path";
+                  import { createRequire } from "node:module";
+                  import { pathToFileURL } from "node:url";
                   const destination = process.env.VERIQ_PRIVATE_EVIDENCE;
                   const runtime = resolve("apps/runtime");
                   const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -592,13 +594,15 @@ jobs:
                       securitySessionGuardPassed: false, testsPassed: 0,
                       budgets: { toolsMs: 120000, dependenciesMs: 240000, buildMs: 300000,
                           sessionMs: 5000, nonpersistentMs: 120000, dedicatedMs: 600000,
-                          closeGraceMs: 1000, streamBytes: 524288, buildFactsBytes: 4194304, artifactBytes: 12582912 },
+                          closeGraceMs: 1000, streamBytes: 524288, buildFactsBytes: 4194304, artifactBytes: 12582912,
+                          diagnosticFixtureBytes: 8192, diagnosticRecords: 96, diagnosticFixtures: 2, diagnosticJobBytes: 16384 },
                       commands: [],
+                      controllerDiagnostics: { fixtures: [], rejected: false, observation: "UNKNOWN" },
                       cleanup: dedicatedNames.map((test) => ({ test, cleanupEvidence: "UNKNOWN_OR_FAILED",
                           helperExits: "UNKNOWN_OR_FAILED", cleanupCommandCompletion: "UNKNOWN_OR_FAILED",
                           controllerClose: "UNKNOWN_OR_FAILED", controllerExitCode: "NOT_CAPTURED", cleanupAckArtifact: "NOT_EMITTED" })),
                   };
-                  let stage = "PRIVATE_STORE_IDENTITY_INVALID", config, configDirectory;
+                  let stage = "PRIVATE_STORE_IDENTITY_INVALID", config, configDirectory, collectDiagnostics;
                   const observationOptions = { encoding: "utf8", timeout: 5000, maxBuffer: 4096,
                       killSignal: "SIGKILL", env: { PATH: "/usr/bin:/bin" }, stdio: ["pipe", "pipe", "pipe"] };
                   // 每个子进程分别记录实际 close、状态码与完整输出界限，超时或溢出先保留首个原因再终止当前子进程；宽限后仍未知就销毁观察管道并失败，不扫描存储、不声称后代已退出或账户偏好已经恢复。
@@ -645,7 +649,22 @@ jobs:
                       record.elapsedMs = Date.now() - started;
                       record.captureComplete = record.closeObserved && !record.firstFailure;
                       record.streamBytes = counts;
-                      const outputs = buffers.map((chunks) => Buffer.concat(chunks));
+                      let outputs = buffers.map((chunks) => Buffer.concat(chunks));
+                      const originalStdout = outputs[0].toString("utf8");
+                      buffers.flat().forEach((bytes) => bytes.fill(0));
+                      // 控制器诊断只由实际夹具的共享过滤器重新验证，收集发生在测试子进程有限结算之后并先于日志导出；原始候选行全部移除，报告最多保留两个有限概要，诊断缺失或拒绝不改变原测试结果和清理推导。
+                      if (name === "dedicated") {
+                          try {
+                              const collected = collectDiagnostics(outputs);
+                              outputs = collected.outputs;
+                              report.controllerDiagnostics = { fixtures: collected.fixtures, rejected: collected.rejected,
+                                  observation: collected.fixtures.length ? "CAPTURED" : "UNKNOWN" };
+                          } catch {
+                              outputs.forEach((bytes) => bytes.fill(0));
+                              outputs = [Buffer.alloc(0), Buffer.alloc(0)];
+                              report.controllerDiagnostics.rejected = true;
+                          }
+                      }
                       // 既有夹具仅返回布尔和固定状态，原始秘密协议从不进入 TAP；导出前仍拒绝协议帧、会话声明和长编码材料，拒绝时只保留摘要与静态失败状态，绝不上传可疑正文或原始异常对象。
                       for (const [index, bytes] of outputs.entries()) {
                           const text = bytes.toString("utf8");
@@ -659,7 +678,7 @@ jobs:
                       if (!record.withheld) outputs.forEach((bytes, index) => writeFileSync(join(destination, name + (index === 0 ? ".stdout.log" : ".stderr.log")), bytes, { mode: 0o600 }));
                       save("report.json", report);
                       if (!record.captureComplete || record.exitStatus !== 0 || record.signal !== null) fail();
-                      return outputs[0].toString("utf8");
+                      return originalStdout;
                   };
                   // 清理结论只从精确且完整的既有 TAP 记录推导，测试进程零退出与两个具名测试通过缺一不可；重复、缺失、跳过、取消或截断均保持未知，控制器退出码和独立确认制品从未被夹具捕获。
                   const checkTap = (tap, expected) => {
@@ -705,6 +724,12 @@ jobs:
                       await run("tools", join(process.execPath, "..", "npm"), ["install", "--prefix", toolsRoot, "pnpm@11.25.0", "--ignore-scripts"], report.budgets.toolsMs, installEnv, process.cwd());
                       stage = "PRIVATE_STORE_DEPENDENCIES_FAILED";
                       await run("dependencies", process.execPath, [join(toolsRoot, "node_modules/pnpm/bin/pnpm.cjs"), "install", "--frozen-lockfile", "--ignore-scripts"], report.budgets.dependenciesMs, installEnv, process.cwd());
+                      // 已安装的锁定 tsx 提供实际 TypeScript 导入能力，工作流直接复用被摘要绑定的夹具过滤器而不复制字段解码器；此时仅加载纯函数，不启动控制器、不读取声明，也不增加原生调用或测试次数。
+                      try {
+                          const requireRuntime = createRequire(join(runtime, "package.json"));
+                          const { tsImport } = await import(pathToFileURL(requireRuntime.resolve("tsx/esm/api")).href);
+                          ({ collectDarwinDiagnostics: collectDiagnostics } = await tsImport(pathToFileURL(join(runtime, "tests/fixtures/darwin-vault.ts")).href, import.meta.url));
+                      } catch { report.controllerDiagnostics.rejected = true; }
                       stage = "PRIVATE_STORE_BUILD_FAILED";
                       await run("build", process.execPath, ["scripts/build-vault-darwin.mjs", "--tests"], report.budgets.buildMs, nativeEnv);
                       stage = "PRIVATE_STORE_BUILD_FACTS_INVALID";

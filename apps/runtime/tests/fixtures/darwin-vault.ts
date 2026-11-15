@@ -133,6 +133,303 @@ export async function runMemoryChecks(): Promise<boolean> {
     return ok;
 }
 
+/** 创建诊断只允许固定阶段、有限状态和即时数值结果，字段表同时约束控制器输入与工作流收集；这里不保存原始协议、路径或异常文字，新增阶段必须经过生产者及消费者的一致性检查。 */
+const diagnosticStages = [
+    "STARTUP",
+    "NO_UI",
+    "RECEIVE",
+    "CREATE_STATE",
+    "LIVE_UID_LOGIN",
+    "LIVE_SECURITY_SESSION",
+    "LIVE_SESSION_BITS",
+    "ATTEST_DISPOSABLE",
+    "ATTEST_ACK",
+    "ATTEST_UID",
+    "ATTEST_LOGIN",
+    "ATTEST_SESSION",
+    "HELPER_REALPATH",
+    "HELPER_NAME",
+    "HELPER_STAT",
+    "RANDOM",
+    "DIRECTORY",
+    "KEYCHAIN_CREATE",
+    "KEYCHAIN_PATH",
+    "KEYCHAIN_STAT",
+    "CREATE_REPLY",
+    "CLEANUP_DELETE",
+    "CLEANUP_DIRECTORY",
+] as const;
+const diagnosticFailures = [
+    "REFUSED",
+    "DEADLINE",
+    "PROCESS_ERROR",
+    "CLOSED",
+    "PROTOCOL",
+    "EXIT_UNCONFIRMED",
+] as const;
+const diagnosticSignals = ["SIGKILL", "SIGTERM", "SIGABRT", "SIGSEGV", "SIGPIPE", "OTHER"] as const;
+type DiagnosticFailure = (typeof diagnosticFailures)[number];
+type DiagnosticRecord = {
+    schemaVersion: 1;
+    stage: (typeof diagnosticStages)[number];
+    state: "entered" | "passed" | "failed";
+    osStatus?: number;
+    errno?: number;
+    created?: boolean;
+    storeReferencePresent?: boolean;
+};
+type DiagnosticSummary = {
+    schemaVersion: 1;
+    fixture: number;
+    records: DiagnosticRecord[];
+    rejected: boolean;
+    incomplete: boolean;
+    firstFailure: DiagnosticFailure | null;
+    closeObserved: boolean;
+    code: number | null;
+    signal: (typeof diagnosticSignals)[number] | null;
+};
+const diagnosticPrefix = "VERIQ_D1_DIAGNOSTICS ";
+const diagnosticByteLimit = 8192;
+const diagnosticRecordLimit = 96;
+
+/** 字段校验先拒绝所有未声明属性，再重建有序的安全记录，避免反序列化对象夹带私有信息；系统状态只接受有符号三十二位整数，errno 只能是非负整数而布尔事实不接受数值替代。 */
+function diagnosticRecord(value: unknown): DiagnosticRecord | undefined {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return;
+    const item = value as Record<string, unknown>;
+    if (
+        Object.keys(item).some(
+            (key) =>
+                ![
+                    "schemaVersion",
+                    "stage",
+                    "state",
+                    "osStatus",
+                    "errno",
+                    "created",
+                    "storeReferencePresent",
+                ].includes(key),
+        ) ||
+        item.schemaVersion !== 1 ||
+        !diagnosticStages.includes(item.stage as DiagnosticRecord["stage"]) ||
+        !["entered", "passed", "failed"].includes(item.state as string)
+    )
+        return;
+    const safe: DiagnosticRecord = {
+        schemaVersion: 1,
+        stage: item.stage as DiagnosticRecord["stage"],
+        state: item.state as DiagnosticRecord["state"],
+    };
+    for (const key of ["osStatus", "errno"] as const) {
+        if (!(key in item)) continue;
+        const number = item[key];
+        if (
+            typeof number !== "number" ||
+            !Number.isInteger(number) ||
+            number < (key === "errno" ? 0 : -2147483648) ||
+            number > 2147483647
+        )
+            return;
+        safe[key] = number;
+    }
+    for (const key of ["created", "storeReferencePresent"] as const) {
+        if (!(key in item)) continue;
+        if (typeof item[key] !== "boolean") return;
+        safe[key] = item[key];
+    }
+    return safe;
+}
+
+/** 每个夹具的流式过滤器只保留已验证记录，单行原始缓冲固定为五百一十二字节且消费后覆盖；预算包含概要预留空间，达到字节或条数上限后继续排空输入但不再接受记录，也不改变控制器结果。 */
+export function createDarwinDiagnosticFilter() {
+    const records: DiagnosticRecord[] = [];
+    const pending = Buffer.alloc(512);
+    let length = 0,
+        dropping = false,
+        stopped = false,
+        retainedBytes = 512;
+    let rejected = false,
+        incomplete = false,
+        firstFailure: DiagnosticFailure | null = null;
+    let closeObserved = false,
+        code: number | null = null,
+        signal: DiagnosticSummary["signal"] = null;
+    return {
+        /** 原始分块只逐字节进入有限行缓冲，跨块换行与非法编码使用相同验证路径；超长行直接丢弃到下一换行，达到总体上限则停止接纳，最终无论解析结果如何都覆盖调用者交付的原始分块。 */
+        push(bytes: Buffer) {
+            try {
+                for (const byte of bytes) {
+                    if (stopped) continue;
+                    if (byte !== 10) {
+                        if (!dropping && length < pending.length) pending[length++] = byte;
+                        else {
+                            dropping = true;
+                            rejected = true;
+                            pending.fill(0);
+                            length = 0;
+                        }
+                        continue;
+                    }
+                    if (!dropping) {
+                        try {
+                            const item = diagnosticRecord(
+                                JSON.parse(
+                                    new TextDecoder("utf-8", { fatal: true }).decode(
+                                        pending.subarray(0, length),
+                                    ),
+                                ),
+                            );
+                            if (!item) rejected = true;
+                            else {
+                                const size = Buffer.byteLength(JSON.stringify(item)) + 1;
+                                if (
+                                    records.length >= diagnosticRecordLimit ||
+                                    retainedBytes + size > diagnosticByteLimit
+                                ) {
+                                    stopped = true;
+                                    incomplete = true;
+                                } else {
+                                    records.push(item);
+                                    retainedBytes += size;
+                                }
+                            }
+                        } catch {
+                            rejected = true;
+                        }
+                    }
+                    pending.fill(0);
+                    length = 0;
+                    dropping = false;
+                }
+            } finally {
+                bytes.fill(0);
+            }
+        },
+        /** 首个固定失败类别一旦出现便不再被退出或清理错误覆盖，未知输入只降低观察完整性而不变成日志正文；此方法不触发 kill、重试或协议回复，也不修改调用方已有错误对象与抛出时机。 */
+        fail(reason: DiagnosticFailure) {
+            if (diagnosticFailures.includes(reason)) firstFailure ??= reason;
+            else rejected = true;
+        },
+        /** 退出事实只在真实 child close 回调写入，未记录的状态保持空值而不是猜测成功；退出信号映射到有限集合，其他信号只保留静态 OTHER 标志，不能从任何退出状态推导钥匙串清理完成。 */
+        close(exitCode: number | null, exitSignal: string | null) {
+            closeObserved = true;
+            code =
+                Number.isInteger(exitCode) && exitCode !== null && exitCode >= 0 && exitCode <= 255
+                    ? exitCode
+                    : null;
+            signal =
+                exitSignal === null
+                    ? null
+                    : diagnosticSignals.includes(
+                            exitSignal as NonNullable<DiagnosticSummary["signal"]>,
+                        )
+                      ? (exitSignal as DiagnosticSummary["signal"])
+                      : "OTHER";
+        },
+        /** 概要在原有有限退出结算后生成，未闭合阶段、残留半行和任何截断都保留为不完整观察；返回值复制已验证记录并覆盖原始缓冲，此后继续排空迟到分块但不把晚到信息补成既有清理成功。 */
+        finish(fixture: number): DiagnosticSummary {
+            const entered = new Set<DiagnosticRecord["stage"]>();
+            for (const record of records) {
+                if (record.state === "entered") entered.add(record.stage);
+                else entered.delete(record.stage);
+            }
+            incomplete ||=
+                entered.size !== 0 ||
+                length !== 0 ||
+                dropping ||
+                rejected ||
+                !closeObserved ||
+                records.length === 0 ||
+                records.at(-1)?.state === "entered";
+            pending.fill(0);
+            length = 0;
+            stopped = true;
+            return {
+                schemaVersion: 1,
+                fixture,
+                records: records.map((item) => ({ ...item })),
+                rejected,
+                incomplete,
+                firstFailure,
+                closeObserved,
+                code,
+                signal,
+            };
+        },
+    };
+}
+
+/** 工作流只消费夹具已收敛的概要并再次使用同一字段校验，诊断行从原始 TAP 日志删除后仅保存在报告内；最多两个不同序号和十六 KiB，非法或截断候选不回显，原测试失败与清理推导均保持独立。 */
+export function collectDarwinDiagnostics(streams: Buffer[]) {
+    const fixtures: DiagnosticSummary[] = [];
+    let rejected = false;
+    const outputs = streams.map((bytes) => {
+        const lines: string[] = [];
+        try {
+            const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+            for (const line of text.split(/(?<=\n)/)) {
+                if (!line.includes("VERIQ_D1_DIAGNOSTICS")) {
+                    lines.push(line);
+                    continue;
+                }
+                try {
+                    const raw = line.startsWith("# ") ? line.slice(2) : line;
+                    if (!raw.startsWith(diagnosticPrefix) || !raw.endsWith("\n")) throw new Error();
+                    const encoded = raw.slice(diagnosticPrefix.length, -1);
+                    if (Buffer.byteLength(encoded) > diagnosticByteLimit) throw new Error();
+                    const item = JSON.parse(encoded) as DiagnosticSummary;
+                    if (
+                        !item ||
+                        Array.isArray(item) ||
+                        Object.keys(item).sort().join(",") !==
+                            "closeObserved,code,firstFailure,fixture,incomplete,records,rejected,schemaVersion,signal" ||
+                        item.schemaVersion !== 1 ||
+                        ![1, 2].includes(item.fixture) ||
+                        fixtures.some((prior) => prior.fixture === item.fixture) ||
+                        typeof item.rejected !== "boolean" ||
+                        typeof item.incomplete !== "boolean" ||
+                        typeof item.closeObserved !== "boolean" ||
+                        (item.firstFailure !== null &&
+                            !diagnosticFailures.includes(item.firstFailure)) ||
+                        (item.code !== null &&
+                            (!Number.isInteger(item.code) || item.code < 0 || item.code > 255)) ||
+                        (item.signal !== null && !diagnosticSignals.includes(item.signal)) ||
+                        !Array.isArray(item.records) ||
+                        item.records.length > diagnosticRecordLimit
+                    )
+                        throw new Error();
+                    const records = item.records.map(diagnosticRecord);
+                    if (records.some((record) => !record)) throw new Error();
+                    const safe: DiagnosticSummary = {
+                        schemaVersion: 1,
+                        fixture: item.fixture,
+                        records: records as DiagnosticRecord[],
+                        rejected: item.rejected,
+                        incomplete: item.incomplete,
+                        firstFailure: item.firstFailure,
+                        closeObserved: item.closeObserved,
+                        code: item.code,
+                        signal: item.signal,
+                    };
+                    if (Buffer.byteLength(JSON.stringify([...fixtures, safe])) > 16384)
+                        throw new Error();
+                    fixtures.push(safe);
+                } catch {
+                    rejected = true;
+                }
+            }
+        } catch {
+            rejected = true;
+            lines.length = 0;
+        } finally {
+            bytes.fill(0);
+        }
+        return Buffer.from(lines.join(""));
+    });
+    return { outputs, fixtures, rejected };
+}
+let diagnosticOrdinal = 0;
+
 /** 专用控制器由操作者配置的会话声明启动，并在原生层再次核对真实 UID、登录名和安全会话；声明文件不含密码或密钥，密码由系统随机源在控制器内产生，创建与删除的偏好副作用只允许发生在该可丢弃账户。 */
 export async function dedicatedFixture() {
     requireMac();
@@ -152,13 +449,26 @@ export async function dedicatedFixture() {
         env: { PATH: "/usr/bin:/bin" },
         stdio: ["pipe", "pipe", "pipe"],
     });
+    const diagnostics = createDarwinDiagnosticFilter();
+    const ordinal = ++diagnosticOrdinal;
+    let emitted = false;
+    /** 诊断输出延后至原控制器的有界退出结算，避免 stdout 拒绝先到而遗漏已经排队的 stderr 阶段；只有两个固定序号可导出，序列化或观察输出失败不能替换原 SESSION_REFUSED 或清理失败。 */
+    const emitDiagnostics = () => {
+        if (emitted || ordinal > 2) return;
+        emitted = true;
+        try {
+            console.error(diagnosticPrefix + JSON.stringify(diagnostics.finish(ordinal)));
+        } catch {}
+    };
     let pending = Buffer.alloc(0),
         sequence = Promise.resolve(),
         closed = false;
     let receive: ((value: Record<string, unknown>) => void) | undefined;
     let failure: ((error: Error) => void) | undefined;
     const exited = new Promise<void>((resolve) =>
-        child.once("close", () => {
+        child.once("close", (code, signal) => {
+            diagnostics.close(code, signal);
+            if (failure) diagnostics.fail("CLOSED");
             closed = true;
             failure?.(new Error("DARWIN_VAULT_CONTROLLER_EXITED"));
             resolve();
@@ -168,23 +478,25 @@ export async function dedicatedFixture() {
     const confirmedExit = async () => {
         if (closed) return;
         await new Promise<void>((resolve, reject) => {
-            const timer = setTimeout(
-                () => reject(new Error("DARWIN_VAULT_CONTROLLER_EXIT_UNCONFIRMED")),
-                1000,
-            );
+            const timer = setTimeout(() => {
+                diagnostics.fail("EXIT_UNCONFIRMED");
+                reject(new Error("DARWIN_VAULT_CONTROLLER_EXIT_UNCONFIRMED"));
+            }, 1000);
             void exited.then(() => {
                 clearTimeout(timer);
                 resolve();
             });
         });
     };
-    child.on("error", () => failure?.(new Error("DARWIN_VAULT_CONTROLLER_FAILED")));
-    child.stdin.on("error", () => {});
-    child.stderr.on("data", (bytes: Buffer) => {
-        bytes.fill(0);
+    child.on("error", () => {
+        diagnostics.fail("PROCESS_ERROR");
+        failure?.(new Error("DARWIN_VAULT_CONTROLLER_FAILED"));
     });
+    child.stdin.on("error", () => {});
+    child.stderr.on("data", (bytes: Buffer) => diagnostics.push(bytes));
     child.stdout.on("data", (bytes: Buffer) => {
         if (pending.length + bytes.length > 8192) {
+            diagnostics.fail("PROTOCOL");
             bytes.fill(0);
             child.kill("SIGKILL");
             return;
@@ -208,6 +520,7 @@ export async function dedicatedFixture() {
             pending = Buffer.alloc(0);
             receive?.(reply as Record<string, unknown>);
         } catch {
+            diagnostics.fail("PROTOCOL");
             child.kill("SIGKILL");
         }
     });
@@ -226,9 +539,13 @@ export async function dedicatedFixture() {
         });
         await prior;
         try {
-            if (closed) throw new Error("DARWIN_VAULT_CONTROLLER_CLOSED");
+            if (closed) {
+                diagnostics.fail("CLOSED");
+                throw new Error("DARWIN_VAULT_CONTROLLER_CLOSED");
+            }
             return await new Promise((resolve, reject) => {
                 const timer = setTimeout(() => {
+                    diagnostics.fail("DEADLINE");
                     child.kill("SIGKILL");
                     reject(new Error("DARWIN_VAULT_CONTROLLER_DEADLINE"));
                 }, 5000);
@@ -240,8 +557,10 @@ export async function dedicatedFixture() {
                     clearTimeout(timer);
                     receive = undefined;
                     failure = undefined;
-                    if (value.ok !== true) reject(new Error("DARWIN_VAULT_CONTROLLER_REFUSED"));
-                    else resolve(value);
+                    if (value.ok !== true) {
+                        diagnostics.fail("REFUSED");
+                        reject(new Error("DARWIN_VAULT_CONTROLLER_REFUSED"));
+                    } else resolve(value);
                 };
                 child.stdin.write(JSON.stringify({ operation, ...fields }) + "\n");
             });
@@ -262,7 +581,11 @@ export async function dedicatedFixture() {
         await command("create", { attestation });
     } catch {
         child.kill("SIGKILL");
-        await confirmedExit();
+        try {
+            await confirmedExit();
+        } finally {
+            emitDiagnostics();
+        }
         throw new Error("DARWIN_VAULT_SESSION_REFUSED");
     }
     const call = async (
@@ -404,10 +727,14 @@ export async function dedicatedFixture() {
                 child.stdin.end();
                 await confirmedExit();
             } finally {
-                pending.fill(0);
-                if (!closed) {
-                    child.kill("SIGKILL");
-                    await confirmedExit();
+                try {
+                    pending.fill(0);
+                    if (!closed) {
+                        child.kill("SIGKILL");
+                        await confirmedExit();
+                    }
+                } finally {
+                    emitDiagnostics();
                 }
             }
         },
