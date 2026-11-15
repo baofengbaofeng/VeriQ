@@ -2,6 +2,12 @@ name: Runtime macOS official asset observation
 on:
     workflow_dispatch:
         inputs:
+            purpose:
+                description: Existing official assets or fixed-lock production layout metadata
+                required: true
+                default: assets
+                type: choice
+                options: [assets, production-layout]
             source_ref:
                 description: Exact reviewed commit; must equal the workflow commit
                 required: true
@@ -36,6 +42,7 @@ permissions:
     contents: read
 jobs:
     assets:
+        if: ${{ github.event_name == 'push' || inputs.purpose != 'production-layout' }}
         strategy:
             fail-fast: false
             matrix:
@@ -53,6 +60,15 @@ jobs:
             MANUAL_SOURCE: ${{ inputs.source_ref }}
             EVENT_NAME: ${{ github.event_name }}
         steps:
+            - name: Reject unknown manual purpose before checkout or tools
+              id: purpose_guard
+              if: ${{ github.event_name == 'workflow_dispatch' }}
+              env:
+                  REQUESTED_PURPOSE: ${{ inputs.purpose }}
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  test "$REQUESTED_PURPOSE" = assets
             - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
               with:
                   ref: ${{ github.sha }}
@@ -317,7 +333,7 @@ jobs:
             - name: Prepare original Node bootstrap material after committed observation
               id: bootstrap
               continue-on-error: true
-              if: always()
+              if: always() && (github.event_name == 'push' || steps.purpose_guard.outcome == 'success')
               working-directory: apps/runtime
               env:
                   BIND_OUTCOME: ${{ steps.bind.outcome }}
@@ -591,7 +607,7 @@ jobs:
                   JS
             - name: Complete bounded metadata artifact or fixed failure evidence
               id: collect
-              if: always()
+              if: always() && (github.event_name == 'push' || steps.purpose_guard.outcome == 'success')
               env:
                   BIND_OUTCOME: ${{ steps.bind.outcome }}
                   NODE_SETUP_OUTCOME: ${{ steps.node_setup.outcome }}
@@ -1005,7 +1021,7 @@ jobs:
                   retention-days: 7
                   if-no-files-found: error
             - name: Record artifact identity matrix for independent review
-              if: always()
+              if: always() && (github.event_name == 'push' || steps.purpose_guard.outcome == 'success')
               env:
                   UNIT_BINDING: ${{ steps.ci_unit.outputs.ci_process_binding_sha256 }}
                   PRODUCER_BINDING: ${{ steps.bootstrap.outputs.producer2_binding_sha256 }}
@@ -1022,3 +1038,81 @@ jobs:
               run: |
                   printf '%s\n' "OBSERVATION_ONLY source=$GITHUB_SHA run=$GITHUB_RUN_ID attempt=$GITHUB_RUN_ATTEMPT arch=$EXPECTED_ARCH unit=$UNIT_STATE bootstrap=$BOOTSTRAP_STATE bootstrapConclusion=$BOOTSTRAP_CONCLUSION ciProcessUnit=$UNIT_BINDING producer2=$PRODUCER_BINDING ciProcessBootstrap=$BOOTSTRAP_PROCESS_BINDING collection=$COLLECTION_STATE metadata=$METADATA_ID metadataDigest=$METADATA_DIGEST archives=$ARCHIVES_ID archivesDigest=$ARCHIVES_DIGEST" >> "$GITHUB_STEP_SUMMARY"
                   if [ "$BOOTSTRAP_STATE" = failure ]; then exit 1; fi
+    production-layout:
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.purpose == 'production-layout' }}
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - runner: macos-15-intel
+                      arch: x64
+                    - runner: macos-15
+                      arch: arm64
+        runs-on: ${{ matrix.runner }}
+        timeout-minutes: 30
+        env:
+            ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+            PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+            EXPECTED_ARCH: ${{ matrix.arch }}
+            MANUAL_SOURCE: ${{ inputs.source_ref }}
+            LAYOUT_PURPOSE: ${{ inputs.purpose }}
+        steps:
+            - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+              timeout-minutes: 1
+              with:
+                  ref: ${{ github.sha }}
+                  persist-credentials: false
+            - name: Bind production source and native macOS before tooling
+              timeout-minutes: 1
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  test "$GITHUB_EVENT_NAME" = workflow_dispatch
+                  test "$LAYOUT_PURPOSE" = production-layout
+                  [[ "$MANUAL_SOURCE" =~ ^[0-9a-f]{40}$ ]]
+                  test "$MANUAL_SOURCE" = "$GITHUB_SHA"
+                  test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+                  test "$(sw_vers -productVersion | cut -d. -f1)" = 15
+                  if [ "$EXPECTED_ARCH" = arm64 ]; then test "$(uname -m)" = arm64; else test "$(uname -m)" = x86_64; fi
+                  printf '%s\n' "LAYOUT_ROOT=$RUNNER_TEMP/veriq-production-layout" >> "$GITHUB_ENV"
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+              timeout-minutes: 2
+              with:
+                  node-version: 24.22.1
+            - name: Verify inert producer and real-child filesystem gate before acquisition
+              id: layout_unit
+              timeout-minutes: 1
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  unset NODE_OPTIONS NODE_PATH NODE_EXTRA_CA_CERTS NODE_REPL_EXTERNAL_MODULE
+                  node --input-type=module -e 'if (process.platform !== "darwin" || process.arch !== process.env.EXPECTED_ARCH || process.versions.electron || !/^v24[.]/.test(process.version)) process.exit(1)'
+                  node --test apps/runtime/tests/production-layout-ci.test.mjs
+            - name: Prepare fixed store, install fresh offline production layout and observe metadata
+              id: layout
+              timeout-minutes: 23
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  unset NODE_OPTIONS NODE_PATH NODE_EXTRA_CA_CERTS NODE_REPL_EXTERNAL_MODULE
+                  node .github/scripts/production-layout.mjs
+            - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+              id: layout_upload
+              if: ${{ !cancelled() && steps.layout.outputs.collection == 'SNAPSHOTTED' }}
+              with:
+                  name: veriq-macos-production-layout-${{ matrix.arch }}
+                  path: ${{ steps.layout.outputs.upload_root }}
+                  retention-days: 7
+                  if-no-files-found: error
+            - name: Record production metadata identity and stage outcomes
+              if: always()
+              env:
+                  UNIT_STATE: ${{ steps.layout_unit.outcome }}
+                  PRODUCER_STATE: ${{ steps.layout.outcome }}
+                  STAGES: ${{ steps.layout.outputs.stages }}
+                  COLLECTION: ${{ steps.layout.outputs.collection }}
+                  METADATA_ID: ${{ steps.layout_upload.outputs.artifact-id }}
+                  METADATA_DIGEST: ${{ steps.layout_upload.outputs.artifact-digest }}
+              shell: bash
+              run: |
+                  printf '%s\n' "PHYSICAL_LAYOUT_ONLY source=$GITHUB_SHA run=$GITHUB_RUN_ID attempt=$GITHUB_RUN_ATTEMPT arch=$EXPECTED_ARCH unit=$UNIT_STATE producer=$PRODUCER_STATE stages=$STAGES collection=$COLLECTION metadata=$METADATA_ID digest=$METADATA_DIGEST" >> "$GITHUB_STEP_SUMMARY"
