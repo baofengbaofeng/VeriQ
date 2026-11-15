@@ -175,7 +175,11 @@ const diagnosticSignals = ["SIGKILL", "SIGTERM", "SIGABRT", "SIGSEGV", "SIGPIPE"
 type DiagnosticFailure = (typeof diagnosticFailures)[number];
 type DiagnosticRecord = {
     schemaVersion: 1;
-    stage: (typeof diagnosticStages)[number];
+    stage: (typeof diagnosticStages)[number] | "OP";
+    nativeOperation?: "seed" | "read-denial";
+    substage?: string;
+    predicate?: boolean;
+    eventFailure?: "poll-error" | "read-error" | "eof" | "marker" | "deadline";
     state: "entered" | "passed" | "failed";
     osStatus?: number;
     errno?: number;
@@ -369,10 +373,178 @@ const diagnosticPrefix = "VERIQ_D1_DIAGNOSTICS ";
 const diagnosticByteLimit = 8192;
 const diagnosticRecordLimit = 96;
 
+/** 操作诊断单独使用 OP 命名空间与有限子阶段，旧创建清理阶段的字段语义不变；子阶段缺少返回事实仍然合法且保持未知，只有当前原调用已经返回的数值或原谓词已经求值的布尔值才能进入记录。 */
+const nativeSeedStages = [
+    "input",
+    "account",
+    "key",
+    "policy",
+    "trusted",
+    "array",
+    "access",
+    "extra-trusted",
+    "extra-array",
+    "acl",
+    "auth",
+    "add",
+    "helper-start",
+    "helper-collect",
+    "helper-frame",
+    "helper-decode",
+    "read",
+    "read-type",
+    "value",
+    "snapshot-match",
+    "snapshot-shape",
+    "snapshot-item",
+    "snapshot-access",
+    "snapshot-export",
+    "cipher-open",
+    "cipher-stat",
+    "cipher-read",
+    "done",
+];
+const nativeDenialStages = [
+    "baseline",
+    "status-before",
+    "helper-start",
+    "event-before",
+    "event-denied",
+    "event-after",
+    "helper-collect",
+    "helper-frame",
+    "status-after",
+    "unchanged-guard",
+    "read",
+    "read-type",
+    "snapshot-match",
+    "snapshot-shape",
+    "snapshot-item",
+    "snapshot-access",
+    "snapshot-export",
+    "cipher-open",
+    "cipher-stat",
+    "cipher-read",
+    "done",
+];
+const nativeStatusStages = [
+    "trusted",
+    "access",
+    "extra-trusted",
+    "acl",
+    "auth",
+    "add",
+    "read",
+    "snapshot-match",
+    "snapshot-access",
+    "status-before",
+    "status-after",
+];
+const nativePredicateStages = [
+    "input",
+    "key",
+    "policy",
+    "extra-array",
+    "helper-frame",
+    "helper-decode",
+    "read-type",
+    "value",
+    "snapshot-shape",
+    "snapshot-item",
+    "baseline",
+    "unchanged-guard",
+];
+const nativeEventStages = ["event-before", "event-denied", "event-after"];
+
+/** 原生操作记录只重建声明字段且逐项约束阶段与事实类型，进入及完成记录不允许携带上一步遗留数值；事件 errno 只与实际 poll 或 read 失败共同出现，原始标记字节与 helper 推测退出码始终不属于此协议。 */
+function nativeOperationRecord(item: Record<string, unknown>): DiagnosticRecord | undefined {
+    if (
+        Object.keys(item).some(
+            (key) =>
+                ![
+                    "schemaVersion",
+                    "stage",
+                    "state",
+                    "nativeOperation",
+                    "substage",
+                    "osStatus",
+                    "errno",
+                    "predicate",
+                    "eventFailure",
+                ].includes(key),
+        ) ||
+        item.schemaVersion !== 1 ||
+        item.stage !== "OP" ||
+        !["seed", "read-denial"].includes(item.nativeOperation as string) ||
+        typeof item.substage !== "string" ||
+        !(item.nativeOperation === "seed" ? nativeSeedStages : nativeDenialStages).includes(
+            item.substage,
+        ) ||
+        !["entered", "passed", "failed"].includes(item.state as string)
+    )
+        return;
+    const facts = ["osStatus", "errno", "predicate", "eventFailure"].filter((key) => key in item);
+    if (item.state === "entered") {
+        if (
+            item.substage !== (item.nativeOperation === "seed" ? "input" : "baseline") ||
+            facts.length
+        )
+            return;
+    } else if (item.state === "passed") {
+        if (item.substage !== "done" || facts.length) return;
+    } else if (item.substage === "done") return;
+    const safe: DiagnosticRecord = {
+        schemaVersion: 1,
+        stage: "OP",
+        state: item.state as DiagnosticRecord["state"],
+        nativeOperation: item.nativeOperation as "seed" | "read-denial",
+        substage: item.substage,
+    };
+    for (const key of ["osStatus", "errno"] as const) {
+        if (!(key in item)) continue;
+        const value = item[key];
+        if (
+            typeof value !== "number" ||
+            !Number.isInteger(value) ||
+            value < (key === "errno" ? 0 : -2147483648) ||
+            value > 2147483647
+        )
+            return;
+        if (
+            key === "osStatus"
+                ? !nativeStatusStages.includes(item.substage)
+                : !["cipher-open", "cipher-stat", "cipher-read", ...nativeEventStages].includes(
+                      item.substage,
+                  )
+        )
+            return;
+        safe[key] = value;
+    }
+    if ("predicate" in item) {
+        if (typeof item.predicate !== "boolean" || !nativePredicateStages.includes(item.substage))
+            return;
+        safe.predicate = item.predicate;
+    }
+    if ("eventFailure" in item) {
+        if (
+            !nativeEventStages.includes(item.substage) ||
+            !["poll-error", "read-error", "eof", "marker", "deadline"].includes(
+                item.eventFailure as string,
+            )
+        )
+            return;
+        if (["poll-error", "read-error"].includes(item.eventFailure as string) !== "errno" in item)
+            return;
+        safe.eventFailure = item.eventFailure as NonNullable<DiagnosticRecord["eventFailure"]>;
+    } else if (nativeEventStages.includes(item.substage) && "errno" in item) return;
+    return safe;
+}
+
 /** 字段校验先拒绝所有未声明属性，再重建有序的安全记录，避免反序列化对象夹带私有信息；系统状态只接受有符号三十二位整数，errno 只能是非负整数而布尔事实不接受数值替代。 */
 function diagnosticRecord(value: unknown): DiagnosticRecord | undefined {
     if (!value || typeof value !== "object" || Array.isArray(value)) return;
     const item = value as Record<string, unknown>;
+    if (item.stage === "OP") return nativeOperationRecord(item);
     if (
         Object.keys(item).some(
             (key) =>
@@ -390,7 +562,7 @@ function diagnosticRecord(value: unknown): DiagnosticRecord | undefined {
                 ].includes(key),
         ) ||
         item.schemaVersion !== 1 ||
-        !diagnosticStages.includes(item.stage as DiagnosticRecord["stage"]) ||
+        !diagnosticStages.includes(item.stage as (typeof diagnosticStages)[number]) ||
         !["entered", "passed", "failed"].includes(item.state as string)
     )
         return;
@@ -598,10 +770,12 @@ export function createDarwinDiagnosticFilter() {
         },
         /** 概要在原有有限退出结算后生成，未闭合阶段、残留半行和任何截断都保留为不完整观察；返回值复制已验证记录并覆盖原始缓冲，此后继续排空迟到分块但不把晚到信息补成既有清理成功。 */
         finish(fixture: number): DiagnosticSummary {
-            const entered = new Set<DiagnosticRecord["stage"]>();
+            const entered = new Set<string>();
             for (const record of records) {
-                if (record.state === "entered") entered.add(record.stage);
-                else entered.delete(record.stage);
+                const boundary =
+                    record.stage === "OP" ? `OP:${record.nativeOperation}` : record.stage;
+                if (record.state === "entered") entered.add(boundary);
+                else entered.delete(boundary);
             }
             incomplete ||=
                 entered.size !== 0 ||

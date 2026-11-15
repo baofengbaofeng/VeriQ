@@ -27,7 +27,7 @@ enum class DiagnosticStage {
     ATTEST_UID, ATTEST_LOGIN, ATTEST_SESSION, HELPER_REALPATH, HELPER_NAME,
     HELPER_STAT, RANDOM, DIRECTORY, DIRECTORY_BIND, KEYCHAIN_CREATE, KEYCHAIN_PATH,
     KEYCHAIN_BIND, KEYCHAIN_MODE, KEYCHAIN_IDENTITY,
-    KEYCHAIN_STAT, CREATE_REPLY, CLEANUP_DELETE, CLEANUP_DIRECTORY,
+    KEYCHAIN_STAT, CREATE_REPLY, CLEANUP_DELETE, CLEANUP_DIRECTORY, OP,
 };
 NSString *const diagnosticNames[] = {
     @"STARTUP", @"NO_UI", @"RECEIVE", @"CREATE_STATE", @"LIVE_UID_LOGIN",
@@ -35,8 +35,27 @@ NSString *const diagnosticNames[] = {
     @"ATTEST_UID", @"ATTEST_LOGIN", @"ATTEST_SESSION", @"HELPER_REALPATH", @"HELPER_NAME",
     @"HELPER_STAT", @"RANDOM", @"DIRECTORY", @"DIRECTORY_BIND", @"KEYCHAIN_CREATE", @"KEYCHAIN_PATH",
     @"KEYCHAIN_BIND", @"KEYCHAIN_MODE", @"KEYCHAIN_IDENTITY",
-    @"KEYCHAIN_STAT", @"CREATE_REPLY", @"CLEANUP_DELETE", @"CLEANUP_DIRECTORY",
+    @"KEYCHAIN_STAT", @"CREATE_REPLY", @"CLEANUP_DELETE", @"CLEANUP_DIRECTORY", @"OP",
 };
+
+/** 操作子阶段只在控制器内存中前进，进入和终态仍各写一条记录而不逐步输出；这些固定名称覆盖 seed 与拒绝观察的原有边界，不记录账户或密文内容，也不把尚未返回的调用推断成失败状态码。 */
+enum class NativeSubstage {
+    INPUT, ACCOUNT, KEY, POLICY, TRUSTED, ARRAY, ACCESS, EXTRA_TRUSTED, EXTRA_ARRAY,
+    ACL, AUTH, ADD, HELPER_START, HELPER_COLLECT, HELPER_FRAME, HELPER_DECODE,
+    READ, READ_TYPE, VALUE, SNAPSHOT_MATCH, SNAPSHOT_SHAPE, SNAPSHOT_ITEM, SNAPSHOT_ACCESS,
+    SNAPSHOT_EXPORT, CIPHER_OPEN, CIPHER_STAT, CIPHER_READ, BASELINE, STATUS_BEFORE,
+    EVENT_BEFORE, EVENT_DENIED, EVENT_AFTER, STATUS_AFTER, UNCHANGED_GUARD, DONE,
+};
+NSString *const nativeSubstageNames[] = {
+    @"input", @"account", @"key", @"policy", @"trusted", @"array", @"access", @"extra-trusted", @"extra-array",
+    @"acl", @"auth", @"add", @"helper-start", @"helper-collect", @"helper-frame", @"helper-decode",
+    @"read", @"read-type", @"value", @"snapshot-match", @"snapshot-shape", @"snapshot-item", @"snapshot-access",
+    @"snapshot-export", @"cipher-open", @"cipher-stat", @"cipher-read", @"baseline", @"status-before",
+    @"event-before", @"event-denied", @"event-after", @"status-after", @"unchanged-guard", @"done",
+};
+enum class NativeOperation { SEED, READ_DENIAL };
+enum class NativeEventFailure { NONE, POLL_ERROR, READ_ERROR, EOF_CLOSED, MARKER, DEADLINE };
+NSString *const nativeEventNames[] = {nil, @"poll-error", @"read-error", @"eof", @"marker", @"deadline"};
 
 /** 作用域观察器在原谓词执行前后写出固定 JSON，异常展开时仅标记当前阶段失败且从不捕获业务异常；写日志自身的错误被隔离并恢复 errno，原生调用次数、短路顺序和原始拒绝路径均不依赖观察是否成功。 */
 class DiagnosticGate {
@@ -48,6 +67,10 @@ class DiagnosticGate {
     bool created = false, storeReferencePresent = false;
     bool hasRegularFile = false, hasOwnerMatches = false, hasPrivateMode = false;
     bool regularFileValue = false, ownerMatchesValue = false, privateModeValue = false;
+    NativeOperation operation = NativeOperation::SEED;
+    NativeSubstage substage = NativeSubstage::INPUT;
+    bool hasPredicate = false, predicateValue = false;
+    NativeEventFailure eventFailure = NativeEventFailure::NONE;
     void emit(NSString *state) noexcept {
         if (!enabled) return;
         const int savedErrno = errno;
@@ -58,6 +81,12 @@ class DiagnosticGate {
                 if (count < 96 && total < 8192) {
                     NSMutableDictionary *record = [@{@"schemaVersion": @1,
                         @"stage": diagnosticNames[static_cast<size_t>(stage)], @"state": state} mutableCopy];
+                    if (stage == DiagnosticStage::OP) {
+                        record[@"nativeOperation"] = operation == NativeOperation::SEED ? @"seed" : @"read-denial";
+                        record[@"substage"] = nativeSubstageNames[static_cast<size_t>(substage)];
+                        if (hasPredicate) record[@"predicate"] = @(predicateValue);
+                        if (eventFailure != NativeEventFailure::NONE) record[@"eventFailure"] = nativeEventNames[static_cast<size_t>(eventFailure)];
+                    }
                     if (hasStatus) record[@"osStatus"] = @(statusValue);
                     if (hasErrno) record[@"errno"] = @(errnoValue);
                     if (hasStore) { record[@"created"] = @(created); record[@"storeReferencePresent"] = @(storeReferencePresent); }
@@ -90,7 +119,41 @@ public:
     /** 析构只补充尚未通过阶段的失败事实，不推断系统调用是否修改了存储，也不尝试清理或重试；因此原有 catch 先回复拒绝再清理的顺序以及外层可能强杀进程的竞争窗口保持原样。 */
     ~DiagnosticGate() noexcept { if (!passed) emit(@"failed"); }
     /** 通过标志只在原谓词已通过后更新，日志失败不会撤回原来的成功结果或伪造清理确认；调用者依旧必须等待原控制协议回执和测试完成，不能把这里的阶段记录当作独立验收结果。 */
-    void pass() noexcept { passed = true; emit(@"passed"); }
+    void pass() noexcept { if (stage == DiagnosticStage::OP) step(this, NativeSubstage::DONE); passed = true; emit(@"passed"); }
+    /** 每次被观察操作仅构造一次作用域，先写无结果的入口记录再复用当前子阶段槽；普通异常沿原路径展开时由既有析构写失败，突然退出没有终态时必须保留未知而不能猜测调用已经返回。 */
+    explicit DiagnosticGate(NativeOperation value) noexcept : stage(DiagnosticStage::OP), enabled(true), operation(value),
+        substage(value == NativeOperation::SEED ? NativeSubstage::INPUT : NativeSubstage::BASELINE) { emit(@"entered"); }
+    /** 前进子阶段只修改有限内存槽并清除上一步返回事实，不执行系统查询、分配或日志输出；共享帮助函数没有观察器时保持空操作，因此正常命令不会产生额外诊断或借用前次 seed 的事实。 */
+    static void step(DiagnosticGate *gate, NativeSubstage value) noexcept {
+        if (!gate) return;
+        gate->substage = value;
+        gate->hasStatus = gate->hasErrno = gate->hasPredicate = false;
+        gate->eventFailure = NativeEventFailure::NONE;
+    }
+    /** 原谓词的完整短路表达式只求值一次再原样返回，未执行的后续条件不产生单独事实；保留真值也允许随后内存分配抛错，从而不能把作用域失败误写成谓词本身已经返回假。 */
+    static bool predicate(DiagnosticGate *gate, bool value) noexcept {
+        if (gate) { gate->hasPredicate = true; gate->predicateValue = value; }
+        return value;
+    }
+    /** 状态代理只包裹原本就会执行的 Security 调用返回值，没有观察器时直接交还数值；它不调用错误描述或重试，不改变原比较常量，后续原谓词仍然控制失败与短路执行方向。 */
+    static OSStatus status(DiagnosticGate *gate, OSStatus value) noexcept { return gate ? gate->status(value) : value; }
+    /** 文件调用返回原整数类型并仅在失败时保存即时 errno，每次成功会清除先前被 EINTR 重试的错误；循环读取、关闭次序和异常正文保持原样，正返回值不携带任何文件内容或身份事实。 */
+    template <typename T> static T fileResult(DiagnosticGate *gate, T value) noexcept {
+        if (gate) { gate->hasErrno = value < 0; if (value < 0) gate->errnoValue = errno; }
+        return value;
+    }
+    /** 事件分类只使用本次原 poll 或 read 的返回值及原字节比较结果，类别由固定调用点提供而非输入文本；只有系统调用失败才保存即时 errno，EOF、错误标记和期限耗尽均不能伪造 helper 退出码。 */
+    static void event(DiagnosticGate *gate, NativeEventFailure failure, bool syscall = false) noexcept {
+        if (gate) { gate->eventFailure = failure; gate->hasErrno = syscall; if (syscall) gate->errnoValue = errno; }
+    }
+    /** 事件读取代理不追加读取且完整保留原读返回值，原来的等于一判断仍决定是否继续比较标记；负返回与 EOF 只产生有限失败类别，不导出读到的字节或将通道关闭解释为子进程正常退出。 */
+    static ssize_t eventRead(DiagnosticGate *gate, ssize_t value) noexcept {
+        if (value < 0) event(gate, NativeEventFailure::READ_ERROR, true);
+        else if (value == 0) event(gate, NativeEventFailure::EOF_CLOSED);
+        return value;
+    }
+    /** 标记比较只接收原短路链实际执行的相等布尔结果，错误时记录固定类别而不保存 expected 或实际字节；调用方的 require 继续抛出原来的异常，观察器不改变该事件的成功条件或等待期限。 */
+    static bool eventMarker(DiagnosticGate *gate, bool value) noexcept { if (!value) event(gate, NativeEventFailure::MARKER); return value; }
     /** 系统状态从已执行的调用返回值立即保存，不再次调用任何 Security API 或查询错误描述；这里只记录有限数值供真实目标失败定位，原成功常量与后续短路谓词仍由调用点负责判断。 */
     OSStatus status(OSStatus value) noexcept { hasStatus = true; statusValue = value; return value; }
     /** POSIX 整数失败紧接原调用保存 errno，后续日志不会覆盖实际错误号码，也不会增加文件或身份查询；成功结果不输出可能属于旧调用的 errno，调用点继续按原有返回值与短路条件判定。 */
@@ -203,17 +266,20 @@ NSString *account(NSDictionary *request) {
 }
 
 /** 自有测试存储的完整密文文件只读入内存比较，以观察拒绝路径是否修改持久状态，内容不写入证据或临时副本；该比较不是解密读回证明，实际三十二字节读回仍由正常辅助程序的独立进程请求验证。 */
-Bytes ciphertext(const std::string &path) {
-    const int fd = open(path.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+Bytes ciphertext(const std::string &path, DiagnosticGate *gate = nullptr) {
+    DiagnosticGate::step(gate, NativeSubstage::CIPHER_OPEN);
+    const int fd = DiagnosticGate::fileResult(gate, open(path.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC));
     require(fd >= 0);
     struct stat info {};
-    if (fstat(fd, &info) != 0 || !S_ISREG(info.st_mode) || info.st_uid != getuid() || info.st_size < 0 || info.st_size > 1048576) {
+    DiagnosticGate::step(gate, NativeSubstage::CIPHER_STAT);
+    if (DiagnosticGate::fileResult(gate, fstat(fd, &info)) != 0 || !S_ISREG(info.st_mode) || info.st_uid != getuid() || info.st_size < 0 || info.st_size > 1048576) {
         close(fd); throw std::runtime_error("VAULT_FIXTURE_FILE_INVALID");
     }
     Bytes bytes(static_cast<size_t>(info.st_size));
     size_t offset = 0;
+    DiagnosticGate::step(gate, NativeSubstage::CIPHER_READ);
     while (offset < bytes.size()) {
-        ssize_t count = read(fd, bytes.data() + offset, bytes.size() - offset);
+        ssize_t count = DiagnosticGate::fileResult(gate, read(fd, bytes.data() + offset, bytes.size() - offset));
         if (count < 0 && errno == EINTR) continue;
         if (count <= 0) { close(fd); throw std::runtime_error("VAULT_FIXTURE_FILE_INVALID"); }
         offset += count;
@@ -269,17 +335,19 @@ struct Child {
     /** 退出码只从已经 waitpid 确认的正常退出状态提取，信号死亡或未确认退出统一保留独立的负值；该值供测试判断是否收到完整回复，不把信号请求、EOF 关闭或成功写入管道当成系统操作成功。 */
     int code() const { return exited && WIFEXITED(status) ? WEXITSTATUS(status) : -1; }
     /** 屏障确认只读取当前 child 的私有控制套接字并受共享单调时钟期限约束，错误字节和提前关闭都导致测试失败；调用点只期待真实缺失后的就绪标记，不通过轮询钥匙串或等待固定时间猜测竞争窗口。 */
-    void event(char expected, Clock::time_point deadline) {
+    void event(char expected, Clock::time_point deadline, DiagnosticGate *gate = nullptr) {
         while (Clock::now() < deadline) {
             pollfd watched {control, POLLIN, 0};
             const int ready = poll(&watched, 1, 25);
             if (ready < 0 && errno == EINTR) continue;
+            if (ready < 0) DiagnosticGate::event(gate, NativeEventFailure::POLL_ERROR, true);
             require(ready >= 0);
             if (!ready) continue;
             char value = 0;
-            require(read(control, &value, 1) == 1 && value == expected);
+            require(DiagnosticGate::eventRead(gate, read(control, &value, 1)) == 1 && DiagnosticGate::eventMarker(gate, value == expected));
             return;
         }
+        DiagnosticGate::event(gate, NativeEventFailure::DEADLINE);
         require(false);
     }
     /** 新增结果标记来自 helper 已经返回的实际 SecItemAdd 状态，只接受成功或重复两个固定字节；它不是 V1 修改回执的替代品，控制器仍必须收齐正式回复并确认两个进程退出后才能报告竞争验证结果。 */
@@ -478,21 +546,26 @@ struct Fixture {
     }
 
     /** 持久条目快照先限定当前测试存储、固定服务与精确账户，再要求唯一属性和引用结果；公开访问策略通过独立导出记录而不是重用生产通过判定，因此后续拒绝检查不能靠同一个错误验证器自证没有变化。 */
-    ItemSnapshot snapshot(NSDictionary *request) {
+    ItemSnapshot snapshot(NSDictionary *request, DiagnosticGate *gate = nullptr) {
+        DiagnosticGate::step(gate, NativeSubstage::SNAPSHOT_MATCH);
         NSDictionary *query = @{(__bridge id)kSecClass: (__bridge id)kSecClassGenericPassword,
             (__bridge id)kSecAttrService: @"VeriQ/RuntimeVault/v1", (__bridge id)kSecAttrAccount: account(request),
             (__bridge id)kSecMatchSearchList: @[(__bridge id)store.value],
             (__bridge id)kSecReturnRef: @YES, (__bridge id)kSecReturnAttributes: @YES,
             (__bridge id)kSecMatchLimit: (__bridge id)kSecMatchLimitAll};
         Owned<CFTypeRef> result;
-        require(SecItemCopyMatching((__bridge CFDictionaryRef)query, &result.value) == errSecSuccess);
-        require(result.value && CFGetTypeID(result.value) == CFArrayGetTypeID() && CFArrayGetCount(static_cast<CFArrayRef>(result.value)) == 1);
+        require(DiagnosticGate::status(gate, SecItemCopyMatching((__bridge CFDictionaryRef)query, &result.value)) == errSecSuccess);
+        DiagnosticGate::step(gate, NativeSubstage::SNAPSHOT_SHAPE);
+        require(DiagnosticGate::predicate(gate, result.value && CFGetTypeID(result.value) == CFArrayGetTypeID() && CFArrayGetCount(static_cast<CFArrayRef>(result.value)) == 1));
         CFTypeRef raw = CFArrayGetValueAtIndex(static_cast<CFArrayRef>(result.value), 0);
-        require(raw && CFGetTypeID(raw) == CFDictionaryGetTypeID());
+        require(DiagnosticGate::predicate(gate, raw && CFGetTypeID(raw) == CFDictionaryGetTypeID()));
+        DiagnosticGate::step(gate, NativeSubstage::SNAPSHOT_ITEM);
         CFTypeRef item = CFDictionaryGetValue(static_cast<CFDictionaryRef>(raw), kSecValueRef);
-        require(item && CFGetTypeID(item) == SecKeychainItemGetTypeID());
+        require(DiagnosticGate::predicate(gate, item && CFGetTypeID(item) == SecKeychainItemGetTypeID()));
         Owned<SecAccessRef> access;
-        require(SecKeychainItemCopyAccess(static_cast<SecKeychainItemRef>(const_cast<void *>(item)), &access.value) == errSecSuccess);
+        DiagnosticGate::step(gate, NativeSubstage::SNAPSHOT_ACCESS);
+        require(DiagnosticGate::status(gate, SecKeychainItemCopyAccess(static_cast<SecKeychainItemRef>(const_cast<void *>(item)), &access.value)) == errSecSuccess);
+        DiagnosticGate::step(gate, NativeSubstage::SNAPSHOT_EXPORT);
         NSMutableDictionary *attributes = [(__bridge NSDictionary *)raw mutableCopy];
         [attributes removeObjectForKey:(__bridge id)kSecValueRef];
         ItemSnapshot value;
@@ -501,106 +574,140 @@ struct Fixture {
     }
 
     /** 秘密材料的独立读回由 ACL 实际允许的夹具主体执行，普通负例使用同一测试 helper 的只读检查而拒绝 helper 的负例使用控制器；任何系统读取错误直接使证明失败，不能把只看到密文文件未变当作值已经核验。 */
-    void inspect(NSDictionary *request, Secret &value) {
+    void inspect(NSDictionary *request, Secret &value, DiagnosticGate *gate = nullptr) {
         if (controllerReader) {
+            DiagnosticGate::step(gate, NativeSubstage::READ);
             NSDictionary *query = @{(__bridge id)kSecClass: (__bridge id)kSecClassGenericPassword,
                 (__bridge id)kSecAttrService: @"VeriQ/RuntimeVault/v1", (__bridge id)kSecAttrAccount: account(request),
                 (__bridge id)kSecMatchSearchList: @[(__bridge id)store.value], (__bridge id)kSecReturnData: @YES};
             Owned<CFTypeRef> result;
-            require(SecItemCopyMatching((__bridge CFDictionaryRef)query, &result.value) == errSecSuccess);
-            require(result.value && CFGetTypeID(result.value) == CFDataGetTypeID() && CFDataGetLength(static_cast<CFDataRef>(result.value)) == 32);
+            require(DiagnosticGate::status(gate, SecItemCopyMatching((__bridge CFDictionaryRef)query, &result.value)) == errSecSuccess);
+            DiagnosticGate::step(gate, NativeSubstage::READ_TYPE);
+            require(DiagnosticGate::predicate(gate, result.value && CFGetTypeID(result.value) == CFDataGetTypeID() && CFDataGetLength(static_cast<CFDataRef>(result.value)) == 32));
             value.bytes.resize(32);
             memcpy(value.bytes.data(), CFDataGetBytePtr(static_cast<CFDataRef>(result.value)), 32);
         } else {
+            DiagnosticGate::step(gate, NativeSubstage::HELPER_START);
             auto child = start(@{@"frame": [NSString stringWithFormat:@"V1 get %@ %@\n", request[@"profile"], request[@"version"]]}, false, true);
+            DiagnosticGate::step(gate, NativeSubstage::HELPER_COLLECT);
             child->collect(Clock::now() + std::chrono::milliseconds(3500));
-            require(child->code() == 0 && child->response.bytes.size() == 50 && memcmp(child->response.bytes.data(), "V1 ok ", 6) == 0 && child->response.bytes.back() == '\n');
+            DiagnosticGate::step(gate, NativeSubstage::HELPER_FRAME);
+            require(DiagnosticGate::predicate(gate, child->code() == 0 && child->response.bytes.size() == 50 && memcmp(child->response.bytes.data(), "V1 ok ", 6) == 0 && child->response.bytes.back() == '\n'));
+            DiagnosticGate::step(gate, NativeSubstage::HELPER_DECODE);
             NSString *encoded = [[NSString alloc] initWithBytes:child->response.bytes.data() + 6 length:43 encoding:NSASCIIStringEncoding];
             encoded = [[[encoded stringByReplacingOccurrencesOfString:@"-" withString:@"+"] stringByReplacingOccurrencesOfString:@"_" withString:@"/"] stringByAppendingString:@"="];
             NSData *decoded = [[NSData alloc] initWithBase64EncodedString:encoded options:0];
-            require(decoded.length == 32);
+            require(DiagnosticGate::predicate(gate, decoded.length == 32));
             value.bytes.resize(32); memcpy(value.bytes.data(), decoded.bytes, 32);
         }
     }
 
     /** 拒绝前后的证明同时比较真实解密字节、完整公开 ACL 表示及非秘密属性，主密文文件比较仅作为附加事实；测试持有最初账户绑定并拒绝替换 scope，因此无法用读取另一个未变化条目来掩盖目标的修改。 */
-    NSDictionary *unchanged(NSDictionary *request) {
-        require(created && baselineAccount && [baselineAccount isEqual:account(request)]);
+    NSDictionary *unchanged(NSDictionary *request, DiagnosticGate *gate = nullptr) {
+        DiagnosticGate::step(gate, NativeSubstage::UNCHANGED_GUARD);
+        require(DiagnosticGate::predicate(gate, created && baselineAccount && [baselineAccount isEqual:account(request)]));
         Secret current;
-        inspect(request, current);
-        const ItemSnapshot state = snapshot(request);
+        inspect(request, current, gate);
+        const ItemSnapshot state = snapshot(request, gate);
         return @{@"ok": @YES, @"valueUnchanged": @(current.bytes == baselineValue.bytes),
             @"aclUnchanged": @(state.policy == baselineState.policy),
             @"attributesUnchanged": @([state.attributes isEqualToDictionary:baselineState.attributes]),
-            @"primaryCiphertextUnchanged": @(baseline == ciphertext(path))};
+            @"primaryCiphertextUnchanged": @(baseline == ciphertext(path, gate))};
     }
 
     /** 系统拒绝观察仅用于控制器可读取而 helper 被拒绝的既有基线条目，启动前后独立查询控制器持有存储的真实解锁状态；私有端须证明实际读调用及前后解锁，随后核对正常退出与原值、公开 ACL 和属性均未变化。 */
     NSDictionary *readDenial(NSDictionary *request) {
-        require(created && controllerReader && baselineAccount && [baselineAccount isEqual:account(request)]);
+        DiagnosticGate observation(NativeOperation::READ_DENIAL);
+        DiagnosticGate *gate = &observation;
+        require(DiagnosticGate::predicate(gate, created && controllerReader && baselineAccount && [baselineAccount isEqual:account(request)]));
         SecKeychainStatus before = 0, after = 0;
-        require(SecKeychainGetStatus(store.value, &before) == errSecSuccess && (before & kSecUnlockStateStatus));
+        DiagnosticGate::step(gate, NativeSubstage::STATUS_BEFORE);
+        require(DiagnosticGate::status(gate, SecKeychainGetStatus(store.value, &before)) == errSecSuccess && (before & kSecUnlockStateStatus));
+        DiagnosticGate::step(gate, NativeSubstage::HELPER_START);
         auto child = start(@{@"frame": [NSString stringWithFormat:@"V1 get %@ %@\n", request[@"profile"], request[@"version"]]}, false, false, true);
         const auto deadline = Clock::now() + std::chrono::milliseconds(3500);
-        child->event('U', deadline);
-        child->event('D', deadline);
-        child->event('U', deadline);
+        DiagnosticGate::step(gate, NativeSubstage::EVENT_BEFORE);
+        child->event('U', deadline, gate);
+        DiagnosticGate::step(gate, NativeSubstage::EVENT_DENIED);
+        child->event('D', deadline, gate);
+        DiagnosticGate::step(gate, NativeSubstage::EVENT_AFTER);
+        child->event('U', deadline, gate);
+        DiagnosticGate::step(gate, NativeSubstage::HELPER_COLLECT);
         child->collect(deadline);
-        require(child->code() == 0 && child->equals("V1 failed\n"));
-        require(SecKeychainGetStatus(store.value, &after) == errSecSuccess && (after & kSecUnlockStateStatus));
-        NSDictionary *proof = unchanged(request);
-        return @{@"ok": @YES, @"readAttempted": @YES, @"osDenied": @YES,
+        DiagnosticGate::step(gate, NativeSubstage::HELPER_FRAME);
+        require(DiagnosticGate::predicate(gate, child->code() == 0 && child->equals("V1 failed\n")));
+        DiagnosticGate::step(gate, NativeSubstage::STATUS_AFTER);
+        require(DiagnosticGate::status(gate, SecKeychainGetStatus(store.value, &after)) == errSecSuccess && (after & kSecUnlockStateStatus));
+        NSDictionary *proof = unchanged(request, gate);
+        NSDictionary *result = @{@"ok": @YES, @"readAttempted": @YES, @"osDenied": @YES,
             @"helperUnlockedBefore": @YES, @"helperUnlockedAfter": @YES,
             @"controllerUnlockedBefore": @YES, @"controllerUnlockedAfter": @YES,
             @"exitConfirmed": @YES, @"classifiedFailed": @YES,
             @"valueUnchanged": proof[@"valueUnchanged"], @"aclUnchanged": proof[@"aclUnchanged"],
             @"attributesUnchanged": proof[@"attributesUnchanged"]};
+        observation.pass();
+        return result;
     }
 
     /** 权限拒绝负例使用真正的私有钥匙串条目，模板以测试 helper 身份创建后仅在夹具中增加或替换受测权限；生产程序永远不能调用这些修改入口，拒绝后的检查比较整个持久密文文件而不修复被拒绝的条目。 */
     void seed(NSDictionary *request) {
-        require(created);
+        DiagnosticGate observation(NativeOperation::SEED);
+        DiagnosticGate *gate = &observation;
+        require(DiagnosticGate::predicate(gate, created));
+        DiagnosticGate::step(gate, NativeSubstage::ACCOUNT);
         NSString *name = account(request);
+        DiagnosticGate::step(gate, NativeSubstage::KEY);
         NSData *key = [[NSData alloc] initWithBase64EncodedString:request[@"key"] options:0];
-        require(key.length == 32);
+        require(DiagnosticGate::predicate(gate, key.length == 32));
+        DiagnosticGate::step(gate, NativeSubstage::POLICY);
         NSString *policy = request[@"policy"];
-        require([@[@"broad", @"empty", @"any", @"second", @"owner", @"mixed", @"unknown", @"denied"] containsObject:policy]);
+        require(DiagnosticGate::predicate(gate, [@[@"broad", @"empty", @"any", @"second", @"owner", @"mixed", @"unknown", @"denied"] containsObject:policy]));
         Owned<SecTrustedApplicationRef> application;
-        require(SecTrustedApplicationCreateFromPath([policy isEqual:@"denied"] ? nullptr : helper.c_str(), &application.value) == errSecSuccess);
+        DiagnosticGate::step(gate, NativeSubstage::TRUSTED);
+        require(DiagnosticGate::status(gate, SecTrustedApplicationCreateFromPath([policy isEqual:@"denied"] ? nullptr : helper.c_str(), &application.value)) == errSecSuccess);
         const void *value = application.value;
+        DiagnosticGate::step(gate, NativeSubstage::ARRAY);
         Owned<CFArrayRef> applications(CFArrayCreate(nullptr, &value, 1, &kCFTypeArrayCallBacks));
         Owned<SecAccessRef> access;
-        require(SecAccessCreate(CFSTR("VeriQ Runtime Vault v1"), applications.value, &access.value) == errSecSuccess);
+        DiagnosticGate::step(gate, NativeSubstage::ACCESS);
+        require(DiagnosticGate::status(gate, SecAccessCreate(CFSTR("VeriQ Runtime Vault v1"), applications.value, &access.value)) == errSecSuccess);
         if (![policy isEqual:@"denied"]) {
             Owned<SecACLRef> extra;
             Owned<SecTrustedApplicationRef> other;
             Owned<CFArrayRef> principals;
             if ([policy isEqual:@"second"]) {
-                require(SecTrustedApplicationCreateFromPath(nullptr, &other.value) == errSecSuccess);
+                DiagnosticGate::step(gate, NativeSubstage::EXTRA_TRUSTED);
+                require(DiagnosticGate::status(gate, SecTrustedApplicationCreateFromPath(nullptr, &other.value)) == errSecSuccess);
                 const void *principal = other.value;
+                DiagnosticGate::step(gate, NativeSubstage::EXTRA_ARRAY);
                 principals.value = CFArrayCreate(nullptr, &principal, 1, &kCFTypeArrayCallBacks);
-                require(principals.value);
+                require(DiagnosticGate::predicate(gate, principals.value));
             }
-            require(SecACLCreateWithSimpleContents(access.value, principals.value, CFSTR("VeriQ Runtime Vault v1"), 0, &extra.value) == errSecSuccess);
+            DiagnosticGate::step(gate, NativeSubstage::ACL);
+            require(DiagnosticGate::status(gate, SecACLCreateWithSimpleContents(access.value, principals.value, CFSTR("VeriQ Runtime Vault v1"), 0, &extra.value)) == errSecSuccess);
             CFArrayRef rights = (__bridge CFArrayRef)@[(__bridge id)kSecACLAuthorizationDecrypt];
             if ([policy isEqual:@"empty"]) rights = (__bridge CFArrayRef)@[];
             if ([policy isEqual:@"any"]) rights = (__bridge CFArrayRef)@[(__bridge id)kSecACLAuthorizationAny];
             if ([policy isEqual:@"owner"]) rights = (__bridge CFArrayRef)@[(__bridge id)kSecACLAuthorizationChangeACL];
             if ([policy isEqual:@"mixed"]) rights = (__bridge CFArrayRef)@[(__bridge id)kSecACLAuthorizationDecrypt, (__bridge id)kSecACLAuthorizationKeychainItemRead];
             if ([policy isEqual:@"unknown"]) rights = (__bridge CFArrayRef)@[@"VERIQ_UNKNOWN_RIGHT"];
-            require(SecACLUpdateAuthorizations(extra.value, rights) == errSecSuccess);
+            DiagnosticGate::step(gate, NativeSubstage::AUTH);
+            require(DiagnosticGate::status(gate, SecACLUpdateAuthorizations(extra.value, rights)) == errSecSuccess);
         }
         NSDictionary *query = @{(__bridge id)kSecClass: (__bridge id)kSecClassGenericPassword,
             (__bridge id)kSecAttrService: @"VeriQ/RuntimeVault/v1", (__bridge id)kSecAttrAccount: name,
             (__bridge id)kSecUseKeychain: (__bridge id)store.value, (__bridge id)kSecAttrAccess: (__bridge id)access.value,
             (__bridge id)kSecValueData: key};
-        require(SecItemAdd((__bridge CFDictionaryRef)query, nullptr) == errSecSuccess);
+        DiagnosticGate::step(gate, NativeSubstage::ADD);
+        require(DiagnosticGate::status(gate, SecItemAdd((__bridge CFDictionaryRef)query, nullptr)) == errSecSuccess);
         controllerReader = [policy isEqual:@"denied"];
-        inspect(request, baselineValue);
-        require(baselineValue.bytes.size() == key.length && memcmp(baselineValue.bytes.data(), key.bytes, key.length) == 0);
-        baselineState = snapshot(request);
+        inspect(request, baselineValue, gate);
+        DiagnosticGate::step(gate, NativeSubstage::VALUE);
+        require(DiagnosticGate::predicate(gate, baselineValue.bytes.size() == key.length && memcmp(baselineValue.bytes.data(), key.bytes, key.length) == 0));
+        baselineState = snapshot(request, gate);
         baselineAccount = name;
-        baseline = ciphertext(path);
+        baseline = ciphertext(path, gate);
+        observation.pass();
     }
     /** 单条负例的移除限定当前自有存储与固定产品服务，并重新验证账户作用域，避免循环测试中残留上一个被拒绝条目；这是控制器的夹具清理能力，生产 helper 仍须通过完整 ACL 验证才能执行自己的删除。 */
     void remove(NSDictionary *request) {

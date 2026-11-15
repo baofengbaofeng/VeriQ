@@ -424,3 +424,374 @@ for (const operation of [
         }
     });
 }
+
+/** 原生操作使用独立 OP 命名空间保存当前子阶段，不能借用 Node 的命令序号或 helper 退出字段；这些样本直接经过流过滤、概要导出与工作流收集，记录缺失只表示尚未观察而不推断任何系统调用结果。 */
+const seedStages = [
+    "input",
+    "account",
+    "key",
+    "policy",
+    "trusted",
+    "array",
+    "access",
+    "extra-trusted",
+    "extra-array",
+    "acl",
+    "auth",
+    "add",
+    "helper-start",
+    "helper-collect",
+    "helper-frame",
+    "helper-decode",
+    "read",
+    "read-type",
+    "value",
+    "snapshot-match",
+    "snapshot-shape",
+    "snapshot-item",
+    "snapshot-access",
+    "snapshot-export",
+    "cipher-open",
+    "cipher-stat",
+    "cipher-read",
+];
+const denialStages = [
+    "baseline",
+    "status-before",
+    "helper-start",
+    "event-before",
+    "event-denied",
+    "event-after",
+    "helper-collect",
+    "helper-frame",
+    "status-after",
+    "unchanged-guard",
+    "read",
+    "read-type",
+    "snapshot-match",
+    "snapshot-shape",
+    "snapshot-item",
+    "snapshot-access",
+    "snapshot-export",
+    "cipher-open",
+    "cipher-stat",
+    "cipher-read",
+];
+const nativeRecord = (
+    nativeOperation = "seed",
+    substage = "input",
+    state = "failed",
+    facts = {},
+) => ({
+    schemaVersion: 1,
+    stage: "OP",
+    state,
+    nativeOperation,
+    substage,
+    ...facts,
+});
+const nativeSummary = (record: unknown) => {
+    const filter = vault.createDarwinDiagnosticFilter();
+    filter.push(frame(record));
+    return filter.finish(1);
+};
+for (const [operation, stages] of [
+    ["seed", seedStages],
+    ["read-denial", denialStages],
+] as const) {
+    test(`native ${operation} substages roundtrip without inferred facts`, () => {
+        for (const substage of stages) {
+            const record = nativeRecord(operation, substage);
+            const summary = nativeSummary(record);
+            assert.equal(summary.rejected, false, substage);
+            assert.deepEqual(summary.records, [record]);
+            assert.deepEqual(collect(summary).fixtures, [summary]);
+            assert.equal(summary.operationContext, undefined);
+        }
+    });
+}
+test("native entered-only remains incomplete with unknown terminal and helper", () => {
+    const filter = vault.createDarwinDiagnosticFilter();
+    filter.operation("read-denial", "UNKNOWN");
+    filter.push(frame(nativeRecord("read-denial", "baseline", "entered")));
+    filter.fail("REFUSED");
+    filter.close(null, "SIGKILL");
+    const summary = filter.finish(1);
+    assert.equal(summary.rejected, false);
+    assert.equal(summary.incomplete, true);
+    assert.equal(summary.records.length, 1);
+    assert.equal(summary.operationContext?.helperExit, "UNKNOWN");
+    assert.equal(summary.operationContext?.shape, "UNKNOWN");
+    assert.deepEqual(collect(summary).fixtures, [summary]);
+});
+
+/** 数值事实只能出现在实际执行对应调用的子阶段，布尔值只对应原谓词而事件分类不携带读到的字节；边界值和可缺失事实均通过真实收集器验证，确保消费者不会用类型强制转换或旧阶段状态补齐未知。 */
+test("native optional returned facts accept exact finite boundaries", () => {
+    const records = [
+        ...[-2147483648, 0, 2147483647].map((osStatus) =>
+            nativeRecord("seed", "trusted", "failed", { osStatus }),
+        ),
+        ...[0, 2147483647].map((errno) => nativeRecord("seed", "cipher-open", "failed", { errno })),
+        ...[false, true].map((predicate) => nativeRecord("seed", "value", "failed", { predicate })),
+        ...["poll-error", "read-error"].map((eventFailure) =>
+            nativeRecord("read-denial", "event-denied", "failed", { eventFailure, errno: 5 }),
+        ),
+        ...["eof", "marker", "deadline"].map((eventFailure) =>
+            nativeRecord("read-denial", "event-before", "failed", { eventFailure }),
+        ),
+        nativeRecord("seed", "done", "passed"),
+        nativeRecord("read-denial", "done", "passed"),
+    ];
+    for (const record of records) {
+        const summary = nativeSummary(record);
+        assert.equal(summary.rejected, false);
+        assert.deepEqual(summary.records, [record]);
+        assert.deepEqual(collect(summary).fixtures, [summary]);
+    }
+});
+test("native codec rejects incompatible states stages facts and coerced values", () => {
+    const invalid = [
+        nativeRecord("run"),
+        nativeRecord("seed", "baseline"),
+        nativeRecord("read-denial", "add"),
+        nativeRecord("seed", "SECRET_CANARY"),
+        nativeRecord("seed", "trusted", "entered"),
+        nativeRecord("seed", "input", "passed"),
+        nativeRecord("seed", "done", "failed"),
+        nativeRecord("seed", "input", "entered", { predicate: true }),
+        nativeRecord("seed", "done", "passed", { osStatus: 0 }),
+        nativeRecord("seed", "trusted", "failed", { errno: 5 }),
+        nativeRecord("seed", "cipher-open", "failed", { osStatus: 0 }),
+        nativeRecord("seed", "value", "failed", { predicate: 1 }),
+        nativeRecord("seed", "access", "failed", { predicate: true }),
+        nativeRecord("seed", "trusted", "failed", { osStatus: "0" }),
+        ...[null, 2147483648, -2147483649, 0.5].map((osStatus) =>
+            nativeRecord("seed", "trusted", "failed", { osStatus }),
+        ),
+        ...[-1, 2147483648, "5", null].map((errno) =>
+            nativeRecord("seed", "cipher-read", "failed", { errno }),
+        ),
+        nativeRecord("read-denial", "event-after", "failed", { eventFailure: "poll-error" }),
+        nativeRecord("read-denial", "event-after", "failed", { eventFailure: "eof", errno: 0 }),
+        nativeRecord("read-denial", "event-after", "failed", { errno: 5 }),
+        nativeRecord("read-denial", "event-after", "failed", { eventFailure: "SECRET_CANARY" }),
+        nativeRecord("seed", "helper-collect", "failed", { eventFailure: "deadline" }),
+        nativeRecord("seed", "input", "failed", { created: true }),
+        nativeRecord("seed", "input", "failed", { provenance: "CONTROLLER" }),
+        nativeRecord("seed", "input", "failed", { helperExit: 2 }),
+        { schemaVersion: 1, stage: "OP", state: "failed" },
+        { ...nativeRecord(), stage: "KEYCHAIN_STAT" },
+        { ...nativeRecord(), nativeOperation: null },
+    ];
+    const legacy = vault.createDarwinDiagnosticFilter().finish(1);
+    for (const record of invalid) {
+        const summary = nativeSummary(record);
+        assert.equal(summary.rejected, true, JSON.stringify(record));
+        assert.deepEqual(summary.records, []);
+        const output = collect({ ...legacy, records: [record] });
+        assert.equal(output.rejected, true, JSON.stringify(record));
+        assert.deepEqual(output.fixtures, []);
+        assert.ok(!JSON.stringify(output).includes("SECRET_CANARY"));
+    }
+});
+
+/** 原生失败与 Node 正文和清理事实各自保留，最后一次成功操作不得借用前一阶段的状态码；这里用实际导出结果检查字段缺失与标准重建次序，同时确认诊断观察没有把合法领域拒绝转换成 helper 故障。 */
+test("native facts remain separate from primary body secondary cleanup and canonical output", () => {
+    const filter = vault.createDarwinDiagnosticFilter();
+    filter.push(frame(nativeRecord("seed", "input", "entered")));
+    const failed = nativeRecord("seed", "acl", "failed", { osStatus: -25293 });
+    filter.push(frame(Object.fromEntries(Object.entries(failed).reverse())));
+    filter.operation("seed", "UNKNOWN");
+    filter.fail("REFUSED");
+    filter.nodeCase({
+        bodyStatus: "FAILED",
+        cleanupStatus: "FAILED",
+        wipeStatus: "PASSED",
+        primary: "BODY",
+        secondary: "CLEANUP",
+    });
+    filter.operation("cleanup", "UNKNOWN");
+    filter.fail("CLOSED");
+    filter.close(null, "SIGKILL");
+    const summary = filter.finish(1);
+    assert.equal(summary.rejected, false);
+    assert.equal(summary.firstFailure, "REFUSED");
+    assert.equal(summary.operationContext?.operation, "seed");
+    assert.equal(summary.operationContext?.helperExit, "UNKNOWN");
+    assert.equal(summary.nodeCase?.secondary, "CLEANUP");
+    assert.deepEqual(collect(summary).fixtures, [summary]);
+    assert.equal(JSON.stringify(summary.records[1]), JSON.stringify(failed));
+    const fresh = nativeSummary(nativeRecord("seed", "helper-frame"));
+    assert.equal(fresh.rejected, false);
+    assert.deepEqual(Object.keys(fresh.records[0]!), [
+        "schemaVersion",
+        "stage",
+        "state",
+        "nativeOperation",
+        "substage",
+    ]);
+});
+test("native privacy rejects every unapproved field on both codec paths", () => {
+    const legacy = vault.createDarwinDiagnosticFilter().finish(1);
+    for (const key of [
+        "config",
+        "key",
+        "value",
+        "password",
+        "uuid",
+        "account",
+        "principal",
+        "path",
+        "helperText",
+        "error",
+        "uid",
+        "gid",
+        "mode",
+        "env",
+        "frame",
+    ]) {
+        const record = nativeRecord("seed", "input", "failed", { [key]: "SECRET_CANARY" });
+        const summary = nativeSummary(record);
+        assert.equal(summary.rejected, true);
+        assert.ok(!JSON.stringify(summary).includes("SECRET_CANARY"));
+        const output = collect({ ...legacy, records: [record] });
+        assert.equal(output.rejected, true);
+        assert.ok(!JSON.stringify(output).includes("SECRET_CANARY"));
+    }
+});
+
+/** 两个健康专用用例分别增加十六条和四条观察，旧创建清理记录与最大有限概要一起经过共享预算；这里只证明合成记录的编码上限，不代表 Objective-C++ 生产者或真实钥匙串操作已经在本机执行。 */
+test("native legal worst case70 and case58 fit unchanged fixture and job caps", () => {
+    const stages = [
+        "STARTUP",
+        "NO_UI",
+        "RECEIVE",
+        "CREATE_STATE",
+        "LIVE_UID_LOGIN",
+        "LIVE_SECURITY_SESSION",
+        "LIVE_SESSION_BITS",
+        "ATTEST_DISPOSABLE",
+        "ATTEST_ACK",
+        "ATTEST_UID",
+        "ATTEST_LOGIN",
+        "ATTEST_SESSION",
+        "HELPER_REALPATH",
+        "HELPER_NAME",
+        "HELPER_STAT",
+        "RANDOM",
+        "DIRECTORY",
+        "DIRECTORY_BIND",
+        "KEYCHAIN_CREATE",
+        "KEYCHAIN_PATH",
+        "KEYCHAIN_BIND",
+        "KEYCHAIN_MODE",
+        "KEYCHAIN_IDENTITY",
+        "KEYCHAIN_STAT",
+        "CREATE_REPLY",
+        "CLEANUP_DELETE",
+        "CLEANUP_DIRECTORY",
+    ];
+    const summaries = [1, 2].map((fixture) => {
+        const filter = vault.createDarwinDiagnosticFilter();
+        let nativeBytes = 0;
+        const push = (record: object) => {
+            const bytes = frame(record);
+            assert.ok(bytes.length <= 512);
+            nativeBytes += bytes.length;
+            filter.push(bytes);
+        };
+        for (const stage of stages) {
+            push({
+                schemaVersion: 1,
+                stage,
+                state: "entered",
+                ...(["CREATE_STATE", "KEYCHAIN_CREATE", "CLEANUP_DELETE"].includes(stage)
+                    ? { created: true, storeReferencePresent: true }
+                    : {}),
+            });
+            push({
+                schemaVersion: 1,
+                stage,
+                state: "passed",
+                ...([
+                    "NO_UI",
+                    "LIVE_SECURITY_SESSION",
+                    "RANDOM",
+                    "KEYCHAIN_CREATE",
+                    "KEYCHAIN_PATH",
+                    "CLEANUP_DELETE",
+                ].includes(stage)
+                    ? { osStatus: 0 }
+                    : {}),
+                ...(["CREATE_STATE", "KEYCHAIN_CREATE", "CLEANUP_DELETE"].includes(stage)
+                    ? { created: true, storeReferencePresent: true }
+                    : {}),
+                ...(stage === "KEYCHAIN_STAT"
+                    ? { regularFile: true, ownerMatches: true, privateMode: true }
+                    : {}),
+            });
+        }
+        for (let index = 0; index < (fixture === 1 ? 8 : 2); index++) {
+            const operation = fixture === 2 && index === 1 ? "read-denial" : "seed";
+            push(nativeRecord(operation, operation === "seed" ? "input" : "baseline", "entered"));
+            // 最长失败终态用于预算压力，即使真实健康终态只含 done，仍须在原预算内保留全部记录而不能依赖正常输出较短来掩盖失败时的截断或事实丢失。
+            push(
+                operation === "seed"
+                    ? nativeRecord(operation, "snapshot-access", "failed", {
+                          osStatus: -2147483648,
+                      })
+                    : nativeRecord(operation, "event-denied", "failed", {
+                          eventFailure: "poll-error",
+                          errno: 2147483647,
+                      }),
+            );
+        }
+        for (let index = 0; index < 65535; index++) filter.operation("read-denial", "UNKNOWN");
+        filter.fail("EXIT_UNCONFIRMED");
+        filter.nodeCase({
+            bodyStatus: "FAILED",
+            cleanupStatus: "FAILED",
+            wipeStatus: "FAILED",
+            primary: "BODY",
+            secondary: "WIPE_AND_CLEANUP",
+        });
+        filter.close(null, "SIGSEGV");
+        const summary = filter.finish(fixture);
+        assert.equal(summary.rejected, false);
+        assert.equal(summary.incomplete, false);
+        assert.equal(summary.records.length, fixture === 1 ? 70 : 58);
+        assert.ok(nativeBytes <= 8192);
+        assert.ok(Buffer.byteLength(JSON.stringify(summary)) <= 8192);
+        assert.deepEqual(collect(summary).fixtures, [summary]);
+        console.log(
+            JSON.stringify({
+                fixture,
+                nativeBytes,
+                summaryBytes: Buffer.byteLength(JSON.stringify(summary)),
+                records: summary.records.length,
+            }),
+        );
+        return summary;
+    });
+    const output = vault.collectDarwinDiagnostics(
+        summaries.map((summary) =>
+            Buffer.from("VERIQ_D1_DIAGNOSTICS " + JSON.stringify(summary) + "\n"),
+        ),
+    );
+    assert.equal(output.rejected, false);
+    assert.equal(output.fixtures.length, 2);
+    assert.ok(Buffer.byteLength(JSON.stringify(output.fixtures)) <= 16384);
+});
+
+/** 不同原生操作的边界必须独立结算，后到的 seed 终态不能闭合先前缺失的拒绝观察终态；创建阶段也不能闭合操作阶段，因此进程突然退出后即使出现其他合法记录仍然明确保留不完整事实。 */
+test("native terminal cannot close another operation entered boundary", () => {
+    const filter = vault.createDarwinDiagnosticFilter();
+    filter.push(frame(nativeRecord("read-denial", "baseline", "entered")));
+    filter.push(frame(nativeRecord("seed", "done", "passed")));
+    filter.push(frame({ schemaVersion: 1, stage: "CLEANUP_DELETE", state: "passed" }));
+    filter.close(0, null);
+    const summary = filter.finish(1);
+    assert.equal(summary.rejected, false);
+    assert.equal(summary.incomplete, true);
+    assert.deepEqual(collect(summary).fixtures, [summary]);
+});
