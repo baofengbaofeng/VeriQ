@@ -585,6 +585,8 @@ assert production_starts_without_node_or_chrome is True
 
 **2026-11-14范围修订：** macOS Intel x64、Apple Silicon arm64均为MVP最高优先级；Windows11 x64、Ubuntu24.04 x64保留、优先级较低。Mac最低系统已确认为macOS15（Sequoia），测试必须用宿主原生Chrome；Mac已确认受控Worker/Chrome退出、未知隔离和人工恢复，按[停止子计划](macos-controlled-stop.md)实施；Linux/Windows现有全后代停止保证及凭据/离网验收标准保留；Mac按明确的受控范围验收。已有Windows/Linux证据继续保留，不能映射为Mac通过。
 
+**当前切片状态（2026-11-15）：** 静态输入、归档及完整stage组件已复审；固定官方资产获取与观测工具`c84f0a7`及修复`7aa8c65`/`0a370cc`已通过源码定向复审。真实双Mac首轮`4f1a326`获取通过，观测因未完成异步等待失败；小制品已核验，普通16385字节成员已本地复现，`8ecf4c0`修复512字节解析进度与成员等待互等，受影响三个suite143项及原审查代理定向复审通过；第二轮`656f189`的双Mac获取继续通过，观测已明确返回不支持格式并确认清理，`1bff4ca`补齐12处首拒诊断，183项受影响回归及原审查代理复审通过，全部准入谓词/API/清理未变；仍需真实双Mac采集定位实际谓词，再完成原ZIP模式/Framework审核。之后继续真实生产闭包、搬移执行及Electron装载/安装验收。源码组件完成不提前勾选整T20，完整状态见[里程碑](milestones.md)。
+
 **Files：** apps/desktop/electron-builder.yml；scripts/build_runtime.mjs；tests/compatibility/process-names.spec.ts；docs/operations/runtime-install.md；对应CI工作流。
 
 **Interfaces：** 桌面入口veriq，后台veriq_agent，执行veriq_runner；CLI可veriq_cli；固定Node24执行引擎独立于Electron内置Node。
@@ -626,6 +628,8 @@ assert incompatible_rollback_is_rejected is True
 - [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t20 安装、升级、备份恢复与观测`。有新决策先更新ADR，不扩展到下一任务。
 
 ## T22：全模块用户体验、示例与接入文档
+
+**独立前置整改状态（2026-11-15）：** D14注释坐标由`e4a8cf6`及`c1b43c6`修复，28项真实行为测试、原审查代理定向复审通过；保留Node原始换行/码点映射和Python通用物理换行。`f35fb6b`随后完成十文件102处按钮类型注解，专项规则/类型/格式及独立复审通过（20 submit/82 button，原6处保留）。全仓B05>40%仍未通过，语言覆盖/解析政策、其余43项历史Web lint及完整UX/示例等余项未完成，不提前计整T22验收。
 
 **依赖：** T11/T12/T13/T15/T16/T19/T21
 

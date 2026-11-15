@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { Pax } from "tar";
+import { Header, Pax } from "tar";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { mkdtemp, rm, readFile, lstat, readdir, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -558,3 +558,566 @@ for (const basename of [".framework", "Named.framework"])
             await rm(output, { recursive: true, force: true });
         }
     });
+
+/** 自包含回归在真正独立的 Node 子进程等待生产 tar 消费者自然结束，父级期限只把卡住分类为失败而不充当完成事件；夹具使用成熟 tar 编码器与真实摘要，每次仅拥有一个小归档并在进程已结束后删除，绝不借私有证据或伪造官方身份。 */
+async function naturalTarChild(
+    size: number,
+    scenario: "ordinary" | "low-compressible" | "cancel" | "member-error" | "zero-tail",
+) {
+    const { spawnSync } = await import("node:child_process"),
+        { statfs } = await import("node:fs/promises");
+    const root = await mkdtemp(join(tmpdir(), "veriq-natural-tar-"));
+    try {
+        const space = await statfs(root, { bigint: true });
+        assert.ok(space.bavail * space.bsize > 40n * 1024n ** 2n);
+        const moduleUrl = (name: string) => new URL(`../scripts/${name}.ts`, import.meta.url).href;
+        const code = `import ${JSON.stringify(moduleUrl("runtime-payload-inputs"))};
+import { RuntimePayloadError } from ${JSON.stringify(moduleUrl("runtime-payload-inputs"))};
+import { ArchiveTransaction } from ${JSON.stringify(moduleUrl("runtime-payload-transaction"))};
+import { ArchiveScan, ArchiveBudget } from ${JSON.stringify(moduleUrl("runtime-payload-archive"))};
+import { scanTar } from ${JSON.stringify(moduleUrl("runtime-payload-tar"))};
+import { tarBytes } from ${JSON.stringify(new URL("./fixtures/runtime-payload-archives.ts", import.meta.url).href)};
+import { createHash } from "node:crypto";
+import { mkdir, writeFile, lstat, opendir, readFile } from "node:fs/promises";
+import { join } from "node:path";
+const root=${JSON.stringify(root)}, size=${size}, scenario=${JSON.stringify(scenario)}, top="node-v24.22.1-darwin-x64";
+const hash=bytes=>createHash("sha256").update(bytes).digest("hex");
+const emit=value=>process.stdout.write(JSON.stringify(value)+"\\n");let phase="PREPARE",reported=false;
+process.on("beforeExit",()=>{if(!reported){reported=true;emit({event:"BEFORE_EXIT",phase});}});
+if(!/^24\\./.test(process.versions.node))throw Error("NODE24_REQUIRED");
+let body="a".repeat(size);
+if(scenario==="low-compressible"){const chunks=[];for(let i=0,n=0;n<size;i++,n+=64)chunks.push(hash(Buffer.from("veriq-tar-boundary:"+i)));body=chunks.join("").slice(0,size);}
+const bodyBytes=Buffer.from(body),archive=tarBytes([{path:top+"/empty/",kind:"directory"},{path:top+"/payload",body},{path:top+"/after",body:"tail"}],Buffer.alloc(scenario==="zero-tail"?1031:1024));
+if(bodyBytes.length>1024**2||archive.length>512*1024||(scenario==="low-compressible"&&archive.length<=65536))throw Error("FIXTURE_BOUND");
+const input=join(root,"input"),output=join(root,"output");await mkdir(input,{mode:0o700});await mkdir(output,{mode:0o700});await writeFile(join(input,"node.tar.gz"),archive,{mode:0o600});
+const controller=new AbortController(),tx=new ArchiveTransaction(input,output,"candidate",controller.signal),ref={path:"node.tar.gz",sizeBytes:archive.length,sha256:hash(archive)};
+await tx.initialize();await tx.observeRefs([ref]);await tx.plan(archive.length+bodyBytes.length+4096,4);
+phase="SNAPSHOT";await tx.snapshot(ref,"snapshots/node.tar.gz");await tx.audit();emit({event:"SNAPSHOT_DONE",archiveBytes:archive.length,archiveSha256:ref.sha256,node:process.versions.node});
+const budget=new ArchiveBudget(),scan=new ArchiveScan("node",top,tx,budget);
+if(scenario==="cancel"||scenario==="member-error"){
+    const actual=scan.entry.bind(scan);let injected=false;
+    scan.entry=(entry,chunks)=>actual(entry,(async function*(){for await(const chunk of chunks){if(!injected&&entry.path===top+"/payload"){injected=true;if(scenario==="cancel")controller.abort();else throw new RuntimePayloadError("PAYLOAD_IO","ENOSPC");}yield chunk;}})());
+}
+try{
+    phase="SCAN";emit({event:"SCAN_BEGIN"});const streamBytes=await scanTar(join(tx.scratch,"snapshots/node.tar.gz"),scan);
+    if(scenario==="cancel"||scenario==="member-error")throw Error("EXPECTED_REJECTION");
+    const member=scan.members.find(m=>m.path===top+"/payload");
+    if(scan.members.length!==3||member?.kind!=="file"||member.sizeBytes!==size||member.sha256!==hash(bodyBytes))throw Error("MEMBER_MISMATCH");
+    emit({event:"SCAN_DONE",streamBytes,member});
+    phase="SECOND_SCAN";await scanTar(join(tx.scratch,"snapshots/node.tar.gz"),new ArchiveScan("node",top,tx,budget,scan));await tx.audit();
+    if(hash(await readFile(join(tx.scratch,"trees/node",top,"payload")))!==hash(bodyBytes))throw Error("SECOND_PASS_MISMATCH");
+    let allocated=0;const walk=async path=>{const info=await lstat(path,{bigint:true});allocated+=Number(info.blocks*512n);if(info.isDirectory()){const dir=await opendir(path);for await(const entry of dir)await walk(join(path,entry.name));}};await walk(root);if(allocated>2*1024**2)throw Error("ALLOCATION_BOUND");
+    phase="CLEANUP";const cleanup=await tx.cleanup();if(cleanup!=="CONFIRMED")throw Error("CLEANUP_UNCONFIRMED");phase="DONE";emit({event:"RESULT",members:scan.members.length,bodySha256:hash(bodyBytes),bodyBytes:size,archiveBytes:archive.length,allocated,cleanup});
+}catch(error){
+    const expected=scenario==="cancel"?"PAYLOAD_CANCELLED":scenario==="member-error"?"PAYLOAD_IO":null,cleanup=await tx.cleanup();
+    if(error.code!==expected||cleanup!=="CONFIRMED"||(scenario==="member-error"&&error.causeCode!=="ENOSPC"))throw error;
+    phase="REJECTED";emit({event:"EXPECTED_REJECT",code:error.code,causeCode:error.causeCode,cleanup});
+}
+`;
+        const environment = { ...process.env };
+        delete environment.NODE_TEST_CONTEXT;
+        const result = spawnSync(
+            process.execPath,
+            ["--import", "tsx", "--input-type=module", "-e", code],
+            {
+                cwd: new URL("../", import.meta.url),
+                env: environment,
+                encoding: "utf8",
+                timeout: 15000,
+                maxBuffer: 65536,
+            },
+        );
+        assert.ok(
+            !result.error,
+            `Parent watchdog or child launch failed: ${result.error?.message}`,
+        );
+        assert.equal(
+            result.status,
+            0,
+            `Natural child exit=${result.status}\n${result.stdout}\n${result.stderr}`,
+        );
+        assert.equal(result.signal, null);
+        assert.equal(result.stderr, "");
+        const records = result.stdout
+            .trim()
+            .split("\n")
+            .map((line) => JSON.parse(line) as Record<string, unknown>);
+        assert.ok(records.some((row) => row.event === "SNAPSHOT_DONE"));
+        if (scenario === "cancel" || scenario === "member-error")
+            assert.ok(
+                records.some(
+                    (row) => row.event === "EXPECTED_REJECT" && row.cleanup === "CONFIRMED",
+                ),
+            );
+        else {
+            assert.ok(records.some((row) => row.event === "SCAN_DONE"));
+            assert.ok(
+                records.some(
+                    (row) =>
+                        row.event === "RESULT" &&
+                        row.members === 3 &&
+                        row.bodyBytes === size &&
+                        row.cleanup === "CONFIRMED",
+                ),
+            );
+        }
+        assert.equal(
+            records.at(-1)?.phase,
+            scenario === "cancel" || scenario === "member-error" ? "REJECTED" : "DONE",
+        );
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+}
+for (const size of [0, 1, 16383, 16384, 16385, 65535, 65536, 65537])
+    test(`tar natural child boundary ${size}`, async () => naturalTarChild(size, "ordinary"));
+test("tar natural child compressed reads cross64KiB", async () =>
+    naturalTarChild(524301, "low-compressible"));
+for (const scenario of ["cancel", "member-error"] as const)
+    test(`tar natural child settles waiting producer ${scenario}`, async () =>
+        naturalTarChild(65537, scenario));
+
+test("tar natural child retains permitted partial zero tail", async () =>
+    naturalTarChild(16385, "zero-tail"));
+
+/** 新诊断回归只给真实事务写入一个微型归档，再消费实际 tar 或 ZIP 扫描器的失败对象；空间与分配均在独占目录核验，最后先确认事务关闭再删除夹具，不借用官方身份或执行任何归档成员。 */
+async function rejectionFixture(
+    archive: Buffer,
+    kind: "node" | "chrome",
+    inspect: (error: RuntimePayloadError) => void,
+) {
+    const { statfs } = await import("node:fs/promises"),
+        { ArchiveTransaction } = await import("../scripts/runtime-payload-transaction.ts"),
+        { ArchiveScan, ArchiveBudget } = await import("../scripts/runtime-payload-archive.ts"),
+        { scanTar } = await import("../scripts/runtime-payload-tar.ts"),
+        { scanZip } = await import("../scripts/runtime-payload-zip.ts");
+    const base = await mkdtemp(join(tmpdir(), "veriq-rejection-"));
+    const root = join(base, "input"),
+        output = join(base, "output");
+    await mkdir(root, { mode: 0o700 });
+    await mkdir(output, { mode: 0o700 });
+    const tx = new ArchiveTransaction(root, output, "candidate");
+    try {
+        const free = await statfs(base);
+        assert.ok(free.bavail * free.bsize > 40 * 1024 ** 2);
+        assert.ok(archive.length <= 1024 ** 2);
+        await tx.initialize();
+        tx.phase = "INTAKE";
+        const stream = async function* () {
+            yield archive;
+        };
+        const ref = await tx.write("snapshots/input", stream());
+        await tx.audit();
+        const scan = new ArchiveScan(kind, "top", tx, new ArchiveBudget());
+        await assert.rejects(
+            kind === "node"
+                ? scanTar(join(tx.scratch, ref.path), scan)
+                : scanZip(join(tx.scratch, ref.path), scan, ref.sizeBytes),
+            (error: unknown) => {
+                assert.ok(error instanceof RuntimePayloadError);
+                assert.equal(error.code, "PAYLOAD_ARCHIVE_UNSUPPORTED");
+                inspect(error);
+                return true;
+            },
+        );
+        const allocated = async (path: string): Promise<number> => {
+            const info = await lstat(path);
+            let bytes = info.blocks * 512;
+            if (info.isDirectory())
+                for (const name of await readdir(path)) bytes += await allocated(join(path, name));
+            return bytes;
+        };
+        assert.ok((await allocated(base)) <= 2 * 1024 ** 2);
+    } finally {
+        assert.equal(await tx.cleanup(), "CONFIRMED");
+        await rm(base, { recursive: true, force: true });
+    }
+}
+
+/** 三个首要反例分别经过真实 tar 类型拒绝、ZIP 来源类型拒绝及共用权限拒绝，先断言原分类再要求真实错误携带诊断；读取函数的空实现因此是行为缺失红灯，不是导入或测试装载失败。 */
+for (const scenario of ["tar", "zip", "shared"] as const) {
+    test(`archive rejection evidence initial ${scenario}`, async () => {
+        const { archiveRejectionLine } = await import("../scripts/runtime-payload-archive.ts");
+        const archive =
+            scenario === "tar"
+                ? tarBytes([{ path: "top/item", type: "FIFO" }])
+                : zipBytes([
+                      {
+                          path: "top/item",
+                          body: "tiny",
+                          mode: scenario === "shared" ? 0o4755 : 0o644,
+                      },
+                  ]);
+        if (scenario === "zip") {
+            const central = archive.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+            archive[central + 5] = 7;
+        }
+        await rejectionFixture(archive, scenario === "tar" ? "node" : "chrome", (error) => {
+            const line = archiveRejectionLine(error);
+            assert.ok(line, "real unsupported error must carry first-rejection evidence");
+            const event = JSON.parse(line);
+            assert.equal(event.kind, "ASSET_ARCHIVE_REJECTION");
+            assert.equal(
+                event.reason,
+                scenario === "tar"
+                    ? "TAR_ENTRY_TYPE"
+                    : scenario === "zip"
+                      ? "ZIP_HOST_TYPE"
+                      : "ENTRY_MODE_SIZE",
+            );
+            assert.equal(event.memberIndex, scenario === "tar" ? null : 1);
+        });
+    });
+}
+
+/** 每个元数据反例保留成熟编码器生成的真实头和精确正文，并将实际拒绝事件与这些独立字节核对；PAX 值与往返边界使用合法长度记录，不能用损坏校验和或通用格式错误替代目标拒绝。 */
+const rejectionTarCases = [
+    {
+        name: "empty metadata",
+        entry: { path: "meta", type: "ExtendedHeader", body: "" },
+        reason: "TAR_META_EMPTY",
+    },
+    {
+        name: "special mode",
+        entry: { path: "top/item", mode: 0o4755 },
+        reason: "TAR_HEADER_MODE",
+        flag: "modeHigh",
+    },
+    {
+        name: "negative mode",
+        entry: { path: "top/item", mode: -1 },
+        reason: "TAR_HEADER_MODE",
+        flag: "modeNegative",
+    },
+    {
+        name: "missing newline",
+        entry: { path: "meta", type: "ExtendedHeader", body: "12 path=abc" },
+        reason: "TAR_PAX_TEXT",
+        flag: "missingNewline",
+    },
+    {
+        name: "non ASCII",
+        entry: { path: "meta", type: "ExtendedHeader", body: "12 path=é\n" },
+        reason: "TAR_PAX_TEXT",
+        flag: "nonAscii",
+    },
+    {
+        name: "unknown key",
+        entry: { path: "meta", type: "ExtendedHeader", body: "14 unknown=x\n" },
+        reason: "TAR_PAX_RECORD",
+        flag: "malformedOrUnknown",
+    },
+    {
+        name: "duplicate key",
+        entry: { path: "meta", type: "ExtendedHeader", body: "12 path=abc\n12 path=abc\n" },
+        reason: "TAR_PAX_RECORD",
+        flag: "duplicate",
+    },
+    {
+        name: "missing parsed value",
+        entry: { path: "meta", type: "ExtendedHeader", body: "99 path=ignored\n" },
+        reason: "TAR_PAX_VALUE",
+        flag: "missing",
+    },
+    {
+        name: "invalid date",
+        entry: {
+            path: "meta",
+            type: "ExtendedHeader",
+            body: new Pax({ uname: "invalid" }).encodeField("uname").replace("uname", "mtime"),
+        },
+        reason: "TAR_PAX_VALUE",
+        flag: "invalidDate",
+    },
+    {
+        name: "negative parsed number",
+        entry: { path: "meta", type: "ExtendedHeader", body: new Pax({ uid: -1 }).encodeBody() },
+        reason: "TAR_PAX_VALUE",
+        flag: "invalidNumber",
+    },
+    {
+        name: "empty parsed string",
+        entry: { path: "meta", type: "ExtendedHeader", body: new Pax({ path: "" }).encodeBody() },
+        reason: "TAR_PAX_VALUE",
+        flag: "emptyString",
+    },
+    {
+        name: "date roundtrip",
+        entry: {
+            path: "meta",
+            type: "ExtendedHeader",
+            body: new Pax({ uname: "1.0011" }).encodeField("uname").replace("uname", "mtime"),
+        },
+        reason: "TAR_PAX_ROUNDTRIP",
+        flag: "dateMismatch",
+    },
+    {
+        name: "GNU empty",
+        entry: { path: "meta", type: "NextFileHasLongPath", body: "\0" },
+        reason: "TAR_GNU_TEXT",
+        flag: "empty",
+    },
+    {
+        name: "GNU non ASCII",
+        entry: { path: "meta", type: "NextFileHasLongLinkpath", body: "é\0" },
+        reason: "TAR_GNU_TEXT",
+        flag: "nonAscii",
+    },
+    {
+        name: "GNU length",
+        entry: { path: "meta", type: "NextFileHasLongPath", body: "x".repeat(1025) },
+        reason: "TAR_GNU_TEXT",
+        flag: "tooLong",
+    },
+] satisfies { name: string; entry: ArchiveFixtureEntry; reason: string; flag?: string }[];
+for (const scenario of rejectionTarCases) {
+    test(`archive rejection evidence tar ${scenario.name}`, async () => {
+        const { archiveRejectionLine } = await import("../scripts/runtime-payload-archive.ts");
+        const bytes = tarBytes([scenario.entry]),
+            raw = gunzipSync(bytes);
+        await rejectionFixture(bytes, "node", (error) => {
+            const event = JSON.parse(archiveRejectionLine(error)!);
+            assert.equal(event.reason, scenario.reason);
+            assert.equal(event.headerIndex, 1);
+            assert.equal(event.header.sha256, hash(raw.subarray(0, 512)));
+            assert.deepEqual(Buffer.from(event.header.base64, "base64"), raw.subarray(0, 512));
+            assert.equal(event.path.sha256, hash(Buffer.from(scenario.entry.path)));
+            if (scenario.flag) assert.equal(event.details[scenario.flag], true);
+            if (scenario.name === "unknown key")
+                assert.equal(event.details.unknownKeySha256, hash(Buffer.from("unknown")));
+            assert.equal(event.details.checksumValid, true);
+            if (event.stage === "TAR_METADATA") {
+                const body = Buffer.from(scenario.entry.body!);
+                assert.equal(event.metadata.sha256, hash(body));
+                assert.deepEqual(Buffer.from(event.metadata.base64, "base64"), body);
+            }
+        });
+    });
+}
+
+/** ZIP 复合条件分别改变公开 central 与 local 字段，并保持原有范围一致性前置检查通过；事件必须保存实际原模式、方法与来源主机，不能由测试期望填入诊断或把缺失模式伪装为 Unix 权限。 */
+for (const scenario of [
+    "method",
+    "flags",
+    "storedFlags",
+    "host",
+    "type",
+    "dosMode",
+    "directoryType",
+    "fileType",
+    "dosDirectory",
+] as const) {
+    test(`archive rejection evidence ZIP ${scenario}`, async () => {
+        const { archiveRejectionLine } = await import("../scripts/runtime-payload-archive.ts");
+        const directory = scenario === "directoryType";
+        const bytes = zipBytes(
+            [
+                {
+                    path: directory ? "top/item/" : "top/item",
+                    body: "",
+                    kind: directory ? "directory" : "file",
+                },
+            ],
+            0,
+        );
+        const central = bytes.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+        if (scenario === "method") {
+            bytes.writeUInt16LE(99, 8);
+            bytes.writeUInt16LE(99, central + 10);
+        }
+        if (scenario === "flags" || scenario === "storedFlags") {
+            const value = scenario === "flags" ? 0x10 : 2;
+            bytes.writeUInt16LE(value, 6);
+            bytes.writeUInt16LE(value, central + 8);
+        }
+        if (scenario === "host" || scenario === "dosMode")
+            bytes[central + 5] = scenario === "host" ? 7 : 0;
+        if (scenario === "type") bytes.writeUInt32LE((0o010644 << 16) >>> 0, central + 38);
+        if (scenario === "directoryType") bytes.writeUInt32LE((0o100644 << 16) >>> 0, central + 38);
+        if (scenario === "fileType") bytes.writeUInt32LE((0o040755 << 16) >>> 0, central + 38);
+        if (scenario === "dosDirectory")
+            bytes.writeUInt32LE(((0o100644 << 16) | 0x10) >>> 0, central + 38);
+        await rejectionFixture(bytes, "chrome", (error) => {
+            const event = JSON.parse(archiveRejectionLine(error)!);
+            assert.equal(
+                event.reason,
+                ["method", "flags", "storedFlags"].includes(scenario)
+                    ? "ZIP_METHOD_FLAGS"
+                    : ["host", "type"].includes(scenario)
+                      ? "ZIP_HOST_TYPE"
+                      : "ZIP_DIRECTORY_MODE",
+            );
+            const flag =
+                scenario === "method"
+                    ? "methodUnsupported"
+                    : scenario === "flags"
+                      ? "flagsUnsupported"
+                      : scenario === "host"
+                        ? "hostUnsupported"
+                        : scenario === "type"
+                          ? "typeUnsupported"
+                          : scenario;
+            assert.equal(event.details[flag], true);
+            assert.equal(event.headerIndex, 1);
+            assert.equal(event.memberIndex, 1);
+            assert.equal(event.rawMode.value, bytes.readUInt32LE(central + 38) >>> 16);
+            assert.equal(event.details.externalFileAttributes, bytes.readUInt32LE(central + 38));
+            assert.equal(event.details.host, bytes[central + 5]);
+            assert.equal(event.path.encoding, "ZIP_RAW_BYTES");
+        });
+    });
+}
+
+/** 共用条目检查在读取正文前拒绝权限与长度边界，因此直接提供真实扫描对象即可定位非有限数等压缩头无法合法编码的输入；断言仍检查原异常分类和未消费正文，不把这些微型内部案例当成官方归档事实。 */
+for (const scenario of [
+    { mode: NaN, size: 0, flag: "modeNotInteger", numberKind: "NAN" },
+    { mode: -1, size: 0, flag: "modeNegative", numberKind: "SAFE_INTEGER" },
+    { mode: 0o4755, size: 0, flag: "modeHigh", numberKind: "SAFE_INTEGER" },
+    { mode: 0o644, size: 0.5, flag: "sizeNotInteger", numberKind: "FINITE_NON_SAFE_INTEGER" },
+    { mode: 0o644, size: -1, flag: "sizeNegative", numberKind: "SAFE_INTEGER" },
+    { mode: 0o644, size: NaN, flag: "sizeNotInteger", numberKind: "NAN" },
+    { mode: Infinity, size: 0, flag: "modeNotInteger", numberKind: "POSITIVE_INFINITY" },
+]) {
+    test(`archive rejection evidence shared ${scenario.flag} ${scenario.numberKind}`, async () => {
+        const { ArchiveScan, ArchiveBudget, archiveRejectionLine } = await import(
+                "../scripts/runtime-payload-archive.ts"
+            ),
+            { ArchiveTransaction } = await import("../scripts/runtime-payload-transaction.ts");
+        const tx = new ArchiveTransaction("/unused-input", "/unused-output", "candidate");
+        const scan = new ArchiveScan("node", "top", tx, new ArchiveBudget());
+        let consumed = false;
+        const chunks = async function* () {
+            consumed = true;
+            yield Buffer.from("unused");
+        };
+        await assert.rejects(
+            scan.entry(
+                { path: "top/item", kind: "file", mode: scenario.mode, size: scenario.size },
+                chunks(),
+            ),
+            (error: unknown) => {
+                assert.ok(error instanceof RuntimePayloadError);
+                assert.equal(error.code, "PAYLOAD_ARCHIVE_UNSUPPORTED");
+                const event = JSON.parse(archiveRejectionLine(error)!);
+                assert.equal(event.reason, "ENTRY_MODE_SIZE");
+                assert.equal(event.details[scenario.flag], true);
+                assert.equal(
+                    (scenario.flag.startsWith("mode") ? event.effectiveMode : event.declaredSize)
+                        .kind,
+                    scenario.numberKind,
+                );
+                assert.equal(event.headerIndex, null);
+                return true;
+            },
+        );
+        assert.equal(consumed, false);
+        assert.equal(await tx.cleanup(), "NOT_NEEDED");
+    });
+}
+
+/** 私有捕获的上限按完整 JSON 与 base64 膨胀核验，合法最大元数据和头样本仍能保存原 SHA；超限与捕获异常只丢弃可选事件，不改变冻结错误，也不允许后来修改缓冲或第二个事件覆盖首份事实。 */
+test("archive rejection evidence capture bounds ownership and failure isolation", async () => {
+    const { attachArchiveRejection, archiveRejectionLine, transferArchiveRejection } = await import(
+        "../scripts/runtime-payload-archive.ts"
+    );
+    const error = new RuntimePayloadError("PAYLOAD_ARCHIVE_UNSUPPORTED"),
+        header = Buffer.alloc(512, 1),
+        metadata = Buffer.alloc(65536, 2);
+    const before = JSON.stringify(error),
+        metadataHash = hash(metadata);
+    const facts = {
+        archive: "node",
+        stage: "TAR_METADATA",
+        reason: "TAR_PAX_TEXT",
+        header,
+        metadata,
+        path: "top/item",
+    } as const;
+    attachArchiveRejection(error, facts);
+    const line = archiveRejectionLine(error)!;
+    assert.ok(Buffer.byteLength(line) <= 96 * 1024);
+    assert.ok(Buffer.byteLength(line) > 65536);
+    assert.equal(JSON.parse(line).metadata.sha256, metadataHash);
+    header.fill(0);
+    metadata.fill(0);
+    attachArchiveRejection(error, { ...facts, reason: "TAR_GNU_TEXT" });
+    assert.equal(archiveRejectionLine(error), line);
+    assert.equal(JSON.stringify(error), before);
+    assert.ok(Object.isFrozen(error));
+    const unrelated = new RuntimePayloadError("PAYLOAD_ARCHIVE_FORMAT");
+    attachArchiveRejection(unrelated, facts);
+    assert.equal(archiveRejectionLine(unrelated), null);
+    assert.equal(
+        archiveRejectionLine(new RuntimePayloadError("PAYLOAD_ARCHIVE_UNSUPPORTED")),
+        null,
+    );
+    assert.equal(archiveRejectionLine({}), null);
+    const cases = [
+        { ...facts, header: Buffer.alloc(513) },
+        { ...facts, metadata: Buffer.alloc(65537) },
+        { ...facts, path: "é".repeat(40000) },
+        {
+            ...facts,
+            details: Object.fromEntries(
+                Array.from({ length: 32 }, (_, n) => [`key${n}`, "\0".repeat(128)]),
+            ),
+        },
+    ];
+    for (const value of cases) {
+        const rejected = new RuntimePayloadError("PAYLOAD_ARCHIVE_UNSUPPORTED");
+        assert.doesNotThrow(() => attachArchiveRejection(rejected, value));
+        assert.equal(archiveRejectionLine(rejected), null);
+        assert.equal(rejected.code, "PAYLOAD_ARCHIVE_UNSUPPORTED");
+    }
+    const failing = {
+        ...facts,
+        get metadata(): Buffer {
+            throw new Error("CAPTURE_FAILURE");
+        },
+    };
+    const captureError = new RuntimePayloadError("PAYLOAD_ARCHIVE_UNSUPPORTED");
+    assert.doesNotThrow(() => attachArchiveRejection(captureError, failing));
+    assert.equal(archiveRejectionLine(captureError), null);
+    const other = new RuntimePayloadError("PAYLOAD_ARCHIVE_UNSUPPORTED");
+    attachArchiveRejection(other, { ...facts, reason: "TAR_GNU_TEXT" });
+    const otherLine = archiveRejectionLine(other);
+    assert.equal(transferArchiveRejection(error, other), other);
+    assert.equal(archiveRejectionLine(other), otherLine);
+    assert.equal(transferArchiveRejection(error, unrelated), unrelated);
+    assert.equal(archiveRejectionLine(unrelated), null);
+});
+
+/** 缺失权限字段用成熟 Header 在新缓冲直接编码，避免手工修补校验和影响待观察的实际 guard；另一个声明超限同时带坏权限的案例证明原先限额优先选择没有被诊断重新分类。 */
+test("archive rejection evidence missing raw mode and unchanged limit priority", async () => {
+    const { ArchiveScan, ArchiveBudget, archiveRejectionLine } = await import(
+            "../scripts/runtime-payload-archive.ts"
+        ),
+        { ArchiveTransaction } = await import("../scripts/runtime-payload-transaction.ts");
+    const header = Buffer.alloc(512);
+    new Header({ path: "top/item", type: "File", size: 0 }).encode(header);
+    await rejectionFixture(
+        gzipSync(Buffer.concat([header, Buffer.alloc(1024)])),
+        "node",
+        (error) => {
+            const event = JSON.parse(archiveRejectionLine(error)!);
+            assert.equal(event.reason, "TAR_HEADER_MODE");
+            assert.equal(event.details.modeMissing, true);
+            assert.deepEqual(event.rawMode, { value: null, kind: "UNDEFINED" });
+        },
+    );
+    const tx = new ArchiveTransaction("/unused-input", "/unused-output", "candidate");
+    const scan = new ArchiveScan("node", "top", tx, new ArchiveBudget());
+    const chunks = async function* () {
+        yield Buffer.alloc(0);
+    };
+    await assert.rejects(
+        scan.entry({ path: "top/item", kind: "file", mode: NaN, size: 2 ** 31 + 1 }, chunks()),
+        (error: unknown) => {
+            assert.ok(error instanceof RuntimePayloadError);
+            assert.equal(error.code, "PAYLOAD_LIMIT");
+            assert.equal(archiveRejectionLine(error), null);
+            return true;
+        },
+    );
+    assert.equal(await tx.cleanup(), "NOT_NEEDED");
+});

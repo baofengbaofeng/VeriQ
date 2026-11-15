@@ -65,7 +65,7 @@ export function Account() {
                     type="password"
                     minLength={12}
                 />
-                <button data-testid="change-password" disabled={a.busy}>
+                <button type="submit" data-testid="change-password" disabled={a.busy}>
                     Change password and sign out
                 </button>
             </form>
@@ -89,7 +89,11 @@ export function Account() {
                 a.error ? (
                     <div>
                         <p>Sessions could not be loaded.</p>
-                        <button onClick={() => void a.run(() => loadSessions())} disabled={a.busy}>
+                        <button
+                            type="button"
+                            onClick={() => void a.run(() => loadSessions())}
+                            disabled={a.busy}
+                        >
                             Retry sessions
                         </button>
                     </div>
@@ -110,6 +114,7 @@ export function Account() {
             )}
             {sessions?.nextCursor && (
                 <button
+                    type="button"
                     data-testid="sessions-more"
                     disabled={a.busy}
                     onClick={() => void a.run(() => loadSessions(sessions.nextCursor!))}
@@ -118,6 +123,7 @@ export function Account() {
                 </button>
             )}
             <button
+                type="button"
                 data-testid="revoke-own"
                 disabled={a.busy}
                 onClick={() =>

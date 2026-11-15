@@ -58,13 +58,18 @@ def audit(root: Path) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     violations: list[dict[str, Any]] = []
     for name in selected:
-        text = (root / name).read_text()
+        # Node 使用原始 UTF8 文本定位注释，Python 必须保留相同的 CRLF 字符序列才能消费桥接坐标；若默认转换换行，即使文件只有基本平面字符也会把遮罩错移到后续代码。
+        with (root / name).open(encoding="utf-8", newline="") as source:
+            text = source.read()
         lines = text.splitlines()
         blocks = []
         comments: set[int] = set()
         code: set[int] = set()
         if name.endswith(".py"):
-            for token in tokenize.generate_tokens(io.StringIO(text).readline):
+            # Python 分词器依赖逐个物理行读取，StringIO 必须启用通用换行以识别合法裸回车并与 AST 行号一致；转换仅作用于分词输入，供 Node 坐标遮罩使用的原始文本仍完整保留。
+            for token in tokenize.generate_tokens(
+                io.StringIO(text, newline=None).readline
+            ):
                 if token.type == tokenize.COMMENT:
                     blocks.append(
                         (token.start[0], token.end[0], token.string.lstrip("# "))
@@ -122,8 +127,8 @@ def audit(root: Path) -> dict[str, Any]:
             ]
             residual = list(text)
             for item in ranges[name]:
-                for offset in range(item["offset"], item["limit"]):
-                    if residual[offset] != "\n":
+                for offset in range(item["offsetCodePoint"], item["limitCodePoint"]):
+                    if residual[offset] not in "\r\n":
                         residual[offset] = " "
             code = {
                 index

@@ -89,7 +89,9 @@ export function AiPage() {
             </label>
             {workspaces.error && <p role="alert">{workspaces.error.message}</p>}
             {workspaces.hasNextPage && (
-                <button onClick={() => void workspaces.fetchNextPage()}>{t("more")}</button>
+                <button type="button" onClick={() => void workspaces.fetchNextPage()}>
+                    {t("more")}
+                </button>
             )}
             {!items.length && <p>{t("noWorkspace")}</p>}
             {ws && (
@@ -261,7 +263,9 @@ export function AiWorkspaceView({
                 </select>
             </label>
             {providers.hasNextPage && (
-                <button onClick={() => void providers.fetchNextPage()}>{t("more")}</button>
+                <button type="button" onClick={() => void providers.fetchNextPage()}>
+                    {t("more")}
+                </button>
             )}
             {provider && (
                 <div data-testid="ai-budget">
@@ -274,6 +278,7 @@ export function AiWorkspaceView({
                 <fieldset disabled={busy}>
                     <legend>{t("provider")}</legend>
                     <button
+                        type="button"
                         onClick={() => {
                             setEditing("");
                             setForm(defaults);
@@ -284,6 +289,7 @@ export function AiWorkspaceView({
                     </button>
                     {provider && (
                         <button
+                            type="button"
                             data-testid="ai-edit-provider"
                             onClick={() => selectProvider(provider)}
                         >
@@ -368,6 +374,7 @@ export function AiWorkspaceView({
                         {t("enabled")}
                     </label>
                     <button
+                        type="button"
                         data-testid="ai-save"
                         onClick={() =>
                             void action(async () => {
@@ -389,6 +396,7 @@ export function AiWorkspaceView({
                     {provider && (
                         <>
                             <button
+                                type="button"
                                 data-testid="ai-test"
                                 disabled={!provider.enabled}
                                 onClick={() =>
@@ -407,6 +415,7 @@ export function AiWorkspaceView({
                                 {t("test")}
                             </button>
                             <button
+                                type="button"
                                 data-testid="ai-delete"
                                 onClick={() =>
                                     void action(async () => {
@@ -487,6 +496,7 @@ export function AiWorkspaceView({
                                 {r.name} · {r.kind}{" "}
                                 {r.latestVersionId && (
                                     <button
+                                        type="button"
                                         onClick={() =>
                                             setVersions(
                                                 [
@@ -502,17 +512,20 @@ export function AiWorkspaceView({
                                     </button>
                                 )}
                                 {r.kind === "CASE" && (
-                                    <button onClick={() => setResourceId(r.id)}>
+                                    <button type="button" onClick={() => setResourceId(r.id)}>
                                         {t("target")}
                                     </button>
                                 )}
                             </p>
                         ))}
                     {sources.hasNextPage && (
-                        <button onClick={() => void sources.fetchNextPage()}>{t("more")}</button>
+                        <button type="button" onClick={() => void sources.fetchNextPage()}>
+                            {t("more")}
+                        </button>
                     )}
                 </details>
                 <button
+                    type="button"
                     data-testid="ai-preview"
                     disabled={!provider?.enabled || !prompt}
                     onClick={() =>
@@ -537,6 +550,7 @@ export function AiWorkspaceView({
                         {preview.inputTokenBound} tokens · USD {preview.reservedUsd}
                     </p>
                     <button
+                        type="button"
                         data-testid="ai-generate"
                         disabled={busy || generating || !edit || !reviewedRequest}
                         onClick={() => {
@@ -567,7 +581,7 @@ export function AiWorkspaceView({
             {generating && <p role="status">{t("pending")}</p>}
             <section>
                 <h3>{t("history")}</h3>
-                <button data-testid="ai-refresh" onClick={() => void action(refresh)}>
+                <button type="button" data-testid="ai-refresh" onClick={() => void action(refresh)}>
                     {t("refresh")}
                 </button>
                 {!calls.length && <p>{t("noHistory")}</p>}
@@ -575,6 +589,7 @@ export function AiWorkspaceView({
                     {calls.map((g) => (
                         <li key={g.id}>
                             <button
+                                type="button"
                                 onClick={() =>
                                     void action(async () => {
                                         const value = await adapter.get(g.id, signal);
@@ -588,6 +603,7 @@ export function AiWorkspaceView({
                             {g.inputTokens ?? "?"} / {g.outputTokens ?? "?"} tokens){" "}
                             {g.status === "RUNNING" && edit && (
                                 <button
+                                    type="button"
                                     data-testid="ai-cancel"
                                     onClick={() =>
                                         void action(async () => {
@@ -603,7 +619,9 @@ export function AiWorkspaceView({
                     ))}
                 </ul>
                 {history.hasNextPage && (
-                    <button onClick={() => void history.fetchNextPage()}>{t("more")}</button>
+                    <button type="button" onClick={() => void history.fetchNextPage()}>
+                        {t("more")}
+                    </button>
                 )}
             </section>
             {generation && (
@@ -652,6 +670,7 @@ export function AiWorkspaceView({
                             )}
                             {generation.purpose === "CASE_DRAFT" && (
                                 <button
+                                    type="button"
                                     data-testid="ai-accept"
                                     disabled={
                                         generation.resourceId
@@ -682,6 +701,7 @@ export function AiWorkspaceView({
                                 </button>
                             )}
                             <button
+                                type="button"
                                 data-testid="ai-reject"
                                 onClick={() =>
                                     void action(async () => {
@@ -702,6 +722,7 @@ export function AiWorkspaceView({
                     )}
                     {generation.status === "REVIEWED" && generation.resourceId && (
                         <button
+                            type="button"
                             data-testid="ai-open-editor"
                             onClick={() => setEditorId(generation.resourceId!)}
                         >

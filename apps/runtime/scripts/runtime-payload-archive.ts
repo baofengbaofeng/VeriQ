@@ -15,6 +15,183 @@ import { ArchiveTransaction, controlledIoFailure } from "./runtime-payload-trans
 import { scanTar } from "./runtime-payload-tar.ts";
 import { scanZip } from "./runtime-payload-zip.ts";
 
+/** 拒绝事实只描述当前成熟解析器已读到的有限字段，不提供额外解析器或可配置准入能力；类型限定原有十二个拒绝点，普通正文和任意异常消息不属于这个内部观察合同。 */
+export type ArchiveRejectionFacts = Readonly<{
+    archive: "node" | "chrome";
+    stage: "TAR_FRAME" | "TAR_METADATA" | "TAR_ENTRY" | "ZIP_ENTRY";
+    reason:
+        | "TAR_META_EMPTY"
+        | "TAR_ENTRY_TYPE"
+        | "TAR_HEADER_MODE"
+        | "TAR_PAX_TEXT"
+        | "TAR_PAX_RECORD"
+        | "TAR_PAX_VALUE"
+        | "TAR_PAX_ROUNDTRIP"
+        | "TAR_GNU_TEXT"
+        | "ZIP_METHOD_FLAGS"
+        | "ZIP_HOST_TYPE"
+        | "ZIP_DIRECTORY_MODE"
+        | "ENTRY_MODE_SIZE";
+    headerIndex?: number | null;
+    memberIndex?: number | null;
+    path?: string | Buffer | undefined;
+    size?: number;
+    rawMode?: number | undefined;
+    effectiveMode?: number;
+    type?: string | number | undefined;
+    effectiveType?: string;
+    header?: Buffer;
+    metadata?: Buffer | undefined;
+    details?: Readonly<Record<string, string | number | boolean | null | undefined>> | undefined;
+}>;
+
+/** 私有弱表只保存已经序列化的自有字符串，冻结异常无需新增字段也不会持有调用方可变缓冲；首个错误身份与首个已捕获事件保持一一对应，另一次扫描不能污染本次归一化结果。 */
+const rejectionLines = new WeakMap<RuntimePayloadError, string>();
+const rejectionLineLimit = 96 * 1024;
+const rejectionContexts = new WeakMap<ArchiveScan, Omit<ArchiveRejectionFacts, "reason">>();
+
+/** 每个扫描对象的原头上下文只在这个私有弱表存活，适配器交付当前成员前写入已观察字段；它不成为构造参数或公开结果，跨扫描没有共享当前条目，捕获失败也不能打断正常解析。 */
+export function setArchiveRejectionContext(
+    scan: ArchiveScan,
+    context: Omit<ArchiveRejectionFacts, "reason">,
+): void {
+    try {
+        rejectionContexts.set(scan, context);
+    } catch {
+        rejectionContexts.delete(scan);
+    }
+}
+
+/** 数字观察区分不存在、非有限值与超出安全整数的有限值，不让 JSON 把 NaN 或 Infinity 静默编码成普通空值；原数字在安全时保留原值，分类仅供定位拒绝原因而不参与准入。 */
+function observedNumber(value: number | undefined) {
+    return {
+        value: value !== undefined && Number.isFinite(value) ? value : null,
+        kind:
+            value === undefined
+                ? "UNDEFINED"
+                : Number.isNaN(value)
+                  ? "NAN"
+                  : value === Infinity
+                    ? "POSITIVE_INFINITY"
+                    : value === -Infinity
+                      ? "NEGATIVE_INFINITY"
+                      : Number.isSafeInteger(value)
+                        ? "SAFE_INTEGER"
+                        : "FINITE_NON_SAFE_INTEGER",
+    };
+}
+
+/** 捕获入口在复制与散列之前核每个输入的硬界限，再把完整 JSON 连同换行按真实 UTF8 字节计费；捕获失败只丢弃诊断，始终保留调用方原异常，禁止把截断样本冒充完整成员元数据。 */
+export function attachArchiveRejection(error: unknown, facts: ArchiveRejectionFacts): void {
+    try {
+        if (
+            !(error instanceof RuntimePayloadError) ||
+            error.code !== "PAYLOAD_ARCHIVE_UNSUPPORTED" ||
+            rejectionLines.has(error)
+        )
+            return;
+        const sample = (bytes: Buffer | undefined, limit: number) => {
+            if (bytes === undefined) return null;
+            if (bytes.length > limit) throw new Error("DIAGNOSTIC_LIMIT");
+            const copy = Buffer.from(bytes);
+            return {
+                sizeBytes: copy.length,
+                sha256: createHash("sha256").update(copy).digest("hex"),
+                base64: copy.toString("base64"),
+            };
+        };
+        let path = null;
+        if (facts.path !== undefined) {
+            if (
+                facts.path.length > 65536 ||
+                (typeof facts.path === "string" && Buffer.byteLength(facts.path) > 65536)
+            )
+                return;
+            const bytes = Buffer.from(facts.path);
+            if (bytes.length > 65536) return;
+            path = {
+                sha256: createHash("sha256").update(bytes).digest("hex"),
+                sizeBytes: bytes.length,
+                encoding: typeof facts.path === "string" ? "UTF8" : "ZIP_RAW_BYTES",
+            };
+        }
+        const details: Record<string, string | number | boolean | null> = {};
+        const entries = Object.entries(facts.details ?? {});
+        if (entries.length > 32) return;
+        for (const [key, value] of entries) {
+            if (
+                !/^[A-Za-z][A-Za-z0-9]{0,39}$/.test(key) ||
+                (typeof value === "string" && value.length > 128)
+            )
+                return;
+            details[key] =
+                value === undefined || (typeof value === "number" && !Number.isFinite(value))
+                    ? null
+                    : value;
+        }
+        if (
+            (typeof facts.type === "string" && facts.type.length > 128) ||
+            (facts.effectiveType !== undefined && facts.effectiveType.length > 128)
+        )
+            return;
+        const line =
+            JSON.stringify({
+                kind: "ASSET_ARCHIVE_REJECTION",
+                schemaVersion: 1,
+                archive: facts.archive,
+                stage: facts.stage,
+                reason: facts.reason,
+                headerIndex: facts.headerIndex ?? null,
+                memberIndex: facts.memberIndex ?? null,
+                path,
+                declaredSize: observedNumber(facts.size),
+                rawMode: observedNumber(facts.rawMode),
+                effectiveMode: observedNumber(facts.effectiveMode),
+                type: facts.type ?? null,
+                effectiveType: facts.effectiveType ?? null,
+                header: sample(facts.header, 512),
+                metadata: sample(facts.metadata, 65536),
+                details,
+            }) + "\n";
+        if (Buffer.byteLength(line) <= rejectionLineLimit) rejectionLines.set(error, line);
+    } catch {
+        // 捕获本身没有文件或流所有权，散列、分配或序列化失败时仅放弃这份可选事实；调用点仍抛出已经选定的原异常，不借诊断失败改变其分类、阶段、清理状态或首错顺序。
+    }
+}
+
+/** 归档拒绝诊断读取只按真实异常身份寻找私有事实，不改变已冻结异常的字段与公开分类；没有实际捕获时返回空值，调用方不得把缺失记录推断成扫描成功或已观察任何成员。 */
+export function archiveRejectionLine(error: unknown): string | null {
+    return error instanceof RuntimePayloadError ? (rejectionLines.get(error) ?? null) : null;
+}
+
+/** 事务清理完成后的异常归一化只迁移被选中首错的私有字符串，不覆盖目标已有事件或复制其它异常事实；返回对象仍是调用方刚构造的正式错误，公开字段与原构造参数完全一致。 */
+export function transferArchiveRejection(
+    source: unknown,
+    target: RuntimePayloadError,
+): RuntimePayloadError {
+    try {
+        const line = archiveRejectionLine(source);
+        if (line && target.code === "PAYLOAD_ARCHIVE_UNSUPPORTED" && !rejectionLines.has(target))
+            rejectionLines.set(target, line);
+    } catch {
+        // 迁移是异常报告的附属操作且不持有任何资源，弱表读取或写入失败时保留目标异常原样；不得用迁移异常覆盖实际扫描首错，也不得从其它扫描借用一个貌似完整的事件。
+    }
+    return target;
+}
+
+/** CLI 在真实清理返回后调用这个有限输出入口，先设置原退出码再写原公共分类和最多一条私有诊断；输出管道失败不改变业务首错，异步错误监听只属于 CLI 报告阶段而不进入扫描生命周期。 */
+export function emitArchiveFailure(error: RuntimePayloadError, exitCode: number): void {
+    process.exitCode = exitCode;
+    try {
+        process.stderr.on("error", () => {});
+        process.stderr.write(`${error.code} phase=${error.phase} cleanup=${error.cleanup}\n`);
+        const line = archiveRejectionLine(error);
+        if (line) process.stderr.write(line);
+    } catch {
+        // 诊断输出只是已完成失败的报告尝试，关闭的管道或同步写入异常不会重启扫描也不应升级成不同业务错误；原退出码已经设置，标准输出仍为空且不会伪造任何成功结果。
+    }
+}
+
 /** 归档条目保留真实原路径、权限与文件摘要或原始链接目标，推导父目录不会伪造成原归档成员；所有嵌套字段均为只读事实，逻辑链接不会因此获得物理创建或执行能力，后续组装必须重新核原始来源。 */
 export type ArchiveMember =
     | Readonly<{ path: string; kind: "file"; sizeBytes: number; sha256: string; mode: number }>
@@ -104,6 +281,7 @@ export class ArchiveScan {
     readonly effective = new Map<string, { kind: ArchiveMember["kind"]; explicit: boolean }>();
     expandedBytes = 0;
     private cursor = 0;
+    private rejectionIndex = 0;
     private readonly cases = new Map<string, string>();
     /** 扫描与提取共用固定顶层目录和当前事务，只在第二遍获得已扫描成员列表；第一遍不写普通正文，第二遍不会重新收费共享逻辑预算，但仍按实际流长度与原摘要比较以发现损坏或替换。 */
     constructor(
@@ -140,6 +318,7 @@ export class ArchiveScan {
     /** 正文消费执行单文件两 GiB、目录零字节与链接一千零二十四 ASCII 字节的固定限制；第一遍仅存小链接正文和摘要，第二遍直接背压写入私有普通文件，任何流超声明、权限特殊位或摘要差异都会终止整个事务。 */
     async entry(entry: ScanEntry, chunks: AsyncIterable<Uint8Array>) {
         this.tx.check();
+        this.rejectionIndex++;
         if (
             !Number.isSafeInteger(entry.mode) ||
             entry.mode < 0 ||
@@ -147,10 +326,36 @@ export class ArchiveScan {
             !Number.isSafeInteger(entry.size) ||
             entry.size < 0 ||
             entry.size > limits.file
-        )
-            this.tx.fail(
-                entry.size > limits.file ? "PAYLOAD_LIMIT" : "PAYLOAD_ARCHIVE_UNSUPPORTED",
-            );
+        ) {
+            try {
+                this.tx.fail(
+                    entry.size > limits.file ? "PAYLOAD_LIMIT" : "PAYLOAD_ARCHIVE_UNSUPPORTED",
+                );
+            } catch (error) {
+                const context = rejectionContexts.get(this);
+                attachArchiveRejection(error, {
+                    ...context,
+                    archive: this.kind,
+                    stage: this.kind === "node" ? "TAR_ENTRY" : "ZIP_ENTRY",
+                    reason: "ENTRY_MODE_SIZE",
+                    memberIndex: this.rejectionIndex,
+                    path: entry.path,
+                    size: entry.size,
+                    effectiveMode: entry.mode,
+                    type: context?.type,
+                    effectiveType: entry.kind,
+                    details: {
+                        ...context?.details,
+                        modeNotInteger: !Number.isSafeInteger(entry.mode),
+                        modeNegative: entry.mode < 0,
+                        modeHigh: entry.mode > 0o777,
+                        sizeNotInteger: !Number.isSafeInteger(entry.size),
+                        sizeNegative: entry.size < 0,
+                    },
+                });
+                throw error;
+            }
+        }
         const path =
             entry.kind === "directory" && entry.path.endsWith("/")
                 ? entry.path.slice(0, -1)

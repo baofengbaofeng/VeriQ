@@ -47,7 +47,9 @@ export function WorkspacePage() {
             {workspaces.error && (
                 <>
                     <Notice error={message(workspaces.error)} />
-                    <button onClick={() => void workspaces.refetch()}>Retry Workspaces</button>
+                    <button type="button" onClick={() => void workspaces.refetch()}>
+                        Retry Workspaces
+                    </button>
                 </>
             )}
             {workspaces.isSuccess && !items.length && <p>No Workspaces yet.</p>}
@@ -76,6 +78,7 @@ export function WorkspacePage() {
             )}
             {workspaces.hasNextPage && (
                 <button
+                    type="button"
                     data-testid="workspaces-more"
                     disabled={workspaces.isFetchingNextPage}
                     onClick={() => void workspaces.fetchNextPage()}
@@ -112,7 +115,7 @@ export function WorkspacePage() {
                     Name
                     <input data-testid="workspace-name" name="name" required maxLength={160} />
                 </label>
-                <button data-testid="workspace-create" disabled={a.busy}>
+                <button type="submit" data-testid="workspace-create" disabled={a.busy}>
                     Create Workspace
                 </button>
             </form>
@@ -158,7 +161,9 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
         return (
             <>
                 <Notice error={message(detail.error)} />
-                <button onClick={() => void detail.refetch()}>Retry Workspace</button>
+                <button type="button" onClick={() => void detail.refetch()}>
+                    Retry Workspace
+                </button>
             </>
         );
     const ws = detail.data;
@@ -169,6 +174,7 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                 {ws.key} · {ws.role} · {ws.archived ? "Archived" : "Active"}
             </p>
             <button
+                type="button"
                 data-testid="workspace-refresh"
                 onClick={() => void a.run(refresh)}
                 disabled={a.busy}
@@ -196,13 +202,14 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                             maxLength={160}
                         />
                     </label>
-                    <button data-testid="workspace-rename" disabled={a.busy}>
+                    <button type="submit" data-testid="workspace-rename" disabled={a.busy}>
                         Rename Workspace
                     </button>
                 </form>
             )}
             {ws.role === "OWNER" && !ws.archived && (
                 <button
+                    type="button"
                     data-testid="workspace-archive"
                     disabled={a.busy}
                     onClick={() =>
@@ -227,7 +234,9 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
             {members.error && (
                 <>
                     <Notice error={message(members.error)} />
-                    <button onClick={() => void members.refetch()}>Retry members</button>
+                    <button type="button" onClick={() => void members.refetch()}>
+                        Retry members
+                    </button>
                 </>
             )}
             {members.isSuccess && !members.data.pages.some((page) => page.items.length) && (
@@ -248,6 +257,7 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
             </ul>
             {members.hasNextPage && (
                 <button
+                    type="button"
                     data-testid="members-more"
                     disabled={members.isFetchingNextPage}
                     onClick={() => void members.fetchNextPage()}
@@ -315,7 +325,7 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                             />
                             Send by configured SMTP
                         </label>
-                        <button data-testid="invite-create" disabled={a.busy}>
+                        <button type="submit" data-testid="invite-create" disabled={a.busy}>
                             Create invitation
                         </button>
                     </form>
@@ -335,7 +345,7 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                     {invites.error && (
                         <>
                             <Notice error={message(invites.error)} />
-                            <button onClick={() => void invites.refetch()}>
+                            <button type="button" onClick={() => void invites.refetch()}>
                                 Retry invitations
                             </button>
                         </>
@@ -355,6 +365,7 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                                     (Asia/Shanghai, UTC+08:00)
                                     {invite.status === "PENDING" && (
                                         <button
+                                            type="button"
                                             disabled={a.busy}
                                             onClick={() =>
                                                 void a.run(async () => {
@@ -376,6 +387,7 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                     </ul>
                     {invites.hasNextPage && (
                         <button
+                            type="button"
                             data-testid="invitations-more"
                             disabled={invites.isFetchingNextPage}
                             onClick={() => void invites.fetchNextPage()}
@@ -444,6 +456,7 @@ function MemberRow({
                         </select>
                     </label>
                     <button
+                        type="button"
                         disabled={a.busy}
                         onClick={() =>
                             void a.run(async () => {
@@ -461,6 +474,7 @@ function MemberRow({
                         Save member
                     </button>
                     <button
+                        type="button"
                         disabled={a.busy}
                         onClick={() =>
                             void a.run(async () => {
@@ -561,7 +575,7 @@ export function AcceptInvitation() {
                                 />
                             </>
                         )}
-                        <button data-testid="invite-accept" disabled={a.busy}>
+                        <button type="submit" data-testid="invite-accept" disabled={a.busy}>
                             Accept invitation
                         </button>
                     </form>

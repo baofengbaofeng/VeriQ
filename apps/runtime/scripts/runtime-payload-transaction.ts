@@ -318,11 +318,54 @@ export class ArchiveTransaction {
         }
         if (!Number.isSafeInteger(observationBound) || names.size > observationBound)
             this.fail("PAYLOAD_LIMIT");
+        await this.registerSources(names);
+    }
+    /** 有限资产观察入口同步复制严格引用后才开始等待，最多八个普通文件并支持私有证据权限；登记只证明当前身份和长度，摘要必须继续由 snapshot 的真实 held FD 流核验，不能把声明当作可信内容。 */
+    async observeRefs(refs: readonly Ref[]): Promise<void> {
+        if (!Array.isArray(refs) || refs.length > 8) this.fail("PAYLOAD_LIMIT");
+        const copied = refs.map((value) => {
+            if (
+                !value ||
+                typeof value !== "object" ||
+                Object.getPrototypeOf(value) !== Object.prototype ||
+                Object.getOwnPropertySymbols(value).length ||
+                Object.keys(value).sort().join(",") !== "path,sha256,sizeBytes" ||
+                Object.values(Object.getOwnPropertyDescriptors(value)).some((d) => !("value" in d))
+            )
+                this.fail("PAYLOAD_INPUT_INVALID");
+            const { path, sizeBytes, sha256 } = value;
+            relative(path);
+            if (
+                !Number.isSafeInteger(sizeBytes) ||
+                sizeBytes < 0 ||
+                typeof sha256 !== "string" ||
+                !/^[a-f0-9]{64}$/.test(sha256)
+            )
+                this.fail("PAYLOAD_INPUT_INVALID");
+            if (sizeBytes > limits.file) this.fail("PAYLOAD_LIMIT");
+            return { path, sizeBytes, sha256 };
+        });
+        if (new Set(copied.map((r) => r.path)).size !== copied.length)
+            this.fail("PAYLOAD_COLLISION");
+        if (copied.reduce((n, r) => n + r.sizeBytes, 0) > 4 * 1024 ** 3 + limits.evidence)
+            this.fail("PAYLOAD_LIMIT");
+        const names = new Set([""]);
+        for (const ref of copied) {
+            names.add(ref.path);
+            for (let parent = dirname(ref.path); parent !== "."; parent = dirname(parent))
+                names.add(parent);
+        }
+        await this.registerSources(names, new Map(copied.map((r) => [r.path, r])));
+    }
+    /** 旧五树入口与新有限引用共用同一个身份登记点，重复观察绝不覆盖较早事实；旧入口仍保存全部链接和树成员，新入口才额外限制普通文件权限与父目录，祖先身份收尾依然使用原本的比较政策。 */
+    private async registerSources(names: ReadonlySet<string>, refs?: ReadonlyMap<string, Ref>) {
         let hostParent = dirname(this.inputRoot);
         while (true) {
             const info = await lstat(hostParent, { bigint: true });
             this.check();
             if (!info.isDirectory() || info.isSymbolicLink()) this.fail("PAYLOAD_PATH");
+            const prior = this.ancestors.get(hostParent);
+            if (prior && !sameNode(prior, info)) this.fail("PAYLOAD_SOURCE_CHANGED");
             this.ancestors.set(hostParent, info);
             const next = dirname(hostParent);
             if (next === hostParent) break;
@@ -333,6 +376,24 @@ export class ArchiveTransaction {
             const full = join(this.inputRoot, name),
                 info = await lstat(full, { bigint: true });
             this.check();
+            const ref = refs?.get(name);
+            if (refs) {
+                if (ref) {
+                    if (
+                        !info.isFile() ||
+                        info.nlink !== 1n ||
+                        info.size !== BigInt(ref.sizeBytes) ||
+                        ![0o400, 0o600, 0o444, 0o644].includes(Number(info.mode & 0o7777n))
+                    )
+                        this.fail("PAYLOAD_PATH");
+                } else if (
+                    !info.isDirectory() ||
+                    ![0o700, 0o755, 0o555].includes(Number(info.mode & 0o7777n))
+                )
+                    this.fail("PAYLOAD_PATH");
+            }
+            const prior = this.observations.get(full);
+            if (prior && !sameIdentity(prior, info)) this.fail("PAYLOAD_SOURCE_CHANGED");
             this.observations.set(full, info);
             if (info.isSymbolicLink()) await readlink(full);
         }

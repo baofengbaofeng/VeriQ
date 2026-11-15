@@ -48,7 +48,7 @@ export function ExecutionPlansPage() {
             </label>
             {spaces.error && <p role="alert">{spaces.error.message}</p>}
             {spaces.hasNextPage && (
-                <button onClick={() => void spaces.fetchNextPage()}>
+                <button type="button" onClick={() => void spaces.fetchNextPage()}>
                     更多空间 / More Workspaces
                 </button>
             )}
@@ -254,10 +254,11 @@ function PlanWorkspace({ workspace }: { workspace: Workspace }) {
                     </p>
                     {canEdit && !p.archived && (
                         <>
-                            <button disabled={busy} onClick={() => edit(p)}>
+                            <button type="button" disabled={busy} onClick={() => edit(p)}>
                                 编辑 / Edit
                             </button>
                             <button
+                                type="button"
                                 disabled={busy}
                                 onClick={() =>
                                     void act(async () => {
@@ -277,6 +278,7 @@ function PlanWorkspace({ workspace }: { workspace: Workspace }) {
                     )}
                     {canExecute && !p.archived && (
                         <button
+                            type="button"
                             disabled={busy}
                             onClick={() =>
                                 void act(async () => {
@@ -305,7 +307,9 @@ function PlanWorkspace({ workspace }: { workspace: Workspace }) {
                 </section>
             ))}
             {plans.hasNextPage && (
-                <button onClick={() => void plans.fetchNextPage()}>更多计划 / More plans</button>
+                <button type="button" onClick={() => void plans.fetchNextPage()}>
+                    更多计划 / More plans
+                </button>
             )}
             {receipt && (
                 <section aria-label="Trigger status">
@@ -318,6 +322,7 @@ function PlanWorkspace({ workspace }: { workspace: Workspace }) {
                     </Link>
                     {canExecute && status.data?.state !== "FINISHED" && (
                         <button
+                            type="button"
                             disabled={busy}
                             onClick={() =>
                                 void act(async () => {
@@ -497,6 +502,7 @@ function PlanWorkspace({ workspace }: { workspace: Workspace }) {
                         </select>
                     </label>
                     <button
+                        type="submit"
                         disabled={
                             busy || !suite || !environment || !runtimeIds.length || !browsers.length
                         }
@@ -627,7 +633,9 @@ function ServiceAccounts({
                         onChange={(e) => setName(e.target.value)}
                     />
                 </label>
-                <button disabled={busy}>创建账号 / Create account</button>
+                <button type="submit" disabled={busy}>
+                    创建账号 / Create account
+                </button>
             </form>
             <select
                 disabled={busy}
@@ -649,13 +657,14 @@ function ServiceAccounts({
                     ))}
             </select>
             {accounts.hasNextPage && (
-                <button onClick={() => void accounts.fetchNextPage()}>
+                <button type="button" onClick={() => void accounts.fetchNextPage()}>
                     更多账号 / More accounts
                 </button>
             )}
             {account && (
                 <>
                     <button
+                        type="button"
                         disabled={busy}
                         onClick={() =>
                             void act(async () => {
@@ -761,6 +770,7 @@ function ServiceAccounts({
                             </fieldset>
                         )}
                         <button
+                            type="submit"
                             disabled={
                                 busy ||
                                 (purpose !== "RUNTIME_ENROLLMENT" && !scopes.length) ||
@@ -776,7 +786,9 @@ function ServiceAccounts({
                                 仅显示一次，请保存到 CI 秘密变量。 / Shown once; save in CI secrets.
                             </p>
                             <output>{secret}</output>
-                            <button onClick={() => setSecret("")}>关闭令牌 / Dismiss token</button>
+                            <button type="button" onClick={() => setSecret("")}>
+                                关闭令牌 / Dismiss token
+                            </button>
                         </section>
                     )}
                     {tokens.data?.pages
@@ -791,6 +803,7 @@ function ServiceAccounts({
                                 </p>
                                 {!t.revoked && (
                                     <button
+                                        type="button"
                                         disabled={busy}
                                         onClick={() =>
                                             void act(async () => {
@@ -815,7 +828,7 @@ function ServiceAccounts({
                             </article>
                         ))}
                     {tokens.hasNextPage && (
-                        <button onClick={() => void tokens.fetchNextPage()}>
+                        <button type="button" onClick={() => void tokens.fetchNextPage()}>
                             更多令牌 / More tokens
                         </button>
                     )}
