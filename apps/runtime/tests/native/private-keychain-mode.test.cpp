@@ -27,13 +27,50 @@ struct Area {
     }
     /** 成员路径只由案例内部固定名称拼接，测试与被测守卫均不接受命令行路径或账户选择；额外名称仅用于制造同目录硬链接和可确定顺序的替换对象，不能指向外部已有文件。 */
     std::string path(const char *name = "owned.keychain-db") const { return directory + "/" + name; }
-    /** 初始模式用已打开的新文件描述符设置以排除宿主 umask 对案例输入的影响，随后立即关闭；这里不会修改进程掩码或文件属主，也不会读取任何钥匙串或其他文件的正文内容。 */
+    /** 新文件先由持有描述符核对类型、当前属主和单链接，随后才建立案例要求的模式；SGID 输入必须先属于当前普通身份的主组，所有模式都在设置后精确复核，不能把 fchmod 返回成功误当成特殊位已经保留。 */
     void file(mode_t mode, const char *name = "owned.keychain-db") {
         const int fd = open(path(name).c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
         check(fd >= 0);
-        const int result = fchmod(fd, mode);
-        const int closed = close(fd);
-        check(result == 0 && closed == 0);
+        try {
+            const uid_t owner = getuid();
+            struct stat before {};
+            check(fstat(fd, &before) == 0);
+            check(S_ISREG(before.st_mode));
+            check(before.st_uid == owner);
+            check(before.st_nlink == 1);
+            gid_t expectedGroup = before.st_gid;
+            if ((mode & S_ISGID) != 0) {
+                const gid_t primaryGroup = getgid();
+                check(owner == geteuid());
+                check(primaryGroup == getegid());
+                /** 组调整仅限此处新建的 SGID 测试输入，目标来自当前主组且 UID 哨兵保持属主不变；原组已相等时不调用 fchown，调整必须先于 fchmod，以免所有权操作清除刚准备好的特殊权限位。 */
+                if (before.st_gid != primaryGroup) check(fchown(fd, static_cast<uid_t>(-1), primaryGroup) == 0);
+                struct stat grouped {};
+                check(fstat(fd, &grouped) == 0);
+                check(S_ISREG(grouped.st_mode));
+                check(grouped.st_uid == owner);
+                check(grouped.st_nlink == 1);
+                check(grouped.st_dev == before.st_dev && grouped.st_ino == before.st_ino);
+                check(grouped.st_gid == primaryGroup);
+                expectedGroup = primaryGroup;
+            }
+            check(fchmod(fd, mode) == 0);
+            struct stat after {};
+            check(fstat(fd, &after) == 0);
+            check(S_ISREG(after.st_mode));
+            check(after.st_uid == owner);
+            check(after.st_nlink == 1);
+            check(after.st_dev == before.st_dev && after.st_ino == before.st_ino);
+            check(after.st_gid == expectedGroup);
+            check((after.st_mode & 07777) == mode);
+        } catch (...) {
+            /** 准备过程中任一拒绝都先单次释放已打开描述符再重新抛出原异常，清理返回值不能替换主失败；errno 保留进入清理时的值，关闭中断也不重试，成功路径的关闭检查则放在此捕获范围之外。 */
+            const int saved = errno;
+            (void)close(fd);
+            errno = saved;
+            throw;
+        }
+        check(close(fd) == 0);
     }
     /** 属性观察针对测试自身已经知道的成员执行不跟随链接的查询，断言只比较内存中的模式和时间字段；失败输出保持固定英文代码，不把路径、属主编号或其他文件身份写入持续集成日志。 */
     struct stat info(const char *name = "owned.keychain-db") const {
