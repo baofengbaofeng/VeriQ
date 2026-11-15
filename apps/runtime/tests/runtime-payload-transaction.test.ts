@@ -838,3 +838,105 @@ for (const profile of ["intake", "runtime"] as const)
             await rm(output, { recursive: true, force: true });
         }
     });
+
+/** 新的来源入口只登记有限普通 Ref 并复用旧观察集合，私有六百文件须能真实快照而无需 chmod；异步等待后修改调用数组不得改变已复制声明，重复路径和过量引用必须在读取前直接失败关闭。 */
+test("observeRefs accepts private source and snapshots original bytes", async () => {
+    const base = await mkdtemp(join(tmpdir(), "veriq-refs-")),
+        input = join(base, "input"),
+        output = join(base, "output");
+    await mkdir(input, { mode: 0o700 });
+    await mkdir(output, { mode: 0o700 });
+    const content = Buffer.from("private source evidence");
+    await writeFile(join(input, "source.json"), content, { mode: 0o600 });
+    const tx = new ArchiveTransaction(input, output, "refs");
+    try {
+        await tx.initialize();
+        await tx.observeRefs([
+            { path: "source.json", sizeBytes: content.length, sha256: hash(content) },
+        ]);
+        await tx.snapshot(
+            { path: "source.json", sizeBytes: content.length, sha256: hash(content) },
+            "evidence/source.json",
+        );
+        await tx.finishSources();
+        await tx.audit();
+        assert.deepEqual(await readFile(join(tx.scratch, "evidence/source.json")), content);
+    } finally {
+        await tx.cleanup();
+        await rm(base, { recursive: true, force: true });
+    }
+});
+
+/** 有限 Ref 的权限和声明边界只作用于新入口，测试逐项使用真实普通文件、链接及重复声明观察拒绝；旧五树场景继续由同文件既有完整回归覆盖，新入口不会降低 snapshot 的真实摘要要求或增加权限修复操作。 */
+for (const scenario of [
+    "400",
+    "444",
+    "644",
+    "mode",
+    "hardlink",
+    "symlink",
+    "size",
+    "duplicate",
+    "count",
+    "unknown",
+    "hash",
+    "parent",
+] as const)
+    test(`bounded observeRefs ${scenario}`, async () => {
+        const base = await mkdtemp(join(tmpdir(), "veriq-bounded-refs-")),
+            input = join(base, "input"),
+            output = join(base, "output");
+        await mkdir(input, { mode: 0o700 });
+        await mkdir(output, { mode: 0o700 });
+        await mkdir(join(input, "nested"), { mode: 0o700 });
+        const bytes = Buffer.from("bounded source");
+        await writeFile(join(input, "nested/file"), bytes, { mode: 0o600 });
+        const { chmod, link, symlink } = await import("node:fs/promises");
+        if (["400", "444", "644", "mode"].includes(scenario))
+            await chmod(
+                join(input, "nested/file"),
+                scenario === "mode" ? 0o755 : parseInt(scenario, 8),
+            );
+        if (scenario === "hardlink") await link(join(input, "nested/file"), join(input, "other"));
+        if (scenario === "symlink") {
+            await unlink(join(input, "nested/file"));
+            await symlink("../other", join(input, "nested/file"));
+        }
+        const tx = new ArchiveTransaction(input, output, "bounded");
+        try {
+            await tx.initialize();
+            const ref = { path: "nested/file", sizeBytes: bytes.length, sha256: hash(bytes) };
+            if (scenario === "size") ref.sizeBytes++;
+            if (scenario === "hash") ref.sha256 = "0".repeat(64);
+            let refs: readonly Ref[] = [ref];
+            if (scenario === "duplicate") refs = [ref, ref];
+            if (scenario === "count")
+                refs = Array.from({ length: 9 }, (_, i) => ({ ...ref, path: `file${i}` }));
+            if (scenario === "unknown") refs = [{ ...ref, extra: true } as Ref];
+            if (
+                ["mode", "hardlink", "symlink", "size", "duplicate", "count", "unknown"].includes(
+                    scenario,
+                )
+            )
+                await assert.rejects(tx.observeRefs(refs));
+            else {
+                await tx.observeRefs(refs);
+                if (scenario === "hash")
+                    await assert.rejects(tx.snapshot(ref, "snapshots/source"), {
+                        code: "PAYLOAD_SOURCE_CHANGED",
+                    });
+                else if (scenario === "parent") {
+                    await rename(join(input, "nested"), join(input, "moved"));
+                    await mkdir(join(input, "nested"), { mode: 0o700 });
+                    await assert.rejects(tx.finishSources(), { code: "PAYLOAD_SOURCE_CHANGED" });
+                } else {
+                    await tx.snapshot(ref, "snapshots/source");
+                    await tx.finishSources();
+                    await tx.audit();
+                }
+            }
+        } finally {
+            await tx.cleanup();
+            await rm(base, { recursive: true, force: true });
+        }
+    });

@@ -1,0 +1,243 @@
+name: Runtime macOS official asset observation
+on:
+    workflow_dispatch:
+        inputs:
+            source_ref:
+                description: Exact reviewed commit; must equal the workflow commit
+                required: true
+                type: string
+    push:
+        branches: [codex/veriq-mvp-completion]
+        paths:
+            - apps/runtime/scripts/runtime-assets-observation.ts
+            - apps/runtime/scripts/runtime-assets-acquisition.ts
+            - apps/runtime/scripts/observe-macos-runtime-assets.mjs
+            - apps/runtime/scripts/acquire-macos-runtime-assets.mjs
+            - apps/runtime/scripts/runtime-payload-archive.ts
+            - apps/runtime/scripts/runtime-payload-tar.ts
+            - apps/runtime/scripts/runtime-payload-zip.ts
+            - apps/runtime/scripts/runtime-payload-transaction.ts
+            - apps/runtime/scripts/runtime-payload-inputs.ts
+            - apps/runtime/scripts/runtime-payload-tree.ts
+            - apps/runtime/scripts/runtime-payload-receipts.ts
+            - apps/runtime/scripts/runtime-payload-graph.ts
+            - apps/runtime/src/distribution-manifest-v2.ts
+            - apps/runtime/src/node-version.ts
+            - packages/contracts/src/index.ts
+            - packages/contracts/src/validators.ts
+            - packages/contracts/schemas/platform-v1.schema.json
+            - pnpm-lock.yaml
+            - .github/workflows/runtime-payload-macos.yml
+permissions:
+    contents: read
+jobs:
+    assets:
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - runner: macos-15-intel
+                      arch: x64
+                    - runner: macos-15
+                      arch: arm64
+        runs-on: ${{ matrix.runner }}
+        timeout-minutes: 40
+        env:
+            ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+            PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+            EXPECTED_ARCH: ${{ matrix.arch }}
+            MANUAL_SOURCE: ${{ inputs.source_ref }}
+            EVENT_NAME: ${{ github.event_name }}
+        steps:
+            - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+              with:
+                  ref: ${{ github.sha }}
+                  persist-credentials: false
+            - name: Bind reviewed workflow commit before installation or source execution
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  ASSET_ROOT="$RUNNER_TEMP/veriq-runtime-assets"
+                  export ASSET_ROOT
+                  printf '%s\n' "ASSET_ROOT=$ASSET_ROOT" >> "$GITHUB_ENV"
+                  test "$EVENT_NAME" = push || test "$EVENT_NAME" = workflow_dispatch
+                  test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+                  if [ "$EVENT_NAME" = workflow_dispatch ]; then
+                      [[ "$MANUAL_SOURCE" =~ ^[0-9a-f]{40}$ ]]
+                      test "$MANUAL_SOURCE" = "$GITHUB_SHA"
+                  else
+                      test "$GITHUB_REF" = refs/heads/codex/veriq-mvp-completion
+                  fi
+                  mkdir -m 700 "$ASSET_ROOT"
+                  mkdir -m 700 "$ASSET_ROOT/metadata" "$ASSET_ROOT/source" "$ASSET_ROOT/acquisition" "$ASSET_ROOT/observation"
+                  sw_vers > "$ASSET_ROOT/metadata/os.log"
+                  uname -m > "$ASSET_ROOT/metadata/cpu.log"
+                  test "$(sw_vers -productVersion | cut -d. -f1)" = 15
+                  if [ "$EXPECTED_ARCH" = arm64 ]; then test "$(uname -m)" = arm64; else test "$(uname -m)" = x86_64; fi
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+              with:
+                  node-version: 24.22.1
+            - name: Install pinned pnpm and frozen dependencies without asset scripts
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  npm install --prefix "$RUNNER_TEMP/veriq-asset-tools" pnpm@11.25.0 --ignore-scripts > "$ASSET_ROOT/metadata/pnpm-install.log" 2>&1
+                  node "$RUNNER_TEMP/veriq-asset-tools/node_modules/pnpm/bin/pnpm.cjs" install --frozen-lockfile --ignore-scripts > "$ASSET_ROOT/metadata/dependencies.log" 2>&1
+            - name: Generate exact source evidence and execute the real acquisition and observer CLIs
+              id: observe
+              working-directory: apps/runtime
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  unset NODE_TLS_REJECT_UNAUTHORIZED NODE_EXTRA_CA_CERTS SSL_CERT_FILE SSL_CERT_DIR NODE_USE_ENV_PROXY HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+                  test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+                  node --import tsx --input-type=module <<'JS'
+                  import "./scripts/runtime-payload-inputs.ts";
+                  import assert from "node:assert/strict";
+                  import { createHash } from "node:crypto";
+                  import { readFile, writeFile, mkdir, readdir, stat, statfs } from "node:fs/promises";
+                  import { createReadStream } from "node:fs";
+                  import { execFileSync, spawn } from "node:child_process";
+                  import { join, relative } from "node:path";
+                  import { fileURLToPath } from "node:url";
+                  import { ASSET_SOURCES } from "./scripts/runtime-assets-observation.ts";
+                  // 来源证据绑定实际 checkout 与本次工作流执行身份，并在两个真实 CLI 前后复验原始十九个源码字节；这些 CI 外层事实只佐证观察来源，不能替代发布者签名、批准布局或目标执行验收。
+                  const root = process.env.ASSET_ROOT, meta = join(root, "metadata"), sourceRoot = join(root, "source");
+                  const hash = bytes => createHash("sha256").update(bytes).digest("hex");
+                  const ref = (path, bytes) => ({ path, sizeBytes: bytes.length, sha256: hash(bytes) });
+                  const head = () => execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+                  assert.equal(head(), process.env.GITHUB_SHA);
+                  assert.equal(process.platform, "darwin"); assert.equal(process.arch, process.env.EXPECTED_ARCH); assert.equal(process.versions.node, "24.22.1");
+                  const os = execFileSync("sw_vers", ["-productVersion"], { encoding: "utf8" }).trim(); assert.match(os, /^15\.[0-9]+(?:\.[0-9]+)?$/);
+                  const files = await Promise.all(ASSET_SOURCES.map(async source => ref(source.path, await readFile(fileURLToPath(source.url)))));
+                  assert.equal(files.length, 19); assert.equal(new Set(files.map(f => f.path)).size, 19);
+                  const facts = { schemaVersion: 1, kind: "ASSET_OBSERVER_SOURCE", commit: head(), runId: process.env.GITHUB_RUN_ID, runAttempt: Number(process.env.GITHUB_RUN_ATTEMPT), arch: process.arch, osVersion: os, nodeVersion: "24.22.1", nodeSha256: hash(await readFile(process.execPath)), files };
+                  await mkdir(join(sourceRoot, "evidence"), { mode: 0o700 });
+                  const factsBytes = Buffer.from(JSON.stringify(facts));
+                  await writeFile(join(sourceRoot, "evidence/source.json"), factsBytes, { mode: 0o600 });
+                  const source = { commit: head(), evidence: ref("evidence/source.json", factsBytes) };
+                  await writeFile(join(root, "source-observation.json"), JSON.stringify(source), { mode: 0o600 });
+                  await writeFile(join(meta, "source.json"), factsBytes);
+                  await writeFile(join(meta, "job.json"), JSON.stringify({ source_ref: head(), githubSha: process.env.GITHUB_SHA, runId: process.env.GITHUB_RUN_ID, runAttempt: process.env.GITHUB_RUN_ATTEMPT, job: process.env.GITHUB_JOB, workflow: process.env.GITHUB_WORKFLOW, event: process.env.EVENT_NAME, status: "UNREVIEWED_SOURCE" }));
+                  const verify = async () => {
+                      assert.equal(head(), source.commit);
+                      for (const [i, s] of ASSET_SOURCES.entries()) assert.deepEqual(ref(s.path, await readFile(fileURLToPath(s.url))), files[i]);
+                  };
+                  // 两个阶段顺序启动真实 CLI，每个子进程的日志按收到字节截断并明确标记，只有 close 确认之后才写稳定日志和结果；未知关闭时仅保存固定失败事实，不扫描或上传仍可能被 writer 修改的 scratch。
+                  const steps = ["ACQUIRE", "OBSERVE"].map(step => ({ step, status: "NOT_RUN", code: null, cleanup: null, actualBytes: null }));
+                  const results = {};
+                  const run = async (index, script, args) => {
+                      await verify(); const record = steps[index]; record.status = "STARTED";
+                      await writeFile(join(meta, "steps.json"), JSON.stringify(steps));
+                      const child = spawn(process.execPath, ["--import", "tsx", `scripts/${script}`, ...args], { stdio: ["ignore", "pipe", "pipe"] });
+                      let stdout = Buffer.alloc(0), stderr = Buffer.alloc(0), truncated = false, timedOut = false;
+                      child.stdout.on("data", b => { if (stdout.length + b.length > 65536) { truncated = true; child.kill("SIGTERM"); } else stdout = Buffer.concat([stdout, b]); });
+                      child.stderr.on("data", b => { const remaining = 4 * 1024 ** 2 - 65536 - stderr.length; if (b.length > remaining) truncated = true; if (remaining > 0) stderr = Buffer.concat([stderr, b.subarray(0, remaining)]); });
+                      let force;
+                      const timer = setTimeout(() => { timedOut = true; child.kill("SIGTERM"); force = setTimeout(() => child.kill("SIGKILL"), 6000); }, index ? 15 * 60000 : 16 * 60000);
+                      const exit = await new Promise(resolve => { child.once("error", () => resolve(1)); child.once("close", code => resolve(code ?? 1)); });
+                      clearTimeout(timer); clearTimeout(force);
+                      if (truncated) stderr = Buffer.concat([stderr, Buffer.from("\nLOG_TRUNCATED: hash binds this truncated log only\n")]);
+                      await writeFile(join(meta, `${record.step.toLowerCase()}.log`), stderr);
+                      await writeFile(join(meta, `${record.step.toLowerCase()}.stdout.json`), stdout);
+                      const diagnostic = stderr.toString("utf8").match(/(PAYLOAD_[A-Z_]+) phase=([A-Z]+) cleanup=([A-Z_]+)/);
+                      record.code = diagnostic?.[1] ?? (exit === 0 ? null : timedOut ? "PAYLOAD_CANCELLED" : "PAYLOAD_IO"); record.cleanup = diagnostic?.[3] ?? null;
+                      const failure = stderr.toString("utf8").split("\n").find(line => line.startsWith('{"kind":"ASSET_FETCH_FAILURE"'));
+                      if (failure) { try { record.actualBytes = JSON.parse(failure).bytes; } catch {} }
+                      if (exit !== 0) { record.status = "FAIL"; await writeFile(join(meta, "steps.json"), JSON.stringify(steps)); throw Error(record.code); }
+                      const result = JSON.parse(stdout); assert.equal(result.committed, true); record.cleanup = result.cleanup; record.status = "PASS";
+                      results[record.step] = result; await writeFile(join(meta, "steps.json"), JSON.stringify(steps));
+                      await verify(); return result;
+                  };
+                  let failure;
+                  try {
+                      // 同时保留获取与观察的两份压缩副本需要真实空间预检，固定资源预算不依赖本地开发主机容量；此 CI 只扫描压缩体，不执行其中 Node、Chrome、Electron、原生插件或系统凭据与信任操作。
+                      const space = await statfs(root, { bigint: true }); assert.ok(space.bavail * space.bsize > 600n * 1024n ** 2n);
+                      const acquired = await run(0, "acquire-macos-runtime-assets.mjs", ["--arch", process.arch, "--source", join(root, "source-observation.json"), "--input-root", sourceRoot, "--output-parent", join(root, "acquisition"), "--candidate", "acquired"]);
+                      await run(1, "observe-macos-runtime-assets.mjs", ["--assets", join(acquired.directory, "assets-input.json"), "--input-root", acquired.directory, "--output-parent", join(root, "observation"), "--candidate", "observed"]);
+                      await writeFile(join(meta, "status.json"), JSON.stringify({ status: "OBSERVED", sourceStatus: "UNREVIEWED_SOURCE", layout: "REQUIRES_LAYOUT_REVIEW", publisherSignature: "NOT_VERIFIED", results }));
+                  } catch (error) { failure = error; await writeFile(join(meta, "status.json"), JSON.stringify({ status: "FAIL", code: steps.find(s => s.status === "FAIL")?.code ?? "PAYLOAD_IO", results })); }
+                  finally {
+                      // 只收集已返回 committed Result 的稳定证据，原压缩包只从 observer 的 snapshots 单独上传一次；metadata 和日志各自计费，未确认关闭的暂存根、整个 checkout、缓存及用户目录都不会进入 artifact。
+                      const manifest = []; let metadataBytes = 0, logBytes = 0;
+                      const copy = async (base, path, prefix) => {
+                          const bytes = await readFile(join(base, path)); if (path.endsWith(".log")) logBytes += bytes.length; else metadataBytes += bytes.length;
+                          assert.ok(logBytes <= 8 * 1024 ** 2 && metadataBytes <= 16 * 1024 ** 2);
+                          const target = join(meta, prefix, path); await mkdir(join(target, ".."), { recursive: true }); await writeFile(target, bytes); manifest.push(ref(`${prefix}/${path}`, bytes));
+                      };
+                      if (results.ACQUIRE) for (const p of ["assets-input.json", "evidence/source.json", "evidence/fetch.json", "evidence/SHASUMS256.txt"]) await copy(results.ACQUIRE.directory, p, "acquisition");
+                      if (results.OBSERVE) {
+                          for (const p of ["observation.json", "members/node.json", "members/chrome.json", "evidence/source.json", "evidence/fetch.json", "evidence/SHASUMS256.txt", "evidence/zip-modes.json"]) await copy(results.OBSERVE.directory, p, "observation");
+                          const originals = [];
+                          for (const p of ["snapshots/node.tar.gz", "snapshots/chrome.zip"]) {
+                              const digest = createHash("sha256"); let bytes = 0; for await (const b of createReadStream(join(results.OBSERVE.directory, p))) { bytes += b.length; digest.update(b); }
+                              originals.push({ path: p, sizeBytes: bytes, sha256: digest.digest("hex") });
+                          }
+                          assert.ok(originals.reduce((n,f) => n + f.sizeBytes, 0) <= 600 * 1024 ** 2);
+                          await writeFile(join(meta, "archives.json"), JSON.stringify({ arch: process.arch, source: head(), files: originals, artifact: `veriq-macos-assets-archives-${process.arch}` }));
+                      }
+                      await verify();
+                      const walk = async (dir) => { for (const name of await readdir(dir)) { const full = join(dir, name), info = await stat(full); if (info.isDirectory()) await walk(full); else { const p = relative(meta, full), bytes = await readFile(full); manifest.push(ref(p, bytes)); } } };
+                      manifest.length = 0; await walk(meta);
+                      assert.ok(manifest.filter(f => f.path.endsWith(".log")).reduce((n,f) => n + f.sizeBytes, 0) <= 8 * 1024 ** 2);
+                      assert.ok(manifest.filter(f => !f.path.endsWith(".log")).reduce((n,f) => n + f.sizeBytes, 0) <= 16 * 1024 ** 2 - 65536);
+                      await writeFile(join(meta, "manifest.json"), JSON.stringify({ source: head(), arch: process.arch, metadataArtifact: `veriq-macos-assets-observation-${process.arch}`, archiveArtifact: `veriq-macos-assets-archives-${process.arch}`, files: manifest.sort((a,b) => a.path < b.path ? -1 : 1) }));
+                  }
+                  if (failure) process.exitCode = 1;
+                  JS
+            - name: Bound dependency logs and preserve setup failures
+              if: always()
+              shell: bash
+              run: |
+                  if [ -d "$ASSET_ROOT/metadata" ]; then
+                      node --input-type=module <<'JS'
+                  import { readFile, writeFile, readdir, stat } from "node:fs/promises";
+                  import { join, relative } from "node:path";
+                  import { createHash } from "node:crypto";
+                  const root = join(process.env.ASSET_ROOT, "metadata");
+                  // 安装阶段也可能在真实 CLI 之前失败，固定步骤记录必须明确未运行而不是伪造成功观察；安装日志有独立有限尾部标记，截断后摘要只对应实际保留的文件，不能声称完整原日志已经封存。
+                  for (const name of ["pnpm-install.log", "dependencies.log"]) {
+                      const file = join(root, name); let bytes; try { bytes = await readFile(file); } catch { continue; }
+                      if (bytes.length > 32768) await writeFile(file, Buffer.concat([bytes.subarray(0, 32700), Buffer.from("\nLOG_TRUNCATED\n")]));
+                  }
+                  try { await stat(join(root, "steps.json")); } catch { await writeFile(join(root, "steps.json"), JSON.stringify([{ step: "SETUP", status: "FAIL", code: "PAYLOAD_IO", cleanup: "NOT_NEEDED", actualBytes: 0 }, { step: "ACQUIRE", status: "NOT_RUN", code: null, cleanup: null, actualBytes: null }, { step: "OBSERVE", status: "NOT_RUN", code: null, cleanup: null, actualBytes: null }])); }
+                  const files = [];
+                  const walk = async dir => {
+                      for (const name of await readdir(dir)) {
+                          const full = join(dir, name), info = await stat(full);
+                          if (info.isDirectory()) await walk(full);
+                          else if (full !== join(root, "manifest.json")) { const bytes = await readFile(full); files.push({ path: relative(root, full), sizeBytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") }); }
+                      }
+                  };
+                  await walk(root);
+                  if (files.filter(f => f.path.endsWith(".log")).reduce((n,f) => n + f.sizeBytes, 0) > 8 * 1024 ** 2 || files.filter(f => !f.path.endsWith(".log")).reduce((n,f) => n + f.sizeBytes, 0) > 16 * 1024 ** 2 - 65536) throw Error("ARTIFACT_LIMIT");
+                  await writeFile(join(root, "manifest.json"), JSON.stringify({ source: process.env.GITHUB_SHA, arch: process.env.EXPECTED_ARCH, metadataArtifact: `veriq-macos-assets-observation-${process.env.EXPECTED_ARCH}`, archiveArtifact: `veriq-macos-assets-archives-${process.env.EXPECTED_ARCH}`, files: files.sort((a,b) => a.path < b.path ? -1 : 1) }));
+                  JS
+                  fi
+            - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+              id: metadata_upload
+              if: always()
+              with:
+                  name: veriq-macos-assets-observation-${{ matrix.arch }}
+                  path: ${{ env.ASSET_ROOT }}/metadata/
+                  retention-days: 7
+                  if-no-files-found: warn
+            - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+              id: archives_upload
+              if: steps.observe.outcome == 'success'
+              with:
+                  name: veriq-macos-assets-archives-${{ matrix.arch }}
+                  path: ${{ env.ASSET_ROOT }}/observation/observed/snapshots/
+                  compression-level: 0
+                  retention-days: 7
+                  if-no-files-found: error
+            - name: Record artifact identity matrix for independent review
+              if: always()
+              env:
+                  METADATA_ID: ${{ steps.metadata_upload.outputs.artifact-id }}
+                  ARCHIVES_ID: ${{ steps.archives_upload.outputs.artifact-id }}
+                  METADATA_DIGEST: ${{ steps.metadata_upload.outputs.artifact-digest }}
+                  ARCHIVES_DIGEST: ${{ steps.archives_upload.outputs.artifact-digest }}
+              shell: bash
+              run: |
+                  printf '%s\n' "OBSERVATION_ONLY source=$GITHUB_SHA run=$GITHUB_RUN_ID attempt=$GITHUB_RUN_ATTEMPT arch=$EXPECTED_ARCH metadata=$METADATA_ID metadataDigest=$METADATA_DIGEST archives=$ARCHIVES_ID archivesDigest=$ARCHIVES_DIGEST" >> "$GITHUB_STEP_SUMMARY"
