@@ -198,6 +198,7 @@ export async function scanTar(path: string, scan: ArchiveScan): Promise<number> 
     const gunzip = createGunzip(),
         parser = new Parser({ strict: true, maxMetaEntrySize: 64 * 1024 });
     const framing = new TarFrames();
+    let parserTail = Buffer.alloc(0);
     let rejected = false;
     let failure: unknown,
         current: ReadEntry | undefined,
@@ -253,8 +254,19 @@ export async function scanTar(path: string, scan: ArchiveScan): Promise<number> 
             scan.tx.check();
             for (const frame of framing.feed(Buffer.from(value))) {
                 if (failure) throw failure;
-                if (!parser.write(frame.bytes)) await once(parser, "drain");
+                // 成熟 Parser 的正文循环仍以五百一十二字节为最小推进单位，不能先喂入非整块正文再单独等待短 padding；这里只延迟最多五百一十一字节并合并下一帧，成员边界必然全部交付后才等待消费者结束，背压仍逐次遵守。
+                const bytes = parserTail.length
+                    ? Buffer.concat([parserTail, frame.bytes])
+                    : frame.bytes;
+                const aligned = bytes.length - (bytes.length % 512);
+                parserTail = Buffer.from(bytes.subarray(aligned));
+                if (aligned) {
+                    const accepted = parser.write(bytes.subarray(0, aligned));
+                    if (failure) throw failure;
+                    if (!accepted) await once(parser, "drain");
+                }
                 if (frame.boundary) {
+                    if (parserTail.length) scan.tx.fail("PAYLOAD_ARCHIVE_FORMAT");
                     await work;
                     if (failure) throw failure;
                 }
@@ -264,6 +276,12 @@ export async function scanTar(path: string, scan: ArchiveScan): Promise<number> 
         await pumping;
         if (failure) throw failure;
         framing.finish();
+        // 所有普通成员已经在完整块边界结束，最后不足一块的剩余只可能是 guard 已逐字证明的有限零尾；仍交给原 Parser 并遵守返回的背压，完整 gzip trailer 和 tar 终止检查不会因小缓存被跳过或提前宣布成功。
+        if (parserTail.length) {
+            const accepted = parser.write(parserTail);
+            if (failure) throw failure;
+            if (!accepted) await once(parser, "drain");
+        }
         const ended = once(parser, "end");
         parser.end();
         await ended;

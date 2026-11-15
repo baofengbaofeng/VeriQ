@@ -558,3 +558,124 @@ for (const basename of [".framework", "Named.framework"])
             await rm(output, { recursive: true, force: true });
         }
     });
+
+/** 自包含回归在真正独立的 Node 子进程等待生产 tar 消费者自然结束，父级期限只把卡住分类为失败而不充当完成事件；夹具使用成熟 tar 编码器与真实摘要，每次仅拥有一个小归档并在进程已结束后删除，绝不借私有证据或伪造官方身份。 */
+async function naturalTarChild(
+    size: number,
+    scenario: "ordinary" | "low-compressible" | "cancel" | "member-error" | "zero-tail",
+) {
+    const { spawnSync } = await import("node:child_process"),
+        { statfs } = await import("node:fs/promises");
+    const root = await mkdtemp(join(tmpdir(), "veriq-natural-tar-"));
+    try {
+        const space = await statfs(root, { bigint: true });
+        assert.ok(space.bavail * space.bsize > 40n * 1024n ** 2n);
+        const moduleUrl = (name: string) => new URL(`../scripts/${name}.ts`, import.meta.url).href;
+        const code = `import ${JSON.stringify(moduleUrl("runtime-payload-inputs"))};
+import { RuntimePayloadError } from ${JSON.stringify(moduleUrl("runtime-payload-inputs"))};
+import { ArchiveTransaction } from ${JSON.stringify(moduleUrl("runtime-payload-transaction"))};
+import { ArchiveScan, ArchiveBudget } from ${JSON.stringify(moduleUrl("runtime-payload-archive"))};
+import { scanTar } from ${JSON.stringify(moduleUrl("runtime-payload-tar"))};
+import { tarBytes } from ${JSON.stringify(new URL("./fixtures/runtime-payload-archives.ts", import.meta.url).href)};
+import { createHash } from "node:crypto";
+import { mkdir, writeFile, lstat, opendir, readFile } from "node:fs/promises";
+import { join } from "node:path";
+const root=${JSON.stringify(root)}, size=${size}, scenario=${JSON.stringify(scenario)}, top="node-v24.22.1-darwin-x64";
+const hash=bytes=>createHash("sha256").update(bytes).digest("hex");
+const emit=value=>process.stdout.write(JSON.stringify(value)+"\\n");let phase="PREPARE",reported=false;
+process.on("beforeExit",()=>{if(!reported){reported=true;emit({event:"BEFORE_EXIT",phase});}});
+if(!/^24\\./.test(process.versions.node))throw Error("NODE24_REQUIRED");
+let body="a".repeat(size);
+if(scenario==="low-compressible"){const chunks=[];for(let i=0,n=0;n<size;i++,n+=64)chunks.push(hash(Buffer.from("veriq-tar-boundary:"+i)));body=chunks.join("").slice(0,size);}
+const bodyBytes=Buffer.from(body),archive=tarBytes([{path:top+"/empty/",kind:"directory"},{path:top+"/payload",body},{path:top+"/after",body:"tail"}],Buffer.alloc(scenario==="zero-tail"?1031:1024));
+if(bodyBytes.length>1024**2||archive.length>512*1024||(scenario==="low-compressible"&&archive.length<=65536))throw Error("FIXTURE_BOUND");
+const input=join(root,"input"),output=join(root,"output");await mkdir(input,{mode:0o700});await mkdir(output,{mode:0o700});await writeFile(join(input,"node.tar.gz"),archive,{mode:0o600});
+const controller=new AbortController(),tx=new ArchiveTransaction(input,output,"candidate",controller.signal),ref={path:"node.tar.gz",sizeBytes:archive.length,sha256:hash(archive)};
+await tx.initialize();await tx.observeRefs([ref]);await tx.plan(archive.length+bodyBytes.length+4096,4);
+phase="SNAPSHOT";await tx.snapshot(ref,"snapshots/node.tar.gz");await tx.audit();emit({event:"SNAPSHOT_DONE",archiveBytes:archive.length,archiveSha256:ref.sha256,node:process.versions.node});
+const budget=new ArchiveBudget(),scan=new ArchiveScan("node",top,tx,budget);
+if(scenario==="cancel"||scenario==="member-error"){
+    const actual=scan.entry.bind(scan);let injected=false;
+    scan.entry=(entry,chunks)=>actual(entry,(async function*(){for await(const chunk of chunks){if(!injected&&entry.path===top+"/payload"){injected=true;if(scenario==="cancel")controller.abort();else throw new RuntimePayloadError("PAYLOAD_IO","ENOSPC");}yield chunk;}})());
+}
+try{
+    phase="SCAN";emit({event:"SCAN_BEGIN"});const streamBytes=await scanTar(join(tx.scratch,"snapshots/node.tar.gz"),scan);
+    if(scenario==="cancel"||scenario==="member-error")throw Error("EXPECTED_REJECTION");
+    const member=scan.members.find(m=>m.path===top+"/payload");
+    if(scan.members.length!==3||member?.kind!=="file"||member.sizeBytes!==size||member.sha256!==hash(bodyBytes))throw Error("MEMBER_MISMATCH");
+    emit({event:"SCAN_DONE",streamBytes,member});
+    phase="SECOND_SCAN";await scanTar(join(tx.scratch,"snapshots/node.tar.gz"),new ArchiveScan("node",top,tx,budget,scan));await tx.audit();
+    if(hash(await readFile(join(tx.scratch,"trees/node",top,"payload")))!==hash(bodyBytes))throw Error("SECOND_PASS_MISMATCH");
+    let allocated=0;const walk=async path=>{const info=await lstat(path,{bigint:true});allocated+=Number(info.blocks*512n);if(info.isDirectory()){const dir=await opendir(path);for await(const entry of dir)await walk(join(path,entry.name));}};await walk(root);if(allocated>2*1024**2)throw Error("ALLOCATION_BOUND");
+    phase="CLEANUP";const cleanup=await tx.cleanup();if(cleanup!=="CONFIRMED")throw Error("CLEANUP_UNCONFIRMED");phase="DONE";emit({event:"RESULT",members:scan.members.length,bodySha256:hash(bodyBytes),bodyBytes:size,archiveBytes:archive.length,allocated,cleanup});
+}catch(error){
+    const expected=scenario==="cancel"?"PAYLOAD_CANCELLED":scenario==="member-error"?"PAYLOAD_IO":null,cleanup=await tx.cleanup();
+    if(error.code!==expected||cleanup!=="CONFIRMED"||(scenario==="member-error"&&error.causeCode!=="ENOSPC"))throw error;
+    phase="REJECTED";emit({event:"EXPECTED_REJECT",code:error.code,causeCode:error.causeCode,cleanup});
+}
+`;
+        const environment = { ...process.env };
+        delete environment.NODE_TEST_CONTEXT;
+        const result = spawnSync(
+            process.execPath,
+            ["--import", "tsx", "--input-type=module", "-e", code],
+            {
+                cwd: new URL("../", import.meta.url),
+                env: environment,
+                encoding: "utf8",
+                timeout: 15000,
+                maxBuffer: 65536,
+            },
+        );
+        assert.ok(
+            !result.error,
+            `Parent watchdog or child launch failed: ${result.error?.message}`,
+        );
+        assert.equal(
+            result.status,
+            0,
+            `Natural child exit=${result.status}\n${result.stdout}\n${result.stderr}`,
+        );
+        assert.equal(result.signal, null);
+        assert.equal(result.stderr, "");
+        const records = result.stdout
+            .trim()
+            .split("\n")
+            .map((line) => JSON.parse(line) as Record<string, unknown>);
+        assert.ok(records.some((row) => row.event === "SNAPSHOT_DONE"));
+        if (scenario === "cancel" || scenario === "member-error")
+            assert.ok(
+                records.some(
+                    (row) => row.event === "EXPECTED_REJECT" && row.cleanup === "CONFIRMED",
+                ),
+            );
+        else {
+            assert.ok(records.some((row) => row.event === "SCAN_DONE"));
+            assert.ok(
+                records.some(
+                    (row) =>
+                        row.event === "RESULT" &&
+                        row.members === 3 &&
+                        row.bodyBytes === size &&
+                        row.cleanup === "CONFIRMED",
+                ),
+            );
+        }
+        assert.equal(
+            records.at(-1)?.phase,
+            scenario === "cancel" || scenario === "member-error" ? "REJECTED" : "DONE",
+        );
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+}
+for (const size of [0, 1, 16383, 16384, 16385, 65535, 65536, 65537])
+    test(`tar natural child boundary ${size}`, async () => naturalTarChild(size, "ordinary"));
+test("tar natural child compressed reads cross64KiB", async () =>
+    naturalTarChild(524301, "low-compressible"));
+for (const scenario of ["cancel", "member-error"] as const)
+    test(`tar natural child settles waiting producer ${scenario}`, async () =>
+        naturalTarChild(65537, scenario));
+
+test("tar natural child retains permitted partial zero tail", async () =>
+    naturalTarChild(16385, "zero-tail"));
