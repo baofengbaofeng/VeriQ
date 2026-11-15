@@ -57,6 +57,18 @@ export type PayloadResult = Readonly<{
 type Copy = { fact: OutputFact; root: string; source: Ref };
 const rootPackage = Buffer.from('{"private":true,"type":"module"}\n');
 
+/** 所有实际复制到包外 input-evidence 的 Ref 必须共享固定六十四 MiB 总额，原配方、独立 expected 和本次 intake 收据也逐份计入；该检查只核数值预算而不冒充来源或文件真实性验证，磁盘剩余写入计划另行处理。 */
+export function assertPayloadEvidenceBudget(receipts: readonly Ref[]): void {
+    let total = 0;
+    for (const receipt of receipts) {
+        if (!Number.isSafeInteger(receipt.sizeBytes) || receipt.sizeBytes < 0)
+            throw new RuntimePayloadError("PAYLOAD_LIMIT");
+        total += receipt.sizeBytes;
+        if (!Number.isSafeInteger(total) || total > limits.evidence)
+            throw new RuntimePayloadError("PAYLOAD_LIMIT");
+    }
+}
+
 /** 完整 stage 首次等待前私有复制配方与独立 policy 并快照全部选项，之后真实重验五树和本次归档 intake；最终 Runtime 只从已核源独立复制和固定模板生成，未知子事务状态会保留父目录而不会被外层清理覆盖。 */
 export async function stageMacRuntimePayload(
     bytes: Uint8Array,
@@ -389,8 +401,6 @@ export async function stageMacRuntimePayload(
                 !excluded.has(ref.path) &&
                 (!sourceNames.has(ref.path) || ref.path === report.recipe.source.pnpmLock.path),
         );
-        if (evidence.reduce((sum, ref) => sum + ref.sizeBytes, 0) > limits.evidence)
-            final.fail("PAYLOAD_LIMIT");
         const descriptors = [
             { path: "inputs.json", bytes: admitted.bytes },
             { path: "expected.json", bytes: canonicalBytes(admitted.expected) },
@@ -407,6 +417,7 @@ export async function stageMacRuntimePayload(
             ...evidence.map((ref) => ({ ...ref, path: `input-evidence/refs/${ref.path}` })),
             ...descriptorRefs,
         ].sort((a, b) => (a.path < b.path ? -1 : 1));
+        assertPayloadEvidenceBudget(inputReceipts);
         const receipt: PayloadReceipt = {
             schemaVersion: 1,
             kind: "MAC_RUNTIME_PAYLOAD_CANDIDATE",

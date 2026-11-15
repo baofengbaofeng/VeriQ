@@ -4,7 +4,11 @@ import { once as event } from "node:events";
 import { mkdtemp, readFile, readdir, lstat, rm } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
-import { stageMacRuntimePayload } from "../scripts/runtime-payload-stage.ts";
+import {
+    stageMacRuntimePayload,
+    assertPayloadEvidenceBudget,
+} from "../scripts/runtime-payload-stage.ts";
+import type { Ref } from "../scripts/runtime-payload-inputs.ts";
 import { verifyMacRuntimeManifestV2 } from "../src/distribution-manifest-v2.ts";
 import { fixture, hash } from "./fixtures/runtime-payload.ts";
 import { stageModel, rehashStageNpm } from "./fixtures/runtime-payload-stage.ts";
@@ -885,4 +889,172 @@ await import('./scripts/stage-macos-runtime.mjs');`;
     } finally {
         await rm(output, { recursive: true, force: true });
     }
+});
+
+/** 真实 S 目录写入的 primary chmod 或 sync 错误必须先于随后关闭错误返回，原输入与旧 artifact 不得变化；注入仅覆盖 runtime/browser 实际目录句柄，关闭计数只在真实 close 完成后增加，不把测试故障描述为无法关闭的内核资源。 */
+for (const [operation, cause] of [
+    ["chmod", "ENOSPC"],
+    ["sync", "EDQUOT"],
+] as const)
+    for (const uncertainClose of [false, true])
+        test(`R1 stage directory ${operation} preserves ${cause} with uncertain close ${uncertainClose}`, async (t) => {
+            const { ArchiveTransaction } = await import(
+                "../scripts/runtime-payload-transaction.ts"
+            );
+            const { RuntimePayloadError } = await import("../scripts/runtime-payload-inputs.ts");
+            const { open, unlink, mkdir, writeFile } = await import("node:fs/promises");
+            type Handle = import("node:fs/promises").FileHandle;
+            const output = await mkdtemp(join(tmpdir(), "veriq-directory-stage-"));
+            const probe = await open(join(output, "probe"), "wx", 0o600),
+                prototype = Object.getPrototypeOf(probe) as Handle;
+            await probe.close();
+            await unlink(join(output, "probe"));
+            await mkdir(join(output, "old"));
+            await writeFile(join(output, "old/sentinel"), "outside sentinel");
+            const mkdirOwned = ArchiveTransaction.prototype.mkdir;
+            let realClosed = 0,
+                faulted = false;
+            t.mock.method(
+                ArchiveTransaction.prototype,
+                "mkdir",
+                async function (this: InstanceType<typeof ArchiveTransaction>, path: string) {
+                    if (this.profile !== "runtime" || path !== "runtime/browser" || faulted)
+                        return mkdirOwned.call(this, path);
+                    const injected = t.mock.method(
+                        prototype,
+                        operation,
+                        async function (this: Handle) {
+                            assert.equal((await this.stat()).isDirectory(), true);
+                            faulted = true;
+                            const close = this.close;
+                            t.mock.method(this, "close", async () => {
+                                await close.call(this);
+                                realClosed++;
+                                if (uncertainClose)
+                                    throw Object.assign(new Error("secondary directory close"), {
+                                        code: "EIO",
+                                    });
+                            });
+                            throw Object.assign(new Error("primary directory operation"), {
+                                code: cause,
+                            });
+                        },
+                    );
+                    try {
+                        return await mkdirOwned.call(this, path);
+                    } finally {
+                        injected.mock.restore();
+                    }
+                },
+            );
+            try {
+                await fixture(
+                    async (f) => {
+                        await assert.rejects(
+                            stageMacRuntimePayload(await f.save(), f.expected, {
+                                inputRoot: f.root,
+                                outputParent: output,
+                                candidateName: "candidate",
+                            }),
+                            (error: unknown) => {
+                                assert.ok(error instanceof RuntimePayloadError);
+                                assert.equal(error.code, "PAYLOAD_DISK_INSUFFICIENT");
+                                assert.equal(error.causeCode, cause);
+                                assert.equal(error.phase, "COPY");
+                                assert.equal(
+                                    error.cleanup,
+                                    uncertainClose ? "INCOMPLETE" : "CONFIRMED",
+                                );
+                                return true;
+                            },
+                        );
+                        assert.equal(realClosed, 1);
+                        assert.equal(
+                            await readFile(join(output, "old/sentinel"), "utf8"),
+                            "outside sentinel",
+                        );
+                        for (const kind of ["node", "chrome"] as const)
+                            assert.equal(
+                                hash(await readFile(join(f.root, f.recipe[kind].file.path))),
+                                f.recipe[kind].file.sha256,
+                            );
+                        const names = await readdir(output);
+                        assert.equal(names.includes("candidate"), false);
+                        assert.equal(
+                            names.some((name) => name.startsWith(".veriq-s-work-")),
+                            false,
+                        );
+                        if (uncertainClose) assert.ok(names.includes(".veriq-candidate.lock"));
+                        else assert.deepEqual(names, ["old"]);
+                    },
+                    await stageModel(),
+                );
+            } finally {
+                t.mock.restoreAll();
+                await rm(output, { recursive: true, force: true });
+            }
+        });
+
+/** 完整证据预算使用微型数值 Ref 模型验证边界，不创建六十四 MiB 正文或宣称模型摘要是真实文件来源；配方、独立 expected 和 intake 三份描述必须与普通 copied refs 同额收费，相同 SHA 的不同实际副本也不得去重逃过总额。 */
+test("R1 evidence budget includes all three descriptors beyond copied refs", () => {
+    const ref = (path: string, sizeBytes: number): Ref => ({
+        path,
+        sizeBytes,
+        sha256: "0".repeat(64),
+    });
+    const copied = [ref("input-evidence/refs/evidence.json", 64 * 1024 ** 2 - 2)];
+    const descriptors = [
+        ref("input-evidence/inputs.json", 1),
+        ref("input-evidence/expected.json", 1),
+        ref("input-evidence/archive-intake.json", 1),
+    ];
+    assert.doesNotThrow(() => assertPayloadEvidenceBudget(copied));
+    assert.throws(() => assertPayloadEvidenceBudget([...copied, ...descriptors]), {
+        code: "PAYLOAD_LIMIT",
+    });
+});
+
+test("R1 evidence budget accepts exact total and rejects one byte above without SHA deduplication", () => {
+    const ref = (path: string, sizeBytes: number): Ref => ({
+        path,
+        sizeBytes,
+        sha256: "0".repeat(64),
+    });
+    assert.doesNotThrow(() => assertPayloadEvidenceBudget([]));
+    assert.doesNotThrow(() =>
+        assertPayloadEvidenceBudget([ref("first", 32 * 1024 ** 2), ref("second", 32 * 1024 ** 2)]),
+    );
+    assert.throws(
+        () =>
+            assertPayloadEvidenceBudget([
+                ref("first", 32 * 1024 ** 2),
+                ref("second", 32 * 1024 ** 2 + 1),
+            ]),
+        { code: "PAYLOAD_LIMIT" },
+    );
+    assert.throws(() => assertPayloadEvidenceBudget([ref("oversize", 64 * 1024 ** 2 + 1)]), {
+        code: "PAYLOAD_LIMIT",
+    });
+});
+
+for (const size of [-1, 0.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])
+    test(`R1 evidence budget rejects invalid size ${String(size)}`, () => {
+        assert.throws(
+            () =>
+                assertPayloadEvidenceBudget([
+                    { path: "numeric-model", sizeBytes: size, sha256: "0".repeat(64) },
+                ]),
+            { code: "PAYLOAD_LIMIT" },
+        );
+    });
+
+test("R1 evidence budget rejects declarations whose combined integer size would overflow", () => {
+    assert.throws(
+        () =>
+            assertPayloadEvidenceBudget([
+                { path: "first", sizeBytes: Number.MAX_SAFE_INTEGER, sha256: "0".repeat(64) },
+                { path: "second", sizeBytes: Number.MAX_SAFE_INTEGER, sha256: "0".repeat(64) },
+            ]),
+        { code: "PAYLOAD_LIMIT" },
+    );
 });

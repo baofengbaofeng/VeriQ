@@ -134,10 +134,10 @@ npm 先落入 work/views 的真实物理投影，以最终逻辑 `npm/...` 库�
 
 S 对 fresh ZIP 快照另用同一 yauzl 公开 metadata 作有限消费者检查：每个 entry 必须 Unix host3、明确非零且支持的 Unix filetype/permissions，并与 I member 集合逐项相同。DOS 或缺模式拒绝 PAYLOAD_ARCHIVE_UNSUPPORTED。它不另解压、不重复收费同一资源，也不补造 ZIP 全语法验证。I 的内部 prefix64/1024 缩限、ZIP mode fallback，以及旧 b1a Framework-name Minor 仍延期 T22/final review，没有因 S 拒绝政策而标记修复。
 
-work 与 final 为独立事务；nested I 的 COMMIT_UNCONFIRMED、抛出或返回 cleanup INCOMPLETE、未知异常均保留 work 父目录，final 清理成功不能抹掉子 writer 未知事实。正常 I 关闭确认后才可清理 work。runtime profile 在 held FD 内设置并审计安全四 mode 与0755目录，默认 intake0700/0600行为保持。最终 Runtime 路径预算去掉固定容器后遵 D3a64/1024，现 I 缩限未绕过。空间计划按当前已占 work 与尚待写 final 的真实独立副本分阶段计费，保留动态 statfs/ENOSPC/EDQUOT 边界。
+work 与 final 为独立事务；nested I 的 COMMIT_UNCONFIRMED、抛出或返回 cleanup INCOMPLETE、未知异常均保留 work 父目录，final 清理成功不能抹掉子 writer 未知事实。正常 I 关闭确认后才可清理 work。runtime profile 在 held FD 内设置并审计安全四 mode 与0755目录，默认 intake0700/0600行为保持。最终 Runtime 路径预算去掉固定容器后遵 D3a64/1024，现 I 缩限未绕过。目录 chmod/sync 的第一错误在关闭异常之后仍保留，次要 close 只另记清理不确定；无首错时关闭异常仍传播。空间计划按当前已占 work 与尚待写 final 的真实独立副本分阶段计费，保留动态 statfs/ENOSPC/EDQUOT 边界。
 
 写完完整 runtime、shim 和 Chrome links 后生成 v2，先实测 scratch/runtime，再写包外 receipt 与 input-evidence（原 recipe、独立 expected、本次 intake receipt、来源 binding/锁/小 receipts 和必需 evidence）。完整收尾重验原来源及实际代码后同 FS rename，锁收尾前在 **实际 final/runtime** 再跑 D3a 并匹配同一 manifest SHA。无法确认提交后内容则保留候选并报 COMMIT_UNCONFIRMED；内容已提交且核验成功，仅锁或 work 收尾失败仍返回 committed:true/cleanup:INCOMPLETE。
 
-`PayloadResult` 深冻结，包含 kind、candidateDirectory、runtimeDirectory、receiptSha256、最终路径 inventory、committed:true 和 cleanup。外部 receipt status 固定 `DEVELOPMENT_UNSIGNED_STATIC`，files 包含 manifest，counts 沿 D3a 排除 manifest；inputReceipts 使用候选相对路径且逐份实核，receipt 自身 SHA 仅在 Result。原 Node/Chrome SHA、源码 SHA 与未签名候选身份分别保留。
+`PayloadResult` 深冻结，包含 kind、candidateDirectory、runtimeDirectory、receiptSha256、最终路径 inventory、committed:true 和 cleanup。外部 receipt status 固定 `DEVELOPMENT_UNSIGNED_STATIC`，files 包含 manifest，counts 沿 D3a 排除 manifest；inputReceipts 使用候选相对路径且逐份实核，receipt 自身 SHA 仅在 Result。复制证据总额64 MiB在完整 inputReceipts 形成后检查，包含 copied refs、原 inputs.json、独立 expected.json 和 archive-intake.json；这项固定配额独立于磁盘空间计划，不按相同 SHA 去重实际副本。原 Node/Chrome SHA、源码 SHA 与未签名候选身份分别保留。
 
 此 stage 不执行目标 Node、MachO、Chrome、peer resolve，不做 native ABI 装载、签名、安装、GUI、Keychain/Cookie 或 ready 晋升。双原生 Mac 来源构建和实际运行仍属 b2/D3c。全仓 B05 >40% 注释门禁仍 FAIL、未豁免，本片成功不等于 whole T20 或 MVP 完成。

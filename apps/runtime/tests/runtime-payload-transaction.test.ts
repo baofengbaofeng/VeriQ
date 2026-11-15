@@ -704,3 +704,137 @@ for (const [kind, code] of [
                 await rm(output, { recursive: true, force: true });
             }
         });
+
+/** 目录错误回归只在真实 intake 的新 Node 顶层目录句柄上注入 chmod 或 sync 磁盘故障，close 始终先真实完成再按场景报告 EIO；外部旧目录和原归档保持不变，测试不模拟永久内核 writer 或实际写满文件系统。 */
+for (const [operation, cause] of [
+    ["chmod", "ENOSPC"],
+    ["sync", "EDQUOT"],
+] as const)
+    for (const uncertainClose of [false, true])
+        test(`R1 intake directory ${operation} preserves ${cause} with uncertain close ${uncertainClose}`, async (t) => {
+            const output = await mkdtemp(join(tmpdir(), "veriq-directory-intake-"));
+            const probe = await open(join(output, "probe"), "wx", 0o600),
+                prototype = Object.getPrototypeOf(probe) as FileHandle;
+            await probe.close();
+            await unlink(join(output, "probe"));
+            await mkdir(join(output, "old"));
+            await writeFile(join(output, "old/sentinel"), "outside sentinel");
+            const value = archiveModel(),
+                target = `trees/node/${value.recipe.node.topDirectory}`,
+                mkdirOwned = ArchiveTransaction.prototype.mkdir;
+            let realClosed = 0,
+                faulted = false;
+            t.mock.method(
+                ArchiveTransaction.prototype,
+                "mkdir",
+                async function (this: ArchiveTransaction, path: string) {
+                    if (this.profile !== "intake" || path !== target || faulted)
+                        return mkdirOwned.call(this, path);
+                    const injected = t.mock.method(
+                        prototype,
+                        operation,
+                        async function (this: FileHandle) {
+                            assert.equal((await this.stat()).isDirectory(), true);
+                            faulted = true;
+                            const close = this.close;
+                            t.mock.method(this, "close", async () => {
+                                await close.call(this);
+                                realClosed++;
+                                if (uncertainClose)
+                                    throw Object.assign(new Error("secondary directory close"), {
+                                        code: "EIO",
+                                    });
+                            });
+                            throw Object.assign(new Error("primary directory operation"), {
+                                code: cause,
+                            });
+                        },
+                    );
+                    try {
+                        return await mkdirOwned.call(this, path);
+                    } finally {
+                        injected.mock.restore();
+                    }
+                },
+            );
+            try {
+                await fixture(async (f) => {
+                    await assert.rejects(
+                        intakeRuntimeArchives(await f.save(), f.expected, {
+                            inputRoot: f.root,
+                            outputParent: output,
+                            candidateName: "candidate",
+                        }),
+                        (error: unknown) => {
+                            assert.ok(error instanceof RuntimePayloadError);
+                            assert.equal(error.code, "PAYLOAD_DISK_INSUFFICIENT");
+                            assert.equal(error.causeCode, cause);
+                            assert.equal(error.phase, "INTAKE");
+                            assert.equal(
+                                error.cleanup,
+                                uncertainClose ? "INCOMPLETE" : "CONFIRMED",
+                            );
+                            return true;
+                        },
+                    );
+                    assert.equal(realClosed, 1);
+                    assert.equal(
+                        await readFile(join(output, "old/sentinel"), "utf8"),
+                        "outside sentinel",
+                    );
+                    for (const kind of ["node", "chrome"] as const)
+                        assert.equal(
+                            hash(await readFile(join(f.root, f.recipe[kind].file.path))),
+                            f.recipe[kind].file.sha256,
+                        );
+                    const names = await readdir(output);
+                    assert.equal(names.includes("candidate"), false);
+                    if (uncertainClose) assert.ok(names.includes(".veriq-candidate.lock"));
+                    else assert.deepEqual(names, ["old"]);
+                }, value);
+            } finally {
+                t.mock.restoreAll();
+                await rm(output, { recursive: true, force: true });
+            }
+        });
+
+/** 没有 chmod 或 sync 首错时，唯一关闭异常仍必须抛出并记录 INCOMPLETE，不能因为新增首错保护而吞掉真实收尾问题；两个 profile 都在初始化完成后写微型真实目录，先真实关闭句柄再注入 EIO，仅清理本场景独占根。 */
+for (const profile of ["intake", "runtime"] as const)
+    test(`R1 directory close-only ${profile} remains observable and incomplete`, async (t) => {
+        const output = await mkdtemp(join(tmpdir(), "veriq-directory-close-only-"));
+        const probe = await open(join(output, "probe"), "wx", 0o600),
+            prototype = Object.getPrototypeOf(probe) as FileHandle;
+        await probe.close();
+        await unlink(join(output, "probe"));
+        let realClosed = 0;
+        try {
+            await fixture(async (f) => {
+                const tx = new ArchiveTransaction(f.root, output, "candidate", undefined, profile);
+                try {
+                    await tx.initialize();
+                    const sync = prototype.sync;
+                    t.mock.method(prototype, "sync", async function (this: FileHandle) {
+                        await sync.call(this);
+                        assert.equal((await this.stat()).isDirectory(), true);
+                        const close = this.close;
+                        t.mock.method(this, "close", async () => {
+                            await close.call(this);
+                            realClosed++;
+                            throw Object.assign(new Error("only directory close"), { code: "EIO" });
+                        });
+                    });
+                    await assert.rejects(
+                        tx.mkdir(profile === "runtime" ? "runtime/probe" : "trees/node/probe"),
+                        { code: "EIO" },
+                    );
+                    assert.equal(realClosed, 1);
+                } finally {
+                    t.mock.restoreAll();
+                    assert.equal(await tx.cleanup(), "INCOMPLETE");
+                }
+            }, archiveModel());
+        } finally {
+            t.mock.restoreAll();
+            await rm(output, { recursive: true, force: true });
+        }
+    });

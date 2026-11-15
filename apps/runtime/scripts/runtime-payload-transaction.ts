@@ -189,15 +189,20 @@ export class ArchiveTransaction {
             join(this.scratch, path),
             constants.O_RDONLY | constants.O_NOFOLLOW,
         );
+        // 目录权限或刷新失败必须作为第一错误继续向真实 intake 与 stage 边界传播，关闭只是独立收尾事实；即使真实 close 后又报告异常，也只记录清理不确定，不能把原 ENOSPC 或 EDQUOT 换成后来的 EIO。
+        let failed = false;
         try {
             await directory.chmod(mode);
             await directory.sync();
+        } catch (error) {
+            failed = true;
+            throw error;
         } finally {
             try {
                 await directory.close();
             } catch (error) {
                 this.noteCloseFailure();
-                throw error;
+                if (!failed) throw error;
             }
         }
         this.check();
