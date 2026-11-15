@@ -585,7 +585,7 @@ assert production_starts_without_node_or_chrome is True
 
 **2026-11-14范围修订：** macOS Intel x64、Apple Silicon arm64均为MVP最高优先级；Windows11 x64、Ubuntu24.04 x64保留、优先级较低。Mac最低系统已确认为macOS15（Sequoia），测试必须用宿主原生Chrome；Mac已确认受控Worker/Chrome退出、未知隔离和人工恢复，按[停止子计划](macos-controlled-stop.md)实施；Linux/Windows现有全后代停止保证及凭据/离网验收标准保留；Mac按明确的受控范围验收。已有Windows/Linux证据继续保留，不能映射为Mac通过。
 
-**当前切片状态（2026-11-15）：** 静态输入、归档及完整stage组件已复审；固定官方资产获取与观测工具`c84f0a7`及修复`7aa8c65`/`0a370cc`已通过源码定向复审。真实双Mac首轮`4f1a326`获取通过，观测因未完成异步等待失败；小制品已核验，普通16385字节成员已本地复现，仍需修复后重新验证观测及原ZIP模式/Framework。之后继续真实生产闭包、搬移执行及Electron装载/安装验收。源码组件完成不提前勾选整T20，完整状态见[里程碑](milestones.md)。
+**当前切片状态（2026-11-15）：** 静态输入、归档及完整stage组件已复审；固定官方资产获取与观测工具`c84f0a7`及修复`7aa8c65`/`0a370cc`已通过源码定向复审。真实双Mac首轮`4f1a326`获取通过，观测因未完成异步等待失败；小制品已核验，普通16385字节成员已本地复现，`8ecf4c0`修复512字节解析进度与成员等待互等，受影响三个suite143项及原审查代理定向复审通过；双Mac真实观测及原ZIP模式/Framework仍需再验证。之后继续真实生产闭包、搬移执行及Electron装载/安装验收。源码组件完成不提前勾选整T20，完整状态见[里程碑](milestones.md)。
 
 **Files：** apps/desktop/electron-builder.yml；scripts/build_runtime.mjs；tests/compatibility/process-names.spec.ts；docs/operations/runtime-install.md；对应CI工作流。
 
