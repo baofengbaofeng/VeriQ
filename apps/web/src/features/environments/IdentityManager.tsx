@@ -26,7 +26,7 @@ type AdapterForm = {
     loginPath: string;
 };
 /**
- * 拥有适配器/凭证列表与表单 busy 态；调用 IdentityAdapter.create/revoke/credential。
+ * 身份面板只在当前已授权空间内持有表单与请求状态，服务端保存后读取不可变版本摘要；组件真正卸载时中止自身请求并清空两份表单，避免旧空间的凭证继续保留。
  * 成功后刷新摘要列表；失败展示 ApiError，不回显提交的密钥。
  */
 export function IdentityManager({
@@ -58,6 +58,9 @@ export function IdentityManager({
             loginPath: "/login",
         },
     });
+    // 两个 reset 方法由各自的 React Hook Form 控制器稳定持有，清理只依赖这些方法与当前生命周期控制器，认证类型变化引起的普通重渲染不会清空未提交凭证或中止仍有效的请求。
+    const { reset: resetCredential } = credential;
+    const { reset: resetAuth } = auth;
     const [controller] = useState(() => new AbortController()),
         scope = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal;
     const [busy, setBusy] = useState(false),
@@ -67,10 +70,10 @@ export function IdentityManager({
     useEffect(
         () => () => {
             controller.abort();
-            credential.reset();
-            auth.reset();
+            resetCredential();
+            resetAuth();
         },
-        [controller],
+        [controller, resetCredential, resetAuth],
     );
     const credentials = useInfiniteQuery({
         queryKey: ["workspace", workspaceId, "credential-summaries"],
@@ -244,7 +247,8 @@ export function IdentityManager({
                                 setSuccess("已保存凭证版本 / Credential saved: " + saved.versionId);
                                 await refresh();
                             } finally {
-                                clearSecret();
+                                // 保存完成或失败后清除当前表单的密钥，空间卸载已由生命周期清理负责清空；旧请求的迟到结算不得再向已释放表单写入状态，因此需要先确认捕获的请求范围仍然有效。
+                                if (!scope.aborted) clearSecret();
                             }
                         }),
                     )}
