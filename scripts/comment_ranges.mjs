@@ -9,6 +9,15 @@ const paths = JSON.parse(readFileSync(0, "utf8"));
 const output = {};
 for (const path of paths) {
     const text = readFileSync(path, "utf8");
+    /** 每个文件只遍历一次原文建立 UTF16 有效边界到 Unicode 码点位置的映射，成对代理字符仅推进一个码点；解析器的注释边界不会拆分字符，原始偏移仍保留给既有消费者使用。 */
+    const codePointOffsets = new Uint32Array(text.length + 1);
+    let offset = 0;
+    let codePointOffset = 0;
+    for (const character of text) {
+        offset += character.length;
+        codePointOffset += 1;
+        codePointOffsets[offset] = codePointOffset;
+    }
     const source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true);
     const ranges = new Map();
     const visit = (node) => {
@@ -28,6 +37,8 @@ for (const path of paths) {
         end: source.getLineAndCharacterOfPosition(range.end - 1).line + 1,
         offset: range.pos,
         limit: range.end,
+        offsetCodePoint: codePointOffsets[range.pos],
+        limitCodePoint: codePointOffsets[range.end],
         text: text.slice(range.pos, range.end),
     }));
 }
