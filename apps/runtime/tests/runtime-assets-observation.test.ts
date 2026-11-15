@@ -257,3 +257,231 @@ for (const scenario of ["final-audit", "cleanup"] as const)
             assert.ok((await readdir(tx.directory)).includes("snapshots"));
             assert.equal(await tx.cleanup(), "INCOMPLETE");
         }));
+
+/** 回归直接执行成熟 YAML 解析器提取出的生产 inline Node 收集段，检查真实 GITHUB_OUTPUT、最终文件集合和摘要而不模拟上传服务；稀疏上限夹具一次只在本测试拥有的目录中创建，实际分配先核预算且所有资源关闭之后才 finally 删除。 */
+for (const scenario of [
+    "normal",
+    "normal-truncated-log",
+    "metadata-limit",
+    "logs-limit",
+    "manifest-limit",
+    "read-failure",
+    "prefix-write-failure",
+    "manifest-write-failure",
+    "close-failure",
+    "symlink",
+    "fallback-failure",
+    "existing-upload",
+] as const)
+    test(`production inline evidence collector ${scenario}`, async () => {
+        const { mkdtemp, mkdir, writeFile, open, lstat, statfs, rm, symlink } = await import(
+            "node:fs/promises"
+        );
+        const { tmpdir } = await import("node:os"),
+            { createHash } = await import("node:crypto"),
+            { assetWorkflowSteps } = await import("./fixtures/runtime-assets.ts");
+        const base = await mkdtemp(join(tmpdir(), "veriq-collector-")),
+            root = join(base, "assets"),
+            meta = join(root, "metadata"),
+            output = join(base, "github-output");
+        await mkdir(root, { mode: 0o700 });
+        await mkdir(meta, { mode: 0o700 });
+        await writeFile(output, "", { mode: 0o600 });
+        try {
+            const free = await statfs(base, { bigint: true });
+            assert.ok(free.bavail * free.bsize > 40n * 1024n ** 2n);
+            await writeFile(join(meta, "status.json"), JSON.stringify({ status: "OBSERVED" }), {
+                mode: 0o600,
+            });
+            await writeFile(join(meta, "pnpm-install.log"), "small setup log", { mode: 0o600 });
+            if (scenario === "normal" || scenario === "normal-truncated-log") {
+                await mkdir(join(meta, "nested/deep"), { recursive: true, mode: 0o700 });
+                await writeFile(
+                    join(meta, "nested/deep/source.json"),
+                    "small committed source evidence",
+                    { mode: 0o600 },
+                );
+            }
+            const sparse = async (name: string, bytes: number) => {
+                const file = join(meta, name),
+                    fd = await open(file, "wx", 0o600);
+                try {
+                    await fd.truncate(bytes);
+                } finally {
+                    await fd.close();
+                }
+                assert.ok((await lstat(file, { bigint: true })).blocks * 512n <= 65536n);
+            };
+            if (scenario === "metadata-limit") {
+                await sparse("a.json", 9 * 1024 ** 2);
+                await sparse("b.json", 9 * 1024 ** 2);
+            }
+            if (scenario === "logs-limit") {
+                await sparse("a.log", 4 * 1024 ** 2 + 1);
+                await sparse("b.log", 4 * 1024 ** 2 + 1);
+            }
+            if (scenario === "manifest-limit") {
+                await rm(join(meta, "status.json"));
+                await sparse("large.json", 16 * 1024 ** 2 - 1);
+            }
+            if (scenario === "normal-truncated-log") {
+                await rm(join(meta, "pnpm-install.log"));
+                await sparse("pnpm-install.log", 1024 ** 2);
+            }
+            if (scenario === "existing-upload")
+                await writeFile(join(root, "upload"), "outside sentinel", { mode: 0o600 });
+            if (scenario === "prefix-write-failure") {
+                await rm(join(meta, "pnpm-install.log"));
+                await sparse("pnpm-install.log", 1024 ** 2);
+            }
+            if (scenario === "symlink" || scenario === "fallback-failure")
+                await symlink(join(base, "outside-unread"), join(meta, "foreign.json"));
+            const steps = assetWorkflowSteps(join(base, "uv-cache"));
+            const collector = steps.find(
+                (step) =>
+                    step.id === "collect" ||
+                    step.name === "Bound dependency logs and preserve setup failures",
+            );
+            assert.equal(typeof collector?.run, "string");
+            const code = (collector!.run as string).match(
+                /node --input-type=module <<'JS'\n([\s\S]*?)\nJS/,
+            )?.[1];
+            assert.ok(code);
+            const prefix = `import fixIO from "node:fs"; import { syncBuiltinESMExports as fixSync } from "node:module";
+const fixOpen = fixIO.promises.open; let fixUsed = false; const fixSourceOpens = []; const fixSourceReads = {};
+process.on("exit",()=>process.stdout.write(JSON.stringify({sourceOpens:fixSourceOpens,sourceReads:fixSourceReads})+"\\n"));
+fixIO.promises.open = async (path, ...args) => {
+    const name = String(path); if (name.startsWith(process.env.ASSET_ROOT+"/metadata/")) fixSourceOpens.push(name);
+    if (${JSON.stringify(scenario)} === "fallback-failure" && name.includes(".upload-build-")) throw Object.assign(Error("CONTROLLED_IO"), {code:"EIO"});
+    if (${JSON.stringify(scenario)} === "manifest-write-failure" && name.endsWith("/manifest.json") && !fixUsed) { fixUsed=true; throw Object.assign(Error("CONTROLLED_IO"), {code:"EIO"}); }
+    const handle = await fixOpen(path,...args);
+    if (name.startsWith(process.env.ASSET_ROOT+"/metadata/")) { const read = handle.read.bind(handle); handle.read=async(...values)=>{fixSourceReads[name]=(fixSourceReads[name]??0)+values[2];return read(...values);}; }
+    if (${JSON.stringify(scenario)} === "read-failure" && name.endsWith("/metadata/status.json")) handle.read=async()=>{throw Object.assign(Error("CONTROLLED_READ"),{code:"EIO"});};
+    if (${JSON.stringify(scenario)} === "prefix-write-failure" && name.includes(".upload-build-") && name.endsWith("/pnpm-install.log")) handle.write=async()=>{throw Object.assign(Error("CONTROLLED_PREFIX_WRITE"),{code:"EIO"});};
+    if (${JSON.stringify(scenario)} === "close-failure" && name.endsWith("/metadata/status.json")) { const close = handle.close.bind(handle); handle.close=async()=>{await close();throw Object.assign(Error("CONTROLLED_CLOSE"),{code:"EIO"});}; }
+    return handle;
+}; fixSync();\n`;
+            const result = spawnSync(process.execPath, ["--input-type=module"], {
+                input: prefix + code,
+                encoding: "utf8",
+                timeout: 15000,
+                maxBuffer: 65536,
+                env: {
+                    ...process.env,
+                    ASSET_ROOT: root,
+                    GITHUB_OUTPUT: output,
+                    GITHUB_SHA: "a".repeat(40),
+                    EXPECTED_ARCH: "x64",
+                },
+            });
+            const markers = await readFile(output, "utf8");
+            if (scenario === "fallback-failure" || scenario === "existing-upload") {
+                assert.notEqual(result.status, 0);
+                assert.equal(markers, "");
+                if (scenario === "existing-upload")
+                    assert.equal(await readFile(join(root, "upload"), "utf8"), "outside sentinel");
+                else await assert.rejects(lstat(join(root, "upload")), { code: "ENOENT" });
+                return;
+            }
+            const trace = JSON.parse(result.stdout.trim()) as {
+                sourceOpens: string[];
+                sourceReads: Record<string, number>;
+            };
+            if (scenario === "metadata-limit" || scenario === "logs-limit")
+                assert.deepEqual(trace.sourceOpens, []);
+            assert.match(markers, /^ready=true$/m, result.stderr);
+            assert.match(markers, new RegExp(`^upload_root=${root}/upload$`, "m"));
+            const uploaded = join(root, "upload"),
+                names = await readdir(uploaded),
+                manifest = JSON.parse(await readFile(join(uploaded, "manifest.json"), "utf8")) as {
+                    files: { path: string; sizeBytes: number; sha256: string }[];
+                };
+            let metadataBytes = 0,
+                logBytes = 0;
+            const walk = async (dir: string) => {
+                for (const name of await readdir(dir)) {
+                    const path = join(dir, name),
+                        info = await lstat(path);
+                    assert.ok(!info.isSymbolicLink());
+                    if (info.isDirectory()) await walk(path);
+                    else {
+                        assert.ok(info.isFile());
+                        const bytes = await readFile(path);
+                        if (name.endsWith(".log")) logBytes += bytes.length;
+                        else metadataBytes += bytes.length;
+                    }
+                }
+            };
+            await walk(uploaded);
+            assert.ok(metadataBytes <= 16 * 1024 ** 2);
+            assert.ok(logBytes <= 8 * 1024 ** 2);
+            for (const file of manifest.files) {
+                const bytes = await readFile(join(uploaded, file.path));
+                assert.equal(bytes.length, file.sizeBytes);
+                assert.equal(createHash("sha256").update(bytes).digest("hex"), file.sha256);
+            }
+            const upload = steps.find((step) => step.id === "metadata_upload");
+            assert.equal(
+                upload?.if,
+                "always() && steps.collect.outputs.ready == 'true' && steps.collect.outputs.upload_root == format('{0}/upload', env.ASSET_ROOT)",
+            );
+            assert.equal(
+                (upload?.with as Record<string, unknown>)?.path,
+                "${{ env.ASSET_ROOT }}/upload/",
+            );
+            assert.equal((upload?.with as Record<string, unknown>)?.["if-no-files-found"], "error");
+            assert.match(
+                markers,
+                new RegExp(
+                    `^manifest_sha256=${createHash("sha256")
+                        .update(await readFile(join(uploaded, "manifest.json")))
+                        .digest("hex")}$`,
+                    "m",
+                ),
+            );
+            if (scenario === "normal" || scenario === "normal-truncated-log") {
+                assert.equal(result.status, 0, result.stderr);
+                assert.ok(names.includes("status.json"));
+                assert.match(markers, /^collection=FULL$/m);
+                assert.deepEqual(names.sort(), [
+                    "manifest.json",
+                    "nested",
+                    "pnpm-install.log",
+                    "status.json",
+                ]);
+                assert.deepEqual(manifest.files.map((f) => f.path).sort(), [
+                    "nested/deep/source.json",
+                    "pnpm-install.log",
+                    "status.json",
+                ]);
+                if (scenario === "normal-truncated-log") {
+                    assert.equal(trace.sourceReads[join(meta, "pnpm-install.log")], 32700);
+                    const log = await readFile(join(uploaded, "pnpm-install.log"), "utf8");
+                    assert.match(log, /LOG_TRUNCATED: hash binds retained prefix only/);
+                    assert.equal((await lstat(join(meta, "pnpm-install.log"))).size, 1024 ** 2);
+                }
+            } else {
+                assert.notEqual(result.status, 0);
+                assert.deepEqual(names.sort(), ["failure.json", "manifest.json"]);
+                const failure = JSON.parse(await readFile(join(uploaded, "failure.json"), "utf8"));
+                assert.equal(failure.status, "FAIL");
+                assert.equal(
+                    failure.cleanup,
+                    scenario === "close-failure" ? "INCOMPLETE" : "CONFIRMED",
+                );
+                assert.equal(
+                    failure.code,
+                    scenario.endsWith("limit")
+                        ? "ARTIFACT_LIMIT"
+                        : scenario === "symlink"
+                          ? "ARTIFACT_BOUNDARY"
+                          : "ARTIFACT_IO",
+                );
+                assert.equal(failure.steps[0].status, "FAIL");
+                assert.equal(failure.steps[1].status, "NOT_RUN");
+                assert.match(markers, /^collection=FAILURE$/m);
+            }
+        } finally {
+            await rm(base, { recursive: true, force: true });
+        }
+    });

@@ -95,10 +95,10 @@ jobs:
                   import "./scripts/runtime-payload-inputs.ts";
                   import assert from "node:assert/strict";
                   import { createHash } from "node:crypto";
-                  import { readFile, writeFile, mkdir, readdir, stat, statfs } from "node:fs/promises";
+                  import { readFile, writeFile, mkdir, lstat, statfs } from "node:fs/promises";
                   import { createReadStream } from "node:fs";
                   import { execFileSync, spawn } from "node:child_process";
-                  import { join, relative } from "node:path";
+                  import { join } from "node:path";
                   import { fileURLToPath } from "node:url";
                   import { ASSET_SOURCES } from "./scripts/runtime-assets-observation.ts";
                   // 来源证据绑定实际 checkout 与本次工作流执行身份，并在两个真实 CLI 前后复验原始十九个源码字节；这些 CI 外层事实只佐证观察来源，不能替代发布者签名、批准布局或目标执行验收。
@@ -159,11 +159,14 @@ jobs:
                   } catch (error) { failure = error; await writeFile(join(meta, "status.json"), JSON.stringify({ status: "FAIL", code: steps.find(s => s.status === "FAIL")?.code ?? "PAYLOAD_IO", results })); }
                   finally {
                       // 只收集已返回 committed Result 的稳定证据，原压缩包只从 observer 的 snapshots 单独上传一次；metadata 和日志各自计费，未确认关闭的暂存根、整个 checkout、缓存及用户目录都不会进入 artifact。
-                      const manifest = []; let metadataBytes = 0, logBytes = 0;
+                      let metadataBytes = 0, logBytes = 0;
                       const copy = async (base, path, prefix) => {
-                          const bytes = await readFile(join(base, path)); if (path.endsWith(".log")) logBytes += bytes.length; else metadataBytes += bytes.length;
+                          const full = join(base, path), info = await lstat(full);
+                          assert.ok(info.isFile() && !info.isSymbolicLink() && info.nlink === 1 && info.size <= 4 * 1024 ** 2);
+                          if (path.endsWith(".log")) logBytes += info.size; else metadataBytes += info.size;
                           assert.ok(logBytes <= 8 * 1024 ** 2 && metadataBytes <= 16 * 1024 ** 2);
-                          const target = join(meta, prefix, path); await mkdir(join(target, ".."), { recursive: true }); await writeFile(target, bytes); manifest.push(ref(`${prefix}/${path}`, bytes));
+                          const bytes = await readFile(full); assert.equal(bytes.length, info.size);
+                          const target = join(meta, prefix, path); await mkdir(join(target, ".."), { recursive: true }); await writeFile(target, bytes);
                       };
                       if (results.ACQUIRE) for (const p of ["assets-input.json", "evidence/source.json", "evidence/fetch.json", "evidence/SHASUMS256.txt"]) await copy(results.ACQUIRE.directory, p, "acquisition");
                       if (results.OBSERVE) {
@@ -177,51 +180,194 @@ jobs:
                           await writeFile(join(meta, "archives.json"), JSON.stringify({ arch: process.arch, source: head(), files: originals, artifact: `veriq-macos-assets-archives-${process.arch}` }));
                       }
                       await verify();
-                      const walk = async (dir) => { for (const name of await readdir(dir)) { const full = join(dir, name), info = await stat(full); if (info.isDirectory()) await walk(full); else { const p = relative(meta, full), bytes = await readFile(full); manifest.push(ref(p, bytes)); } } };
-                      manifest.length = 0; await walk(meta);
-                      assert.ok(manifest.filter(f => f.path.endsWith(".log")).reduce((n,f) => n + f.sizeBytes, 0) <= 8 * 1024 ** 2);
-                      assert.ok(manifest.filter(f => !f.path.endsWith(".log")).reduce((n,f) => n + f.sizeBytes, 0) <= 16 * 1024 ** 2 - 65536);
-                      await writeFile(join(meta, "manifest.json"), JSON.stringify({ source: head(), arch: process.arch, metadataArtifact: `veriq-macos-assets-observation-${process.arch}`, archiveArtifact: `veriq-macos-assets-archives-${process.arch}`, files: manifest.sort((a,b) => a.path < b.path ? -1 : 1) }));
                   }
                   if (failure) process.exitCode = 1;
                   JS
-            - name: Bound dependency logs and preserve setup failures
+            - name: Complete bounded metadata artifact or fixed failure evidence
+              id: collect
               if: always()
               shell: bash
               run: |
-                  if [ -d "$ASSET_ROOT/metadata" ]; then
-                      node --input-type=module <<'JS'
-                  import { readFile, writeFile, readdir, stat } from "node:fs/promises";
-                  import { join, relative } from "node:path";
-                  import { createHash } from "node:crypto";
-                  const root = join(process.env.ASSET_ROOT, "metadata");
-                  // 安装阶段也可能在真实 CLI 之前失败，固定步骤记录必须明确未运行而不是伪造成功观察；安装日志有独立有限尾部标记，截断后摘要只对应实际保留的文件，不能声称完整原日志已经封存。
-                  for (const name of ["pnpm-install.log", "dependencies.log"]) {
-                      const file = join(root, name); let bytes; try { bytes = await readFile(file); } catch { continue; }
-                      if (bytes.length > 32768) await writeFile(file, Buffer.concat([bytes.subarray(0, 32700), Buffer.from("\nLOG_TRUNCATED\n")]));
-                  }
-                  try { await stat(join(root, "steps.json")); } catch { await writeFile(join(root, "steps.json"), JSON.stringify([{ step: "SETUP", status: "FAIL", code: "PAYLOAD_IO", cleanup: "NOT_NEEDED", actualBytes: 0 }, { step: "ACQUIRE", status: "NOT_RUN", code: null, cleanup: null, actualBytes: null }, { step: "OBSERVE", status: "NOT_RUN", code: null, cleanup: null, actualBytes: null }])); }
-                  const files = [];
-                  const walk = async dir => {
-                      for (const name of await readdir(dir)) {
-                          const full = join(dir, name), info = await stat(full);
-                          if (info.isDirectory()) await walk(full);
-                          else if (full !== join(root, "manifest.json")) { const bytes = await readFile(full); files.push({ path: relative(root, full), sizeBytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") }); }
+                  node --input-type=module <<'JS'
+                  import { constants } from "node:fs";
+                  import { open, lstat, mkdir, opendir, rm, rename, appendFile } from "node:fs/promises";
+                  import { join, dirname, isAbsolute } from "node:path";
+                  import { createHash, randomUUID } from "node:crypto";
+                  const root = process.env.ASSET_ROOT, destination = typeof root === "string" ? join(root, "upload") : "";
+                  const metadataLimit = 16 * 1024 ** 2, logLimit = 8 * 1024 ** 2;
+                  let rootIdentity, draft, draftIdentity, closureUnconfirmed = false;
+                  const digest = bytes => createHash("sha256").update(bytes).digest("hex");
+                  const reject = code => { throw Object.assign(Error(code), { code }); };
+                  const sameRoot = (a, b) => a.dev === b.dev && a.ino === b.ino && a.mode === b.mode && a.uid === b.uid && a.gid === b.gid;
+                  const same = (a, b) => sameRoot(a, b) && a.nlink === b.nlink && a.size === b.size && a.mtimeNs === b.mtimeNs && a.ctimeNs === b.ctimeNs;
+                  // 上传根必须在本 job 已拥有的私有目录内独占创建，任何预存同名目录、链接或特殊文件都不能被接管；完成标记只在最终目录的完整集合、权限、摘要及含自身清单的实际字节预算全部复核之后发出。
+                  const ownedRoot = async () => {
+                      if (!root || !isAbsolute(root) || /[\r\n\0]/.test(root)) reject("ARTIFACT_BOUNDARY");
+                      const info = await lstat(root, { bigint: true });
+                      if (!info.isDirectory() || info.isSymbolicLink() || info.uid !== BigInt(process.getuid()) || (info.mode & 0o7777n) !== 0o700n) reject("ARTIFACT_BOUNDARY");
+                      if (rootIdentity && !sameRoot(rootIdentity, info)) reject("ARTIFACT_BOUNDARY");
+                      rootIdentity ??= info;
+                  };
+                  const closeAll = async (handles, primary) => {
+                      let failure;
+                      for (const handle of handles) if (handle) {
+                          try { await handle.close(); } catch (error) { closureUnconfirmed = true; failure ??= error; }
+                      }
+                      if (!primary && failure) throw failure;
+                  };
+                  const writeAll = async (handle, bytes) => {
+                      let offset = 0;
+                      while (offset < bytes.length) {
+                          const result = await handle.write(bytes, offset, bytes.length - offset);
+                          if (!result.bytesWritten) reject("ARTIFACT_IO");
+                          offset += result.bytesWritten;
                       }
                   };
-                  await walk(root);
-                  if (files.filter(f => f.path.endsWith(".log")).reduce((n,f) => n + f.sizeBytes, 0) > 8 * 1024 ** 2 || files.filter(f => !f.path.endsWith(".log")).reduce((n,f) => n + f.sizeBytes, 0) > 16 * 1024 ** 2 - 65536) throw Error("ARTIFACT_LIMIT");
-                  await writeFile(join(root, "manifest.json"), JSON.stringify({ source: process.env.GITHUB_SHA, arch: process.env.EXPECTED_ARCH, metadataArtifact: `veriq-macos-assets-observation-${process.env.EXPECTED_ARCH}`, archiveArtifact: `veriq-macos-assets-archives-${process.env.EXPECTED_ARCH}`, files: files.sort((a,b) => a.path < b.path ? -1 : 1) }));
+                  const writeOwned = async (path, bytes) => {
+                      let handle, primary;
+                      try {
+                          await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+                          handle = await open(path, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+                          await writeAll(handle, bytes); await handle.sync();
+                      } catch (error) { primary = error; throw error; }
+                      finally { await closeAll([handle], primary); }
+                  };
+                  // 所有来源目录先按条目数量、类型、真实长度与链接数准入，非日志正文超限时在打开之前拒绝；安装日志只读取固定有限前缀并明确附加截断标记，因此不会为决定配额而把任意巨大文件读入内存或复制进上传根。
+                  const enumerate = async base => {
+                      const records = [], directories = []; let count = 0;
+                      const walk = async (path, relative, depth) => {
+                          if (depth > 16 || relative.length > 1024 || ++count > 512) reject("ARTIFACT_LIMIT");
+                          const before = await lstat(path, { bigint: true });
+                          if (before.isSymbolicLink() || before.uid !== BigInt(process.getuid()) || (before.mode & 0o7000n)) reject("ARTIFACT_BOUNDARY");
+                          if (before.isDirectory()) {
+                              directories.push({ path, before });
+                              const dir = await opendir(path);
+                              for await (const entry of dir) {
+                                  if (!/^[A-Za-z0-9._-]+$/.test(entry.name) || entry.name === "." || entry.name === "..") reject("ARTIFACT_BOUNDARY");
+                                  await walk(join(path, entry.name), relative ? `${relative}/${entry.name}` : entry.name, depth + 1);
+                              }
+                              if (!same(before, await lstat(path, { bigint: true }))) reject("ARTIFACT_BOUNDARY");
+                          } else {
+                              if (!before.isFile() || before.nlink !== 1n || before.size < 0n || before.size > BigInt(Number.MAX_SAFE_INTEGER)) reject("ARTIFACT_BOUNDARY");
+                              if (relative === "manifest.json") return;
+                              const sizeBytes = Number(before.size), truncated = ["pnpm-install.log", "dependencies.log"].includes(relative) && sizeBytes > 32768;
+                              const marker = truncated ? Buffer.from("\nLOG_TRUNCATED: hash binds retained prefix only\n") : Buffer.alloc(0);
+                              records.push({ path, relative, before, readBytes: truncated ? 32700 : sizeBytes, outputBytes: (truncated ? 32700 : sizeBytes) + marker.length, marker, truncated });
+                          }
+                      };
+                      await walk(base, "", 0);
+                      const sums = records.reduce((sum, record) => { sum[record.relative.endsWith(".log") ? "logs" : "metadata"] += record.outputBytes; return sum; }, { metadata: 0, logs: 0 });
+                      if (sums.metadata > metadataLimit || sums.logs > logLimit) reject("ARTIFACT_LIMIT");
+                      return { records: records.sort((a, b) => a.relative < b.relative ? -1 : 1), directories, sums };
+                  };
+                  const copyBounded = async record => {
+                      let source, output, primary; const hash = createHash("sha256");
+                      try {
+                          source = await open(record.path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+                          if (!same(record.before, await source.stat({ bigint: true }))) reject("ARTIFACT_BOUNDARY");
+                          const target = join(draft, record.relative);
+                          await mkdir(dirname(target), { recursive: true, mode: 0o700 });
+                          output = await open(target, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+                          const buffer = Buffer.alloc(65536); let offset = 0;
+                          while (offset < record.readBytes) {
+                              const result = await source.read(buffer, 0, Math.min(buffer.length, record.readBytes - offset), offset);
+                              if (!result.bytesRead) reject("ARTIFACT_IO");
+                              const chunk = buffer.subarray(0, result.bytesRead); hash.update(chunk); await writeAll(output, chunk); offset += result.bytesRead;
+                          }
+                          if (!same(record.before, await source.stat({ bigint: true })) || !same(record.before, await lstat(record.path, { bigint: true }))) reject("ARTIFACT_BOUNDARY");
+                          if (record.marker.length) { hash.update(record.marker); await writeAll(output, record.marker); }
+                          await output.sync();
+                          return { path: record.relative, sizeBytes: record.outputBytes, sha256: hash.digest("hex") };
+                      } catch (error) { primary = error; throw error; }
+                      finally { await closeAll([source, output], primary); }
+                  };
+                  // 清单自身没有循环自摘要，但其真实编码长度仍计入最终 metadata 配额，随后全部输出按 held FD 再流读核验；目录枚举必须恰好等于本次已登记集合，任何缺项、额外成员、链接或未确认关闭都会阻止上传资格产生。
+                  const audit = async (base, facts) => {
+                      const expected = new Map(facts.map(f => [f.path, f])); let metadata = 0, logs = 0, entries = 0;
+                      const walk = async (dir, relative) => {
+                          if (++entries > 512) reject("ARTIFACT_LIMIT");
+                          const before = await lstat(dir, { bigint: true });
+                          if (!before.isDirectory() || before.isSymbolicLink() || (before.mode & 0o7777n) !== 0o700n) reject("ARTIFACT_BOUNDARY");
+                          const listing = await opendir(dir);
+                          for await (const entry of listing) {
+                              const path = relative ? `${relative}/${entry.name}` : entry.name, full = join(dir, entry.name), info = await lstat(full, { bigint: true });
+                              if (info.isDirectory()) { await walk(full, path); continue; }
+                              if (++entries > 512) reject("ARTIFACT_LIMIT");
+                              const expectedFile = expected.get(path);
+                              if (!expectedFile || !info.isFile() || info.isSymbolicLink() || info.nlink !== 1n || info.size !== BigInt(expectedFile.sizeBytes) || (info.mode & 0o7777n) !== 0o600n) reject("ARTIFACT_BOUNDARY");
+                              let handle, primary; const hash = createHash("sha256");
+                              try {
+                                  handle = await open(full, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+                                  if (!same(info, await handle.stat({ bigint: true }))) reject("ARTIFACT_BOUNDARY");
+                                  const buffer = Buffer.alloc(65536); let offset = 0;
+                                  while (offset < expectedFile.sizeBytes) {
+                                      const result = await handle.read(buffer, 0, Math.min(buffer.length, expectedFile.sizeBytes - offset), offset);
+                                      if (!result.bytesRead) reject("ARTIFACT_IO"); hash.update(buffer.subarray(0, result.bytesRead)); offset += result.bytesRead;
+                                  }
+                                  if (hash.digest("hex") !== expectedFile.sha256 || !same(info, await handle.stat({ bigint: true })) || !same(info, await lstat(full, { bigint: true }))) reject("ARTIFACT_BOUNDARY");
+                              } catch (error) { primary = error; throw error; }
+                              finally { await closeAll([handle], primary); }
+                              if (path.endsWith(".log")) logs += expectedFile.sizeBytes; else metadata += expectedFile.sizeBytes;
+                              expected.delete(path);
+                          }
+                          if (!same(before, await lstat(dir, { bigint: true }))) reject("ARTIFACT_BOUNDARY");
+                      };
+                      await walk(base, "");
+                      if (expected.size || metadata > metadataLimit || logs > logLimit || closureUnconfirmed) reject("ARTIFACT_LIMIT");
+                  };
+                  const createDraft = async () => {
+                      await ownedRoot();
+                      draft = join(root, `.upload-build-${randomUUID()}`); await mkdir(draft, { mode: 0o700 });
+                      draftIdentity = await lstat(draft, { bigint: true }); closureUnconfirmed = false;
+                  };
+                  const promote = async (files, collection, truncations = []) => {
+                      const manifest = Buffer.from(JSON.stringify({ source: process.env.GITHUB_SHA, arch: process.env.EXPECTED_ARCH, collection, files, truncations }));
+                      if (files.filter(f => !f.path.endsWith(".log")).reduce((n, f) => n + f.sizeBytes, manifest.length) > metadataLimit) reject("ARTIFACT_LIMIT");
+                      await writeOwned(join(draft, "manifest.json"), manifest);
+                      const expected = [...files, { path: "manifest.json", sizeBytes: manifest.length, sha256: digest(manifest) }];
+                      await audit(draft, expected); await ownedRoot();
+                      try { await lstat(destination); reject("ARTIFACT_BOUNDARY"); } catch (error) { if (error.code !== "ENOENT") throw error; }
+                      await rename(draft, destination); draft = undefined;
+                      await audit(destination, expected); await ownedRoot();
+                      await appendFile(process.env.GITHUB_OUTPUT, `ready=true\nupload_root=${destination}\ncollection=${collection}\nmanifest_sha256=${digest(manifest)}\n`);
+                  };
+                  // 完整收集失败只会生成独立的固定微型失败集合，不遍历原始未检查树、猜测旧步骤结果或读取活跃 writer；若连失败集合也无法独占创建、写入、校验或发布，就不写 ready 标记并诚实使该步骤失败，绝不上传旧目录。
+                  const abandonDraft = async () => {
+                      if (!draft || closureUnconfirmed) return;
+                      try { await ownedRoot(); if (!sameRoot(draftIdentity, await lstat(draft, { bigint: true }))) reject("ARTIFACT_BOUNDARY"); await rm(draft, { recursive: true }); draft = undefined; }
+                      catch { closureUnconfirmed = true; }
+                  };
+                  try {
+                      await ownedRoot();
+                      const input = await enumerate(join(root, "metadata")); await createDraft();
+                      const files = [];
+                      for (const record of input.records) files.push(await copyBounded(record));
+                      for (const directory of input.directories) if (!same(directory.before, await lstat(directory.path, { bigint: true }))) reject("ARTIFACT_BOUNDARY");
+                      await promote(files, "FULL", input.records.filter(r => r.truncated).map(r => ({ path: r.relative, originalSizeBytes: Number(r.before.size), retainedBytes: r.outputBytes })));
+                  } catch (error) {
+                      await abandonDraft();
+                      const code = ["ARTIFACT_LIMIT", "ARTIFACT_BOUNDARY"].includes(error.code) ? error.code : "ARTIFACT_IO", cleanup = closureUnconfirmed ? "INCOMPLETE" : "CONFIRMED";
+                      try {
+                          // 上一代关闭未知的 scratch 永远保留，cleanup 事实已经冻结在失败记录中；新失败集合使用另一个独占目录和独立关闭状态，不能因为旧 writer 尚未确认而删除旧根，也不能把它扫描进这份有限上传。
+                          await createDraft();
+                          const failure = Buffer.from(JSON.stringify({ kind: "ASSET_EVIDENCE_COLLECTION_FAILURE", status: "FAIL", code, cleanup, steps: [{ step: "METADATA_COLLECTION", status: "FAIL", code, cleanup }, { step: "FULL_ARTIFACT_PROMOTION", status: "NOT_RUN", code: null, cleanup: null }] }));
+                          await writeOwned(join(draft, "failure.json"), failure);
+                          await promote([{ path: "failure.json", sizeBytes: failure.length, sha256: digest(failure) }], "FAILURE");
+                          console.error(`ARTIFACT_COLLECTION_FAILED code=${code} cleanup=${cleanup}`);
+                      } catch {
+                          await abandonDraft(); console.error("ARTIFACT_COLLECTION_UNCONFIRMED ready=false cleanup=INCOMPLETE");
+                      }
+                      process.exitCode = 1;
+                  }
                   JS
-                  fi
             - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
               id: metadata_upload
-              if: always()
+              if: always() && steps.collect.outputs.ready == 'true' && steps.collect.outputs.upload_root == format('{0}/upload', env.ASSET_ROOT)
               with:
                   name: veriq-macos-assets-observation-${{ matrix.arch }}
-                  path: ${{ env.ASSET_ROOT }}/metadata/
+                  path: ${{ env.ASSET_ROOT }}/upload/
                   retention-days: 7
-                  if-no-files-found: warn
+                  if-no-files-found: error
             - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
               id: archives_upload
               if: steps.observe.outcome == 'success'
@@ -234,10 +380,11 @@ jobs:
             - name: Record artifact identity matrix for independent review
               if: always()
               env:
+                  COLLECTION_STATE: ${{ steps.collect.outputs.collection }}
                   METADATA_ID: ${{ steps.metadata_upload.outputs.artifact-id }}
                   ARCHIVES_ID: ${{ steps.archives_upload.outputs.artifact-id }}
                   METADATA_DIGEST: ${{ steps.metadata_upload.outputs.artifact-digest }}
                   ARCHIVES_DIGEST: ${{ steps.archives_upload.outputs.artifact-digest }}
               shell: bash
               run: |
-                  printf '%s\n' "OBSERVATION_ONLY source=$GITHUB_SHA run=$GITHUB_RUN_ID attempt=$GITHUB_RUN_ATTEMPT arch=$EXPECTED_ARCH metadata=$METADATA_ID metadataDigest=$METADATA_DIGEST archives=$ARCHIVES_ID archivesDigest=$ARCHIVES_DIGEST" >> "$GITHUB_STEP_SUMMARY"
+                  printf '%s\n' "OBSERVATION_ONLY source=$GITHUB_SHA run=$GITHUB_RUN_ID attempt=$GITHUB_RUN_ATTEMPT arch=$EXPECTED_ARCH collection=$COLLECTION_STATE metadata=$METADATA_ID metadataDigest=$METADATA_DIGEST archives=$ARCHIVES_ID archivesDigest=$ARCHIVES_DIGEST" >> "$GITHUB_STEP_SUMMARY"

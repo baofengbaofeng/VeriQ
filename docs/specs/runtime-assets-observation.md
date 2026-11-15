@@ -48,3 +48,11 @@ SIGINT/TERM 取消本次 owned 请求、reader 和 writer，首次给5秒关闭�
 每架构只上传两份7天保留 artifact：`veriq-macos-assets-observation-${arch}` 保存完整小证据/源码身份/步骤/Result/摘要清单，metadata≤16 MiB、日志≤8 MiB；`veriq-macos-assets-archives-${arch}` 仅保存 observer 两份原始压缩快照，compression-level0、≤600 MiB，不重复 acquisition 大包。失败 always 保存有限步骤 STARTED/PASS/FAIL/NOT_RUN、code/cleanup、已产生且稳定的小证据，未运行不伪造 Result，未确认关闭不扫描活跃 scratch。日志截断明确标记，摘要只绑定保留文件。
 
 root 独立下载和核验小 artifact，并检查大 artifact 的服务端元数据；容量不足的本地环境不下载大包，也不虚称已在本地重算原压缩摘要。后续 b2b 在真实 Mac job 重新核原归档摘要后才继续生产 npmGraph/五树/Recipe；真实两份 job、原 ZIP mode/Framework 逐架构审核仍是本片完整验收条件。现有 I prefix/ZIP fallback、旧 b1a Framework 等登记限制没有被本片修复，所有 F01-F14 与四个目标平台的完整 MVP 验收仍然必需。
+
+回归校验文本现以完整3171原字节保存在已提交的 `tests/fixtures/runtime-assets.ts` 字符串中，每次导出独立字节副本；测试直接核固定摘要、两个架构记录和变异拒绝，不依赖私有 `.superpowers` 证据目录。小镜像回归只复制测试及三个夹具模块，借用现有只读脚本/依赖链接并断言私有目录不存在；它证明该目标回归可在缺少私有证据的上下文运行，不等同全新依赖安装或完整克隆验收。
+
+小 artifact 的最终收集器现在直接在工作流中执行：先按真实 size/type/nlink 核输入，metadata 和非安装日志超限在打开正文前拒绝；安装日志只读取32700字节前缀，附明确截断标记，摘要仅对应保留文件。收集器在独占私有 draft 中写入、核全部文件及清单自身的实际字节预算，并在固定 job-owned `upload/` 最终目录复核，随后才写 `ready`、固定路径及清单摘要。上传条件同时要求完成标记和该精确路径，原始未检查 `metadata/` 永不直接上传。
+
+配额、IO、截断或清单失败时，完整 draft 不获得上传资格；独立微型 fallback 仅含 `failure.json` 和真实摘要清单，明确 METADATA_COLLECTION 为 FAIL、FULL_ARTIFACT_PROMOTION 为 NOT_RUN，不猜测其它阶段或伪造 OBSERVED。未知关闭的旧 draft 保留并记 INCOMPLETE，新 fallback 有独立关闭状态；若连 fallback 都不能独占创建、写入或复核，则没有 ready 标记、没有可上传目录，步骤诚实失败。最终完整或 fallback 集合都把 manifest 自身计入 metadata≤16 MiB，日志≤8 MiB，仍仅占每架构既有小 artifact；两个原压缩快照的独立 archive artifact 政策不变。
+
+工作流收集回归通过已锁的 PyYAML6.0.3 提取真实 YAML 内的生产 inline Node 段，在自有临时根执行并检查实际标记、路径、字节、摘要和上传门控。开发环境应先按仓库指南备妥 Runtime 锁定依赖和 `uv sync --project apps/srv --frozen --all-groups` 对应的既有服务端开发环境；测试本身只执行 `uv run --offline --no-sync --project apps/srv python` 并将 UV_CACHE_DIR 指向测试自有目录，不安装/下载依赖，不增加产品运行时 Python 依赖。只运行两份资产测试可用 `node --import tsx --test tests/runtime-assets-acquisition.test.ts tests/runtime-assets-observation.test.ts`。边界案例用顺序稀疏自有文件并先核空闲与实际分配，不生成官方归档或请求网络。

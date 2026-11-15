@@ -353,18 +353,83 @@ test("forced disk failure issues zero requests and cleans owned transaction", as
     }
 });
 
-/** 已保存的官方校验文本是测试允许读取的小证据，正例只验证真实文本原字节及两个固定记录而没有下载任何正文；改变一个字节后必须拒绝，禁止用 mock crypto 或替换官方摘要让微型归档冒充固定 Node 发布体。 */
+/** 提交夹具保留完整官方校验文本原字节，正例必须同时核长度、真实摘要和生产消费者中的两架构记录，再改变一个字节证明拒绝；测试不读取私有计划证据、不联网、不替换密码学，也不把微型正文伪装成固定官方归档。 */
 test("actual stored checksum text validates and altered text fails", async () => {
-    const { readFile } = await import("node:fs/promises"),
-        { checkNodeChecksum } = await import("../scripts/runtime-assets-observation.ts");
-    const bytes = await readFile(
-        new URL(
-            "../../../.superpowers/sdd/veriq-1/evidence/t20/d3b2a/node-v24.22.1-SHASUMS256.txt",
-            import.meta.url,
-        ),
+    const { officialNodeChecksumFixture } = await import("./fixtures/runtime-assets.ts");
+    const { checkNodeChecksum } = await import("../scripts/runtime-assets-observation.ts");
+    const bytes = officialNodeChecksumFixture();
+    assert.equal(bytes.length, 3171);
+    assert.equal(
+        fact("checksum", bytes).sha256,
+        "fdfbffc969c0f604beff0124d409b33a43b53f5c681d6220f80023e0d6df9dc4",
     );
     checkNodeChecksum(bytes);
-    const changed = Buffer.from(bytes);
-    changed[0] = changed[0]! ^ 1;
-    assert.throws(() => checkNodeChecksum(changed), { code: "PAYLOAD_ARCHIVE_HASH" });
+    bytes[0] = bytes[0]! ^ 1;
+    assert.throws(() => checkNodeChecksum(bytes), { code: "PAYLOAD_ARCHIVE_HASH" });
+    checkNodeChecksum(officialNodeChecksumFixture());
+});
+
+/** 小型镜像只复制已提交测试及其三份微型夹具，借用现有只读生产脚本和依赖链接以隔离真正缺失的私有证据路径；目标测试必须成功加载并真实通过，而不是因模块缺失提前失败，也不声称这等同全新独立依赖安装或完整克隆验收。 */
+test("committed checksum regression runs without any private evidence directory", async () => {
+    const { mkdtemp, mkdir, copyFile, symlink, lstat, rm } = await import("node:fs/promises"),
+        { tmpdir } = await import("node:os"),
+        { join } = await import("node:path"),
+        { fileURLToPath } = await import("node:url");
+    const base = await mkdtemp(join(tmpdir(), "veriq-committed-checksum-")),
+        runtime = join(base, "apps/runtime");
+    const root = fileURLToPath(new URL("../../../", import.meta.url));
+    try {
+        await mkdir(join(runtime, "tests/fixtures"), { recursive: true, mode: 0o700 });
+        for (const name of ["package.json", "tsconfig.json"])
+            await copyFile(join(root, "apps/runtime", name), join(runtime, name));
+        await copyFile(join(root, "tsconfig.base.json"), join(base, "tsconfig.base.json"));
+        await copyFile(
+            fileURLToPath(import.meta.url),
+            join(runtime, "tests/runtime-assets-acquisition.test.ts"),
+        );
+        for (const name of [
+            "runtime-assets.ts",
+            "runtime-payload.ts",
+            "runtime-payload-archives.ts",
+        ])
+            await copyFile(
+                join(root, "apps/runtime/tests/fixtures", name),
+                join(runtime, "tests/fixtures", name),
+            );
+        await symlink(join(root, "apps/runtime/scripts"), join(runtime, "scripts"), "dir");
+        await symlink(
+            join(root, "apps/runtime/node_modules"),
+            join(runtime, "node_modules"),
+            "dir",
+        );
+        await symlink(join(root, "node_modules"), join(base, "node_modules"), "dir");
+        await assert.rejects(lstat(join(base, ".superpowers")), { code: "ENOENT" });
+        // 嵌套测试进程必须移除父 runner 的内部 IPC 上下文并显式使用文本报告，否则 Node 会把独立 child 当作已有 runner 通道而直接退出；这里仅复制子环境，不修改当前进程或跳过目标回归的任何断言。
+        const childEnvironment = { ...process.env };
+        delete childEnvironment.NODE_TEST_CONTEXT;
+        const result = spawnSync(
+            process.execPath,
+            [
+                "--import",
+                "tsx",
+                "--test",
+                "--test-reporter=tap",
+                "--test-name-pattern",
+                "^actual stored checksum text validates and altered text fails$",
+                "tests/runtime-assets-acquisition.test.ts",
+            ],
+            {
+                cwd: runtime,
+                encoding: "utf8",
+                timeout: 15000,
+                maxBuffer: 65536,
+                env: childEnvironment,
+            },
+        );
+        assert.equal(result.status, 0, result.stderr + result.stdout);
+        assert.match(result.stdout, /tests 1/);
+        assert.match(result.stdout, /pass 1/);
+    } finally {
+        await rm(base, { recursive: true, force: true });
+    }
 });
