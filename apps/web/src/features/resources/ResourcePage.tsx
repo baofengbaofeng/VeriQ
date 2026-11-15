@@ -88,9 +88,11 @@ export function ResourcePage({
         enabled: !!user,
     });
     const items = workspaces.data?.pages.flatMap((p) => p.items) ?? [];
+    /** 默认空间只取首项标识并仅在尚未选择时写入，使真实列表刷新产生的新数组不会覆盖用户已经选择的空间；即使当前列表暂时未包含该选择，也保留现有作用域交接规则。 */
+    const firstWorkspaceId = items[0]?.id;
     useEffect(() => {
-        if (!selected && items.length) select(items[0]!.id);
-    }, [selected, items[0]?.id]);
+        if (!selected && firstWorkspaceId) select(firstWorkspaceId);
+    }, [selected, firstWorkspaceId, select]);
     if (!user) return <Navigate to="/login" />;
     const workspace = items.find((w) => w.id === selected);
     return (
@@ -202,8 +204,8 @@ export function ResourceWorkspaceView({
         initialPageParam: undefined as string | undefined,
         getNextPageParam: (p) => p.nextCursor ?? undefined,
     });
-    // TanStack Table resets row state when data identity changes. Keep it stable
-    // across create-form edits so a populated table cannot schedule a render loop.
+    // 资源列表的数据引用必须在创建表单编辑期间保持稳定，因为 TanStack Table 会在引用变化时重置内部行状态；已有资源也不能触发不断重排的渲染循环。
+    // 仅在分页资源数据变化时重新展开列表，同一资源查询的普通父级重渲染继续使用既有数组。
     const items = useMemo(
         () => resources.data?.pages.flatMap((p) => p.items) ?? [],
         [resources.data],

@@ -43,10 +43,13 @@ export function Monaco({
 }) {
     const host = useRef<HTMLDivElement>(null),
         instance = useRef<monaco.editor.IStandaloneCodeEditor>(),
-        change = useRef(onChange);
+        change = useRef(onChange),
+        latestValue = useRef(value);
     change.current = onChange;
+    /** 创建模型只随语言、只读与标签变化，文本和回调通过每次渲染更新的引用读取最新值；普通受控输入继续复用同一个模型与撤销栈，外部文本变化仍由独立同步副作用处理。 */
+    latestValue.current = value;
     useEffect(() => {
-        const model = monaco.editor.createModel(value, language);
+        const model = monaco.editor.createModel(latestValue.current, language);
         const editor = monaco.editor.create(host.current!, {
             model,
             readOnly,
