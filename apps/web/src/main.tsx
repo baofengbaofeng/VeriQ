@@ -29,7 +29,8 @@ function App() {
         [failure, setFailure] = useState("");
     const mounted = useRef(false),
         identityGeneration = useRef(0),
-        loadGeneration = useRef(0);
+        loadGeneration = useRef(0),
+        logoutIntent = useRef<number | null>(null);
     /** 会话探测与账户读取共用调用者分配的身份代次，每个 await 后都检查当前归属；过期事件先清除身份，旧成功及旧异常均不能重新发布已失效的账户或故障状态。 */
     const readIdentity = useCallback(async (request: number): Promise<void> => {
         const current = () => mounted.current && identityGeneration.current === request;
@@ -45,8 +46,9 @@ function App() {
             else throw e;
         }
     }, []);
-    /** Auth 调用者继续使用同一稳定的异步刷新入口，每次调用都读取当前服务器会话而不捕获某个旧账户；它同时撤销尚未完成的启动发布权，让后续登录或账户变更成为当前身份来源。 */
+    /** 稳定刷新入口读取当前会话而不捕获旧账户，但退出尚未完成时拒绝旧操作随后触发的刷新，防止其抢走退出发布权；退出收敛后解除此边界，使真正的下一次登录仍可建立身份。 */
     const refresh = useCallback(async (): Promise<void> => {
+        if (logoutIntent.current !== null) return;
         loadGeneration.current += 1;
         await readIdentity(++identityGeneration.current);
     }, [readIdentity]);
@@ -85,6 +87,7 @@ function App() {
     /** 退出意图在发送请求前就撤销旧身份读取的发布权，随后复用同一代次探测真正的退出结果；只有仍归属于这次退出的异常可以显示失败，避免旧 catch 干扰后续登录。 */
     const logout = useCallback(async (): Promise<void> => {
         const request = ++identityGeneration.current;
+        logoutIntent.current = request;
         loadGeneration.current += 1;
         try {
             await api.logout();
@@ -93,6 +96,8 @@ function App() {
         } catch {
             if (mounted.current && identityGeneration.current === request)
                 setFailure("Unable to sign out. Please retry.");
+        } finally {
+            if (logoutIntent.current === request) logoutIntent.current = null;
         }
     }, [readIdentity]);
     if (failure)

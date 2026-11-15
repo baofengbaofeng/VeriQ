@@ -1,8 +1,8 @@
 import { test, expect, type APIResponse, type Page, type Route } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 
-/** 屏障只延迟首个匹配路径的真实本机 GET 响应，后续请求直接访问后端；持有的状态、头和正文原样交还浏览器，释放操作可重复调用以覆盖失败清理路径。 */
-async function holdBackendResponse(page: Page, pathname: string) {
+/** 屏障只延迟首个匹配路径及指定方法的真实本机响应，后续请求直接访问后端；持有的状态、头和正文原样交还浏览器，释放操作可重复调用以覆盖失败清理路径。 */
+async function holdBackendResponse(page: Page, pathname: string, method = "GET") {
     let resolveHeld!: (response: APIResponse) => void;
     let releaseResponse!: () => void;
     let complete!: () => void;
@@ -18,7 +18,7 @@ async function holdBackendResponse(page: Page, pathname: string) {
     });
     const match = (url: URL) => url.origin === "http://127.0.0.1:5173" && url.pathname === pathname;
     const handler = async (route: Route) => {
-        if (captured || route.request().method() !== "GET") {
+        if (captured || route.request().method() !== method) {
             await route.continue();
             return;
         }
@@ -37,6 +37,48 @@ async function holdBackendResponse(page: Page, pathname: string) {
         held,
         release: async () => {
             releaseResponse();
+            if (captured) await done;
+            await page.unroute(match, handler);
+        },
+    };
+}
+
+/** 退出请求屏障在任何真实后端处理之前暂停首个本机 POST，释放时继续发送原始请求而不构造成功响应；重复释放与 finally 清理均等待该请求确实离开处理器，避免悬挂路由。 */
+async function holdLogoutRequest(page: Page) {
+    let resolveHeld!: () => void;
+    let releaseRequest!: () => void;
+    let complete!: () => void;
+    let captured = false;
+    const held = new Promise<void>((resolve) => {
+        resolveHeld = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+        releaseRequest = resolve;
+    });
+    const done = new Promise<void>((resolve) => {
+        complete = resolve;
+    });
+    const match = (url: URL) =>
+        url.origin === "http://127.0.0.1:5173" && url.pathname === "/api/v1/auth/logout";
+    const handler = async (route: Route) => {
+        if (captured || route.request().method() !== "POST") {
+            await route.continue();
+            return;
+        }
+        captured = true;
+        resolveHeld();
+        try {
+            await gate;
+            await route.continue();
+        } finally {
+            complete();
+        }
+    };
+    await page.route(match, handler);
+    return {
+        held,
+        forward: async () => {
+            releaseRequest();
             if (captured) await done;
             await page.unroute(match, handler);
         },
@@ -252,6 +294,100 @@ test("real setup, login, account, administration and one-time reset", async ({
     await page.getByTestId("users-filter-submit").click();
     await expect(page.getByTestId("user-browser-admin@example.com")).toBeVisible();
     await expect(page.getByTestId("users-filter-submit")).toBeEnabled();
+
+    /** 自降权的真实写入先成功但响应尚未到达界面时点击退出，旧操作随后不能抢走退出意图；以原表单恢复可用或真实权限面板出现作为回调收敛信号，不等待修复后可以省去的账户请求。 */
+    const actorResponse = await page.request.get(`${origin}/api/v1/account`);
+    expect(actorResponse.status()).toBe(200);
+    const actorId = (await actorResponse.json()).data.id;
+    const mutationBarrier = await holdBackendResponse(
+        page,
+        `/api/v1/admin/users/${actorId}`,
+        "PATCH",
+    );
+    const outgoingLogout = await holdLogoutRequest(page);
+    const logoutIntentEvents: { event: string; path?: string; status?: number }[] = [];
+    const recordIntentResponse = (response: import("@playwright/test").Response) => {
+        const path = new URL(response.url()).pathname;
+        if (
+            [
+                `/api/v1/admin/users/${actorId}`,
+                "/api/v1/auth/logout",
+                "/api/v1/auth/session",
+                "/api/v1/account",
+            ].includes(path)
+        )
+            logoutIntentEvents.push({ event: "response", path, status: response.status() });
+    };
+    page.on("response", recordIntentResponse);
+    try {
+        await page
+            .getByTestId("user-browser-admin@example.com")
+            .getByRole("button", { name: "Remove admin", exact: true })
+            .click();
+        const heldUpdate = await mutationBarrier.held;
+        expect(heldUpdate.status()).toBe(200);
+        expect((await heldUpdate.json()).data.systemAdmin).toBe(false);
+        logoutIntentEvents.push({ event: "real-self-update-held", status: heldUpdate.status() });
+        await expect(page.getByTestId("create-user")).toBeDisabled();
+        await page.getByTestId("logout").click();
+        await outgoingLogout.held;
+        logoutIntentEvents.push({ event: "outgoing-logout-held-before-backend" });
+        const updateDelivered = page.waitForResponse(
+            (response) =>
+                response.request().method() === "PATCH" &&
+                new URL(response.url()).pathname === `/api/v1/admin/users/${actorId}`,
+        );
+        await mutationBarrier.release();
+        await (await updateDelivered).finished();
+        await expect(
+            page
+                .locator('[data-testid="create-user"]:enabled')
+                .or(page.getByRole("heading", { name: "Access restricted" })),
+        ).toBeVisible();
+        logoutIntentEvents.push({ event: "old-mutation-callback-ui-settled" });
+        const completedLogout = page.waitForResponse(
+            (response) =>
+                response.request().method() === "POST" &&
+                new URL(response.url()).pathname === "/api/v1/auth/logout",
+        );
+        await outgoingLogout.forward();
+        logoutIntentEvents.push({ event: "logout-forwarded-to-real-backend" });
+        expect((await completedLogout).status()).toBe(200);
+        await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
+        await expect(page.getByTestId("logout")).toHaveCount(0);
+        logoutIntentEvents.push({ event: "signed-out-ui-confirmed" });
+    } finally {
+        await mutationBarrier.release();
+        await outgoingLogout.forward();
+        page.off("response", recordIntentResponse);
+        const eventPath = testInfo.outputPath("logout-intent-events.json");
+        await writeFile(eventPath, JSON.stringify(logoutIntentEvents, null, 2));
+        await testInfo.attach("logout-intent-events", {
+            path: eventPath,
+            contentType: "application/json",
+        });
+    }
+    await page.getByTestId("email").fill("browser-second-admin@example.com");
+    await page.getByTestId("password").fill("Second password 123!");
+    await page.getByTestId("login-submit").click();
+    await expect(page.getByTestId("account-info")).toContainText("Second Administrator");
+    await page.getByRole("link", { name: "Users", exact: true }).click();
+    await page
+        .getByTestId("user-browser-admin@example.com")
+        .getByRole("button", { name: "Make admin", exact: true })
+        .click();
+    await expect(page.getByTestId("user-browser-admin@example.com")).toContainText(
+        "System administrator",
+    );
+    await page.getByTestId("logout").click();
+    await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
+    await page.getByTestId("email").fill("browser-admin@example.com");
+    await page.getByTestId("password").fill("Browser password 123!");
+    await page.getByTestId("login-submit").click();
+    await expect(page.getByTestId("account-info")).toContainText("Browser Administrator");
+    await page.getByRole("link", { name: "Users", exact: true }).click();
+    await expect(page.getByTestId("user-browser-admin@example.com")).toBeVisible();
+    await expect(page.getByTestId("create-user")).toBeEnabled();
 
     /** 旧账户回写可能短暂跳转账户页后又被真实会话 401 清除，因此记录释放响应到主动登录前的导航窗口，不能只检查最终登录页而漏掉已经发生的身份复活。 */
     const staleAccountNavigations: string[] = [];
