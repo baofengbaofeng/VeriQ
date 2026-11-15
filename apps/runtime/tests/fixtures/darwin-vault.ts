@@ -185,6 +185,172 @@ type DiagnosticRecord = {
     ownerMatches?: boolean;
     privateMode?: boolean;
 };
+/** Node 测试结算只记录固定来源与有限状态，绝不读取被抛出对象的名称、消息、堆栈或构造器；正文、覆盖和清理分别保留事实，使报告能区分主失败与随后发生的次要失败而不推断系统清理成功。 */
+export type DarwinCaseFacts = {
+    bodyStatus: "NOT_RECORDED" | "PASSED" | "FAILED";
+    cleanupStatus: "NOT_RECORDED" | "PASSED" | "FAILED";
+    wipeStatus: "NOT_RECORDED" | "PASSED" | "FAILED";
+    primary: "NONE" | "BODY" | "WIPE" | "CLEANUP";
+    secondary: "NONE" | "WIPE" | "CLEANUP" | "WIPE_AND_CLEANUP";
+};
+
+/** 正文先结算并发布有限状态，然后按原序逐一尝试覆盖全部密钥且恰好清理一次，任何观察器异常均被隔离；独立布尔标志保留抛出 undefined 等值的失败事实，最后重新抛出最早的同一个对象供原测试报告器处理。 */
+export async function settleDarwinCase(
+    body: () => Promise<void>,
+    wipes: (() => void)[],
+    cleanup: () => Promise<void>,
+    observe?: (facts: DarwinCaseFacts) => void,
+): Promise<void> {
+    let failed = false;
+    let primary: unknown;
+    const facts: DarwinCaseFacts = {
+        bodyStatus: "NOT_RECORDED",
+        cleanupStatus: "NOT_RECORDED",
+        wipeStatus: "NOT_RECORDED",
+        primary: "NONE",
+        secondary: "NONE",
+    };
+    const publish = () => {
+        try {
+            observe?.({ ...facts });
+        } catch {}
+    };
+    try {
+        await body();
+        facts.bodyStatus = "PASSED";
+    } catch (error) {
+        failed = true;
+        primary = error;
+        facts.bodyStatus = "FAILED";
+        facts.primary = "BODY";
+    }
+    publish();
+    facts.wipeStatus = "PASSED";
+    for (const wipe of wipes) {
+        try {
+            wipe();
+        } catch (error) {
+            facts.wipeStatus = "FAILED";
+            if (!failed) {
+                failed = true;
+                primary = error;
+                facts.primary = "WIPE";
+            } else if (facts.primary === "BODY") facts.secondary = "WIPE";
+        }
+    }
+    publish();
+    try {
+        await cleanup();
+        facts.cleanupStatus = "PASSED";
+    } catch (error) {
+        facts.cleanupStatus = "FAILED";
+        if (!failed) {
+            failed = true;
+            primary = error;
+            facts.primary = "CLEANUP";
+        } else facts.secondary = facts.secondary === "WIPE" ? "WIPE_AND_CLEANUP" : "CLEANUP";
+    }
+    publish();
+    if (failed) throw primary;
+}
+
+const diagnosticOperations = [
+    "create",
+    "run",
+    "race",
+    "lock",
+    "unlock",
+    "seed",
+    "remove",
+    "unchanged",
+    "read-denial",
+    "cleanup",
+    "UNKNOWN",
+] as const;
+const diagnosticVerbs = ["GET", "SET", "DELETE", "UNKNOWN"] as const;
+const responseShapes = ["EMPTY", "PARSED_V1", "INVALID", "UNKNOWN"] as const;
+type OperationContext = {
+    operation: (typeof diagnosticOperations)[number];
+    verb: (typeof diagnosticVerbs)[number];
+    ordinal: number;
+    category: DiagnosticFailure | "HELPER" | "BODY";
+    helperExit: number | "UNKNOWN";
+    shape: (typeof responseShapes)[number];
+    provenance: "CONTROLLER" | "BODY_BOUNDARY";
+};
+
+/** Node 结算字段必须构成按正文、覆盖、清理顺序可到达的真实状态，额外字段和不一致主次来源一律拒绝；校验器只重建有限值对象，旧概要完全缺少此字段时仍由调用方保留未知而不是补出成功。 */
+function caseFacts(value: unknown): DarwinCaseFacts | undefined {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return;
+    const item = value as DarwinCaseFacts;
+    if (
+        Object.keys(item).sort().join(",") !==
+        "bodyStatus,cleanupStatus,primary,secondary,wipeStatus"
+    )
+        return;
+    for (const key of ["bodyStatus", "cleanupStatus", "wipeStatus"] as const)
+        if (!["NOT_RECORDED", "PASSED", "FAILED"].includes(item[key])) return;
+    if (
+        item.bodyStatus === "NOT_RECORDED" &&
+        (item.wipeStatus !== "NOT_RECORDED" || item.cleanupStatus !== "NOT_RECORDED")
+    )
+        return;
+    if (item.wipeStatus === "NOT_RECORDED" && item.cleanupStatus !== "NOT_RECORDED") return;
+    const primary =
+        item.bodyStatus === "FAILED"
+            ? "BODY"
+            : item.wipeStatus === "FAILED"
+              ? "WIPE"
+              : item.cleanupStatus === "FAILED"
+                ? "CLEANUP"
+                : "NONE";
+    const wipe = primary === "BODY" && item.wipeStatus === "FAILED";
+    const cleanup = primary !== "CLEANUP" && item.cleanupStatus === "FAILED";
+    const secondary =
+        wipe && cleanup ? "WIPE_AND_CLEANUP" : wipe ? "WIPE" : cleanup ? "CLEANUP" : "NONE";
+    if (item.primary !== primary || item.secondary !== secondary) return;
+    return {
+        bodyStatus: item.bodyStatus,
+        cleanupStatus: item.cleanupStatus,
+        wipeStatus: item.wipeStatus,
+        primary,
+        secondary,
+    };
+}
+
+/** 操作上下文只接受固定派发表、调用方提供的协议动词和已返回的退出与形状事实，命令序号不能由字符串强制转换；正文边界仅定位断言前最后一次调用，与控制器或 helper 的失败证据明确分开。 */
+function operationContext(value: unknown): OperationContext | undefined {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return;
+    const item = value as OperationContext;
+    if (
+        Object.keys(item).sort().join(",") !==
+            "category,helperExit,operation,ordinal,provenance,shape,verb" ||
+        !diagnosticOperations.includes(item.operation) ||
+        !diagnosticVerbs.includes(item.verb) ||
+        !Number.isInteger(item.ordinal) ||
+        item.ordinal < 1 ||
+        item.ordinal > 65535 ||
+        ![...diagnosticFailures, "HELPER", "BODY"].includes(item.category) ||
+        (item.helperExit !== "UNKNOWN" &&
+            (!Number.isInteger(item.helperExit) || item.helperExit < 0 || item.helperExit > 255)) ||
+        !responseShapes.includes(item.shape) ||
+        !["CONTROLLER", "BODY_BOUNDARY"].includes(item.provenance) ||
+        (item.provenance === "BODY_BOUNDARY") !== (item.category === "BODY") ||
+        (item.operation !== "run" && item.verb !== "UNKNOWN") ||
+        (item.category === "HELPER" && item.operation !== "run")
+    )
+        return;
+    return {
+        operation: item.operation,
+        verb: item.verb,
+        ordinal: item.ordinal,
+        category: item.category,
+        helperExit: item.helperExit,
+        shape: item.shape,
+        provenance: item.provenance,
+    };
+}
+
 type DiagnosticSummary = {
     schemaVersion: 1;
     fixture: number;
@@ -195,6 +361,8 @@ type DiagnosticSummary = {
     closeObserved: boolean;
     code: number | null;
     signal: (typeof diagnosticSignals)[number] | null;
+    nodeCase?: DarwinCaseFacts;
+    operationContext?: OperationContext;
 };
 const diagnosticPrefix = "VERIQ_D1_DIAGNOSTICS ";
 const diagnosticByteLimit = 8192;
@@ -281,7 +449,79 @@ export function createDarwinDiagnosticFilter() {
     let closeObserved = false,
         code: number | null = null,
         signal: DiagnosticSummary["signal"] = null;
+    let nodeCase: DarwinCaseFacts | undefined;
+    let firstOperation: OperationContext | undefined;
+    let current: Omit<OperationContext, "category" | "provenance"> | undefined;
+    let commandOrdinal = 0;
+    let metadataStopped = false;
+    const rejectMetadata = () => {
+        rejected = true;
+        incomplete = true;
+        metadataStopped = true;
+    };
+    const capture = (
+        category: OperationContext["category"],
+        provenance: OperationContext["provenance"],
+    ) => {
+        if (!metadataStopped && current && !firstOperation)
+            firstOperation = { ...current, category, provenance };
+    };
     return {
+        /** 命令上下文在实际排队结束后记录，非法值与序号耗尽只停止元数据接纳而不阻断真实操作；固定动词由已知调用方提供，绝不从帧中提取档案、版本、密钥或任意请求字段加入诊断。 */
+        operation(operation: string, verb: string) {
+            if (metadataStopped) return;
+            if (
+                !diagnosticOperations.includes(operation as OperationContext["operation"]) ||
+                !diagnosticVerbs.includes(verb as OperationContext["verb"]) ||
+                commandOrdinal >= 65535 ||
+                (operation !== "run" && verb !== "UNKNOWN")
+            ) {
+                rejectMetadata();
+                return;
+            }
+            current = {
+                operation: operation as OperationContext["operation"],
+                verb: verb as OperationContext["verb"],
+                ordinal: ++commandOrdinal,
+                helperExit: "UNKNOWN",
+                shape: "UNKNOWN",
+            };
+        },
+        /** helper 事实只来自已经返回的控制器信封以及实际回复验证结果，缺失退出码绝不猜测成非零；预期故障恢复可以传入有效条件，合法领域拒绝也不会被当作协议失败而覆盖之后正文的断言边界。 */
+        helper(code: unknown, shape: string, valid: boolean) {
+            if (metadataStopped || !current) return;
+            if (
+                current.operation !== "run" ||
+                (code !== "UNKNOWN" &&
+                    (typeof code !== "number" ||
+                        !Number.isInteger(code) ||
+                        code < 0 ||
+                        code > 255)) ||
+                !responseShapes.includes(shape as OperationContext["shape"]) ||
+                typeof valid !== "boolean"
+            ) {
+                rejectMetadata();
+                return;
+            }
+            current.helperExit = code as number | "UNKNOWN";
+            current.shape = shape as OperationContext["shape"];
+            if (!valid) capture("HELPER", "CONTROLLER");
+        },
+        /** 测试结算通过独立 Node 来源写入状态，正文失败只在尚无原操作失败时冻结最后边界；恶意访问器或观察分类异常只标记不完整，不得替换调用方原错误或将后续清理拒绝变成最早原因。 */
+        nodeCase(value: DarwinCaseFacts) {
+            if (metadataStopped) return;
+            try {
+                const safe = caseFacts(value);
+                if (!safe) {
+                    rejectMetadata();
+                    return;
+                }
+                nodeCase = safe;
+                if (safe.bodyStatus === "FAILED") capture("BODY", "BODY_BOUNDARY");
+            } catch {
+                rejectMetadata();
+            }
+        },
         /** 原始分块只逐字节进入有限行缓冲，跨块换行与非法编码使用相同验证路径；超长行直接丢弃到下一换行，达到总体上限则停止接纳，最终无论解析结果如何都覆盖调用者交付的原始分块。 */
         push(bytes: Buffer) {
             try {
@@ -334,8 +574,10 @@ export function createDarwinDiagnosticFilter() {
         },
         /** 首个固定失败类别一旦出现便不再被退出或清理错误覆盖，未知输入只降低观察完整性而不变成日志正文；此方法不触发 kill、重试或协议回复，也不修改调用方已有错误对象与抛出时机。 */
         fail(reason: DiagnosticFailure) {
-            if (diagnosticFailures.includes(reason)) firstFailure ??= reason;
-            else rejected = true;
+            if (diagnosticFailures.includes(reason)) {
+                firstFailure ??= reason;
+                capture(reason, "CONTROLLER");
+            } else rejected = true;
         },
         /** 退出事实只在真实 child close 回调写入，未记录的状态保持空值而不是猜测成功；退出信号映射到有限集合，其他信号只保留静态 OTHER 标志，不能从任何退出状态推导钥匙串清理完成。 */
         close(exitCode: number | null, exitSignal: string | null) {
@@ -371,7 +613,7 @@ export function createDarwinDiagnosticFilter() {
             pending.fill(0);
             length = 0;
             stopped = true;
-            return {
+            const summary: DiagnosticSummary = {
                 schemaVersion: 1,
                 fixture,
                 records: records.map((item) => ({ ...item })),
@@ -381,7 +623,16 @@ export function createDarwinDiagnosticFilter() {
                 closeObserved,
                 code,
                 signal,
+                ...(nodeCase ? { nodeCase: { ...nodeCase } } : {}),
+                ...(firstOperation ? { operationContext: { ...firstOperation } } : {}),
             };
+            if (Buffer.byteLength(JSON.stringify({ ...summary, records: [] })) > 512) {
+                delete summary.nodeCase;
+                delete summary.operationContext;
+                summary.rejected = true;
+                summary.incomplete = true;
+            }
+            return summary;
         },
     };
 }
@@ -408,7 +659,10 @@ export function collectDarwinDiagnostics(streams: Buffer[]) {
                     if (
                         !item ||
                         Array.isArray(item) ||
-                        Object.keys(item).sort().join(",") !==
+                        Object.keys(item)
+                            .filter((key) => !["nodeCase", "operationContext"].includes(key))
+                            .sort()
+                            .join(",") !==
                             "closeObserved,code,firstFailure,fixture,incomplete,records,rejected,schemaVersion,signal" ||
                         item.schemaVersion !== 1 ||
                         ![1, 2].includes(item.fixture) ||
@@ -425,6 +679,17 @@ export function collectDarwinDiagnostics(streams: Buffer[]) {
                         item.records.length > diagnosticRecordLimit
                     )
                         throw new Error();
+                    const node = "nodeCase" in item ? caseFacts(item.nodeCase) : undefined;
+                    const context =
+                        "operationContext" in item
+                            ? operationContext(item.operationContext)
+                            : undefined;
+                    if (
+                        ("nodeCase" in item && !node) ||
+                        ("operationContext" in item && !context) ||
+                        (context?.provenance === "BODY_BOUNDARY" && node?.bodyStatus !== "FAILED")
+                    )
+                        throw new Error();
                     const records = item.records.map(diagnosticRecord);
                     if (records.some((record) => !record)) throw new Error();
                     const safe: DiagnosticSummary = {
@@ -437,7 +702,11 @@ export function collectDarwinDiagnostics(streams: Buffer[]) {
                         closeObserved: item.closeObserved,
                         code: item.code,
                         signal: item.signal,
+                        ...(node ? { nodeCase: node } : {}),
+                        ...(context ? { operationContext: context } : {}),
                     };
+                    if (Buffer.byteLength(JSON.stringify({ ...safe, records: [] })) > 512)
+                        throw new Error();
                     if (Buffer.byteLength(JSON.stringify([...fixtures, safe])) > 16384)
                         throw new Error();
                     fixtures.push(safe);
@@ -479,6 +748,7 @@ export async function dedicatedFixture() {
     const diagnostics = createDarwinDiagnosticFilter();
     const ordinal = ++diagnosticOrdinal;
     let emitted = false;
+    let settling = false;
     /** 诊断输出延后至原控制器的有界退出结算，避免 stdout 拒绝先到而遗漏已经排队的 stderr 阶段；只有两个固定序号可导出，序列化或观察输出失败不能替换原 SESSION_REFUSED 或清理失败。 */
     const emitDiagnostics = () => {
         if (emitted || ordinal > 2) return;
@@ -554,6 +824,7 @@ export async function dedicatedFixture() {
     const command = async (
         operation: string,
         fields: object = {},
+        verb: OperationContext["verb"] = "UNKNOWN",
     ): Promise<Record<string, unknown>> => {
         const frame = (fields as { frame?: unknown }).frame;
         const mutation =
@@ -565,6 +836,7 @@ export async function dedicatedFixture() {
             complete = resolve;
         });
         await prior;
+        diagnostics.operation(operation, verb);
         try {
             if (closed) {
                 diagnostics.fail("CLOSED");
@@ -622,24 +894,79 @@ export async function dedicatedFixture() {
         key?: Buffer,
         fault?: string,
     ) => {
-        const reply = await command("run", {
-            frame: `V1 ${operation} ${profile} ${version}${key ? " " + key.toString("base64url") : ""}\n`,
-            fault,
-        });
+        const reply = await command(
+            "run",
+            {
+                frame: `V1 ${operation} ${profile} ${version}${key ? " " + key.toString("base64url") : ""}\n`,
+                fault,
+            },
+            operation === "get"
+                ? "GET"
+                : operation === "set"
+                  ? "SET"
+                  : operation === "delete"
+                    ? "DELETE"
+                    : "UNKNOWN",
+        );
         if (
             reply.exitConfirmed !== true ||
             typeof reply.response !== "string" ||
             typeof reply.code !== "number" ||
             reply.response.length > 512
-        )
+        ) {
+            diagnostics.helper(
+                typeof reply.code === "number" &&
+                    Number.isInteger(reply.code) &&
+                    reply.code >= 0 &&
+                    reply.code <= 255
+                    ? reply.code
+                    : "UNKNOWN",
+                reply.response === "" ? "EMPTY" : "UNKNOWN",
+                false,
+            );
             throw new Error("DARWIN_VAULT_EXIT_UNCONFIRMED");
+        }
+        diagnostics.helper(
+            reply.code,
+            reply.response === "" ? "EMPTY" : "UNKNOWN",
+            fault !== undefined || reply.code === 0,
+        );
         return {
             exitConfirmed: true,
             code: reply.code,
             bytes: Buffer.from(reply.response, "ascii"),
         };
     };
+    const cleanup = async () => {
+        try {
+            await command("cleanup");
+            child.stdin.end();
+            await confirmedExit();
+        } finally {
+            try {
+                pending.fill(0);
+                if (!closed) {
+                    child.kill("SIGKILL");
+                    await confirmedExit();
+                }
+            } finally {
+                if (!settling) emitDiagnostics();
+            }
+        }
+    };
     return {
+        /** 专用测试通过同一可移植结算器先保留正文结局再逐一覆盖原缓冲和清理，只有诊断导出延后至结算完成；实际清理函数的命令、终止、期限和退出确认仍保持原顺序，失败对象交回原测试报告器。 */
+        async settle(body: () => Promise<void>, wipes: (() => void)[]) {
+            settling = true;
+            try {
+                await settleDarwinCase(body, wipes, cleanup, (facts) =>
+                    diagnostics.nodeCase(facts),
+                );
+            } finally {
+                settling = false;
+                emitDiagnostics();
+            }
+        },
         /** 普通状态调用只允许既有 V1 固定状态回执且要求原生进程已经正常退出，任何含密钥的读取回复都不能误入此解析器；原始管道缓冲在返回或抛错之前覆盖，测试断言只能得到不会泄漏材料的状态字符串。 */
         async status(operation: string, profile: string, version: string, key?: Buffer) {
             const result = await call(operation, profile, version, key);
@@ -648,6 +975,11 @@ export async function dedicatedFixture() {
                     /^V1 (ok|missing|failed|locked|unavailable|mutation-unconfirmed)\n$/.exec(
                         result.bytes.toString("ascii"),
                     );
+                diagnostics.helper(
+                    result.code,
+                    result.bytes.length === 0 ? "EMPTY" : match ? "PARSED_V1" : "INVALID",
+                    result.code === 0 && !!match,
+                );
                 if (result.code !== 0 || !match) {
                     if (operation === "set" || operation === "delete")
                         return "mutation-unconfirmed";
@@ -663,7 +995,13 @@ export async function dedicatedFixture() {
             const result = await call("get", profile, version);
             const expected = Buffer.from(`V1 ok ${key.toString("base64url")}\n`);
             try {
-                return result.code === 0 && result.bytes.equals(expected);
+                const matched = result.bytes.equals(expected);
+                diagnostics.helper(
+                    result.code,
+                    result.bytes.length === 0 ? "EMPTY" : matched ? "PARSED_V1" : "UNKNOWN",
+                    result.code === 0 && result.bytes.length !== 0,
+                );
+                return result.code === 0 && matched;
             } finally {
                 result.bytes.fill(0);
                 expected.fill(0);
@@ -748,22 +1086,6 @@ export async function dedicatedFixture() {
             }
         },
         /** 夹具清理要求控制器显式完成自有存储删除并关闭自身进程，错误路径也覆盖积累的私有响应并有界核对实际退出；若内核没有确认退出则抛出未知清理错误，而不是让 finally 结束被误解为系统状态已经恢复。 */
-        async cleanup() {
-            try {
-                await command("cleanup");
-                child.stdin.end();
-                await confirmedExit();
-            } finally {
-                try {
-                    pending.fill(0);
-                    if (!closed) {
-                        child.kill("SIGKILL");
-                        await confirmedExit();
-                    }
-                } finally {
-                    emitDiagnostics();
-                }
-            }
-        },
+        cleanup,
     };
 }
