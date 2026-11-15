@@ -2,6 +2,10 @@ name: Runtime private macOS files verification
 on:
     workflow_dispatch:
         inputs:
+            private_store_acceptance:
+                description: Accept Runtime private Keychain storage in a dedicated disposable hosted account
+                type: boolean
+                default: false
             session_preflight:
                 description: Observe read-only VeriQ security session facts without persistent acceptance
                 type: boolean
@@ -21,8 +25,41 @@ on:
 permissions:
     contents: read
 jobs:
+    # 三种显式手动目的共用唯一的有限路由检查，冲突输入必须先让本任务失败再阻止所有检出和构建；普通推送始终进入原有无专用存储授权的任务，不继承手动持久测试选择。
+    macos-mode-guard:
+        runs-on: ubuntu-24.04
+        timeout-minutes: 2
+        outputs:
+            mode: ${{ steps.mode.outputs.mode }}
+        steps:
+            - id: mode
+              name: Reject conflicting purposes before checkout
+              env:
+                  VERIQ_EVENT: ${{ github.event_name }}
+                  VERIQ_PREFLIGHT: ${{ inputs.session_preflight || false }}
+                  VERIQ_BASELINE: ${{ inputs.vault_baseline || false }}
+                  VERIQ_PRIVATE: ${{ inputs.private_store_acceptance || false }}
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  if [ "$VERIQ_EVENT" = push ]; then
+                      mode=ordinary
+                  elif [ "$VERIQ_EVENT" = workflow_dispatch ]; then
+                      case "$VERIQ_PREFLIGHT:$VERIQ_BASELINE:$VERIQ_PRIVATE" in
+                          false:false:false) mode=ordinary ;;
+                          true:false:false) mode=preflight ;;
+                          false:true:false) mode=baseline ;;
+                          false:false:true) mode=private ;;
+                          *) printf '%s\n' MAC_PURPOSE_CONFLICT >&2; exit 1 ;;
+                      esac
+                  else
+                      printf '%s\n' MAC_EVENT_UNSUPPORTED >&2
+                      exit 1
+                  fi
+                  printf 'mode=%s\n' "$mode" >> "$GITHUB_OUTPUT"
     macos-private-files:
-        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.session_preflight }}
+        needs: macos-mode-guard
+        if: ${{ needs.macos-mode-guard.outputs.mode == 'ordinary' || needs.macos-mode-guard.outputs.mode == 'baseline' }}
         strategy:
             fail-fast: false
             matrix:
@@ -297,7 +334,8 @@ jobs:
 
     # VeriQ 会话预检以独立手动任务隔离诊断产物，两个架构只观察既有控制器的安全会话谓词；该输入不授权持久钥匙串操作，也不能推导真实图形登录完成或账户可丢弃。
     macos-session-preflight:
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.session_preflight }}
+        needs: macos-mode-guard
+        if: ${{ needs.macos-mode-guard.outputs.mode == 'preflight' }}
         strategy:
             fail-fast: false
             matrix:
@@ -317,7 +355,6 @@ jobs:
             - name: Require hosted context and exclusive read-only purpose before checkout
               env:
                   VERIQ_RUNNER_ENVIRONMENT: ${{ runner.environment }}
-                  VERIQ_BASELINE_REQUESTED: ${{ inputs.vault_baseline }}
                   VERIQ_SESSION_EVIDENCE: ${{ runner.temp }}/veriq-session-preflight-${{ matrix.arch }}
               shell: bash
               run: |
@@ -328,10 +365,6 @@ jobs:
                   printf '%s\n' "$VERIQ_RUNNER_ENVIRONMENT" > "$VERIQ_SESSION_EVIDENCE/runner-environment.log"
                   if [ "$VERIQ_RUNNER_ENVIRONMENT" != github-hosted ]; then
                       printf '%s\n' SESSION_PREFLIGHT_HOSTED_CONTEXT_REQUIRED | tee "$VERIQ_SESSION_EVIDENCE/preflight-error.log"
-                      exit 1
-                  fi
-                  if [ "$VERIQ_BASELINE_REQUESTED" != false ]; then
-                      printf '%s\n' SESSION_PREFLIGHT_INPUT_CONFLICT | tee "$VERIQ_SESSION_EVIDENCE/preflight-error.log"
                       exit 1
                   fi
             - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -470,3 +503,309 @@ jobs:
                   name: runtime-session-preflight-${{ matrix.arch }}-${{ github.sha }}
                   path: ${{ runner.temp }}/veriq-session-preflight-${{ matrix.arch }}/*
                   if-no-files-found: warn
+
+    # 专用持久验收只由互斥的手动目的启动，每个矩阵成员使用自己的新建托管账户并重新观察本机安全会话；旧预检产物不能授权当前虚拟机，生产默认存储与 Cookie 路线仍独立关闭。
+    macos-private-store-acceptance:
+        needs: macos-mode-guard
+        if: ${{ needs.macos-mode-guard.outputs.mode == 'private' }}
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - runner: macos-15-intel
+                      arch: x64
+                    - runner: macos-15
+                      arch: arm64
+        runs-on: ${{ matrix.runner }}
+        timeout-minutes: 30
+        env:
+            ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+            PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+            EXPECTED_ARCH: ${{ matrix.arch }}
+            VERIQ_PRIVATE_EVIDENCE: ${{ runner.temp }}/veriq-private-store-${{ matrix.arch }}
+            VERIQ_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+            VERIQ_RUNNER_OS: ${{ runner.os }}
+            VERIQ_RUNNER_ARCH: ${{ runner.arch }}
+            VERIQ_WORKFLOW_REF: ${{ github.workflow_ref }}
+            VERIQ_WORKFLOW_SHA: ${{ github.workflow_sha }}
+            VERIQ_JOB: ${{ github.job }}
+        steps:
+            - name: Require disposable hosted context before checkout
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  umask 077
+                  mkdir -m 700 "$VERIQ_PRIVATE_EVIDENCE"
+                  printf '%s\n' '{"acceptance":"INCOMPLETE","authorization":"USER_APPROVED_DISPOSABLE_ACCOUNT","consoleLoginCompletion":"NOT_PROVEN","cookie":"NOT_EXECUTED","productionDefaultStore":"NOT_EXECUTED","signing":"NOT_EXECUTED","install":"NOT_EXECUTED","cleanup":"UNKNOWN_OR_FAILED","error":"HOSTED_SETUP_NOT_COMPLETED"}' > "$VERIQ_PRIVATE_EVIDENCE/report.json"
+                  if [ "$VERIQ_RUNNER_ENVIRONMENT" != github-hosted ]; then
+                      printf '%s\n' PRIVATE_STORE_HOSTED_CONTEXT_REQUIRED >&2
+                      exit 1
+                  fi
+            - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+              with:
+                  persist-credentials: false
+                  ref: ${{ github.sha }}
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+              with:
+                  node-version: 24.x
+            # 当前任务把身份、四成员构建、只读会话、私有声明和两组既有测试放在同一个有界执行器内；各阶段先登记固定预算和未完成状态，任何首错都会阻断后续操作并留下单独的失败制品。
+            - name: Observe same-job session and accept only the existing private-store suites
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  node --input-type=module <<'JS'
+                  import { spawn, execFileSync } from "node:child_process";
+                  import { createHash } from "node:crypto";
+                  import { readFileSync, writeFileSync, lstatSync, existsSync, mkdtempSync, chmodSync, unlinkSync, rmdirSync } from "node:fs";
+                  import { join, resolve } from "node:path";
+                  const destination = process.env.VERIQ_PRIVATE_EVIDENCE;
+                  const runtime = resolve("apps/runtime");
+                  const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
+                  const digest = (path) => ({ path, bytes: lstatSync(path).size, sha256: hash(readFileSync(path)) });
+                  const save = (name, value) => {
+                      const bytes = JSON.stringify(value, null, 4) + "\n";
+                      if (Buffer.byteLength(bytes) > 131072) throw Error("PRIVATE_STORE_REPORT_LIMIT");
+                      writeFileSync(join(destination, name), bytes, { mode: 0o600 });
+                  };
+                  const fail = () => { throw Error("PRIVATE_STORE_STAGE_FAILED"); };
+                  const dedicatedNames = [
+                      "dedicated session proves persistent exact-scope storage and refusal behavior",
+                      "dedicated session observes real unlocked OS secret-read denial",
+                  ];
+                  const report = {
+                      acceptance: "INCOMPLETE", authorization: "USER_APPROVED_DISPOSABLE_ACCOUNT",
+                      consoleLoginCompletion: "NOT_PROVEN", cookie: "NOT_EXECUTED",
+                      productionDefaultStore: "NOT_EXECUTED", signing: "NOT_EXECUTED", install: "NOT_EXECUTED",
+                      contextEvidence: "TRUSTED_WORKFLOW_CONTEXT_OBSERVATION",
+                      independentCryptographicAttestation: "NOT_PERFORMED",
+                      source: process.env.GITHUB_SHA, ref: process.env.GITHUB_REF,
+                      workflowRef: process.env.VERIQ_WORKFLOW_REF, workflowSha: process.env.VERIQ_WORKFLOW_SHA,
+                      run: process.env.GITHUB_RUN_ID, attempt: process.env.GITHUB_RUN_ATTEMPT, job: process.env.VERIQ_JOB,
+                      runnerEnvironment: process.env.VERIQ_RUNNER_ENVIRONMENT,
+                      runnerOS: process.env.VERIQ_RUNNER_OS, runnerArch: process.env.VERIQ_RUNNER_ARCH,
+                      image: { os: process.env.ImageOS, version: process.env.ImageVersion },
+                      platform: process.platform, arch: process.arch, node: process.version,
+                      securitySessionGuardPassed: false, testsPassed: 0,
+                      budgets: { toolsMs: 120000, dependenciesMs: 240000, buildMs: 300000,
+                          sessionMs: 5000, nonpersistentMs: 120000, dedicatedMs: 600000,
+                          closeGraceMs: 1000, streamBytes: 524288, buildFactsBytes: 4194304, artifactBytes: 12582912 },
+                      commands: [],
+                      cleanup: dedicatedNames.map((test) => ({ test, cleanupEvidence: "UNKNOWN_OR_FAILED",
+                          helperExits: "UNKNOWN_OR_FAILED", cleanupCommandCompletion: "UNKNOWN_OR_FAILED",
+                          controllerClose: "UNKNOWN_OR_FAILED", controllerExitCode: "NOT_CAPTURED", cleanupAckArtifact: "NOT_EMITTED" })),
+                  };
+                  let stage = "PRIVATE_STORE_IDENTITY_INVALID", config, configDirectory;
+                  const observationOptions = { encoding: "utf8", timeout: 5000, maxBuffer: 4096,
+                      killSignal: "SIGKILL", env: { PATH: "/usr/bin:/bin" }, stdio: ["pipe", "pipe", "pipe"] };
+                  // 每个子进程分别记录实际 close、状态码与完整输出界限，超时或溢出先保留首个原因再终止当前子进程；宽限后仍未知就销毁观察管道并失败，不扫描存储、不声称后代已退出或账户偏好已经恢复。
+                  const run = async (name, file, args, timeout, env, cwd = runtime) => {
+                      const record = { name, command: [file, ...args], cwd, timeoutMs: timeout,
+                          started: new Date().toISOString(), exitStatus: null, signal: null,
+                          closeObserved: false, captureComplete: false, firstFailure: null };
+                      report.commands.push(record);
+                      save("report.json", report);
+                      const buffers = [[], []], counts = [0, 0];
+                      const started = Date.now();
+                      await new Promise((settle) => {
+                          const child = spawn(file, args, { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
+                          let grace, done = false;
+                          const finish = () => {
+                              if (done) return;
+                              done = true;
+                              clearTimeout(deadline); clearTimeout(grace);
+                              child.stdout.destroy(); child.stderr.destroy(); child.unref();
+                              settle();
+                          };
+                          const stop = (reason) => {
+                              if (record.firstFailure) return;
+                              record.firstFailure = reason;
+                              child.kill("SIGKILL");
+                              grace = setTimeout(finish, report.budgets.closeGraceMs);
+                          };
+                          const deadline = setTimeout(() => stop("TIMEOUT"), timeout);
+                          [child.stdout, child.stderr].forEach((stream, index) => {
+                              stream.on("data", (bytes) => {
+                                  const remaining = report.budgets.streamBytes - counts[index];
+                                  if (remaining > 0) buffers[index].push(bytes.subarray(0, remaining));
+                                  counts[index] += bytes.length;
+                                  if (counts[index] > report.budgets.streamBytes) stop("OUTPUT_LIMIT");
+                              });
+                              stream.on("error", () => stop("STREAM_ERROR"));
+                          });
+                          child.on("error", () => stop("SPAWN_ERROR"));
+                          child.on("close", (code, signal) => {
+                              record.closeObserved = true; record.exitStatus = code; record.signal = signal;
+                              finish();
+                          });
+                      });
+                      record.elapsedMs = Date.now() - started;
+                      record.captureComplete = record.closeObserved && !record.firstFailure;
+                      record.streamBytes = counts;
+                      const outputs = buffers.map((chunks) => Buffer.concat(chunks));
+                      // 既有夹具仅返回布尔和固定状态，原始秘密协议从不进入 TAP；导出前仍拒绝协议帧、会话声明和长编码材料，拒绝时只保留摘要与静态失败状态，绝不上传可疑正文或原始异常对象。
+                      for (const [index, bytes] of outputs.entries()) {
+                          const text = bytes.toString("utf8");
+                          if (/\bV1 (?:ok|set|get|delete|probe)\b|"(?:acknowledgement|attestation|disposable|password|keys|key)"\s*:|(?:^|[\s"'=:])(?:[A-Za-z0-9+/]{43}=|[A-Za-z0-9_-]{43})(?=$|[\s"',])/m.test(text)) {
+                              record.firstFailure ??= "UNSAFE_DIAGNOSTIC";
+                              record.captureComplete = false;
+                              record.withheld = true;
+                          }
+                          record[index === 0 ? "stdoutSha256" : "stderrSha256"] = hash(bytes);
+                      }
+                      if (!record.withheld) outputs.forEach((bytes, index) => writeFileSync(join(destination, name + (index === 0 ? ".stdout.log" : ".stderr.log")), bytes, { mode: 0o600 }));
+                      save("report.json", report);
+                      if (!record.captureComplete || record.exitStatus !== 0 || record.signal !== null) fail();
+                      return outputs[0].toString("utf8");
+                  };
+                  // 清理结论只从精确且完整的既有 TAP 记录推导，测试进程零退出与两个具名测试通过缺一不可；重复、缺失、跳过、取消或截断均保持未知，控制器退出码和独立确认制品从未被夹具捕获。
+                  const checkTap = (tap, expected) => {
+                      const lines = tap.split("\n");
+                      const results = lines.filter((line) => /^(?:not )?ok \d+ - /.test(line));
+                      if (!tap.endsWith("\n") || lines.filter((line) => line === "TAP version 13").length !== 1 ||
+                          lines.filter((line) => line === `1..${expected.length}`).length !== 1 || results.length !== expected.length ||
+                          results.some((line, index) => line !== `ok ${index + 1} - ${expected[index]}`) ||
+                          /^(?:not ok|Bail out!)/m.test(tap)) fail();
+                      for (const [field, count] of Object.entries({ tests: expected.length, suites: 0, pass: expected.length, fail: 0, cancelled: 0, skipped: 0, todo: 0 })) {
+                          if (lines.filter((line) => line === `# ${field} ${count}`).length !== 1 ||
+                              lines.filter((line) => line.startsWith(`# ${field} `)).length !== 1) fail();
+                      }
+                  };
+                  try {
+                      report.os = execFileSync("/usr/bin/sw_vers", ["-productVersion"], observationOptions).trim();
+                      report.cpu = execFileSync("/usr/bin/uname", ["-m"], observationOptions).trim();
+                      report.uid = process.getuid(); report.euid = process.geteuid();
+                      if (report.runnerEnvironment !== "github-hosted" || report.platform !== "darwin" ||
+                          !/^24\./.test(process.versions.node) || !/^\d+\.\d+(?:\.\d+)?$/.test(report.os) || Number(report.os.split(".")[0]) < 15 ||
+                          !["x64", "arm64"].includes(report.arch) || report.arch !== process.env.EXPECTED_ARCH ||
+                          report.cpu !== (report.arch === "arm64" ? "arm64" : "x86_64") || report.runnerOS !== "macOS" ||
+                          report.runnerArch !== (report.arch === "arm64" ? "ARM64" : "X64") || report.uid <= 0 || report.uid !== report.euid ||
+                          process.env.GITHUB_EVENT_NAME !== "workflow_dispatch" || !/^[a-f0-9]{40}$/.test(report.source) ||
+                          report.workflowSha !== report.source || !/^refs\/(?:heads|tags)\/[^\s]{1,200}$/.test(report.ref) ||
+                          report.workflowRef !== `${process.env.GITHUB_REPOSITORY}/.github/workflows/runtime-native-macos.yml@${report.ref}` ||
+                          !/^[1-9]\d{0,19}$/.test(report.run) || !/^[1-9]\d{0,5}$/.test(report.attempt) ||
+                          report.job !== "macos-private-store-acceptance" || !/^macos[\w.-]{1,60}$/.test(report.image.os ?? "") ||
+                          !/^[\w.-]{1,80}$/.test(report.image.version ?? "") ||
+                          execFileSync("/usr/bin/git", ["rev-parse", "HEAD"], observationOptions).trim() !== report.source) fail();
+                      stage = "PRIVATE_STORE_INPUT_HASH_FAILED";
+                      report.inputs = [".github/workflows/runtime-native-macos.yml", "pnpm-lock.yaml", "pnpm-workspace.yaml",
+                          "package.json", "apps/runtime/package.json", "apps/runtime/scripts/build-vault-darwin.mjs",
+                          "apps/runtime/native/vault/darwin-vault.mm", "apps/runtime/native/vault/darwin-acl.hpp",
+                          "apps/runtime/tests/native/darwin-vault-controller.mm", "apps/runtime/tests/native/darwin-acl-test.mm",
+                          "apps/runtime/tests/fixtures/darwin-vault.ts", "apps/runtime/tests/native/darwin-vault.test.ts",
+                          "apps/runtime/tests/native/darwin-vault-dedicated.test.ts", process.execPath].map(digest);
+                      const installEnv = { PATH: process.env.PATH, HOME: process.env.HOME,
+                          ELECTRON_SKIP_BINARY_DOWNLOAD: "1", PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1", CI: "true" };
+                      const nativeEnv = { PATH: "/usr/bin:/bin", GITHUB_SHA: report.source };
+                      stage = "PRIVATE_STORE_TOOLS_FAILED";
+                      const toolsRoot = join(process.env.RUNNER_TEMP, "veriq-node-tools");
+                      await run("tools", join(process.execPath, "..", "npm"), ["install", "--prefix", toolsRoot, "pnpm@11.25.0", "--ignore-scripts"], report.budgets.toolsMs, installEnv, process.cwd());
+                      stage = "PRIVATE_STORE_DEPENDENCIES_FAILED";
+                      await run("dependencies", process.execPath, [join(toolsRoot, "node_modules/pnpm/bin/pnpm.cjs"), "install", "--frozen-lockfile", "--ignore-scripts"], report.budgets.dependenciesMs, installEnv, process.cwd());
+                      stage = "PRIVATE_STORE_BUILD_FAILED";
+                      await run("build", process.execPath, ["scripts/build-vault-darwin.mjs", "--tests"], report.budgets.buildMs, nativeEnv);
+                      stage = "PRIVATE_STORE_BUILD_FACTS_INVALID";
+                      const factsPath = join(runtime, "build/vault-darwin-test/build-facts.json"), factsInfo = lstatSync(factsPath);
+                      if (!factsInfo.isFile() || factsInfo.size > report.budgets.buildFactsBytes) fail();
+                      const factsBytes = readFileSync(factsPath), facts = JSON.parse(factsBytes);
+                      if (facts.source !== report.source || facts.redCandidate !== false || facts.platform !== "darwin" ||
+                          facts.arch !== report.arch || facts.node !== process.version ||
+                          facts.records.map((record) => record.name).join(",") !== "production,test,controller,memory") fail();
+                      const members = ["vault-darwin/veriq_agent", "vault-darwin-test/veriq_agent", "vault-darwin-test/veriq_keychain_controller", "vault-darwin-test/veriq_acl_test"];
+                      facts.records.forEach((record, index) => {
+                          const path = join(runtime, "build", members[index]);
+                          if (record.output.path !== path || record.output.sha256 !== digest(path).sha256 ||
+                              record.architecture !== report.cpu || !/\bminos 15\.0(?:\.0)?\b/.test(record.loadCommands)) fail();
+                      });
+                      writeFileSync(join(destination, "build-facts.json"), factsBytes, { mode: 0o600 });
+                      report.buildFactsSha256 = hash(factsBytes);
+                      stage = "PRIVATE_STORE_SESSION_FAILED";
+                      report.sessionCommand = { command: [join(runtime, "build/vault-darwin-test/veriq_keychain_controller")],
+                          operation: "session", timeoutMs: 5000, maxBuffer: 4096, exitStatus: null, signal: null };
+                      let sessionOutput;
+                      const sessionStarted = Date.now();
+                      try {
+                          sessionOutput = execFileSync(report.sessionCommand.command[0], [], { ...observationOptions, input: '{"operation":"session"}\n' });
+                          report.sessionCommand.exitStatus = 0;
+                      } catch (error) {
+                          report.sessionCommand.exitStatus = Number.isInteger(error.status) ? error.status : null;
+                          report.sessionCommand.signal = error.signal ?? null;
+                          fail();
+                      } finally { report.sessionCommand.elapsedMs = Date.now() - sessionStarted; }
+                      const session = JSON.parse(sessionOutput);
+                      if (!session || Array.isArray(session) || Object.keys(session).sort().join(",") !== "login,session,uid" ||
+                          !Number.isSafeInteger(session.uid) || session.uid !== report.uid || session.uid > 4294967295 ||
+                          !Number.isSafeInteger(session.session) || session.session <= 0 || session.session > 4294967295 ||
+                          typeof session.login !== "string" || !session.login.length || Buffer.byteLength(session.login) > 255 ||
+                          /[\x00-\x1f\x7f]/.test(session.login)) fail();
+                      report.session = session; report.securitySessionGuardPassed = true;
+                      stage = "PRIVATE_STORE_ATTESTATION_INVALID";
+                      configDirectory = mkdtempSync(join(process.env.RUNNER_TEMP, "veriq-disposable-session-"));
+                      chmodSync(configDirectory, 0o700);
+                      config = join(configDirectory, "session.json");
+                      writeFileSync(config, JSON.stringify({ disposable: true,
+                          acknowledgement: "I authorize Keychain preference changes in this disposable login session.", ...session }), { flag: "wx", mode: 0o600 });
+                      const directoryInfo = lstatSync(configDirectory), configInfo = lstatSync(config);
+                      if (!directoryInfo.isDirectory() || directoryInfo.uid !== report.uid || (directoryInfo.mode & 0o777) !== 0o700 ||
+                          !configInfo.isFile() || configInfo.uid !== report.uid || (configInfo.mode & 0o777) !== 0o600 || configInfo.size > 4096) fail();
+                      report.attestation = "SAME_JOB_OBSERVATION_AND_USER_AUTHORIZATION";
+                      stage = "PRIVATE_STORE_NONPERSISTENT_FAILED";
+                      const testEnv = { PATH: "/usr/bin:/bin", VERIQ_D1_DISPOSABLE_SESSION: config };
+                      const nonpersistent = await run("nonpersistent", process.execPath, ["--import", "tsx", "--test", "--test-reporter=tap", "tests/native/darwin-vault.test.ts"], report.budgets.nonpersistentMs, testEnv);
+                      checkTap(nonpersistent, ["production refuses argv and malformed frames before store access",
+                          "test helper refuses absent and counterfeit store capability", "EOF before a frame never reaches Security operations",
+                          "gate observes EOF and extra bytes after watcher readiness", "deadline and cancellation report actual termination",
+                          "valid binary frames are accepted without store access in the protocol driver",
+                          "public ACL templates and adversarial typed trees remain nonpersistent"]);
+                      report.testsPassed = 7;
+                      stage = "PRIVATE_STORE_DEDICATED_FAILED";
+                      const dedicated = await run("dedicated", process.execPath, ["--import", "tsx", "--test", "--test-reporter=tap", "tests/native/darwin-vault-dedicated.test.ts"], report.budgets.dedicatedMs, testEnv);
+                      checkTap(dedicated, dedicatedNames);
+                      report.testsPassed = 9;
+                      for (const cleanup of report.cleanup) Object.assign(cleanup, {
+                          cleanupEvidence: "DERIVED_FROM_SOURCE_BOUND_TEST_PASS", helperExits: "DERIVED_CONFIRMED",
+                          cleanupCommandCompletion: "DERIVED_SUCCESS", controllerClose: "DERIVED_OBSERVED",
+                      });
+                      report.acceptance = "RUNTIME_PRIVATE_TEST_STORE_PASSED";
+                  } catch {
+                      report.error = stage;
+                      process.exitCode = 1;
+                      console.error(stage);
+                  } finally {
+                      // 声明文件只删除本执行器刚创建的精确成员及空目录，不接触控制器创建的任何钥匙串路径；声明清理失败与存储清理未知分别记录，虚拟机销毁永远不能提升实际验收结论。
+                      if (configDirectory) {
+                          try { if (config) unlinkSync(config); rmdirSync(configDirectory); report.attestationRemoval = "COMPLETED"; }
+                          catch { report.attestationRemoval = "FAILED"; report.error ??= "PRIVATE_STORE_ATTESTATION_REMOVAL_FAILED"; process.exitCode = 1; }
+                      }
+                      if (report.error) report.acceptance = "INCOMPLETE";
+                      const names = ["build-facts.json", ...["tools", "dependencies", "build", "nonpersistent", "dedicated"].flatMap((name) => [name + ".stdout.log", name + ".stderr.log"])];
+                      report.artifacts = names.filter((name) => existsSync(join(destination, name))).map((name) => {
+                          const path = join(destination, name), info = lstatSync(path);
+                          if (!info.isFile() || info.isSymbolicLink()) throw Error("PRIVATE_STORE_ARTIFACT_TYPE_INVALID");
+                          return { name, bytes: info.size, sha256: hash(readFileSync(path)) };
+                      });
+                      if (report.artifacts.reduce((sum, item) => sum + item.bytes, 131072) > report.budgets.artifactBytes) {
+                          report.error ??= "PRIVATE_STORE_ARTIFACT_LIMIT";
+                          report.acceptance = "INCOMPLETE"; process.exitCode = 1;
+                      }
+                      save("report.json", report);
+                      console.log(report.acceptance);
+                  }
+                  JS
+            - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+              if: always()
+              with:
+                  name: runtime-private-store-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+                  path: |
+                      ${{ runner.temp }}/veriq-private-store-${{ matrix.arch }}/report.json
+                      ${{ runner.temp }}/veriq-private-store-${{ matrix.arch }}/build-facts.json
+                      ${{ runner.temp }}/veriq-private-store-${{ matrix.arch }}/tools.stdout.log
+                      ${{ runner.temp }}/veriq-private-store-${{ matrix.arch }}/tools.stderr.log
+                      ${{ runner.temp }}/veriq-private-store-${{ matrix.arch }}/dependencies.stdout.log
+                      ${{ runner.temp }}/veriq-private-store-${{ matrix.arch }}/dependencies.stderr.log
+                      ${{ runner.temp }}/veriq-private-store-${{ matrix.arch }}/build.stdout.log
+                      ${{ runner.temp }}/veriq-private-store-${{ matrix.arch }}/build.stderr.log
+                      ${{ runner.temp }}/veriq-private-store-${{ matrix.arch }}/nonpersistent.stdout.log
+                      ${{ runner.temp }}/veriq-private-store-${{ matrix.arch }}/nonpersistent.stderr.log
+                      ${{ runner.temp }}/veriq-private-store-${{ matrix.arch }}/dedicated.stdout.log
+                      ${{ runner.temp }}/veriq-private-store-${{ matrix.arch }}/dedicated.stderr.log
+                  if-no-files-found: error

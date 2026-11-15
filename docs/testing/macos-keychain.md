@@ -7,7 +7,7 @@
 | 条件 | 要求 |
 | --- | --- |
 | 系统和架构 | 两架构分别原生执行，记录 `sw_vers`、`uname -m`，Intel 不以 Rosetta 替代 |
-| 登录账户 | 专用、非 root、可丢弃账户；通过该账户真实图形登录会话中的 Terminal 执行 |
+| 登录账户 | 专用、非 root、可丢弃账户；普通人工路线通过真实图形登录会话中的 Terminal 执行，下述已授权 GitHub 临时账户路线单独核验当前安全会话 |
 | 授权范围 | 操作者明确允许本账户内测试钥匙串的创建、锁定、解锁、删除及相应偏好变化 |
 | 工具链 | 仓库规定的 Node24.x、锁定 pnpm、Xcode/Command Line Tools；保留具体版本与源码提交 |
 | 账户数据 | 不放置个人、生产或其他测试任务的凭据；测试期间不切换该账户的登录会话 |
@@ -41,7 +41,50 @@ gh workflow run runtime-native-macos.yml --ref codex/veriq-mvp-completion -f ses
 
 `1b77b39` 的[首次双架构预检](https://github.com/baofengbaofeng/VeriQ/actions/runs/43639551338)均通过当前控制器的非 root UID/安全会话谓词，源码与制品已核验。`getlogin_r` 返回的是继承登录名，不能自动认定为实际控制台用户；会话标识和图形访问标志也不单独证明控制台已完成登录。报告因此固定保留 `consoleLoginCompletion: NOT_PROVEN`、`accountDisposability: NOT_ATTESTED`、`persistentOperations: NOT_RUN` 和 `tests: NOT_RUN`。
 
-真实 Runtime 私有存储、Electron Cookie、生产默认钥匙串和签名安装分别验收。只读预检通过不是运行持久测试的授权；后续须落实独立环境及对应操作范围。
+真实 Runtime 私有存储、Electron Cookie、生产默认钥匙串和签名安装分别验收。只读预检通过不是运行持久测试的授权，也不能替代下述新 VM 在同一任务内的会话检查。
+
+## 已授权的独立 GitHub 临时 Mac 验收
+
+用户已明确授权独立 GitHub 临时 Mac VM/一次性账户中的 Runtime 私有文件型 Keychain 创建、锁定、解锁、删除及这些操作对该账户搜索列表和默认值偏好的影响。该授权只适用于现有工作流的专用任务 `macos-private-store-acceptance`，不扩展到普通 push、共享 CI、Cookie、生产默认存储、真实控制台登录、信任、签名或安装。账户销毁提供隔离边界，不是清理完成证据。
+
+源码审查冻结后，由协调者在已审查的同一 ref 手动触发一次：
+
+```bash
+gh workflow run runtime-native-macos.yml --ref <reviewed-ref> -f private_store_acceptance=true -f session_preflight=false -f vault_baseline=false
+```
+
+三个输入均默认 `false`；公共路由任务在 checkout/build 前拒绝任意两个或三个目的同时启用。普通 push 和普通手动运行保留原有任务；baseline 仍为独立失败基线，preflight 仍只读。专用任务固定 `macos-15-intel/x64`、`macos-15/arm64`，`fail-fast: false`；两个架构必须来自同一次运行、同一冻结源码，不能拼接不同运行的成功结果。
+
+每个实际任务在 checkout 前要求可信 `runner.environment == github-hosted`。随后重新检查源码 HEAD、工作流 SHA/ref、run/attempt/job、镜像、实际 macOS15及以上、uname/Node/runner 架构、Node24.x 具体版本/hash，以及当前非 root UID/EUID。控制器 `operation:session` 在最小环境下限制5秒/4096字节并要求真实零退出、精确 `uid/login/session`；既有原生 `getlogin_r`、Security session、graphic-access 与非 root-session 谓词保持不变。这是可信上下文观察及当前会话谓词，不是独立密码学证明或真实控制台登录完成证明。
+
+同一任务先使用既有锁定依赖构建四个非 red 成员，再根据本机实际会话事实与上述用户授权，在上传目录之外独占创建0700目录和0600、本人拥有、普通非链接、最多4096字节的声明。声明使用既有协议文字；控制器 create 时再次独立检查当前会话。不会复制旧 VM 的声明，也不会上传该文件。生产 helper 参与构建，但测试不向生产默认存储发送有效请求。
+
+从 `apps/runtime` 执行的原有命令为：
+
+```bash
+node scripts/build-vault-darwin.mjs --tests
+node --import tsx --test --test-reporter=tap tests/native/darwin-vault.test.ts
+node --import tsx --test --test-reporter=tap tests/native/darwin-vault-dedicated.test.ts
+```
+
+两个 suite 均在同一任务内设置 `VERIQ_D1_DISPOSABLE_SESSION` 为刚生成的精确路径，分别要求7与2个真实 PASS，fail/cancel/skip/todo 全零。构建只使用现有 Xcode/系统 SDK，无新增 SDK、Chrome、Electron 或 Cookie 安装。依赖安装仍使用已锁定工具及 `--ignore-scripts`。
+
+| 阶段 | 预先固定上限及理由 |
+| --- | --- |
+| pnpm 工具 / 冻结依赖 | 120秒 / 240秒；仅既有包安装，不下载浏览器资产 |
+| 四成员构建 | 300秒；覆盖四次既有单编译60秒限制及身份观测 |
+| 只读 session | 5秒、4096字节、SIGKILL；不需要长期守护进程 |
+| 非持久7项 / 专用2项 | 120秒 / 600秒；覆盖协议负例及多次有界5秒控制器请求、并发写入与两套清理 |
+| 终止确认 | 子进程终止后另限1秒观察 close；缺少 close 保持未知 |
+| 日志 / 制品 | 每阶段每流512KiB；构建事实4MiB；单架构固定白名单制品最多12MiB；整个任务30分钟 |
+
+超时、溢出或异常保留首错，不自动重试或延长预算。只有完整、未截断输出和真实测试进程零退出才可通过。日志保存固定状态、计数及受限诊断，原始协议、密钥、Base64材料、密码、声明、Keychain 文件、二进制和环境转储均不导出；可疑正文拒绝上传并保留摘要与失败状态。制品 `runtime-private-store-<arch>-<run>-<attempt>-<sha>` 即使前置步骤失败也保留未完成报告，包含源码/锁/测试/夹具/控制器/helper/构建摘要、实际四成员构建身份、命令/退出/计时与当前非秘密会话事实。
+
+清理依据来自两条精确具名 TAP 测试及冻结源码：`dedicated session proves persistent exact-scope storage and refusal behavior`、`dedicated session observes real unlocked OS secret-read denial`。每个测试都在 finally 等待 fixture cleanup，后者消费控制器实际 SecKeychainDelete/rmdir 成功回复后等待 close；控制器先核验自有 helper 已退出。第二项还要求真实解锁状态下 OS 秘密读取拒绝及授权主体独立核验值、ACL、属性未变，不能以本地策略拒绝代替。
+
+完整2项 PASS、测试进程 exit0 与 source-bound 记录共同推导 `cleanupEvidence: DERIVED_FROM_SOURCE_BOUND_TEST_PASS`、`helperExits: DERIVED_CONFIRMED`、`cleanupCommandCompletion: DERIVED_SUCCESS`、`controllerClose: DERIVED_OBSERVED`。夹具没有记录控制器退出码或导出独立确认事件，因此固定 `controllerExitCode: NOT_CAPTURED`、`cleanupAckArtifact: NOT_EMITTED`。缺失、重复、失败、跳过、取消、超时或截断都保持 `UNKNOWN_OR_FAILED`；不合成确认，不通过扫描/删除未知存储或 VM 销毁推导回滚。
+
+报告固定区分 `authorization: USER_APPROVED_DISPOSABLE_ACCOUNT` 与 `consoleLoginCompletion: NOT_PROVEN`；Cookie、productionDefaultStore、signing、install 均为 `NOT_EXECUTED`。真实两架构执行结果仍待协调者审查后的单次 CI 验证，成功仅建立 Runtime 私有测试存储验收，不代表完整 MVP、生产默认 helper、安装或签名升级通过。原始失败须先保留并具体诊断，再决定新的有限修复与运行。
 
 ## 配置独立登录会话
 
