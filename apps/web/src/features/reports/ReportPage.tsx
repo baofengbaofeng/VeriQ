@@ -81,7 +81,7 @@ export function ReportPage() {
             </label>
             {workspaces.error && <p role="alert">{workspaces.error.message}</p>}
             {workspaces.hasNextPage && (
-                <button onClick={() => void workspaces.fetchNextPage()}>
+                <button type="button" onClick={() => void workspaces.fetchNextPage()}>
                     更多空间 / More Workspaces
                 </button>
             )}
@@ -135,7 +135,7 @@ export function ReportWorkspaceView({
             <ul>
                 {items.map((run) => (
                     <li key={run.id}>
-                        <button onClick={() => setSelected(run.id)}>
+                        <button type="button" onClick={() => setSelected(run.id)}>
                             {new Date(run.createdAt).toLocaleString()} · {run.source} · {run.state}{" "}
                             · {run.outcome ?? "Pending"}
                         </button>
@@ -143,7 +143,9 @@ export function ReportWorkspaceView({
                 ))}
             </ul>
             {runs.hasNextPage && (
-                <button onClick={() => void runs.fetchNextPage()}>{t("moreRuns")}</button>
+                <button type="button" onClick={() => void runs.fetchNextPage()}>
+                    {t("moreRuns")}
+                </button>
             )}
             {selected ? (
                 <ReportView
@@ -233,7 +235,11 @@ export function ReportView({
         return (
             <div>
                 <p role={error ? "alert" : "status"}>{error || t("loading")}</p>
-                {error && <button onClick={retry}>{t("retry")}</button>}
+                {error && (
+                    <button type="button" onClick={retry}>
+                        {t("retry")}
+                    </button>
+                )}
             </div>
         );
     return (
@@ -262,7 +268,9 @@ export function ReportView({
                 />
             ))}
             {report.cases.length > caseLimit && (
-                <button onClick={() => setCaseLimit((n) => n + 25)}>{t("moreCases")}</button>
+                <button type="button" onClick={() => setCaseLimit((n) => n + 25)}>
+                    {t("moreCases")}
+                </button>
             )}
             <details>
                 <summary>{t("technical")}</summary>
@@ -321,7 +329,7 @@ function CaseCard({
             {!value.attempts.length && <p>{t("noAttempt")}</p>}
             {value.attempts.map((a) => (
                 <article key={a.id}>
-                    <button onClick={() => choose(a.id)}>
+                    <button type="button" onClick={() => choose(a.id)}>
                         {t("attempt")} {a.attemptNo} · {a.outcome ?? a.phase}
                     </button>
                     <p>
@@ -556,7 +564,11 @@ function AttemptDetails({
                     );
                 })}
             </ol>
-            {more && <button onClick={() => void load()}>{t("moreEvents")}</button>}
+            {more && (
+                <button type="button" onClick={() => void load()}>
+                    {t("moreEvents")}
+                </button>
+            )}
             <details>
                 <summary>{t("technical")}</summary>
                 <pre>{JSON.stringify(events, null, 2)}</pre>
@@ -574,6 +586,7 @@ function AttemptDetails({
                         {a.state === "AVAILABLE" && rawEvidenceAllowed && (
                             <>
                                 <button
+                                    type="button"
                                     onClick={() => {
                                         if (adapter.nativeArtifact) {
                                             void adapter
@@ -620,6 +633,7 @@ function AttemptDetails({
                                 )}
                                 {a.kind === "SCREENSHOT" && (
                                     <button
+                                        type="button"
                                         onClick={() => {
                                             if (adapter.nativeArtifact) {
                                                 void adapter

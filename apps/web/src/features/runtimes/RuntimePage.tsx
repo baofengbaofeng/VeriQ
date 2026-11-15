@@ -41,7 +41,9 @@ export function RuntimePage() {
             {workspaces.error && (
                 <>
                     <Notice error={workspaces.error.message} />
-                    <button onClick={() => void workspaces.refetch()}>Retry Workspaces</button>
+                    <button type="button" onClick={() => void workspaces.refetch()}>
+                        Retry Workspaces
+                    </button>
                 </>
             )}
             {workspaces.isSuccess && !items.length && (
@@ -66,6 +68,7 @@ export function RuntimePage() {
             )}
             {workspaces.hasNextPage && (
                 <button
+                    type="button"
                     disabled={workspaces.isFetchingNextPage}
                     onClick={() => void workspaces.fetchNextPage()}
                 >
@@ -128,7 +131,7 @@ function RuntimeWorkspace({ workspace }: { workspace: Workspace }) {
                                 autoComplete="off"
                             />
                         </label>
-                        <button data-testid="enrollment-inspect" disabled={a.busy}>
+                        <button type="submit" data-testid="enrollment-inspect" disabled={a.busy}>
                             Inspect device
                         </button>
                     </form>
@@ -182,6 +185,7 @@ function RuntimeWorkspace({ workspace }: { workspace: Workspace }) {
                                 />
                             )}
                             <button
+                                type="submit"
                                 data-testid="enrollment-approve"
                                 disabled={a.busy || (sharing === "members" && !users.length)}
                             >
@@ -193,7 +197,9 @@ function RuntimeWorkspace({ workspace }: { workspace: Workspace }) {
                 </section>
             )}
             <h2>Registered devices</h2>
-            <button onClick={() => void runtimes.refetch()}>Refresh devices</button>
+            <button type="button" onClick={() => void runtimes.refetch()}>
+                Refresh devices
+            </button>
             {runtimes.isPending && <p role="status">Loading Runtimes…</p>}
             {runtimes.error && <Notice error={runtimes.error.message} />}
             {runtimes.isSuccess && !runtimes.data.pages.some((p) => p.items.length) && (
@@ -215,6 +221,7 @@ function RuntimeWorkspace({ workspace }: { workspace: Workspace }) {
                 ))}
             {runtimes.hasNextPage && (
                 <button
+                    type="button"
                     disabled={runtimes.isFetchingNextPage}
                     onClick={() => void runtimes.fetchNextPage()}
                 >
@@ -367,11 +374,12 @@ function RuntimeCard({
                             selected={users}
                             onChange={setUsers}
                         />
-                        <button data-testid="save-grants" disabled={a.busy}>
+                        <button type="submit" data-testid="save-grants" disabled={a.busy}>
                             Save sharing
                         </button>
                     </form>
                     <button
+                        type="button"
                         data-testid="revoke-runtime"
                         disabled={a.busy}
                         onClick={() =>
@@ -419,7 +427,7 @@ function RuntimeCard({
                                 <option value="MANAGED">Managed</option>
                             </select>
                         </label>
-                        <button data-testid="save-trust" disabled={a.busy}>
+                        <button type="submit" data-testid="save-trust" disabled={a.busy}>
                             Save trust
                         </button>
                     </form>
@@ -458,6 +466,7 @@ function RuntimeCard({
                             Allow platform credential delivery
                         </label>
                         <button
+                            type="submit"
                             data-testid="save-delivery"
                             disabled={a.busy || runtime.trustStatus !== "MANAGED"}
                         >
@@ -502,7 +511,9 @@ function ServiceAccounts({ workspace }: { workspace: Workspace }) {
                         Name
                         <input name="name" required maxLength={160} />
                     </label>
-                    <button disabled={a.busy}>Create service account</button>
+                    <button type="submit" disabled={a.busy}>
+                        Create service account
+                    </button>
                 </form>
             )}
             {accounts.isPending && <p role="status">Loading service accounts…</p>}
@@ -519,6 +530,7 @@ function ServiceAccounts({ workspace }: { workspace: Workspace }) {
                         {!account.disabled && !workspace.archived && (
                             <>
                                 <button
+                                    type="button"
                                     disabled={a.busy}
                                     onClick={() =>
                                         void a.run(async () => {
@@ -537,6 +549,7 @@ function ServiceAccounts({ workspace }: { workspace: Workspace }) {
                                     Issue enrollment token
                                 </button>
                                 <button
+                                    type="button"
                                     disabled={a.busy}
                                     onClick={() =>
                                         void a.run(async () => {
@@ -560,7 +573,7 @@ function ServiceAccounts({ workspace }: { workspace: Workspace }) {
                     </article>
                 ))}
             {accounts.hasNextPage && (
-                <button onClick={() => void accounts.fetchNextPage()}>
+                <button type="button" onClick={() => void accounts.fetchNextPage()}>
                     Load more service accounts
                 </button>
             )}
@@ -574,7 +587,9 @@ function ServiceAccounts({ workspace }: { workspace: Workspace }) {
                         Expires in ten minutes. Pass through standard input, never a command
                         argument.
                     </p>
-                    <button onClick={() => setToken("")}>Dismiss token</button>
+                    <button type="button" onClick={() => setToken("")}>
+                        Dismiss token
+                    </button>
                 </div>
             )}
             <Notice error={a.error} message={a.message} />

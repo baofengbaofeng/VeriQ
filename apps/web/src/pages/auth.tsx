@@ -29,7 +29,7 @@ export function SignIn() {
             >
                 <Field name="email" label="Email" type="email" />
                 <Field name="password" label="Password" type="password" />
-                <button data-testid="login-submit" disabled={a.busy}>
+                <button type="submit" data-testid="login-submit" disabled={a.busy}>
                     {a.busy ? "Signing in…" : "Sign in"}
                 </button>
             </form>
@@ -76,7 +76,7 @@ export function Setup() {
                     type="password"
                     minLength={12}
                 />
-                <button data-testid="setup-submit" disabled={a.busy}>
+                <button type="submit" data-testid="setup-submit" disabled={a.busy}>
                     {a.busy ? "Creating administrator…" : "Create administrator"}
                 </button>
             </form>
@@ -108,7 +108,7 @@ export function ResetRequest() {
                 }}
             >
                 <Field name="email" label="Email" type="email" />
-                <button data-testid="reset-request-submit" disabled={a.busy}>
+                <button type="submit" data-testid="reset-request-submit" disabled={a.busy}>
                     {a.busy ? "Requesting…" : "Request password reset"}
                 </button>
             </form>
@@ -153,7 +153,11 @@ export function ResetConfirm() {
                         type="password"
                         minLength={12}
                     />
-                    <button data-testid="reset-confirm-submit" disabled={a.busy || !!a.message}>
+                    <button
+                        type="submit"
+                        data-testid="reset-confirm-submit"
+                        disabled={a.busy || !!a.message}
+                    >
                         {a.busy ? "Updating…" : "Update password"}
                     </button>
                 </form>

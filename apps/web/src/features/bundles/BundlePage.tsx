@@ -51,7 +51,7 @@ export function BundlePage() {
             </label>
             {workspaces.error && <p role="alert">{workspaces.error.message}</p>}
             {workspaces.hasNextPage && (
-                <button onClick={() => void workspaces.fetchNextPage()}>
+                <button type="button" onClick={() => void workspaces.fetchNextPage()}>
                     更多空间 / More Workspaces
                 </button>
             )}
@@ -282,6 +282,7 @@ export function BundleWorkspaceView({
                     )}
                     {kind !== "DRAFT" && versions.hasNextPage && (
                         <button
+                            type="button"
                             data-testid="bundle-more-versions"
                             disabled={versions.isFetchingNextPage}
                             onClick={() => void versions.fetchNextPage()}
@@ -292,6 +293,7 @@ export function BundleWorkspaceView({
                     {kind === "CASE" && (
                         <>
                             <button
+                                type="button"
                                 data-testid="bundle-add-case"
                                 disabled={!version || basket.length >= 100}
                                 onClick={() => {
@@ -326,6 +328,7 @@ export function BundleWorkspaceView({
                                         {item.resource.name} · v{item.version.versionNo} ·{" "}
                                         {item.version.id}
                                         <button
+                                            type="button"
                                             aria-label={`Remove ${item.resource.name} v${item.version.versionNo}`}
                                             onClick={() =>
                                                 setBasket((current) =>
@@ -369,6 +372,7 @@ export function BundleWorkspaceView({
                     </label>
                     {environments.hasNextPage && (
                         <button
+                            type="button"
                             data-testid="bundle-more-environments"
                             disabled={environments.isFetchingNextPage}
                             onClick={() => void environments.fetchNextPage()}
@@ -383,6 +387,7 @@ export function BundleWorkspaceView({
                         </p>
                     )}
                     <button
+                        type="button"
                         data-testid="bundle-export"
                         disabled={
                             busy ||
@@ -396,7 +401,7 @@ export function BundleWorkspaceView({
                         导出签名包 / Export signed bundle
                     </button>
                     {list.hasNextPage && (
-                        <button onClick={() => void list.fetchNextPage()}>
+                        <button type="button" onClick={() => void list.fetchNextPage()}>
                             更多资源 / More resources
                         </button>
                     )}
@@ -407,6 +412,7 @@ export function BundleWorkspaceView({
                                 {b.id} · {b.validationStatus} · {b.createdAt}
                             </p>
                             <button
+                                type="button"
                                 disabled={busy}
                                 data-testid="bundle-download"
                                 onClick={() => void download(b.id)}
@@ -419,7 +425,7 @@ export function BundleWorkspaceView({
                         <p>暂无离线包 / No bundles</p>
                     )}
                     {bundles.hasNextPage && (
-                        <button onClick={() => void bundles.fetchNextPage()}>
+                        <button type="button" onClick={() => void bundles.fetchNextPage()}>
                             更多离线包 / More bundles
                         </button>
                     )}

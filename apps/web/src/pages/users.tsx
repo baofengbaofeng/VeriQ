@@ -67,7 +67,7 @@ export function AdminUsers() {
                     <input type="checkbox" name="systemAdmin" data-testid="systemAdmin" />
                     System administrator
                 </label>
-                <button data-testid="create-user" disabled={a.busy}>
+                <button type="submit" data-testid="create-user" disabled={a.busy}>
                     {a.busy ? "Working…" : "Create user"}
                 </button>
             </form>
@@ -86,6 +86,7 @@ export function AdminUsers() {
                         value={link.url}
                     />
                     <button
+                        type="button"
                         onClick={() =>
                             void a.run(async () => {
                                 await navigator.clipboard.writeText(link.url);
@@ -95,7 +96,9 @@ export function AdminUsers() {
                     >
                         Copy link
                     </button>
-                    <button onClick={() => setLink(null)}>Dismiss</button>
+                    <button type="button" onClick={() => setLink(null)}>
+                        Dismiss
+                    </button>
                 </aside>
             )}
             <h2>All users</h2>
@@ -142,7 +145,7 @@ export function AdminUsers() {
                         ))}
                     </select>
                 </label>
-                <button data-testid="users-filter-submit" disabled={a.busy}>
+                <button type="submit" data-testid="users-filter-submit" disabled={a.busy}>
                     Apply filters
                 </button>
             </form>
@@ -150,7 +153,11 @@ export function AdminUsers() {
                 a.error ? (
                     <div>
                         <p>Users could not be loaded.</p>
-                        <button onClick={() => void a.run(() => load())} disabled={a.busy}>
+                        <button
+                            type="button"
+                            onClick={() => void a.run(() => load())}
+                            disabled={a.busy}
+                        >
                             Retry users
                         </button>
                     </div>
@@ -185,6 +192,7 @@ export function AdminUsers() {
                                     </td>
                                     <td>
                                         <button
+                                            type="button"
                                             disabled={a.busy}
                                             onClick={() =>
                                                 void a.run(async () => {
@@ -202,6 +210,7 @@ export function AdminUsers() {
                                             {u.disabled ? "Enable" : "Disable"}
                                         </button>
                                         <button
+                                            type="button"
                                             disabled={a.busy || u.disabled}
                                             onClick={() =>
                                                 void a.run(async () => {
@@ -212,6 +221,7 @@ export function AdminUsers() {
                                             Reset link
                                         </button>
                                         <button
+                                            type="button"
                                             disabled={a.busy}
                                             onClick={() =>
                                                 void a.run(async () => {
@@ -224,6 +234,7 @@ export function AdminUsers() {
                                             Revoke sessions
                                         </button>
                                         <button
+                                            type="button"
                                             disabled={a.busy}
                                             onClick={() =>
                                                 void a.run(async () => {
@@ -249,6 +260,7 @@ export function AdminUsers() {
             )}
             {nextCursor && (
                 <button
+                    type="button"
                     data-testid="users-more"
                     disabled={a.busy}
                     onClick={() => void a.run(() => load(nextCursor))}

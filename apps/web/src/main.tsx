@@ -56,7 +56,9 @@ function App() {
         return (
             <Panel title="VeriQ unavailable">
                 <p role="alert">{failure}</p>
-                <button onClick={() => void load()}>Retry</button>
+                <button type="button" onClick={() => void load()}>
+                    Retry
+                </button>
             </Panel>
         );
     if (!ready) return <p role="status">Loading VeriQ…</p>;
@@ -80,6 +82,7 @@ function App() {
                             <Link to="/environments">环境 / Environments</Link>
                             {user.systemAdmin && <Link to="/admin/users">Users</Link>}
                             <button
+                                type="button"
                                 data-testid="logout"
                                 onClick={() => {
                                     void api
