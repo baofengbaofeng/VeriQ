@@ -10,7 +10,9 @@ Mac Runtime 的输入核验、有界归档和完整静态候选组装已通过�
 
 Node 原始内容提取与 npm 物理包实例索引组件（`68875bb` / `88398c9`）及流水线接入（`1c20bc5` / `89d568d`）已完成源码复审。现已通过[真实双 Mac 官方资产消费](https://github.com/baofengbaofeng/VeriQ/actions/runs/43740087046)：两架构均完成获取、观测与 bootstrap，提交和清理确认；各提取 4,797 个文件，索引 npm 根及其嵌套的 144 个物理包实例。两份小型证据各 46 个 ZIP 成员、45 个清单引用及 23 项不同源码引用已核验，大归档未下载到本机。这些仍是 0600/0700 私有静态材料，来源保持未批准；可执行布局、生产依赖闭包、目标解析及完整 Runtime 尚未验收。
 
-`eb3f7b7` 完整 CI 的 34 项前端错误仍待清零；租约夹具修正后的双 Mac 原生业务验证各 26 项通过。Mac Bundle ID 固定为 `io.github.baofengbaofeng.veriq`。独立临时 VM 的私有 Keychain 创建、文件身份和权限检查已通过；`16ffe36` 的[真实诊断](https://github.com/baofengbaofeng/VeriQ/actions/runs/43742207469)进一步确认两架构均在 inspection helper 回复检查及拒绝读取事件检查失败。helper 的原始读取状态尚待定位；正文与清理回调仍失败，完整 OS 清理、凭据、Cookie、安装及发行均未验收。
+Workspace 生命周期与四个入口的默认选择已由 `1010675` 修复并通过独立审查：保留的旧回调会读取当前选择，同一 Workspace 与无关重渲染保留状态，真实切换、卸载及重新登录按生命周期释放。实际 Provider 与四页面的两项浏览器回归通过；仅限核对直接依赖的本地组件验证，完整锁树、其余前端错误及全局会话仍待验收。
+
+Mac Bundle ID 固定为 `io.github.baofengbaofeng.veriq`。私有 Keychain 测试读取由 `29661cc` 修复并通过[双 Mac 实测](https://github.com/baofengbaofeng/VeriQ/actions/runs/43752171340)：两架构读取成功，真实权限拒绝及该用例的正文、擦除、删除清理通过。另一存储用例在第一个负例的删除步骤失败，后续七项策略尚未执行，完整清理未知；正在定位这一未修改的控制器路径。凭据、Cookie、安装及发行仍未完整验收。
 
 仓库当前已落地 `apps/srv`（Tornado 控制服务）、`apps/web`（React 管理台）、`apps/runtime`（Agent/CLI/离线执行）、`packages/{contracts,compiler,runner-sdk,ui}`；`apps/desktop` 已包含 main/preload/renderer、本地打包界面和独立 Agent 入口。首发桌面范围已加入 Mac Intel x64 与 Apple Silicon arm64，优先级高于仍需交付的 Windows/Ubuntu；Mac 原生适配与安装验收尚未完成，见 [Mac 范围与兼容性记录](docs/specs/macos-mvp-scope.md)。贡献与智能体须遵循根目录 `AGENTS.md` 中的编码规范（4 空格缩进、中文注释、英文日志等）。
 
