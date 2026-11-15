@@ -35,6 +35,7 @@
 - 新增apps/desktop，包含main、preload、renderer；复用packages/ui和可共享feature，使用Cloud/Local适配器区分数据来源。
 - 桌面React产物随安装包本地提供，不能只load远程管理网址，否则离线GUI不可用。
 - Electron main使用contextIsolation、关闭renderer Node集成、启用适用的sandbox；preload只暴露白名单类型化IPC，验证参数与sender。设备token、密钥、spawn和任意文件访问不暴露给renderer。
+- Mac已确认由Electron主进程直接加载已核验的Darwin Node-API插件处理私有档案与有限Cookie文件操作；先核库存/宿主/架构再绑定能力，不向renderer开放原生接口。独立Keychain helper不变，实际双架构装载及签名/权限仍须验收。
 - Agent与UI之间使用受限本机IPC，服务端凭证不嵌入桌面前端；不开放无认证本地HTTP控制接口。
 - CLI、桌面和云端共用编译器/SDK/结果协议，不实现两套测试引擎。
 - 服务端仍按web build→Python static/dist→wheel统一发布；桌面产物按macOS x64、macOS arm64、Windows x64、Ubuntu x64分别构建，优先完成Mac两架构，包含GUI/Agent/Runner及所需依赖。共享业务代码不替代各平台凭据库、进程监督、原生文件和生命周期适配。

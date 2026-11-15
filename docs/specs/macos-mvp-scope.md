@@ -47,6 +47,8 @@ CI已配置标准标签`macos-15-intel`（Intel）与`macos-15`（Apple Silicon�
 | 桌面生命周期 | 菜单栏、Dock、activate、登录项及安装路径存在平台差异 | 区分窗口关闭、退出 UI、停止 Agent、取消任务；保留后台执行与恢复能力 |
 | 安装与升级 | Mac 安装载体及签名布局尚待设计 | 双架构独立产物是研究建议，尚非用户已选方案；必须核验执行中升级拒绝、兼容回滚与卸载保留数据 |
 
+用户于2026-11-15（北京时间）确认：Mac Electron 主进程直接加载已核验的 Darwin Node-API 插件，用于私有档案和有限旧 Cookie 文件操作，不新增独立 Node 文件代理。只有完整库存、真实宿主身份、目标架构和对应签名/装载校验通过后才能绑定原生能力；renderer 不得直接取得插件、任意路径或句柄。两架构需验证实际 Electron 装载，Node-API 稳定接口本身不代替验收。独立文件型 Keychain helper 及其授权边界保持不变，此选择不授权真实钥匙串、Cookie 会话或信任配置操作。
+
 Darwin私有目录的`replace(name, temporary, ...)`只接受严格的`.<小写UUID>.tmp`临时成员名（41字节）；业务暂存意图名与底层发布临时名是两个参数，不可互相替代。调用方须保留按Attempt识别的中断意图与提交不确定性，不通过放宽原生名称规则修复调用错误。
 
 用户于2026-11-14明确选择原生文件型（file-based）Keychain，保持独立辅助进程架构，不改为需要新增应用封装、签名授权和 provisioning profile 的 Data Protection 路线。两类实现的权限与签名模型见 Apple [TN3137](https://developer.apple.com/documentation/technotes/tn3137-on-mac-keychains)；实际签名身份、无交互策略和升级连续性仍须验证。
