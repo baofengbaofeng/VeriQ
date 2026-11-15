@@ -6,7 +6,7 @@
 
 服务端构建、前端入 wheel、离线安装校验、引擎候选与独立晋升工具的代码已通过独立审查及取消/晋升问题修复复审。固定浏览器 SDK 136 项检查通过，行覆盖率 91.46%；这不代表最终集成门禁完成。默认构建仍被历史 lint、格式和注释规范阻断，当前包明确标记 UNVERIFIED。Electron 桌面 GUI 模块已通过独立审查，支持平台断网时使用缓存资源运行和查看报告。原生发行仍在开发：Windows Server 与 Ubuntu 已有原生 IPC、系统保险库及空初始化恢复的真实目标验证，Cookie 磁盘保护与重启读回也已验证；Ubuntu 源码 7 项 GUI 回归通过。Windows 仍有 3 项 ACL/所有者测试失败，Windows11/Ubuntu 安装和完整产品验收尚未完成，目前没有正式安装包。详见[里程碑](docs/plans/milestones.md)和[构建发行指南](docs/release.md)。
 
-Mac Runtime 的输入核验、有界归档和完整静态候选组装已通过组件复审，包含实际 stage CLI、来源记录与最终路径校验。固定官方 Node/Chrome 获取与观测工具也已通过源码复审，支持双架构来源绑定、失败步骤记录及有界证据上传，见[资产观测说明](docs/specs/runtime-assets-observation.md)。首轮原生双架构获取已成功，后续观测因未完成的异步等待失败，tar 扫描路径已在本地复现并修复，143 项受影响回归及独立复审通过；第二轮原生观测已返回明确的不支持格式错误，正在定位具体拒绝点；布局审核、二进制执行、Electron 插件装载、安装及系统凭据验收仍待完成。注释审计的 Unicode/换行坐标缺陷及 Web 的 102 处按钮类型问题已修复并通过独立复审，全仓质量与完整 UI 验收仍未通过，详见[里程碑](docs/plans/milestones.md)。
+Mac Runtime 的输入核验、有界归档和完整静态候选组装已通过组件复审，包含实际 stage CLI、来源记录与最终路径校验。固定官方 Node/Chrome 获取与观测工具也已通过源码复审，支持双架构来源绑定、失败步骤记录及有界证据上传，见[资产观测说明](docs/specs/runtime-assets-observation.md)。首轮原生双架构获取已成功，后续观测因未完成的异步等待失败，tar 扫描路径已在本地复现并修复，143 项受影响回归及独立复审通过；第二轮原生观测已返回明确的不支持格式错误，有界首拒诊断已通过 183 项受影响回归及独立复审，待真实任务采集具体证据；布局审核、二进制执行、Electron 插件装载、安装及系统凭据验收仍待完成。注释审计的 Unicode/换行坐标缺陷及 Web 的 102 处按钮类型问题已修复并通过独立复审，全仓质量与完整 UI 验收仍未通过，详见[里程碑](docs/plans/milestones.md)。
 
 仓库当前已落地 `apps/srv`（Tornado 控制服务）、`apps/web`（React 管理台）、`apps/runtime`（Agent/CLI/离线执行）、`packages/{contracts,compiler,runner-sdk,ui}`；`apps/desktop` 已包含 main/preload/renderer、本地打包界面和独立 Agent 入口。首发桌面范围已加入 Mac Intel x64 与 Apple Silicon arm64，优先级高于仍需交付的 Windows/Ubuntu；Mac 原生适配与安装验收尚未完成，见 [Mac 范围与兼容性记录](docs/specs/macos-mvp-scope.md)。贡献与智能体须遵循根目录 `AGENTS.md` 中的编码规范（4 空格缩进、中文注释、英文日志等）。
 
