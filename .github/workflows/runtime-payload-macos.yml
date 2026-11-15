@@ -997,7 +997,7 @@ jobs:
                   if-no-files-found: error
             - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
               id: archives_upload
-              if: steps.observe.outcome == 'success'
+              if: ${{ !cancelled() && steps.observe.outcome == 'success' }}
               with:
                   name: veriq-macos-assets-archives-${{ matrix.arch }}
                   path: ${{ env.ASSET_ROOT }}/observation/observed/snapshots/
