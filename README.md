@@ -12,7 +12,7 @@ Node 原始内容提取与 npm 物理包实例索引组件（`68875bb` / `88398c
 
 Workspace 生命周期与四个入口的默认选择已由 `1010675` 修复并通过独立审查：保留的旧回调会读取当前选择，同一 Workspace 与无关重渲染保留状态，真实切换、卸载及重新登录按生命周期释放。实际 Provider 与四页面的两项浏览器回归通过；仅限核对直接依赖的本地组件验证，完整锁树、其余前端错误及全局会话仍待验收。
 
-Mac Bundle ID 固定为 `io.github.baofengbaofeng.veriq`。私有 Keychain 测试读取由 `29661cc` 修复并通过[双 Mac 实测](https://github.com/baofengbaofeng/VeriQ/actions/runs/43752171340)：两架构读取成功，真实权限拒绝及该用例的正文、擦除、删除清理通过。另一存储用例在第一个负例的删除步骤失败，后续七项策略尚未执行，完整清理未知；正在定位这一未修改的控制器路径。凭据、Cookie、安装及发行仍未完整验收。
+Mac Bundle ID 固定为 `io.github.baofengbaofeng.veriq`。`e0ba135` 已通过[双 Mac 私有 Runtime 存储验收](https://github.com/baofengbaofeng/VeriQ/actions/runs/43758515194)：每种架构 7＋2 项测试通过且无跳过，覆盖八项 ACL 策略、不确定恢复与真实解锁读取拒绝；四个夹具的正文、擦除、钥匙串删除、控制器退出及目录清理均通过。该结果来自独立临时 VM 的私有文件 Keychain；Cookie、真实控制台、正式签名安装及完整发行仍待验收。
 
 仓库当前已落地 `apps/srv`（Tornado 控制服务）、`apps/web`（React 管理台）、`apps/runtime`（Agent/CLI/离线执行）、`packages/{contracts,compiler,runner-sdk,ui}`；`apps/desktop` 已包含 main/preload/renderer、本地打包界面和独立 Agent 入口。首发桌面范围已加入 Mac Intel x64 与 Apple Silicon arm64，优先级高于仍需交付的 Windows/Ubuntu；Mac 原生适配与安装验收尚未完成，见 [Mac 范围与兼容性记录](docs/specs/macos-mvp-scope.md)。贡献与智能体须遵循根目录 `AGENTS.md` 中的编码规范（4 空格缩进、中文注释、英文日志等）。
 
