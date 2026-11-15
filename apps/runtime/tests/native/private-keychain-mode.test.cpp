@@ -8,7 +8,13 @@
 using veriq::test::PrivateKeychainMode;
 using veriq::test::PrivateModeFailure;
 namespace {
-void check(bool value) { if (!value) throw std::runtime_error("GUARD_TEST_FAILED"); }
+/** 断言失败只携带调用点的公开源码行号，默认内建参数在调用处求值且不重复求值原布尔表达式；异常仍派生自原来的 runtime_error，既有捕获语义保持一致，不读取 errno 或暴露断言涉及的实际文件属性。 */
+struct AssertionFailure : std::runtime_error {
+    const int line;
+    /** 构造只保存断言调用处传入的公开行号并沿用原有固定异常标识，既不拼接表达式正文也不查询当前文件状态；上层诊断会将超出有限范围的行号标为未知，避免将其他整数解释成源码位置。 */
+    explicit AssertionFailure(int value) : std::runtime_error("GUARD_TEST_FAILED"), line(value) {}
+};
+void check(bool value, int line = __builtin_LINE()) { if (!value) throw AssertionFailure(line); }
 
 /** 每个案例只拥有一个新建随机目录和固定测试成员，成功时逐一清除本案例已结算的对象；异常时保留现场而不递归猜测删除，因此未知失败不会扩大到其他测试目录或系统账户文件。 */
 struct Area {
@@ -193,12 +199,26 @@ void exceptionCleanup(int kind) {
     check(descriptors() == before);
     area.finish();
 }
+
+/** 失败输出只包含已完成数量、固定异常类别、断言公开源码行号及守卫本身捕获的 errno，其他异常不会读取进程残留错误码；这段诊断不推断当前案例名称或失败系统调用，也不打印异常正文及任何临时文件元数据。 */
+enum class TestFailure { ASSERTION, GUARD, RUNTIME, STANDARD, UNKNOWN };
+int failureDiagnostic(int completed, TestFailure kind, int error = -1, int line = -1) {
+    const char *names[] = {"ASSERTION", "GUARD", "RUNTIME", "STANDARD", "UNKNOWN"};
+    if (kind == TestFailure::ASSERTION && line > 0 && line <= 4095) {
+        std::fprintf(stderr, "PRIVATE_MODE_GUARD_FAILED completed=%d class=%s errno=UNKNOWN line=%d\n", completed, names[static_cast<unsigned>(kind)], line);
+    } else if (kind == TestFailure::GUARD && error >= 0 && error <= 4095) {
+        std::fprintf(stderr, "PRIVATE_MODE_GUARD_FAILED completed=%d class=%s errno=%d line=UNKNOWN\n", completed, names[static_cast<unsigned>(kind)], error);
+    } else {
+        std::fprintf(stderr, "PRIVATE_MODE_GUARD_FAILED completed=%d class=%s errno=UNKNOWN line=UNKNOWN\n", completed, names[static_cast<unsigned>(kind)]);
+    }
+    return 1;
+}
 }
 
 /** 独立入口执行固定有限案例集合并只输出通过数量或固定失败代码，不接受参数、不启动子进程；任何未预期异常都会立即终止剩余案例并保留当前临时对象，持续集成据此拒绝将部分通过视为验收。 */
 int main() {
+    int passed = 0;
     try {
-        int passed = 0;
         for (mode_t mode : {0644, 0660, 0444, 0741, 0600}) { validMode(mode); ++passed; }
         for (int kind = 0; kind < 7; ++kind) { invalidMember(kind); ++passed; }
         for (int kind = 0; kind < 3; ++kind) { invalidParent(kind); ++passed; }
@@ -206,8 +226,15 @@ int main() {
         for (int kind = 0; kind < 3; ++kind) { exceptionCleanup(kind); ++passed; }
         std::printf("PRIVATE_MODE_GUARD_PASS %d\n", passed);
         return 0;
+    } catch (const AssertionFailure &failure) {
+        return failureDiagnostic(passed, TestFailure::ASSERTION, -1, failure.line);
+    } catch (const PrivateModeFailure &failure) {
+        return failureDiagnostic(passed, TestFailure::GUARD, failure.error);
+    } catch (const std::runtime_error &) {
+        return failureDiagnostic(passed, TestFailure::RUNTIME);
+    } catch (const std::exception &) {
+        return failureDiagnostic(passed, TestFailure::STANDARD);
     } catch (...) {
-        std::fputs("PRIVATE_MODE_GUARD_FAILED\n", stderr);
-        return 1;
+        return failureDiagnostic(passed, TestFailure::UNKNOWN);
     }
 }

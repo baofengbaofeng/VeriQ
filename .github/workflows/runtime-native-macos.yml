@@ -106,35 +106,106 @@ jobs:
                   const inputs = ["apps/runtime/tests/native/private-keychain-mode.hpp", "apps/runtime/tests/native/private-keychain-mode.test.cpp"];
                   const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
                   const fail = () => { throw new Error("PRIVATE_MODE_GUARD_REFUSED"); };
-                  // 此步骤只编译并执行固定 POSIX 守卫测试，运行前后都将头文件和测试源码与冻结 Git 提交逐字节绑定；日志仅输出有限通过数量和摘要，不启动钥匙串控制器或触发任何账户存储操作。
+                  // 子进程诊断只保存固定状态、实际退出码及有界捕获长度，系统错误名称必须经过枚举过滤；未知对象和异常正文不进入记录，尚未调用子进程与调用后状态不明分别保留，不能从阶段耗时猜测执行结果。
+                  const errorCode = (error) => ["ENOENT", "EACCES", "ETIMEDOUT", "ENOBUFS", "ENOMEM", "EINVAL", "E2BIG", "EMFILE", "ENFILE", "EIO"].includes(error?.code) ? error.code : "UNKNOWN";
+                  const childFailure = (error) => {
+                      const status = Number.isInteger(error?.status) && error.status >= 0 && error.status <= 255 ? error.status : error?.status === null ? null : "UNKNOWN";
+                      const signal = error?.signal === null ? null : ["SIGKILL", "SIGTERM", "SIGABRT", "SIGSEGV", "SIGBUS", "SIGILL", "SIGTRAP", "SIGFPE", "SIGPIPE"].includes(error?.signal) ? error.signal : "UNKNOWN";
+                      const code = errorCode(error);
+                      const state = typeof status === "number" && signal === null ? "EXITED" : signal !== null && signal !== "UNKNOWN" && typeof status !== "number" ? "SIGNALED" : error?.pid === 0 && ["ENOENT", "EACCES"].includes(code) ? "NOT_STARTED" : "UNKNOWN";
+                      const timeout = code === "ETIMEDOUT" ? true : code !== "UNKNOWN" || (["EXITED", "SIGNALED"].includes(state) && error?.code === undefined) ? false : "UNKNOWN";
+                      return { state, status, signal, errorCode: code, timeout,
+                          stdoutBytes: Buffer.isBuffer(error?.stdout) ? error.stdout.length : "UNKNOWN",
+                          stderrBytes: Buffer.isBuffer(error?.stderr) ? error.stderr.length : "UNKNOWN",
+                          incomplete: timeout === true || code === "ENOBUFS" || state !== "EXITED",
+                          captureTruncated: code === "ENOBUFS" ? true : Buffer.isBuffer(error?.stderr) && Buffer.isBuffer(error?.stdout) ? false : "UNKNOWN" };
+                  };
+                  // 测试进程的失败正文只允许固定一行计数、错误类别与已知 errno，成功仍由原来的精确通过输出判定；解析拒绝或缺失诊断不会转成通过，也不利用完成数量推断下一个案例的身份或失败所在系统调用。
+                  const testFailure = (stdout, stderr) => {
+                      if (!Buffer.isBuffer(stderr) || stderr.length === 0) return { state: "UNKNOWN" };
+                      if (!Buffer.isBuffer(stdout) || stdout.length !== 0 || stderr.length > 160) return { state: "REJECTED" };
+                      const text = stderr.toString("utf8");
+                      const match = /^PRIVATE_MODE_GUARD_FAILED completed=(0|[1-9]|1[0-9]|2[0-2]) class=(ASSERTION|GUARD|RUNTIME|STANDARD|UNKNOWN) errno=(UNKNOWN|0|[1-9][0-9]{0,3}) line=(UNKNOWN|[1-9][0-9]{0,3})\n$/.exec(text);
+                      if (!match || match[0] !== text || (match[3] !== "UNKNOWN" && (match[2] !== "GUARD" || Number(match[3]) > 4095)) ||
+                          (match[4] !== "UNKNOWN" && (match[2] !== "ASSERTION" || Number(match[4]) > 4095))) return { state: "REJECTED" };
+                      return { state: "ACCEPTED", completed: Number(match[1]), errorClass: match[2], errno: match[3] === "UNKNOWN" ? "UNKNOWN" : Number(match[3]), line: match[4] === "UNKNOWN" ? "UNKNOWN" : Number(match[4]) };
+                  };
+                  // 只有编译阶段可以输出冻结公开源码对应的 stderr，工作区与本步骤临时输出前缀先归一化再限制 UTF8 字节数；测试正文绝不传给此函数，截断和缺失均显式标记且不改变原始编译退出状态。
+                  const compilerFailure = (stderr, directory, child) => {
+                      if (!Buffer.isBuffer(stderr)) return { available: false };
+                      let text = stderr.toString("utf8");
+                      for (const [prefix, replacement] of [[directory, "[TEMP]"], [process.cwd(), "[WORKSPACE]"], [process.env.RUNNER_TEMP, "[TEMP]"]]) {
+                          if (typeof prefix === "string" && prefix.length > 1) text = text.split(prefix).join(replacement);
+                      }
+                      text = text.replace(/\r\n?/g, "\n").replace(/[\x00-\x08\x0b-\x1f\x7f]/g, "?");
+                      const bytes = Buffer.from(text);
+                      return { available: true, stderrUtf8: new TextDecoder().decode(bytes.subarray(0, 8192), { stream: true }),
+                          truncated: bytes.length > 8192 || child.captureTruncated === true };
+                  };
+                  let phase = "ARCH", child = { state: "NOT_INVOKED" }, compilerStderr, testStdout, testStderr, directory;
+                  let primary, rebindFailure;
+                  // 同步调用保留原有期限和缓冲上限，但用 Buffer 取得真实捕获字节数再按原调用约定解码；错误对象只在当前作用域读取有限字段，编译诊断与测试诊断分别暂存，避免误把测试 stderr 作为公开编译文本输出。
+                  const runChild = (command, args, settings = options) => {
+                      child = { state: "UNKNOWN" };
+                      try {
+                          const result = execFileSync(command, args, { ...settings, encoding: "buffer" });
+                          child = { state: "EXITED", status: 0, signal: null, errorCode: "NONE", timeout: false, stdoutBytes: result.length, stderrBytes: "UNKNOWN", incomplete: false, captureTruncated: false };
+                          return settings.encoding === "buffer" ? result : result.toString("utf8");
+                      } catch (error) {
+                          child = childFailure(error);
+                          if (phase === "COMPILE") compilerStderr = error?.stderr;
+                          if (phase === "EXECUTE") { testStdout = error?.stdout; testStderr = error?.stderr; }
+                          throw error;
+                      }
+                  };
+                  // 原始失败先冻结自己的阶段和子进程事实，finally 的来源复核随后独立保存异常而不替换首错；所有阶段名称来自此固定程序，清理或来源拒绝不能冒充测试执行，整个步骤仍沿用失败退出状态。
+                  const remember = (error) => {
+                      const record = { phase, errorCode: errorCode(error), lastChild: child };
+                      if (phase === "COMPILE") record.compiler = compilerFailure(compilerStderr, directory, child);
+                      if (phase === "EXECUTE") record.test = testFailure(testStdout, testStderr);
+                      if (!primary) primary = record;
+                      else rebindFailure = record;
+                  };
                   try {
                       if (process.platform !== "darwin" || process.arch !== process.env.EXPECTED_ARCH ||
-                          execFileSync("/usr/bin/uname", ["-m"], options).trim() !== (process.arch === "arm64" ? "arm64" : "x86_64") ||
-                          !/^15\./.test(execFileSync("/usr/bin/sw_vers", ["-productVersion"], options)) ||
-                          !/^[a-f0-9]{40}$/.test(process.env.GITHUB_SHA ?? "") ||
-                          execFileSync("/usr/bin/git", ["rev-parse", "HEAD"], options).trim() !== process.env.GITHUB_SHA) fail();
+                          runChild("/usr/bin/uname", ["-m"]).trim() !== (process.arch === "arm64" ? "arm64" : "x86_64") ||
+                          !/^15\./.test(runChild("/usr/bin/sw_vers", ["-productVersion"]))) fail();
+                      phase = "SOURCE_BIND"; child = { state: "NOT_INVOKED" };
+                      if (!/^[a-f0-9]{40}$/.test(process.env.GITHUB_SHA ?? "") ||
+                          runChild("/usr/bin/git", ["rev-parse", "HEAD"]).trim() !== process.env.GITHUB_SHA) fail();
                       const bind = () => inputs.map((path) => {
                           const current = readFileSync(path);
-                          const frozen = execFileSync("/usr/bin/git", ["show", `${process.env.GITHUB_SHA}:${path}`], { ...options, encoding: "buffer" });
+                          const frozen = runChild("/usr/bin/git", ["show", `${process.env.GITHUB_SHA}:${path}`], { ...options, encoding: "buffer" });
                           if (!current.equals(frozen)) fail();
                           return { path, sha256: hash(current) };
                       });
                       const before = bind();
-                      const directory = mkdtempSync(join(process.env.RUNNER_TEMP, "veriq-private-mode-"));
+                      phase = "PREPARE"; child = { state: "NOT_INVOKED" };
+                      directory = mkdtempSync(join(process.env.RUNNER_TEMP, "veriq-private-mode-"));
                       const binary = join(directory, "guard-test");
                       try {
-                          execFileSync("/usr/bin/clang++", ["-std=c++17", "-Wall", "-Wextra", "-Werror", "-pedantic", "-mmacosx-version-min=15.0", inputs[1], "-o", binary], { ...options, timeout: 30000 });
-                          const result = execFileSync(binary, [], { ...options, timeout: 15000 });
+                          phase = "COMPILE"; child = { state: "NOT_INVOKED" };
+                          runChild("/usr/bin/clang++", ["-std=c++17", "-Wall", "-Wextra", "-Werror", "-pedantic", "-mmacosx-version-min=15.0", inputs[1], "-o", binary], { ...options, timeout: 30000 });
+                          phase = "EXECUTE"; child = { state: "NOT_INVOKED" };
+                          const result = runChild(binary, [], { ...options, timeout: 15000 });
                           if (result !== "PRIVATE_MODE_GUARD_PASS 22\n") fail();
+                      } catch (error) {
+                          remember(error);
+                          throw error;
                       } finally {
-                          if (JSON.stringify(bind()) !== JSON.stringify(before)) fail();
+                          phase = "SOURCE_REBIND"; child = { state: "NOT_INVOKED" };
+                          try {
+                              if (JSON.stringify(bind()) !== JSON.stringify(before)) fail();
+                          } catch (error) { remember(error); throw error; }
                       }
                       // 编译器与测试都已同步返回成功后才删除本步骤拥有的二进制及空目录，任何超时或未知失败均保留现场；这种结算不承诺终止编译器的任意后代，也不递归删除未确认归属的对象。
+                      phase = "CLEANUP"; child = { state: "NOT_INVOKED" };
                       unlinkSync(binary);
                       rmdirSync(directory);
                       console.log(JSON.stringify({ code: "PRIVATE_MODE_GUARD_PASS", passed: 22, source: process.env.GITHUB_SHA, inputs: before }));
-                  } catch {
-                      console.error("PRIVATE_MODE_GUARD_FAILED");
+                  } catch (error) {
+                      if (!primary) remember(error);
+                      console.error(JSON.stringify({ code: "PRIVATE_MODE_GUARD_FAILED", ...primary, ...(rebindFailure ? { rebindFailure } : {}) }));
                       process.exitCode = 1;
                   }
                   NODE
