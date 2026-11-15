@@ -11,7 +11,7 @@ import {
     type ArchiveMember,
 } from "./runtime-payload-archive.ts";
 import { ArchiveTransaction } from "./runtime-payload-transaction.ts";
-import { InputReader, decode, freeze, limits, sha } from "./runtime-payload-tree.ts";
+import { InputReader, decode, freeze, limits, relative, sha } from "./runtime-payload-tree.ts";
 import { scanTar } from "./runtime-payload-tar.ts";
 import {
     assetArch,
@@ -20,7 +20,6 @@ import {
     assetFailure,
     bindAssetSources,
     parseAssetsObservationInput,
-    readAssetMetadata,
     writeAssetJson,
     type MemberFacts,
     type SourceObservation,
@@ -60,7 +59,7 @@ export type NodeBootstrapResult = Readonly<{
     committed: true;
     cleanup: Cleanup;
 }>;
-const extractedReaders = new WeakMap<ArchiveTransaction, InputReader>();
+const extractedReaders = new WeakMap<ArchiveTransaction, { finish: () => Promise<void> }>();
 const metadataReserve = 2 * limits.json + 2 * limits.json;
 
 /** 身份比较覆盖设备、inode、长度、模式、链接数和纳秒时间，读取与收尾都保持第一次观察而不重试；此处只检测已观察变化，不承诺抵抗恶意同 UID 对父路径并发替换的原子整树能力。 */
@@ -175,6 +174,82 @@ async function holdFile(
     }
 }
 
+/** 提取 manifest 的读取由当前事务唯一拥有 FD 及关闭状态，根准入仍复用 InputReader 而不调用其无法转交 close 状态的 input；每个父目录与文件保留初始身份，完整有界正文独立核原成员摘要，发布前 finish 继续核相同观察。 */
+async function extractedManifestReader(tx: ArchiveTransaction) {
+    const root = join(tx.scratch, "trees/node"),
+        admission = new InputReader(root, tx.signal, []);
+    await admission.initialize();
+    const observations = new Map<string, BigIntStats>();
+    const observe = async (path: string, directory: boolean) => {
+        tx.check();
+        const info = await lstat(path, { bigint: true });
+        tx.check();
+        if (
+            directory
+                ? !info.isDirectory() ||
+                  ![0o700, 0o755, 0o555].includes(Number(info.mode & 0o7777n))
+                : !info.isFile() ||
+                  info.ino === 0n ||
+                  info.nlink !== 1n ||
+                  ![0o400, 0o600, 0o444, 0o644].includes(Number(info.mode & 0o7777n))
+        )
+            tx.fail("PAYLOAD_TREE_MISMATCH");
+        const prior = observations.get(path);
+        if (prior && !same(prior, info)) tx.fail("PAYLOAD_SOURCE_CHANGED");
+        observations.set(path, info);
+    };
+    const finish = async () => {
+        await admission.finish();
+        for (const [path, before] of observations) {
+            tx.check();
+            if (!same(before, await lstat(path, { bigint: true })))
+                tx.fail("PAYLOAD_SOURCE_CHANGED");
+        }
+        tx.check();
+    };
+    const read = async (value: Ref) => {
+        const ref = assetRef(value);
+        relative(ref.path);
+        if (ref.sizeBytes > limits.package) tx.fail("PAYLOAD_LIMIT");
+        let parent = root;
+        await observe(parent, true);
+        for (const part of ref.path.split("/").slice(0, -1)) {
+            parent = join(parent, part);
+            await observe(parent, true);
+        }
+        const full = join(root, ref.path);
+        await observe(full, false);
+        let held: Awaited<ReturnType<typeof holdFile>> | undefined;
+        try {
+            held = await holdFile(tx, full, ref, limits.package);
+            const chunks: Buffer[] = [];
+            let size = 0;
+            for await (const chunk of fileChunks(tx, held.handle)) {
+                size += chunk.length;
+                if (size > ref.sizeBytes || size > limits.package) tx.fail("PAYLOAD_LIMIT");
+                chunks.push(Buffer.from(chunk));
+            }
+            const bytes = Buffer.concat(chunks, size);
+            if (size !== ref.sizeBytes || sha(bytes) !== ref.sha256)
+                tx.fail("PAYLOAD_SOURCE_CHANGED");
+            await held.check();
+            await held.close();
+            held = undefined;
+            return bytes;
+        } finally {
+            // 只有确认关闭才从成功路径返回；失败路径保留最早的读取、身份或摘要拒绝，次要关闭不确定由唯一拥有者先通知事务，防止 assetFailure 在未知 FD 尚存时递归删除 scratch 或锁。
+            if (held) {
+                try {
+                    await held.close();
+                } catch {
+                    tx.noteCloseFailure();
+                }
+            }
+        }
+    };
+    return Object.freeze({ read, finish });
+}
+
 /** 包根发现只沿实例自身的 node_modules 和可选 scope 两级边界推进，目录名允许 npm alias 而不要求等于 manifest.name；空目录、非目录包根及影响发现的链接都失败关闭，普通文件链接仍仅保留在成员事实。 */
 function packageRoots(scan: ArchiveScan, npm: string): string[] {
     const children = new Map<string, string[]>();
@@ -284,14 +359,13 @@ export async function extractNodeSourceSnapshot(
         await scanTar(join(tx.scratch, ref.path), new ArchiveScan("node", top, tx, budget, first));
         await held.check();
         await tx.audit();
-        const reader = new InputReader(join(tx.scratch, "trees/node"), tx.signal, []);
-        await reader.initialize();
+        const reader = await extractedManifestReader(tx);
         const packages: NpmPackageSource[] = [];
         for (const root of roots) {
             const member = files.get(`${root}/package.json`);
             if (!member) tx.fail("PAYLOAD_INPUT_INVALID");
             const local = { path: member.path, sizeBytes: member.sizeBytes, sha256: member.sha256 };
-            const manifest = decode(await readAssetMetadata(reader, local, limits.package));
+            const manifest = decode(await reader.read(local));
             if (!manifest || typeof manifest !== "object" || Array.isArray(manifest))
                 tx.fail("PAYLOAD_INPUT_INVALID");
             const record = manifest as Record<string, unknown>;
