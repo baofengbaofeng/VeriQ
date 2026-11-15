@@ -11,7 +11,7 @@ import {
     type InputInspection,
 } from "./runtime-payload-inputs.ts";
 import { freeze, limits, relative } from "./runtime-payload-tree.ts";
-import { ArchiveTransaction, errno } from "./runtime-payload-transaction.ts";
+import { ArchiveTransaction, controlledIoFailure } from "./runtime-payload-transaction.ts";
 import { scanTar } from "./runtime-payload-tar.ts";
 import { scanZip } from "./runtime-payload-zip.ts";
 
@@ -364,6 +364,17 @@ export async function intakeRuntimeArchives(
             report.recipe.chrome.file.sizeBytes,
         );
         scans[0].links(report.nodeReceipt.inputLinks);
+        /** 每个声明 Framework 根都先核独立布局的明确前缀和非空名称，准入不能依赖该根是否恰好含有链接；逐跳物理根与目录图检查仍由原链接流程执行，空链接集合不会再绕过本片新增的命名政策。 */
+        const frameworkPrefix = `${report.chromeLayout.layout.bundlePath}/Contents/Frameworks/`;
+        for (const root of report.chromeLayout.layout.frameworkRoots) {
+            const name = root.slice(frameworkPrefix.length);
+            if (
+                !root.startsWith(frameworkPrefix) ||
+                name.includes("/") ||
+                !/^.+\.framework$/.test(name)
+            )
+                tx.fail("PAYLOAD_ARCHIVE_LINK");
+        }
         scans[1].links(
             report.chromeLayout.layout.allowedLinks,
             report.chromeLayout.layout.frameworkRoots,
@@ -450,29 +461,11 @@ export async function intakeRuntimeArchives(
                     candidateDirectory: tx.directory,
                 },
             );
-        const code = errno(error),
-            allowed = [
-                "ENOENT",
-                "ENOTDIR",
-                "ELOOP",
-                "EACCES",
-                "EPERM",
-                "EIO",
-                "EMFILE",
-                "ENFILE",
-                "EBADF",
-                "EINVAL",
-                "ENOSPC",
-                "EDQUOT",
-            ];
+        const known = controlledIoFailure(error);
         return tx.fail(
-            signal?.aborted
-                ? "PAYLOAD_CANCELLED"
-                : code === "ENOSPC" || code === "EDQUOT"
-                  ? "PAYLOAD_DISK_INSUFFICIENT"
-                  : "PAYLOAD_IO",
+            signal?.aborted ? "PAYLOAD_CANCELLED" : (known?.code ?? "PAYLOAD_IO"),
             cleanup,
-            code && allowed.includes(code) ? code : null,
+            known?.causeCode ?? null,
         );
     }
 }

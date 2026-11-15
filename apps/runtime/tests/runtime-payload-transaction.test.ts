@@ -21,7 +21,7 @@ import { ArchiveBudget, ArchiveScan } from "../scripts/runtime-payload-archive.t
 import { ZipRanges } from "../scripts/runtime-payload-zip.ts";
 import { RuntimePayloadError, type Ref } from "../scripts/runtime-payload-inputs.ts";
 import { intakeRuntimeArchives } from "../scripts/runtime-payload-archive.ts";
-import { fixture } from "./fixtures/runtime-payload.ts";
+import { fixture, hash } from "./fixtures/runtime-payload.ts";
 import { archiveModel } from "./fixtures/runtime-payload-archives.ts";
 
 for (const name of ["candidate", ".veriq-candidate.lock"])
@@ -612,3 +612,95 @@ test("committed result remains successful when only replaced lock cleanup is inc
         await rm(output, { recursive: true, force: true });
     }
 });
+
+/** 提取故障只在实际树输出期间替换真实 FileHandle.write，避免快照复制先失败而漏过 tar 与 ZIP 适配器错误分支；次要 close 故障在完成真实关闭后注入不确认结果，首个磁盘错误及受控 errno 必须保留，外部旧候选和源归档始终不变。 */
+for (const [kind, code] of [
+    ["node", "ENOSPC"],
+    ["chrome", "EDQUOT"],
+] as const)
+    for (const uncertainClose of [false, true])
+        test(`fix1 actual ${kind} extraction ${code} retains first cause with close uncertainty ${uncertainClose}`, async (t) => {
+            const output = await mkdtemp(join(tmpdir(), "veriq-extraction-fault-"));
+            const probe = await open(join(output, "probe"), "wx", 0o600),
+                prototype = Object.getPrototypeOf(probe) as FileHandle;
+            await probe.close();
+            await unlink(join(output, "probe"));
+            await mkdir(join(output, "old"), { mode: 0o700 });
+            await writeFile(join(output, "old/sentinel"), "outside sentinel");
+            const write = ArchiveTransaction.prototype.write;
+            let faults = 0;
+            t.mock.method(
+                ArchiveTransaction.prototype,
+                "write",
+                async function (
+                    this: ArchiveTransaction,
+                    path: string,
+                    chunks: AsyncIterable<Uint8Array>,
+                    expected?: Ref,
+                ) {
+                    if (!path.startsWith(`trees/${kind}/`))
+                        return write.call(this, path, chunks, expected);
+                    const injected = t.mock.method(
+                        prototype,
+                        "write",
+                        async function (this: FileHandle) {
+                            faults++;
+                            if (uncertainClose) {
+                                const close = this.close;
+                                t.mock.method(this, "close", async () => {
+                                    await close.call(this);
+                                    throw Object.assign(new Error("SYNTHETIC_CLOSE_DETAIL"), {
+                                        code: "EIO",
+                                    });
+                                });
+                            }
+                            throw Object.assign(new Error("SYNTHETIC_WRITE_DETAIL"), { code });
+                        },
+                    );
+                    try {
+                        return await write.call(this, path, chunks, expected);
+                    } finally {
+                        injected.mock.restore();
+                    }
+                },
+            );
+            try {
+                await fixture(async (f) => {
+                    const bytes = await f.save();
+                    await assert.rejects(
+                        intakeRuntimeArchives(bytes, f.expected, {
+                            inputRoot: f.root,
+                            outputParent: output,
+                            candidateName: "candidate",
+                        }),
+                        (e: unknown) => {
+                            assert.ok(e instanceof RuntimePayloadError);
+                            assert.equal(e.code, "PAYLOAD_DISK_INSUFFICIENT");
+                            assert.equal(e.causeCode, code);
+                            assert.equal(e.phase, "INTAKE");
+                            assert.equal(e.cleanup, uncertainClose ? "INCOMPLETE" : "CONFIRMED");
+                            assert.equal(e.message, "PAYLOAD_DISK_INSUFFICIENT");
+                            assert.ok(Object.isFrozen(e));
+                            return true;
+                        },
+                    );
+                    assert.equal(faults, 1);
+                    assert.equal(
+                        await readFile(join(output, "old/sentinel"), "utf8"),
+                        "outside sentinel",
+                    );
+                    for (const archive of ["node", "chrome"] as const)
+                        assert.equal(
+                            hash(await readFile(join(f.root, f.recipe[archive].file.path))),
+                            f.recipe[archive].file.sha256,
+                        );
+                    const names = await readdir(output);
+                    assert.ok(!names.includes("candidate"));
+                    if (uncertainClose) assert.ok(names.includes(".veriq-candidate.lock"));
+                    else assert.deepEqual(names, ["old"]);
+                }, archiveModel());
+            } finally {
+                t.mock.restoreAll();
+                await rm(output, { recursive: true, force: true });
+            }
+        });

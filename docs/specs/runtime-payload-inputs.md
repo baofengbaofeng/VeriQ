@@ -97,7 +97,7 @@ node --import tsx scripts/prepare-macos-runtime-archives.mjs \
 
 ZIP 逐 entry lazy 读取，核 local 原文件名/flags/method 与 central 一致、安全整数边界及 local header/data 区间互斥；只接受未加密 stored/deflate，bit3 可接受。每个实际解压流包括空目录与链接都核最终长度和 CRC。这里只承诺公开 API 可证的范围、文件边界、流长/CRC 和库报错；**不宣称验证 descriptor、EOCD/ZIP64 全语法或 central directory 与 payload 全域不重叠**。ZIP streamBytes 是已完整 hash 的快照长度，tar 则是第一遍真实解压流长度。
 
-Node links 全集精确匹配独立 NodeReceipt.inputLinks。Chrome 路径加 browser/ 后精确匹配独立 layout.allowedLinks，逐跳受同一非空名称 Framework 根约束。所有链接无悬空、越界或超过32跳；真实目录与目录别名组成有界图做迭代环检，合法重复别名不展开虚拟树。此结果完成原归档事实检查，未完成 npm 包内容/图、完整 Chrome 产品布局与 MachO/执行来源验收；b1a 原报告的固定 pending 保持原语义。
+Node links 全集精确匹配独立 NodeReceipt.inputLinks。Chrome 路径加 browser/ 后精确匹配独立 layout.allowedLinks。所有声明 Framework 根在链接遍历前逐个核独立 bundle 的明确前缀与非空 basename，包括实际/允许链接集合均为空的根；逐跳仍受同一 Framework 根约束。所有链接无悬空、越界或超过32跳；真实目录与目录别名组成有界图做迭代环检，合法重复别名不展开虚拟树。此结果完成原归档事实检查，未完成 npm 包内容/图、完整 Chrome 产品布局与 MachO/执行来源验收；b1a 原报告的固定 pending 保持原语义。
 
 输入输出真实根不重叠且无 symlink/ASAR 祖先，受控父目录由调用者持有。独占当前 candidate 锁，不覆盖现有目标/锁，不按 glob 清理旧目录。空间依据实际快照、扫描正文及保守元数据计划；reserve=max(16 MiB,ceil(remainingWrites\*5%))，每阶段、新条目和每8 MiB写入再核 statfs，仍处理真实 ENOSPC/配额失败。只删除 nonce、parent/root/lock inode 与所有 writer 关闭均确认的自有 scratch；观察替换或关闭不确定时保留并报告 INCOMPLETE。
 
@@ -106,3 +106,5 @@ I 的独立来源身份观察在初次 b1a 后建立，涵盖实际 Ref、五树
 全部来源、快照及落地内容复核、回执写入和 fsync 后，最终取消检查紧邻同 FS rename。rename 或最终内容确认不确定时抛 PAYLOAD_COMMIT_UNCONFIRMED，保留目录事实；已确认提交后取消不撤回。仅锁/元数据清理失败时仍返回 committed:true/cleanup:INCOMPLETE，CLI stderr 稳定警告。首 SIGINT/TERM 停止并等待自有资源关闭，二次信号或五秒期限以130/143、INCOMPLETE退出，保留可能仍有 writer 的 scratch；SIGKILL/断电没有清理保证。错误仍是冻结 RuntimePayloadError；原三个构造参数兼容，末尾可选上下文只复制 phase/candidateDirectory 标量，旧输入调用继续 INPUTS/null。
 
 产品不需要 Python，不执行归档成员，不下载或安装内容，也不生成 Runtime 候选、签名、角色/engine 晋升或 ready。微型 ZIP 测试夹具需要开发机 Python3 标准库 zipfile；这不是已安装 Runtime 的依赖。后续 S 必须重新核原 bytes/refs 并重新 intake，旧成功结果不构成持久 capability。
+
+提取 sink 的受控文件系统错误在真实事务写入边界先统一分类，再经过 tar/ZIP 适配器；ENOSPC/EDQUOT 保留为 PAYLOAD_DISK_INSUFFICIENT 及原 causeCode，其它固定 errno 保留为 PAYLOAD_IO。未知错误和压缩格式/CRC 错误仍沿各适配器原路径处理，不把任意 parser 错误映成 IO；首错误不会被次要关闭故障覆盖，关闭不确认仍保留 INCOMPLETE。

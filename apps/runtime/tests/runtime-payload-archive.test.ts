@@ -502,3 +502,59 @@ for (const change of ["hash", "size"] as const)
             },
             ["PAYLOAD_TREE_MISMATCH"],
         ));
+
+/** Framework 名称属于独立布局准入政策，实际归档没有任何链接时也必须核验声明根而不能靠遍历链接触发；同一真实微型 ZIP 同时覆盖空 basename 拒绝和合法非空 basename 成功，仍从独立布局及原配方完整重绑开始。 */
+for (const basename of [".framework", "Named.framework"])
+    test(`fix1 declared Framework root ${basename} is checked without any links`, async () => {
+        const value = archiveModel();
+        const members = value.chromeEntries
+            .filter((e) => e.kind !== "link")
+            .map((e) => ({ ...e, path: e.path.replace("Test.framework", basename) }));
+        value.chromeEntries.splice(0, value.chromeEntries.length, ...members);
+        value.chromeLayout.layout.frameworkRoots = value.chromeLayout.layout.frameworkRoots.map(
+            (p) => p.replace("Test.framework", basename),
+        );
+        value.chromeLayout.layout.allowedLinks = [];
+        value.bind();
+        const output = await mkdtemp(join(tmpdir(), "veriq-framework-policy-"));
+        try {
+            await fixture(async (f) => {
+                const pending = intakeRuntimeArchives(await f.save(), f.expected, {
+                    inputRoot: f.root,
+                    outputParent: output,
+                    candidateName: "candidate",
+                });
+                if (basename === ".framework") {
+                    await assert.rejects(
+                        pending,
+                        (e: unknown) =>
+                            e instanceof RuntimePayloadError &&
+                            e.code === "PAYLOAD_ARCHIVE_LINK" &&
+                            e.phase === "INTAKE" &&
+                            e.cleanup === "CONFIRMED",
+                    );
+                    assert.deepEqual(await readdir(output), []);
+                } else {
+                    const result = await pending;
+                    assert.equal(result.committed, true);
+                    assert.equal(result.cleanup, "CONFIRMED");
+                    assert.ok(result.receipt.archives[1]!.members.every((m) => m.kind !== "link"));
+                    assert.ok(
+                        (
+                            await lstat(
+                                join(
+                                    result.directory,
+                                    "trees/chrome",
+                                    value.chromeLayout.layout.frameworkRoots[0]!.slice(
+                                        "browser/".length,
+                                    ),
+                                ),
+                            )
+                        ).isDirectory(),
+                    );
+                }
+            }, value);
+        } finally {
+            await rm(output, { recursive: true, force: true });
+        }
+    });

@@ -163,15 +163,15 @@ export class ArchiveTransaction {
     }
     /** 流写入只接受内部扫描器确认的相对路径，使用独占六百权限普通文件并分块写到完整长度；关闭确认前保留 writer 计数，任何 sync 或 close 失败都会阻止安全清理声明，绝不把仍可能写入的目录递归删除。 */
     async write(path: string, chunks: AsyncIterable<Uint8Array>, expected?: Ref) {
-        relative(path);
-        await this.mkdir(dirname(path) === "." ? "" : dirname(path));
-        await this.checkSpace();
-        this.check();
         let handle: FileHandle | undefined;
         const digest = createHash("sha256");
         let size = 0,
             primary: unknown;
         try {
+            relative(path);
+            await this.mkdir(dirname(path) === "." ? "" : dirname(path));
+            await this.checkSpace();
+            this.check();
             handle = await open(
                 join(this.scratch, path),
                 constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
@@ -208,6 +208,8 @@ export class ArchiveTransaction {
             return actual;
         } catch (error) {
             primary = error;
+            const known = controlledIoFailure(error);
+            if (known) this.fail(known.code, "NOT_NEEDED", known.causeCode);
             throw error;
         } finally {
             if (handle) {
@@ -540,6 +542,34 @@ export function errno(error: unknown): string | null {
     return error && typeof error === "object" && "code" in error && typeof error.code === "string"
         ? error.code
         : null;
+}
+/** 受控文件系统错误在真实写入边界先分类，避免经过压缩适配器后被误当格式错误；仅固定 errno 白名单可产生 IO 或空间不足，压缩库与未知错误返回空值保留原解释路径，首个分类与次要关闭不确认分别记录。 */
+export function controlledIoFailure(
+    error: unknown,
+): Readonly<{ code: PayloadErrorCode; causeCode: string }> | null {
+    const code = errno(error);
+    if (
+        !code ||
+        ![
+            "ENOENT",
+            "ENOTDIR",
+            "ELOOP",
+            "EACCES",
+            "EPERM",
+            "EIO",
+            "EMFILE",
+            "ENFILE",
+            "EBADF",
+            "EINVAL",
+            "ENOSPC",
+            "EDQUOT",
+        ].includes(code)
+    )
+        return null;
+    return {
+        code: code === "ENOSPC" || code === "EDQUOT" ? "PAYLOAD_DISK_INSUFFICIENT" : "PAYLOAD_IO",
+        causeCode: code,
+    };
 }
 /** 独占锁标识使用同一个无链接 held FD 有界读取，仅接受当前事务的短 nonce 长度；它与目录和锁 inode 检查组合使用，不把任意同名字 JSON 或用户可写标记解释为清理其它目录的权限。 */
 async function readSmall(path: string) {
