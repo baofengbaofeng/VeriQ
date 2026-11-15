@@ -585,7 +585,7 @@ assert production_starts_without_node_or_chrome is True
 
 **2026-11-14范围修订：** macOS Intel x64、Apple Silicon arm64均为MVP最高优先级；Windows11 x64、Ubuntu24.04 x64保留、优先级较低。Mac最低系统已确认为macOS15（Sequoia），测试必须用宿主原生Chrome；Mac已确认受控Worker/Chrome退出、未知隔离和人工恢复，按[停止子计划](macos-controlled-stop.md)实施；Linux/Windows现有全后代停止保证及凭据/离网验收标准保留；Mac按明确的受控范围验收。已有Windows/Linux证据继续保留，不能映射为Mac通过。
 
-**当前切片状态（2026-11-15）：** 静态输入、归档及完整stage组件已复审；固定官方资产获取与观测工具`c84f0a7`及修复`7aa8c65`/`0a370cc`已通过源码定向复审。真实双Mac首轮`4f1a326`获取通过，观测因未完成异步等待失败；小制品已核验，普通16385字节成员已本地复现，`8ecf4c0`修复512字节解析进度与成员等待互等，受影响三个suite143项及原审查代理定向复审通过；第二轮`656f189`的双Mac获取继续通过，观测已明确返回不支持格式并确认清理，`1bff4ca`补齐12处首拒诊断，183项受影响回归及原审查代理复审通过，全部准入谓词/API/清理未变；仍需真实双Mac采集定位实际谓词，再完成原ZIP模式/Framework审核。之后继续真实生产闭包、搬移执行及Electron装载/安装验收。源码组件完成不提前勾选整T20，完整状态见[里程碑](milestones.md)。
+**当前切片状态（2026-11-15）：** 静态输入、归档及完整stage组件已复审；固定官方资产获取与观测工具`c84f0a7`及修复`7aa8c65`/`0a370cc`已通过源码定向复审。真实双Mac首轮`4f1a326`获取通过，观测因未完成异步等待失败；小制品已核验，普通16385字节成员已本地复现，`8ecf4c0`修复512字节解析进度与成员等待互等，受影响三个suite143项及原审查代理定向复审通过；第二轮`656f189`的双Mac获取继续通过，观测已明确返回不支持格式并确认清理，`1bff4ca`补齐12处首拒诊断，183项受影响回归及原审查代理复审通过，全部准入谓词/API/清理未变；第三轮`cb48e77`已在双Mac取得Chrome Stored方法0/flags4的真实首拒证据；根据规范与成熟库四组字节/CRC比较，R5只取消这一额外组合拒绝，其余安全校验保持，仍需代码复审及完整真实观测/原ZIP模式/Framework审核。之后继续真实生产闭包、搬移执行及Electron装载/安装验收。源码组件完成不提前勾选整T20，完整状态见[里程碑](milestones.md)。
 
 **Files：** apps/desktop/electron-builder.yml；scripts/build_runtime.mjs；tests/compatibility/process-names.spec.ts；docs/operations/runtime-install.md；对应CI工作流。
 
