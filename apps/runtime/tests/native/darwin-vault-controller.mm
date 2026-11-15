@@ -43,6 +43,8 @@ class DiagnosticGate {
     OSStatus statusValue = 0;
     int errnoValue = 0;
     bool created = false, storeReferencePresent = false;
+    bool hasRegularFile = false, hasOwnerMatches = false, hasPrivateMode = false;
+    bool regularFileValue = false, ownerMatchesValue = false, privateModeValue = false;
     void emit(NSString *state) noexcept {
         if (!enabled) return;
         const int savedErrno = errno;
@@ -56,6 +58,9 @@ class DiagnosticGate {
                     if (hasStatus) record[@"osStatus"] = @(statusValue);
                     if (hasErrno) record[@"errno"] = @(errnoValue);
                     if (hasStore) { record[@"created"] = @(created); record[@"storeReferencePresent"] = @(storeReferencePresent); }
+                    if (hasRegularFile) record[@"regularFile"] = @(regularFileValue);
+                    if (hasOwnerMatches) record[@"ownerMatches"] = @(ownerMatchesValue);
+                    if (hasPrivateMode) record[@"privateMode"] = @(privateModeValue);
                     NSData *json = [NSJSONSerialization dataWithJSONObject:record options:0 error:nullptr];
                     if (json && json.length < 512 && total + json.length + 1 <= 8192) {
                         NSMutableData *line = [json mutableCopy];
@@ -93,6 +98,12 @@ public:
     int login(int value) noexcept { if (value != 0) { hasErrno = true; errnoValue = value > 0 ? value : errno; } return value; }
     /** 创建状态仅复制对象已经设置的标志与现有引用是否为空，绝不追加存储查询或转换成删除完成结论；尤其系统创建返回失败但引用存在时仍保留两个事实，让原有清理路径决定后续操作。 */
     void store(bool wasCreated, bool referencePresent) noexcept { hasStore = true; created = wasCreated; storeReferencePresent = referencePresent; }
+    /** 文件类型事实仅保存原短路链已经求值的布尔结果并原样返回，不执行额外查询也不立即输出；后续条件未执行时保持字段缺失，终态记录因此能够区分类型失败与尚未观察到的属主和权限判断。 */
+    bool regularFile(bool value) noexcept { hasRegularFile = true; regularFileValue = value; return value; }
+    /** 属主事实只接收原有相等判断的结果而不读取身份或数值 UID，返回值不会改变短路方向；只有前面的文件类型判断通过才会到达此处，因此缺失字段仍表示未求值而不是错误的否定结论。 */
+    bool ownerMatches(bool value) noexcept { hasOwnerMatches = true; ownerMatchesValue = value; return value; }
+    /** 私有权限事实仅记录原有组和其他用户权限位谓词的布尔结果，既不修改模式也不导出数值模式；记录延迟到既有通过或析构失败边界，从而保留原始拒绝、异常展开与清理执行的先后关系。 */
+    bool privateMode(bool value) noexcept { hasPrivateMode = true; privateModeValue = value; return value; }
 };
 
 /** 控制通道采用 Foundation 解析单行有界 JSON，原始输入在解析完成后由作用域清理且永不写入日志；所有错误只返回静态布尔状态，控制器不会把框架异常或包含请求正文的系统描述交给外部测试报告。 */
@@ -348,7 +359,7 @@ struct Fixture {
             require(gate.status(SecKeychainGetPath(store.value, &length, actual)) == errSecSuccess && std::string(actual, length) == path); gate.pass(); }
         struct stat info {};
         { DiagnosticGate gate(DiagnosticStage::KEYCHAIN_STAT);
-            require(gate.posix(lstat(path.c_str(), &info)) == 0 && S_ISREG(info.st_mode) && info.st_uid == getuid() && !(info.st_mode & 0077)); gate.pass(); }
+            require(gate.posix(lstat(path.c_str(), &info)) == 0 && gate.regularFile(S_ISREG(info.st_mode)) && gate.ownerMatches(info.st_uid == getuid()) && gate.privateMode(!(info.st_mode & 0077))); gate.pass(); }
     }
     /** 清理首先要求跟踪集合为空，然后只删除本对象成功创建并仍持有引用的测试钥匙串和随机目录；任一步骤失败都会阻止成功回执，密码及基线秘密在正常路径覆盖，不恢复其他用户存储或搜索列表状态。 */
     void cleanup() {

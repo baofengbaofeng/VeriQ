@@ -177,6 +177,9 @@ type DiagnosticRecord = {
     errno?: number;
     created?: boolean;
     storeReferencePresent?: boolean;
+    regularFile?: boolean;
+    ownerMatches?: boolean;
+    privateMode?: boolean;
 };
 type DiagnosticSummary = {
     schemaVersion: 1;
@@ -208,6 +211,9 @@ function diagnosticRecord(value: unknown): DiagnosticRecord | undefined {
                     "errno",
                     "created",
                     "storeReferencePresent",
+                    "regularFile",
+                    "ownerMatches",
+                    "privateMode",
                 ].includes(key),
         ) ||
         item.schemaVersion !== 1 ||
@@ -232,10 +238,27 @@ function diagnosticRecord(value: unknown): DiagnosticRecord | undefined {
             return;
         safe[key] = number;
     }
-    for (const key of ["created", "storeReferencePresent"] as const) {
+    for (const key of [
+        "created",
+        "storeReferencePresent",
+        "regularFile",
+        "ownerMatches",
+        "privateMode",
+    ] as const) {
         if (!(key in item)) continue;
         if (typeof item[key] !== "boolean") return;
         safe[key] = item[key];
+    }
+    /** 三个文件事实只允许形成原短路链可到达的终态前缀，失败必须以实际求值的假值结束且成功必须全部为真；旧记录全部缺失时继续保留未知，带 errno 的调用失败不能同时声称后续谓词已经执行。 */
+    if (["regularFile", "ownerMatches", "privateMode"].some((key) => key in item)) {
+        if (safe.stage !== "KEYCHAIN_STAT" || safe.state === "entered" || "errno" in item) return;
+        if (safe.regularFile === false) {
+            if ("ownerMatches" in item || "privateMode" in item || safe.state !== "failed") return;
+        } else if (safe.regularFile === true && safe.ownerMatches === false) {
+            if ("privateMode" in item || safe.state !== "failed") return;
+        } else if (safe.regularFile === true && safe.ownerMatches === true) {
+            if (safe.privateMode !== (safe.state === "passed")) return;
+        } else return;
     }
     return safe;
 }
