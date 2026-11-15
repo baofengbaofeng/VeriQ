@@ -81,7 +81,10 @@ export class DarwinProcesses {
         if (!launch || !["TEST", "VALIDATE", "CLEANUP"].includes(launch.kind) || !Number.isSafeInteger(launch.ownerGeneration) || launch.ownerGeneration < 1 || typeof launch.prepare !== "function") throw new Error("DARWIN_CONTROLLED_LAUNCH_REQUIRED");
         if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(id)) throw new Error("INVALID_ATTEMPT_ID");
         if (command.executable !== process.execPath || !Array.isArray(command.args) || command.args.some((arg) => typeof arg !== "string")) throw new Error("DARWIN_SOURCE_COMMAND_REJECTED");
+        if (launch.headless !== undefined && typeof launch.headless !== "boolean") throw new Error("INVALID_BROWSER_MODE");
+        if (launch.downloadsPath !== undefined && (typeof launch.downloadsPath !== "string" || Buffer.byteLength(launch.downloadsPath) > 4096 || launch.downloadsPath !== join(command.cwd, "downloads"))) throw new Error("DARWIN_DOWNLOAD_DIRECTORY_INVALID");
         if (this.attempts.has(id)) throw new Error("PROCESS_ALREADY_RUNNING");
+        if (this.stopping.has(id)) throw new Error("DARWIN_ATTEMPT_STOPPING");
         const binding = Object.freeze(validateBinding({ version: 1, attemptId: id, ownerGeneration: launch.ownerGeneration, nonce: randomBytes(32).toString("hex"), commandSlot: randomUUID() }));
         const cliBinding = Object.freeze(validateBinding({ ...binding, commandSlot: randomUUID() }));
         let acknowledge!: () => void;
@@ -134,11 +137,12 @@ export class DarwinProcesses {
         entry.cliFile = journalDirectory.createExclusive("cli.jsonl");
         const work = source.native.openPrivateDirectory(command.cwd, false);
         entry.directories.push(work);
+        if (launch.downloadsPath !== undefined) entry.directories.push(source.native.openPrivateDirectory(launch.downloadsPath, false));
         let wsEndpoint: string | undefined;
         if (entry.record.browserPlanned) {
             const home = join(journals, "browser-home"), temporary = join(journals, "browser-tmp");
             for (const path of [home, temporary]) entry.directories.push(source.native.openPrivateDirectory(path, true));
-            entry.server = await chromium.launchServer({ executablePath: source.browserExecutable, host: "127.0.0.1", port: 0, chromiumSandbox: true, headless: true, timeout: Math.min(30000, source.stopTimeoutMs), env: { PATH: "/usr/bin:/bin", LANG: "en_US.UTF-8", HOME: home, TMPDIR: temporary } });
+            entry.server = await chromium.launchServer({ executablePath: source.browserExecutable, host: "127.0.0.1", port: 0, chromiumSandbox: true, headless: launch.headless ?? true, ...(launch.downloadsPath ? { downloadsPath: launch.downloadsPath } : {}), timeout: Math.min(30000, source.stopTimeoutMs), env: { PATH: "/usr/bin:/bin", LANG: "en_US.UTF-8", HOME: home, TMPDIR: temporary } });
             entry.chrome = observe(entry, entry.server.process(), true);
             entry.record.chromePid = entry.chrome.child.pid!;
             this.save(entry);
@@ -218,13 +222,17 @@ export class DarwinProcesses {
     active(): string[] { return [...this.attempts].filter(([, entry]) => !entry.proved).map(([id]) => id); }
 
     /** 停止去重与关闭准入都发生在返回 promise 以前，正在准备或等待 launchServer 的启动随后必须重新检查关闭位；所有等待共用同一绝对期限，重复原因不能重新授予授权、延长期限或覆盖先前观察故障。 */
-    terminateAttempt(id: string, reason: string): Promise<StopReceipt> {
+    terminateAttempt(id: string, reason: string, deadlineMonotonicMs?: number): Promise<StopReceipt> {
         const existing = this.stopping.get(id);
         if (existing) return existing;
         const entry = this.attempts.get(id);
         if (entry) entry.closed = true;
-        const deadline = performance.now() + (this.source?.stopTimeoutMs ?? 30000);
-        const operation = this.stop(id, entry, reason, deadline).finally(() => this.stopping.delete(id));
+        /** 调用者期限来自同一 Node 进程的单调时钟，坏参数和已耗尽预算都会立即关闭准入并保守终止；首次 promise 与期限永久绑定本次 Attempt，重复停止不能刷新三十秒预算或把已经观察到的未知状态变成正常成功。 */
+        const now = performance.now();
+        const supplied = deadlineMonotonicMs === undefined ? Infinity : typeof deadlineMonotonicMs === "number" && Number.isFinite(deadlineMonotonicMs) ? deadlineMonotonicMs : now;
+        const deadline = Math.min(now + (this.source?.stopTimeoutMs ?? 30000), supplied);
+        if (entry && deadline <= now) { entry.fault = true; this.forceHeld(entry); }
+        const operation = this.stop(id, entry, reason, deadline);
         this.stopping.set(id, operation);
         return operation;
     }

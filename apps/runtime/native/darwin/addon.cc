@@ -296,7 +296,7 @@ public:
     }
 };
 
-/** 模块入口只创建当前环境的类引用并导出目录打开函数，生产目标没有任意描述符采用、调度开关或测试导出；每次打开都重新执行真实目录链校验，缺少公开 POSIX 能力时不回退 JavaScript 路径访问。
+/** 模块入口只创建当前环境的类引用并导出目录打开及有限 Cookie 元数据函数，生产目标没有任意描述符采用、调度开关或测试导出；缺少公开 POSIX 能力时不回退 JavaScript 路径访问。
  * 构建目标要求 Node-API 九，两个架构各自编译并加载本架构 Mach-O。
  * 初始化函数不探测 Chrome、Keychain 或执行就绪，也不改变任何平台门。
  */
@@ -324,6 +324,18 @@ Napi::Object initialize(Napi::Env env, Napi::Object exports) {
                 return constructors->directory.New({token, constructors->file.Value()});
             });
         }, "openPrivateDirectory", constructors));
+    /** Cookie 接口要求真实字符串与显式退休布尔参数，底层只处理两个固定分区布局的四个成员且只检查元数据，不读取正文；失败沿用现有稳定原生错误边界，不增加宿主加载、系统凭据访问或生产就绪入口。
+     * 六十四兆额度固定在专用元数据路径，一般文件读写与删除仍受两兆上限约束。
+     * 返回布尔值只描述本次是否遇到已验证成员，提交不确定不能转换成不存在。
+     */
+    exports.Set("privateCookieFile", Napi::Function::New(env,
+        [](const Napi::CallbackInfo& info) -> Napi::Value {
+            return boundary(info.Env(), [&]() -> Napi::Value {
+                require(info.Length() == 2 && info[1].IsBoolean(), "cookie.arguments");
+                return Napi::Boolean::New(info.Env(), privateCookieFile(text(info[0]),
+                    info[1].As<Napi::Boolean>().Value()));
+            });
+        }, "privateCookieFile"));
     return exports;
 }
 }

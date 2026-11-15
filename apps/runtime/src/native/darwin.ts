@@ -45,6 +45,10 @@ export interface DarwinPrivateDirectory {
  */
 export interface DarwinNative {
     openPrivateDirectory(path: string, create: boolean): DarwinPrivateDirectory;
+    /** Cookie 元数据入口只接受 Partitions/veriq-host 及其 Network 子目录的四个精确成员，六十四兆额度不扩大普通读取；退休后刷新或关闭失败保留 COMMIT_UNCONFIRMED，返回缺失不证明先前持久提交或物理擦除。
+     * false 仅检查实际元数据，true 退休已验证成员，两者都不读取正文或交付原始描述符。
+     */
+    privateCookieFile(path: string, retire: boolean): boolean;
 }
 let loaded: DarwinNative | undefined;
 

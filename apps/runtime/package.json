@@ -32,6 +32,9 @@
         "dev": "node --import tsx src/cli.ts",
         "build:launcher": "node scripts/build-launcher.mjs",
         "build:native:windows": "node scripts/build-windows.mjs",
-        "build:native:darwin": "node scripts/build-darwin.mjs"
+        "build:native:darwin": "node scripts/build-darwin.mjs",
+        "build:vault:darwin": "node scripts/build-vault-darwin.mjs",
+        "test:vault:darwin": "node --import tsx --test tests/native/darwin-vault.test.ts",
+        "test:vault:darwin:dedicated": "node --import tsx --test tests/native/darwin-vault-dedicated.test.ts"
     }
 }

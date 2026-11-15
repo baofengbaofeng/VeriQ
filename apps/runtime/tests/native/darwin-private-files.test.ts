@@ -13,6 +13,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
+import { createServer } from "node:net";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ProcessRecords } from "../../src/execution/records.ts";
@@ -193,7 +194,7 @@ test("native directory traversal rejects links and never repairs read-only paths
  */
 test("native component and numeric limits are finite and production exports stay narrow", mac, async () =>
     nativeFixture((directory, session) => {
-        assert.deepEqual(Object.keys(darwinNative()), ["openPrivateDirectory"]);
+        assert.deepEqual(Object.keys(darwinNative()), ["openPrivateDirectory", "privateCookieFile"]);
         for (const name of ["", ".", "..", "a/b", "a\\b", "a\0b", "x".repeat(256), "é".repeat(128)])
             assert.throws(() => session.read(name, 64), failure("DARWIN_PRIVATE_INVALID", "name"));
         assert.throws(() => session.read("\ud800", 64), failure("DARWIN_PRIVATE_INVALID", "argument.unicode"));
@@ -768,7 +769,7 @@ for (const order of ["prod-first", "fault-first"]) {
             'const directory=mkdtempSync(join(realpathSync(tmpdir()),"veriq-module-isolation-")),prod=loaded.prod.openPrivateDirectory(directory,false),fault=loaded.fault.openPrivateDirectory(directory,false);',
             'try{',
             '    loaded.fault.setFault("replace.write","error",1);prod.replace("production",`.${randomUUID()}.tmp`,Buffer.from("public"),64);assert.equal(prod.read("production",64).toString(),"public");',
-            '    assert.throws(()=>fault.replace("fault",`.${randomUUID()}.tmp`,Buffer.from("public"),64),error=>error.code==="DARWIN_PRIVATE_IO"&&error.phase==="replace.write");assert.deepEqual(Object.keys(loaded.prod),["openPrivateDirectory"]);',
+            '    assert.throws(()=>fault.replace("fault",`.${randomUUID()}.tmp`,Buffer.from("public"),64),error=>error.code==="DARWIN_PRIVATE_IO"&&error.phase==="replace.write");assert.deepEqual(Object.keys(loaded.prod),["openPrivateDirectory","privateCookieFile"]);',
             '}finally{loaded.fault.resetFaults();fault.close();prod.close();rmSync(directory,{recursive:true,force:true});}',
         ].join("\n");
         const child = spawnSync(process.execPath, ["--input-type=module", "-e", script, order,
@@ -925,3 +926,749 @@ test("VaultFiles acquires a private directory and commits and removes a normal m
             await files.close();
         }
     }));
+
+/** Cookie 夹具只在当前测试自有临时根下建立两个已知分区布局，最终存储目录固定七百而中间目录显式七百五十五，以捕获错误收紧 Electron 既有目录模式的兼容性回归。
+ * 普通成员由各测试用六百模式创建，夹具不启动 Electron、Chrome 或任何系统凭据存储。
+ * 故障模块仍使用同一真实目录和原生实现，finally 清空调度后再清理本次临时文件。
+ */
+async function cookieFixture(
+    network: boolean,
+    run: (root: string, directory: string, native: DarwinNative) => Promise<void> | void,
+    native: DarwinNative = darwinNative(),
+): Promise<void> {
+    await fixture(async (root) => {
+        const partitions = join(root, "Partitions"),
+            host = join(partitions, "veriq-host");
+        await mkdir(partitions, { mode: 0o755 });
+        await mkdir(host, { mode: network ? 0o755 : 0o700 });
+        if (network) await mkdir(join(host, "Network"), { mode: 0o700 });
+        await chmod(partitions, 0o755);
+        await chmod(host, network ? 0o755 : 0o700);
+        await run(root, network ? join(host, "Network") : host, native);
+    });
+}
+
+/** 每个允许的布局与成员都由真实普通文件分别证明检查不改字节、退役删除确切名字及缺失幂等，旁边的无关成员始终保留，从而捕获错误扩大删除集合或只返回布尔值的空实现。
+ * 两个布局各覆盖四个精确大小写名字，不从产品解析函数生成期望集合。
+ * 第二次退休返回 false 只描述本次没有对象，不证明先前提交刷新或物理介质擦除。
+ */
+for (const network of [false, true]) {
+    for (const name of ["Cookies", "Cookies-wal", "Cookies-shm", "Cookies-journal"]) {
+        test(
+            `cookie metadata and retirement stay finite: ${network ? "Network/" : ""}${name}`,
+            mac,
+            async () =>
+                cookieFixture(network, async (_root, directory, native) => {
+                    const path = join(directory, name),
+                        unrelated = join(directory, "unrelated");
+                    await writeFile(path, "public-cookie-fixture", { mode: 0o600 });
+                    await writeFile(unrelated, "public-unrelated", { mode: 0o600 });
+                    const before = await stat(path);
+                    assert.equal(native.privateCookieFile(path, false), true);
+                    assert.equal(readFileSync(path, "utf8"), "public-cookie-fixture");
+                    const after = await stat(path);
+                    assert.equal(after.ino, before.ino);
+                    assert.equal(after.mode, before.mode);
+                    assert.equal(after.mtimeMs, before.mtimeMs);
+                    assert.equal(after.ctimeMs, before.ctimeMs);
+                    assert.equal(native.privateCookieFile(path, true), true);
+                    await assert.rejects(stat(path), failure("ENOENT"));
+                    assert.equal(native.privateCookieFile(path, false), false);
+                    assert.equal(native.privateCookieFile(path, true), false);
+                    assert.equal(readFileSync(unrelated, "utf8"), "public-unrelated");
+                }),
+        );
+    }
+}
+
+/** Cookie 的六十四兆仅用于真实稀疏文件的元数据检查和退役，超过两兆仍须成功但一般目录读取与删除额度不能随之扩大，边界外对象则保持原 inode 和大小而拒绝任何退休。
+ * truncate 创建公开空洞，不下载或分配六十四兆正文，也不读取 Cookie 内容。
+ * 零长度、两兆加一和六十四兆整分别检验有效边界，六十四兆加一必须关闭失败。
+ */
+test(
+    "cookie metadata has a separate 64 MiB ceiling without enlarging general file operations",
+    mac,
+    async () =>
+        cookieFixture(true, async (_root, directory, native) => {
+            const path = join(directory, "Cookies"),
+                session = native.openPrivateDirectory(directory, false);
+            try {
+                for (const size of [0, bytesLimit + 1, 64 * 1024 * 1024]) {
+                    writeFileSync(path, "", { mode: 0o600 });
+                    truncateSync(path, size);
+                    assert.equal(native.privateCookieFile(path, false), true);
+                    if (size > bytesLimit) {
+                        assert.throws(
+                            () => session.read("Cookies", bytesLimit),
+                            failure("DARWIN_PRIVATE_INVALID", "file.private"),
+                        );
+                        assert.throws(
+                            () => session.remove("Cookies", bytesLimit),
+                            failure("DARWIN_PRIVATE_INVALID", "file.private"),
+                        );
+                        assert.throws(
+                            () => session.remove("Cookies", size),
+                            failure("DARWIN_PRIVATE_INVALID", "argument.limit"),
+                        );
+                    }
+                    assert.equal(native.privateCookieFile(path, true), true);
+                }
+                writeFileSync(path, "", { mode: 0o600 });
+                truncateSync(path, 64 * 1024 * 1024 + 1);
+                const before = await stat(path);
+                for (const retire of [false, true])
+                    assert.throws(
+                        () => native.privateCookieFile(path, retire),
+                        failure("DARWIN_PRIVATE_INVALID", "file.private"),
+                    );
+                assert.equal((await stat(path)).ino, before.ino);
+                assert.equal((await stat(path)).size, before.size);
+            } finally {
+                session.close();
+            }
+        }),
+);
+
+/** 缺失只有经过完整原始路径白名单后遇到真实 ENOENT 才返回 false，故意缺少的布局与最终成员分别覆盖，非法后缀即使前段不存在也必须抛错，避免提前缺失掩盖路径穿越输入。
+ * 所有反例使用当前唯一临时根，双斜杠和点段保持原始文本，不让 join 预先规范化。
+ * 不能把任意私有目录下同名 Cookies、未知成员或大小写近似名字升级为专用能力。
+ */
+test(
+    "cookie paths validate the complete raw finite namespace before treating absence as idempotent",
+    mac,
+    async () =>
+        fixture(async (root) => {
+            const native = darwinNative(),
+                allowed = `${root}/Partitions/veriq-host/Network/Cookies`;
+            for (const retire of [false, true])
+                assert.equal(native.privateCookieFile(allowed, retire), false);
+            const invalid = [
+                "",
+                "Cookies",
+                `${root}/Cookies`,
+                `${root}/Other/veriq-host/Cookies`,
+                `${root}/Partitions/other/Cookies`,
+                `${root}/Partitions/veriq-host/cookies`,
+                `${root}/Partitions/veriq-host/Cookies-extra`,
+                `${allowed}/`,
+                `${allowed}\0suffix`,
+                `${root}/missing/../Partitions/veriq-host/Cookies`,
+                `${root}/./Partitions/veriq-host/Cookies`,
+                `${root}//Partitions/veriq-host/Cookies`,
+                `${root}/Partitions/veriq-host/network/Cookies`,
+                `${root}/Partitions/veriq-host/Network/Other/Cookies`,
+                `${root}/${"x".repeat(256)}/Partitions/veriq-host/Cookies`,
+                `${root}/${"x/".repeat(2048)}Partitions/veriq-host/Cookies`,
+            ];
+            for (const path of invalid)
+                for (const retire of [false, true])
+                    assert.throws(
+                        () => native.privateCookieFile(path, retire),
+                        failure("DARWIN_PRIVATE_INVALID"),
+                    );
+        }),
+);
+
+/** 公共入口要求恰好两个真正类型参数，数字、对象、缺少布尔值和孤立代理码元不能触发隐式转换或文件操作，防止错误调用因默认退休选项而意外删除原来存在的有限成员。
+ * 这里绕过 TypeScript 仅为了调用真实 Node-API 的运行时边界，产品类型本身仍保持严格签名。
+ * 每次拒绝后都核对真实合成成员尚存，不能只接受任意异常而忽略副作用。
+ */
+test(
+    "cookie arguments reject coercion, missing flags, NUL and invalid Unicode without changing files",
+    mac,
+    async () =>
+        cookieFixture(false, async (_root, directory, native) => {
+            const path = join(directory, "Cookies"),
+                call = native.privateCookieFile as (...args: unknown[]) => unknown;
+            await writeFile(path, "public-arguments", { mode: 0o600 });
+            for (const args of [
+                [],
+                [path],
+                [path, false, false],
+                [path, 0],
+                [path, "true"],
+                [path, undefined],
+                [path, null],
+                [path, {}],
+                [null, false],
+                [23, false],
+                [{}, true],
+                ["\ud800", false],
+            ]) {
+                assert.throws(() => call(...args), failure("DARWIN_PRIVATE_INVALID"));
+                assert.equal(readFileSync(path, "utf8"), "public-arguments");
+            }
+        }),
+);
+
+/** 链接、硬链接、目录、FIFO 与 Unix socket 都用真实成员占用固定 Cookie 名字，两个操作必须及时拒绝且保留该对象，捕获跟随链接、阻塞打开或只按后缀允许未知类型的错误实现。
+ * socket 单独在解析后的 /tmp 下建立自有短目录并核对 bind 路径少于一百零四字节，避免 TMPDIR 过长使类型夹具在调用原生接口之前失败。
+ * 所有异常对象按项清理，源普通文件的公开字节独立核验，没有权限修复或账户变更。
+ */
+test(
+    "cookie metadata rejects real unsafe file types, links and wide modes without retiring them",
+    mac,
+    async () =>
+        cookieFixture(false, async (root, directory, native) => {
+            const path = join(directory, "Cookies"),
+                source = join(root, "source");
+            await writeFile(source, "public-source", { mode: 0o600 });
+            const reject = () => {
+                for (const retire of [false, true])
+                    assert.throws(
+                        () => native.privateCookieFile(path, retire),
+                        (error: unknown) =>
+                            error instanceof Error &&
+                            [
+                                "DARWIN_PRIVATE_INVALID",
+                                "DARWIN_PRIVATE_IO",
+                                "DARWIN_PRIVATE_ACL",
+                            ].includes((error as NodeJS.ErrnoException).code ?? ""),
+                    );
+            };
+            await symlink(source, path);
+            reject();
+            await rm(path);
+            await link(source, path);
+            reject();
+            await rm(path);
+            await mkdir(path, { mode: 0o700 });
+            reject();
+            await rm(path, { recursive: true });
+            execFileSync("mkfifo", ["-m", "600", path]);
+            reject();
+            await rm(path);
+            const socketRoot = await mkdtemp(join(await realpath("/tmp"), "veriq-cookie-socket-"));
+            const socketPath = join(socketRoot, "s"),
+                server = createServer();
+            try {
+                assert.ok(
+                    Buffer.byteLength(socketPath) < 104,
+                    "Socket fixture bind path must fit sockaddr_un",
+                );
+                await new Promise<void>((resolve, reject) => {
+                    server.once("error", reject);
+                    server.listen(socketPath, resolve);
+                });
+                await rename(socketPath, path);
+                reject();
+            } finally {
+                if (server.listening)
+                    await new Promise<void>((resolve, reject) =>
+                        server.close((error) => (error ? reject(error) : resolve())),
+                    );
+                await rm(path, { force: true });
+                await rm(socketRoot, { recursive: true, force: true });
+            }
+            await writeFile(path, "public-mode", { mode: 0o644 });
+            reject();
+            assert.equal((await stat(path)).mode & 0o777, 0o644);
+            assert.equal(readFileSync(source, "utf8"), "public-source");
+        }),
+);
+
+/** 中间目录只允许真实 owner 且无组或其他写入的普通权限，七百五十五正常布局必须可用，最终文件目录仍要求七百；逐项宽写、特殊位和符号链接拒绝可以发现只检查最终 Network 的遗漏。
+ * 上层系统祖先仍沿用 B 的真实目录无链接策略，不要求根或系统临时目录属于当前用户。
+ * 每次失败后恢复的是夹具自有目录，产品入口不能修复权限再继续退休。
+ */
+test(
+    "cookie layout accepts owner 0755 intermediates but rejects writable or linked parents and nonprivate final directories",
+    mac,
+    async () =>
+        cookieFixture(true, async (root, directory, native) => {
+            const path = join(directory, "Cookies"),
+                partitions = join(root, "Partitions"),
+                host = join(partitions, "veriq-host");
+            await chmod(root, 0o755);
+            await writeFile(path, "public-parent", { mode: 0o600 });
+            assert.equal(native.privateCookieFile(path, false), true);
+            for (const parent of [root, partitions, host, directory]) {
+                const original = (await stat(parent)).mode & 0o7777;
+                for (const mode of [0o770, 0o777, 0o1700]) {
+                    await chmod(parent, mode);
+                    try {
+                        for (const retire of [false, true])
+                            assert.throws(
+                                () => native.privateCookieFile(path, retire),
+                                failure("DARWIN_PRIVATE_INVALID"),
+                            );
+                    } finally {
+                        await chmod(parent, original);
+                    }
+                }
+            }
+            await chmod(directory, 0o755);
+            try {
+                assert.throws(
+                    () => native.privateCookieFile(path, false),
+                    failure("DARWIN_PRIVATE_INVALID"),
+                );
+            } finally {
+                await chmod(directory, 0o700);
+            }
+            await rename(partitions, join(root, "saved-partitions"));
+            await symlink("saved-partitions", partitions);
+            for (const retire of [false, true])
+                assert.throws(
+                    () => native.privateCookieFile(path, retire),
+                    (error: unknown) =>
+                        error instanceof Error &&
+                        [
+                            "DARWIN_PRIVATE_INVALID",
+                            "DARWIN_PRIVATE_IO",
+                            "DARWIN_PRIVATE_ACL",
+                        ].includes((error as NodeJS.ErrnoException).code ?? ""),
+                );
+            assert.equal(
+                readFileSync(
+                    join(root, "saved-partitions", "veriq-host", "Network", "Cookies"),
+                    "utf8",
+                ),
+                "public-parent",
+            );
+        }),
+);
+
+/** 同一六百成员及有限布局目录的真实 ALLOW ACL 都必须拒绝且保持原样，查询失败不能当作成员缺失；测试复用已有公开 chmod 夹具，生产代码既不清 ACL 也不调用任何凭据服务。
+ * 逐个目录授权覆盖只检查最终存储目录而遗漏中间布局的错误。
+ * ACL 故障使用独立模块原有调度接口，不新增生产导出或模拟文件元数据。
+ */
+test(
+    "cookie ACL grants and failed ACL inspection remain errors rather than absence",
+    mac,
+    async () => {
+        const native = createRequire(import.meta.url)(
+            "../../build/native-tests/veriq_private_files_fault.node",
+        ) as FaultNative;
+        try {
+            await cookieFixture(
+                true,
+                async (root, directory) => {
+                    const path = join(directory, "Cookies");
+                    await writeFile(path, "public-acl-cookie", { mode: 0o600 });
+                    for (const target of [
+                        root,
+                        join(root, "Partitions"),
+                        join(root, "Partitions", "veriq-host"),
+                        directory,
+                        path,
+                    ]) {
+                        acl(target, "everyone allow read");
+                        try {
+                            const before = aclSnapshot(target);
+                            for (const retire of [false, true])
+                                assert.throws(
+                                    () => native.privateCookieFile(path, retire),
+                                    failure("DARWIN_PRIVATE_INVALID", "acl.allow"),
+                                );
+                            assert.equal(aclSnapshot(target), before);
+                            assert.equal(readFileSync(path, "utf8"), "public-acl-cookie");
+                        } finally {
+                            acl(target);
+                        }
+                    }
+                    for (const action of ["error", "acl-denied", "acl-unknown"]) {
+                        native.setFault("acl.get", action, 1);
+                        assert.throws(
+                            () => native.privateCookieFile(path, false),
+                            failure(
+                                action === "error" ? "DARWIN_PRIVATE_IO" : "DARWIN_PRIVATE_ACL",
+                                "acl.get",
+                            ),
+                        );
+                        native.resetFaults();
+                    }
+                },
+                native,
+            );
+        } finally {
+            native.resetFaults();
+        }
+    },
+);
+
+/** 已验证成员在观察点遭到真实换名、改模式或增长后必须拒绝检查与退役，文件身份和授权需要在观察之后从原 fd 再核，不能先核一次再删除当前同名的另一个 inode。
+ * 不声称隔离任意同 UID 恶意写者，断言只覆盖这些实际可观察的检查和操作窗口。
+ * 替换样本核对新旧两个对象都保留，防止误删陌生对象后只报告失败。
+ */
+for (const change of ["replace", "mode", "grow"]) {
+    test(
+        `cookie rechecks opened identity and metadata after actual mutation: ${change}`,
+        mac,
+        async () => {
+            const native = createRequire(import.meta.url)(
+                "../../build/native-tests/veriq_private_files_fault.node",
+            ) as FaultNative;
+            try {
+                await cookieFixture(
+                    false,
+                    async (_root, directory) => {
+                        const path = join(directory, "Cookies"),
+                            saved = join(directory, "saved");
+                        for (const retire of [false, true]) {
+                            writeFileSync(path, "public-old", { mode: 0o600 });
+                            native.setHook("cookie.checked", () => {
+                                if (change === "replace") {
+                                    renameSync(path, saved);
+                                    writeFileSync(path, "public-new", { mode: 0o600 });
+                                } else if (change === "mode")
+                                    execFileSync("/bin/chmod", ["644", path]);
+                                else truncateSync(path, 64 * 1024 * 1024 + 1);
+                            });
+                            assert.throws(
+                                () => native.privateCookieFile(path, retire),
+                                failure("DARWIN_PRIVATE_INVALID"),
+                            );
+                            if (change === "replace") {
+                                assert.equal(readFileSync(saved, "utf8"), "public-old");
+                                assert.equal(readFileSync(path, "utf8"), "public-new");
+                                await rm(saved);
+                            } else
+                                assert.equal(
+                                    (await stat(path)).size,
+                                    change === "grow" ? 64 * 1024 * 1024 + 1 : 10,
+                                );
+                            await rm(path);
+                            native.resetFaults();
+                        }
+                    },
+                    native,
+                );
+            } finally {
+                native.resetFaults();
+            }
+        },
+    );
+}
+
+/** 临界观察点改变应用根、固定布局中间目录或最终存储目录的实际模式及 ACL 后必须拒绝检查与退役，不能只在初次遍历验证父链再仅核文件身份，所有原目录描述符的授权政策都应持续成立。
+ * mode 与 ACL 变化由真实系统调用产生，检查和最后一次 unlink 观察点分别覆盖。
+ * 拒绝后原字节、变化后的模式或 ACL 都保留，权限恢复仅属于 finally 的自有夹具清理。
+ */
+for (const phase of ["cookie.checked", "cookie.unlink"]) {
+    for (const change of ["mode", "acl"]) {
+        test(
+            `cookie rechecks held directory policy after ${phase} mutation: ${change}`,
+            mac,
+            async () => {
+                const native = createRequire(import.meta.url)(
+                    "../../build/native-tests/veriq_private_files_fault.node",
+                ) as FaultNative;
+                try {
+                    await cookieFixture(
+                        true,
+                        async (root, directory) => {
+                            const path = join(directory, "Cookies");
+                            for (const target of [
+                                root,
+                                join(root, "Partitions"),
+                                join(root, "Partitions", "veriq-host"),
+                                directory,
+                            ]) {
+                                for (const retire of phase === "cookie.checked"
+                                    ? [false, true]
+                                    : [true]) {
+                                    await writeFile(path, "public-directory-mutation", {
+                                        mode: 0o600,
+                                    });
+                                    const original = (await stat(target)).mode & 0o7777;
+                                    let expectedAcl: string | undefined;
+                                    native.setHook(phase, () => {
+                                        if (change === "mode")
+                                            execFileSync("/bin/chmod", ["777", target]);
+                                        else {
+                                            acl(target, "everyone allow search");
+                                            expectedAcl = aclSnapshot(target);
+                                        }
+                                    });
+                                    try {
+                                        assert.throws(
+                                            () => native.privateCookieFile(path, retire),
+                                            failure("DARWIN_PRIVATE_INVALID"),
+                                        );
+                                        assert.equal(
+                                            readFileSync(path, "utf8"),
+                                            "public-directory-mutation",
+                                        );
+                                        if (change === "mode")
+                                            assert.equal((await stat(target)).mode & 0o7777, 0o777);
+                                        else assert.equal(aclSnapshot(target), expectedAcl);
+                                    } finally {
+                                        native.resetFaults();
+                                        if (change === "acl") acl(target);
+                                        await chmod(target, original);
+                                    }
+                                }
+                            }
+                        },
+                        native,
+                    );
+                } finally {
+                    native.resetFaults();
+                }
+            },
+        );
+    }
+}
+
+/** 删除前系统失败必须保留原成员，unlink 成功后的父目录刷新和所有必要 close 失败必须保留提交不确定，不能回滚重建或返回 false；原有有限故障调度定位这些真实操作阶段。
+ * 故障后的实际名字存在性独立于错误码核验，因此错误分类和副作用必须同时正确。
+ * 后续缺失检查只说明当前不存在，不把它解释成先前未确认提交已经获得持久证明。
+ */
+for (const [phase, removed] of [
+    ["cookie.unlink", false],
+    ["cookie.directory-sync", true],
+    ["cookie.close", true],
+    ["cookie.directory-close", true],
+    ["cookie.parent-close", true],
+] as const) {
+    test(`cookie retirement preserves commit uncertainty: ${phase}`, mac, async () => {
+        const native = createRequire(import.meta.url)(
+            "../../build/native-tests/veriq_private_files_fault.node",
+        ) as FaultNative;
+        try {
+            await cookieFixture(
+                false,
+                async (_root, directory) => {
+                    const path = join(directory, "Cookies");
+                    await writeFile(path, "public-retire", { mode: 0o600 });
+                    let captured: CapturedDescriptor | undefined;
+                    if (phase === "cookie.parent-close")
+                        native.setHook("acl.get", (fd) => {
+                            const info = fstatSync(fd);
+                            captured = { fd, dev: info.dev, ino: info.ino };
+                        });
+                    native.setFault(phase, "error", 1);
+                    assert.throws(
+                        () => native.privateCookieFile(path, true),
+                        failure(removed ? "COMMIT_UNCONFIRMED" : "DARWIN_PRIVATE_IO", phase),
+                    );
+                    native.resetFaults();
+                    if (phase === "cookie.parent-close") assertCapturedClosed(captured);
+                    if (removed) {
+                        await assert.rejects(stat(path), failure("ENOENT"));
+                        assert.equal(native.privateCookieFile(path, false), false);
+                    } else assert.equal(readFileSync(path, "utf8"), "public-retire");
+                },
+                native,
+            );
+        } finally {
+            native.resetFaults();
+        }
+    });
+}
+
+/** unlink 观察点中发生的真实换名必须在系统删除之前重新比较同名 inode，不能沿用进入观察点之前的身份判断而误删替代对象；原 inode 与替代成员均保留才能证明本次失败关闭没有扩大退休范围。
+ * 这个测试专门覆盖最后一次身份检查与故障调度的相对顺序，不保证阻止任意同 UID 并发写者。
+ * 同一故障模块的原有 hook 即可制造实际目录变化，无需改动正式或测试导出。
+ */
+test(
+    "cookie retirement rechecks the name after the final pre-unlink observation",
+    mac,
+    async () => {
+        const native = createRequire(import.meta.url)(
+            "../../build/native-tests/veriq_private_files_fault.node",
+        ) as FaultNative;
+        try {
+            await cookieFixture(
+                false,
+                async (_root, directory) => {
+                    const path = join(directory, "Cookies"),
+                        saved = join(directory, "saved");
+                    await writeFile(path, "public-old", { mode: 0o600 });
+                    native.setHook("cookie.unlink", () => {
+                        renameSync(path, saved);
+                        writeFileSync(path, "public-new", { mode: 0o600 });
+                    });
+                    assert.throws(
+                        () => native.privateCookieFile(path, true),
+                        failure("DARWIN_PRIVATE_INVALID"),
+                    );
+                    assert.equal(readFileSync(saved, "utf8"), "public-old");
+                    assert.equal(readFileSync(path, "utf8"), "public-new");
+                },
+                native,
+            );
+        } finally {
+            native.resetFaults();
+        }
+    },
+);
+
+/** Cookie 成员必须属于调用者真实 UID，既有 B 测试采用的自有临时文件 chown 夹具在此检验相同限制，权限拒绝也不能被转换成不存在；恢复拥有者只属于测试清理而不是产品权限修复路径。
+ * 仅对本次唯一目录下的公开合成普通文件使用现有 CI sudo 能力，不修改系统文件、账户或全局策略。
+ * 两种操作失败之后保留同一 inode，finally 恢复原 owner 后继续由外层清理夹具。
+ */
+test("cookie wrong-owner metadata is an error and never an absent or retired file", mac, async () =>
+    cookieFixture(false, async (_root, directory, native) => {
+        const path = join(directory, "Cookies");
+        await writeFile(path, "public-owner", { mode: 0o600 });
+        assert.notEqual(process.getuid!(), 0);
+        const before = await stat(path);
+        execFileSync("sudo", ["-n", "chown", "0", path]);
+        try {
+            for (const retire of [false, true])
+                assert.throws(
+                    () => native.privateCookieFile(path, retire),
+                    (error: unknown) =>
+                        error instanceof Error &&
+                        ["DARWIN_PRIVATE_INVALID", "DARWIN_PRIVATE_IO"].includes(
+                            (error as NodeJS.ErrnoException).code ?? "",
+                        ),
+                );
+            assert.equal((await stat(path)).ino, before.ino);
+        } finally {
+            execFileSync("sudo", ["-n", "chown", String(process.getuid!()), path]);
+        }
+        assert.equal(readFileSync(path, "utf8"), "public-owner");
+    }),
+);
+
+/** 同步 Cookie 调用成功或中途失败都必须关闭自己的真实文件与目录描述符，观察点捕获同一 inode 后直接要求 EBADF，不能把路径已删或垃圾回收当作资源已经释放的证据。
+ * 文件关闭在真实 close 后注入失败，目录关闭同样撤销原数字，故障后不允许重试关闭后来复用的数字。
+ * 捕获对象只用于检查与失败清理，正式接口仍不交付任何目录或成员 fd。
+ */
+test(
+    "cookie metadata and retirement close owned descriptors on success and failure",
+    mac,
+    async () => {
+        const native = createRequire(import.meta.url)(
+            "../../build/native-tests/veriq_private_files_fault.node",
+        ) as FaultNative;
+        try {
+            await cookieFixture(
+                false,
+                async (_root, directory) => {
+                    const path = join(directory, "Cookies");
+                    for (const [retire, phase] of [
+                        [false, ""],
+                        [true, ""],
+                        [false, "cookie.checked"],
+                        [false, "cookie.close"],
+                        [true, "cookie.close"],
+                        [false, "cookie.directory-close"],
+                        [true, "cookie.directory-close"],
+                    ] as const) {
+                        writeFileSync(path, "public-close", { mode: 0o600 });
+                        let captured: CapturedDescriptor | undefined;
+                        const hook =
+                            phase === "cookie.directory-close"
+                                ? "cookie.directory"
+                                : "cookie.checked";
+                        native.setHook(hook, (fd) => {
+                            const info = fstatSync(fd);
+                            captured = { fd, dev: info.dev, ino: info.ino };
+                        });
+                        if (phase) native.setFault(phase, "error", 1);
+                        try {
+                            if (phase)
+                                assert.throws(
+                                    () => native.privateCookieFile(path, retire),
+                                    failure(
+                                        retire ? "COMMIT_UNCONFIRMED" : "DARWIN_PRIVATE_IO",
+                                        phase,
+                                    ),
+                                );
+                            else assert.equal(native.privateCookieFile(path, retire), true);
+                            assertCapturedClosed(captured);
+                        } finally {
+                            native.resetFaults();
+                            cleanupCaptured(captured);
+                        }
+                    }
+                },
+                native,
+            );
+        } finally {
+            native.resetFaults();
+        }
+    },
+);
+
+/** 部分存在的 Cookie 布局必须在原目录拥有者仍活着时明确关闭后才能返回缺失，真实 Network 子目录缺少时既检查无故障 false，也检查当前目录及保留父目录关闭错误不能被外层 ENOENT 分类吞掉。
+ * 三个真实目录分别是应用根、Partitions 和 veriq-host，观察同 fd 身份并验证正常与故障调用后均已关闭。
+ * 关闭观察点来自既有独立调度模块，顺序验证确保一次错误之后仍明确尝试其余自有目录，而不只依赖无异常析构。
+ */
+for (const phase of ["cookie.directory-close", "cookie.parent-close"]) {
+    for (const retire of [false, true]) {
+        test(
+            `cookie missing Network layout preserves required close failures: ${retire ? "retire" : "metadata"} ${phase}`,
+            mac,
+            async () => {
+                const native = createRequire(import.meta.url)(
+                    "../../build/native-tests/veriq_private_files_fault.node",
+                ) as FaultNative;
+                try {
+                    await cookieFixture(
+                        true,
+                        async (_root, directory) => {
+                            await rm(directory, { recursive: true });
+                            const path = join(directory, "Cookies");
+                            const calls: Array<{ owned: CapturedDescriptor[]; closed: number[] }> =
+                                [];
+                            const observe = () => {
+                                const call = {
+                                    owned: [] as CapturedDescriptor[],
+                                    closed: [] as number[],
+                                };
+                                calls.push(call);
+                                const watchParents = () =>
+                                    native.setHook("cookie.parent-close", (fd) => {
+                                        call.closed.push(fd);
+                                        if (call.closed.length < 3) watchParents();
+                                    });
+                                const capture = () =>
+                                    native.setHook("acl.get", (fd) => {
+                                        const info = fstatSync(fd);
+                                        call.owned.push({ fd, dev: info.dev, ino: info.ino });
+                                        if (call.owned.length < 3) capture();
+                                        else {
+                                            for (const owned of call.owned) {
+                                                const current = fstatSync(owned.fd);
+                                                assert.equal(current.dev, owned.dev);
+                                                assert.equal(current.ino, owned.ino);
+                                            }
+                                            native.setHook("cookie.directory-close", (fd) => {
+                                                call.closed.push(fd);
+                                                watchParents();
+                                            });
+                                        }
+                                    });
+                                capture();
+                                return call;
+                            };
+                            try {
+                                const ordinary = observe();
+                                assert.equal(native.privateCookieFile(path, retire), false);
+                                assert.equal(ordinary.owned.length, 3);
+                                for (const owned of ordinary.owned) assertCapturedClosed(owned);
+                                native.resetFaults();
+                                const fault = observe();
+                                native.setFault(phase, "error", 1);
+                                assert.throws(
+                                    () => native.privateCookieFile(path, retire),
+                                    failure("DARWIN_PRIVATE_IO", phase),
+                                );
+                                assert.equal(fault.owned.length, 3);
+                                for (const owned of fault.owned) assertCapturedClosed(owned);
+                                for (const call of calls)
+                                    assert.deepEqual(
+                                        call.closed,
+                                        call.owned.map((owned) => owned.fd).reverse(),
+                                    );
+                                assert.deepEqual(await readdir(join(directory, "..")), []);
+                            } finally {
+                                native.resetFaults();
+                                for (const call of calls)
+                                    for (const owned of call.owned) cleanupCaptured(owned);
+                            }
+                        },
+                        native,
+                    );
+                } finally {
+                    native.resetFaults();
+                }
+            },
+        );
+    }
+}

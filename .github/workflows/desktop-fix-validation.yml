@@ -125,6 +125,10 @@ jobs:
                   python tests/e2e/test_cookie_session.py 2>&1 | tee "$VERIQ_DESKTOP_EVIDENCE/cookie-session-tests.log"
                   python tests/e2e/test_ci_userns.py 2>&1 | tee "$VERIQ_DESKTOP_EVIDENCE/userns-boundary-tests.log"
                   python tests/e2e/ci_userns.py prepare
+            - name: Verify full SDK coverage with the actual matched browser
+              run: |
+                  set -o pipefail
+                  pnpm --filter @veriq/runner-sdk test:coverage 2>&1 | tee "$VERIQ_DESKTOP_EVIDENCE/sdk-coverage.log"
             - name: Verify affected Runtime behavior with the actual matched browser
               timeout-minutes: 5
               run: |

@@ -6,6 +6,7 @@ import { mkdtemp, mkdir, readFile, writeFile, copyFile, readdir, rm, rename, ope
 import { constants } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { canonicalBytes, validateSchema, type JobManifestV1, type CompletionManifestV1, type CompiledAssetBundle, type ExecutionSnapshotV1, type EvidenceFileEntryV1, type CleanupStatus } from '@veriq/contracts';
@@ -18,12 +19,14 @@ import { isPreSpawnState } from './pre-spawn.ts';
 import { ProcessRecords } from './records.ts';
 import { ProcessSupervisor, type StopReceipt, type OwnedProcess } from './processes.ts';
 import { EventBuffer } from './events.ts';
-import { AttemptBroker } from './broker.ts';
+import { AttemptBroker, createDarwinBrokerDirectory } from './broker.ts';
+import { requireDarwinSource, type DarwinSourceCapability, type DarwinSourceState } from './darwin-source.ts';
+import { matchesControlledClaim } from './darwin-proof.ts';
 import { monitorStorage } from './storage.ts';
 import { loadRelease, sha256 } from './release.ts';
 import { developmentExecutionPaths, containedPath, type ExecutionPaths } from './paths.ts';
 import { offlineWorkerEnvironment } from '../offline/worker-environment.ts';
-import { privateDirectory } from '../offline/config.ts';
+import { privateDirectory, readBoundedFile } from '../offline/config.ts';
 /**
  * 公开接口 ClaimedAttempt 绑定一次认领结果与收发单调时刻：供 leaseDeadline 换算与 runAttempt 使用。
  */
@@ -58,6 +61,8 @@ export interface SupervisorOptions {
     releaseDirectory: string;
     browserExecutable: string;
     storageLimit?: number;
+    /** 源码宿主能力只接收工厂签发的当前对象，构造器实际验证品牌与平台后才允许 Darwin 业务；任务、profile 和 renderer JSON 都没有构造这项非序列化能力的路径，安装就绪仍由独立发行入口负责。 */
+    darwinSource?: DarwinSourceCapability;
     /** 独立安装入口提供已验证的角色与辅助模块物理路径，缺省只适用于现有源码开发调用；业务 Job 不可覆盖这个宿主设置，Runner 子进程继续继承自身固定 Node 的 execPath。 */
     execution?: ExecutionPaths;
 }
@@ -74,9 +79,27 @@ const json = async <T>(path: string): Promise<T> => JSON.parse(await readFile(pa
  */
 export class ExecutionSupervisor {
     readonly processes: ProcessSupervisor;
-    constructor(private options: SupervisorOptions) { this.processes = new ProcessSupervisor(join(options.root, 'processes'), 500, options.execution?.guardianExecutable); }
+    private readonly source: DarwinSourceState | undefined;
+    constructor(private options: SupervisorOptions) {
+        if (options.darwinSource !== undefined) this.source = requireDarwinSource(options.darwinSource);
+        this.processes = new ProcessSupervisor(join(options.root, 'processes'), 500, options.execution?.guardianExecutable, options.darwinSource);
+    }
     private async journal(value: AttemptJournal) {
-        /** 在线日志仅接受具有可核目录提交条件的平台，现有 Windows 原子替换只刷新文件句柄而无父目录持久承诺；此处明确失败关闭，不吞掉不支持错误，也不借用路径写入来开放 Darwin。 */
+        /** 在线日志只接受可核文件和父目录提交的实现，Darwin 持有真实 B 目录完成发布，Linux 保留原 proc 描述符路径；Windows 原路径缺少父目录持久承诺仍拒绝，任何刷新或关闭不确定都阻止派生，不以普通字符串写入回退。 */
+        if (process.platform === 'darwin' && this.source) {
+            const parent = this.source.native.openPrivateDirectory(join(this.options.root, 'attempts'), true);
+            try {
+                const bytes = Buffer.from(JSON.stringify(value));
+                if (bytes.length > 65536) throw new Error('ATTEMPT_JOURNAL_LIMIT');
+                /** B 内部临时名固定为 UUID，另以原 A2 名称先发布同 Attempt 的启动意图；最终日志与意图退休全部确认后才算提交，任何一步不确定都保留可识别 staging 或原生孤立项，不借错误回滚删除未知发布。 */
+                const staging = `${value.claim.attemptId}.json.${randomUUID()}`;
+                parent.createExclusive(staging).close();
+                parent.replace(staging, `.${randomUUID()}.tmp`, bytes, 65536);
+                parent.replace(`${value.claim.attemptId}.json`, `.${randomUUID()}.tmp`, bytes, 65536);
+                parent.remove(staging, 65536);
+            } finally { parent.close(); }
+            return;
+        }
         if (process.platform !== 'linux') throw new Error('ONLINE_JOURNAL_DURABILITY_UNSUPPORTED');
         const directory = join(this.options.root, 'attempts');
         await privateDirectory(directory);
@@ -115,13 +138,13 @@ export class ExecutionSupervisor {
     }
     /** 未派生判定只接受当前明确提交完成的前置状态，既不依赖内存 child 句柄缺失也不解释错误 reason；恢复还必须排除私有原生记录中的启动意图，以免旧发布窗口中的不一致被当成容量释放授权。 */
     private async unspawned(record: AttemptJournal, committed: boolean): Promise<StopReceipt | undefined> {
-        if (!committed || process.platform !== 'linux' || !isPreSpawnState(record.state, 'ONLINE')) return;
+        if (!committed || (process.platform !== 'linux' && !this.source) || !isPreSpawnState(record.state, 'ONLINE')) return;
         /** 旧日志的发布曾缺父目录刷新，单看白名单还不足以排除残留原生启动意图；通过既有私有记录会话检查同一 Attempt 的进程与证明成员，任一存在或读取不确定都转交真实停止而非推断根进程消失。 */
         try {
             const records = await ProcessRecords.open(join(this.options.root, 'processes'));
             if (records) {
                 try {
-                    for (const suffix of ['process.json', 'drained.json']) {
+                    for (const suffix of ['process.json', 'drained.json', ...(this.source ? ['controlled.json'] : [])]) {
                         try {
                             await records.read(`${record.claim.attemptId}.${suffix}`, 65536);
                             return;
@@ -140,9 +163,9 @@ export class ExecutionSupervisor {
             processStopScope: 'NO_PROCESS_SPAWNED', reason: 'NO_PROCESS_SPAWNED', stoppedAt: new Date().toISOString() };
     }
     /**
-     * 公开方法 terminateAttempt 委托 ProcessSupervisor 执行停机：在恢复路径上对未排空进程隔离容量。
+     * 公开方法 terminateAttempt 委托实际平台拥有者完成停止，Darwin 调用链可传同一进程单调时钟的绝对期限；在线执行在首停时夹紧剩余租约，恢复读取不续借新的业务授权，未知回执不能释放容量或被 ACK 替代。
      */
-    terminateAttempt(id: string, reason: string) { return this.processes.terminateAttempt(id, reason); }
+    terminateAttempt(id: string, reason: string, deadlineMonotonicMs?: number) { return this.processes.terminateAttempt(id, reason, deadlineMonotonicMs); }
     /**
      * 公开方法 recover 扫描 attempts 日志并终止残留进程：向控制面对账后返回带 claimRequestId 的停机回执列表。
      */
@@ -161,6 +184,8 @@ export class ExecutionSupervisor {
                 /** 临时对象可能包含尚未结清的 SPAWNING，即便旧正式日志仍是前置状态也不能走未派生快捷路径；只隔离受影响 Attempt，其余正式日志继续执行原有内核停止核验和对账。 */
                 let stop = await this.unspawned(record, !interrupted.has(record.claim.attemptId))
                     ?? await this.terminateAttempt(record.claim.attemptId, 'AGENT_RECOVERY');
+                if (process.platform === 'darwin' && stop.processStopped && stop.processStopScope === 'CONTROLLED_WORKER_BROWSER' && !await this.controlledClaim(record.claim))
+                    stop = { attemptId: record.claim.attemptId, processStopped: false, reason: 'CONTROLLED_OWNER_MISMATCH', stoppedAt: new Date().toISOString() };
                 recovered.add(record.claim.attemptId);
                 if (interrupted.has(record.claim.attemptId) && !stop.processStopped && stop.reason === 'UNKNOWN_PROCESS')
                     stop.reason = 'JOURNAL_STAGING_UNCONFIRMED';
@@ -185,6 +210,15 @@ export class ExecutionSupervisor {
         }
         return receipts;
     }
+    /** 历史停止证明除了内部过程与 proof 配对，还必须匹配当前已提交 Claim 的原始 fence 和任务类型；恢复不能用同一 Attempt 名称借取另一代或另一种浏览器计划，读取或关闭不确定都保留未知容量，不重建任何活进程所有权。 */
+    private async controlledClaim(claim: Claim): Promise<boolean> {
+        let records: ProcessRecords | undefined;
+        try {
+            records = await ProcessRecords.open(join(this.options.root, 'processes'));
+            return !!records && matchesControlledClaim(await records.read(`${claim.attemptId}.process.json`, 65536), claim);
+        } catch { return false; }
+        finally { try { await records?.close(); } catch { return false; } }
+    }
     private reconcile(claim: Claim, stop: StopReceipt, cleanupStatus: CleanupStatus) { return this.options.client.request(`/internal/v1/attempts/${claim.attemptId}/reconcile`, 'POST', { fencingToken: claim.fencingToken, processStopped: stop.processStopped, ...(stop.processStopScope !== undefined ? { processStopScope: stop.processStopScope } : {}), cleanupStatus, stoppedAt: stop.stoppedAt }); }
     /**
      * 公开方法 runAttempt 在租约预算内激活并执行一次 Claim：心跳、存储监控与 fencing 贯穿全程：完成后上传证据并提交 CompletionManifest。
@@ -192,12 +226,21 @@ export class ExecutionSupervisor {
     async runAttempt(assignment: ClaimedAttempt, signal: AbortSignal): Promise<AttemptResult> {
         const { claim } = assignment;
         leaseDeadline({ ...claim, leaseExpiresAt: claim.expiresAt }, assignment.requestStarted, assignment.responseReceived);
-        if (process.platform !== 'linux')
+        if (process.platform !== 'linux' && !this.source)
             throw new Error('UNSUPPORTED_PROCESS_PLATFORM');
         const executionPaths = this.options.execution ?? developmentExecutionPaths();
         const work = join(this.options.root, 'work', claim.attemptId);
-        await mkdir(work, { recursive: true, mode: 0o700 });
-        const tmp = await mkdtemp(join(tmpdir(), 'veriq-a-')); // Chromium AF_UNIX paths must fit108 bytes.
+        if (this.source) this.source.native.openPrivateDirectory(work, true).close();
+        else await mkdir(work, { recursive: true, mode: 0o700 });
+        const brokerDirectory = this.source ? await createDarwinBrokerDirectory() : undefined;
+        let tmp: string;
+        try {
+            tmp = await mkdtemp(join(this.source?.temporaryDirectory ?? tmpdir(), 'veriq-a-'));
+            if (this.source) this.source.native.openPrivateDirectory(tmp, false).close();
+        } catch (error) {
+            await brokerDirectory?.close();
+            throw error;
+        }
         const record: AttemptJournal = { claim, state: 'ALLOCATED', work, ...(assignment.claimRequestId ? {claimRequestId: assignment.claimRequestId} : {}) };
         let journalCommitted = false;
         const commit = async () => {
@@ -206,17 +249,34 @@ export class ExecutionSupervisor {
             await this.journal(record);
             journalCommitted = true;
         };
-        await commit();
+        try { await commit(); }
+        catch (error) {
+            try { await brokerDirectory?.close(); }
+            finally { await rm(tmp, { recursive: true, force: true }); }
+            throw error;
+        }
         const client = this.options.client, events = new EventBuffer(claim, client), controller = new AbortController();
         let reason: string | undefined, child: OwnedProcess | undefined, broker: AttemptBroker | undefined, monitor: ReturnType<typeof monitorStorage> | undefined;
         let stop: StopReceipt | undefined, caseResult: CaseResult | undefined, manifest: JobManifestV1 | undefined;
         const files: LocalEvidence[] = [];
-        const stopRequest = (why: string) => { reason ??= why; controller.abort(); };
+        let startIssued = false, stopOperation: Promise<StopReceipt> | undefined;
+        let privateEndpoint: string | undefined, retainPrivateReports = false;
+        const pendingDownloads: string[] = [];
+        const privacyReporter = join(work, 'node_modules/@veriq/runner-sdk/src/endpoint-json-reporter.js');
+        let heartbeat!: Heartbeat;
+        /** 第一次停止同步保存唯一操作，正在 await start 的调用也已经拥有后端登记而必须关闭准入；Darwin 预算在此夹紧租约剩余量减一秒，之后 catch 与正常收尾复用同一 promise，不先等待业务 ACK 或退出再发送取消。 */
+        const stopOnce = (why: string) => stopOperation ??= this.terminateAttempt(claim.attemptId, why,
+            this.source ? performance.now() + Math.max(0, heartbeat.remaining() - 1000) : undefined);
+        const stopRequest = (why: string) => {
+            reason ??= why;
+            controller.abort();
+            if (this.source && startIssued) void stopOnce(reason).catch(() => {});
+        };
         const aborted = () => stopRequest('USER_CANCELLED');
         signal.addEventListener('abort', aborted, { once: true });
         if (signal.aborted)
             aborted();
-        const heartbeat = new Heartbeat(client, claim, assignment.requestStarted, assignment.responseReceived, stopRequest);
+        heartbeat = new Heartbeat(client, claim, assignment.requestStarted, assignment.responseReceived, stopRequest);
         heartbeat.start();
         let flushTimer: ReturnType<typeof setInterval> | undefined;
         const content = (hash: string) => `/internal/v1/workspaces/${manifest!.workspaceId}/attempts/${claim.attemptId}/content/${hash}`;
@@ -273,7 +333,7 @@ export class ExecutionSupervisor {
                 if (frozen.namespace !== manifest.namespace || frozen.fixtureVersionId !== manifest.fixtureVersionId || !identity || !frozen.caseExecutionId || ![1, 2].includes(frozen.attemptNo) || frozen.secretVersions?.length !== 1 || frozen.secretVersions[0].secretRef !== identity.secretRef || frozen.secretVersions[0].versionId !== identity.secretVersionId)
                     throw new Error('INVALID_CLEANUP_SUBJECT');
             }
-            broker = new AttemptBroker(join(tmp, 'control.sock'), async (message) => {
+            broker = new AttemptBroker(join(brokerDirectory?.path ?? tmp, 'control.sock'), async (message) => {
                 if (message.type === 'credential') {
                     if (controller.signal.aborted)
                         throw new Error('ATTEMPT_STOPPING');
@@ -305,8 +365,9 @@ export class ExecutionSupervisor {
                         path: string;
                         sensitivity: 'CREDENTIAL_RESTRICTED';
                     };
-                    if (evidence.kind !== 'DOWNLOAD' || evidence.sensitivity !== 'CREDENTIAL_RESTRICTED' || !containedPath(tmp, resolve(evidence.path)))
+                    if (evidence.kind !== 'DOWNLOAD' || evidence.sensitivity !== 'CREDENTIAL_RESTRICTED' || !containedPath(this.source ? join(work, 'downloads') : tmp, resolve(evidence.path)))
                         throw new Error('UNSAFE_EVIDENCE');
+                    if (this.source) { pendingDownloads.push(evidence.path); return {}; }
                     const bytes = await readFile(evidence.path);
                     const name = `download-${files.length}.bin`;
                     await writeFile(join(work, name), bytes, { mode: 0o600, flag: 'wx' });
@@ -316,18 +377,20 @@ export class ExecutionSupervisor {
                 throw new Error('INVALID_IPC_OPERATION');
             });
             await broker.open();
-            const invocation = { kind: manifest.kind, work, tmp, socket: broker.path, nonce: broker.nonce, downloads: join(tmp, 'downloads'), downloadLimit: 16 * 1024 * 1024, npmCli: executionPaths.npmCli, tsx: executionPaths.tsx };
+            const invocation = { kind: manifest.kind, work, tmp, socket: broker.path, nonce: broker.nonce, downloads: join(this.source ? work : tmp, 'downloads'), downloadLimit: 16 * 1024 * 1024, npmCli: executionPaths.npmCli, tsx: executionPaths.tsx };
             await mkdir(invocation.downloads, { mode: 0o700 });
-            await write('invocation.json', canonicalBytes(invocation));
+            if (!this.source) await write('invocation.json', canonicalBytes(invocation));
             await write('release.json', canonicalBytes(release.entry));
             for (const file of ['provider.mjs', 'compile-entry.mjs'])
                 await copyFile(file === 'provider.mjs' ? executionPaths.providerEntry : executionPaths.compileEntry, join(work, file));
+            let playwrightConfig: Record<string, unknown> | undefined;
             if (bundle && execution) {
                 const entry = bundle.entrypoints.find(e => e.caseVersionId === execution!.caseVersionId);
                 if (!entry)
                     throw new Error('MISSING_CASE_ENTRYPOINT');
                 const config = { testDir: './cases', testMatch: entry.path.split('/').pop(), workers: 1, retries: 0, reporter: [['json', { outputFile: join(tmp, 'playwright.json') }], ['junit', { outputFile: join(tmp, 'junit.xml') }], ['html', { outputFolder: join(tmp, 'html'), open: 'never' }]], outputDir: join(tmp, 'test-results'), use: { browserName: execution.browser, locale: execution.environment.locale, timezoneId: execution.environment.timezone, serviceWorkers: 'block', trace: 'on', launchOptions: { executablePath: this.options.browserExecutable, args: ['--no-sandbox'], downloadsPath: invocation.downloads } } };
-                await write('playwright.config.mjs', Buffer.from(`export default ${JSON.stringify(config)};`));
+                playwrightConfig = config;
+                if (!this.source) await write('playwright.config.mjs', Buffer.from(`export default ${JSON.stringify(config)};`));
             }
             if (controller.signal.aborted)
                 throw new Error('ATTEMPT_STOPPING');
@@ -341,11 +404,28 @@ export class ExecutionSupervisor {
                 throw new Error('ATTEMPT_STOPPING');
             events.append({ type: 'ATTEMPT_STARTED', payload: { engineVersion: manifest.engineVersion, sourceHash: manifest.kind === 'VALIDATE' ? manifest.sourceHash : execution?.assetSourceHash ?? manifest.snapshotSha256 } });
             flushTimer = setInterval(() => void events.flush().catch(() => stopRequest('EVENT_UPLOAD_FAILED')), 250);
-            monitor = monitorStorage(tmp, this.options.storageLimit ?? 64 * 1024 * 1024, async (why) => { stopRequest(why); if (child)
-                await this.terminateAttempt(claim.attemptId, why); });
+            monitor = monitorStorage(tmp, this.options.storageLimit ?? 64 * 1024 * 1024, async (why) => { stopRequest(why); if (startIssued) await stopOnce(why); });
             record.state = 'SPAWNING';
             await commit();
-            child = await this.processes.start(claim.attemptId, { executable: executionPaths.runnerExecutable, args: [executionPaths.workerEntry, join(work, 'invocation.json')], cwd: work, env: offlineWorkerEnvironment(tmp, join(work, 'provider.mjs'), true, process.env, { runnerExecutable: executionPaths.runnerExecutable }) });
+            if (controller.signal.aborted) throw new Error('ATTEMPT_STOPPING');
+            startIssued = true;
+            const starting = this.processes.start(claim.attemptId, { executable: executionPaths.runnerExecutable, args: [executionPaths.workerEntry, join(work, 'invocation.json')], cwd: work, env: offlineWorkerEnvironment(tmp, join(work, 'provider.mjs'), true, process.env, { runnerExecutable: executionPaths.runnerExecutable }) }, this.source ? {
+                kind: manifest.kind, ownerGeneration: claim.fencingToken, downloadsPath: invocation.downloads,
+                prepare: (context) => {
+                    if (controller.signal.aborted) throw new Error('ATTEMPT_STOPPING');
+                    context.publish('invocation.json', Buffer.from(canonicalBytes({ ...invocation, controlled: context.controlled })));
+                    if (playwrightConfig) {
+                        if (!context.wsEndpoint) throw new Error('DARWIN_BROWSER_ENDPOINT_REQUIRED');
+                        privateEndpoint = context.wsEndpoint;
+                        const use = { ...(playwrightConfig.use as Record<string, unknown>), connectOptions: { wsEndpoint: context.wsEndpoint } };
+                        delete (use as Record<string, unknown>).launchOptions;
+                        context.publish('playwright.config.mjs', Buffer.from(`export default ${JSON.stringify({ ...playwrightConfig, reporter: [...playwrightConfig.reporter as unknown[], [privacyReporter, { outputFile: join(tmp, 'playwright.json') }]], use })};`));
+                    }
+                },
+            } : undefined);
+            if (controller.signal.aborted && this.source) void stopOnce(reason ?? 'ATTEMPT_STOPPING').catch(() => {});
+            child = await starting;
+            if (controller.signal.aborted) throw new Error('ATTEMPT_STOPPING');
             record.state = 'RUNNING';
             await commit();
             if (controller.signal.aborted)
@@ -356,15 +436,32 @@ export class ExecutionSupervisor {
             else
                 controller.signal.addEventListener('abort', () => resolve(), { once: true }); });
             await Promise.race([child.exited, cancelled]);
-            if (controller.signal.aborted)
+            if (controller.signal.aborted && !this.source)
                 await Promise.race([child.exited, delay(Math.max(0, Math.min(30000, heartbeat.remaining() - 1000)), undefined, { ref: false })]);
-            stop = await this.terminateAttempt(claim.attemptId, reason ?? 'COMPLETED');
+            stop = await stopOnce(reason ?? 'COMPLETED');
             if (!stop.processStopped)
                 throw new Error('PROCESS_STOP_UNCONFIRMED');
             record.state = 'STOPPED';
             record.stop = stop;
             await commit();
             monitor.close();
+            /** 源码浏览器端点只保留在本次宿主闭包；真实 CLI 与停止证明完成后，先从冻结 SDK 的纯标准库模块独立复核最终 JSON，再允许下载证据读取、附件复制、哈希、元数据或完成提交，任何未知状态保留私有原始报告而失败关闭。 */
+            if (this.source && manifest.kind === 'TEST') {
+                if (controller.signal.aborted) throw new Error(reason ?? 'ATTEMPT_STOPPING');
+                try {
+                    this.source.native.openPrivateDirectory(tmp, false).close();
+                    if (!privateEndpoint) throw new Error('REPORT_PRIVACY_UNCONFIRMED');
+                    const gate = await import(pathToFileURL(privacyReporter).href) as { verifyEndpointJsonFile?: (path: string, endpoints: readonly string[]) => Promise<void> };
+                    if (typeof gate.verifyEndpointJsonFile !== 'function') throw new Error('REPORT_PRIVACY_UNCONFIRMED');
+                    await gate.verifyEndpointJsonFile(join(tmp, 'playwright.json'), [privateEndpoint]);
+                    this.source.native.openPrivateDirectory(tmp, false).close();
+                } catch { retainPrivateReports = true; throw new Error('REPORT_PRIVACY_UNCONFIRMED'); }
+                for (const path of pendingDownloads) {
+                    const bytes = await readBoundedFile(path, 16 * 1024 * 1024), name = `download-${files.length}.bin`;
+                    await writeFile(join(work, name), bytes, { mode: 0o600, flag: 'wx' });
+                    files.push({ kind: 'DOWNLOAD', localPath: join(work, name), file: { path: name, sha256: sha256(bytes), sizeBytes: bytes.length, sensitivity: 'CREDENTIAL_RESTRICTED' } });
+                }
+            }
             const workerResult = await json<{
                 kind: string;
                 businessOutcome: 'PASSED' | 'ERROR';
@@ -453,8 +550,8 @@ export class ExecutionSupervisor {
             if (stop)
                 stop.reason = failure;
             reason ??= failure;
-            stop ??= await this.unspawned(record, journalCommitted)
-                ?? await this.terminateAttempt(claim.attemptId, reason ?? 'EXECUTION_ERROR');
+            stop ??= stopOperation ? await stopOperation : (!startIssued ? await this.unspawned(record, journalCommitted) : undefined)
+                ?? await stopOnce(reason ?? 'EXECUTION_ERROR');
             if (stop.processStopScope === 'NO_PROCESS_SPAWNED') stop.reason = failure;
             record.stop = stop;
             try {
@@ -472,13 +569,12 @@ export class ExecutionSupervisor {
             clearInterval(flushTimer);
             monitor?.close();
             signal.removeEventListener('abort', aborted);
-            await broker?.close();
+            try { await broker?.close(); } finally { await brokerDirectory?.close(); }
             // Results/evidence are retained for acknowledgement/recovery. Only task-owned regenerables are removed.
             if (stop?.processStopped)
                 for (const path of ['node_modules', 'tmp/npm-cache'])
                     await rm(join(work, path), { recursive: true, force: true });
-            if (stop?.processStopped)
-                await rm(tmp, { recursive: true, force: true });
+            if (stop?.processStopped && !retainPrivateReports) await rm(tmp, { recursive: true, force: true });
         }
     }
     private async resolveCredential(claim: Claim, reference: {

@@ -1,18 +1,22 @@
 /** 本脚本只在临时 Ubuntu CI 中创建一次性专用账户及单个自有 bind 挂载，固定 Node 子程序通过真实文件模式验证重启和清理；状态记录绑定随机身份与实际挂载 inode，正常及 always 清理均拒绝触碰不匹配对象，不修改现有账户或全局挂载。 */
 import assert from "node:assert/strict";
 import { isIndependentNode24 } from "../src/node-version.ts";
-import { stageOwnedFixture } from "./restricted-fixture-stage.mjs";
+import {
+    stageOwnedFixture,
+    readPreparedFixtureDeployment,
+    executeNetworkIsolatedFixture,
+} from "./restricted-fixture-stage.mjs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { randomUUID, createHash } from "node:crypto";
-import { chmod, chown, lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, chown, lstat, mkdir, readFile, readlink, rm, writeFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 assert.equal(process.platform, "linux");
 assert.equal(process.getuid(), 0);
 assert(isIndependentNode24(process.versions));
-const [mode, evidence] = process.argv.slice(2);
+const [mode, evidence, temporary] = process.argv.slice(2);
 assert(["test", "cleanup"].includes(mode) && evidence && isAbsolute(evidence));
 const runtime = fileURLToPath(new URL("../", import.meta.url));
 const statePath = join(evidence, "restricted-file-state.json");
@@ -180,14 +184,15 @@ if (mode === "cleanup") {
     const observations = [];
     let staged;
     try {
-        await mkdir(state.root, { mode: 0o711 });
-        await chmod(state.root, 0o711);
+        /** 此临时公共祖先只承载受控布局名称，专用服务 UID 必须能取得只读目录句柄才能逐级到达私有卷；公开祖先保持 root 拥有且只读可遍历，实际 home、backing、volume 和密钥子目录仍各自保持原有七百权限，拥有标记也继续仅 root 可读。 */
+        await mkdir(state.root, { mode: 0o755 });
+        await chmod(state.root, 0o755);
+        const fixtureAncestor = await lstat(state.root);
+        assert(fixtureAncestor.isDirectory() && !fixtureAncestor.isSymbolicLink());
+        assert.equal(fixtureAncestor.uid, 0);
+        assert.equal(fixtureAncestor.mode & 0o7777, 0o755);
         await writeFile(join(state.root, ".owned"), nonce, { mode: 0o600, flag: "wx" });
-        const deployment = JSON.parse(
-            await readFile(join(evidence, "restricted-file-deployment.json"), "utf8"),
-        );
-        assert.equal(deployment.source, join(deployment.root, "runtime"));
-        assert.equal(await readFile(join(deployment.root, ".owned"), "utf8"), deployment.nonce);
+        const deployment = await readPreparedFixtureDeployment(evidence, temporary);
         staged = join(state.root, "code/apps/runtime");
         await mkdir(join(state.root, "code/apps"), { recursive: true, mode: 0o755 });
         await chmod(join(state.root, "code"), 0o755);
@@ -198,17 +203,25 @@ if (mode === "cleanup") {
         await chmod(basePath, 0o644);
         assert.deepEqual(await readFile(basePath), tsconfigBase);
         const inventory = await stageOwnedFixture(deployment.source, staged);
-        for (const member of [
-            "package.json",
-            "src/cli.ts",
-            "tests/fixtures/restricted-file-child.ts",
-        ]) {
+        for (const member of ["src/cli.ts", "tests/fixtures/restricted-file-child.ts"]) {
             assert.deepEqual(
                 await readFile(join(staged, member)),
                 await readFile(join(runtime, member)),
                 "FIXTURE_SOURCE_MISMATCH",
             );
         }
+        assert.equal(
+            createHash("sha256")
+                .update(await readFile(join(staged, "package.json")))
+                .digest("hex"),
+            deployment.result.verification.hashes.manifestSha256,
+            "FIXTURE_DEPLOYED_MANIFEST_CHANGED",
+        );
+        assert.equal(
+            inventory.inventorySha256,
+            deployment.result.verification.inventory.inventorySha256,
+            "FIXTURE_PREPARED_COPY_CHANGED",
+        );
         const code = await lstat(staged);
         assert.equal(code.uid, 0);
         assert.equal(code.mode & 0o777, 0o755);
@@ -218,6 +231,10 @@ if (mode === "cleanup") {
             tsconfigBaseSha256: createHash("sha256").update(tsconfigBase).digest("hex"),
             ownerUid: code.uid,
             mode: code.mode & 0o777,
+            deploymentNonce: deployment.nonce,
+            deploymentRoot: deployment.root,
+            sourceCommitInputs: deployment.result.verification.inputs,
+            sourceCommit: deployment.result.sourceCommit,
         });
         await run("/usr/sbin/useradd", [
             "--system",
@@ -251,6 +268,7 @@ if (mode === "cleanup") {
         assert.equal(mounted.length, 1);
         state.mountId = mounted[0].id;
         await save("restricted-file-state.json", state);
+        const parentNetworkNamespace = await readlink("/proc/self/ns/net");
         await save("restricted-file-context.json", {
             username: state.username,
             uid: user.uid,
@@ -258,37 +276,27 @@ if (mode === "cleanup") {
             mount: mounted[0],
             node: process.versions.node,
             sourceNode: process.execPath,
+            parentNetworkNamespace,
+            deploymentNonce: deployment.nonce,
+            fixtureAncestor: {
+                path: state.root,
+                ownerUid: fixtureAncestor.uid,
+                ownerGid: fixtureAncestor.gid,
+                mode: fixtureAncestor.mode & 0o7777,
+                dev: fixtureAncestor.dev,
+                ino: fixtureAncestor.ino,
+            },
             acceptance:
-                "Owned CI bind volume and independent Node restarts; not VM power-loss or deployment durability",
+                "Network-isolated credential/file fixture on an owned CI account and bind volume",
         });
-        /** 固定 setpriv 仅将本次新建子进程降到自有专用 UID/GID并清空附加组，不开启 PAM 登录会话；GNU timeout 监督固定 Node 命令，结束后核验该账户无残留进程，真实输出再与账户及主目录来源逐项绑定。 */
+        /** 每个业务子进程都先创建独立网络命名空间再降权，并由固定 timeout 监督；结束后必须同时核验账户无残留进程、真实输出的专用身份和主目录以及与父进程不同的 namespace，无法隔离时直接保留失败证据而不执行替代业务。 */
         const child = async (phase, args) => {
-            const result = await run(
-                "/usr/bin/timeout",
-                [
-                    "--signal=TERM",
-                    "--kill-after=5s",
-                    "45s",
-                    "/usr/bin/setpriv",
-                    "--reuid",
-                    String(user.uid),
-                    "--regid",
-                    String(user.gid),
-                    "--clear-groups",
-                    "--no-new-privs",
-                    "--",
-                    process.execPath,
-                    "--import",
-                    "tsx",
-                    ...args,
-                ],
-                {
-                    cwd: staged,
-                    env: {
-                        PATH: "/usr/sbin:/usr/bin:/sbin:/bin",
-                        LANG: "C.UTF-8",
-                    },
-                },
+            const result = await executeNetworkIsolatedFixture(
+                process.execPath,
+                user.uid,
+                user.gid,
+                staged,
+                args,
             );
             await nobody(user.uid);
             observations.push({ phase, stdout: result.stdout, stderr: result.stderr, exitCode: 0 });
@@ -309,10 +317,38 @@ if (mode === "cleanup") {
                 assert.equal(facts.observedHome, user.home);
                 assert.equal(facts.homeEnvironmentProvided, false);
                 assert.equal(facts.executable, process.execPath);
+                assert.equal(facts.ancestorDirectoryFd.path, state.root);
+                assert.equal(facts.ancestorDirectoryFd.ownerUid, 0);
+                assert.equal(facts.ancestorDirectoryFd.ownerGid, fixtureAncestor.gid);
+                assert.equal(facts.ancestorDirectoryFd.mode, 0o755);
+                assert.equal(facts.ancestorDirectoryFd.dev, fixtureAncestor.dev);
+                assert.equal(facts.ancestorDirectoryFd.ino, fixtureAncestor.ino);
+                assert.equal(facts.ancestorDirectoryFd.openedByUid, user.uid);
+                assert.equal(facts.ancestorDirectoryFd.openedByEuid, user.uid);
+                assert.equal(facts.ancestorDirectoryFd.openedByGid, user.gid);
+                assert.equal(facts.ancestorDirectoryFd.openedByEgid, user.gid);
+                assert.equal(facts.ancestorDirectoryFd.closed, true);
+                assert.match(facts.networkNamespace, /^net:\[\d+\]$/);
+                assert.notEqual(facts.networkNamespace, parentNetworkNamespace);
+                assert.equal(facts.tsxCacheDisabled, true);
+                if (phase === "closure") {
+                    assert.equal(facts.loaderMarker, "tsx-esbuild");
+                    const manifest = JSON.parse(
+                        await readFile(join(staged, "package.json"), "utf8"),
+                    );
+                    assert.deepEqual(
+                        facts.loadedPackages.map((entry) => entry.name).sort(),
+                        Object.keys({
+                            ...manifest.dependencies,
+                            ...manifest.optionalDependencies,
+                        }).sort(),
+                    );
+                }
             } else assert.match(result.stderr, /no encryption at rest/);
         };
         const source = join(staged, "tests/fixtures/restricted-file-child.ts"),
             volume = join(state.root, "volume");
+        await child("closure", [source, "closure", volume, String(user.uid)]);
         await child("seed", [source, "seed", volume, String(user.uid)]);
         await child("restart", [source, "restart", volume, String(user.uid)]);
         await child("cli-retire", [
@@ -337,6 +373,8 @@ if (mode === "cleanup") {
             username: state.username,
             uid: user.uid,
             mountId: state.mountId,
+            deploymentNonce: deployment.nonce,
+            acceptance: "network-isolated credential/file fixture",
         });
     } catch (error) {
         await save("restricted-file-failure.json", {

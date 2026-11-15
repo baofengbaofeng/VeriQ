@@ -13,6 +13,7 @@
 #include <cerrno>
 #include <cstdint>
 #include <cstdio>
+#include <exception>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -32,6 +33,7 @@
 #endif
 namespace veriq::VERIQ_DARWIN_NAMESPACE {
 constexpr size_t maximumBytes = 2 * 1024 * 1024;
+constexpr size_t maximumCookieBytes = 64 * 1024 * 1024;
 constexpr size_t maximumEntries = 8192;
 constexpr unsigned retryLimit = 64;
 
@@ -193,16 +195,22 @@ inline struct stat metadata(int fd) {
     systemFailure("stat", EINTR);
     return info;
 }
-/** 普通文件授权同时检查类型、当前 uid、含特殊位在内的精确六百模式、单链接与非负有限大小；两兆原生硬上限不会被较大的 JavaScript 数字绕过，调用者更小的用途额度在同次判定中生效。
+/** 普通文件元数据授权共用类型、真实 uid、含特殊位在内的精确六百模式、单链接及非负有限大小判断，调用入口必须先固定其用途额度；这个内部谓词不读取正文、不接收 JavaScript 数字，也不独立导出文件能力。
  * FIFO、目录、设备和符号链接都不能成为普通日志或保险库成员。
  * 单链接约束避免在当前目录外通过另一名字写入同一 inode。
- * 零字节文件允许存在，limit 本身仍必须为正有限额度。
+ * 零字节文件允许存在，Cookie 的较大额度仅由固定用途元数据路径传入。
  */
-inline void regular(const struct stat& info, size_t limit) {
-    require(limit >= 1 && limit <= maximumBytes, "read.limit");
+inline void regularMetadata(const struct stat& info, size_t limit) {
     require(S_ISREG(info.st_mode) && info.st_uid == ::getuid() &&
         (info.st_mode & 07777) == 0600 && info.st_nlink == 1 && info.st_size >= 0 &&
         static_cast<uint64_t>(info.st_size) <= limit, "file.private");
+}
+/** 一般文件操作继续先核正数且不超过两兆的原生硬上限，再复用同一普通私有文件谓词，不能因为 Cookie 元数据需要较大额度就扩大读取、配置、保险库或一般删除接口的授权范围与正文分配上限。
+ * Cookie 元数据调用不会通过本入口放宽 limit，也不把较大文件读入内存。
+ */
+inline void regular(const struct stat& info, size_t limit) {
+    require(limit >= 1 && limit <= maximumBytes, "read.limit");
+    regularMetadata(info, limit);
 }
 /** ACL 查询包装在生产构建只调用公开同 fd 接口，独立测试目标才能选择缺少属性、真实空 ACL 对象或查询错误表示；这样可以行为验证 ENOENT 仅属于 ACL 属性缺失，不会被业务层误认成文件不存在。
  * acl_init(0) 创建真实可验证和迭代的空 ACL，不伪造 iterator 成功规则。
@@ -414,15 +422,63 @@ struct Entries { std::vector<std::string> names; bool overflow = false; };
  */
 class Directory {
     Descriptor fd_;
-    /** 成员打开一次即绑定后续核验与读取的同一普通文件描述符，NOFOLLOW 拒绝链接而 NONBLOCK 避免 FIFO 阻塞；CLOEXEC 阻止未显式映射的句柄泄漏，所有权限与大小判断均来自实际 fd。
+    std::vector<Descriptor> cookieParents_;
+    /** Cookie 专用目录核验始终使用原始持有描述符，最终存储目录保持当前 uid 与精确七百模式，中间应用目录只放行无组或其他写入及特殊位的模式；两者都必须继续拒绝扩展 ACL 授权而不能回退普通祖先规则。
+     * 文件路径重命名不导致重新打开，检查的是最初遍历得到的目录 inode。
+     * 此 helper 不导出目录数字，不创建对象也不修复模式或 ACL。
+     */
+    static void verifyCookieDirectory(int fd, bool final) {
+        const auto info = metadata(fd);
+        require(S_ISDIR(info.st_mode) && info.st_uid == ::getuid() &&
+            (final ? (info.st_mode & 07777) == 0700 : (info.st_mode & 07022) == 0),
+            final ? "directory.private" : "directory.safe");
+        verifyPrivateAcl(fd);
+    }
+    /** Cookie 每次临界观察点返回后都重新验证同一批关键目录描述符，保留的应用根和布局中间目录不能因初次检查成功就被遗忘；最终目录另按严格七百要求复核，不重新走路径或放宽成一般 B 祖先政策。
+     * 保留集合只含有限布局中的两个或三个中间目录，更高系统祖先不被升级为应用私有目录。
+     * 验证失败由原有拥有者释放资源，不删除 Cookie 或自动修权限后继续。
+     */
+    void verifyCookieDirectories() {
+        for (const auto& parent : cookieParents_) verifyCookieDirectory(parent.get(), false);
+        verifyCookieDirectory(fd_.get(), true);
+    }
+    /** Cookie 目录关闭只接收当前原始拥有者与有限保留父集合，每个 close 都明确尝试且先撤销数字所有权，一次失败不能让其他必需关闭静默降级成析构；完成全部尝试后原样重抛首个异常，避免后续清理覆盖首个真实错误。
+     * 部分布局缺失时这些拥有者仍在遍历栈上，成功返回之前必须在此确认全部关闭结果。
+     * 完整布局也复用相同阶段与顺序，发布后的错误仍由已有 removed 状态转换为提交不确定。
+     */
+    static void closeCookieOwners(Descriptor& current, std::vector<Descriptor>& parents) {
+        std::exception_ptr first;
+        const auto close = [&](Descriptor& owner, const char* phase) {
+            try { owner.close(phase); }
+            catch (...) { if (!first) first = std::current_exception(); }
+        };
+        close(current, "cookie.directory-close");
+        for (auto parent = parents.rbegin(); parent != parents.rend(); ++parent)
+            close(*parent, "cookie.parent-close");
+        if (first) std::rethrow_exception(first);
+    }
+    /** Cookie 正常返回前必须显式关闭最终目录及保留的关键中间目录，顺序从存储目录向应用根释放且每次 close 都先撤销所有权；任何必要关闭失败交外层按是否已 unlink 保留原错误或提交不确定，而不重试数字。
+     * 固定 helper 尝试所有仍持有目录再重抛首个错误，析构仅为其他异常路径提供资源兜底。
+     * 缺失成员也走同一必要关闭路径，关闭失败不能被 false 隐藏。
+     */
+    void closeCookieDirectories() {
+        closeCookieOwners(fd_, cookieParents_);
+    }
+    /** 成员只通过持有目录描述符相对打开一次，NOFOLLOW 拒绝链接而 NONBLOCK 避免 FIFO 阻塞，CLOEXEC 阻止未显式映射的句柄泄漏；取得描述符还不代表授权成功，调用者必须继续核同 fd 元数据与 ACL。
      * 打开失败保留 errno，只有实际 ENOENT 可以解释为成员缺失。
      * 参数先完成单组件检查，不能通过名称离开已授权目录。
      * 核验失败由 RAII 释放句柄，不修复原文件元数据。
      */
-    Descriptor checked(const std::string& name, size_t limit) {
+    Descriptor member(const std::string& name) {
         component(name);
-        Descriptor file(openAt(fd_.get(), name.c_str(), O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC,
+        return Descriptor(openAt(fd_.get(), name.c_str(), O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC,
             0, "member.open"));
+    }
+    /** 一般目录成员打开后仍固定经过两兆额度门及同 fd 扩展 ACL 核验，内部成员打开 helper 仅消除重复的安全标志而不向宿主交付未授权描述符，Cookie 专用元数据不会改变这里原有的用途边界。
+     * 所有现有 read、remove、replace 与枚举调用继续使用原有普通文件额度。
+     */
+    Descriptor checked(const std::string& name, size_t limit) {
+        auto file = member(name);
         regular(metadata(file.get()), limit);
         verifyPrivateAcl(file.get());
         return file;
@@ -452,21 +508,26 @@ class Directory {
 public:
     /** 目录内部构造只移动逐级核验完成的描述符，未完成的路径链无法从 JavaScript 构造此对象；所有后续操作相对这个 inode 执行，保留原路径字符串并不是权限来源或文件查找后备。
      * 父路径后来重命名不改变此拥有者身份。
+     * Cookie 额外移动固定布局中间目录的原始拥有者，一般目录调用传入空集合且保持原有生命周期。
      */
-    explicit Directory(Descriptor&& fd) : fd_(std::move(fd)) {}
+    Directory(Descriptor&& fd, std::vector<Descriptor>&& cookieParents)
+        : fd_(std::move(fd)), cookieParents_(std::move(cookieParents)) {}
     /** 绝对路径从根逐级 openat 并拒绝任何链接，create 为真才尝试七百模式 mkdirat，EEXIST 仍必须重新安全打开；最终当前 uid 与精确七百模式不符合就失败，不修权限或自动解析系统别名。
      * 根和系统祖先不要求私有 uid 或模式，否则合法用户目录无法遍历。
      * 每级 fstat 确认目录身份，O_DIRECTORY 与 NOFOLLOW 同时约束实际打开。
      * 关闭旧父描述符成功后才移动到下一层，失败不会继续创建后代。
      * 路径整体和每个组件都有长度限制，解析没有无限或递归遍历。
+     * 仅 Cookie 指定 safeFrom 且 create=false 时，真实目录缺失并确认全部已取得目录关闭成功后返回 nullptr；默认一般入口仍抛原异常。
      */
-    static std::unique_ptr<Directory> open(const std::string& path, bool create) {
+    static std::unique_ptr<Directory> open(const std::string& path, bool create,
+            size_t safeFrom = std::string::npos) {
         require(!path.empty() && path[0] == '/' && path.size() <= 4096 &&
             path.find('\0') == std::string::npos && utf8(path), "directory.path");
         Descriptor parent(openAt(AT_FDCWD, "/", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC,
             0, "directory.root"));
         require(S_ISDIR(metadata(parent.get()).st_mode), "directory.root-type");
-        size_t start = 1;
+        std::vector<Descriptor> cookieParents;
+        size_t start = 1, index = 0;
         while (start < path.size()) {
             /** 路径解析只提取下一个有限组件并在触碰文件系统之前验证名字，拒绝内部双斜杠或点组件；绝对根拥有者保留到下一层目录实际打开和检查成功，不依赖字符串拼接形成新的授权路径。
              * end 为未找到时 substr 自动取剩余有界路径。
@@ -488,19 +549,47 @@ public:
                 while (result != 0 && errno == EINTR && ++attempts < retryLimit);
                 if (result != 0 && errno != EEXIST) systemFailure("directory.mkdir");
             }
-            Descriptor next(openAt(parent.get(), part.c_str(),
-                O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC, 0, "directory.open"));
-            require(S_ISDIR(metadata(next.get()).st_mode), "directory.type");
-            parent.close();
+            Descriptor next;
+            try {
+                next = Descriptor(openAt(parent.get(), part.c_str(),
+                    O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC, 0, "directory.open"));
+            } catch (const Failure& error) {
+                /** 只有 Cookie 只读遍历允许真实缺少布局目录返回空拥有者，原父与保留集合必须尚未展开并全部明确关闭成功；任何关闭异常直接保留，不能在析构之后由外层把 ENOENT 转成成功缺失。
+                 * safeFrom 默认 npos 或 create 为真时保持一般 B 的原始异常行为，不新增通用可空目录入口。
+                 * 当前父可能是尚未完成布局的中间目录，这里只释放原拥有者，不按路径重开或误用最终七百模式。
+                 */
+                if (!create && safeFrom != std::string::npos && error.number == ENOENT &&
+                    error.phase == "directory.open" && std::string(error.what()) == "ENOENT") {
+                    closeCookieOwners(parent, cookieParents);
+                    return nullptr;
+                }
+                throw;
+            }
+            const auto info = metadata(next.get());
+            require(S_ISDIR(info.st_mode), "directory.type");
+            /** Cookie 的应用根与固定布局中间目录可以保留 Electron 既有七百五十五模式，但必须真实 uid 拥有且没有组或其他写入、特殊位或扩展授权；更高祖先沿用 B 的无链接目录政策，最终目录另按七百严格检查。
+             * safeFrom 只由完整 Cookie 后缀解析得到，现有公开目录调用默认不增加中间目录要求。
+             * 这里不创建、chmod 或清 ACL，兼容只读与可执行权限并不意味着授予其他写入者。
+             */
+            if (index >= safeFrom && end != std::string::npos) {
+                verifyCookieDirectory(next.get(), false);
+            }
+            /** 已进入 Cookie 关键目录之后把原父拥有者移动到有限保留集合，保证后续观察点仍能检查同一个真实目录；更高祖先及所有一般目录调用继续立即明确关闭旧父描述符，不通过路径重开重建这份授权。
+             * safeFrom 默认 npos 时 index 永不大于它，因此既有 B 调用不保留任何额外目录。
+             * 子目录已成功打开并核验后才移动父拥有者，分配失败时两侧仍由 RAII 清理。
+             */
+            if (index > safeFrom) cookieParents.push_back(std::move(parent));
+            else parent.close();
             parent = std::move(next);
             if (end == std::string::npos) break;
             start = end + 1;
+            index++;
         }
         const auto info = metadata(parent.get());
         require(S_ISDIR(info.st_mode) && info.st_uid == ::getuid() &&
             (info.st_mode & 07777) == 0700, "directory.private");
         verifyPrivateAcl(parent.get());
-        return std::make_unique<Directory>(std::move(parent));
+        return std::make_unique<Directory>(std::move(parent), std::move(cookieParents));
     }
     /** 目录读取把单个成员描述符从检查持有到完整有界读取和显式关闭结束，中途不按名字重开；读取成功但必要关闭失败也传播错误，不让宿主把未完成的资源操作当成完整可用的记录观察。
      * 返回值是独立字节向量，文件句柄不泄漏给普通调用者。
@@ -688,9 +777,90 @@ public:
             throw;
         }
     }
+    /** Cookie 只在已核验布局目录内检查或退休有限成员，较大额度固定用于同一 fd 的元数据而不读取正文；观察点之后复核完整身份和授权，删除后的必要目录刷新及文件或目录关闭错误保持 COMMIT_UNCONFIRMED。
+     * 名字白名单由完整原始路径入口先限定，此内部方法没有对应目录对象的 JavaScript 方法。
+     * 真实成员打开 ENOENT 可以幂等返回 false，但必须先明确关闭持有目录且保留关闭失败。
+     * 退休不是物理擦除，也不承诺阻止任意同 UID 写者在最后一次检查后继续并发修改。
+     */
+    bool cookie(const std::string& name, bool retire) {
+        bool removed = false;
+        try {
+            testPoint("cookie.directory", fd_.get());
+            Descriptor file;
+            try { file = member(name); }
+            catch (const Failure& error) {
+                if (error.number != ENOENT || error.phase != "member.open" ||
+                    std::string(error.what()) != "ENOENT") throw;
+                verifyCookieDirectories();
+                closeCookieDirectories();
+                return false;
+            }
+            const auto before = metadata(file.get());
+            regularMetadata(before, maximumCookieBytes);
+            verifyPrivateAcl(file.get());
+            testPoint("cookie.checked", file.get());
+            /** 每次观察点返回后都从原文件描述符重取授权元数据并比较原快照，再核目录当前同名 inode，避免调度中的真实换名或权限与大小变化被先前检查覆盖；不以重新按完整路径打开替代同 fd 检查。
+             * Cookie 不分配正文缓冲区，变化判断包含大小、模式、链接数与纳秒时间。
+             * 同名缺失属于身份变化，不能在已经打开成员之后降级为幂等缺失。
+             */
+            const auto verify = [&]() {
+                verifyCookieDirectories();
+                const auto after = metadata(file.get());
+                regularMetadata(after, maximumCookieBytes);
+                verifyPrivateAcl(file.get());
+                require(same(before, after) && matches(name, after), "cookie.identity");
+            };
+            verify();
+            if (retire) {
+                testPoint("cookie.unlink", file.get());
+                verify();
+                if (::unlinkat(fd_.get(), name.c_str(), 0) != 0) systemFailure("cookie.unlink");
+                removed = true;
+                sync(fd_.get(), "cookie.directory-sync");
+            }
+            file.close("cookie.close");
+            closeCookieDirectories();
+            return true;
+        } catch (const Failure& error) {
+            if (removed) throw Failure("COMMIT_UNCONFIRMED", error.phase, error.number);
+            throw;
+        }
+    }
     /** 目录结束只关闭自身持有的授权锚点，不递归删除成员或关闭已经独立交付的 File；描述符撤销后成员操作统一拒绝，重复 close 幂等，不凭原路径再打开一个替代目录继续会话。
      * 关闭错误保持可观察，不自动重试可能复用的整数。
      */
     void close() { fd_.close(); }
 };
+
+/** Cookie 路径必须先完整验证所有原始组件和两个已知布局的四个精确成员，之后才允许任何目录打开或缺失分类；六十四兆元数据能力不能用于任意私有目录下同名文件，也不做 realpath 规范化或权限修复。
+ * 应用根至少占一个真实组件，Partitions/veriq-host 与可选 Network 保持精确大小写。
+ * 只有内部 Cookie 遍历确认真实目录缺失并明确关闭全部已取得目录后的空拥有者可返回 false，关闭失败及提交不确定全部保留。
+ * 文件名、正文、路径和原始 fd 均不通过这个同步布尔接口交付给调用者。
+ */
+inline bool privateCookieFile(const std::string& path, bool retire) {
+    require(!path.empty() && path[0] == '/' && path.size() <= 4096 &&
+        path.back() != '/' && path.find('\0') == std::string::npos && utf8(path), "cookie.path");
+    std::vector<std::string> parts;
+    size_t start = 1;
+    while (start < path.size()) {
+        const size_t end = path.find('/', start);
+        auto part = path.substr(start, end == std::string::npos ? end : end - start);
+        component(part);
+        parts.push_back(std::move(part));
+        if (end == std::string::npos) break;
+        start = end + 1;
+    }
+    const size_t count = parts.size();
+    require(count >= 4, "cookie.layout");
+    const auto& name = parts.back();
+    require(name == "Cookies" || name == "Cookies-wal" || name == "Cookies-shm" ||
+        name == "Cookies-journal", "cookie.member");
+    const bool network = parts[count - 2] == "Network";
+    require(count >= (network ? 5 : 4), "cookie.layout");
+    const size_t host = count - (network ? 3 : 2);
+    require(parts[host] == "veriq-host" && parts[host - 1] == "Partitions", "cookie.layout");
+    auto directory = Directory::open(path.substr(0, path.rfind('/')), false, host - 2);
+    if (!directory) return false;
+    return directory->cookie(name, retire);
+}
 }
