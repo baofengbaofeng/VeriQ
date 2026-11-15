@@ -3,7 +3,7 @@
  * CloudAiAdapter(selected)；无模型凭证时测试用例仍可加载本页静态结构。
  */
 
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -54,9 +54,10 @@ export function AiPage() {
         enabled: !!user,
     });
     const items = workspaces.data?.pages.flatMap((p) => p.items) ?? [];
+    const firstWorkspaceId = items[0]?.id;
     useEffect(() => {
-        if (!selected && items.length) select(items[0]!.id);
-    }, [selected, items[0]?.id]);
+        if (!selected && firstWorkspaceId) select(firstWorkspaceId);
+    }, [selected, firstWorkspaceId, select]);
     const adapter = useMemo(() => new CloudAiAdapter(selected), [selected]);
     const resources = useMemo(() => new CloudResourceAdapter(selected), [selected]);
     if (!user) return <Navigate to="/login" />;
@@ -106,6 +107,23 @@ export function AiPage() {
         </Panel>
     );
 }
+/** 请求输入保留表单中的原始字符串以及明确的生成用途，只有这八个字段参与人工上下文审核失效；Provider 编辑器和已完成的生成历史拥有独立状态，不能被输入变更一起清空。 */
+type RequestInputs = {
+    providerId: string;
+    purpose: GenerationRequest["purpose"];
+    prompt: string;
+    versions: string;
+    openapi: string;
+    data: string;
+    resourceId: string;
+    runId: string;
+};
+/** 人工预览和已审核请求与当前输入集中存储，使每次真实输入变更能够原子清除两份审核结果；成功预览只合并审核数据而保留当前输入，响应归属仍由现有工作区生命周期决定。 */
+type RequestState = {
+    inputs: RequestInputs;
+    preview?: S["AiContextDTO"];
+    reviewedRequest?: GenerationRequest;
+};
 /**
  * 拥有 Provider 表单、生成请求、历史无限查询与审核动作等 UI 状态。Provider 禁用后隐藏生成按钮；Provider 一旦禁用就必须隐藏生成入口按钮。
  * 调用 adapter.providers/generate/review/cancel；输出需人工审核，不会自动 publish。
@@ -133,20 +151,40 @@ export function AiWorkspaceView({
     const [error, setError] = useState(""),
         [busy, setBusy] = useState(false),
         [generating, setGenerating] = useState(false);
-    const [providerId, setProviderId] = useState(""),
-        [form, setForm] = useState<S["ProviderWrite"]>(defaults),
+    const [form, setForm] = useState<S["ProviderWrite"]>(defaults),
         [editing, setEditing] = useState(""),
         [apiKey, setKey] = useState("");
-    const [purpose, setPurpose] = useState<GenerationRequest["purpose"]>("CASE_DRAFT"),
-        [prompt, setPrompt] = useState(""),
-        [versions, setVersions] = useState(""),
-        [openapi, setOpenapi] = useState("{}"),
-        [data, setData] = useState("{}"),
-        [resourceId, setResourceId] = useState(""),
-        [runId, setRunId] = useState("");
-    const [preview, setPreview] = useState<S["AiContextDTO"]>(),
-        [reviewedRequest, setReviewedRequest] = useState<GenerationRequest>(),
-        [generation, setGeneration] = useState<Generation>(),
+    const [requestState, setRequestState] = useState<RequestState>({
+        inputs: {
+            providerId: "",
+            purpose: "CASE_DRAFT",
+            prompt: "",
+            versions: "",
+            openapi: "{}",
+            data: "{}",
+            resourceId: "",
+            runId: "",
+        },
+    });
+    const { inputs, preview, reviewedRequest } = requestState;
+    const { providerId, purpose, prompt, versions, openapi, data, resourceId, runId } = inputs;
+    /** 所有请求字段写入共用稳定回调，并在函数式更新内比较原始值；同值编辑保持原审核对象，实际编辑即使随后恢复原值也须重新预览，状态更新器不触发其他状态或清理副作用。 */
+    const changeInput = useCallback(
+        <K extends keyof RequestInputs>(field: K, value: RequestInputs[K]) => {
+            setRequestState((current) =>
+                Object.is(current.inputs[field], value)
+                    ? current
+                    : {
+                          ...current,
+                          inputs: { ...current.inputs, [field]: value },
+                          preview: undefined,
+                          reviewedRequest: undefined,
+                      },
+            );
+        },
+        [],
+    );
+    const [generation, setGeneration] = useState<Generation>(),
         [key, setResourceKey] = useState(""),
         [name, setName] = useState(""),
         [editorId, setEditorId] = useState("");
@@ -171,13 +209,10 @@ export function AiWorkspaceView({
     const rows = providers.data?.pages.flatMap((p) => p.items) ?? [],
         calls = history.data?.pages.flatMap((p) => p.items) ?? [];
     const provider = rows.find((p) => p.id === providerId);
+    const firstProviderId = rows[0]?.id;
     useEffect(() => {
-        if (!providerId && rows.length) setProviderId(rows[0]!.id);
-    }, [providerId, rows[0]?.id]);
-    useEffect(() => {
-        setPreview(undefined);
-        setReviewedRequest(undefined);
-    }, [providerId, purpose, prompt, versions, openapi, data, resourceId, runId]);
+        if (!providerId && firstProviderId) changeInput("providerId", firstProviderId);
+    }, [providerId, firstProviderId, changeInput]);
     const refresh = async () => {
         await Promise.all([providers.refetch(), history.refetch()]);
     };
@@ -194,7 +229,7 @@ export function AiWorkspaceView({
     };
     const selectProvider = (p: Provider) => {
         setEditing(p.id);
-        setProviderId(p.id);
+        changeInput("providerId", p.id);
         setForm({
             name: p.name,
             adapter: p.adapter,
@@ -252,7 +287,7 @@ export function AiWorkspaceView({
                 <select
                     data-testid="ai-provider"
                     value={providerId}
-                    onChange={(e) => setProviderId(e.target.value)}
+                    onChange={(e) => changeInput("providerId", e.target.value)}
                 >
                     <option value="">—</option>
                     {rows.map((p) => (
@@ -386,7 +421,7 @@ export function AiWorkspaceView({
                                 if (signal.aborted) return;
                                 setKey("");
                                 setEditing(p.id);
-                                setProviderId(p.id);
+                                changeInput("providerId", p.id);
                                 await refresh();
                             })
                         }
@@ -421,7 +456,7 @@ export function AiWorkspaceView({
                                     void action(async () => {
                                         await adapter.remove(provider.id, signal);
                                         if (signal.aborted) return;
-                                        setProviderId("");
+                                        changeInput("providerId", "");
                                         setEditing("");
                                         setForm(defaults);
                                         await refresh();
@@ -442,7 +477,9 @@ export function AiWorkspaceView({
                     <select
                         data-testid="ai-purpose"
                         value={purpose}
-                        onChange={(e) => setPurpose(e.target.value as GenerationRequest["purpose"])}
+                        onChange={(e) =>
+                            changeInput("purpose", e.target.value as GenerationRequest["purpose"])
+                        }
                     >
                         <option>CASE_DRAFT</option>
                         <option>BOUNDARY_SUGGESTION</option>
@@ -455,18 +492,16 @@ export function AiWorkspaceView({
                         data-testid="ai-prompt"
                         maxLength={16000}
                         value={prompt}
-                        onChange={(e) => setPrompt(e.target.value)}
+                        onChange={(e) => changeInput("prompt", e.target.value)}
                     />
                 </label>
-                {(["versions", "resource", "run"] as const).map((k, i) => (
-                    <label key={k}>
-                        {t(k)}
+                {(["versions", "resourceId", "runId"] as const).map((field, i) => (
+                    <label key={field}>
+                        {t((["versions", "resource", "run"] as const)[i]!)}
                         <input
-                            data-testid={"ai-" + k}
-                            value={[versions, resourceId, runId][i]}
-                            onChange={(e) =>
-                                [setVersions, setResourceId, setRunId][i]!(e.target.value)
-                            }
+                            data-testid={"ai-" + (["versions", "resource", "run"] as const)[i]}
+                            value={inputs[field]}
+                            onChange={(e) => changeInput(field, e.target.value)}
                         />
                     </label>
                 ))}
@@ -475,7 +510,7 @@ export function AiWorkspaceView({
                     <textarea
                         data-testid="ai-openapi"
                         value={openapi}
-                        onChange={(e) => setOpenapi(e.target.value)}
+                        onChange={(e) => changeInput("openapi", e.target.value)}
                     />
                 </label>
                 <label>
@@ -483,7 +518,7 @@ export function AiWorkspaceView({
                     <textarea
                         data-testid="ai-data"
                         value={data}
-                        onChange={(e) => setData(e.target.value)}
+                        onChange={(e) => changeInput("data", e.target.value)}
                     />
                 </label>
                 <details>
@@ -498,7 +533,8 @@ export function AiWorkspaceView({
                                     <button
                                         type="button"
                                         onClick={() =>
-                                            setVersions(
+                                            changeInput(
+                                                "versions",
                                                 [
                                                     ...new Set([
                                                         ...versions.split(",").filter(Boolean),
@@ -512,7 +548,10 @@ export function AiWorkspaceView({
                                     </button>
                                 )}
                                 {r.kind === "CASE" && (
-                                    <button type="button" onClick={() => setResourceId(r.id)}>
+                                    <button
+                                        type="button"
+                                        onClick={() => changeInput("resourceId", r.id)}
+                                    >
                                         {t("target")}
                                     </button>
                                 )}
@@ -533,8 +572,11 @@ export function AiWorkspaceView({
                             const req = makeRequest();
                             const p = await adapter.preview(req, signal);
                             if (signal.aborted) return;
-                            setPreview(p);
-                            setReviewedRequest({ ...req, contextHash: p.contextHash });
+                            setRequestState((current) => ({
+                                ...current,
+                                preview: p,
+                                reviewedRequest: { ...req, contextHash: p.contextHash },
+                            }));
                         })
                     }
                 >
@@ -562,7 +604,10 @@ export function AiWorkspaceView({
                                 .then(async (g) => {
                                     if (!signal.aborted) {
                                         setGeneration(g);
-                                        setReviewedRequest(undefined);
+                                        setRequestState((current) => ({
+                                            ...current,
+                                            reviewedRequest: undefined,
+                                        }));
                                         await refresh();
                                     }
                                 })
