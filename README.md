@@ -8,7 +8,7 @@
 
 Mac Runtime 的输入核验、有界归档和完整静态候选组装已通过组件复审，包含实际 stage CLI、来源记录与最终路径校验。固定官方 Node/Chrome 获取与观测工具在 `a245535` 的 macOS 15 Intel/ARM 流水线均已完成完整扫描；两份证据的源码绑定、原始 Unix 模式和 Framework 链接事实已独立复核，见[资产观测说明](docs/specs/runtime-assets-observation.md)。`6ef86c1` 随后补齐三处 ZIP 消费者的有限关闭结算、首错保留和未知关闭现场保留，214 项受影响回归及全新独立审查通过。真实依赖生产、实际提取、二进制执行、Electron 插件装载、安装及系统凭据验收仍待完成，未生成批准的 Expected 或 ready。注释审计坐标、Web 按钮类型、会话/列表响应归属及两项退出时序问题已完成源码修正及复审；本地真实认证回归通过，完整锁定依赖和全局会话生命周期仍待 CI 与后续验收。全仓质量与完整 UI 验收仍未通过，详见[里程碑](docs/plans/milestones.md)。
 
-Node 原始内容提取与 npm 物理包实例索引组件已在 `68875bb` / `88398c9` 完成源码修正及独立复审，44 项受影响测试通过；目前产物仍为私有静态材料，真实双 Mac 官方归档消费、可执行布局与完整依赖生产尚未验收。最新 `eb3f7b7` CI 已确认前端剩 34 项错误，双 Mac 业务验证各有 1 项 `INVALID_LEASE` 失败，其夹具时钟已由 `218271c` 修正，15 项受影响测试及独立复审通过，原生复验待完成；完整发行仍未通过。Mac Bundle ID 固定为 `io.github.baofengbaofeng.veriq`；Runtime 私有钥匙串的独立 GitHub 临时 Mac 验收路由已由 `75fed42` 实现并通过安全、规格和质量复审，39 项本地路由/证据检查通过；实际双架构运行结果待补充。
+Node 原始内容提取与 npm 物理包实例索引组件已在 `68875bb` / `88398c9` 完成源码修正及独立复审，44 项受影响测试通过；目前产物仍为私有静态材料，真实双 Mac 官方归档消费、可执行布局与完整依赖生产尚未验收。`eb3f7b7` 完整 CI 仍有 34 项前端错误；租约夹具经 `218271c` 修正后，`16b0ff4` 的双 Mac 原生业务验证各 26 项全部通过。Mac Bundle ID 固定为 `io.github.baofengbaofeng.veriq`。独立临时 VM 的私有 Keychain 验收路由与 GitHub 表达式修正已复审；`2ce2de9` 的诊断源码经独立审查，并在双 Mac 实际编译运行：各 7 项非持久测试通过，2 项专用测试均在 Keychain 创建和路径校验成功后的文件属性校验处拒绝，具体属性原因仍待核实，删除清理尚不能确认。完整凭据、Cookie、安装和发行验收仍未通过。
 
 仓库当前已落地 `apps/srv`（Tornado 控制服务）、`apps/web`（React 管理台）、`apps/runtime`（Agent/CLI/离线执行）、`packages/{contracts,compiler,runner-sdk,ui}`；`apps/desktop` 已包含 main/preload/renderer、本地打包界面和独立 Agent 入口。首发桌面范围已加入 Mac Intel x64 与 Apple Silicon arm64，优先级高于仍需交付的 Windows/Ubuntu；Mac 原生适配与安装验收尚未完成，见 [Mac 范围与兼容性记录](docs/specs/macos-mvp-scope.md)。贡献与智能体须遵循根目录 `AGENTS.md` 中的编码规范（4 空格缩进、中文注释、英文日志等）。
 
