@@ -3,6 +3,7 @@ import { crc32 } from "node:zlib";
 import { finished } from "node:stream/promises";
 import { fromFdPromise, type Entry, type ZipFile } from "yauzl";
 import type { Readable } from "node:stream";
+import type { EventEmitter } from "node:events";
 import { RuntimePayloadError } from "./runtime-payload-inputs.ts";
 import {
     attachArchiveRejection,
@@ -10,6 +11,85 @@ import {
     type ArchiveScan,
     type ArchiveRejectionFacts,
 } from "./runtime-payload-archive.ts";
+import { type ArchiveTransaction, controlledIoFailure } from "./runtime-payload-transaction.ts";
+
+/** 三个 ZIP 消费者共用这份有限结算状态，计时只从首次关闭请求开始且在终态清除；Promise 永不提前拒绝，未知结果先粘住事务归属，随后由调用者保留已有首错或生成受控关闭错误。 */
+function closeSettlement(tx: ArchiveTransaction) {
+    let requested = false,
+        terminal = false,
+        failure: unknown,
+        timer: ReturnType<typeof setTimeout> | undefined;
+    let resolve!: (confirmed: boolean) => void;
+    const outcome = new Promise<boolean>((done) => {
+        resolve = done;
+    });
+    const finish = (confirmed: boolean) => {
+        if (terminal) return;
+        terminal = true;
+        clearTimeout(timer);
+        if (!confirmed) tx.noteCloseFailure();
+        resolve(confirmed);
+    };
+    const error = (value: unknown) => {
+        failure ??= value;
+        if (requested) finish(false);
+    };
+    return {
+        error,
+        confirm: () => finish(true),
+        failure: () => failure,
+        request(action: () => void) {
+            if (requested || terminal) return;
+            requested = true;
+            // yauzl 已发首个解析错误后可能压掉关闭回调的第二个错误，必须用实际持活的私有期限结束未知等待；它只证明五秒内没有关闭确认，绝不推断数字 FD 已释放或重试关闭。
+            timer = setTimeout(() => finish(false), 5000);
+            try {
+                action();
+            } catch (value) {
+                error(value);
+            }
+        },
+        async wait() {
+            if (await outcome) return;
+            const known = controlledIoFailure(failure);
+            tx.fail(known?.code ?? "PAYLOAD_IO", "INCOMPLETE", known?.causeCode ?? null);
+        },
+    };
+}
+
+/** 此内部工具仅供既有 ZIP 扫描及两个元数据消费者共享生命周期，必须在注册取消或请求读取之前安装；读取错误先保存，只有 close 事件证明关闭，迟到错误仍被消费且不能改写已经结算的未知事实。 */
+export function trackZipClosure(
+    zip: Pick<ZipFile, "close" | "isOpen"> & Pick<EventEmitter, "on">,
+    tx: ArchiveTransaction,
+) {
+    const settlement = closeSettlement(tx);
+    zip.on("error", settlement.error);
+    zip.on("close", settlement.confirm);
+    const request = () =>
+        settlement.request(() => {
+            if (zip.isOpen) zip.close();
+        });
+    return {
+        request,
+        failure: settlement.failure,
+        async settle() {
+            request();
+            await settlement.wait();
+        },
+    };
+}
+
+/** 初始化未成功移交给 yauzl 的描述符仍由当前消费者拥有，直接关闭也使用同一有限结算；回调错误或缺失会先保留事务，迟到回调不重新解释终态，更不会按可能复用的数字描述符再次关闭。 */
+export async function closeUntransferredZipFd(fd: number, tx: ArchiveTransaction) {
+    const settlement = closeSettlement(tx);
+    settlement.request(() =>
+        close(fd, (error) => {
+            if (error) settlement.error(error);
+            else settlement.confirm();
+        }),
+    );
+    await settlement.wait();
+}
 
 /** ZIP 范围检查只消费公开的 local header offset、dataStart 与 central compressedSize，保证文件边界和各 local/data 区间互斥；不读取私有 cursor 或自造 EOCD、ZIP64 与 descriptor 解释器，因此不会声称验证公开 API 无法证明的全域语法。 */
 export class ZipRanges {
@@ -51,14 +131,14 @@ export async function scanZip(path: string, scan: ArchiveScan, fileSize: number)
     );
     let zip: ZipFile | undefined,
         stream: Readable | undefined,
-        zipFailure: unknown,
-        closed: Promise<unknown> | undefined;
+        closure: ReturnType<typeof trackZipClosure> | undefined,
+        failed = false;
     const ranges = new ZipRanges();
     let metadata = 0,
         count = 0;
     const abort = () => {
         stream?.destroy(new RuntimePayloadError("PAYLOAD_CANCELLED"));
-        zip?.close();
+        closure?.request();
     };
     try {
         const size = await new Promise<number>((resolve, reject) =>
@@ -72,10 +152,7 @@ export async function scanZip(path: string, scan: ArchiveScan, fileSize: number)
             validateEntrySizes: true,
         });
         fd = undefined;
-        zip.on("error", (error: unknown) => {
-            zipFailure ??= error;
-        });
-        closed = new Promise<void>((resolve) => zip!.once("close", resolve));
+        closure = trackZipClosure(zip, scan.tx);
         scan.tx.signal?.addEventListener("abort", abort, { once: true });
         while (true) {
             scan.tx.check();
@@ -224,11 +301,12 @@ export async function scanZip(path: string, scan: ArchiveScan, fileSize: number)
                 await completion.catch(() => {});
                 stream = undefined;
             }
-            if (zipFailure) throw zipFailure;
+            if (closure.failure()) throw closure.failure();
         }
-        if (zipFailure) throw zipFailure;
+        if (closure.failure()) throw closure.failure();
         await scan.finish();
     } catch (error) {
+        failed = true;
         if (error instanceof RuntimePayloadError) throw error;
         if (scan.tx.signal?.aborted) scan.tx.fail("PAYLOAD_CANCELLED");
         scan.tx.fail("PAYLOAD_ARCHIVE_FORMAT");
@@ -238,13 +316,12 @@ export async function scanZip(path: string, scan: ArchiveScan, fileSize: number)
             stream.destroy();
             await finished(stream).catch(() => {});
         }
-        if (zip) {
-            if (zip.isOpen) zip.close();
-            await closed;
-        } else if (fd !== undefined)
-            await new Promise<void>((resolve, reject) =>
-                close(fd!, (error) => (error ? reject(error) : resolve())),
-            );
+        try {
+            if (closure) await closure.settle();
+            else if (fd !== undefined) await closeUntransferredZipFd(fd, scan.tx);
+        } catch (error) {
+            if (!failed) throw error;
+        }
     }
 }
 /** 每次 central 准入都同时监听结束、错误和当前 entry，并在任何结果后移除另外两个监听；不预读下一成员或访问库私有游标，异步关闭和取消由同一拥有者负责，不遗留会被下一次请求误消费的事件处理器。 */

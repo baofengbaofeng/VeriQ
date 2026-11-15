@@ -6,7 +6,7 @@ import {
 } from "./runtime-payload-inputs.ts";
 import { canonicalBytes } from "@veriq/contracts";
 import { createHash } from "node:crypto";
-import { constants, open as openFd, close as closeFd } from "node:fs";
+import { constants, open as openFd } from "node:fs";
 import { open } from "node:fs/promises";
 import { dirname, basename, join, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,7 +29,7 @@ import {
     type ArchiveMember,
 } from "./runtime-payload-archive.ts";
 import { scanTar } from "./runtime-payload-tar.ts";
-import { scanZip } from "./runtime-payload-zip.ts";
+import { scanZip, trackZipClosure, closeUntransferredZipFd } from "./runtime-payload-zip.ts";
 
 /** 固定版本描述只表示本次开发观察的有限下载约束，Node 原摘要来自保存的 HTTPS 校验文本而 Chrome 只有观察长度；这里不接收镜像、版本及信任覆盖，任何来源变化必须重新取得证据并独立审阅。 */
 export const OFFICIAL_ASSETS = freeze({
@@ -564,11 +564,11 @@ async function zipModes(
         constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
     );
     let zip: ZipFile | undefined,
-        closed: Promise<void> | undefined,
+        closure: ReturnType<typeof trackZipClosure> | undefined,
         primary: unknown,
         fd: number | undefined;
     let handleClosed = false;
-    const abort = () => zip?.close();
+    const abort = () => closure?.request();
     try {
         const hash = createHash("sha256");
         let size = 0;
@@ -599,11 +599,7 @@ async function zipModes(
             validateEntrySizes: true,
         });
         fd = undefined;
-        closed = new Promise((resolve) => zip!.once("close", resolve));
-        let failure: unknown;
-        zip.on("error", (error) => {
-            failure ??= error;
-        });
+        closure = trackZipClosure(zip, tx);
         tx.signal?.addEventListener("abort", abort, { once: true });
         const modes: RawZipMode[] = [];
         let metadata = 0;
@@ -668,7 +664,7 @@ async function zipModes(
                         : "MISSING_OR_DOS",
             });
         }
-        if (failure || modes.length !== members.length) tx.fail("PAYLOAD_ARCHIVE_FORMAT");
+        if (closure.failure() || modes.length !== members.length) tx.fail("PAYLOAD_ARCHIVE_FORMAT");
         return modes.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
     } catch (error) {
         primary = error;
@@ -677,13 +673,9 @@ async function zipModes(
     } finally {
         tx.signal?.removeEventListener("abort", abort);
         try {
-            if (zip?.isOpen) zip.close();
-            if (closed) await closed;
+            if (closure) await closure.settle();
             if (!handleClosed) await handle.close();
-            if (fd !== undefined)
-                await new Promise<void>((resolve, reject) =>
-                    closeFd(fd!, (error) => (error ? reject(error) : resolve())),
-                );
+            if (fd !== undefined) await closeUntransferredZipFd(fd, tx);
         } catch (error) {
             tx.noteCloseFailure();
             if (!primary) throw error;

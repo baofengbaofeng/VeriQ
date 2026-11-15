@@ -1277,3 +1277,249 @@ for (const scenario of [
         });
     });
 }
+
+/** 真实子进程只包装精确 owned 快照的单次关闭回调，实际系统关闭成功后才注入 EIO；父进程等待自然终止并记录保留目录之后才删除自己的夹具，十秒看门狗只能判失败，不能替生产结算。 */
+for (const scenario of [
+    "normal",
+    "close-eio",
+    "crc-eio",
+    "parser-eio",
+    "init-eio",
+    "unsupported-eio",
+    "cancel-eio",
+    "read-eio",
+    "crc-normal",
+    "parser-normal",
+])
+    test(`finite ZIP close archive ${scenario}`, async (t) => {
+        const { spawnSync } = await import("node:child_process");
+        const { mkdtemp, rm, lstat, readdir } = await import("node:fs/promises");
+        const { tmpdir } = await import("node:os");
+        const root = await mkdtemp(join(tmpdir(), "veriq-zip-close-"));
+        try {
+            const child = spawnSync(
+                process.execPath,
+                [
+                    "--import",
+                    "tsx",
+                    "--input-type=module",
+                    "-e",
+                    String.raw`
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
+import { mkdir, lstat, readdir, readFile, statfs } from "node:fs/promises";
+import { join } from "node:path";
+import { ArchiveTransaction } from "./scripts/runtime-payload-transaction.ts";
+import { ArchiveScan, ArchiveBudget, archiveRejectionLine } from "./scripts/runtime-payload-archive.ts";
+import { scanZip } from "./scripts/runtime-payload-zip.ts";
+import { zipBytes } from "./tests/fixtures/runtime-payload-archives.ts";
+import { hash } from "./tests/fixtures/runtime-payload.ts";
+const root = process.env.VERIQ_ZIP_CLOSE_ROOT, scenario = process.env.VERIQ_ZIP_CLOSE_CASE;
+const output = join(root, "output"), input = join(root, "input");
+await mkdir(output, { mode: 0o700 });
+await mkdir(input, { mode: 0o700 });
+const space = await statfs(root, { bigint: true });
+assert.ok(space.bavail * space.bsize > 40n * 1024n ** 2n);
+const emit = (event, facts = {}) => console.log(JSON.stringify({ event, scenario, ...facts }));
+process.on("unhandledRejection", error => { emit("UNHANDLED_REJECTION", { message: String(error) }); process.exitCode = 91; });
+let target, expected, captured, calls = 0, opens = 0, injected = false, primary, tx;
+const controller = new AbortController();
+const originalOpen = fs.open, originalClose = fs.close, originalRead = fs.read;
+const identity = info => ({ dev: String(info.dev), ino: String(info.ino), size: String(info.size), nlink: String(info.nlink) });
+const matches = info => info.isFile() && info.dev === expected.dev && info.ino === expected.ino && info.size === expected.size && info.nlink === 1n;
+const restore = () => { fs.open = originalOpen; fs.close = originalClose; fs.read = originalRead; syncBuiltinESMExports(); };
+const install = (select, occurrence) => {
+    fs.open = function(path, ...args) {
+        if (!select(String(path)) || ++opens !== occurrence) return originalOpen.call(this, path, ...args);
+        target = String(path);
+        expected = fs.lstatSync(target, { bigint: true });
+        assert.ok(expected.isFile() && expected.nlink === 1n && expected.size <= 1024n ** 2n);
+        const callback = args.pop();
+        return originalOpen.call(this, path, ...args, (error, fd) => {
+            if (error) return callback(error, fd);
+            assert.ok(matches(fs.fstatSync(fd, { bigint: true })));
+            captured = fd;
+            emit("CAPTURE", { path: target, fd, identity: identity(expected) });
+            callback(null, fd);
+        });
+    };
+    fs.close = function(fd, callback) {
+        if (fd !== captured) return originalClose.call(this, fd, callback);
+        assert.equal(++calls, 1);
+        assert.ok(matches(fs.fstatSync(fd, { bigint: true })));
+        originalClose(fd, error => {
+            assert.ifError(error);
+            restore();
+            emit("ACTUAL_CLOSE", { calls, identity: identity(expected) });
+            if (scenario.endsWith("normal")) callback(null);
+            else { injected = true; callback(Object.assign(Error("OWNED_CLOSE_FAULT"), { code: "EIO" })); }
+        });
+    };
+    fs.read = function(fd, ...args) {
+        if (fd === captured && args[2] === 2018 && !injected && (scenario === "read-eio" || scenario === "cancel-eio")) {
+            injected = true;
+            if (scenario === "cancel-eio") controller.abort();
+            else { queueMicrotask(() => args.at(-1)(Object.assign(Error("OWNED_READ_FAULT"), { code: "EIO" }))); return; }
+        }
+        return originalRead.call(this, fd, ...args);
+    };
+    syncBuiltinESMExports();
+};
+const retain = async () => {
+    assert.equal(hash(await readFile(target)), snapshotHash);
+    const files = await readdir(output, { recursive: true });
+    assert.ok(files.some(path => path.endsWith(".lock")));
+    assert.ok(files.some(path => path.endsWith("snapshots/chrome.zip")));
+    emit("RETAINED", { target, identity: identity(await lstat(target, { bigint: true })), files });
+};
+let snapshotHash;
+
+const body = "s".repeat(2018), top = "chrome-mac-x64";
+const bytes = zipBytes([{ path: top + "/item", body }], 0);
+if (scenario === "crc-eio" || scenario === "crc-normal") bytes[30 + bytes.readUInt16LE(26) + bytes.readUInt16LE(28) + 5] ^= 1;
+if (scenario === "parser-eio" || scenario === "parser-normal") bytes.writeUInt32LE(0, bytes.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02])));
+if (scenario === "init-eio") bytes.writeUInt32LE(0, bytes.length - 22);
+if (scenario === "unsupported-eio") { bytes.writeUInt16LE(9, 8); bytes.writeUInt16LE(9, bytes.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02])) + 10); }
+assert.ok(bytes.length <= 1024 ** 2);
+tx = new ArchiveTransaction(input, output, "candidate", controller.signal);
+await tx.initialize();
+const ref = await tx.write("snapshots/chrome.zip", (async function*() { yield bytes; })());
+await tx.audit();
+snapshotHash = ref.sha256;
+const fail = tx.fail.bind(tx);
+tx.fail = (...args) => { try { return fail(...args); } catch (error) { primary ??= error; throw error; } };
+const scan = new ArchiveScan("chrome", top, tx, new ArchiveBudget());
+const entry = scan.entry.bind(scan);
+scan.entry = async (...args) => {
+    try { return await entry(...args); }
+    catch (error) { if (scenario === "cancel-eio") primary ??= error; throw error; }
+};
+const destination = join(tx.scratch, ref.path);
+install(path => path === destination, 1);
+emit("SETUP_RESOLVED");
+const started = performance.now();
+try {
+    await scanZip(destination, scan, ref.sizeBytes);
+    assert.equal(scenario, "normal");
+    assert.equal(scan.members[0].sha256, hash(Buffer.from(body)));
+    assert.equal(await tx.cleanup(), "CONFIRMED");
+    emit("SETTLED", { outcome: "success", cleanup: "CONFIRMED" });
+} catch (error) {
+    assert.notEqual(scenario, "normal");
+    if (scenario === "parser-eio") assert.ok(performance.now() - started >= 4900);
+    const code = scenario.startsWith("crc") ? "PAYLOAD_ARCHIVE_CRC" : scenario === "cancel-eio" ? "PAYLOAD_CANCELLED" : scenario === "unsupported-eio" ? "PAYLOAD_ARCHIVE_UNSUPPORTED" : scenario === "close-eio" ? "PAYLOAD_IO" : "PAYLOAD_ARCHIVE_FORMAT";
+    assert.equal(error.code, code);
+    assert.equal(error, primary);
+    assert.equal(error.phase, scenario === "cancel-eio" ? "INPUTS" : "INTAKE");
+    assert.equal(error.causeCode, scenario === "close-eio" ? "EIO" : null);
+    const diagnostic = archiveRejectionLine(error);
+    if (scenario === "unsupported-eio") assert.ok(diagnostic?.includes("ZIP_METHOD_FLAGS"));
+    const cleanup = await tx.cleanup();
+    assert.equal(cleanup, scenario.endsWith("normal") ? "CONFIRMED" : "INCOMPLETE");
+    if (cleanup === "INCOMPLETE") await retain();
+    emit("SETTLED", { outcome: "rejected", code: error.code, causeCode: error.causeCode, phase: error.phase, cleanup, diagnostic, samePrimary: error === primary });
+} finally { restore(); }
+assert.equal(calls, 1);
+`,
+                ],
+                {
+                    encoding: "utf8",
+                    timeout: 10000,
+                    env: {
+                        ...process.env,
+                        TMPDIR: root,
+                        TSX_DISABLE_CACHE: "1",
+                        VERIQ_ZIP_CLOSE_ROOT: root,
+                        VERIQ_ZIP_CLOSE_CASE: scenario,
+                    },
+                },
+            );
+            const paths = ["", ...(await readdir(root, { recursive: true }))];
+            const facts = await Promise.all(
+                paths.map(async (path) => {
+                    const info = await lstat(join(root, path));
+                    return {
+                        path,
+                        allocatedBytes: info.blocks * 512,
+                        ino: info.ino,
+                        sizeBytes: info.size,
+                    };
+                }),
+            );
+            t.diagnostic(
+                JSON.stringify({
+                    scenario,
+                    status: child.status,
+                    signal: child.signal,
+                    stdout: child.stdout,
+                    stderr: child.stderr,
+                    retainedAfterExit: facts,
+                }),
+            );
+            assert.ok(facts.reduce((sum, item) => sum + item.allocatedBytes, 0) <= 2 * 1024 ** 2);
+            assert.match(child.stdout, /SETUP_RESOLVED/);
+            assert.doesNotMatch(child.stdout + child.stderr, /UNHANDLED_REJECTION/);
+            assert.equal(child.status, 0, child.stdout + child.stderr);
+            assert.equal(child.signal, null);
+            assert.match(child.stdout, /SETTLED/);
+            assert.equal(child.stderr, "");
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
+    });
+
+/** 公开事件顺序测试只检验共享结算器的记忆和终态粘性，不冒充真实文件描述符证据；提前 close、先读错后确认、关闭重入及迟到重复事件均使用真实事务 cleanup 判断是否错误释放了所属目录。 */
+for (const order of [
+    "already-closed",
+    "read-error-confirmed",
+    "error-late-close",
+    "duplicate-error",
+])
+    test(`finite ZIP lifecycle ${order}`, async () => {
+        const { EventEmitter } = await import("node:events");
+        const { ArchiveTransaction } = await import("../scripts/runtime-payload-transaction.ts");
+        const { trackZipClosure } = await import("../scripts/runtime-payload-zip.ts");
+        const root = await mkdtemp(join(tmpdir(), "veriq-close-order-"));
+        const input = join(root, "input"),
+            output = join(root, "output");
+        await mkdir(input);
+        await mkdir(output);
+        const tx = new ArchiveTransaction(input, output, "candidate");
+        await tx.initialize();
+        const first = Object.assign(new Error("FIRST_CLOSE_ERROR"), { code: "EIO" });
+        let calls = 0;
+        const zip = Object.assign(new EventEmitter(), {
+            isOpen: true,
+            close() {
+                calls++;
+                this.isOpen = false;
+                zip.emit(order.endsWith("confirmed") ? "close" : "error", first);
+            },
+        });
+        const closure = trackZipClosure(zip, tx);
+        try {
+            if (order === "already-closed") zip.emit("close");
+            if (order === "read-error-confirmed") zip.emit("error", first);
+            if (order === "already-closed" || order === "read-error-confirmed") {
+                await closure.settle();
+                assert.equal(await tx.cleanup(), "CONFIRMED");
+                assert.equal(calls, order === "already-closed" ? 0 : 1);
+            } else {
+                closure.request();
+                if (order === "duplicate-error")
+                    zip.emit("error", Object.assign(new Error("SECOND_ERROR"), { code: "EBADF" }));
+                await assert.rejects(closure.settle(), { code: "PAYLOAD_IO", causeCode: "EIO" });
+                assert.equal(closure.failure(), first);
+                assert.equal(await tx.cleanup(), "INCOMPLETE");
+                zip.emit("close");
+                zip.emit("error", new Error("LATE_ERROR"));
+                await assert.rejects(closure.settle(), { code: "PAYLOAD_IO", causeCode: "EIO" });
+                assert.equal(await tx.cleanup(), "INCOMPLETE");
+                await lstat(tx.scratch);
+                assert.equal(calls, 1);
+            }
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
+    });
