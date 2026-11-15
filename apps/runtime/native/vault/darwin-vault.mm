@@ -1,5 +1,8 @@
 /** Mac 文件型保险库辅助程序每次只处理一条现有 V1 请求并持有一次选定的钥匙串引用，所有身份、权限和二进制长度检查均在返回秘密之前完成；它不负责安装授权、用户界面或既有档案的密钥替换决策。 */
 #include "darwin-acl.hpp"
+#ifdef VERIQ_VAULT_TESTING
+#include "darwin-read-evidence.hpp"
+#endif
 #include <Security/AuthSession.h>
 #include <cerrno>
 #include <csignal>
@@ -35,11 +38,20 @@ NSString *account(const std::string &profile, const std::string &version) {
 }
 
 /** Base64 转换复用 Foundation 的成熟实现，URL 字母替换之后重编码核对全部文本并严格限定三十二字节；任何非规范尾位、填充、字符或长度在接触 Security 之前拒绝，不自行实现编码器或密码算法。 */
-std::string encode(const uint8_t *bytes) {
+std::string encode(const uint8_t *bytes
+#ifdef VERIQ_VAULT_TESTING
+    , test::ReadEvidence *observation = nullptr
+#endif
+) {
     NSString *encoded = [[NSData dataWithBytes:bytes length:32] base64EncodedStringWithOptions:0];
     encoded = [[encoded stringByReplacingOccurrencesOfString:@"+" withString:@"-"] stringByReplacingOccurrencesOfString:@"/" withString:@"_"];
     encoded = [encoded stringByReplacingOccurrencesOfString:@"=" withString:@""];
+#ifdef VERIQ_VAULT_TESTING
+    const bool valid = encoded && [encoded lengthOfBytesUsingEncoding:NSASCIIStringEncoding] == 43;
+    require(observation ? observation->predicate(test::ReadPhase::ENCODING, valid) : valid);
+#else
     require(encoded && [encoded lengthOfBytesUsingEncoding:NSASCIIStringEncoding] == 43);
+#endif
     return encoded.UTF8String;
 }
 /** 解码入口要求精确长度和 URL 安全字母表，Foundation 返回的字节还必须是三十二字节且重编码完全相等；验证失败时传入的作用域缓冲仍由析构覆盖，非规范尾位不能通过宽松的系统解码器进入存储请求。 */
@@ -149,40 +161,52 @@ SecKeychainRef testStore(NSDictionary *config) {
 }
 
 /** 只有专用控制器启动的测试编译目标可以执行此只读检查，它读取同一自有存储中精确条目的真实三十二字节值；这里故意独立于被测 ACL 检查器，以证明拒绝前后材料未变，但仍由系统 ACL 授权且禁止提示和修改。 */
-std::string inspectValue(SecKeychainRef keychain, NSString *name) {
+std::string inspectValue(SecKeychainRef keychain, NSString *name, test::ReadEvidence &observation) {
     NSMutableDictionary *request = query(keychain, name);
     request[(__bridge id)kSecReturnData] = @YES;
     request[(__bridge id)kSecMatchLimit] = (__bridge id)kSecMatchLimitAll;
     Owned<CFTypeRef> result;
-    require(SecItemCopyMatching((__bridge CFDictionaryRef)request, &result.value) == errSecSuccess);
-    require(result.value && CFGetTypeID(result.value) == CFArrayGetTypeID());
+    observation.step(test::ReadPhase::READ);
+    require(observation.status(test::ReadPhase::READ, SecItemCopyMatching((__bridge CFDictionaryRef)request, &result.value)) == errSecSuccess);
+    observation.step(test::ReadPhase::ARRAY);
+    require(observation.predicate(test::ReadPhase::ARRAY, result.value && CFGetTypeID(result.value) == CFArrayGetTypeID()));
     CFArrayRef values = static_cast<CFArrayRef>(result.value);
-    require(CFArrayGetCount(values) == 1);
+    observation.step(test::ReadPhase::UNIQUE);
+    require(observation.predicate(test::ReadPhase::UNIQUE, CFArrayGetCount(values) == 1));
     CFTypeRef data = CFArrayGetValueAtIndex(values, 0);
-    require(data && CFGetTypeID(data) == CFDataGetTypeID() && CFDataGetLength(static_cast<CFDataRef>(data)) == 32);
-    SecretText encoded(encode(CFDataGetBytePtr(static_cast<CFDataRef>(data))));
+    observation.step(test::ReadPhase::DATA32);
+    require(observation.predicate(test::ReadPhase::DATA32, data && CFGetTypeID(data) == CFDataGetTypeID() && CFDataGetLength(static_cast<CFDataRef>(data)) == 32));
+    observation.step(test::ReadPhase::ENCODING);
+    SecretText encoded(encode(CFDataGetBytePtr(static_cast<CFDataRef>(data)), &observation));
     std::string response = "V1 ok " + encoded.value + "\n";
+    observation.step(test::ReadPhase::DONE);
     return response;
 }
 
 /** 专用拒绝观察直接向系统请求精确条目的秘密数据，不经过生产策略验证器，前后均查询同一实际引用的解锁状态；只有明确授权拒绝或禁止交互错误算拒绝，私有控制端仅发送布尔事实，意外读到的数据不编码或输出。 */
-std::string observeReadDenial(SecKeychainRef keychain, NSString *name) {
+std::string observeReadDenial(SecKeychainRef keychain, NSString *name, test::ReadEvidence &observation) {
+    observation.step(test::ReadPhase::CHANNEL);
     struct stat channel {};
     require(fstat(4, &channel) == 0 && S_ISSOCK(channel.st_mode));
     NSMutableDictionary *request = query(keychain, name);
     request[(__bridge id)kSecReturnData] = @YES;
     request[(__bridge id)kSecMatchLimit] = (__bridge id)kSecMatchLimitAll;
     SecKeychainStatus before = 0, after = 0;
-    const OSStatus beforeError = SecKeychainGetStatus(keychain, &before);
+    observation.step(test::ReadPhase::BEFORE);
+    const OSStatus beforeError = observation.status(test::ReadPhase::BEFORE, SecKeychainGetStatus(keychain, &before));
     Owned<CFTypeRef> result;
-    const OSStatus error = SecItemCopyMatching((__bridge CFDictionaryRef)request, &result.value);
-    const OSStatus afterError = SecKeychainGetStatus(keychain, &after);
+    observation.step(test::ReadPhase::READ);
+    const OSStatus error = observation.status(test::ReadPhase::READ, SecItemCopyMatching((__bridge CFDictionaryRef)request, &result.value));
+    observation.step(test::ReadPhase::AFTER);
+    const OSStatus afterError = observation.status(test::ReadPhase::AFTER, SecKeychainGetStatus(keychain, &after));
     const bool denied = error == errSecAuthFailed || error == errSecInteractionNotAllowed || error == errSecInteractionRequired;
     const char facts[] = {
         beforeError == errSecSuccess && (before & kSecUnlockStateStatus) ? 'U' : 'F',
         denied ? 'D' : 'F',
         afterError == errSecSuccess && (after & kSecUnlockStateStatus) ? 'U' : 'F'
     };
+    observation.unlocked(facts[0] == 'U', facts[2] == 'U');
+    observation.emit();
     require(write(4, facts, sizeof(facts)) == sizeof(facts));
     return "V1 " + status(keychain, error) + "\n";
 }
@@ -203,6 +227,7 @@ void raceBarrier() {
 std::string execute(const std::vector<std::string> &parts, Secret &incoming) {
 #ifdef VERIQ_VAULT_TESTING
     NSDictionary *configuration = testConfiguration();
+    test::ReadEvidence observation(configuration);
     if ([configuration[@"mode"] isEqual:@"gate"]) {
         const char ready[] = "V1 test-ready\n";
         require(write(STDOUT_FILENO, ready, sizeof(ready) - 1) == sizeof(ready) - 1);
@@ -213,9 +238,13 @@ std::string execute(const std::vector<std::string> &parts, Secret &incoming) {
 #endif
     if ([configuration[@"mode"] isEqual:@"validate"]) return "V1 ok\n";
 #endif
+#ifdef VERIQ_VAULT_TESTING
+    observation.step(test::ReadPhase::NO_UI);
+#endif
     NoUI noUI;
     Owned<SecKeychainRef> keychain;
 #ifdef VERIQ_VAULT_TESTING
+    observation.step(test::ReadPhase::STORE);
     keychain.value = testStore(configuration);
     OSStatus error = errSecSuccess;
 #else
@@ -224,19 +253,29 @@ std::string execute(const std::vector<std::string> &parts, Secret &incoming) {
     if (error != errSecSuccess || !keychain.value) return "V1 " + status(keychain.value, error) + "\n";
     try {
         SecKeychainStatus state = 0;
+#ifdef VERIQ_VAULT_TESTING
+        observation.step(test::ReadPhase::STATUS);
+#endif
         error = SecKeychainGetStatus(keychain.value, &state);
         if (error != errSecSuccess || !(state & kSecUnlockStateStatus)) return "V1 " + status(keychain.value, error) + "\n";
+#ifdef VERIQ_VAULT_TESTING
+        observation.step(test::ReadPhase::PERMISSION);
+#endif
         if (!(state & kSecReadPermStatus)) return "V1 failed\n";
         if (parts[1] == "probe") return "V1 ready\n";
+#ifdef VERIQ_VAULT_TESTING
+        observation.step(test::ReadPhase::ACCOUNT);
+#endif
         NSString *name = account(parts[2], parts[3]);
 #ifdef VERIQ_VAULT_TESTING
+        observation.step(test::ReadPhase::DISPATCH);
         if ([configuration[@"observeReadDenial"] isEqual:@YES]) {
             require(parts[1] == "get");
-            return observeReadDenial(keychain.value, name);
+            return observeReadDenial(keychain.value, name, observation);
         }
         if ([configuration[@"inspection"] isEqual:@YES]) {
             require(parts[1] == "get");
-            return inspectValue(keychain.value, name);
+            return inspectValue(keychain.value, name, observation);
         }
 #endif
         Owned<SecAccessRef> expected(restrictedAccess());

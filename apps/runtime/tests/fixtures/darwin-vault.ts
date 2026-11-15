@@ -175,12 +175,19 @@ const diagnosticSignals = ["SIGKILL", "SIGTERM", "SIGABRT", "SIGSEGV", "SIGPIPE"
 type DiagnosticFailure = (typeof diagnosticFailures)[number];
 type DiagnosticRecord = {
     schemaVersion: 1;
-    stage: (typeof diagnosticStages)[number] | "OP";
+    stage: (typeof diagnosticStages)[number] | "OP" | "HR";
     nativeOperation?: "seed" | "read-denial";
     substage?: string;
     predicate?: boolean;
     eventFailure?: "poll-error" | "read-error" | "eof" | "marker" | "deadline";
-    state: "entered" | "passed" | "failed";
+    state: "entered" | "passed" | "failed" | "observed";
+    controllerExit?: number | "NON_NORMAL_OR_UNKNOWN";
+    controllerReply?: "EMPTY" | "OK_FRAME_SHAPE" | "KNOWN_V1_STATUS" | "OTHER";
+    source?: "NATIVE_CONTROLLER";
+    read?: "inspection" | "denial";
+    admission?: "FIRST";
+    transport?: "AVAILABLE" | "MISSING" | "REJECTED" | "INCOMPLETE";
+    helper?: Record<string, string | number | boolean>;
     osStatus?: number;
     errno?: number;
     created?: boolean;
@@ -471,6 +478,8 @@ function nativeOperationRecord(item: Record<string, unknown>): DiagnosticRecord 
                     "errno",
                     "predicate",
                     "eventFailure",
+                    "controllerExit",
+                    "controllerReply",
                 ].includes(key),
         ) ||
         item.schemaVersion !== 1 ||
@@ -483,7 +492,14 @@ function nativeOperationRecord(item: Record<string, unknown>): DiagnosticRecord 
         !["entered", "passed", "failed"].includes(item.state as string)
     )
         return;
-    const facts = ["osStatus", "errno", "predicate", "eventFailure"].filter((key) => key in item);
+    const facts = [
+        "osStatus",
+        "errno",
+        "predicate",
+        "eventFailure",
+        "controllerExit",
+        "controllerReply",
+    ].filter((key) => key in item);
     if (item.state === "entered") {
         if (
             item.substage !== (item.nativeOperation === "seed" ? "input" : "baseline") ||
@@ -537,6 +553,132 @@ function nativeOperationRecord(item: Record<string, unknown>): DiagnosticRecord 
             return;
         safe.eventFailure = item.eventFailure as NonNullable<DiagnosticRecord["eventFailure"]>;
     } else if (nativeEventStages.includes(item.substage) && "errno" in item) return;
+    if ("controllerExit" in item || "controllerReply" in item) {
+        if (
+            item.substage !== "helper-frame" ||
+            item.state !== "failed" ||
+            (item.controllerExit !== "NON_NORMAL_OR_UNKNOWN" &&
+                (typeof item.controllerExit !== "number" ||
+                    !Number.isInteger(item.controllerExit) ||
+                    item.controllerExit < 0 ||
+                    item.controllerExit > 255)) ||
+            !["EMPTY", "OK_FRAME_SHAPE", "KNOWN_V1_STATUS", "OTHER"].includes(
+                item.controllerReply as string,
+            )
+        )
+            return;
+        safe.controllerExit = item.controllerExit as NonNullable<
+            DiagnosticRecord["controllerExit"]
+        >;
+        safe.controllerReply = item.controllerReply as NonNullable<
+            DiagnosticRecord["controllerReply"]
+        >;
+    }
+    return safe;
+}
+
+/** 私有读取证据按控制器传输观察与 helper 已执行事实分层重建，阶段之前没有执行的字段保持缺失；完整短路前缀必须逐项为真，状态整数不接受强制转换，未知传输不能伪装成系统错误或业务成功。 */
+function helperReadRecord(item: Record<string, unknown>): DiagnosticRecord | undefined {
+    if (
+        Object.keys(item).some(
+            (key) =>
+                ![
+                    "schemaVersion",
+                    "stage",
+                    "state",
+                    "source",
+                    "read",
+                    "admission",
+                    "transport",
+                    "helper",
+                ].includes(key),
+        ) ||
+        item.schemaVersion !== 1 ||
+        item.stage !== "HR" ||
+        item.state !== "observed" ||
+        item.source !== "NATIVE_CONTROLLER" ||
+        !["inspection", "denial"].includes(item.read as string) ||
+        item.admission !== "FIRST" ||
+        !["AVAILABLE", "MISSING", "REJECTED", "INCOMPLETE"].includes(item.transport as string)
+    )
+        return;
+    const safe: DiagnosticRecord = {
+        schemaVersion: 1,
+        stage: "HR",
+        state: "observed",
+        source: "NATIVE_CONTROLLER",
+        read: item.read as "inspection" | "denial",
+        admission: "FIRST",
+        transport: item.transport as NonNullable<DiagnosticRecord["transport"]>,
+    };
+    if (item.transport !== "AVAILABLE") return "helper" in item ? undefined : safe;
+    if (!item.helper || typeof item.helper !== "object" || Array.isArray(item.helper)) return;
+    const h = item.helper as Record<string, unknown>;
+    const common = ["entry", "no-ui", "store", "status", "permission", "account", "dispatch"];
+    const phases =
+        item.read === "inspection"
+            ? [...common, "read", "array", "unique", "data32", "encoding", "done"]
+            : [...common, "channel", "before", "read", "after", "done"];
+    if (h.source !== "TEST_HELPER" || typeof h.phase !== "string" || !phases.includes(h.phase))
+        return;
+    const fields: string[] = [];
+    if (item.read === "inspection") {
+        if (["read", "array", "unique", "data32", "encoding", "done"].includes(h.phase))
+            fields.push("readStatus");
+        const predicates = ["array", "unique", "data32", "encoding"];
+        const index = h.phase === "done" ? 4 : predicates.indexOf(h.phase);
+        if (index >= 0) {
+            if (h.readStatus !== 0) return;
+            for (let n = 0; n < Math.min(index + 1, 4); n++) {
+                const key = predicates[n]!;
+                if (n < index && h[key] !== true) return;
+                if (key in h) fields.push(key);
+                else if (n < index) return;
+            }
+        }
+    } else {
+        if (["before", "read", "after", "done"].includes(h.phase)) fields.push("beforeStatus");
+        if (["read", "after", "done"].includes(h.phase)) fields.push("readStatus");
+        if (["after", "done"].includes(h.phase)) fields.push("afterStatus");
+        if (h.phase === "done") fields.push("unlockedBefore", "unlockedAfter");
+    }
+    // 当前调用尚未返回时允许它的状态缺失，已经进入下一步的状态则必须存在；这种区分保留异常发生在调用中与原状态返回后失败的不同事实，避免任何缺省零值变成成功。
+    const optional =
+        h.phase === "read"
+            ? "readStatus"
+            : h.phase === "before"
+              ? "beforeStatus"
+              : h.phase === "after"
+                ? "afterStatus"
+                : undefined;
+    if (Object.keys(h).some((key) => !["source", "phase", ...fields].includes(key))) return;
+    const facts: Record<string, string | number | boolean> = {
+        source: "TEST_HELPER",
+        phase: h.phase,
+    };
+    for (const key of fields) {
+        if (!(key in h)) {
+            if (key === optional) continue;
+            return;
+        }
+        const value = h[key];
+        if (key.endsWith("Status")) {
+            if (
+                typeof value !== "number" ||
+                !Number.isInteger(value) ||
+                value < -2147483648 ||
+                value > 2147483647
+            )
+                return;
+        } else if (typeof value !== "boolean") return;
+        facts[key] = value as number | boolean;
+    }
+    if (
+        (facts.unlockedBefore === true && facts.beforeStatus !== 0) ||
+        (facts.unlockedAfter === true && facts.afterStatus !== 0)
+    )
+        return;
+    safe.helper = facts;
     return safe;
 }
 
@@ -545,6 +687,7 @@ function diagnosticRecord(value: unknown): DiagnosticRecord | undefined {
     if (!value || typeof value !== "object" || Array.isArray(value)) return;
     const item = value as Record<string, unknown>;
     if (item.stage === "OP") return nativeOperationRecord(item);
+    if (item.stage === "HR") return helperReadRecord(item);
     if (
         Object.keys(item).some(
             (key) =>
@@ -611,6 +754,7 @@ function diagnosticRecord(value: unknown): DiagnosticRecord | undefined {
 /** 每个夹具的流式过滤器只保留已验证记录，单行原始缓冲固定为五百一十二字节且消费后覆盖；预算包含概要预留空间，达到字节或条数上限后继续排空输入但不再接受记录，也不改变控制器结果。 */
 export function createDarwinDiagnosticFilter() {
     const records: DiagnosticRecord[] = [];
+    const admittedReads = new Set<string>();
     const pending = Buffer.alloc(512);
     let length = 0,
         dropping = false,
@@ -719,7 +863,8 @@ export function createDarwinDiagnosticFilter() {
                                     ),
                                 ),
                             );
-                            if (!item) rejected = true;
+                            if (!item || (item.stage === "HR" && admittedReads.has(item.read!)))
+                                rejected = true;
                             else {
                                 const size = Buffer.byteLength(JSON.stringify(item)) + 1;
                                 if (
@@ -729,6 +874,10 @@ export function createDarwinDiagnosticFilter() {
                                     stopped = true;
                                     incomplete = true;
                                 } else {
+                                    if (item.stage === "HR") {
+                                        admittedReads.add(item.read!);
+                                        incomplete ||= item.transport !== "AVAILABLE";
+                                    }
                                     records.push(item);
                                     retainedBytes += size;
                                 }
@@ -867,6 +1016,13 @@ export function collectDarwinDiagnostics(streams: Buffer[]) {
                         throw new Error();
                     const records = item.records.map(diagnosticRecord);
                     if (records.some((record) => !record)) throw new Error();
+                    const reads = records.filter((record) => record?.stage === "HR");
+                    if (
+                        new Set(reads.map((record) => record!.read)).size !== reads.length ||
+                        (reads.some((record) => record!.transport !== "AVAILABLE") &&
+                            !item.incomplete)
+                    )
+                        throw new Error();
                     const safe: DiagnosticSummary = {
                         schemaVersion: 1,
                         fixture: item.fixture,

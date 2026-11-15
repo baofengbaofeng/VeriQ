@@ -829,6 +829,7 @@ jobs:
                       report.inputs = [".github/workflows/runtime-native-macos.yml", "pnpm-lock.yaml", "pnpm-workspace.yaml",
                           "package.json", "apps/runtime/package.json", "apps/runtime/scripts/build-vault-darwin.mjs",
                           "apps/runtime/native/vault/darwin-vault.mm", "apps/runtime/native/vault/darwin-acl.hpp",
+                          "apps/runtime/native/vault/darwin-read-evidence.hpp",
                           "apps/runtime/tests/native/darwin-vault-controller.mm", "apps/runtime/tests/native/private-keychain-mode.hpp", "apps/runtime/tests/native/private-keychain-mode.test.cpp", "apps/runtime/tests/native/darwin-acl-test.mm",
                           "apps/runtime/tests/fixtures/darwin-vault.ts", "apps/runtime/tests/native/darwin-vault.test.ts",
                           "apps/runtime/tests/native/darwin-vault-dedicated.test.ts", process.execPath].map(digest);

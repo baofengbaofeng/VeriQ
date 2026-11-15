@@ -1,5 +1,6 @@
 /** 专用钥匙串控制器只在操作者明确授权的可丢弃图形登录会话中创建随机自有存储，创建和删除可能改变该账户的持久偏好；普通流水线不会运行此入口，实际 UID 或会话事实本身不被当作可丢弃授权。 */
 #include "../../native/vault/darwin-acl.hpp"
+#include "../../native/vault/darwin-read-evidence.hpp"
 #include "private-keychain-mode.hpp"
 #include <Security/AuthSession.h>
 #include <mach-o/dyld.h>
@@ -71,19 +72,24 @@ class DiagnosticGate {
     NativeSubstage substage = NativeSubstage::INPUT;
     bool hasPredicate = false, predicateValue = false;
     NativeEventFailure eventFailure = NativeEventFailure::NONE;
+    bool hasControllerReply = false;
+    int controllerExit = -1;
+    NSString *controllerReply = nil;
     void emit(NSString *state) noexcept {
         if (!enabled) return;
         const int savedErrno = errno;
-        static size_t count = 0, total = 0;
-        static NSMutableData *waiting = nil;
         try {
             @try {
-                if (count < 96 && total < 8192) {
+                {
                     NSMutableDictionary *record = [@{@"schemaVersion": @1,
                         @"stage": diagnosticNames[static_cast<size_t>(stage)], @"state": state} mutableCopy];
                     if (stage == DiagnosticStage::OP) {
                         record[@"nativeOperation"] = operation == NativeOperation::SEED ? @"seed" : @"read-denial";
                         record[@"substage"] = nativeSubstageNames[static_cast<size_t>(substage)];
+                        if (hasControllerReply) {
+                            record[@"controllerExit"] = controllerExit < 0 ? (id)@"NON_NORMAL_OR_UNKNOWN" : @(controllerExit);
+                            record[@"controllerReply"] = controllerReply;
+                        }
                         if (hasPredicate) record[@"predicate"] = @(predicateValue);
                         if (eventFailure != NativeEventFailure::NONE) record[@"eventFailure"] = nativeEventNames[static_cast<size_t>(eventFailure)];
                     }
@@ -93,25 +99,38 @@ class DiagnosticGate {
                     if (hasRegularFile) record[@"regularFile"] = @(regularFileValue);
                     if (hasOwnerMatches) record[@"ownerMatches"] = @(ownerMatchesValue);
                     if (hasPrivateMode) record[@"privateMode"] = @(privateModeValue);
-                    NSData *json = [NSJSONSerialization dataWithJSONObject:record options:0 error:nullptr];
-                    if (json && json.length < 512 && total + json.length + 1 <= 8192) {
-                        NSMutableData *line = [json mutableCopy];
-                        [line appendBytes:"\n" length:1];
-                        ++count; total += line.length;
-                        if (!outputEnabled) {
-                            if (!waiting) waiting = [NSMutableData data];
-                            [waiting appendData:line];
-                        } else {
-                            if (waiting) { (void)write(2, waiting.bytes, waiting.length); waiting = nil; }
-                            (void)write(2, line.bytes, line.length);
-                        }
-                    }
+                    writeRecord(record);
                 }
             } @catch (...) {}
         } catch (...) {}
         errno = savedErrno;
     }
 public:
+    /** 所有阶段与读取诊断共享原有条数和字节预算，记录在父控制器内重建后才进入同一输出器；新增读取记录不另开日志通路，原来的等待缓冲、单行限制和信号安全启用条件保持一致。 */
+    static void writeRecord(NSDictionary *record) noexcept {
+        if (!record) return;
+        const int savedErrno = errno;
+        static size_t count = 0, total = 0;
+        static NSMutableData *waiting = nil;
+        try { @try {
+            if (count < 96 && total < 8192) {
+                NSData *json = [NSJSONSerialization dataWithJSONObject:record options:0 error:nullptr];
+                if (json && json.length < 512 && total + json.length + 1 <= 8192) {
+                    NSMutableData *line = [json mutableCopy];
+                    [line appendBytes:"\n" length:1];
+                    ++count; total += line.length;
+                    if (!outputEnabled) {
+                        if (!waiting) waiting = [NSMutableData data];
+                        [waiting appendData:line];
+                    } else {
+                        if (waiting) { (void)write(2, waiting.bytes, waiting.length); waiting = nil; }
+                        (void)write(2, line.bytes, line.length);
+                    }
+                }
+            }
+        } @catch (...) {} } catch (...) {}
+        errno = savedErrno;
+    }
     /** 启动记录先留在有限内存中，只有原先那次忽略 SIGPIPE 的设置确实成功后才允许写管道；这避免观察器在处理已关闭 stderr 时提前终止进程，不调整原信号调用顺序或增加新的系统调用。 */
     static void enableOutput(bool safe) noexcept { outputEnabled = safe; }
     /** 进入记录只使用编译期阶段和布尔开关，普通后续请求不启用初始接收观察；构造器不执行安全或文件操作，失败观察也不向调用方抛出新的异常或改变既有请求的处理顺序。 */
@@ -127,8 +146,12 @@ public:
     static void step(DiagnosticGate *gate, NativeSubstage value) noexcept {
         if (!gate) return;
         gate->substage = value;
-        gate->hasStatus = gate->hasErrno = gate->hasPredicate = false;
+        gate->hasStatus = gate->hasErrno = gate->hasPredicate = gate->hasControllerReply = false;
         gate->eventFailure = NativeEventFailure::NONE;
+    }
+    /** 收集完成后的退出及回复分类来自控制器已经持有的原对象，字节只在内存中分类且不复制进记录；该事实槽仅绑定 helper-frame 阶段，后续前进会清除，不填充 Node 未运行命令的 helper 字段。 */
+    static void reply(DiagnosticGate *gate, int code, NSString *shape) noexcept {
+        if (gate) { gate->hasControllerReply = true; gate->controllerExit = code; gate->controllerReply = shape; }
     }
     /** 原谓词的完整短路表达式只求值一次再原样返回，未执行的后续条件不产生单独事实；保留真值也允许随后内存分配抛错，从而不能把作用域失败误写成谓词本身已经返回假。 */
     static bool predicate(DiagnosticGate *gate, bool value) noexcept {
@@ -300,6 +323,150 @@ struct Pair {
     int take(size_t index) { const int result = fd[index]; fd[index] = -1; return result; }
 };
 
+/** 首次选择器只保存两个固定测试模式的接纳位，未选中调用不占用额度且后续同类调用不再开通道；自测直接驱动这一实例以证明每夹具最多两次，不能把后来未采集的读取误写成已经观测。 */
+class ReadAdmission {
+    bool inspected = false, denied = false;
+public:
+    /** 接纳只改变内存布尔位并返回是否属于第一次合法模式，两个模式同时出现或同时缺失不会被接受；该选择发生在原 helper 启动路径中，不依赖查询结果、协议输出或外部输入中的序号。 */
+    bool take(bool inspection, bool denial) noexcept {
+        if (inspection == denial) return false;
+        bool &used = inspection ? inspected : denied;
+        if (used) return false;
+        used = true;
+        return true;
+    }
+};
+
+/** 控制器私有读取通道在原四组端点之后分配并将双方复制到五以上空闲编号，新增描述符不会覆盖配置或屏障；创建失败只留下缺失证据，不向原启动路径抛错或增加等待与重试。 */
+class ReadChannel {
+    int reader = -1, writer = -1;
+    bool selected = false, denial = false, eof = false, bad = false, finished = false;
+    unsigned char bytes[513] {};
+    size_t used = 0;
+    /** 解码只接受严格数字、布尔及阶段前缀并重新构建有限字典，额外字段或读取类型不匹配全部拒绝；原始包永不交给日志，Foundation 异常仅影响诊断可用性而不能改变控制器业务错误。 */
+    NSDictionary *decode() {
+        if (!used || used > 512 || bytes[used - 1] != '\n') return nil;
+        for (size_t index = 0; index + 1 < used; ++index) if (bytes[index] == '\n') return nil;
+        id raw = [NSJSONSerialization JSONObjectWithData:[NSData dataWithBytes:bytes length:used - 1] options:0 error:nullptr];
+        if (![raw isKindOfClass:[NSDictionary class]]) return nil;
+        NSDictionary *value = raw;
+        if (![value[@"source"] isEqual:@"TEST_HELPER"] || ![value[@"read"] isEqual:denial ? @"denial" : @"inspection"]) return nil;
+        NSString *phase = value[@"phase"];
+        NSArray *common = @[@"entry", @"no-ui", @"store", @"status", @"permission", @"account", @"dispatch"];
+        NSArray *phases = denial ? @[@"channel", @"before", @"read", @"after", @"done"] : @[@"read", @"array", @"unique", @"data32", @"encoding", @"done"];
+        if (![phase isKindOfClass:[NSString class]] || (![common containsObject:phase] && ![phases containsObject:phase])) return nil;
+        NSMutableArray *fields = [NSMutableArray array];
+        NSString *optional = nil;
+        if (denial) {
+            if ([@[@"before", @"read", @"after", @"done"] containsObject:phase]) [fields addObject:@"beforeStatus"];
+            if ([@[@"read", @"after", @"done"] containsObject:phase]) [fields addObject:@"readStatus"];
+            if ([@[@"after", @"done"] containsObject:phase]) [fields addObject:@"afterStatus"];
+            if ([phase isEqual:@"done"]) [fields addObjectsFromArray:@[@"unlockedBefore", @"unlockedAfter"]];
+        } else {
+            if ([phases containsObject:phase]) [fields addObject:@"readStatus"];
+            NSArray *predicates = @[@"array", @"unique", @"data32", @"encoding"];
+            const NSUInteger index = [phase isEqual:@"done"] ? 4 : [predicates indexOfObject:phase];
+            if (index != NSNotFound) {
+                if (![value[@"readStatus"] isEqual:@0]) return nil;
+                for (NSUInteger n = 0; n < std::min(index + 1, static_cast<NSUInteger>(4)); ++n) {
+                    NSString *key = predicates[n];
+                    if (n < index && value[key] != (__bridge id)kCFBooleanTrue) return nil;
+                    if (value[key]) [fields addObject:key];
+                    else if (n < index) return nil;
+                }
+            }
+        }
+        if ([phase isEqual:@"before"]) optional = @"beforeStatus";
+        if ([phase isEqual:@"read"]) optional = @"readStatus";
+        if ([phase isEqual:@"after"]) optional = @"afterStatus";
+        for (id key in value) if (![@[@"source", @"read", @"phase"] containsObject:key] && ![fields containsObject:key]) return nil;
+        NSMutableDictionary *safe = [@{@"source": @"TEST_HELPER", @"phase": phase} mutableCopy];
+        for (NSString *key in fields) {
+            id number = value[key];
+            if (!number) { if ([key isEqual:optional]) continue; return nil; }
+            if (![number isKindOfClass:[NSNumber class]]) return nil;
+            const bool boolean = CFGetTypeID((__bridge CFTypeRef)number) == CFBooleanGetTypeID();
+            if ([key hasSuffix:@"Status"]) {
+                const double actual = [number doubleValue];
+                if (boolean || actual < INT32_MIN || actual > INT32_MAX || actual != [number longLongValue]) return nil;
+                safe[key] = @([number intValue]);
+            } else {
+                if (!boolean) return nil;
+                safe[key] = @([number boolValue]);
+            }
+        }
+        if (([safe[@"unlockedBefore"] isEqual:@YES] && ![safe[@"beforeStatus"] isEqual:@0]) ||
+            ([safe[@"unlockedAfter"] isEqual:@YES] && ![safe[@"afterStatus"] isEqual:@0])) return nil;
+        return safe;
+    }
+public:
+    /** 默认通道没有任何已分配资源也没有隐含选择，普通 helper 调用因此保持原有文件描述符集合；只有首次模式选择之后的 prepare 才尝试建立私有传输，失败仍留在同一个对象中结算。 */
+    ReadChannel() = default;
+    ReadChannel(const ReadChannel &) = delete;
+    /** 单个夹具的首次 admission 由 Fixture 决定，通道仅负责该次选中启动的描述符生命周期；两端非阻塞和 CLOEXEC 先配置完成才交付，任何中途错误都关闭已分配端点并恢复原 errno。 */
+    void prepare(bool denied) noexcept {
+        selected = true; denial = denied;
+        const int saved = errno;
+        int pair[2] {-1, -1};
+        if (socketpair(AF_UNIX, SOCK_STREAM, 0, pair) == 0) {
+            reader = fcntl(pair[0], F_DUPFD_CLOEXEC, 5);
+            writer = fcntl(pair[1], F_DUPFD_CLOEXEC, 5);
+            close(pair[0]); close(pair[1]);
+            if (reader < 0 || writer < 0 || fcntl(reader, F_SETFL, O_NONBLOCK) < 0 || fcntl(writer, F_SETFL, O_NONBLOCK) < 0) {
+                if (reader >= 0) close(reader);
+                if (writer >= 0) close(writer);
+                reader = writer = -1;
+            }
+        }
+        errno = saved;
+    }
+    /** 子进程仅保留本次动态写端且清除其执行关闭标志，其余父端仍由既有关闭循环处理；编号由内核分配且不参与零到四的 dup2 映射，所以新增能力不能重用或覆盖现有控制流。 */
+    int childWriter() const noexcept { return writer; }
+    /** 父进程在 fork 后立即关闭自身写端，让 helper 显式发送并关闭后能够观察到正常 EOF；无效端点保持空操作，单次关闭将槽归零以避免后续析构误关系统复用的编号。 */
+    void closeWriter() noexcept { const int saved = errno; if (writer >= 0) close(writer); writer = -1; errno = saved; }
+    /** 每次现有事件或收集边界最多尝试两次非阻塞读取，总缓冲最多五百一十三字节以检测超长；没有新增 poll、睡眠或 EOF 等待，已满缓冲直接判拒绝且所有系统错误都恢复调用前 errno。 */
+    void drain() noexcept {
+        if (reader < 0 || eof || bad || finished) return;
+        const int saved = errno;
+        for (int attempt = 0; attempt < 2 && !eof && !bad; ++attempt) {
+            const ssize_t count = recv(reader, bytes + used, sizeof(bytes) - used, MSG_DONTWAIT);
+            if (count > 0) { used += static_cast<size_t>(count); if (used == sizeof(bytes)) bad = true; }
+            else if (count == 0) eof = true;
+            else { if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) bad = true; break; }
+        }
+        errno = saved;
+    }
+    /** 终态只返回来源明确的有限记录，已接纳但尚无 EOF 的数据标记不完整而不是猜测 helper 状态；解析异常与多包额外字节直接拒绝，原包随后覆盖，调用方最多输出一次且不救援业务结果。 */
+    NSDictionary *finish() noexcept {
+        if (!selected || finished) return nil;
+        const int saved = errno;
+        NSDictionary *result = nil;
+        drain(); finished = true;
+        try {
+            @try {
+                NSDictionary *helper = (!bad && eof && used) ? decode() : nil;
+                const bool truncated = used && bytes[used - 1] != '\n';
+                NSString *transport = bad || (eof && used && !helper && !truncated) ? @"REJECTED" : helper ? @"AVAILABLE" : used ? @"INCOMPLETE" : @"MISSING";
+                NSMutableDictionary *record = [@{@"schemaVersion": @1, @"stage": @"HR", @"state": @"observed", @"source": @"NATIVE_CONTROLLER",
+                    @"read": denial ? @"denial" : @"inspection", @"admission": @"FIRST", @"transport": transport} mutableCopy];
+                if (helper) record[@"helper"] = helper;
+                result = record;
+            } @catch (...) {}
+        } catch (...) {}
+        wipe(bytes, sizeof(bytes));
+        errno = saved;
+        return result;
+    }
+    /** 析构只释放仍属于当前通道的端点并覆盖最多五百一十三字节的候选缓冲，不运行任何业务清理；终态由 Child 在原始关闭和回收之前结算，因此不会为了诊断延长 helper 的原退出期限。 */
+    ~ReadChannel() noexcept {
+        const int saved = errno;
+        if (reader >= 0) close(reader);
+        if (writer >= 0) close(writer);
+        wipe(bytes, sizeof(bytes));
+        errno = saved;
+    }
+};
+
 /** 单个测试子进程的句柄保存真实 fork 关系和所有私有端点，析构先结束输入再有界等待退出；若内核尚未确认退出，PID 仍留在控制器的所有权集合中并阻止删除存储，不能把已发送终止信号写成清理成功。 */
 struct Child {
     std::set<pid_t> &owners;
@@ -307,6 +474,7 @@ struct Child {
     int input = -1, output = -1, control = -1, status = 0;
     bool exited = false, waitLost = false;
     Secret response;
+    ReadChannel evidence;
     /** 子进程对象绑定控制器的所有权集合并预留最大响应容量，后续积累秘密输出不需要反复释放旧缓冲；此时尚未 fork，因此构造失败不会产生需要终止但已经丢失句柄的子进程。 */
     explicit Child(std::set<pid_t> &value) : owners(value) { response.bytes.reserve(512); }
     Child(const Child &) = delete;
@@ -327,6 +495,7 @@ struct Child {
     }
     /** 析构关闭私有输入使 EOF 监视能够结束 helper，然后有界回收直接子进程并清理响应缓冲；如果内核仍未确认退出，所有权集合继续保留记录，因此上层不能成功删除或声称清理了尚在使用的存储。 */
     ~Child() {
+        DiagnosticGate::writeRecord(evidence.finish());
         if (input >= 0) close(input);
         if (output >= 0) close(output);
         if (control >= 0) close(control);
@@ -334,9 +503,17 @@ struct Child {
     }
     /** 退出码只从已经 waitpid 确认的正常退出状态提取，信号死亡或未确认退出统一保留独立的负值；该值供测试判断是否收到完整回复，不把信号请求、EOF 关闭或成功写入管道当成系统操作成功。 */
     int code() const { return exited && WIFEXITED(status) ? WEXITSTATUS(status) : -1; }
+    /** 回复分类仅检查现有完整缓冲的有限形状，不解码或导出密钥；OK_FRAME_SHAPE 与原帧谓词相同只表示长度和边界符合，编码是否合法仍由原来的后续解析器决定。 */
+    NSString *replyClass() const noexcept {
+        if (response.bytes.empty()) return @"EMPTY";
+        if (response.bytes.size() == 50 && memcmp(response.bytes.data(), "V1 ok ", 6) == 0 && response.bytes.back() == '\n') return @"OK_FRAME_SHAPE";
+        for (const char *value : {"V1 ok\n", "V1 ready\n", "V1 missing\n", "V1 locked\n", "V1 unavailable\n", "V1 failed\n", "V1 mutation-unconfirmed\n"}) if (equals(value)) return @"KNOWN_V1_STATUS";
+        return @"OTHER";
+    }
     /** 屏障确认只读取当前 child 的私有控制套接字并受共享单调时钟期限约束，错误字节和提前关闭都导致测试失败；调用点只期待真实缺失后的就绪标记，不通过轮询钥匙串或等待固定时间猜测竞争窗口。 */
     void event(char expected, Clock::time_point deadline, DiagnosticGate *gate = nullptr) {
         while (Clock::now() < deadline) {
+            evidence.drain();
             pollfd watched {control, POLLIN, 0};
             const int ready = poll(&watched, 1, 25);
             if (ready < 0 && errno == EINTR) continue;
@@ -368,6 +545,7 @@ struct Child {
     void collect(Clock::time_point deadline) {
         bool eof = false;
         while (!eof && Clock::now() < deadline) {
+            evidence.drain();
             pollfd watched {output, POLLIN, 0};
             const int ready = poll(&watched, 1, 25);
             if (ready < 0 && errno == EINTR) continue;
@@ -381,6 +559,7 @@ struct Child {
             else response.bytes.insert(response.bytes.end(), chunk.bytes.begin(), chunk.bytes.begin() + count);
         }
         reap(!eof);
+        evidence.drain();
         require(eof && exited);
     }
     /** 响应相等先比较全部长度再比较全部字节，调用方只传入固定状态文本或留在内存中的期望密钥编码；这里只返回布尔结果，不生成包含实际材料的差异对象，因此断言失败不会把秘密内容打印到测试日志。 */
@@ -388,6 +567,124 @@ struct Child {
         return response.bytes.size() == strlen(value) && memcmp(response.bytes.data(), value, response.bytes.size()) == 0;
     }
 };
+
+/** 无存储自测只创建匿名本地套接字并调用实际共用写入器和控制器读端，有限坏包与背压验证不触发任何 Security API；只有全部断言通过才写固定成功标记，构建驱动还须核对真实退出和精确输出。 */
+int readEvidenceSelftest() {
+    try {
+        const auto config = [](int fd, bool denied = false) {
+            return @{@"mode": @"store", @"inspection": @(!denied), @"observeReadDenial": @(denied), @"readEvidenceFd": @(fd)};
+        };
+        const auto check = [](bool value) { if (!value) throw std::runtime_error("READ_EVIDENCE_SELFTEST_FAILED"); };
+        {
+            ReadAdmission admission;
+            check(!admission.take(false, false) && !admission.take(true, true));
+            check(admission.take(true, false) && !admission.take(true, false));
+            check(admission.take(false, true) && !admission.take(false, true));
+        }
+        {
+            ReadChannel channel; channel.prepare(false);
+            const int writer = fcntl(channel.childWriter(), F_DUPFD_CLOEXEC, 5);
+            check(writer >= 5); channel.closeWriter();
+            test::ReadEvidence observation(config(writer));
+            observation.status(test::ReadPhase::READ, 0);
+            observation.predicate(test::ReadPhase::ARRAY, true);
+            observation.predicate(test::ReadPhase::UNIQUE, true);
+            observation.predicate(test::ReadPhase::DATA32, true);
+            observation.predicate(test::ReadPhase::ENCODING, true);
+            observation.step(test::ReadPhase::DONE);
+            errno = EDOM; observation.emit(); check(errno == EDOM);
+            NSDictionary *record = channel.finish();
+            check([record[@"transport"] isEqual:@"AVAILABLE"] && [record[@"helper"][@"encoding"] isEqual:@YES]);
+            check(channel.finish() == nil);
+        }
+        {
+            ReadChannel channel; channel.prepare(true);
+            const int writer = fcntl(channel.childWriter(), F_DUPFD_CLOEXEC, 5);
+            check(writer >= 5); channel.closeWriter();
+            test::ReadEvidence observation(config(writer, true));
+            observation.status(test::ReadPhase::BEFORE, 0);
+            observation.status(test::ReadPhase::READ, -25293);
+            observation.status(test::ReadPhase::AFTER, 0);
+            observation.unlocked(true, true); observation.emit();
+            NSDictionary *record = channel.finish();
+            check([record[@"transport"] isEqual:@"AVAILABLE"] && [record[@"helper"][@"readStatus"] isEqual:@(-25293)]);
+        }
+        const char *valid = "{\"read\":\"inspection\",\"source\":\"TEST_HELPER\",\"phase\":\"entry\"}\n";
+        for (int variant = 0; variant < 8; ++variant) {
+            ReadChannel channel; channel.prepare(false); check(channel.childWriter() >= 5);
+            if (variant == 0) test::writeReadPacket(channel.childWriter(), "{}\n", 3);
+            if (variant == 1) {
+                const std::string extra = std::string(valid) + valid;
+                test::writeReadPacket(channel.childWriter(), extra.data(), extra.size());
+            }
+            if (variant == 2) {
+                const std::string overlong(512, 'x');
+                test::writeReadPacket(channel.childWriter(), overlong.data(), overlong.size());
+                test::writeReadPacket(channel.childWriter(), "\n", 1);
+            }
+            if (variant == 3) test::writeReadPacket(channel.childWriter(), "{", 1);
+            if (variant == 5) test::writeReadPacket(channel.childWriter(), valid, strlen(valid));
+            if (variant == 6) {
+                const char *extra = "{\"read\":\"inspection\",\"source\":\"TEST_HELPER\",\"phase\":\"entry\",\"key\":\"SECRET_CANARY\"}\n";
+                test::writeReadPacket(channel.childWriter(), extra, strlen(extra));
+            }
+            if (variant == 7) {
+                const std::string extra = std::string(valid) + " \n";
+                test::writeReadPacket(channel.childWriter(), extra.data(), extra.size());
+            }
+            if (variant != 5) channel.closeWriter();
+            errno = ERANGE;
+            NSDictionary *record = channel.finish(); check(errno == ERANGE);
+            NSString *expected = variant == 4 ? @"MISSING" : (variant == 3 || variant == 5) ? @"INCOMPLETE" : @"REJECTED";
+            check([record[@"transport"] isEqual:expected] && !record[@"helper"]);
+        }
+        {
+            Pair sockets(true);
+            const int writer = fcntl(sockets.fd[1], F_DUPFD_CLOEXEC, 5);
+            check(writer >= 5 && fcntl(writer, F_SETFL, O_NONBLOCK) == 0);
+            close(sockets.take(0)); close(sockets.take(1));
+            test::ReadEvidence observation(config(writer));
+            const bool original = false; errno = EDOM; observation.emit();
+            check(!original && errno == EDOM);
+            const int sentinel = 7;
+            bool caught = false;
+            try {
+                test::ReadEvidence missing(config(-1));
+                throw &sentinel;
+            } catch (const int *identity) { caught = identity == &sentinel; }
+            check(caught);
+        }
+        {
+            ReadChannel channel; channel.prepare(false);
+            const int writer = fcntl(channel.childWriter(), F_DUPFD_CLOEXEC, 5);
+            check(writer >= 5);
+            const unsigned char filler[512] {};
+            bool full = false;
+            for (int attempt = 0; attempt < 4096; ++attempt) {
+                if (send(writer, filler, sizeof(filler), MSG_DONTWAIT) < 0) { full = errno == EAGAIN || errno == EWOULDBLOCK; break; }
+            }
+            check(full); channel.closeWriter();
+            test::ReadEvidence observation(config(writer));
+            const bool original = true; errno = ERANGE; observation.emit();
+            check(original && errno == ERANGE);
+            check([channel.finish()[@"transport"] isEqual:@"REJECTED"]);
+        }
+        {
+            std::set<pid_t> owners;
+            Child child(owners);
+            check(child.code() == -1 && [child.replyClass() isEqual:@"EMPTY"]);
+            child.exited = true; child.status = 2 << 8; check(child.code() == 2);
+            child.status = 0; check(child.code() == 0);
+            child.status = SIGKILL; check(child.code() == -1);
+            const auto response = [&](const std::string &text) { child.response.bytes.assign(text.begin(), text.end()); };
+            response("V1 failed\n"); check([child.replyClass() isEqual:@"KNOWN_V1_STATUS"]);
+            response("V1 ok " + std::string(43, 'A') + "\n"); check([child.replyClass() isEqual:@"OK_FRAME_SHAPE"]);
+            response("V1 invalid\n"); check([child.replyClass() isEqual:@"OTHER"]);
+        }
+        const char marker[] = "DARWIN_READ_EVIDENCE_SELFTEST_PASSED\n";
+        return write(1, marker, sizeof(marker) - 1) == sizeof(marker) - 1 ? 0 : 2;
+    } catch (...) { return 2; }
+}
 
 /** 语义快照分别保存系统返回的非秘密属性与公开导出的完整 ACL 表示，属性中的临时引用被移除以避免把对象地址误认作变化；两部分都只在控制器内存中比较，原始主体、路径与属性不会被写入测试输出。 */
 struct ItemSnapshot {
@@ -407,6 +704,7 @@ struct Fixture {
     Secret baselineValue;
     NSString *baselineAccount = nil;
     bool controllerReader = false;
+    ReadAdmission readAdmission;
     bool created = false;
 
     /** 实际创建必须发生在会话声明核验和固定 helper 路径解析之后，密码来自系统随机源且只保存在当前对象；路径由 mkdtemp 生成，创建返回的实际路径和文件所有权必须再次相符，任何偏好副作用只属于已授权账户。 */
@@ -474,14 +772,22 @@ struct Fixture {
         require(!(observeReadDenial && (barrier || inspection)));
         NSData *frame = [request[@"frame"] dataUsingEncoding:NSASCIIStringEncoding];
         require(frame && frame.length < 512);
-        NSDictionary *configuration = @{ @"mode": @"store", @"disposable": @YES, @"uid": facts[@"uid"],
+        NSMutableDictionary *configuration = [@{ @"mode": @"store", @"disposable": @YES, @"uid": facts[@"uid"],
             @"session": facts[@"session"], @"parent": @(getpid()), @"path": [NSString stringWithUTF8String:path.c_str()],
             @"fault": request[@"fault"] ?: @"", @"barrier": @(barrier), @"inspection": @(inspection),
-            @"observeReadDenial": @(observeReadDenial) };
-        NSData *capability = [NSJSONSerialization dataWithJSONObject:configuration options:0 error:nullptr];
-        require(capability && capability.length < 4096);
+            @"observeReadDenial": @(observeReadDenial) } mutableCopy];
         Pair input, output, configurationPipe, barrierPipe(true);
         auto child = std::make_unique<Child>(children);
+        if (readAdmission.take(inspection, observeReadDenial)) {
+            child->evidence.prepare(observeReadDenial);
+            if (child->evidence.childWriter() >= 5) {
+                const int saved = errno;
+                @try { configuration[@"readEvidenceFd"] = @(child->evidence.childWriter()); } @catch (...) {}
+                errno = saved;
+            }
+        }
+        NSData *capability = [NSJSONSerialization dataWithJSONObject:configuration options:0 error:nullptr];
+        require(capability && capability.length < 4096);
         child->pid = fork();
         require(child->pid >= 0);
         if (child->pid == 0) {
@@ -489,13 +795,16 @@ struct Fixture {
                 dup2(configurationPipe.fd[0], 3) < 0 || dup2(barrierPipe.fd[1], 4) < 0) _exit(2);
             const int null = open("/dev/null", O_WRONLY);
             if (null < 0 || dup2(null, 2) < 0) _exit(2);
-            for (int fd = 5; fd < getdtablesize(); ++fd) close(fd);
+            const int diagnostic = child->evidence.childWriter();
+            if (diagnostic >= 5 && fcntl(diagnostic, F_SETFD, 0) < 0) close(diagnostic);
+            for (int fd = 5; fd < getdtablesize(); ++fd) if (fd != diagnostic) close(fd);
             char pathEnvironment[] = "PATH=/usr/bin:/bin";
             char *environment[] = {pathEnvironment, nullptr};
             char *arguments[] = {const_cast<char *>(helper.c_str()), nullptr};
             execve(helper.c_str(), arguments, environment);
             _exit(2);
         }
+        child->evidence.closeWriter();
         children.insert(child->pid);
         child->input = input.take(1);
         child->output = output.take(0);
@@ -592,6 +901,7 @@ struct Fixture {
             DiagnosticGate::step(gate, NativeSubstage::HELPER_COLLECT);
             child->collect(Clock::now() + std::chrono::milliseconds(3500));
             DiagnosticGate::step(gate, NativeSubstage::HELPER_FRAME);
+            DiagnosticGate::reply(gate, child->code(), child->replyClass());
             require(DiagnosticGate::predicate(gate, child->code() == 0 && child->response.bytes.size() == 50 && memcmp(child->response.bytes.data(), "V1 ok ", 6) == 0 && child->response.bytes.back() == '\n'));
             DiagnosticGate::step(gate, NativeSubstage::HELPER_DECODE);
             NSString *encoded = [[NSString alloc] initWithBytes:child->response.bytes.data() + 6 length:43 encoding:NSASCIIStringEncoding];
@@ -635,6 +945,7 @@ struct Fixture {
         DiagnosticGate::step(gate, NativeSubstage::HELPER_COLLECT);
         child->collect(deadline);
         DiagnosticGate::step(gate, NativeSubstage::HELPER_FRAME);
+        DiagnosticGate::reply(gate, child->code(), child->replyClass());
         require(DiagnosticGate::predicate(gate, child->code() == 0 && child->equals("V1 failed\n")));
         DiagnosticGate::step(gate, NativeSubstage::STATUS_AFTER);
         require(DiagnosticGate::status(gate, SecKeychainGetStatus(store.value, &after)) == errSecSuccess && (after & kSecUnlockStateStatus));
@@ -721,8 +1032,9 @@ struct Fixture {
 }
 
 /** 控制器正常 EOF 时只清理自身已经创建的测试存储，任何权限、会话或配置失败都以固定结果退出；进程被强制终止时可能保留加密夹具文件，这种情况必须作为未完成清理处理而不能宣称已撤销之前的系统修改。 */
-int main(int argc, char **) {
+int main(int argc, char **argv) {
     @autoreleasepool {
+        if (argc == 2 && strcmp(argv[1], "--read-evidence-selftest") == 0) return readEvidenceSelftest();
         Fixture fixture;
         try {
             DiagnosticGate startup(DiagnosticStage::STARTUP);

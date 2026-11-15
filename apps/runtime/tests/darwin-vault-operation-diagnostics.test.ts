@@ -661,7 +661,7 @@ test("native privacy rejects every unapproved field on both codec paths", () => 
 });
 
 /** 两个健康专用用例分别增加十六条和四条观察，旧创建清理记录与最大有限概要一起经过共享预算；这里只证明合成记录的编码上限，不代表 Objective-C++ 生产者或真实钥匙串操作已经在本机执行。 */
-test("native legal worst case70 and case58 fit unchanged fixture and job caps", () => {
+test("native legal worst case72 and case60 fit unchanged fixture and job caps", () => {
     const stages = [
         "STARTUP",
         "NO_UI",
@@ -737,8 +737,10 @@ test("native legal worst case70 and case58 fit unchanged fixture and job caps", 
             // 最长失败终态用于预算压力，即使真实健康终态只含 done，仍须在原预算内保留全部记录而不能依赖正常输出较短来掩盖失败时的截断或事实丢失。
             push(
                 operation === "seed"
-                    ? nativeRecord(operation, "snapshot-access", "failed", {
-                          osStatus: -2147483648,
+                    ? nativeRecord(operation, "helper-frame", "failed", {
+                          predicate: false,
+                          controllerExit: "NON_NORMAL_OR_UNKNOWN",
+                          controllerReply: "KNOWN_V1_STATUS",
                       })
                     : nativeRecord(operation, "event-denied", "failed", {
                           eventFailure: "poll-error",
@@ -746,6 +748,26 @@ test("native legal worst case70 and case58 fit unchanged fixture and job caps", 
                       }),
             );
         }
+        push(
+            helperRecord("inspection", {
+                phase: "done",
+                readStatus: 0,
+                array: true,
+                unique: true,
+                data32: true,
+                encoding: true,
+            }),
+        );
+        push(
+            helperRecord("denial", {
+                phase: "done",
+                beforeStatus: -2147483648,
+                readStatus: -2147483648,
+                afterStatus: -2147483648,
+                unlockedBefore: false,
+                unlockedAfter: false,
+            }),
+        );
         for (let index = 0; index < 65535; index++) filter.operation("read-denial", "UNKNOWN");
         filter.fail("EXIT_UNCONFIRMED");
         filter.nodeCase({
@@ -759,7 +781,7 @@ test("native legal worst case70 and case58 fit unchanged fixture and job caps", 
         const summary = filter.finish(fixture);
         assert.equal(summary.rejected, false);
         assert.equal(summary.incomplete, false);
-        assert.equal(summary.records.length, fixture === 1 ? 70 : 58);
+        assert.equal(summary.records.length, fixture === 1 ? 72 : 60);
         assert.ok(nativeBytes <= 8192);
         assert.ok(Buffer.byteLength(JSON.stringify(summary)) <= 8192);
         assert.deepEqual(collect(summary).fixtures, [summary]);
@@ -794,4 +816,235 @@ test("native terminal cannot close another operation entered boundary", () => {
     assert.equal(summary.rejected, false);
     assert.equal(summary.incomplete, true);
     assert.deepEqual(collect(summary).fixtures, [summary]);
+});
+
+/** helper 读取事实必须经过真实共享过滤器和工作流消费器，来源固定且仅接纳首次选中调用；合成状态只验证数值约定与隐私拒绝，不能被解释为本机已经执行系统查询或证明真实授权成功。 */
+const helperRecord = (
+    read = "inspection",
+    helper: object | null = { phase: "entry" },
+    transport = "AVAILABLE",
+) => ({
+    schemaVersion: 1,
+    stage: "HR",
+    state: "observed",
+    source: "NATIVE_CONTROLLER",
+    read,
+    admission: "FIRST",
+    transport,
+    ...(helper ? { helper: { source: "TEST_HELPER", ...helper } } : {}),
+});
+const helperRecords = [
+    ...["entry", "no-ui", "store", "status", "permission", "account", "dispatch"].map((phase) =>
+        helperRecord("inspection", { phase }),
+    ),
+    helperRecord("inspection", { phase: "read", readStatus: -50 }),
+    helperRecord("inspection", { phase: "array", readStatus: 0, array: false }),
+    helperRecord("inspection", { phase: "unique", readStatus: 0, array: true, unique: false }),
+    helperRecord("inspection", {
+        phase: "data32",
+        readStatus: 0,
+        array: true,
+        unique: true,
+        data32: false,
+    }),
+    helperRecord("inspection", {
+        phase: "encoding",
+        readStatus: 0,
+        array: true,
+        unique: true,
+        data32: true,
+        encoding: false,
+    }),
+    helperRecord("inspection", {
+        phase: "done",
+        readStatus: 0,
+        array: true,
+        unique: true,
+        data32: true,
+        encoding: true,
+    }),
+    helperRecord("denial", { phase: "channel" }),
+    helperRecord("denial", { phase: "before", beforeStatus: -2147483648 }),
+    helperRecord("denial", { phase: "read", beforeStatus: 0, readStatus: 2147483647 }),
+    helperRecord("denial", { phase: "after", beforeStatus: 0, readStatus: 0, afterStatus: -50 }),
+    helperRecord("denial", {
+        phase: "done",
+        beforeStatus: 0,
+        readStatus: -25293,
+        afterStatus: 0,
+        unlockedBefore: true,
+        unlockedAfter: true,
+    }),
+    ...["MISSING", "REJECTED", "INCOMPLETE"].map((transport) =>
+        helperRecord("inspection", null, transport),
+    ),
+];
+for (const [index, record] of helperRecords.entries()) {
+    test(`helper evidence canonical finite record ${index}`, () => {
+        const filter = vault.createDarwinDiagnosticFilter();
+        filter.push(frame(record));
+        filter.close(0, null);
+        const summary = filter.finish(1);
+        assert.equal(summary.rejected, false);
+        assert.deepEqual(summary.records, [record]);
+        assert.deepEqual(collect(summary).fixtures, [summary]);
+        assert.equal(summary.incomplete, record.transport !== "AVAILABLE");
+    });
+}
+
+test("controller reply and exit remain native observations", () => {
+    for (const controllerExit of [0, 2, 255, "NON_NORMAL_OR_UNKNOWN"]) {
+        for (const controllerReply of ["EMPTY", "OK_FRAME_SHAPE", "KNOWN_V1_STATUS", "OTHER"]) {
+            const record = nativeRecord("seed", "helper-frame", "failed", {
+                predicate: false,
+                controllerExit,
+                controllerReply,
+            });
+            const filter = vault.createDarwinDiagnosticFilter();
+            filter.operation("seed", "UNKNOWN");
+            filter.push(frame(record));
+            filter.fail("REFUSED");
+            filter.close(0, null);
+            const summary = filter.finish(1);
+            assert.equal(summary.rejected, false);
+            assert.deepEqual(summary.records, [record]);
+            assert.equal(summary.operationContext?.helperExit, "UNKNOWN");
+            assert.equal(summary.operationContext?.shape, "UNKNOWN");
+            assert.deepEqual(collect(summary).fixtures, [summary]);
+        }
+    }
+});
+
+test("helper codec rejects coerced extras inconsistent phase and provenance", () => {
+    const legacy = vault.createDarwinDiagnosticFilter().finish(1);
+    const candidates = [
+        { ...helperRecords[0], source: "TEST_HELPER" },
+        { ...helperRecords[0], admission: "LATER" },
+        { ...helperRecords[0], read: "get" },
+        { ...helperRecords[0], transport: "MISSING" },
+        helperRecord("inspection", { phase: "read", readStatus: "0" }),
+        helperRecord("inspection", { phase: "read", readStatus: true }),
+        helperRecord("inspection", { phase: "read", readStatus: 2147483648 }),
+        helperRecord("inspection", { phase: "read", readStatus: 0.5 }),
+        helperRecord("inspection", { phase: "entry", readStatus: 0 }),
+        helperRecord("inspection", { phase: "array", readStatus: -50, array: true }),
+        helperRecord("inspection", { phase: "unique", readStatus: 0, array: false, unique: true }),
+        helperRecord("inspection", { phase: "done", readStatus: 0 }),
+        helperRecord("inspection", { phase: "array", readStatus: 0, array: 1 }),
+        helperRecord("inspection", { phase: "channel" }),
+        helperRecord("denial", { phase: "array", array: false }),
+        helperRecord("denial", {
+            phase: "done",
+            beforeStatus: -50,
+            readStatus: 0,
+            afterStatus: 0,
+            unlockedBefore: true,
+            unlockedAfter: true,
+        }),
+        helperRecord("denial", {
+            phase: "done",
+            beforeStatus: 0,
+            readStatus: 0,
+            afterStatus: -50,
+            unlockedBefore: true,
+            unlockedAfter: true,
+        }),
+        nativeRecord("seed", "helper-frame", "failed", {
+            controllerExit: "2",
+            controllerReply: "EMPTY",
+        }),
+        nativeRecord("seed", "helper-frame", "failed", {
+            controllerExit: 256,
+            controllerReply: "OTHER",
+        }),
+        nativeRecord("seed", "read", "failed", { controllerExit: 0, controllerReply: "OTHER" }),
+        nativeRecord("seed", "helper-frame", "failed", { controllerExit: 0 }),
+        ...[
+            "key",
+            "value",
+            "account",
+            "path",
+            "error",
+            "env",
+            "frame",
+            "marker",
+            "response",
+        ].flatMap((key) => [
+            { ...helperRecords[0], [key]: "SECRET_CANARY" },
+            helperRecord("inspection", { phase: "entry", [key]: "SECRET_CANARY" }),
+        ]),
+    ];
+    for (const record of candidates) {
+        const summary = nativeSummary(record);
+        assert.equal(summary.rejected, true);
+        assert.deepEqual(summary.records, []);
+        const output = collect({ ...legacy, records: [record] });
+        assert.equal(output.rejected, true);
+        assert.ok(!JSON.stringify(output).includes("SECRET_CANARY"));
+    }
+});
+
+test("helper admission rejects duplicates and maintains primary cleanup truth", () => {
+    const filter = vault.createDarwinDiagnosticFilter();
+    filter.operation("read-denial", "UNKNOWN");
+    filter.fail("REFUSED");
+    filter.push(frame(helperRecords[17]));
+    filter.push(frame(helperRecords[17]));
+    filter.nodeCase({
+        bodyStatus: "FAILED",
+        wipeStatus: "PASSED",
+        cleanupStatus: "FAILED",
+        primary: "BODY",
+        secondary: "CLEANUP",
+    });
+    filter.close(null, "SIGKILL");
+    const summary = filter.finish(1);
+    assert.equal(summary.records.length, 1);
+    assert.equal(summary.rejected, true);
+    assert.equal(summary.incomplete, true);
+    assert.equal(summary.operationContext?.operation, "read-denial");
+    assert.equal(summary.nodeCase?.secondary, "CLEANUP");
+    assert.equal(
+        collect({ ...summary, records: [helperRecords[17], helperRecords[17]] }).rejected,
+        true,
+    );
+});
+
+/** 合成读取成功和不同拒绝错误都只作为真实字段数值传递，控制器不得把非拒绝状态改写成通过；分块、超长和额外来源还必须经过同一个导出过滤器，原始候选缓冲在所有路径被覆盖。 */
+test("helper raw status conventions fragmentation overflow and canonical provenance", () => {
+    for (const readStatus of [0, -50, -25293, -25308, -25315, -2147483648, 2147483647]) {
+        const record = helperRecord("denial", {
+            phase: "done",
+            beforeStatus: 0,
+            readStatus,
+            afterStatus: 0,
+            unlockedBefore: true,
+            unlockedAfter: true,
+        });
+        const filter = vault.createDarwinDiagnosticFilter();
+        const bytes = frame(Object.fromEntries(Object.entries(record).reverse()));
+        for (let index = 0; index < bytes.length; index += 7) {
+            const chunk = Buffer.from(bytes.subarray(index, index + 7));
+            filter.push(chunk);
+            assert.ok(chunk.every((byte) => byte === 0));
+        }
+        filter.close(0, null);
+        const summary = filter.finish(1);
+        assert.equal(summary.rejected, false);
+        assert.equal(summary.incomplete, false);
+        assert.equal(summary.records[0]?.helper?.readStatus, readStatus);
+        assert.equal(JSON.stringify(summary.records[0]), JSON.stringify(record));
+        assert.deepEqual(collect(summary).fixtures, [summary]);
+    }
+    const filter = vault.createDarwinDiagnosticFilter();
+    const malicious = Buffer.from("SECRET_CANARY".repeat(100) + "\n");
+    filter.push(malicious);
+    filter.push(frame(helperRecord()));
+    filter.close(0, null);
+    const summary = filter.finish(1);
+    assert.equal(summary.rejected, true);
+    assert.equal(summary.incomplete, true);
+    assert.equal(summary.records.length, 1);
+    assert.ok(malicious.every((byte) => byte === 0));
+    assert.ok(!JSON.stringify(summary).includes("SECRET_CANARY"));
 });
