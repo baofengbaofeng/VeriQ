@@ -292,7 +292,7 @@ function declarations(pkg: Record<string, unknown>) {
     return output;
 }
 /** 自有树摘要使用合同规定的 JCS 文件事实，路径改为包内相对并按 ASCII 排序，剔除嵌套 node_modules 与 generated bin；真实 package 正文的 name/version 和精确摘要也必须同时匹配实例声明。 */
-async function packages(
+export async function verifyPackageContents(
     graph: DependencyGraph,
     inventory: TreeInventory,
     tree: BoundTree,
@@ -470,7 +470,7 @@ export async function verifyGraph(
     const graph = trees.dependencies.receipt.graph;
     await graphReferences(graph, recipe, reader, null);
     await graphReferences(node.npmGraph, recipe, reader, node);
-    await packages(graph, trees.dependencies.inventory, recipe.dependencies, reader);
+    await verifyPackageContents(graph, trees.dependencies.inventory, recipe.dependencies, reader);
     const optional = graph.edges.filter((e) => e.kind === "optional" || e.kind === "optional-peer"),
         decisions = trees.dependencies.receipt.optionalDecisions;
     unique(decisions, (d) => `${d.from}:${d.alias}`);

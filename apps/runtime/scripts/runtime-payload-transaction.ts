@@ -10,10 +10,11 @@ import {
     rename,
     rm,
     statfs,
+    symlink,
     unlink,
     type FileHandle,
 } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, resolve, posix } from "node:path";
 import {
     RuntimePayloadError,
     type Cleanup,
@@ -21,8 +22,16 @@ import {
     type PayloadErrorCode,
     type Phase,
     type Ref,
+    type NodeReceipt,
 } from "./runtime-payload-inputs.ts";
 import { InputReader, limits, relative, sha } from "./runtime-payload-tree.ts";
+import type { ArchiveMember } from "./runtime-payload-archive.ts";
+import {
+    verifyMacRuntimeManifestV2,
+    type MacChromeLayout,
+    type MacRuntimeArch,
+    type MacRuntimeStaticInventory,
+} from "../src/distribution-manifest-v2.ts";
 
 /** 私有事务把磁盘、来源身份和当前候选生命周期集中在一个拥有者中，扫描器不能自行选择输出根或删除路径；输入仍按固定配方重新读取，随机名字与标记只用于清理归属而不授予后续执行能力。 */
 export class ArchiveTransaction {
@@ -40,6 +49,13 @@ export class ArchiveTransaction {
     private readonly ancestors = new Map<string, BigIntStats>();
     private readonly directories = new Set<string>();
     private readonly outputs = new Map<string, Ref>();
+    private readonly directoryModes = new Map<string, number>();
+    private readonly outputModes = new Map<string, number>();
+    private readonly links = new Map<string, string>();
+    private runtimePolicy:
+        | { arch: MacRuntimeArch; layout: MacChromeLayout; manifestSha256: string }
+        | undefined;
+    private finalInventory: MacRuntimeStaticInventory | undefined;
     private remaining = 0;
     private sinceCheck = 0;
     private writers = 0;
@@ -51,6 +67,7 @@ export class ArchiveTransaction {
         readonly outputParent: string,
         readonly candidateName: string,
         readonly signal?: AbortSignal,
+        readonly profile: "intake" | "work" | "runtime" = "intake",
     ) {
         this.directory = join(outputParent, candidateName);
         this.lockPath = join(outputParent, `.veriq-${candidateName}.lock`);
@@ -111,11 +128,21 @@ export class ArchiveTransaction {
         this.scratchCreated = true;
         this.rootIdentity = await lstat(this.scratch, { bigint: true });
         this.directories.add("");
+        this.directoryModes.set("", 0o700);
         this.check();
-        await this.mkdir("snapshots");
-        await this.mkdir("trees");
-        await this.mkdir("trees/node");
-        await this.mkdir("trees/chrome");
+        if (this.profile === "intake") {
+            await this.mkdir("snapshots");
+            await this.mkdir("trees");
+            await this.mkdir("trees/node");
+            await this.mkdir("trees/chrome");
+        } else if (this.profile === "work") {
+            await this.mkdir("intakes");
+            await this.mkdir("views");
+            await this.mkdir("projection-evidence");
+        } else {
+            await this.mkdir("runtime");
+            await this.mkdir("input-evidence");
+        }
     }
     /** 不存在检查只把明确 ENOENT 当作空位置，其它系统错误必须传播并停止事务；检查既在独占锁之前执行也紧邻 rename 再执行，避免把已有目录或符号链接当作可覆盖的旧候选而悄悄删除。 */
     private async absent(path: string) {
@@ -152,23 +179,65 @@ export class ArchiveTransaction {
     /** 目录只按已核可移植组件逐层建立，物理权限固定私有且不沿归档权限落盘；重复推导父目录共享同一已记录身份，任何外来同名路径都会被 exclusive mkdir 拒绝，无法通过递归 mkdir 默默接受符号链接。 */
     async mkdir(path: string) {
         if (!path || this.directories.has(path)) return;
-        relative(path);
+        this.validatePath(path);
+        const mode = this.publicPath(path) ? 0o755 : 0o700;
         await this.mkdir(dirname(path) === "." ? "" : dirname(path));
         this.check();
         await this.checkSpace();
-        await mkdir(join(this.scratch, path), { mode: 0o700 });
+        await mkdir(join(this.scratch, path), { mode });
+        const directory = await open(
+            join(this.scratch, path),
+            constants.O_RDONLY | constants.O_NOFOLLOW,
+        );
+        // 目录权限或刷新失败必须作为第一错误继续向真实 intake 与 stage 边界传播，关闭只是独立收尾事实；即使真实 close 后又报告异常，也只记录清理不确定，不能把原 ENOSPC 或 EDQUOT 换成后来的 EIO。
+        let failed = false;
+        try {
+            await directory.chmod(mode);
+            await directory.sync();
+        } catch (error) {
+            failed = true;
+            throw error;
+        } finally {
+            try {
+                await directory.close();
+            } catch (error) {
+                this.noteCloseFailure();
+                if (!failed) throw error;
+            }
+        }
         this.check();
         this.directories.add(path);
+        this.directoryModes.set(path, mode);
         this.remaining = Math.max(0, this.remaining - 4096);
     }
     /** 流写入只接受内部扫描器确认的相对路径，使用独占六百权限普通文件并分块写到完整长度；关闭确认前保留 writer 计数，任何 sync 或 close 失败都会阻止安全清理声明，绝不把仍可能写入的目录递归删除。 */
-    async write(path: string, chunks: AsyncIterable<Uint8Array>, expected?: Ref) {
+    async write(
+        path: string,
+        chunks: AsyncIterable<Uint8Array>,
+        expected?: Ref,
+        requestedMode?: number,
+    ) {
         let handle: FileHandle | undefined;
         const digest = createHash("sha256");
         let size = 0,
             primary: unknown;
         try {
-            relative(path);
+            this.validatePath(path);
+            const mode =
+                requestedMode ??
+                (this.publicPath(path) ||
+                (this.profile === "work" && path.startsWith("projection-evidence/"))
+                    ? 0o644
+                    : 0o600);
+            if (
+                this.publicPath(path)
+                    ? ![0o444, 0o644, 0o555, 0o755].includes(mode)
+                    : mode !==
+                      (this.profile === "work" && path.startsWith("projection-evidence/")
+                          ? 0o644
+                          : 0o600)
+            )
+                this.fail("PAYLOAD_PATH");
             await this.mkdir(dirname(path) === "." ? "" : dirname(path));
             await this.checkSpace();
             this.check();
@@ -201,9 +270,11 @@ export class ArchiveTransaction {
                 (actual.sizeBytes !== expected.sizeBytes || actual.sha256 !== expected.sha256)
             )
                 this.fail("PAYLOAD_SOURCE_CHANGED");
+            await handle.chmod(mode);
             await handle.sync();
             this.check();
             this.outputs.set(path, actual);
+            this.outputModes.set(path, mode);
             this.remaining = Math.max(0, this.remaining - 4096);
             return actual;
         } catch (error) {
@@ -340,18 +411,111 @@ export class ArchiveTransaction {
     noteCloseFailure() {
         this.closureUnconfirmed = true;
     }
+    /** 固定容器不属于发行成员深度与长度预算，移除唯一内部前缀后仍逐组件检查完整逻辑路径；绝对路径、点组件和逃逸不会因为容器豁免而放行，默认 intake 保持原有路径政策供后续单独整改。 */
+    private validatePath(path: string) {
+        if (this.profile === "runtime" && path.startsWith("runtime/")) relative(path.slice(8));
+        else if (this.profile === "work" && path.startsWith("views/")) relative(path.slice(6));
+        else relative(path);
+    }
+    /** 只有最终 runtime 与临时 views 两个固定树使用可分发权限，其它证据和事务目录继续保持私有；权限由内部 profile 和路径共同派生，不开放任意调用者 chmod 或可绕过 audit 的文件系统钩子。 */
+    private publicPath(path: string) {
+        return (
+            (this.profile === "runtime" && (path === "runtime" || path.startsWith("runtime/"))) ||
+            (this.profile === "work" && (path === "views" || path.startsWith("views/")))
+        );
+    }
+    /** Chrome 链接只接受已独立核验布局中明确列出的 Framework 成员，真实普通树先写完再落地精确原目标；登记集合被 audit 逐项读回，其它任何链接路径都不能借该方法获得一般文件系统写权限。 */
+    async createChromeLinks(layout: MacChromeLayout) {
+        if (this.profile !== "runtime") this.fail("PAYLOAD_PATH");
+        for (const link of layout.allowedLinks) {
+            if (!layout.frameworkRoots.some((root) => link.path.startsWith(root + "/")))
+                this.fail("PAYLOAD_ARCHIVE_LINK");
+            relative(link.target, true);
+            await this.trackedLink(`runtime/${link.path}`, link.target);
+        }
+    }
+    /** 临时 npm alias 只有原收据明确声明并且每跳原始链接都与本次 intake 完全一致时才建立，终点必须是真实普通文件且等于 bin 目标；链接仅用于物理内容核验并归一到投影内目标，最终 Runtime 不复制它们。 */
+    async createProjectionBinAliases(node: NodeReceipt, members: readonly ArchiveMember[]) {
+        if (this.profile !== "work") this.fail("PAYLOAD_PATH");
+        const byPath = new Map(members.map((member) => [member.path, member]));
+        const declared = new Map(node.inputLinks.map((link) => [link.path, link.target]));
+        for (const bin of node.npmGraph.bins) {
+            if (bin.sourceAlias === null) continue;
+            if (bin.sourceAlias !== bin.aliasPath || !bin.sourceAlias.startsWith("npm/"))
+                this.fail("PAYLOAD_BIN_UNSUPPORTED");
+            let current = `${node.npmRoot}/${bin.sourceAlias.slice(4)}`;
+            const original = byPath.get(current);
+            if (original?.kind === "file") {
+                if (this.outputs.get(`views/${bin.sourceAlias}`)?.sha256 !== original.sha256)
+                    this.fail("PAYLOAD_SOURCE_CHANGED");
+                continue;
+            }
+            const seen = new Set<string>();
+            while (byPath.get(current)?.kind === "link") {
+                const member = byPath.get(current)!;
+                if (
+                    member.kind !== "link" ||
+                    declared.get(current) !== member.target ||
+                    seen.has(current) ||
+                    seen.size >= 32
+                )
+                    this.fail("PAYLOAD_ARCHIVE_LINK");
+                seen.add(current);
+                current = posix.normalize(posix.join(posix.dirname(current), member.target));
+                if (!current.startsWith(node.npmRoot + "/")) this.fail("PAYLOAD_ARCHIVE_LINK");
+            }
+            const terminal = byPath.get(current);
+            if (
+                !seen.size ||
+                terminal?.kind !== "file" ||
+                current !== `${node.npmRoot}/${bin.targetPath.slice(4)}` ||
+                terminal.sha256 !== bin.targetSha256
+            )
+                this.fail("PAYLOAD_BIN_UNSUPPORTED");
+            const target = posix.relative(posix.dirname(bin.aliasPath), bin.targetPath);
+            const actual = this.outputs.get(`views/${bin.targetPath}`);
+            if (!actual || actual.sha256 !== terminal.sha256) this.fail("PAYLOAD_SOURCE_CHANGED");
+            await this.trackedLink(`views/${bin.aliasPath}`, target);
+        }
+    }
+    /** 有限消费者完成各自政策检查之后才进入同一个私有链接写入点，逐级父目录必须为本事务已登记的真实目录；链接与文件目录集合互斥，原始目标在 audit 中逐字读回而不会被当作目录递归跟随。 */
+    private async trackedLink(path: string, target: string) {
+        this.validatePath(path);
+        relative(target, true);
+        if (this.links.has(path) || this.outputs.has(path) || this.directories.has(path))
+            this.fail("PAYLOAD_COLLISION");
+        await this.mkdir(dirname(path));
+        for (let parent = dirname(path); parent !== "."; parent = dirname(parent)) {
+            const info = await lstat(join(this.scratch, parent));
+            if (!this.directories.has(parent) || !info.isDirectory() || info.isSymbolicLink())
+                this.fail("PAYLOAD_SOURCE_CHANGED");
+        }
+        await this.checkSpace();
+        await symlink(target, join(this.scratch, path));
+        this.links.set(path, target);
+        this.check();
+    }
     /** 每个快照与普通输出都通过 held FD 再次完整流 hash，目录则精确枚举已拥有集合拒绝额外或缺失路径；最终路径复核不受已提交后取消影响，无法确认内容时保留发布事实并返回提交不确定错误。 */
     async audit(root = this.scratch) {
-        const expected = new Set([...this.directories, ...this.outputs.keys()]);
+        const expected = new Set([
+            ...this.directories,
+            ...this.outputs.keys(),
+            ...this.links.keys(),
+        ]);
         const walk = async (path: string): Promise<void> => {
             this.check();
             const full = join(root, path),
                 before = await lstat(full, { bigint: true });
             this.check();
-            if (!expected.delete(path) || before.isSymbolicLink())
-                this.fail("PAYLOAD_SOURCE_CHANGED");
-            if (this.directories.has(path)) {
-                if (!before.isDirectory() || Number(before.mode & 0o7777n) !== 0o700)
+            if (!expected.delete(path)) this.fail("PAYLOAD_SOURCE_CHANGED");
+            if (this.links.has(path)) {
+                if (!before.isSymbolicLink() || (await readlink(full)) !== this.links.get(path))
+                    this.fail("PAYLOAD_SOURCE_CHANGED");
+            } else if (this.directories.has(path)) {
+                if (
+                    !before.isDirectory() ||
+                    Number(before.mode & 0o7777n) !== this.directoryModes.get(path)
+                )
                     this.fail("PAYLOAD_SOURCE_CHANGED");
                 for (const name of await readdir(full)) await walk(path ? `${path}/${name}` : name);
             } else {
@@ -359,7 +523,7 @@ export class ArchiveTransaction {
                 if (
                     !before.isFile() ||
                     before.nlink !== 1n ||
-                    Number(before.mode & 0o7777n) !== 0o600
+                    Number(before.mode & 0o7777n) !== this.outputModes.get(path)
                 )
                     this.fail("PAYLOAD_SOURCE_CHANGED");
                 const handle = await open(
@@ -402,6 +566,7 @@ export class ArchiveTransaction {
     }
     /** 发布前刷新所有私有目录并再核自有根与锁，然后紧邻 rename 检查不存在和取消；rename 一旦开始即进入不确定边界，任何失败或最终复核失败都不冒充已回滚，也不会递归删除可能已经发布的目录。 */
     async publish(): Promise<Cleanup> {
+        if (this.profile !== "intake" && !this.runtimePolicy) this.fail("PAYLOAD_PATH");
         this.phase = "PUBLISH";
         await this.audit();
         for (const path of [...this.directories].sort((a, b) => b.length - a.length)) {
@@ -436,6 +601,15 @@ export class ArchiveTransaction {
             if (!this.rootIdentity || !sameNode(this.rootIdentity, final))
                 this.fail("PAYLOAD_COMMIT_UNCONFIRMED", "INCOMPLETE");
             await this.audit(this.directory);
+            if (this.runtimePolicy) {
+                const inventory = await verifyMacRuntimeManifestV2(
+                    join(this.directory, "runtime"),
+                    { arch: this.runtimePolicy.arch, layout: this.runtimePolicy.layout },
+                );
+                if (inventory.manifestSha256 !== this.runtimePolicy.manifestSha256)
+                    this.fail("PAYLOAD_COMMIT_UNCONFIRMED", "INCOMPLETE");
+                this.finalInventory = inventory;
+            }
             const parent = await open(this.outputParent, constants.O_RDONLY | constants.O_NOFOLLOW);
             try {
                 await parent.sync();
@@ -447,6 +621,22 @@ export class ArchiveTransaction {
             this.fail("PAYLOAD_COMMIT_UNCONFIRMED", "INCOMPLETE");
         }
         return this.cleanup();
+    }
+    /** Runtime 发布复用原独占锁和 rename 边界，但锁收尾前还必须在真正最终目录执行完整 D3a 并匹配同一 manifest 摘要；提交后无法核验时保留候选并报告不确定，绝不通过替换旧临时 root 字段冒充最终物理观察。 */
+    async publishRuntime(policy: {
+        arch: MacRuntimeArch;
+        layout: MacChromeLayout;
+        manifestSha256: string;
+    }): Promise<{ cleanup: Cleanup; inventory: MacRuntimeStaticInventory }> {
+        if (this.profile !== "runtime" || this.runtimePolicy) this.fail("PAYLOAD_PATH");
+        this.runtimePolicy = Object.freeze({
+            arch: policy.arch,
+            layout: structuredClone(policy.layout),
+            manifestSha256: policy.manifestSha256,
+        });
+        const cleanup = await this.publish();
+        if (!this.finalInventory) this.fail("PAYLOAD_COMMIT_UNCONFIRMED", "INCOMPLETE");
+        return { cleanup, inventory: this.finalInventory };
     }
     /** 清理归属以真实父目录、随机根 inode、独占锁 inode 与 nonce 字节共同确认，标记本身不允许接管旧目录；被观察到替换或尚有 writer 时拒绝删除，成功提交后只收尾锁而永远保留最终内容。 */
     private async owned() {

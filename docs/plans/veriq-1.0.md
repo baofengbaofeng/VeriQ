@@ -671,6 +671,7 @@ await expect(page.getByTestId('run.outcome')).toHaveText('PASSED');
 assert all(requirement.accepted for requirement in report.f01_to_f14)
 assert report.official_release_has_no_skipped_tests
 assert report.contains_real_windows_and_linux_evidence
+assert report.contains_real_macos_x64_and_arm64_evidence
 ```
 
 - [ ] **Step 2：运行测试确认未实现时失败。** `pnpm acceptance`；失败必须来自缺失行为，而非测试环境拼写错误。
@@ -680,7 +681,7 @@ assert report.contains_real_windows_and_linux_evidence
 
 ## 最终验收与交接
 
-最终交付必须包含服务端发布包与镜像、两个OS的Runtime包、源码/锁文件、迁移、公共契约、示例工程、用户/管理员/接入/运维手册、SBOM/NOTICE、真实验收结果及已知限制。全部F01-F14通过后才标记1.0完成；内部任务完成不能代替完整产品验收。
+最终交付必须包含服务端发布包与镜像、macOS15及以上x64/arm64、Windows11 x64和Ubuntu24.04 x64的桌面与Runtime包、源码/锁文件、迁移、公共契约、示例工程、用户/管理员/接入/运维手册、SBOM/NOTICE、真实验收结果及已知限制。全部F01-F14通过后才标记1.0完成；内部任务完成不能代替完整产品验收。
 
 进入编码前由用户审阅规格与选型。本文不授权代用户选择商业许可证、付费服务、发布生产环境或发送通知。审阅确认后按任务执行，不重复询问已确认的范围与技术要求。
 
