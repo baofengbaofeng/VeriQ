@@ -648,3 +648,36 @@ export function rehashPackages(value: ReturnType<typeof model>) {
         );
     }
 }
+
+/** 来源文档变异后重新绑定独立 expected 与五种 Build 的来源摘要，测试只更新外层身份而不修复文件声明内容；这样类别限额反例能够到达首次读取准入，避免先被无关来源 hash 不一致挡住。 */
+export function rebindSource(value: ReturnType<typeof model>) {
+    value.seal();
+    value.expected.sourceBindingSha256 = value.recipe.source.binding.sha256;
+    for (const receipt of Object.values(value.receipts))
+        receipt.build.sourceBindingSha256 = value.recipe.source.binding.sha256;
+    return value.seal();
+}
+
+/** 引擎正文变异时独立更新物理库存、原始 inventory 与规范 entry 摘要，但不改变文件名白名单或依赖关系；该 helper 让真实小型超限 JSON 能证明旧接受缺口，而不是只触发 hash 不匹配。 */
+export function replaceEngineFile(value: ReturnType<typeof model>, path: string, content: Buffer) {
+    value.put(`trees/engine/${path}`, content);
+    const fact = value.inventories.engine.files.find((f) => f.path === path)!;
+    fact.sizeBytes = content.length;
+    fact.sha256 = hash(content);
+    Object.assign(value.receipts.engine.files.find((f) => f.path === path)!, {
+        path,
+        sizeBytes: fact.sizeBytes,
+        sha256: fact.sha256,
+    });
+    const raw = bytes(value.engineInventory);
+    value.put("trees/engine/inventory.json", raw);
+    const inventoryFact = value.inventories.engine.files.find((f) => f.path === "inventory.json")!;
+    inventoryFact.sizeBytes = raw.length;
+    inventoryFact.sha256 = hash(raw);
+    value.receipts.engine.inventory = {
+        path: "inventory.json",
+        sizeBytes: raw.length,
+        sha256: hash(raw),
+    };
+    value.receipts.engine.entrySha256 = hash(canonicalBytes(value.engineInventory.engines[0]));
+}

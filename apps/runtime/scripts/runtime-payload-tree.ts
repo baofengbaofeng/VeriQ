@@ -26,6 +26,20 @@ export const limits = Object.freeze({
     edges: 20000,
     bins: 2000,
 });
+/** 已知源码和树成员按语义文件名选择较小内容类别，package.json 优先于普通 JSON，普通二进制仍保留两 GiB；归档引用不经此分类，以免任意归档文件名被误当作 JSON 文档限制。
+ * 同一个分类函数同时用于声明预检与首次实际流读，不能只在后续 package 或 engine 解码时才补限额。
+ */
+export function contentLimit(path: string): number {
+    return path.split("/").at(-1) === "package.json"
+        ? limits.package
+        : path.endsWith(".json")
+          ? limits.json
+          : limits.file;
+}
+/** 一组已知源码或完整树库存先统一核类别声明，再开始其中任何成员正文读取，防止后排超限成员被早期文件尺寸错误掩盖；实际读流仍使用同一类别上限并单独累计真实字节，声明检查不替代内容核验。 */
+export function admitContent(files: readonly Ref[]) {
+    for (const file of files) if (file.sizeBytes > contentLimit(file.path)) fail("PAYLOAD_LIMIT");
+}
 /** 内部失败入口只构造正式固定分类，不拼接输入路径、正文或底层异常消息；所有模块共享这一入口，避免某一图核验分支意外泄露不受信任的 JSON 或系统错误字符串。 */
 export function fail(code: PayloadErrorCode): never {
     throw new RuntimePayloadError(code);
@@ -135,6 +149,23 @@ function same(a: BigIntStats, b: BigIntStats) {
     );
 }
 
+/** 证据角色准入与成功读回报告分别维护，固定六十四 MiB 累计预算不接受调用方覆写；此内部组件由真实 Ref reader 消费，声明级测试可以直接核大长度关系而不创建同等体积的磁盘文件。 */
+export class EvidenceBudget {
+    private readonly admitted = new Map<string, Ref>();
+    private bytes = 0;
+    /** 同一路径的证据声明必须保持相同长度和摘要，重复引用不得重复收费或借替换摘要重新获得预算；该准入只记录声明，真正读过的事实仍由 reader.checked 在成功读取之后单独登记。 */
+    admit(ref: Ref, budgeted: boolean) {
+        if (!budgeted) return;
+        const previous = this.admitted.get(ref.path);
+        if (previous && (previous.sizeBytes !== ref.sizeBytes || previous.sha256 !== ref.sha256))
+            fail("PAYLOAD_RECEIPT_MISMATCH");
+        if (previous) return;
+        const next = this.bytes + ref.sizeBytes;
+        if (next > limits.evidence) fail("PAYLOAD_LIMIT");
+        this.admitted.set(ref.path, { ...ref });
+        this.bytes = next;
+    }
+}
 /** 每次核验独占只读上下文并持有自己的身份快照及流句柄，不注册进程级监听、不创建暂存目录；外部引用与树成员分别准入，避免 receipt 自哈希循环或通过链接解引用扩大读取范围。 */
 export class InputReader {
     readonly checked = new Map<string, Ref>();
@@ -145,7 +176,7 @@ export class InputReader {
     private entries = 0;
     private links = 0;
     private fileBytes = 0;
-    private evidenceBytes = 0;
+    private readonly evidenceBudget = new EvidenceBudget();
     /** 上下文固定唯一绝对输入根和同一取消信号，树根列表只用于阻断证据进入库存内部；所有可变计数和身份快照由本次核验独占，不能通过外部 options 放宽固定预算或继承上一份报告。 */
     constructor(
         readonly root: string,
@@ -217,6 +248,7 @@ export class InputReader {
         ref: Ref,
         collect = false,
         limit = collect ? limits.json : limits.evidence,
+        budgeted = limit !== limits.file,
     ): Promise<Buffer> {
         relative(ref.path);
         if (this.trees.some((root) => ref.path === root || ref.path.startsWith(root + "/")))
@@ -224,10 +256,7 @@ export class InputReader {
         const prior = this.checked.get(ref.path);
         if (prior && (prior.sha256 !== ref.sha256 || prior.sizeBytes !== ref.sizeBytes))
             fail("PAYLOAD_RECEIPT_MISMATCH");
-        if (!prior && limit !== limits.file) {
-            this.evidenceBytes += ref.sizeBytes;
-            if (this.evidenceBytes > limits.evidence) fail("PAYLOAD_LIMIT");
-        }
+        this.evidenceBudget.admit(ref, budgeted);
         const content = await this.read(ref.path, ref, limit, collect);
         this.checked.set(ref.path, {
             path: ref.path,
@@ -333,7 +362,7 @@ export class InputReader {
         return this.read(
             `${tree.root}/${ref.path}`,
             ref,
-            limit,
+            Math.min(limit, contentLimit(ref.path)),
             true,
             (ref as { mode?: number }).mode ?? 0o644,
         );
@@ -379,6 +408,7 @@ export class InputReader {
     }
     /** 完整树枚举逐项比较显式库存，目录、文件和有限逻辑链接三集合互斥；五棵树共享预算和 inode 集合，遗漏、额外空目录、hardlink、special 与不安全权限均立即阻断。 */
     async tree(tree: BoundTree, inventory: TreeInventory, kind: TreeKind) {
+        admitContent(inventory.files);
         const all = [
             ...inventory.directories,
             ...inventory.files.map((f) => f.path),
@@ -435,7 +465,13 @@ export class InputReader {
                     const key = `${child.dev}:${child.ino}`;
                     if (this.identities.has(key)) fail("PAYLOAD_TREE_MISMATCH");
                     this.identities.add(key);
-                    await this.read(`${tree.root}/${member}`, file, limits.file, false, file.mode);
+                    await this.read(
+                        `${tree.root}/${member}`,
+                        file,
+                        contentLimit(file.path),
+                        false,
+                        file.mode,
+                    );
                 }
             }
         };

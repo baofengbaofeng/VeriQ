@@ -10,6 +10,7 @@ import {
     RuntimePayloadError,
 } from "../scripts/runtime-payload-inputs.ts";
 import { fixture } from "./fixtures/runtime-payload.ts";
+import { EvidenceBudget, InputReader, limits } from "../scripts/runtime-payload-tree.ts";
 /** 树拒绝测试核对稳定产品异常而非字符串错误，所有变更发生于已封存声明之后的真实目录；因此遗漏完整枚举、权限核验或链接身份检查都会让对应反例被错误接受。 */
 const failure = (e: unknown) => e instanceof RuntimePayloadError;
 for (const [name, mutate] of Object.entries({
@@ -145,4 +146,72 @@ test("combined five-tree entry declarations reject before body traversal", async
             verify(input, f.expected, { inputRoot: f.root }),
             (e: unknown) => e instanceof RuntimePayloadError && e.code === "PAYLOAD_LIMIT",
         );
+    }));
+
+/** 类别限额必须在所有树第一次读取正文之前准入，而非等待包或引擎收尾重新读取；这里只放大声明且保留真实小文件，PAYLOAD_LIMIT 与物理长度不符的区分能够直接观察拒绝顺序。 */
+for (const [kind, path, limit] of [
+    ["dependencies", "node_modules/tsx/package.json", 1024 ** 2],
+    ["engine", "package.json", 1024 ** 2],
+    ["engine", "package-lock.json", 4 * 1024 ** 2],
+    ["engine", "inventory.json", 4 * 1024 ** 2],
+    ["engine", "dependencies.json", 4 * 1024 ** 2],
+] as const)
+    test(`fix1 first tree read enforces ${kind}/${path} category`, async () =>
+        fixture(async (f) => {
+            f.inventories[kind].files.find((file) => file.path === path)!.sizeBytes = limit + 1;
+            await assert.rejects(
+                verify(await f.save(), f.expected, { inputRoot: f.root }),
+                (e: unknown) => e instanceof RuntimePayloadError && e.code === "PAYLOAD_LIMIT",
+            );
+        }));
+
+/** 大长度只作为内部生产准入组件的声明，不创建两个四十 MiB 文件；来源角色先出现再作为 evidence 消费也必须各自计入固定六十四 MiB，不能因为路径已读或已见而跳过收费。 */
+test("fix1 source-first evidence admissions consume the cumulative budget", () => {
+    const budget = new EvidenceBudget(),
+        first = { path: "sources/first.bin", sizeBytes: 40 * 1024 ** 2, sha256: "a".repeat(64) },
+        second = { path: "sources/second.bin", sizeBytes: 40 * 1024 ** 2, sha256: "b".repeat(64) };
+    budget.admit(first, false);
+    budget.admit(first, true);
+    budget.admit(second, false);
+    assert.throws(
+        () => budget.admit(second, true),
+        (e: unknown) => e instanceof RuntimePayloadError && e.code === "PAYLOAD_LIMIT",
+    );
+});
+
+/** 单个 Ref 多次进入证据角色只收费一次，来源角色本身不占证据额度，边界恰好六十四 MiB 可准入；再加入一个字节必须拒绝，避免以修改上限或双重收费来掩盖跨角色绕过。 */
+test("fix1 evidence repeat admissions do not double-charge", () => {
+    const budget = new EvidenceBudget(),
+        first = { path: "sources/first.bin", sizeBytes: 40 * 1024 ** 2, sha256: "a".repeat(64) },
+        rest = { path: "sources/rest.bin", sizeBytes: 24 * 1024 ** 2, sha256: "b".repeat(64) };
+    budget.admit(
+        { path: "archives/large.tar.gz", sizeBytes: 2 * 1024 ** 3, sha256: "c".repeat(64) },
+        false,
+    );
+    for (let i = 0; i < 4; i++) budget.admit(first, true);
+    budget.admit(rest, true);
+    assert.throws(
+        () =>
+            budget.admit({ path: "evidence/last.bin", sizeBytes: 1, sha256: "d".repeat(64) }, true),
+        (e: unknown) => e instanceof RuntimePayloadError && e.code === "PAYLOAD_LIMIT",
+    );
+});
+
+/** 真实小文件先按来源角色核字节，再多次以 evidence 角色重读，仍只产生一条成功读取记录；独立声明的计费不应伪造 checkedEvidence，也不能关闭原有同路径摘要冲突拒绝。 */
+test("fix1 real source evidence reuse preserves exact checked records", async () =>
+    fixture(async (f) => {
+        const ref = f.recipe.tools[0]!.evidence,
+            reader = new InputReader(f.root, undefined, []);
+        await reader.initialize();
+        await reader.ref(ref, false, limits.file);
+        await reader.ref(ref);
+        await reader.ref(ref);
+        assert.equal(reader.checked.size, 1);
+        assert.deepEqual(reader.checked.get(ref.path), ref);
+        await assert.rejects(
+            reader.ref({ ...ref, sha256: "f".repeat(64) }),
+            (e: unknown) =>
+                e instanceof RuntimePayloadError && e.code === "PAYLOAD_RECEIPT_MISMATCH",
+        );
+        await reader.finish();
     }));

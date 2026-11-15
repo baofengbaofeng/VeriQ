@@ -67,3 +67,9 @@ checkedEvidence 精确列出真正读过并核过的去重 Ref。压缩文件原
 后续 b1b 消费相同 DTO 并重新调用 verify、重新检查所有来源身份，再实现受限归档 intake、stage 与最终 D3a v2 库存；旧报告不能作为持久执行 capability。b2 负责真实双原生 Mac 来源构建、Node/MachO/Chrome、peer 解析与 relocation 等验收。此片不等于 whole T20 或完整 MVP。
 
 纯 JavaScript 的观察不能提供原子整树快照，也不宣称抵抗恶意同 UID 父路径并发替换。调用者须保持输入静止，后续消费前重验。全仓 B05 注释覆盖门禁既有失败仍未豁免；本片通过不代表全仓质量门禁已通过。
+
+## R1：首次读取类别与证据角色预算
+
+已知源码和五树库存先按声明准入：所有 `package.json` 最多1 MiB，其它已知 `.json` 最多4 MiB；首次真实流读沿用同一类别上限。包含来源包 manifest、依赖包 manifest、引擎 package.json/package-lock.json/inventory.json/dependencies.json，不能等后续解码或重读才补上限。普通二进制源码和原归档继续使用既定2 GiB额度；归档角色不因任意文件名带 `.json` 被误分类。AST16/64 MiB 规则不变。
+
+成功读取记录与 evidence 角色准入分别维护。源码副本或原归档先读过某个 Ref，不免除它后来首次作为工具、命令、SDK、inspection、optional-decision、proof 等 evidence 消费时的64 MiB累计收费；同一 Ref 后续 evidence 重复消费不双计。来源角色本身不占这份 evidence 预算，checkedEvidence 仍只列实际核字节成功的去重记录。

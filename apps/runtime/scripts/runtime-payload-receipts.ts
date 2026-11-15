@@ -1,6 +1,8 @@
 import { canonicalBytes, validateSchema, type ApprovedEngineInventoryV1 } from "@veriq/contracts";
 import { isNode24Version } from "../src/node-version.ts";
 import {
+    admitContent,
+    contentLimit,
     decode,
     fail,
     freeze,
@@ -448,11 +450,12 @@ export async function verifyReceipts(recipe: Recipe, reader: InputReader) {
     const source = await document<SourceBindingV1>(reader, recipe.source.binding, schemas.source);
     if (source.commit !== recipe.source.commit) fail("PAYLOAD_RECEIPT_MISMATCH");
     paths(source.files.map((f) => f.path));
+    admitContent(source.files);
     const sourceMap = new Map(source.files.map((f) => [f.path, f]));
     const boundSource = async (ref: Ref) => {
         const declared = sourceMap.get(ref.path);
         if (!declared || !equal(declared, ref)) fail("PAYLOAD_RECEIPT_MISMATCH");
-        await reader.ref(ref, false, ref.path.endsWith(".json") ? limits.json : limits.file);
+        await reader.ref(ref, false, contentLimit(ref.path), false);
     };
     if (
         !equal(sourceMap.get("pnpm-lock.yaml"), {
@@ -462,8 +465,7 @@ export async function verifyReceipts(recipe: Recipe, reader: InputReader) {
         recipe.source.pnpmLock.path !== "pnpm-lock.yaml"
     )
         fail("PAYLOAD_RECEIPT_MISMATCH");
-    for (const file of source.files)
-        await reader.ref(file, false, file.path.endsWith(".json") ? limits.json : limits.file);
+    for (const file of source.files) await reader.ref(file, false, contentLimit(file.path), false);
     await reader.ref(recipe.source.archive, false, limits.file);
     await boundSource(recipe.source.pnpmLock);
     for (const tool of recipe.tools) await reader.ref(tool.evidence);
@@ -556,6 +558,7 @@ export async function verifyReceipts(recipe: Recipe, reader: InputReader) {
         native.inventory,
         engine.inventory,
     ];
+    for (const inventory of inventories) admitContent(inventory.files);
     if (
         inventories.reduce(
             (n, i) => n + i.directories.length + i.files.length + i.links.length,
