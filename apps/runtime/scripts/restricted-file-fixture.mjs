@@ -184,8 +184,13 @@ if (mode === "cleanup") {
     const observations = [];
     let staged;
     try {
-        await mkdir(state.root, { mode: 0o711 });
-        await chmod(state.root, 0o711);
+        /** 此临时公共祖先只承载受控布局名称，专用服务 UID 必须能取得只读目录句柄才能逐级到达私有卷；公开祖先保持 root 拥有且只读可遍历，实际 home、backing、volume 和密钥子目录仍各自保持原有七百权限，拥有标记也继续仅 root 可读。 */
+        await mkdir(state.root, { mode: 0o755 });
+        await chmod(state.root, 0o755);
+        const fixtureAncestor = await lstat(state.root);
+        assert(fixtureAncestor.isDirectory() && !fixtureAncestor.isSymbolicLink());
+        assert.equal(fixtureAncestor.uid, 0);
+        assert.equal(fixtureAncestor.mode & 0o7777, 0o755);
         await writeFile(join(state.root, ".owned"), nonce, { mode: 0o600, flag: "wx" });
         const deployment = await readPreparedFixtureDeployment(evidence, temporary);
         staged = join(state.root, "code/apps/runtime");
@@ -273,6 +278,14 @@ if (mode === "cleanup") {
             sourceNode: process.execPath,
             parentNetworkNamespace,
             deploymentNonce: deployment.nonce,
+            fixtureAncestor: {
+                path: state.root,
+                ownerUid: fixtureAncestor.uid,
+                ownerGid: fixtureAncestor.gid,
+                mode: fixtureAncestor.mode & 0o7777,
+                dev: fixtureAncestor.dev,
+                ino: fixtureAncestor.ino,
+            },
             acceptance:
                 "Network-isolated credential/file fixture on an owned CI account and bind volume",
         });
@@ -304,6 +317,17 @@ if (mode === "cleanup") {
                 assert.equal(facts.observedHome, user.home);
                 assert.equal(facts.homeEnvironmentProvided, false);
                 assert.equal(facts.executable, process.execPath);
+                assert.equal(facts.ancestorDirectoryFd.path, state.root);
+                assert.equal(facts.ancestorDirectoryFd.ownerUid, 0);
+                assert.equal(facts.ancestorDirectoryFd.ownerGid, fixtureAncestor.gid);
+                assert.equal(facts.ancestorDirectoryFd.mode, 0o755);
+                assert.equal(facts.ancestorDirectoryFd.dev, fixtureAncestor.dev);
+                assert.equal(facts.ancestorDirectoryFd.ino, fixtureAncestor.ino);
+                assert.equal(facts.ancestorDirectoryFd.openedByUid, user.uid);
+                assert.equal(facts.ancestorDirectoryFd.openedByEuid, user.uid);
+                assert.equal(facts.ancestorDirectoryFd.openedByGid, user.gid);
+                assert.equal(facts.ancestorDirectoryFd.openedByEgid, user.gid);
+                assert.equal(facts.ancestorDirectoryFd.closed, true);
                 assert.match(facts.networkNamespace, /^net:\[\d+\]$/);
                 assert.notEqual(facts.networkNamespace, parentNetworkNamespace);
                 assert.equal(facts.tsxCacheDisabled, true);

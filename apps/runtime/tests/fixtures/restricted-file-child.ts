@@ -1,5 +1,6 @@
 /** 此有限子程序只在临时 Linux CI 的自有专用账户和 bind 卷内运行，实际跨进程创建、读取与退休凭据并检查权限拒绝；所有业务值均为公开合成标记，随机原始密钥绝不写入输出，测试不声称 OS vault、机器掉电或正式部署持久性验收。 */
 import assert from "node:assert/strict";
+import { constants } from "node:fs";
 import { isIndependentNode24 } from "../../src/node-version.ts";
 import {
     chmod,
@@ -11,6 +12,7 @@ import {
     rename,
     symlink,
     unlink,
+    open,
 } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,6 +37,46 @@ assert.equal(code.uid, 0);
 assert.equal(code.mode & 0o777, 0o755);
 assert.equal(source.uid, 0);
 assert.equal(source.mode & 0o777, 0o644);
+/** 服务进程在凭据工厂之前亲自打开固定夹具祖先，防止 root 能读目录却掩盖降权账户只有执行权限的布局错误；同一持有句柄须确认 root 拥有、七五五模式及原目录 inode，finally 关闭后再把实际身份写入阶段报告，不读取拥有标记或任何凭据。 */
+assert.equal(process.getuid!(), Number(uid));
+assert.equal(process.geteuid!(), Number(uid));
+const fixtureAncestor = resolve(codeRoot, "../../..");
+assert.match(fixtureAncestor, /^\/var\/tmp\/veriq-restricted-ci-[0-9a-f-]{36}$/);
+assert.equal(volume, join(fixtureAncestor, "volume"));
+const ancestor = await lstat(fixtureAncestor);
+assert(ancestor.isDirectory() && !ancestor.isSymbolicLink());
+assert.equal(ancestor.uid, 0);
+assert.equal(ancestor.mode & 0o7777, 0o755);
+const ancestorDirectoryFd: Record<string, unknown> = {
+    path: fixtureAncestor,
+    openedByUid: process.getuid!(),
+    openedByEuid: process.geteuid!(),
+    openedByGid: process.getgid!(),
+    openedByEgid: process.getegid!(),
+    closed: false,
+};
+const ancestorHandle = await open(
+    fixtureAncestor,
+    constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+);
+try {
+    const observed = await ancestorHandle.stat();
+    assert(observed.isDirectory());
+    assert.equal(observed.dev, ancestor.dev);
+    assert.equal(observed.ino, ancestor.ino);
+    assert.equal(observed.uid, 0);
+    assert.equal(observed.mode & 0o7777, 0o755);
+    Object.assign(ancestorDirectoryFd, {
+        ownerUid: observed.uid,
+        ownerGid: observed.gid,
+        mode: observed.mode & 0o7777,
+        dev: observed.dev,
+        ino: observed.ino,
+    });
+} finally {
+    await ancestorHandle.close();
+    ancestorDirectoryFd.closed = true;
+}
 const directory = join(volume, "profile");
 const policy = {
     mode: "restricted-file" as const,
@@ -80,6 +122,7 @@ const facts: Record<string, unknown> = {
     encryptionAtRest: false,
     networkNamespace: await readlink("/proc/self/ns/net"),
     tsxCacheDisabled: process.env.TSX_DISABLE_CACHE === "1",
+    ancestorDirectoryFd,
 };
 const status = await readFile("/proc/self/status", "utf8");
 const procUid = /^Uid:\s+([0-9\s]+)$/m.exec(status)?.[1]?.trim().split(/\s+/).map(Number);
