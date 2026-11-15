@@ -6,6 +6,8 @@
 
 服务端构建、前端入 wheel、离线安装校验、引擎候选与独立晋升工具的代码已通过独立审查及取消/晋升问题修复复审。固定浏览器 SDK 136 项检查通过，行覆盖率 91.46%；这不代表最终集成门禁完成。默认构建仍被历史 lint、格式和注释规范阻断，当前包明确标记 UNVERIFIED。Electron 桌面 GUI 模块已通过独立审查，支持平台断网时使用缓存资源运行和查看报告。原生发行仍在开发：Windows Server 与 Ubuntu 已有原生 IPC、系统保险库及空初始化恢复的真实目标验证，Cookie 磁盘保护与重启读回也已验证；Ubuntu 源码 7 项 GUI 回归通过。Windows 仍有 3 项 ACL/所有者测试失败，Windows11/Ubuntu 安装和完整产品验收尚未完成，目前没有正式安装包。详见[里程碑](docs/plans/milestones.md)和[构建发行指南](docs/release.md)。
 
+Mac Runtime 的输入核验、有界归档和完整静态候选组装已通过组件复审，包含实际 stage CLI、来源记录与最终路径校验。双架构官方资产、真实二进制执行、Electron 插件装载、安装及系统凭据验收仍待完成，详见[里程碑](docs/plans/milestones.md)。
+
 仓库当前已落地 `apps/srv`（Tornado 控制服务）、`apps/web`（React 管理台）、`apps/runtime`（Agent/CLI/离线执行）、`packages/{contracts,compiler,runner-sdk,ui}`；`apps/desktop` 已包含 main/preload/renderer、本地打包界面和独立 Agent 入口。首发桌面范围已加入 Mac Intel x64 与 Apple Silicon arm64，优先级高于仍需交付的 Windows/Ubuntu；Mac 原生适配与安装验收尚未完成，见 [Mac 范围与兼容性记录](docs/specs/macos-mvp-scope.md)。贡献与智能体须遵循根目录 `AGENTS.md` 中的编码规范（4 空格缩进、中文注释、英文日志等）。
 
 ## 为什么做 VeriQ
@@ -272,7 +274,9 @@ Exact dependency versions and license records are in [ADR 0003](docs/decisions/0
 | AI                    | Provider SDK adapters, Midscene on demand                                                                    |
 | Build and test        | pnpm, uv, build, Hatchling, pytest/pytest-asyncio, Vitest, Playwright                                        |
 
-Target compatibility is server Linux x64, with macOS Intel x64 and Apple Silicon arm64 as the highest-priority desktop/Runtime MVP targets. Windows 11 x64 and Ubuntu 24.04 x64 remain required at lower priority. Mac implementation and installed acceptance are pending; the confirmed minimum is macOS 15 (Sequoia) for both Mac architectures, and tests must use host-native macOS Chrome. See [Mac scope and compatibility](docs/specs/macos-mvp-scope.md). Support claims require real builds and acceptance on each platform.
+Target compatibility is server Linux x64, with macOS Intel x64 and Apple Silicon arm64 as the highest-priority desktop/Runtime MVP targets. Windows 11 x64 and Ubuntu 24.04 x64 remain required at lower priority. Mac native integration and installed acceptance are pending; the confirmed minimum is macOS 15 (Sequoia) for both Mac architectures, and tests must use host-native macOS Chrome. See [Mac scope and compatibility](docs/specs/macos-mvp-scope.md). Support claims require real builds and acceptance on each platform.
+
+Mac Runtime input inspection, bounded archive intake, and complete static candidate assembly have passed component review, including the actual stage CLI, source records, and final-path verification. Official assets, native execution, Electron addon loading, installers, and OS credential acceptance remain pending; see the [milestones](docs/plans/milestones.md).
 
 ## Development checks
 
