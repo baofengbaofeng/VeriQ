@@ -1,12 +1,23 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
-import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import {
+    lstat,
+    mkdtemp,
+    mkdir,
+    readFile,
+    readdir,
+    rename,
+    rm,
+    symlink,
+    writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import test from "node:test";
 import { runBoundedAssetCli } from "../scripts/runtime-assets-ci-process.mjs";
 import {
+    bindPinnedPnpm,
     classifyCommandResult,
     collectLayoutMetadata,
     runStages,
@@ -295,19 +306,290 @@ test("rejects linked package manifests and invalid workspace boundaries", () =>
         await assert.rejects(collectLayoutMetadata({ root, evidenceDir, workspaceRoots: [] }));
     }));
 
-// 直接子进程先退出而其已知短寿命后代仍持有管道时，真实有界管理器只能返回关闭未知；调用方必须冻结失败并留下后续未运行，测试让自己创建的后代自然退出，不把此事实宣传为任意后代清理证明。
-test("actual unknown close blocks observation even after direct exit zero", async () => {
-    const script =
-        "const {spawn}=require('node:child_process'); spawn(process.execPath,['-e','setTimeout(()=>{}, 7200)'],{stdio:['ignore','inherit','inherit']}).unref(); process.exit(0)";
-    const journal = await runStages({
-        stages: [nodeStage("inherited-pipe", script, 120), nodeStage("observe", "process.exit(0)")],
-        deadlineMs: Date.now() + 10000,
+// 关闭未知夹具先由实际持有管道的进程发送 nonce 与身份确认，再让直接子进程退出零；控制器只能在捕获同一 READY 后判断关闭事实，启动未达条件会明确失败，不能把任意短期限当作继承管道已经建立的证明。
+const inheritedPipeFixture = async (delayMs) => {
+    const root = await mkdtemp(join(tmpdir(), "veriq-layout-pipe-")),
+        nonce = randomUUID();
+    const readyPath = join(root, "ready.json"),
+        releasePath = join(root, "release.json"),
+        donePath = join(root, "done.json"),
+        errorPath = join(root, "error.json");
+    // 三个握手标记都先完整写入同目录临时文件再 rename 发布，读取者只能见到缺失或完整 JSON；这防止 release 的创建与写入窗口被继承者误判成解析失败，同时保留真实异常文件而不把清理错误吞掉。
+    const inheritor = `
+        const fs = require("node:fs");
+        const publish = (path, value) => { fs.writeFileSync(path + ".tmp", JSON.stringify(value)); fs.renameSync(path + ".tmp", path); };
+        process.once("uncaughtException", (error) => {
+            publish(${JSON.stringify(errorPath)}, { name: error.name, message: error.message, code: error.code ?? null });
+            process.exit(14);
+        });
+        const identity = { kind: "READY", nonce: ${JSON.stringify(nonce)}, pid: process.pid, parentPid: process.ppid };
+        const expires = Date.now() + 12000;
+        let finished = false;
+        const finish = (reason) => {
+            if (finished) return;
+            finished = true;
+            clearInterval(timer);
+            fs.closeSync(1);
+            fs.closeSync(2);
+            publish(${JSON.stringify(donePath)}, { ...identity, kind: "DONE", descriptorsClosed: true, reason });
+            process.exit(0);
+        };
+        const timer = setInterval(() => {
+            let release = null;
+            try { release = JSON.parse(fs.readFileSync(${JSON.stringify(releasePath)}, "utf8")); }
+            catch (error) { if (error.code !== "ENOENT") throw error; }
+            if (release?.nonce === identity.nonce) finish("RELEASE");
+            else if (Date.now() > expires) finish("FAILSAFE");
+        }, 20);
+        publish(${JSON.stringify(readyPath)}, identity);
+        process.send(identity);
+    `;
+    const direct = `
+        const { spawn } = require("node:child_process");
+        process.on("SIGTERM", () => {});
+        setTimeout(() => {
+            const child = spawn(process.execPath, ["-e", ${JSON.stringify(inheritor)}], { stdio: ["ignore", "inherit", "inherit", "ipc"] });
+            child.once("error", () => process.exit(11));
+            child.once("message", (ready) => {
+                if (ready.kind !== "READY" || ready.nonce !== ${JSON.stringify(nonce)} || ready.pid !== child.pid || ready.parentPid !== process.pid) process.exit(12);
+                process.stdout.write(JSON.stringify(ready) + "\\n", () => process.exit(0));
+            });
+            child.unref();
+        }, ${delayMs});
+    `;
+    let ready = null,
+        result = null,
+        cleanup = "UNCONFIRMED",
+        primaryError = null;
+    try {
+        const journal = await runStages({
+            stages: [
+                nodeStage("inherited-pipe", direct, 2000),
+                nodeStage("observe", "process.exit(0)"),
+            ],
+            deadlineMs: Date.now() + 12000,
+        });
+        result = journal[0].commands[0].result;
+        const { stdout, stderr, ...facts } = result;
+        console.log(
+            JSON.stringify({
+                fixture: "inherited-pipe-result",
+                delayMs,
+                result: facts,
+                stdout: stdout.toString(),
+                stderr: stderr.toString(),
+            }),
+        );
+        assert.ok(stdout.length, `Fixture READY missing: ${JSON.stringify(facts)}`);
+        ready = JSON.parse(stdout.toString());
+        assert.deepEqual(ready, JSON.parse(await readFile(readyPath, "utf8")));
+        assert.equal(ready.kind, "READY");
+        assert.equal(ready.nonce, nonce);
+        assert.equal(ready.parentPid, result.pid);
+        assert.ok(Number.isSafeInteger(ready.pid) && ready.pid > 0 && ready.pid !== result.pid);
+        console.log(JSON.stringify({ fixture: "inherited-pipe", delayMs, ready, result: facts }));
+        assert.equal(result.closeConfirmed, false);
+        assert.equal(result.exit, 0);
+        assert.equal(result.signal, null);
+        assert.equal(result.admitted, true);
+        assert.equal(result.truncated, false);
+        assert.equal(result.error, null);
+        assert.equal(result.timedOut, true);
+        assert.equal(journal[0].error, "COMMAND_CLOSE_UNKNOWN");
+        assert.deepEqual(
+            journal.map((entry) => entry.status),
+            ["FAIL", "NOT_RUN"],
+        );
+    } catch (error) {
+        primaryError = error;
+        throw error;
+    } finally {
+        // release 文件只对本次 nonce 生效，DONE 在继承的两个描述符真实关闭之后写入；条件轮询有独立短期限，失败时保留夹具并报告未知，不能在仍可能存在 writer 时递归删除以制造清理成功表象。
+        const end = Date.now() + 2000;
+        try {
+            await writeFile(releasePath + ".tmp", JSON.stringify({ nonce }));
+            await rename(releasePath + ".tmp", releasePath);
+            let done;
+            while (!done) {
+                if (Date.now() > end) throw new Error("Fixture DONE deadline exceeded");
+                try {
+                    done = JSON.parse(await readFile(donePath, "utf8"));
+                } catch (error) {
+                    if (error.code !== "ENOENT") throw error;
+                }
+                if (!done) {
+                    let failure;
+                    try {
+                        failure = JSON.parse(await readFile(errorPath, "utf8"));
+                    } catch (error) {
+                        if (error.code !== "ENOENT") throw error;
+                    }
+                    if (failure)
+                        throw new Error(`Fixture inheritor failed: ${JSON.stringify(failure)}`);
+                    await new Promise((resolve) => setTimeout(resolve, 20));
+                }
+            }
+            assert.equal(done.kind, "DONE");
+            assert.equal(done.nonce, nonce);
+            if (ready) assert.equal(done.pid, ready.pid);
+            assert.equal(done.descriptorsClosed, true);
+            assert.equal(done.reason, "RELEASE");
+            await rm(root, { recursive: true });
+            await assert.rejects(lstat(root), { code: "ENOENT" });
+            cleanup = "REMOVED_AFTER_DONE";
+        } catch (error) {
+            if (primaryError)
+                throw new AggregateError(
+                    [primaryError, error],
+                    "Fixture assertion and cleanup failed",
+                );
+            throw error;
+        } finally {
+            console.log(
+                JSON.stringify({ fixture: "inherited-pipe", delayMs, nonce, root, cleanup }),
+            );
+        }
+    }
+};
+
+test("actual unknown close follows actual inheritor READY", () => inheritedPipeFixture(0));
+
+// 额外的真实启动延迟超过旧夹具的一百二十毫秒，但不会改变生产期限或进程关闭谓词；该场景只运行一次，必须先收到实际继承者 READY 再观察未知关闭，不依赖重复执行或操作系统专用跳过来取得绿色结果。
+test("delayed startup establishes READY before unchanged unknown-close predicates", () =>
+    inheritedPipeFixture(250));
+
+// 真实固定版本的工具入口是 ESM loader 加 ESM bundle，兼容 CJS shim 不能推导出同名 dist 文件；微型夹具保留原始清单与实际文件摘要，但任何夹具包体都不执行，错误扩展名必须在真实文件读取时暴露。
+const pnpmFixture = (body) =>
+    fixture(async ({ root, base }) => {
+        const packageRoot = join(root, "pnpm");
+        await mkdir(join(packageRoot, "bin"), { recursive: true });
+        await mkdir(join(packageRoot, "dist"));
+        const original =
+            '{\n "name":"pnpm", "version":"11.25.0", "type":"module", "bin":{"pnpm":"bin/pnpm.mjs"}, "custom":{"retained":true}\n}\n';
+        await writeFile(join(packageRoot, "package.json"), original);
+        await writeFile(join(packageRoot, "bin/pnpm.cjs"), "import('./pnpm.mjs');\n");
+        await writeFile(join(packageRoot, "bin/pnpm.mjs"), "await import('../dist/pnpm.mjs');\n");
+        await writeFile(
+            join(packageRoot, "dist/pnpm.mjs"),
+            "throw new Error('Fixture bodies must never execute');\n",
+        );
+        return body({ base, ownedRoot: root, packageRoot, original });
     });
-    assert.equal(journal[0].commands[0].result.closeConfirmed, false);
-    assert.equal(journal[0].commands[0].result.exit, 0);
-    assert.equal(journal[0].error, "COMMAND_CLOSE_UNKNOWN");
-    assert.deepEqual(
-        journal.map((entry) => entry.status),
-        ["FAIL", "NOT_RUN"],
-    );
-});
+
+test("binds pinned pnpm ESM files and complete original package identity", () =>
+    pnpmFixture(async ({ packageRoot, ownedRoot, original }) => {
+        const bound = await bindPinnedPnpm({ packageRoot, ownedRoot });
+        assert.equal(bound.version, "11.25.0");
+        assert.equal(bound.cli.path, join(packageRoot, "bin/pnpm.mjs"));
+        assert.equal(bound.implementation.path, join(packageRoot, "dist/pnpm.mjs"));
+        assert.equal(bound.package.path, join(packageRoot, "package.json"));
+        assert.equal(bound.packageJson.toString(), original);
+        for (const file of [bound.cli, bound.implementation, bound.package]) {
+            const bytes = await readFile(file.path);
+            assert.equal(file.bytes, bytes.length);
+            assert.equal(file.sha256, digest(bytes));
+        }
+    }));
+
+// 固定版本与入口声明的拒绝必须先于任何错误路径回退，所有负例在真实自有目录中改变一项事实；链接祖先、根外路径及不能读取为普通实现正文的对象均失败，而不是靠兼容 shim 或另一个 bundle 猜测成功。
+for (const [label, change, pattern] of [
+    [
+        "version",
+        async ({ packageRoot }) => {
+            const path = join(packageRoot, "package.json"),
+                value = JSON.parse(await readFile(path));
+            value.version = "11.25.1";
+            await writeFile(path, JSON.stringify(value));
+        },
+        /PNPM_PACKAGE_IDENTITY/,
+    ],
+    [
+        "module type",
+        async ({ packageRoot }) => {
+            const path = join(packageRoot, "package.json"),
+                value = JSON.parse(await readFile(path));
+            value.type = "commonjs";
+            await writeFile(path, JSON.stringify(value));
+        },
+        /PNPM_PACKAGE_IDENTITY/,
+    ],
+    [
+        "bin identity",
+        async ({ packageRoot }) => {
+            const path = join(packageRoot, "package.json"),
+                value = JSON.parse(await readFile(path));
+            value.bin = "bin/pnpm.mjs";
+            await writeFile(path, JSON.stringify(value));
+        },
+        /PNPM_PACKAGE_IDENTITY/,
+    ],
+    [
+        "escaping bin",
+        async ({ packageRoot }) => {
+            const path = join(packageRoot, "package.json"),
+                value = JSON.parse(await readFile(path));
+            value.bin.pnpm = "../../outside.mjs";
+            await writeFile(path, JSON.stringify(value));
+        },
+        /PNPM_PACKAGE_IDENTITY/,
+    ],
+    [
+        "missing implementation",
+        async ({ packageRoot }) => rm(join(packageRoot, "dist/pnpm.mjs")),
+        /ENOENT/,
+    ],
+    [
+        "linked loader",
+        async ({ packageRoot }) => {
+            await rm(join(packageRoot, "bin/pnpm.mjs"));
+            await symlink("../dist/pnpm.mjs", join(packageRoot, "bin/pnpm.mjs"));
+        },
+        /LAYOUT_FILE_LIMIT/,
+    ],
+    [
+        "linked manifest",
+        async ({ packageRoot, base }) => {
+            const path = join(base, "external.json");
+            await writeFile(path, await readFile(join(packageRoot, "package.json")));
+            await rm(join(packageRoot, "package.json"));
+            await symlink(path, join(packageRoot, "package.json"));
+        },
+        /LAYOUT_FILE_LIMIT/,
+    ],
+    [
+        "linked ancestor",
+        async ({ packageRoot, base }) => {
+            await rm(join(packageRoot, "bin"), { recursive: true });
+            await mkdir(join(base, "external-bin"));
+            await symlink(join(base, "external-bin"), join(packageRoot, "bin"));
+        },
+        /PNPM_PACKAGE_BOUNDARY/,
+    ],
+    [
+        "non-file hash input",
+        async ({ packageRoot }) => {
+            await rm(join(packageRoot, "dist/pnpm.mjs"));
+            await mkdir(join(packageRoot, "dist/pnpm.mjs"));
+        },
+        /LAYOUT_FILE_LIMIT/,
+    ],
+]) {
+    test(`rejects pinned pnpm ${label}`, () =>
+        pnpmFixture(async (input) => {
+            await change(input);
+            await assert.rejects(bindPinnedPnpm(input), pattern);
+        }));
+}
+
+// 工具根必须位于调用者已经持有的前缀内，验证入口前后还受原阶段截止时间约束；这些边界只作用于工具绑定，不延长生产阶段预算，也不把绝对路径正常化当作对外部来源的访问许可。
+test("rejects pinned pnpm root escape and expired binding deadline", () =>
+    pnpmFixture(async ({ packageRoot, ownedRoot, base }) => {
+        await assert.rejects(
+            bindPinnedPnpm({ packageRoot, ownedRoot: join(base, "other") }),
+            /PNPM_PACKAGE_BOUNDARY/,
+        );
+        await assert.rejects(
+            bindPinnedPnpm({ packageRoot, ownedRoot, deadlineMs: Date.now() - 1 }),
+            /PRODUCER_DEADLINE/,
+        );
+    }));

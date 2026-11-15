@@ -420,6 +420,74 @@ export async function collectLayoutMetadata({
     return { schemaVersion: 1, totals, artifacts };
 }
 
+/** 绑定本次自有前缀内固定版本的工具入口、实现正文与原始包清单身份，保持生产步骤与真实文件系统测试共用同一读取路径；绑定只记录文件事实，不执行包体，也不从兼容入口名称猜测额外信任能力。 */
+export async function bindPinnedPnpm({ packageRoot, ownedRoot, deadlineMs = Infinity }) {
+    if (
+        typeof packageRoot !== "string" ||
+        typeof ownedRoot !== "string" ||
+        !isAbsolute(packageRoot) ||
+        !isAbsolute(ownedRoot)
+    )
+        fail("PNPM_PACKAGE_BOUNDARY");
+    packageRoot = resolve(packageRoot);
+    ownedRoot = resolve(ownedRoot);
+    if (!inside(ownedRoot, packageRoot)) fail("PNPM_PACKAGE_BOUNDARY");
+    const check = () => {
+        if (Date.now() > deadlineMs) fail("PRODUCER_DEADLINE");
+    };
+    const directories = new Map();
+    let ancestor = ownedRoot;
+    const paths = [ownedRoot];
+    for (const part of relative(ownedRoot, packageRoot).split(sep).filter(Boolean)) {
+        ancestor = join(ancestor, part);
+        paths.push(ancestor);
+    }
+    paths.push(join(packageRoot, "bin"), join(packageRoot, "dist"));
+    // 自有前缀到工具包及两个实际代码父目录逐段核验真实目录，阻止父目录别名绕过文件本身的不跟随链接读取；收尾再次核同一组身份，不宣称对敌对同 UID 并发替换提供原子目录能力。
+    for (const path of paths) {
+        check();
+        const identity = await lstat(path, { bigint: true });
+        if (!identity.isDirectory() || identity.isSymbolicLink()) fail("PNPM_PACKAGE_BOUNDARY");
+        directories.set(path, identity);
+    }
+    const packagePath = join(packageRoot, "package.json");
+    const { data: packageJson, ...packageMetadata } = await inspectFile(
+        packagePath,
+        CAPS.manifestBytes,
+        true,
+        check,
+    );
+    const manifest = parseManifest(packageJson);
+    if (
+        manifest.name !== "pnpm" ||
+        manifest.version !== "11.25.0" ||
+        manifest.type !== "module" ||
+        !manifest.bin ||
+        typeof manifest.bin !== "object" ||
+        manifest.bin.pnpm !== "bin/pnpm.mjs"
+    )
+        fail("PNPM_PACKAGE_IDENTITY");
+    // 固定版本的公开入口和真正加载的实现均按已经核验的 ESM 布局绑定，兼容 CJS shim 的存在不参与推断；完整原始包清单单独交给调用者保留，摘要只绑定这次实际读取的字节而非远端发布者身份。
+    const cliPath = join(packageRoot, "bin/pnpm.mjs"),
+        implementationPath = join(packageRoot, "dist/pnpm.mjs");
+    const cli = { path: cliPath, ...(await inspectFile(cliPath, CAPS.jsonBytes, false, check)) };
+    const implementation = {
+        path: implementationPath,
+        ...(await inspectFile(implementationPath, CAPS.contentBytes, false, check)),
+    };
+    for (const [path, identity] of directories) {
+        check();
+        if (!same(identity, await lstat(path, { bigint: true }))) fail("PNPM_PACKAGE_BOUNDARY");
+    }
+    return {
+        version: manifest.version,
+        cli,
+        implementation,
+        package: { path: packagePath, ...packageMetadata },
+        packageJson,
+    };
+}
+
 // CI 环境中的宿主工具只继承必要的平台路径，所有 Node 注入与 npm 凭据覆盖先删除再指向独占缓存；不输出环境或完整配置，不改变真实 HOME 的含义，也不覆盖仓库的 peer、年龄或 overrides 规则。
 function sanitizeEnvironment(owned) {
     for (const key of Object.keys(process.env)) {
@@ -554,7 +622,7 @@ async function main() {
     const preparation = join(owned, "preparation"),
         installation = join(owned, "installation"),
         archive = join(owned, "source.tar");
-    const pnpm = join(tools, "node_modules/pnpm/bin/pnpm.cjs");
+    let pnpm;
     try {
         journal = await runStages({
             deadlineMs,
@@ -720,6 +788,21 @@ async function main() {
                             ],
                             source,
                         );
+                        const { packageJson, ...pnpmBinding } = await bindPinnedPnpm({
+                            packageRoot: join(tools, "node_modules/pnpm"),
+                            ownedRoot: tools,
+                            deadlineMs: end,
+                        });
+                        pnpm = pnpmBinding.cli.path;
+                        binding.pnpm = {
+                            ...pnpmBinding,
+                            package: {
+                                ...pnpmBinding.package,
+                                snapshot: hold("pnpm-package.json", packageJson),
+                            },
+                        };
+                        // 版本命令也可能失败，因此先把已经形成的工具绑定冻结成证据快照，保证 STARTED 与失败 journal 的来源摘要始终能在同次上传集合内复核；成功后的再次保存只确认同一对象而不改变来源身份。
+                        hold("binding.json", binding);
                         const version = await command(
                             process.execPath,
                             [pnpm, "--version"],
@@ -727,21 +810,6 @@ async function main() {
                         );
                         if (version.stdout.toString().trim() !== "11.25.0")
                             fail("PNPM_VERSION_MISMATCH");
-                        binding.pnpm = {
-                            version: "11.25.0",
-                            cli: { path: pnpm, ...(await inspectFile(pnpm, CAPS.jsonBytes)) },
-                            implementation: {
-                                path: join(tools, "node_modules/pnpm/dist/pnpm.cjs"),
-                                ...(await inspectFile(
-                                    join(tools, "node_modules/pnpm/dist/pnpm.cjs"),
-                                    CAPS.contentBytes,
-                                )),
-                            },
-                            package: await inspectFile(
-                                join(tools, "node_modules/pnpm/package.json"),
-                                CAPS.manifestBytes,
-                            ),
-                        };
                         hold("binding.json", binding);
                         await command(
                             "/usr/bin/git",
