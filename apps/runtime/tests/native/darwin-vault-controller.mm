@@ -1108,16 +1108,42 @@ struct Fixture {
         baseline = ciphertext(path, gate);
         observation.pass();
     }
-    /** 单条负例移除仍限定自有存储、固定服务与精确账户，首次调用仅在原删除前后记录至多两条事实；调用前守卫失败不产生系统状态，删除返回值只求一次且原拒绝条件与控制器清理能力保持不变。 */
+    /** 负例移除先在自有存储中查询固定服务与精确账户的全部属性及引用，完整验证后才逐项调用旧式删除接口；该夹具路径不读取秘密、不改写权限，也不借用生产验证来接纳故意不合规的测试条目。 */
     void remove(NSDictionary *request) {
         DiagnosticGate observation(NativeOperation::REMOVE, !removeObserved);
         removeObserved = true;
         require(created);
+        NSString *name = account(request);
         NSDictionary *query = @{(__bridge id)kSecClass: (__bridge id)kSecClassGenericPassword,
-            (__bridge id)kSecAttrService: @"VeriQ/RuntimeVault/v1", (__bridge id)kSecAttrAccount: account(request),
-            (__bridge id)kSecMatchSearchList: @[(__bridge id)store.value]};
-        DiagnosticGate::step(&observation, NativeSubstage::ITEM_DELETE);
-        require(DiagnosticGate::status(&observation, SecItemDelete((__bridge CFDictionaryRef)query)) == errSecSuccess);
+            (__bridge id)kSecAttrService: @"VeriQ/RuntimeVault/v1", (__bridge id)kSecAttrAccount: name,
+            (__bridge id)kSecMatchSearchList: @[(__bridge id)store.value],
+            (__bridge id)kSecReturnAttributes: @YES, (__bridge id)kSecReturnRef: @YES,
+            (__bridge id)kSecMatchLimit: (__bridge id)kSecMatchLimitAll};
+        Owned<CFTypeRef> result;
+        require(SecItemCopyMatching((__bridge CFDictionaryRef)query, &result.value) == errSecSuccess);
+        require(result.value && CFGetTypeID(result.value) == CFArrayGetTypeID());
+        CFArrayRef matches = static_cast<CFArrayRef>(result.value);
+        const CFIndex count = CFArrayGetCount(matches);
+        require(count > 0);
+        /** 元数据查询失败及任何成员类型或作用域不符都在首次删除之前关闭，不能把前几个合法条目当作整批有效；账户按原始字节编码且再次精确比较，因此不能借系统匹配行为扩大大小写或服务边界。 */
+        for (CFIndex index = 0; index < count; ++index) {
+            CFTypeRef raw = CFArrayGetValueAtIndex(matches, index);
+            require(raw && CFGetTypeID(raw) == CFDictionaryGetTypeID());
+            CFDictionaryRef attributes = static_cast<CFDictionaryRef>(raw);
+            CFTypeRef service = CFDictionaryGetValue(attributes, kSecAttrService);
+            CFTypeRef selectedAccount = CFDictionaryGetValue(attributes, kSecAttrAccount);
+            CFTypeRef item = CFDictionaryGetValue(attributes, kSecValueRef);
+            require(service && CFGetTypeID(service) == CFStringGetTypeID() && CFEqual(service, CFSTR("VeriQ/RuntimeVault/v1")));
+            require(selectedAccount && CFGetTypeID(selectedAccount) == CFStringGetTypeID() && CFEqual(selectedAccount, (__bridge CFStringRef)name));
+            require(item && CFGetTypeID(item) == SecKeychainItemGetTypeID());
+        }
+        /** 查询拥有的数组与字典在整个删除循环中持续保留借用引用，每次调用前清空旧状态再记录实际返回码；只有全部删除成功才通过，后续失败允许部分已删除但不重试，也不把上次成功冒充本次未返回结果。 */
+        for (CFIndex index = 0; index < count; ++index) {
+            CFDictionaryRef attributes = static_cast<CFDictionaryRef>(CFArrayGetValueAtIndex(matches, index));
+            CFTypeRef item = CFDictionaryGetValue(attributes, kSecValueRef);
+            DiagnosticGate::step(&observation, NativeSubstage::ITEM_DELETE);
+            require(DiagnosticGate::status(&observation, SecKeychainItemDelete(static_cast<SecKeychainItemRef>(const_cast<void *>(item)))) == errSecSuccess);
+        }
         observation.pass();
     }
 };
