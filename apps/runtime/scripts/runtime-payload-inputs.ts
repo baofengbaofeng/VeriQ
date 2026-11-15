@@ -361,16 +361,19 @@ export type Phase = "INPUTS" | "INTAKE" | "COPY" | "VERIFY" | "PUBLISH";
 
 /** 核验异常只携带固定英文分类与受控系统错误码，不保留可能包含输入正文的原始异常；所有输入阶段都不创建候选目录，取消超时只允许显式报告句柄关闭尚未确认。 */
 export class RuntimePayloadError extends Error {
-    readonly phase: Phase = "INPUTS";
-    readonly candidateDirectory = null;
-    /** 错误构造只保留固定分类、阶段与受控 causeCode，实例随后冻结防止调用方改写诊断分支；没有原始 cause 或任意 message，候选目录恒为空，纯输入核验不会声称已执行目录清理。 */
+    readonly phase: Phase;
+    readonly candidateDirectory: string | null;
+    /** 错误构造只保留固定分类、阶段与受控 causeCode，实例随后冻结防止调用方改写诊断分支；没有原始 cause 或任意 message，末尾上下文复制阶段与候选目录标量，旧调用仍维持输入阶段与空目录，不混淆真实事务的清理事实。 */
     constructor(
         public readonly code: PayloadErrorCode,
         public readonly causeCode: string | null = null,
         public readonly cleanup: Cleanup = "NOT_NEEDED",
+        context?: Readonly<{ phase: Phase; candidateDirectory: string | null }>,
     ) {
         super(code);
         this.name = "RuntimePayloadError";
+        this.phase = context?.phase ?? "INPUTS";
+        this.candidateDirectory = context?.candidateDirectory ?? null;
         Object.freeze(this);
     }
 }
@@ -379,10 +382,10 @@ export function parseRuntimePayloadInputs(
     bytes: Uint8Array,
     expected: ExpectedPayloadInputs,
 ): Recipe {
-    return admission(bytes, expected).recipe;
+    return admitRuntimePayloadInputs(bytes, expected).recipe;
 }
 /** 准入函数先复制调用方字节再取得独立期望快照，拒绝访问器及非 JSON 类型，绝不冻结调用方对象；错误策略在首次 await 前固定，即使调用者随后改写所有原对象也无法替换政策。 */
-function admission(bytes: Uint8Array, expected: ExpectedPayloadInputs) {
+export function admitRuntimePayloadInputs(bytes: Uint8Array, expected: ExpectedPayloadInputs) {
     if (!(bytes instanceof Uint8Array)) fail("PAYLOAD_INPUT_INVALID");
     if (bytes.byteLength > limits.json) fail("PAYLOAD_LIMIT");
     const snapshot = Uint8Array.from(bytes);
@@ -395,7 +398,7 @@ function admission(bytes: Uint8Array, expected: ExpectedPayloadInputs) {
     if (digest !== policy.recipeSha256) fail("PAYLOAD_EXPECTED_MISMATCH");
     const recipe = checked<Recipe>(decode(snapshot), schemas.recipe);
     recipePolicy(recipe, policy);
-    return { recipe, recipeSha256: digest };
+    return { recipe, recipeSha256: digest, bytes: snapshot, expected: policy };
 }
 /** 核验入口自行准入配方并同步快照输入根与取消信号，再逐字节读取所有引用和完整树，最后回查来源身份；报告保留固定五项 pending，不因压缩文件摘要通过而声称已检查展开内容或执行来源。 */
 export async function verifyRuntimePayloadInputs(
@@ -405,7 +408,7 @@ export async function verifyRuntimePayloadInputs(
 ): Promise<InputInspection> {
     const inputRoot = options?.inputRoot,
         signal = options?.signal;
-    const { recipe, recipeSha256 } = admission(bytes, expected);
+    const { recipe, recipeSha256 } = admitRuntimePayloadInputs(bytes, expected);
     if (typeof inputRoot !== "string" || (signal !== undefined && !(signal instanceof AbortSignal)))
         fail("PAYLOAD_INPUT_INVALID");
     if (!isNode24Version(process.versions.node) || typeof crc32 !== "function")

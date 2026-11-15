@@ -1,6 +1,6 @@
-# VeriQ macOS Runtime 静态输入核验
+# VeriQ macOS Runtime 静态输入核验与有界归档准备
 
-本片提供真实输入核验器与 inspect CLI。它核配方、独立 expected、原始文件字节、五棵完整输入树、构建收据、静态依赖图及引擎原库存；不生成 Runtime 候选目录，不解压归档，不执行输入程序。
+本说明覆盖真实输入核验器与 inspect CLI，以及下文独立的有界归档 prepare。inspect 核配方、独立 expected、原始文件字节、五棵完整输入树、构建收据、静态依赖图及引擎原库存；prepare 进一步安全扫描并提取原归档为私有普通文件树。两个工具都不生成 Runtime 候选目录或执行输入程序。
 
 ## 使用
 
@@ -64,7 +64,7 @@ verifyRuntimePayloadInputs(
 
 checkedEvidence 精确列出真正读过并核过的去重 Ref。压缩文件原始 hash 通过不代表成员、CRC、解压安全或 npm 内容已核。外部工具、SDK、GraphProof 与 inspection 的一致声明不能证明 Git 来源、上游签名、真实构建、MachO 内容或发布者身份。
 
-后续 b1b 消费相同 DTO 并重新调用 verify、重新检查所有来源身份，再实现受限归档 intake、stage 与最终 D3a v2 库存；旧报告不能作为持久执行 capability。b2 负责真实双原生 Mac 来源构建、Node/MachO/Chrome、peer 解析与 relocation 等验收。此片不等于 whole T20 或完整 MVP。
+下文有界 prepare 已消费相同 DTO 并重新调用 verify、独立检查来源身份，交付原归档 intake。后续 S 继续重验原字节与来源，再实现完整 stage 与最终 D3a v2 库存；旧报告不能作为持久执行 capability。b2 负责真实双原生 Mac 来源构建、Node/MachO/Chrome、peer 解析与 relocation 等验收。此片不等于 whole T20 或完整 MVP。
 
 纯 JavaScript 的观察不能提供原子整树快照，也不宣称抵抗恶意同 UID 父路径并发替换。调用者须保持输入静止，后续消费前重验。全仓 B05 注释覆盖门禁既有失败仍未豁免；本片通过不代表全仓质量门禁已通过。
 
@@ -73,3 +73,36 @@ checkedEvidence 精确列出真正读过并核过的去重 Ref。压缩文件原
 已知源码和五树库存先按声明准入：所有 `package.json` 最多1 MiB，其它已知 `.json` 最多4 MiB；首次真实流读沿用同一类别上限。包含来源包 manifest、依赖包 manifest、引擎 package.json/package-lock.json/inventory.json/dependencies.json，不能等后续解码或重读才补上限。普通二进制源码和原归档继续使用既定2 GiB额度；归档角色不因任意文件名带 `.json` 被误分类。AST16/64 MiB 规则不变。
 
 成功读取记录与 evidence 角色准入分别维护。源码副本或原归档先读过某个 Ref，不免除它后来首次作为工具、命令、SDK、inspection、optional-decision、proof 等 evidence 消费时的64 MiB累计收费；同一 Ref 后续 evidence 重复消费不双计。来源角色本身不占这份 evidence 预算，checkedEvidence 仍只列实际核字节成功的去重记录。
+
+## 有界归档 prepare
+
+`runtime-payload-archive.ts` 提供 `intakeRuntimeArchives(bytes, expected, options): Promise<IntakeResult>`。options 为 `{inputRoot, outputParent, candidateName, signal?}`；入口首次 await 前取得私有原字节、独立冻结 expected、选项标量及 signal 引用，然后真实调用同一输入核验器。内部共享准入每次创建新所有权字节，不 memo，也不把可写 TypedArray 假称为冻结对象。
+
+在 `apps/runtime` 工作目录执行以下构建工具，五个 flag 必须各出现一次；路径都必须是显式绝对路径，candidate 为不超过64字符的单个可移植 ASCII 组件：
+
+```sh
+node --import tsx scripts/prepare-macos-runtime-archives.mjs \
+    --inputs /absolute/inputs.json \
+    --expected /absolute/expected.json \
+    --input-root /absolute/input-root \
+    --output-parent /absolute/controlled-output \
+    --candidate candidate-id
+```
+
+成功 stdout 只有完整 `IntakeResult={directory,receiptSha256,receipt,committed:true,cleanup}` JSON。目录为 `archive-intake.json`、`snapshots/node.tar.gz`、`snapshots/chrome.zip` 与 `trees/{node,chrome}/<原topDirectory>/...`。归档目录和普通文件实际权限固定0700/0600，原 mode 只保留在回执；原始链接完整记录为逻辑成员，**不创建物理 symlink**。ArchiveMember 只记录实际 entries；缺省 parent 推导用于落地与链接解析，不伪造原目录模式。回执及嵌套字段深冻结，receiptSha256 对应 canonical 原始回执字节。
+
+先 held FD 复制并核对两份独立 exclusive 快照，完整第一遍扫描实际长度、摘要、CRC、路径与链接图，再计算剩余空间，从同一快照第二遍逐成员对照后提取。五树与两归档有效路径共享40000成员、1024链接、16 GiB正文；正文含逻辑目标 UTF8 字节。树 fileBytes 本身仍只表示普通文件。单文件/原归档各2 GiB；路径1024、组件255、深度64、链接跳数32；回执最多4 MiB，实际成员累计时即收费，最终完整规范字节再核上限。
+
+仅使用锁定 tar7.5.22/yauzl3.4.0 与 Node24 `zlib.crc32`。tar 的 gunzip 完整消费到 trailer，公开 Header framing 检查 checksum、完整正文/padding、双零终止及不超过1 MiB的零尾；支持 File/Directory/SymbolicLink、受限 PAX 与 GNU longname/longlink，拒绝 hardlink/special/sparse、size 覆盖或未知 meta。meta 单64 KiB、累计4 MiB、计数40000；真实解压流另限16 GiB+64 MiB。PAX 仅单行 ASCII 的 path/linkpath/mtime/atime/ctime/uid/gid/uname/gname，每个唯一字段由公开 Pax.parse 实际解释并经 encodeField/parse 往返确认；静默丢弃的错误长度、未知或重复字段均拒绝，不宣称支持全部 PAX。
+
+ZIP 逐 entry lazy 读取，核 local 原文件名/flags/method 与 central 一致、安全整数边界及 local header/data 区间互斥；只接受未加密 stored/deflate，bit3 可接受。每个实际解压流包括空目录与链接都核最终长度和 CRC。这里只承诺公开 API 可证的范围、文件边界、流长/CRC 和库报错；**不宣称验证 descriptor、EOCD/ZIP64 全语法或 central directory 与 payload 全域不重叠**。ZIP streamBytes 是已完整 hash 的快照长度，tar 则是第一遍真实解压流长度。
+
+Node links 全集精确匹配独立 NodeReceipt.inputLinks。Chrome 路径加 browser/ 后精确匹配独立 layout.allowedLinks，逐跳受同一非空名称 Framework 根约束。所有链接无悬空、越界或超过32跳；真实目录与目录别名组成有界图做迭代环检，合法重复别名不展开虚拟树。此结果完成原归档事实检查，未完成 npm 包内容/图、完整 Chrome 产品布局与 MachO/执行来源验收；b1a 原报告的固定 pending 保持原语义。
+
+输入输出真实根不重叠且无 symlink/ASAR 祖先，受控父目录由调用者持有。独占当前 candidate 锁，不覆盖现有目标/锁，不按 glob 清理旧目录。空间依据实际快照、扫描正文及保守元数据计划；reserve=max(16 MiB,ceil(remainingWrites\*5%))，每阶段、新条目和每8 MiB写入再核 statfs，仍处理真实 ENOSPC/配额失败。只删除 nonce、parent/root/lock inode 与所有 writer 关闭均确认的自有 scratch；观察替换或关闭不确定时保留并报告 INCOMPLETE。
+
+I 的独立来源身份观察在初次 b1a 后建立，涵盖实际 Ref、五树成员、父目录及宿主祖先；复制和收尾重核，再次真实调用 b1a。它不能继承 b1a 更早私有观察，不能保证发现两个观察边界之间所有同字节 inode 替换，也不提供敌对同 UID 下的原子整树或 NOREPLACE rename 保证。输入应保持静止。
+
+全部来源、快照及落地内容复核、回执写入和 fsync 后，最终取消检查紧邻同 FS rename。rename 或最终内容确认不确定时抛 PAYLOAD_COMMIT_UNCONFIRMED，保留目录事实；已确认提交后取消不撤回。仅锁/元数据清理失败时仍返回 committed:true/cleanup:INCOMPLETE，CLI stderr 稳定警告。首 SIGINT/TERM 停止并等待自有资源关闭，二次信号或五秒期限以130/143、INCOMPLETE退出，保留可能仍有 writer 的 scratch；SIGKILL/断电没有清理保证。错误仍是冻结 RuntimePayloadError；原三个构造参数兼容，末尾可选上下文只复制 phase/candidateDirectory 标量，旧输入调用继续 INPUTS/null。
+
+产品不需要 Python，不执行归档成员，不下载或安装内容，也不生成 Runtime 候选、签名、角色/engine 晋升或 ready。微型 ZIP 测试夹具需要开发机 Python3 标准库 zipfile；这不是已安装 Runtime 的依赖。后续 S 必须重新核原 bytes/refs 并重新 intake，旧成功结果不构成持久 capability。

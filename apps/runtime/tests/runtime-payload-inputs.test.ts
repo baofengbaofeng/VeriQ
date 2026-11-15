@@ -7,6 +7,7 @@ import {
     parseRuntimePayloadInputs as parse,
     verifyRuntimePayloadInputs as verify,
     RuntimePayloadError,
+    admitRuntimePayloadInputs,
 } from "../scripts/runtime-payload-inputs.ts";
 import { fixture, model, bytes, hash } from "./fixtures/runtime-payload.ts";
 
@@ -270,3 +271,31 @@ test("actual inspect CLI second signal and close deadline report incomplete", as
             assert.match(result.err, /PAYLOAD_CANCELLED phase=INPUTS cleanup=INCOMPLETE/);
         }
     }));
+
+/** 新增末尾上下文只复制阶段与目录标量，旧三个参数仍保持原来的输入阶段及空候选语义；共享准入必须为每次调用创建独立字节和政策，调用方后续改写不能影响真实消费者之间的绑定。 */
+test("intake error context copies scalars while legacy constructor stays compatible", () => {
+    const context = { phase: "INTAKE" as const, candidateDirectory: "/controlled/candidate" };
+    const error = new RuntimePayloadError("PAYLOAD_IO", "EIO", "CONFIRMED", context);
+    context.candidateDirectory = "/changed";
+    assert.equal(error.phase, "INTAKE");
+    assert.equal(error.candidateDirectory, "/controlled/candidate");
+    assert.equal(new RuntimePayloadError("PAYLOAD_IO").phase, "INPUTS");
+    assert.equal(new RuntimePayloadError("PAYLOAD_IO").candidateDirectory, null);
+    assert.ok(Object.isFrozen(error));
+});
+
+/** 内部共享准入仍每次复制 caller 字节和独立 expected 政策，parse 与 verify 不依赖可被重用的旧准入对象；只读政策不冻结调用方，TypedArray 则保留私有所有权而不假称 Object.freeze 能保护其元素写入。 */
+test("shared consumed admission returns independent bytes and policy each call", () => {
+    const f = model(),
+        input = f.seal(),
+        expected = structuredClone(f.expected);
+    const one = admitRuntimePayloadInputs(input, expected),
+        two = admitRuntimePayloadInputs(input, expected);
+    one.bytes.fill(0);
+    input.fill(0);
+    expected.target.arch = "arm64";
+    assert.equal(hash(two.bytes), f.expected.recipeSha256);
+    assert.equal(two.expected.target.arch, "x64");
+    assert.ok(Object.isFrozen(two.expected.target));
+    assert.notEqual(one.expected, two.expected);
+});
