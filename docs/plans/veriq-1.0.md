@@ -15,7 +15,7 @@
 ## Global Constraints
 
 - F01-F14全部属于首发MVP，不能以开发阶段为由删减。
-- Python3.12、Tornado 6.6.1、SQLAlchemy2.0、MySQL8.4 LTS；全部表veriq_，Alembic表veriq_alembic_version。
+- Python3.12、Tornado 6.6.1、SQLAlchemy2.0、MySQL8.4 LTS；全部表veriq\_，Alembic表veriq_alembic_version。
 - 私人设备与Workspace分别授权；本地自有进程veriq/veriq_agent/veriq_runner。
 - 开发前后端分开；生产web check/build后复制到apps/srv/src/veriq_server/static/dist，随wheel发布。
 - 服务端运行不需要Node或浏览器；Runtime采用同一TS引擎，不在常规执行调用模型。
@@ -173,7 +173,7 @@ assert await publish_with_receipt_for_other_hash() == INVALID_RECEIPT
 - [x] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```ts
-expect(validate(useBeforeExtract).map(x => x.code)).toContain('VARIABLE_USED_BEFORE_DEFINED');
+expect(validate(useBeforeExtract).map((x) => x.code)).toContain("VARIABLE_USED_BEFORE_DEFINED");
 expect(compileAssets(assetSnapshot).sourceHash).toBe(compileAssets(assetSnapshot).sourceHash);
 ```
 
@@ -203,7 +203,7 @@ expect(compileAssets(assetSnapshot).sourceHash).toBe(compileAssets(assetSnapshot
 
 ```ts
 expect(savedRequest.body.code).toBe(attemptCode);
-expect(await missingPersistenceCase()).toMatchObject({outcome:'FAILED'});
+expect(await missingPersistenceCase()).toMatchObject({ outcome: "FAILED" });
 expect(registry.activeCount()).toBe(0);
 ```
 
@@ -233,7 +233,7 @@ expect(registry.activeCount()).toBe(0);
 ```ts
 expect(second.fixtureId).toBe(first.fixtureId);
 expect(attemptA.namespace).not.toBe(attemptB.namespace);
-expect(await cleanupAgain()).toMatchObject({status:'ALREADY_CLEANED'});
+expect(await cleanupAgain()).toMatchObject({ status: "ALREADY_CLEANED" });
 ```
 
 - [x] **Step 2：运行测试确认未实现时失败。** `pnpm --filter @veriq/runner-sdk exec vitest run tests/fixtures.test.ts`；失败必须来自缺失行为，而非测试环境拼写错误。
@@ -318,7 +318,7 @@ assert expired_unknown_worker.capacity_state == QUARANTINED
 
 ```ts
 expect(processes.active()).toHaveLength(0);
-expect(retryPassed.outcome).toBe('UNSTABLE');
+expect(retryPassed.outcome).toBe("UNSTABLE");
 expect(firstAttempt.fixtureId).not.toBe(secondAttempt.fixtureId);
 ```
 
@@ -346,8 +346,8 @@ expect(firstAttempt.fixtureId).not.toBe(secondAttempt.fixtureId);
 - [x] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```ts
-expect(await page.getByTestId('case.validation-errors').count()).toBe(0);
-await expect(page.getByTestId('case.published-version')).toBeVisible();
+expect(await page.getByTestId("case.validation-errors").count()).toBe(0);
+await expect(page.getByTestId("case.published-version")).toBeVisible();
 ```
 
 - [x] **Step 2：运行测试确认未实现时失败。** `pnpm --filter @veriq/web test:e2e case-publish.spec.ts`；失败必须来自缺失行为，而非测试环境拼写错误。
@@ -607,7 +607,7 @@ assert production_starts_without_node_or_chrome is True
 
 **T20私有Runtime存储组件完成（2026-11-16，北京时间）：** 原查询修复`29661cc`后的首个remove失败由`13ab3e3`真实诊断为SecItemDelete返回-25244；`e0ba135`仅在测试控制器内完整核验同范围ALL元数据/引用后，逐项调用SecKeychainItemDelete，保留全部生产ACL检查、八项负例和原预算。两轮原审查代理规格/质量复审C/I/M均0，最后一文件改动复用未变化的64/24/49/22及类型结果；root39封存/695保护Git/20历史封存与319缓存成员核验通过。真实43758515194双Mac SDK/共享原生自测、各7非持久＋2专用通过且无跳过；八策略、未变化证明、不确定恢复及真实-25293解锁读取拒绝通过，四夹具正文/擦除/清理通过、实际控制器exit0、SecKeychainDelete返回0且目录清理通过。匹配多条的删除仅经源码批次校验/遍历与生命周期审查，不冒称另有原生多匹配用例；粗粒度cleanup摘要仍为源绑定测试推导，详细记录另有实际退出/删除事实。关闭此功能组件，后续继续生产依赖、可执行Runtime、Electron与安装；不提前关闭整T20或MVP。
 
-### T20 下一组件：固定锁生产依赖布局生产器
+### T20 固定锁生产依赖布局生产器（组件已完成）
 
 既有T20范围内的CI生产步骤，按已确认的双Mac优先级继续。保留现有官方资产流水线，通过同一workflow的显式purpose选择独立生产布局任务；该步骤产生可复用的物理布局元数据，后续仍需真实依赖物化、目标解析、可执行布局、Chrome与完整Runtime验收。
 
@@ -623,15 +623,15 @@ assert production_starts_without_node_or_chrome is True
 - 清单/路径/实例/总字节越界必须失败，不能省略后报告成功；用真实超限文件与小预算验证。
 - 未知purpose、错误源码或平台不得获取依赖；保存准入分支和真正双架构运行事实，默认资产分支保留。
 
-- [ ] 1. 编写生产器的失败阶段、真实嵌套包/链接/越界测试并观察RED；此处只验证工具行为，不伪造真实pnpm布局。
-- [ ] 2. 实现CI工具并复用已有有界进程函数。source_ref必须40位十六进制且等于GITHUB_SHA，记录workflow/锁/workspace/各package manifest及脚本/测试/进程依赖SHA。
-- [ ] 3. 在独立自有目录使用宿主工具准备存储：pnpm fetch --prod --frozen-lockfile --ignore-scripts；记录全workspace生产获取范围，锁不变；不宣称Runtime过滤获取。
-- [ ] 4. 使用无node_modules的新源码副本及已准备存储，运行pnpm --filter @veriq/runtime... install --frozen-lockfile --offline --ignore-scripts --prod --node-linker=hoisted --package-import-method=copy；记录实际importer/包/链接事实，过滤未生效或拒绝不得靠改锁、inject、peer放宽来掩盖。
-- [ ] 5. 生产全部物理package实例、完整原始package.json、普通文件SHA/大小/模式、原始符号链接、bin及workspace源码映射；Node内置fs/crypto完成有界观察，不新增图求解器，不执行包体。
-- [ ] 6. workflow新增purpose（默认assets、显式production-layout）和拒绝未知值的准入，保留原push/default-assets步骤及制品行为；独立Mac矩阵30分钟，工具≤4/获取≤12/安装≤8/观测≤4分钟，旧资产job40分钟不变。
-- [ ] 7. 宿主工具/来源准入后显式运行新MJS单测门禁，再做生产获取；命令stdout64KiB/stderr4MiB/六秒有限关闭沿用现有函数。物理清单≤4000实例/40000成员/1024链接/16GiB内容，路径≤1024，manifest≤1MiB/其他JSON读取≤4MiB，上传固定元数据/日志总≤64MiB，超限显式失败。
-- [ ] 8. 记录STARTED/PASS/FAIL/NOT_RUN、原始参数/退出/超时/关闭/锁前后SHA及占用；只上传固定、关闭后取得的元数据/日志，7天保留。包体/存储/checkout/HOME/缓存和大归档不上传；已失败/未知的布局不获得成功清单。
-- [ ] 9. 运行覆盖新调用方/清单逻辑的本地GREEN、格式和源码保护检查，源绑定PRE/POST/精确3路径提交，独立审查。协调者之后仅一次production-layout手动dispatch，核验双架构小制品身份、CRC、引用、源码/工具/锁与物理计数；不本机重哈希未上传的包体。
+- [x]   1. 编写生产器的失败阶段、真实嵌套包/链接/越界测试并观察RED；此处只验证工具行为，不伪造真实pnpm布局。
+- [x]   2. 实现CI工具并复用已有有界进程函数。source_ref必须40位十六进制且等于GITHUB_SHA，记录workflow/锁/workspace/各package manifest及脚本/测试/进程依赖SHA。
+- [x]   3. 在独立自有目录使用宿主工具准备存储：pnpm fetch --prod --frozen-lockfile --ignore-scripts；记录全workspace生产获取范围，锁不变；不宣称Runtime过滤获取。
+- [x]   4. 使用无node_modules的新源码副本及已准备存储，运行pnpm --filter @veriq/runtime... install --frozen-lockfile --offline --ignore-scripts --prod --node-linker=hoisted --package-import-method=copy；记录实际importer/包/链接事实，过滤未生效或拒绝不得靠改锁、inject、peer放宽来掩盖。
+- [x]   5. 生产全部物理package实例、完整原始package.json、普通文件SHA/大小/模式、原始符号链接、bin及workspace源码映射；Node内置fs/crypto完成有界观察，不新增图求解器，不执行包体。
+- [x]   6. workflow新增purpose（默认assets、显式production-layout）和拒绝未知值的准入，保留原push/default-assets步骤及制品行为；独立Mac矩阵30分钟，工具≤4/获取≤12/安装≤8/观测≤4分钟，旧资产job40分钟不变。
+- [x]   7. 宿主工具/来源准入后显式运行新MJS单测门禁，再做生产获取；命令stdout64KiB/stderr4MiB/六秒有限关闭沿用现有函数。物理清单≤4000实例/40000成员/1024链接/16GiB内容，路径≤1024，manifest≤1MiB/其他JSON读取≤4MiB，上传固定元数据/日志总≤64MiB，超限显式失败。
+- [x]   8. 记录STARTED/PASS/FAIL/NOT_RUN、原始参数/退出/超时/关闭/锁前后SHA及占用；只上传固定、关闭后取得的元数据/日志，7天保留。包体/存储/checkout/HOME/缓存和大归档不上传；已失败/未知的布局不获得成功清单。
+- [x]   9. 运行覆盖新调用方/清单逻辑的本地GREEN、格式和源码保护检查，源绑定PRE/POST/精确3路径提交，独立审查。协调者之后仅一次production-layout手动dispatch，核验双架构小制品身份、CRC、引用、源码/工具/锁与物理计数；不本机重哈希未上传的包体。
 
 注：只改一个巨型workflow内嵌全部观察代码会增加维护负担，因此采用一个CI专用工具和永久测试；仍只有一个既有workflow、没有新产品模块，先前只读预检的一文件建议在此细化。此为现有授权T20的实现分解，不改变已确认MVP/产品架构或引入外部付费服务。
 
@@ -685,8 +685,8 @@ assert incompatible_rollback_is_rejected is True
 - [ ] **Step 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```ts
-await expect(page.getByTestId('workspace.demo')).toBeVisible();
-await expect(page.getByTestId('run.outcome')).toHaveText('PASSED');
+await expect(page.getByTestId("workspace.demo")).toBeVisible();
+await expect(page.getByTestId("run.outcome")).toHaveText("PASSED");
 ```
 
 - [ ] **Step 2：运行测试确认未实现时失败。** `pnpm e2e -- tests/e2e/full-product.spec.ts`；失败必须来自缺失行为，而非测试环境拼写错误。
@@ -731,3 +731,6 @@ assert report.contains_real_macos_x64_and_arm64_evidence
 
 进入编码前由用户审阅规格与选型。本文不授权代用户选择商业许可证、付费服务、发布生产环境或发送通知。审阅确认后按任务执行，不重复询问已确认的范围与技术要求。
 
+**T20 生产布局验收追加（2026-11-16，北京时间）：** `ca34c8d` 首次真实双 Mac 验证保留为失败：ARM 工具实现路径错误，Intel 测试未确认子进程就绪。`afe4838` 使用 pnpm 11.25.0 实际 ESM 入口与实现记录，并加入真实 READY/release/DONE 通知；正常及延迟启动场景、34 项相关测试、原代理复审与源码保护检查通过。新运行 [43770719879](https://github.com/baofengbaofeng/VeriQ/actions/runs/43770719879) 两架构工具、获取、离线安装、采集四阶段全部通过；每边 194 ZIP 成员、193 引用、14 项选定源码及全部 698 Git 文件记录、121 原始包清单与 8,390 物理成员已独立核验。锁文件前后相同，未放宽参数或政策。此组件关闭于第一轮修复；来源信任、包体复现、依赖闭包、目标解析、可执行 Runtime、Electron 与安装仍开放。
+
+**T22 AI 追加（2026-11-16，北京时间）：** `b0aeb1e` 将八类请求输入与预览审核状态统一管理，实际变更同时清除预览与已审核请求，同值操作保留状态；默认选择使用稳定的首项 ID。真实 BASE 保持与两项 GREEN 回归通过，4 项 Hook 错误清零，完整应用及整个 AI 测试文件严格类型检查、独立审查和证据核验通过。修改后完整本地 Web lint 为 18 errors / 33 warnings / 138 infos，未截断；这是本地源码基线，不能替代正式发行。四次测试预期/定位错误已保留并更正，资源引用按钮仅做静态覆盖；完整旧 AI 流程、外部 Provider、全局会话及 B05 仍开放。
