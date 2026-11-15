@@ -1,6 +1,6 @@
 # VeriQ macOS Runtime 静态输入核验与有界归档准备
 
-本说明覆盖真实输入核验器与 inspect CLI，以及下文独立的有界归档 prepare。inspect 核配方、独立 expected、原始文件字节、五棵完整输入树、构建收据、静态依赖图及引擎原库存；prepare 进一步安全扫描并提取原归档为私有普通文件树。两个工具都不生成 Runtime 候选目录或执行输入程序。
+本说明覆盖真实输入核验器与 inspect CLI，以及下文独立的有界归档 prepare。inspect 核配方、独立 expected、原始文件字节、五棵完整输入树、构建收据、静态依赖图及引擎原库存；prepare 进一步安全扫描并提取原归档为私有普通文件树。inspect 与 prepare 不生成 Runtime 候选；下文 stage 组装完整开发未签名静态候选，所有工具均不执行输入程序。
 
 ## 使用
 
@@ -64,7 +64,7 @@ verifyRuntimePayloadInputs(
 
 checkedEvidence 精确列出真正读过并核过的去重 Ref。压缩文件原始 hash 通过不代表成员、CRC、解压安全或 npm 内容已核。外部工具、SDK、GraphProof 与 inspection 的一致声明不能证明 Git 来源、上游签名、真实构建、MachO 内容或发布者身份。
 
-下文有界 prepare 已消费相同 DTO 并重新调用 verify、独立检查来源身份，交付原归档 intake。后续 S 继续重验原字节与来源，再实现完整 stage 与最终 D3a v2 库存；旧报告不能作为持久执行 capability。b2 负责真实双原生 Mac 来源构建、Node/MachO/Chrome、peer 解析与 relocation 等验收。此片不等于 whole T20 或完整 MVP。
+下文有界 prepare 已消费相同 DTO 并重新调用 verify、独立检查来源身份，交付原归档 intake。下文 S stage 继续重验原字节与来源，组装完整静态候选并实测最终 D3a v2 库存；旧报告不能作为持久执行 capability。b2 负责真实双原生 Mac 来源构建、Node/MachO/Chrome、peer 解析与 relocation 等验收。此片不等于 whole T20 或完整 MVP。
 
 纯 JavaScript 的观察不能提供原子整树快照，也不宣称抵抗恶意同 UID 父路径并发替换。调用者须保持输入静止，后续消费前重验。全仓 B05 注释覆盖门禁既有失败仍未豁免；本片通过不代表全仓质量门禁已通过。
 
@@ -105,6 +105,39 @@ I 的独立来源身份观察在初次 b1a 后建立，涵盖实际 Ref、五树
 
 全部来源、快照及落地内容复核、回执写入和 fsync 后，最终取消检查紧邻同 FS rename。rename 或最终内容确认不确定时抛 PAYLOAD_COMMIT_UNCONFIRMED，保留目录事实；已确认提交后取消不撤回。仅锁/元数据清理失败时仍返回 committed:true/cleanup:INCOMPLETE，CLI stderr 稳定警告。首 SIGINT/TERM 停止并等待自有资源关闭，二次信号或五秒期限以130/143、INCOMPLETE退出，保留可能仍有 writer 的 scratch；SIGKILL/断电没有清理保证。错误仍是冻结 RuntimePayloadError；原三个构造参数兼容，末尾可选上下文只复制 phase/candidateDirectory 标量，旧输入调用继续 INPUTS/null。
 
-产品不需要 Python，不执行归档成员，不下载或安装内容，也不生成 Runtime 候选、签名、角色/engine 晋升或 ready。微型 ZIP 测试夹具需要开发机 Python3 标准库 zipfile；这不是已安装 Runtime 的依赖。后续 S 必须重新核原 bytes/refs 并重新 intake，旧成功结果不构成持久 capability。
+产品不需要 Python，不执行归档成员，不下载或安装内容，也不生成 Runtime 候选、签名、角色/engine 晋升或 ready。微型 ZIP 测试夹具需要开发机 Python3 标准库 zipfile；这不是已安装 Runtime 的依赖。下文 S 会重新核原 bytes/refs 并重新 intake，旧成功结果不构成持久 capability。
 
 提取 sink 的受控文件系统错误在真实事务写入边界先统一分类，再经过 tar/ZIP 适配器；ENOSPC/EDQUOT 保留为 PAYLOAD_DISK_INSUFFICIENT 及原 causeCode，其它固定 errno 保留为 PAYLOAD_IO。未知错误和压缩格式/CRC 错误仍沿各适配器原路径处理，不把任意 parser 错误映成 IO；首错误不会被次要关闭故障覆盖，关闭不确认仍保留 INCOMPLETE。
+
+## 完整静态 Runtime stage
+
+`runtime-payload-stage.ts` 提供 `stageMacRuntimePayload(bytes, expected, options): Promise<Readonly<PayloadResult>>`。它接收相同原始 recipe、独立 expected 及 `StageOptions`，首次 await 前取得私有字节和固定选项，再真实重调 b1a 与 fresh intake；不接受旧报告代替本次核验。
+
+从 `apps/runtime` 工作目录执行：
+
+```sh
+node --import tsx scripts/stage-macos-runtime.mjs \
+    --inputs /absolute/inputs.json \
+    --expected /absolute/expected.json \
+    --input-root /absolute/input-root \
+    --output-parent /absolute/controlled-output \
+    --candidate candidate-id
+```
+
+五个 flag 必填且各一次，无环境默认。JSON held-FD、4 MiB 上限、SIGINT/TERM、二次信号与五秒期限沿用 prepare；成功 stdout 只有完整 `PayloadResult`，cleanup INCOMPLETE 或提交后取消有稳定英文 stderr 提示。失败不输出成功 JSON。
+
+候选固定为 `runtime/ + payload-receipt.json + input-evidence/`。Runtime 包括同原 Node 普通成员逐份独立复制的三个 role（不同 inode、nlink1）、完整 npm 与全部依赖/peer 实例和普通 `.bin` 模板文件、entry/chunk/assets、八个 execution MJS、生产 dependencies 原 nested 布局、两个产品 native、完整所选 engine 文件、Node LICENSE，以及 Chrome 整个 top 目录（含 app 外资源/许可）。只允许独立 Chrome Framework layout 的链接；不把原 Node bin/npm 或 bin/npx 作为全局命令，也没有 role 或 npm symlink。固定 root package 是 `{"private":true,"type":"module"}\n`。
+
+npm 先落入 work/views 的真实物理投影，以最终逻辑 `npm/...` 库存、树外 inventory 与 NodeReceipt 正文交独立 InputReader 和共享 `verifyPackageContents`。所有 package 自有树、完整依赖/optional-peer 声明、bin、resolution consumer/target 都真实闭合；native bin inspection 使用原 inputRoot 的第二个 reader。普通文件链接只在树内每跳可核且终点为普通文件时逐份物化，Origin 保留每个 raw target 摘要和终点摘要；目录 alias 拒绝。bin sourceAlias 原链先核，work profile 仅创建受审归一相对链接供物理核验，最终跳过原 alias 并在原 target 保持不动的前提下生成普通0755 shim。模板只相对定位自身 runner 和目标，完整转交 argv，没有宿主绝对 Node 或 PATH fallback。
+
+生成器固定绑定二十个实际模块源码/CLI、contracts 实际入口及 validator/schema、根锁字节：来源由固定 module URL 和实际 `import.meta.resolve` 定位，同时匹配 SourceBinding 和 inputRoot 副本，生成前后复验。宿主0600源码使用 held-FD raw input 后独立核长度/摘要，输入源码副本保留严格 Ref 模式；不修改源码权限。这是受控 checkout 一致性，不能认证已加载机器指令、第三方包真实性或外部构建来源。
+
+S 对 fresh ZIP 快照另用同一 yauzl 公开 metadata 作有限消费者检查：每个 entry 必须 Unix host3、明确非零且支持的 Unix filetype/permissions，并与 I member 集合逐项相同。DOS 或缺模式拒绝 PAYLOAD_ARCHIVE_UNSUPPORTED。它不另解压、不重复收费同一资源，也不补造 ZIP 全语法验证。I 的内部 prefix64/1024 缩限、ZIP mode fallback，以及旧 b1a Framework-name Minor 仍延期 T22/final review，没有因 S 拒绝政策而标记修复。
+
+work 与 final 为独立事务；nested I 的 COMMIT_UNCONFIRMED、抛出或返回 cleanup INCOMPLETE、未知异常均保留 work 父目录，final 清理成功不能抹掉子 writer 未知事实。正常 I 关闭确认后才可清理 work。runtime profile 在 held FD 内设置并审计安全四 mode 与0755目录，默认 intake0700/0600行为保持。最终 Runtime 路径预算去掉固定容器后遵 D3a64/1024，现 I 缩限未绕过。空间计划按当前已占 work 与尚待写 final 的真实独立副本分阶段计费，保留动态 statfs/ENOSPC/EDQUOT 边界。
+
+写完完整 runtime、shim 和 Chrome links 后生成 v2，先实测 scratch/runtime，再写包外 receipt 与 input-evidence（原 recipe、独立 expected、本次 intake receipt、来源 binding/锁/小 receipts 和必需 evidence）。完整收尾重验原来源及实际代码后同 FS rename，锁收尾前在 **实际 final/runtime** 再跑 D3a 并匹配同一 manifest SHA。无法确认提交后内容则保留候选并报 COMMIT_UNCONFIRMED；内容已提交且核验成功，仅锁或 work 收尾失败仍返回 committed:true/cleanup:INCOMPLETE。
+
+`PayloadResult` 深冻结，包含 kind、candidateDirectory、runtimeDirectory、receiptSha256、最终路径 inventory、committed:true 和 cleanup。外部 receipt status 固定 `DEVELOPMENT_UNSIGNED_STATIC`，files 包含 manifest，counts 沿 D3a 排除 manifest；inputReceipts 使用候选相对路径且逐份实核，receipt 自身 SHA 仅在 Result。原 Node/Chrome SHA、源码 SHA 与未签名候选身份分别保留。
+
+此 stage 不执行目标 Node、MachO、Chrome、peer resolve，不做 native ABI 装载、签名、安装、GUI、Keychain/Cookie 或 ready 晋升。双原生 Mac 来源构建和实际运行仍属 b2/D3c。全仓 B05 >40% 注释门禁仍 FAIL、未豁免，本片成功不等于 whole T20 或 MVP 完成。
