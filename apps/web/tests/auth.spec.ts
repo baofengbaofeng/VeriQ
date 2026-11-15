@@ -43,8 +43,8 @@ async function holdBackendResponse(page: Page, pathname: string, method = "GET")
     };
 }
 
-/** 退出请求屏障在任何真实后端处理之前暂停首个本机 POST，释放时继续发送原始请求而不构造成功响应；重复释放与 finally 清理均等待该请求确实离开处理器，避免悬挂路由。 */
-async function holdLogoutRequest(page: Page) {
+/** 请求屏障在真实后端处理之前暂停首个匹配路径及方法的本机请求，释放时继续发送原始内容而不构造响应；重复释放与 finally 清理均等待请求确实离开处理器，避免悬挂路由。 */
+async function holdOutgoingRequest(page: Page, pathname = "/api/v1/auth/logout", method = "POST") {
     let resolveHeld!: () => void;
     let releaseRequest!: () => void;
     let complete!: () => void;
@@ -58,10 +58,9 @@ async function holdLogoutRequest(page: Page) {
     const done = new Promise<void>((resolve) => {
         complete = resolve;
     });
-    const match = (url: URL) =>
-        url.origin === "http://127.0.0.1:5173" && url.pathname === "/api/v1/auth/logout";
+    const match = (url: URL) => url.origin === "http://127.0.0.1:5173" && url.pathname === pathname;
     const handler = async (route: Route) => {
-        if (captured || route.request().method() !== "POST") {
+        if (captured || route.request().method() !== method) {
             await route.continue();
             return;
         }
@@ -88,7 +87,7 @@ async function holdLogoutRequest(page: Page) {
 test("real setup, login, account, administration and one-time reset", async ({
     page,
 }, testInfo) => {
-    test.setTimeout(120_000);
+    test.setTimeout(30_000);
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Set up VeriQ" })).toBeVisible();
     await page.getByTestId("installationSecret").fill("wrong-secret");
@@ -304,7 +303,7 @@ test("real setup, login, account, administration and one-time reset", async ({
         `/api/v1/admin/users/${actorId}`,
         "PATCH",
     );
-    const outgoingLogout = await holdLogoutRequest(page);
+    const outgoingLogout = await holdOutgoingRequest(page);
     const logoutIntentEvents: { event: string; path?: string; status?: number }[] = [];
     const recordIntentResponse = (response: import("@playwright/test").Response) => {
         const path = new URL(response.url()).pathname;
@@ -528,4 +527,85 @@ test("real setup, login, account, administration and one-time reset", async ({
     await expect(page.getByRole("heading", { name: "Access restricted" })).toBeVisible();
     await page.getByTestId("logout").click();
     await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
+
+    /** 旧退出已在真实后端成功但响应仍被持有时，让更早的会话读取得到真实401并打开登录页；随后另一账户必须在旧响应释放前建立可见身份，不能把成功登录静默丢弃或推迟到退出完成。 */
+    await page.getByTestId("email").fill("browser-admin@example.com");
+    await page.getByTestId("password").fill("Browser password 123!");
+    await page.getByTestId("login-submit").click();
+    await expect(page.getByTestId("account-info")).toContainText("Browser Administrator");
+    await expect(page.getByTestId("sessions")).toContainText("This session");
+    await expect(page.getByTestId("sessions-limit")).toBeEnabled();
+    const oldRead = await holdOutgoingRequest(page, "/api/v1/account/sessions", "GET");
+    const oldLogoutResponse = await holdBackendResponse(page, "/api/v1/auth/logout", "POST");
+    const newerLoginEvents: { event: string; path?: string; status?: number }[] = [];
+    const recordNewerLogin = (response: import("@playwright/test").Response) => {
+        const path = new URL(response.url()).pathname;
+        if (
+            [
+                "/api/v1/account/sessions",
+                "/api/v1/auth/logout",
+                "/api/v1/auth/login",
+                "/api/v1/auth/session",
+                "/api/v1/account",
+            ].includes(path)
+        )
+            newerLoginEvents.push({ event: "response", path, status: response.status() });
+    };
+    page.on("response", recordNewerLogin);
+    try {
+        await page.getByTestId("sessions-limit").selectOption("1");
+        await oldRead.held;
+        newerLoginEvents.push({ event: "old-sessions-get-held-before-backend" });
+        await page.getByTestId("logout").click();
+        const realLogout = await oldLogoutResponse.held;
+        expect(realLogout.status()).toBe(200);
+        newerLoginEvents.push({
+            event: "old-logout-real200-held-after-revocation",
+            status: realLogout.status(),
+        });
+        const realExpiredRead = page.waitForResponse(
+            (response) =>
+                response.request().method() === "GET" &&
+                new URL(response.url()).pathname === "/api/v1/account/sessions" &&
+                response.status() === 401,
+        );
+        await oldRead.forward();
+        expect((await realExpiredRead).status()).toBe(401);
+        await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
+        newerLoginEvents.push({ event: "real-sessions401-opened-signin-old-logout-still-held" });
+        await page.getByTestId("email").fill("browser-user@example.com");
+        await page.getByTestId("password").fill("Final password 123!");
+        const genuineLogin = page.waitForResponse(
+            (response) =>
+                response.request().method() === "POST" &&
+                new URL(response.url()).pathname === "/api/v1/auth/login",
+        );
+        await page.getByTestId("login-submit").click();
+        expect((await genuineLogin).status()).toBe(200);
+        newerLoginEvents.push({ event: "different-user-login200-before-old-logout-release" });
+        await expect(page.getByTestId("account-info")).toContainText("Browser User");
+        await expect(page.getByTestId("sessions").getByRole("listitem")).toHaveCount(1);
+        await expect(page.getByTestId("sessions-limit")).toBeEnabled();
+        newerLoginEvents.push({ event: "new-account-visible-before-old-logout-release" });
+        const deliveredLogout = page.waitForResponse(
+            (response) =>
+                response.request().method() === "POST" &&
+                new URL(response.url()).pathname === "/api/v1/auth/logout",
+        );
+        await oldLogoutResponse.release();
+        await (await deliveredLogout).finished();
+        newerLoginEvents.push({ event: "old-logout-response-released-after-new-account" });
+        await page.getByTestId("currentPassword").click();
+        await expect(page.getByTestId("account-info")).toContainText("Browser User");
+    } finally {
+        await oldRead.forward();
+        await oldLogoutResponse.release();
+        page.off("response", recordNewerLogin);
+        const eventPath = testInfo.outputPath("newer-login-events.json");
+        await writeFile(eventPath, JSON.stringify(newerLoginEvents, null, 2));
+        await testInfo.attach("newer-login-events", {
+            path: eventPath,
+            contentType: "application/json",
+        });
+    }
 });

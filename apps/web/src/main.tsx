@@ -46,9 +46,9 @@ function App() {
             else throw e;
         }
     }, []);
-    /** 稳定刷新入口读取当前会话而不捕获旧账户，但退出尚未完成时拒绝旧操作随后触发的刷新，防止其抢走退出发布权；退出收敛后解除此边界，使真正的下一次登录仍可建立身份。 */
+    /** 稳定刷新入口只在退出意图仍拥有当前身份代次时拒绝旧操作回调，防止其抢走退出发布权；真实会话过期使旧意图失效后，后来的成功登录可立即建立新身份而不必等待旧退出响应。 */
     const refresh = useCallback(async (): Promise<void> => {
-        if (logoutIntent.current !== null) return;
+        if (logoutIntent.current === identityGeneration.current) return;
         loadGeneration.current += 1;
         await readIdentity(++identityGeneration.current);
     }, [readIdentity]);
