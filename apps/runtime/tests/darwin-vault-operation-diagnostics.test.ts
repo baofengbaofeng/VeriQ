@@ -365,3 +365,62 @@ test("producer rejects helper metadata on a non-helper operation", () => {
     assert.equal(summary.operationContext, undefined);
     assert.equal(collect(summary).rejected, false);
 });
+
+/** 工作流消费者必须独立拒绝非 run 操作夹带的 helper 退出值和回复形状，即使来源类别不是 HELPER 也不能借此通过；每个负例通过真实 JSON 收集器，合法未知上下文仍须往返保留，防止只加强生产端而留下消费端证据矛盾。 */
+for (const operation of [
+    "lock",
+    "create",
+    "race",
+    "unlock",
+    "seed",
+    "remove",
+    "unchanged",
+    "read-denial",
+    "cleanup",
+    "UNKNOWN",
+]) {
+    test(`collector rejects helper facts for non-run ${operation}`, () => {
+        const summary = vault.createDarwinDiagnosticFilter().finish(1);
+        for (const category of ["REFUSED", "CLOSED", "BODY"]) {
+            const context = {
+                operation,
+                verb: "UNKNOWN",
+                ordinal: 1,
+                category,
+                helperExit: "UNKNOWN",
+                shape: "UNKNOWN",
+                provenance: category === "BODY" ? "BODY_BOUNDARY" : "CONTROLLER",
+            };
+            const candidate = {
+                ...summary,
+                operationContext: context,
+                ...(category === "BODY"
+                    ? {
+                          nodeCase: {
+                              bodyStatus: "FAILED",
+                              cleanupStatus: "NOT_RECORDED",
+                              wipeStatus: "NOT_RECORDED",
+                              primary: "BODY",
+                              secondary: "NONE",
+                          },
+                      }
+                    : {}),
+            };
+            assert.deepEqual(collect(candidate).fixtures, [candidate]);
+            for (const facts of [
+                { helperExit: 2, shape: "EMPTY" },
+                { helperExit: 2, shape: "UNKNOWN" },
+                { helperExit: "UNKNOWN", shape: "EMPTY" },
+                { helperExit: "UNKNOWN", shape: "PARSED_V1" },
+                { helperExit: "UNKNOWN", shape: "INVALID" },
+            ]) {
+                const rejected = collect({
+                    ...candidate,
+                    operationContext: { ...context, ...facts },
+                });
+                assert.equal(rejected.rejected, true);
+                assert.deepEqual(rejected.fixtures, []);
+            }
+        }
+    });
+}

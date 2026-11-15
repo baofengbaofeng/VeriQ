@@ -337,6 +337,7 @@ function operationContext(value: unknown): OperationContext | undefined {
         !["CONTROLLER", "BODY_BOUNDARY"].includes(item.provenance) ||
         (item.provenance === "BODY_BOUNDARY") !== (item.category === "BODY") ||
         (item.operation !== "run" && item.verb !== "UNKNOWN") ||
+        (item.operation !== "run" && (item.helperExit !== "UNKNOWN" || item.shape !== "UNKNOWN")) ||
         (item.category === "HELPER" && item.operation !== "run")
     )
         return;
