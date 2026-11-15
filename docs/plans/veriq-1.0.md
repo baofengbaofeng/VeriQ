@@ -734,3 +734,24 @@ assert report.contains_real_macos_x64_and_arm64_evidence
 **T20 生产布局验收追加（2026-11-16，北京时间）：** `ca34c8d` 首次真实双 Mac 验证保留为失败：ARM 工具实现路径错误，Intel 测试未确认子进程就绪。`afe4838` 使用 pnpm 11.25.0 实际 ESM 入口与实现记录，并加入真实 READY/release/DONE 通知；正常及延迟启动场景、34 项相关测试、原代理复审与源码保护检查通过。新运行 [43770719879](https://github.com/baofengbaofeng/VeriQ/actions/runs/43770719879) 两架构工具、获取、离线安装、采集四阶段全部通过；每边 194 ZIP 成员、193 引用、14 项选定源码及全部 698 Git 文件记录、121 原始包清单与 8,390 物理成员已独立核验。锁文件前后相同，未放宽参数或政策。此组件关闭于第一轮修复；来源信任、包体复现、依赖闭包、目标解析、可执行 Runtime、Electron 与安装仍开放。
 
 **T22 AI 追加（2026-11-16，北京时间）：** `b0aeb1e` 将八类请求输入与预览审核状态统一管理，实际变更同时清除预览与已审核请求，同值操作保留状态；默认选择使用稳定的首项 ID。真实 BASE 保持与两项 GREEN 回归通过，4 项 Hook 错误清零，完整应用及整个 AI 测试文件严格类型检查、独立审查和证据核验通过。修改后完整本地 Web lint 为 18 errors / 33 warnings / 138 infos，未截断；这是本地源码基线，不能替代正式发行。四次测试预期/定位错误已保留并更正，资源引用按钮仅做静态覆盖；完整旧 AI 流程、外部 Provider、全局会话及 B05 仍开放。
+
+### T20 入口与执行文件的临时输入视图
+
+**目标与范围：** 在既有 T20 内生成可被当前严格 reader 消费的 agent/cli 入口树、八个原始执行文件及收据。保留五树最终组装和独立 Expected 门禁；本组件不发布独立输入目录、不执行产出的 JavaScript 或候选 Node/Chrome。
+
+**内部方案选择：** 复用调用者持有的 ArchiveTransaction work 生命周期，消费者 inputRoot 固定为 work.scratch/views，树根为 entries/execution，源码快照保留原相对路径，元数据位于 input-evidence/。这样沿用现有 0644/0755 视图和外层 0700 私有保护，无须增加 profile、schema 或发布政策。另建独立发布器会重复已有所有权/审计规则，故不采用。此为已批准 T20 内的实现细化，由协调者选择；总体架构和执行方式不变。
+
+**文件与复用：** 新增 apps/runtime/scripts/runtime-payload-entries.ts、apps/runtime/runtime.vite.config.mjs、apps/runtime/tests/runtime-payload-entries.test.ts；runtime-payload-graph.ts 只增加现有字面导入分析和导入边分类的窄导出，不改算法。复用已声明的桌面 Vite 6.4.5 CLI、Rollup、锁定 TypeScript 和现有 reader/transaction/canonical JSON；不新增依赖或改锁。
+
+**接口：** withEntryInputViews<T>(work: ArchiveTransaction, options: EntryInputOptions, consume: (inputRoot: string, trees: Readonly<{entries: BoundTree; execution: BoundTree}>) => Promise<T>): Promise<T>。EntryInputOptions 使用现有 SourceBindingV1 与两项 Omit<Build, "commandEvidence">，再接收调用者持有的独立空构建目录和真实宿主构建动作；具体动作观察结构为内部类型，须保留实际 argv/cwd/时刻/工具身份/退出及关闭事实，不能预先声明成功。调用者拥有事务与构建目录的释放，回调只在全部核验后运行；函数不返回持久或 ready 能力。
+
+**固定契约：** 源入口为 apps/desktop/src/agent/index.ts 与 apps/runtime/src/cli.ts，输出入口恰为 agent.js/cli.js，所有 chunk/asset 和字面导入必须完整登记。独立 MJS 配置只导入 Node 内建，使用普通 Vite 配置，不能复制 electron-vite 专属 externalizeDeps 选项后假定生效。固定复制 worker/provider/compile-entry/archive/controlled-command/controlled-child/controlled-child-protocol/controlled-child-preload.mjs；无改写、打包或脚本执行。编译器既有显式 tsx 路径保留，不能推断所有消费者都有 loader。
+
+- [ ]   1. 用真实宿主 Vite 构建两个共享工作区与 JSON Schema 的小型 TS 入口，先观察缺少生产器或错误 root/mode 的 RED；记录构建观察，不运行生成入口。
+- [ ]   2. 配置按明确 sourceRoot 构建两个 Node 入口，排除 Electron main/preload/renderer；记录实际工作区模块、manifest 与 JSON 输入，避免通过宿主 checkout 偷读未绑定源码。
+- [ ]   3. 宿主构建只写独立目录；确认真实成功与关闭后，完整扫描并通过 work.write 复制到 views/entries，固定八文件复制到 views/execution，原始源码快照写到 views 下的原路径。
+- [ ]   4. 用既有 TreeInventory/EntriesReceipt/ExecutionReceipt/BoundTree 生成 canonical 元数据并严格读取；明确去掉一次 views/ 前缀。核源码、锁、目标、实际命令证据、模式、链接禁令、完整父目录和所有 JS 资产导入，再运行消费者回调及 reader/transaction 收尾核验。
+- [ ]   5. 核验源码/锁/选项变更、缺失或额外输出、相对 chunk 丢失、Electron 导入、带隐藏导入的 JS asset、链接/路径冲突、失败构建、未知关闭与消费后变更。未知关闭不再扫描或删除构建目录，不伪造全配方/Expected 绕过局部核验。
+- [ ]   6. 新生产器与现有 graph 相关检查、类型/格式/注释及源绑定保护通过后，精确四路径提交并独立复审。之后另行接入已授权开发 CI 的双 Mac 入口构建验收；不重复已关闭的布局观测，不把源准备计为完整 Runtime。
+
+**T22 资源编辑器追加（2026-11-16，北京时间）：** f03f719 完成资源页首项默认依赖与 Monaco 最新值引用，保留模型、撤销、当前回调和销毁行为。两项新真实 GUI/组件回归及未改 JSON Apply 用例通过，完整应用与新测试严格类型、独立审查及 143 项证据核验通过。三项 Hook 错误清零，旧资源页两项列表键问题保留。完整本地前端检查现为 15 errors / 32 warnings / 138 infos，无遗漏；全局规范、旧用例类型、正式发行和完整 MVP 仍开放。
