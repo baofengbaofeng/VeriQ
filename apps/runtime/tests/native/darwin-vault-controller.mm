@@ -661,7 +661,7 @@ int readEvidenceSelftest() {
             const unsigned char filler[512] {};
             bool full = false;
             for (int attempt = 0; attempt < 4096; ++attempt) {
-                if (send(writer, filler, sizeof(filler), MSG_DONTWAIT) < 0) { full = errno == EAGAIN || errno == EWOULDBLOCK; break; }
+                if (::send(writer, filler, sizeof(filler), MSG_DONTWAIT) < 0) { full = errno == EAGAIN || errno == EWOULDBLOCK; break; }
             }
             check(full); channel.closeWriter();
             test::ReadEvidence observation(config(writer));
