@@ -3,11 +3,11 @@ on:
     workflow_dispatch:
         inputs:
             purpose:
-                description: Existing official assets or fixed-lock production layout metadata
+                description: Official assets, fixed-lock layout or real project entry inputs
                 required: true
                 default: assets
                 type: choice
-                options: [assets, production-layout]
+                options: [assets, production-layout, entry-inputs]
             source_ref:
                 description: Exact reviewed commit; must equal the workflow commit
                 required: true
@@ -42,7 +42,7 @@ permissions:
     contents: read
 jobs:
     assets:
-        if: ${{ github.event_name == 'push' || inputs.purpose != 'production-layout' }}
+        if: ${{ github.event_name == 'push' || (inputs.purpose != 'production-layout' && inputs.purpose != 'entry-inputs') }}
         strategy:
             fail-fast: false
             matrix:
@@ -1116,3 +1116,98 @@ jobs:
               shell: bash
               run: |
                   printf '%s\n' "PHYSICAL_LAYOUT_ONLY source=$GITHUB_SHA run=$GITHUB_RUN_ID attempt=$GITHUB_RUN_ATTEMPT arch=$EXPECTED_ARCH unit=$UNIT_STATE producer=$PRODUCER_STATE stages=$STAGES collection=$COLLECTION metadata=$METADATA_ID digest=$METADATA_DIGEST" >> "$GITHUB_STEP_SUMMARY"
+
+    entry-inputs:
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.purpose == 'entry-inputs' }}
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - runner: macos-15-intel
+                      arch: x64
+                    - runner: macos-15
+                      arch: arm64
+        runs-on: ${{ matrix.runner }}
+        timeout-minutes: 30
+        env:
+            EXPECTED_ARCH: ${{ matrix.arch }}
+            MANUAL_SOURCE: ${{ inputs.source_ref }}
+            ENTRY_PURPOSE: ${{ inputs.purpose }}
+        steps:
+            - name: Reject unbound purpose and nonnative Mac before checkout or tools
+              timeout-minutes: 1
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  test "$GITHUB_EVENT_NAME" = workflow_dispatch
+                  test "$ENTRY_PURPOSE" = entry-inputs
+                  [[ "$MANUAL_SOURCE" =~ ^[0-9a-f]{40}$ ]]
+                  test "$MANUAL_SOURCE" = "$GITHUB_SHA"
+                  test "$(uname -s)" = Darwin
+                  test "$(sw_vers -productVersion | cut -d. -f1)" = 15
+                  if [ "$EXPECTED_ARCH" = arm64 ]; then test "$(uname -m)" = arm64; else test "$EXPECTED_ARCH" = x64; test "$(uname -m)" = x86_64; fi
+            - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+              timeout-minutes: 1
+              with:
+                  ref: ${{ github.sha }}
+                  persist-credentials: false
+            - name: Bind exact checked out entry source before installation
+              timeout-minutes: 1
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+                  test -z "$(git status --porcelain --untracked-files=no)"
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+              timeout-minutes: 2
+              with:
+                  node-version: 24.22.1
+            # 启动 Node 之前先丢弃全部继承环境，只保留原生工具路径与明确的本次运行标识；生产模式和浏览器下载抑制在此固定，宿主构建继承同一白名单而不依赖后续修改全局环境补救。
+            - name: Materialize real project entry inputs and retain bounded metadata
+              id: entry
+              timeout-minutes: 24
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  umask 077
+                  ENTRY_OWNED="$RUNNER_TEMP/veriq-entry-inputs"
+                  NODE_EXE="$(command -v node)"
+                  env -i PATH="$PATH" HOME="$HOME" LANG=C.UTF-8 CI=true \
+                      NODE_ENV=production NODE_DISABLE_COMPILE_CACHE=1 \
+                      TMPDIR="$ENTRY_OWNED/tmp" TSX_TMPDIR="$ENTRY_OWNED/tmp" \
+                      XDG_CACHE_HOME="$ENTRY_OWNED/toolcache" \
+                      ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
+                      npm_config_userconfig="$ENTRY_OWNED/user.npmrc" \
+                      npm_config_globalconfig="$ENTRY_OWNED/global.npmrc" \
+                      npm_config_cache="$ENTRY_OWNED/npm-cache" \
+                      npm_config_registry=https://registry.npmjs.org/ \
+                      GITHUB_EVENT_NAME="$GITHUB_EVENT_NAME" GITHUB_SHA="$GITHUB_SHA" \
+                      GITHUB_WORKSPACE="$GITHUB_WORKSPACE" GITHUB_RUN_ID="$GITHUB_RUN_ID" \
+                      GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" GITHUB_OUTPUT="$GITHUB_OUTPUT" \
+                      ENTRY_PURPOSE="$ENTRY_PURPOSE" MANUAL_SOURCE="$MANUAL_SOURCE" \
+                      EXPECTED_ARCH="$EXPECTED_ARCH" ENTRY_OWNED_ROOT="$ENTRY_OWNED" \
+                      "$NODE_EXE" .github/scripts/runtime-entries.mjs
+            - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+              id: entry_upload
+              if: ${{ !cancelled() && steps.entry.outputs.collection == 'SNAPSHOTTED' }}
+              with:
+                  name: veriq-macos-entry-inputs-${{ matrix.arch }}
+                  path: ${{ steps.entry.outputs.upload_root }}
+                  compression-level: 9
+                  retention-days: 7
+                  if-no-files-found: error
+            - name: Record entry metadata artifact identity and materialization outcome
+              if: always()
+              env:
+                  ENTRY_STEP_OUTCOME: ${{ steps.entry.outcome }}
+                  ENTRY_MATERIALIZATION: ${{ steps.entry.outputs.materialization }}
+                  ENTRY_COLLECTION: ${{ steps.entry.outputs.collection }}
+                  ENTRY_ARTIFACT_ID: ${{ steps.entry_upload.outputs.artifact-id }}
+                  ENTRY_ARTIFACT_DIGEST: ${{ steps.entry_upload.outputs.artifact-digest }}
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  printf 'ENTRY_METADATA source=%s run=%s attempt=%s arch=%s step=%s materialization=%s collection=%s artifact=%s digest=%s\n' \
+                      "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$EXPECTED_ARCH" \
+                      "${ENTRY_STEP_OUTCOME:-NOT_RUN}" "${ENTRY_MATERIALIZATION:-NOT_RUN}" \
+                      "${ENTRY_COLLECTION:-NOT_RUN}" "${ENTRY_ARTIFACT_ID:-NOT_RUN}" "${ENTRY_ARTIFACT_DIGEST:-NOT_RUN}"
