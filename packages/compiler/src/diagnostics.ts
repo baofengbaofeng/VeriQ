@@ -6,13 +6,13 @@ import type { ValidationIssue } from "./dependency.js";
 /**
  * Only schema-owned segments may survive. Dynamic keys can themselves be credentials.
  */
-const properties = new Set(
+const propertyWords =
     "assets document steps children beforeAssertions afterAssertions assertions observers target action path method " +
-        "source pointer expected value type id catalogVersionId fixtureVersionId datasetVersionId flowVersionId " +
-        "templateVersionId entryCaseVersionIds validationTarget sourceHash engineVersion workspaceId schemaVersi" +
-        "on elements locator by severity expectedSource parameters vars columns rows values timeoutMs roleKey br" +
-        "owsers kind versionId resourceId sha256".split(" "),
-);
+    "source pointer expected value type id catalogVersionId fixtureVersionId datasetVersionId flowVersionId " +
+    "templateVersionId entryCaseVersionIds validationTarget sourceHash engineVersion workspaceId schemaVersion " +
+    "elements locator by severity expectedSource parameters vars columns rows values timeoutMs roleKey browsers " +
+    "kind versionId resourceId sha256";
+const properties = new Set(propertyWords.split(" "));
 const messages: Record<string, string> = {
     UNKNOWN_ELEMENT: "Element is not declared in the pinned catalog.",
     MISSING_REFERENCE: "Referenced version is missing from the dependency snapshot.",

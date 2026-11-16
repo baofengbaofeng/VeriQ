@@ -1,12 +1,15 @@
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
+import SwaggerParser from "@apidevtools/swagger-parser";
 import { expect, test } from "vitest";
 import platform from "../schemas/platform-v1.schema.json" with { type: "json" };
 import { parseContract, serializeContract, validateSchema } from "../src/index.js";
 
-const api = JSON.parse(readFileSync(new URL("../openapi/platform.yaml", import.meta.url), "utf8"));
+// OpenAPI 文档是 YAML，须用解析器读取而非 JSON.parse；prettier 重排的尾部逗号会破坏 JSON 解析。
+const api = (await SwaggerParser.parse(fileURLToPath(new URL("../openapi/platform.yaml", import.meta.url)))) as any;
 const ajv = new Ajv2020({ strict: true, allErrors: true });
 addFormats.default(ajv);
 ajv.addSchema(platform);

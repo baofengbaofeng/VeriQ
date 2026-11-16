@@ -108,7 +108,7 @@ for folder in ['reports','results']:
         check(body,kind)
         if kind=='trace.zip':r['traceFiles']+=1;archive(body,'trace.zip:decoded')
         if kind=='report.html':
-            found=re.search(rb'data:application/zip;base64,([A-Za-z0-9+/=\r\n]+)',body)
+            found=re.search(rb'data:application/zip;base64,([A-Za-z0-9+/=\\r\\n]+)',body)
             if not found:raise ValueError('REPORT_ZIP_REQUIRED')
             r['mainReport']=True;archive(base64.b64decode(found.group(1)),'report.html:decoded')
         if rel.startswith('reports/html/data/') or rel.startswith('reports/html/trace/'):r['referencedFiles']+=1

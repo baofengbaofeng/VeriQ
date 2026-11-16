@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import SwaggerParser from "@apidevtools/swagger-parser";
 import { test, expect } from "vitest";
 import { validateSchema } from "../src/index.js";
 const id = "00000000-0000-4000-8000-000000000001";
@@ -47,8 +48,9 @@ test("issuer trust requires explicit versioned revocation facts and bounded keys
         expect(validateSchema("IssuerTrustV1", value).length).toBeGreaterThan(0);
 });
 
-test("synchronous bundle API has one session auth path and durable retry contract", () => {
-    const api = JSON.parse(readFileSync(new URL("../openapi/platform.yaml", import.meta.url), "utf8"));
+test("synchronous bundle API has one session auth path and durable retry contract", async () => {
+    // OpenAPI 文档是 YAML，解析需走 SwaggerParser 以兼容 prettier 的 YAML 排版，不能用 JSON.parse。
+    const api = (await SwaggerParser.parse(fileURLToPath(new URL("../openapi/platform.yaml", import.meta.url)))) as any;
     for (const [path, methods] of Object.entries(api.paths) as [string, Record<string, any>][]) {
         if (!path.startsWith("/api/v1/workspaces/{workspaceId}/bundles")) continue;
         for (const operation of Object.values(methods))
