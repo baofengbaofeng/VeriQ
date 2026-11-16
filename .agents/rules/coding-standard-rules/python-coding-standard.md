@@ -2103,7 +2103,7 @@ def func(a:int=0) -> int:
 
 #### 3.19.5 NoneType
 
-在 Python 类型系统中，`NoneType` 是“一等”类型，就类型标注而言，`None` 是 `NoneType` 的别名。如果参数可以是 `None`，就必须声明！可以使用 `|` 联合类型表达式（在新的 Python 3.10+ 代码中推荐），或较旧的 `Optional` 和 `Union` 语法。
+在 Python 类型系统中，`NoneType` 是“一等”类型，就类型标注而言，`None` 是 `NoneType` 的别名。如果参数可以是 `None`，就必须声明！可以使用 `|` 联合类型表达式（在 Python 3.12 代码中使用），或较旧的 `Optional` 和 `Union` 语法。
 
 使用显式的 `X | None`，不要使用隐式写法。较早版本的类型检查器允许把 `a: str = None` 解释为 `a: str | None = None`，但这不再是首选行为。
 
@@ -2178,7 +2178,7 @@ a: Foo = SomeUndecoratedFunction()
 
 ```
 类型注释
-: 虽然你可能看到它们仍留在代码库里（Python 3.6 之前它们是必要的），不要再新增行尾的 `# type: ` 注释：
+: 代码库里可能仍留有行尾的 `# type: ` 注释，但 Python 3.12 代码不要再新增这种旧式写法：
 
 ```
 # 这是旧式行尾类型注释，只保留给对照，新代码应把 Foo 写在变量注解里，不要再新增这种写法。
