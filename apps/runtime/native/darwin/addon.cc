@@ -5,6 +5,7 @@
 #include <napi.h>
 #include <cmath>
 #include "private-files.h"
+#include "retention-files.h"
 
 namespace veriq::VERIQ_DARWIN_NAMESPACE {
 /** 每个边界调用都显式捕获原生失败，避免系统异常跨过 Node-API ABI 或把秘密拼进消息；未知 C++ 异常使用同一内部错误码，JavaScript 测试回调异常仍原样保留以暴露断言失败。
@@ -296,6 +297,14 @@ public:
     }
 };
 
+/** 保留期清单的参数只包含有限相对名称、精确大小与 SHA256，大小零允许空证据但最大三十二 MiB；系统流式摘要不会返回正文或扩大一般私有文件对象两兆读取上限，库存总量还会在原生退休逻辑再次核验。 */
+RetentionFile retentionFile(const Napi::Value& value) {
+    require(value.IsObject() && !value.IsArray(), "retention.argument");
+    const auto item = value.As<Napi::Object>();
+    const auto digest = text(item.Get("sha256"));
+    require(digest.size() == 64 && digest.find_first_not_of("0123456789abcdef") == std::string::npos, "retention.digest");
+    return {text(item.Get("path")), limit(item.Get("sizeBytes"), 32 * 1024 * 1024, 0), digest};
+}
 /** 模块入口只创建当前环境的类引用并导出目录打开及有限 Cookie 元数据函数，生产目标没有任意描述符采用、调度开关或测试导出；缺少公开 POSIX 能力时不回退 JavaScript 路径访问。
  * 构建目标要求 Node-API 九，两个架构各自编译并加载本架构 Mach-O。
  * 初始化函数不探测 Chrome、Keychain 或执行就绪，也不改变任何平台门。
@@ -336,6 +345,24 @@ Napi::Object initialize(Napi::Env env, Napi::Object exports) {
                     info[1].As<Napi::Boolean>().Value()));
             });
         }, "privateCookieFile"));
+    /** 两个保留期入口只执行受信任宿主已经选定的有限对象，路径用途、单链接、拥有者、ACL、摘要与预算继续由原生核验；缓存先隔离再改变只读目录，未知成员或刷新关闭失败保持可恢复错误，不导出通用文件系统 IPC。 */
+    exports.Set("retirePrivateEvidence", Napi::Function::New(env, [](const Napi::CallbackInfo& info) -> Napi::Value {
+        return boundary(info.Env(), [&]() -> Napi::Value {
+            require(info.Length() == 2, "retention.evidence-arguments");
+            retirePrivateEvidence(text(info[0]), retentionFile(info[1]));
+            return info.Env().Undefined();
+        });
+    }));
+    exports.Set("retirePrivateInventory", Napi::Function::New(env, [](const Napi::CallbackInfo& info) -> Napi::Value {
+        return boundary(info.Env(), [&]() -> Napi::Value {
+            require(info.Length() == 4 && info[3].IsArray(), "retention.cache-arguments");
+            const auto items = info[3].As<Napi::Array>(); require(items.Length() <= 4098, "retention.inventory-count");
+            std::vector<RetentionFile> files;
+            for (uint32_t index = 0; index < items.Length(); index++) files.push_back(retentionFile(items.Get(index)));
+            retirePrivateInventory(text(info[0]), text(info[1]), text(info[2]), files);
+            return info.Env().Undefined();
+        });
+    }));
     return exports;
 }
 }

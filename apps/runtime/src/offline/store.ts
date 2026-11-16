@@ -27,64 +27,88 @@ export class LocalStore {
     private constructor(
         readonly directory: string,
         private db: DatabaseSync,
+        private nativeDirectory?: { validate(): void; close(): void },
     ) {}
     static async open(directory: string): Promise<LocalStore> {
         await privateDirectory(directory);
+        const nativeDirectory = process.platform === "win32"
+            ? (await import("../native/windows.ts")).windowsNative().openPrivateSqliteDirectory(directory, "veriq.sqlite")
+            : undefined;
         const path = join(directory, "veriq.sqlite");
         try {
             const st = await lstat(path);
             if (!st.isFile() || st.isSymbolicLink()) throw new Error("UNSAFE_LOCAL_STORE");
         } catch (e) {
-            if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+            if ((e as NodeJS.ErrnoException).code !== "ENOENT") { nativeDirectory?.close(); throw e; }
         }
         /** 首次读取版本和切换日志模式也可能遇到另一进程持有的真实数据库锁，因此在创建连接时就设置既有三秒忙等待预算；后续所有权事务沿用同一预算，不增加重试或改变升级判断。 */
-        const db = new DatabaseSync(path, { timeout: 3000 });
-        await chmod(path, 0o600);
-        const version = Number(db.prepare("PRAGMA user_version").get()!.user_version);
-        if (version > 2) {
-            db.close();
-            throw new Error("LOCAL_STORE_VERSION_UNSUPPORTED");
+        let db: DatabaseSync;
+        try { db = new DatabaseSync(path, { timeout: 3000 }); }
+        catch (error) { nativeDirectory?.close(); throw error; }
+        try {
+            if (process.platform !== "win32") await chmod(path, 0o600);
+            const version = Number(db.prepare("PRAGMA user_version").get()!.user_version);
+            if (version > 2) {
+                throw new Error("LOCAL_STORE_VERSION_UNSUPPORTED");
+            }
+            db.exec(`PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;
+                CREATE TABLE IF NOT EXISTS veriq_local_runs (
+                    id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, created_at TEXT NOT NULL,
+                    state TEXT NOT NULL, result TEXT, upload_state TEXT NOT NULL DEFAULT 'PENDING',
+                    upload_receipt TEXT, upload_error TEXT, cancel_requested INTEGER NOT NULL DEFAULT 0);
+                CREATE TABLE IF NOT EXISTS veriq_local_owner (
+                    singleton INTEGER PRIMARY KEY CHECK(singleton=1), run_id TEXT NOT NULL REFERENCES veriq_local_runs(id),
+                    workspace_id TEXT NOT NULL, attempt_id TEXT NOT NULL, state TEXT NOT NULL, generation INTEGER NOT NULL DEFAULT 1);
+                CREATE TABLE IF NOT EXISTS veriq_local_events (
+                    run_id TEXT NOT NULL REFERENCES veriq_local_runs(id), attempt_id TEXT NOT NULL,
+                    sequence INTEGER NOT NULL, document TEXT NOT NULL, PRIMARY KEY(attempt_id, sequence));
+                CREATE TABLE IF NOT EXISTS veriq_local_stops (
+                    attempt_id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES veriq_local_runs(id), receipt TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS veriq_local_lifecycle (
+                    run_id TEXT PRIMARY KEY REFERENCES veriq_local_runs(id), first_observed INTEGER NOT NULL,
+                    last_access INTEGER NOT NULL, raw_retired INTEGER NOT NULL DEFAULT 0, metadata_retired INTEGER NOT NULL DEFAULT 0, last_checked INTEGER NOT NULL DEFAULT 0);
+                CREATE TABLE IF NOT EXISTS veriq_local_artifact_retirements (
+                    run_id TEXT NOT NULL REFERENCES veriq_local_runs(id),attempt_id TEXT NOT NULL,path TEXT NOT NULL,
+                    sha256 TEXT NOT NULL,size_bytes INTEGER NOT NULL,PRIMARY KEY(run_id,attempt_id,path));
+                CREATE TABLE IF NOT EXISTS veriq_local_cache_lifecycle (
+                    bundle_id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, first_observed INTEGER NOT NULL,
+                    last_access INTEGER NOT NULL, retirement TEXT, retired_at INTEGER);
+                CREATE TABLE IF NOT EXISTS veriq_local_retention_clock (
+                    singleton INTEGER PRIMARY KEY CHECK(singleton=1), high_water INTEGER NOT NULL);
+                `);
+            if (
+                !db
+                    .prepare("PRAGMA table_info(veriq_local_owner)")
+                    .all()
+                    .some((column) => column.name === "generation")
+            )
+                db.exec(
+                    "ALTER TABLE veriq_local_owner ADD COLUMN generation INTEGER NOT NULL DEFAULT 1",
+                );
+            db.exec("PRAGMA user_version=2");
+            nativeDirectory?.validate();
+            return new LocalStore(directory, db, nativeDirectory);
+        } catch (error) {
+            try { db.close(); } finally { nativeDirectory?.close(); }
+            throw error;
         }
-        db.exec(`PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;
-            CREATE TABLE IF NOT EXISTS veriq_local_runs (
-                id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, created_at TEXT NOT NULL,
-                state TEXT NOT NULL, result TEXT, upload_state TEXT NOT NULL DEFAULT 'PENDING',
-                upload_receipt TEXT, upload_error TEXT, cancel_requested INTEGER NOT NULL DEFAULT 0);
-            CREATE TABLE IF NOT EXISTS veriq_local_owner (
-                singleton INTEGER PRIMARY KEY CHECK(singleton=1), run_id TEXT NOT NULL REFERENCES veriq_local_runs(id),
-                workspace_id TEXT NOT NULL, attempt_id TEXT NOT NULL, state TEXT NOT NULL, generation INTEGER NOT NULL DEFAULT 1);
-            CREATE TABLE IF NOT EXISTS veriq_local_events (
-                run_id TEXT NOT NULL REFERENCES veriq_local_runs(id), attempt_id TEXT NOT NULL,
-                sequence INTEGER NOT NULL, document TEXT NOT NULL, PRIMARY KEY(attempt_id, sequence));
-            CREATE TABLE IF NOT EXISTS veriq_local_stops (
-                attempt_id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES veriq_local_runs(id), receipt TEXT NOT NULL);
-            `);
-        if (
-            !db
-                .prepare("PRAGMA table_info(veriq_local_owner)")
-                .all()
-                .some((column) => column.name === "generation")
-        )
-            db.exec(
-                "ALTER TABLE veriq_local_owner ADD COLUMN generation INTEGER NOT NULL DEFAULT 1",
-            );
-        db.exec("PRAGMA user_version=2");
-        return new LocalStore(directory, db);
     }
     /**
      * 公开方法 close 关闭底层 SQLite 连接：之后任何查询都应失败：避免宿主退出后文件锁残留（close/LOCAL_OWNERSHIP_LOST）。
      */
     close() {
-        this.db.close();
+        try { this.db.close(); } finally { this.nativeDirectory?.close(); }
     }
     private transaction<T>(fn: () => T): T {
         this.db.exec("BEGIN IMMEDIATE");
         try {
             const value = fn();
+            this.nativeDirectory?.validate();
             this.db.exec("COMMIT");
+            this.nativeDirectory?.validate();
             return value;
         } catch (error) {
-            this.db.exec("ROLLBACK");
+            if (this.db.isTransaction) this.db.exec("ROLLBACK");
             throw error;
         }
     }
@@ -153,6 +177,8 @@ export class LocalStore {
                 .prepare("INSERT INTO veriq_local_owner VALUES(1,?,?,?,?,1)")
                 .run(runId, workspaceId, attemptId, "ALLOCATED");
             const owner = this.active()!;
+            const observed = Date.now();
+            this.db.prepare("INSERT INTO veriq_local_lifecycle(run_id,first_observed,last_access) VALUES(?,?,?)").run(runId, observed, observed);
             if (initial) this.checkpoint(initial, owner);
             return owner;
         });
@@ -380,6 +406,7 @@ export class LocalStore {
             )
                 throw new Error("LOCAL_OWNERSHIP_LOST");
             const state = owner.state === "STOPPED" ? "FINISHED" : "QUARANTINED";
+            this.touch(result.localRunId);
             this.db
                 .prepare("UPDATE veriq_local_runs SET result=?,state=? WHERE id=?")
                 .run(JSON.stringify(result), state, result.localRunId);
@@ -401,7 +428,9 @@ export class LocalStore {
      */
     result(workspaceId: string, runId: string): OfflineResultV1 {
         const row = this.authorize(workspaceId, runId);
+        if (row.state === "RETIRED") throw new Error("LOCAL_RUN_RETIRED");
         if (!row.result) throw new Error("LOCAL_RUN_UNFINISHED");
+        this.touch(runId);
         return JSON.parse(String(row.result)) as OfflineResultV1;
     }
     /**
@@ -412,7 +441,7 @@ export class LocalStore {
             throw new Error("INVALID_HISTORY_PAGE");
         return this.db
             .prepare(
-                "SELECT id, created_at AS createdAt, state, upload_state AS uploadState, upload_error AS uploadError FROM veriq_local_runs WHERE workspace_id=? ORDER BY created_at DESC,id DESC LIMIT ?",
+                "SELECT id, created_at AS createdAt, state, upload_state AS uploadState, upload_error AS uploadError FROM veriq_local_runs WHERE workspace_id=? AND state<>'RETIRED' ORDER BY created_at DESC,id DESC LIMIT ?",
             )
             .all(workspaceId, limit);
     }
@@ -431,6 +460,150 @@ export class LocalStore {
             this.db.prepare("SELECT cancel_requested FROM veriq_local_runs WHERE id=?").get(runId)
                 ?.cancel_requested === 1
         );
+    }
+    /** 访问时间只由当前宿主实际读取记录时更新，历史首次观察绝不反推文件 mtime 或导入时间；已退休标志保持单调，不因一次查询、重复上传或重启重新授予已删除原始证据的可用性。 */
+    private touch(runId: string): void {
+        const now = Date.now();
+        this.db.prepare(`INSERT INTO veriq_local_lifecycle(run_id,first_observed,last_access) VALUES(?,?,?)
+            ON CONFLICT(run_id) DO UPDATE SET last_access=MAX(last_access,excluded.last_access)`).run(runId, now, now);
+    }
+    /** 原始证据退休事实按 Run 保存于同一 SQLite 中，报告与读取都查询这个有界布尔投影；未知旧记录继续认为尚未退休，不能因没有生命周期行而把磁盘文件缺失伪造为成功清理。 */
+    rawRetired(workspaceId: string, runId: string): boolean {
+        this.authorize(workspaceId, runId);
+        return this.db.prepare("SELECT raw_retired FROM veriq_local_lifecycle WHERE run_id=?").get(runId)?.raw_retired === 1;
+    }
+    /** 保留期事务持有真正 SQLite 写锁并拒绝任何离线所有权，直到调用方完成有限文件退休后才提交；在线与桌面合作锁仍由外层保持，崩溃回滚只会留下下次可幂等重做的删除，不会释放未知执行占用。 */
+    beginRetention(): (commit: boolean) => void {
+        this.db.exec("BEGIN IMMEDIATE");
+        try { if (this.active()) throw new Error("LOCAL_RETENTION_ACTIVE"); }
+        catch (error) { this.db.exec("ROLLBACK"); throw error; }
+        let held = true;
+        return commit => {
+            if (!held) throw new Error("LOCAL_RETENTION_GUARD_RELEASED");
+            try {
+                this.nativeDirectory?.validate();
+                this.db.exec(commit ? "COMMIT" : "ROLLBACK");
+                held = false;
+                this.nativeDirectory?.validate();
+            } catch (error) {
+                if (this.db.isTransaction) this.db.exec("ROLLBACK");
+                held = false;
+                throw error;
+            }
+        };
+    }
+    /** 维护时钟使用持久最高水位拒绝回拨后的年龄推导，首次观察的旧结果从当前时间开始计龄；每次只登记有限旧记录，未完成、待上传、未知停止或超大未核验文档始终保留，SQL 不用文件 mtime 猜测历史。 */
+    retentionRuns(workspaceId: string, now: number, batch: number) {
+        if (!this.db.isTransaction || !Number.isSafeInteger(now) || !Number.isSafeInteger(batch) || batch < 1 || batch > 100)
+            throw new Error("LOCAL_RETENTION_GUARD_REQUIRED");
+        const previous = Number(this.db.prepare("SELECT high_water FROM veriq_local_retention_clock WHERE singleton=1").get()?.high_water ?? now);
+        if (now < previous) throw new Error("LOCAL_RETENTION_CLOCK_ROLLBACK");
+        this.db.prepare("INSERT INTO veriq_local_retention_clock VALUES(1,?) ON CONFLICT(singleton) DO UPDATE SET high_water=excluded.high_water").run(now);
+        this.db.prepare(`INSERT OR IGNORE INTO veriq_local_lifecycle(run_id,first_observed,last_access)
+            SELECT id,?,? FROM veriq_local_runs WHERE workspace_id=? AND id NOT IN (SELECT run_id FROM veriq_local_lifecycle) ORDER BY id LIMIT ?`)
+            .run(now, now, workspaceId, batch);
+        const rows = this.db.prepare(`SELECT r.id,r.result,l.first_observed AS firstObserved,l.last_access AS lastAccess,
+            l.raw_retired AS rawRetired,l.metadata_retired AS metadataRetired FROM veriq_local_runs r
+            JOIN veriq_local_lifecycle l ON l.run_id=r.id WHERE r.workspace_id=? AND r.state='FINISHED'
+            AND r.upload_state='COMPLETE' AND r.result IS NOT NULL AND length(r.result)<=8388608
+            ORDER BY l.last_checked,r.id LIMIT ?`).all(workspaceId, batch);
+        for (const row of rows) this.db.prepare("UPDATE veriq_local_lifecycle SET last_checked=? WHERE run_id=?").run(now, row.id!);
+        return rows;
+    }
+    /** 进程历史成员只有在同一库确有匹配 Run 的强范围停止回执时才可进入只读物理确认，未派生回执不能授权任何现存进程成员；结果已退休仍保留这份最小事实，孤立、损坏或旧范围未知记录一律返回拒绝。 */
+    knownStoppedAttempt(attemptId: string): boolean {
+        const row = this.db.prepare("SELECT s.receipt FROM veriq_local_stops s JOIN veriq_local_runs r ON r.id=s.run_id WHERE s.attempt_id=? AND r.state IN ('FINISHED','RETIRED')").get(attemptId);
+        try {
+            if (!row) return false;
+            const stop = JSON.parse(String(row.receipt)) as StopReceipt;
+            return stop.attemptId === attemptId && stop.processStopped === true &&
+                stop.processStopScope === (process.platform === "darwin" ? "CONTROLLED_WORKER_BROWSER" : "FULL_DESCENDANT_TREE") &&
+                validateSchema("Timestamp", stop.stoppedAt).length === 0;
+        } catch { return false; }
+    }
+    /** 报告必须同时拥有每个 Attempt 的原始停止回执且范围与当前平台一致，旧结果缺字段或回执缺失均保留；这里只验证本机 SQL 事实，外层仍使用现有进程证明读取器核验真正停止，不能把结果 outcome 当作进程退出证据。 */
+    retentionStops(result: OfflineResultV1): StopReceipt[] | undefined {
+        const receipts: StopReceipt[] = [];
+        for (const attempt of result.attempts) {
+            const row = this.db.prepare("SELECT receipt FROM veriq_local_stops WHERE attempt_id=? AND run_id=?").get(attempt.attemptId, result.localRunId);
+            try {
+                if (!row) return;
+                const stop = JSON.parse(String(row.receipt)) as StopReceipt;
+                if (stop.attemptId !== attempt.attemptId || stop.processStopped !== true || attempt.processStopped !== true ||
+                    !stop.processStopScope || stop.processStopScope !== attempt.processStopScope || validateSchema("Timestamp", stop.stoppedAt).length ||
+                    (stop.processStopScope !== "NO_PROCESS_SPAWNED" && stop.processStopScope !== (process.platform === "darwin" ? "CONTROLLED_WORKER_BROWSER" : "FULL_DESCENDANT_TREE"))) return;
+                receipts.push(stop);
+            } catch { return; }
+        }
+        return receipts;
+    }
+    /** 大报告按有限证据批次前进，每份退休墓碑绑定 Run、Attempt、相对名称和原摘要及长度，下一次只重做尚未完成成员；运行级原始证据标志只在全部清单完成时设置，不能因本次额度耗尽而把剩余文件标为已删除。 */
+    artifactRetired(workspaceId: string, runId: string, attemptId: string, file: { path: string; sha256: string; sizeBytes: number }): boolean {
+        this.authorize(workspaceId, runId);
+        const row = this.db.prepare("SELECT sha256,size_bytes FROM veriq_local_artifact_retirements WHERE run_id=? AND attempt_id=? AND path=?").get(runId, attemptId, file.path);
+        return !!row && row.sha256 === file.sha256 && row.size_bytes === file.sizeBytes;
+    }
+    /** 单项退休仅在持续空闲的 SQLite 写事务中登记，摘要冲突不得覆盖旧墓碑；崩溃前已经删除却未提交的文件下次通过真实缺失幂等重做，成功登记不会改变业务 outcome、上传幂等键或停止证明。 */
+    retireArtifact(workspaceId: string, runId: string, attemptId: string, file: { path: string; sha256: string; sizeBytes: number }): void {
+        if (!this.db.isTransaction || this.active()) throw new Error("LOCAL_RETENTION_GUARD_REQUIRED");
+        const row = this.authorize(workspaceId, runId);
+        if (row.state !== "FINISHED" || row.upload_state !== "COMPLETE") throw new Error("LOCAL_RETENTION_ACTIVE");
+        const previous = this.db.prepare("SELECT sha256,size_bytes FROM veriq_local_artifact_retirements WHERE run_id=? AND attempt_id=? AND path=?").get(runId, attemptId, file.path);
+        if (previous && (previous.sha256 !== file.sha256 || previous.size_bytes !== file.sizeBytes)) throw new Error("LOCAL_RETENTION_ARTIFACT_CONFLICT");
+        this.db.prepare("INSERT OR IGNORE INTO veriq_local_artifact_retirements VALUES(?,?,?,?,?)").run(runId, attemptId, file.path, file.sha256, file.sizeBytes);
+    }
+    /** 只有同一维护事务里已经通过停止、上传及年龄核验的结果能够进入退休，事件正文与完整结果在元数据期限后移除；Run 标识、Workspace、上传幂等回执和每个 Attempt 停止证明继续保留，重复维护不会复用旧 Run 或 fence。 */
+    retireRun(workspaceId: string, runId: string, metadata: boolean): void {
+        if (!this.db.isTransaction) throw new Error("LOCAL_RETENTION_GUARD_REQUIRED");
+        const row = this.authorize(workspaceId, runId);
+        if (row.state !== "FINISHED" || row.upload_state !== "COMPLETE" || this.active()) throw new Error("LOCAL_RETENTION_ACTIVE");
+        this.db.prepare("UPDATE veriq_local_lifecycle SET raw_retired=1,metadata_retired=? WHERE run_id=?").run(metadata ? 1 : 0, runId);
+        this.db.prepare("DELETE FROM veriq_local_artifact_retirements WHERE run_id=?").run(runId);
+        if (metadata) {
+            this.db.prepare("DELETE FROM veriq_local_events WHERE run_id=?").run(runId);
+            this.db.prepare("UPDATE veriq_local_runs SET state='RETIRED',result=NULL,upload_error=NULL WHERE id=?").run(runId);
+        }
+    }
+    /** 缓存生命周期只登记受信任宿主列出的包标识，不接受目录路径或下载文件自报年龄；仍由任何未退休结果引用的包不可退休，缺少历史生命周期的包本次只开始计龄，不根据包创建时间或磁盘修改时间补造到期事实。 */
+    observeCache(workspaceId: string, bundleId: string, now: number, access = false) {
+        this.db.prepare(`INSERT INTO veriq_local_cache_lifecycle(bundle_id,workspace_id,first_observed,last_access) VALUES(?,?,?,?)
+            ON CONFLICT(bundle_id) DO NOTHING`).run(bundleId, workspaceId, now, now);
+        if (access) this.db.prepare("UPDATE veriq_local_cache_lifecycle SET last_access=MAX(last_access,?) WHERE bundle_id=? AND workspace_id=?").run(now, bundleId, workspaceId);
+        return this.db.prepare("SELECT first_observed AS firstObserved,last_access AS lastAccess,retirement FROM veriq_local_cache_lifecycle WHERE bundle_id=? AND workspace_id=?").get(bundleId, workspaceId);
+    }
+    /** 缓存引用检查在持有维护写锁时逐条使用已有共享结果契约，损坏或尚无结果的记录一律阻止删除；不会只依赖当前 GUI 选择，也不删除引擎、源码或凭据，已上传但仍保留的报告同样继续持有包引用。 */
+    cacheReferenced(bundleId: string): boolean {
+        const rows = this.db.prepare("SELECT result,state FROM veriq_local_runs WHERE state<>'RETIRED' LIMIT 4097").all();
+        if (rows.length > 4096) return true;
+        return rows.some(row => {
+            if (!row.result || String(row.result).length > 8388608) return true;
+            try {
+                const value = JSON.parse(String(row.result)) as OfflineResultV1;
+                return validateSchema("OfflineResultV1", value).length > 0 || value.bundleId === bundleId;
+            } catch { return true; }
+        });
+    }
+    /** 每次访问受信任包时刷新本机 SQLite 的实际访问时间，而不是重写已签名只读清单；操作与维护共享数据库写锁，因此正在读取包或准备执行的宿主应先持有现有桌面和 Agent 所有权门闩。 */
+    touchCache(workspaceId: string, bundleId: string): void {
+        if (validateSchema("Id", workspaceId).length || validateSchema("Id", bundleId).length) throw new Error("INVALID_BUNDLE_ID");
+        const now = Date.now(), observed = this.observeCache(workspaceId, bundleId, now);
+        if (observed?.retirement && observed.retirement !== "COMPLETE") throw new Error("LOCAL_BUNDLE_RETIREMENT_PENDING");
+        if (observed?.retirement === "COMPLETE") this.db.prepare("UPDATE veriq_local_cache_lifecycle SET first_observed=?,last_access=?,retirement=NULL WHERE bundle_id=? AND workspace_id=?").run(now, now, bundleId, workspaceId);
+        else this.observeCache(workspaceId, bundleId, now, true);
+    }
+    /** 退休命名保存在 SQLite 中以支持中途崩溃后只重试同一个隔离目录，名字由包 UUID 确定且保持固定有限语法；恢复不会按重试时的新目录路径重新选择对象，也不会把文件缺失当成已核验年龄。 */
+    cacheRetirement(workspaceId: string, bundleId: string, inventory: string): void {
+        if (!this.db.isTransaction || Buffer.byteLength(inventory) > 2 * 1024 * 1024) throw new Error("LOCAL_RETENTION_GUARD_REQUIRED");
+        this.db.prepare("UPDATE veriq_local_cache_lifecycle SET retirement=? WHERE bundle_id=? AND workspace_id=?").run(inventory, bundleId, workspaceId);
+    }
+    /** 未完成的缓存退休意图即使目录已经隔离或界面索引已更新也继续可列举，下一次只重做原清单而不重新选择任意目录；完成标志保留最小包幂等墓碑，调用方必须先成功退休实际有限库存再写入 COMPLETE。 */
+    pendingCacheRetirements(workspaceId: string, batch: number) {
+        return this.db.prepare("SELECT bundle_id AS bundleId,retirement FROM veriq_local_cache_lifecycle WHERE workspace_id=? AND retirement IS NOT NULL AND retirement<>'COMPLETE' ORDER BY bundle_id LIMIT ?").all(workspaceId, batch);
+    }
+    /** 缓存完成只接受已经存在的退休意图，并在同一维护写锁内保存幂等完成墓碑；不删除历史 firstObserved 或允许将同包名自动复用成另一份清单，GUI 索引移除仍由外层私有配置原子更新完成。 */
+    completeCacheRetirement(workspaceId: string, bundleId: string): void {
+        if (!this.db.isTransaction) throw new Error("LOCAL_RETENTION_GUARD_REQUIRED");
+        this.db.prepare("UPDATE veriq_local_cache_lifecycle SET retirement='COMPLETE',retired_at=? WHERE bundle_id=? AND workspace_id=? AND retirement IS NOT NULL").run(Date.now(), bundleId, workspaceId);
     }
     /**
      * 公开方法 uploaded 记录上传成功回执并把 upload_state 标为 COMPLETE（uploaded）。

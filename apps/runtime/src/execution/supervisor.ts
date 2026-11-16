@@ -22,6 +22,7 @@ import { EventBuffer } from './events.ts';
 import { AttemptBroker, createDarwinBrokerDirectory } from './broker.ts';
 import { requireDarwinSource, type DarwinSourceCapability, type DarwinSourceState } from './darwin-source.ts';
 import { matchesControlledClaim } from './darwin-proof.ts';
+import { WindowsAttemptJournal } from './windows-journal.ts';
 import { monitorStorage } from './storage.ts';
 import { loadRelease, sha256 } from './release.ts';
 import { developmentExecutionPaths, containedPath, type ExecutionPaths } from './paths.ts';
@@ -100,6 +101,13 @@ export class ExecutionSupervisor {
             } finally { parent.close(); }
             return;
         }
+        /** Windows 用真实私有 SQLite 的 FULL/WAL 提交承载 Claim 与围栏，祖先链保持至数据库关闭；这项平台分支不调用目录 fsync，也不更改原生 Job 的全后代排空要求，关闭或提交失败仍直接阻止派生。 */
+        if (process.platform === 'win32') {
+            const journal = await WindowsAttemptJournal.open(this.options.root);
+            try { await journal.requireNoLegacy(); journal.save(value); }
+            finally { journal.close(); }
+            return;
+        }
         if (process.platform !== 'linux') throw new Error('ONLINE_JOURNAL_DURABILITY_UNSUPPORTED');
         const directory = join(this.options.root, 'attempts');
         await privateDirectory(directory);
@@ -138,7 +146,7 @@ export class ExecutionSupervisor {
     }
     /** 未派生判定只接受当前明确提交完成的前置状态，既不依赖内存 child 句柄缺失也不解释错误 reason；恢复还必须排除私有原生记录中的启动意图，以免旧发布窗口中的不一致被当成容量释放授权。 */
     private async unspawned(record: AttemptJournal, committed: boolean): Promise<StopReceipt | undefined> {
-        if (!committed || (process.platform !== 'linux' && !this.source) || !isPreSpawnState(record.state, 'ONLINE')) return;
+        if (!committed || (process.platform !== 'linux' && process.platform !== 'win32' && !this.source) || !isPreSpawnState(record.state, 'ONLINE')) return;
         /** 旧日志的发布曾缺父目录刷新，单看白名单还不足以排除残留原生启动意图；通过既有私有记录会话检查同一 Attempt 的进程与证明成员，任一存在或读取不确定都转交真实停止而非推断根进程消失。 */
         try {
             const records = await ProcessRecords.open(join(this.options.root, 'processes'));
@@ -170,6 +178,7 @@ export class ExecutionSupervisor {
      * 公开方法 recover 扫描 attempts 日志并终止残留进程：向控制面对账后返回带 claimRequestId 的停机回执列表。
      */
     async recover(): Promise<(StopReceipt & {claimRequestId?: string})[]> {
+        if (process.platform === 'win32') return this.recoverWindows();
         const directory = join(this.options.root, 'attempts');
         const receipts: (StopReceipt & {claimRequestId?: string})[] = [];
         /** 恢复中的白名单是容量释放依据，必须复用实际私有记录能力读取，不能按路径跟随链接或接受宽权限文件；同一只读会话保持目录身份，旧历史也不会在核验前被收紧权限或改写。 */
@@ -210,6 +219,32 @@ export class ExecutionSupervisor {
         }
         return receipts;
     }
+    /** Windows 恢复只从已经完成 SQLite 提交的原始 Claim 取得 fence，旧 JSON 或 staging 一律要求显式人工恢复；孤立进程成员不被忽略，持久前置状态仍必须没有任何原生启动意图，真正派生过的 Attempt 始终使用 Job 排空证明。 */
+    private async recoverWindows(): Promise<(StopReceipt & {claimRequestId?: string})[]> {
+        const journal = await WindowsAttemptJournal.open(this.options.root);
+        const receipts: (StopReceipt & {claimRequestId?: string})[] = [];
+        let processes: ProcessRecords | undefined;
+        try {
+            await journal.requireNoLegacy();
+            const records = journal.records(), ids = new Set(records.map(record => record.claim.attemptId));
+            processes = await ProcessRecords.open(join(this.options.root, 'processes'));
+            for (const name of await processes?.names(8192) ?? []) {
+                const match = /^([a-zA-Z0-9_-]{1,100})\.(?:process|drained)\.json$/.exec(name);
+                if (!match || !ids.has(match[1]!)) throw new Error('WINDOWS_ORPHAN_PROCESS_RECOVERY_REQUIRED');
+            }
+            for (const record of records) {
+                const stop = await this.unspawned(record, true) ?? await this.terminateAttempt(record.claim.attemptId, 'AGENT_RECOVERY');
+                if (stop.processStopped && stop.processStopScope !== 'NO_PROCESS_SPAWNED') record.state = 'STOPPED';
+                record.stop = stop;
+                journal.save(record);
+                await this.reconcile(record.claim, stop, 'PENDING');
+                receipts.push({ ...stop, ...(record.claimRequestId ? { claimRequestId: record.claimRequestId } : {}) });
+            }
+            return receipts;
+        } finally {
+            try { await processes?.close(); } finally { journal.close(); }
+        }
+    }
     /** 历史停止证明除了内部过程与 proof 配对，还必须匹配当前已提交 Claim 的原始 fence 和任务类型；恢复不能用同一 Attempt 名称借取另一代或另一种浏览器计划，读取或关闭不确定都保留未知容量，不重建任何活进程所有权。 */
     private async controlledClaim(claim: Claim): Promise<boolean> {
         let records: ProcessRecords | undefined;
@@ -226,7 +261,7 @@ export class ExecutionSupervisor {
     async runAttempt(assignment: ClaimedAttempt, signal: AbortSignal): Promise<AttemptResult> {
         const { claim } = assignment;
         leaseDeadline({ ...claim, leaseExpiresAt: claim.expiresAt }, assignment.requestStarted, assignment.responseReceived);
-        if (process.platform !== 'linux' && !this.source)
+        if (process.platform !== 'linux' && process.platform !== 'win32' && !this.source)
             throw new Error('UNSUPPORTED_PROCESS_PLATFORM');
         const executionPaths = this.options.execution ?? developmentExecutionPaths();
         const work = join(this.options.root, 'work', claim.attemptId);

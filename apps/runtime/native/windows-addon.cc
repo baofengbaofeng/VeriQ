@@ -1,6 +1,8 @@
 /** Windows Node-API 适配器只暴露本机私有管道、当前用户 ACL 与精确进程身份操作；阻塞内核 I/O 在工作线程执行，关闭事件取消全部重叠请求，JavaScript 回调通过受限生命周期的线程安全队列交付。 */
 #include "windows-common.h"
 #include "windows-files.h"
+#include "windows-journal-files.h"
+#include "windows-retention-files.h"
 #include <napi.h>
 #include <atomic>
 #include <memory>
@@ -361,6 +363,60 @@ static Napi::Value fileFailure(const Napi::CallbackInfo& info, const NativeFailu
     error.ThrowAsJavaScriptException();
     return info.Env().Undefined();
 }
+/** SQLite 工厂只交付两个闭包并由它们共享一个真实祖先链拥有者，JavaScript 无法取得 HANDLE 或任意相对文件操作；原生校验、关闭和参数拒绝均使用现有固定错误映射，不在装载失败时回退普通 Node 文件访问。 */
+static Napi::Value openPrivateSqliteDirectory(const Napi::CallbackInfo& info) {
+    try {
+        require((info.Length() == 2 || (info.Length() == 3 && info[2].IsBoolean())) && info[0].IsString() && info[1].IsString(), "NATIVE_SQLITE_ARGUMENTS_INVALID");
+        auto session = std::make_shared<PrivateSqliteDirectory>(wide(info[0].As<Napi::String>().Utf8Value()),
+            wide(info[1].As<Napi::String>().Utf8Value()), info.Length() == 2 || info[2].As<Napi::Boolean>().Value());
+        auto result = Napi::Object::New(info.Env());
+        result.Set("validate", Napi::Function::New(info.Env(), [session](const Napi::CallbackInfo& call) -> Napi::Value {
+            try { require(call.Length() == 0, "NATIVE_SQLITE_ARGUMENTS_INVALID"); session->validate(); return call.Env().Undefined(); }
+            catch (const NativeFailure& error) { return fileFailure(call, error); }
+            catch (...) { Napi::Error::New(call.Env(), "NATIVE_SQLITE_INTERNAL").ThrowAsJavaScriptException(); return call.Env().Undefined(); }
+        }));
+        result.Set("close", Napi::Function::New(info.Env(), [session](const Napi::CallbackInfo& call) -> Napi::Value {
+            try { require(call.Length() == 0, "NATIVE_SQLITE_ARGUMENTS_INVALID"); session->close(); return call.Env().Undefined(); }
+            catch (const NativeFailure& error) { return fileFailure(call, error); }
+            catch (...) { Napi::Error::New(call.Env(), "NATIVE_SQLITE_INTERNAL").ThrowAsJavaScriptException(); return call.Env().Undefined(); }
+        }));
+        return result;
+    } catch (const NativeFailure& error) { return fileFailure(info, error); }
+    catch (const std::exception&) { Napi::Error::New(info.Env(), "NATIVE_SQLITE_INTERNAL").ThrowAsJavaScriptException(); return info.Env().Undefined(); }
+}
+/** 保留期清单先以固定数量、字符串与整数额度解析，再交给专用原生路径执行；摘要与正文只进入系统流式核验，不作为诊断输出，普通配置、Cookie 与保险库接口不因这些有限退休入口扩大额度。 */
+static RetentionFile retentionFile(const Napi::Value& value) {
+    require(value.IsObject() && !value.IsArray(), "NATIVE_RETENTION_ARGUMENTS_INVALID");
+    const auto item = value.As<Napi::Object>();
+    require(item.Get("path").IsString() && item.Get("sha256").IsString() && item.Get("sizeBytes").IsNumber(), "NATIVE_RETENTION_ARGUMENTS_INVALID");
+    const double size = item.Get("sizeBytes").As<Napi::Number>().DoubleValue();
+    require(size >= 0 && size <= 32 * 1024 * 1024 && size == static_cast<unsigned long long>(size), "NATIVE_RETENTION_ARGUMENTS_INVALID");
+    const auto digest = item.Get("sha256").As<Napi::String>().Utf8Value();
+    require(digest.size() == 64 && digest.find_first_not_of("0123456789abcdef") == std::string::npos, "NATIVE_RETENTION_ARGUMENTS_INVALID");
+    return {wide(item.Get("path").As<Napi::String>().Utf8Value()), static_cast<unsigned long long>(size), digest};
+}
+/** 原始证据退休只接收已知报告描述符和固定后缀路径，缺失仍按原生真实 ENOENT 报告；其他 ACL、摘要、长度或关闭失败均不会被转成成功，也不产生全后代停止或物理擦除承诺。 */
+static Napi::Value retireEvidence(const Napi::CallbackInfo& info) {
+    try {
+        require(info.Length() == 2 && info[0].IsString(), "NATIVE_RETENTION_ARGUMENTS_INVALID");
+        retirePrivateEvidence(wide(info[0].As<Napi::String>().Utf8Value()), retentionFile(info[1]));
+        return info.Env().Undefined();
+    } catch (const NativeFailure& error) { return fileFailure(info, error); }
+    catch (...) { Napi::Error::New(info.Env(), "NATIVE_RETENTION_INTERNAL").ThrowAsJavaScriptException(); return info.Env().Undefined(); }
+}
+/** 缓存入口只接受一个 VeriQ bundles 根、一个 UUID 与其确定退休名和至多四千零九十八份摘要清单，实际递归严格拒绝额外成员；不导出任意删除句柄或权限修改方法，调用方仍必须持有档案所有权及 SQLite 空闲边界。 */
+static Napi::Value retireInventory(const Napi::CallbackInfo& info) {
+    try {
+        require(info.Length() == 4 && info[0].IsString() && info[1].IsString() && info[2].IsString() && info[3].IsArray(), "NATIVE_RETENTION_ARGUMENTS_INVALID");
+        const auto items = info[3].As<Napi::Array>(); require(items.Length() <= 4098, "NATIVE_RETENTION_INVENTORY_LIMIT");
+        std::vector<RetentionFile> files;
+        for (uint32_t index = 0; index < items.Length(); index++) files.push_back(retentionFile(items.Get(index)));
+        retirePrivateInventory(wide(info[0].As<Napi::String>().Utf8Value()), wide(info[1].As<Napi::String>().Utf8Value()),
+            wide(info[2].As<Napi::String>().Utf8Value()), files);
+        return info.Env().Undefined();
+    } catch (const NativeFailure& error) { return fileFailure(info, error); }
+    catch (...) { Napi::Error::New(info.Env(), "NATIVE_RETENTION_INTERNAL").ThrowAsJavaScriptException(); return info.Env().Undefined(); }
+}
 /** 文件 ACL 入口只作用于当前用户拥有且整条祖先链无重解析点的对象，创建时即安装私有可继承目录权限；已有公共对象保持拒绝，不能借初始化路径把历史公开配置自动收紧并当成合法迁移。 */
 static Napi::Value privatePath(const Napi::CallbackInfo& info) {
     try {
@@ -510,6 +566,9 @@ static Napi::Object initialize(Napi::Env env, Napi::Object exports) {
         exports.Set("request", Napi::Function::New(env, request));
         exports.Set("identity", Napi::Function::New(env, identity));
         exports.Set("signalStop", Napi::Function::New(env, signalStop));
+        exports.Set("retirePrivateEvidence", Napi::Function::New(env, retireEvidence));
+        exports.Set("retirePrivateInventory", Napi::Function::New(env, retireInventory));
+        exports.Set("openPrivateSqliteDirectory", Napi::Function::New(env, openPrivateSqliteDirectory));
         exports.Set("privatePath", Napi::Function::New(env, privatePath));
         exports.Set("writePrivate", Napi::Function::New(env, writePrivate));
         exports.Set("readPrivateFile", Napi::Function::New(env, readPrivateFile));

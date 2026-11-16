@@ -50,6 +50,10 @@ export interface DarwinNative {
      * false 仅检查实际元数据，true 退休已验证成员，两者都不读取正文或交付原始描述符。
      */
     privateCookieFile(path: string, retire: boolean): boolean;
+    /** 报告退休只核验并删除固定 offline/work/Attempt/evidence 下同一普通文件，大小与 SHA256 在原生流式核对；缓存库存退休先隔离专用 UUID 命名空间后才改变只读属性，未知成员或关闭失败保持错误，不扩大凭据读取能力。 */
+    retirePrivateEvidence(path: string, file: { path: string; sizeBytes: number; sha256: string }): void;
+    /** 有限库存必须由宿主信任校验产生且本机 SQLite 已提交退休意图，原生只允许 bundles/UUID 到对应退休名的隔离与清单成员删除；单次最大四千零九十八文件及一百二十八 MiB，不能删除引擎、凭据或未知源目录。 */
+    retirePrivateInventory(directory: string, original: string, retiring: string, files: { path: string; sizeBytes: number; sha256: string }[]): void;
 }
 let loaded: DarwinNative | undefined;
 let installedPath: string | undefined;
