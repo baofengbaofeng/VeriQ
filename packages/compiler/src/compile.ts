@@ -68,14 +68,14 @@ export interface RunnerSdkV1 {
 }
 const bytes = (s: string): Uint8Array => new TextEncoder().encode(s);
 function parse(bytes: Uint8Array): Record<string, unknown> {
-    return JSON.parse(
-        new TextDecoder("utf-8", { fatal: true }).decode(bytes),
-    ) as Record<string, unknown>;
+    return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as Record<
+        string,
+        unknown
+    >;
 }
 function checkSchema(name: string, value: unknown): void {
     const errors = validateSchema(name, value);
-    if (errors.length)
-        throw new Error(`INVALID_${name}: ${JSON.stringify(errors)}`);
+    if (errors.length) throw new Error(`INVALID_${name}: ${JSON.stringify(errors)}`);
 }
 const record = (v: unknown): v is Record<string, unknown> =>
     v !== null && typeof v === "object" && !Array.isArray(v);
@@ -85,10 +85,7 @@ function distributionFiles(
 ): Record<string, Uint8Array> {
     if (!d) throw new Error("ENGINE_DISTRIBUTION_REQUIRED");
     if (d.engineVersion !== engine) throw new Error("ENGINE_VERSION_MISMATCH");
-    const files: Record<string, Uint8Array> = Object.create(null) as Record<
-        string,
-        Uint8Array
-    >;
+    const files: Record<string, Uint8Array> = Object.create(null) as Record<string, Uint8Array>;
     for (const [path, content] of Object.entries(d.files)) {
         if (
             !path.startsWith("vendor/") ||
@@ -144,9 +141,7 @@ function distributionFiles(
             node.hasInstallScript
         )
             throw new Error("INVALID_LOCK_PACKAGE");
-        const name = location.slice(
-            location.lastIndexOf("node_modules/") + "node_modules/".length,
-        );
+        const name = location.slice(location.lastIndexOf("node_modules/") + "node_modules/".length);
         const key = name + "@" + String(node.version);
         const dep = inventory.get(key);
         if (
@@ -159,14 +154,9 @@ function distributionFiles(
         const path = node.resolved.slice(5);
         const content = files[path];
         if (!content) throw new Error("MISSING_DEPENDENCY_FILE");
-        if (
-            dep.integrity !==
-            "sha512-" + createHash("sha512").update(content).digest("base64")
-        )
+        if (dep.integrity !== "sha512-" + createHash("sha512").update(content).digest("base64"))
             throw new Error("DEPENDENCY_INTEGRITY_MISMATCH");
-        for (const name of Object.keys(
-            record(node.dependencies) ? node.dependencies : {},
-        )) {
+        for (const name of Object.keys(record(node.dependencies) ? node.dependencies : {})) {
             let parent = location;
             let found = false;
             while (true) {
@@ -186,15 +176,11 @@ function distributionFiles(
         used.add(key);
         usedFiles.add(path);
     }
-    if (
-        used.size !== inventory.size ||
-        usedFiles.size !== Object.keys(files).length
-    )
+    if (used.size !== inventory.size || usedFiles.size !== Object.keys(files).length)
         throw new Error("DEPENDENCY_CLOSURE_MISMATCH");
     for (const [name, resolved] of Object.entries(pkg.dependencies)) {
         const node = lock.packages["node_modules/" + name];
-        if (!record(node) || node.resolved !== resolved)
-            throw new Error("LOCK_ROOT_MISMATCH");
+        if (!record(node) || node.resolved !== resolved) throw new Error("LOCK_ROOT_MISMATCH");
     }
     files["package.json"] = d.packageJson.slice();
     files["package-lock.json"] = d.packageLock.slice();
@@ -236,11 +222,7 @@ function registration(plan: CompiledCase): Uint8Array {
                 false,
                 undefined,
                 f.createNamedImports([
-                    f.createImportSpecifier(
-                        false,
-                        undefined,
-                        f.createIdentifier("registerCase"),
-                    ),
+                    f.createImportSpecifier(false, undefined, f.createIdentifier("registerCase")),
                 ]),
             ),
             f.createStringLiteral("@veriq/runner-sdk"),
@@ -253,18 +235,10 @@ function registration(plan: CompiledCase): Uint8Array {
         ),
     ];
     const file = f.updateSourceFile(
-        ts.createSourceFile(
-            "case.test.ts",
-            "",
-            ts.ScriptTarget.ES2023,
-            false,
-            ts.ScriptKind.TS,
-        ),
+        ts.createSourceFile("case.test.ts", "", ts.ScriptTarget.ES2023, false, ts.ScriptKind.TS),
         statements,
     );
-    return bytes(
-        ts.createPrinter({ newLine: ts.NewLineKind.LineFeed }).printFile(file),
-    );
+    return bytes(ts.createPrinter({ newLine: ts.NewLineKind.LineFeed }).printFile(file));
 }
 /**
  * 公开函数 compileFiles 将资产快照编译为不可变 TS/JSON 文件表：DSL 以 JSON 字面量嵌入：不发射可写执行上下文。
@@ -275,9 +249,7 @@ export function compileFiles(
 ): CompiledOutput {
     const analysis = analyze(snapshot);
     if (analysis.issues.length)
-        throw new Error(
-            "ASSET_VALIDATION_FAILED: " + JSON.stringify(analysis.issues),
-        );
+        throw new Error("ASSET_VALIDATION_FAILED: " + JSON.stringify(analysis.issues));
     const files = distributionFiles(distribution, snapshot.engineVersion);
     const { validationTarget: _target, ...source } = snapshot;
     // Frozen identity projection is also the recoverable Workspace/source context for downloaded bundles.
@@ -301,48 +273,109 @@ export function compileFiles(
     if (!entrypoints.length)
         files["validation.ts"] = bytes(
             "export const validationOnly = true;\nexport const assets = JSON.parse(" +
-                JSON.stringify(
-                    new TextDecoder().decode(canonicalBytes(source.assets)),
-                ) +
+                JSON.stringify(new TextDecoder().decode(canonicalBytes(source.assets))) +
                 ");\n",
         );
     const expectedCases = analysis.cases.map((plan) => {
         let ordinal = 0;
         const flatten = (steps: CompiledStep[], parentId?: string): Record<string, unknown>[] =>
-            steps.flatMap((step) => [{
-                id: step.step.id, order: ordinal++, ...(parentId ? { parentId } : {}),
-                failurePolicy: step.step.failurePolicy ?? "STOP",
-                assertions: [
-                    ...step.before.map((a) => ({ id: a.assertion.id, severity: a.assertion.severity, stage: a.assertion.type === "requestCount" ? "FINALIZE" : "BEFORE" })),
-                    ...step.responseAssertions.map((a) => ({ id: a.assertion.id, severity: a.assertion.severity, stage: a.assertion.type === "requestCount" ? "FINALIZE" : "RESPONSE" })),
-                    ...step.after.map((a) => ({ id: a.assertion.id, severity: a.assertion.severity, stage: a.assertion.type === "requestCount" ? "FINALIZE" : "AFTER" })),
-                ],
-                observers: (step.step.observers ?? []).map((o) => o.id),
-            }, ...flatten(step.children ?? [], step.step.id)]);
-        const writes = (steps: CompiledStep[]): boolean => steps.some(({step, children}) =>
-            (step.action === "apiRequest" && !["GET", "HEAD", "OPTIONS"].includes(step.method)) ||
-            (step.observers ?? []).some(observer => "method" in observer && typeof observer.method === "string" && !["GET", "HEAD", "OPTIONS"].includes(observer.method)) ||
-            writes(children ?? []));
-        return { caseVersionId: plan.caseVersionId, hasPotentialWrites: plan.document.kind === "WRITE" || writes(plan.steps), requiredEvidenceKinds: ["TRACE"], steps: flatten(plan.steps),
-            ...(plan.persistenceCheckpointStepId ? { persistenceCheckpointStepId: plan.persistenceCheckpointStepId } : {}) };
+            steps.flatMap((step) => [
+                {
+                    id: step.step.id,
+                    order: ordinal++,
+                    ...(parentId ? { parentId } : {}),
+                    failurePolicy: step.step.failurePolicy ?? "STOP",
+                    assertions: [
+                        ...step.before.map((a) => ({
+                            id: a.assertion.id,
+                            severity: a.assertion.severity,
+                            stage: a.assertion.type === "requestCount" ? "FINALIZE" : "BEFORE",
+                        })),
+                        ...step.responseAssertions.map((a) => ({
+                            id: a.assertion.id,
+                            severity: a.assertion.severity,
+                            stage: a.assertion.type === "requestCount" ? "FINALIZE" : "RESPONSE",
+                        })),
+                        ...step.after.map((a) => ({
+                            id: a.assertion.id,
+                            severity: a.assertion.severity,
+                            stage: a.assertion.type === "requestCount" ? "FINALIZE" : "AFTER",
+                        })),
+                    ],
+                    observers: (step.step.observers ?? []).map((o) => o.id),
+                },
+                ...flatten(step.children ?? [], step.step.id),
+            ]);
+        const writes = (steps: CompiledStep[]): boolean =>
+            steps.some(
+                ({ step, children }) =>
+                    (step.action === "apiRequest" &&
+                        !["GET", "HEAD", "OPTIONS"].includes(step.method)) ||
+                    (step.observers ?? []).some(
+                        (observer) =>
+                            "method" in observer &&
+                            typeof observer.method === "string" &&
+                            !["GET", "HEAD", "OPTIONS"].includes(observer.method),
+                    ) ||
+                    writes(children ?? []),
+            );
+        return {
+            caseVersionId: plan.caseVersionId,
+            hasPotentialWrites: plan.document.kind === "WRITE" || writes(plan.steps),
+            requiredEvidenceKinds: ["TRACE"],
+            steps: flatten(plan.steps),
+            ...(plan.persistenceCheckpointStepId
+                ? { persistenceCheckpointStepId: plan.persistenceCheckpointStepId }
+                : {}),
+        };
     });
-    files["metadata/expected-plans.json"] = canonicalBytes({ schemaVersion: "1.0", cases: expectedCases });
-    const displayCases = analysis.cases.map(plan => {
+    files["metadata/expected-plans.json"] = canonicalBytes({
+        schemaVersion: "1.0",
+        cases: expectedCases,
+    });
+    const displayCases = analysis.cases.map((plan) => {
         let order = 0;
-        const flatten = (steps: CompiledStep[], parentId?: string): Record<string, unknown>[] => steps.flatMap(step => [{
-            id: step.step.id, sourceId: step.sourceId!, sourcePath: step.sourcePath, action: step.step.action,
-            order: order++, ...(parentId ? { parentId } : {}),
-            assertions: [...step.before, ...step.responseAssertions, ...step.after].map(a => ({
-                id: a.assertion.id, sourceId: a.sourceId!, sourcePath: a.sourcePath, type: a.assertion.type,
-                ...("operator" in a.assertion ? { operator: a.assertion.operator } : {}),
-                expectedSource: a.assertion.expectedSource, severity: a.assertion.severity,
-            })),
-            observers: (step.step.observers ?? []).map(o => ({ id: o.id, kind: "kind" in o ? o.kind : "HTTP",
-                ...("method" in o ? { method: o.method, path: o.path } : {}) })),
-        }, ...flatten(step.children ?? [], step.step.id)]);
-        return { caseVersionId: plan.caseVersionId, caseKey: plan.document.caseKey, title: plan.document.title, steps: flatten(plan.steps) };
+        const flatten = (steps: CompiledStep[], parentId?: string): Record<string, unknown>[] =>
+            steps.flatMap((step) => [
+                {
+                    id: step.step.id,
+                    sourceId: step.sourceId!,
+                    sourcePath: step.sourcePath,
+                    action: step.step.action,
+                    order: order++,
+                    ...(parentId ? { parentId } : {}),
+                    assertions: [...step.before, ...step.responseAssertions, ...step.after].map(
+                        (a) => ({
+                            id: a.assertion.id,
+                            sourceId: a.sourceId!,
+                            sourcePath: a.sourcePath,
+                            type: a.assertion.type,
+                            ...("operator" in a.assertion
+                                ? { operator: a.assertion.operator }
+                                : {}),
+                            expectedSource: a.assertion.expectedSource,
+                            severity: a.assertion.severity,
+                        }),
+                    ),
+                    observers: (step.step.observers ?? []).map((o) => ({
+                        id: o.id,
+                        kind: "kind" in o ? o.kind : "HTTP",
+                        ...("method" in o ? { method: o.method, path: o.path } : {}),
+                    })),
+                },
+                ...flatten(step.children ?? [], step.step.id),
+            ]);
+        return {
+            caseVersionId: plan.caseVersionId,
+            caseKey: plan.document.caseKey,
+            title: plan.document.title,
+            steps: flatten(plan.steps),
+        };
     });
-    files["metadata/report-display.json"] = canonicalBytes({ schemaVersion: "1.0", cases: displayCases });
+    files["metadata/report-display.json"] = canonicalBytes({
+        schemaVersion: "1.0",
+        cases: displayCases,
+    });
     const manifest = Object.keys(files)
         .sort()
         .map((path) => ({
@@ -380,10 +413,7 @@ export function compileAssets(
 /**
  * 公开函数 verifyFiles 在不执行的前提下核对编译产物文件哈希与清单一致性（verifyFiles/MISSING_VALIDATION_FILE）。
  */
-export function verifyFiles(
-    bundle: CompiledAssetBundle,
-    files: Record<string, Uint8Array>,
-): void {
+export function verifyFiles(bundle: CompiledAssetBundle, files: Record<string, Uint8Array>): void {
     checkSchema("CompiledAssetBundle", bundle);
     if (bundle.validationOnly && !Object.hasOwn(files, "validation.ts"))
         throw new Error("MISSING_VALIDATION_FILE");
@@ -394,8 +424,7 @@ export function verifyFiles(
             throw new Error("DUPLICATE_ENTRYPOINT");
         entries.add(entry.caseVersionId);
         paths.add(entry.path);
-        if (!Object.hasOwn(files, entry.path))
-            throw new Error("MISSING_ENTRYPOINT_FILE");
+        if (!Object.hasOwn(files, entry.path)) throw new Error("MISSING_ENTRYPOINT_FILE");
         if (entry.path !== `cases/${entry.caseVersionId}.test.ts`)
             throw new Error("ENTRYPOINT_MAPPING_MISMATCH");
     }
@@ -403,8 +432,7 @@ export function verifyFiles(
     const folded = new Set<string>();
     for (const file of bundle.files) {
         const key = file.path.normalize("NFC").toLowerCase();
-        if (seen.has(file.path) || folded.has(key))
-            throw new Error("DUPLICATE_FILE_PATH");
+        if (seen.has(file.path) || folded.has(key)) throw new Error("DUPLICATE_FILE_PATH");
         seen.add(file.path);
         folded.add(key);
         if (
@@ -413,14 +441,10 @@ export function verifyFiles(
         )
             throw new Error("MISSING_BUNDLE_FILE");
         const content = files[file.path]!;
-        if (
-            content.byteLength !== file.sizeBytes ||
-            sha256(content) !== file.sha256
-        )
+        if (content.byteLength !== file.sizeBytes || sha256(content) !== file.sha256)
             throw new Error("FILE_HASH_MISMATCH");
     }
-    if (Object.keys(files).length !== seen.size)
-        throw new Error("UNMANIFESTED_FILE");
+    if (Object.keys(files).length !== seen.size) throw new Error("UNMANIFESTED_FILE");
 }
 /**
  * 冷装配接受已下载描述符与精确文件，不依赖进程内身份注册表。
@@ -437,25 +461,20 @@ export function assembleExecution(
     if (!files) throw new Error("BUNDLE_FILES_REQUIRED");
     verifyFiles(bundle, files);
     const entries = new Set(bundle.entrypoints.map((entry) => entry.caseVersionId));
-    const selected = bundle.entrypoints.find(
-        (e) => e.caseVersionId === snapshot.caseVersionId,
-    );
+    const selected = bundle.entrypoints.find((e) => e.caseVersionId === snapshot.caseVersionId);
     if (!selected) throw new Error("UNKNOWN_SELECTED_CASE");
     const raw = files[SOURCE_SNAPSHOT_PATH];
     if (!raw) throw new Error("SOURCE_CONTEXT_REQUIRED");
     const source = parse(raw) as AssetSnapshotV1;
     const problems = validate(source);
-    if (problems.length)
-        throw new Error("INVALID_SOURCE_CONTEXT: " + JSON.stringify(problems));
-    if (source.workspaceId !== snapshot.workspaceId)
-        throw new Error("WORKSPACE_MISMATCH");
+    if (problems.length) throw new Error("INVALID_SOURCE_CONTEXT: " + JSON.stringify(problems));
+    if (source.workspaceId !== snapshot.workspaceId) throw new Error("WORKSPACE_MISMATCH");
     if (
         sha256(assetSourceBytes(source)) !== bundle.sourceHash ||
         snapshot.assetSourceHash !== bundle.sourceHash
     )
         throw new Error("SOURCE_HASH_MISMATCH");
-    if (source.engineVersion !== bundle.engineVersion)
-        throw new Error("ENGINE_VERSION_MISMATCH");
+    if (source.engineVersion !== bundle.engineVersion) throw new Error("ENGINE_VERSION_MISMATCH");
     if (!files["package.json"] || !files["package-lock.json"])
         throw new Error("MISSING_ENGINE_FILES");
     const vendorFiles = Object.fromEntries(
@@ -474,8 +493,7 @@ export function assembleExecution(
     );
     if (
         !files["dependencies.json"] ||
-        sha256(files["dependencies.json"]) !==
-            sha256(canonicalBytes(bundle.dependencies))
+        sha256(files["dependencies.json"]) !== sha256(canonicalBytes(bundle.dependencies))
     )
         throw new Error("DEPENDENCY_INVENTORY_MISMATCH");
     if (
@@ -483,57 +501,44 @@ export function assembleExecution(
         source.entryCaseVersionIds.some((id) => !entries.has(id))
     )
         throw new Error("ENTRYPOINT_SOURCE_MISMATCH");
-    const selectedCase = source.assets.find(
-        (a) => a.versionId === snapshot.caseVersionId,
-    );
+    const selectedCase = source.assets.find((a) => a.versionId === snapshot.caseVersionId);
     if (selectedCase?.kind !== "CASE") throw new Error("UNKNOWN_SELECTED_CASE");
     const suite = source.assets.find((a) => a.kind === "SUITE");
     const variants =
         suite?.kind === "SUITE"
             ? suite.document.cases.filter(
-                    (c) =>
-                        c.versionId === snapshot.caseVersionId &&
-                        (c.roleKeys ?? [selectedCase.document.roleKey]).includes(
-                            snapshot.roleKey,
-                        ) &&
-                        (!c.browsers || c.browsers.includes(snapshot.browser)),
-                )
+                  (c) =>
+                      c.versionId === snapshot.caseVersionId &&
+                      (c.roleKeys ?? [selectedCase.document.roleKey]).includes(snapshot.roleKey) &&
+                      (!c.browsers || c.browsers.includes(snapshot.browser)),
+              )
             : [
-                    {
-                        versionId: snapshot.caseVersionId,
-                        ...(selectedCase.document.datasetVersionId
-                            ? { datasetVersionId: selectedCase.document.datasetVersionId }
-                            : {}),
-                    },
-                ];
-    if (
-        suite
-            ? variants.length === 0
-            : selectedCase.document.roleKey !== snapshot.roleKey
-    )
+                  {
+                      versionId: snapshot.caseVersionId,
+                      ...(selectedCase.document.datasetVersionId
+                          ? { datasetVersionId: selectedCase.document.datasetVersionId }
+                          : {}),
+                  },
+              ];
+    if (suite ? variants.length === 0 : selectedCase.document.roleKey !== snapshot.roleKey)
         throw new Error("ROLE_MISMATCH");
     // A no-data alternative remains distinct from every dataset alternative.
     // Role/browser filtering above must stay coupled to this exact row match.
     const matchesData = variants.some((variant) => {
-        const datasetId =
-            variant.datasetVersionId ?? selectedCase.document.datasetVersionId;
+        const datasetId = variant.datasetVersionId ?? selectedCase.document.datasetVersionId;
         if (!datasetId) return snapshot.dataRow === undefined;
         if (!snapshot.dataRow) return false;
         const dataset = source.assets.find((a) => a.versionId === datasetId);
         return (
             dataset?.kind === "DATASET" &&
             dataset.document.rows.some(
-                (row) =>
-                    sha256(canonicalBytes(row)) ===
-                    sha256(canonicalBytes(snapshot.dataRow)),
+                (row) => sha256(canonicalBytes(row)) === sha256(canonicalBytes(snapshot.dataRow)),
             )
         );
     });
     if (!matchesData)
         throw new Error(
-            variants.some(
-                (c) => c.datasetVersionId ?? selectedCase.document.datasetVersionId,
-            )
+            variants.some((c) => c.datasetVersionId ?? selectedCase.document.datasetVersionId)
                 ? "DATA_ROW_MISMATCH"
                 : "UNEXPECTED_DATA_ROW",
         );
@@ -561,8 +566,7 @@ export function assembleExecution(
         snapshot.environment.apiBaseURL,
         snapshot.environment.fixtureBaseURL,
     ].filter((v): v is string => !!v))
-        if (!origins.has(new URL(base).origin))
-            throw new Error("UNAUTHORIZED_ORIGIN");
+        if (!origins.has(new URL(base).origin)) throw new Error("UNAUTHORIZED_ORIGIN");
     if (
         new Set(snapshot.environment.roles.map((r) => r.roleKey)).size !==
         snapshot.environment.roles.length
@@ -573,32 +577,23 @@ export function assembleExecution(
         snapshot.secretVersions.length
     )
         throw new Error("DUPLICATE_SECRET_REFERENCE");
-    const role = snapshot.environment.roles.find(
-        (r) => r.roleKey === snapshot.roleKey,
-    );
+    const role = snapshot.environment.roles.find((r) => r.roleKey === snapshot.roleKey);
     if (!role) throw new Error("UNKNOWN_ROLE");
     if (
         !snapshot.secretVersions.some(
-            (s) =>
-                s.secretRef === role.secretRef && s.versionId === role.secretVersionId,
+            (s) => s.secretRef === role.secretRef && s.versionId === role.secretVersionId,
         )
     )
         throw new Error("SECRET_VERSION_MISMATCH");
     const identities = [
         role,
-        ...(selectedCase.document.fixtureVersionId &&
-        snapshot.environment.fixtureIdentity
+        ...(selectedCase.document.fixtureVersionId && snapshot.environment.fixtureIdentity
             ? [snapshot.environment.fixtureIdentity]
             : []),
     ];
-    if (
-        selectedCase.document.fixtureVersionId &&
-        !snapshot.environment.fixtureIdentity
-    )
+    if (selectedCase.document.fixtureVersionId && !snapshot.environment.fixtureIdentity)
         throw new Error("FIXTURE_IDENTITY_REQUIRED");
-    const expectedAdapters = new Set(
-        identities.map((r) => r.authAdapterVersionId),
-    );
+    const expectedAdapters = new Set(identities.map((r) => r.authAdapterVersionId));
     const adapters = snapshot.authAdapters ?? [];
     if (new Set(adapters.map((a) => a.versionId)).size !== adapters.length)
         throw new Error("DUPLICATE_AUTH_ADAPTER");
@@ -608,8 +603,7 @@ export function assembleExecution(
         if (
             !snapshot.secretVersions.some(
                 (s) =>
-                    s.secretRef === identity.secretRef &&
-                    s.versionId === identity.secretVersionId,
+                    s.secretRef === identity.secretRef && s.versionId === identity.secretVersionId,
             )
         )
             throw new Error("SECRET_VERSION_MISMATCH");
@@ -618,15 +612,13 @@ export function assembleExecution(
         snapshot.secretVersions.some(
             (s) =>
                 !identities.some(
-                    (r) =>
-                        r.secretRef === s.secretRef && r.secretVersionId === s.versionId,
+                    (r) => r.secretRef === s.secretRef && r.secretVersionId === s.versionId,
                 ),
         )
     )
         throw new Error("UNASSIGNED_SECRET_VERSION");
     for (const adapter of adapters) {
-        if (!expectedAdapters.has(adapter.versionId))
-            throw new Error("UNRELATED_AUTH_ADAPTER");
+        if (!expectedAdapters.has(adapter.versionId)) throw new Error("UNRELATED_AUTH_ADAPTER");
         if (adapter.workspaceId !== snapshot.workspaceId)
             throw new Error("AUTH_ADAPTER_WORKSPACE_MISMATCH");
         if (sha256(canonicalBytes(adapter.configuration)) !== adapter.contentHash)

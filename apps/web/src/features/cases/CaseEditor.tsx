@@ -134,7 +134,8 @@ export function CaseEditor({
                     </small>
                     <small>
                         {tx(
-                            "准备前只能引用所选数据集和已声明初始变量，不包含未来 Fixture 输出或提取值 / Before prepare: selected data columns and declared initial variables only.",
+                            "准备前只能引用所选数据集和已声明初始变量，不包含未来 Fixture 输出或提取值 / Before prepare: selected data columns and d" +
+                                "eclared initial variables only.",
                         )}
                     </small>
                     <JsonField
@@ -239,10 +240,12 @@ function StepFields({
                 hint={
                     scope === "FLOW"
                         ? tx(
-                              "可填写调用方或流程内先前捕获的页面 key；实际调用时检查词法作用域。流程内部页面不会泄漏给调用方。 / Caller or preceding flow page key; resolved in the calling case. Flow-local pages do not escape.",
+                              "可填写调用方或流程内先前捕获的页面 key；实际调用时检查词法作用域。流程内部页面不会泄漏给调用方。 / Caller or preceding flow page ke" +
+                                  "y; resolved in the calling case. Flow-local pages do not escape.",
                           )
                         : tx(
-                              "省略=原始页面；本步骤捕获的新页面只供之后的断言和步骤使用 / Omitted means original page; new pages become available after capture.",
+                              "省略=原始页面；本步骤捕获的新页面只供之后的断言和步骤使用 / Omitted means original page; new pages become availab" +
+                                  "le after capture.",
                           )
                 }
             />

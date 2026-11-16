@@ -32,7 +32,16 @@ for (const scenario of [
         let closed = false;
         try {
             await copyFile(process.execPath, role);
-            const script = `const assert=require('node:assert/strict');const fault=require(${JSON.stringify(fault)});try{new fault.PrivatePipeServer(${JSON.stringify(path)},()=>{});throw new Error('FAULT_NOT_REACHED');}catch(error){assert.match(error.message,/^NATIVE_TEST_THREAD_CREATION_FAILURE/);console.log('THREAD_CONSTRUCTION_FAULT_OBSERVED');}${scenario.rebind ? `const product=require(${JSON.stringify(product)});const server=new product.PrivatePipeServer(${JSON.stringify(path)},()=>{});server.close();console.log('ENDPOINT_REBOUND_AND_CLOSED');` : ""}console.log('SCRIPT_COMPLETED');`;
+            const script = `const assert=require('node:assert/strict');const fault=require(${JSON.stringify(fault)}` +
+                `);try{new fault.PrivatePipeServer(${JSON.stringify(path)}` +
+                `,()=>{});throw new Error('FAULT_NOT_REACHED');}catch(error){assert.match(error.message,/^NATIVE_TE` +
+                `ST_THREAD_CREATION_FAILURE/);console.log('THREAD_CONSTRUCTION_FAULT_OBSERVED');}` +
+                `${
+                    scenario.rebind ? `const product=require(${JSON.stringify(product)}` +
+                        `);const server=new product.PrivatePipeServer(` +
+                        `${JSON.stringify(path)}` +
+                        `,()=>{});server.close();console.log('ENDPOINT_REBOUND` +
+                        `_AND_CLOSED');` : ""}console.log('SCRIPT_COMPLETED');`;
             const operation = promisify(execFile)(role, ["-e", script], {
                 cwd: root,
                 env: { SystemRoot: process.env.SystemRoot! },
@@ -68,7 +77,10 @@ for (const scenario of [
                 stderr?: string;
             };
             context.diagnostic(
-                `Constructor fault result: ${JSON.stringify({ code: observed.code, signal: observed.signal, killed: observed.killed, stdout: observed.stdout, stderr: observed.stderr })}`,
+                `Constructor fault result: ` +
+                    `${
+                        JSON.stringify({ code: observed.code, signal: observed.signal, killed: observed.killed,
+                            stdout: observed.stdout, stderr: observed.stderr })}`,
             );
             failures.push(error);
         } finally {
@@ -76,7 +88,8 @@ for (const scenario of [
             if (failures.length) context.diagnostic(`Constructor fault evidence retained: ${root}`);
             else {
                 try {
-                    /** 已独立证明自有宿主自然退出并通过全部资源断言后，文件系统仍可能短暂拒绝删除角色映像；仅用 Node 文档化的有限清理重试处理 EBUSY 等删除状态，不延长产品关闭预算或把重试当作进程退出证据。 */
+                    /** 已独立证明自有宿主自然退出并通过全部资源断言后，文件系统仍可能短暂拒绝删除角色映像；仅用 Node 文档化的有限清理重试处理 EBUSY 等删除状态，不延长产品关闭预算或把重试当作进程退
+                    * 出证据。 */
                     await rm(root, {
                         recursive: true,
                         force: true,

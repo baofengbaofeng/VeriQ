@@ -15,10 +15,12 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { readFile, writeFile, open, lstat, copyFile } from "node:fs/promises";
 import { spawn, execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { type RuntimeDistribution } from "../../../runtime/src/distribution.ts";
 import {
-    type RuntimeDistribution,
-} from "../../../runtime/src/distribution.ts";
-import { loadDesktopRuntime, readDesktopRelease, type DesktopRelease } from "../installation/release";
+    loadDesktopRuntime,
+    readDesktopRelease,
+    type DesktopRelease,
+} from "../installation/release";
 import { verifyDesktopHost } from "../installation/host-identity";
 import { installLifecycleMenu, reportLifecycleError } from "./lifecycle";
 import { agentEnvironment } from "./agent-environment";
@@ -139,7 +141,10 @@ async function ensureAgent(): Promise<void> {
     }
     const agentNode = installed?.agentExecutable ?? node24;
     const environment = agentEnvironment(proxy);
-    const version = await promisify(execFile)(agentNode, ["--version"], { timeout: 10000, env: environment });
+    const version = await promisify(execFile)(agentNode, ["--version"], {
+        timeout: 10000,
+        env: environment,
+    });
     const actualNode = version.stdout.trim();
     if (
         !actualNode.startsWith("v") ||
@@ -170,7 +175,9 @@ async function ensureAgent(): Promise<void> {
         },
     );
     let spawnFailed = false;
-    child.once("error", () => { spawnFailed = true; });
+    child.once("error", () => {
+        spawnFailed = true;
+    });
     child.unref();
     await log.close();
     for (let attempt = 0; attempt < 100; attempt++) {
@@ -202,7 +209,10 @@ async function state(): Promise<DesktopState> {
         agent = (await client.call({ operation: "status" })) as DesktopState["agent"];
     } catch (error) {
         agent = undefined;
-        agentIssue = error instanceof Error && /^[A-Z][A-Z0-9_]{1,100}$/.test(error.message) ? error.message : "AGENT_UNAVAILABLE";
+        agentIssue =
+            error instanceof Error && /^[A-Z][A-Z0-9_]{1,100}$/.test(error.message)
+                ? error.message
+                : "AGENT_UNAVAILABLE";
     }
     return {
         origin,
@@ -218,8 +228,20 @@ async function state(): Promise<DesktopState> {
             uiChromium: process.versions.chrome ?? "unknown",
             platform: process.platform,
             arch: process.arch,
-            ...(installed ? { engineVersion: installed.engineVersion, nodeVersion: installed.nodeVersion, productVersion: installed.productVersion } : {}),
-            ...(release ? { candidate: release.candidate, sourceCommit: release.sourceCommit, signingMode: release.signing.mode } : {}),
+            ...(installed
+                ? {
+                      engineVersion: installed.engineVersion,
+                      nodeVersion: installed.nodeVersion,
+                      productVersion: installed.productVersion,
+                  }
+                : {}),
+            ...(release
+                ? {
+                      candidate: release.candidate,
+                      sourceCommit: release.sourceCommit,
+                      signingMode: release.signing.mode,
+                  }
+                : {}),
         },
     };
 }
@@ -264,7 +286,11 @@ async function confirm(message: string) {
 async function quitUI(): Promise<void> {
     const current = await state();
     const busy = !!(current.agent?.active || current.agent?.preparing || current.agent?.online);
-    if (await confirm(`${busy ? "当前有执行或在线领取。 / Active work or polling exists. " : ""}退出界面后后台继续。 / Quit UI while Agent continues?`)) {
+    if (
+        await confirm(
+            `${busy ? "当前有执行或在线领取。 / Active work or polling exists. " : ""}退出界面后后台继续。 / Quit UI while Agent continues?`,
+        )
+    ) {
         quitting = true;
         app.quit();
     }
@@ -290,10 +316,22 @@ async function prepareUpdate(): Promise<void> {
     updatePreparing = true;
     let staged: Awaited<ReturnType<typeof stageDesktopUpdate>> | undefined;
     try {
-        const selection = await dialog.showOpenDialog(window, { title: "VeriQ verified upgrade / rollback", properties: ["openFile"], filters: [{ name: "VeriQ signed update manifest", extensions: ["json"] }] });
+        const selection = await dialog.showOpenDialog(window, {
+            title: "VeriQ verified upgrade / rollback",
+            properties: ["openFile"],
+            filters: [{ name: "VeriQ signed update manifest", extensions: ["json"] }],
+        });
         if (selection.canceled || selection.filePaths.length !== 1) return;
         staged = await stageDesktopUpdate(selection.filePaths[0]!, profile, release);
-        if (!(await confirm(`准备 ${staged.update.direction} 至 VeriQ ${staged.update.version}。后台必须完全空闲；将退出界面，请在退出后手动打开已验证安装器。用户数据保留。 / Prepare verified ${staged.update.direction}; Agent must be idle. UI will quit. Open the verified installer after exit. User data is retained.`))) return;
+        if (
+            !(await confirm(
+                `准备 ${staged.update.direction} 至 VeriQ ${staged.update.version}` +
+                    `。后台必须完全空闲；将退出界面，请在退出后手动打开已验证安装器。用户数据保留。 / Prepare verified ${staged.update.direction}` +
+                    `; Agent must be idle. UI will quit. Open the verified installer after exit. User data is retai` +
+                    `ned.`,
+            ))
+        )
+            return;
         await ensureAgent();
         const proof = object(await client.call({ operation: "prepareMaintenance" }));
         if (proof.ready !== true) throw new Error("DESKTOP_UPDATE_STOP_UNCONFIRMED");
@@ -367,7 +405,17 @@ async function local(input: unknown) {
     /** 保留期清理在确认前展示本次实际工作区和全部有限预算，拒绝 renderer 路径或隐藏字段；用户取消不会发送后台清理，确认之后仍必须由 Agent 核对当前空间、独占空闲和持久停止历史，不能把对话框当成文件授权。 */
     if (command.operation === "pruneCache") {
         const policy = parseLocalRetentionCommand(command);
-        if (!(await confirm(`清理工作区 ${policy.workspaceId} 的过期本机材料？成功/失败原始证据 ${policy.rawSuccessDays}/${policy.rawFailureDays} 天，元数据 ${policy.metadataDays} 天，未访问包 ${policy.bundleDays} 天，每批 ${policy.batchSize}。未回传、活动和未知占用保留。关闭界面不保证撤销。 / Retire expired local data? Successful/failed raw evidence ${policy.rawSuccessDays}/${policy.rawFailureDays} days, metadata ${policy.metadataDays} days, unused packages ${policy.bundleDays} days, batch ${policy.batchSize}. Pending uploads and unconfirmed ownership remain protected. Closing UI does not guarantee cancellation.`)))
+        if (
+            !(await confirm(
+                `清理工作区 ${policy.workspaceId} 的过期本机材料？成功/失败原始证据 ${policy.rawSuccessDays}/${policy.rawFailureDays}` +
+                    ` 天，元数据 ${policy.metadataDays} 天，未访问包 ${policy.bundleDays} 天，每批 ${policy.batchSize}` +
+                    `。未回传、活动和未知占用保留。关闭界面不保证撤销。 / Retire expired local data? Successful/failed raw evidence ` +
+                    `${policy.rawSuccessDays}/${policy.rawFailureDays} days, metadata ${policy.metadataDays}` +
+                    ` days, unused packages ${policy.bundleDays} days, batch ${policy.batchSize}` +
+                    `. Pending uploads and unconfirmed ownership remain protected. Closing UI does not guarantee ca` +
+                    `ncellation.`,
+            ))
+        )
             throw new Error("USER_CANCELLED");
     }
     if (command.operation === "run" && command.overrides !== undefined) {
@@ -663,9 +711,14 @@ async function main() {
     await app.whenReady();
     /** 正式 Electron 入口从自身资源布局核验独立 Runtime 并绑定原生能力，再读取任何私有档案；配置无法指定 addon 路径，库存失败也不能因为已有后台可连接而跳过本次宿主的启动授权。 */
     release = app.isPackaged ? await readDesktopRelease(process.resourcesPath) : undefined;
-    const hostIdentity = release ? await verifyDesktopHost(release, process.resourcesPath) : undefined;
-    installed = app.isPackaged ? await loadDesktopRuntime(join(process.resourcesPath, "runtime")) : undefined;
-    if (release && release.productVersion !== app.getVersion()) throw new Error("DESKTOP_PRODUCT_VERSION_MISMATCH");
+    const hostIdentity = release
+        ? await verifyDesktopHost(release, process.resourcesPath)
+        : undefined;
+    installed = app.isPackaged
+        ? await loadDesktopRuntime(join(process.resourcesPath, "runtime"))
+        : undefined;
+    if (release && release.productVersion !== app.getVersion())
+        throw new Error("DESKTOP_PRODUCT_VERSION_MISMATCH");
     if (installed && process.platform === "darwin") {
         const { bindDarwinDistribution } = await import("../../../runtime/src/native/darwin.ts");
         bindDarwinDistribution(installed);
@@ -685,7 +738,12 @@ async function main() {
     } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
-    const cookieProtection = await requireCookieProtection(safeStorage, process.platform, undefined, hostIdentity);
+    const cookieProtection = await requireCookieProtection(
+        safeStorage,
+        process.platform,
+        undefined,
+        hostIdentity,
+    );
     console.log("VeriQ Cookie protection verified:", JSON.stringify(cookieProtection));
     await prepareCookieStorage(profile, app.getPath("sessionData"), async () => {
         const result = await dialog.showMessageBox({
@@ -693,7 +751,9 @@ async function main() {
             title: "VeriQ",
             message:
                 "删除旧登录 Cookie 并重新登录？ / Remove legacy login cookies and sign in again?",
-            detail: "旧 Cookie 数据库及其日志可能以明文保存。仅删除 VeriQ 的这些文件；不会删除设备身份或业务凭据，也不保证介质擦除。 / Only VeriQ login cookie files are removed; device and business credentials remain. This does not guarantee physical erasure.",
+            detail:
+                "旧 Cookie 数据库及其日志可能以明文保存。仅删除 VeriQ 的这些文件；不会删除设备身份或业务凭据，也不保证介质擦除。 / Only VeriQ login cookie files" +
+                " are removed; device and business credentials remain. This does not guarantee physical erasure.",
             buttons: ["取消 / Cancel", "删除并重新登录 / Remove and sign in again"],
             defaultId: 0,
             cancelId: 0,
@@ -729,7 +789,9 @@ async function main() {
         const headers = new Headers(response.headers);
         headers.set(
             "Content-Security-Policy",
-            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; worker-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-src 'none'",
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; fo" +
+                "nt-src 'self' data:; worker-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none" +
+                "'; frame-src 'none'",
         );
         return new Response(response.body, { headers, status: response.status });
     });
@@ -759,12 +821,19 @@ async function main() {
             event.preventDefault();
             if (!closeHintShown) {
                 closeHintShown = true;
-                void dialog.showMessageBox(window!, {
-                    type: "info",
-                    title: "VeriQ",
-                    message: tray ? "窗口收起后后台继续运行，可从托盘或 Dock 恢复。 / Agent continues; reopen from the tray or Dock." : "窗口将最小化，后台继续运行。 / Window is minimized; Agent continues.",
-                    detail: "退出界面与停止后台是不同操作，请使用菜单中的明确入口。 / Quit UI and Stop Agent are separate menu actions.",
-                }).then(() => { tray ? window?.hide() : window?.minimize(); }).catch(reportLifecycleError);
+                void dialog
+                    .showMessageBox(window!, {
+                        type: "info",
+                        title: "VeriQ",
+                        message: tray
+                            ? "窗口收起后后台继续运行，可从托盘或 Dock 恢复。 / Agent continues; reopen from the tray or Dock."
+                            : "窗口将最小化，后台继续运行。 / Window is minimized; Agent continues.",
+                        detail: "退出界面与停止后台是不同操作，请使用菜单中的明确入口。 / Quit UI and Stop Agent are separate menu actions.",
+                    })
+                    .then(() => {
+                        tray ? window?.hide() : window?.minimize();
+                    })
+                    .catch(reportLifecycleError);
             } else tray ? window?.hide() : window?.minimize();
         }
     });
@@ -776,7 +845,21 @@ async function main() {
         update: prepareUpdate,
         diagnostics: async () => {
             const status = await state();
-            await dialog.showMessageBox(window!, { type: "info", title: "VeriQ", message: `VeriQ ${app.getVersion()}`, detail: JSON.stringify({ ...status.diagnostics, agentNode: status.agent?.node, agentAvailable: !!status.agent, browser: status.agent?.browser }, null, 4) });
+            await dialog.showMessageBox(window!, {
+                type: "info",
+                title: "VeriQ",
+                message: `VeriQ ${app.getVersion()}`,
+                detail: JSON.stringify(
+                    {
+                        ...status.diagnostics,
+                        agentNode: status.agent?.node,
+                        agentAvailable: !!status.agent,
+                        browser: status.agent?.browser,
+                    },
+                    null,
+                    4,
+                ),
+            });
         },
         report: reportLifecycleError,
     });

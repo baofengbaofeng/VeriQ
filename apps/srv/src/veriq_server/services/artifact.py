@@ -3,7 +3,6 @@ ArtifactService 在用户授权下读取 Attempt 产物并判定敏感级别；v
 listed_offline_artifact 用于离线导入确认上传出现在清单后方可提交。
 """
 
-
 import asyncio
 import os
 import re
@@ -69,6 +68,7 @@ class ArtifactStore(Protocol):
     """产物存储协议定义 put/read/delete/retire，供 FILE 与 S3 实现切换而不改业务层，ArtifactStore 遵守本文件边界。
     ArtifactStore 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
     """
+
     async def put(
         self, workspace: str, digest: str, content: bytes, incarnation: str | None = None
     ) -> None: ...
@@ -83,6 +83,7 @@ class FileArtifactStore:
     """本地目录后端按键落盘，目录模式 0700，retire 保留代际以便恢复窗口，FileArtifactStore 遵守本文件边界。
     FileArtifactStore 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
     """
+
     def __init__(self, root: Path):
         """解析并保存根目录绝对路径，后续路径拼接都相对于该根，FileArtifactStore.__init__ 遵守本文件边界。
         __init__ 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
@@ -132,6 +133,7 @@ class FileArtifactStore:
         """读取指定 digest 字节并复验摘要与大小，路径穿越或符号链接拒绝，FileArtifactStore.read 遵守本文件边界。
         read 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
         """
+
         def read() -> bytes:
             path = self._path(workspace, digest, incarnation)
             with path.open("rb") as stream:
@@ -149,6 +151,7 @@ class FileArtifactStore:
         """将当前对象迁到 incarnation 键，腾出主键给新内联或新代写入，FileArtifactStore.retire 遵守本文件边界。
         retire 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
         """
+
         def barrier() -> None:
             path = self._path(workspace, digest, incarnation)
             path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -172,6 +175,7 @@ class S3ArtifactStore:
     """S3 兼容后端，对象键隔离 Workspace，delete/retire 映射对象生命周期操作，S3ArtifactStore 遵守本文件边界。
     S3ArtifactStore 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
     """
+
     def __init__(self, bucket: str, endpoint: str | None = None, region: str = "us-east-1"):
         """保存 bucket、endpoint 与 region，惰性创建客户端以免无配置崩溃，S3ArtifactStore.__init__ 遵守本文件边界。
         __init__ 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
@@ -296,6 +300,7 @@ class ArtifactService:
     """在用户与 Workspace 授权下列出或读取 Attempt 产物，强制租户边界，ArtifactService 遵守本文件边界。
     ArtifactService 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
     """
+
     def __init__(self, session: AsyncSession, user: User):
         """保存会话与用户，后续授权经 WorkspaceRepository 判定，ArtifactService.__init__ 遵守本文件边界。
         __init__ 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。

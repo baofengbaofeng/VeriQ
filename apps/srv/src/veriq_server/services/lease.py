@@ -3,7 +3,6 @@ proof 要求 Runtime 绑定匹配 Workspace；过期或 FINISHED 不得再授权
 DatabaseAttemptProofVerifier 为凭据解析组装 VerifiedAttempt 与身份列表。
 """
 
-
 import hmac
 import json
 from datetime import timedelta
@@ -23,6 +22,7 @@ class LeaseService:
     """验证与维护 Attempt 租约；激活前禁止副作用，心跳可传播取消，LeaseService 路径必须遵守 Workspace 作用域。
     LeaseService 路径涉及租约或 fencing：过期、错配令牌或不属于本设备的占用必须失败关闭而非降级继续。
     """
+
     def __init__(self, session: AsyncSession, settings: Settings):
         """注入会话与 Settings，租约上限结合 Run 三十分钟预算裁剪，LeaseService.__init__ 路径必须遵守 Workspace 作用域。
         __init__ 路径涉及租约或 fencing：过期、错配令牌或不属于本设备的占用必须失败关闭而非降级继续。
@@ -85,7 +85,10 @@ class LeaseService:
             )
         attempt.activated_at = await database_time(self.session)
         from .gate import activation_provenance
-        attempt.execution_provenance = await activation_provenance(self.session, job, runtime, binding)
+
+        attempt.execution_provenance = await activation_provenance(
+            self.session, job, runtime, binding
+        )
         attempt.phase, job.state = "PREPARING", "RUNNING"
         return {"attemptId": attempt.id, "activated": True, "fencingToken": attempt.fencing_token}
 
@@ -149,6 +152,7 @@ class DatabaseAttemptProofVerifier:
     """为凭据解析校验 Attempt 证明并提取角色或夹具身份，DatabaseAttemptProofVerifier 路径必须遵守 Workspace 作用域。
     DatabaseAttemptProofVerifier 路径涉及租约或 fencing：过期、错配令牌或不属于本设备的占用必须失败关闭而非降级继续。
     """
+
     def __init__(self, settings: Settings):
         """保存 Settings，供内部 LeaseService 使用同一配置，DatabaseAttemptProofVerifier.__init__ 路径必须遵守 Workspace 作用域。
         __init__ 路径涉及租约或 fencing：过期、错配令牌或不属于本设备的占用必须失败关闭而非降级继续。

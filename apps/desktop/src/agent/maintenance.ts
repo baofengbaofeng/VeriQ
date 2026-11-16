@@ -22,9 +22,17 @@ export async function holdMaintenance(root: string): Promise<() => Promise<void>
         store = await LocalStore.open(join(root, "offline"));
         idle = store.holdIdle();
     } catch (error) {
-        try { idle?.(); } finally {
-            try { store?.close(); } finally {
-                try { await release?.(); } finally { await owner.close(); }
+        try {
+            idle?.();
+        } finally {
+            try {
+                store?.close();
+            } finally {
+                try {
+                    await release?.();
+                } finally {
+                    await owner.close();
+                }
             }
         }
         throw error;
@@ -33,9 +41,17 @@ export async function holdMaintenance(root: string): Promise<() => Promise<void>
     return async () => {
         if (!held) return;
         held = false;
-        try { idle?.(); } finally {
-            try { store?.close(); } finally {
-                try { await release?.(); } finally { await owner.close(); }
+        try {
+            idle?.();
+        } finally {
+            try {
+                store?.close();
+            } finally {
+                try {
+                    await release?.();
+                } finally {
+                    await owner.close();
+                }
             }
         }
     };

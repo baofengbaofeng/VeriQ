@@ -5,9 +5,7 @@ const id = "00000000-0000-4000-8000-000000000001";
 test("offline selection is bounded, exclusive and explicit about draft debug", () => {
     const base = { environmentVersionId: id, validationStatus: "VALIDATED" };
     for (const selection of [{ caseVersionIds: [id] }, { suiteVersionId: id }])
-        expect(
-            validateSchema("BundleSelectionV1", { ...base, ...selection }),
-        ).toEqual([]);
+        expect(validateSchema("BundleSelectionV1", { ...base, ...selection })).toEqual([]);
     expect(
         validateSchema("BundleSelectionV1", {
             ...base,
@@ -55,10 +53,7 @@ test("synchronous bundle API has one session auth path and durable retry contrac
     const api = JSON.parse(
         readFileSync(new URL("../openapi/platform.yaml", import.meta.url), "utf8"),
     );
-    for (const [path, methods] of Object.entries(api.paths) as [
-        string,
-        Record<string, any>,
-    ][]) {
+    for (const [path, methods] of Object.entries(api.paths) as [string, Record<string, any>][]) {
         if (!path.startsWith("/api/v1/workspaces/{workspaceId}/bundles")) continue;
         for (const operation of Object.values(methods))
             expect(operation.security).toEqual([{ WebSession: [], CsrfToken: [] }]);
@@ -67,9 +62,7 @@ test("synchronous bundle API has one session auth path and durable retry contrac
     expect(create.responses["201"]).toBeDefined();
     expect(create.responses["202"]).toBeUndefined();
     expect(
-        create.parameters.find(
-            (p: { name: string }) => p.name === "Idempotency-Key",
-        ).required,
+        create.parameters.find((p: { name: string }) => p.name === "Idempotency-Key").required,
     ).toBe(true);
     expect(create.responses["409"]).toBeDefined();
 });

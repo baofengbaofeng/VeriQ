@@ -51,7 +51,9 @@ export async function readDesktopRelease(resources: string): Promise<DesktopRele
     const info = await lstat(file);
     if (!info.isFile() || info.isSymbolicLink() || info.size > 1024 * 1024)
         throw new Error("DESKTOP_RELEASE_INVALID");
-    return parseDesktopRelease(JSON.parse((await readBoundedRegularFile(file, 1024 * 1024)).toString("utf8")));
+    return parseDesktopRelease(
+        JSON.parse((await readBoundedRegularFile(file, 1024 * 1024)).toString("utf8")),
+    );
 }
 
 /** 发布描述只允许受支持的四种目标组合并要求 Runtime 身份与桌面版本一致，公钥还必须由标准密码库实际解析；这里不会因为字段存在、文件名正确或自报签名模式就给出正式发行结论。
@@ -89,8 +91,11 @@ export function parseDesktopRelease(input: unknown): DesktopRelease {
     )
         throw new Error("DESKTOP_RELEASE_INVALID");
     if (release.updatePublicKeyPem !== undefined) {
-        if (typeof release.updatePublicKeyPem !== "string" || release.updatePublicKeyPem.length > 4096 ||
-            createPublicKey(release.updatePublicKeyPem).asymmetricKeyType !== "ed25519")
+        if (
+            typeof release.updatePublicKeyPem !== "string" ||
+            release.updatePublicKeyPem.length > 4096 ||
+            createPublicKey(release.updatePublicKeyPem).asymmetricKeyType !== "ed25519"
+        )
             throw new Error("DESKTOP_UPDATE_KEY_INVALID");
     }
     return release;
@@ -111,13 +116,21 @@ export async function loadDesktopRuntime(runtimeRoot: string): Promise<RuntimeDi
         return loadMacRuntimeDistribution(runtimeRoot, { ...trusted, layout: trusted.layout });
     }
     const { createHash } = await import("node:crypto");
-    const bytes = await readBoundedRegularFile(join(runtimeRoot, "runtime-manifest.json"), 1024 * 1024);
-    if (bytes.length > 1024 * 1024 || createHash("sha256").update(bytes).digest("hex") !== release.trustedRuntime.manifestSha256)
+    const bytes = await readBoundedRegularFile(
+        join(runtimeRoot, "runtime-manifest.json"),
+        1024 * 1024,
+    );
+    if (
+        bytes.length > 1024 * 1024 ||
+        createHash("sha256").update(bytes).digest("hex") !== release.trustedRuntime.manifestSha256
+    )
         throw new Error("DESKTOP_RUNTIME_IDENTITY_MISMATCH");
     const distribution = await loadRuntimeDistribution(runtimeRoot);
-    if (distribution.productVersion !== release.productVersion ||
+    if (
+        distribution.productVersion !== release.productVersion ||
         distribution.nodeVersion !== release.trustedRuntime.nodeVersion ||
-        distribution.engineVersion !== release.trustedRuntime.engineVersion)
+        distribution.engineVersion !== release.trustedRuntime.engineVersion
+    )
         throw new Error("DESKTOP_RUNTIME_IDENTITY_MISMATCH");
     return distribution;
 }

@@ -82,6 +82,7 @@ class MaintenanceService:
         count, more, next_cursor = 0, False, None
         if operation == "lifecycle/expire":
             from .lifecycle import expire_lifecycle
+
             count, more, next_cursor = await expire_lifecycle(
                 self.session, self.settings, workspace_id, limit, cursor
             )

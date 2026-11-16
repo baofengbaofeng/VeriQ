@@ -25,7 +25,13 @@ function fixture() {
         guiInventorySha256: "b".repeat(64),
         profileFormat: 2,
         updatePublicKeyPem: keys.publicKey.export({ type: "spki", format: "pem" }).toString(),
-        trustedRuntime: { arch: "x64", manifestSha256: "c".repeat(64), productVersion: "1.0.0", nodeVersion: "24.22.1", engineVersion: "1.0.3" },
+        trustedRuntime: {
+            arch: "x64",
+            manifestSha256: "c".repeat(64),
+            productVersion: "1.0.0",
+            nodeVersion: "24.22.1",
+            engineVersion: "1.0.3",
+        },
     };
     const update: DesktopUpdate = {
         schemaVersion: 1,
@@ -38,11 +44,21 @@ function fixture() {
         compatibleEngineVersions: ["1.0.3"],
         runtimeEngineVersion: "1.0.3",
         profileFormat: 2,
-        installer: { name: "VeriQ-1.1.0-linux-x64.deb", sha256: "d".repeat(64), sizeBytes: 32, nativeSigner: "DETACHED_ED25519" },
+        installer: {
+            name: "VeriQ-1.1.0-linux-x64.deb",
+            sha256: "d".repeat(64),
+            sizeBytes: 32,
+            nativeSigner: "DETACHED_ED25519",
+        },
     };
     const envelope = (value = update) => {
         const payload = Buffer.from(JSON.stringify(value));
-        return Buffer.from(JSON.stringify({ payload: payload.toString("base64"), signature: sign(null, payload, keys.privateKey).toString("base64") }));
+        return Buffer.from(
+            JSON.stringify({
+                payload: payload.toString("base64"),
+                signature: sign(null, payload, keys.privateKey).toString("base64"),
+            }),
+        );
     };
     return { release, update, envelope };
 }
@@ -51,7 +67,13 @@ function fixture() {
 test("signed update requires exact target, origin version, profile and engine compatibility", () => {
     const { release, update, envelope } = fixture();
     assert.deepEqual(verifyUpdateEnvelope(envelope(), release), update);
-    assert.equal(verifyUpdateEnvelope(envelope({ ...update, version: "0.9.0", direction: "rollback" }), release).direction, "rollback");
+    assert.equal(
+        verifyUpdateEnvelope(
+            envelope({ ...update, version: "0.9.0", direction: "rollback" }),
+            release,
+        ).direction,
+        "rollback",
+    );
     for (const changed of [
         { ...update, version: release.productVersion },
         { ...update, arch: "arm64" as const },
@@ -60,26 +82,51 @@ test("signed update requires exact target, origin version, profile and engine co
         { ...update, runtimeEngineVersion: "2.0.0" },
         { ...update, profileFormat: 3 },
         { ...update, installer: { ...update.installer, name: "../other.deb" } },
-    ]) assert.throws(() => verifyUpdateEnvelope(envelope(changed as DesktopUpdate), release), /DESKTOP_UPDATE_MANIFEST_INVALID/);
+    ])
+        assert.throws(
+            () => verifyUpdateEnvelope(envelope(changed as DesktopUpdate), release),
+            /DESKTOP_UPDATE_MANIFEST_INVALID/,
+        );
 });
 
 /** 合法正文和另一发布者签名、字节篡改以及本机缺少更新公钥不能获得同一更新权限，测试使用真实标准签名算法而不替换验签结果；失败在解释安装文件路径和请求维护停止之前发生，业务执行不受影响。 */
 test("update rejects altered payload, unknown publisher and missing trust root", () => {
-    const first = fixture(), second = fixture();
-    assert.throws(() => verifyUpdateEnvelope(first.envelope(), second.release), /DESKTOP_UPDATE_SIGNATURE_INVALID/);
+    const first = fixture(),
+        second = fixture();
+    assert.throws(
+        () => verifyUpdateEnvelope(first.envelope(), second.release),
+        /DESKTOP_UPDATE_SIGNATURE_INVALID/,
+    );
     const altered = JSON.parse(first.envelope().toString());
-    altered.payload = Buffer.from(JSON.stringify({ ...first.update, version: "9.9.9" })).toString("base64");
-    assert.throws(() => verifyUpdateEnvelope(Buffer.from(JSON.stringify(altered)), first.release), /DESKTOP_UPDATE_SIGNATURE_INVALID/);
+    altered.payload = Buffer.from(JSON.stringify({ ...first.update, version: "9.9.9" })).toString(
+        "base64",
+    );
+    assert.throws(
+        () => verifyUpdateEnvelope(Buffer.from(JSON.stringify(altered)), first.release),
+        /DESKTOP_UPDATE_SIGNATURE_INVALID/,
+    );
     const { updatePublicKeyPem: _key, ...withoutKey } = first.release;
-    assert.throws(() => verifyUpdateEnvelope(first.envelope(), withoutKey), /DESKTOP_UPDATE_KEY_UNCONFIGURED/);
+    assert.throws(
+        () => verifyUpdateEnvelope(first.envelope(), withoutKey),
+        /DESKTOP_UPDATE_KEY_UNCONFIGURED/,
+    );
 });
 
 /** 桌面身份必须固定 Bundle ID 与四种架构组合，Mac Cookie 能力更要求同进程真实宿主核验的私有品牌；结构相同、冻结或复制的对象都无法通过这个边界，测试不授予合成 Mac 实际 Keychain 操作权限。 */
 test("desktop release identities and Mac host capabilities fail closed", () => {
     const { release } = fixture();
     assert.equal(parseDesktopRelease(release), release);
-    for (const change of [{ appId: "other.application" }, { arch: "arm64" }, { platform: "darwin" }, { profileFormat: 3 }, { trustedRuntime: { ...release.trustedRuntime, productVersion: "9.0.0" } }])
-        assert.throws(() => parseDesktopRelease({ ...release, ...change }), /DESKTOP_RELEASE_INVALID/);
+    for (const change of [
+        { appId: "other.application" },
+        { arch: "arm64" },
+        { platform: "darwin" },
+        { profileFormat: 3 },
+        { trustedRuntime: { ...release.trustedRuntime, productVersion: "9.0.0" } },
+    ])
+        assert.throws(
+            () => parseDesktopRelease({ ...release, ...change }),
+            /DESKTOP_RELEASE_INVALID/,
+        );
     for (const value of [undefined, true, {}, Object.freeze({ platform: "darwin" })])
         assert.throws(() => requireMacDesktopIdentity(value), /COOKIE_MAC_HOST_IDENTITY_REQUIRED/);
 });
@@ -89,7 +136,15 @@ test("GUI inventory covers all resources and refuses linked input", async () => 
     const directory = await mkdtemp(join(tmpdir(), "veriq-gui-inventory-"));
     try {
         for (const part of ["main", "preload", "renderer"]) await mkdir(join(directory, part));
-        for (const file of ["main/index.js", "main/agent.js", "main/cli.js", "preload/index.cjs", "renderer/index.html", "LICENSE", "THIRD_PARTY_NOTICES.md"])
+        for (const file of [
+            "main/index.js",
+            "main/agent.js",
+            "main/cli.js",
+            "preload/index.cjs",
+            "renderer/index.html",
+            "LICENSE",
+            "THIRD_PARTY_NOTICES.md",
+        ])
             await writeFile(join(directory, file), "local-resource");
         const first = await desktopInventory(directory);
         await writeFile(join(directory, "renderer/worker.js"), "local-worker");

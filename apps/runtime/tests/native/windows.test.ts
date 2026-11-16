@@ -45,7 +45,12 @@ test("Windows guardian contains renamed role Node and drains its detached descen
     try {
         await mkdir(join(root, "角色 binaries"));
         await copyFile(process.execPath, role);
-        const script = `const native=require(${JSON.stringify(addonPath)});const {spawn}=require('node:child_process');const c=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{detached:true,stdio:'ignore'});console.log(JSON.stringify({execPath:process.execPath,args:process.argv.slice(1),child:c.pid,sid:native.identity(process.pid).sid,secret:process.env.VERIQ_DEVICE_TOKEN??null}));setInterval(()=>{},1000);`;
+        const script =
+            `const native=require(${JSON.stringify(addonPath)}` +
+            `);const {spawn}=require('node:child_process');const c=spawn(process.execPath,['-e','setInterval(()=>{}` +
+            `,1000)'],{detached:true,stdio:'ignore'});console.log(JSON.stringify({execPath:process.execPath,args:pr` +
+            `ocess.argv.slice(1),child:c.pid,sid:native.identity(process.pid).sid,secret:process.env.VERIQ_DEVICE_T` +
+            `OKEN??null}));setInterval(()=>{},1000);`;
         let owned!: Awaited<ReturnType<ProcessSupervisor["start"]>>;
         await assert.doesNotReject(async () => {
             owned = await processes.start("windows-tree", {
@@ -111,7 +116,10 @@ test("Windows denied stop preserves worker progress until authentic ownership is
         const role = join(root, "veriq_runner.exe");
         await copyFile(process.execPath, role);
         await writeFile(challengePath, "initial");
-        const script = `const fs=require('node:fs');let sequence=0;setInterval(()=>{const challenge=fs.readFileSync(${JSON.stringify(challengePath)},'utf8');fs.writeFileSync(${JSON.stringify(progressPath)},JSON.stringify({challenge,sequence:++sequence}));},20);console.log('READY');`;
+        const script =
+            `const fs=require('node:fs');let sequence=0;setInterval(()=>{const challenge=fs.readFileSync` +
+            `(${JSON.stringify(challengePath)},'utf8');fs.writeFileSync(${JSON.stringify(progressPath)}` +
+            `,JSON.stringify({challenge,sequence:++sequence}));},20);console.log('READY');`;
         const owned = await processes.start("ownership", {
             executable: role,
             args: ["-e", script],
@@ -197,7 +205,10 @@ test("Windows Node-API loads under the isolated renamed Agent executable", async
     try {
         const role = join(root, "veriq_agent.exe");
         await copyFile(process.execPath, role);
-        const script = `const native=require(${JSON.stringify(addonPath)});console.log(JSON.stringify({path:process.execPath,sid:native.sid,identity:native.identity(process.pid)}));`;
+        const script =
+            `const native=require(${JSON.stringify(addonPath)}` +
+            `);console.log(JSON.stringify({path:process.execPath,sid:native.sid,identity:native.identity(process.pi` +
+            `d)}));`;
         const { stdout } = await promisify(execFile)(role, ["-e", script], {
             cwd: root,
             timeout: 5000,

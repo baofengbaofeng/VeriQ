@@ -10,7 +10,8 @@ extern "C" NTSYSAPI NTSTATUS NTAPI NtSetInformationFile(HANDLE FileHandle, PIO_S
     PVOID FileInformation, ULONG Length, FILE_INFORMATION_CLASS FileInformationClass);
 
 namespace veriq {
-/** FileRenameInformation 使用官方 FILE_RENAME_INFORMATION 的 BOOLEAN 与计数 UTF16 布局，用户态 SDK 没有提供该结构时在内部精确定义；不混用 Win32 FILE_RENAME_INFO 的路径解释或扩展标志。 */
+/** FileRenameInformation 使用官方 FILE_RENAME_INFORMATION 的 BOOLEAN 与计数 UTF16 布局，用户态 SDK 没有提供该结构时在内部精确定义；不混用 Win32 FILE_REN
+* AME_INFO 的路径解释或扩展标志。 */
 struct NativeFileRenameInformation {
     BOOLEAN ReplaceIfExists;
     HANDLE RootDirectory;
@@ -22,7 +23,8 @@ static_assert(offsetof(NativeFileRenameInformation, FileName) == 2 * sizeof(HAND
 /** 单个成员名不能包含路径分隔、备用数据流或 Windows 会裁剪的尾随字符，所有层级都由已持有的父目录选择；临时名与正式名经过相同校验，避免相对打开重新引入目录穿越或隐含的设备命名解释。 */
 inline void fileComponent(const std::wstring& name) {
     require(!name.empty() && name.size() <= 255 && name != L"." && name != L".." &&
-        name.find_first_of(L"\\/:\"<>|?*") == std::wstring::npos && name.back() != L'.' && name.back() != L' ', "NATIVE_PATH_INVALID");
+        name.find_first_of(L"\\/:\"<>|?*") == std::wstring::npos && name.back() != L'.' && name.back() != L' ',
+            "NATIVE_PATH_INVALID");
     for (wchar_t character : name) require(character >= 32, "NATIVE_PATH_INVALID");
 }
 /** 这里只把本机 DOS 路径规范成卷根与独立成员，目录解析随后逐级通过真实句柄完成；不接受 UNC、设备命名空间或映射网络盘，避免把远程文件系统的身份与持久化承诺冒充本机配置存储。 */
@@ -58,7 +60,8 @@ struct FilePath {
 /** 文件属性通过当前持有对象读取，目录与普通文件均拒绝重解析标签；这项检查不会再以字符串路径重新打开对象，因此之后的有界读取使用的仍是刚才验证的同一内核文件实体。 */
 inline DWORD plainFile(HANDLE file) {
     FILE_ATTRIBUTE_TAG_INFO attributes{};
-    requireWin32(GetFileInformationByHandleEx(file, FileAttributeTagInfo, &attributes, sizeof(attributes)) != 0, "NATIVE_PATH_UNAVAILABLE");
+    requireWin32(GetFileInformationByHandleEx(file, FileAttributeTagInfo, &attributes, sizeof(attributes)) != 0,
+        "NATIVE_PATH_UNAVAILABLE");
     require(!(attributes.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT), "NATIVE_REPARSE_REJECTED");
     require(GetFileType(file) == FILE_TYPE_DISK, "NATIVE_FILE_TYPE_INVALID");
     return attributes.FileAttributes;
@@ -75,7 +78,8 @@ inline Handle relativeFile(HANDLE parent, const std::wstring& name, ACCESS_MASK 
     attributes.Length = sizeof(attributes);
     attributes.RootDirectory = parent;
     attributes.ObjectName = &objectName;
-    /** OBJ_DONT_REPARSE 与 STATUS_REPARSE_POINT_ENCOUNTERED 是公开 NT 对象属性合同中的固定值，部分用户态 SDK 未定义对应宏；这里只保留这两个语义常量，不接受调用者指定任意对象属性或状态覆盖。 */
+    /** OBJ_DONT_REPARSE 与 STATUS_REPARSE_POINT_ENCOUNTERED 是公开 NT 对象属性合同中的固定值，部分用户态 SDK 未定义对应宏；这里只保留这两个语义常量，不接受调用者指定任意对
+    * 象属性或状态覆盖。 */
     constexpr ULONG noReparse = 0x00001000;
     constexpr NTSTATUS encounteredReparse = static_cast<NTSTATUS>(0xC000050BUL);
     attributes.Attributes = OBJ_CASE_INSENSITIVE | noReparse;
@@ -83,7 +87,8 @@ inline Handle relativeFile(HANDLE parent, const std::wstring& name, ACCESS_MASK 
     IO_STATUS_BLOCK statusBlock{};
     HANDLE raw = INVALID_HANDLE_VALUE;
     const NTSTATUS status = NtCreateFile(&raw, access | SYNCHRONIZE, &attributes, &statusBlock, nullptr,
-        FILE_ATTRIBUTE_NORMAL, sharing, disposition, options | FILE_SYNCHRONOUS_IO_NONALERT | FILE_OPEN_REPARSE_POINT, nullptr, 0);
+        FILE_ATTRIBUTE_NORMAL, sharing, disposition, options | FILE_SYNCHRONOUS_IO_NONALERT | FILE_OPEN_REPARSE_POINT,
+            nullptr, 0);
     Handle result(raw);
     if (status == encounteredReparse) throw NativeFailure("NATIVE_REPARSE_REJECTED");
     if (status != 0) throw NativeFailure("NATIVE_PATH_UNAVAILABLE", RtlNtStatusToDosError(status));
@@ -96,16 +101,21 @@ class DirectoryChain {
     std::vector<Handle> directories;
 public:
     /** 创建模式只给缺失目录安装当前 SID 可继承的保护 DACL，已有目录权限绝不自动修复；遍历中的公共系统祖先可以存在，但调用方选定的最终配置目录仍必须独立通过严格私有 ACL 校验。 */
-    DirectoryChain(const FilePath& path, size_t count, bool create = false, ACCESS_MASK finalAccess = 0, bool sharedDelete = false) {
-        Handle volume(CreateFileW(path.root.c_str(), READ_CONTROL | FILE_READ_ATTRIBUTES | FILE_TRAVERSE | SYNCHRONIZE | (count == 0 ? finalAccess : 0),
-            FILE_SHARE_READ | FILE_SHARE_WRITE | (sharedDelete ? FILE_SHARE_DELETE : 0), nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr));
+    DirectoryChain(const FilePath& path, size_t count, bool create = false, ACCESS_MASK finalAccess = 0,
+        bool sharedDelete = false) {
+        Handle volume(CreateFileW(path.root.c_str(), READ_CONTROL | FILE_READ_ATTRIBUTES | FILE_TRAVERSE | SYNCHRONIZE
+            | (count == 0 ? finalAccess : 0),
+            FILE_SHARE_READ | FILE_SHARE_WRITE | (sharedDelete ? FILE_SHARE_DELETE : 0), nullptr, OPEN_EXISTING,
+                FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr));
         requireWin32(volume.valid(), "NATIVE_PATH_UNAVAILABLE");
         require(plainFile(volume.value) & FILE_ATTRIBUTE_DIRECTORY, "NATIVE_DIRECTORY_REQUIRED");
         directories.push_back(std::move(volume));
         for (size_t index = 0; index < count; ++index) {
             PrivateSecurity security(false, true);
-            auto next = relativeFile(handle(), path.parts[index], READ_CONTROL | FILE_READ_ATTRIBUTES | FILE_TRAVERSE | (index + 1 == count ? finalAccess : 0),
-                create ? FILE_OPEN_IF : FILE_OPEN, FILE_DIRECTORY_FILE, FILE_SHARE_READ | FILE_SHARE_WRITE | (sharedDelete ? FILE_SHARE_DELETE : 0),
+            auto next = relativeFile(handle(), path.parts[index], READ_CONTROL | FILE_READ_ATTRIBUTES | FILE_TRAVERSE
+                | (index + 1 == count ? finalAccess : 0),
+                create ? FILE_OPEN_IF : FILE_OPEN, FILE_DIRECTORY_FILE, FILE_SHARE_READ | FILE_SHARE_WRITE | (
+                    sharedDelete ? FILE_SHARE_DELETE : 0),
                 create ? security.attributes.lpSecurityDescriptor : nullptr);
             require(plainFile(next.value) & FILE_ATTRIBUTE_DIRECTORY, "NATIVE_DIRECTORY_REQUIRED");
             directories.push_back(std::move(next));
@@ -181,7 +191,8 @@ inline std::vector<char> readPrivateBytes(const std::wstring& input, size_t limi
     size_t offset = 0;
     while (offset < bytes.size()) {
         DWORD count = 0;
-        requireWin32(ReadFile(file.value, bytes.data() + offset, static_cast<DWORD>(bytes.size() - offset), &count, nullptr) != 0, "NATIVE_PRIVATE_READ_FAILED");
+        requireWin32(ReadFile(file.value, bytes.data() + offset, static_cast<DWORD>(bytes.size() - offset), &count,
+            nullptr) != 0, "NATIVE_PRIVATE_READ_FAILED");
         require(count > 0, "NATIVE_FILE_CHANGED");
         offset += count;
     }
@@ -238,7 +249,8 @@ inline void replacePrivateFile(const std::wstring& directory, const std::wstring
         rename->FileNameLength = static_cast<DWORD>(name.size() * sizeof(wchar_t));
         std::memcpy(rename->FileName, name.data(), rename->FileNameLength);
         parent.validate();
-        /** 同步文件句柄按官方 FileRenameInformation 类别提交计数名称，实际 NTSTATUS 和 IO_STATUS_BLOCK 都必须成功；异常的非失败状态不能假称未提交或删除临时对象，避免把未知结果当成可以重放的回滚。 */
+        /** 同步文件句柄按官方 FileRenameInformation 类别提交计数名称，实际 NTSTATUS 和 IO_STATUS_BLOCK 都必须成功；异常的非失败状态不能假称未提交或删除临时对象，避免把未知结果当
+        * 成可以重放的回滚。 */
         IO_STATUS_BLOCK statusBlock{};
         statusBlock.Status = static_cast<NTSTATUS>(0xC0000001UL);
         const NTSTATUS status = NtSetInformationFile(file.value, &statusBlock, rename,
@@ -273,7 +285,8 @@ inline void removePrivateFile(const std::wstring& input, size_t maximum = 1024 *
     parent.validate();
     LARGE_INTEGER size{};
     requireWin32(GetFileSizeEx(file.value, &size) != 0, "NATIVE_PRIVATE_REMOVE_FAILED");
-    require(maximum <= 2 * 1024 * 1024 && size.QuadPart >= 0 && static_cast<ULONGLONG>(size.QuadPart) <= maximum, "NATIVE_FILE_LIMIT");
+    require(maximum <= 2 * 1024 * 1024 && size.QuadPart >= 0 && static_cast<ULONGLONG>(size.QuadPart) <= maximum,
+        "NATIVE_FILE_LIMIT");
     FILE_DISPOSITION_INFO remove{TRUE};
     requireWin32(SetFileInformationByHandle(file.value, FileDispositionInfo, &remove, sizeof(remove)) != 0,
         "NATIVE_PRIVATE_REMOVE_FAILED");

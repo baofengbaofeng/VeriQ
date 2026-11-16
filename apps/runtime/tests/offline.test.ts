@@ -14,120 +14,128 @@ import { TrustStore } from "../src/offline/trust.ts";
 import { SecretStore, SecretResolver } from "../src/credentials/store.ts";
 const sha = (raw: Uint8Array) => createHash("sha256").update(raw).digest("hex");
 import { fixture } from "./fixtures/business-engine.ts";
-test("signed bytes require a separately trusted root; tamper/extra/link/portable-path collisions fail before publication", async () => {
-    const f = await fixture();
-    try {
-        const bundle = await f.archive();
-        const result = await verifyBundle(bundle, {
-            trust: f.trust,
-            destination: join(f.dir, "valid"),
-        });
-        assert.equal(result.revocationStatus, "UNKNOWN");
-        assert.equal(result.formalGateEligible, false);
-        assert.equal(await readFile(join(f.dir, "valid/value.txt"), "utf8"), "original");
-        await assert.rejects(
-            verifyBundle(bundle, {
-                trust: new TrustStore(join(f.dir, "untrusted")),
-                destination: join(f.dir, "no-root"),
-            }),
-            /ISSUER_NOT_TRUSTED/,
-        );
-        for (const options of [
-            { mutate: true },
-            { extra: "extra.txt" },
-            { extra: "../escape" },
-            { extra: "AUX.txt" },
-            { extra: "ads:secret" },
-            { extra: "trailing." },
-            { extra: "back\\slash" },
-            { duplicate: true },
-            { link: true },
-            { unsigned: true },
-        ]) {
-            const input = await f.archive(options);
-            const destination = join(f.dir, "reject");
-            await assert.rejects(verifyBundle(input, { trust: f.trust, destination }));
-            await assert.rejects(stat(destination), { code: "ENOENT" });
+test(
+    "signed bytes require a separately trusted root; tamper/extra/link/portable-path collisions fail before publica" +
+        "tion",
+    async () => {
+        const f = await fixture();
+        try {
+            const bundle = await f.archive();
+            const result = await verifyBundle(bundle, {
+                trust: f.trust,
+                destination: join(f.dir, "valid"),
+            });
+            assert.equal(result.revocationStatus, "UNKNOWN");
+            assert.equal(result.formalGateEligible, false);
+            assert.equal(await readFile(join(f.dir, "valid/value.txt"), "utf8"), "original");
+            await assert.rejects(
+                verifyBundle(bundle, {
+                    trust: new TrustStore(join(f.dir, "untrusted")),
+                    destination: join(f.dir, "no-root"),
+                }),
+                /ISSUER_NOT_TRUSTED/,
+            );
+            for (const options of [
+                { mutate: true },
+                { extra: "extra.txt" },
+                { extra: "../escape" },
+                { extra: "AUX.txt" },
+                { extra: "ads:secret" },
+                { extra: "trailing." },
+                { extra: "back\\slash" },
+                { duplicate: true },
+                { link: true },
+                { unsigned: true },
+            ]) {
+                const input = await f.archive(options);
+                const destination = join(f.dir, "reject");
+                await assert.rejects(verifyBundle(input, { trust: f.trust, destination }));
+                await assert.rejects(stat(destination), { code: "ENOENT" });
+            }
+        } finally {
+            await f.close();
         }
-    } finally {
-        await f.close();
-    }
-});
-test("expiry and debug require explicit consent, revoked keys remain rejected; rotation cannot replace or roll back trust", async () => {
-    const f = await fixture();
-    try {
-        const archive = await f.archive({ expired: true });
-        await assert.rejects(
-            verifyBundle(archive, {
-                trust: f.trust,
-                destination: join(f.dir, "expired"),
-            }),
-            /BUNDLE_EXPIRED/,
-        );
-        assert.equal(
-            (
-                await verifyBundle(archive, {
+    },
+);
+test(
+    "expiry and debug require explicit consent, revoked keys remain rejected; rotation cannot replace or roll back " +
+        "trust",
+    async () => {
+        const f = await fixture();
+        try {
+            const archive = await f.archive({ expired: true });
+            await assert.rejects(
+                verifyBundle(archive, {
                     trust: f.trust,
-                    destination: join(f.dir, "debug"),
+                    destination: join(f.dir, "expired"),
+                }),
+                /BUNDLE_EXPIRED/,
+            );
+            assert.equal(
+                (
+                    await verifyBundle(archive, {
+                        trust: f.trust,
+                        destination: join(f.dir, "debug"),
+                        debug: true,
+                    })
+                ).debug,
+                true,
+            );
+            const state = structuredClone(f.issuer);
+            state.revision++;
+            state.keys[0]!.revoked = true;
+            // Authenticated exact-origin transport establishes complete rotation/revocation metadata.
+            const replacement = generateKeyPairSync("ed25519")
+                .publicKey.export({ format: "der", type: "spki" })
+                .subarray(-32);
+            state.keys.push({
+                keyId: "key_2",
+                algorithm: "Ed25519",
+                publicKey: replacement.toString("base64"),
+                fingerprint: sha(replacement),
+                revoked: false,
+            });
+            const config = {
+                server: "https://control.test",
+                deviceToken: "synthetic-device",
+            } as DeviceConfig;
+            let remote = state;
+            const request = mock.method(
+                RuntimeClient.prototype,
+                "request",
+                async function (path: string, method: string, _body: unknown, token: string) {
+                    assert.equal(path, "/internal/v1/issuer");
+                    assert.equal(method, "GET");
+                    assert.equal(token, config.deviceToken);
+                    return remote;
+                },
+            );
+            await f.trust.refresh(config);
+            await assert.rejects(
+                verifyBundle(archive, {
+                    trust: f.trust,
+                    destination: join(f.dir, "revoked"),
                     debug: true,
-                })
-            ).debug,
-            true,
-        );
-        const state = structuredClone(f.issuer);
-        state.revision++;
-        state.keys[0]!.revoked = true;
-        // Authenticated exact-origin transport establishes complete rotation/revocation metadata.
-        const replacement = generateKeyPairSync("ed25519")
-            .publicKey.export({ format: "der", type: "spki" })
-            .subarray(-32);
-        state.keys.push({
-            keyId: "key_2",
-            algorithm: "Ed25519",
-            publicKey: replacement.toString("base64"),
-            fingerprint: sha(replacement),
-            revoked: false,
-        });
-        const config = {
-            server: "https://control.test",
-            deviceToken: "synthetic-device",
-        } as DeviceConfig;
-        let remote = state;
-        const request = mock.method(
-            RuntimeClient.prototype,
-            "request",
-            async function (path: string, method: string, _body: unknown, token: string) {
-                assert.equal(path, "/internal/v1/issuer");
-                assert.equal(method, "GET");
-                assert.equal(token, config.deviceToken);
-                return remote;
-            },
-        );
-        await f.trust.refresh(config);
-        await assert.rejects(
-            verifyBundle(archive, {
-                trust: f.trust,
-                destination: join(f.dir, "revoked"),
-                debug: true,
-            }),
-            /ISSUER_KEY_REVOKED/,
-        );
-        remote = f.issuer;
-        await assert.rejects(f.trust.refresh(config), /ISSUER_ROLLBACK/);
-        await assert.rejects(
-            f.trust.bind(f.issuer, "https://control.test", f.issuer.keys[0]!.fingerprint),
-            /ISSUER_KEY_REVOKED/,
-        );
-        const altered = structuredClone(state);
-        altered.revision++;
-        altered.keys[0] = { ...state.keys[1]!, keyId: "key_1" };
-        remote = altered;
-        await assert.rejects(f.trust.refresh(config), /ISSUER_REPLACEMENT/);
-        request.mock.restore();
-    } finally {
-        await f.close();
-    }
-});
+                }),
+                /ISSUER_KEY_REVOKED/,
+            );
+            remote = f.issuer;
+            await assert.rejects(f.trust.refresh(config), /ISSUER_ROLLBACK/);
+            await assert.rejects(
+                f.trust.bind(f.issuer, "https://control.test", f.issuer.keys[0]!.fingerprint),
+                /ISSUER_KEY_REVOKED/,
+            );
+            const altered = structuredClone(state);
+            altered.revision++;
+            altered.keys[0] = { ...state.keys[1]!, keyId: "key_1" };
+            remote = altered;
+            await assert.rejects(f.trust.refresh(config), /ISSUER_REPLACEMENT/);
+            request.mock.restore();
+        } finally {
+            await f.close();
+        }
+    },
+);
 test("restricted local mapping binds issuer/workspace/exact version and never falls back", async () => {
     const f = await fixture();
     try {
@@ -253,78 +261,86 @@ for (const inconsistent of [
     });
 }
 
-test("unsigned metadata cannot poison authenticated revisions; legacy revocations deny aliases after rebind", async () => {
-    const f = await fixture();
-    try {
-        const rotated = generateKeyPairSync("ed25519"),
-            raw = rotated.publicKey.export({ format: "der", type: "spki" }).subarray(-32);
-        const key = {
-            keyId: "rotation",
-            algorithm: "Ed25519" as const,
-            publicKey: raw.toString("base64"),
-            fingerprint: sha(raw),
-            revoked: false,
-        };
-        await f.trust.bind(
-            {
-                ...f.issuer,
-                revision: Number.MAX_SAFE_INTEGER,
-                keys: [...f.issuer.keys, key],
-            },
-            "https://control.test",
-            f.issuer.keys[0]!.fingerprint,
-        );
-        const config = {
-            server: "https://control.test",
-            deviceToken: "synthetic-device",
-        } as DeviceConfig;
-        const request = mock.method(RuntimeClient.prototype, "request", async () => ({
-            ...f.issuer,
-            revision: 2,
-            keys: [...f.issuer.keys, key],
-        }));
+test(
+    "unsigned metadata cannot poison authenticated revi" +
+        "sions; legacy revocations deny aliases after rebind",
+    async () => {
+        const f = await fixture();
         try {
-            await f.trust.refresh(config);
-        } finally {
-            request.mock.restore();
-        }
-        const archive = await f.archive({
-            signing: { keyId: key.keyId, privateKey: rotated.privateKey },
-        });
-        await verifyBundle(archive, {
-            trust: f.trust,
-            destination: join(f.dir, "rotated"),
-        });
-        const directory = join(f.dir, "legacy"),
-            legacy = new TrustStore(directory);
-        await updatePrivate(directory, "trust.json", () => ({
-            origins: { "https://control.test": f.issuer.issuerId },
-            issuers: {
-                [f.issuer.issuerId]: {
-                    ...f.issuer,
-                    keys: [{ ...f.issuer.keys[0]!, revoked: true }, key],
-                },
-            },
-        }));
-        await assert.rejects(legacy.issuer(f.issuer.issuerId), /ISSUER_NOT_TRUSTED/);
-        await legacy.bind({ ...f.issuer, keys: [key] }, "https://control.test", key.fingerprint);
-        await assert.rejects(
-            legacy.bind(
+            const rotated = generateKeyPairSync("ed25519"),
+                raw = rotated.publicKey.export({ format: "der", type: "spki" }).subarray(-32);
+            const key = {
+                keyId: "rotation",
+                algorithm: "Ed25519" as const,
+                publicKey: raw.toString("base64"),
+                fingerprint: sha(raw),
+                revoked: false,
+            };
+            await f.trust.bind(
                 {
-                    issuerId: "renamed",
-                    revision: 999,
-                    keys: [{ ...f.issuer.keys[0]!, keyId: "alias" }],
+                    ...f.issuer,
+                    revision: Number.MAX_SAFE_INTEGER,
+                    keys: [...f.issuer.keys, key],
                 },
                 "https://control.test",
                 f.issuer.keys[0]!.fingerprint,
-            ),
-            /ISSUER_KEY_REVOKED/,
-        );
-        assert.deepEqual((await legacy.issuer(f.issuer.issuerId)).keys, [key]);
-    } finally {
-        await f.close();
-    }
-});
+            );
+            const config = {
+                server: "https://control.test",
+                deviceToken: "synthetic-device",
+            } as DeviceConfig;
+            const request = mock.method(RuntimeClient.prototype, "request", async () => ({
+                ...f.issuer,
+                revision: 2,
+                keys: [...f.issuer.keys, key],
+            }));
+            try {
+                await f.trust.refresh(config);
+            } finally {
+                request.mock.restore();
+            }
+            const archive = await f.archive({
+                signing: { keyId: key.keyId, privateKey: rotated.privateKey },
+            });
+            await verifyBundle(archive, {
+                trust: f.trust,
+                destination: join(f.dir, "rotated"),
+            });
+            const directory = join(f.dir, "legacy"),
+                legacy = new TrustStore(directory);
+            await updatePrivate(directory, "trust.json", () => ({
+                origins: { "https://control.test": f.issuer.issuerId },
+                issuers: {
+                    [f.issuer.issuerId]: {
+                        ...f.issuer,
+                        keys: [{ ...f.issuer.keys[0]!, revoked: true }, key],
+                    },
+                },
+            }));
+            await assert.rejects(legacy.issuer(f.issuer.issuerId), /ISSUER_NOT_TRUSTED/);
+            await legacy.bind(
+                { ...f.issuer, keys: [key] },
+                "https://control.test",
+                key.fingerprint,
+            );
+            await assert.rejects(
+                legacy.bind(
+                    {
+                        issuerId: "renamed",
+                        revision: 999,
+                        keys: [{ ...f.issuer.keys[0]!, keyId: "alias" }],
+                    },
+                    "https://control.test",
+                    f.issuer.keys[0]!.fingerprint,
+                ),
+                /ISSUER_KEY_REVOKED/,
+            );
+            assert.deepEqual((await legacy.issuer(f.issuer.issuerId)).keys, [key]);
+        } finally {
+            await f.close();
+        }
+    },
+);
 
 test("execution boundary rechecks signed installed bytes instead of trusting a VerifiedBundle object", async () => {
     const { reverifyInstalled } = await import("../src/offline/verify.ts");
@@ -557,7 +573,11 @@ test(
             const reports = new LocalReports(join(f.dir, "local"), () => true);
             const reportSnapshot = await reports.snapshot(result.workspaceId, result.localRunId);
             assert.equal(reportSnapshot.reports[0]!.gateNow.passed, false);
-            assert.equal((reportSnapshot.reports[0]!.cases[0]!.attempts[0]!.facts as Record<string, unknown>).processStopScope, "FULL_DESCENDANT_TREE");
+            assert.equal(
+                (reportSnapshot.reports[0]!.cases[0]!.attempts[0]!.facts as Record<string, unknown>)
+                    .processStopScope,
+                "FULL_DESCENDANT_TREE",
+            );
             assert.equal(reportSnapshot.reports[0]!.statistics.firstPassCount, 1);
             const { LocalReportAdapter } = await import(
                 new URL("../../web/src/features/reports/adapters.ts", import.meta.url).href
@@ -670,23 +690,37 @@ test(
                 retried.attempts[0]!.execution!.namespace,
                 retried.attempts[1]!.execution!.namespace,
             );
-            /** 故障仅注入真实 SQLite 已写入 SPAWNING 事务的 COMMIT 操作，后续回滚、停止和报告仍走生产流程；未提交意图不能因内存 owner 仍是 ALLOCATED 而产生未派生回执，也不能因开启重试而再次派生。 */
+            /** 故障仅注入真实 SQLite 已写入 SPAWNING 事务的 COMMIT 操作，后续回滚、停止和报告仍走生产流程；未提交意图不能因内存 owner 仍是 ALLOCATED 而产生未派生回执，也不能
+             * 因开启重试而再次派生。 */
             const { DatabaseSync } = await import("node:sqlite");
             const originalExec = DatabaseSync.prototype.exec;
             let injected = false;
-            const commitFault = mock.method(DatabaseSync.prototype, "exec", function(this: InstanceType<typeof DatabaseSync>, sql: string) {
-                if (!injected && sql === "COMMIT" && this.prepare("SELECT state FROM veriq_local_owner WHERE singleton=1").get()?.state === "SPAWNING") {
-                    injected = true;
-                    throw new Error("SQLITE_COMMIT_FAILED");
-                }
-                return originalExec.call(this, sql);
-            });
+            const commitFault = mock.method(
+                DatabaseSync.prototype,
+                "exec",
+                function (this: InstanceType<typeof DatabaseSync>, sql: string) {
+                    if (
+                        !injected &&
+                        sql === "COMMIT" &&
+                        this.prepare("SELECT state FROM veriq_local_owner WHERE singleton=1").get()
+                            ?.state === "SPAWNING"
+                    ) {
+                        injected = true;
+                        throw new Error("SQLITE_COMMIT_FAILED");
+                    }
+                    return originalExec.call(this, sql);
+                },
+            );
             try {
                 const faultRoot = join(f.dir, "commit-fault");
                 const faultResult = await runOffline(bundle, {
-                    trust: f.trust, root: faultRoot, secrets, releaseDirectory: release,
+                    trust: f.trust,
+                    root: faultRoot,
+                    secrets,
+                    releaseDirectory: release,
                     browserExecutable: process.env.VERIQ_TEST_CHROMIUM ?? "/usr/bin/chromium",
-                    deviceId: id(90), retry: true,
+                    deviceId: id(90),
+                    retry: true,
                 });
                 assert.equal(injected, true);
                 assert.equal(faultResult.attempts.length, 1);
@@ -694,9 +728,21 @@ test(
                 assert.equal(faultResult.attempts[0]!.processStopScope, undefined);
                 const faultStore = await LocalStore.open(faultRoot);
                 assert.equal(faultStore.active()?.state, "QUARANTINED");
-                assert.deepEqual(faultStore.result(faultResult.workspaceId, faultResult.localRunId), faultResult);
+                assert.deepEqual(
+                    faultStore.result(faultResult.workspaceId, faultResult.localRunId),
+                    faultResult,
+                );
                 faultStore.close();
-                await assert.rejects(readFile(join(faultRoot, "processes", `${faultResult.attempts[0]!.attemptId}.process.json`)), { code: "ENOENT" });
+                await assert.rejects(
+                    readFile(
+                        join(
+                            faultRoot,
+                            "processes",
+                            `${faultResult.attempts[0]!.attemptId}.process.json`,
+                        ),
+                    ),
+                    { code: "ENOENT" },
+                );
             } finally {
                 commitFault.mock.restore();
             }
@@ -725,7 +771,12 @@ test(
             reached = new Promise<void>((resolve) => {
                 observed = resolve;
             });
-            const script = `import {runOffline} from './src/offline/run.ts';import {TrustStore} from './src/offline/trust.ts';import {SecretStore} from './src/credentials/store.ts';const [directory,profile,root,release,browser,device]=process.argv.slice(1);await runOffline({directory},{trust:new TrustStore(profile),root,secrets:new SecretStore(profile+'/../secrets'),releaseDirectory:release,browserExecutable:browser,deviceId:device});`;
+            const script =
+                `import {runOffline} from './src/offline/run.ts';import {TrustStore} from './src/offline` +
+                `/trust.ts';import {SecretStore} from './src/credentials/store.ts';const [directory,prof` +
+                `ile,root,release,browser,device]=process.argv.slice(1);await runOffline({directory},{tr` +
+                `ust:new TrustStore(profile),root,secrets:new SecretStore(profile+'/../secrets'),release` +
+                `Directory:release,browserExecutable:browser,deviceId:device});`;
             const parent = spawn(
                 process.execPath,
                 [
@@ -758,10 +809,21 @@ test(
             assert.equal(recovered?.processStopScope, "FULL_DESCENDANT_TREE");
             const recoveredStore = await LocalStore.open(join(f.dir, "local"));
             assert.equal(recoveredStore.active(), undefined);
-            const recoveredRun = recoveredStore.history(id(99)).find(row =>
-                recoveredStore.result(id(99), String(row.id)).attempts.some(attempt => attempt.attemptId === recovered?.attemptId));
+            const recoveredRun = recoveredStore
+                .history(id(99))
+                .find((row) =>
+                    recoveredStore
+                        .result(id(99), String(row.id))
+                        .attempts.some((attempt) => attempt.attemptId === recovered?.attemptId),
+                );
             assert(recoveredRun);
-            assert.equal(recoveredStore.result(id(99), String(recoveredRun.id)).attempts.find(attempt => attempt.attemptId === recovered?.attemptId)!.processStopScope, "FULL_DESCENDANT_TREE");
+            assert.equal(
+                recoveredStore
+                    .result(id(99), String(recoveredRun.id))
+                    .attempts.find((attempt) => attempt.attemptId === recovered?.attemptId)!
+                    .processStopScope,
+                "FULL_DESCENDANT_TREE",
+            );
             assert(recoveredStore.history(id(99)).some((r) => r.state === "FINISHED"));
             recoveredStore.close();
         } finally {
@@ -777,45 +839,72 @@ test("publication failure cleans only unchanged owned staging and preserves subs
     const fs = await import("node:fs/promises");
     const { syncBuiltinESMExports } = await import("node:module");
     for (const substitute of [false, true]) {
-        const f = await fixture(), rename = fs.default.rename;
-        let staging = "", moved = "";
-        const injection = mock.method(fs.default, "rename", async (source: Parameters<typeof rename>[0], destination: Parameters<typeof rename>[1]) => {
-            if (String(source).includes("/.veriq-bundle-")) {
-                staging = String(source);
-                if (substitute) {
-                    moved = join(f.dir, "original-staging");
-                    await rename(source, moved);
-                    await fs.mkdir(staging, { mode: 0o700 });
-                    await writeFile(join(staging, "user.txt"), "retained", { mode: 0o600 });
+        const f = await fixture(),
+            rename = fs.default.rename;
+        let staging = "",
+            moved = "";
+        const injection = mock.method(
+            fs.default,
+            "rename",
+            async (
+                source: Parameters<typeof rename>[0],
+                destination: Parameters<typeof rename>[1],
+            ) => {
+                if (String(source).includes("/.veriq-bundle-")) {
+                    staging = String(source);
+                    if (substitute) {
+                        moved = join(f.dir, "original-staging");
+                        await rename(source, moved);
+                        await fs.mkdir(staging, { mode: 0o700 });
+                        await writeFile(join(staging, "user.txt"), "retained", { mode: 0o600 });
+                    }
+                    throw Object.assign(new Error("TEST_PUBLICATION_FAILED"), { code: "EACCES" });
                 }
-                throw Object.assign(new Error("TEST_PUBLICATION_FAILED"), { code: "EACCES" });
-            }
-            return rename(source, destination);
-        });
+                return rename(source, destination);
+            },
+        );
         syncBuiltinESMExports();
         try {
             const destination = join(f.dir, "installed");
-            await assert.rejects(verifyBundle(await f.archive(), { trust: f.trust, destination }), /TEST_PUBLICATION_FAILED/);
+            await assert.rejects(
+                verifyBundle(await f.archive(), { trust: f.trust, destination }),
+                /TEST_PUBLICATION_FAILED/,
+            );
             assert.ok(staging);
             await assert.rejects(fs.lstat(destination), { code: "ENOENT" });
             if (substitute) {
                 assert.equal(await readFile(join(staging, "user.txt"), "utf8"), "retained");
                 assert.ok((await readFile(join(moved, "manifest.json"))).length > 0);
             } else await assert.rejects(fs.lstat(staging), { code: "ENOENT" });
-        } finally { injection.mock.restore(); syncBuiltinESMExports(); await f.close(); }
+        } finally {
+            injection.mock.restore();
+            syncBuiltinESMExports();
+            await f.close();
+        }
     }
 });
 
 test("publication destination guard preserves existing members and rejects linked targets", async () => {
-    const fs = await import("node:fs/promises"), f = await fixture();
+    const fs = await import("node:fs/promises"),
+        f = await fixture();
     try {
-        const destination = join(f.dir, "existing"), linked = join(f.dir, "linked");
+        const destination = join(f.dir, "existing"),
+            linked = join(f.dir, "linked");
         await fs.mkdir(destination, { mode: 0o700 });
         await writeFile(join(destination, "user.txt"), "retained", { mode: 0o600 });
         await fs.symlink(destination, linked, "dir");
-        for (const path of [destination, linked]) await assert.rejects(verifyBundle(await f.archive(), { trust: f.trust, destination: path }), /BUNDLE_DESTINATION_EXISTS/);
+        for (const path of [destination, linked])
+            await assert.rejects(
+                verifyBundle(await f.archive(), { trust: f.trust, destination: path }),
+                /BUNDLE_DESTINATION_EXISTS/,
+            );
         assert.equal(await readFile(join(destination, "user.txt"), "utf8"), "retained");
         assert.equal((await fs.lstat(linked)).isSymbolicLink(), true);
-        assert.equal((await readdir(f.dir)).some((name) => name.startsWith(".veriq-bundle-")), false);
-    } finally { await f.close(); }
+        assert.equal(
+            (await readdir(f.dir)).some((name) => name.startsWith(".veriq-bundle-")),
+            false,
+        );
+    } finally {
+        await f.close();
+    }
 });

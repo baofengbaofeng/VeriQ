@@ -11,10 +11,13 @@ export const runtimesMessages: Record<string, readonly [string, string]> = {
     ],
     "Approve device": ["审批设备", "Approve device"],
     "Approve a device": ["审批设备", "Approve a device"],
-    "Run VeriQ login on your device, then enter its approval code. Confirm that you recognize the device before approving.":
+    [
+        "Run VeriQ login on your device, then enter its approval code. Confirm that you recognize the device before " +
+        "approving."]:
         [
             "请在设备上运行 VeriQ 登录，再输入设备审批码。审批前请确认您认识这台设备。",
-            "Run VeriQ login on your device, then enter its approval code. Confirm that you recognize the device before approving.",
+            "Run VeriQ login on your device, then enter its approval code. Confirm that you recognize the device bef" +
+                "ore approving.",
         ],
     "Approval code": ["设备审批码", "Approval code"],
     "Inspect device": ["检查设备", "Inspect device"],
@@ -64,10 +67,13 @@ export const runtimesMessages: Record<string, readonly [string, string]> = {
     Managed: ["受管理", "Managed"],
     "Save trust": ["保存信任设置", "Save trust"],
     "Workspace credential delivery": ["工作区凭证投递", "Workspace credential delivery"],
-    "Workspace owners and administrators may approve delivery after hardware trust is managed. Updating hardware trust clears this approval.":
+    [
+        "Workspace owners and administrators may approve delivery after hardware trust is managed. Updating hardware" +
+        " trust clears this approval."]:
         [
             "设备硬件信任设为受管理后，工作区所有者或管理员可批准凭证投递。更新硬件信任将清除该批准。",
-            "Workspace owners and administrators may approve delivery after hardware trust is managed. Updating hardware trust clears this approval.",
+            "Workspace owners and administrators may approve delivery after hardware trust is managed. Updating hard" +
+                "ware trust clears this approval.",
         ],
     "Allow platform credential delivery": [
         "允许平台投递凭证",

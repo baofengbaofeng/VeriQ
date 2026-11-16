@@ -80,7 +80,12 @@ try {
     const failure = assetAcquisitionFailure(error);
     if (failure)
         process.stderr.write(
-            `${JSON.stringify({ kind: "ASSET_FETCH_FAILURE", ...failure, code: known.code, cleanup: known.cleanup })}\n`,
+            `${JSON.stringify({
+                kind: "ASSET_FETCH_FAILURE",
+                ...failure,
+                code: known.code,
+                cleanup: known.cleanup,
+            })}\n`,
         );
     process.exitCode = exit || 1;
 } finally {

@@ -1,4 +1,5 @@
-/** Cookie 验收仅修改本次工作区新建的独立 Electron 副本，绝不原位修改 pnpm 硬链接或下载缓存；成熟 fuse 工具逐字节读回后记录原始与修改后的身份，目标策略与测试随后必须使用这个固定副本，不能把源包默认值当作产品保护。 */
+/** Cookie 验收仅修改本次工作区新建的独立 Electron 副本，绝不原位修改 pnpm 硬链接或下载缓存；成熟 fuse 工具逐字节读回后记录原始与修改后的身份，目标策略与测试随后必须使用这个固定副本，不能把源包默认值当
+ * 作产品保护。 */
 import { cp, lstat, mkdir, readFile, realpath, statfs, writeFile } from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import { createHash } from "node:crypto";

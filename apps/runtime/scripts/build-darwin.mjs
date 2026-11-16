@@ -16,9 +16,12 @@ if (process.platform !== "darwin") throw new Error("DARWIN_NATIVE_BUILD_REQUIRED
 const args = process.argv.slice(2);
 if (args[0] === "--") args.shift();
 if (
-    args.length < 1 || args.length > 2 || !isAbsolute(args[0]) ||
+    args.length < 1 ||
+    args.length > 2 ||
+    !isAbsolute(args[0]) ||
     (args[1] !== undefined && args[1] !== "--test-schedules")
-) throw new Error("DARWIN_NATIVE_BUILD_ARGUMENTS_INVALID");
+)
+    throw new Error("DARWIN_NATIVE_BUILD_ARGUMENTS_INVALID");
 const root = new URL("../", import.meta.url);
 const tests = args[1] === "--test-schedules";
 const headers = resolve(args[0]);
@@ -32,21 +35,33 @@ const native = new URL("native/darwin/", root);
  * testSchedules 只作为 gyp 变量，不传入产品运行环境。
  */
 await mkdir(headers, { recursive: true, mode: 0o700 });
-execFileSync(process.execPath, [
-    fileURLToPath(new URL("node_modules/node-gyp/bin/node-gyp.js", root)),
-    "rebuild", "--directory", fileURLToPath(native), `--devdir=${headers}`,
-    "--", `-Dveriq_native_tests=${tests ? 1 : 0}`,
-], { stdio: "inherit" });
+execFileSync(
+    process.execPath,
+    [
+        fileURLToPath(new URL("node_modules/node-gyp/bin/node-gyp.js", root)),
+        "rebuild",
+        "--directory",
+        fileURLToPath(native),
+        `--devdir=${headers}`,
+        "--",
+        `-Dveriq_native_tests=${tests ? 1 : 0}`,
+    ],
+    { stdio: "inherit" },
+);
 
 /** 只有本次 node-gyp 完整成功后才复制明确目标名单，正式与故障 addon 分别拥有固定开发位置；不复制其他平台构建目录、未知文件或 headers，也不赋予此开发输出安装库存的可信身份。
  * 对应双架构 CI 仍须实际加载并运行行为测试，文件复制成功不等于功能通过。
  * 生产 addon 路径不会因测试开关改变，避免正式消费者意外依赖测试导出。
  */
 await mkdir(new URL("build/darwin/", root), { recursive: true });
-await copyFile(new URL("build/Release/veriq_private_files.node", native),
-    new URL("build/darwin/veriq_private_files.node", root));
+await copyFile(
+    new URL("build/Release/veriq_private_files.node", native),
+    new URL("build/darwin/veriq_private_files.node", root),
+);
 if (tests) {
     await mkdir(new URL("build/native-tests/", root), { recursive: true });
-    await copyFile(new URL("build/Release/veriq_private_files_fault.node", native),
-        new URL("build/native-tests/veriq_private_files_fault.node", root));
+    await copyFile(
+        new URL("build/Release/veriq_private_files_fault.node", native),
+        new URL("build/native-tests/veriq_private_files_fault.node", root),
+    );
 }

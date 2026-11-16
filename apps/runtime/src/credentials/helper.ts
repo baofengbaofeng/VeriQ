@@ -32,17 +32,19 @@ function environment(): NodeJS.ProcessEnv {
             throw new Error("VAULT_SYSTEM_ENVIRONMENT_INVALID");
         return { SystemRoot: systemRoot, WINDIR: systemRoot };
     }
-    const env: NodeJS.ProcessEnv = { PATH: "/usr/bin:/bin", ...(process.platform === "linux" ? { GIO_USE_VFS: "local" } : {}) };
+    const env: NodeJS.ProcessEnv = {
+        PATH: "/usr/bin:/bin",
+        ...(process.platform === "linux" ? { GIO_USE_VFS: "local" } : {}),
+    };
     const names = [
         "HOME",
         "USER",
         "LOGNAME",
         "LANG",
         "LC_ALL",
-        ...(process.platform === "linux" ? ["DBUS_SESSION_BUS_ADDRESS",
-        "XDG_RUNTIME_DIR",
-        "XDG_DATA_HOME",
-        "XDG_CONFIG_HOME"] : []),
+        ...(process.platform === "linux"
+            ? ["DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR", "XDG_DATA_HOME", "XDG_CONFIG_HOME"]
+            : []),
     ];
     for (const name of names) {
         const value = process.env[name];

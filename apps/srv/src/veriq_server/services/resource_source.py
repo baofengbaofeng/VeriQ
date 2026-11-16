@@ -2,7 +2,6 @@
 回执须匹配修订/源哈希/引擎/MANAGED；size 不一致拒绝，防清单漂移。
 """
 
-
 import json
 import re
 from typing import Any

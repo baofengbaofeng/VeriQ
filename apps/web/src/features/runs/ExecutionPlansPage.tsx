@@ -862,7 +862,8 @@ function ServiceAccounts({
                                 ))}
                                 <p>
                                     {tx(
-                                        "服务仅能使用自己拥有或所有者共享到空间的设备。 / Service-owned or explicitly Workspace-shared Runtimes only.",
+                                        "服务仅能使用自己拥有或所有者共享到空间的设备。 / Service-owned or explicitly Workspace-shared Runt" +
+                                            "imes only.",
                                     )}
                                 </p>
                             </fieldset>

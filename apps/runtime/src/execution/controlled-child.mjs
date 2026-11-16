@@ -1,6 +1,10 @@
 import { ChildProcess } from "node:child_process";
 import { readSync } from "node:fs";
-import { inspectJournalFd, validateBinding, validateJournal } from "./controlled-child-protocol.mjs";
+import {
+    inspectJournalFd,
+    validateBinding,
+    validateJournal,
+} from "./controlled-child-protocol.mjs";
 
 /** VeriQ 的父侧观察器统一服务普通 Node 与 TypeScript 消费者，保留原始 ChildProcess 的 exit 和 error 事实；它借入日志 FD 而不接管进程终止、描述符关闭或持久停止证明的所有权。
  * 调用方应在 spawn 返回后立即同步调用，任何异步等待都会造成错过 exit 的风险。
@@ -18,7 +22,9 @@ export function trackObservedCli(child, options) {
     let terminal = false;
     let settle;
     let timer;
-    const exited = new Promise((resolve) => { settle = resolve; });
+    const exited = new Promise((resolve) => {
+        settle = resolve;
+    });
 
     /** 首次终结同步关闭取消窗口并固定退出观察，后续真实 exit 不能把先前超时或 error 改成成功；定时器只约束观察等待，清除定时器不代替任何实际子进程清理。
      * terminal 在 resolve 前置位，防止 promise 回调或其他 exit 监听补授权。
@@ -39,7 +45,8 @@ export function trackObservedCli(child, options) {
         finish({ kind: "failure", reason: "CLI_ERROR" });
     });
     child.once("exit", (code, signal) => finish({ kind: "exit", code, signal }));
-    if (child.exitCode !== null || child.signalCode !== null) finish({ kind: "failure", reason: "CLI_ALREADY_EXITED" });
+    if (child.exitCode !== null || child.signalCode !== null)
+        finish({ kind: "failure", reason: "CLI_ALREADY_EXITED" });
 
     /** 期望身份与启动时兼容授权都立即经过原协议验证器复制，之后只保留快照或匹配布尔值；对复制结果再次核验可拒绝 getter 在校验与取值之间改变身份的恶意输入。
      * 不在这里复制协议字段列表、UUID 规则或 nonce 规则，避免产生第二套解析器。
@@ -53,8 +60,11 @@ export function trackObservedCli(child, options) {
      */
     const binding = validateBinding(validateBinding(options.expectedBinding));
     const fd = options.journalFd;
-    let authorized = options.authorizedCancellation === undefined ? false
-        : JSON.stringify(validateBinding(validateBinding(options.authorizedCancellation))) === JSON.stringify(binding);
+    let authorized =
+        options.authorizedCancellation === undefined
+            ? false
+            : JSON.stringify(validateBinding(validateBinding(options.authorizedCancellation))) ===
+              JSON.stringify(binding);
 
     /** 超时仅在注册未发现终结状态时安排，已经错过退出的对象不能再挂起一个无意义定时器；期限回调走与真实事件相同的同步闸门，不能使后续授权复活该观察。
      * 正安全整数沿用原公开选项合同，不引入额外等待策略。
@@ -63,8 +73,13 @@ export function trackObservedCli(child, options) {
      * terminal 保证期限已触发后，真实退出也不能把已固定的 failure 换成 exit。
      */
     if (options.timeoutMs !== undefined) {
-        if (!Number.isSafeInteger(options.timeoutMs) || options.timeoutMs <= 0) throw new TypeError("CONTROLLED_CHILD_TIMEOUT_INVALID");
-        if (!terminal) timer = setTimeout(() => finish({ kind: "failure", reason: "CLI_TIMEOUT" }), options.timeoutMs);
+        if (!Number.isSafeInteger(options.timeoutMs) || options.timeoutMs <= 0)
+            throw new TypeError("CONTROLLED_CHILD_TIMEOUT_INVALID");
+        if (!terminal)
+            timer = setTimeout(
+                () => finish({ kind: "failure", reason: "CLI_TIMEOUT" }),
+                options.timeoutMs,
+            );
     }
     let result;
     return {
@@ -83,10 +98,17 @@ export function trackObservedCli(child, options) {
          */
         authorizeCancellation(value) {
             try {
-                if (terminal || error || child.exitCode !== null || child.signalCode !== null) throw new Error();
+                if (terminal || error || child.exitCode !== null || child.signalCode !== null)
+                    throw new Error();
                 const snapshot = validateBinding(validateBinding(value));
-                if (JSON.stringify(snapshot) !== JSON.stringify(binding)
-                    || terminal || error || child.exitCode !== null || child.signalCode !== null) throw new Error();
+                if (
+                    JSON.stringify(snapshot) !== JSON.stringify(binding) ||
+                    terminal ||
+                    error ||
+                    child.exitCode !== null ||
+                    child.signalCode !== null
+                )
+                    throw new Error();
                 authorized = true;
             } catch {
                 throw new Error("CONTROLLED_CHILD_CANCELLATION_REJECTED");
@@ -106,9 +128,14 @@ export function trackObservedCli(child, options) {
             result ??= (async () => {
                 const observation = await exited;
                 if (error) return { ok: false, reason: "CLI_ERROR" };
-                if (observation.kind === "failure") return { ok: false, reason: observation.reason };
-                if (observation.signal !== null || ![0, 1, 130].includes(observation.code ?? -1)
-                    || (observation.code === 130 && !authorized)) return { ok: false, reason: "CLI_EXIT_REJECTED" };
+                if (observation.kind === "failure")
+                    return { ok: false, reason: observation.reason };
+                if (
+                    observation.signal !== null ||
+                    ![0, 1, 130].includes(observation.code ?? -1) ||
+                    (observation.code === 130 && !authorized)
+                )
+                    return { ok: false, reason: "CLI_EXIT_REJECTED" };
                 try {
                     const before = inspectJournalFd(fd);
                     const bytes = Buffer.alloc(Number(before.size));
@@ -127,13 +154,23 @@ export function trackObservedCli(child, options) {
                      * 任一文件或协议异常都返回 JOURNAL_INVALID，不伪造部分对象成功。
                      */
                     const after = inspectJournalFd(fd);
-                    if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size
-                        || before.mtimeNs !== after.mtimeNs || before.ctimeNs !== after.ctimeNs
-                        || readSync(fd, Buffer.alloc(1), 0, 1, bytes.length) !== 0) {
+                    if (
+                        before.dev !== after.dev ||
+                        before.ino !== after.ino ||
+                        before.size !== after.size ||
+                        before.mtimeNs !== after.mtimeNs ||
+                        before.ctimeNs !== after.ctimeNs ||
+                        readSync(fd, Buffer.alloc(1), 0, 1, bytes.length) !== 0
+                    ) {
                         return { ok: false, reason: "JOURNAL_CHANGED" };
                     }
                     const { objects } = validateJournal(bytes, binding);
-                    return { ok: true, exitCode: observation.code, objects, coverage: "DIRECT_ASYNC_CHILDREN" };
+                    return {
+                        ok: true,
+                        exitCode: observation.code,
+                        objects,
+                        coverage: "DIRECT_ASYNC_CHILDREN",
+                    };
                 } catch {
                     return { ok: false, reason: "JOURNAL_INVALID" };
                 }

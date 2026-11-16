@@ -7,15 +7,9 @@ import {
     type CaseDslV1,
     type StepV1,
 } from "@veriq/contracts";
-export const id = (n: number) =>
-    `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
-export const hash = (v: Uint8Array) =>
-    createHash("sha256").update(v).digest("hex");
-export function asset(
-    n: number,
-    kind: AssetVersionV1["kind"],
-    document: unknown,
-): AssetVersionV1 {
+export const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+export const hash = (v: Uint8Array) => createHash("sha256").update(v).digest("hex");
+export function asset(n: number, kind: AssetVersionV1["kind"], document: unknown): AssetVersionV1 {
     return {
         resourceId: id(n + 100),
         versionId: id(n),

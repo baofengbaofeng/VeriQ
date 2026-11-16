@@ -2,7 +2,6 @@
 available 在安装护栏下 FOR UPDATE；超卖返回 None。过期进程 quarantine 至 release。
 """
 
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..db import Attempt, CapacityPool, Job, ResourceLease
@@ -13,6 +12,7 @@ class CapacityService:
     """为 claim 预留容量，支持释放或隔离，杜绝无锁 count 超卖，CapacityService 路径必须遵守 Workspace 作用域。
     CapacityService 实现于 apps/srv/src/veriq_server/services/capacity.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
+
     def __init__(self, session: AsyncSession, settings: Settings):
         """保存会话与 Settings，读取各类槽位上限配置，CapacityService.__init__ 路径必须遵守 Workspace 作用域。
         __init__ 实现于 apps/srv/src/veriq_server/services/capacity.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。

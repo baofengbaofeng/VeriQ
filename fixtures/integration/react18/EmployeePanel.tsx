@@ -28,16 +28,26 @@ async function employees(code: string, signal: AbortSignal): Promise<Employee[]>
  * descriptionHtml 是不可信展示内容，清洗后仍放在固定业务锚点内。
  * 实际测试环境的语言和时区由发布环境固定，组件不偷偷修改全局设置。
  */
-export function EmployeePanel({ code, descriptionHtml }: { code: string; descriptionHtml: string }) {
+export function EmployeePanel({
+    code,
+    descriptionHtml,
+}: {
+    code: string;
+    descriptionHtml: string;
+}) {
     const { t } = useTranslation();
     const cache = useQueryClient();
     const [name, setName] = useState("");
-    const list = useQuery({ queryKey: ["employee", code], queryFn: ({ signal }) => employees(code, signal) });
+    const list = useQuery({
+        queryKey: ["employee", code],
+        queryFn: ({ signal }) => employees(code, signal),
+    });
     const save = useMutation({
         retry: false,
         mutationFn: async () => {
             const response = await fetch("/employees", {
-                method: "POST", headers: { "content-type": "application/json" },
+                method: "POST",
+                headers: { "content-type": "application/json" },
                 body: JSON.stringify({ code, name }),
             });
             if (!response.ok) throw new Error("Employee save failed");
@@ -51,38 +61,81 @@ export function EmployeePanel({ code, descriptionHtml }: { code: string; descrip
             await cache.invalidateQueries({ queryKey: ["employee", code], exact: true });
         },
     });
-    const submit = (event: FormEvent) => { event.preventDefault(); save.mutate(); };
+    const submit = (event: FormEvent) => {
+        event.preventDefault();
+        save.mutate();
+    };
     const safeHtml = DOMPurify.sanitize(descriptionHtml, {
         ALLOWED_TAGS: ["p", "strong", "em", "ul", "li", "a"],
-        ALLOWED_ATTR: ["href"], ALLOW_DATA_ATTR: false,
+        ALLOWED_ATTR: ["href"],
+        ALLOW_DATA_ATTR: false,
     });
     return (
         <main data-testid="employee.page">
-            <div data-testid="employee.description" dangerouslySetInnerHTML={{ __html: safeHtml }} />
+            <div
+                data-testid="employee.description"
+                dangerouslySetInnerHTML={{ __html: safeHtml }}
+            />
             <form data-testid="employee.form" onSubmit={submit}>
                 <label htmlFor="employee-name">{t("employee.name")}</label>
-                <input id="employee-name" data-testid="name" value={name} onChange={(event) => setName(event.target.value)} required maxLength={160} />
-                <VeriqButton type="submit" data-testid="save" disabled={save.isPending}>{t("employee.save")}</VeriqButton>
+                <input
+                    id="employee-name"
+                    data-testid="name"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    required
+                    maxLength={160}
+                />
+                <VeriqButton type="submit" data-testid="save" disabled={save.isPending}>
+                    {t("employee.save")}
+                </VeriqButton>
             </form>
-            <p role="status" data-testid="result">{save.isPending ? t("employee.saving") : save.isError ? t("employee.saveError") : save.isSuccess ? t("employee.saved") : ""}</p>
+            <p role="status" data-testid="result">
+                {save.isPending
+                    ? t("employee.saving")
+                    : save.isError
+                      ? t("employee.saveError")
+                      : save.isSuccess
+                        ? t("employee.saved")
+                        : ""}
+            </p>
             {list.isPending && <p data-testid="employee.loading">{t("employee.loading")}</p>}
-            {list.isError && <p role="alert" data-testid="employee.queryError">{t("employee.queryError")}</p>}
+            {list.isError && (
+                <p role="alert" data-testid="employee.queryError">
+                    {t("employee.queryError")}
+                </p>
+            )}
             <table data-testid="employee.table" aria-busy={list.isFetching}>
                 <caption>{t("employee.persisted")}</caption>
-                <tbody>{list.data?.map((employee) => (
-                    <tr key={employee.id} data-testid="employee.row" data-record-key={employee.id}>
-                        <td data-testid="employee.name">{employee.name}</td>
-                    </tr>
-                ))}</tbody>
+                <tbody>
+                    {list.data?.map((employee) => (
+                        <tr
+                            key={employee.id}
+                            data-testid="employee.row"
+                            data-record-key={employee.id}
+                        >
+                            <td data-testid="employee.name">{employee.name}</td>
+                        </tr>
+                    ))}
+                </tbody>
             </table>
             <Dialog.Root>
-                <Dialog.Trigger asChild><VeriqButton data-testid="employee.help">{t("employee.help")}</VeriqButton></Dialog.Trigger>
+                <Dialog.Trigger asChild>
+                    <VeriqButton data-testid="employee.help">{t("employee.help")}</VeriqButton>
+                </Dialog.Trigger>
                 <Dialog.Portal>
                     <Dialog.Overlay className="fixed inset-0 bg-black/40" />
-                    <Dialog.Content data-testid="employee.dialog" className="fixed left-1/4 top-1/4 rounded bg-white p-4">
+                    <Dialog.Content
+                        data-testid="employee.dialog"
+                        className="fixed left-1/4 top-1/4 rounded bg-white p-4"
+                    >
                         <Dialog.Title>{t("employee.help")}</Dialog.Title>
                         <Dialog.Description>{t("employee.helpDescription")}</Dialog.Description>
-                        <Dialog.Close asChild><VeriqButton data-testid="employee.dialog.close">{t("common.close")}</VeriqButton></Dialog.Close>
+                        <Dialog.Close asChild>
+                            <VeriqButton data-testid="employee.dialog.close">
+                                {t("common.close")}
+                            </VeriqButton>
+                        </Dialog.Close>
                     </Dialog.Content>
                 </Dialog.Portal>
             </Dialog.Root>

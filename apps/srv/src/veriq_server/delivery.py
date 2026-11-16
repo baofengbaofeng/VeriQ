@@ -119,7 +119,10 @@ class ResetDispatcher:
             await self.delivery.send(
                 recipient,
                 "Reset your VeriQ password",
-                f"Use this one-time link to reset your VeriQ password:\n\n{url}\n\nThis link expires at {stamp(expiry)}. If you did not request it, ignore this email.",
+                (
+                    f"Use this one-time link to reset your VeriQ password:\n\n{url}\n\nThis link expires at "
+                    f"{stamp(expiry)}. If you did not request it, ignore this email."
+                ),
             )
             async with self.db.sessions.begin() as session:
                 audit(session, "reset.delivered", None, user_id)

@@ -160,7 +160,11 @@ test("an installation missing its native launcher fails closed without compiling
     try {
         /** 缺守护程序的安装夹具仍保留完整真实源码布局与外部依赖解析，避免单独复制入口后先因其间接模块缺失而失败；仅不提供 build 下的原生 launcher，断言必须实际到达业务派生前的正式能力检查。 */
         await cp(new URL("../src", import.meta.url), join(root, "src"), { recursive: true });
-        await symlink(fileURLToPath(new URL("../node_modules", import.meta.url)), join(root, "node_modules"), "dir");
+        await symlink(
+            fileURLToPath(new URL("../node_modules", import.meta.url)),
+            join(root, "node_modules"),
+            "dir",
+        );
         await writeFile(join(root, "package.json"), JSON.stringify({ type: "module" }));
         const { ProcessSupervisor } = await import(
             pathToFileURL(join(root, "src/execution/processes.ts")).href

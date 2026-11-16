@@ -49,9 +49,7 @@ it.each([
                         type,
                         operator,
                         expected,
-                        source: type.startsWith("request")
-                            ? "request:action"
-                            : "response:action",
+                        source: type.startsWith("request") ? "request:action" : "response:action",
                         ...(pointer ? { pointer } : {}),
                     }),
                 ],
@@ -142,12 +140,9 @@ it.each([
         createStepContext(f.options),
     );
     expect(r.status).toBe("PASSED");
-    if (action === "fill")
-        expect(await f.page.getByTestId("name").inputValue()).toBe("A");
+    if (action === "fill") expect(await f.page.getByTestId("name").inputValue()).toBe("A");
     if (action === "check" || action === "uncheck")
-        expect(await f.page.getByTestId("check").isChecked()).toBe(
-            action === "check",
-        );
+        expect(await f.page.getByTestId("check").isChecked()).toBe(action === "check");
     if (action === "selectOption")
         expect(await f.page.getByTestId("select").inputValue()).toBe("b");
 });
@@ -167,27 +162,22 @@ it.each([
         [],
         [a({ type: "ui", operator, target, expected })],
     );
-    expect((await executeStep(p, createStepContext(f.options))).status).toBe(
-        "PASSED",
-    );
+    expect((await executeStep(p, createStepContext(f.options))).status).toBe("PASSED");
 });
 it("nested template scopes preserve caller data and inert bound text", async () => {
     const ctx = createStepContext({
             ...f.options,
             data: { outer: "saved-1", inner: "wrong" },
         }),
-        p = step(
-            { id: "get", action: "apiRequest", method: "GET", path: "/save" },
-            [
-                a({
-                    type: "responseField",
-                    source: "response:action",
-                    pointer: "/id",
-                    operator: "equals",
-                    expected: "{{data.inner}}",
-                }),
-            ],
-        );
+        p = step({ id: "get", action: "apiRequest", method: "GET", path: "/save" }, [
+            a({
+                type: "responseField",
+                source: "response:action",
+                pointer: "/id",
+                operator: "equals",
+                expected: "{{data.inner}}",
+            }),
+        ]);
     p.responseAssertions[0]!.parameters = [
         { middle: "{{data.outer}}" },
         { inner: "{{data.middle}}" },
@@ -274,9 +264,7 @@ it("requires an upload provider and uses actual file bytes from it", async () =>
         ).status,
     ).toBe("PASSED");
     expect(
-        await f.page
-            .getByTestId("upload")
-            .evaluate((el: HTMLInputElement) => el.files?.[0]?.name),
+        await f.page.getByTestId("upload").evaluate((el: HTMLInputElement) => el.files?.[0]?.name),
     ).toBe("fixture.txt");
 });
 it("blocks forbidden substituted paths and redirects before the destination request", async () => {
@@ -367,9 +355,7 @@ it("allows same-origin reads to redirect but never replays a redirected write", 
         createStepContext(f.options),
     );
     expect(read.status).toBe("PASSED");
-    const writes = f.requests.filter(
-        (r) => r.path === "/save" && r.method === "POST",
-    ).length;
+    const writes = f.requests.filter((r) => r.path === "/save" && r.method === "POST").length;
     const write = await executeStep(
         step({
             id: "write",
@@ -381,7 +367,7 @@ it("allows same-origin reads to redirect but never replays a redirected write", 
         createStepContext(f.options),
     );
     expect(write.errorCode).toBe("WRITE_REDIRECT_FORBIDDEN");
-    expect(
-        f.requests.filter((r) => r.path === "/save" && r.method === "POST"),
-    ).toHaveLength(writes);
+    expect(f.requests.filter((r) => r.path === "/save" && r.method === "POST")).toHaveLength(
+        writes,
+    );
 });

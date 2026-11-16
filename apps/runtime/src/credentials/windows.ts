@@ -1,4 +1,5 @@
-/** Windows 平台入口通过可信库存中的真实 veriq_agent 辅助进程访问当前用户 Credential Manager，沿用有界私有管道和实际退出证据；系统 API 不进入宿主事件循环，也不改变进程令牌、拥有者规则或交互登录策略。 */
+/** Windows 平台入口通过可信库存中的真实 veriq_agent 辅助进程访问当前用户 Credential Manager，沿用有界私有管道和实际退出证据；系统 API 不进入宿主事件循环，也不改变进程令牌、拥有者规则或
+ * 交互登录策略。 */
 import type { RuntimeDistribution } from "../distribution.ts";
 import { VaultHelperBackend } from "./helper.ts";
 

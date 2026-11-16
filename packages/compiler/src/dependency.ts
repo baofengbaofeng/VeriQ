@@ -20,8 +20,7 @@ export const sha256 = (bytes: Uint8Array): string =>
 /**
  * 公开常量函数 pointerKey 按 RFC6901 转义对象键：供拼装 JSON Pointer 段时使用（pointerKey）。
  */
-export const pointerKey = (key: string): string =>
-    key.replaceAll("~", "~0").replaceAll("/", "~1");
+export const pointerKey = (key: string): string => key.replaceAll("~", "~0").replaceAll("/", "~1");
 /**
  * 公开常量函数 wireId 由源路径稳定派生标识符：用于生成代码中的变量命名而不暴露原始路径细节（wireId）（wireId）。
  */
@@ -31,10 +30,5 @@ export const wireId = (sourcePath: string): string =>
  * 再导出契约包中的 valueType/accepts/resolvePointer/resolveBinding 与 Presence。
  * 保持编译器与运行时绑定语义一致。
  */
-export {
-    valueType,
-    accepts,
-    resolvePointer,
-    resolveBinding,
-} from "@veriq/contracts";
+export { valueType, accepts, resolvePointer, resolveBinding } from "@veriq/contracts";
 export type { Presence } from "@veriq/contracts";

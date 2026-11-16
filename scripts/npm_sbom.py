@@ -84,9 +84,7 @@ def npm_sbom(
                 ),
             )
             components[key] = component
-            notice_dir = (
-                destination / "licenses" / key.replace("/", "-").replace("@", "_")
-            )
+            notice_dir = destination / "licenses" / key.replace("/", "-").replace("@", "_")
             notice_dir.mkdir(parents=True)
             for path in directory.iterdir():
                 if path.is_file() and path.name.upper().startswith(
@@ -101,9 +99,7 @@ def npm_sbom(
                 + "\n"
             )
         dependencies = [visit(child) for child in node.get("dependencies", {}).values()]
-        edges.setdefault(key, set()).update(
-            str(child.bom_ref) for child in dependencies
-        )
+        edges.setdefault(key, set()).update(str(child.bom_ref) for child in dependencies)
         return components[key]
 
     main = visit(tree[0])

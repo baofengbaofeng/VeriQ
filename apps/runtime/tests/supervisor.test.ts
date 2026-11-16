@@ -14,7 +14,10 @@ test("owned Linux process group stops its real descendants and excludes parent s
             executable: process.execPath,
             args: [
                 "-e",
-                `process.title='veriq_runner'; const {spawn}=require('node:child_process');const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'});console.log(JSON.stringify({pid:process.pid,child:child.pid,secret:process.env.VERIQ_DEVICE_TOKEN??null}));setInterval(()=>{},1000);`,
+                `process.title='veriq_runner'; const {spawn}=require('node:child_process');const child=spawn(proces` +
+                    `s.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'});console.log(JSON.stringify({pid` +
+                    `:process.pid,child:child.pid,secret:process.env.VERIQ_DEVICE_TOKEN??null}));setInterval(()=>{}` +
+                    `,1000);`,
             ],
             cwd: directory,
         });
@@ -133,7 +136,9 @@ test("stop also confirms detached descendant process groups, as used by browser 
             executable: process.execPath,
             args: [
                 "-e",
-                `const {spawn}=require('node:child_process');const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{detached:true,stdio:'ignore'});console.log(child.pid);setInterval(()=>{},1000);`,
+                `const {spawn}=require('node:child_process');const child=spawn(process.execPath,['-e','setInterval(` +
+                    `()=>{},1000)'],{detached:true,stdio:'ignore'});console.log(child.pid);setInterval(()=>{},1000)` +
+                    `;`,
             ],
             cwd: directory,
         });
@@ -188,7 +193,9 @@ test("orphaned detached child with an empty environment cannot survive a positiv
             executable: process.execPath,
             args: [
                 "-e",
-                `const {spawn}=require('node:child_process');const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{detached:true,env:{},stdio:'ignore'});console.log(child.pid);setInterval(()=>{},1000);`,
+                `const {spawn}=require('node:child_process');const child=spawn(process.execPath,['-e','setInterval(` +
+                    `()=>{},1000)'],{detached:true,env:{},stdio:'ignore'});console.log(child.pid);setInterval(()=>{` +
+                    `},1000);`,
             ],
             cwd: directory,
         });
@@ -216,7 +223,9 @@ test("guardian death cannot become positive stop even when the known worker is k
             executable: process.execPath,
             args: [
                 "-e",
-                `const {spawn}=require('node:child_process');const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{detached:true,env:{},stdio:'ignore'});console.log(child.pid);setInterval(()=>{},1000);`,
+                `const {spawn}=require('node:child_process');const child=spawn(process.execPath,['-e','setInterval(` +
+                    `()=>{},1000)'],{detached:true,env:{},stdio:'ignore'});console.log(child.pid);setInterval(()=>{` +
+                    `},1000);`,
             ],
             cwd: directory,
         });
@@ -260,53 +269,69 @@ test("a STOPPED journal without the guardian drain proof remains unknown", async
     }
 });
 
-test("actual Agent-parent death closes private control and the guardian drains clean-environment descendants", async () => {
-    const { spawn } = await import("node:child_process");
-    const { setTimeout: delay } = await import("node:timers/promises");
-    const directory = await mkdtemp(join(tmpdir(), "veriq-t10-parent-lost-")),
-        supervisor = new ProcessSupervisor(directory);
-    const program = `import {ProcessSupervisor} from './src/execution/processes.ts';import {readFile} from 'node:fs/promises';const root=process.argv[1],s=new ProcessSupervisor(root,100);const worker=await s.start('parent',{executable:process.execPath,args:['-e',"const {spawn}=require('node:child_process');const c=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{detached:true,env:{},stdio:'ignore'});console.log(c.pid);setInterval(()=>{},1000);"],cwd:root});const detached=Number(await worker.firstLine());const journal=JSON.parse(await readFile(root+'/parent.process.json','utf8'));console.log(JSON.stringify({worker:worker.pid,detached,guardian:journal.guardianPid}));setInterval(()=>{},1000);`;
-    const parent = spawn(
-        process.execPath,
-        ["--import", "tsx", "--input-type=module", "-e", program, directory],
-        { stdio: ["ignore", "pipe", "pipe"] },
-    );
-    let observed: { worker: number; detached: number; guardian: number } | undefined;
-    try {
-        const line = await new Promise<string>((resolve, reject) => {
-            let data = "";
-            parent.stdout.on("data", (chunk) => {
-                data += chunk.toString();
-                if (data.includes("\n")) resolve(data.slice(0, data.indexOf("\n")));
-            });
-            parent.once("error", reject);
-            parent.once("exit", () => reject(new Error("PARENT_EXITED_BEFORE_READY")));
-        });
-        observed = JSON.parse(line);
-        const gone = new Promise<void>((resolve) => parent.once("exit", () => resolve()));
-        parent.kill("SIGKILL");
-        await gone;
-        const until = performance.now() + 3000;
-        while (
-            ((await supervisor.isRunning(observed!.worker)) ||
-                (await supervisor.isRunning(observed!.detached))) &&
-            performance.now() < until
-        )
-            await delay(20);
-        assert.equal(await supervisor.isRunning(observed!.worker), false);
-        assert.equal(await supervisor.isRunning(observed!.detached), false);
-        assert.equal(
-            (await supervisor.terminateAttempt("parent", "RECOVERY")).processStopped,
-            true,
+test(
+    "actual Agent-parent death closes private control an" +
+        "d the guardian drains clean-environment descendants",
+    async () => {
+        const { spawn } = await import("node:child_process");
+        const { setTimeout: delay } = await import("node:timers/promises");
+        const directory = await mkdtemp(join(tmpdir(), "veriq-t10-parent-lost-")),
+            supervisor = new ProcessSupervisor(directory);
+        const program =
+            `import {ProcessSupervisor} from './src/execution/processes.ts';import {readFile} from 'node:fs` +
+            `/promises';const root=process.argv[1],s=new ProcessSupervisor(root,100);const worker=await s.start('pa` +
+            `rent` +
+            `',{executable:process.execPath,args:['-e',"const {spawn}=require('node:child_process');const c=spawn(p` +
+            `roce` +
+            `ss.execPath,['-e','setInterval(()=>{},1000)'],{detached:true,env:{},stdio:'ignore'});console.log(c.pid` +
+            `);se` +
+            `tInterval(()=>{},1000);"],cwd:root});const detached=Number(await worker.firstLine());const journal=JSO` +
+            `N.pa` +
+            `rse(await readFile(root+'/parent.process.json','utf8'));console.log(JSON.stringify({worker:worker.pid,` +
+            `deta` +
+            `ched,guardian:journal.guardianPid}));setInterval(()=>{},1000);`;
+        const parent = spawn(
+            process.execPath,
+            ["--import", "tsx", "--input-type=module", "-e", program, directory],
+            { stdio: ["ignore", "pipe", "pipe"] },
         );
-    } finally {
-        if (parent.exitCode === null && parent.signalCode === null) parent.kill("SIGKILL");
-        if (observed)
-            for (const pid of [observed.worker, observed.detached, observed.guardian])
-                if (await supervisor.isRunning(pid)) process.kill(pid, "SIGKILL");
-        await rm(directory, { recursive: true, force: true });
-    }
-});
+        let observed: { worker: number; detached: number; guardian: number } | undefined;
+        try {
+            const line = await new Promise<string>((resolve, reject) => {
+                let data = "";
+                parent.stdout.on("data", (chunk) => {
+                    data += chunk.toString();
+                    if (data.includes("\n")) resolve(data.slice(0, data.indexOf("\n")));
+                });
+                parent.once("error", reject);
+                parent.once("exit", () => reject(new Error("PARENT_EXITED_BEFORE_READY")));
+            });
+            observed = JSON.parse(line);
+            const gone = new Promise<void>((resolve) => parent.once("exit", () => resolve()));
+            parent.kill("SIGKILL");
+            await gone;
+            const until = performance.now() + 3000;
+            while (
+                ((await supervisor.isRunning(observed!.worker)) ||
+                    (await supervisor.isRunning(observed!.detached))) &&
+                performance.now() < until
+            )
+                await delay(20);
+            assert.equal(await supervisor.isRunning(observed!.worker), false);
+            assert.equal(await supervisor.isRunning(observed!.detached), false);
+            assert.equal(
+                (await supervisor.terminateAttempt("parent", "RECOVERY")).processStopped,
+                true,
+            );
+        } finally {
+            if (parent.exitCode === null && parent.signalCode === null) parent.kill("SIGKILL");
+            if (observed)
+                for (const pid of [observed.worker, observed.detached, observed.guardian])
+                    if (await supervisor.isRunning(pid)) process.kill(pid, "SIGKILL");
+            await rm(directory, { recursive: true, force: true });
+        }
+    },
+);
 
 test("a real absent-proof observation delivered after natural guardian exit is rechecked", async () => {
     const { setTimeout: delay } = await import("node:timers/promises");

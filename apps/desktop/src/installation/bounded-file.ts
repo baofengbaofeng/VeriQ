@@ -13,14 +13,28 @@ import { resolve } from "node:path";
 export async function readBoundedRegularFile(path: string, limit: number): Promise<Buffer> {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 16 * 1024 * 1024)
         throw new Error("DESKTOP_INPUT_LIMIT_INVALID");
-    if (await realpath(path) !== resolve(path)) throw new Error("DESKTOP_INPUT_LINK_FORBIDDEN");
+    if ((await realpath(path)) !== resolve(path)) throw new Error("DESKTOP_INPUT_LINK_FORBIDDEN");
     const observed = await lstat(path);
-    if (!observed.isFile() || observed.isSymbolicLink() || observed.nlink !== 1 || observed.size > limit)
+    if (
+        !observed.isFile() ||
+        observed.isSymbolicLink() ||
+        observed.nlink !== 1 ||
+        observed.size > limit
+    )
         throw new Error("DESKTOP_INPUT_FILE_INVALID");
-    const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    const handle = await open(
+        path,
+        constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+    );
     try {
         const before = await handle.stat();
-        if (!before.isFile() || before.nlink !== 1 || before.size > limit || before.dev !== observed.dev || before.ino !== observed.ino)
+        if (
+            !before.isFile() ||
+            before.nlink !== 1 ||
+            before.size > limit ||
+            before.dev !== observed.dev ||
+            before.ino !== observed.ino
+        )
             throw new Error("DESKTOP_INPUT_CHANGED");
         const parts: Buffer[] = [];
         let total = 0;
@@ -33,7 +47,14 @@ export async function readBoundedRegularFile(path: string, limit: number): Promi
             parts.push(buffer.subarray(0, bytesRead));
         }
         const after = await handle.stat();
-        if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs || total !== before.size)
+        if (
+            before.dev !== after.dev ||
+            before.ino !== after.ino ||
+            before.size !== after.size ||
+            before.mtimeMs !== after.mtimeMs ||
+            before.ctimeMs !== after.ctimeMs ||
+            total !== before.size
+        )
             throw new Error("DESKTOP_INPUT_CHANGED");
         return Buffer.concat(parts, total);
     } finally {

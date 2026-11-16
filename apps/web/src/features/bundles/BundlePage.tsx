@@ -217,7 +217,8 @@ export function BundleWorkspaceView({
         <section data-testid="bundle-workspace">
             <p>
                 {tx(
-                    "签名用于来源与完整性校验。本地运行使用本机凭证，离线撤销状态未知。 / Signatures verify source and integrity. Local runs use local credentials; offline revocation status is unknown.",
+                    "签名用于来源与完整性校验。本地运行使用本机凭证，离线撤销状态未知。 / Signatures verify source and integrity. Local runs use loca" +
+                        "l credentials; offline revocation status is unknown.",
                 )}
             </p>
             {!canDownload ? (
@@ -393,7 +394,8 @@ export function BundleWorkspaceView({
                     {kind === "DRAFT" && (
                         <p>
                             {tx(
-                                "未验证 DSL 快照；本地必须先编译，不用于正式门禁。 / Unvalidated DSL snapshot; local compilation required, excluded from formal gates.",
+                                "未验证 DSL 快照；本地必须先编译，不用于正式门禁。 / Unvalidated DSL snapshot; local compilation required," +
+                                    " excluded from formal gates.",
                             )}
                         </p>
                     )}

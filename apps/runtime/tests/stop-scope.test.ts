@@ -470,7 +470,9 @@ async function online(root: string) {
     const worker = join(root, "probe.mjs");
     await writeFile(
         worker,
-        `import {writeFileSync} from 'node:fs';import {join} from 'node:path';process.once('message',()=>{writeFileSync(join(process.cwd(),'worker-result.json'),JSON.stringify({kind:'CLEANUP',businessOutcome:'PASSED',cleanupStatus:'SUCCEEDED'}));process.exit(0);});setInterval(()=>{},1000);`,
+        `import {writeFileSync} from 'node:fs';import {join} from 'node:path';process.once('message',()=>{writeFile` +
+            `Sync(join(process.cwd(),'worker-result.json'),JSON.stringify({kind:'CLEANUP',businessOutcome:'PASSED',` +
+            `cleanupStatus:'SUCCEEDED'}));process.exit(0);});setInterval(()=>{},1000);`,
     );
     const bodies: { path: string; body: Record<string, unknown> }[] = [];
     const client = {

@@ -21,9 +21,7 @@ class RendererFaultBoundaryTests(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory(prefix="veriq-renderer-fault-")
         self.electron = Path(self.directory.name) / "electron"
         self.electron.write_bytes(b"test identity placeholder, not executable")
-        self.child = subprocess.Popen(
-            [sys.executable, "-c", "import signal; signal.pause()"]
-        )
+        self.child = subprocess.Popen([sys.executable, "-c", "import signal; signal.pause()"])
         self.request = {
             "mainPid": os.getpid(),
             "rendererPid": self.child.pid,
@@ -54,9 +52,7 @@ class RendererFaultBoundaryTests(unittest.TestCase):
                 f"Owned child pidfd proof: pid={self.child.pid} signal=SIGKILL exit=-9 pidfdPoll=readable",
                 flush=True,
             )
-            with self.assertRaisesRegex(
-                renderer_fault.FaultRejected, "PIDFD_IDENTITY_MISMATCH"
-            ):
+            with self.assertRaisesRegex(renderer_fault.FaultRejected, "PIDFD_IDENTITY_MISMATCH"):
                 renderer_fault.check_fd(fd, self.child.pid)
         finally:
             os.close(fd)
@@ -105,16 +101,12 @@ class RendererFaultBoundaryTests(unittest.TestCase):
             patch.object(signal, "pidfd_send_signal") as send,
         ):
             with patch.object(renderer_fault, "identity", wrong_parent):
-                with self.assertRaisesRegex(
-                    renderer_fault.FaultRejected, "ANCESTRY_MISMATCH"
-                ):
+                with self.assertRaisesRegex(renderer_fault.FaultRejected, "ANCESTRY_MISMATCH"):
                     renderer_fault.inject(self.request)
             send.assert_not_called()
         fd = os.pidfd_open(self.child.pid, 0)
         try:
-            with self.assertRaisesRegex(
-                renderer_fault.FaultRejected, "PIDFD_IDENTITY_MISMATCH"
-            ):
+            with self.assertRaisesRegex(renderer_fault.FaultRejected, "PIDFD_IDENTITY_MISMATCH"):
                 renderer_fault.check_fd(fd, os.getpid())
         finally:
             os.close(fd)

@@ -39,7 +39,8 @@ export function x11WindowIds(tree: string): string[] {
     return (tree.match(/0x[0-9a-f]+/gi) ?? []).filter((id) => BigInt(id) !== 0n);
 }
 
-/** 业务响应被夹具暂缓期间，从真实 X11 窗口反查完整浏览器及监管器后代关系，并读取该 Attempt 的实际生成配置与 worker 显示环境；所有观察都来自本轮拥有的进程，不能另起一个示例浏览器代替 runOffline 的接线证明。 */
+/** 业务响应被夹具暂缓期间，从真实 X11 窗口反查完整浏览器及监管器后代关系，并读取该 Attempt 的实际生成配置与 worker 显示环境；所有观察都来自本轮拥有的进程，不能另起一个示例浏览器代替 runOffline 的
+ * 接线证明。 */
 export async function observeHeadedRun(
     profile: string,
     agentPid: number,

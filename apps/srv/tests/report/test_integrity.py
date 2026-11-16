@@ -1,4 +1,3 @@
-
 from test_auth import setup, login
 from test_workspace import workspace
 from test_lease_mysql import queued_browser_jobs

@@ -54,7 +54,11 @@ export async function withWindowsOwnership(
         await copyFile(process.execPath, role);
         for (const id of ids) {
             await writeFile(challengePath(id), "initial");
-            const script = `const fs=require('node:fs');let sequence=0;setInterval(()=>{const challenge=fs.readFileSync(${JSON.stringify(challengePath(id))},'utf8');fs.writeFileSync(${JSON.stringify(progressPath(id))},JSON.stringify({challenge,sequence:++sequence}));},20);console.log('READY');`;
+            const script =
+                `const fs=require('node:fs');let sequence=0;setInterval(()=>{const challenge=fs.readFile` +
+                `Sync(${JSON.stringify(challengePath(id))},'utf8');fs.writeFileSync(` +
+                `${JSON.stringify(progressPath(id))}` +
+                `,JSON.stringify({challenge,sequence:++sequence}));},20);console.log('READY');`;
             attempted.push(id);
             const owned = await processes.start(id, {
                 executable: role,

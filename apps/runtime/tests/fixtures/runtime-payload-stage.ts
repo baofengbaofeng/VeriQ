@@ -5,7 +5,8 @@ import { GENERATOR_SOURCES } from "../../scripts/runtime-payload-generation.ts";
 import { archiveModel } from "./runtime-payload-archives.ts";
 import { bytes, hash } from "./runtime-payload.ts";
 
-/** 完整 stage 夹具复制当前真正使用的微型源码字节并同步重封原 SourceBinding 和全部构建收据，npm 包也有真实声明与自有树摘要；假 Node 和 Chrome 都是普通测试文本，绝不执行或冒充 Mac 原生验收。 */
+/** 完整 stage 夹具复制当前真正使用的微型源码字节并同步重封原 SourceBinding 和全部构建收据，npm 包也有真实声明与自有树摘要；假 Node 和 Chrome 都是普通测试文本，绝不执行或冒充 Mac 原生验
+ * 收。 */
 export async function stageModel(arch: Arch = "x64") {
     const value = archiveModel(arch);
     value.add("entries", "chunks/shared.js", "export const shared = true;\n");
@@ -70,7 +71,9 @@ export async function stageModel(arch: Arch = "x64") {
         value.receipts.dependencies.linker.lockAfterSha256 = value.recipe.source.pnpmLock.sha256;
         value.bind(nodeOverride, chromeOverride);
         for (const instance of value.nodeReceipt.npmGraph.instances)
-            instance.lockSnapshot = `node-archive:${value.recipe.node.file.sha256}:${instance.root === "npm" ? "." : instance.root.slice(4)}`;
+            instance.lockSnapshot =
+                `node-archive:${value.recipe.node.file.sha256}:` +
+                `${instance.root === "npm" ? "." : instance.root.slice(4)}`;
         return value.seal();
     };
     seal();

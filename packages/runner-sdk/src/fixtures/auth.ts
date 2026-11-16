@@ -2,12 +2,7 @@
  * 本文件提供业务认证夹具辅助：组装鉴权头并在页面或请求上完成已钉选身份的登录校验，专用于 auth 路径（CANCELLED）。
  */
 
-import {
-    request,
-    type APIRequestContext,
-    type BrowserContext,
-    type Route,
-} from "@playwright/test";
+import { request, type APIRequestContext, type BrowserContext, type Route } from "@playwright/test";
 import { createHash } from "node:crypto";
 import {
     canonicalBytes,
@@ -18,17 +13,11 @@ import {
 } from "@veriq/contracts";
 import type { LifecycleContext, FixtureServiceContext } from "../register-case.js";
 import { authorizedURL } from "../http.js";
-const headers = new WeakMap<
-    BrowserContext,
-    { origin: string; token: string }
->();
+const headers = new WeakMap<BrowserContext, { origin: string; token: string }>();
 /**
  * 公开函数 businessHeaders 根据认证材料组装业务请求头：不把密钥回写入普通日志字段（businessHeaders/CANCELLED）。
  */
-export function businessHeaders(
-    context: BrowserContext,
-    url: string,
-): Record<string, string> {
+export function businessHeaders(context: BrowserContext, url: string): Record<string, string> {
     const value = headers.get(context);
     return value && new URL(url).origin === value.origin
         ? { authorization: `Bearer ${value.token}` }
@@ -55,16 +44,13 @@ export async function authenticatedRequest(
     if (!adapter || adapter.workspaceId !== execution.workspaceId)
         throw new Error("AUTH_ADAPTER_REQUIRED");
     if (
-        createHash("sha256")
-            .update(canonicalBytes(adapter.configuration))
-            .digest("hex") !== adapter.contentHash
+        createHash("sha256").update(canonicalBytes(adapter.configuration)).digest("hex") !==
+        adapter.contentHash
     )
         throw new Error("AUTH_ADAPTER_HASH_MISMATCH");
     if (
         !execution.secretVersions.some(
-            (s) =>
-                s.secretRef === identity.secretRef &&
-                s.versionId === identity.secretVersionId,
+            (s) => s.secretRef === identity.secretRef && s.versionId === identity.secretVersionId,
         )
     )
         throw new Error("SECRET_VERSION_MISMATCH");
@@ -77,11 +63,7 @@ export async function authenticatedRequest(
     ).href;
     const loginURL =
         config.kind === "HTTP_SESSION"
-            ? authorizedURL(
-                    config.loginPath,
-                    base,
-                    execution.environment.allowedOrigins,
-                ).href
+            ? authorizedURL(config.loginPath, base, execution.environment.allowedOrigins).href
             : undefined;
     const secret = await context.credentials.resolve(
         {
@@ -107,9 +89,7 @@ export async function authenticatedRequest(
         token = secret.token;
     }
     const client = await request.newContext({
-        ...(token
-            ? { extraHTTPHeaders: { authorization: `Bearer ${token}` } }
-            : {}),
+        ...(token ? { extraHTTPHeaders: { authorization: `Bearer ${token}` } } : {}),
     });
     const abort = () => {
         void client.dispose().catch(() => {});
@@ -187,9 +167,7 @@ export async function authenticateBusiness(
                 try {
                     const url = r.request().url();
                     if (
-                        !context.execution.environment.allowedOrigins.includes(
-                            new URL(url).origin,
-                        )
+                        !context.execution.environment.allowedOrigins.includes(new URL(url).origin)
                     ) {
                         await r.abort();
                         return;

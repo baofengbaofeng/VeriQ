@@ -49,8 +49,7 @@ export class EvidencePolicy {
             )
                 return "[REDACTED]";
             const restricted =
-                value.sensitivity === "CREDENTIAL_RESTRICTED" ||
-                value.kind === "download";
+                value.sensitivity === "CREDENTIAL_RESTRICTED" || value.kind === "download";
             return Object.fromEntries(
                 Object.entries(value)
                     .filter(
@@ -60,9 +59,11 @@ export class EvidencePolicy {
                     )
                     .map(([key, item]) => [
                         key,
-                        /^(authorization|proxy-authorization|cookie|set-cookie|cleanupToken|x-veriq-lease-token|x-veriq-fencing-token)$/iu.test(
-                            key,
-                        )
+                        new RegExp(
+                            "^(authorization|proxy-authorization|cookie|set-cookie|cleanupToken|x-veriq-lease" +
+                                "-token|x-veriq-fencing-token)$",
+                            "iu",
+                        ).test(key)
                             ? "[REDACTED]"
                             : this.redact(item),
                     ]),
@@ -102,31 +103,22 @@ export class EvidencePolicy {
             "handling",
             "pageKey",
         ]);
-        const dynamic = new Set([
-            "expected",
-            "value",
-            "data",
-            "vars",
-            "variables",
-            "headers",
-        ]);
+        const dynamic = new Set(["expected", "value", "data", "vars", "variables", "headers"]);
         const restricted =
-            value.sensitivity === "CREDENTIAL_RESTRICTED" ||
-            value.kind === "download";
+            value.sensitivity === "CREDENTIAL_RESTRICTED" || value.kind === "download";
         return Object.fromEntries(
             Object.entries(value)
                 .filter(
                     ([key]) =>
-                        !restricted ||
-                        !["path", "bytes", "body", "buffer", "url"].includes(key),
+                        !restricted || !["path", "bytes", "body", "buffer", "url"].includes(key),
                 )
                 .map(([key, item]) => [
                     key,
                     identifiers.has(key)
                         ? item
                         : dynamic.has(key)
-                            ? this.redact(item)
-                            : this.redactProtocol(item),
+                          ? this.redact(item)
+                          : this.redactProtocol(item),
                 ]),
         );
     };
@@ -137,8 +129,7 @@ export class EvidencePolicy {
         evidence: RestrictedEvidence,
         capability: { credentialEvidence: boolean },
     ): RestrictedEvidence {
-        if (!capability.credentialEvidence)
-            throw new Error("CREDENTIAL_EVIDENCE_FORBIDDEN");
+        if (!capability.credentialEvidence) throw new Error("CREDENTIAL_EVIDENCE_FORBIDDEN");
         return evidence;
     }
     private async path(directory: string, extension: string): Promise<string> {
@@ -158,10 +149,7 @@ export class EvidencePolicy {
     /**
      * 公开方法 stopTrace 停止浏览器上下文 Trace 并保存到受限目录：供授权操作员本机查看：不上传公共服务（stopTrace）。
      */
-    async stopTrace(
-        context: BrowserContext,
-        directory: string,
-    ): Promise<RestrictedEvidence> {
+    async stopTrace(context: BrowserContext, directory: string): Promise<RestrictedEvidence> {
         const path = await this.path(directory, "zip");
         await context.tracing.stop({ path });
         await chmod(path, 0o600);

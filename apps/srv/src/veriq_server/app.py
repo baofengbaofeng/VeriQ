@@ -336,7 +336,10 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
             "service-account-disable",
         ),
         (
-            "/api/v1/workspaces/([0-9a-fA-F-]{36})/service-accounts/([0-9a-fA-F-]{36})/tokens/([0-9a-fA-F-]{36})/revoke",
+            (
+                "/api/v1/workspaces/([0-9a-fA-F-]{36})/service-accounts/([0-9a-fA-F-]{36})/tokens/([0-9a-fA-F-]{36})/re"
+                "voke"
+            ),
             "service-token-revoke",
         ),
         ("/api/v1/runtime-enrollments", "enrollment-request"),
@@ -398,7 +401,10 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
             "dependents",
         ),
         (
-            "/api/v1/workspaces/([0-9a-fA-F-]{36})/resources/([0-9a-fA-F-]{36})/versions/([0-9a-fA-F-]{36})/compiled-source",
+            (
+                "/api/v1/workspaces/([0-9a-fA-F-]{36})/resources/([0-9a-fA-F-]{36})/versions/([0-9a-fA-F-]{36})/compile"
+                "d-source"
+            ),
             "compiled-source",
         ),
         (
@@ -416,7 +422,10 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
             "credential-versions",
         ),
         (
-            "/api/v1/workspaces/([0-9a-fA-F-]{36})/credentials/([A-Za-z_][A-Za-z0-9_-]{0,159})/versions/([0-9a-fA-F-]{36})/revoke",
+            (
+                "/api/v1/workspaces/([0-9a-fA-F-]{36})/credentials/([A-Za-z_][A-Za-z0-9_-]{0,"
+                "159})/versions/([0-9a-fA-F-]{36})/revoke"
+            ),
             "credential-revoke",
         ),
         ("/internal/v1/attempts/([0-9a-fA-F-]{36})/credentials/resolve", "credential-resolve"),
@@ -447,7 +456,11 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
         ("/health/live", HealthAPI, {"config": settings, "db": db, "action": "public-live"}),
         ("/health/ready", HealthAPI, {"config": settings, "db": db, "action": "public-ready"}),
         ("/api/v1/build-info", BuildInfoAPI, {"config": settings, "db": db}),
-        ("/api/v1/examples/sample-workspace", SampleWorkspaceExampleAPI, {"config": settings, "db": db, "action": "sample-workspace-example"}),
+        (
+            "/api/v1/examples/sample-workspace",
+            SampleWorkspaceExampleAPI,
+            {"config": settings, "db": db, "action": "sample-workspace-example"},
+        ),
     ] + [
         (path, handler_for(action), {"config": settings, "db": db, "action": action})
         for path, action in routes

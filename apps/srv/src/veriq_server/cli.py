@@ -46,6 +46,7 @@ async def run(args: argparse.Namespace) -> None:
     }
     if args.command == "issuer":
         from .bundles.issuer import Issuer
+
         if args.operation == "init":
             issuer = Issuer.initialize(args.path)
         else:
@@ -70,6 +71,7 @@ async def run(args: argparse.Namespace) -> None:
                 values[field] = secrets.token_hex(32)
         if "bundle_issuer_path" not in values and not existed:
             from .bundles.issuer import Issuer
+
             issuer_path = args.config.parent / "veriq-issuer" / "issuer.json"
             if not issuer_path.exists():
                 Issuer.initialize(issuer_path)
@@ -113,7 +115,10 @@ async def run(args: argparse.Namespace) -> None:
         finally:
             await db.close()
         print(
-            "VeriQ initialized. Configuration and installation-secret files are operator-only. Use setup or create-admin; back up external keys."
+            (
+                "VeriQ initialized. Configuration and installation-secret files are operator-only. Use setup or "
+                "create-admin; back up external keys."
+            )
         )
         return
     settings = load_settings(args.config, overrides)
@@ -123,27 +128,54 @@ async def run(args: argparse.Namespace) -> None:
         return
     if args.command == "rotate-master-key":
         from .rekey import rotate_configuration
+
         rotate_configuration(settings, args.output, args.new_key_id)
-        print("VeriQ key rotation configuration created. Keep previous keys and switch configuration before rekeying.")
+        print(
+            "VeriQ key rotation configuration created. Keep previous keys and switch configuration before rekeying."
+        )
         return
     db = Database(settings)
     try:
         if args.command == "backup":
             from .recovery import backup
-            receipt = await backup(db, settings, args.destination, services_stopped=args.services_stopped, configuration_path=args.config)
+
+            receipt = await backup(
+                db,
+                settings,
+                args.destination,
+                services_stopped=args.services_stopped,
+                configuration_path=args.config,
+            )
             print(json.dumps({"manifestSha256": receipt}))
         elif args.command == "restore":
             from .recovery import restore
-            await restore(db, settings, args.source, expected_digest=args.expected_manifest_sha256,
-                          services_stopped=args.services_stopped, allow_restore=args.allow_restore,
-                          confirm_empty_target=args.confirm_empty_target, allow_s3_inventory=args.allow_s3_inventory, configuration_path=args.config)
+
+            await restore(
+                db,
+                settings,
+                args.source,
+                expected_digest=args.expected_manifest_sha256,
+                services_stopped=args.services_stopped,
+                allow_restore=args.allow_restore,
+                confirm_empty_target=args.confirm_empty_target,
+                allow_s3_inventory=args.allow_s3_inventory,
+                configuration_path=args.config,
+            )
             print("VeriQ backup restored. Run doctor and readiness checks before enabling writers.")
         elif args.command == "rekey":
             from .rekey import rekey
-            print(json.dumps(await rekey(db, settings, services_stopped=args.services_stopped, limit=args.limit)))
+
+            print(
+                json.dumps(
+                    await rekey(
+                        db, settings, services_stopped=args.services_stopped, limit=args.limit
+                    )
+                )
+            )
         elif args.command == "doctor":
             from .handlers.static import load_published_site
             from .readiness import ReadinessMonitor
+
             monitor = ReadinessMonitor(settings, db, load_published_site(settings))
             try:
                 checks = await monitor.check()
@@ -203,7 +235,10 @@ def main() -> None:
     parser.add_argument("--port", type=int)
     parser.add_argument("--environment", choices=["production", "development"])
     sub = parser.add_subparsers(dest="command", required=True)
-    issuer = sub.add_parser("issuer", help="Initialize/rotate/revoke the dedicated bundle issuer; output public metadata only")
+    issuer = sub.add_parser(
+        "issuer",
+        help="Initialize/rotate/revoke the dedicated bundle issuer; output public metadata only",
+    )
     issuer.add_argument("operation", choices=["init", "show", "rotate", "revoke"])
     issuer.add_argument("--path", type=Path, required=True)
     issuer.add_argument("--key-id")
@@ -211,20 +246,30 @@ def main() -> None:
     sub.add_parser("migrate")
     sub.add_parser("serve")
     sub.add_parser("doctor")
-    backup_parser = sub.add_parser("backup", help="Consistent offline database/artifact/key snapshot; requires MySQL global read lock privilege")
+    backup_parser = sub.add_parser(
+        "backup",
+        help="Consistent offline database/artifact/key snapshot; requires MySQL global read lock privilege",
+    )
     backup_parser.add_argument("--destination", type=Path, required=True)
     backup_parser.add_argument("--services-stopped", action="store_true")
-    restore_parser = sub.add_parser("restore", help="Restore into an empty migrated target of the exact installed version")
+    restore_parser = sub.add_parser(
+        "restore", help="Restore into an empty migrated target of the exact installed version"
+    )
     restore_parser.add_argument("--source", type=Path, required=True)
     restore_parser.add_argument("--expected-manifest-sha256", required=True)
     restore_parser.add_argument("--services-stopped", action="store_true")
     restore_parser.add_argument("--allow-restore", action="store_true")
     restore_parser.add_argument("--confirm-empty-target", action="store_true")
     restore_parser.add_argument("--allow-s3-inventory", action="store_true")
-    rotation = sub.add_parser("rotate-master-key", help="Create a new private configuration retaining all previous master keys")
+    rotation = sub.add_parser(
+        "rotate-master-key",
+        help="Create a new private configuration retaining all previous master keys",
+    )
     rotation.add_argument("--new-key-id", required=True)
     rotation.add_argument("--output", type=Path, required=True)
-    rekey_parser = sub.add_parser("rekey", help="Rewrap a bounded batch without changing credential version identities")
+    rekey_parser = sub.add_parser(
+        "rekey", help="Rewrap a bounded batch without changing credential version identities"
+    )
     rekey_parser.add_argument("--services-stopped", action="store_true")
     rekey_parser.add_argument("--limit", type=int, default=100)
     admin = sub.add_parser("create-admin")
@@ -233,6 +278,7 @@ def main() -> None:
     try:
         if sys.platform.startswith("linux"):
             import ctypes
+
             if ctypes.CDLL(None, use_errno=True).prctl(15, b"veriq", 0, 0, 0) != 0:
                 raise OSError("VeriQ process identity could not be set")
         asyncio.run(run(parser.parse_args()))

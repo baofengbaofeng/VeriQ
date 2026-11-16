@@ -186,13 +186,16 @@ test("resource forms save a canonical case and publish only after real Agent val
             await expect(page.getByTestId("resource-status")).toContainText("Saved");
             const catalog = await publish();
             const metadataResponse = await page.request.get(
-                `/api/v1/workspaces/${workspace.id}/resources/${catalog.resourceId}/versions/${catalog.id}/compiled-source`,
+                `/api/v1/workspaces/${workspace.id}/resources/${catalog.resourceId}/versions/${catalog.id}` +
+                    `/compiled-source`,
             );
             expect(metadataResponse.status()).toBe(200);
             const metadata = (await metadataResponse.json()).data;
             expect(metadata.files.length).toBeGreaterThan(0);
             const file = metadata.files.find((f: { path: string }) => f.path.endsWith(".ts"));
-            const sourceBase = `/api/v1/workspaces/${workspace.id}/resources/${catalog.resourceId}/versions/${catalog.id}/compiled-source`;
+            const sourceBase =
+                `/api/v1/workspaces/${workspace.id}/resources/${catalog.resourceId}/versions/` +
+                `${catalog.id}/compiled-source`;
             const exactResponse = await page.request.get(sourceBase, {
                 params: { path: file.path },
             });
@@ -232,7 +235,8 @@ test("resource forms save a canonical case and publish only after real Agent val
             const files = (
                 await (
                     await page.request.get(
-                        `/api/v1/workspaces/${workspace.id}/resources/${version.resourceId}/versions/${version.id}/compiled-source`,
+                        `/api/v1/workspaces/${workspace.id}/resources/${version.resourceId}/versions/${version.id}` +
+                            `/compiled-source`,
                     )
                 ).json()
             ).data;

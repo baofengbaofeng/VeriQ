@@ -8,7 +8,8 @@ const names = ["Cookies", "Cookies-wal", "Cookies-shm", "Cookies-journal"];
 const limit = 64 * 1024 * 1024;
 const missing = (error: unknown) => (error as NodeJS.ErrnoException)?.code === "ENOENT";
 
-/** Linux 逐级打开并持有真实父目录描述符，文件只作同句柄类型、拥有者、权限和大小检查而不读取 Cookie 内容；Windows 交给同等固定用途原生操作，真正不存在才返回 false，符号链接、公开对象与未知失败都不能被略过。 */
+/** Linux 逐级打开并持有真实父目录描述符，文件只作同句柄类型、拥有者、权限和大小检查而不读取 Cookie 内容；Windows 交给同等固定用途原生操作，真正不存在才返回 false，符号链接、公开对象与未知失败都不能被略
+ * 过。 */
 async function member(directory: string, name: string, retire: boolean): Promise<boolean> {
     if (!names.includes(name)) throw new Error("COOKIE_MEMBER_INVALID");
     if (process.platform === "win32") {
@@ -66,7 +67,8 @@ async function member(directory: string, name: string, retire: boolean): Promise
     }
 }
 
-/** 调用方已验证当前运行二进制 fuse 和 OS 提供者并持有 Electron 单实例所有权，才可准备该档案 Cookie 分区；旧状态需要明确同意重新登录，已记录的重置可继续完成，完成标记不声称介质擦除或跨任意降级版本的保护。 */
+/** 调用方已验证当前运行二进制 fuse 和 OS 提供者并持有 Electron 单实例所有权，才可准备该档案 Cookie 分区；旧状态需要明确同意重新登录，已记录的重置可继续完成，完成标记不声称介质擦除或跨任意降级版本的保护
+ * 。 */
 export async function prepareCookieStorage(
     profile: string,
     sessionData: string,

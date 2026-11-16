@@ -1,4 +1,3 @@
-
 import asyncio
 import copy
 import json
@@ -657,7 +656,14 @@ async def test_engine_change_cannot_republish_same_immutable_revision(site):
     old, _, original_snapshot = await publish(c, db, path)
     sockets = bind_sockets(0, "127.0.0.1")
     origin = f"http://127.0.0.1:{sockets[0].getsockname()[1]}"
-    settings = Settings(database_url=db.engine.url.render_as_string(hide_password=False), public_url=origin, master_key="a" * 64, signing_key="b" * 64, environment="development", validation_engine_version="0.2.0")
+    settings = Settings(
+        database_url=db.engine.url.render_as_string(hide_password=False),
+        public_url=origin,
+        master_key="a" * 64,
+        signing_key="b" * 64,
+        environment="development",
+        validation_engine_version="0.2.0",
+    )
     application = make_app(settings, db)
     server = HTTPServer(application)
     server.add_sockets(sockets)
@@ -670,7 +676,9 @@ async def test_engine_change_cannot_republish_same_immutable_revision(site):
             assert preview["engineVersion"] == "0.2.0"
             assert preview["sourceHash"] != original_snapshot["sourceHash"]
             receipt, _ = await completed(db, job["id"])
-            response = await current.post(path + "/publish", json={"revision": 1, "validationReceiptId": receipt})
+            response = await current.post(
+                path + "/publish", json={"revision": 1, "validationReceiptId": receipt}
+            )
             assert response.status_code == 409, response.text
             assert (await c.get(path + "/versions/" + old["id"])).json()["data"] == old
     finally:

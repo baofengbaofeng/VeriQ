@@ -231,7 +231,8 @@ async function attempt(
     result: OfflineAttemptV1;
     owner: Ownership;
 }> {
-    const source = config.darwinSource === undefined ? undefined : requireDarwinSource(config.darwinSource);
+    const source =
+        config.darwinSource === undefined ? undefined : requireDarwinSource(config.darwinSource);
     let owner = ownership;
     const runId = execution.runId,
         work = join(config.root, "work", attemptId),
@@ -247,26 +248,41 @@ async function attempt(
         spawning = false;
     let monitor: ReturnType<typeof monitorStorage> | undefined;
     let brokerDirectory: Awaited<ReturnType<typeof createDarwinBrokerDirectory>> | undefined;
-    let startIssued = false, stopOperation: Promise<StopReceipt> | undefined;
-    let privateEndpoint: string | undefined, retainPrivateReports = false;
+    let startIssued = false,
+        stopOperation: Promise<StopReceipt> | undefined;
+    let privateEndpoint: string | undefined,
+        retainPrivateReports = false;
     const pendingDownloads: string[] = [];
-    const privacyReporter = join(work, "node_modules/@veriq/runner-sdk/src/endpoint-json-reporter.js");
+    const privacyReporter = join(
+        work,
+        "node_modules/@veriq/runner-sdk/src/endpoint-json-reporter.js",
+    );
     let cancellationObserver: ReturnType<typeof setInterval> | undefined;
     const controller = new AbortController();
-    /** Darwin 的首次取消立即调用并保存唯一终结操作，start 尚未返回 child 时也已同步登记准入；后续轮询、存储错误和 finally 共享同一预算，不以 ACK、短等待或未赋值的 child 推断已经退出或没有派生。 */
-    const stopOnce = (why: string) => stopOperation ??= processes.terminateAttempt(attemptId, why);
+    /** Darwin 的首次取消立即调用并保存唯一终结操作，start 尚未返回 child 时也已同步登记准入；后续轮询、存储错误和 finally 共享同一预算，不以 ACK、短等待或未赋值的 child 推断已经退出或没
+     * 有派生。 */
+    const stopOnce = (why: string) =>
+        (stopOperation ??= processes.terminateAttempt(attemptId, why));
     const unspawned = async () => {
         if (spawning) return;
         if (source) {
             let records: ProcessRecords | undefined;
             try {
                 records = await ProcessRecords.open(join(config.root, "processes"));
-                if (records) for (const suffix of ["process.json", "controlled.json", "drained.json"]) {
-                    try { await records.read(`${attemptId}.${suffix}`, 65536); return; }
-                    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") return; }
-                }
-            } catch { return; }
-            finally { await records?.close(); }
+                if (records)
+                    for (const suffix of ["process.json", "controlled.json", "drained.json"]) {
+                        try {
+                            await records.read(`${attemptId}.${suffix}`, 65536);
+                            return;
+                        } catch (error) {
+                            if ((error as NodeJS.ErrnoException).code !== "ENOENT") return;
+                        }
+                    }
+            } catch {
+                return;
+            } finally {
+                await records?.close();
+            }
         }
         return store.unspawnedStop(owner);
     };
@@ -362,48 +378,54 @@ async function attempt(
         }
         await write("execution.json", canonicalBytes(execution));
         await write("release.json", canonicalBytes(release.entry));
-        broker = new AttemptBroker(join(brokerDirectory?.path ?? tmp, "control.sock"), async (message) => {
-            if (message.type === "status")
-                return { cancelled: controller.signal.aborted || store.cancelled(runId) };
-            if (message.type === "credential") {
-                if (controller.signal.aborted || store.cancelled(runId))
-                    throw new Error("ATTEMPT_STOPPING");
-                return resolver.resolve(
-                    {
-                        ...(message.reference as {
-                            workspaceId: string;
-                            secretRef: string;
-                            versionId: string;
-                        }),
-                        issuerId: checked.manifest.issuerId,
-                    },
-                    context,
-                );
-            }
-            if (message.type === "event") {
-                const event = message.event as SdkEvent;
-                append(sdkFact(event));
-                if (event.type === "CASE_FINISHED") caseResult = event.result;
-                return {};
-            }
-            if (message.type === "restricted") {
-                const evidence = message.evidence as {
-                    kind: string;
-                    path: string;
-                    sensitivity: string;
-                };
-                if (
-                    evidence.kind !== "DOWNLOAD" ||
-                    evidence.sensitivity !== "CREDENTIAL_RESTRICTED" ||
-                    !containedPath(source ? join(work, "downloads") : tmp!, resolve(evidence.path))
-                )
-                    throw new Error("UNSAFE_EVIDENCE");
-                if (source) pendingDownloads.push(evidence.path);
-                else await add(evidence.path, "DOWNLOAD", `download-${artifacts.length}.bin`);
-                return {};
-            }
-            throw new Error("INVALID_IPC_OPERATION");
-        });
+        broker = new AttemptBroker(
+            join(brokerDirectory?.path ?? tmp, "control.sock"),
+            async (message) => {
+                if (message.type === "status")
+                    return { cancelled: controller.signal.aborted || store.cancelled(runId) };
+                if (message.type === "credential") {
+                    if (controller.signal.aborted || store.cancelled(runId))
+                        throw new Error("ATTEMPT_STOPPING");
+                    return resolver.resolve(
+                        {
+                            ...(message.reference as {
+                                workspaceId: string;
+                                secretRef: string;
+                                versionId: string;
+                            }),
+                            issuerId: checked.manifest.issuerId,
+                        },
+                        context,
+                    );
+                }
+                if (message.type === "event") {
+                    const event = message.event as SdkEvent;
+                    append(sdkFact(event));
+                    if (event.type === "CASE_FINISHED") caseResult = event.result;
+                    return {};
+                }
+                if (message.type === "restricted") {
+                    const evidence = message.evidence as {
+                        kind: string;
+                        path: string;
+                        sensitivity: string;
+                    };
+                    if (
+                        evidence.kind !== "DOWNLOAD" ||
+                        evidence.sensitivity !== "CREDENTIAL_RESTRICTED" ||
+                        !containedPath(
+                            source ? join(work, "downloads") : tmp!,
+                            resolve(evidence.path),
+                        )
+                    )
+                        throw new Error("UNSAFE_EVIDENCE");
+                    if (source) pendingDownloads.push(evidence.path);
+                    else await add(evidence.path, "DOWNLOAD", `download-${artifacts.length}.bin`);
+                    return {};
+                }
+                throw new Error("INVALID_IPC_OPERATION");
+            },
+        );
         await broker.open();
         const executionPaths = config.execution ?? developmentExecutionPaths();
         const invocation = {
@@ -452,7 +474,11 @@ async function attempt(
                 },
             },
         };
-        if (!source) await write("playwright.config.mjs", Buffer.from(`export default ${JSON.stringify(pw)};`));
+        if (!source)
+            await write(
+                "playwright.config.mjs",
+                Buffer.from(`export default ${JSON.stringify(pw)};`),
+            );
         if (controller.signal.aborted || store.cancelled(runId)) throw new Error("USER_CANCELLED");
         const environment = offlineWorkerEnvironment(
             tmp,
@@ -466,33 +492,81 @@ async function attempt(
         owner = store.spawning(runId, attemptId, owner);
         if (controller.signal.aborted || store.cancelled(runId)) throw new Error("USER_CANCELLED");
         startIssued = true;
-        /** 持久取消由其他 SQLite 连接写入而不会派发当前 AbortSignal，因此在实际启动准入之前武装相同一百毫秒观察；启动仍在等待 Chrome 或 READY 时也走首次停止操作，读取异常同样关闭准入，finally 清除后才允许关闭数据库。 */
-        if (source) cancellationObserver = setInterval(() => {
-            if (controller.signal.aborted) return;
-            try { if (store.cancelled(runId)) stopRequest("USER_CANCELLED"); }
-            catch { stopRequest("LOCAL_CANCELLATION_READ_FAILED"); }
-        }, 100);
-        const starting = processes.start(attemptId, {
-            executable: executionPaths.runnerExecutable,
-            args: [executionPaths.workerEntry, join(work, "invocation.json")],
-            cwd: work,
-            env: environment,
-        }, source ? {
-            kind: "TEST", ownerGeneration: owner.generation, headless: config.headless ?? true, downloadsPath: invocation.downloads,
-            prepare: (context) => {
-                if (controller.signal.aborted || store.cancelled(runId)) throw new Error("USER_CANCELLED");
-                if (!context.wsEndpoint) throw new Error("DARWIN_BROWSER_ENDPOINT_REQUIRED");
-                context.publish("invocation.json", Buffer.from(canonicalBytes({ ...invocation, controlled: context.controlled })));
-                privateEndpoint = context.wsEndpoint;
-                const { launchOptions: _launchOptions, ...use } = pw.use;
-                context.publish("playwright.config.mjs", Buffer.from(`export default ${JSON.stringify({ ...pw, reporter: [...pw.reporter, [privacyReporter, { outputFile: join(tmp!, "playwright.json") }]], use: { ...use, connectOptions: { wsEndpoint: context.wsEndpoint } } })};`));
+        /** 持久取消由其他 SQLite 连接写入而不会派发当前 AbortSignal，因此在实际启动准入之前武装相同一百毫秒观察；启动仍在等待 Chrome 或 READY 时也走首次停止操作，读取异常同样关闭准入，f
+         * inally 清除后才允许关闭数据库。 */
+        if (source)
+            cancellationObserver = setInterval(() => {
+                if (controller.signal.aborted) return;
+                try {
+                    if (store.cancelled(runId)) stopRequest("USER_CANCELLED");
+                } catch {
+                    stopRequest("LOCAL_CANCELLATION_READ_FAILED");
+                }
+            }, 100);
+        const starting = processes.start(
+            attemptId,
+            {
+                executable: executionPaths.runnerExecutable,
+                args: [executionPaths.workerEntry, join(work, "invocation.json")],
+                cwd: work,
+                env: environment,
             },
-        } : undefined);
-        if ((controller.signal.aborted || store.cancelled(runId)) && source) stopRequest("USER_CANCELLED");
+            source
+                ? {
+                      kind: "TEST",
+                      ownerGeneration: owner.generation,
+                      headless: config.headless ?? true,
+                      downloadsPath: invocation.downloads,
+                      prepare: (context) => {
+                          if (controller.signal.aborted || store.cancelled(runId))
+                              throw new Error("USER_CANCELLED");
+                          if (!context.wsEndpoint)
+                              throw new Error("DARWIN_BROWSER_ENDPOINT_REQUIRED");
+                          context.publish(
+                              "invocation.json",
+                              Buffer.from(
+                                  canonicalBytes({ ...invocation, controlled: context.controlled }),
+                              ),
+                          );
+                          privateEndpoint = context.wsEndpoint;
+                          const { launchOptions: _launchOptions, ...use } = pw.use;
+                          context.publish(
+                              "playwright.config.mjs",
+                              Buffer.from(
+                                  `export default ${JSON.stringify({
+                                      ...pw,
+                                      reporter: [
+                                          ...pw.reporter,
+                                          [
+                                              privacyReporter,
+                                              {
+                                                  outputFile: join(tmp!, "playwright.json"),
+                                              },
+                                          ],
+                                      ],
+                                      use: {
+                                          ...use,
+                                          connectOptions: { wsEndpoint: context.wsEndpoint },
+                                      },
+                                  })};`,
+                              ),
+                          );
+                      },
+                  }
+                : undefined,
+        );
+        if ((controller.signal.aborted || store.cancelled(runId)) && source)
+            stopRequest("USER_CANCELLED");
         child = await starting;
-        if (controller.signal.aborted || store.cancelled(runId)) { stopRequest("USER_CANCELLED"); throw new Error("USER_CANCELLED"); }
+        if (controller.signal.aborted || store.cancelled(runId)) {
+            stopRequest("USER_CANCELLED");
+            throw new Error("USER_CANCELLED");
+        }
         owner = store.running(runId, attemptId, owner);
-        if (controller.signal.aborted || store.cancelled(runId)) { stopRequest("USER_CANCELLED"); throw new Error("USER_CANCELLED"); }
+        if (controller.signal.aborted || store.cancelled(runId)) {
+            stopRequest("USER_CANCELLED");
+            throw new Error("USER_CANCELLED");
+        }
         monitor = monitorStorage(tmp, 64 * 1024 * 1024, async (why) => {
             stopRequest(why);
             await stopOnce(why);
@@ -512,16 +586,27 @@ async function attempt(
         if (!stop.processStopped) throw new Error("PROCESS_STOP_UNCONFIRMED");
         /** 与线上保持独立的磁盘门禁：真实 CLI 停止之后但任何 add、哈希、证据事件和本地报告呈现之前验证最终 JSON；错误不借用 CLI 的业务退出码或受控停止范围，私有原始目录仅在保密定稿不确定时保留用于定位。 */
         if (source) {
-            if (controller.signal.aborted || store.cancelled(runId)) throw new Error(failure ?? "USER_CANCELLED");
+            if (controller.signal.aborted || store.cancelled(runId))
+                throw new Error(failure ?? "USER_CANCELLED");
             try {
                 source.native.openPrivateDirectory(tmp, false).close();
                 if (!privateEndpoint) throw new Error("REPORT_PRIVACY_UNCONFIRMED");
-                const gate = await import(pathToFileURL(privacyReporter).href) as { verifyEndpointJsonFile?: (path: string, endpoints: readonly string[]) => Promise<void> };
-                if (typeof gate.verifyEndpointJsonFile !== "function") throw new Error("REPORT_PRIVACY_UNCONFIRMED");
+                const gate = (await import(pathToFileURL(privacyReporter).href)) as {
+                    verifyEndpointJsonFile?: (
+                        path: string,
+                        endpoints: readonly string[],
+                    ) => Promise<void>;
+                };
+                if (typeof gate.verifyEndpointJsonFile !== "function")
+                    throw new Error("REPORT_PRIVACY_UNCONFIRMED");
                 await gate.verifyEndpointJsonFile(join(tmp, "playwright.json"), [privateEndpoint]);
                 source.native.openPrivateDirectory(tmp, false).close();
-            } catch { retainPrivateReports = true; throw new Error("REPORT_PRIVACY_UNCONFIRMED"); }
-            for (const path of pendingDownloads) await add(path, "DOWNLOAD", `download-${artifacts.length}.bin`);
+            } catch {
+                retainPrivateReports = true;
+                throw new Error("REPORT_PRIVACY_UNCONFIRMED");
+            }
+            for (const path of pendingDownloads)
+                await add(path, "DOWNLOAD", `download-${artifacts.length}.bin`);
         }
         if (!caseResult) {
             try {
@@ -560,9 +645,14 @@ async function attempt(
         clearInterval(cancellationObserver);
         monitor?.close();
         config.signal?.removeEventListener("abort", abort);
-        stop ??= stopOperation ? await stopOperation : (await unspawned())
-            ?? await stopOnce(failure ?? "EXECUTION_ERROR");
-        try { await broker?.close(); } finally { await brokerDirectory?.close(); }
+        stop ??= stopOperation
+            ? await stopOperation
+            : ((await unspawned()) ?? (await stopOnce(failure ?? "EXECUTION_ERROR")));
+        try {
+            await broker?.close();
+        } finally {
+            await brokerDirectory?.close();
+        }
         owner = store.stopped(runId, stop, owner);
         if (stop.processStopped) {
             if (tmp && !retainPrivateReports) await rm(tmp, { recursive: true, force: true });
@@ -602,7 +692,9 @@ async function attempt(
             artifacts,
             execution,
             processStopped: stop.processStopped,
-            ...(stop.processStopScope !== undefined ? { processStopScope: stop.processStopScope } : {}),
+            ...(stop.processStopScope !== undefined
+                ? { processStopScope: stop.processStopScope }
+                : {}),
             retrySafety: caseResult?.retrySafety ?? "UNKNOWN",
             sourceKind: checked.dslOnly ? "DRAFT_DEBUG" : "PUBLISHED",
             variantKey: variantKey(execution),
@@ -768,10 +860,13 @@ export async function runOffline(
 /**
  * 公开函数 recoverOffline 由原生宿主显式触发恢复或取消：对未知进程隔离容量：绝不自动释放未排空进程（recoverOffline/LOCAL_OWNERSHIP_CHANGED）。
  */
-export async function recoverOffline(root: string, options?: {
-    execution?: ExecutionPaths;
-    darwinSource?: DarwinSourceCapability;
-}): Promise<StopReceipt | undefined> {
+export async function recoverOffline(
+    root: string,
+    options?: {
+        execution?: ExecutionPaths;
+        darwinSource?: DarwinSourceCapability;
+    },
+): Promise<StopReceipt | undefined> {
     if (options?.darwinSource !== undefined) requireDarwinSource(options.darwinSource);
     const store = await LocalStore.open(root);
     try {
@@ -782,10 +877,14 @@ export async function recoverOffline(root: string, options?: {
             owner = store.claimRecovery(observed);
         }
         if (!owner) throw new Error("LOCAL_OWNERSHIP_CHANGED");
-        const stop = store.unspawnedStop(owner)
-            ?? await new ProcessSupervisor(join(root, "processes"), 500, options?.execution?.guardianExecutable,
-                options?.darwinSource).terminateAttempt(
-                owner.attemptId, "LOCAL_RECOVERY");
+        const stop =
+            store.unspawnedStop(owner) ??
+            (await new ProcessSupervisor(
+                join(root, "processes"),
+                500,
+                options?.execution?.guardianExecutable,
+                options?.darwinSource,
+            ).terminateAttempt(owner.attemptId, "LOCAL_RECOVERY"));
         owner = store.stopped(owner.runId, stop, owner);
         const result = store.result(owner.workspaceId, owner.runId);
         result.outcome = "INCOMPLETE";
@@ -801,7 +900,8 @@ export async function recoverOffline(root: string, options?: {
             );
             attempt.lastSequence = attempt.events.length;
             attempt.processStopped = stop.processStopped;
-            if (stop.processStopScope !== undefined) attempt.processStopScope = stop.processStopScope;
+            if (stop.processStopScope !== undefined)
+                attempt.processStopScope = stop.processStopScope;
             else delete attempt.processStopScope;
             attempt.outcome = "INCOMPLETE";
             attempt.failureCode = "LOCAL_RECOVERY";

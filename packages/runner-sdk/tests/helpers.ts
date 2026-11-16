@@ -81,7 +81,13 @@ export async function fixture() {
         if (req.url === "/") {
             res.setHeader("content-type", "text/html");
             res.end(
-                `<input data-testid="name"><input data-testid="check" type="checkbox"><select data-testid="select"><option value="a">A</option><option value="b">B</option></select><input data-testid="upload" type="file"><button data-testid="save" onclick="fetch('/save',{method:'POST',body:JSON.stringify({code:document.querySelector('input').value})})">Save</button><button data-testid="disabled" disabled>Disabled</button><div data-testid="text">Ready</div><div data-testid="row" data-record-key="x"><button>Scoped</button></div><div data-testid="duplicate">1</div><div data-testid="duplicate">2</div>`,
+                `<input data-testid="name"><input data-testid="check" type="checkbox"><select data-testid="select">` +
+                    `<option value="a">A</option><option value="b">B</option></select><input data-testid="upload" t` +
+                    `ype="file"><button data-testid="save" onclick="fetch('/save',{method:'POST',body:JSON.stringif` +
+                    `y({code:document.querySelector('input').value})})">Save</button><button data-testid="disabled"` +
+                    ` disabled>Disabled</button><div data-testid="text">Ready</div><div data-testid="row" data-reco` +
+                    `rd-key="x"><button>Scoped</button></div><div data-testid="duplicate">1</div><div data-testid="` +
+                    `duplicate">2</div>`,
             );
         } else if (req.url === "/empty") {
             res.statusCode = 204;

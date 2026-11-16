@@ -54,7 +54,8 @@ async function fixture(root: string) {
 }
 
 for (const bytes of ["SPAWNING", '{"claim":']) {
-    test(`interrupted journal staging quarantines only its attempt and preserves other recovery: ${bytes}`, async () => {
+    test(`interrupted journal staging quarantines only its attempt and preserves other recovery: ${bytes}`, async (
+        ) => {
         const root = await mkdtemp(join(tmpdir(), "vq-journal-stage-")),
             affected = randomUUID(),
             healthy = randomUUID();
@@ -141,7 +142,12 @@ test("actual writer exit after staging flush preserves uncertainty without block
     try {
         await f.committed(affected);
         await f.committed(healthy);
-        const script = `import {open} from 'node:fs/promises';import {ExecutionSupervisor} from './src/execution/supervisor.ts';const root=process.argv[1],record=JSON.parse(process.argv[2]),handle=await open(root,'r'),prototype=Object.getPrototypeOf(handle),sync=prototype.sync;await handle.close();prototype.sync=async function(){await sync.call(this);if((await this.stat()).isFile())process.exit(0);};const supervisor=new ExecutionSupervisor({root,client:{}});await supervisor.journal(record);throw new Error('INTERRUPTION_NOT_REACHED');`;
+        const script = `import {open} from 'node:fs/promises';import {ExecutionSupervisor} from './src/execution/su` +
+            `pervisor.ts';const root=process.argv[1],record=JSON.parse(process.argv[2]),handle=await open(root,'r')` +
+            `,prototype=Object.getPrototypeOf(handle),sync=prototype.sync;await handle.close();prototype.sync=async` +
+            ` function(){await sync.call(this);if((await this.stat()).isFile())process.exit(0);};const supervisor=n` +
+            `ew ExecutionSupervisor({root,client:{}});await supervisor.journal(record);throw new Error('INTERRUPTIO` +
+            `N_NOT_REACHED');`;
         const child = spawnSync(
             process.execPath,
             [

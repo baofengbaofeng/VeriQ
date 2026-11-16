@@ -51,9 +51,7 @@ export interface ObserverHandle {
  * 公开类 ObserverRegistry 登记步骤内活跃的网络观察器：统一转发请求并在 dispose 时清空（ObserverRegistry）。
  */
 export class ObserverRegistry {
-    private handles = new Set<
-        Pick<ObserverHandle, "dispose" | "captureRequest">
-    >();
+    private handles = new Set<Pick<ObserverHandle, "dispose" | "captureRequest">>();
     /**
      * 公开方法 add 把观察器句柄登记进注册表：后续请求将分发给其 captureRequest，供调用方理解 add 路径。
      */
@@ -73,9 +71,7 @@ export class ObserverRegistry {
         url: string,
         data: Exchange["request"],
     ): (response: Exchange["response"] | Error) => void {
-        const callbacks = [...this.handles].map((h) =>
-            h.captureRequest?.(url, data),
-        );
+        const callbacks = [...this.handles].map((h) => h.captureRequest?.(url, data));
         return (response) => {
             for (const cb of callbacks) cb?.(response);
         };
@@ -149,9 +145,7 @@ export function requestData(request: Request): Exchange["request"] {
 /**
  * 公开函数 queryParameters 解析 URL 查询参数为对象：供断言按名取值（queryParameters）。
  */
-export function queryParameters(
-    query: Record<string, JsonValue>,
-): URLSearchParams {
+export function queryParameters(query: Record<string, JsonValue>): URLSearchParams {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(query)) {
         for (const item of Array.isArray(value) ? value : [value]) {
@@ -168,9 +162,7 @@ export function queryParameters(
 /**
  * 公开函数 queryData 从交换中提取查询或正文数据片段：供字段级 HTTP 断言使用，供调用方理解 queryData 路径。
  */
-export function queryData(
-    url: URL | URLSearchParams,
-): Record<string, JsonValue> {
+export function queryData(url: URL | URLSearchParams): Record<string, JsonValue> {
     const params = url instanceof URL ? url.searchParams : url;
     return Object.fromEntries(
         [...new Set(params.keys())].map((k) => {
@@ -180,11 +172,7 @@ export function queryData(
     );
 }
 function subset(actual: JsonValue, expected: JsonValue): boolean {
-    if (
-        expected === null ||
-        typeof expected !== "object" ||
-        Array.isArray(expected)
-    )
+    if (expected === null || typeof expected !== "object" || Array.isArray(expected))
         return isDeepStrictEqual(actual, expected);
     return (
         actual !== null &&
@@ -198,20 +186,11 @@ function subset(actual: JsonValue, expected: JsonValue): boolean {
 /**
  * 公开函数 armObserver 按编译规则武装网络观察器并登记到 ObserverRegistry：步骤结束必须 dispose。
  */
-export function armObserver(
-    spec: NetworkObserverV1,
-    ctx: NetworkContext,
-): ObserverHandle {
+export function armObserver(spec: NetworkObserverV1, ctx: NetworkContext): ObserverHandle {
     const start = Date.now(),
-        timeout = Math.min(
-            start + (spec.timeoutMs ?? 15000),
-            ctx.deadline ?? Infinity,
-        );
-    const queryMatch = spec.queryMatch
-        ? queryData(queryParameters(spec.queryMatch))
-        : undefined;
-    const fixedEnd =
-        spec.window?.mode === "FIXED" ? start + spec.window.durationMs : undefined;
+        timeout = Math.min(start + (spec.timeoutMs ?? 15000), ctx.deadline ?? Infinity);
+    const queryMatch = spec.queryMatch ? queryData(queryParameters(spec.queryMatch)) : undefined;
+    const fixedEnd = spec.window?.mode === "FIXED" ? start + spec.window.durationMs : undefined;
     const records: {
         request?: Request;
         data: Exchange["request"];
@@ -359,10 +338,7 @@ export function armObserver(
                 (spec.retryPolicy !== "ALLOW_MATCHING_RETRIES" ||
                     records.some((r) => !isDeepStrictEqual(r.data, first!.data)));
             if (ambiguous) throw new Error("AMBIGUOUS_REQUEST");
-            if (
-                spec.expectedCount !== undefined &&
-                records.length !== spec.expectedCount
-            )
+            if (spec.expectedCount !== undefined && records.length !== spec.expectedCount)
                 throw new Error("REQUEST_COUNT_MISMATCH");
             return {
                 observerId: spec.id,

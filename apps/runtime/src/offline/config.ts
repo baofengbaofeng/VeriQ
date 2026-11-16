@@ -45,8 +45,11 @@ export async function readBoundedFile(
     if (restricted && process.platform === "darwin") {
         const { darwinNative } = await import("../native/darwin.ts");
         const directoryHandle = darwinNative().openPrivateDirectory(dirname(path), false);
-        try { return directoryHandle.read(basename(path), limit); }
-        finally { directoryHandle.close(); }
+        try {
+            return directoryHandle.read(basename(path), limit);
+        } finally {
+            directoryHandle.close();
+        }
     }
     const before = await lstat(path);
     if (!before.isFile() || before.isSymbolicLink() || before.size > limit)
@@ -80,8 +83,11 @@ export async function readPrivate<T>(directory: string, name: string): Promise<T
     if (process.platform === "darwin") {
         const { darwinNative } = await import("../native/darwin.ts");
         const directoryHandle = darwinNative().openPrivateDirectory(directory, false);
-        try { return JSON.parse(directoryHandle.read(name, 1024 * 1024).toString("utf8")) as T; }
-        finally { directoryHandle.close(); }
+        try {
+            return JSON.parse(directoryHandle.read(name, 1024 * 1024).toString("utf8")) as T;
+        } finally {
+            directoryHandle.close();
+        }
     }
     if (process.platform === "win32") {
         const { windowsNative } = await import("../native/windows.ts");
@@ -121,13 +127,18 @@ export async function updatePrivate<T>(
             const directoryHandle = darwinNative().openPrivateDirectory(directory, false);
             try {
                 let old: T | undefined;
-                try { old = JSON.parse(directoryHandle.read(name, 1024 * 1024).toString("utf8")) as T; }
-                catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+                try {
+                    old = JSON.parse(directoryHandle.read(name, 1024 * 1024).toString("utf8")) as T;
+                } catch (error) {
+                    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+                }
                 const bytes = Buffer.from(JSON.stringify(update(old)));
                 if (bytes.length > 1024 * 1024) throw new Error("CONFIGURATION_LIMIT");
                 directoryHandle.replace(name, temporaryName, bytes, 1024 * 1024);
                 return;
-            } finally { directoryHandle.close(); }
+            } finally {
+                directoryHandle.close();
+            }
         }
         let old: T | undefined;
         try {
@@ -152,7 +163,8 @@ export async function updatePrivate<T>(
         }
         await rename(tmp, join(directory, name));
     } finally {
-        if (process.platform !== "win32" && process.platform !== "darwin") await unlink(tmp).catch(() => {});
+        if (process.platform !== "win32" && process.platform !== "darwin")
+            await unlink(tmp).catch(() => {});
         await release();
     }
 }
@@ -162,8 +174,11 @@ export async function removePrivate(directory: string, name: string): Promise<vo
     if (process.platform === "darwin") {
         const { darwinNative } = await import("../native/darwin.ts");
         const directoryHandle = darwinNative().openPrivateDirectory(directory, false);
-        try { directoryHandle.remove(name, 1024 * 1024); }
-        finally { directoryHandle.close(); }
+        try {
+            directoryHandle.remove(name, 1024 * 1024);
+        } finally {
+            directoryHandle.close();
+        }
         return;
     }
     if (process.platform === "win32") {

@@ -18,10 +18,7 @@ export async function assertUI(
     if (a.type === "url") {
         if (a.operator === "equals")
             await expect(ctx.page).toHaveURL(String(expected), { timeout });
-        else
-            await expect
-                .poll(() => ctx.page.url(), { timeout })
-                .toContain(String(expected));
+        else await expect.poll(() => ctx.page.url(), { timeout }).toContain(String(expected));
         return { present: true, value: ctx.page.url() };
     }
     const target = locator(a.target, ctx);
@@ -66,28 +63,24 @@ export async function assertUI(
 /**
  * 公开函数 uiActual 提取用于断言比较的 UI 实际值摘要：避免把过大 DOM 文本写入报告（uiActual）。
  */
-export async function uiActual(
-    a: UIAssertion,
-    ctx: StepContext,
-): Promise<Presence> {
+export async function uiActual(a: UIAssertion, ctx: StepContext): Promise<Presence> {
     if (a.type === "url") return { present: true, value: ctx.page.url() };
     const l = locator(a.target, ctx),
         n = await l.count();
     if (a.operator === "countEquals") return { present: true, value: n };
     if (a.operator === "attached") return { present: true, value: n > 0 };
-    if (a.operator === "visible")
-        return { present: true, value: n === 1 && (await l.isVisible()) };
+    if (a.operator === "visible") return { present: true, value: n === 1 && (await l.isVisible()) };
     if (n !== 1) return { present: false };
     const timeout = budget(ctx, 100);
     const value =
         a.operator === "enabled"
             ? await l.isEnabled({ timeout })
             : a.operator === "checked"
-                ? await l.isChecked({ timeout })
-                : a.operator === "editable"
-                    ? await l.isEditable({ timeout })
-                    : a.operator === "valueEquals"
-                        ? await l.inputValue({ timeout })
-                        : await l.textContent({ timeout });
+              ? await l.isChecked({ timeout })
+              : a.operator === "editable"
+                ? await l.isEditable({ timeout })
+                : a.operator === "valueEquals"
+                  ? await l.inputValue({ timeout })
+                  : await l.textContent({ timeout });
     return { present: true, value };
 }

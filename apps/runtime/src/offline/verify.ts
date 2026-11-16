@@ -4,7 +4,18 @@
 
 /** Verify exact signed bytes before writing any archive member to disk. */
 import { createHash, verify } from "node:crypto";
-import { readdir, lstat, mkdir, mkdtemp, rename, rm, chmod, writeFile, open, type FileHandle } from "node:fs/promises";
+import {
+    readdir,
+    lstat,
+    mkdir,
+    mkdtemp,
+    rename,
+    rm,
+    chmod,
+    writeFile,
+    open,
+    type FileHandle,
+} from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { constants } from "node:fs";
 import type { DarwinPrivateDirectory } from "../native/darwin.ts";
@@ -167,7 +178,8 @@ export async function verifyBundle(
     let staging: string | undefined;
     let stagingIdentity: { dev: number; ino: number; uid: number } | undefined;
     let publicationRoot: FileHandle | undefined;
-    let privateParent: DarwinPrivateDirectory | undefined, privateStaging: DarwinPrivateDirectory | undefined;
+    let privateParent: DarwinPrivateDirectory | undefined,
+        privateStaging: DarwinPrivateDirectory | undefined;
     try {
         const entries = await members(zip),
             manifestEntry = entries.get("manifest.json"),
@@ -225,7 +237,10 @@ export async function verifyBundle(
         if (!parent.isDirectory() || parent.isSymbolicLink()) throw new Error("UNSAFE_DESTINATION");
         if (process.platform === "darwin") {
             const { darwinNative } = await import("../native/darwin.ts");
-            privateParent = darwinNative().openPrivateDirectory(dirname(options.destination), false);
+            privateParent = darwinNative().openPrivateDirectory(
+                dirname(options.destination),
+                false,
+            );
         }
         staging = await mkdtemp(join(dirname(options.destination), ".veriq-bundle-"));
         const created = await lstat(staging);
@@ -233,9 +248,18 @@ export async function verifyBundle(
         if (process.platform === "darwin") {
             const { darwinNative } = await import("../native/darwin.ts");
             privateStaging = darwinNative().openPrivateDirectory(staging, false);
-            publicationRoot = await open(staging, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+            publicationRoot = await open(
+                staging,
+                constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+            );
             const held = await publicationRoot.stat();
-            if (!held.isDirectory() || held.uid !== process.getuid!() || (held.mode & 0o777) !== 0o700 || held.dev !== created.dev || held.ino !== created.ino)
+            if (
+                !held.isDirectory() ||
+                held.uid !== process.getuid!() ||
+                (held.mode & 0o777) !== 0o700 ||
+                held.dev !== created.dev ||
+                held.ino !== created.ino
+            )
                 throw new Error("UNSAFE_DESTINATION");
         }
         for (const [name, body] of new Map([
@@ -263,21 +287,41 @@ export async function verifyBundle(
                 parent = dirname(parent);
             }
         }
-        /** Darwin rename 需要本次根仍可写，因此内部成员先全部封存，只保留独占根的七百权限至发布；根 fd 跨名称变化保活，发布后仅对该实际 inode 封存，不按 installed 字符串重开或修复用户目录，任一不确定都拒绝成功。 */
+        /** Darwin rename 需要本次根仍可写，因此内部成员先全部封存，只保留独占根的七百权限至发布；根 fd 跨名称变化保活，发布后仅对该实际 inode 封存，不按 installed 字符串重开或修复用户目
+         * 录，任一不确定都拒绝成功。 */
         for (const directory of [...directories].sort((a, b) => b.length - a.length))
             if (!publicationRoot || directory !== staging) await chmod(directory, 0o500);
         if (publicationRoot) {
-            const current = await lstat(staging), held = await publicationRoot.stat();
-            if (!current.isDirectory() || current.isSymbolicLink() || current.dev !== held.dev || current.ino !== held.ino || held.uid !== process.getuid!()) throw new Error("UNSAFE_DESTINATION");
-            try { await lstat(options.destination); throw new Error("BUNDLE_DESTINATION_EXISTS"); }
-            catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+            const current = await lstat(staging),
+                held = await publicationRoot.stat();
+            if (
+                !current.isDirectory() ||
+                current.isSymbolicLink() ||
+                current.dev !== held.dev ||
+                current.ino !== held.ino ||
+                held.uid !== process.getuid!()
+            )
+                throw new Error("UNSAFE_DESTINATION");
+            try {
+                await lstat(options.destination);
+                throw new Error("BUNDLE_DESTINATION_EXISTS");
+            } catch (error) {
+                if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+            }
         }
         await rename(staging, options.destination);
         staging = undefined;
         if (publicationRoot) {
             await publicationRoot.chmod(0o500);
             const sealed = await publicationRoot.stat();
-            if (!sealed.isDirectory() || sealed.dev !== stagingIdentity!.dev || sealed.ino !== stagingIdentity!.ino || sealed.uid !== stagingIdentity!.uid || (sealed.mode & 0o777) !== 0o500) throw new Error("BUNDLE_SEAL_UNCONFIRMED");
+            if (
+                !sealed.isDirectory() ||
+                sealed.dev !== stagingIdentity!.dev ||
+                sealed.ino !== stagingIdentity!.ino ||
+                sealed.uid !== stagingIdentity!.uid ||
+                (sealed.mode & 0o777) !== 0o500
+            )
+                throw new Error("BUNDLE_SEAL_UNCONFIRMED");
             const owned = publicationRoot;
             publicationRoot = undefined;
             await owned.close();
@@ -361,18 +405,37 @@ export async function verifyBundle(
             publicationRoot = undefined;
             await owned?.close();
         } finally {
-            try { const owned = privateStaging; privateStaging = undefined; owned?.close(); }
-            finally {
-                try { const owned = privateParent; privateParent = undefined; owned?.close(); }
-                finally {
+            try {
+                const owned = privateStaging;
+                privateStaging = undefined;
+                owned?.close();
+            } finally {
+                try {
+                    const owned = privateParent;
+                    privateParent = undefined;
+                    owned?.close();
+                } finally {
                     /** 清理只接受仍处于 staging 阶段且 inode 未变化的本次独占目录，发布后立刻撤销该所有权；替换、链接或缺失保留未知现场，不能按用户目的地回滚、放宽权限或删除原有安装。 */
                     if (staging && stagingIdentity) {
-                        const current = await lstat(staging).catch((error: NodeJS.ErrnoException) => { if (error.code !== "ENOENT") throw error; });
-                        if (current?.isDirectory() && !current.isSymbolicLink() && current.dev === stagingIdentity.dev && current.ino === stagingIdentity.ino && current.uid === stagingIdentity.uid) {
+                        const current = await lstat(staging).catch(
+                            (error: NodeJS.ErrnoException) => {
+                                if (error.code !== "ENOENT") throw error;
+                            },
+                        );
+                        if (
+                            current?.isDirectory() &&
+                            !current.isSymbolicLink() &&
+                            current.dev === stagingIdentity.dev &&
+                            current.ino === stagingIdentity.ino &&
+                            current.uid === stagingIdentity.uid
+                        ) {
                             async function writable(directory: string): Promise<void> {
                                 await chmod(directory, 0o700);
-                                for (const entry of await readdir(directory, { withFileTypes: true }))
-                                    if (entry.isDirectory()) await writable(join(directory, entry.name));
+                                for (const entry of await readdir(directory, {
+                                    withFileTypes: true,
+                                }))
+                                    if (entry.isDirectory())
+                                        await writable(join(directory, entry.name));
                             }
                             await writable(staging);
                             await rm(staging, { recursive: true, force: true });

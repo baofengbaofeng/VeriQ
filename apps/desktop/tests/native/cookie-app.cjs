@@ -1,4 +1,5 @@
-/** 此 Electron 夹具只调用正式 Cookie 保护门闩和 Chromium 的真实持久 Session，公开合成值用于目标平台磁盘与重启验证；输出仅含保护状态与提供者，不打印 Cookie、密钥或原始平台异常，也不创建产品 UI 或替代完整安装验收。 */
+/** 此 Electron 夹具只调用正式 Cookie 保护门闩和 Chromium 的真实持久 Session，公开合成值用于目标平台磁盘与重启验证；输出仅含保护状态与提供者，不打印 Cookie、密钥或原始平台异常，也不创建产
+ * 品 UI 或替代完整安装验收。 */
 const { app, safeStorage, session } = require("electron");
 const { require: typedRequire } = require("tsx/cjs/api");
 const { writeFile } = require("node:fs/promises");

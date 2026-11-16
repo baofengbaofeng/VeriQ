@@ -95,7 +95,8 @@ export type TreeInventory = Frozen<{
     files: FileFact[];
     links: LinkFact[];
 }>;
-/** 通用构建头绑定同一提交、来源绑定、pnpm 锁和 Darwin 架构，并把 producer 与 config 指回来源文件集合；工具名称受各 receipt kind 的精确集合限制，commandEvidence 只证明外部声明的字节身份。 */
+/** 通用构建头绑定同一提交、来源绑定、pnpm 锁和 Darwin 架构，并把 producer 与 config 指回来源文件集合；工具名称受各 receipt kind 的精确集合限制，commandEvidence 只证明外
+ * 部声明的字节身份。 */
 export type Build = Frozen<{
     commit: string;
     sourceBindingSha256: Sha;
@@ -148,7 +149,8 @@ export type NativeOutput = Frozen<{
     sdk: { version: string; settingsEvidence: Ref };
     inspectionEvidence: Ref;
 }>;
-/** 产品原生构建收据只覆盖私有文件 NodeAPI addon 与独立 file based Keychain helper 两个正式目标；第三方 esbuild 等原生命令必须使用自身独立检查记录，不能冒充这里的两个 VeriQ 产品输出。 */
+/** 产品原生构建收据只覆盖私有文件 NodeAPI addon 与独立 file based Keychain helper 两个正式目标；第三方 esbuild 等原生命令必须使用自身独立检查记录，不能冒充这里的两个 VeriQ
+ *  产品输出。 */
 export type NativeReceipt = ReceiptBase<"NATIVE_PRODUCTION_BUILD"> &
     Frozen<{ outputs: NativeOutput[] }>;
 /** 依赖实例保持精确安装根、真实 name/version、锁 snapshot 文本、package 正文摘要和自有树规范摘要；同名同版本的不同 peer 上下文必须分别保留实例路径与编号，不能按包名去重而丢失解析边界。 */
@@ -161,7 +163,8 @@ export type PackageInstance = Frozen<{
     packageJson: Digest;
     ownTreeSha256: Sha;
 }>;
-/** 每条依赖边保留来源实例、安装 alias、四种依赖类别、原 requested 和目标或明确缺失原因；optional 覆盖普通声明，optional peer 由正文 meta 决定，required 边不允许用 null 或任意理由跳过。 */
+/** 每条依赖边保留来源实例、安装 alias、四种依赖类别、原 requested 和目标或明确缺失原因；optional 覆盖普通声明，optional peer 由正文 meta 决定，required 边不允许用 null
+ * 或任意理由跳过。 */
 export type Edge = Frozen<{
     from: InstanceId;
     alias: string;
@@ -172,7 +175,8 @@ export type Edge = Frozen<{
 }>;
 /** 根绑定覆盖真实入口及八个执行文件中的所有外部字面导入，并额外保留生成根 package.json 的固定 tsx；consumer 使用最终 runtime 相对路径，只有该生成根例外可以暂时没有物理输入文件。 */
 export type RootBinding = Frozen<{ consumer: Rel; specifier: string; to: InstanceId }>;
-/** 命令计划绑定实际 owner、自有 target、安装层 alias、可替换 sourceAlias 与目标摘要，不能把 JS 正文搬到 alias 改变相对引用；node launcher 的 inspection 必须 null，native launcher 则必须给出独立已读检查记录。 */
+/** 命令计划绑定实际 owner、自有 target、安装层 alias、可替换 sourceAlias 与目标摘要，不能把 JS 正文搬到 alias 改变相对引用；node launcher 的 inspection 必须 n
+ * ull，native launcher 则必须给出独立已读检查记录。 */
 export type Bin = Frozen<{
     owner: InstanceId;
     name: string;
@@ -183,7 +187,8 @@ export type Bin = Frozen<{
     launcher: "node" | "native";
     inspection: Ref | null;
 }>;
-/** 第三方原生命令检查记录把 Darwin 架构、最终 targetPath、目标摘要和不高于 macOS15 的系统要求一起固定；记录和 inspectionEvidence 都真实读取，但它们的自报内容不能证明实际 MachO 检查已执行。 */
+/** 第三方原生命令检查记录把 Darwin 架构、最终 targetPath、目标摘要和不高于 macOS15 的系统要求一起固定；记录和 inspectionEvidence 都真实读取，但它们的自报内容不能证明实际 MachO
+ *  检查已执行。 */
 export type NativeBinInspection = Frozen<{
     schemaVersion: 1;
     kind: "NATIVE_BIN_INSPECTION";
@@ -194,7 +199,8 @@ export type NativeBinInspection = Frozen<{
     minimumOs: string;
     inspectionEvidence: Ref;
 }>;
-/** 解析声明逐条保留 from、consumer、specifier、resolvedFile 与 to，目标文件必须属于指定实例自有文件；固定 tsx 使用独立 $root 来源，其它来源仍须对应真实入口、执行或包文件，不能泛化缺失消费者例外。 */
+/** 解析声明逐条保留 from、consumer、specifier、resolvedFile 与 to，目标文件必须属于指定实例自有文件；固定 tsx 使用独立 $root 来源，其它来源仍须对应真实入口、执行或包文件，不能泛化
+ * 缺失消费者例外。 */
 export type Resolution = Frozen<{
     from: InstanceId | "$root" | "$entry" | "$execution" | "$npm";
     consumer: Rel;
@@ -240,7 +246,8 @@ export type DependenciesReceipt = ReceiptBase<"PRODUCTION_DEPENDENCIES"> &
             evidence: Ref;
         }[];
     }>;
-/** Node 原归档收据固定版本、nodeMember、npmRoot、npm 包声明和完整图声明，归档摘要实际读取匹配；本片没有提取 npm 的包正文、传递依赖或物理链接，因此 schema 通过仍不能清除 npm 内容与图的 pending。 */
+/** Node 原归档收据固定版本、nodeMember、npmRoot、npm 包声明和完整图声明，归档摘要实际读取匹配；本片没有提取 npm 的包正文、传递依赖或物理链接，因此 schema 通过仍不能清除 npm 内容与图的
+ * pending。 */
 export type NodeReceipt = Frozen<{
     schemaVersion: 1;
     kind: "NODE_ARCHIVE_INPUT";
@@ -254,7 +261,8 @@ export type NodeReceipt = Frozen<{
     inputLinks: LinkFact[];
     inspectionEvidence: Ref;
 }>;
-/** Chrome 原归档收据固定浏览器版本、revision、Playwright 版本和独立布局摘要，并将归档与 inspection 证据交叉绑定；实际 ZIP 成员、CRC 与物理 Framework 尚未检查，不能把此静态一致性报告标成浏览器可运行。 */
+/** Chrome 原归档收据固定浏览器版本、revision、Playwright 版本和独立布局摘要，并将归档与 inspection 证据交叉绑定；实际 ZIP 成员、CRC 与物理 Framework 尚未检查，不能把此静态
+ * 一致性报告标成浏览器可运行。 */
 export type ChromeReceipt = Frozen<{
     schemaVersion: 1;
     kind: "CHROME_ARCHIVE_INPUT";
@@ -275,9 +283,11 @@ export type ChromeLayoutReceipt = Frozen<{
 }>;
 /** 引擎依赖逐项保留名称、精确版本与 integrity，必须同时匹配原 inventory 条目和真实 dependencies.json；这些来源声明不会触发安装，也不能代替发行者对某个引擎版本的批准或签名。 */
 export type EngineDependency = Frozen<{ name: string; version: string; integrity: string }>;
-/** 引擎文件使用相对 engine 根的原字节 Ref，只允许现有 release 白名单并强制四个基本成员；它与树外 evidence 的根语境不同，核验必须从已观察的 engine BoundTree 读取，不能把路径重新解释为 inputRoot。 */
+/** 引擎文件使用相对 engine 根的原字节 Ref，只允许现有 release 白名单并强制四个基本成员；它与树外 evidence 的根语境不同，核验必须从已观察的 engine BoundTree 读取，不能把路径重新解释
+ * 为 inputRoot。 */
 export type EngineFile = Ref;
-/** 引擎收据区分 inventory.json 原始摘要与所选唯一版本条目的 JCS 摘要，并逐项绑定版本、文件和依赖；原字节保持不变，复用现有 ApprovedEngineInventoryV1 schema，绝不调用授予批准语义的装载或晋升流程。 */
+/** 引擎收据区分 inventory.json 原始摘要与所选唯一版本条目的 JCS 摘要，并逐项绑定版本、文件和依赖；原字节保持不变，复用现有 ApprovedEngineInventoryV1 schema，绝不调用授予批准语
+ * 义的装载或晋升流程。 */
 export type EngineReceipt = ReceiptBase<"ENGINE_PAYLOAD"> &
     Frozen<{
         engineVersion: string;
@@ -363,7 +373,8 @@ export type Phase = "INPUTS" | "INTAKE" | "COPY" | "VERIFY" | "PUBLISH";
 export class RuntimePayloadError extends Error {
     readonly phase: Phase;
     readonly candidateDirectory: string | null;
-    /** 错误构造只保留固定分类、阶段与受控 causeCode，实例随后冻结防止调用方改写诊断分支；没有原始 cause 或任意 message，末尾上下文复制阶段与候选目录标量，旧调用仍维持输入阶段与空目录，不混淆真实事务的清理事实。 */
+    /** 错误构造只保留固定分类、阶段与受控 causeCode，实例随后冻结防止调用方改写诊断分支；没有原始 cause 或任意 message，末尾上下文复制阶段与候选目录标量，旧调用仍维持输入阶段与空目录，不混淆真实事务的
+     * 清理事实。 */
     constructor(
         public readonly code: PayloadErrorCode,
         public readonly causeCode: string | null = null,

@@ -10,8 +10,11 @@
 #include <climits>
 
 namespace veriq::test {
-enum class ReadPhase { ENTRY, NO_UI, STORE, STATUS, PERMISSION, ACCOUNT, DISPATCH, CHANNEL, BEFORE, READ, AFTER, ARRAY, UNIQUE, DATA32, ENCODING, DONE, LOOKUP };
-inline NSString *const readPhaseNames[] = { @"entry", @"no-ui", @"store", @"status", @"permission", @"account", @"dispatch", @"channel", @"before", @"read", @"after", @"array", @"unique", @"data32", @"encoding", @"done", @"lookup" };
+enum class ReadPhase { ENTRY, NO_UI, STORE, STATUS, PERMISSION, ACCOUNT, DISPATCH, CHANNEL, BEFORE, READ, AFTER, ARRAY,
+    UNIQUE, DATA32, ENCODING, DONE, LOOKUP };
+inline NSString *const readPhaseNames[] = { @"entry", @"no-ui", @"store", @"status", @"permission", @"account",
+    @"dispatch", @"channel", @"before", @"read", @"after", @"array", @"unique", @"data32", @"encoding", @"done",
+        @"lookup" };
 
 /** 诊断写入只尝试一次有界非阻塞发送，独立套接字的禁止 SIGPIPE 选项保护已关闭读端；长度错误、已满或失效端点只丢失证据，调用前 errno 始终恢复且不重试、不等待也不改变原操作结果。 */
 inline void writeReadPacket(int fd, const void *bytes, size_t length) noexcept {
@@ -40,7 +43,8 @@ public:
             const bool inspect = [config[@"inspection"] isEqual:@YES];
             const bool denied = [config[@"observeReadDenial"] isEqual:@YES];
             if ([config[@"mode"] isEqual:@"store"] && inspect != denied &&
-                [value isKindOfClass:[NSNumber class]] && CFGetTypeID((__bridge CFTypeRef)value) != CFBooleanGetTypeID()) {
+                [value isKindOfClass:[NSNumber class]] && CFGetTypeID((__bridge CFTypeRef)value) != CFBooleanGetTypeID(
+                    )) {
                 const double number = [value doubleValue];
                 if (number >= 5 && number <= INT_MAX && number == [value intValue]) {
                     const int fd = [value intValue];
@@ -76,7 +80,8 @@ public:
         return result;
     }
     /** 解锁布尔值直接来自原 U 标记判定的相同结果，不新增状态查询或改变标记字节；只有三个调用都返回后才登记完整组合，发送发生在原 marker 写入之前以便错误标记路径也能读取证据。 */
-    void unlocked(bool first, bool last) noexcept { hasUnlocked = true; unlockedBefore = first; unlockedAfter = last; phase = ReadPhase::DONE; }
+    void unlocked(bool first, bool last) noexcept {
+        hasUnlocked = true; unlockedBefore = first; unlockedAfter = last; phase = ReadPhase::DONE; }
     /** 输出重建白名单字典后只发送一条不超过五百一十二字节的记录并关闭自有端点，Foundation 或 POSIX 失败均局限于诊断；没有重试或备用日志，原始数据与框架异常不可能进入此记录。 */
     void emit() noexcept {
         if (descriptor < 0) return;
@@ -90,9 +95,11 @@ public:
                 if (hasBefore) record[@"beforeStatus"] = @(before);
                 if (hasRead) record[@"readStatus"] = @(readStatus);
                 if (hasAfter) record[@"afterStatus"] = @(after);
-                if (hasUnlocked) { record[@"unlockedBefore"] = @(unlockedBefore); record[@"unlockedAfter"] = @(unlockedAfter); }
+                if (hasUnlocked) { record[@"unlockedBefore"] = @(unlockedBefore); record[@"unlockedAfter"] = @(
+                    unlockedAfter); }
                 NSArray *names = @[@"array", @"unique", @"data32", @"encoding"];
-                for (size_t index = 0; index < 4; ++index) if (predicates[index] >= 0) record[names[index]] = @(predicates[index] != 0);
+                for (size_t index = 0; index < 4; ++index) if (predicates[index] >= 0) record[names[index]] = @(
+                    predicates[index] != 0);
                 NSData *json = [NSJSONSerialization dataWithJSONObject:record options:0 error:nullptr];
                 if (json && json.length < 512) {
                     NSMutableData *line = [json mutableCopy]; [line appendBytes:"\n" length:1];

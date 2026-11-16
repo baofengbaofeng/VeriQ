@@ -1,4 +1,7 @@
-"""Cookie 目标验收只在本次自有 D-Bus 与独立 XDG 目录内创建非空密码的合成 Secret Service，普通 HOME 保持原值且不激活用户服务；新建进程用真实 pidfd 与创建身份约束清理，密码仅通过标准输入交付且不会进入日志或命令行。"""
+(
+    """Cookie 目标验收只在本次自有 D-Bus 与独立 XDG 目录内创建非空密码的合成 Secret Service，普通 HOME 保持原值且不激活用户服务；新建进程用真实 pidfd 与创建身份约束清理，"""
+    """密码仅通过标准输入交付且不会进入日志或命令行。"""
+)
 
 import json
 import os
@@ -17,9 +20,7 @@ def identity(pid: int) -> dict[str, Any]:
     """创建身份包含内核启动时刻、实际可执行路径及真实 UID，并与持有的 pidfd 一起校验；PID 数字和进程名称本身不能授权终止，目标退出与 PID 重用会导致后续检查拒绝或被记录为原进程已经消失。"""
     root = Path(f"/proc/{pid}")
     status = (root / "status").read_text()
-    uid = next(
-        line.split()[1] for line in status.splitlines() if line.startswith("Uid:")
-    )
+    uid = next(line.split()[1] for line in status.splitlines() if line.startswith("Uid:"))
     value = (root / "stat").read_text()
     return {
         "pid": pid,
@@ -32,9 +33,7 @@ def identity(pid: int) -> dict[str, Any]:
 class OwnedProcess:
     """夹具从自己直接创建的 Popen 取得真实内核 pidfd，记录身份后才允许后续停止；标准输出只用于读取有界总线地址，服务 stderr 不保存以避免泄漏提供者信息，GUI 命令则沿用原工作流的日志输出。"""
 
-    def __init__(
-        self, arguments: list[str], environment: dict[str, str], inherit: bool = False
-    ):
+    def __init__(self, arguments: list[str], environment: dict[str, str], inherit: bool = False):
         """创建失败或身份捕获中断时立即收回这次 Popen 真正拥有的子进程，不构造未知 PID 的兜底授权；正常路径持有 pidfd 到实际 wait 完成，使普通清理和超时升级始终指向同一次创建。"""
         self.process = subprocess.Popen(
             arguments,
@@ -128,10 +127,7 @@ def cleanup(evidence: Path) -> None:
             except ProcessLookupError:
                 continue
             actual = identity(expected["pid"])
-            if (
-                actual != {key: expected[key] for key in actual}
-                or actual["uid"] != os.getuid()
-            ):
+            if actual != {key: expected[key] for key in actual} or actual["uid"] != os.getuid():
                 raise ValueError("COOKIE_FIXTURE_IDENTITY_CHANGED")
             signal.pidfd_send_signal(descriptor, signal.SIGTERM)
             if not select.select([descriptor], [], [], 3)[0]:
@@ -149,7 +145,10 @@ def cleanup(evidence: Path) -> None:
 
 
 def run(evidence: Path, arguments: list[str]) -> int:
-    """正式 GUI 测试命令继承私有总线和独立 XDG 数据目录，密钥库密码是本次随机非空值且仅写标准输入；先验证实际默认 Collection 解锁再运行原套件，退出时按 GUI、keyring、bus 顺序确认真实停止并保留诊断。"""
+    (
+        """正式 GUI 测试命令继承私有总线和独立 XDG 数据目录，密钥库密码是本次随机非空值且仅写标准输入；先验证实际默认 Collection 解锁再运行原套件，退出时按 GUI、keyring、bus """
+        """顺序确认真实停止并保留诊断。"""
+    )
     root = Path(tempfile.mkdtemp(prefix="veriq-cookie-session-"))
     env = dict(os.environ)
     for key, name in [
@@ -165,7 +164,11 @@ def run(evidence: Path, arguments: list[str]) -> int:
     env["XDG_CURRENT_DESKTOP"] = "GNOME"
     config = root / "bus.conf"
     config.write_text(
-        f'<busconfig><type>session</type><listen>unix:tmpdir={root / "runtime"}</listen><auth>EXTERNAL</auth><policy context="default"><allow send_destination="*"/><allow own="*"/><allow eavesdrop="true"/></policy></busconfig>'
+        (
+            f"<busconfig><type>session</type><listen>unix:tmpdir={root / 'runtime'}"
+            f'</listen><auth>EXTERNAL</auth><policy context="default"><allow send_destination="*"/><allow '
+            f'own="*"/><allow eavesdrop="true"/></policy></busconfig>'
+        )
     )
     services = []
     command = None
@@ -258,9 +261,7 @@ def run(evidence: Path, arguments: list[str]) -> int:
             evidence / "cookie-session-cleanup.json",
             {
                 "errors": failures,
-                "servicesExited": all(
-                    child.process.poll() is not None for child in services
-                ),
+                "servicesExited": all(child.process.poll() is not None for child in services),
             },
         )
         if failures:

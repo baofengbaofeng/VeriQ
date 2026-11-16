@@ -55,9 +55,7 @@ test(
                 archive.includes(secret),
                 "Raw Trace demonstrably retains the synthetic secret",
             );
-            assert.ok(
-                archive.includes("Authorization") && archive.includes("session="),
-            );
+            assert.ok(archive.includes("Authorization") && archive.includes("session="));
             assert.equal(
                 JSON.stringify(
                     policy.redact({
@@ -85,9 +83,7 @@ test(
             const url = await new Promise<string>((resolve, reject) => {
                 child!.stdout!.on("data", (b) => {
                     output += b;
-                    const match = output.match(
-                        /Listening on (http:\/\/127\.0\.0\.1:[^\s]+)/,
-                    );
+                    const match = output.match(/Listening on (http:\/\/127\.0\.0\.1:[^\s]+)/);
                     if (match) resolve(match[1]!);
                 });
                 child!.once("exit", (code) =>
@@ -99,11 +95,7 @@ test(
             await viewer.waitForFunction(() =>
                 document.body.innerText.toLowerCase().includes("fill"),
             );
-            assert.ok(
-                (await viewer.locator("body").innerText())
-                    .toLowerCase()
-                    .includes("fill"),
-            );
+            assert.ok((await viewer.locator("body").innerText()).toLowerCase().includes("fill"));
             assert.equal(new URL(viewer.url()).hostname, "127.0.0.1");
         } finally {
             child?.kill("SIGTERM");

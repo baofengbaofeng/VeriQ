@@ -293,7 +293,8 @@ for (const outcome of [
         }
     });
 
-// 磁盘故障发生在 S 真正写入角色文件时才替换 FileHandle.write，I 快照和归档提取均保持正常；次要 close 失败在真实关闭后注入不确认结果，第一 ENOSPC 或 EDQUOT 必须保留，工作事务正常收尾不能抹掉 final 的不确定状态。
+// 磁盘故障发生在 S 真正写入角色文件时才替换 FileHandle.write，I 快照和归档提取均保持正常；次要 close 失败在真实关闭后注入不确认结果，第一 ENOSPC 或 EDQUOT 必须保留，工作事务正常收尾不能抹掉 
+// final 的不确定状态。
 for (const errno of ["ENOSPC", "EDQUOT"])
     for (const uncertain of [false, true])
         test(`actual S stream ${errno} retains first error with uncertain close ${uncertain}`, async (t) => {
@@ -399,7 +400,8 @@ for (const errno of ["ENOSPC", "EDQUOT"])
             }
         });
 
-// 最终路径的 D3a 必须真正再读文件，不能只沿用 scratch 库存或把 root 字段改名；在 rename 后 audit 完成与 D3a 开始之间修改候选正文，已提交目录要保留并报告提交不确定，绝不回传成功 JSON 或声称已回滚。
+// 最终路径的 D3a 必须真正再读文件，不能只沿用 scratch 库存或把 root 字段改名；在 rename 后 audit 完成与 D3a 开始之间修改候选正文，已提交目录要保留并报告提交不确定，绝不回传成功 JSON 或声称已
+// 回滚。
 test("actual final D3a detects post-rename content change and retains committed artifact", async (t) => {
     const { ArchiveTransaction } = await import("../scripts/runtime-payload-transaction.ts");
     const { writeFile } = await import("node:fs/promises");
@@ -546,7 +548,8 @@ test("replaced final lock preserves successful candidate with cleanup INCOMPLETE
     }
 });
 
-// CLI 信号测试用独立已知宿主 Node 进程和 IPC 精确停在 S 角色写入边界，首信号可释放或故意保留 JavaScript 等待；后两种场景仅验证五秒或二次信号的诚实 INCOMPLETE 诊断，不声称能够取消永久卡在内核的 writer。
+// CLI 信号测试用独立已知宿主 Node 进程和 IPC 精确停在 S 角色写入边界，首信号可释放或故意保留 JavaScript 等待；后两种场景仅验证五秒或二次信号的诚实 INCOMPLETE 诊断，不声称能够取消永久卡在内核的 
+// writer。
 for (const scenario of ["SIGINT", "SIGTERM", "SECOND", "DEADLINE"] as const)
     test(`actual stage CLI ${scenario} reports controlled cancellation and owned cleanup`, async () => {
         const { spawn } = await import("node:child_process");
@@ -561,8 +564,13 @@ for (const scenario of ["SIGINT", "SIGTERM", "SECOND", "DEADLINE"] as const)
                     await writeFile(expected, JSON.stringify(f.expected), { mode: 0o644 });
                     const wrapper = `import {ArchiveTransaction} from './scripts/runtime-payload-transaction.ts';
 const write=ArchiveTransaction.prototype.write;let waiting=false;process.on('message',()=>{});
-ArchiveTransaction.prototype.write=async function(...args){if(this.profile==='runtime'&&!waiting&&args[0].startsWith('runtime/roles/')){waiting=true;process.send('ready');await new Promise(resolve=>{${scenario === "SIGINT" || scenario === "SIGTERM" ? "this.signal.addEventListener('abort',resolve,{once:true})" : "process.on('message',()=>{})"}})}return write.apply(this,args)};
-process.argv=['node','stage','--inputs',${JSON.stringify(inputs)},'--expected',${JSON.stringify(expected)},'--input-root',${JSON.stringify(f.root)},'--output-parent',${JSON.stringify(output)},'--candidate','candidate'];
+ArchiveTransaction.prototype.write=async function(...args){if(this.profile==='runtime'&&!waiting&&args[0].startsWith` +
+`('runtime/roles/')){waiting=true;process.send('ready');await new Promise(resolve=>{` +
+    `${
+    scenario === "SIGINT" || scenario === "SIGTERM" ? "this.signal.addEventListener" +
+        "('abort',resolve,{once:true})" : "process.on('message',()=>{})"}})}return write.apply(this,args)};
+process.argv=['node','stage','--inputs',${JSON.stringify(inputs)},'--expected',${JSON.stringify(expected)},'--input-` +
+`root',${JSON.stringify(f.root)},'--output-parent',${JSON.stringify(output)},'--candidate','candidate'];
 await import('./scripts/stage-macos-runtime.mjs');process.disconnect();`;
                     const child = spawn(
                         process.execPath,
@@ -817,7 +825,8 @@ for (const profile of ["runtime", "work"] as const)
                     try {
                         await tx.initialize();
                         await tx.plan(1, 65);
-                        const path = `${profile === "runtime" ? "runtime" : "views"}/${[...Array<string>(63).fill("a"), "file"].join("/")}`;
+                        const path = `${profile === "runtime" ? "runtime" : "views"}/` +
+                            `${[...Array<string>(63).fill("a"), "file"].join("/")}`;
                         await tx.write(
                             path,
                             (async function* () {
@@ -852,8 +861,10 @@ test("actual stage CLI emits complete success JSON and stable incomplete cleanup
                 await writeFile(inputs, await f.save(), { mode: 0o644 });
                 await writeFile(expected, JSON.stringify(f.expected), { mode: 0o644 });
                 const wrapper = `import {ArchiveTransaction} from './scripts/runtime-payload-transaction.ts';
-const cleanup=ArchiveTransaction.prototype.cleanup;ArchiveTransaction.prototype.cleanup=async function(){if(this.profile==='work')this.noteCloseFailure();return cleanup.call(this)};
-process.argv=['node','stage','--inputs',${JSON.stringify(inputs)},'--expected',${JSON.stringify(expected)},'--input-root',${JSON.stringify(f.root)},'--output-parent',${JSON.stringify(output)},'--candidate','candidate'];
+const cleanup=ArchiveTransaction.prototype.cleanup;ArchiveTransaction.prototype.cleanup=async function(){if(this.pro` +
+`file==='work')this.noteCloseFailure();return cleanup.call(this)};
+process.argv=['node','stage','--inputs',${JSON.stringify(inputs)},'--expected',${JSON.stringify(expected)},'--input-` +
+`root',${JSON.stringify(f.root)},'--output-parent',${JSON.stringify(output)},'--candidate','candidate'];
 await import('./scripts/stage-macos-runtime.mjs');`;
                 const child = spawnSync(
                     process.execPath,
@@ -891,7 +902,8 @@ await import('./scripts/stage-macos-runtime.mjs');`;
     }
 });
 
-/** 真实 S 目录写入的 primary chmod 或 sync 错误必须先于随后关闭错误返回，原输入与旧 artifact 不得变化；注入仅覆盖 runtime/browser 实际目录句柄，关闭计数只在真实 close 完成后增加，不把测试故障描述为无法关闭的内核资源。 */
+/** 真实 S 目录写入的 primary chmod 或 sync 错误必须先于随后关闭错误返回，原输入与旧 artifact 不得变化；注入仅覆盖 runtime/browser 实际目录句柄，关闭计数只在真实 close 完成
+* 后增加，不把测试故障描述为无法关闭的内核资源。 */
 for (const [operation, cause] of [
     ["chmod", "ENOSPC"],
     ["sync", "EDQUOT"],
@@ -995,7 +1007,8 @@ for (const [operation, cause] of [
             }
         });
 
-/** 完整证据预算使用微型数值 Ref 模型验证边界，不创建六十四 MiB 正文或宣称模型摘要是真实文件来源；配方、独立 expected 和 intake 三份描述必须与普通 copied refs 同额收费，相同 SHA 的不同实际副本也不得去重逃过总额。 */
+/** 完整证据预算使用微型数值 Ref 模型验证边界，不创建六十四 MiB 正文或宣称模型摘要是真实文件来源；配方、独立 expected 和 intake 三份描述必须与普通 copied refs 同额收费，相同 SHA 的不同
+* 实际副本也不得去重逃过总额。 */
 test("R1 evidence budget includes all three descriptors beyond copied refs", () => {
     const ref = (path: string, sizeBytes: number): Ref => ({
         path,
@@ -1092,13 +1105,17 @@ await mkdir(input, { mode: 0o700 });
 const space = await statfs(root, { bigint: true });
 assert.ok(space.bavail * space.bsize > 40n * 1024n ** 2n);
 const emit = (event, facts = {}) => console.log(JSON.stringify({ event, scenario, ...facts }));
-process.on("unhandledRejection", error => { emit("UNHANDLED_REJECTION", { message: String(error) }); process.exitCode = 91; });
+process.on("unhandledRejection", error => { emit("UNHANDLED_REJECTION", { message: String(error) }); process.exitCod` +
+`e = 91; });
 let target, expected, captured, calls = 0, opens = 0, injected = false, primary, tx;
 const controller = new AbortController();
 const originalOpen = fs.open, originalClose = fs.close, originalRead = fs.read;
-const identity = info => ({ dev: String(info.dev), ino: String(info.ino), size: String(info.size), nlink: String(info.nlink) });
-const matches = info => info.isFile() && info.dev === expected.dev && info.ino === expected.ino && info.size === expected.size && info.nlink === 1n;
-const restore = () => { fs.open = originalOpen; fs.close = originalClose; fs.read = originalRead; syncBuiltinESMExports(); };
+const identity = info => ({ dev: String(info.dev), ino: String(info.ino), size: String(info.size), nlink: String(inf` +
+`o.nlink) });
+const matches = info => info.isFile() && info.dev === expected.dev && info.ino === expected.ino && info.size === exp` +
+`ected.size && info.nlink === 1n;
+const restore = () => { fs.open = originalOpen; fs.close = originalClose; fs.read = originalRead; syncBuiltinESMExpo` +
+`rts(); };
 const install = (select, occurrence) => {
     fs.open = function(path, ...args) {
         if (!select(String(path)) || ++opens !== occurrence) return originalOpen.call(this, path, ...args);
@@ -1127,10 +1144,12 @@ const install = (select, occurrence) => {
         });
     };
     fs.read = function(fd, ...args) {
-        if (fd === captured && args[2] === 2018 && !injected && (scenario === "read-eio" || scenario === "cancel-eio")) {
+        if (fd === captured && args[2] === 2018 && !injected && (scenario === "read-eio" || scenario === "cancel-eio` +
+        `")) {
             injected = true;
             if (scenario === "cancel-eio") controller.abort();
-            else { queueMicrotask(() => args.at(-1)(Object.assign(Error("OWNED_READ_FAULT"), { code: "EIO" }))); return; }
+            else { queueMicrotask(() => args.at(-1)(Object.assign(Error("OWNED_READ_FAULT"), { code: "EIO" }))); ret` +
+            `urn; }
         }
         return originalRead.call(this, fd, ...args);
     };
@@ -1153,7 +1172,8 @@ await fixture(async f => {
     install(path => path.startsWith(output + "/") && path.endsWith("/intakes/intake/snapshots/chrome.zip"), 1);
     emit("SETUP_RESOLVED");
     try {
-        const result = await stageMacRuntimePayload(await f.save(), f.expected, { inputRoot: f.root, outputParent: output, candidateName: "a".repeat(64) });
+        const result = await stageMacRuntimePayload(await f.save(), f.expected, { inputRoot: f.root, outputParent: o` +
+        `utput, candidateName: "a".repeat(64) });
         assert.equal(scenario, "normal");
         assert.equal(result.committed, true);
         assert.equal(result.cleanup, "CONFIRMED");
@@ -1166,7 +1186,8 @@ await fixture(async f => {
         assert.equal(error.cleanup, "INCOMPLETE");
         await retain();
         assert.ok(!(await readdir(output)).includes("a".repeat(64)));
-        emit("SETTLED", { outcome: "rejected", code: error.code, causeCode: error.causeCode, phase: error.phase, cleanup: error.cleanup });
+        emit("SETTLED", { outcome: "rejected", code: error.code, causeCode: error.causeCode, phase: error.phase, cle` +
+        `anup: error.cleanup });
     } finally { restore(); }
 }, await stageModel());
 assert.equal(calls, 1);

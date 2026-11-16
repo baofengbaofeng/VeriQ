@@ -2,7 +2,6 @@
 先 JsonObject 契约检查，再按声明构造 schema 验证值类型。
 """
 
-
 from typing import Any
 
 from jsonschema import Draft202012Validator

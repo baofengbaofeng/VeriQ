@@ -79,11 +79,14 @@ export async function requireStoppedHistory(root: string): Promise<void> {
                 if (
                     !["SPAWNING", "RUNNING", "STOPPED"].includes(String(record.state)) ||
                     !processNames.delete(`${id}.process.json`) ||
-                    !processNames.delete(`${id}.${process.platform === "darwin" ? "controlled" : "drained"}.json`) ||
+                    !processNames.delete(
+                        `${id}.${process.platform === "darwin" ? "controlled" : "drained"}.json`,
+                    ) ||
                     !(await processes.confirmStopped(id))
                 )
                     throw new Error("UNPROVED_PROCESS_HISTORY");
-                /** Darwin 在线历史必须继续绑定服务端原有 fencingToken，不能让另一个合法私有过程证明替代本次 Claim 的代际；这里仅观察已经提交的源记录，未接入业务写入流程前不补造 nonce 或修改旧代记录。 */
+                /** Darwin 在线历史必须继续绑定服务端原有 fencingToken，不能让另一个合法私有过程证明替代本次 Claim 的代际；这里仅观察已经提交的源记录，未接入业务写入流程前不补造 nonc
+                 * e 或修改旧代记录。 */
                 if (process.platform === "darwin") {
                     const processRecord = await records!.read(`${id}.process.json`, 65536);
                     if (!matchesControlledClaim(processRecord, record.claim))
@@ -92,7 +95,8 @@ export async function requireStoppedHistory(root: string): Promise<void> {
             }
         };
         if (process.platform === "win32") {
-            // Windows 旧 JSON 从未取得新 SQLite 提交权威，因此即使内容声称 ALLOCATED 或已有停止回执也不能借迁移守卫补造可信历史；任何 legacy、staging 或孤立进程成员保持恢复拒绝，不自动导入或删除。
+            // Windows 旧 JSON 从未取得新 SQLite 提交权威，因此即使内容声称 ALLOCATED 或已有停止回执也不能借迁移守卫补造可信历史；任何 legacy、staging 或孤立进程成员保持恢复拒绝
+            // ，不自动导入或删除。
             if (attemptNames.length) throw new Error("WINDOWS_LEGACY_JOURNAL_RECOVERY_REQUIRED");
             const { WindowsAttemptJournal } = await import("./windows-journal.ts");
             windowsJournal = await WindowsAttemptJournal.openExisting(root);
@@ -102,7 +106,8 @@ export async function requireStoppedHistory(root: string): Promise<void> {
                     await requireAttempt(record.claim.attemptId, record);
             }
         } else {
-            // Linux 与 Darwin 继续只读核原有 JSON 与同一 Attempt 的真实进程证明，不迁移到 Windows 数据库、不改旧来源或扩大停止范围；公共核验函数只复用原有 Claim、工作路径、状态和已确认排空条件。
+            // Linux 与 Darwin 继续只读核原有 JSON 与同一 Attempt 的真实进程证明，不迁移到 Windows 数据库、不改旧来源或扩大停止范围；公共核验函数只复用原有 Claim、工作路径、状态和已
+            // 确认排空条件。
             for (const name of attemptNames) {
                 if (!/^[a-zA-Z0-9_-]{1,100}\.json$/.test(name))
                     throw new Error("INVALID_ATTEMPT_HISTORY");
@@ -116,8 +121,11 @@ export async function requireStoppedHistory(root: string): Promise<void> {
         try {
             windowsJournal?.close();
         } finally {
-            try { await records?.close(); }
-            finally { await attempts?.close(); }
+            try {
+                await records?.close();
+            } finally {
+                await attempts?.close();
+            }
         }
     }
 }

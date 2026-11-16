@@ -90,7 +90,8 @@ export class ArchiveTransaction {
             candidateDirectory: this.directory,
         });
     }
-    /** 根目录复用已核 reader 的逐级无链接及 ASAR 检查，输入输出必须是互不覆盖的真实绝对路径；受控父目录由调用者持有，本实现明确只检测已观察替换，不把普通 JS rename 描述为恶意同 UID 下的原子独占原语。 */
+    /** 根目录复用已核 reader 的逐级无链接及 ASAR 检查，输入输出必须是互不覆盖的真实绝对路径；受控父目录由调用者持有，本实现明确只检测已观察替换，不把普通 JS rename 描述为恶意同 UID 下的原子独占原
+     * 语。 */
     async initialize() {
         this.check();
         relative(this.candidateName);
@@ -191,7 +192,8 @@ export class ArchiveTransaction {
             join(this.scratch, path),
             constants.O_RDONLY | constants.O_NOFOLLOW,
         );
-        // 目录权限或刷新失败必须作为第一错误继续向真实 intake 与 stage 边界传播，关闭只是独立收尾事实；即使真实 close 后又报告异常，也只记录清理不确定，不能把原 ENOSPC 或 EDQUOT 换成后来的 EIO。
+        // 目录权限或刷新失败必须作为第一错误继续向真实 intake 与 stage 边界传播，关闭只是独立收尾事实；即使真实 close 后又报告异常，也只记录清理不确定，不能把原 ENOSPC 或 EDQUOT 换成后来的
+        // EIO。
         let failed = false;
         try {
             await directory.chmod(mode);
@@ -497,7 +499,8 @@ export class ArchiveTransaction {
             await this.trackedLink(`runtime/${link.path}`, link.target);
         }
     }
-    /** 临时 npm alias 只有原收据明确声明并且每跳原始链接都与本次 intake 完全一致时才建立，终点必须是真实普通文件且等于 bin 目标；链接仅用于物理内容核验并归一到投影内目标，最终 Runtime 不复制它们。 */
+    /** 临时 npm alias 只有原收据明确声明并且每跳原始链接都与本次 intake 完全一致时才建立，终点必须是真实普通文件且等于 bin 目标；链接仅用于物理内容核验并归一到投影内目标，最终 Runtime 不复制它
+     * 们。 */
     async createProjectionBinAliases(node: NodeReceipt, members: readonly ArchiveMember[]) {
         if (this.profile !== "work") this.fail("PAYLOAD_PATH");
         const byPath = new Map(members.map((member) => [member.path, member]));
@@ -546,15 +549,25 @@ export class ArchiveTransaction {
      */
     async createDependencyInputLinks(bins: readonly Bin[], links: readonly LinkFact[]) {
         if (this.profile !== "work") this.fail("PAYLOAD_PATH");
-        if (links.length > limits.links || new Set(links.map((link) => link.path)).size !== links.length)
+        if (
+            links.length > limits.links ||
+            new Set(links.map((link) => link.path)).size !== links.length
+        )
             this.fail("PAYLOAD_BIN_UNSUPPORTED");
         for (const link of links) {
-            const matches = bins.filter((bin) => bin.sourceAlias === link.path && bin.aliasPath === link.path);
+            const matches = bins.filter(
+                (bin) => bin.sourceAlias === link.path && bin.aliasPath === link.path,
+            );
             if (matches.length !== 1) this.fail("PAYLOAD_BIN_UNSUPPORTED");
             const bin = matches[0]!;
-            relative(link.path); relative(link.target, true);
-            if (posix.normalize(posix.join(posix.dirname(link.path), link.target)) !== bin.targetPath ||
-                this.outputs.get(`views/dependencies/${bin.targetPath}`)?.sha256 !== bin.targetSha256)
+            relative(link.path);
+            relative(link.target, true);
+            if (
+                posix.normalize(posix.join(posix.dirname(link.path), link.target)) !==
+                    bin.targetPath ||
+                this.outputs.get(`views/dependencies/${bin.targetPath}`)?.sha256 !==
+                    bin.targetSha256
+            )
                 this.fail("PAYLOAD_BIN_UNSUPPORTED");
             await this.trackedLink(`views/dependencies/${link.path}`, link.target);
         }
@@ -703,7 +716,8 @@ export class ArchiveTransaction {
         }
         return this.cleanup();
     }
-    /** Runtime 发布复用原独占锁和 rename 边界，但锁收尾前还必须在真正最终目录执行完整 D3a 并匹配同一 manifest 摘要；提交后无法核验时保留候选并报告不确定，绝不通过替换旧临时 root 字段冒充最终物理观察。 */
+    /** Runtime 发布复用原独占锁和 rename 边界，但锁收尾前还必须在真正最终目录执行完整 D3a 并匹配同一 manifest 摘要；提交后无法核验时保留候选并报告不确定，绝不通过替换旧临时 root 字段冒充最
+     * 终物理观察。 */
     async publishRuntime(policy: {
         arch: MacRuntimeArch;
         layout: MacChromeLayout;

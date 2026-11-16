@@ -529,7 +529,8 @@ test("helper owns snapshot Ref before first await", async () =>
         );
     }));
 
-/** 来源元数据初读和事务登记之间的同字节原子替换必须由原 reader 的身份收尾拒绝，不能用较晚登记的新 inode 盖掉原事实；这里组合新增消费者实际采用的公开 reader 与 source binding，不下载或伪造官方大包。 */
+/** 来源元数据初读和事务登记之间的同字节原子替换必须由原 reader 的身份收尾拒绝，不能用较晚登记的新 inode 盖掉原事实；这里组合新增消费者实际采用的公开 reader 与 source binding，不下载或伪造官方
+ * 大包。 */
 test("source metadata replacement before registration remains rejected", async () =>
     assetsFixture(async (f) => {
         const { InputReader } = await import("../scripts/runtime-payload-tree.ts");
@@ -615,127 +616,144 @@ for (const scenario of ["input", "official-hash", "source-ref"] as const)
             assert.deepEqual(await readdir(f.output), []);
         }));
 
-/** 提取 manifest 的真实 held inode 与快照及 audit 读取分开定位，close 在真实系统关闭后注入无法确认结果；普通成功读取和较早身份拒绝都必须仅关闭一次、保留 scratch 与锁，并且较早错误不能被 EIO 覆盖。 */
+/** 提取 manifest 的真实 held inode 与快照及 audit 读取分开定位，close 在真实系统关闭后注入无法确认结果；普通成功读取和较早身份拒绝都必须仅关闭一次、保留 scratch 与锁，并且较早错误不能被
+ *  EIO 覆盖。 */
 for (const primaryReadFailure of [false, true])
-    test(`extracted manifest inode close uncertainty preserves ${primaryReadFailure ? "primary read rejection" : "valid read"}`, async (t) =>
-        nodeSourceFixture(async ({ tx, snapshot, base, output }) => {
-            const old = join(output, "old-candidate");
-            await mkdir(old, { mode: 0o700 });
-            await writeFile(join(old, "sentinel"), "untouched old candidate", { mode: 0o600 });
-            const probe = await open(join(base, "probe"), "wx", 0o600),
-                prototype = Object.getPrototypeOf(probe) as FileHandle;
-            await probe.close();
-            await unlink(join(base, "probe"));
-            const stat = prototype.stat,
-                stream = prototype.createReadStream,
-                audit = tx.audit.bind(tx);
-            const injected = new WeakSet<FileHandle>(),
-                streamErrors: string[] = [];
-            // 旧 manifest ReadStream 在真实 FileHandle 关闭事件后还会尝试关闭并发出次要错误，测试只记录该已注入对象的事件以便继续观察真实 assetFailure；事件内容完整进入诊断，原拒绝和清理断言均不放宽。
-            t.mock.method(
-                prototype,
-                "createReadStream",
-                function (
-                    this: FileHandle,
-                    options: Parameters<FileHandle["createReadStream"]>[0],
-                ) {
-                    const result = stream.call(this, options);
-                    if (injected.has(this))
-                        result.on("error", (error) => {
-                            streamErrors.push(error.message);
-                        });
-                    return result;
-                },
-            );
-            let auditCount = 0,
-                target: { ino: bigint; dev: bigint } | undefined,
-                armed = false,
-                bound = false,
-                closeCount = 0;
-            t.mock.method(tx, "audit", async (root?: string) => {
-                await audit(root);
-                auditCount++;
-                if (auditCount === 2) {
-                    target = await lstat(
-                        join(
-                            tx.scratch,
-                            "trees/node/node-v24.22.1-darwin-x64/lib/node_modules/npm/package.json",
-                        ),
-                        { bigint: true },
-                    );
-                    armed = true;
-                }
-            });
-            t.mock.method(
-                prototype,
-                "stat",
-                async function (this: FileHandle, ...args: Parameters<FileHandle["stat"]>) {
-                    const info = await stat.apply(this, args);
-                    if (armed && !bound && info.ino === target?.ino && info.dev === target.dev) {
-                        bound = true;
-                        injected.add(this);
-                        const close = this.close;
-                        t.mock.method(this, "close", async () => {
-                            closeCount++;
-                            await close.call(this);
-                            throw Object.assign(new Error("INJECTED_MANIFEST_CLOSE_UNCONFIRMED"), {
-                                code: "EIO",
+    test(
+        `extracted manifest inode close uncertainty preserves ` +
+            `${primaryReadFailure ? "primary read rejection" : "valid read"}`,
+        async (t) =>
+            nodeSourceFixture(async ({ tx, snapshot, base, output }) => {
+                const old = join(output, "old-candidate");
+                await mkdir(old, { mode: 0o700 });
+                await writeFile(join(old, "sentinel"), "untouched old candidate", { mode: 0o600 });
+                const probe = await open(join(base, "probe"), "wx", 0o600),
+                    prototype = Object.getPrototypeOf(probe) as FileHandle;
+                await probe.close();
+                await unlink(join(base, "probe"));
+                const stat = prototype.stat,
+                    stream = prototype.createReadStream,
+                    audit = tx.audit.bind(tx);
+                const injected = new WeakSet<FileHandle>(),
+                    streamErrors: string[] = [];
+                // 旧 manifest ReadStream 在真实 FileHandle 关闭事件后还会尝试关闭并发出次要错误，测试只记录该已注入对象的事件以便继续观察真实 assetFailure；事件内容完整进入诊
+                // 断，原拒
+                // 绝和清理断言均不放宽。
+                t.mock.method(
+                    prototype,
+                    "createReadStream",
+                    function (
+                        this: FileHandle,
+                        options: Parameters<FileHandle["createReadStream"]>[0],
+                    ) {
+                        const result = stream.call(this, options);
+                        if (injected.has(this))
+                            result.on("error", (error) => {
+                                streamErrors.push(error.message);
                             });
-                        });
-                        if (primaryReadFailure) return { ...info, size: BigInt(info.size) + 1n };
+                        return result;
+                    },
+                );
+                let auditCount = 0,
+                    target: { ino: bigint; dev: bigint } | undefined,
+                    armed = false,
+                    bound = false,
+                    closeCount = 0;
+                t.mock.method(tx, "audit", async (root?: string) => {
+                    await audit(root);
+                    auditCount++;
+                    if (auditCount === 2) {
+                        target = await lstat(
+                            join(
+                                tx.scratch,
+                                "trees/node/node-v24.22.1-darwin-x64/lib/node_modules/npm/package.json",
+                            ),
+                            { bigint: true },
+                        );
+                        armed = true;
                     }
-                    return info;
-                },
-            );
-            let rejection: unknown;
-            try {
+                });
+                t.mock.method(
+                    prototype,
+                    "stat",
+                    async function (this: FileHandle, ...args: Parameters<FileHandle["stat"]>) {
+                        const info = await stat.apply(this, args);
+                        if (
+                            armed &&
+                            !bound &&
+                            info.ino === target?.ino &&
+                            info.dev === target.dev
+                        ) {
+                            bound = true;
+                            injected.add(this);
+                            const close = this.close;
+                            t.mock.method(this, "close", async () => {
+                                closeCount++;
+                                await close.call(this);
+                                throw Object.assign(
+                                    new Error("INJECTED_MANIFEST_CLOSE_UNCONFIRMED"),
+                                    {
+                                        code: "EIO",
+                                    },
+                                );
+                            });
+                            if (primaryReadFailure)
+                                return { ...info, size: BigInt(info.size) + 1n };
+                        }
+                        return info;
+                    },
+                );
+                let rejection: unknown;
                 try {
-                    await extractNodeSourceSnapshot(tx, "x64", snapshot);
-                    assert.fail("Manifest close uncertainty must reject");
-                } catch (error) {
                     try {
-                        await assetFailure(tx, error);
-                    } catch (failure) {
-                        rejection = failure;
+                        await extractNodeSourceSnapshot(tx, "x64", snapshot);
+                        assert.fail("Manifest close uncertainty must reject");
+                    } catch (error) {
+                        try {
+                            await assetFailure(tx, error);
+                        } catch (failure) {
+                            rejection = failure;
+                        }
                     }
+                    t.diagnostic(
+                        JSON.stringify({
+                            injectedStreamErrors: streamErrors,
+                            closeCount,
+                            rejection:
+                                rejection instanceof RuntimePayloadError
+                                    ? {
+                                          code: rejection.code,
+                                          causeCode: rejection.causeCode,
+                                          cleanup: rejection.cleanup,
+                                      }
+                                    : "unknown",
+                            retainedOutput: await readdir(output),
+                            oldSentinel: await readFile(join(old, "sentinel"), "utf8"),
+                        }),
+                    );
+                    assert.ok(bound, "The extracted manifest inode must reach its consumer");
+                    assert.equal(closeCount, 1);
+                    assert.ok(rejection instanceof RuntimePayloadError);
+                    assert.equal(
+                        rejection.code,
+                        primaryReadFailure ? "PAYLOAD_SOURCE_CHANGED" : "PAYLOAD_IO",
+                    );
+                    assert.equal(rejection.causeCode, primaryReadFailure ? null : "EIO");
+                    assert.equal(rejection.cleanup, "INCOMPLETE");
+                    assert.ok((await lstat(tx.scratch)).isDirectory());
+                    assert.ok((await lstat(tx.lockPath)).isFile());
+                    assert.equal(
+                        await readFile(join(old, "sentinel"), "utf8"),
+                        "untouched old candidate",
+                    );
+                } finally {
+                    t.mock.restoreAll();
                 }
-                t.diagnostic(
-                    JSON.stringify({
-                        injectedStreamErrors: streamErrors,
-                        closeCount,
-                        rejection:
-                            rejection instanceof RuntimePayloadError
-                                ? {
-                                      code: rejection.code,
-                                      causeCode: rejection.causeCode,
-                                      cleanup: rejection.cleanup,
-                                  }
-                                : "unknown",
-                        retainedOutput: await readdir(output),
-                        oldSentinel: await readFile(join(old, "sentinel"), "utf8"),
-                    }),
-                );
-                assert.ok(bound, "The extracted manifest inode must reach its consumer");
-                assert.equal(closeCount, 1);
-                assert.ok(rejection instanceof RuntimePayloadError);
-                assert.equal(
-                    rejection.code,
-                    primaryReadFailure ? "PAYLOAD_SOURCE_CHANGED" : "PAYLOAD_IO",
-                );
-                assert.equal(rejection.causeCode, primaryReadFailure ? null : "EIO");
-                assert.equal(rejection.cleanup, "INCOMPLETE");
-                assert.ok((await lstat(tx.scratch)).isDirectory());
-                assert.ok((await lstat(tx.lockPath)).isFile());
-                assert.equal(
-                    await readFile(join(old, "sentinel"), "utf8"),
-                    "untouched old candidate",
-                );
-            } finally {
-                t.mock.restoreAll();
-            }
-        }));
+            }),
+    );
 
-/** 关闭确认并不结束来源身份保护，manifest 读完后到 helper 收尾之间的同字节文件替换或父目录变动仍必须拒绝；这些真实小文件变更专门检查新 reader 的保留观察，避免只修 close 却丢掉原 InputReader.finish 的变化检测。 */
+/** 关闭确认并不结束来源身份保护，manifest 读完后到 helper 收尾之间的同字节文件替换或父目录变动仍必须拒绝；这些真实小文件变更专门检查新 reader 的保留观察，避免只修 close 却丢掉原 InputRead
+ * er.finish 的变化检测。 */
 for (const mutation of ["file", "parent"] as const)
     test(`extracted manifest finish rejects later ${mutation} mutation`, async (t) =>
         nodeSourceFixture(async ({ tx, snapshot }) => {

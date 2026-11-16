@@ -130,7 +130,8 @@ test("metadata replacement between initial read and registration remains rejecte
         }
     }));
 
-/** DOS 与缺失类型字段必须保留其原始公开数值而不能记录为默认 Unix 权限，损坏 CRC 则应当在真实成员读取中拒绝；此处仅修改微型 ZIP 的公开测试头部以构造拒绝及 fallback 事实，不在产品里新造 ZIP parser。 */
+/** DOS 与缺失类型字段必须保留其原始公开数值而不能记录为默认 Unix 权限，损坏 CRC 则应当在真实成员读取中拒绝；此处仅修改微型 ZIP 的公开测试头部以构造拒绝及 fallback 事实，不在产品里新造 ZIP par
+* ser。 */
 for (const scenario of ["dos", "missing", "crc", "path", "outside"] as const)
     test(`snapshot scanner concrete ${scenario} observation`, async () =>
         assetsFixture(async (f) => {
@@ -222,7 +223,8 @@ test("official input declaration strictly parses and freezes without archive suc
         assert.throws(() => parseAssetsObservationInput(Buffer.from(JSON.stringify(changed))));
 });
 
-/** 发布回归在真实扫描段之后直接消费原事务发布边界，注入最终路径 audit 失败和已提交锁收尾不确定两种事实；测试不调用顶层官方成功入口，仍要求完整保留已提交内容并明确区分 COMMIT_UNCONFIRMED 与 committed 加 INCOMPLETE。 */
+/** 发布回归在真实扫描段之后直接消费原事务发布边界，注入最终路径 audit 失败和已提交锁收尾不确定两种事实；测试不调用顶层官方成功入口，仍要求完整保留已提交内容并明确区分 COMMIT_UNCONFIRMED 与 commit
+* ted 加 INCOMPLETE。 */
 for (const scenario of ["final-audit", "cleanup"] as const)
     test(`observed tiny snapshots retain uncertain publication ${scenario}`, async () =>
         assetsFixture(async (f) => {
@@ -258,7 +260,8 @@ for (const scenario of ["final-audit", "cleanup"] as const)
             assert.equal(await tx.cleanup(), "INCOMPLETE");
         }));
 
-/** 回归直接执行成熟 YAML 解析器提取出的生产 inline Node 收集段，检查真实 GITHUB_OUTPUT、最终文件集合和摘要而不模拟上传服务；稀疏上限夹具一次只在本测试拥有的目录中创建，实际分配先核预算且所有资源关闭之后才 finally 删除。 */
+/** 回归直接执行成熟 YAML 解析器提取出的生产 inline Node 收集段，检查真实 GITHUB_OUTPUT、最终文件集合和摘要而不模拟上传服务；稀疏上限夹具一次只在本测试拥有的目录中创建，实际分配先核预算且所有资源关
+* 闭之后才 finally 删除。 */
 for (const scenario of [
     "normal",
     "normal-truncated-log",
@@ -368,16 +371,24 @@ for (const scenario of [
             assert.ok(code);
             const prefix = `import fixIO from "node:fs"; import { syncBuiltinESMExports as fixSync } from "node:module";
 const fixOpen = fixIO.promises.open; let fixUsed = false; const fixSourceOpens = []; const fixSourceReads = {};
-process.on("exit",()=>process.stdout.write(JSON.stringify({sourceOpens:fixSourceOpens,sourceReads:fixSourceReads})+"\\n"));
+process.on("exit",()=>process.stdout.write(JSON.stringify({sourceOpens:fixSourceOpens,sourceReads:fixSourceReads})+` +
+`"\\n"));
 fixIO.promises.open = async (path, ...args) => {
     const name = String(path); if (name.startsWith(process.env.ASSET_ROOT+"/metadata/")) fixSourceOpens.push(name);
-    if (${JSON.stringify(scenario)} === "fallback-failure" && name.includes(".upload-build-")) throw Object.assign(Error("CONTROLLED_IO"), {code:"EIO"});
-    if (${JSON.stringify(scenario)} === "manifest-write-failure" && name.endsWith("/manifest.json") && !fixUsed) { fixUsed=true; throw Object.assign(Error("CONTROLLED_IO"), {code:"EIO"}); }
+    if (${JSON.stringify(scenario)} === "fallback-failure" && name.includes(".upload-build-")) throw Object.assign(E` +
+    `rror("CONTROLLED_IO"), {code:"EIO"});
+    if (${JSON.stringify(scenario)} === "manifest-write-failure" && name.endsWith("/manifest.json") && !fixUsed) { f` +
+    `ixUsed=true; throw Object.assign(Error("CONTROLLED_IO"), {code:"EIO"}); }
     const handle = await fixOpen(path,...args);
-    if (name.startsWith(process.env.ASSET_ROOT+"/metadata/")) { const read = handle.read.bind(handle); handle.read=async(...values)=>{fixSourceReads[name]=(fixSourceReads[name]??0)+values[2];return read(...values);}; }
-    if (${JSON.stringify(scenario)} === "read-failure" && name.endsWith("/metadata/status.json")) handle.read=async()=>{throw Object.assign(Error("CONTROLLED_READ"),{code:"EIO"});};
-    if (${JSON.stringify(scenario)} === "prefix-write-failure" && name.includes(".upload-build-") && name.endsWith("/pnpm-install.log")) handle.write=async()=>{throw Object.assign(Error("CONTROLLED_PREFIX_WRITE"),{code:"EIO"});};
-    if (${JSON.stringify(scenario)} === "close-failure" && name.endsWith("/metadata/status.json")) { const close = handle.close.bind(handle); handle.close=async()=>{await close();throw Object.assign(Error("CONTROLLED_CLOSE"),{code:"EIO"});}; }
+    if (name.startsWith(process.env.ASSET_ROOT+"/metadata/")) { const read = handle.read.bind(handle); handle.read=a` +
+    `sync(...values)=>{fixSourceReads[name]=(fixSourceReads[name]??0)+values[2];return read(...values);}; }
+    if (${JSON.stringify(scenario)} === "read-failure" && name.endsWith("/metadata/status.json")) handle.read=async(` +
+    `)=>{throw Object.assign(Error("CONTROLLED_READ"),{code:"EIO"});};
+    if (${JSON.stringify(scenario)} === "prefix-write-failure" && name.includes(".upload-build-") && name.endsWith("` +
+    `/pnpm-install.log")) handle.write=async()=>{throw Object.assign(Error("CONTROLLED_PREFIX_WRITE"),{code:"EIO"});};
+    if (${JSON.stringify(scenario)} === "close-failure" && name.endsWith("/metadata/status.json")) { const close = h` +
+    `andle.close.bind(handle); handle.close=async()=>{await close();throw Object.assign(Error("CONTROLLED_CLOSE"),{co` +
+        `de:"EIO"});}; }
     return handle;
 }; fixSync();\n`;
             const result = spawnSync(process.execPath, ["--input-type=module"], {
@@ -446,7 +457,8 @@ fixIO.promises.open = async (path, ...args) => {
             const upload = steps.find((step) => step.id === "metadata_upload");
             assert.equal(
                 upload?.if,
-                "always() && steps.collect.outputs.ready == 'true' && steps.collect.outputs.upload_root == format('{0}/upload', env.ASSET_ROOT)",
+                "always() && steps.collect.outputs.ready == 'true' && steps.collect.outputs.upload_root == format('{" +
+                    "0}/upload', env.ASSET_ROOT)",
             );
             assert.equal(
                 (upload?.with as Record<string, unknown>)?.path,
@@ -544,7 +556,8 @@ for (const scenario of [
             const space = await statfs(base, { bigint: true });
             assert.ok(space.bavail * space.bsize > 40n * 1024n ** 2n);
             const originalSteps = Buffer.from(
-                ' [\n  {"step":"ACQUIRE","status":"FAIL","code":"PAYLOAD_IO","cleanup":"INCOMPLETE","actualBytes":3},\n  {"step":"OBSERVE","status":"NOT_RUN","code":null,"cleanup":null,"actualBytes":null}\n ]\n',
+                ' [\n  {"step":"ACQUIRE","status":"FAIL","code":"PAYLOAD_IO","cleanup":"INCOMPLETE","actualBytes":3}' +
+                    ',\n  {"step":"OBSERVE","status":"NOT_RUN","code":null,"cleanup":null,"actualBytes":null}\n ]\n',
             );
             if (scenario === "setup-logs-only") {
                 await writeFile(join(meta, "pnpm-install.log"), "installation failed", {
@@ -608,7 +621,11 @@ for (const scenario of [
                 /node --input-type=module <<'JS'\n([\s\S]*?)\nJS/,
             )?.[1];
             assert.ok(code);
-            const trace = `import setupIO from "node:fs"; import {syncBuiltinESMExports as setupSync} from "node:module"; const setupOpen=setupIO.promises.open;let setupSourceOpens=0;setupIO.promises.open=async(path,...args)=>{if(String(path).startsWith(process.env.ASSET_ROOT+"/metadata/"))setupSourceOpens++;return setupOpen(path,...args);};setupSync();process.on("exit",()=>process.stdout.write(JSON.stringify({sourceOpens:setupSourceOpens})+"\\n"));\n`;
+            const trace = `import setupIO from "node:fs"; import {syncBuiltinESMExports as setupSync} from "node:mo` +
+                `dule"; const setupOpen=setupIO.promises.open;let setupSourceOpens=0;setupIO.promises.open=async(pa` +
+                `th,...args)=>{if(String(path).startsWith(process.env.ASSET_ROOT+"/metadata/"))setupSourceOpens++;r` +
+                `eturn setupOpen(path,...args);};setupSync();process.on("exit",()=>process.stdout.write(JSON.string` +
+                `ify({sourceOpens:setupSourceOpens})+"\\n"));\n`;
             const result = spawnSync(process.execPath, ["--input-type=module"], {
                 input: trace + code,
                 encoding: "utf8",
@@ -711,7 +728,8 @@ for (const scenario of [
             const upload = steps.find((step) => step.id === "metadata_upload");
             assert.equal(
                 upload!.if,
-                "always() && steps.collect.outputs.ready == 'true' && steps.collect.outputs.upload_root == format('{0}/upload', env.ASSET_ROOT)",
+                "always() && steps.collect.outputs.ready == 'true' && steps.collect.outputs.upload_root == format('{" +
+                    "0}/upload', env.ASSET_ROOT)",
             );
             assert.equal(
                 (upload!.with as Record<string, unknown>).path,
@@ -786,10 +804,12 @@ for (const failure of ["none", "sync", "async"] as const) {
         const source = `
 import { RuntimePayloadError } from "./scripts/runtime-payload-inputs.ts";
 import { attachArchiveRejection, emitArchiveFailure } from "./scripts/runtime-payload-archive.ts";
-const error = new RuntimePayloadError("PAYLOAD_ARCHIVE_UNSUPPORTED", null, "CONFIRMED", { phase: "INTAKE", candidateDirectory: null });
+const error = new RuntimePayloadError("PAYLOAD_ARCHIVE_UNSUPPORTED", null, "CONFIRMED", { phase: "INTAKE", candidate` +
+`Directory: null });
 attachArchiveRejection(error, { archive: "node", stage: "TAR_FRAME", reason: "TAR_ENTRY_TYPE" });
 if (${JSON.stringify(failure)} === "sync") process.stderr.write = () => { throw Error("CLOSED_PIPE"); };
-if (${JSON.stringify(failure)} === "async") process.stderr.write = () => { queueMicrotask(() => process.stderr.emit("error", Error("CLOSED_PIPE"))); return false; };
+if (${JSON.stringify(failure)} === "async") process.stderr.write = () => { queueMicrotask(() => process.stderr.emit(` +
+`"error", Error("CLOSED_PIPE"))); return false; };
 emitArchiveFailure(error, 17);
 `;
         const child = spawnSync(
@@ -916,13 +936,17 @@ await mkdir(input, { mode: 0o700 });
 const space = await statfs(root, { bigint: true });
 assert.ok(space.bavail * space.bsize > 40n * 1024n ** 2n);
 const emit = (event, facts = {}) => console.log(JSON.stringify({ event, scenario, ...facts }));
-process.on("unhandledRejection", error => { emit("UNHANDLED_REJECTION", { message: String(error) }); process.exitCode = 91; });
+process.on("unhandledRejection", error => { emit("UNHANDLED_REJECTION", { message: String(error) }); process.exitCod` +
+`e = 91; });
 let target, expected, captured, calls = 0, opens = 0, injected = false, primary, tx;
 const controller = new AbortController();
 const originalOpen = fs.open, originalClose = fs.close, originalRead = fs.read;
-const identity = info => ({ dev: String(info.dev), ino: String(info.ino), size: String(info.size), nlink: String(info.nlink) });
-const matches = info => info.isFile() && info.dev === expected.dev && info.ino === expected.ino && info.size === expected.size && info.nlink === 1n;
-const restore = () => { fs.open = originalOpen; fs.close = originalClose; fs.read = originalRead; syncBuiltinESMExports(); };
+const identity = info => ({ dev: String(info.dev), ino: String(info.ino), size: String(info.size), nlink: String(inf` +
+`o.nlink) });
+const matches = info => info.isFile() && info.dev === expected.dev && info.ino === expected.ino && info.size === exp` +
+`ected.size && info.nlink === 1n;
+const restore = () => { fs.open = originalOpen; fs.close = originalClose; fs.read = originalRead; syncBuiltinESMExpo` +
+`rts(); };
 const install = (select, occurrence) => {
     fs.open = function(path, ...args) {
         if (!select(String(path)) || ++opens !== occurrence) return originalOpen.call(this, path, ...args);
@@ -951,10 +975,12 @@ const install = (select, occurrence) => {
         });
     };
     fs.read = function(fd, ...args) {
-        if (fd === captured && args[2] === 2018 && !injected && (scenario === "read-eio" || scenario === "cancel-eio")) {
+        if (fd === captured && args[2] === 2018 && !injected && (scenario === "read-eio" || scenario === "cancel-eio` +
+        `")) {
             injected = true;
             if (scenario === "cancel-eio") controller.abort();
-            else { queueMicrotask(() => args.at(-1)(Object.assign(Error("OWNED_READ_FAULT"), { code: "EIO" }))); return; }
+            else { queueMicrotask(() => args.at(-1)(Object.assign(Error("OWNED_READ_FAULT"), { code: "EIO" }))); ret` +
+            `urn; }
         }
         return originalRead.call(this, fd, ...args);
     };
@@ -975,7 +1001,8 @@ tx = new ArchiveTransaction(input, output, "candidate");
 await tx.initialize();
 const [node, chrome] = tinyAssets();
 const refs = [];
-for (const [path, bytes] of [["snapshots/node.tar.gz", node], ["snapshots/chrome.zip", chrome]]) refs.push(await tx.write(path, (async function*() { yield bytes; })()));
+for (const [path, bytes] of [["snapshots/node.tar.gz", node], ["snapshots/chrome.zip", chrome]]) refs.push(await tx.` +
+`write(path, (async function*() { yield bytes; })()));
 snapshotHash = refs[1].sha256;
 const destination = join(tx.scratch, refs[1].path);
 install(path => path === destination, 2);
@@ -994,7 +1021,8 @@ try {
     assert.equal(await tx.cleanup(), "INCOMPLETE");
     await retain();
     assert.ok(!(await readdir(tx.scratch, { recursive: true })).includes("evidence/zip-modes.json"));
-    emit("SETTLED", { outcome: "rejected", code: error.code, causeCode: error.causeCode, phase: error.phase, cleanup: "INCOMPLETE" });
+    emit("SETTLED", { outcome: "rejected", code: error.code, causeCode: error.causeCode, phase: error.phase, cleanup` +
+    `: "INCOMPLETE" });
 } finally { restore(); }
 assert.equal(opens, 2);
 assert.equal(calls, 1);

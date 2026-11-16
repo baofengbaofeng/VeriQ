@@ -41,7 +41,8 @@ async function bounded<T>(operation: () => Promise<T>): Promise<T> {
     }
 }
 
-/** 已消费 START 的控制线程停在原始 closed 检查之后，只有真实 CancelSynchronousIo 返回无挂起操作才放行下一次系统读取；请求必须在原有期限内产生真实 DRAINED，不能靠测试关闭输入流才能获得首次成功回执。 */
+/** 已消费 START 的控制线程停在原始 closed 检查之后，只有真实 CancelSynchronousIo 返回无挂起操作才放行下一次系统读取；请求必须在原有期限内产生真实 DRAINED，不能靠测试关闭输入流才能获得首
+ * 次成功回执。 */
 test("Windows guardian drains when cancellation precedes its next synchronous control read", async (context) => {
     const root = await mkdtemp(join(tmpdir(), "veriq scheduled 中文 "));
     const role = join(root, "veriq_runner.exe");

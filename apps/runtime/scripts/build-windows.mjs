@@ -1,4 +1,5 @@
-/** Windows 原生构建是显式开发步骤，binding.gyp 放在 native 子目录避免依赖安装时隐式编译；目标流水线使用已锁定 node-gyp 与官方 Node 头文件，成功后只把本次正式 guardian、addon 与有限凭据 helper 复制到各自固定 Runtime 开发布局供真实角色测试。 */
+/** Windows 原生构建是显式开发步骤，binding.gyp 放在 native 子目录避免依赖安装时隐式编译；目标流水线使用已锁定 node-gyp 与官方 Node 头文件，成功后只把本次正式 guardian、addo
+ * n 与有限凭据 helper 复制到各自固定 Runtime 开发布局供真实角色测试。 */
 import { execFileSync } from "node:child_process";
 import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { createReadStream } from "node:fs";

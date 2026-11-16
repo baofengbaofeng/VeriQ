@@ -40,8 +40,13 @@ if __name__ == "__main__":
         asyncio.run(database())
     except Exception:
         raise SystemExit("Release test database is unavailable or unsafe") from None
-    script = """const fs=require('node:fs'); const path=require('node:path'); const {chromium}=require('@playwright/test');
-    const metadata=JSON.parse(fs.readFileSync(path.join(path.dirname(require.resolve('playwright-core/package.json')),'browsers.json')));
-    (async()=>{const browser=await chromium.launch({...(process.env.VERIQ_TEST_CHROMIUM?{executablePath:process.env.VERIQ_TEST_CHROMIUM}:{}),args:['--no-sandbox']});try{if(browser.version()!==metadata.browsers.find(x=>x.name==='chromium').browserVersion)throw new Error('Pinned test browser version mismatch');}finally{await browser.close();}})().catch(()=>process.exit(1));"""
+    script = (
+        "const fs=require('node:fs'); const path=require('node:path'); const {chromium}=require('@playwright/test');\n "
+        "   const metadata=JSON.parse(fs.readFileSync(path.join(path.dirname(require.resolve('playwright-core/package.j"
+        "son')),'browsers.json')));\n    (async()=>{const browser=await chromium.launch({...(process.env.VERIQ_TEST_CHR"
+        "OMIUM?{executablePath:process.env.VERIQ_TEST_CHROMIUM}:{}),args:['--no-sandbox']});try{if(browser.version()!=="
+        "metadata.browsers.find(x=>x.name==='chromium').browserVersion)throw new Error('Pinned test browser version mis"
+        "match');}finally{await browser.close();}})().catch(()=>process.exit(1));"
+    )
     subprocess.run(["node", "-e", script], cwd="packages/runner-sdk", check=True)
     print("Release test conditions verified")

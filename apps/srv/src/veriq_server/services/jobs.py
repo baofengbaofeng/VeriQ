@@ -129,7 +129,10 @@ class JobService:
                 0, int((attempt.lease_expires_at - current).total_seconds() * 1000)
             ),
             "activationRequired": True,
-            "snapshotUrl": f"{self.settings.public_url}/internal/v1/workspaces/{job.workspace_id}/attempts/{attempt.id}/content/{job.manifest_hash}",
+            "snapshotUrl": (
+                f"{self.settings.public_url}/internal/v1/workspaces/{job.workspace_id}/attempts/{attempt.id}/content/"
+                f"{job.manifest_hash}"
+            ),
             "snapshotSha256": job.manifest_hash,
         }
 

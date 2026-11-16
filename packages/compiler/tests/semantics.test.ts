@@ -1,18 +1,9 @@
 import { it, expect } from "vitest";
 import type { StepV1, AssertionV1, AssetSnapshotV1 } from "@veriq/contracts";
-import {
-    validate,
-    analyze,
-    resolveBinding,
-    resolvePointer,
-} from "../src/index.js";
+import { validate, analyze, resolveBinding, resolvePointer } from "../src/index.js";
 import { id, asset, snapshot, rehash } from "./helpers.js";
 const codes = (s: AssetSnapshotV1) => validate(s).map((x) => x.code);
-const flow = (
-    n: number,
-    steps: StepV1[],
-    parameters?: Record<string, string>,
-) =>
+const flow = (n: number, steps: StepV1[], parameters?: Record<string, string>) =>
     asset(n, "FLOW", {
         schemaVersion: "1.0",
         steps,
@@ -93,11 +84,9 @@ it("rejects remote schema references without fetching them", () =>
         ),
     ).toContain("INVALID_JSON_SCHEMA"));
 it("checks type compatibility in nested scoped flow parameters", () => {
-    const f = flow(
-        3,
-        [{ id: "fill", action: "fill", target: "name", value: "{{data.name}}" }],
-        { name: "string" },
-    );
+    const f = flow(3, [{ id: "fill", action: "fill", target: "name", value: "{{data.name}}" }], {
+        name: "string",
+    });
     expect(
         validate(
             snapshot(
@@ -244,21 +233,14 @@ it("expands pinned templates and detects cycles", () => {
     );
     expect(validate(s)).toEqual([]);
     const a = analyze(s);
-    expect(a.cases[0]!.steps[0]!.responseAssertions[0]!.parameters).toEqual([
-        { code: 0 },
-    ]);
+    expect(a.cases[0]!.steps[0]!.responseAssertions[0]!.parameters).toEqual([{ code: 0 }]);
     const cycle = asset(4, "ASSERTION_TEMPLATE", {
         schemaVersion: "1.0",
         assertions: [call],
         parameters: { code: "integer" },
     });
     expect(
-        codes(
-            snapshot(
-                [{ id: "save", action: "reload", afterAssertions: [call] }],
-                [cycle],
-            ),
-        ),
+        codes(snapshot([{ id: "save", action: "reload", afterAssertions: [call] }], [cycle])),
     ).toContain("TEMPLATE_CYCLE");
 });
 it("requires business assertions, rejects WARN downgrade, and validates later persistence", () => {
@@ -318,10 +300,7 @@ it("checks catalog scope cycles and binding uses", () => {
         ],
     });
     expect(codes(rehash(s))).toEqual(
-        expect.arrayContaining([
-            "CATALOG_SCOPE_CYCLE",
-            "VARIABLE_USED_BEFORE_DEFINED",
-        ]),
+        expect.arrayContaining(["CATALOG_SCOPE_CYCLE", "VARIABLE_USED_BEFORE_DEFINED"]),
     );
 });
 it("validates standalone environment origins and repeated roles without resolving credentials", () => {
@@ -354,9 +333,7 @@ it("validates standalone environment origins and repeated roles without resolvin
 });
 it("validates standalone suite closure", () => {
     const s = snapshot();
-    s.assets.push(
-        asset(8, "SUITE", { schemaVersion: "1.0", cases: [{ versionId: id(1) }] }),
-    );
+    s.assets.push(asset(8, "SUITE", { schemaVersion: "1.0", cases: [{ versionId: id(1) }] }));
     s.validationTarget = {
         resourceId: s.assets[2]!.resourceId,
         versionId: id(8),
@@ -388,17 +365,13 @@ it("never interprets literal JSON Schema or dataset data as bindings", () => {
     ).toEqual([]);
 });
 it("checks unsafe interpolation and missing pointers without prototype access", () => {
-    expect(() => resolveBinding("{{evil()}}", { data: {}, vars: {} })).toThrow(
-        "UNSAFE_EXPRESSION",
-    );
+    expect(() => resolveBinding("{{evil()}}", { data: {}, vars: {} })).toThrow("UNSAFE_EXPRESSION");
     expect(resolvePointer([1], "/01")).toEqual({ present: false });
     expect(() => resolvePointer({}, "/~2")).toThrow("INVALID_POINTER");
-    expect(resolveBinding("x{{data.n}}", { data: { n: 4 }, vars: {} })).toBe(
-        "x4",
+    expect(resolveBinding("x{{data.n}}", { data: { n: 4 }, vars: {} })).toBe("x4");
+    expect(() => resolveBinding("x{{data.n}}", { data: { n: [] }, vars: {} })).toThrow(
+        "BINDING_TYPE_MISMATCH",
     );
-    expect(() =>
-        resolveBinding("x{{data.n}}", { data: { n: [] }, vars: {} }),
-    ).toThrow("BINDING_TYPE_MISMATCH");
 });
 it("rejects nested bindings beneath an optional fixture object", () =>
     expect(
@@ -493,9 +466,7 @@ it("accepts persistence via a same-step read-only eventual query and maps checkp
     );
     const a = analyze(s);
     expect(a.issues).toEqual([]);
-    expect(a.cases[0]!.persistenceCheckpointStepId).toBe(
-        a.cases[0]!.steps[0]!.step.id,
-    );
+    expect(a.cases[0]!.persistenceCheckpointStepId).toBe(a.cases[0]!.steps[0]!.step.id);
 });
 it("checks critical writes inside a flow when ordering the persistence checkpoint", () => {
     const s = snapshot(
@@ -574,9 +545,7 @@ it("accepts JSON Schema unions for unconstrained expected JSON but rejects ambig
 });
 it("accepts the server SUITE validation selection and rejects empty or extraneous CASE roots", () => {
     const s = snapshot();
-    s.assets.push(
-        asset(8, "SUITE", { schemaVersion: "1.0", cases: [{ versionId: id(1) }] }),
-    );
+    s.assets.push(asset(8, "SUITE", { schemaVersion: "1.0", cases: [{ versionId: id(1) }] }));
     s.validationTarget = {
         resourceId: s.assets[2]!.resourceId,
         versionId: id(8),
@@ -670,9 +639,7 @@ it("separates response validation from extraction-dependent assertions in the ty
     const step = analyze(s).cases[0]!.steps[0]!;
     expect(step.responseAssertions).toHaveLength(1);
     expect(step.after).toHaveLength(1);
-    expect(step.after[0]!.assertion.id).not.toBe(
-        step.responseAssertions[0]!.assertion.id,
-    );
+    expect(step.after[0]!.assertion.id).not.toBe(step.responseAssertions[0]!.assertion.id);
 });
 it("matches the server deduplicated CASE selection for suite variants", () => {
     const s = snapshot();
@@ -771,44 +738,48 @@ it("preserves nested literal parameter types through a flow call", () => {
         ),
     ).toEqual([]);
 });
-it("validates nested template observer requirements in the concrete case rather than rejecting the standalone library", () => {
-    const leaf = asset(5, "ASSERTION_TEMPLATE", {
-        schemaVersion: "1.0",
-        assertions: [business],
-    });
-    const outer = asset(4, "ASSERTION_TEMPLATE", {
-        schemaVersion: "1.0",
-        assertions: [
-            {
-                id: "inner",
-                type: "template",
-                versionId: id(5),
-                severity: "BLOCK",
-                expectedSource: "API",
-            },
-        ],
-    });
-    const s = snapshot(
-        [
-            {
-                id: "read",
-                action: "reload",
-                observers: [{ id: "save", method: "GET", path: "/" }],
-                afterAssertions: [
-                    {
-                        id: "outer",
-                        type: "template",
-                        versionId: id(4),
-                        severity: "BLOCK",
-                        expectedSource: "API",
-                    },
-                ],
-            },
-        ],
-        [outer, leaf],
-    );
-    expect(validate(s)).toEqual([]);
-});
+it(
+    "validates nested template observer requirements in the concrete case rather than rejecting the standalone librar" +
+        "y",
+    () => {
+        const leaf = asset(5, "ASSERTION_TEMPLATE", {
+            schemaVersion: "1.0",
+            assertions: [business],
+        });
+        const outer = asset(4, "ASSERTION_TEMPLATE", {
+            schemaVersion: "1.0",
+            assertions: [
+                {
+                    id: "inner",
+                    type: "template",
+                    versionId: id(5),
+                    severity: "BLOCK",
+                    expectedSource: "API",
+                },
+            ],
+        });
+        const s = snapshot(
+            [
+                {
+                    id: "read",
+                    action: "reload",
+                    observers: [{ id: "save", method: "GET", path: "/" }],
+                    afterAssertions: [
+                        {
+                            id: "outer",
+                            type: "template",
+                            versionId: id(4),
+                            severity: "BLOCK",
+                            expectedSource: "API",
+                        },
+                    ],
+                },
+            ],
+            [outer, leaf],
+        );
+        expect(validate(s)).toEqual([]);
+    },
+);
 it("accepts exactly500 retained steps and reports the501st including call boundaries", () => {
     const make = (count: number) =>
         snapshot(
@@ -824,19 +795,15 @@ it("accepts exactly500 retained steps and reports the501st including call bounda
             ],
         );
     expect(validate(make(499))).toEqual([]);
-    const issue = validate(make(500)).find(
-        (i) => i.code === "EXPANDED_STEP_LIMIT",
-    );
+    const issue = validate(make(500)).find((i) => i.code === "EXPANDED_STEP_LIMIT");
     expect(issue?.message).toContain("501");
 });
 it("accepts a declared empty fixture output object when no output variable is used", () =>
     expect(
         validate(
-            snapshot(
-                undefined,
-                [fixture({ type: "object", additionalProperties: false })],
-                { fixtureVersionId: id(3) },
-            ),
+            snapshot(undefined, [fixture({ type: "object", additionalProperties: false })], {
+                fixtureVersionId: id(3),
+            }),
         ),
     ).toEqual([]));
 it("rejects standalone flow use before a local extraction while allowing declared caller context requirements", () => {
@@ -896,11 +863,9 @@ const fillName: StepV1 = {
 };
 it("I1 rejects an incompatible suite dataset override even when the CASE default is valid", () => {
     const s = suiteRoot(
-        snapshot(
-            [fillName],
-            [namedDataset(3, "string", ["A"]), namedDataset(4, "integer", [42])],
-            { datasetVersionId: id(3) },
-        ),
+        snapshot([fillName], [namedDataset(3, "string", ["A"]), namedDataset(4, "integer", [42])], {
+            datasetVersionId: id(3),
+        }),
         [{ versionId: id(1), datasetVersionId: id(4) }],
     );
     expect(codes(s)).toContain("BINDING_TYPE_MISMATCH");
@@ -945,25 +910,19 @@ it("I1 checks nested override properties and missing values across every row", (
         const override = namedDataset(4, "object", [...rows]);
         expect(
             codes(
-                suiteRoot(
-                    snapshot([nested], [good, override], { datasetVersionId: id(3) }),
-                    [{ versionId: id(1), datasetVersionId: id(4) }],
-                ),
+                suiteRoot(snapshot([nested], [good, override], { datasetVersionId: id(3) }), [
+                    { versionId: id(1), datasetVersionId: id(4) },
+                ]),
             ),
         ).toContain(error);
     }
 });
 it("I1 applies suite datasets to catalog, flow parameter and template parameter requirements", () => {
-    const data = [
-        namedDataset(3, "string", ["A"]),
-        namedDataset(4, "integer", [42]),
-    ];
+    const data = [namedDataset(3, "string", ["A"]), namedDataset(4, "integer", [42])];
     const variants = [{ versionId: id(1), datasetVersionId: id(4) }];
-    const locator = snapshot(
-        [{ id: "click", action: "click", target: "name" }],
-        data,
-        { datasetVersionId: id(3) },
-    );
+    const locator = snapshot([{ id: "click", action: "click", target: "name" }], data, {
+        datasetVersionId: id(3),
+    });
     locator.assets[1] = asset(2, "ELEMENT_CATALOG", {
         schemaVersion: "1.0",
         elements: [
@@ -973,14 +932,10 @@ it("I1 applies suite datasets to catalog, flow parameter and template parameter 
             },
         ],
     });
-    expect(codes(suiteRoot(locator, variants))).toContain(
-        "BINDING_TYPE_MISMATCH",
-    );
-    const f = flow(
-        5,
-        [{ id: "fill", action: "fill", target: "name", value: "{{data.input}}" }],
-        { input: "string" },
-    );
+    expect(codes(suiteRoot(locator, variants))).toContain("BINDING_TYPE_MISMATCH");
+    const f = flow(5, [{ id: "fill", action: "fill", target: "name", value: "{{data.input}}" }], {
+        input: "string",
+    });
     expect(
         codes(
             suiteRoot(
@@ -1096,38 +1051,35 @@ it.each(["recordKey", "roleName", "ancestor"] as const)(
             elements:
                 kind === "ancestor"
                     ? [
-                            {
-                                key: "row",
-                                locator: { by: "testId", value: "row" },
-                                recordKey: "{{vars.id}}",
-                            },
-                            {
-                                key: "name",
-                                scope: "row",
-                                locator: { by: "testId", value: "name" },
-                            },
-                        ]
+                          {
+                              key: "row",
+                              locator: { by: "testId", value: "row" },
+                              recordKey: "{{vars.id}}",
+                          },
+                          {
+                              key: "name",
+                              scope: "row",
+                              locator: { by: "testId", value: "name" },
+                          },
+                      ]
                     : [
-                            {
-                                key: "name",
-                                locator:
-                                    kind === "roleName"
-                                        ? { by: "role", role: "button", name: "{{vars.id}}" }
-                                        : { by: "testId", value: "name" },
-                                ...(kind === "recordKey" ? { recordKey: "{{vars.id}}" } : {}),
-                            },
-                        ],
+                          {
+                              key: "name",
+                              locator:
+                                  kind === "roleName"
+                                      ? { by: "role", role: "button", name: "{{vars.id}}" }
+                                      : { by: "testId", value: "name" },
+                              ...(kind === "recordKey" ? { recordKey: "{{vars.id}}" } : {}),
+                          },
+                      ],
         });
         const result = analyze(rehash(s));
         expect(result.issues).toEqual([]);
-        expect(
-            result.cases[0]!.steps[0]!.responseAssertions.map(
-                (a) => a.assertion.type,
-            ),
-        ).toEqual(["httpStatus", "responseSchema"]);
-        expect(
-            result.cases[0]!.steps[0]!.after.map((a) => a.assertion.type),
-        ).toEqual(["ui"]);
+        expect(result.cases[0]!.steps[0]!.responseAssertions.map((a) => a.assertion.type)).toEqual([
+            "httpStatus",
+            "responseSchema",
+        ]);
+        expect(result.cases[0]!.steps[0]!.after.map((a) => a.assertion.type)).toEqual(["ui"]);
     },
 );
 it("I2 includes template parameter scopes in a locator extraction dependency", () => {
@@ -1214,25 +1166,22 @@ it.each([
     ["integer", 42],
     ["boolean", true],
     ["string", "text"],
-] as const)(
-    "I4 accepts embedded %s HTTP header interpolation",
-    (type, value) => {
-        const s = snapshot(
-            [
-                {
-                    id: "request",
-                    action: "apiRequest",
-                    method: "GET",
-                    path: "/",
-                    headers: { "X-Test": "prefix-{{data.name}}" },
-                },
-            ],
-            [namedDataset(3, type, [value])],
-            { datasetVersionId: id(3) },
-        );
-        expect(validate(s)).toEqual([]);
-    },
-);
+] as const)("I4 accepts embedded %s HTTP header interpolation", (type, value) => {
+    const s = snapshot(
+        [
+            {
+                id: "request",
+                action: "apiRequest",
+                method: "GET",
+                path: "/",
+                headers: { "X-Test": "prefix-{{data.name}}" },
+            },
+        ],
+        [namedDataset(3, type, [value])],
+        { datasetVersionId: id(3) },
+    );
+    expect(validate(s)).toEqual([]);
+});
 it("I4 enforces string headers inside a pinned flow", () => {
     const f = flow(
         3,

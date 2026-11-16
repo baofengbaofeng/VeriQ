@@ -174,7 +174,8 @@ def import_workspace(api: Platform, args: argparse.Namespace, state: dict[str, A
         "roleKeys": ["editor"], "variables": {},
     }
     if "planId" not in state:
-        candidates = [plan for plan in api.items(base + "/execution-plans") if all(plan.get(k) == v for k, v in plan_content.items())]
+        candidates = [plan for plan in api.items(base + "/execution-plans") if all(plan.get(k) == v for k,
+            v in plan_content.items())]
         plan = candidates[0] if candidates else api.request("POST", base + "/execution-plans", plan_content)
         state["planId"] = plan["id"]
         save_state(args.state, state)
@@ -240,7 +241,8 @@ def entrypoint() -> None:
     except RuntimeError as error:
         raise SystemExit(str(error)) from None
     except (ValueError, OSError, KeyError):
-        raise SystemExit("Sample import failed; inspect platform Job and configuration without exposing secrets") from None
+        raise SystemExit(
+            "Sample import failed; inspect platform Job and configuration without exposing secrets") from None
 
 
 if __name__ == "__main__":

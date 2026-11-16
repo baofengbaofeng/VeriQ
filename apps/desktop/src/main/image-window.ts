@@ -26,7 +26,11 @@ export async function openNativeImage(bytes: Uint8Array): Promise<void> {
     });
     viewer.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     viewer.webContents.on("will-navigate", (event) => event.preventDefault());
-    const document = `<html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'"><title>VeriQ Screenshot</title></head><body style="margin:0;background:#19212d;display:flex;justify-content:center"><img alt="VeriQ evidence screenshot" style="max-width:100%;object-fit:contain" src="${decoded.toDataURL()}"></body></html>`;
+    const document =
+        `<html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src d` +
+        `ata:; style-src 'unsafe-inline'"><title>VeriQ Screenshot</title></head><body style="margin:0;` +
+        `background:#19212d;display:flex;justify-content:center"><img alt="VeriQ evidence screenshot" ` +
+        `style="max-width:100%;object-fit:contain" src="${decoded.toDataURL()}"></body></html>`;
     try {
         await viewer.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(document));
     } catch (error) {

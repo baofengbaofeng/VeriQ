@@ -1,6 +1,15 @@
 import { canonicalBytes, validateSchema, type ResourceDocumentV1 } from "@veriq/contracts";
 import { request } from "../../api";
-import { sampleOrder, type CredentialBinding, type ImportEvent, type ImportOptions, type ImportProgress, type ImportSecrets, type SamplePackage, type Schemas } from "./types";
+import {
+    sampleOrder,
+    type CredentialBinding,
+    type ImportEvent,
+    type ImportOptions,
+    type ImportProgress,
+    type ImportSecrets,
+    type SamplePackage,
+    type Schemas,
+} from "./types";
 
 /** 固定导入错误码只表达需要用户采取的动作，错误正文不拼接HTTP响应、凭据、URL查询或业务输入，避免一次导入失败把秘密扩散到页面通知、日志或可访问标签。
  */
@@ -14,9 +23,20 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  */
 export function targetOrigin(value: string): string {
     let url: URL;
-    try { url = new URL(value); } catch { throw new SampleImportError("TARGET_ORIGIN_INVALID"); }
-    if (!["https:", "http:"].includes(url.protocol) || url.username || url.password || url.pathname !== "/" || url.search || url.hash
-        || (url.protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname))) {
+    try {
+        url = new URL(value);
+    } catch {
+        throw new SampleImportError("TARGET_ORIGIN_INVALID");
+    }
+    if (
+        !["https:", "http:"].includes(url.protocol) ||
+        url.username ||
+        url.password ||
+        url.pathname !== "/" ||
+        url.search ||
+        url.hash ||
+        (url.protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname))
+    ) {
         throw new SampleImportError("TARGET_ORIGIN_INVALID");
     }
     return url.origin;
@@ -25,19 +45,33 @@ export function targetOrigin(value: string): string {
 /** 只有固定清单顺序、真实DSL Schema和合法UUID别名都成立才接受包数据，防止损坏安装把任意路径或错误资产类型交给向导；真正跨引用语义仍由后续受管理编译器验证。
  */
 export async function loadSamplePackage(signal: AbortSignal): Promise<SamplePackage> {
-    const value = await request<Schemas["SampleWorkspacePackageDTO"]>("/examples/sample-workspace", "GET", undefined, signal);
+    const value = await request<Schemas["SampleWorkspacePackageDTO"]>(
+        "/examples/sample-workspace",
+        "GET",
+        undefined,
+        signal,
+    );
     const candidate = value as unknown as SamplePackage;
-    if (candidate.schemaVersion !== "1.0" || candidate.manifest?.schemaVersion !== "1.0"
-        || !same(candidate.manifest.order, sampleOrder)
-        || !candidate.manifest.versionAliases || !candidate.assets || !candidate.sourceInventory) throw new SampleImportError("SAMPLE_PACKAGE_INVALID");
+    if (
+        candidate.schemaVersion !== "1.0" ||
+        candidate.manifest?.schemaVersion !== "1.0" ||
+        !same(candidate.manifest.order, sampleOrder) ||
+        !candidate.manifest.versionAliases ||
+        !candidate.assets ||
+        !candidate.sourceInventory
+    )
+        throw new SampleImportError("SAMPLE_PACKAGE_INVALID");
     for (const key of [...sampleOrder, "adapter", "business", "fixture-secret"]) {
-        if (!uuid.test(candidate.manifest.versionAliases[key] ?? "")) throw new SampleImportError("SAMPLE_PACKAGE_INVALID");
+        if (!uuid.test(candidate.manifest.versionAliases[key] ?? ""))
+            throw new SampleImportError("SAMPLE_PACKAGE_INVALID");
     }
     for (const key of sampleOrder) {
-        if (validateSchema("ResourceDocumentV1", candidate.assets[key]).length) throw new SampleImportError("SAMPLE_PACKAGE_INVALID");
+        if (validateSchema("ResourceDocumentV1", candidate.assets[key]).length)
+            throw new SampleImportError("SAMPLE_PACKAGE_INVALID");
     }
     const kinds = ["ELEMENT_CATALOG", "DATASET", "FIXTURE", "FLOW", "CASE", "SUITE", "ENVIRONMENT"];
-    if (sampleOrder.some((key, index) => candidate.assets[key].kind !== kinds[index])) throw new SampleImportError("SAMPLE_PACKAGE_INVALID");
+    if (sampleOrder.some((key, index) => candidate.assets[key].kind !== kinds[index]))
+        throw new SampleImportError("SAMPLE_PACKAGE_INVALID");
     return candidate;
 }
 
@@ -48,7 +82,13 @@ export async function allItems<T>(path: string, signal: AbortSignal): Promise<T[
     let cursor: string | null = null;
     do {
         const page: { items: T[]; nextCursor: string | null } = await request(
-            path + (cursor ? `${path.includes("?") ? "&" : "?"}cursor=${encodeURIComponent(cursor)}` : ""), "GET", undefined, signal,
+            path +
+                (cursor
+                    ? `${path.includes("?") ? "&" : "?"}cursor=${encodeURIComponent(cursor)}`
+                    : ""),
+            "GET",
+            undefined,
+            signal,
         );
         result.push(...page.items);
         cursor = page.nextCursor;
@@ -58,15 +98,24 @@ export async function allItems<T>(path: string, signal: AbortSignal): Promise<T[
 
 function rewrite(value: unknown, aliases: Record<string, string>): unknown {
     if (Array.isArray(value)) return value.map((item) => rewrite(item, aliases));
-    if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, rewrite(item, aliases)]));
-    return typeof value === "string" ? aliases[value] ?? value : value;
+    if (value && typeof value === "object")
+        return Object.fromEntries(
+            Object.entries(value).map(([key, item]) => [key, rewrite(item, aliases)]),
+        );
+    return typeof value === "string" ? (aliases[value] ?? value) : value;
 }
 
 async function pause(signal: AbortSignal, ms: number): Promise<void> {
     signal.throwIfAborted();
     await new Promise<void>((resolve, reject) => {
-        const abort = () => { clearTimeout(timer); reject(new DOMException("Aborted", "AbortError")); };
-        const timer = setTimeout(() => { signal.removeEventListener("abort", abort); resolve(); }, ms);
+        const abort = () => {
+            clearTimeout(timer);
+            reject(new DOMException("Aborted", "AbortError"));
+        };
+        const timer = setTimeout(() => {
+            signal.removeEventListener("abort", abort);
+            resolve();
+        }, ms);
         signal.addEventListener("abort", abort, { once: true });
     });
 }
@@ -88,30 +137,57 @@ export async function importSample(
     save: (value: ImportProgress) => void,
     notify: (event: ImportEvent) => void,
 ): Promise<{ workspaceId: string; planId: string }> {
-    if (!uuid.test(options.workspaceId) || !uuid.test(options.runtimeId)) throw new SampleImportError("SELECTION_INVALID");
+    if (!uuid.test(options.workspaceId) || !uuid.test(options.runtimeId))
+        throw new SampleImportError("SELECTION_INVALID");
     const fingerprint = importFingerprint(options, sample);
-    if (progress.workspaceId !== options.workspaceId || progress.fingerprint !== fingerprint) throw new SampleImportError("IMPORT_OPTIONS_CHANGED");
+    if (progress.workspaceId !== options.workspaceId || progress.fingerprint !== fingerprint)
+        throw new SampleImportError("IMPORT_OPTIONS_CHANGED");
     const base = `/workspaces/${options.workspaceId}`;
     await request(base, "GET", undefined, signal);
-    const persist = () => { signal.throwIfAborted(); save(structuredClone(progress)); };
+    const persist = () => {
+        signal.throwIfAborted();
+        save(structuredClone(progress));
+    };
     notify({ phase: "identity" });
-    if (progress.adapterVersion && secrets.adapterVersion && progress.adapterVersion !== secrets.adapterVersion) throw new SampleImportError("IMPORT_OPTIONS_CHANGED");
+    if (
+        progress.adapterVersion &&
+        secrets.adapterVersion &&
+        progress.adapterVersion !== secrets.adapterVersion
+    )
+        throw new SampleImportError("IMPORT_OPTIONS_CHANGED");
     if (!progress.adapterVersion) {
         if (secrets.adapterVersion) {
-            const adapter = (await allItems<Schemas["AuthAdapterDTO"]>(base + "/auth-adapters", signal))
-                .find((item) => item.versionId === secrets.adapterVersion && !item.revoked);
-            if (!adapter || adapter.configuration.kind !== "HTTP_BEARER") throw new SampleImportError("ADAPTER_INVALID");
+            const adapter = (
+                await allItems<Schemas["AuthAdapterDTO"]>(base + "/auth-adapters", signal)
+            ).find((item) => item.versionId === secrets.adapterVersion && !item.revoked);
+            if (!adapter || adapter.configuration.kind !== "HTTP_BEARER")
+                throw new SampleImportError("ADAPTER_INVALID");
             progress.adapterVersion = adapter.versionId;
         } else {
-            const adapter = await request<Schemas["AuthAdapterDTO"]>(base + "/auth-adapters", "POST", {
-                configuration: { kind: "HTTP_BEARER", identityPath: "/me", identityPointer: "/id" },
-            }, signal);
+            const adapter = await request<Schemas["AuthAdapterDTO"]>(
+                base + "/auth-adapters",
+                "POST",
+                {
+                    configuration: {
+                        kind: "HTTP_BEARER",
+                        identityPath: "/me",
+                        identityPointer: "/id",
+                    },
+                },
+                signal,
+            );
             progress.adapterVersion = adapter.versionId;
         }
         persist();
     }
-    const currentAdapter = (await allItems<Schemas["AuthAdapterDTO"]>(base + "/auth-adapters", signal))
-        .find((item) => item.versionId === progress.adapterVersion && !item.revoked && item.configuration.kind === "HTTP_BEARER");
+    const currentAdapter = (
+        await allItems<Schemas["AuthAdapterDTO"]>(base + "/auth-adapters", signal)
+    ).find(
+        (item) =>
+            item.versionId === progress.adapterVersion &&
+            !item.revoked &&
+            item.configuration.kind === "HTTP_BEARER",
+    );
     if (!currentAdapter) throw new SampleImportError("ADAPTER_INVALID");
     const credentials = await allItems<Schemas["CredentialDTO"]>(base + "/credentials", signal);
     for (const kind of ["business", "fixture"] as const) {
@@ -120,22 +196,46 @@ export async function importSample(
         const identity = kind === "business" ? options.businessIdentity : options.fixtureIdentity;
         const token = kind === "business" ? secrets.businessToken : secrets.fixtureToken;
         const previous = progress[kind];
-        if (previous && version && previous.versionId !== version) throw new SampleImportError("IMPORT_OPTIONS_CHANGED");
+        if (previous && version && previous.versionId !== version)
+            throw new SampleImportError("IMPORT_OPTIONS_CHANGED");
         if (previous) {
-            if (previous.secretRef !== secretRef || !credentials.some((item) => item.versionId === previous.versionId
-                && item.secretRef === secretRef && !item.revoked && item.allowedIdentityIds.includes(identity))) throw new SampleImportError("CREDENTIAL_SELECTION_INVALID");
+            if (
+                previous.secretRef !== secretRef ||
+                !credentials.some(
+                    (item) =>
+                        item.versionId === previous.versionId &&
+                        item.secretRef === secretRef &&
+                        !item.revoked &&
+                        item.allowedIdentityIds.includes(identity),
+                )
+            )
+                throw new SampleImportError("CREDENTIAL_SELECTION_INVALID");
             continue;
         }
         let binding: CredentialBinding;
         if (version) {
-            const selected = credentials.find((item) => item.versionId === version && item.secretRef === secretRef && !item.revoked && item.allowedIdentityIds.includes(identity));
+            const selected = credentials.find(
+                (item) =>
+                    item.versionId === version &&
+                    item.secretRef === secretRef &&
+                    !item.revoked &&
+                    item.allowedIdentityIds.includes(identity),
+            );
             if (!selected) throw new SampleImportError("CREDENTIAL_SELECTION_INVALID");
             binding = { secretRef, versionId: selected.versionId };
         } else {
-            if (token.length < 24 || /[\r\n]/.test(token)) throw new SampleImportError("CREDENTIAL_INPUT_INVALID");
-            const created = await request<Schemas["CredentialDTO"]>(base + "/credentials", "POST", {
-                secretRef, value: { token }, allowedIdentityIds: [identity],
-            }, signal);
+            if (token.length < 24 || /[\r\n]/.test(token))
+                throw new SampleImportError("CREDENTIAL_INPUT_INVALID");
+            const created = await request<Schemas["CredentialDTO"]>(
+                base + "/credentials",
+                "POST",
+                {
+                    secretRef,
+                    value: { token },
+                    allowedIdentityIds: [identity],
+                },
+                signal,
+            );
             binding = { secretRef, versionId: created.versionId };
         }
         progress[kind] = binding;
@@ -151,46 +251,118 @@ export async function importSample(
         signal.throwIfAborted();
         const content = rewrite(sample.assets[asset], aliases) as ResourceDocumentV1;
         if (content.kind === "CASE") content.document.roleKey = options.roleKey;
-        if (content.kind === "SUITE") for (const item of content.document.cases) item.roleKeys = [options.roleKey];
+        if (content.kind === "SUITE")
+            for (const item of content.document.cases) item.roleKeys = [options.roleKey];
         if (content.kind === "ENVIRONMENT") {
             Object.assign(content.document, {
-                baseURL: options.baseURL, apiBaseURL: options.apiBaseURL, fixtureBaseURL: options.fixtureBaseURL,
-                allowedOrigins: [...new Set([options.baseURL, options.apiBaseURL, options.fixtureBaseURL])],
-                buildSha: options.buildSha, locale: options.locale, timezone: options.timezone,
-                roles: [{ roleKey: options.roleKey, authAdapterVersionId: progress.adapterVersion,
-                    secretRef: progress.business!.secretRef, secretVersionId: progress.business!.versionId, allowedIdentityIds: [options.businessIdentity] }],
-                fixtureIdentity: { authAdapterVersionId: progress.adapterVersion, secretRef: progress.fixture!.secretRef,
-                    secretVersionId: progress.fixture!.versionId, allowedIdentityIds: [options.fixtureIdentity] },
+                baseURL: options.baseURL,
+                apiBaseURL: options.apiBaseURL,
+                fixtureBaseURL: options.fixtureBaseURL,
+                allowedOrigins: [
+                    ...new Set([options.baseURL, options.apiBaseURL, options.fixtureBaseURL]),
+                ],
+                buildSha: options.buildSha,
+                locale: options.locale,
+                timezone: options.timezone,
+                roles: [
+                    {
+                        roleKey: options.roleKey,
+                        authAdapterVersionId: progress.adapterVersion,
+                        secretRef: progress.business!.secretRef,
+                        secretVersionId: progress.business!.versionId,
+                        allowedIdentityIds: [options.businessIdentity],
+                    },
+                ],
+                fixtureIdentity: {
+                    authAdapterVersionId: progress.adapterVersion,
+                    secretRef: progress.fixture!.secretRef,
+                    secretVersionId: progress.fixture!.versionId,
+                    allowedIdentityIds: [options.fixtureIdentity],
+                },
             });
         }
-        if (validateSchema("ResourceDocumentV1", content).length) throw new SampleImportError("SAMPLE_PACKAGE_INVALID");
+        if (validateSchema("ResourceDocumentV1", content).length)
+            throw new SampleImportError("SAMPLE_PACKAGE_INVALID");
         const key = "demo-" + asset;
         let resource = resources.find((item) => item.kind === content.kind && item.key === key);
-        if (!resource) resource = await request<Schemas["ResourceDTO"]>(base + "/resources", "POST", { kind: content.kind, key, name: "Demo " + asset, content }, signal);
+        if (!resource)
+            resource = await request<Schemas["ResourceDTO"]>(
+                base + "/resources",
+                "POST",
+                { kind: content.kind, key, name: "Demo " + asset, content },
+                signal,
+            );
         if (resource.status === "ARCHIVED") throw new SampleImportError("RESOURCE_CHANGED");
         const route = `${base}/resources/${resource.id}`;
         let published: string;
         if (resource.latestVersionId) {
-            const version = await request<Schemas["ResourceVersionDTO"]>(`${route}/versions/${resource.latestVersionId}`, "GET", undefined, signal);
+            const version = await request<Schemas["ResourceVersionDTO"]>(
+                `${route}/versions/${resource.latestVersionId}`,
+                "GET",
+                undefined,
+                signal,
+            );
             if (!same(version.content, content)) throw new SampleImportError("RESOURCE_CHANGED");
             published = version.id;
         } else {
-            const draft = await request<Schemas["DraftDTO"]>(route + "/draft", "GET", undefined, signal);
+            const draft = await request<Schemas["DraftDTO"]>(
+                route + "/draft",
+                "GET",
+                undefined,
+                signal,
+            );
             if (!same(draft.content, content)) throw new SampleImportError("RESOURCE_CHANGED");
-            const preview = await request<Schemas["ValidationPreviewDTO"]>(route + "/validation-preview", "GET", undefined, signal);
-            let job = await request<Schemas["JobDTO"]>(route + "/validate", "POST", { revision: preview.revision, sourceHash: preview.sourceHash }, signal);
+            const preview = await request<Schemas["ValidationPreviewDTO"]>(
+                route + "/validation-preview",
+                "GET",
+                undefined,
+                signal,
+            );
+            let job = await request<Schemas["JobDTO"]>(
+                route + "/validate",
+                "POST",
+                { revision: preview.revision, sourceHash: preview.sourceHash },
+                signal,
+            );
             const deadline = performance.now() + options.validationTimeout * 1000;
             while (true) {
-                notify({ phase: "validating", asset, jobId: job.id, state: job.state, waitReason: job.waitReason });
+                notify({
+                    phase: "validating",
+                    asset,
+                    jobId: job.id,
+                    state: job.state,
+                    waitReason: job.waitReason,
+                });
                 if (job.state === "FINISHED") break;
-                if (performance.now() >= deadline) throw new SampleImportError("VALIDATION_TIMEOUT");
+                if (performance.now() >= deadline)
+                    throw new SampleImportError("VALIDATION_TIMEOUT");
                 await pause(signal, Math.min(2000, Math.max(0, deadline - performance.now())));
-                job = await request<Schemas["JobDTO"]>(`${base}/jobs/${job.id}`, "GET", undefined, signal);
+                job = await request<Schemas["JobDTO"]>(
+                    `${base}/jobs/${job.id}`,
+                    "GET",
+                    undefined,
+                    signal,
+                );
             }
             if (job.outcome !== "PASSED") throw new SampleImportError("VALIDATION_FAILED");
-            const receipt = await request<Schemas["ValidationReceiptDTO"]>(`${base}/jobs/${job.id}/validation-receipt`, "GET", undefined, signal);
-            if (receipt.resourceId !== resource.id || receipt.revision !== preview.revision || receipt.sourceHash !== preview.sourceHash) throw new SampleImportError("RECEIPT_CHANGED");
-            const version = await request<Schemas["ResourceVersionDTO"]>(route + "/publish", "POST", { revision: preview.revision, validationReceiptId: receipt.id }, signal);
+            const receipt = await request<Schemas["ValidationReceiptDTO"]>(
+                `${base}/jobs/${job.id}/validation-receipt`,
+                "GET",
+                undefined,
+                signal,
+            );
+            if (
+                receipt.resourceId !== resource.id ||
+                receipt.revision !== preview.revision ||
+                receipt.sourceHash !== preview.sourceHash
+            )
+                throw new SampleImportError("RECEIPT_CHANGED");
+            const version = await request<Schemas["ResourceVersionDTO"]>(
+                route + "/publish",
+                "POST",
+                { revision: preview.revision, validationReceiptId: receipt.id },
+                signal,
+            );
             published = version.id;
         }
         aliases[sourceAliases[asset]!] = published;
@@ -200,18 +372,35 @@ export async function importSample(
     }
     notify({ phase: "plan" });
     const selection: Schemas["ExecutionPlanWrite"] = {
-        name: "Demo employee smoke", suiteVersionId: progress.versions.suite!, environmentVersionId: progress.versions.environment!,
-        runtimeIds: [options.runtimeId], browsers: ["chromium"], roleKeys: [options.roleKey],
-        variables: {}, overlapPolicy: "QUEUE", maxCaseRetries: 0,
+        name: "Demo employee smoke",
+        suiteVersionId: progress.versions.suite!,
+        environmentVersionId: progress.versions.environment!,
+        runtimeIds: [options.runtimeId],
+        browsers: ["chromium"],
+        roleKeys: [options.roleKey],
+        variables: {},
+        overlapPolicy: "QUEUE",
+        maxCaseRetries: 0,
     };
-    const matches = (plan: Schemas["ExecutionPlanDTO"]) => !plan.archived && Object.entries(selection).every(([key, value]) => same(plan[key as keyof typeof plan], value));
+    const matches = (plan: Schemas["ExecutionPlanDTO"]) =>
+        !plan.archived &&
+        Object.entries(selection).every(([key, value]) =>
+            same(plan[key as keyof typeof plan], value),
+        );
     let plan: Schemas["ExecutionPlanDTO"];
     if (progress.planId) {
-        plan = await request(`${base}/execution-plans/${progress.planId}`, "GET", undefined, signal);
+        plan = await request(
+            `${base}/execution-plans/${progress.planId}`,
+            "GET",
+            undefined,
+            signal,
+        );
         if (!matches(plan)) throw new SampleImportError("PLAN_CHANGED");
     } else {
-        const existing = (await allItems<Schemas["ExecutionPlanDTO"]>(base + "/execution-plans", signal)).find(matches);
-        plan = existing ?? await request(base + "/execution-plans", "POST", selection, signal);
+        const existing = (
+            await allItems<Schemas["ExecutionPlanDTO"]>(base + "/execution-plans", signal)
+        ).find(matches);
+        plan = existing ?? (await request(base + "/execution-plans", "POST", selection, signal));
         progress.planId = plan.id;
         persist();
     }

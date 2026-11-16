@@ -20,12 +20,18 @@ export function leaseDeadline(
 ): number {
     const duration = Date.parse(grant.leaseExpiresAt) - Date.parse(grant.serverTime);
     if (
-        !Number.isFinite(duration) || duration <= 0 || duration > 60000 ||
-        !Number.isSafeInteger(grant.leaseDurationMs) || grant.leaseDurationMs <= 0 ||
-        grant.leaseDurationMs > 60000 || !Number.isFinite(requestStarted) ||
-        !Number.isFinite(responseReceived) || requestStarted < 0 ||
+        !Number.isFinite(duration) ||
+        duration <= 0 ||
+        duration > 60000 ||
+        !Number.isSafeInteger(grant.leaseDurationMs) ||
+        grant.leaseDurationMs <= 0 ||
+        grant.leaseDurationMs > 60000 ||
+        !Number.isFinite(requestStarted) ||
+        !Number.isFinite(responseReceived) ||
+        requestStarted < 0 ||
         responseReceived < requestStarted
-    ) throw new Error("INVALID_LEASE");
+    )
+        throw new Error("INVALID_LEASE");
     // 从发送时刻起算扣完整往返，延迟应答也会吃掉租约预算。
     // 预留一秒让监督器在服务端授权结束前完成停机与排空。
     // Starting at send time deducts the complete roundtrip, including delayed responses.

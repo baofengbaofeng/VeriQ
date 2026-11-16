@@ -16,8 +16,24 @@ from ..service import Problem
 from .jobs import database_time
 
 DIGEST = re.compile(r"(?<![0-9a-f])[0-9a-f]{64}(?![0-9a-f])")
-REFERENCE_COLUMNS = {"source_hash", "snapshot_hash", "manifest_hash", "archive_hash", "source_snapshot_hash", "compiled_bundle_sha256"}
-BINARY_LEAVES = {"application/zip", "application/octet-stream", "application/pdf", "image/png", "image/jpeg", "image/webp", "image/gif", "video/webm"}
+REFERENCE_COLUMNS = {
+    "source_hash",
+    "snapshot_hash",
+    "manifest_hash",
+    "archive_hash",
+    "source_snapshot_hash",
+    "compiled_bundle_sha256",
+}
+BINARY_LEAVES = {
+    "application/zip",
+    "application/octet-stream",
+    "application/pdf",
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+    "image/gif",
+    "video/webm",
+}
 
 
 class IncompleteGraph(ValueError):
@@ -64,17 +80,40 @@ async def protected_closure(session: AsyncSession, workspace: str, settings: Set
         if not hash_columns and not json_columns:
             continue
         columns = [*hash_columns, *json_columns]
-        lengths = [func.octet_length(column).label("veriq_bytes_" + str(index)) for index, column in enumerate(json_columns)]
-        probe = select(*hash_columns, *lengths).where(table.c.workspace_id == workspace).limit(root_budget + 1).subquery()
-        totals = (await session.execute(select(func.count(), *[
-            func.coalesce(func.sum(probe.c["veriq_bytes_" + str(index)]), 0)
-            for index in range(len(json_columns))
-        ]).select_from(probe))).one()
+        lengths = [
+            func.octet_length(column).label("veriq_bytes_" + str(index))
+            for index, column in enumerate(json_columns)
+        ]
+        probe = (
+            select(*hash_columns, *lengths)
+            .where(table.c.workspace_id == workspace)
+            .limit(root_budget + 1)
+            .subquery()
+        )
+        totals = (
+            await session.execute(
+                select(
+                    func.count(),
+                    *[
+                        func.coalesce(func.sum(probe.c["veriq_bytes_" + str(index)]), 0)
+                        for index in range(len(json_columns))
+                    ],
+                ).select_from(probe)
+            )
+        ).one()
         if int(totals[0]) > root_budget:
             raise IncompleteGraph("root_budget")
         if sum(int(value) for value in totals[1:]) > byte_budget:
             raise IncompleteGraph("byte_budget")
-        rows = (await session.execute(select(*columns).where(table.c.workspace_id == workspace).limit(root_budget + 1))).mappings().all()
+        rows = (
+            (
+                await session.execute(
+                    select(*columns).where(table.c.workspace_id == workspace).limit(root_budget + 1)
+                )
+            )
+            .mappings()
+            .all()
+        )
         if len(rows) > root_budget:
             raise IncompleteGraph("root_budget")
         root_budget -= len(rows)
@@ -109,9 +148,20 @@ async def protected_closure(session: AsyncSession, workspace: str, settings: Set
         if inspected > settings.lifecycle_graph_max_nodes:
             raise IncompleteGraph("node_budget")
         # 内容列在长度检查之后才加载，避免单个异常大对象绕过整图字节预算；未找到的普通文本哈希不是强引用，仍保留其摘要但不会虚构它有任何可扫描的子对象。
-        identity = (await session.execute(select(Artifact.size_bytes, Artifact.storage_backend, Artifact.expired_at, Artifact.media_type, func.length(Artifact.content)).where(
-            Artifact.workspace_id == workspace, Artifact.sha256 == digest,
-        ))).first()
+        identity = (
+            await session.execute(
+                select(
+                    Artifact.size_bytes,
+                    Artifact.storage_backend,
+                    Artifact.expired_at,
+                    Artifact.media_type,
+                    func.length(Artifact.content),
+                ).where(
+                    Artifact.workspace_id == workspace,
+                    Artifact.sha256 == digest,
+                )
+            )
+        ).first()
         protected.add(digest)
         if identity is None:
             if digest in strong:
@@ -127,7 +177,13 @@ async def protected_closure(session: AsyncSession, workspace: str, settings: Set
             raise IncompleteGraph("external_document")
         if size > byte_budget or size < 0 or stored_size is None or stored_size != size:
             raise IncompleteGraph("byte_budget")
-        raw = (await session.execute(select(Artifact.content).where(Artifact.workspace_id == workspace, Artifact.sha256 == digest))).scalar_one()
+        raw = (
+            await session.execute(
+                select(Artifact.content).where(
+                    Artifact.workspace_id == workspace, Artifact.sha256 == digest
+                )
+            )
+        ).scalar_one()
         if raw is None or len(raw) != size or sha256(raw).hexdigest() != digest:
             raise IncompleteGraph("corrupt_document")
         byte_budget -= size
@@ -135,7 +191,10 @@ async def protected_closure(session: AsyncSession, workspace: str, settings: Set
             if media == "application/json" or media.endswith("+json"):
                 document = json.loads(raw)
                 children = references(document)
-            elif media.startswith("text/") or media in {"application/javascript", "application/typescript"}:
+            elif media.startswith("text/") or media in {
+                "application/javascript",
+                "application/typescript",
+            }:
                 children = references(raw.decode("utf-8"))
             else:
                 raise IncompleteGraph("unknown_media")
@@ -145,7 +204,9 @@ async def protected_closure(session: AsyncSession, workspace: str, settings: Set
     return protected
 
 
-async def expire_cache(session: AsyncSession, settings: Settings, workspace: str, limit: int, cursor: str) -> tuple[int, bool, str | None]:
+async def expire_cache(
+    session: AsyncSession, settings: Settings, workspace: str, limit: int, cursor: str
+) -> tuple[int, bool, str | None]:
     """在调用方持有安装锁的同一事务内完成闭包和年龄候选扫描，仅清除证明不再可达的内联载荷并保留逻辑墓碑；外置对象、待发布围栏和幂等屏障继续由原制品维护服务拥有。"""
     if cursor and not DIGEST.fullmatch(cursor):
         raise Problem(400, "INVALID_CURSOR", "Cache retention cursor is invalid")
@@ -153,21 +214,47 @@ async def expire_cache(session: AsyncSession, settings: Settings, workspace: str
     try:
         protected = await protected_closure(session, workspace, settings)
     except IncompleteGraph as error:
-        session.add(AuditLog(id=str(uuid4()), workspace_id=workspace, actor_id=None, target_id=workspace,
-                             action="artifact.gc_preserved_" + str(error), created_at=current))
+        session.add(
+            AuditLog(
+                id=str(uuid4()),
+                workspace_id=workspace,
+                actor_id=None,
+                target_id=workspace,
+                action="artifact.gc_preserved_" + str(error),
+                created_at=current,
+            )
+        )
         return 0, False, None
-    rows = list((await session.execute(select(Artifact.sha256).where(
-        Artifact.workspace_id == workspace, Artifact.sha256 > cursor,
-        Artifact.storage_backend == "INLINE", Artifact.expired_at.is_(None),
-        Artifact.created_at < current - timedelta(days=settings.metadata_retention_days),
-    ).order_by(Artifact.sha256).limit(limit + 1))).scalars())
+    rows = list(
+        (
+            await session.execute(
+                select(Artifact.sha256)
+                .where(
+                    Artifact.workspace_id == workspace,
+                    Artifact.sha256 > cursor,
+                    Artifact.storage_backend == "INLINE",
+                    Artifact.expired_at.is_(None),
+                    Artifact.created_at
+                    < current - timedelta(days=settings.metadata_retention_days),
+                )
+                .order_by(Artifact.sha256)
+                .limit(limit + 1)
+            )
+        ).scalars()
+    )
     count = 0
     for digest in rows[:limit]:
         if digest in protected:
             continue
-        await session.execute(update(Artifact).where(Artifact.workspace_id == workspace, Artifact.sha256 == digest).values(
-            expired_at=current, deleted_at=current, content=None,
-        ))
+        await session.execute(
+            update(Artifact)
+            .where(Artifact.workspace_id == workspace, Artifact.sha256 == digest)
+            .values(
+                expired_at=current,
+                deleted_at=current,
+                content=None,
+            )
+        )
         count += 1
     more = len(rows) > limit
     return count, more, rows[limit - 1] if more else None

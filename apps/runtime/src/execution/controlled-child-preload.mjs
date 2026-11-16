@@ -1,7 +1,12 @@
 import fs from "node:fs";
 import { channel } from "node:diagnostics_channel";
 import { ChildProcess } from "node:child_process";
-import { inspectJournalFd, LIMITS, parseActivation, validateJournal } from "./controlled-child-protocol.mjs";
+import {
+    inspectJournalFd,
+    LIMITS,
+    parseActivation,
+    validateJournal,
+} from "./controlled-child-protocol.mjs";
 
 const raw = process.env.VERIQ_CHILD_OBSERVER;
 if (raw !== undefined) {
@@ -29,13 +34,30 @@ if (raw !== undefined) {
         /** 单写者明确从零定位写入，不依赖父子共享的隐含文件偏移；短写循环必须取得正进展且每条完整帧刷新成功，只有这样构造回调返回才表示意图已经持久写入。 */
         function append(type, fields = {}) {
             const frame = Buffer.from(`${JSON.stringify({ version: 1, seq, type, ...fields })}\n`);
-            if (fault || sealed || seq >= LIMITS.records || frame.length > LIMITS.frameBytes
-                || position + frame.length > LIMITS.fileBytes) fail();
+            if (
+                fault ||
+                sealed ||
+                seq >= LIMITS.records ||
+                frame.length > LIMITS.frameBytes ||
+                position + frame.length > LIMITS.fileBytes
+            )
+                fail();
             try {
                 let written = 0;
                 while (written < frame.length) {
-                    const count = fs.writeSync(fd, frame, written, frame.length - written, position + written);
-                    if (!Number.isSafeInteger(count) || count <= 0 || count > frame.length - written) fail();
+                    const count = fs.writeSync(
+                        fd,
+                        frame,
+                        written,
+                        frame.length - written,
+                        position + written,
+                    );
+                    if (
+                        !Number.isSafeInteger(count) ||
+                        count <= 0 ||
+                        count > frame.length - written
+                    )
+                        fail();
                     written += count;
                 }
                 fs.fsyncSync(fd);
@@ -55,12 +77,24 @@ if (raw !== undefined) {
         channel("child_process").subscribe(({ process: child }) => {
             if (fault || sealed || terminating) fail();
             try {
-                if (!(child instanceof ChildProcess) || roster.has(child) || slots >= LIMITS.objects) fail();
+                if (
+                    !(child instanceof ChildProcess) ||
+                    roster.has(child) ||
+                    slots >= LIMITS.objects
+                )
+                    fail();
                 const slot = ++slots;
                 append("INTENT", { slot });
                 roster.set(child, "INTENT");
                 child.once("spawn", () => {
-                    if (fault || sealed || roster.get(child) !== "INTENT" || !Number.isSafeInteger(child.pid) || child.pid <= 0) fail();
+                    if (
+                        fault ||
+                        sealed ||
+                        roster.get(child) !== "INTENT" ||
+                        !Number.isSafeInteger(child.pid) ||
+                        child.pid <= 0
+                    )
+                        fail();
                     append("SPAWNED", { slot, pid: child.pid });
                     roster.set(child, "SPAWNED");
                 });

@@ -87,7 +87,8 @@ export function tinyAssets(arch: "x64" | "arm64" = "x64") {
     ] as const;
 }
 
-/** 工作流回归通过已锁开发环境中的成熟 PyYAML 读取实际提交的 YAML，而不是另写解析器或复制生产收集算法；缓存固定在测试自有目录并显式 offline/no-sync，不安装依赖，也不将 Python 变成资产工具运行时的产品依赖。 */
+/** 工作流回归通过已锁开发环境中的成熟 PyYAML 读取实际提交的 YAML，而不是另写解析器或复制生产收集算法；缓存固定在测试自有目录并显式 offline/no-sync，不安装依赖，也不将 Python 变成资产工具运行时
+ * 的产品依赖。 */
 export function assetWorkflowSteps(cacheRoot: string): readonly Record<string, unknown>[] {
     const project = fileURLToPath(new URL("../../../srv", import.meta.url));
     const workflow = fileURLToPath(
@@ -103,7 +104,8 @@ export function assetWorkflowSteps(cacheRoot: string): readonly Record<string, u
             project,
             "python",
             "-c",
-            'import json,sys,yaml; assert yaml.__version__ == "6.0.3"; print(json.dumps(yaml.safe_load(open(sys.argv[1]))["jobs"]["assets"]["steps"]))',
+            'import json,sys,yaml; assert yaml.__version__ == "6.0.3"; print(json.dumps(yaml.safe_load(open(sys.argv' +
+                '[1]))["jobs"]["assets"]["steps"]))',
             workflow,
         ],
         {
@@ -115,7 +117,9 @@ export function assetWorkflowSteps(cacheRoot: string): readonly Record<string, u
     return JSON.parse(result) as Record<string, unknown>[];
 }
 
-const officialChecksumText = `f627b6d079829e648a4b800ffa889d37dbe23913507030030db85aa861591a26  node-v24.22.1-aix-ppc64.tar.gz
+const officialChecksumText =
+    `f627b6d079829e648a4b800ffa889d37dbe23913507030030db85aa861591a26  node-v24.22.1-aix-ppc` +
+    `64.tar.gz
 5faf40b7cba01eba47dfff7b5322979f27d0e8f042bab96cc567a3df01ec9796  node-v24.22.1-arm64.msi
 89c682593d76cd44233fa53b1563264e7de9cbb189cad169135c5b4fadfbc0a7  node-v24.22.1-darwin-arm64.tar.gz
 654ba79de6155647e22321932b45f2a1ccb705976cc337c9b8e278beb085a628  node-v24.22.1-darwin-arm64.tar.xz

@@ -27,7 +27,8 @@ const save = async (name, value) =>
 if (mode === "packages") {
     const raw = await run("/usr/bin/dpkg-query", [
         "-W",
-        "-f=${binary:Package}\t${Version}\t${Architecture}\t${source:Package}\t${source:Version}\t${Depends}\t${Pre-Depends}\t${Provides}\t${Installed-Size}\n",
+        "-f=${binary:Package}\t${Version}\t${Architecture}\t${source:Package}\t${source:Version}\t${Depends}\t${Pre-" +
+            "Depends}\t${Provides}\t${Installed-Size}\n",
     ]);
     const installed = new Map();
     const providers = new Map();

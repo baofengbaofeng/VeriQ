@@ -80,7 +80,8 @@ export function rendererTarget(
     return target;
 }
 
-/** 故障目标只从真实 Electron 唯一应用窗口取得，不接受 renderer 传入 PID；测试用 pidfd 向该 UI renderer 注入异常死亡，产品恢复处理器仍负责加载原应用，不能由测试主动 reload 或停止后台来制造通过。 */
+/** 故障目标只从真实 Electron 唯一应用窗口取得，不接受 renderer 传入 PID；测试用 pidfd 向该 UI renderer 注入异常死亡，产品恢复处理器仍负责加载原应用，不能由测试主动 reload 或停止
+ * 后台来制造通过。 */
 export async function terminateRenderer(electron: Desktop, root: string, evidence: string) {
     if (process.platform !== "linux") throw new Error("RENDERER_FAULT_LINUX_REQUIRED");
     const target = await electron.evaluate(rendererTarget, undefined);

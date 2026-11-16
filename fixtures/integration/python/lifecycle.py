@@ -32,7 +32,8 @@ class Client:
         """只允许 HTTPS 或本机 HTTP origin，拒绝路径、用户信息、查询和片段；云端与容器必须配置 Runtime 真正可达的 TLS 业务入口，不能把开发机 localhost 当成远端服务。
         """
         parts = urllib.parse.urlsplit(origin)
-        if parts.scheme not in {"https", "http"} or not parts.hostname or parts.username is not None or parts.path not in {"", "/"} or parts.query or parts.fragment:
+        if parts.scheme not in {"https", "http"} or not parts.hostname or parts.username is not None \
+            or parts.path not in {"", "/"} or parts.query or parts.fragment:
             raise RuntimeError("Provide a target origin without credentials or path")
         if parts.scheme == "http" and parts.hostname not in {"localhost", "127.0.0.1", "::1"}:
             raise RuntimeError("Use HTTPS outside loopback")
@@ -105,8 +106,10 @@ def lifecycle(client, workspace, probe):
             client.call("POST", "/prepare", business, prepare, expected=403)
         created = client.call("POST", "/employees", business,
                               {"code": prepared["variables"]["code"], "name": "VeriQ synthetic employee"})
-        employees = client.call("GET", "/employees?" + urllib.parse.urlencode({"namespace": envelope["namespace"]}), business)
-        if created["status"] != "CREATED" or employees["items"] != [{"id": created["id"], "name": "VeriQ synthetic employee"}]:
+        employees = client.call("GET", "/employees?" + urllib.parse.urlencode({"namespace": envelope["namespace"]}),
+            business)
+        if created["status"] != "CREATED" or employees["items"] != [{"id": created["id"],
+            "name": "VeriQ synthetic employee"}]:
             raise RuntimeError("Persisted business result differs")
     finally:
         cleanup = dict(envelope)
@@ -118,7 +121,8 @@ def lifecycle(client, workspace, probe):
         repeated = client.call("POST", "/cleanup", fixture, cleanup)
         if repeated["status"] != "ALREADY_CLEANED":
             raise RuntimeError("Cleanup replay is not idempotent")
-    remaining = client.call("GET", "/employees?" + urllib.parse.urlencode({"namespace": envelope["namespace"]}), business)
+    remaining = client.call("GET", "/employees?" + urllib.parse.urlencode({"namespace": envelope["namespace"]}),
+        business)
     if remaining["items"]:
         raise RuntimeError("Owned employees survived cleanup")
     print("HTTP example completed with persisted read and idempotent cleanup")

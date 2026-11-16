@@ -1,4 +1,3 @@
-
 import asyncio
 import json
 import os
@@ -20,9 +19,12 @@ async def main():
     assert make_url(env["mysql_dsn"]).database == "veriq_test"
     # Test-only persistent signer. Production never creates an issuer while serving.
     from veriq_server.bundles.issuer import Issuer
+
     issuer_path = Path(".superpowers/cache/t14/browser-issuer/issuer.json")
     issuer = Issuer(issuer_path) if issuer_path.exists() else Issuer.initialize(issuer_path)
-    Path(".superpowers/cache/t14/browser-issuer-public.json").write_text(json.dumps(issuer.public()))
+    Path(".superpowers/cache/t14/browser-issuer-public.json").write_text(
+        json.dumps(issuer.public())
+    )
     settings = Settings(
         database_url=env["mysql_dsn"],
         public_url="http://127.0.0.1:5173",

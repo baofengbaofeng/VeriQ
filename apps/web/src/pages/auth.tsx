@@ -103,7 +103,8 @@ export function ResetRequest() {
         <Panel title={tx("Reset your password")}>
             <p>
                 {tx(
-                    "Ask your system administrator for a short-lived reset link. If email delivery is available, reset instructions will be sent to eligible accounts.",
+                    "Ask your system administrator for a short-lived reset link. If email delivery is available, res" +
+                        "et instructions will be sent to eligible accounts.",
                 )}
             </p>
             <form
@@ -155,7 +156,8 @@ export function ResetConfirm() {
                             await api.resetConfirm({ token, newPassword: v.newPassword });
                             await auth.refresh();
                             a.setMessage(
-                                "Password updated. Your previous sessions have been revoked. Sign in with your new password.",
+                                "Password updated. Your previous sessions have been revoked. Sign in with your new p" +
+                                    "assword.",
                             );
                         });
                     }}

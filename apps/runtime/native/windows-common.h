@@ -16,7 +16,8 @@ class NativeFailure : public std::runtime_error {
 public:
     DWORD win32;
     DWORD checks;
-    NativeFailure(const char* code, DWORD system = 0, DWORD evidence = 0) : std::runtime_error(code), win32(system), checks(evidence) {}
+    NativeFailure(const char* code, DWORD system = 0, DWORD evidence = 0) : std::runtime_error(code), win32(
+        system), checks(evidence) {}
 };
 /** 每个内核句柄在本层只具有一个释放者，移动操作清空原值，异常离开作用域时仍会关闭资源；无效句柄与空句柄统一拒绝使用，禁止把裸 HANDLE 数值传给 JavaScript 或当作 Node 文件描述符。 */
 class Handle {
@@ -33,18 +34,22 @@ inline void require(bool ok, const char* code) { if (!ok) throw NativeFailure(co
 inline void requireWin32(bool ok, const char* code) { if (!ok) throw NativeFailure(code, GetLastError()); }
 inline std::wstring wide(const std::string& text) {
     if (text.empty()) return {};
-    int size = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text.data(), static_cast<int>(text.size()), nullptr, 0);
+    int size = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text.data(), static_cast<int>(text.size()), nullptr,
+        0);
     require(size > 0 && text.find('\0') == std::string::npos, "NATIVE_UTF8_INVALID");
     std::wstring result(size, L'\0');
-    require(MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text.data(), static_cast<int>(text.size()), result.data(), size) == size, "NATIVE_UTF8_INVALID");
+    require(MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text.data(), static_cast<int>(text.size()), result.data(
+        ), size) == size, "NATIVE_UTF8_INVALID");
     return result;
 }
 inline std::string utf8(const std::wstring& text) {
     if (text.empty()) return {};
-    int size = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, text.data(), static_cast<int>(text.size()), nullptr, 0, nullptr, nullptr);
+    int size = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, text.data(), static_cast<int>(text.size()), nullptr,
+        0, nullptr, nullptr);
     require(size > 0, "NATIVE_UTF16_INVALID");
     std::string result(size, '\0');
-    require(WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, text.data(), static_cast<int>(text.size()), result.data(), size, nullptr, nullptr) == size, "NATIVE_UTF16_INVALID");
+    require(WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, text.data(), static_cast<int>(text.size()), result.data(
+        ), size, nullptr, nullptr) == size, "NATIVE_UTF16_INVALID");
     return result;
 }
 inline std::wstring processSid(HANDLE process) {
@@ -57,7 +62,8 @@ inline std::wstring processSid(HANDLE process) {
     std::vector<BYTE> data(size);
     requireWin32(GetTokenInformation(token.value, TokenUser, data.data(), size, &size) != 0, "NATIVE_TOKEN_INVALID");
     LPWSTR value = nullptr;
-    requireWin32(ConvertSidToStringSidW(reinterpret_cast<TOKEN_USER*>(data.data())->User.Sid, &value) != 0, "NATIVE_SID_INVALID");
+    requireWin32(ConvertSidToStringSidW(reinterpret_cast<TOKEN_USER*>(data.data())->User.Sid, &value) != 0,
+        "NATIVE_SID_INVALID");
     std::wstring sid(value);
     LocalFree(value);
     return sid;
@@ -85,7 +91,8 @@ public:
     explicit PrivateSecurity(bool inherit = false, bool children = false) {
         const auto sid = currentSid();
         const auto sddl = L"O:" + sid + (children ? L"D:P(A;OICI;GA;;;" : L"D:P(A;;GA;;;") + sid + L")";
-        require(ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl.c_str(), SDDL_REVISION_1, &descriptor, nullptr) != 0, "NATIVE_DACL_FAILED");
+        require(ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl.c_str(), SDDL_REVISION_1, &descriptor,
+            nullptr) != 0, "NATIVE_DACL_FAILED");
         attributes = {sizeof(SECURITY_ATTRIBUTES), descriptor, inherit ? TRUE : FALSE};
     }
     ~PrivateSecurity() { if (descriptor) LocalFree(descriptor); }
@@ -98,7 +105,8 @@ inline void verifyPrivate(HANDLE handle, SE_OBJECT_TYPE type = SE_FILE_OBJECT, b
     PSID owner = nullptr;
     PACL acl = nullptr;
     PSECURITY_DESCRIPTOR descriptor = nullptr;
-    const DWORD securityError = GetSecurityInfo(handle, type, OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, &owner, nullptr, &acl, nullptr, &descriptor);
+    const DWORD securityError = GetSecurityInfo(handle, type, OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
+        &owner, nullptr, &acl, nullptr, &descriptor);
     if (securityError != ERROR_SUCCESS) throw NativeFailure("NATIVE_ACL_UNAVAILABLE", securityError);
     bool valid = false;
     LPWSTR ownerText = nullptr;
@@ -110,13 +118,15 @@ inline void verifyPrivate(HANDLE handle, SE_OBJECT_TYPE type = SE_FILE_OBJECT, b
     if (acl) checks |= 2;
     if (acl && acl->AceCount == 1) checks |= 4;
     if (owner && acl && acl->AceCount == 1 && ConvertSidToStringSidW(owner, &ownerText) &&
-        GetSecurityDescriptorControl(descriptor, &control, &revision) && ((control & SE_DACL_PROTECTED) || privateParent) &&
+        GetSecurityDescriptorControl(descriptor, &control, &revision) && ((control & SE_DACL_PROTECTED)
+            || privateParent) &&
         GetAce(acl, 0, &rawAce)) {
         checks |= 8;
         auto* ace = static_cast<ACCESS_ALLOWED_ACE*>(rawAce);
         if (ace->Header.AceType == ACCESS_ALLOWED_ACE_TYPE) checks |= 16;
         if (!(ace->Header.AceFlags & INHERITED_ACE)) checks |= 32;
-        if (ace->Header.AceType == ACCESS_ALLOWED_ACE_TYPE && (!(ace->Header.AceFlags & INHERITED_ACE) || privateParent) &&
+        if (ace->Header.AceType == ACCESS_ALLOWED_ACE_TYPE && (!(ace->Header.AceFlags & INHERITED_ACE)
+            || privateParent) &&
             ((control & SE_DACL_PROTECTED) || (ace->Header.AceFlags & INHERITED_ACE)) &&
             ConvertSidToStringSidW(&ace->SidStart, &aceText)) {
             const auto sid = currentSid();
@@ -135,7 +145,8 @@ inline void writeAll(HANDLE handle, const std::string& bytes) {
     size_t offset = 0;
     while (offset < bytes.size()) {
         DWORD written = 0;
-        require(WriteFile(handle, bytes.data() + offset, static_cast<DWORD>(bytes.size() - offset), &written, nullptr) && written > 0, "NATIVE_WRITE_FAILED");
+        require(WriteFile(handle, bytes.data() + offset, static_cast<DWORD>(bytes.size() - offset), &written, nullptr)
+            && written > 0, "NATIVE_WRITE_FAILED");
         offset += written;
     }
 }

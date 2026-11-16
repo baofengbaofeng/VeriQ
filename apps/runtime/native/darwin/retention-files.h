@@ -16,19 +16,22 @@ class RetentionParents {
 public:
     explicit RetentionParents(const std::string& path) {
         require(!path.empty() && path[0] == '/' && path.size() <= 4096 && utf8(path), "retention.path");
-        parents.emplace_back(openAt(AT_FDCWD, "/", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC, 0, "retention.root"));
+        parents.emplace_back(openAt(AT_FDCWD, "/", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC, 0,
+            "retention.root"));
         size_t start = 1;
         while (start < path.size()) {
             const auto end = path.find('/', start);
             const auto part = path.substr(start, end == std::string::npos ? end : end - start);
             component(part);
-            parents.emplace_back(openAt(fd(), part.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC, 0, "retention.parent"));
+            parents.emplace_back(openAt(fd(), part.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC, 0,
+                "retention.parent"));
             require(S_ISDIR(metadata(fd()).st_mode), "retention.parent-type");
             if (end == std::string::npos) break;
             start = end + 1;
         }
         const auto info = metadata(fd());
-        require(S_ISDIR(info.st_mode) && info.st_uid == ::getuid() && (info.st_mode & 07777) == 0700, "retention.parent-private");
+        require(S_ISDIR(info.st_mode) && info.st_uid == ::getuid() && (info.st_mode & 07777) == 0700,
+            "retention.parent-private");
         verifyPrivateAcl(fd());
     }
     int fd() const { return parents.back().get(); }
@@ -80,7 +83,8 @@ inline void retireRetentionFile(int parent, const std::string& name, const Reten
         static_cast<uint64_t>(before.st_size) == expected.size && expected.size <= 32 * 1024 * 1024 &&
         ((before.st_mode & 07777) == 0600 || (isolated && (before.st_mode & 07777) == 0400)), "retention.file-private");
     verifyPrivateAcl(file.get());
-    require(retentionDigest(file.get(), expected.size) == expected.sha256 && same(before, metadata(file.get())), "retention.file-changed");
+    require(retentionDigest(file.get(), expected.size) == expected.sha256 && same(before, metadata(file.get())),
+        "retention.file-changed");
     struct stat named{};
     if (::fstatat(parent, name.c_str(), &named, AT_SYMLINK_NOFOLLOW) != 0) systemFailure("retention.identity");
     require(named.st_dev == before.st_dev && named.st_ino == before.st_ino, "retention.identity");
@@ -101,8 +105,10 @@ inline void retirePrivateEvidence(const std::string& path, const RetentionFile& 
     const auto end = path.rfind('/'); require(end != std::string::npos, "retention.evidence-path");
     const auto parent = path.substr(0, end), name = path.substr(end + 1);
     const auto suffix = parent.rfind("/offline/work/");
-    require(suffix != std::string::npos && parent.size() >= suffix + 23 && parent.substr(suffix + 14).find('/') != std::string::npos &&
-        (parent.substr(parent.size() - 9) == "/evidence" || (parent.substr(parent.size() - 9) == "/metadata" && name == "report-display.json")), "retention.evidence-path");
+    require(suffix != std::string::npos && parent.size() >= suffix + 23 && parent.substr(suffix + 14).find(
+        '/') != std::string::npos &&
+        (parent.substr(parent.size() - 9) == "/evidence" || (parent.substr(parent.size() - 9) == "/metadata"
+            && name == "report-display.json")), "retention.evidence-path");
     const auto attempt = parent.substr(suffix + 14, parent.size() - suffix - 23);
     component(attempt); require(attempt.find('/') == std::string::npos, "retention.evidence-path");
     RetentionParents directory(parent);
@@ -110,18 +116,21 @@ inline void retirePrivateEvidence(const std::string& path, const RetentionFile& 
     directory.close();
 }
 
-/** 缓存树退休先检查有限库存再原子隔离，持有目标目录 inode 后只通过 openat 访问其子项；递归深度、总对象、总字节均有硬边界，任何链接、清单外成员或错误拥有者都会保留退休现场，不使用递归路径 rm 或修改仍在原命名空间的只读树。 */
+/** 缓存树退休先检查有限库存再原子隔离，持有目标目录 inode 后只通过 openat 访问其子项；递归深度、总对象、总字节均有硬边界，任何链接、清单外成员或错误拥有者都会保留退休现场，不使用递归路径 rm 或修改仍在原命名空间的只读
+* 树。 */
 inline void retirePrivateInventory(const std::string& input, const std::string& original, const std::string& retiring,
     const std::vector<RetentionFile>& files) {
     component(original); component(retiring);
     require(original.size() == 36 && original.find_first_not_of("0123456789abcdef-") == std::string::npos &&
-        retiring == ".veriq-retiring-" + original && input.size() >= 8 && input.substr(input.size() - 8) == "/bundles" &&
+        retiring == ".veriq-retiring-" + original && input.size() >= 8 && input.substr(input.size() - 8) == "/bundles"
+            &&
         files.size() <= 4098, "retention.cache-purpose");
     std::map<std::string, RetentionFile> inventory; std::set<std::string> directories;
     uint64_t bytes = 0;
     for (const auto& file : files) {
         require(file.path.size() <= 240 && !file.path.empty() && file.path.find('\\') == std::string::npos &&
-            file.size <= 32 * 1024 * 1024 && file.sha256.size() == 64 && file.sha256.find_first_not_of("0123456789abcdef") == std::string::npos,
+            file.size <= 32 * 1024 * 1024 && file.sha256.size() == 64 && file.sha256.find_first_not_of(
+                "0123456789abcdef") == std::string::npos,
             "retention.inventory");
         size_t start = 0; unsigned depth = 0;
         for (;;) {
@@ -145,7 +154,8 @@ inline void retirePrivateInventory(const std::string& input, const std::string& 
     require(sourceResult != 0 || isolatedResult != 0, "retention.namespace-conflict");
     if (sourceResult != 0 && isolatedResult != 0) { parent.close(); return; }
     const auto name = sourceResult == 0 ? original : retiring;
-    Descriptor tree(openAt(parent.fd(), name.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC, 0, "retention.tree"));
+    Descriptor tree(openAt(parent.fd(), name.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC, 0,
+        "retention.tree"));
     const auto owned = metadata(tree.get());
     require(S_ISDIR(owned.st_mode) && owned.st_uid == ::getuid() &&
         ((owned.st_mode & 07777) == 0500 || (owned.st_mode & 07777) == 0700), "retention.tree-private");
@@ -163,7 +173,8 @@ inline void retirePrivateInventory(const std::string& input, const std::string& 
             ((info.st_mode & 07777) == 0500 || (info.st_mode & 07777) == 0700), "retention.directory-private");
         verifyPrivateAcl(directory);
         if (remove && ::fchmod(directory, 0700) != 0) systemFailure("retention.make-writable");
-        Descriptor cursor(openAt(directory, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC, 0, "retention.cursor"));
+        Descriptor cursor(openAt(directory, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC, 0,
+            "retention.cursor"));
         DIR* raw = ::fdopendir(cursor.get());
         if (!raw) systemFailure("retention.cursor");
         cursor.take();
@@ -184,13 +195,15 @@ inline void retirePrivateInventory(const std::string& input, const std::string& 
             if (::fstatat(directory, child.c_str(), &named, AT_SYMLINK_NOFOLLOW) != 0) systemFailure("retention.child");
             if (S_ISDIR(named.st_mode)) {
                 require(directories.count(path) == 1, "retention.unknown-directory");
-                Descriptor nested(openAt(directory, child.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC, 0, "retention.nested"));
+                Descriptor nested(openAt(directory, child.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC, 0,
+                    "retention.nested"));
                 const auto held = metadata(nested.get());
                 require(held.st_dev == named.st_dev && held.st_ino == named.st_ino, "retention.child-changed");
                 visit(visit, nested.get(), path, remove);
                 if (remove) {
                     struct stat current{};
-                    if (::fstatat(directory, child.c_str(), &current, AT_SYMLINK_NOFOLLOW) != 0) systemFailure("retention.directory-identity");
+                    if (::fstatat(directory, child.c_str(), &current, AT_SYMLINK_NOFOLLOW) != 0) systemFailure(
+                        "retention.directory-identity");
                     require(current.st_dev == held.st_dev && current.st_ino == held.st_ino, "retention.child-changed");
                     if (::unlinkat(directory, child.c_str(), AT_REMOVEDIR) != 0) systemFailure("retention.rmdir");
                     sync(directory, "retention.directory-sync");
@@ -198,7 +211,8 @@ inline void retirePrivateInventory(const std::string& input, const std::string& 
                 nested.close("retention.directory-close");
             } else {
                 const auto found = inventory.find(path);
-                require(found != inventory.end() && S_ISREG(named.st_mode) && named.st_uid == ::getuid() && named.st_nlink == 1 &&
+                require(found != inventory.end() && S_ISREG(named.st_mode) && named.st_uid == ::getuid()
+                    && named.st_nlink == 1 &&
                     named.st_size >= 0 && static_cast<uint64_t>(named.st_size) == found->second.size &&
                     ((named.st_mode & 07777) == 0400 || (named.st_mode & 07777) == 0600), "retention.unknown-file");
                 if (remove) retireRetentionFile(directory, child, found->second, true);
@@ -208,7 +222,8 @@ inline void retirePrivateInventory(const std::string& input, const std::string& 
     walk(walk, tree.get(), "", false); count = 0;
     walk(walk, tree.get(), "", true);
     struct stat current{};
-    if (::fstatat(parent.fd(), retiring.c_str(), &current, AT_SYMLINK_NOFOLLOW) != 0) systemFailure("retention.tree-identity");
+    if (::fstatat(parent.fd(), retiring.c_str(), &current, AT_SYMLINK_NOFOLLOW) != 0) systemFailure(
+        "retention.tree-identity");
     require(current.st_dev == owned.st_dev && current.st_ino == owned.st_ino, "retention.tree-changed");
     if (::unlinkat(parent.fd(), retiring.c_str(), AT_REMOVEDIR) != 0) systemFailure("retention.tree-remove");
     sync(parent.fd(), "retention.tree-sync");

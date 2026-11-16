@@ -27,7 +27,10 @@ import {
 } from "../../../runtime/src/offline/config.ts";
 import { diagnoseRelease } from "../../../runtime/src/distribution.ts";
 import { loadDesktopRuntime } from "../installation/release";
-import { createDarwinDistribution, type DarwinSourceCapability } from "../../../runtime/src/execution/darwin-source.ts";
+import {
+    createDarwinDistribution,
+    type DarwinSourceCapability,
+} from "../../../runtime/src/execution/darwin-source.ts";
 import type { RuntimeDistribution } from "../../../runtime/src/distribution.ts";
 import { holdMaintenance } from "./maintenance";
 import { openTrace } from "../../../runtime/src/trace.ts";
@@ -167,7 +170,8 @@ export class DesktopAgent {
      * 离线签名有效不表示知道实时撤销状态，报告仍保留原有未知撤销语义。
      */
     private async selected(bundleId: string) {
-        if (this.transition?.operation === "pruneCache") throw new Error("LOCAL_CACHE_MAINTENANCE_BUSY");
+        if (this.transition?.operation === "pruneCache")
+            throw new Error("LOCAL_CACHE_MAINTENANCE_BUSY");
         this.resourceReads++;
         try {
             const item = (await this.catalog()).find(
@@ -180,10 +184,14 @@ export class DesktopAgent {
                 workspaceId: item.workspaceId,
                 debug: item.debug,
             });
-            /** 只有实际通过签名及库存重验的资源访问才刷新 SQLite 生命周期，不能根据 renderer 选择或磁盘 mtime 让旧缓存获得伪造年龄；读计数覆盖此事务，清理门闩不会在验签读取与访问登记之间删除同一资源。 */
+            /** 只有实际通过签名及库存重验的资源访问才刷新 SQLite 生命周期，不能根据 renderer 选择或磁盘 mtime 让旧缓存获得伪造年龄；读计数覆盖此事务，清理门闩不会在验签读取与访问登记之间删除同
+             * 一资源。 */
             const store = await LocalStore.open(this.executionRoot);
-            try { store.touchCache(item.workspaceId, item.id); }
-            finally { store.close(); }
+            try {
+                store.touchCache(item.workspaceId, item.id);
+            } finally {
+                store.close();
+            }
             return { item, directory, checked };
         } finally {
             this.resourceReads--;
@@ -206,7 +214,8 @@ export class DesktopAgent {
         return config;
     }
 
-    /** 设备缺席只接受当前存储路径的明确事实，保险库事务已有专用缺登记标识而后端系统错误不具备此含义；源码文件模式保留精确 device.json 的缺文件以及 Windows 既有有限原生缺路径合同，避免未知 ENOENT 放开绑定与控制源保护。 */
+    /** 设备缺席只接受当前存储路径的明确事实，保险库事务已有专用缺登记标识而后端系统错误不具备此含义；源码文件模式保留精确 device.json 的缺文件以及 Windows 既有有限原生缺路径合同，避免未知 ENOENT
+     * 放开绑定与控制源保护。 */
     private deviceNotEnrolled(error: unknown): boolean {
         if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) return false;
         if (this.credentialProfile) return error.message === "DEVICE_NOT_ENROLLED";
@@ -328,7 +337,14 @@ export class DesktopAgent {
             onlineStart: [],
             onlineStop: [],
             clearBundle: ["bundleId"],
-            pruneCache: ["workspaceId", "metadataDays", "bundleDays", "rawSuccessDays", "rawFailureDays", "batchSize"],
+            pruneCache: [
+                "workspaceId",
+                "metadataDays",
+                "bundleDays",
+                "rawSuccessDays",
+                "rawFailureDays",
+                "batchSize",
+            ],
             stop: [],
             prepareMaintenance: [],
             recover: [],
@@ -402,7 +418,8 @@ export class DesktopAgent {
         await privateDirectory(this.root);
         startup?.signal.throwIfAborted();
         if (operation === "status") return this.state();
-        /** GUI 保留期维护只消费共享解析器核过的有限策略并绑定当前本机工作区，原始 desktopOwner 能力由构造器保留而不经过 renderer 序列化；活动执行由既有预留门闩排除，查看器和正在读取的缓存也必须先结束。
+        /** GUI 保留期维护只消费共享解析器核过的有限策略并绑定当前本机工作区，原始 desktopOwner 能力由构造器保留而不经过 renderer 序列化；活动执行由既有预留门闩排除，查看器和正在读取的缓存也必须先结束
+         * 。
          * 真实 helper 自己核验在线与离线停止历史、合作锁和 SQLite 事务。
          * profileRoot 只能是当前 Agent 的固定 root，不能使用页面字段改换档案。
          * 清理开始后 stop 会等待同一预留结束，不以 AbortSignal 伪造文件操作回滚。
@@ -412,7 +429,8 @@ export class DesktopAgent {
             const { operation: _operation, ...policy } = parseLocalRetentionCommand(message);
             if (!this.selectedWorkspace || policy.workspaceId !== this.selectedWorkspace)
                 throw new Error("LOCAL_RETENTION_WORKSPACE_MISMATCH");
-            if (this.viewers.size || this.resourceReads) throw new Error("LOCAL_CACHE_MAINTENANCE_BUSY");
+            if (this.viewers.size || this.resourceReads)
+                throw new Error("LOCAL_CACHE_MAINTENANCE_BUSY");
             return pruneLocalProfile(this.root, {
                 ...policy,
                 ...(this.desktopOwner ? { desktopOwner: this.desktopOwner } : {}),
@@ -787,12 +805,17 @@ export class DesktopAgent {
         }
         if (operation === "recover") {
             if (this.run || this.online) throw new Error("AGENT_BUSY");
-            const installed = this.config.distributionRoot ? await loadDesktopRuntime(this.config.distributionRoot) : undefined;
+            const installed = this.config.distributionRoot
+                ? await loadDesktopRuntime(this.config.distributionRoot)
+                : undefined;
             const darwinSource = await this.darwinExecution(installed);
-            return { receipt: (await recoverOffline(this.executionRoot, {
-                ...(installed ? { execution: installed.execution } : {}),
-                ...(darwinSource ? { darwinSource } : {}),
-            })) ?? null };
+            return {
+                receipt:
+                    (await recoverOffline(this.executionRoot, {
+                        ...(installed ? { execution: installed.execution } : {}),
+                        ...(darwinSource ? { darwinSource } : {}),
+                    })) ?? null,
+            };
         }
         throw new Error("AGENT_OPERATION_DENIED");
     }
@@ -913,8 +936,11 @@ export class DesktopAgent {
         });
     }
 
-    /** 已安装 Darwin 执行必须先从原始库存能力取得独立 Runner 探针与私有控制目录，不能用 Electron 内置 Node 或源码 Chrome 替代；能力只在本次进程内传给既有执行器，签名业务包和 renderer 都无法构造或覆盖它。 */
-    private async darwinExecution(installed: RuntimeDistribution | undefined): Promise<DarwinSourceCapability | undefined> {
+    /** 已安装 Darwin 执行必须先从原始库存能力取得独立 Runner 探针与私有控制目录，不能用 Electron 内置 Node 或源码 Chrome 替代；能力只在本次进程内传给既有执行器，签名业务包和 rende
+     * rer 都无法构造或覆盖它。 */
+    private async darwinExecution(
+        installed: RuntimeDistribution | undefined,
+    ): Promise<DarwinSourceCapability | undefined> {
         if (process.platform !== "darwin") return undefined;
         if (!installed) throw new Error("DARWIN_NATIVE_DISTRIBUTION_REQUIRED");
         const temporaryDirectory = join(this.root, "darwin-control");

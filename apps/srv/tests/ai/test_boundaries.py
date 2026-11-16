@@ -1,4 +1,3 @@
-
 import pytest
 from cryptography.exceptions import InvalidTag
 from veriq_server.credentials.crypto import Keyring

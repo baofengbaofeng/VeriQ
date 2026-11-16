@@ -127,7 +127,8 @@ void validMode(mode_t initial) {
         check((after.st_mode & 07777) == (initial & 0700));
         if ((initial & 0077) == 0) {
 #ifdef __APPLE__
-            check(before.st_ctimespec.tv_sec == after.st_ctimespec.tv_sec && before.st_ctimespec.tv_nsec == after.st_ctimespec.tv_nsec);
+            check(before.st_ctimespec.tv_sec == after.st_ctimespec.tv_sec
+                && before.st_ctimespec.tv_nsec == after.st_ctimespec.tv_nsec);
 #else
             check(before.st_ctim.tv_sec == after.st_ctim.tv_sec && before.st_ctim.tv_nsec == after.st_ctim.tv_nsec);
 #endif
@@ -207,7 +208,8 @@ void replacement(int kind) {
         if (kind >= 2) check((area.info("original").st_mode & 07777) == (kind == 3 ? 0600 : 0644));
         else {
             struct stat value {};
-            check(lstat((originalDirectory + "/owned.keychain-db").c_str(), &value) == 0 && (value.st_mode & 07777) == 0644);
+            check(lstat((originalDirectory + "/owned.keychain-db").c_str(), &value) == 0 && (
+                value.st_mode & 07777) == 0644);
         }
     }
     check(descriptors() == openBefore);
@@ -242,11 +244,14 @@ enum class TestFailure { ASSERTION, GUARD, RUNTIME, STANDARD, UNKNOWN };
 int failureDiagnostic(int completed, TestFailure kind, int error = -1, int line = -1) {
     const char *names[] = {"ASSERTION", "GUARD", "RUNTIME", "STANDARD", "UNKNOWN"};
     if (kind == TestFailure::ASSERTION && line > 0 && line <= 4095) {
-        std::fprintf(stderr, "PRIVATE_MODE_GUARD_FAILED completed=%d class=%s errno=UNKNOWN line=%d\n", completed, names[static_cast<unsigned>(kind)], line);
+        std::fprintf(stderr, "PRIVATE_MODE_GUARD_FAILED completed=%d class=%s errno=UNKNOWN line=%d\n", completed,
+            names[static_cast<unsigned>(kind)], line);
     } else if (kind == TestFailure::GUARD && error >= 0 && error <= 4095) {
-        std::fprintf(stderr, "PRIVATE_MODE_GUARD_FAILED completed=%d class=%s errno=%d line=UNKNOWN\n", completed, names[static_cast<unsigned>(kind)], error);
+        std::fprintf(stderr, "PRIVATE_MODE_GUARD_FAILED completed=%d class=%s errno=%d line=UNKNOWN\n", completed,
+            names[static_cast<unsigned>(kind)], error);
     } else {
-        std::fprintf(stderr, "PRIVATE_MODE_GUARD_FAILED completed=%d class=%s errno=UNKNOWN line=UNKNOWN\n", completed, names[static_cast<unsigned>(kind)]);
+        std::fprintf(stderr, "PRIVATE_MODE_GUARD_FAILED completed=%d class=%s errno=UNKNOWN line=UNKNOWN\n", completed,
+            names[static_cast<unsigned>(kind)]);
     }
     return 1;
 }

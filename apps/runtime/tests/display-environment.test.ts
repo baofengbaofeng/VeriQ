@@ -14,7 +14,8 @@ test("supervised visible worker receives only trusted display connection fields"
             executable: process.execPath,
             args: [
                 "-e",
-                "console.log(JSON.stringify({display:process.env.DISPLAY??null,authority:process.env.XAUTHORITY??null,secret:process.env.VERIQ_DEVICE_TOKEN??null}));process.on('message',()=>{});",
+                "console.log(JSON.stringify({display:process.env.DISPLAY??null,authority:process.env.XAUTHORITY??nul" +
+                    "l,secret:process.env.VERIQ_DEVICE_TOKEN??null}));process.on('message',()=>{});",
             ],
             cwd: root,
             env: offlineWorkerEnvironment(root, join(root, "provider.mjs"), false, {

@@ -89,9 +89,7 @@ class ReleaseProcesses:
                 )
                 + "\n"
             )
-            raise RuntimeError(
-                "Release supervisor failed; build state quarantined"
-            ) from None
+            raise RuntimeError("Release supervisor failed; build state quarantined") from None
 
     def run(self, argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[Any]:
         """以参数数组启动真实命令并在独立组内等待结果，兼容现有辅助函数需要的捕获输出与检查选项；成功、非零退出及取消均持久记录，任何异常都先终止整组后代再交回调用方。
@@ -132,9 +130,7 @@ class ReleaseProcesses:
             self.stop()
             result = subprocess.CompletedProcess(
                 argv,
-                self.command_exit
-                if self.command_exit is not None
-                else process.returncode,
+                self.command_exit if self.command_exit is not None else process.returncode,
                 stdout,
                 stderr,
             )
@@ -149,9 +145,7 @@ class ReleaseProcesses:
             raise
         finally:
             self.cleaning = True
-            for stream in (
-                (process.stdout, process.stderr, process.stdin) if process else ()
-            ):
+            for stream in (process.stdout, process.stderr, process.stdin) if process else ():
                 if stream is not None:
                     stream.close()
             self.records.append(
@@ -169,9 +163,7 @@ class ReleaseProcesses:
                     "signal": self.cancel_signal,
                 }
             )
-            (self.evidence / "processes.json").write_text(
-                json.dumps(self.records, indent=2) + "\n"
-            )
+            (self.evidence / "processes.json").write_text(json.dumps(self.records, indent=2) + "\n")
             self.cleaning = failed or self.cancel_signal is not None
             if self.cancel_signal is not None and not failed:
                 raise BuildCancelled(f"Build cancelled by signal {self.cancel_signal}")
@@ -184,9 +176,7 @@ def process_scope(evidence: Path, lock_fd: int) -> Iterator[ReleaseProcesses]:
     锁由外层上下文持有，因此 finally 的实际退出检查发生在锁释放之前。
     """
     managed = ReleaseProcesses(evidence, lock_fd)
-    previous = {
-        number: signal.getsignal(number) for number in (signal.SIGTERM, signal.SIGINT)
-    }
+    previous = {number: signal.getsignal(number) for number in (signal.SIGTERM, signal.SIGINT)}
     try:
         for number in previous:
             signal.signal(number, managed.cancel)

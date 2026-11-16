@@ -89,7 +89,8 @@ it.each(["popup", "frame", "websocket", "worker", "workerWebSocket"] as const)(
                         URL.createObjectURL(
                             new Blob(
                                 [
-                                    `const ws=new WebSocket('${origin.replace("http", "ws")}/socket');ws.onerror=()=>postMessage('attempted');`,
+                                    `const ws=new WebSocket('${origin.replace("http", "ws")}` +
+                                        `/socket');ws.onerror=()=>postMessage('attempted');`,
                                 ],
                                 { type: "text/javascript" },
                             ),

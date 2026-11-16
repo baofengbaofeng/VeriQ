@@ -16,6 +16,7 @@ class WorkspaceRepository:
     """绑定会话与 WorkspaceScope，提供 get/member/authorize/invite 与 Owner 保护原语。
     WorkspaceRepository 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     def __init__(self, session: AsyncSession, scope: WorkspaceScope):
         """保存会话与作用域，后续查询一律携带 workspace_id 谓词，WorkspaceRepository.__init__ 遵守本文件 Workspace/事务边界。
         __init__ 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。

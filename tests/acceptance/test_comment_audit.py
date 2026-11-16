@@ -108,9 +108,7 @@ def test_bridge_keeps_utf16_and_adds_codepoint_coordinates(
         }
     ]
     assert text[point_offset:point_limit] == content
-    assert (
-        text.encode("utf-16-le")[offset * 2 : limit * 2].decode("utf-16-le") == content
-    )
+    assert text.encode("utf-16-le")[offset * 2 : limit * 2].decode("utf-16-le") == content
 
 
 @pytest.mark.parametrize(
@@ -144,9 +142,7 @@ def test_eof_and_mixed_code_count_each_line_once(repository: Path, text: str) ->
 
 
 @pytest.mark.parametrize("newline", ["\n", "\r\n"], ids=["lf", "crlf"])
-def test_multiline_masks_preserve_raw_line_breaks(
-    repository: Path, newline: str
-) -> None:
+def test_multiline_masks_preserve_raw_line_breaks(repository: Path, newline: str) -> None:
     """多行注释中的补充字符与原始换行必须在 Node 和 Python 两侧保持相同位置，遮罩只移除注释文字而保留跨行结构；块首尾混入代码时仍分别计数，并保留随后行注释和末行代码的位置。
 
     关闭分隔符所在行含代码时也计入注释，明确保留既有逐行规则而不重新定义统计口径。
@@ -259,9 +255,7 @@ def test_ratio_remains_strict_with_no_quality_violations(
 
     额外代码行只改变代码计数，注释内容和合并规则在两个场景中保持一致。
     """
-    _write(
-        repository, "sample.ts", f"//{LONG}\n//续行\nconst x = 1;\nconst y = 2;\n{code}"
-    )
+    _write(repository, "sample.ts", f"//{LONG}\n//续行\nconst x = 1;\nconst y = 2;\n{code}")
     report = _audit(repository)
     assert report["files"] == [
         {"path": "sample.ts", "commentLines": 2, "codeLines": 3 if code else 2}
@@ -288,9 +282,7 @@ def test_owned_git_scope_keeps_tests_old_files_and_only_explicit_exclusions(
     ]
     for name in [*generated, ".superpowers/private.ts", "ignored.txt"]:
         _write(repository, name, "//短\n")
-    subprocess.run(
-        ["git", "add", "--force", "--", *generated], cwd=repository, check=True
-    )
+    subprocess.run(["git", "add", "--force", "--", *generated], cwd=repository, check=True)
     report = _audit(repository)
     assert report == {
         "method": "syntax-comments-v1",

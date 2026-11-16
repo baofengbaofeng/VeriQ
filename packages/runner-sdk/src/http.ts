@@ -6,20 +6,11 @@ import { businessHeaders } from "./fixtures/auth.js";
 import type { HttpMethod, JsonObject, JsonValue } from "@veriq/contracts";
 import { randomUUID } from "node:crypto";
 import { budget, type StepContext } from "./context.js";
-import {
-    responseData,
-    queryData,
-    queryParameters,
-    type Exchange,
-} from "./observers/network.js";
+import { responseData, queryData, queryParameters, type Exchange } from "./observers/network.js";
 /**
  * 公开函数 authorizedURL 在业务基址上解析相对路径：拒绝越出授权 Origin 的地址（authorizedURL/INVALID_PATH）。
  */
-export function authorizedURL(
-    path: string,
-    base: string,
-    origins: string[],
-): URL {
+export function authorizedURL(path: string, base: string, origins: string[]): URL {
     let decoded = path;
     while (true) {
         if (!/^\/(?!\/)/u.test(decoded) || /[\\\u0000-\u001f\u007f]/u.test(decoded))
@@ -50,16 +41,11 @@ export async function apiRequest(
     headers?: Record<string, string>,
     timeout = 10000,
 ): Promise<Exchange> {
-    let url = authorizedURL(
-        path,
-        ctx.environment.apiBaseURL,
-        ctx.environment.allowedOrigins,
-    );
+    let url = authorizedURL(path, ctx.environment.apiBaseURL, ctx.environment.allowedOrigins);
     const parameters = queryParameters(query ?? {});
     for (const [key, value] of Object.entries(query ?? {})) {
         if (!Array.isArray(value)) url.searchParams.delete(key);
-        for (const item of parameters.getAll(key))
-            url.searchParams.append(key, item);
+        for (const item of parameters.getAll(key)) url.searchParams.append(key, item);
     }
     const start = Date.now(),
         deadline = start + budget(ctx, timeout),

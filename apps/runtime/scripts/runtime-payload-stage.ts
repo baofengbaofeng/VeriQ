@@ -58,7 +58,8 @@ export type PayloadResult = Readonly<{
 type Copy = { fact: OutputFact; root: string; source: Ref };
 const rootPackage = Buffer.from('{"private":true,"type":"module"}\n');
 
-/** 所有实际复制到包外 input-evidence 的 Ref 必须共享固定六十四 MiB 总额，原配方、独立 expected 和本次 intake 收据也逐份计入；该检查只核数值预算而不冒充来源或文件真实性验证，磁盘剩余写入计划另行处理。 */
+/** 所有实际复制到包外 input-evidence 的 Ref 必须共享固定六十四 MiB 总额，原配方、独立 expected 和本次 intake 收据也逐份计入；该检查只核数值预算而不冒充来源或文件真实性验证，磁盘剩余写入
+ * 计划另行处理。 */
 export function assertPayloadEvidenceBudget(receipts: readonly Ref[]): void {
     let total = 0;
     for (const receipt of receipts) {
@@ -557,7 +558,8 @@ export async function stageMacRuntimePayload(
     }
 }
 
-/** 所有 resolution consumer 与目标都必须是本次真实复制的普通成员，只有固定根 tsx consumer 由 stage 生成 package.json；此处补齐静态证据闭合，不执行目标 Node 解析，也不把 GraphProof 自报结果提升为实际运行证明。 */
+/** 所有 resolution consumer 与目标都必须是本次真实复制的普通成员，只有固定根 tsx consumer 由 stage 生成 package.json；此处补齐静态证据闭合，不执行目标 Node 解析，也不把
+ *  GraphProof 自报结果提升为实际运行证明。 */
 function verifyConsumers(
     report: InputInspection,
     output: readonly OutputFact[],
@@ -577,7 +579,8 @@ function verifyConsumers(
     }
 }
 
-/** ZIP 的第二消费者只用 yauzl 公开 central metadata 施加明确 Unix 原模式政策，并逐项对照 fresh intake 的成员集合；不解压、不重计同一归档资源，也不试图补造 descriptor 或完整 ZIP 语法解码器来掩盖 I 的延期模式 fallback。 */
+/** ZIP 的第二消费者只用 yauzl 公开 central metadata 施加明确 Unix 原模式政策，并逐项对照 fresh intake 的成员集合；不解压、不重计同一归档资源，也不试图补造 descriptor 或
+ * 完整 ZIP 语法解码器来掩盖 I 的延期模式 fallback。 */
 async function explicitZipModes(intake: IntakeResult, tx: ArchiveTransaction) {
     const archive = intake.receipt.archives.find((item) => item.kind === "chrome")!;
     const path = join(intake.directory, archive.snapshot.path);

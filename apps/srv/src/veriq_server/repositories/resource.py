@@ -30,6 +30,7 @@ class InlineArtifact(Protocol):
         content 实现于 apps/srv/src/veriq_server/repositories/resource.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
         """
         ...
+
     @property
     def size_bytes(self) -> int:
         """返回与 content 长度一致的字节数，供清单交叉核对，InlineArtifact.size_bytes 路径必须遵守 Workspace 作用域。
@@ -42,6 +43,7 @@ class ResourceRepository:
     """绑定会话与 WorkspaceScope 的资源仓储，拒绝无租户谓词访问，ResourceRepository 路径必须遵守 Workspace 作用域。
     ResourceRepository 实现于 apps/srv/src/veriq_server/repositories/resource.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
+
     def __init__(self, session: AsyncSession, scope: WorkspaceScope):
         """保存 AsyncSession 与 WorkspaceScope，查找强制带 workspace_id，ResourceRepository.__init__ 路径必须遵守 Workspace 作用域。
         __init__ 实现于 apps/srv/src/veriq_server/repositories/resource.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
@@ -168,6 +170,7 @@ class ResourceRepository:
                     existing.storage_incarnation,
                 )
             from ..services.jobs import database_time
+
             existing.created_at = await database_time(self.session)
             existing.content = content
             existing.storage_backend = "INLINE"

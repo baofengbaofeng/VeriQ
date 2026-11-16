@@ -5,7 +5,11 @@
 import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import type { FixtureV1, JsonObject, JsonValue } from "@veriq/contracts";
-import type { FixtureServiceContext, LifecycleContext, LifecycleProvider } from "../register-case.js";
+import type {
+    FixtureServiceContext,
+    LifecycleContext,
+    LifecycleProvider,
+} from "../register-case.js";
 import { authorizedURL } from "../http.js";
 import { authenticatedRequest, authenticateBusiness } from "./auth.js";
 const schemas = new Ajv2020({ strict: false, allErrors: true });
@@ -53,11 +57,7 @@ async function call(
         base = context.execution.environment.fixtureBaseURL;
     if (!identity || !base) throw new Error("FIXTURE_IDENTITY_REQUIRED");
     const endpoint = fixture[operation],
-        url = authorizedURL(
-            endpoint.path,
-            base,
-            context.execution.environment.allowedOrigins,
-        ).href;
+        url = authorizedURL(endpoint.path, base, context.execution.environment.allowedOrigins).href;
     const authenticated = await authenticatedRequest(context, identity, base);
     try {
         const response = await authenticated.client.fetch(url, {
@@ -66,9 +66,9 @@ async function call(
                 ...envelope(context),
                 ...(operation === "prepare"
                     ? {
-                            input: context.fixtureInput ?? {},
-                            ttlSeconds: fixture.ttlSeconds,
-                        }
+                          input: context.fixtureInput ?? {},
+                          ttlSeconds: fixture.ttlSeconds,
+                      }
                     : { ...(token === undefined ? {} : { cleanupToken: token }) }),
             },
             maxRedirects: 0,
@@ -84,8 +84,7 @@ async function call(
         }
     } catch (error) {
         if (context.signal.aborted) throw new Error("CANCELLED");
-        if (error instanceof Error && error.message === "FIXTURE_CONFLICT")
-            throw error;
+        if (error instanceof Error && error.message === "FIXTURE_CONFLICT") throw error;
         // Playwright's call log includes request headers; never expose it as an error.
         throw new Error("FIXTURE_REQUEST_FAILED");
     } finally {
@@ -95,14 +94,8 @@ async function call(
 /**
  * 公开函数 prepareFixture 调用夹具提供者准备环境：校验 outputSchema：并把 cleanupToken 登记进证据策略。
  */
-export async function prepareFixture(
-    request: FixtureRequest,
-): Promise<FixtureContext> {
-    if (
-        !schemas.compile(request.fixture.inputSchema)(
-            request.context.fixtureInput ?? {},
-        )
-    )
+export async function prepareFixture(request: FixtureRequest): Promise<FixtureContext> {
+    if (!schemas.compile(request.fixture.inputSchema)(request.context.fixtureInput ?? {}))
         throw new Error("FIXTURE_INPUT_INVALID");
     const result = await call(request, "prepare");
     request.context.protect?.(result.cleanupToken ?? null);
@@ -133,9 +126,7 @@ export async function cleanupFixture(
         throw new Error("CLEANUP_RESPONSE_INVALID");
     return {
         status: result.status,
-        ...(typeof result.fixtureId === "string"
-            ? { fixtureId: result.fixtureId }
-            : {}),
+        ...(typeof result.fixtureId === "string" ? { fixtureId: result.fixtureId } : {}),
     };
 }
 /**

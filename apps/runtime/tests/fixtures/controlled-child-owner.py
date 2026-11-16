@@ -42,7 +42,9 @@ if libc.prctl(36, 1, 0, 0, 0) != 0:
     raise OSError(ctypes.get_errno(), "SUBREAPER_UNAVAILABLE")
 driver = None
 try:
-    driver = subprocess.Popen(sys.argv[1:], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    driver = subprocess.Popen(
+        sys.argv[1:], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
     stdout, stderr = driver.communicate(timeout=8)
     if driver.returncode != 0:
         raise RuntimeError("OWNER_DRIVER_FAILED")

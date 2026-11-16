@@ -2,7 +2,6 @@
 供报告与完成聚合复用，不直接触达数据库。
 """
 
-
 from typing import Any
 
 PRIORITY = ["ERROR", "INCOMPLETE", "FAILED", "CANCELLED", "UNSTABLE", "SKIPPED", "PASSED"]

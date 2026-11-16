@@ -46,6 +46,14 @@ def sample_package() -> dict[str, Any]:
         raise ValueError("Duplicate bundled sample alias")
     assets = {key: documents[f"assets/{key}.json"] for key in ASSET_ORDER}
     for key, kind in zip(ASSET_ORDER, KINDS, strict=True):
-        if assets[key].get("kind") != kind or assets[key].get("document", {}).get("schemaVersion") != "1.0":
+        if (
+            assets[key].get("kind") != kind
+            or assets[key].get("document", {}).get("schemaVersion") != "1.0"
+        ):
             raise ValueError("Invalid bundled sample resource kind")
-    return {"schemaVersion": "1.0", "manifest": manifest, "assets": assets, "sourceInventory": inventory}
+    return {
+        "schemaVersion": "1.0",
+        "manifest": manifest,
+        "assets": assets,
+        "sourceInventory": inventory,
+    }

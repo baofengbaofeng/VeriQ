@@ -16,7 +16,8 @@ beforeAll(async () => {
         if (req.url === "/") {
             res.setHeader("content-type", "text/html");
             res.end(
-                `<button data-testid="save" onclick="fetch('/save',{method:'POST',body:JSON.stringify({code:'background'})});fetch('/save',{method:'POST',body:JSON.stringify({code:'attempt-1'})})">Save</button>`,
+                `<button data-testid="save" onclick="fetch('/save',{method:'POST',body:JSON.stringify({code:'backgr` +
+                    `ound'})});fetch('/save',{method:'POST',body:JSON.stringify({code:'attempt-1'})})">Save</button>`,
             );
         } else {
             res.setHeader("content-type", "application/json");

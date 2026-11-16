@@ -2,12 +2,7 @@
  * 本文件定义编译后用例/步骤/断言的不可变结构：保留源路径与展示用 sourceId：供运行与报告共用（compiled）。
  */
 
-import type {
-    AssertionV1,
-    StepV1,
-    CaseDslV1,
-    JsonValue,
-} from "./types.generated.js";
+import type { AssertionV1, StepV1, CaseDslV1, JsonValue } from "./types.generated.js";
 /**
  * 公开接口 CompiledAssertion 表示展开后的不可变断言：含源路径、可选 sourceId 与参数行：排除 template 类型。
  */

@@ -54,9 +54,7 @@ def test_atomic_publish_preserves_previous_release_on_rejection(tmp_path: Path) 
     (output / "server").symlink_to(old.name, target_is_directory=True)
     candidate = tmp_path / "candidate"
     candidate.mkdir()
-    (candidate / "release.json").write_text(
-        json.dumps({"buildId": "new", "status": "FAILED"})
-    )
+    (candidate / "release.json").write_text(json.dumps({"buildId": "new", "status": "FAILED"}))
     try:
         module.publish(candidate, output)
     except ValueError:
@@ -70,9 +68,7 @@ def test_atomic_publish_preserves_previous_release_on_rejection(tmp_path: Path) 
     with pytest.raises(ValueError, match="checksum"):
         module.publish(candidate, output)
     assert (output / "server/release.json").read_text() == '{"buildId":"old"}'
-    (candidate / "sha256sums").write_text(
-        sha256(raw.encode()).hexdigest() + "  release.json\n"
-    )
+    (candidate / "sha256sums").write_text(sha256(raw.encode()).hexdigest() + "  release.json\n")
     module.publish(candidate, output)
     assert (output / "server/release.json").read_text() == raw
     assert (old / "release.json").read_text() == '{"buildId":"old"}'
@@ -148,7 +144,10 @@ def test_build_cancellation_holds_lock_until_stage_descendants_stop(
     )
     if phase != "build":
         calls = {
-            "clean-install": "from verify_wheel import clean_install; clean_install(root/'candidate.whl',root/'house',run/'install',managed.run)",
+            "clean-install": (
+                "from verify_wheel import clean_install; clean_install(root/'candidate.whl',root/'house',run/'install',"
+                "managed.run)"
+            ),
             "wheelhouse": "from wheelhouse import wheelhouse; wheelhouse(root,run/'house',managed.run)",
             "npm-sbom": "from npm_sbom import npm_sbom; npm_sbom(root,run/'sbom',managed.run)",
         }
@@ -191,9 +190,7 @@ def test_build_cancellation_holds_lock_until_stage_descendants_stop(
         parent.send_signal(signum)
         deadline = time.monotonic() + 3
         while not (tmp_path / "still-writable").exists() and parent.poll() is None:
-            assert time.monotonic() < deadline, (
-                "Cancellation did not reach stage descendant"
-            )
+            assert time.monotonic() < deadline, "Cancellation did not reach stage descendant"
             time.sleep(0.01)
         lock = os.open(sandbox / "work/build.lock", os.O_RDWR)
         with pytest.raises(BlockingIOError):
@@ -202,18 +199,14 @@ def test_build_cancellation_holds_lock_until_stage_descendants_stop(
         assert (tmp_path / "still-writable").exists()
         unrelated = int((tmp_path / "unrelated.pid").read_text())
         assert Path(f"/proc/{unrelated}/stat").read_text().split(") ", 1)[1][0] != "Z"
-        parent.send_signal(
-            signal.SIGINT if signum == signal.SIGTERM else signal.SIGTERM
-        )
+        parent.send_signal(signal.SIGINT if signum == signal.SIGTERM else signal.SIGTERM)
         if not force_kill:
             (tmp_path / "allow-exit").touch()
         assert parent.wait(timeout=15 if force_kill else 5) != 0
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         state = Path(f"/proc/{descendant}/stat")
         assert not state.exists() or state.read_text().split(") ", 1)[1].startswith("Z")
-        records = json.loads(
-            next((sandbox / "work").glob("release-*/processes.json")).read_bytes()
-        )
+        records = json.loads(next((sandbox / "work").glob("release-*/processes.json")).read_bytes())
         assert any(item["cancelled"] and item["signal"] == signum for item in records)
     finally:
         (tmp_path / "allow-exit").touch()
@@ -243,9 +236,7 @@ def test_process_scope_restores_handlers_and_preserves_command_results(tmp_path)
     import signal
     from release_processes import process_scope
 
-    before = {
-        number: signal.getsignal(number) for number in (signal.SIGTERM, signal.SIGINT)
-    }
+    before = {number: signal.getsignal(number) for number in (signal.SIGTERM, signal.SIGINT)}
     with (
         (tmp_path / "build.lock").open("w") as lock,
         process_scope(tmp_path, lock.fileno()) as managed,
@@ -322,9 +313,7 @@ def test_sync_tail_cancellation_keeps_previous_output_pointer(tmp_path):
     candidate.mkdir()
     raw = '{"buildId":"new","status":"VERIFIED"}'
     (candidate / "release.json").write_text(raw)
-    (candidate / "sha256sums").write_text(
-        sha256(raw.encode()).hexdigest() + "  release.json\n"
-    )
+    (candidate / "sha256sums").write_text(sha256(raw.encode()).hexdigest() + "  release.json\n")
     program = (
         "import sys,signal,fcntl; from pathlib import Path\n"
         f"sys.path.insert(0,{str(ROOT / 'scripts')!r})\n"
@@ -336,9 +325,7 @@ def test_sync_tail_cancellation_keeps_previous_output_pointer(tmp_path):
         "        (root/'ready').touch(); signal.pause()\n"
         "        publish(root/'candidate',root/'output')\n"
     )
-    parent = subprocess.Popen(
-        [sys.executable, "-c", program], stderr=subprocess.DEVNULL
-    )
+    parent = subprocess.Popen([sys.executable, "-c", program], stderr=subprocess.DEVNULL)
     try:
         deadline = time.monotonic() + 5
         while not (tmp_path / "ready").exists():
@@ -349,10 +336,7 @@ def test_sync_tail_cancellation_keeps_previous_output_pointer(tmp_path):
         assert (output / "server").readlink() == Path("old")
         assert (output / "server/release.json").read_text() == '{"buildId":"old"}'
         assert candidate.exists()
-        assert (
-            json.loads((tmp_path / "cancellation.json").read_bytes())["signal"]
-            == signal.SIGTERM
-        )
+        assert json.loads((tmp_path / "cancellation.json").read_bytes())["signal"] == signal.SIGTERM
     finally:
         if parent.poll() is None:
             parent.kill()
@@ -374,9 +358,7 @@ def test_detached_descendant_exceeding_grace_is_killed_before_unlock(tmp_path):
     json.loads((ROOT / "apps/runtime/tests/fixtures/node24-versions.json").read_text()),
     ids=lambda case: case["version"] or "empty",
 )
-def test_release_probes_compatible_node_and_records_actual_tools(
-    tmp_path, monkeypatch, case
-):
+def test_release_probes_compatible_node_and_records_actual_tools(tmp_path, monkeypatch, case):
     """发行构建先调用真实子进程探测工具版本，稳定 Node24 候选应进入后续源码校验并留下实测记录，其它版本必须在安装前失败；轻量工具只替代外部二进制，进程监督、构建入口与记录文件仍使用正式实现。
 
     Git 固定失败是明确的终点，避免测试安装依赖或运行数据库与浏览器。

@@ -59,9 +59,7 @@ try:
         window = parent.value
     assert matched, "Owned native modal is not focused"
     for key in (
-        (b"Escape",)
-        if len(sys.argv) > 2 and sys.argv[2] == "cancel"
-        else (b"Right", b"Return")
+        (b"Escape",) if len(sys.argv) > 2 and sys.argv[2] == "cancel" else (b"Right", b"Return")
     ):
         code = x.XKeysymToKeycode(display, x.XStringToKeysym(key))
         assert code

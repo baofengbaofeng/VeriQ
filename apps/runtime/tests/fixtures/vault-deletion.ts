@@ -1,4 +1,5 @@
-/** 真实系统凭据退休验收为本测试创建随机独立档案，通过正式消费者写入三种秘密用途后调用生产整体删除；所有 OS 观察均针对该档案的精确版本，finally 再读实际缺失事实，不能把内存夹具或 helper 退出当作系统服务删除完成。 */
+/** 真实系统凭据退休验收为本测试创建随机独立档案，通过正式消费者写入三种秘密用途后调用生产整体删除；所有 OS 观察均针对该档案的精确版本，finally 再读实际缺失事实，不能把内存夹具或 helper 退出当作系统服务删除完成
+ * 。 */
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";

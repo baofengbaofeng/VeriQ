@@ -35,27 +35,53 @@ export function dependencyDeclarations(manifest: Record<string, unknown>): Closu
     const read = (key: string) => {
         if (manifest[key] === undefined) return {} as Record<string, string>;
         const value = manifest[key];
-        if (!value || typeof value !== "object" || Array.isArray(value)) fail("PAYLOAD_GRAPH_MISMATCH");
+        if (!value || typeof value !== "object" || Array.isArray(value))
+            fail("PAYLOAD_GRAPH_MISMATCH");
         for (const [alias, requested] of Object.entries(value)) {
             relative(alias);
-            if (alias.startsWith(".") || typeof requested !== "string" || !requested || Buffer.byteLength(requested) > 2048)
+            if (
+                alias.startsWith(".") ||
+                typeof requested !== "string" ||
+                !requested ||
+                Buffer.byteLength(requested) > 2048
+            )
                 fail("PAYLOAD_GRAPH_MISMATCH");
         }
         return value as Record<string, string>;
     };
-    const dependencies = read("dependencies"), optional = read("optionalDependencies"), peers = read("peerDependencies");
+    const dependencies = read("dependencies"),
+        optional = read("optionalDependencies"),
+        peers = read("peerDependencies");
     const meta = manifest.peerDependenciesMeta;
-    if (meta !== undefined && (!meta || typeof meta !== "object" || Array.isArray(meta))) fail("PAYLOAD_GRAPH_MISMATCH");
+    if (meta !== undefined && (!meta || typeof meta !== "object" || Array.isArray(meta)))
+        fail("PAYLOAD_GRAPH_MISMATCH");
     return [
         ...Object.entries({ ...dependencies, ...optional }).map(([alias, requested]) => ({
-            alias, requested, kind: Object.hasOwn(optional, alias) ? "optional" as const : "dependency" as const,
+            alias,
+            requested,
+            kind: Object.hasOwn(optional, alias) ? ("optional" as const) : ("dependency" as const),
         })),
         ...Object.entries(peers).map(([alias, requested]) => {
             const entry = (meta as Record<string, unknown> | undefined)?.[alias];
-            if (entry !== undefined && (!entry || typeof entry !== "object" || Array.isArray(entry) ||
-                ("optional" in entry && typeof entry.optional !== "boolean"))) fail("PAYLOAD_GRAPH_MISMATCH");
-            return { alias, requested, kind: entry && typeof entry === "object" && "optional" in entry && entry.optional === true
-                ? "optional-peer" as const : "peer" as const };
+            if (
+                entry !== undefined &&
+                (!entry ||
+                    typeof entry !== "object" ||
+                    Array.isArray(entry) ||
+                    ("optional" in entry && typeof entry.optional !== "boolean"))
+            )
+                fail("PAYLOAD_GRAPH_MISMATCH");
+            return {
+                alias,
+                requested,
+                kind:
+                    entry &&
+                    typeof entry === "object" &&
+                    "optional" in entry &&
+                    entry.optional === true
+                        ? ("optional-peer" as const)
+                        : ("peer" as const),
+            };
         }),
     ];
 }
@@ -64,7 +90,8 @@ export function dependencyDeclarations(manifest: Record<string, unknown>): Closu
 export function lockSections(bytes: Buffer) {
     const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     const sections = new Map<string, Map<string, string>>();
-    let section = "", key = "";
+    let section = "",
+        key = "";
     for (const line of text.split("\n")) {
         const top = /^([A-Za-z][A-Za-z0-9]*):\s*$/.exec(line);
         if (top) {
@@ -77,32 +104,57 @@ export function lockSections(bytes: Buffer) {
         const member = /^ {4}(\S.*?):(?:\s*\{\})?\s*$/.exec(line);
         if (member) {
             const raw = member[1]!;
-            key = raw.startsWith('"') ? JSON.parse(raw) : raw.startsWith("'") ? raw.slice(1, -1).replaceAll("''", "'") : raw;
-            if (typeof key !== "string" || Buffer.byteLength(key) > 2048 || sections.get(section)!.has(key)) fail("PAYLOAD_GRAPH_MISMATCH");
+            key = raw.startsWith('"')
+                ? JSON.parse(raw)
+                : raw.startsWith("'")
+                  ? raw.slice(1, -1).replaceAll("''", "'")
+                  : raw;
+            if (
+                typeof key !== "string" ||
+                Buffer.byteLength(key) > 2048 ||
+                sections.get(section)!.has(key)
+            )
+                fail("PAYLOAD_GRAPH_MISMATCH");
             sections.get(section)!.set(key, "");
-        } else if (key) sections.get(section)!.set(key, sections.get(section)!.get(key)! + line + "\n");
+        } else if (key)
+            sections.get(section)!.set(key, sections.get(section)!.get(key)! + line + "\n");
     }
     if (!sections.has("packages") || !sections.has("snapshots")) fail("PAYLOAD_GRAPH_MISMATCH");
     return { text, packages: sections.get("packages")!, snapshots: sections.get("snapshots")! };
 }
 
-/** 缺失 optional 必须由同一锁中的精确名称版本以及明确不适用的 os 或 cpu 证明，磁盘未安装本身不足以声称目标排除；无法解析的范围、别名或新平台元数据形式保持失败，optional peer 则由真实查找缺失单独证明。 */
-export function targetExcluded(lock: ReturnType<typeof lockSections>, alias: string, requested: string, arch: string) {
-    const key = `${alias}@${requested}`, body = lock.packages.get(key);
+/** 缺失 optional 必须由同一锁中的精确名称版本以及明确不适用的 os 或 cpu 证明，磁盘未安装本身不足以声称目标排除；无法解析的范围、别名或新平台元数据形式保持失败，optional peer 则由真实查找缺失单独证
+ * 明。 */
+export function targetExcluded(
+    lock: ReturnType<typeof lockSections>,
+    alias: string,
+    requested: string,
+    arch: string,
+) {
+    const key = `${alias}@${requested}`,
+        body = lock.packages.get(key);
     if (!body) fail("PAYLOAD_GRAPH_MISMATCH");
     const fields: Record<string, string[]> = {};
     for (const name of ["os", "cpu"]) {
         const row = new RegExp(`^ {8}${name}: \\[([^\\]]*)\\]\\s*$`, "m").exec(body);
         if (row) {
-            fields[name] = row[1]!.split(",").map((item) => item.trim().replace(/^['"]|['"]$/g, "")).filter(Boolean);
-            if (fields[name]!.some((item) => !/^!?[a-z0-9_-]+$/i.test(item))) fail("PAYLOAD_GRAPH_MISMATCH");
-        }
-        else if (new RegExp(`^ {8}${name}:`, "m").test(body)) fail("PAYLOAD_GRAPH_MISMATCH");
+            fields[name] = row[1]!
+                .split(",")
+                .map((item) => item.trim().replace(/^['"]|['"]$/g, ""))
+                .filter(Boolean);
+            if (fields[name]!.some((item) => !/^!?[a-z0-9_-]+$/i.test(item)))
+                fail("PAYLOAD_GRAPH_MISMATCH");
+        } else if (new RegExp(`^ {8}${name}:`, "m").test(body)) fail("PAYLOAD_GRAPH_MISMATCH");
     }
-    const excluded = (values: string[] | undefined, target: string) => values &&
-        (values.includes("!any") || values.includes(`!${target}`) ||
-            (values.some((item) => !item.startsWith("!")) && !values.includes("any") && !values.includes(target)));
-    if (!excluded(fields.os, "darwin") && !excluded(fields.cpu, arch)) fail("PAYLOAD_GRAPH_MISMATCH");
+    const excluded = (values: string[] | undefined, target: string) =>
+        values &&
+        (values.includes("!any") ||
+            values.includes(`!${target}`) ||
+            (values.some((item) => !item.startsWith("!")) &&
+                !values.includes("any") &&
+                !values.includes(target)));
+    if (!excluded(fields.os, "darwin") && !excluded(fields.cpu, arch))
+        fail("PAYLOAD_GRAPH_MISMATCH");
     return { lockKey: key, rawPackageMetadata: body, target: { platform: "darwin", arch }, fields };
 }
 
@@ -110,7 +162,8 @@ export function targetExcluded(lock: ReturnType<typeof lockSections>, alias: str
 function outputRoot(physical: string, generated: GeneratedWorkspacePackage | null) {
     if (generated) return `node_modules/${generated.name}`;
     if (physical.startsWith("node_modules/")) return physical;
-    if (physical.startsWith("apps/runtime/node_modules/")) return physical.slice("apps/runtime/".length);
+    if (physical.startsWith("apps/runtime/node_modules/"))
+        return physical.slice("apps/runtime/".length);
     for (const name of ["contracts", "runner-sdk"])
         if (physical.startsWith(`packages/${name}/node_modules/`))
             return `node_modules/@veriq/${name}/${physical.slice(`packages/${name}/`.length)}`;
@@ -118,19 +171,27 @@ function outputRoot(physical: string, generated: GeneratedWorkspacePackage | nul
 }
 
 /** 实例发现使用 Node 提供的真实包查找路径和物理清单，不解析 exports 推测安装归属；工作区链接仅可指向已绑定的原始工作区根，最终输出复制真实生成包，任何其它目录链接或越界端点均拒绝。 */
-export async function collectRuntimeDependencyClosure(options: Readonly<{
-    installation: string;
-    source: SourceBindingV1;
-    records: readonly LayoutRecord[];
-    generated: readonly GeneratedWorkspacePackage[];
-    roots: readonly { consumer: string; specifier: string }[];
-    files: DependencyFiles;
-    lock: ReturnType<typeof lockSections>;
-    arch: string;
-}>) {
+export async function collectRuntimeDependencyClosure(
+    options: Readonly<{
+        installation: string;
+        source: SourceBindingV1;
+        records: readonly LayoutRecord[];
+        generated: readonly GeneratedWorkspacePackage[];
+        roots: readonly { consumer: string; specifier: string }[];
+        files: DependencyFiles;
+        lock: ReturnType<typeof lockSections>;
+        arch: string;
+    }>,
+) {
     const { installation, records, generated, files, lock, arch } = options;
-    const observed = new Map(records.filter((record) => record.kind === "package").map((record) => [record.path, record]));
-    const packages: ClosurePackage[] = [], byPhysical = new Map<string, ClosurePackage>(), byOutput = new Map<string, string>();
+    const observed = new Map(
+        records
+            .filter((record) => record.kind === "package")
+            .map((record) => [record.path, record]),
+    );
+    const packages: ClosurePackage[] = [],
+        byPhysical = new Map<string, ClosurePackage>(),
+        byOutput = new Map<string, string>();
     const discover = async (alias: string, from: string): Promise<ClosurePackage | null> => {
         const lookup = createRequire(join(installation, from, "package.json")).resolve.paths(alias);
         if (!lookup) fail("PAYLOAD_GRAPH_MISMATCH");
@@ -138,23 +199,45 @@ export async function collectRuntimeDependencyClosure(options: Readonly<{
             const candidate = join(base, alias);
             if (!candidate.startsWith(installation + "/")) continue;
             let info;
-            try { info = await lstat(candidate); } catch (error) {
-                if ((error as NodeJS.ErrnoException).code === "ENOENT" || (error as NodeJS.ErrnoException).code === "ENOTDIR") continue;
+            try {
+                info = await lstat(candidate);
+            } catch (error) {
+                if (
+                    (error as NodeJS.ErrnoException).code === "ENOENT" ||
+                    (error as NodeJS.ErrnoException).code === "ENOTDIR"
+                )
+                    continue;
                 throw error;
             }
-            const physical = relativePath(installation, await realpath(candidate)).replaceAll("\\", "/");
+            const physical = relativePath(installation, await realpath(candidate)).replaceAll(
+                "\\",
+                "/",
+            );
             relative(physical);
             const workspace = generated.find((item) => item.sourceRoot === physical) ?? null;
-            if ((info.isSymbolicLink() && !workspace) || (!info.isDirectory() && !info.isSymbolicLink()) || !observed.has(physical))
+            if (
+                (info.isSymbolicLink() && !workspace) ||
+                (!info.isDirectory() && !info.isSymbolicLink()) ||
+                !observed.has(physical)
+            )
                 fail("PAYLOAD_GRAPH_MISMATCH");
             const prior = byPhysical.get(physical);
             if (prior) return prior;
             if (packages.length >= limits.instances) fail("PAYLOAD_LIMIT");
-            const manifest = decode(await files.read(join(installation, physical, "package.json"), limits.package)) as Record<string, unknown>;
-            if (!manifest || typeof manifest !== "object" || typeof manifest.name !== "string" || typeof manifest.version !== "string")
+            const manifest = decode(
+                await files.read(join(installation, physical, "package.json"), limits.package),
+            ) as Record<string, unknown>;
+            if (
+                !manifest ||
+                typeof manifest !== "object" ||
+                typeof manifest.name !== "string" ||
+                typeof manifest.version !== "string"
+            )
                 fail("PAYLOAD_GRAPH_MISMATCH");
-            const root = outputRoot(physical, workspace), collision = byOutput.get(root);
-            if (collision && collision !== physical) unsupportedDependency("DEPENDENCY_INSTALL_SCOPE_COLLISION");
+            const root = outputRoot(physical, workspace),
+                collision = byOutput.get(root);
+            if (collision && collision !== physical)
+                unsupportedDependency("DEPENDENCY_INSTALL_SCOPE_COLLISION");
             byOutput.set(root, physical);
             let snapshot: string;
             if (workspace) {
@@ -162,34 +245,69 @@ export async function collectRuntimeDependencyClosure(options: Readonly<{
                 if (!lock.text.includes(`version: ${snapshot}`)) fail("PAYLOAD_GRAPH_MISMATCH");
             } else {
                 const baseKey = `${manifest.name}@${manifest.version}`;
-                let candidates = [...lock.snapshots.keys()].filter((key) => key === baseKey || key.startsWith(baseKey + "("));
+                let candidates = [...lock.snapshots.keys()].filter(
+                    (key) => key === baseKey || key.startsWith(baseKey + "("),
+                );
                 // 多 peer snapshot 以每个真实已安装 peer 的版本消歧，括号文本只作为锁的精确键比较；无法唯一选择时明确失败，不按名称或第一个候选伪造上下文身份。
                 if (candidates.length > 1) {
-                    const peers = dependencyDeclarations(manifest).filter((item) => item.kind === "peer" || item.kind === "optional-peer");
+                    const peers = dependencyDeclarations(manifest).filter(
+                        (item) => item.kind === "peer" || item.kind === "optional-peer",
+                    );
                     for (const peer of peers) {
-                        const paths = createRequire(join(installation, physical, "package.json")).resolve.paths(peer.alias) ?? [];
+                        const paths =
+                            createRequire(
+                                join(installation, physical, "package.json"),
+                            ).resolve.paths(peer.alias) ?? [];
                         let peerVersion: string | null = null;
                         for (const peerBase of paths) {
                             if (!peerBase.startsWith(installation + "/")) continue;
                             try {
                                 const resolvedPeer = await realpath(join(peerBase, peer.alias));
-                                if (!resolvedPeer.startsWith(installation + "/")) fail("PAYLOAD_PATH");
-                                const body = decode(await files.read(join(resolvedPeer, "package.json"), limits.package)) as Record<string, unknown>;
-                                peerVersion = typeof body.version === "string" ? body.version : null;
+                                if (!resolvedPeer.startsWith(installation + "/"))
+                                    fail("PAYLOAD_PATH");
+                                const body = decode(
+                                    await files.read(
+                                        join(resolvedPeer, "package.json"),
+                                        limits.package,
+                                    ),
+                                ) as Record<string, unknown>;
+                                peerVersion =
+                                    typeof body.version === "string" ? body.version : null;
                                 break;
                             } catch (error) {
-                                if ((error as NodeJS.ErrnoException).code !== "ENOENT" && (error as NodeJS.ErrnoException).code !== "ENOTDIR") throw error;
+                                if (
+                                    (error as NodeJS.ErrnoException).code !== "ENOENT" &&
+                                    (error as NodeJS.ErrnoException).code !== "ENOTDIR"
+                                )
+                                    throw error;
                             }
                         }
-                        if (peerVersion) candidates = candidates.filter((key) => key.includes(`(${peer.alias}@${peerVersion})`) || key.includes(`(${peer.alias}@${peerVersion}(`));
+                        if (peerVersion)
+                            candidates = candidates.filter(
+                                (key) =>
+                                    key.includes(`(${peer.alias}@${peerVersion})`) ||
+                                    key.includes(`(${peer.alias}@${peerVersion}(`),
+                            );
                     }
                 }
                 if (candidates.length !== 1) unsupportedDependency("DEPENDENCY_SNAPSHOT_AMBIGUOUS");
                 snapshot = candidates[0]!;
             }
             const id = `p${packages.length + 1}`;
-            const item: ClosurePackage = { id, physicalRoot: physical, root, manifest, generated: workspace,
-                instance: { id, root, name: manifest.name, version: manifest.version, lockSnapshot: snapshot } };
+            const item: ClosurePackage = {
+                id,
+                physicalRoot: physical,
+                root,
+                manifest,
+                generated: workspace,
+                instance: {
+                    id,
+                    root,
+                    name: manifest.name,
+                    version: manifest.version,
+                    lockSnapshot: snapshot,
+                },
+            };
             packages.push(item);
             byPhysical.set(physical, item);
             return item;
@@ -202,22 +320,44 @@ export async function collectRuntimeDependencyClosure(options: Readonly<{
         if (!pkg) fail("PAYLOAD_GRAPH_MISMATCH");
         rootBindings.push({ ...root, to: pkg.id });
     }
-    const edges: Edge[] = [], decisions: { from: string; alias: string; action: "include" | "exclude-target" | "absent-optional-peer"; detail: unknown }[] = [];
+    const edges: Edge[] = [],
+        decisions: {
+            from: string;
+            alias: string;
+            action: "include" | "exclude-target" | "absent-optional-peer";
+            detail: unknown;
+        }[] = [];
     for (let index = 0; index < packages.length; index++) {
         const pkg = packages[index]!;
         for (const declaration of dependencyDeclarations(pkg.manifest)) {
             if (edges.length >= limits.edges) fail("PAYLOAD_LIMIT");
             const target = await discover(declaration.alias, pkg.physicalRoot);
-            if (!target && declaration.kind !== "optional" && declaration.kind !== "optional-peer") fail("PAYLOAD_GRAPH_MISMATCH");
-            const absence = target ? null : declaration.kind === "optional" ? "TARGET_NOT_APPLICABLE" : "OPTIONAL_PEER_ABSENT";
+            if (!target && declaration.kind !== "optional" && declaration.kind !== "optional-peer")
+                fail("PAYLOAD_GRAPH_MISMATCH");
+            const absence = target
+                ? null
+                : declaration.kind === "optional"
+                  ? "TARGET_NOT_APPLICABLE"
+                  : "OPTIONAL_PEER_ABSENT";
             edges.push({ ...declaration, from: pkg.id, to: target?.id ?? null, absence });
-            if (declaration.kind === "optional" || declaration.kind === "optional-peer") decisions.push({
-                from: pkg.id, alias: declaration.alias,
-                action: target ? "include" : declaration.kind === "optional" ? "exclude-target" : "absent-optional-peer",
-                detail: target ? { physicalRoot: target.physicalRoot } : declaration.kind === "optional"
-                    ? targetExcluded(lock, declaration.alias, declaration.requested, arch)
-                    : { physicalRoot: pkg.physicalRoot, lookup: "ABSENT_IN_PHYSICAL_INSTALL" },
-            });
+            if (declaration.kind === "optional" || declaration.kind === "optional-peer")
+                decisions.push({
+                    from: pkg.id,
+                    alias: declaration.alias,
+                    action: target
+                        ? "include"
+                        : declaration.kind === "optional"
+                          ? "exclude-target"
+                          : "absent-optional-peer",
+                    detail: target
+                        ? { physicalRoot: target.physicalRoot }
+                        : declaration.kind === "optional"
+                          ? targetExcluded(lock, declaration.alias, declaration.requested, arch)
+                          : {
+                                physicalRoot: pkg.physicalRoot,
+                                lookup: "ABSENT_IN_PHYSICAL_INSTALL",
+                            },
+                });
         }
     }
     return { packages, rootBindings, edges, decisions };

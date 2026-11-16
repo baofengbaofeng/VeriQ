@@ -116,7 +116,8 @@ export function IdentityManager({
             <h2>{tx("环境身份与凭证 / Environment identities and credentials")}</h2>
             <p>
                 {tx(
-                    "创建新的固定版本；原文不会回显。修改环境引用后需重新校验发布 / Create immutable versions; values are never returned. Republish environments after changing references.",
+                    "创建新的固定版本；原文不会回显。修改环境引用后需重新校验发布 / Create immutable versions; values are never returned. Republis" +
+                        "h environments after changing references.",
                 )}
             </p>
             {error && <ErrorState error={error} />}

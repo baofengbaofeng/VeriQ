@@ -9,33 +9,29 @@ import { join } from "node:path";
 import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { Dialog, Download, Page } from "@playwright/test";
-import type {
-    DialogObserverV1,
-    NewPageObserverV1,
-    DownloadObserverV1,
-} from "@veriq/contracts";
+import type { DialogObserverV1, NewPageObserverV1, DownloadObserverV1 } from "@veriq/contracts";
 import { budget, stringBinding, type StepContext } from "../context.js";
 /**
  * 公开类型 EventEvidence 表示捕获到的业务/页面事件载荷摘要：供断言与报告使用（EventEvidence/DOWNLOAD_PROVIDER_REQUIRED）。
  */
 export type EventEvidence =
     | {
-            observerId: string;
-            kind: "dialog";
-            dialogType: string;
-            message: string;
-            handling: string;
-        }
+          observerId: string;
+          kind: "dialog";
+          dialogType: string;
+          message: string;
+          handling: string;
+      }
     | { observerId: string; kind: "newPage"; pageKey: string; url: string }
     | {
-            observerId: string;
-            kind: "download";
-            sensitivity: "CREDENTIAL_RESTRICTED";
-            /** Present in trusted raw capture, omitted from ordinary report projection. */
-            path?: string;
-            sizeBytes: number;
-            suggestedFilename: string;
-        };
+          observerId: string;
+          kind: "download";
+          sensitivity: "CREDENTIAL_RESTRICTED";
+          /** Present in trusted raw capture, omitted from ordinary report projection. */
+          path?: string;
+          sizeBytes: number;
+          suggestedFilename: string;
+      };
 /**
  * 公开接口 EventHandle 暴露等待事件与 dispose：步骤结束必须卸除监听（EventHandle/DOWNLOAD_PROVIDER_REQUIRED）。
  */
@@ -51,8 +47,7 @@ export function armEvent(
     spec: DialogObserverV1 | NewPageObserverV1 | DownloadObserverV1,
     ctx: StepContext,
 ): EventHandle {
-    if (spec.kind === "download" && !ctx.downloads)
-        throw new Error("DOWNLOAD_PROVIDER_REQUIRED");
+    if (spec.kind === "download" && !ctx.downloads) throw new Error("DOWNLOAD_PROVIDER_REQUIRED");
     if (spec.kind === "newPage" && ctx.pages.has(spec.pageKey))
         throw new Error("DUPLICATE_PAGE_KEY");
     const controller = new AbortController(),
@@ -65,8 +60,7 @@ export function armEvent(
     const activeDownloads = new Set<Download>();
     const downloadTasks = new Set<Promise<void>>();
     controller.signal.addEventListener("abort", () => {
-        for (const download of activeDownloads)
-            void download.cancel().catch(() => {});
+        for (const download of activeDownloads) void download.cancel().catch(() => {});
     });
     const watchers = new Set<() => void>();
     const notify = () => {
@@ -111,9 +105,7 @@ export function armEvent(
             if (s.handling === "dismiss") await d.dismiss();
             else
                 await d.accept(
-                    s.promptText === undefined
-                        ? undefined
-                        : stringBinding(s.promptText, ctx),
+                    s.promptText === undefined ? undefined : stringBinding(s.promptText, ctx),
                 );
             return {
                 observerId: s.id,
@@ -250,10 +242,7 @@ export function armEvent(
         },
     };
     if (spec.kind === "dialog") {
-        ctx.dialogObservers.set(
-            ctx.page,
-            (ctx.dialogObservers.get(ctx.page) ?? 0) + 1,
-        );
+        ctx.dialogObservers.set(ctx.page, (ctx.dialogObservers.get(ctx.page) ?? 0) + 1);
         ctx.page.on("dialog", dialog);
     } else if (spec.kind === "newPage") ctx.page.on("popup", popup);
     else ctx.page.on("download", download);

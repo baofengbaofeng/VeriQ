@@ -1079,7 +1079,8 @@ export function collectDarwinDiagnostics(streams: Buffer[]) {
                             .filter((key) => !["nodeCase", "operationContext"].includes(key))
                             .sort()
                             .join(",") !==
-                            "closeObserved,code,firstFailure,fixture,incomplete,records,rejected,schemaVersion,signal" ||
+                            "closeObserved,code,firstFailure,fixture,incomplete,records,rejected,schemaVersion,signa" +
+                                "l" ||
                         item.schemaVersion !== 1 ||
                         ![1, 2].includes(item.fixture) ||
                         fixtures.some((prior) => prior.fixture === item.fixture) ||

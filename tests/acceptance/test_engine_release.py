@@ -17,9 +17,7 @@ from veriq_server.services.resource import ResourceService
 from veriq_server.settings import Settings
 
 
-async def test_new_engine_selection_changes_source_hash_without_mutating_old_snapshot() -> (
-    None
-):
+async def test_new_engine_selection_changes_source_hash_without_mutating_old_snapshot() -> None:
     """新选择只影响随后冻结的快照和 sourceHash，默认仍保留旧开发引擎版本；此前返回的快照字节保持原样，因此旧签名包、Job 和发布回执不会随服务配置改变而被重新解释。
 
     无依赖目录资产让测试聚焦实际 snapshot 逻辑。
@@ -32,9 +30,7 @@ async def test_new_engine_selection_changes_source_hash_without_mutating_old_sna
             "kind": "ELEMENT_CATALOG",
             "document": {
                 "schemaVersion": "1.0",
-                "elements": [
-                    {"key": "save", "locator": {"by": "testId", "value": "save"}}
-                ],
+                "elements": [{"key": "save", "locator": {"by": "testId", "value": "save"}}],
             },
         },
     )
@@ -84,9 +80,7 @@ def promotion(tmp_path: Path):
         path = candidate / name
         path.parent.mkdir(exist_ok=True)
         path.write_bytes(b"test-only")
-        entries.append(
-            {"path": name, "sha256": sha256(b"test-only").hexdigest(), "sizeBytes": 9}
-        )
+        entries.append({"path": name, "sha256": sha256(b"test-only").hexdigest(), "sizeBytes": 9})
     engine = {
         "engineVersion": "0.1.0",
         "compilerVersion": "0.1.0",
@@ -189,9 +183,7 @@ async def test_promotion_rechecks_candidate_after_waiting_for_guard(
 
     settings, candidate, engine, approved = promotion
     before = approved.read_bytes()
-    descriptor = authority.open_lock(
-        Path(settings.bundle_issuer_path).with_suffix(".lock")
-    )
+    descriptor = authority.open_lock(Path(settings.bundle_issuer_path).with_suffix(".lock"))
     fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
     opened = asyncio.Event()
     loop = asyncio.get_running_loop()

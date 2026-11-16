@@ -42,10 +42,7 @@ test("native enrollment client persists a private credential and logout revokes 
         await store.save({ server: origin, ...receipt });
         const saved = await store.load();
         assert.equal(saved.deviceToken, "synthetic-test-token");
-        assert.equal(
-            (await stat(join(directory, "device.json"))).mode & 0o777,
-            0o600,
-        );
+        assert.equal((await stat(join(directory, "device.json"))).mode & 0o777, 0o600);
         assert.equal((await stat(directory)).mode & 0o777, 0o700);
         await client.logout(saved.deviceToken);
         await store.remove();
@@ -91,9 +88,7 @@ test("client rejects unsafe control origins, redirects and redacts error respons
 });
 
 test("doctor launches a real browser and checks a real network endpoint; missing executable fails", async () => {
-    const { doctor } = await import(
-        new URL("../src/doctor.ts", import.meta.url).href
-    );
+    const { doctor } = await import(new URL("../src/doctor.ts", import.meta.url).href);
     const server = createServer((_req, res) => {
         res.end("ok");
     });
@@ -108,8 +103,7 @@ test("doctor launches a real browser and checks a real network endpoint; missing
         assert.equal(good.ok, true, JSON.stringify(good));
         assert(
             good.checks.some(
-                (c: { name: string; ok: boolean }) =>
-                    c.name === "browser launch" && c.ok,
+                (c: { name: string; ok: boolean }) => c.name === "browser launch" && c.ok,
             ),
         );
         const bad = await doctor({
@@ -125,14 +119,10 @@ test("doctor launches a real browser and checks a real network endpoint; missing
 test("CLI help exposes implemented commands and doctor returns a nonzero failure exit", async () => {
     const run = (args: string[]) =>
         new Promise<{ status: number | null; output: string }>((resolve) => {
-            const p = spawn(
-                process.execPath,
-                ["--import", "tsx", "src/cli.ts", ...args],
-                {
-                    cwd: new URL("..", import.meta.url),
-                    env: { ...process.env, FORCE_COLOR: "0" },
-                },
-            );
+            const p = spawn(process.execPath, ["--import", "tsx", "src/cli.ts", ...args], {
+                cwd: new URL("..", import.meta.url),
+                env: { ...process.env, FORCE_COLOR: "0" },
+            });
             let output = "";
             p.stdout.on("data", (d) => (output += d));
             p.stderr.on("data", (d) => (output += d));
@@ -142,11 +132,7 @@ test("CLI help exposes implemented commands and doctor returns a nonzero failure
     assert.equal(help.status, 0);
     assert.match(help.output, /login/);
     assert.match(help.output, /doctor/);
-    const failed = await run([
-        "doctor",
-        "--browser-executable",
-        "/missing-browser",
-    ]);
+    const failed = await run(["doctor", "--browser-executable", "/missing-browser"]);
     assert.equal(failed.status, 1);
     assert.match(failed.output, /browser/);
 });
@@ -199,33 +185,31 @@ test("a second enrollment never overwrites the existing device credential", asyn
 });
 
 function recoveryCli(directory: string, args: string[], input = "") {
-    return new Promise<{ status: number | null; output: string }>(
-        (resolve, reject) => {
-            const child = spawn(
-                process.execPath,
-                ["--import", "tsx", "src/cli.ts", "--config-dir", directory, ...args],
-                {
-                    cwd: new URL("..", import.meta.url),
-                },
-            );
-            let output = "";
-            const timeout = setTimeout(() => {
-                child.kill("SIGKILL");
-                reject(new Error("CLI recovery test timed out"));
-            }, 20_000);
-            child.stdout.on("data", (chunk) => (output += String(chunk)));
-            child.stderr.on("data", (chunk) => (output += String(chunk)));
-            child.on("error", (error) => {
-                clearTimeout(timeout);
-                reject(error);
-            });
-            child.on("close", (status) => {
-                clearTimeout(timeout);
-                resolve({ status, output });
-            });
-            child.stdin.end(input);
-        },
-    );
+    return new Promise<{ status: number | null; output: string }>((resolve, reject) => {
+        const child = spawn(
+            process.execPath,
+            ["--import", "tsx", "src/cli.ts", "--config-dir", directory, ...args],
+            {
+                cwd: new URL("..", import.meta.url),
+            },
+        );
+        let output = "";
+        const timeout = setTimeout(() => {
+            child.kill("SIGKILL");
+            reject(new Error("CLI recovery test timed out"));
+        }, 20_000);
+        child.stdout.on("data", (chunk) => (output += String(chunk)));
+        child.stderr.on("data", (chunk) => (output += String(chunk)));
+        child.on("error", (error) => {
+            clearTimeout(timeout);
+            reject(error);
+        });
+        child.on("close", (status) => {
+            clearTimeout(timeout);
+            resolve({ status, output });
+        });
+        child.stdin.end(input);
+    });
 }
 
 const recoveryReceipt = {
@@ -252,10 +236,7 @@ for (const code of ["DEVICE_UNAUTHORIZED", "DEVICE_REVOKED"]) {
             res.setHeader("Content-Type", "application/json");
             if (req.url === "/internal/v1/runtime/logout") {
                 logoutCalls++;
-                assert.equal(
-                    req.headers.authorization,
-                    "Bearer " + recoveryReceipt.deviceToken,
-                );
+                assert.equal(req.headers.authorization, "Bearer " + recoveryReceipt.deviceToken);
                 res.writeHead(401);
                 res.end(JSON.stringify({ code, message: recoveryReceipt.deviceToken }));
             } else if (req.url === "/api/v1/health/live") {
@@ -270,9 +251,7 @@ for (const code of ["DEVICE_UNAUTHORIZED", "DEVICE_REVOKED"]) {
                 res.end("{}");
             }
         });
-        await new Promise<void>((resolve) =>
-            server.listen(0, "127.0.0.1", resolve),
-        );
+        await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
         try {
             const address = server.address();
             assert(address && typeof address !== "string");
@@ -306,11 +285,7 @@ for (const code of ["DEVICE_UNAUTHORIZED", "DEVICE_REVOKED"]) {
             assert(!reenroll.output.includes(bootstrap));
             assert(!reenroll.output.includes(nextReceipt.deviceToken));
             for (const command of ["login", "enroll-service"]) {
-                const repeat = await recoveryCli(directory, [
-                    command,
-                    "--server",
-                    origin,
-                ]);
+                const repeat = await recoveryCli(directory, [command, "--server", origin]);
                 assert.equal(repeat.status, 1);
                 assert.match(repeat.output, /ALREADY_ENROLLED/);
                 assert.equal((await store.load()).deviceToken, nextReceipt.deviceToken);
@@ -337,10 +312,7 @@ test("logout recovery retains credentials on transport and non-definitive HTTP f
         });
         res.end(
             JSON.stringify({
-                code:
-                    mode === "unknown"
-                        ? "AUTHENTICATION_REQUIRED"
-                        : "DEVICE_UNAUTHORIZED",
+                code: mode === "unknown" ? "AUTHENTICATION_REQUIRED" : "DEVICE_UNAUTHORIZED",
                 message: recoveryReceipt.deviceToken,
             }),
         );
@@ -357,15 +329,9 @@ test("logout recovery retains credentials on transport and non-definitive HTTP f
         for (mode of ["transport", "unknown", "unavailable"]) {
             const result = await recoveryCli(directory, ["logout"]);
             assert.equal(result.status, 1);
-            assert.equal(
-                (await store.load()).deviceToken,
-                recoveryReceipt.deviceToken,
-            );
+            assert.equal((await store.load()).deviceToken, recoveryReceipt.deviceToken);
             assert(!result.output.includes(recoveryReceipt.deviceToken));
-            assert.doesNotMatch(
-                result.output,
-                /credential revoked|configuration removed/,
-            );
+            assert.doesNotMatch(result.output, /credential revoked|configuration removed/);
         }
     } finally {
         server.close();
@@ -402,14 +368,8 @@ test("logout recovery local-only clears just credentials without contacting the 
         assert.match(result.output, /expir/);
         assert(!result.output.includes(recoveryReceipt.deviceToken));
         await assert.rejects(store.load(), { code: "ENOENT" });
-        assert.equal(
-            await readFile(join(directory, "project.json"), "utf8"),
-            "project assets",
-        );
-        assert.equal(
-            await readFile(join(directory, "results.json"), "utf8"),
-            "execution results",
-        );
+        assert.equal(await readFile(join(directory, "project.json"), "utf8"), "project assets");
+        assert.equal(await readFile(join(directory, "results.json"), "utf8"), "execution results");
     } finally {
         server.close();
         await rm(directory, { recursive: true, force: true });

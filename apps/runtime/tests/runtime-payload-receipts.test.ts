@@ -151,7 +151,8 @@ test("receipt kinds missing refs tools and archive layout bindings reject", asyn
         });
 });
 
-/** dependencies.json 必须与所选原 inventory entry 的依赖列表一致，而不是只满足文件摘要；测试同步更新全部物理字节、文件 Ref 和 entry 摘要，仅保留内容列表差异，要求引擎一致性层明确拒绝。 */
+/** dependencies.json 必须与所选原 inventory entry 的依赖列表一致，而不是只满足文件摘要；测试同步更新全部物理字节、文件 Ref 和 entry 摘要，仅保留内容列表差异，要求引擎一致性层明确拒绝
+ * 。 */
 test("engine dependencies JSON must match original inventory dependencies", async () =>
     fixture(async (f) => {
         const update = (path: string, content: Buffer) => {

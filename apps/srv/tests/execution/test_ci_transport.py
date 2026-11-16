@@ -36,7 +36,10 @@ def test_ci_never_reports_success_when_last_junit_observes_a_failed_gate(tmp_pat
             self.end_headers()
             if self.path.endswith("/junit"):
                 self.wfile.write(
-                    b'<testsuite tests="2" failures="1"><testcase name="gate"><failure type="AUTHORITY_REVOKED" /></testcase></testsuite>'
+                    (
+                        b'<testsuite tests="2" failures="1"><testcase name="gate"><failure type="AUTHORITY_REVOKED" '
+                        b"/></testcase></testsuite>"
+                    )
                 )
             elif self.path.endswith("/ci-report"):
                 self.wfile.write(

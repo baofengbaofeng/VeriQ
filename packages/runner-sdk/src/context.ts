@@ -14,11 +14,7 @@ import {
     type StepFinishedPayloadV1,
     type ObserverResultPayloadV1,
 } from "@veriq/contracts";
-import {
-    ObserverRegistry,
-    type Exchange,
-    type ObserverHandle,
-} from "./observers/network.js";
+import { ObserverRegistry, type Exchange, type ObserverHandle } from "./observers/network.js";
 /**
  * 公开接口 AssertionResult 描述单条断言的通过/失败与可安全投影的实际值摘要（AssertionResult）。
  */
@@ -42,10 +38,15 @@ export interface StepResult extends StepFinishedPayloadV1 {
  * 公开类型 LiveStepEvent 枚举步骤生命周期实时事件：供 EventBuffer/SDK 观察者消费（LiveStepEvent）。
  */
 export type LiveStepEvent =
-    | {type: "STEP_STARTED"; stepId: string}
-    | {type: "STEP_FINISHED"; stepId: string; result: StepFinishedPayloadV1}
-    | {type: "ASSERTION_RESULT"; stepId: string; assertionId: string; result: AssertionResultPayloadV1}
-    | {type: "OBSERVER_RESULT"; stepId: string; result: ObserverResultPayloadV1};
+    | { type: "STEP_STARTED"; stepId: string }
+    | { type: "STEP_FINISHED"; stepId: string; result: StepFinishedPayloadV1 }
+    | {
+          type: "ASSERTION_RESULT";
+          stepId: string;
+          assertionId: string;
+          result: AssertionResultPayloadV1;
+      }
+    | { type: "OBSERVER_RESULT"; stepId: string; result: ObserverResultPayloadV1 };
 /**
  * 公开接口 StepContextOptions 配置 createStepContext 所需的页面、执行、预算与绑定环境。
  */
@@ -60,9 +61,7 @@ export interface StepContextOptions {
     signal?: AbortSignal;
     deadline?: number;
     downloads?: { directory: string; maxBytes: number };
-    files?: (
-        paths: string[],
-    ) => Promise<{ name: string; mimeType: string; buffer: Buffer }[]>;
+    files?: (paths: string[]) => Promise<{ name: string; mimeType: string; buffer: Buffer }[]>;
 }
 /**
  * 公开接口 StepContext 在 StepContextOptions 之上暴露 originalPage、观察器注册表与 dispose，供生成步骤代码使用。
@@ -113,12 +112,17 @@ export function createStepContext(options: StepContextOptions): StepContext {
  * 公开类 ExecutionCancelled 表示执行被取消或预算耗尽：用于中断嵌套等待而不伪装成断言失败（ExecutionCancelled/BUSINESS_TIMEOUT）。
  */
 export class ExecutionCancelled extends Error {
-    constructor() { super("CANCELLED"); }
+    constructor() {
+        super("CANCELLED");
+    }
 }
 /**
  * 公开函数 interruptible 在 AbortSignal 触发时拒绝 Promise：包装可等待操作以支持取消。
  */
-export function interruptible<T>(ctx: Pick<StepContext, "signal">, operation: () => Promise<T>): Promise<T> {
+export function interruptible<T>(
+    ctx: Pick<StepContext, "signal">,
+    operation: () => Promise<T>,
+): Promise<T> {
     if (ctx.signal?.aborted) return Promise.reject(new ExecutionCancelled());
     return new Promise<T>((resolve, reject) => {
         let settled = false;
@@ -126,12 +130,19 @@ export function interruptible<T>(ctx: Pick<StepContext, "signal">, operation: ()
             if (settled) return;
             settled = true;
             ctx.signal?.removeEventListener("abort", abort);
-            if (error !== undefined) reject(error); else resolve(value as T);
+            if (error !== undefined) reject(error);
+            else resolve(value as T);
         };
         const abort = () => finish(undefined, new ExecutionCancelled());
-        ctx.signal?.addEventListener("abort", abort, {once:true});
-        try { operation().then(value => finish(value), error => finish(undefined, error)); }
-        catch (error) { finish(undefined, error); }
+        ctx.signal?.addEventListener("abort", abort, { once: true });
+        try {
+            operation().then(
+                (value) => finish(value),
+                (error) => finish(undefined, error),
+            );
+        } catch (error) {
+            finish(undefined, error);
+        }
     });
 }
 /**
@@ -160,10 +171,7 @@ export function stringBinding(value: JsonValue, ctx: StepContext): string {
 /**
  * 公开函数 assertionScope 构造断言求值作用域：注入 data/vars：限制可见绑定面（assertionScope/CATALOG_SCOPE_CYCLE）。
  */
-export function assertionScope(
-    item: CompiledAssertion,
-    ctx: StepContext,
-): StepContext {
+export function assertionScope(item: CompiledAssertion, ctx: StepContext): StepContext {
     let result = ctx;
     for (const frame of item.parameters)
         result = {
@@ -175,11 +183,7 @@ export function assertionScope(
 /**
  * 公开函数 locator 按编译后的定位描述创建 Playwright Locator：不接受运行时拼装的任意选择器字符串。
  */
-export function locator(
-    key: string,
-    ctx: StepContext,
-    seen = new Set<string>(),
-): Locator {
+export function locator(key: string, ctx: StepContext, seen = new Set<string>()): Locator {
     if (seen.has(key)) throw new Error("CATALOG_SCOPE_CYCLE");
     seen.add(key);
     const e = ctx.catalog.elements.find((x) => x.key === key);
@@ -189,11 +193,11 @@ export function locator(
         e.locator.by === "testId"
             ? root.getByTestId(e.locator.value)
             : root.getByRole(e.locator.role as Parameters<Page["getByRole"]>[0], {
-                    ...(e.locator.name === undefined
-                        ? {}
-                        : { name: stringBinding(e.locator.name, ctx) }),
-                    ...(e.locator.exact === undefined ? {} : { exact: e.locator.exact }),
-                });
+                  ...(e.locator.name === undefined
+                      ? {}
+                      : { name: stringBinding(e.locator.name, ctx) }),
+                  ...(e.locator.exact === undefined ? {} : { exact: e.locator.exact }),
+              });
     if (e.recordKey !== undefined)
         result = result.and(
             ctx.page.locator(
@@ -205,10 +209,7 @@ export function locator(
 /**
  * 公开函数 exchange 等待并返回已武装网络观察器捕获的交换：超时或取消时失败关闭（exchange/SOURCE_UNAVAILABLE）。
  */
-export async function exchange(
-    source: string,
-    ctx: StepContext,
-): Promise<Exchange> {
+export async function exchange(source: string, ctx: StepContext): Promise<Exchange> {
     const value = ctx.sources.get(source.slice(source.indexOf(":") + 1));
     if (!value) throw new Error("SOURCE_UNAVAILABLE");
     return "waitFirst" in value ? value.waitFirst() : value;

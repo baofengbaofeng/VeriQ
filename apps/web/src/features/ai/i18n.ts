@@ -10,7 +10,8 @@ const en = {
     title: "AI assistance",
     empty: "No providers configured. Add your own provider to generate drafts.",
     independent:
-        "Deterministic execution works without a model. Disabling a provider or exhausting its budget never blocks Runs.",
+        "Deterministic execution works without a model. Disabling a provider or exhausting its budget never blocks R" +
+        "uns.",
     loading: "Loading…",
     save: "Save provider",
     newProvider: "New provider",
@@ -20,7 +21,8 @@ const en = {
     key: "Write-only API key",
     keyHint: "Enter the key here. Saved keys cannot be read back.",
     estimate:
-        "Configured prices are estimates, not provider bills. Unknown or cancelled calls retain their reservation; cancellation does not guarantee upstream work or billing stops.",
+        "Configured prices are estimates, not provider bills. Unknown or cancelled calls retain their reservation; c" +
+        "ancellation does not guarantee upstream work or billing stops.",
     preview: "Review selected context and estimate",
     generate: "Generate with reviewed context",
     cancel: "Cancel local result",
@@ -30,7 +32,9 @@ const en = {
     context: "Exact sanitized context",
     apply: "Accept as DRAFT",
     reject: "Reject",
-    review: "Review output against requirements before applying. Compilation, debug and publication remain separate editor actions.",
+    review:
+        "Review output against requirements before applying. Compilation, debug and publication remain separate " +
+        "editor actions.",
     original: "Original candidate",
     output: "Proposed output",
     unknown: "Unknown cost / reservation retained",
