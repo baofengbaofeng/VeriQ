@@ -9517,7 +9517,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session. */
             410: {
                 headers: {
                     [name: string]: unknown;
@@ -10823,6 +10823,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
             /** @description Stable JSON error; code is a machine-readable domain code. */
             422: {
                 headers: {
@@ -10902,6 +10911,15 @@ export interface operations {
             };
             /** @description Stable JSON error; code is a machine-readable domain code. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session. */
+            410: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -10995,6 +11013,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
             /** @description Stable JSON error; code is a machine-readable domain code. */
             422: {
                 headers: {
@@ -11074,6 +11101,15 @@ export interface operations {
             };
             /** @description Stable JSON error; code is a machine-readable domain code. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session. */
+            410: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -11166,6 +11202,15 @@ export interface operations {
             };
             /** @description Stable JSON error; code is a machine-readable domain code. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The referenced signed bundle import authority has expired. */
+            410: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -11553,6 +11598,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
             /** @description Current authorization, bounded input, conflict or budget error */
             413: {
                 headers: {
@@ -11645,6 +11699,15 @@ export interface operations {
             };
             /** @description Current authorization, bounded input, conflict or budget error */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session. */
+            410: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -16384,7 +16447,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session. */
             410: {
                 headers: {
                     [name: string]: unknown;
@@ -16463,7 +16526,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session. */
             410: {
                 headers: {
                     [name: string]: unknown;
@@ -16540,7 +16603,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session. */
             410: {
                 headers: {
                     [name: string]: unknown;
@@ -16696,7 +16759,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session. */
             410: {
                 headers: {
                     [name: string]: unknown;
@@ -16864,6 +16927,15 @@ export interface operations {
             };
             /** @description Current authorization, bounded input, conflict or budget error */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session. */
+            410: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -17049,6 +17121,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
             /** @description Stable JSON error; code is a machine-readable domain code. */
             422: {
                 headers: {
@@ -17134,6 +17215,15 @@ export interface operations {
             };
             /** @description Stable JSON error; code is a machine-readable domain code. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The referenced signed bundle import authority has expired. */
+            410: {
                 headers: {
                     [name: string]: unknown;
                 };

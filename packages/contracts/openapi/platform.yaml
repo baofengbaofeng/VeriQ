@@ -6392,7 +6392,7 @@
             }
           },
           "410": {
-            "description": "Error",
+            "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
             "content": {
               "application/json": {
                 "schema": {
@@ -8042,6 +8042,16 @@
                 }
               }
             }
+          },
+          "410": {
+            "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -8290,6 +8300,16 @@
                 }
               }
             }
+          },
+          "410": {
+            "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
           }
         }
       }
@@ -8397,6 +8417,16 @@
           },
           "429": {
             "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
             "content": {
               "application/json": {
                 "schema": {
@@ -8519,6 +8549,16 @@
                 }
               }
             }
+          },
+          "410": {
+            "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
           }
         }
       }
@@ -8629,6 +8669,16 @@
           },
           "429": {
             "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "The referenced signed bundle import authority has expired.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9162,6 +9212,16 @@
                 }
               }
             }
+          },
+          "410": {
+            "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
           }
         }
       }
@@ -9279,6 +9339,16 @@
           },
           "413": {
             "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15587,7 +15657,7 @@
             }
           },
           "410": {
-            "description": "Error",
+            "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15707,7 +15777,7 @@
             }
           },
           "410": {
-            "description": "Error",
+            "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15807,7 +15877,7 @@
             }
           },
           "410": {
-            "description": "Error",
+            "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16023,7 +16093,7 @@
             }
           },
           "410": {
-            "description": "Error",
+            "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16291,6 +16361,16 @@
                 }
               }
             }
+          },
+          "410": {
+            "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
           }
         }
       }
@@ -16502,6 +16582,16 @@
                 }
               }
             }
+          },
+          "410": {
+            "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
           }
         }
       }
@@ -16611,6 +16701,16 @@
           },
           "429": {
             "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "The referenced signed bundle import authority has expired.",
             "content": {
               "application/json": {
                 "schema": {
