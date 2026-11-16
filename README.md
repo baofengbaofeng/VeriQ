@@ -20,6 +20,8 @@ Mac Bundle ID 固定为 `io.github.baofengbaofeng.veriq`。`e0ba135` 已通过[�
 
 入口与执行文件输入生产器已完成源码审查：真实 Vite 夹具及相关测试共 55 项通过，包清单物理归属与跨平台大小写冲突回归通过。双架构 Mac 上真实项目入口的构建验收正在接入，完整 Runtime、桌面安装与 MVP 尚未完成；详见[里程碑](docs/plans/milestones.md)。
 
+当前开发采用代码优先交付：剩余功能源码按独立批次提交，验证、真实环境验收和复审另行执行。请接手的 Agent 先阅读[代码交付计划](docs/plans/code-delivery.md)与[独立验证清单](docs/validation/mvp-handoff.md)；源码交付不代表完整 MVP 已通过验收。
+
 ## 为什么做 VeriQ
 
 VeriQ 希望让团队把页面元素、步骤、业务断言、数据和环境组织成可审阅、可发布、可复现的测试资产。运行时冻结版本与环境快照，由固定版本的 Playwright Test 执行，并保留步骤结果、请求关联、截图与 Trace。
@@ -204,6 +206,8 @@ Server build tooling, frontend-in-wheel packaging, offline installation checks, 
 The repository currently includes `apps/srv` (Tornado control service), `apps/web` (React console), `apps/runtime` (Agent/CLI/offline execution), and `packages/{contracts,compiler,runner-sdk,ui}`. `apps/desktop` contains main/preload/renderer, bundled local UI and an independent Agent entry; target installers and remaining native capabilities are in progress. Contributors and coding agents must follow the coding standards in root `AGENTS.md` (4-space indentation, Chinese source comments, English logs, and related rules).
 
 The entry/execution input producer has passed source review and 55 relevant real Vite fixture tests, including physical package ownership and portable case-collision regressions. Native Intel/ARM Mac acceptance of the real project entries is next; complete Runtime, desktop installation and MVP acceptance remain open. See [milestones](docs/plans/milestones.md).
+
+Development currently prioritizes source delivery in scoped commits. Validation, real-environment acceptance and independent review are separate follow-up tasks. See the [source delivery plan](docs/plans/code-delivery.md) and [validation handoff](docs/validation/mvp-handoff.md); committed source does not imply MVP acceptance.
 
 ## Why VeriQ
 

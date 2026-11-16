@@ -1984,6 +1984,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/v1/maintenance/lifecycle/expire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Expire bounded completed lifecycle records under current Workspace service-token authorization and active-reference barriers. No internal scheduler. */
+        post: operations["maintenanceExpireLifecycle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/operations/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Current OWNER or ADMIN employee session is required; data is scoped to the selected Workspace. Dependency timeouts return 503. */
+        get: operations["getWorkspaceOperationsMetrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4066,7 +4100,7 @@ export interface components {
         ServiceTokenIssue: {
             /** @enum {unknown} */
             purpose: "RUNTIME_ENROLLMENT" | "MAINTENANCE" | "EXECUTION";
-            operations?: ("expired-leases/reap" | "fixture-cleanups/reconcile" | "capacity/reconcile" | "artifacts/expire" | "trigger" | "read" | "cancel")[];
+            operations?: ("expired-leases/reap" | "fixture-cleanups/reconcile" | "capacity/reconcile" | "artifacts/expire" | "lifecycle/expire" | "trigger" | "read" | "cancel")[];
             planIds?: components["schemas"]["Id"][];
         } & (unknown & unknown & unknown);
         ServiceEnrollmentRequest: {
@@ -4395,6 +4429,48 @@ export interface components {
         };
         /** @enum {string} */
         ProcessStopScope: "FULL_DESCENDANT_TREE" | "CONTROLLED_WORKER_BROWSER" | "NO_PROCESS_SPAWNED";
+        OperationsMetricsDTO: {
+            workspaceId: components["schemas"]["Id"];
+            observedAt: components["schemas"]["Timestamp"];
+            queue: {
+                [key: string]: number;
+            };
+            capacity: {
+                [key: string]: number;
+            };
+            leases: {
+                active: number;
+                expired: number;
+            };
+            heartbeat: {
+                devices: number;
+                stale: number;
+            };
+            events: {
+                persisted: number;
+                accepted: number;
+                backlog: number;
+            };
+            cleanup: {
+                [key: string]: number;
+            };
+            storage: {
+                objects: number;
+                bytes: number;
+                pendingDeletions: number;
+                pendingPublications: number;
+                incompleteUploads: number;
+            };
+            modelCost: {
+                recordedMicros: number;
+                reservedMicros: number;
+                unknown: number;
+            };
+        };
+        OperationsMetricsDTOEnvelope: {
+            data: components["schemas"]["OperationsMetricsDTO"];
+            requestId: string;
+        };
         /** @description JSON used only in interpolated DSL fields, recursively restricted to SafeString bindings. */
         BindingJsonValue: ContractBindingJsonValue;
         BindingJsonObject: {
@@ -17272,6 +17348,172 @@ export interface operations {
             };
             /** @description Stable JSON error; code is a machine-readable domain code. */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    maintenanceExpireLifecycle: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns 409. */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MaintenanceRequest"];
+            };
+        };
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaintenanceDTOEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getWorkspaceOperationsMetrics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Workspace operational metrics. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationsMetricsDTOEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A bounded dependency observation timed out or is unavailable. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
