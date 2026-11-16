@@ -456,6 +456,8 @@ function edgeFor(
         fail("PAYLOAD_GRAPH_MISMATCH");
     return { ...fact, kind: "external", target: specifier };
 }
+/** 两树输入生产器复用同一静态语法分析与边分类规则，不复制解析器或改变完整五树图核验；别名只暴露已有行为，调用者仍须独立核工作区嵌入与真实输出归属才能接受入口收据。 */
+export { imports as scanRuntimeLiteralImports, edgeFor as classifyRuntimeModuleEdge };
 /** 最终静态图把真实输出 AST、包正文、边与归属串为同一输入观察，npm 原归档图则只完成声明闭包并保持 pending；返回值不包含 resolver 能力，也不会加载或执行任何输入模块。 */
 export async function verifyGraph(
     recipe: Recipe,

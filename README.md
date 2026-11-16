@@ -6,15 +6,19 @@
 
 服务端构建、前端入 wheel、离线安装校验、引擎候选与独立晋升工具的代码已通过独立审查及取消/晋升问题修复复审。固定浏览器 SDK 136 项检查通过，行覆盖率 91.46%；这不代表最终集成门禁完成。默认构建仍被历史 lint、格式和注释规范阻断，当前包明确标记 UNVERIFIED。Electron 桌面 GUI 模块已通过独立审查，支持平台断网时使用缓存资源运行和查看报告。原生发行仍在开发：Windows Server 与 Ubuntu 已有原生 IPC、系统保险库及空初始化恢复的真实目标验证，Cookie 磁盘保护与重启读回也已验证；Ubuntu 源码 7 项 GUI 回归通过。Windows 仍有 3 项 ACL/所有者测试失败，Windows11/Ubuntu 安装和完整产品验收尚未完成，目前没有正式安装包。详见[里程碑](docs/plans/milestones.md)和[构建发行指南](docs/release.md)。
 
-Mac Runtime 的输入核验、有界归档和完整静态候选组装已通过组件复审，包含实际 stage CLI、来源记录与最终路径校验。固定官方 Node/Chrome 获取与观测工具在 `a245535` 的 macOS 15 Intel/ARM 流水线均已完成完整扫描；两份证据的源码绑定、原始 Unix 模式和 Framework 链接事实已独立复核，见[资产观测说明](docs/specs/runtime-assets-observation.md)。`6ef86c1` 随后补齐三处 ZIP 消费者的有限关闭结算、首错保留和未知关闭现场保留，214 项受影响回归及全新独立审查通过。真实依赖生产、实际提取、二进制执行、Electron 插件装载、安装及系统凭据验收仍待完成，未生成批准的 Expected 或 ready。注释审计坐标、Web 按钮类型、会话/列表响应归属及两项退出时序问题已完成源码修正及复审；本地真实认证回归通过，完整锁定依赖和全局会话生命周期仍待 CI 与后续验收。全仓质量与完整 UI 验收仍未通过，详见[里程碑](docs/plans/milestones.md)。
+Mac Runtime 的输入核验、有界归档和完整静态候选组装已通过组件复审，包含实际 stage CLI、来源记录与最终路径校验。固定官方 Node/Chrome 获取与观测工具在 `a245535` 的 macOS 15 Intel/ARM 流水线均已完成完整扫描；两份证据的源码绑定、原始 Unix 模式和 Framework 链接事实已独立复核，见[资产观测说明](docs/specs/runtime-assets-observation.md)。`6ef86c1` 随后补齐三处 ZIP 消费者的有限关闭结算、首错保留和未知关闭现场保留，214 项受影响回归及全新独立审查通过。固定锁生产依赖布局已完成下述双 Mac 采集；正式依赖闭包、目标解析、二进制执行、Electron 插件装载、安装及完整系统凭据验收仍待完成，未生成批准的 Expected 或 ready。注释审计坐标、Web 按钮类型、会话/列表响应归属及两项退出时序问题已完成源码修正及复审；本地真实认证回归通过，完整锁定依赖和全局会话生命周期仍待 CI 与后续验收。全仓质量与完整 UI 验收仍未通过，详见[里程碑](docs/plans/milestones.md)。
 
 Node 原始内容提取与 npm 物理包实例索引组件（`68875bb` / `88398c9`）及流水线接入（`1c20bc5` / `89d568d`）已完成源码复审。现已通过[真实双 Mac 官方资产消费](https://github.com/baofengbaofeng/VeriQ/actions/runs/43740087046)：两架构均完成获取、观测与 bootstrap，提交和清理确认；各提取 4,797 个文件，索引 npm 根及其嵌套的 144 个物理包实例。两份小型证据各 46 个 ZIP 成员、45 个清单引用及 23 项不同源码引用已核验，大归档未下载到本机。这些仍是 0600/0700 私有静态材料，来源保持未批准；可执行布局、生产依赖闭包、目标解析及完整 Runtime 尚未验收。
 
-Workspace 生命周期与四个入口的默认选择已由 `1010675` 修复并通过独立审查；`ed5d7c9` 随后补齐 Identity 表单清理的稳定依赖与旧作用域写入保护，真实凭据创建、轮换、切换及迟到响应回归通过。两组本地 Web 组件均各两项测试通过；完整锁树、其余前端错误、旧用例文件 lint/类型问题及全局会话仍待验收。
+固定锁生产依赖布局生产器（`ca34c8d` / `afe4838`）已完成独立审查，并通过[真实双 Mac 验证](https://github.com/baofengbaofeng/VeriQ/actions/runs/43770719879)：两边均有 34 项前置测试通过，完成固定 pnpm 工具准备、生产依赖获取、全新目录离线安装与物理布局采集。每边的 194 个 ZIP 成员、193 个清单引用、全部 698 个 Git 文件记录及 121 个原始包清单已独立核验。制品仅含元数据；包体复现、Runtime 专用依赖闭包、解析与可执行布局仍需后续验收。首次失败记录保留，不以新结果覆盖。
+
+Workspace 生命周期、入口默认选择与 Identity 表单清理已分别由 `1010675`、`ed5d7c9` 完成定向修复及独立审查。`b0aeb1e` 进一步修复 AI 页面的默认选择与八类请求输入变更后的预览失效，真实接口两项回归、完整应用及 AI 测试文件严格类型检查通过；后续 `f03f719` 补齐资源页与 Monaco 的模型生命周期回归，三项用例通过；最新完整本地前端 lint 仍有 15 项错误，完整发行门禁尚未通过。既有用例文件的 lint/类型债务、全局会话及完整锁树验收继续保留。
 
 Mac Bundle ID 固定为 `io.github.baofengbaofeng.veriq`。`e0ba135` 已通过[双 Mac 私有 Runtime 存储验收](https://github.com/baofengbaofeng/VeriQ/actions/runs/43758515194)：每种架构 7＋2 项测试通过且无跳过，覆盖八项 ACL 策略、不确定恢复与真实解锁读取拒绝；四个夹具的正文、擦除、钥匙串删除、控制器退出及目录清理均通过。该结果来自独立临时 VM 的私有文件 Keychain；Cookie、真实控制台、正式签名安装及完整发行仍待验收。
 
 仓库当前已落地 `apps/srv`（Tornado 控制服务）、`apps/web`（React 管理台）、`apps/runtime`（Agent/CLI/离线执行）、`packages/{contracts,compiler,runner-sdk,ui}`；`apps/desktop` 已包含 main/preload/renderer、本地打包界面和独立 Agent 入口。首发桌面范围已加入 Mac Intel x64 与 Apple Silicon arm64，优先级高于仍需交付的 Windows/Ubuntu；Mac 原生适配与安装验收尚未完成，见 [Mac 范围与兼容性记录](docs/specs/macos-mvp-scope.md)。贡献与智能体须遵循根目录 `AGENTS.md` 中的编码规范（4 空格缩进、中文注释、英文日志等）。
+
+入口与执行文件输入生产器已完成源码审查：真实 Vite 夹具及相关测试共 55 项通过，包清单物理归属与跨平台大小写冲突回归通过。双架构 Mac 上真实项目入口的构建验收正在接入，完整 Runtime、桌面安装与 MVP 尚未完成；详见[里程碑](docs/plans/milestones.md)。
 
 ## 为什么做 VeriQ
 
@@ -198,6 +202,8 @@ VeriQ is an automated smoke and regression platform for enterprise PC web system
 Server build tooling, frontend-in-wheel packaging, offline installation checks, engine candidates and separate promotion have passed independent review and scoped cancellation/promotion fixes. The pinned-browser SDK gate passed 136 tests with 91.46% line coverage; this does not close final integration gates. Default builds remain blocked by existing lint, formatting and comment-policy debt, and current candidates are explicitly UNVERIFIED. The Electron desktop GUI module has passed independent review and supports cached runs and local reports while disconnected. Native distribution remains in progress: native IPC, system vaults and explicit empty-initialization recovery have real Windows Server and Ubuntu target evidence, including protected Cookie databases and restart readback. Seven Ubuntu source-GUI cases passed. Three Windows ACL/owner tests still fail; Windows11/Ubuntu installation and complete-product acceptance remain pending; there is no formal installer yet. See [milestones](docs/plans/milestones.md) and [release tooling](docs/release.md).
 
 The repository currently includes `apps/srv` (Tornado control service), `apps/web` (React console), `apps/runtime` (Agent/CLI/offline execution), and `packages/{contracts,compiler,runner-sdk,ui}`. `apps/desktop` contains main/preload/renderer, bundled local UI and an independent Agent entry; target installers and remaining native capabilities are in progress. Contributors and coding agents must follow the coding standards in root `AGENTS.md` (4-space indentation, Chinese source comments, English logs, and related rules).
+
+The entry/execution input producer has passed source review and 55 relevant real Vite fixture tests, including physical package ownership and portable case-collision regressions. Native Intel/ARM Mac acceptance of the real project entries is next; complete Runtime, desktop installation and MVP acceptance remain open. See [milestones](docs/plans/milestones.md).
 
 ## Why VeriQ
 
