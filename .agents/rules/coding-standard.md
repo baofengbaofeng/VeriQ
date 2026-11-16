@@ -7,7 +7,7 @@
 - 缩进：可编程源码一律 **4 个空格**；禁止 Tab（`.editorconfig` 明确例外除外，如 `Makefile`）。
 - 代码行最多 **120 个字符**，与 Python、TypeScript/JavaScript 语言指南一致。
 - 字符集与换行：UTF-8、LF、文件末换行；遵守仓库根 `.editorconfig`。
-- Python：以 ruff / mypy 等仓库已配置工具为准；风格细节遵循《Python 编码规范》。
+- Python：静态检查使用 pylint，并配合 pylintrc；格式化使用 Black 或 Pyink。风格细节遵循《Python 编码规范》。
 - TypeScript/JavaScript：以 Biome / Prettier / `tsc` 为准；风格细节遵循《TypeScript/JavaScript 编码规范》。
 - C/C++ 原生代码：4 空格；与所属平台 native 模块既有风格保持一致，新增文件不得引入 Tab。
 - 禁止为「临时」或「占位」代码另立宽松格式标准。
