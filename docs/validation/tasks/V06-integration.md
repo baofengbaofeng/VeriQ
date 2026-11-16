@@ -112,3 +112,52 @@ python fixtures/integration/python/lifecycle.py \
 终止Worker/Chrome只使用对应目标OS批准的受控停止路径，不随意杀任意后代；Mac不扩大内核后代清理承诺。不确定进程保持quarantine/manual recovery，由V03/V05收证。确认无活动Run、真实进程已停止、无待补偿/未过期fixture后，再停止demo/Java进程、归档示例计划和空间、撤销服务/业务密钥；移除本次私有样例数据库前先保存脱敏结果，不能删库掩盖清理失败。
 
 已知平台历史阻塞继续见[主交接](../mvp-handoff.md)：Mac入口环境、Windows ACL、旧Web lint与全仓注释规范债务不能从本任务推断已修复。本次源码没有任何新执行结果，也没有独立代码审查结论。后续Agent完成以上工作后填写实际结果与残留功能缺口，再由整体验收决定是否满足MVP。
+
+## C06b SOURCE_DELIVERY：安装包与真实 GUI 向导补齐
+
+本节接续 C06 的源码交付，覆盖上文曾登记的“仅仓库CLI、未安装库存、无实际GUI入口”缺口；旧记录保留为当时状态，不再视为当前源码尚缺实现。**C06b仍未执行脚本、构建、测试、安装、网络、GUI、CI或独立复审。**
+
+| 新源码 | 实际行为 | 依赖与边界 |
+| --- | --- | --- |
+| `apps/srv/src/veriq_server/examples/{__init__,resources,platform_http,bootstrap}.py` | 规范标准库导入模块、固定importlib.resources读取器；`python -m veriq_server.examples.bootstrap`；真实来源/目标选择恢复绑定 | Python已安装包即可，无Git/Node/源码路径fallback；仍需真实平台、员工、批准引擎和MANAGED Runtime |
+| `apps/srv/src/veriq_server/examples/data/manifest.json` 与 `data/assets/{catalog,dataset,fixture,flow,case,suite,environment}.json` | 跟踪的规范JSON；API和CLI读取同一份；仓库副本发行时逐字节核对 | 无生成回执、无secret/config路径；不是已编译资产 |
+| `fixtures/sample-workspace/{bootstrap,platform_http}.py` | 薄兼容导入入口，移除第二套HTTP/导入算法 | 必须使用已安装或editable安装控制服务的Python；不会自动修改sys.path |
+| `apps/srv/src/veriq_server/handlers/examples.py` | `SampleWorkspaceExampleAPI`，员工认证GET `/api/v1/examples/sample-workspace`，标准信封返回实际manifest/assets/sourceInventory | C02完成app.py注册；OpenAPI由root共享更新；损坏/缺失资源503，不返回后端路径 |
+| `apps/web/src/features/examples/{types,importer,progress,i18n}.ts` 与 `SampleWorkspaceWizard.tsx` | 真实目标/空间/角色/既有或新凭据/Runtime选择；创建草稿、poll真实Job、校验回执、发布、建计划；来源/选择指纹和员工空间恢复；取消本地请求；共享全局中英i18n | C01b挂载Workspace实际入口并提供appI18n；复用当前employee request传输，不绕过CSRF；不自动批准设备、不触发Run |
+| `scripts/stage_examples.py` 与 `scripts/build_release.py` | 正常发行核对固定规范模块/数据和兼容副本，run内源码库存纳入evidence及release manifest | 本轮只写source；无新环境变量/包内生成库存/源码绑定漂移；wheel RECORD仍权威 |
+| `docs/guides/sample-workspace.md`、`fixtures/sample-workspace/README.md` | 已安装模块与真实GUI操作路径、恢复、来源与发行说明 | 不把源码补齐写成真实安装通过 |
+
+root确认现有Hatch包选择 `packages=["src/veriq_server"]` 且仅排除static/dist，规范examples模块/JSON属于正常包布局，不需要新增依赖或特殊环境force_include。实际wheel/sdist成员和仓库外读取仍须下表验证，不能仅凭配置认定通过。被测demo是独立业务服务，控制服务安装不自动部署目标业务；生产数据库/SSO等样例之外的接入边界保持原记录。
+
+### C06b 后续安装与 GUI 执行表
+
+| 检查 | 后续实际步骤 | 通过要求 | 当前结果 |
+| --- | --- | --- | --- |
+| 正常发行阶段 | 在V08环境运行未跳门禁的正常build_release；核对run的examples-source-inventory、release manifest/evidence、源码末尾绑定 | 固定模块+8份JSON字节在库存中；兼容副本不一致失败；无源码目录生成/漂移 | 未执行 |
+| wheel/sdist实际成员 | 对真实构建wheel查RECORD和archive，解开sdist在仓库外重建wheel | `veriq_server/examples`四模块、manifest、七asset完整；重复ZIP成员/遗漏拒绝；不依赖fixtures目录 | 未执行 |
+| 无仓库/无Git/无Node | 独立Python3.12环境安装实际wheel后移除仓库cwd依赖；执行 `python -m veriq_server.examples.bootstrap --help`，用importlib读取sample_package | 可用入口与实际JSON；依赖只来自已安装包；不执行git/node或隐式寻找源码 | 未执行 |
+| 已安装CLI真实链 | 私有state目录、真实employee、可达demo；先workspace-only，再实际设备授权，再同模块完整导入 | 七类真实验证发布+真实计划；库中无伪receipt；源码选择变更拒绝恢复 | 未执行 |
+| 清单认证/错误 | 无Cookie GET、有Cookie GET、非GET；移除/损坏测试副本资源后请求 | 未登录401；已登录标准data/requestId；错误方法405；坏包503且无filesystem/config/secret输出 | 未执行 |
+| 实际GUI入口 | Workspaces真实按钮打开；空空间先创建；提供正常URL/role/凭据/Runtime；运行导入 | 不是静态图；来源来自安装包endpoint；进度显示真实Job；最终真实plan且未自动Run | 未执行 |
+| GUI新旧凭据 | 分别选择允许身份的既有版本与创建新版本；中途重新读取；尝试撤销/错误身份/引用 | token仅请求短命内存，字段提交清空；新旧版本均被真实注册表校验；错误拒绝 | 未执行 |
+| GUI恢复/未知写 | 编译等待时停止；刷新页面重新填相同公开参数；模拟响应丢失后从元数据明确选择；编辑草稿/计划/环境参数再恢复 | 重用服务端校验键和已发布内容；不重复伪造版本；变化拒绝覆盖；不声称远端Job已取消 | 未执行 |
+| 作用域与语言 | 切员工/Workspace、退出、关闭；同时让旧请求晚到；全局en/zh切换 | 旧组件卸载并取消，秘密不进入新会话/空间；词条同步appI18n；machineIDs原样但不当测试label | 未执行 |
+| 恢复存储与label检查 | 检查sessionStorage、Query缓存、DOM label/aria/testId/recordKey、URL、事件、错误 | 只有员工空间绑定的公开指纹/版本UUID；无token/cleanupToken；元数据选项label不展开tokenId/secretVersionId | 未执行 |
+| 实际权限与设备 | Viewer访问向导写路径、跨空间引用、未共享/未MANAGED/无投递Runtime、撤销会话 | 服务端拒绝；清单读取不授予空间编辑；向导不自动批准信任/引擎/投递 | 未执行 |
+
+安装后真实命令示例（后续执行，本轮未运行）：
+
+```sh
+python -m veriq_server.examples.bootstrap --help
+python -m veriq_server.examples.bootstrap \
+    --server 'https://<platform-origin>' --email '<authorized-employee>' \
+    --workspace-key veriq-installed-demo --state '<private-directory>/sample.json' \
+    --workspace-only
+python -m veriq_server.examples.bootstrap \
+    --server 'https://<platform-origin>' --email '<authorized-employee>' \
+    --workspace-key veriq-installed-demo --state '<private-directory>/sample.json' \
+    --runtime-id '<authorized-runtime-uuid>' --demo-url 'https://<reachable-demo-origin>' \
+    --build-sha '<actual-target-build>' --locale en-US --timezone UTC
+```
+
+沿用上文8条真实流程各5轮，至少各有一轮使用已安装CLI和真实GUI，记录实际commit/wheelhash/目标build/角色及失败。构建、包成员、CLI和GUI任何一个未完成都不能声称F01示例安装验收通过；代码尚未验证的类型/格式/注释问题继续交V01/V09，不关闭既有门禁。

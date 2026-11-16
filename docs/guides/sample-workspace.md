@@ -1,6 +1,6 @@
 # 导入和运行 VeriQ 示例 Workspace
 
-本指南使用真实平台 API、真实受控业务服务和实际 Runtime 编译发布。C06 源码尚未执行；以下命令由后续 V06 在隔离环境运行，不代表已有通过报告。导入器不触发 Run，不写数据库行，不调用内部完成回执。
+本指南使用真实平台 API、真实受控业务服务和实际 Runtime 编译发布。C06 源码尚未执行；以下命令由后续 V06 在隔离环境运行，不代表已有通过报告。导入器不触发 Run，不写数据库行，不调用内部完成回执。正式示例模块和七类 JSON 现在随 `veriq-server` wheel 安装；控制服务主机无需 Git、Node 或仓库目录。
 
 ## 1. 准备控制平台和受控业务
 
@@ -29,10 +29,10 @@ apps/srv/.venv/bin/python fixtures/demo-app/app.py
 
 ## 2. 创建空间，再授权 Runtime
 
-导入器使用 Python 标准库，不新增依赖。进度文件保存 UUID 和非秘密配置，权限0600；父目录不得组/他人可写。`--server` 必须是平台实际 `public_url`，开发时通常是 Vite 的 `http://127.0.0.1:5173`，通过它代理 API；直接用后端端口却发送不同 Origin 会失败。
+导入器的 HTTP 客户端使用 Python 标准库，入口为已安装模块 `python -m veriq_server.examples.bootstrap`。源码开发使用 `apps/srv/.venv/bin/python -m veriq_server.examples.bootstrap`，仓库 `fixtures/sample-workspace/bootstrap.py` 仅兼容转交同一模块，必须使用已安装或 editable 安装控制服务的 Python 环境，不会隐式注入仓库路径。进度文件保存 UUID 和非秘密配置，权限0600；父目录不得组/他人可写。`--server` 必须是平台实际 `public_url`，开发时通常是 Vite 的 `http://127.0.0.1:5173`，通过它代理 API；直接用后端端口却发送不同 Origin 会失败。
 
 ```sh
-python fixtures/sample-workspace/bootstrap.py \
+python -m veriq_server.examples.bootstrap \
     --server http://127.0.0.1:5173 \
     --email admin@example.com --workspace-key veriq-demo \
     --state /tmp/veriq-example-private/import.json --workspace-only
@@ -47,7 +47,7 @@ python fixtures/sample-workspace/bootstrap.py \
 保持原三个业务服务环境令牌；业务和 fixture 两份会被加密写入平台，maintenance 不导入普通环境。执行设备须有本空间派发权，CLI 按管理员提供的真实设备 UUID 调用：
 
 ```sh
-python fixtures/sample-workspace/bootstrap.py \
+python -m veriq_server.examples.bootstrap \
     --server http://127.0.0.1:5173 \
     --email admin@example.com --workspace-key veriq-demo \
     --state /tmp/veriq-example-private/import.json \
@@ -68,9 +68,28 @@ python fixtures/sample-workspace/bootstrap.py \
 | 7 | ENVIRONMENT | 实际业务 origin、locale/timezone/build SHA、固定身份版本 |
 | 最后 | HTTP 执行计划 | 固定套件/环境/设备、QUEUE、0次整用例重试、空初始变量 |
 
-模板中的 UUID 是示例依赖别名，原始 JSON 符合已有 DSL 结构；导入时全部重写为当前空间 API 返回的真实版本。模板没有 validation receipt 或编译 hash。CASE 的 `{{vars.code}}` 来自已校验 fixture 输出，`employeeId` 来自真实响应提取，`data.name` 来自数据集。
+规范模板位于已安装 `veriq_server.examples` 包内的 `data/manifest.json` 和 `data/assets/*.json`，API 与 CLI 均通过 `importlib.resources` 读取，不从当前目录或请求参数找资源。仓库 `fixtures/sample-workspace` JSON 只是文档兼容副本，正常发行阶段检查其与规范包逐字节一致。模板中的 UUID 是示例依赖别名，原始 JSON 符合已有 DSL 结构；导入时全部重写为当前空间 API 返回的真实版本。模板没有 validation receipt 或编译 hash。CASE 的 `{{vars.code}}` 来自已校验 fixture 输出，`employeeId` 来自真实响应提取，`data.name` 来自数据集。
 
 每类资源遵循同一协议：创建草稿 → GET `validation-preview` → 用返回 revision/sourceHash POST `validate` → 轮询真实 Job → 读取真实 `validation-receipt` → POST `publish`。202 只是排队；超时/失败退出非零，不发布假版本。恢复使用相同空间键、状态路径、URL、SHA 和语言参数；已发布内容不一致、草稿被编辑或计划变化时停止，另建空间键可独立重做。凭据创建响应丢失而本地未保存版本时，需要管理员从凭据元数据核对并恢复状态或使用新空间，不能猜测密钥版本。
+
+
+## 使用管理台真实导入向导
+
+在 Workspaces 页打开“导入示例 Workspace”按钮。向导以当前员工和空间为作用域；没有空间时可先创建或打开空间，再去 Runtimes 完成实际授权。它通过已认证的 `GET /api/v1/examples/sample-workspace` 读取当前安装包中的 manifest、七类 assets 和实际 JSON 字节散列，响应沿用 `data/requestId` 信封，未登录不能读取。
+
+填写从实际 Runtime 可达的业务页面/API/fixture origins、真实目标 build、locale/timezone、业务 roleKey、两类允许身份及授权 Runtime。可选择已有 HTTP_BEARER 适配器和未撤销的凭据版本，或输入两份新令牌创建加密凭据；密码字段提交后清空，令牌不进入浏览器存储、查询缓存或日志。字段 label/testId 不包含 tokenId/secretVersionId。
+
+点击“开始或恢复导入”后，页面显示真实 Job 状态和等待原因，依次发布资产并创建固定套件/环境/设备的 QUEUE 计划。未完成编译、失败、取消或超时不会显示已发布成功。停止按钮只停止本地请求和轮询；已经接受的远端 VALIDATE 作业仍可能继续，界面不会声称远端进程已停止。
+
+恢复元数据使用当前员工和 Workspace 专属 sessionStorage，包含公开选择指纹、模板来源、已完成版本及计划 UUID，不含秘密。重新开始会读取实际资源头、草稿和作业，复用同一服务端校验键；已修改的草稿、发布内容、环境选择或计划拒绝覆盖。清除恢复标记只删除浏览器元数据，不删服务器对象、不撤销凭据；配置变化应使用独立空间。新建凭据响应丢失时不要猜测版本，重新读取授权元数据后明确选择已有版本，或由管理员检查后在独立空间重做。
+
+向导使用平台既有 Cookie/CSRF/会话过期传输，不调用服务器内存长任务，不自动授权 Runtime、不晋升引擎、不发模型请求，也不自动触发 Run。成功后进入执行计划页手动运行或按下节使用受限 HTTP 调度。全局中英语言由应用共享 i18next 管理，机器状态及标识保持原值。
+
+## 安装与发行资源边界
+
+正常 `scripts/build_release.py` 调用 `stage_examples`，对规范模块、manifest 和七份资产记录 run 内 `examples-source-inventory.json`，并把该库存放入发行 evidence/manifest。所有规范资源仍为跟踪源码，不在构建或 API 进程内生成代码。wheel 使用现有包布局包含 `examples/**`，完整性仍以 wheel RECORD 和既有源码绑定为准；该散列清单不表示受管理编译或安装验收通过。
+
+新入口源码已交付但尚未实际构建 wheel、无仓库安装或 GUI 运行。后续必须在仓库外、无 Node/Git 的已安装 Python 环境复现模块 `--help`、资源读取和真实 API 导入；再完成 GUI 成功、恢复、取消及权限拒绝。具体执行表见 [V06](../validation/tasks/V06-integration.md)。被测 demo 服务是独立目标，安装控制服务不会自动部署它，需先按本指南配置可达地址与正常身份。
 
 ## 4. 手动或 HTTP 触发
 

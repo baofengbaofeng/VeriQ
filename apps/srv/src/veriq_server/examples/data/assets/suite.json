@@ -1,0 +1,18 @@
+{
+    "kind": "SUITE",
+    "document": {
+        "schemaVersion": "1.0",
+        "cases": [
+            {
+                "versionId": "00000005-0005-4005-8005-000000000005",
+                "datasetVersionId": "00000002-0002-4002-8002-000000000002",
+                "roleKeys": [
+                    "editor"
+                ],
+                "browsers": [
+                    "chromium"
+                ]
+            }
+        ]
+    }
+}

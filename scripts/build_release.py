@@ -26,6 +26,7 @@ import xml.etree.ElementTree as ET
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from stage_web import stage_web
+from stage_examples import stage_examples
 from verify_wheel import verify_wheel, clean_install
 from wheelhouse import wheelhouse
 from npm_sbom import npm_sbom
@@ -254,6 +255,7 @@ def build_release(options: BuildOptions) -> ReleaseManifest:
             command("web-check", ["pnpm", "--filter", "@veriq/web", "check"])
             command("web-build", ["pnpm", "--filter", "@veriq/web", "build"])
             info = stage_web(root, commit, identifier)
+            examples = stage_examples(root, run / "examples-source-inventory.json")
             command(
                 "python-sync",
                 ["uv", "sync", "--project", "apps/srv", "--frozen", "--all-groups"],
@@ -467,7 +469,7 @@ def build_release(options: BuildOptions) -> ReleaseManifest:
             shutil.copy2(run / "installation/server-sbom.json", candidate / "SBOM.json")
             npm_metadata = npm_sbom(root, candidate / "frontend", managed.run)
             shutil.copytree(run / "installation", candidate / "evidence/installation")
-            for name in ("source-binding.json", "commands.json", "tool-versions.json"):
+            for name in ("source-binding.json", "commands.json", "tool-versions.json", "examples-source-inventory.json"):
                 shutil.copy2(run / name, candidate / "evidence" / name)
             shutil.copy2(
                 root / "apps/srv/src/veriq_server/static/dist/static-manifest.json",
@@ -499,6 +501,7 @@ def build_release(options: BuildOptions) -> ReleaseManifest:
                 "sourceBindingSha256": sha256(
                     (run / "source-binding.json").read_bytes()
                 ).hexdigest(),
+                "exampleSources": examples,
                 "wheel": verified,
                 "wheelhouse": locked_wheels,
                 "installation": installed,
