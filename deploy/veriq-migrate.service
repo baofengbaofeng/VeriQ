@@ -1,0 +1,20 @@
+[Unit]
+Description=VeriQ explicit database migration
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=veriq
+Group=veriq
+WorkingDirectory=/var/lib/veriq
+ExecStart=/opt/veriq/current/bin/python -B -m veriq_server --config /etc/veriq/veriq.json migrate
+UMask=0077
+ReadOnlyPaths=/opt/veriq /etc/veriq
+ReadWritePaths=/var/lib/veriq
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateDevices=true
+CapabilityBoundingSet=

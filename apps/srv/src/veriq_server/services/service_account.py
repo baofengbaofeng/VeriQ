@@ -77,6 +77,7 @@ class ServiceAccountService:
             "fixture-cleanups/reconcile",
             "capacity/reconcile",
             "artifacts/expire",
+            "lifecycle/expire",
         }
         if (
             purpose not in {"RUNTIME_ENROLLMENT", "MAINTENANCE", "EXECUTION"}

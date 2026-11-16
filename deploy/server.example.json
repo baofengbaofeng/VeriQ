@@ -6,5 +6,11 @@
     "artifact_directory": "/var/lib/veriq/artifacts",
     "bundle_issuer_path": "/var/lib/veriq/issuer/issuer.json",
     "approved_engine_inventory_path": "/etc/veriq/approved-engine-inventory.json",
-    "validation_engine_version": "1.0.0"
+    "validation_engine_version": "1.0.0",
+    "metadata_retention_days": 90,
+    "export_retention_days": 14,
+    "upload_retention_days": 1,
+    "artifact_success_retention_days": 14,
+    "artifact_retention_days": 30,
+    "readiness_s3_strategy": "disabled"
 }

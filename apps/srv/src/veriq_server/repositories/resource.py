@@ -167,6 +167,8 @@ class ResourceRepository:
                     existing.storage_backend,
                     existing.storage_incarnation,
                 )
+            from ..services.jobs import database_time
+            existing.created_at = await database_time(self.session)
             existing.content = content
             existing.storage_backend = "INLINE"
             existing.storage_incarnation = None

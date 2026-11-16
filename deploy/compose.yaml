@@ -1,5 +1,5 @@
 services:
-    api:
+    api: &control
         build:
             context: ..
             dockerfile: deploy/Dockerfile
@@ -13,6 +13,30 @@ services:
             - data:/var/lib/veriq
         tmpfs:
             - /tmp:size=64m,mode=1777
+        cap_drop: [ALL]
+        security_opt: [no-new-privileges:true]
+        depends_on:
+            database:
+                condition: service_healthy
+            migrate:
+                condition: service_completed_successfully
+    migrate:
+        <<: *control
+        restart: "no"
+        ports: []
+        command: ["migrate"]
+        depends_on:
+            database:
+                condition: service_healthy
+    bootstrap:
+        <<: *control
+        profiles: [bootstrap]
+        restart: "no"
+        ports: []
+        command: ["init"]
+        volumes:
+            - ${VERIQ_CONFIG_DIRECTORY:?Set an external configuration directory}:/etc/veriq
+            - data:/var/lib/veriq
         depends_on:
             database:
                 condition: service_healthy

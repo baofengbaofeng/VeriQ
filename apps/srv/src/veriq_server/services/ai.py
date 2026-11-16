@@ -490,6 +490,8 @@ class AiService:
         g = await s.get(AiGeneration, gid)
         if not g or g.workspace_id != scope.workspace_id:
             raise Problem(404, "AI_GENERATION_NOT_FOUND", "Generation not found")
+        if g.data.get("metadataExpiredAt"):
+            raise Problem(410, "AI_GENERATION_EXPIRED", "Generation metadata retention has expired")
         return g
 
     async def dto(self, s: AsyncSession, scope: WorkspaceScope, g: AiGeneration) -> dict[str, Any]:
@@ -508,6 +510,8 @@ class AiService:
         }
         if g.cost_micros is not None:
             result["costUsd"] = g.cost_micros / 1000000
+        if g.data.get("metadataExpiredAt"):
+            return {**result, "errorCode": "AI_GENERATION_EXPIRED"}
         p = await s.get(AiProvider, g.provider_id)
         public = {"inputTokens", "outputTokens", "errorCode", "pricing"}
         endpoint_authorized = False

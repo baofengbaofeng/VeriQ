@@ -45,6 +45,17 @@ class Settings(BaseModel):
     artifact_s3_bucket: str | None = None
     artifact_s3_endpoint: str | None = None
     artifact_s3_region: str = "us-east-1"
+    readiness_s3_strategy: Literal["disabled", "read-object", "head-bucket"] = "disabled"
+    readiness_s3_object_key: str | None = None
+    readiness_s3_object_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    readiness_s3_object_size: int = Field(default=0, ge=0, le=1048576)
+    metadata_retention_days: int = Field(default=90, ge=1, le=3650)
+    export_retention_days: int = Field(default=14, ge=1, le=3650)
+    upload_retention_days: int = Field(default=1, ge=1, le=3650)
+    # 引用图必须整体完成才可判断缓存不可达，因此显式限制根行、节点与总字节而非在超限时使用部分图；较大工作区只能由操作员按可用内存提高这些预算，任何超限仍保留所有候选并留下审计原因。
+    lifecycle_graph_max_rows: int = Field(default=2048, ge=1, le=100000)
+    lifecycle_graph_max_nodes: int = Field(default=2048, ge=1, le=100000)
+    lifecycle_graph_max_bytes: int = Field(default=8388608, ge=1024, le=268435456)
     runtime_job_slots: int = Field(default=1, ge=1, le=100)
     compile_slots: int = Field(default=2, ge=1, le=100)
     cleanup_slots: int = Field(default=2, ge=1, le=100)
@@ -67,6 +78,10 @@ class Settings(BaseModel):
         """交叉校验主密钥环、生产公网源与 SMTP 成套配置，拒绝任何不安全或不完整的组合，Settings.production_origin 的失败路径返回稳定错误。
         production_origin 实现于 apps/srv/src/veriq_server/settings.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
         """
+        if self.readiness_s3_strategy == "read-object" and (
+            not self.readiness_s3_object_key or not self.readiness_s3_object_sha256
+        ):
+            raise ValueError("S3 read-object readiness requires an explicit object key and hash")
         if self.master_key_id in self.previous_master_keys:
             raise ValueError("Active key id must not appear in previous keys")
         for value in self.previous_master_keys.values():

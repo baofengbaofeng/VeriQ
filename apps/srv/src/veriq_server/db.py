@@ -18,6 +18,7 @@ from sqlalchemy import (
     BigInteger,
     JSON,
     Index,
+    text,
 )
 from sqlalchemy.dialects.mysql import DATETIME, LONGBLOB
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -274,6 +275,8 @@ class Artifact(Base):
     """
 
     __tablename__ = "veriq_artifacts"
+    __table_args__ = (Index("ix_veriq_artifact_retention", "workspace_id", "created_at", "sha256"),)
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6), server_default=text("CURRENT_TIMESTAMP(6)"))
     workspace_id: Mapped[str] = mapped_column(
         uuid_type, ForeignKey("veriq_workspaces.id"), primary_key=True
     )

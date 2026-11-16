@@ -15,12 +15,15 @@ from tornado.web import Application, RequestHandler
 from .db import Database
 from .delivery import Delivery, ResetDispatcher, SMTPDelivery
 from .settings import Settings
+from .readiness import ReadinessMonitor
 from .handlers.base import API
 from .handlers.static import BuildInfoAPI, PublishedFileHandler, SPA_PATHS, load_published_site
 from .handlers.auth import AuthAPI
 from .handlers.account import AccountAPI
 from .handlers.admin import AdminAPI
 from .handlers.health import HealthAPI
+from .handlers.operations import OperationsAPI
+from .handlers.examples import SampleWorkspaceExampleAPI
 from .handlers.workspace import WorkspaceAPI
 from .handlers.resource import ResourceAPI
 from .handlers.credential import CredentialAPI, CredentialResolveAPI, AuthAdapterAPI
@@ -67,6 +70,8 @@ def handler_for(action: str) -> type[API]:
     """按路由动作名选择具体 API 处理器类；当动作未匹配时回退到 UnknownAPI，handler_for 的失败路径返回稳定错误。
     handler_for 实现于 apps/srv/src/veriq_server/app.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
+    if action == "operations-metrics":
+        return OperationsAPI
     if action in {"execution-plans", "execution-plan"}:
         return ExecutionPlanAPI
     if action == "plan-trigger":
@@ -115,6 +120,7 @@ def handler_for(action: str) -> type[API]:
         "fixture-cleanups/reconcile",
         "capacity/reconcile",
         "artifacts/expire",
+        "lifecycle/expire",
     }:
         return ExecutionAPI
     if action in {
@@ -309,6 +315,8 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
         ("/internal/v1/maintenance/fixture-cleanups/reconcile", "fixture-cleanups/reconcile"),
         ("/internal/v1/maintenance/capacity/reconcile", "capacity/reconcile"),
         ("/internal/v1/maintenance/artifacts/expire", "artifacts/expire"),
+        ("/internal/v1/maintenance/lifecycle/expire", "lifecycle/expire"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/operations/metrics", "operations-metrics"),
         ("/internal/v1/attempts/([0-9a-fA-F-]{36})/reconcile", "reconcile"),
         ("/internal/v1/jobs/claim", "claim"),
         ("/internal/v1/attempts/([0-9a-fA-F-]{36})/activate", "activate"),
@@ -439,6 +447,7 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
         ("/health/live", HealthAPI, {"config": settings, "db": db, "action": "public-live"}),
         ("/health/ready", HealthAPI, {"config": settings, "db": db, "action": "public-ready"}),
         ("/api/v1/build-info", BuildInfoAPI, {"config": settings, "db": db}),
+        ("/api/v1/examples/sample-workspace", SampleWorkspaceExampleAPI, {"config": settings, "db": db, "action": "sample-workspace-example"}),
     ] + [
         (path, handler_for(action), {"config": settings, "db": db, "action": action})
         for path, action in routes
@@ -459,6 +468,7 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
     return Application(
         handlers,
         published_site=published_site,
+        readiness_monitor=ReadinessMonitor(settings, db, published_site),
         xsrf_cookies=True,
         xsrf_cookie_kwargs={"secure": settings.environment == "production", "samesite": "Strict"},
         cookie_secret=settings.signing_key.get_secret_value(),
