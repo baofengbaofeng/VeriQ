@@ -6,15 +6,9 @@
 import type { PlatformComponents } from "@veriq/contracts";
 import { request, ApiError, binaryRequest } from "../../api";
 type S = PlatformComponents["schemas"];
-/**
- * BundleDTO 别名：描述已签发离线包的元数据与下载句柄，不含明文凭证。下载前需确认用户有该空间权限；下载前必须确认当前用户具备该空间权限。
- * 列表与导出结果均返回此类型；实际字节流由 download 单独获取。
- */
+/** BundleDTO 别名：描述已签发离线包的元数据与下载句柄，不含明文凭证。下载前需确认用户有该空间权限；下载前必须确认当前用户具备该空间权限。列表与导出结果均返回此类型；实际字节流由 download 单独获取。 */
 export type Bundle = S["BundleDTO"];
-/**
- * 视图可依赖的 Bundle 读写接口：list/export/download；凭证与验签留在宿主或服务端。Local 与 Cloud 必须保持方法签名一致。
- * export 必须传入幂等键，防止网络重试产生重复包。
- */
+/** 视图可依赖的 Bundle 读写接口：list/export/download；凭证与验签留在宿主或服务端。Local 与 Cloud 必须保持方法签名一致。export 必须传入幂等键，防止网络重试产生重复包。 */
 export interface BundleAdapter {
     /** 桌面安装操作把已发布包直接交给宿主下载与验签，不向渲染进程交付任意路径或归档字节；浏览器未提供此入口时仍沿用原有的显式文件下载流程。 */
     install?(id: string, signal?: AbortSignal): Promise<void>;
@@ -25,10 +19,7 @@ export interface BundleAdapter {
     export(selection: S["BundleCreate"], key: string, signal?: AbortSignal): Promise<Bundle>;
     download(id: string, signal?: AbortSignal): Promise<Blob>;
 }
-/**
- * 构造时固定 workspaceId，路径 /workspaces/{id}/bundles；download 用 fetch+blob。
- * 401 时广播会话过期；过大 blob 抛 BUNDLE_TOO_LARGE。
- */
+/** 构造时固定 workspaceId，路径 /workspaces/{id}/bundles；download 用 fetch+blob。401 时广播会话过期；过大 blob 抛 BUNDLE_TOO_LARGE。 */
 export class CloudBundleAdapter implements BundleAdapter {
     constructor(readonly workspaceId: string) {}
     private base() {

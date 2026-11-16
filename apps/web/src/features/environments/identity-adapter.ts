@@ -11,15 +11,9 @@ type S = PlatformComponents["schemas"];
  * 列表展示与吊销目标均用此类型。
  */
 export type CredentialSummary = S["CredentialDTO"];
-/**
- * AuthAdapterDTO 摘要：适配器配置版本元数据，供环境字段下拉固定引用。configuration 已由服务端校验。
- * revoke 后不可再被新环境草稿引用。
- */
+/** AuthAdapterDTO 摘要：适配器配置版本元数据，供环境字段下拉固定引用。configuration 已由服务端校验。revoke 后不可再被新环境草稿引用。 */
 export type AdapterSummary = S["AuthAdapterDTO"];
-/**
- * IdentityManager 依赖的接口：credentials/adapters/createAdapter/credential/revoke*。
- * 桌面可替换实现，但不得把密钥写入可序列化快照。
- */
+/** IdentityManager 依赖的接口：credentials/adapters/createAdapter/credential/revoke*。桌面可替换实现，但不得把密钥写入可序列化快照。 */
 export interface IdentityAdapter {
     credentials(cursor?: string, signal?: AbortSignal): Promise<S["CredentialListDTO"]>;
     adapters(cursor?: string, signal?: AbortSignal): Promise<S["AuthAdapterListDTO"]>;
@@ -37,10 +31,7 @@ export interface IdentityAdapter {
     ): Promise<CredentialSummary>;
     revokeCredential(ref: string, id: string, signal?: AbortSignal): Promise<CredentialSummary>;
 }
-/**
- * HTTP 实现：/workspaces/{id}/credentials 与 auth-adapters；rotate 标志控制新版本。
- * 构造绑定单一 workspaceId，防止跨空间轮换凭证。
- */
+/** HTTP 实现：/workspaces/{id}/credentials 与 auth-adapters；rotate 标志控制新版本。构造绑定单一 workspaceId，防止跨空间轮换凭证。 */
 export class CloudIdentityAdapter implements IdentityAdapter {
     constructor(private workspaceId: string) {}
     private base(path: string) {

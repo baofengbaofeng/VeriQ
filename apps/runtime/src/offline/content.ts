@@ -61,9 +61,9 @@ export function validateContent(
         throw new Error("BUNDLE_SNAPSHOT_MISMATCH");
     const environment = assets.get(selection.environmentVersionId);
     if (environment?.kind !== "ENVIRONMENT") throw new Error("BUNDLE_ENVIRONMENT_MISSING");
-    // Shared compiler analysis owns schema references and public auth bindings.
-    // Combined exports add the independently selected ENVIRONMENT to execution roots.
-    // Draft DSL may have business/type diagnostics; only binding diagnostics block it.
+    // Shared compiler analysis owns schema references and public auth bindings. Combined exports add the independently
+    // selected ENVIRONMENT to execution roots. Draft DSL may have business/type diagnostics; only binding diagnostics
+    // block it.
     const bindings = new Set([
         "INVALID_ENTRY_CASE",
         "DUPLICATE_ENTRY_CASE",

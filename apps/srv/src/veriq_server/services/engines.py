@@ -1,5 +1,6 @@
-"""操作员批准引擎清单读取器校验 ApprovedEngineInventoryV1，要求 engineVersion 唯一完整发行。
-必备 package/lock/dependencies/compiler.tgz；生成源码路径不得标为批准发行。
+"""操作员批准引擎清单读取器校验 ApprovedEngineInventoryV1，要求 engineVersion 唯一完整发行。必备 package/lock/dependencies/compiler.tgz；
+
+生成源码路径不得标为批准发行。
 """
 
 import json

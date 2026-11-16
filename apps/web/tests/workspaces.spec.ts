@@ -30,8 +30,8 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     await page.getByTestId("password").fill("Browser password 123!");
     await page.getByTestId("login-submit").click();
     await expect(page.getByTestId("account-info")).toBeVisible();
-    // Keep unrelated state present: this test's empty state belongs to a new actor,
-    // independently of other feature suites that already created Workspaces.
+    // Keep unrelated state present: this test's empty state belongs to a new actor, independently of other feature
+    // suites that already created Workspaces.
     const setupSession = (await (await page.request.get("/api/v1/auth/session")).json()).data;
     const setupHeaders = {
         Origin: "http://127.0.0.1:5173",
@@ -114,8 +114,8 @@ test("real Workspace selection, invitation acceptance and member permissions", a
         fullPage: true,
         mask: [page.getByTestId("invitation-url")],
     });
-    // Hold an actual HTTP response so the switch happens with work in flight.
-    // The browser must abort the old scoped fetch; its data cannot enter Beta.
+    // Hold an actual HTTP response so the switch happens with work in flight. The browser must abort the old scoped
+    // fetch; its data cannot enter Beta.
     let releaseOld!: () => void;
     let receivedOld!: () => void;
     const oldReceived = new Promise<void>((resolve) => {

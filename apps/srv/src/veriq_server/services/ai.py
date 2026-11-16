@@ -1,6 +1,6 @@
-"""AI 草稿服务：管理 Workspace 内提供方、预算、上下文预览与生成草稿，模型输出永不自动发布为资源版本，本文件注释描述专属不变量。
-sanitize 去除受保护字段；测试可在无真实模型凭据下覆盖失败路径。
-review 仅在人工确认后进入可编辑草稿，取消与预算超限返回稳定错误码。
+"""AI 草稿服务：管理 Workspace 内提供方、预算、上下文预览与生成草稿，模型输出永不自动发布为资源版本，本文件注释描述专属不变量。sanitize 去除受保护字段；测试可在无真实模型凭据下覆盖失败路径。review
+
+仅在人工确认后进入可编辑草稿，取消与预算超限返回稳定错误码。
 """
 
 from contextlib import asynccontextmanager
@@ -128,8 +128,9 @@ def sanitize(value: Any, protected: set[str] | None = None) -> Any:
 
 
 class AiService:
-    """编排提供方 CRUD、生成、预览、取消与审核，强制 Workspace 与预算边界，AiService 遵守本文件边界。
-    AiService 属于 AI 辅助路径：无有效 Provider 时不得假装成功，模型输出不得自动发布为正式资产。
+    """编排提供方 CRUD、生成、预览、取消与审核，强制 Workspace 与预算边界，AiService 遵守本文件边界。AiService 属于 AI 辅助路径：无有效 Provider 时不得假装成功，
+
+    模型输出不得自动发布为正式资产。
     """
 
     def __init__(
@@ -699,8 +700,8 @@ class AiService:
             if reply and not error:
                 diagnostics = []
                 output = None
-                # Untrusted-content failures must not roll back verified usage or
-                # leave the durable call RUNNING. Operational/auth errors stay outside.
+                # Untrusted-content failures must not roll back verified usage or leave the durable call RUNNING.
+                # Operational/auth errors stay outside.
                 try:
                     canonical_bytes(reply.output)
                     output = sanitize(reply.output, {key})

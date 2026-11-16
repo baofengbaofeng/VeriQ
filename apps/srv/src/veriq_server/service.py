@@ -1,8 +1,7 @@
 """本模块封装控制面安装初始化、Argon2 口令哈希、会话批量失效与一次性重置令牌签发，并通过安装行锁与审计记录保证初始化竞态下只成功一次且可追溯。
 
-安装单例行（id=1）用 FOR UPDATE 串行化 setup/initialize；口令哈希在线程池中执行以免阻塞事件循环。
-不存在用户时仍对 dummy_hash 做恒定开销校验，避免邮箱枚举侧信道。
-重置令牌只存 SHA-256，新签发会删除同用户全部旧令牌，保证链接互斥。
+安装单例行（id=1）用 FOR UPDATE 串行化 setup/initialize；口令哈希在线程池中执行以免阻塞事件循环。不存在用户时仍对 dummy_hash 做恒定开销校验，避免邮箱枚举侧信道。重置令牌只存 SHA-256，
+新签发会删除同用户全部旧令牌，保证链接互斥。
 """
 
 import asyncio
@@ -26,8 +25,9 @@ dummy_hash = password_hasher.hash(secrets.token_urlsafe(32))
 
 
 def now() -> datetime:
-    """返回去掉 tzinfo 的 UTC 墙钟时间，与 DATETIME(fsp=6) 列及 stamp() 序列化约定严格对齐。
-    now 实现于 apps/srv/src/veriq_server/service.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """返回去掉 tzinfo 的 UTC 墙钟时间，与 DATETIME(fsp=6) 列及 stamp() 序列化约定严格对齐。now 实现于
+
+    apps/srv/src/veriq_server/service.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
     return datetime.now(UTC).replace(tzinfo=None)
 
@@ -85,9 +85,7 @@ def audit(
     *,
     workspace_id: str | None = None,
 ) -> None:
-    """向当前事务追加一条审计行；可绑定 Workspace，失败不单独提交，随调用方事务一起回滚，audit 的失败路径返回稳定错误。
-    audit 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
-    """
+    """向当前事务追加一条审计行；可绑定 Workspace，失败不单独提交，随调用方事务一起回滚，audit 的失败路径返回稳定错误。audit 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。"""
     s.add(
         AuditLog(
             id=str(uuid4()),

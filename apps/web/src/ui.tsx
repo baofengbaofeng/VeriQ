@@ -102,16 +102,16 @@ export function useAction() {
     return { busy, error, message, setMessage, run };
 }
 /**
- * 阻止浏览器默认提交并在本次提交时读取 FormData，转成普通认证及管理表单使用的字符串记录，保留非受控字段的当前值而不在输入过程中发起请求或提交状态。
- * 不校验字段；必填与长度由 Field 的原生 required/minLength 承担。
+ * 阻止浏览器默认提交并在本次提交时读取 FormData，转成普通认证及管理表单使用的字符串记录，保留非受控字段的当前值而不在输入过程中发起请求或提交状态。不校验字段；必填与长度由 Field 的原生
+ * required/minLength 承担。
  */
 export function values(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     return Object.fromEntries(new FormData(e.currentTarget)) as Record<string, string>;
 }
 /**
- * 统一 section.panel + h1 标题壳，包裹登录、账户、管理与多数功能页的主内容区。子树可再嵌套二级标题；子树仍可继续嵌套 h2 等二级标题区块。
- * 不负责鉴权或 Workspace 选择；子节点自行处理 Navigate 与数据加载。
+ * 统一 section.panel + h1 标题壳，包裹登录、账户、管理与多数功能页的主内容区。子树可再嵌套二级标题；子树仍可继续嵌套 h2 等二级标题区块。不负责鉴权或 Workspace 选择；子节点自行处理 Navigate
+ * 与数据加载。
  */
 export function Panel({ title, children }: { title: string; children: ReactNode }) {
     return (

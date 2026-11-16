@@ -1,6 +1,6 @@
-"""服务账号与令牌在 Workspace 管理权限下创建、签发与吊销，并供维护端点与 service enroll 消费 Bearer。
-consume 只接受未吊销哈希匹配令牌；require_maintenance 额外校验账号未禁用与维护资格。
-DTO 与列表响应不返回令牌明文，签发接口仅当时回显一次。
+"""服务账号与令牌在 Workspace 管理权限下创建、签发与吊销，并供维护端点与 service enroll 消费 Bearer。consume 只接受未吊销哈希匹配令牌；require_maintenance
+
+额外校验账号未禁用与维护资格。DTO 与列表响应不返回令牌明文，签发接口仅当时回显一次。
 """
 
 import secrets
@@ -44,8 +44,9 @@ class ServiceAccountService:
         return row
 
     async def create(self, actor: User, workspace_id: str, name: str) -> ServiceAccount:
-        """创建未禁用服务账号并返回实体，名称仅在租户内有意义，ServiceAccountService.create 遵守本文件 Workspace/事务边界。
-        create 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """创建未禁用服务账号并返回实体，名称仅在租户内有意义，ServiceAccountService.create 遵守本文件 Workspace/事务边界。create 必须坚持 Workspace 归属与成员授权，
+
+        嵌套资源引用不得跨空间隐式放行。
         """
         await self.authorize(actor, workspace_id, write=True)
         row = ServiceAccount(

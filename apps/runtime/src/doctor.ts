@@ -23,10 +23,7 @@ export interface DoctorResult {
     checks: { name: string; ok: boolean; detail: string }[];
     capabilities?: Capabilities;
 }
-/**
- * 公开函数 doctor 实测 Node 版本、引擎/SDK 包与 Chromium 启动渲染：可选探测控制 Origin 连通性（doctor）。
- * 返回 capabilities 仅供诊断展示。
- */
+/** 公开函数 doctor 实测 Node 版本、引擎/SDK 包与 Chromium 启动渲染：可选探测控制 Origin 连通性（doctor）。返回 capabilities 仅供诊断展示。 */
 export async function doctor(
     options: {
         server?: string | undefined;

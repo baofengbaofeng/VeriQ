@@ -17,13 +17,15 @@ log = logging.getLogger("veriq.http")
 
 
 class WorkspaceAPI(API):
-    """工作区与成员协作入口：创建/归档、成员角色、邀请签发/接受以及可复制链接投递；负责把会话身份映射到 Workspace 成员权限后再执行变更。
-    WorkspaceAPI 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """工作区与成员协作入口：创建/归档、成员角色、邀请签发/接受以及可复制链接投递；负责把会话身份映射到 Workspace 成员权限后再执行变更。WorkspaceAPI 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
 
     def prepare(self) -> None:
-        """按 action 限制允许动词，避免对成员或邀请误用未声明的 HTTP 方法；未知 action 与方法组合直接映射 METHOD_NOT_ALLOWED。
-        prepare 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """按 action 限制允许动词，避免对成员或邀请误用未声明的 HTTP 方法；未知 action 与方法组合直接映射 METHOD_NOT_ALLOWED。prepare 必须坚持 Workspace 归属与成员授权，
+
+        嵌套资源引用不得跨空间隐式放行。
         """
         super().prepare()
         allowed = {
@@ -39,8 +41,9 @@ class WorkspaceAPI(API):
             raise Problem(405, "METHOD_NOT_ALLOWED", "Method not allowed")
 
     def page(self, actor_id: str, workspace_id: str | None = None, **filters: Any) -> Page:
-        """构造绑定当前 action/actor/workspace 与附加过滤条件的签名分页游标读取器；游标签名密钥取自配置 signing_key，防止篡改翻页。
-        page 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """构造绑定当前 action/actor/workspace 与附加过滤条件的签名分页游标读取器；游标签名密钥取自配置 signing_key，防止篡改翻页。page 必须坚持 Workspace 归属与成员授权，
+
+        嵌套资源引用不得跨空间隐式放行。
         """
         return Page.read(
             self,
@@ -356,8 +359,9 @@ class WorkspaceAPI(API):
         self.respond(result)
 
     async def delete(self, workspace_id: str, identifier: str | None = None) -> None:
-        """DELETE 归档 Workspace、移除成员或撤销邀请；归档与移除 Owner 均需 OWNERSHIP；归档为逻辑归档，不物理删除历史成员与资源。
-        delete 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """DELETE 归档 Workspace、移除成员或撤销邀请；归档与移除 Owner 均需 OWNERSHIP；归档为逻辑归档，不物理删除历史成员与资源。delete 必须坚持 Workspace 归属与成员授权，
+
+        嵌套资源引用不得跨空间隐式放行。
         """
         async with self.db.sessions.begin() as s:
             await lock_installation(s)

@@ -46,8 +46,8 @@ test(
                 { cwd: repository, maxBuffer: 16 * 1024 * 1024 },
             );
             execFileSync("tar", ["-x", "-C", old], { input: archive });
-            // Reuse installed third-party packages; local @veriq names resolve to the
-            // historical source tree. The producer packs actual old SDK/contracts bytes.
+            // Reuse installed third-party packages; local @veriq names resolve to the historical source tree. The
+            // producer packs actual old SDK/contracts bytes.
             for (const pkg of ["compiler", "contracts", "runner-sdk"]) {
                 const modules = join(old, "packages", pkg, "node_modules");
                 await mkdir(join(modules, "@veriq"), { recursive: true });

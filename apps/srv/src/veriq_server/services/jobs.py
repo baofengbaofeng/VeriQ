@@ -1,6 +1,6 @@
-"""Job 领取服务：按 Runtime 能力与容量用 FOR UPDATE SKIP LOCKED 领取任务，递增 fencingToken，原子分配 Attempt 与租约。
-require_requester 验证原始请求者对 Runtime 仍有效；database_time 使用服务器 UTC。
-claim 失败返回 None 让 Agent 退避，禁止先 count 再无锁启动。
+"""Job 领取服务：按 Runtime 能力与容量用 FOR UPDATE SKIP LOCKED 领取任务，递增 fencingToken，原子分配 Attempt 与租约。require_requester 验证原始请求者对
+
+Runtime 仍有效；database_time 使用服务器 UTC。claim 失败返回 None 让 Agent 退避，禁止先 count 再无锁启动。
 """
 
 import secrets
@@ -103,8 +103,9 @@ async def require_requester(session: AsyncSession, job: Job, runtime_id: str) ->
 
 
 class JobService:
-    """编排候选扫描、容量预留与 claim 提交，产出含租约秘密的 ClaimDTO，JobService 遵守本文件边界，失败返回稳定 Problem。
-    JobService 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """编排候选扫描、容量预留与 claim 提交，产出含租约秘密的 ClaimDTO，JobService 遵守本文件边界，失败返回稳定 Problem。JobService 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
 
     def __init__(self, session: AsyncSession, settings: Settings):
@@ -144,8 +145,9 @@ class JobService:
         capabilities: dict[str, Any],
         current: datetime,
     ) -> AsyncIterator[Job]:
-        """按能力与状态筛选可领 Job，使用 SKIP LOCKED 避免领取互撞，JobService.candidates 遵守本文件边界。
-        candidates 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """按能力与状态筛选可领 Job，使用 SKIP LOCKED 避免领取互撞，JobService.candidates 遵守本文件边界。candidates 必须坚持 Workspace 归属与成员授权，
+
+        嵌套资源引用不得跨空间隐式放行。
         """
         query = select(Job).where(
             Job.workspace_id == workspace_id,

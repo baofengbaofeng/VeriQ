@@ -47,9 +47,8 @@ const release = join(work, "release");
 mkdirSync(release);
 
 /**
- * 源文件集合只包含生产 TypeScript 输入，声明文件随编译输出归档，测试夹具不进入引擎；递归前确认节点类型，避免把链接到工作区外的源码作为可信发行输入。
- * 编译器自身仍由 Runtime 的 Node24 类型剥离路径加载。
- * SDK 与合同输出普通 JavaScript，供生成的 Playwright 测试导入。
+ * 源文件集合只包含生产 TypeScript 输入，声明文件随编译输出归档，测试夹具不进入引擎；递归前确认节点类型，避免把链接到工作区外的源码作为可信发行输入。编译器自身仍由 Runtime 的 Node24 类型剥离路径加载。SDK
+ * 与合同输出普通 JavaScript，供生成的 Playwright 测试导入。
  */
 function sources(path: string): string[] {
     return readdirSync(path, { withFileTypes: true }).flatMap((entry) => {
@@ -93,10 +92,8 @@ try {
     >();
 
     /**
-     * 依赖解析复用 Node 对已冻结安装树的定位结果，遇到同名不同版本即失败而不自行选择版本；这份发行仅支持已审定的单版本闭包，未来多版本需求必须另行设计与验证。
-     * 工作区 SDK 与合同换成刚编译的目录，并保留实际版本号。
-     * 第三方文件只复制，不改变其元数据或许可证。
-     * 对 workspace 引用的替换使用被引用包实际版本，不硬编码产品号。
+     * 依赖解析复用 Node 对已冻结安装树的定位结果，遇到同名不同版本即失败而不自行选择版本；这份发行仅支持已审定的单版本闭包，未来多版本需求必须另行设计与验证。工作区 SDK 与合同换成刚编译的目录，并保留实际版本号。
+     * 第三方文件只复制，不改变其元数据或许可证。对 workspace 引用的替换使用被引用包实际版本，不硬编码产品号。
      */
     function collect(name: string, from: string): void {
         const local =
@@ -160,7 +157,10 @@ try {
                 );
             return;
         }
-        /** 当前引擎闭包没有原生可选依赖，平台相关的 tsx 与 esbuild 属于外层 Runtime；未来依赖若增加 optionalDependencies 必须先明确跨平台收集策略，不能静默遗漏后仍宣称同一库存可离网执行。 */
+        /**
+         * 当前引擎闭包没有原生可选依赖，平台相关的 tsx 与 esbuild 属于外层 Runtime；未来依赖若增加 optionalDependencies 必须先明确跨平台收集策略，
+         * 不能静默遗漏后仍宣称同一库存可离网执行。
+         */
         if (Object.keys(pkg.optionalDependencies ?? {}).length)
             throw new Error("Engine optional dependencies require an explicit target closure");
         collected.set(name, { dir: directory, pkg });

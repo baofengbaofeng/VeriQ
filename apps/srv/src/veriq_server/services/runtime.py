@@ -1,6 +1,6 @@
-"""Runtime 注册与设备凭证：人机审批码与轮询密钥分离，服务账号 enroll、令牌轮换与 Workspace 绑定授权管理。
-approve 消耗审批；poll 用设备密钥领取凭证；rotate 防止旧代令牌重放。
-派发前 require_dispatch 检查信任、绑定与共享授权。
+"""Runtime 注册与设备凭证：人机审批码与轮询密钥分离，服务账号 enroll、令牌轮换与 Workspace 绑定授权管理。approve 消耗审批；poll 用设备密钥领取凭证；rotate 防止旧代令牌重放。派发前
+
+require_dispatch 检查信任、绑定与共享授权。
 """
 
 import base64
@@ -28,8 +28,9 @@ from .workspace import WorkspaceRepository
 
 
 class RuntimeService:
-    """编排注册、审批、轮换、绑定、授权与凭据投递开关，区分人机与服务账号所有者，RuntimeService 遵守本文件边界。
-    RuntimeService 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """编排注册、审批、轮换、绑定、授权与凭据投递开关，区分人机与服务账号所有者，RuntimeService 遵守本文件边界。RuntimeService 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
 
     def __init__(self, session: AsyncSession):
@@ -208,8 +209,9 @@ class RuntimeService:
         }
 
     async def bound(self, workspace_id: str, runtime_id: str) -> tuple[Runtime, RuntimeBinding]:
-        """加载 Runtime 与指定 Workspace 绑定，缺失或未激活则失败，RuntimeService.bound 遵守本文件边界。
-        bound 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """加载 Runtime 与指定 Workspace 绑定，缺失或未激活则失败，RuntimeService.bound 遵守本文件边界。bound 必须坚持 Workspace 归属与成员授权，
+
+        嵌套资源引用不得跨空间隐式放行。
         """
         row = (
             await self.session.execute(
@@ -414,8 +416,9 @@ class RuntimeService:
     async def require_access(
         self, actor: User, workspace_id: str, runtime_id: str, *, owner: bool = False
     ) -> tuple[Runtime, RuntimeBinding]:
-        """统一查看或管理访问检查，失败时抛出 Problem，RuntimeService.require_access 遵守本文件边界。
-        require_access 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """统一查看或管理访问检查，失败时抛出 Problem，RuntimeService.require_access 遵守本文件边界。require_access 必须坚持 Workspace 归属与成员授权，
+
+        嵌套资源引用不得跨空间隐式放行。
         """
         await WorkspaceRepository(self.session, WorkspaceScope(workspace_id)).authorize(actor)
         runtime, binding = await self.bound(workspace_id, runtime_id)
@@ -426,8 +429,9 @@ class RuntimeService:
         return runtime, binding
 
     async def require_dispatch(self, actor: User, workspace_id: str, runtime_id: str) -> Runtime:
-        """派发前检查信任、绑定与共享，返回可用 Runtime，RuntimeService.require_dispatch 遵守本文件边界。
-        require_dispatch 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """派发前检查信任、绑定与共享，返回可用 Runtime，RuntimeService.require_dispatch 遵守本文件边界。require_dispatch 必须坚持 Workspace 归属与成员授权，
+
+        嵌套资源引用不得跨空间隐式放行。
         """
         await WorkspaceRepository(self.session, WorkspaceScope(workspace_id)).authorize(
             actor, Permission.EXECUTE, write=True

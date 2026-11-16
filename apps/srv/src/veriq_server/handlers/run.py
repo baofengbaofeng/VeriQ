@@ -80,8 +80,9 @@ class AttemptAuditAPI(API):
     """
 
     async def post(self, workspace_id: str, attempt_id: str) -> None:
-        """要求 MANAGE_WORKSPACE 写权限；活跃 Attempt 必须先取消，成功后记录 administratorStopConfirmation。
-        post 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """要求 MANAGE_WORKSPACE 写权限；活跃 Attempt 必须先取消，成功后记录 administratorStopConfirmation。post 必须坚持 Workspace 归属与成员授权，
+
+        嵌套资源引用不得跨空间隐式放行。
         """
         from uuid import uuid4
         from ..auth.authorization import Permission

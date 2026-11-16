@@ -42,8 +42,7 @@ import type { RuntimeV1Material } from "./runtime-release-v1.ts";
 
 /**
  * 原生 v1 依赖准备使用原 pnpm 锁和独立固定工具包，在本轮独占目录真正执行离线冻结生产安装；只输出普通物理布局和实际解析证据，不制造 Darwin 的 DependenciesReceipt 或借本机平台改写 Mac Expe
- * cted。
- * pnpmPackage 完整绑定工具包，compilerImplementation 绑定 C04 发射器真实加载的 TypeScript 实现及清单，store 只提供原锁 integrity 允许的离线包体。
+ * cted。pnpmPackage 完整绑定工具包，compilerImplementation 绑定 C04 发射器真实加载的 TypeScript 实现及清单，store 只提供原锁 integrity 允许的离线包体。
  */
 export type RuntimeV1DependencyPreparation = Readonly<{
     pnpmCli: string;
@@ -135,8 +134,7 @@ class NativeBuildFiles extends DependencyFiles {
 }
 
 /**
- * 两次持有观察比较完整文件身份，不能只因摘要相同就接受已经替换的源码或安装材料；本轮工作根由调用者独占，这个检测不宣称同用户恶意并发修改下的原子整树隔离能力。
- * 目录变动只在安装和工作区投影完成后开始记录，正常生产动作不会被误认成外部篡改。
+ * 两次持有观察比较完整文件身份，不能只因摘要相同就接受已经替换的源码或安装材料；本轮工作根由调用者独占，这个检测不宣称同用户恶意并发修改下的原子整树隔离能力。目录变动只在安装和工作区投影完成后开始记录，正常生产动作不会被误认成外部篡改。
  */
 function same(a: BigIntStats, b: BigIntStats): boolean {
     return ["dev", "ino", "mode", "nlink", "size", "mtimeNs", "ctimeNs"].every(
@@ -169,9 +167,8 @@ async function pinnedTool(material: RuntimeV1Material): Promise<void> {
 }
 
 /**
- * 空缺可选包必须由原锁中该精确包版本的 os/cpu 声明证明不适用当前真实目标，不能把安装缺失解释成任意 optional 成功；optional peer 只记录实际物理查找缺失，普通依赖与 required peer 永远不能省
- * 略。
- * 这里只复用 C04 的固定锁块解析，不实现另一个 YAML 或 exports 解释器，遇到不支持的标量结构保持失败。
+ * 空缺可选包必须由原锁中该精确包版本的 os/cpu 声明证明不适用当前真实目标，不能把安装缺失解释成任意 optional 成功；optional peer 只记录实际物理查找缺失，普通依赖与 required peer
+ * 永远不能省略。这里只复用 C04 的固定锁块解析，不实现另一个 YAML 或 exports 解释器，遇到不支持的标量结构保持失败。
  */
 function excludedOptional(
     lock: ReturnType<typeof lockSections>,
@@ -225,9 +222,8 @@ function outputRoot(physical: string): string {
 }
 
 /**
- * 依赖准备只在真实 Linux/Windows x64 宿主运行，源码、工具与原锁均由外层独立身份固定；安装成功后才生成工作区 JS、采集物理观察、选择可达闭包并在最终无链接布局中实际调用目标 Node 的两种解析器。
- * 任何关闭未知、超时、截断或失败立即停止后续安装树观察，保留本轮自有根，不生成成功收据或把候选包正文执行当作解析证明。
- * 调用者已经构建 entry/execution，因此根导入取真实输出 AST，额外固定根 tsx 与原 C04 一致。
+ * 依赖准备只在真实 Linux/Windows x64 宿主运行，源码、工具与原锁均由外层独立身份固定；安装成功后才生成工作区 JS、采集物理观察、选择可达闭包并在最终无链接布局中实际调用目标 Node 的两种解析器。任何关闭未知、
+ * 超时、截断或失败立即停止后续安装树观察，保留本轮自有根，不生成成功收据或把候选包正文执行当作解析证明。调用者已经构建 entry/execution，因此根导入取真实输出 AST，额外固定根 tsx 与原 C04 一致。
  */
 export async function prepareRuntimeV1Dependencies(
     options: Readonly<{

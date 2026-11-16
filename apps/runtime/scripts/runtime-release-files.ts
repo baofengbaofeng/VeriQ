@@ -42,10 +42,7 @@ export async function admitReleaseRoot(root: string): Promise<void> {
     await reader.finish();
 }
 
-/**
- * 路径创建逐级确认已有目录身份且保持明确可移植组件，最终权限只设置在本轮新建目录；不会改变既有输入目录权限，源树与输出树的权限语义在复制时明确区分。
- * 文件生成必须先调用此函数建立受控父目录，根目录由上层先行准入。
- */
+/** 路径创建逐级确认已有目录身份且保持明确可移植组件，最终权限只设置在本轮新建目录；不会改变既有输入目录权限，源树与输出树的权限语义在复制时明确区分。文件生成必须先调用此函数建立受控父目录，根目录由上层先行准入。 */
 export async function releaseDirectory(root: string, name: string): Promise<void> {
     if (!name || name === ".") return;
     relative(name);
@@ -150,9 +147,8 @@ export async function copyReleaseFile(
 }
 
 /**
- * 合并视图时只允许完全相同的重复普通文件，先核对已有目标的原始字节再跳过；依赖树链接可显式保留但必须为留在原根内的相对链接，最终配方核验仍逐项核链接清单和归属。
- * 此函数只复制到第三方自有 intake 根，绝不写入仍由 entry 或 dependency producer 持有 reader 的视图。
- * 输入目录身份在枚举后复验，数量、深度和总字节沿用现有 Runtime 固定预算。
+ * 合并视图时只允许完全相同的重复普通文件，先核对已有目标的原始字节再跳过；依赖树链接可显式保留但必须为留在原根内的相对链接，最终配方核验仍逐项核链接清单和归属。此函数只复制到第三方自有 intake 根，绝不写入仍由 entry 或
+ * dependency producer 持有 reader 的视图。输入目录身份在枚举后复验，数量、深度和总字节沿用现有 Runtime 固定预算。
  */
 export async function mergeReleaseView(
     source: string,

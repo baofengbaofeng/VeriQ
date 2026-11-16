@@ -11,8 +11,8 @@ const ajv = new Ajv2020({ strict: true, allErrors: true });
 addFormats.default(ajv);
 ajv.addSchema(platform);
 const apiId = "https://veriq.dev/openapi/platform.yaml";
-// OpenAPI components are containers, not JSON Schema keywords. Preserve schemas
-// while rebasing only local component references into a JSON Schema $defs root.
+// OpenAPI components are containers, not JSON Schema keywords. Preserve schemas while rebasing only local component
+// references into a JSON Schema $defs root.
 const definitions = JSON.parse(
     JSON.stringify(api.components.schemas, (key, value: unknown) =>
         key === "$ref" && typeof value === "string"

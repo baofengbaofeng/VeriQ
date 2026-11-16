@@ -6,8 +6,8 @@ import { join } from "node:path";
 import { mkdir } from "node:fs/promises";
 import { DeviceStore, RuntimeClient, type DeviceConfig } from "../enrollment.ts";
 /**
- * 公开类 DeviceSession 表示单一原生 Agent 对配置目录的独占所有权，控制请求经公平队列串行取用设备凭证。
- * open 以排他锁占据 agent-owner；withCredential 在十二小时窗口内复用令牌，到期则经 RuntimeClient 续期。
+ * 公开类 DeviceSession 表示单一原生 Agent 对配置目录的独占所有权，控制请求经公平队列串行取用设备凭证。open 以排他锁占据 agent-owner；withCredential 在十二小时窗口内复用令牌，
+ * 到期则经 RuntimeClient 续期。
  */
 export class DeviceSession {
     private tail: Promise<unknown> = Promise.resolve();

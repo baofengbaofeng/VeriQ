@@ -1,8 +1,6 @@
 """标准库 HTTP 示例使用真实 editor 与 fixture-service 身份演示准备、查询、业务写入、独立持久化读取和 finally 清理，任何阶段失败都不输出令牌或完整业务响应。
 
-本脚本同时适用于仓库 Python 服务和 Java Spring Boot 示例。
-未知写入不自动重发；重新执行会创建新 Attempt 与 namespace。
-清理失败使整个命令失败，不把业务通过当成完整生命周期通过。
+本脚本同时适用于仓库 Python 服务和 Java Spring Boot 示例。未知写入不自动重发；重新执行会创建新 Attempt 与 namespace。清理失败使整个命令失败，不把业务通过当成完整生命周期通过。
 """
 
 import argparse
@@ -44,9 +42,7 @@ class Client:
     def call(self, method, path, token, data=None, expected=200):
         """请求始终带指定角色的正常 Bearer 身份，状态码、请求关联和目标构建版本都必须匹配；拒绝任何超限、错误媒体内容或意外状态，不自动重试写操作。
 
-        响应只返回给调用栈，不作为日志或文件原样保存。
-        403 可作为明确权限反例，但与网络错误严格区分。
-        所有读取都在固定 origin 内，调用路径由脚本固定构造。
+        响应只返回给调用栈，不作为日志或文件原样保存。403 可作为明确权限反例，但与网络错误严格区分。所有读取都在固定 origin 内，调用路径由脚本固定构造。
         """
         headers = {"Authorization": "Bearer " + token, "Accept": "application/json"}
         body = None
@@ -74,9 +70,7 @@ class Client:
 def lifecycle(client, workspace, probe):
     """使用全新执行标识和 namespace 创建合成员工，同一准备参数精确重放且变更参数必须冲突，普通业务身份执行写入后再独立查询数据库结果，并始终执行所有权绑定清理。
 
-    cleanupToken 只留在此调用栈，绝不打印或加入普通变量。
-    丢失准备响应时仍能按稳定信封发起服务身份补偿。
-    所有失败都保留失败结论，finally 清理不会伪造通过结果。
+    cleanupToken 只留在此调用栈，绝不打印或加入普通变量。丢失准备响应时仍能按稳定信封发起服务身份补偿。所有失败都保留失败结论，finally 清理不会伪造通过结果。
     """
     business = os.environ["VERIQ_DEMO_BUSINESS_TOKEN"]
     fixture = os.environ["VERIQ_DEMO_FIXTURE_TOKEN"]

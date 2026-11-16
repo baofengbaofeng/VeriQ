@@ -1,8 +1,6 @@
 """将唯一前端构建目录复制到唯一 Python 包暂存目录，先验证完整候选再替换旧资源；调用入口持有构建锁，独立调用也使用同一把锁，防止并发构建混合不同身份的文件。
 
-复制只使用已经检查过的普通文件，不沿符号链接遍历。
-任何候选校验失败都保留先前的暂存目录。
-正式 output 的原子发布由 build_release 单独负责。
+复制只使用已经检查过的普通文件，不沿符号链接遍历。任何候选校验失败都保留先前的暂存目录。正式 output 的原子发布由 build_release 单独负责。
 """
 
 import argparse
@@ -23,10 +21,7 @@ from release_support import files, safe_path, validate_static
 def stage_web(root: Path, commit: str, build_id: str, target: Path | None = None) -> dict[str, Any]:
     """只允许 apps/web/dist 到固定包资源目录的暂存映射，完整候选通过检查后才移走旧目录，并在替换失败时恢复原目录；目标覆盖参数仅能重复指定同一个白名单路径。
 
-    root 必须是绝对规范路径，路径别名不能扩大清理范围。
-    两份 metadata 由本次构建重写，不接受 Vite 目录内旧身份。
-    候选位于目标同一文件系统，目录 rename 不会退化为复制。
-    前一次备份只在新目录可用后删除。
+    root 必须是绝对规范路径，路径别名不能扩大清理范围。两份 metadata 由本次构建重写，不接受 Vite 目录内旧身份。候选位于目标同一文件系统，目录 rename 不会退化为复制。前一次备份只在新目录可用后删除。
     这不是公开服务目录的热替换协议，构建期间不会运行生产服务。
     """
     root = root.absolute()
@@ -94,8 +89,7 @@ def stage_web(root: Path, commit: str, build_id: str, target: Path | None = None
 def main() -> None:
     """独立暂存入口先解析明确身份再获取工作区构建锁，失败时返回英文诊断且不发布任何成功标志；流水线内部直接调用 stage_web，并由外层持有相同的锁覆盖整个构建阶段。
 
-    flock 使用非阻塞模式，冲突时明确失败而非等待另一个构建。
-    锁文件位于固定 work 目录，拒绝链接替换。
+    flock 使用非阻塞模式，冲突时明确失败而非等待另一个构建。锁文件位于固定 work 目录，拒绝链接替换。
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])

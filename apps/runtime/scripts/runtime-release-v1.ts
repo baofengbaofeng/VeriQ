@@ -26,10 +26,9 @@ import {
 export type RuntimeV1Material = Readonly<{ root: string; files: readonly FileFact[] }>;
 
 /**
- * 非 Mac 生产任务保留已有 schemaVersion1 发行合同，Node、npm 与浏览器来自独立库存，生产依赖可显式选择独立材料或内置真实准备阶段；本入口真实构建入口、原生进程/helper 与版本化引擎，不把平台差异隐藏在
- * Mac 配方字段中。
- * 内置阶段运行原锁离线 hoisted 安装、C04 工作区 JavaScript 发射、原生目标条件闭包和真实 Node 解析，外部依赖材料则必须已包含同等生成及 optional/peer/bin 产物并另附来源证据。
- * 所有主机构建工具路径都显式给出，不下载工具、SDK、Chrome 或目标 Node，也不在安装时编译。
+ * 非 Mac 生产任务保留已有 schemaVersion1 发行合同，Node、npm 与浏览器来自独立库存，生产依赖可显式选择独立材料或内置真实准备阶段；本入口真实构建入口、原生进程/helper 与版本化引擎，
+ * 不把平台差异隐藏在Mac 配方字段中。内置阶段运行原锁离线 hoisted 安装、C04 工作区 JavaScript 发射、原生目标条件闭包和真实 Node 解析，外部依赖材料则必须已包含同等生成及
+ * optional/peer/bin 产物并另附来源证据。所有主机构建工具路径都显式给出，不下载工具、SDK、Chrome 或目标 Node，也不在安装时编译。
  */
 export type RuntimeV1ProductionJob = Readonly<{
     platform: "linux" | "win32";
@@ -86,10 +85,8 @@ async function copyMaterial(material: RuntimeV1Material, destination: string): P
 }
 
 /**
- * 第一版生产路径在真实目标主机运行原有 Vite、node-gyp 或 Linux C 构建脚本，并只收集明确正式成员；成功产出的只是候选和完整库存，独立工具/来源审核、签名、已安装执行及 release decision 均保留后续
- * 门禁。
- * sourceRoot 必须为独占构建视图，失败现场不自动删除，也不会覆盖现有 candidate 或源仓库的历史证据。
- * Node 角色是原始固定二进制的独立普通文件副本，复制不改变引擎版本或进程命名策略。
+ * 第一版生产路径在真实目标主机运行原有 Vite、node-gyp 或 Linux C 构建脚本，并只收集明确正式成员；成功产出的只是候选和完整库存，独立工具/来源审核、签名、已安装执行及 release decision
+ * 均保留后续门禁。sourceRoot 必须为独占构建视图，失败现场不自动删除，也不会覆盖现有 candidate 或源仓库的历史证据。Node 角色是原始固定二进制的独立普通文件副本，复制不改变引擎版本或进程命名策略。
  */
 export async function produceRuntimeV1(
     input: RuntimeV1ProductionJob,

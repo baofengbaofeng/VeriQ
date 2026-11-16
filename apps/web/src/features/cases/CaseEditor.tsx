@@ -48,19 +48,13 @@ const actionDefaults = (action: string) =>
                   : action === "callFlow"
                     ? { versionId: "" }
                     : {};
-/**
- * 工厂：默认 goto / 的步骤，id 含短 UUID，供步骤 List 新增行。后续由 action 切换填充默认参数。
- * actionDefaults 在类型切换时填充，避免缺字段导致保存失败。
- */
+/** 工厂：默认 goto / 的步骤，id 含短 UUID，供步骤 List 新增行。后续由 action 切换填充默认参数。actionDefaults 在类型切换时填充，避免缺字段导致保存失败。 */
 export const newStep = (): StepV1 => ({
     id: "step_" + crypto.randomUUID().slice(0, 8),
     action: "goto",
     path: "/",
 });
-/**
- * 拥有 steps/initialVariables/dataset 绑定 UI，并嵌入 AssertionEditor。
- * fixtureBindings 合并数据集列与变量供填充提示；不发起 Workspace API。
- */
+/** 拥有 steps/initialVariables/dataset 绑定 UI，并嵌入 AssertionEditor。fixtureBindings 合并数据集列与变量供填充提示；不发起 Workspace API。 */
 export function CaseEditor({
     versions,
     flow = false,

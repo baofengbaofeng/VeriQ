@@ -28,39 +28,21 @@ import { Button, Section } from "@veriq/ui";
 import { useTranslation } from "react-i18next";
 import { useEditorTranslationOptions } from "./i18n";
 import { usePrimitiveRows } from "./row-identity";
-/**
- * 编辑器根表单值类型，包裹资源草稿文档与 UI 辅助字段，供 useForm 泛型使用。辅助字段不会提交到 DraftWrite。
- * 与服务器 Draft.content 对齐的部分经 save 提交；其余仅本地。
- */
+/** 编辑器根表单值类型，包裹资源草稿文档与 UI 辅助字段，供 useForm 泛型使用。辅助字段不会提交到 DraftWrite。与服务器 Draft.content 对齐的部分经 save 提交；其余仅本地。 */
 export type EditorValues = {
     content: { kind: ResourceKind; document: object };
 };
-/**
- * 页面引用可选范围：CASE/FLOW/ASSERTION_TEMPLATE，限制 VersionField 可选版本集合。
- * 断言编辑器用其过滤模板引用，避免跨 kind 误绑。
- */
+/** 页面引用可选范围：CASE/FLOW/ASSERTION_TEMPLATE，限制 VersionField 可选版本集合。断言编辑器用其过滤模板引用，避免跨 kind 误绑。 */
 export type PageReferenceScope = "CASE" | "FLOW" | "ASSERTION_TEMPLATE";
-/**
- * JSON Schema 风格基础类型名列表，供 TypeMap/JsonValueControl 下拉使用。切换类型会重置默认值。
- * 与契约校验器接受的类型字符串保持一致。
- */
+/** JSON Schema 风格基础类型名列表，供 TypeMap/JsonValueControl 下拉使用。切换类型会重置默认值。与契约校验器接受的类型字符串保持一致。 */
 export const types = ["string", "number", "integer", "boolean", "object", "array", "null"];
-/**
- * HTTP 方法枚举，供用例步骤 apiRequest 与网络断言 query.method 下拉共用。与合约 HTTP 断言枚举一致。
- * 顺序固定便于快照测试；不含 TRACE 等非业务方法。
- */
+/** HTTP 方法枚举，供用例步骤 apiRequest 与网络断言 query.method 下拉共用。与合约 HTTP 断言枚举一致。顺序固定便于快照测试；不含 TRACE 等非业务方法。 */
 export const methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
-/**
- * 从 RHF 读取指定路径的当前值（泛型 T），供字段组件订阅局部状态而不整表重渲染策略由 RHF 决定。名称参数为点分路径。
- * 路径必须落在 EditorValues 内；越界返回 undefined。
- */
+/** 从 RHF 读取指定路径的当前值（泛型 T），供字段组件订阅局部状态而不整表重渲染策略由 RHF 决定。名称参数为点分路径。路径必须落在 EditorValues 内；越界返回 undefined。 */
 export function useValue<T>(name: string): T {
     return useWatch<EditorValues>({ name: name as FieldPath<EditorValues> }) as T;
 }
-/**
- * 返回向 RHF 写入路径值的 setter，供 List/Json 控件在增删改时更新草稿。批量更新应合并为一次 setValue。
- * 不自动标记 dirty 以外的副作用；保存仍由编辑器工具栏触发。
- */
+/** 返回向 RHF 写入路径值的 setter，供 List/Json 控件在增删改时更新草稿。批量更新应合并为一次 setValue。不自动标记 dirty 以外的副作用；保存仍由编辑器工具栏触发。 */
 export function useSet() {
     const { setValue } = useFormContext<EditorValues>();
     return (name: string, value: unknown) =>
@@ -68,10 +50,7 @@ export function useSet() {
             shouldDirty: true,
         });
 }
-/**
- * 资源草稿用文本/数字等简单字段，绑定 RHF 路径与双语 label，区别于 ui.tsx 的原生 Field。支持 required 与只读展示模式。
- * 校验信息就地展示；不发起 API。
- */
+/** 资源草稿用文本/数字等简单字段，绑定 RHF 路径与双语 label，区别于 ui.tsx 的原生 Field。支持 required 与只读展示模式。校验信息就地展示；不发起 API。 */
 export function Field({
     name,
     label,
@@ -179,8 +158,8 @@ export function Field({
     );
 }
 /**
- * 版本下拉选项：id、展示标签与可选内容摘要，供固定引用字段过滤。content 可选用于列名提示；可选 content 供数据集列名提示而不是提交。
- * 由编辑器从 adapter.versions 映射而来，不直接等于 Version DTO。
+ * 版本下拉选项：id、展示标签与可选内容摘要，供固定引用字段过滤。content 可选用于列名提示；可选 content 供数据集列名提示而不是提交。由编辑器从 adapter.versions 映射而来，不直接等于 Version
+ * DTO。
  */
 export type VersionOption = {
     id: string;
@@ -189,10 +168,7 @@ export type VersionOption = {
     kind: ResourceKind;
     content?: ResourceDocumentV1;
 };
-/**
- * 在允许的 kind/scope 内选择不可变 versionId，写入草稿引用字段。空值表示清除固定引用；空值表示清除草稿里的该固定版本引用。
- * 清空表示未绑定；发布后引用不会随远端新版本自动浮动。
- */
+/** 在允许的 kind/scope 内选择不可变 versionId，写入草稿引用字段。空值表示清除固定引用；空值表示清除草稿里的该固定版本引用。清空表示未绑定；发布后引用不会随远端新版本自动浮动。 */
 export function VersionField({
     name,
     label,

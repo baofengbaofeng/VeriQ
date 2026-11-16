@@ -33,9 +33,9 @@ import {
 } from "./runtime-release-builds.ts";
 
 /**
- * 五树生产任务只接收独立来源材料、真实工具路径和原始资产配方，原配方不包含尚未产生的五树或 Expected；外层必须对本次产出的配方另行审核，不能将新摘要自动升级为 trusted Expected。
- * seedRoot 保存原始 Node/Chrome 归档、工具及来源证据，sourceRoot 是具有冻结依赖和真实构建工具的独占源码工作视图。
- * workParent 必须位于源码根之外且由调用者独占，构建脚本自身的原生输出及 engineOutput 仍留在明确源码 work 范围内。
+ * 五树生产任务只接收独立来源材料、真实工具路径和原始资产配方，原配方不包含尚未产生的五树或 Expected；外层必须对本次产出的配方另行审核，不能将新摘要自动升级为 trusted Expected。seedRoot 保存原始
+ * Node/Chrome 归档、工具及来源证据，sourceRoot 是具有冻结依赖和真实构建工具的独占源码工作视图。workParent 必须位于源码根之外且由调用者独占，构建脚本自身的原生输出及 engineOutput
+ * 仍留在明确源码 work 范围内。
  */
 export type MacRuntimeProductionJob = Readonly<{
     sourceRoot: string;
@@ -103,10 +103,8 @@ async function sourceSnapshot(
 }
 
 /**
- * 每个 producer 都有单独事务和单独空构建根，回调只把只读视图复制到调用者第三 intake 根；只有完整返回并完成自己的 reader 收尾后，后续 producer 才能继续修改该 intake，避免 D04 的活视图被自
- * 身写入污染。
- * 真实进程通过调用者提供的既有有界管理器执行，命令观察不可被预制收据替代，未知关闭时不再读取构建输出。
- * 此函数只生产材料，不调用 stage，因此时间戳和真实构建证据不会被自派生 Expected 的循环信任掩盖。
+ * 每个 producer 都有单独事务和单独空构建根，回调只把只读视图复制到调用者第三 intake 根；只有完整返回并完成自己的 reader 收尾后，后续 producer 才能继续修改该 intake，避免 D04
+ * 的活视图被自身写入污染。真实进程通过调用者提供的既有有界管理器执行，命令观察不可被预制收据替代，未知关闭时不再读取构建输出。此函数只生产材料，不调用 stage，因此时间戳和真实构建证据不会被自派生 Expected 的循环信任掩盖。
  */
 export async function produceMacRuntimeInputs(
     jobInput: MacRuntimeProductionJob,

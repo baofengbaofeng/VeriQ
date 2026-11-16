@@ -209,8 +209,8 @@ async def test_concurrent_owner_removal_demotion_and_global_disable(site):
             c.put(f"{route}/{owner}", json={"role": "VIEWER", "status": "ACTIVE"}),
             operator.patch(f"/api/v1/admin/users/{owner}", json={"disabled": True}),
         )
-        # Demotion and disable of the same user may both succeed; two owners
-        # must never both lose their enabled ACTIVE ownership.
+        # Demotion and disable of the same user may both succeed; two owners must never both lose their enabled ACTIVE
+        # ownership.
         assert 1 <= sum(r.status_code == 200 for r in results) <= 2
         assert any(r.status_code in {403, 409} for r in results)
         assert all(r.status_code in {200, 403, 409} for r in results)

@@ -12,8 +12,8 @@ from .crypto import Keyring
 
 
 def configured_keyring(settings: Settings, *, purpose: str = "veriq-credential-v1") -> Keyring:
-    """从 Settings 组装含历史主密钥的 Keyring，供管理面写入与 Attempt 解析共用同一 purpose。
-    configured_keyring 触及凭证材料：管理面不得回传明文，日志与审计只能保留摘要或引用标识。
+    """从 Settings 组装含历史主密钥的 Keyring，供管理面写入与 Attempt 解析共用同一 purpose。configured_keyring 触及凭证材料：管理面不得回传明文，日志与审计只能保留摘要或引用标识。
+
     """
     return Keyring(
         settings.master_key_id,
@@ -29,8 +29,9 @@ def configured_keyring(settings: Settings, *, purpose: str = "veriq-credential-v
 
 
 def version_dto(row: SecretVersion) -> dict[str, Any]:
-    """密钥版本对外投影：暴露允许身份与撤销态，绝不回传 nonce 或密文字节；createdAt 使用 stamp 统一时间格式，便于契约测试。
-    version_dto 触及凭证材料：管理面不得回传明文，日志与审计只能保留摘要或引用标识。
+    """密钥版本对外投影：暴露允许身份与撤销态，绝不回传 nonce 或密文字节；createdAt 使用 stamp 统一时间格式，便于契约测试。version_dto 触及凭证材料：管理面不得回传明文，
+
+    日志与审计只能保留摘要或引用标识。
     """
     return {
         "secretRef": row.secret_ref,
@@ -47,14 +48,13 @@ class CredentialService:
     """
 
     def __init__(self, session: AsyncSession, user: User, keyring: Keyring):
-        """绑定当前会话用户与钥匙串，后续操作复用同一事务作用域；session/user/keyring 三元组在实例生命周期内不变。
-        __init__ 触及凭证材料：管理面不得回传明文，日志与审计只能保留摘要或引用标识。
-        """
+        """绑定当前会话用户与钥匙串，后续操作复用同一事务作用域；session/user/keyring 三元组在实例生命周期内不变。__init__ 触及凭证材料：管理面不得回传明文，日志与审计只能保留摘要或引用标识。"""
         self.session, self.user, self.keyring = session, user, keyring
 
     async def authorize(self, scope: WorkspaceScope, write: bool = False) -> None:
-        """要求调用方具备环境管理权限；写操作额外打开 Workspace 写锁语义；委托 WorkspaceRepository，统一成员与角色判定。
-        authorize 触及凭证材料：管理面不得回传明文，日志与审计只能保留摘要或引用标识。
+        """要求调用方具备环境管理权限；写操作额外打开 Workspace 写锁语义；委托 WorkspaceRepository，统一成员与角色判定。authorize 触及凭证材料：管理面不得回传明文，
+
+        日志与审计只能保留摘要或引用标识。
         """
         await WorkspaceRepository(self.session, scope).authorize(
             self.user, Permission.MANAGE_ENVIRONMENT, write=write
@@ -102,8 +102,9 @@ class CredentialService:
         return version_dto(row)
 
     async def revoke(self, scope: WorkspaceScope, secret_ref: str, version: str) -> dict[str, Any]:
-        """逻辑撤销指定密钥版本：行级加锁后标记 revoked，后续 Attempt 解析将映射 409；行级 for_update，防止并发撤销与解析竞态。
-        revoke 触及凭证材料：管理面不得回传明文，日志与审计只能保留摘要或引用标识。
+        """逻辑撤销指定密钥版本：行级加锁后标记 revoked，后续 Attempt 解析将映射 409；行级 for_update，防止并发撤销与解析竞态。revoke 触及凭证材料：管理面不得回传明文，
+
+        日志与审计只能保留摘要或引用标识。
         """
         await self.authorize(scope, True)
         row = (

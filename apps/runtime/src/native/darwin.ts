@@ -9,9 +9,8 @@ import { basename } from "node:path";
 import { verifiedNativeAddon, type RuntimeDistribution } from "../distribution.ts";
 
 /**
- * 普通私有文件对象只来自当前目录的独占创建并持有原始 inode，fd 只借给所属 CLI 的显式 stdio 映射；调用方必须保活对象直到实际 CLI 退出及最终日志校验完成，再明确关闭，不能仅保存整数。
- * read 不移动共享文件偏移，仍核实际文件 owner、模式、单链接和有界长度。
- * close 幂等，错误后也不再拥有原描述符，因此不能自动重试关闭数字。
+ * 普通私有文件对象只来自当前目录的独占创建并持有原始 inode，fd 只借给所属 CLI 的显式 stdio 映射；调用方必须保活对象直到实际 CLI 退出及最终日志校验完成，再明确关闭，不能仅保存整数。read 不移动共享文件偏移，
+ * 仍核实际文件 owner、模式、单链接和有界长度。close 幂等，错误后也不再拥有原描述符，因此不能自动重试关闭数字。
  */
 export interface DarwinPrivateFile {
     readonly fd: number;
@@ -20,9 +19,8 @@ export interface DarwinPrivateFile {
 }
 
 /**
- * 有界枚举返回完整观察到的有限名字和独立 overflow 标记，未识别成员不能被过滤为安全空目录；每次使用独立原生游标并以不跟随链接的元数据检查拒绝非普通或不私有的条目。
- * limit 零仍观察第一项，因此 empty 不会被空返回数组误导。
- * 正式调用者在这些名字上继续执行自己的用途语法及扫描数量限制。
+ * 有界枚举返回完整观察到的有限名字和独立 overflow 标记，未识别成员不能被过滤为安全空目录；每次使用独立原生游标并以不跟随链接的元数据检查拒绝非普通或不私有的条目。limit 零仍观察第一项，因此 empty
+ * 不会被空返回数组误导。正式调用者在这些名字上继续执行自己的用途语法及扫描数量限制。
  */
 export interface DarwinPrivateEntries {
     names: string[];
@@ -30,10 +28,9 @@ export interface DarwinPrivateEntries {
 }
 
 /**
- * 目录会话持有从根逐级无链接打开的真实目录描述符，路径重命名不改变后续成员操作锚点；replace 单独接收已有成员限额，新正文始终另受原生两兆上限，不放宽 local-secrets 等较小配置。
- * createExclusive 的文件和父目录刷新成功后才交付拥有者，重复名字不会覆盖。
- * remove/replace 发布后的必要刷新或关闭失败返回 COMMIT_UNCONFIRMED，由业务层保持恢复语义。
- * close 仅关闭目录自身，已交付 File 继续由其独立拥有者负责。
+ * 目录会话持有从根逐级无链接打开的真实目录描述符，路径重命名不改变后续成员操作锚点；replace 单独接收已有成员限额，新正文始终另受原生两兆上限，不放宽 local-secrets 等较小配置。createExclusive
+ * 的文件和父目录刷新成功后才交付拥有者，重复名字不会覆盖。remove/replace 发布后的必要刷新或关闭失败返回 COMMIT_UNCONFIRMED，由业务层保持恢复语义。close 仅关闭目录自身，已交付 File
+ * 继续由其独立拥有者负责。
  */
 export interface DarwinPrivateDirectory {
     read(name: string, limit: number): Buffer;
@@ -45,16 +42,14 @@ export interface DarwinPrivateDirectory {
 }
 
 /**
- * 原生入口只允许绝对路径与显式创建布尔值，目录链校验和最终 owner/七百模式在实际描述符上执行；只读打开不创建、不 realpath、不修权限，缺失之外的任何拒绝都不能解释为没有历史。
- * 该接口只提供文件能力，不签发安装发行能力或进程停止证明。
- * 公开函数类型用于约束正式消费者与独立测试，不向调用方暴露原始目录 fd。
+ * 原生入口只允许绝对路径与显式创建布尔值，目录链校验和最终 owner/七百模式在实际描述符上执行；只读打开不创建、不 realpath、不修权限，缺失之外的任何拒绝都不能解释为没有历史。该接口只提供文件能力，
+ * 不签发安装发行能力或进程停止证明。公开函数类型用于约束正式消费者与独立测试，不向调用方暴露原始目录 fd。
  */
 export interface DarwinNative {
     openPrivateDirectory(path: string, create: boolean): DarwinPrivateDirectory;
     /**
-     * Cookie 元数据入口只接受 Partitions/veriq-host 及其 Network 子目录的四个精确成员，六十四兆额度不扩大普通读取；退休后刷新或关闭失败保留 COMMIT_UNCONFIRMED，返回缺失不证
-     * 明先前持久提交或物理擦除。
-     * false 仅检查实际元数据，true 退休已验证成员，两者都不读取正文或交付原始描述符。
+     * Cookie 元数据入口只接受 Partitions/veriq-host 及其 Network 子目录的四个精确成员，六十四兆额度不扩大普通读取；退休后刷新或关闭失败保留 COMMIT_UNCONFIRMED，
+     * 返回缺失不证明先前持久提交或物理擦除。false 仅检查实际元数据，true 退休已验证成员，两者都不读取正文或交付原始描述符。
      */
     privateCookieFile(path: string, retire: boolean): boolean;
     /**
@@ -92,9 +87,7 @@ export function bindDarwinDistribution(distribution: RuntimeDistribution): void 
 
 /**
  * 开发装载只接受普通 Node 宿主和固定源码相邻的 Darwin 产物位置，安装角色使用同一进程内原始库存对象绑定的独立路径；veriq 角色或 Electron 等其他宿主缺少可信能力时明确拒绝，不能读取开发副本冒充已安装验收。
- * Darwin 产物使用独立目录及名称，避免覆盖 Windows 已有库存身份。
- * Node 标准加载器会验证实际 Mach-O/ABI，装载失败原样传播且不另寻替代路径。
- * 缓存只在真实加载成功后写入，不把缺失模块变成空能力或文件路径后备。
+ * Darwin 产物使用独立目录及名称，避免覆盖 Windows 已有库存身份。Node 标准加载器会验证实际 Mach-O/ABI，装载失败原样传播且不另寻替代路径。缓存只在真实加载成功后写入，不把缺失模块变成空能力或文件路径后备。
  */
 export function darwinNative(): DarwinNative {
     if (process.platform !== "darwin") throw new Error("DARWIN_NATIVE_PLATFORM_REQUIRED");

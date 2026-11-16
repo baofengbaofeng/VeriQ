@@ -88,10 +88,7 @@ const en: typeof zh = {
     dirty: "Unsaved changes. Save before validation or publication.",
     language: "Language",
 };
-/**
- * 已初始化的共享编辑器 i18n，默认跟随已校验偏好或浏览器语言，interpolation.escapeValue=false 以允许内嵌标记。
- * ResourcePage 与 EnvironmentPage 均注入此实例。
- */
+/** 已初始化的共享编辑器 i18n，默认跟随已校验偏好或浏览器语言，interpolation.escapeValue=false 以允许内嵌标记。ResourcePage 与 EnvironmentPage 均注入此实例。 */
 export const editorI18n: i18n = i18next.createInstance();
 void editorI18n.use(initReactI18next).init({
     resources: { zh: { translation: zh }, en: { translation: en } },

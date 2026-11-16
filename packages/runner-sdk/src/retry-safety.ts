@@ -3,15 +3,9 @@
  */
 
 import type { BrowserContext, Page, Request } from "@playwright/test";
-/**
- * 公开类型 RetrySafety 枚举重试安全结论：READ_ONLY_OBSERVED / WRITE_POSSIBLE / UNKNOWN。
- * 供平台决定是否允许整案重试。
- */
+/** 公开类型 RetrySafety 枚举重试安全结论：READ_ONLY_OBSERVED / WRITE_POSSIBLE / UNKNOWN。供平台决定是否允许整案重试。 */
 export type RetrySafety = "READ_ONLY_OBSERVED" | "WRITE_POSSIBLE" | "UNKNOWN";
-/**
- * 公开类 RetryObservation 监听 Context 的请求/页面/WebSocket：在 finish 时给出 RetrySafety。
- * 不保留 URL 或正文。
- */
+/** 公开类 RetryObservation 监听 Context 的请求/页面/WebSocket：在 finish 时给出 RetrySafety。不保留 URL 或正文。 */
 export class RetryObservation {
     private writes: boolean;
     private closed = false;

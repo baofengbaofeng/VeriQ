@@ -1,7 +1,6 @@
 """发行入口验收检查应急参数、原子输出和失败保留行为，使用实际文件系统而非模拟成功命令；这些测试防止未完成检查的候选获得正常发行标志，也防止覆盖上一次有效部署资料。
 
-完整构建成本较高，流水线端到端验证由真实 build.sh 门禁承担。
-这里独立验证无需数据库或浏览器即可确定的发布安全边界。
+完整构建成本较高，流水线端到端验证由真实 build.sh 门禁承担。这里独立验证无需数据库或浏览器即可确定的发布安全边界。
 """
 
 import importlib.util
@@ -20,8 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 def test_skip_tests_requires_an_auditable_reason() -> None:
     """应急跳过参数没有原因时必须在安装依赖和创建输出之前失败，错误应明确指出 reason；验证实际入口而非 argparse 源码，避免新增包装脚本绕过参数约束。
 
-    此请求不授权任何构建步骤执行。
-    返回码必须是参数错误，不接受文件缺失或权限错误冒充通过。
+    此请求不授权任何构建步骤执行。返回码必须是参数错误，不接受文件缺失或权限错误冒充通过。
     """
     result = subprocess.run(
         ["bash", str(ROOT / "build.sh"), "--skip-tests"],
@@ -36,8 +34,7 @@ def test_skip_tests_requires_an_auditable_reason() -> None:
 def test_atomic_publish_preserves_previous_release_on_rejection(tmp_path: Path) -> None:
     """发布器必须拒绝尚无完整校验结果的候选并保留旧输出，只有携带成功标志和一致性摘要的目录才能切换原子指针；读者通过同一个 output/server 名称看到完整版本。
 
-    实际目录与符号链接用于验证文件系统效果。
-    未验证候选不得通过默认值或缺字段变成成功。
+    实际目录与符号链接用于验证文件系统效果。未验证候选不得通过默认值或缺字段变成成功。
     """
     spec = importlib.util.spec_from_file_location(
         "veriq_build_release", ROOT / "scripts/build_release.py"
@@ -82,8 +79,7 @@ def test_build_cancellation_holds_lock_until_stage_descendants_stop(
 ):
     """真实构建入口在轻量替代 pnpm 阶段收到 TERM 或 INT 时，必须终止独立进程组并持锁等待仍可写入的后代退出；测试通过文件握手控制退出时机，不用业务超时或重复构建掩盖残留进程。
 
-    替代工具只避免安装依赖，锁、构建函数、信号和子孙进程均是真实实现。
-    阶段首进程收到 TERM 立即退出，孙进程延后退出，覆盖仅 wait 父进程的漏洞。
+    替代工具只避免安装依赖，锁、构建函数、信号和子孙进程均是真实实现。阶段首进程收到 TERM 立即退出，孙进程延后退出，覆盖仅 wait 父进程的漏洞。
     """
     import fcntl
     import os
@@ -257,8 +253,7 @@ def test_process_scope_restores_handlers_and_preserves_command_results(tmp_path)
 def test_supervisor_loss_quarantines_build_before_another_tool_starts(tmp_path):
     """阶段监督者被异常杀死后不能证明其独立后代已经退出，必须留下持久隔离标记并拒绝下一次构建；真实残留进程仍存活时调用公开构建接口，确认不会以普通失败后重试方式启动新的写入阶段。
 
-    测试只杀自己创建的监督者和残留进程，不接触现有构建或数据库。
-    清理 finally 显式终止残留进程，隔离文件只存在测试临时目录。
+    测试只杀自己创建的监督者和残留进程，不接触现有构建或数据库。清理 finally 显式终止残留进程，隔离文件只存在测试临时目录。
     """
     import os
     import signal
@@ -298,8 +293,7 @@ def test_supervisor_loss_quarantines_build_before_another_tool_starts(tmp_path):
 def test_sync_tail_cancellation_keeps_previous_output_pointer(tmp_path):
     """同步打包尾段在进入 publish 前收到取消信号时必须立即中止并保留旧输出指针，不能只记录标志等下一条子进程命令检查；实际信号握手模拟 tar 或摘要结束后的发布边界。
 
-    此路径故意不启动受控阶段子进程，验证外层 Python 作用域本身的取消语义。
-    原子输出函数仍是真实实现，未替换成只记录调用的测试替身。
+    此路径故意不启动受控阶段子进程，验证外层 Python 作用域本身的取消语义。原子输出函数仍是真实实现，未替换成只记录调用的测试替身。
     """
     import signal
     import time
@@ -361,8 +355,7 @@ def test_detached_descendant_exceeding_grace_is_killed_before_unlock(tmp_path):
 def test_release_probes_compatible_node_and_records_actual_tools(tmp_path, monkeypatch, case):
     """发行构建先调用真实子进程探测工具版本，稳定 Node24 候选应进入后续源码校验并留下实测记录，其它版本必须在安装前失败；轻量工具只替代外部二进制，进程监督、构建入口与记录文件仍使用正式实现。
 
-    Git 固定失败是明确的终点，避免测试安装依赖或运行数据库与浏览器。
-    共同矩阵覆盖 JavaScript 与 Python 边界，不能只改一个语言的规则。
+    Git 固定失败是明确的终点，避免测试安装依赖或运行数据库与浏览器。共同矩阵覆盖 JavaScript 与 Python 边界，不能只改一个语言的规则。
     """
     import os
 

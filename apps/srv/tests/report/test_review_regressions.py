@@ -307,8 +307,8 @@ async def test_r1_persisted_interrupted_publication_recovers_without_request_cle
     async with db.sessions.begin() as session:
         publication = await session.get(ArtifactPublication, incarnation)
         assert publication.state == "PENDING"
-        # Persisted loss of lease authorizes retirement, not an assumption that put
-        # stopped. We deliberately resume the original create-only put afterward.
+        # Persisted loss of lease authorizes retirement, not an assumption that put stopped. We deliberately resume the
+        # original create-only put afterward.
         (await session.get(Attempt, claim["attemptId"])).lease_expires_at = now() - timedelta(
             seconds=1
         )

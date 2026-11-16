@@ -1,6 +1,6 @@
-"""Workspace 仓储与 DTO：在 scope 内读取租户、成员与邀请，并执行角色授权与最后 Owner 保护，防止拆空所有权。
-authorize 组合成员角色与 Permission；protect_user_disable 拒绝禁用仍为唯一 Owner 的用户。
-DTO 只导出稳定对外字段，永不包含邀请或会话令牌明文。
+"""Workspace 仓储与 DTO：在 scope 内读取租户、成员与邀请，并执行角色授权与最后 Owner 保护，防止拆空所有权。authorize 组合成员角色与 Permission；protect_user_disable
+
+拒绝禁用仍为唯一 Owner 的用户。DTO 只导出稳定对外字段，永不包含邀请或会话令牌明文。
 """
 
 from typing import Any
@@ -13,8 +13,9 @@ from ..service import Problem, stamp, now
 
 
 class WorkspaceRepository:
-    """绑定会话与 WorkspaceScope，提供 get/member/authorize/invite 与 Owner 保护原语。
-    WorkspaceRepository 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """绑定会话与 WorkspaceScope，提供 get/member/authorize/invite 与 Owner 保护原语。WorkspaceRepository 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
 
     def __init__(self, session: AsyncSession, scope: WorkspaceScope):
@@ -102,9 +103,9 @@ class WorkspaceRepository:
 
 
 async def protect_user_disable(session: AsyncSession, user_id: str) -> None:
-    """禁用用户前检查是否为任何 Workspace 最后 Owner，是则拒绝以免租户悬空，protect_user_disable 遵守本文件 Workspace/事务边界。
-    protect_user_disable 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
-    调用方须持有安装护栏，并与 Workspace 变更共用这把锁。
+    """禁用用户前检查是否为任何 Workspace 最后 Owner，是则拒绝以免租户悬空，protect_user_disable 遵守本文件 Workspace/事务边界。protect_user_disable 必须坚持
+
+    Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。调用方须持有安装护栏，并与 Workspace 变更共用这把锁。
     """
     workspace_ids = (
         (
@@ -126,8 +127,9 @@ async def protect_user_disable(session: AsyncSession, user_id: str) -> None:
 
 
 def workspace_dto(workspace: Workspace, role: str) -> dict[str, Any]:
-    """导出 Workspace 公共字段并附带调用方在该租户的角色信息，workspace_dto 遵守本文件 Workspace/事务边界。
-    workspace_dto 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """导出 Workspace 公共字段并附带调用方在该租户的角色信息，workspace_dto 遵守本文件 Workspace/事务边界。workspace_dto 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
     return {
         "id": workspace.id,
@@ -139,8 +141,8 @@ def workspace_dto(workspace: Workspace, role: str) -> dict[str, Any]:
 
 
 def member_dto(member: WorkspaceMember, user: User) -> dict[str, Any]:
-    """组合成员角色状态与用户公开资料，供成员列表 API 返回，member_dto 遵守本文件 Workspace/事务边界。
-    member_dto 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """组合成员角色状态与用户公开资料，供成员列表 API 返回，member_dto 遵守本文件 Workspace/事务边界。member_dto 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+
     """
     return {
         "userId": user.id,
@@ -153,8 +155,9 @@ def member_dto(member: WorkspaceMember, user: User) -> dict[str, Any]:
 
 
 def invitation_dto(invite: WorkspaceInvite) -> dict[str, Any]:
-    """导出邀请元数据且不含 token 明文，包含角色与过期相关字段，invitation_dto 遵守本文件 Workspace/事务边界。
-    invitation_dto 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """导出邀请元数据且不含 token 明文，包含角色与过期相关字段，invitation_dto 遵守本文件 Workspace/事务边界。invitation_dto 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
     status = (
         "REVOKED"

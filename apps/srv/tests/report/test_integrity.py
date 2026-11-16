@@ -96,8 +96,8 @@ async def test_raw_trace_claimed_redacted_requires_current_environment_permissio
         "Idempotency-Key": str(uuid4()),
     }
     target = "/internal/v1/maintenance/artifacts/expire"
-    # A legacy terminal record without server terminal time remains pinned even if
-    # its creation time is old; no client clock or lease time is a substitute.
+    # A legacy terminal record without server terminal time remains pinned even if its creation time is old; no client
+    # clock or lease time is a substitute.
     unknown = await c.post(target, json={"workspaceId": ws, "limit": 100}, headers=headers)
     assert unknown.status_code == 200 and unknown.json()["data"]["processedCount"] == 0
     async with db.sessions.begin() as session:

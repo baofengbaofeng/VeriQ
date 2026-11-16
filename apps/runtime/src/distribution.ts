@@ -57,9 +57,8 @@ export type TrustedMacRuntime = Readonly<{
 }>;
 
 /**
- * Mac 正式路径复用第二版库存对 Framework 有限链接的完整核验，再严格匹配宿主交付的独立身份；只有原始返回对象持有原生与保险库能力，字段副本和静态观察结果不能用来装载 addon。
- * 普通独立角色必须同时匹配真实执行路径及精确 Node 版本，Electron 主进程则在自己的签名和身份核验后显式绑定原生能力。
- * guardian 字段沿用执行路径合同，但 Darwin 停止实现使用受控进程证据而不启动 Linux guardian。
+ * Mac 正式路径复用第二版库存对 Framework 有限链接的完整核验，再严格匹配宿主交付的独立身份；只有原始返回对象持有原生与保险库能力，字段副本和静态观察结果不能用来装载 addon。普通独立角色必须同时匹配真实执行路径及精确
+ * Node 版本，Electron 主进程则在自己的签名和身份核验后显式绑定原生能力。guardian 字段沿用执行路径合同，但 Darwin 停止实现使用受控进程证据而不启动 Linux guardian。
  */
 export async function loadMacRuntimeDistribution(
     directory: string,

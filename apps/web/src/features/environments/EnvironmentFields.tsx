@@ -6,10 +6,7 @@
 import { tx, useAppLocale } from "../../locale";
 import { Field, List, StringList, useValue, useSet } from "../resources/fields";
 import { Button } from "@veriq/ui";
-/**
- * 在给定 RHF path 下编辑 authAdapter/secret 版本引用与 allowedIdentityIds。
- * role=true 时额外要求 roleKey；注释提示禁止保存明文。
- */
+/** 在给定 RHF path 下编辑 authAdapter/secret 版本引用与 allowedIdentityIds。role=true 时额外要求 roleKey；注释提示禁止保存明文。 */
 export function IdentityFields({ path, role = false }: { path: string; role?: boolean }) {
     useAppLocale();
     return (

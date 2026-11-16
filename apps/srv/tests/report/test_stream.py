@@ -76,8 +76,8 @@ async def test_sse_replays_once_and_closes_after_membership_revocation(site):
         {"workspaceId": ws, "runId": run_id, "userId": actor},
         {str(uuid4()): 9007199254740991 for _ in range(2000)},
     )
-    # The actual POST transport admits the maximum signed body and rejects its
-    # foreign Attempt positions normally, rather than failing a header/body limit.
+    # The actual POST transport admits the maximum signed body and rejects its foreign Attempt positions normally,
+    # rather than failing a header/body limit.
     invalid = await c.post(path, json={"cursor": maximum})
     assert invalid.status_code == 400 and invalid.json()["code"] == "REPORT_RESYNC_REQUIRED"
     oversized = await c.post(path, json={"cursor": "x" * (256 * 1024)})

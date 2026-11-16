@@ -2,12 +2,9 @@ import { desktopErrorMessage } from "../shared/desktop-errors";
 import { app, dialog, Menu, nativeImage, Tray, type MenuItemConstructorOptions } from "electron";
 
 /**
- * 生命周期菜单使用 Electron 系统 API 为 Dock、菜单栏与支持的托盘提供同一组明确动作，退出 UI 和停止后台分别调用宿主已有确认流程；不把窗口关闭或开机启动设置暗中转成取消测试、执行命令或注册系统服务。
- * Mac 保持 Dock 激活恢复窗口，同时提供可见菜单栏图标，Windows 与 KDE 使用系统托盘。
- * 不支持托盘的 Linux 环境继续最小化窗口，避免隐藏后失去可恢复入口。
- * 登录项只在真实安装的 Mac/Windows 提供，开启的是本地 GUI，Agent 沿既有独立生命周期启动。
- * 系统菜单中的 Quit、Cmd+Q 与 renderer 按钮必须共享同一确认边界。
- * 图标是随源码保存的本地 PNG，不依赖网络、系统主题路径或单像素占位图片。
+ * 生命周期菜单使用 Electron 系统 API 为 Dock、菜单栏与支持的托盘提供同一组明确动作，退出 UI 和停止后台分别调用宿主已有确认流程；不把窗口关闭或开机启动设置暗中转成取消测试、执行命令或注册系统服务。Mac 保持
+ * Dock 激活恢复窗口，同时提供可见菜单栏图标，Windows 与 KDE 使用系统托盘。不支持托盘的 Linux 环境继续最小化窗口，避免隐藏后失去可恢复入口。登录项只在真实安装的 Mac/Windows 提供，开启的是本地
+ * GUI，Agent 沿既有独立生命周期启动。系统菜单中的 Quit、Cmd+Q 与 renderer 按钮必须共享同一确认边界。图标是随源码保存的本地 PNG，不依赖网络、系统主题路径或单像素占位图片。
  */
 export function installLifecycleMenu(actions: {
     show: () => void;
@@ -98,9 +95,8 @@ export function installLifecycleMenu(actions: {
 }
 
 /**
- * 原生菜单失败通过有限错误码提示用户，日志只保留英文分类而不回显私有目录、证书正文或系统异常堆栈；异步菜单 Promise 总有明确拒绝处理，不能因一次签名或停止失败造成静默无响应。
- * UI 错误提示不声称未知操作已经回滚，用户可继续打开诊断和执行恢复。
- * 对话框使用系统窗口，因此 renderer 不参与构造确认结果或读取宿主错误对象。
+ * 原生菜单失败通过有限错误码提示用户，日志只保留英文分类而不回显私有目录、证书正文或系统异常堆栈；异步菜单 Promise 总有明确拒绝处理，不能因一次签名或停止失败造成静默无响应。UI 错误提示不声称未知操作已经回滚，
+ * 用户可继续打开诊断和执行恢复。对话框使用系统窗口，因此 renderer 不参与构造确认结果或读取宿主错误对象。
  */
 export function reportLifecycleError(error: unknown): void {
     const code =

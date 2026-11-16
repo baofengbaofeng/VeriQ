@@ -1,6 +1,6 @@
-"""CompletionService 处理事件追加、finish、校验回执落地与 Run/Job 聚合；整案重试最多一次且重试通过记 UNSTABLE。
-finish 校验围栏与租约后写入 outcome；validation 生成 ValidationReceipt。
-retry_is_safe 判断失败是否允许整案重试，避免不安全副作用重放。
+"""CompletionService 处理事件追加、finish、校验回执落地与 Run/Job 聚合；整案重试最多一次且重试通过记 UNSTABLE。finish 校验围栏与租约后写入 outcome；validation 生成
+
+ValidationReceipt。retry_is_safe 判断失败是否允许整案重试，避免不安全副作用重放。
 """
 
 import json
@@ -135,9 +135,8 @@ class CompletionService:
         evidence_complete = data["lastSequence"] == attempt.last_sequence
         matched_evidence: list[AttemptUpload] = []
         for entry in manifest["evidence"]:
-            # Distinct paths may legitimately share bytes (for example empty compiler
-            # metadata). Bind each entry to its own complete upload/event, not an
-            # arbitrary last upload in the digest index used for closure membership.
+            # Distinct paths may legitimately share bytes (for example empty compiler metadata). Bind each entry to its
+            # own complete upload/event, not an arbitrary last upload in the digest index used for closure membership.
             matched = [
                 upload
                 for upload in uploads

@@ -1,5 +1,6 @@
-"""正式执行门禁综合 Attempt 结果、激活溯源与当前 Runtime 信任/绑定/请求者是否仍有效，本模块注释描述其专属不变量与失败语义。
-activation_provenance 固化 formalEligible；凭据投递事后吊销会追加失败原因。
+"""正式执行门禁综合 Attempt 结果、激活溯源与当前 Runtime 信任/绑定/请求者是否仍有效，本模块注释描述其专属不变量与失败语义。activation_provenance 固化 formalEligible；
+
+凭据投递事后吊销会追加失败原因。
 """
 
 import json
@@ -95,8 +96,7 @@ async def current_gate(session: AsyncSession, attempt: Attempt) -> dict[str, Any
             current = False
     result = gate(attempt.outcome, attempt.execution_provenance, current=current)
     provenance = attempt.execution_provenance or {}
-    # required 表示快照钉死了密钥引用，并不臆造运行时一定使用过这些密钥。
-    # 缺少该字段区分的旧快照，保守沿用当时捕获的 credentialDeliveryAllowed 作为 required。
+    # required 表示快照钉死了密钥引用，并不臆造运行时一定使用过这些密钥。缺少该字段区分的旧快照，保守沿用当时捕获的 credentialDeliveryAllowed 作为 required。
     required = provenance.get(
         "credentialDeliveryRequired", provenance.get("credentialDeliveryAllowed", False)
     )

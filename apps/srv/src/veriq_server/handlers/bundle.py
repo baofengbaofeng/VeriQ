@@ -112,8 +112,9 @@ class BundleAPI(API):
 
 
 class NativeBundleAPI(DeviceAPI):
-    """设备态 Bundle 通道：下发签发者公钥信任集，或按用户绑定设备下载已授权归档；设备通道只读，不提供浏览器导出所需的会话 CSRF 流程。
-    NativeBundleAPI 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """设备态 Bundle 通道：下发签发者公钥信任集，或按用户绑定设备下载已授权归档；设备通道只读，不提供浏览器导出所需的会话 CSRF 流程。NativeBundleAPI 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
 
     async def post(self, *args: str) -> None:

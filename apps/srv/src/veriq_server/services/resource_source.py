@@ -1,6 +1,4 @@
-"""已发布编译源码读取核对回执、VALIDATE Job 与 CompiledAssetBundle 后仅暴露白名单 TS 路径。
-回执须匹配修订/源哈希/引擎/MANAGED；size 不一致拒绝，防清单漂移。
-"""
+"""已发布编译源码读取核对回执、VALIDATE Job 与 CompiledAssetBundle 后仅暴露白名单 TS 路径。回执须匹配修订/源哈希/引擎/MANAGED；size 不一致拒绝，防清单漂移。"""
 
 import json
 import re

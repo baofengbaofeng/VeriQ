@@ -1,6 +1,4 @@
-"""结果归约：aggregate 合并多 Attempt 结果；reduce_test 按步骤/断言时序裁剪展示树，保留阻塞失败语义。
-供报告与完成聚合复用，不直接触达数据库。
-"""
+"""结果归约：aggregate 合并多 Attempt 结果；reduce_test 按步骤/断言时序裁剪展示树，保留阻塞失败语义。供报告与完成聚合复用，不直接触达数据库。"""
 
 from typing import Any
 

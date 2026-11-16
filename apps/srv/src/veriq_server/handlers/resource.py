@@ -13,8 +13,9 @@ from .base import API
 
 
 class ResourceAPI(API):
-    """工作区资源生命周期 HTTP 面：草稿读写、校验、发布、版本与依赖方查询以及编译产物下载；发布依赖校验回执，禁止跳过验证直接升版本。
-    ResourceAPI 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """工作区资源生命周期 HTTP 面：草稿读写、校验、发布、版本与依赖方查询以及编译产物下载；发布依赖校验回执，禁止跳过验证直接升版本。ResourceAPI 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
 
     def prepare(self) -> None:
@@ -56,8 +57,9 @@ class ResourceAPI(API):
     async def get(
         self, workspace_id: str, resource_id: str | None = None, version_id: str | None = None
     ) -> None:
-        """GET 分发资源元数据、草稿、预览、版本、依赖方、作业、校验回执与编译源；compiled-source 以沙箱 CSP 输出纯文本，防脚本执行。
-        get 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """GET 分发资源元数据、草稿、预览、版本、依赖方、作业、校验回执与编译源；compiled-source 以沙箱 CSP 输出纯文本，防脚本执行。get 必须坚持 Workspace 归属与成员授权，
+
+        嵌套资源引用不得跨空间隐式放行。
         """
         scope = WorkspaceScope(workspace_id)
         async with self.db.sessions() as s:
@@ -248,8 +250,9 @@ class ResourceAPI(API):
             )
 
     async def post(self, workspace_id: str, resource_id: str | None = None) -> None:
-        """POST 创建资源、异步启动校验（202）或在校验回执通过后发布不可变版本；validate 返回 202 表示作业已入队，不是已通过。
-        post 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """POST 创建资源、异步启动校验（202）或在校验回执通过后发布不可变版本；validate 返回 202 表示作业已入队，不是已通过。post 必须坚持 Workspace 归属与成员授权，
+
+        嵌套资源引用不得跨空间隐式放行。
         """
         data = self.body(
             {
@@ -280,9 +283,7 @@ class ResourceAPI(API):
         self.respond(result, 202 if self.action == "validate" else 201)
 
     async def put(self, workspace_id: str, resource_id: str) -> None:
-        """PUT draft：在安装锁下按 revision 乐观并发写入草稿内容；revision 不匹配时由服务层映射并发冲突。
-        put 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
-        """
+        """PUT draft：在安装锁下按 revision 乐观并发写入草稿内容；revision 不匹配时由服务层映射并发冲突。put 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。"""
         data = self.body("DraftWrite")
         async with self.db.sessions.begin() as s:
             await lock_installation(s)
