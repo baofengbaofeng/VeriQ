@@ -2018,6 +2018,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/examples/sample-workspace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Authenticated employee read of the bundled synthetic sample resource package. Contains no live credentials or server configuration. */
+        get: operations["getSampleWorkspacePackage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4469,6 +4486,21 @@ export interface components {
         };
         OperationsMetricsDTOEnvelope: {
             data: components["schemas"]["OperationsMetricsDTO"];
+            requestId: string;
+        };
+        SampleWorkspacePackageDTO: {
+            /** @enum {string} */
+            schemaVersion: "1.0";
+            manifest: components["schemas"]["JsonValue"];
+            assets: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            sourceInventory: {
+                [key: string]: string;
+            };
+        };
+        SampleWorkspacePackageDTOEnvelope: {
+            data: components["schemas"]["SampleWorkspacePackageDTO"];
             requestId: string;
         };
         /** @description JSON used only in interpolated DSL fields, recursively restricted to SafeString bindings. */
@@ -9587,6 +9619,15 @@ export interface operations {
             };
             /** @description Stable JSON error; code is a machine-readable domain code. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Report metadata has expired under retention; existing employee/service-plan authorization still applies. */
+            410: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -17427,6 +17468,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+            /** @description Report metadata has expired under retention; existing employee/service-plan authorization still applies. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
             /** @description Stable JSON error; code is a machine-readable domain code. */
             422: {
                 headers: {
@@ -17603,6 +17653,71 @@ export interface operations {
                 };
             };
             /** @description A bounded dependency observation timed out or is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getSampleWorkspacePackage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bundled sample manifest, resources and source hashes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SampleWorkspacePackageDTOEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stable JSON error; code is a machine-readable domain code. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bundled example assets are missing or inconsistent. */
             503: {
                 headers: {
                     [name: string]: unknown;

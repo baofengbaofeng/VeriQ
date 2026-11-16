@@ -18,12 +18,13 @@
 
 | ID | 实现范围 | 代码目录所有权 | 当前状态 | 验证任务 |
 | --- | --- | --- | --- | --- |
-| C01 | 报告生命周期、表单可访问性、稳定行标识、会话传输和旧测试收尾 | `apps/web/` | 待实现 | [V01](../validation/tasks/V01-web.md) |
-| C02 | readiness、指标、保留期、备份恢复与运维入口 | `apps/srv/`、`deploy/`，排除桌面专用子目录 | 待实现 | [V02](../validation/tasks/V02-operations.md) |
+| C01 | 报告生命周期、表单可访问性、稳定行标识、会话传输和旧测试收尾 | `apps/web/` | 首批 `306d963` 已提交；全局语言补齐中 | [V01](../validation/tasks/V01-web.md) |
+| C02 | readiness、指标、保留期、备份恢复与运维入口 | `apps/srv/`、`deploy/`，排除桌面专用子目录 | `9d26411` 已提交，待验证 | [V02](../validation/tasks/V02-operations.md) |
 | C03 | 四目标桌面打包、应用身份、生命周期和升级入口 | `apps/desktop/`、`deploy/desktop/` | 待实现 | [V03](../validation/tasks/V03-desktop.md) |
-| C04 | 工作区 JS 产物、生产依赖闭包及真实解析证据生产代码 | 新 Runtime 依赖生产器文件，现有公共契约不变 | 待实现 | [V04](../validation/tasks/V04-dependencies.md) |
+| C04 | 工作区 JS 产物、生产依赖闭包及真实解析证据生产代码 | 新 Runtime 依赖生产器文件，公共 DTO 形状不变 | `1c312e9` 已提交，待验证 | [V04](../validation/tasks/V04-dependencies.md) |
 | C05 | Runtime 构建编排、原生/引擎材料与五树组装入口 | Runtime 发布脚本和原生适配，排除 C04 文件 | 待实现 | [V05](../validation/tasks/V05-runtime.md) |
-| C06 | 示例资源、前后端接入规范、用户与运维手册 | `fixtures/`、新指南文档，排除其它批次文件 | 待实现 | [V06](../validation/tasks/V06-integration.md) |
+| C06 | 示例资源、前后端接入规范、用户与运维手册 | `fixtures/`、新指南文档，排除其它批次文件 | 首批 `68effbc` 已提交；安装态与向导补齐中 | [V06](../validation/tasks/V06-integration.md) |
+| C07 | Windows 持久 Claim 日志与本地离线缓存/报告保留期 | 已交接的 Runtime CLI/Supervisor/本地存储及新模块 | 进行中 | [V11](../validation/tasks/V11-local-durability.md) |
 
 每批完成后补录实际提交和剩余实现缺口。公共 Schema、依赖锁和跨批次 API 的必要修改由协调者统一处理，避免并行覆盖。
 

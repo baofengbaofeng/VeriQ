@@ -6526,6 +6526,16 @@
                 }
               }
             }
+          },
+          "410": {
+            "description": "Report metadata has expired under retention; existing employee/service-plan authorization still applies.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
           }
         }
       }
@@ -17067,6 +17077,16 @@
                 }
               }
             }
+          },
+          "410": {
+            "description": "Report metadata has expired under retention; existing employee/service-plan authorization still applies.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
           }
         }
       }
@@ -17284,6 +17304,84 @@
           }
         },
         "description": "Current OWNER or ADMIN employee session is required; data is scoped to the selected Workspace. Dependency timeouts return 503."
+      }
+    },
+    "/api/v1/examples/sample-workspace": {
+      "get": {
+        "operationId": "getSampleWorkspacePackage",
+        "tags": [
+          "examples"
+        ],
+        "security": [
+          {
+            "WebSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "400": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Bundled sample manifest, resources and source hashes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SampleWorkspacePackageDTOEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Bundled example assets are missing or inconsistent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "description": "Authenticated employee read of the bundled synthetic sample resource package. Contains no live credentials or server configuration."
       }
     }
   },
@@ -23130,6 +23228,57 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/OperationsMetricsDTO"
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "data",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "SampleWorkspacePackageDTO": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "string",
+            "enum": [
+              "1.0"
+            ]
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/JsonValue"
+          },
+          "assets": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            }
+          },
+          "sourceInventory": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "manifest",
+          "assets",
+          "sourceInventory"
+        ],
+        "additionalProperties": false
+      },
+      "SampleWorkspacePackageDTOEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SampleWorkspacePackageDTO"
           },
           "requestId": {
             "type": "string",
