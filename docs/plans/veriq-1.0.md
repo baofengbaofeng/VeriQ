@@ -597,6 +597,44 @@ assert production_starts_without_node_or_chrome is True
 - [ ] Step 4：各OS验证安装包并保存产物/日志；没有正式签名证书时标记开发包，暂停正式签名发布并询问用户。
 - [ ] Step 5：同步兼容矩阵和用户说明并提交。
 
+**T20追加状态（2026-11-15）：** `68875bb` / `88398c9`完成Node原始内容提取与npm物理实例索引源码组件，manifest关闭不确定性/首错覆盖已修复，44项受影响检查和同一审查代理复审通过。其0600/0700私有材料与逻辑链接不等于可执行Node、完整graph或真实官方归档消费通过。`218271c`修复夹具两次取时的租约窗口，15项本地检查及独立复审通过；`16b0ff4`实际运行43717307923双Mac15业务各26项全部通过，D24关闭。私有Keychain路由`75fed42`及GitHub表达式修正`16b0ff4`已复审并获实际解析确认；运行43717451911各7项非持久测试通过、2项专用测试拒绝。诊断组件`2ce2de9`的过滤24项/集成5项/原路由39项与独立审查通过，运行43721479873确认双架构均实际编译成功，四个专用夹具均在Keychain创建和路径校验返回0后于KEYCHAIN_STAT拒绝，具体文件属性仍待诊断；删除仅记录开始后控制器被SIGKILL，清理保持未知。Bundle ID固定`io.github.baofengbaofeng.veriq`；用户已授权独立GitHub临时VM/一次性账户私有Keychain创建、锁定/解锁、删除及该账户偏好影响，无需重复询问。Cookie、真实控制台、生产默认钥匙串与签名安装仍分别验收。
+
+**T20追加状态（2026-11-16，北京时间）：** 用户PR #25合并后的`origin/master fb52be4`已通过零源码差异合并`6db4bc0`同步。`cdc46d8`实际诊断确认旧文件组/其他权限不符；权限组件`3063739`及夹具修正`e726c2d` / `994f9cb`经独立复审，运行43730742396双Mac各22项真实权限用例、7项非持久及26项业务检查通过，控制器构建事实包含实际新头文件。随后私有运行43732187459四个夹具均通过创建、文件绑定、模式和身份检查；各2项专用测试仍在清理路径失败，删除仅开始后SIGKILL，正文及OS删除未知。`27bfd58` / `ab98441`新增正文/擦除/清理分离、首个操作和已返回helper事实诊断；初审I1消费者组合校验已修复并经同一代理定向复审，最终26新/24旧过滤/49属性/22阶段用例及类型格式通过。原M1响应形状可能保守保留UNKNOWN留最终复审；不把源码通过当成私有验收成功。下一步仅一次已授权双架构诊断，同时接续既有官方资产流水线的Node静态消费；两者均不代表整个T20或MVP完成。
+
+**T20真实验收追加（2026-11-16，北京时间）：** 官方Node静态消费组件已闭合：`1c20bc5` / `89d568d`源码、一次上传条件修正及原审查代理复审通过，真实运行43740087046两架构各unit8及ACQUIRE/OBSERVE/BOOTSTRAP通过、提交与清理CONFIRMED；各5888原始成员/4797文件/1089目录/npm根及嵌套144实例，46个ZIP成员CRC、45引用、独立19+producer2+ciProcess2共23源码引用核验通过。仅下载两份小元数据，大归档和未上传包体未在本机重哈希；源审查、目标Graph、可执行布局、Chrome提取与完整Runtime仍待交付。原生操作诊断`16ffe36`经35/24/49/22定向检查及全新独立审查，真实43742207469两Mac编译及非持久7项通过；第一broad seed19在helper-frame谓词失败，read-denial3在event-denied标记不符。未捕获helper原始读取OSStatus，不能推断exit2或读取成功。两正文/清理回调失败、擦除通过；仅ARM第二夹具记录SecKeychainDelete返回0，其余仅开始，完整清理仍未知。下一步定位这两条helper读取路径，不放宽负例或改变清理时序。
+
+**T20读取验收追加（2026-11-16，北京时间）：** `2e8d960` / `6710c5d`闭合helper原始读取诊断与真实无存储原生自测，运行43749005113确认旧读取均返回-50参数错误，不是权限拒绝。`29661cc`将测试读取改为范围准确的ALL元数据唯一性检查及引用锚定的单条数据读取，保留生产ACL/NoUI与原有全部负例；62/24/49/22定向检查、类型、全新独立规格/质量审查通过。真实43752171340双Mac编译、自测及7项非持久通过，读取返回0，拒绝读取返回-25293且前后均解锁；第二专用用例正文/擦除/清理通过、控制器exit0、删除返回0。第一用例完成broad策略的读取基线及get/set/delete拒绝、未变化证明后，在原有remove24失败；后续七策略与不确定恢复尚未执行，首夹具完整清理未知。删除OSStatus仍待捕获，不把假设当成授权原因，也不把读取通过计为整个T20完成。
+
+**T20私有Runtime存储组件完成（2026-11-16，北京时间）：** 原查询修复`29661cc`后的首个remove失败由`13ab3e3`真实诊断为SecItemDelete返回-25244；`e0ba135`仅在测试控制器内完整核验同范围ALL元数据/引用后，逐项调用SecKeychainItemDelete，保留全部生产ACL检查、八项负例和原预算。两轮原审查代理规格/质量复审C/I/M均0，最后一文件改动复用未变化的64/24/49/22及类型结果；root39封存/695保护Git/20历史封存与319缓存成员核验通过。真实43758515194双Mac SDK/共享原生自测、各7非持久＋2专用通过且无跳过；八策略、未变化证明、不确定恢复及真实-25293解锁读取拒绝通过，四夹具正文/擦除/清理通过、实际控制器exit0、SecKeychainDelete返回0且目录清理通过。匹配多条的删除仅经源码批次校验/遍历与生命周期审查，不冒称另有原生多匹配用例；粗粒度cleanup摘要仍为源绑定测试推导，详细记录另有实际退出/删除事实。关闭此功能组件，后续继续生产依赖、可执行Runtime、Electron与安装；不提前关闭整T20或MVP。
+
+### T20 下一组件：固定锁生产依赖布局生产器
+
+既有T20范围内的CI生产步骤，按已确认的双Mac优先级继续。保留现有官方资产流水线，通过同一workflow的显式purpose选择独立生产布局任务；该步骤产生可复用的物理布局元数据，后续仍需真实依赖物化、目标解析、可执行布局、Chrome与完整Runtime验收。
+
+**文件职责与接口：** 修改 `.github/workflows/runtime-payload-macos.yml` 仅加入purpose准入和独立native矩阵；新增 `.github/scripts/production-layout.mjs` 负责生产步骤/物理清单；新增 `apps/runtime/tests/production-layout-ci.test.mjs` 验证真实小进程及文件系统边界。复用既有 `runBoundedAssetCli({executable,args,cwd,timeoutMs})`，不修改或复制进程管理器，不增加产品库或新workflow。生产器无副作用导出 `classifyCommandResult(result): "PASS" | "FAIL"` 与 `collectLayoutMetadata({root, evidenceDir, workspaceRoots, limits}): Promise<{schemaVersion:1, totals, artifacts}>`，后者产生有SHA/字节/类别的分块JSON引用及完整原始manifest；CLI入口仅直接执行时运行。宿主沿用CI的Node24.x并记精确版本/hash，不与正式执行引擎版本混同；不输出GraphProof、Expected或ready。
+
+**全局约束：** macOS15 Intel x64/Apple Silicon arm64；受信宿主Node24及固定pnpm11.25.0；冻结原锁、生产、离线、忽略脚本、hoisted，原严格peer/发布年龄/overrides策略保留；不运行提取的Node/Chrome、Electron、安装脚本或实际Provider。元数据仅为源绑定观测，来源和发布者状态不晋升。中文有效注释首行≥60、4空格/无Tab、英文日志、VeriQ/AGPL及现有资产预算/准入/上传语义保留。
+
+**审查重点与对应测试：**
+
+- 截断、超时、spawn失败或close未知不能报告安装PASS；用真实Node小子进程验证阶段结算及后续NOT_RUN。
+- 符号链接只记录原始目标，绝不递归读取外部目标；用真实外部毒化清单链接验证不跟随。
+- 同名同版的嵌套包不能折叠；用实际嵌套目录和完整manifest验证不同物理实例及文件归属。
+- 清单/路径/实例/总字节越界必须失败，不能省略后报告成功；用真实超限文件与小预算验证。
+- 未知purpose、错误源码或平台不得获取依赖；保存准入分支和真正双架构运行事实，默认资产分支保留。
+
+- [ ] 1. 编写生产器的失败阶段、真实嵌套包/链接/越界测试并观察RED；此处只验证工具行为，不伪造真实pnpm布局。
+- [ ] 2. 实现CI工具并复用已有有界进程函数。source_ref必须40位十六进制且等于GITHUB_SHA，记录workflow/锁/workspace/各package manifest及脚本/测试/进程依赖SHA。
+- [ ] 3. 在独立自有目录使用宿主工具准备存储：pnpm fetch --prod --frozen-lockfile --ignore-scripts；记录全workspace生产获取范围，锁不变；不宣称Runtime过滤获取。
+- [ ] 4. 使用无node_modules的新源码副本及已准备存储，运行pnpm --filter @veriq/runtime... install --frozen-lockfile --offline --ignore-scripts --prod --node-linker=hoisted --package-import-method=copy；记录实际importer/包/链接事实，过滤未生效或拒绝不得靠改锁、inject、peer放宽来掩盖。
+- [ ] 5. 生产全部物理package实例、完整原始package.json、普通文件SHA/大小/模式、原始符号链接、bin及workspace源码映射；Node内置fs/crypto完成有界观察，不新增图求解器，不执行包体。
+- [ ] 6. workflow新增purpose（默认assets、显式production-layout）和拒绝未知值的准入，保留原push/default-assets步骤及制品行为；独立Mac矩阵30分钟，工具≤4/获取≤12/安装≤8/观测≤4分钟，旧资产job40分钟不变。
+- [ ] 7. 宿主工具/来源准入后显式运行新MJS单测门禁，再做生产获取；命令stdout64KiB/stderr4MiB/六秒有限关闭沿用现有函数。物理清单≤4000实例/40000成员/1024链接/16GiB内容，路径≤1024，manifest≤1MiB/其他JSON读取≤4MiB，上传固定元数据/日志总≤64MiB，超限显式失败。
+- [ ] 8. 记录STARTED/PASS/FAIL/NOT_RUN、原始参数/退出/超时/关闭/锁前后SHA及占用；只上传固定、关闭后取得的元数据/日志，7天保留。包体/存储/checkout/HOME/缓存和大归档不上传；已失败/未知的布局不获得成功清单。
+- [ ] 9. 运行覆盖新调用方/清单逻辑的本地GREEN、格式和源码保护检查，源绑定PRE/POST/精确3路径提交，独立审查。协调者之后仅一次production-layout手动dispatch，核验双架构小制品身份、CRC、引用、源码/工具/锁与物理计数；不本机重哈希未上传的包体。
+
+注：只改一个巨型workflow内嵌全部观察代码会增加维护负担，因此采用一个CI专用工具和永久测试；仍只有一个既有workflow、没有新产品模块，先前只读预检的一文件建议在此细化。此为现有授权T20的实现分解，不改变已确认MVP/产品架构或引入外部付费服务。
+
 ## T21：安装、升级、备份恢复与观测
 
 **依赖：** T12/T16/T18/T20
@@ -655,6 +693,10 @@ await expect(page.getByTestId('run.outcome')).toHaveText('PASSED');
 - [ ] **Step 3：实现上述接口与文件。** F01-F14全部菜单和操作有真实API、空态/错误/加载/权限，中文/英文，文档可重现，非假数据演示。
 - [ ] **Step 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
 - [ ] **Step 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t21 全模块用户体验、示例与接入文档`。有新决策先更新ADR，不扩展到下一任务。
+
+**T22 Workspace追加（2026-11-16，北京时间）：** `1010675`完成W2B Provider生命周期及四个入口默认选择；真实BASE复现旧回调在Beta提交后误留Beta，GREEN两项浏览器回归通过（17.8秒），包含实际Provider/QueryClient、真实后端四入口、重渲染/切换/卸载及重新登录。应用和新测试严格类型、定向lint/格式及全新独立规格/质量审查通过；690保护Git文件、7015既有证据、18封存与319缓存成员核验通过。lint仍有3项既有warning及19项info，浏览器保留色彩环境warning，不称零警告；本地仅直接20依赖核对，不冒称完整锁树。D12/Report、其余Hook、Identity、全局会话与全产品/发行门禁仍开放。
+
+**T22 Identity追加（2026-11-16，北京时间）：** `ed5d7c9`完成W2C，真实BASE/GREEN各2通过且无行为RED冒称；实际静态2Hook错误清零，RHF稳定reset清理及旧作用域secret写入保护通过全新独立审查。root93封存/694保护Git/7270旧证据/21历史封存与319缓存核验。完整应用及所选测试严格类型通过，所选程序不含未改共享beforeEach；完整case文件旧noUnsafeFinally/TS2322仍保留，初始静态start/elapsed缺失已披露且不重建，完整发布与B05未关闭。
 
 ## T23：完整产品验收与1.0发布门禁
 

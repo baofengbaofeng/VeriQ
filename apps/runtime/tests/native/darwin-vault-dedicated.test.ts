@@ -11,7 +11,7 @@ test("dedicated session proves persistent exact-scope storage and refusal behavi
     const fixture = await dedicatedFixture();
     const key = Buffer.from(Array.from({ length: 32 }, (_, index) => (index === 31 ? 255 : index)));
     const different = Buffer.alloc(32, 91);
-    try {
+    await fixture.settle(async () => {
         assert.equal(await fixture.status("get", profile, version), "missing");
         assert.equal(await fixture.status("set", profile, version, key), "ok");
         assert.equal(await fixture.matches(profile, version, key), true);
@@ -55,18 +55,21 @@ test("dedicated session proves persistent exact-scope storage and refusal behavi
             await fixture.control("remove", { profile, version });
         }
         assert.equal(await fixture.uncertainRecovery(profile, version, key), true);
-    } finally {
-        key.fill(0);
-        different.fill(0);
-        await fixture.cleanup();
-    }
+    }, [
+        () => {
+            key.fill(0);
+        },
+        () => {
+            different.fill(0);
+        },
+    ]);
 });
 
 /** 此独立负例保留前面的生产策略拒绝测试，并额外让同一 helper 在禁止交互状态下真正请求被 ACL 拒绝的数据；成功必须包含两个主体观察的真实解锁状态和授权主体读回的未变化证明，缺少会话时仍硬失败而非跳过。 */
 test("dedicated session observes real unlocked OS secret-read denial", async () => {
     const fixture = await dedicatedFixture();
     const key = Buffer.alloc(32, 73);
-    try {
+    await fixture.settle(async () => {
         await fixture.control("seed", {
             policy: "denied",
             profile,
@@ -75,8 +78,9 @@ test("dedicated session observes real unlocked OS secret-read denial", async () 
         });
         assert.equal(await fixture.readDenial(profile, version), true);
         await fixture.control("remove", { profile, version });
-    } finally {
-        key.fill(0);
-        await fixture.cleanup();
-    }
+    }, [
+        () => {
+            key.fill(0);
+        },
+    ]);
 });

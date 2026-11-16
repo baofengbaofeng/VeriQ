@@ -2,6 +2,12 @@ name: Runtime macOS official asset observation
 on:
     workflow_dispatch:
         inputs:
+            purpose:
+                description: Existing official assets or fixed-lock production layout metadata
+                required: true
+                default: assets
+                type: choice
+                options: [assets, production-layout]
             source_ref:
                 description: Exact reviewed commit; must equal the workflow commit
                 required: true
@@ -9,6 +15,10 @@ on:
     push:
         branches: [codex/veriq-mvp-completion]
         paths:
+            - apps/runtime/scripts/runtime-assets-ci-process.mjs
+            - apps/runtime/tests/runtime-assets-ci-process.test.mjs
+            - apps/runtime/scripts/runtime-node-bootstrap.ts
+            - apps/runtime/scripts/prepare-macos-node-bootstrap.mjs
             - apps/runtime/scripts/runtime-assets-observation.ts
             - apps/runtime/scripts/runtime-assets-acquisition.ts
             - apps/runtime/scripts/observe-macos-runtime-assets.mjs
@@ -32,6 +42,7 @@ permissions:
     contents: read
 jobs:
     assets:
+        if: ${{ github.event_name == 'push' || inputs.purpose != 'production-layout' }}
         strategy:
             fail-fast: false
             matrix:
@@ -49,6 +60,15 @@ jobs:
             MANUAL_SOURCE: ${{ inputs.source_ref }}
             EVENT_NAME: ${{ github.event_name }}
         steps:
+            - name: Reject unknown manual purpose before checkout or tools
+              id: purpose_guard
+              if: ${{ github.event_name == 'workflow_dispatch' }}
+              env:
+                  REQUESTED_PURPOSE: ${{ inputs.purpose }}
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  test "$REQUESTED_PURPOSE" = assets
             - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
               with:
                   ref: ${{ github.sha }}
@@ -86,6 +106,90 @@ jobs:
                   set -euo pipefail
                   npm install --prefix "$RUNNER_TEMP/veriq-asset-tools" pnpm@11.25.0 --ignore-scripts > "$ASSET_ROOT/metadata/pnpm-install.log" 2>&1
                   node "$RUNNER_TEMP/veriq-asset-tools/node_modules/pnpm/bin/pnpm.cjs" install --frozen-lockfile --ignore-scripts > "$ASSET_ROOT/metadata/dependencies.log" 2>&1
+            - name: Verify bound CI lifecycle with permanent real-child tests before acquisition
+              id: ci_unit
+              working-directory: apps/runtime
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  node --input-type=module <<'JS'
+                  import assert from "node:assert/strict";
+                  import { constants } from "node:fs";
+                  import { open, lstat, mkdir, writeFile } from "node:fs/promises";
+                  import { createHash } from "node:crypto";
+                  import { execFileSync } from "node:child_process";
+                  import { join } from "node:path";
+                  import { pathToFileURL } from "node:url";
+                  process.umask(0o077);
+                  const meta = join(process.env.ASSET_ROOT, "metadata");
+                  // 每个独立 GitHub 步骤在首次动态加载生命周期模块之前，分别持有 helper 与永久测试的真实 FD 并核冻结 Git blob；十九份旧来源和两份 producer 的认证范围不被扩张，步骤结束前仍复验原 inode 与字节。
+                  const bindCiProcess = async stage => {
+                      const checkout = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
+                      const commit = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+                      assert.match(commit, /^[0-9a-f]{40}$/); assert.equal(commit, process.env.GITHUB_SHA);
+                      const paths = ["apps/runtime/scripts/runtime-assets-ci-process.mjs", "apps/runtime/tests/runtime-assets-ci-process.test.mjs"];
+                      const held = [], refs = [];
+                      const identical = (a, b) => ["dev", "ino", "mode", "nlink", "size", "mtimeNs", "ctimeNs"].every(key => a[key] === b[key]);
+                      const sha = bytes => createHash("sha256").update(bytes).digest("hex");
+                      const verify = async () => {
+                          assert.equal(execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(), commit);
+                          for (const item of held) {
+                              assert.ok(identical(item.before, await item.handle.stat({ bigint: true })) && identical(item.before, await lstat(item.path, { bigint: true })));
+                              const bytes = Buffer.alloc(Number(item.before.size)); let offset = 0;
+                              while (offset < bytes.length) { const read = await item.handle.read(bytes, offset, bytes.length - offset, offset); assert.ok(read.bytesRead); offset += read.bytesRead; }
+                              assert.equal(sha(bytes), item.ref.sha256);
+                              assert.ok(identical(item.before, await item.handle.stat({ bigint: true })) && identical(item.before, await lstat(item.path, { bigint: true })));
+                          }
+                      };
+                      try {
+                          for (const path of paths) {
+                              const full = join(checkout, path), before = await lstat(full, { bigint: true });
+                              assert.ok(before.isFile() && !before.isSymbolicLink() && before.nlink === 1n && before.size > 0n && before.size <= 4n * 1024n ** 2n);
+                              const handle = await open(full, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+                              held.push({ path: full, before, handle });
+                              const blob = execFileSync("git", ["cat-file", "blob", `${commit}:${path}`], { maxBuffer: 4 * 1024 ** 2 });
+                              const reference = { path, sizeBytes: blob.length, sha256: sha(blob) };
+                              Object.assign(held.at(-1), { ref: reference, bytes: blob }); refs.push(reference);
+                              assert.equal(before.size, BigInt(blob.length));
+                          }
+                          await verify();
+                          await mkdir(join(meta, "ci-process"), { recursive: true, mode: 0o700 });
+                          if (stage === "unit") for (const [index, item] of held.entries()) await writeFile(join(meta, "ci-process", index ? "test.mjs" : "helper.mjs"), item.bytes, { flag: "wx", mode: 0o600 });
+                          const bindingBytes = Buffer.from(JSON.stringify({ kind: "ASSET_CI_PROCESS_SOURCE", commit, runId: process.env.GITHUB_RUN_ID, runAttempt: Number(process.env.GITHUB_RUN_ATTEMPT), arch: process.arch, ciProcessRefs: refs }));
+                          await writeFile(join(meta, "ci-process", `binding-${stage}.json`), bindingBytes, { flag: "wx", mode: 0o600 });
+                          await writeFile(process.env.GITHUB_OUTPUT, `ci_process_binding_sha256=${sha(bindingBytes)}\n`, { flag: "a" });
+                          let finished = false;
+                          const imported = await import(pathToFileURL(join(checkout, paths[0])).href);
+                          await verify();
+                          return { run: imported.runBoundedAssetCli, verify, finish: async () => { if (finished) return; finished = true; try { await verify(); } catch (error) { throw Object.assign(error, { code: "PAYLOAD_SOURCE_CHANGED" }); } finally { for (const item of held) await item.handle.close(); } } };
+                      } catch (error) { for (const item of held) await item.handle.close(); throw error; }
+                  };
+
+                  // 单元阶段在任何官方下载之前登记独立 journal，真实 argv 和流与两阶段旧 steps 分开保存；只有明确的单元失败才允许把尚未启动的旧阶段写成 NOT_RUN，关闭未知始终阻止后续准入和完整收集。
+                  const execution = { step: "UNIT", status: "NOT_RUN", reason: null, admitted: false, closeConfirmed: null, truncated: false, timedOut: false, exit: null, signal: null, elapsedMs: 0, code: null, phase: null, cleanup: null, argv: null, cwd: null, error: null };
+                  const journal = () => writeFile(join(meta, "unit.json"), JSON.stringify(execution), { mode: 0o600 });
+                  await journal();
+                  let binding, start;
+                  try {
+                      binding = await bindCiProcess("unit");
+                      execution.status = "STARTED"; execution.argv = [process.execPath, "--test", "tests/runtime-assets-ci-process.test.mjs"]; execution.cwd = process.cwd();
+                      await journal(); start = performance.now();
+                      const result = await binding.run({ executable: execution.argv[0], args: execution.argv.slice(1), cwd: execution.cwd, timeoutMs: 60000 });
+                      execution.elapsedMs = Math.round(performance.now() - start);
+                      const { stdout, stderr, pid, ...outcome } = result; Object.assign(execution, outcome);
+                      await writeFile(join(meta, "unit.stdout.log"), stdout, { mode: 0o600 }); await writeFile(join(meta, "unit.stderr.log"), stderr, { mode: 0o600 });
+                      await binding.finish(); binding = undefined;
+                      assert.ok(result.admitted && result.closeConfirmed && !result.truncated && !result.timedOut && !result.error && result.exit === 0 && result.signal === null);
+                      execution.status = "PASS"; await journal();
+                  } catch (error) {
+                      execution.status = "FAIL"; execution.phase = "UNKNOWN"; execution.code = error.code === "PAYLOAD_SOURCE_CHANGED" ? error.code : "PAYLOAD_IO";
+                      if (binding) { try { await binding.finish(); } catch { execution.code = "PAYLOAD_SOURCE_CHANGED"; } }
+                      await journal();
+                      await writeFile(join(meta, "steps.json"), JSON.stringify(["ACQUIRE", "OBSERVE"].map(step => ({ step, status: "NOT_RUN", code: null, cleanup: null, actualBytes: null }))), { mode: 0o600 });
+                      await writeFile(join(meta, "status.json"), JSON.stringify({ status: "FAIL", code: execution.code, results: {} }), { mode: 0o600 });
+                      process.exitCode = 1;
+                  }
+                  JS
             - name: Generate exact source evidence and execute the real acquisition and observer CLIs
               id: observe
               working-directory: apps/runtime
@@ -98,14 +202,58 @@ jobs:
                   import "./scripts/runtime-payload-inputs.ts";
                   import assert from "node:assert/strict";
                   import { createHash } from "node:crypto";
-                  import { readFile, writeFile, mkdir, lstat, statfs } from "node:fs/promises";
-                  import { createReadStream } from "node:fs";
-                  import { execFileSync, spawn } from "node:child_process";
+                  import { readFile, writeFile, mkdir, lstat, statfs, open } from "node:fs/promises";
+                  import { createReadStream, constants } from "node:fs";
+                  import { execFileSync } from "node:child_process";
                   import { join } from "node:path";
-                  import { fileURLToPath } from "node:url";
+                  import { fileURLToPath, pathToFileURL } from "node:url";
                   import { ASSET_SOURCES } from "./scripts/runtime-assets-observation.ts";
                   // 来源证据绑定实际 checkout 与本次工作流执行身份，并在两个真实 CLI 前后复验原始十九个源码字节；这些 CI 外层事实只佐证观察来源，不能替代发布者签名、批准布局或目标执行验收。
                   const root = process.env.ASSET_ROOT, meta = join(root, "metadata"), sourceRoot = join(root, "source");
+                  process.umask(0o077);
+                  // 每个独立 GitHub 步骤在首次动态加载生命周期模块之前，分别持有 helper 与永久测试的真实 FD 并核冻结 Git blob；十九份旧来源和两份 producer 的认证范围不被扩张，步骤结束前仍复验原 inode 与字节。
+                  const bindCiProcess = async stage => {
+                      const checkout = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
+                      const commit = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+                      assert.match(commit, /^[0-9a-f]{40}$/); assert.equal(commit, process.env.GITHUB_SHA);
+                      const paths = ["apps/runtime/scripts/runtime-assets-ci-process.mjs", "apps/runtime/tests/runtime-assets-ci-process.test.mjs"];
+                      const held = [], refs = [];
+                      const identical = (a, b) => ["dev", "ino", "mode", "nlink", "size", "mtimeNs", "ctimeNs"].every(key => a[key] === b[key]);
+                      const sha = bytes => createHash("sha256").update(bytes).digest("hex");
+                      const verify = async () => {
+                          assert.equal(execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(), commit);
+                          for (const item of held) {
+                              assert.ok(identical(item.before, await item.handle.stat({ bigint: true })) && identical(item.before, await lstat(item.path, { bigint: true })));
+                              const bytes = Buffer.alloc(Number(item.before.size)); let offset = 0;
+                              while (offset < bytes.length) { const read = await item.handle.read(bytes, offset, bytes.length - offset, offset); assert.ok(read.bytesRead); offset += read.bytesRead; }
+                              assert.equal(sha(bytes), item.ref.sha256);
+                              assert.ok(identical(item.before, await item.handle.stat({ bigint: true })) && identical(item.before, await lstat(item.path, { bigint: true })));
+                          }
+                      };
+                      try {
+                          for (const path of paths) {
+                              const full = join(checkout, path), before = await lstat(full, { bigint: true });
+                              assert.ok(before.isFile() && !before.isSymbolicLink() && before.nlink === 1n && before.size > 0n && before.size <= 4n * 1024n ** 2n);
+                              const handle = await open(full, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+                              held.push({ path: full, before, handle });
+                              const blob = execFileSync("git", ["cat-file", "blob", `${commit}:${path}`], { maxBuffer: 4 * 1024 ** 2 });
+                              const reference = { path, sizeBytes: blob.length, sha256: sha(blob) };
+                              Object.assign(held.at(-1), { ref: reference, bytes: blob }); refs.push(reference);
+                              assert.equal(before.size, BigInt(blob.length));
+                          }
+                          await verify();
+                          await mkdir(join(meta, "ci-process"), { recursive: true, mode: 0o700 });
+                          if (stage === "unit") for (const [index, item] of held.entries()) await writeFile(join(meta, "ci-process", index ? "test.mjs" : "helper.mjs"), item.bytes, { flag: "wx", mode: 0o600 });
+                          const bindingBytes = Buffer.from(JSON.stringify({ kind: "ASSET_CI_PROCESS_SOURCE", commit, runId: process.env.GITHUB_RUN_ID, runAttempt: Number(process.env.GITHUB_RUN_ATTEMPT), arch: process.arch, ciProcessRefs: refs }));
+                          await writeFile(join(meta, "ci-process", `binding-${stage}.json`), bindingBytes, { flag: "wx", mode: 0o600 });
+                          await writeFile(process.env.GITHUB_OUTPUT, `ci_process_binding_sha256=${sha(bindingBytes)}\n`, { flag: "a" });
+                          let finished = false;
+                          const imported = await import(pathToFileURL(join(checkout, paths[0])).href);
+                          await verify();
+                          return { run: imported.runBoundedAssetCli, verify, finish: async () => { if (finished) return; finished = true; try { await verify(); } catch (error) { throw Object.assign(error, { code: "PAYLOAD_SOURCE_CHANGED" }); } finally { for (const item of held) await item.handle.close(); } } };
+                      } catch (error) { for (const item of held) await item.handle.close(); throw error; }
+                  };
+                  const processBinding = await bindCiProcess("observe"), processResults = [null, null];
                   const hash = bytes => createHash("sha256").update(bytes).digest("hex");
                   const ref = (path, bytes) => ({ path, sizeBytes: bytes.length, sha256: hash(bytes) });
                   const head = () => execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
@@ -132,22 +280,18 @@ jobs:
                   const run = async (index, script, args) => {
                       await verify(); const record = steps[index]; record.status = "STARTED";
                       await writeFile(join(meta, "steps.json"), JSON.stringify(steps));
-                      const child = spawn(process.execPath, ["--import", "tsx", `scripts/${script}`, ...args], { stdio: ["ignore", "pipe", "pipe"] });
-                      let stdout = Buffer.alloc(0), stderr = Buffer.alloc(0), truncated = false, timedOut = false;
-                      child.stdout.on("data", b => { if (stdout.length + b.length > 65536) { truncated = true; child.kill("SIGTERM"); } else stdout = Buffer.concat([stdout, b]); });
-                      child.stderr.on("data", b => { const remaining = 4 * 1024 ** 2 - 65536 - stderr.length; if (b.length > remaining) truncated = true; if (remaining > 0) stderr = Buffer.concat([stderr, b.subarray(0, remaining)]); });
-                      let force;
-                      const timer = setTimeout(() => { timedOut = true; child.kill("SIGTERM"); force = setTimeout(() => child.kill("SIGKILL"), 6000); }, index ? 15 * 60000 : 16 * 60000);
-                      const exit = await new Promise(resolve => { child.once("error", () => resolve(1)); child.once("close", code => resolve(code ?? 1)); });
-                      clearTimeout(timer); clearTimeout(force);
-                      if (truncated) stderr = Buffer.concat([stderr, Buffer.from("\nLOG_TRUNCATED: hash binds this truncated log only\n")]);
+                      const argv = [process.execPath, "--import", "tsx", `scripts/${script}`, ...args], started = performance.now();
+                      const outcome = await processBinding.run({ executable: argv[0], args: argv.slice(1), cwd: process.cwd(), timeoutMs: index ? 15 * 60000 : 16 * 60000 });
+                      const { stdout, stderr, exit, timedOut, truncated, closeConfirmed, pid, ...processFacts } = outcome;
+                      processResults[index] = { ...processFacts, exit, timedOut, truncated, closeConfirmed, argv, cwd: process.cwd(), elapsedMs: Math.round(performance.now() - started) };
+                      await writeFile(join(meta, "ci-process/observe-executions.json"), JSON.stringify(processResults), { mode: 0o600 });
                       await writeFile(join(meta, `${record.step.toLowerCase()}.log`), stderr);
                       await writeFile(join(meta, `${record.step.toLowerCase()}.stdout.json`), stdout);
                       const diagnostic = stderr.toString("utf8").match(/(PAYLOAD_[A-Z_]+) phase=([A-Z]+) cleanup=([A-Z_]+)/);
                       record.code = diagnostic?.[1] ?? (exit === 0 ? null : timedOut ? "PAYLOAD_CANCELLED" : "PAYLOAD_IO"); record.cleanup = diagnostic?.[3] ?? null;
                       const failure = stderr.toString("utf8").split("\n").find(line => line.startsWith('{"kind":"ASSET_FETCH_FAILURE"'));
                       if (failure) { try { record.actualBytes = JSON.parse(failure).bytes; } catch {} }
-                      if (exit !== 0) { record.status = "FAIL"; await writeFile(join(meta, "steps.json"), JSON.stringify(steps)); throw Error(record.code); }
+                      if (exit !== 0 || timedOut || truncated || !closeConfirmed || outcome.error) { if (!closeConfirmed || truncated) record.cleanup = "INCOMPLETE"; record.status = "FAIL"; await writeFile(join(meta, "steps.json"), JSON.stringify(steps)); throw Error(record.code); }
                       const result = JSON.parse(stdout); assert.equal(result.committed, true); record.cleanup = result.cleanup; record.status = "PASS";
                       results[record.step] = result; await writeFile(join(meta, "steps.json"), JSON.stringify(steps));
                       await verify(); return result;
@@ -182,23 +326,302 @@ jobs:
                           assert.ok(originals.reduce((n,f) => n + f.sizeBytes, 0) <= 600 * 1024 ** 2);
                           await writeFile(join(meta, "archives.json"), JSON.stringify({ arch: process.arch, source: head(), files: originals, artifact: `veriq-macos-assets-archives-${process.arch}` }));
                       }
-                      await verify();
+                      await verify(); await processBinding.finish();
                   }
                   if (failure) process.exitCode = 1;
                   JS
+            - name: Prepare original Node bootstrap material after committed observation
+              id: bootstrap
+              continue-on-error: true
+              if: always() && (github.event_name == 'push' || steps.purpose_guard.outcome == 'success')
+              working-directory: apps/runtime
+              env:
+                  BIND_OUTCOME: ${{ steps.bind.outcome }}
+                  NODE_SETUP_OUTCOME: ${{ steps.node_setup.outcome }}
+                  DEPENDENCIES_OUTCOME: ${{ steps.dependencies.outcome }}
+                  UNIT_OUTCOME: ${{ steps.ci_unit.outcome }}
+                  ORCHESTRATION_OUTCOME: ${{ steps.observe.outcome }}
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  node --input-type=module <<'JS'
+                  import assert from "node:assert/strict";
+                  import { constants } from "node:fs";
+                  import { open, lstat, mkdir, writeFile, readFile, opendir, statfs } from "node:fs/promises";
+                  import { createHash } from "node:crypto";
+                  import { execFileSync } from "node:child_process";
+                  import { join, dirname } from "node:path";
+                  import { pathToFileURL } from "node:url";
+                  process.umask(0o077);
+                  const root = process.env.ASSET_ROOT, meta = join(root, "metadata"), base = join(meta, "bootstrap");
+                  const digest = bytes => createHash("sha256").update(bytes).digest("hex");
+                  const reference = (path, bytes) => ({ path, sizeBytes: bytes.length, sha256: digest(bytes) });
+                  const same = (a, b) => ["dev", "ino", "mode", "nlink", "size", "mtimeNs", "ctimeNs"].every(key => a[key] === b[key]);
+                  // 每个独立 GitHub 步骤在首次动态加载生命周期模块之前，分别持有 helper 与永久测试的真实 FD 并核冻结 Git blob；十九份旧来源和两份 producer 的认证范围不被扩张，步骤结束前仍复验原 inode 与字节。
+                  const bindCiProcess = async stage => {
+                      const checkout = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
+                      const commit = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+                      assert.match(commit, /^[0-9a-f]{40}$/); assert.equal(commit, process.env.GITHUB_SHA);
+                      const paths = ["apps/runtime/scripts/runtime-assets-ci-process.mjs", "apps/runtime/tests/runtime-assets-ci-process.test.mjs"];
+                      const held = [], refs = [];
+                      const identical = (a, b) => ["dev", "ino", "mode", "nlink", "size", "mtimeNs", "ctimeNs"].every(key => a[key] === b[key]);
+                      const sha = bytes => createHash("sha256").update(bytes).digest("hex");
+                      const verify = async () => {
+                          assert.equal(execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(), commit);
+                          for (const item of held) {
+                              assert.ok(identical(item.before, await item.handle.stat({ bigint: true })) && identical(item.before, await lstat(item.path, { bigint: true })));
+                              const bytes = Buffer.alloc(Number(item.before.size)); let offset = 0;
+                              while (offset < bytes.length) { const read = await item.handle.read(bytes, offset, bytes.length - offset, offset); assert.ok(read.bytesRead); offset += read.bytesRead; }
+                              assert.equal(sha(bytes), item.ref.sha256);
+                              assert.ok(identical(item.before, await item.handle.stat({ bigint: true })) && identical(item.before, await lstat(item.path, { bigint: true })));
+                          }
+                      };
+                      try {
+                          for (const path of paths) {
+                              const full = join(checkout, path), before = await lstat(full, { bigint: true });
+                              assert.ok(before.isFile() && !before.isSymbolicLink() && before.nlink === 1n && before.size > 0n && before.size <= 4n * 1024n ** 2n);
+                              const handle = await open(full, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+                              held.push({ path: full, before, handle });
+                              const blob = execFileSync("git", ["cat-file", "blob", `${commit}:${path}`], { maxBuffer: 4 * 1024 ** 2 });
+                              const reference = { path, sizeBytes: blob.length, sha256: sha(blob) };
+                              Object.assign(held.at(-1), { ref: reference, bytes: blob }); refs.push(reference);
+                              assert.equal(before.size, BigInt(blob.length));
+                          }
+                          await verify();
+                          await mkdir(join(meta, "ci-process"), { recursive: true, mode: 0o700 });
+                          if (stage === "unit") for (const [index, item] of held.entries()) await writeFile(join(meta, "ci-process", index ? "test.mjs" : "helper.mjs"), item.bytes, { flag: "wx", mode: 0o600 });
+                          const bindingBytes = Buffer.from(JSON.stringify({ kind: "ASSET_CI_PROCESS_SOURCE", commit, runId: process.env.GITHUB_RUN_ID, runAttempt: Number(process.env.GITHUB_RUN_ATTEMPT), arch: process.arch, ciProcessRefs: refs }));
+                          await writeFile(join(meta, "ci-process", `binding-${stage}.json`), bindingBytes, { flag: "wx", mode: 0o600 });
+                          await writeFile(process.env.GITHUB_OUTPUT, `ci_process_binding_sha256=${sha(bindingBytes)}\n`, { flag: "a" });
+                          let finished = false;
+                          const imported = await import(pathToFileURL(join(checkout, paths[0])).href);
+                          await verify();
+                          return { run: imported.runBoundedAssetCli, verify, finish: async () => { if (finished) return; finished = true; try { await verify(); } catch (error) { throw Object.assign(error, { code: "PAYLOAD_SOURCE_CHANGED" }); } finally { for (const item of held) await item.handle.close(); } } };
+                      } catch (error) { for (const item of held) await item.handle.close(); throw error; }
+                  };
+
+                  // 包根来自完整原始成员加推导父目录，而不是仅扫描已有 manifest；显式空目录、scope 和逻辑目录别名都参与边界判断，因此遗漏一个物理实例或把链接目录当成普通叶子都会在回执比较之前失败关闭。
+                  const physicalNpmIndex = (members, top, fail) => {
+                      const effective = new Map(), seen = new Set();
+                      for (const member of members) {
+                          if (typeof member.path !== "string" || member.path.length > 1024 || member.path.split("/").length > 64 || !(member.path === top || member.path.startsWith(`${top}/`)) || member.path.split("/").some(part => !part || part === "." || part === ".." || /[^\x20-\x7e]|[\\:<>"|?*]/.test(part)) || !["file", "directory", "link"].includes(member.kind) || seen.has(member.path)) fail();
+                          seen.add(member.path); const parts = member.path.split("/");
+                          for (let count = 1; count < parts.length; count++) { const parent = parts.slice(0, count).join("/"); if (effective.has(parent) && effective.get(parent) !== "directory") fail(); effective.set(parent, "directory"); }
+                          if (effective.has(member.path) && effective.get(member.path) !== member.kind) fail(); effective.set(member.path, member.kind);
+                      }
+                      const children = new Map();
+                      for (const path of effective.keys()) { const parent = path.slice(0, path.lastIndexOf("/")), entries = children.get(parent) ?? []; entries.push(path); children.set(parent, entries); }
+                      const roots = [`${top}/lib/node_modules/npm`];
+                      const directory = path => { if (effective.get(path) !== "directory") fail(); };
+                      for (let index = 0; index < roots.length; index++) {
+                          const root = roots[index]; directory(root); const modules = `${root}/node_modules`;
+                          if (!effective.has(modules)) continue;
+                          directory(modules); const entries = children.get(modules) ?? []; if (!entries.length) fail();
+                          for (const entry of entries) {
+                              directory(entry); const name = entry.slice(modules.length + 1);
+                              if (name.startsWith("@")) {
+                                  if (!/^@[a-zA-Z0-9_~-][a-zA-Z0-9._~-]*$/.test(name)) fail();
+                                  const scoped = children.get(entry) ?? []; if (!scoped.length) fail();
+                                  for (const pkg of scoped) { directory(pkg); if (!/^[a-zA-Z0-9_~-][a-zA-Z0-9._~-]*$/.test(pkg.slice(entry.length + 1))) fail(); roots.push(pkg); }
+                              } else { if (!/^[a-zA-Z0-9_~-][a-zA-Z0-9._~-]*$/.test(name)) fail(); roots.push(entry); }
+                              if (roots.length > 4000) fail();
+                          }
+                      }
+                      return { roots: roots.map(path => `trees/node/${path}`).sort(), directories: [...effective.values()].filter(kind => kind === "directory").length + 1 };
+                  };
+
+                  // bootstrap journal 在独立步骤准入之前建立，旧 observer 的 GitHub outcome 始终保留独立上传资格；非运行原因仅接受固定 setup、单元失败或 observer 失败序列，不从不存在的目录猜测生产者已成功收尾。
+                  await mkdir(base, { mode: 0o700 });
+                  const execution = { step: "BOOTSTRAP", status: "NOT_RUN", reason: null, admitted: false, closeConfirmed: null, truncated: false, timedOut: false, exit: null, signal: null, elapsedMs: 0, code: null, phase: null, cleanup: null, argv: null, cwd: null, error: null };
+                  const journal = () => writeFile(join(base, "execution.json"), JSON.stringify(execution), { mode: 0o600 });
+                  await journal();
+                  const setup = [process.env.BIND_OUTCOME, process.env.NODE_SETUP_OUTCOME, process.env.DEPENDENCIES_OUTCOME];
+                  const setupFailed = process.env.UNIT_OUTCOME === "skipped" && process.env.ORCHESTRATION_OUTCOME === "skipped" && [["failure", "skipped", "skipped"], ["success", "failure", "skipped"], ["success", "success", "failure"]].some(expected => expected.every((value, index) => setup[index] === value));
+                  if (setupFailed) { execution.reason = "SETUP_FAILED"; await journal(); }
+                  else if (process.env.UNIT_OUTCOME === "failure" && process.env.ORCHESTRATION_OUTCOME === "skipped") { execution.reason = "UNIT_FAILED"; await journal(); }
+                  else if (process.env.UNIT_OUTCOME === "success" && process.env.ORCHESTRATION_OUTCOME === "failure") { execution.reason = "OBSERVER_FAILED"; await journal(); }
+                  else {
+                      let binding, start;
+                      // 每次小文件读取先拒绝链接、非普通文件和超限长度，再在 held FD 内核身份与原始摘要；跨 CLI 的来源身份保存在首次观察表中，关闭异常直接阻断稳定材料资格，不能凭读取成功推导关闭成功。
+                      const identities = new Map();
+                      const readStable = async (path, maximum = 4 * 1024 ** 2, privateMode = false, hashOnly = false) => {
+                          const before = await lstat(path, { bigint: true });
+                          assert.ok(before.isFile() && !before.isSymbolicLink() && before.nlink === 1n && before.size >= 0n && before.size <= BigInt(maximum));
+                          const parents = [];
+                          if (privateMode) {
+                              assert.equal(before.mode & 0o7777n, 0o600n);
+                              const candidateRoot = join(root, "bootstrap/prepared"); assert.ok(path.startsWith(candidateRoot + "/"));
+                              let parent = candidateRoot;
+                              for (const part of [null, ...path.slice(candidateRoot.length + 1).split("/").slice(0, -1)]) {
+                                  if (part !== null) parent = join(parent, part);
+                                  const info = await lstat(parent, { bigint: true }); assert.ok(info.isDirectory() && !info.isSymbolicLink() && info.uid === BigInt(process.getuid())); assert.equal(info.mode & 0o7777n, 0o700n);
+                                  if (identities.has(parent)) assert.ok(same(identities.get(parent), info)); identities.set(parent, info); parents.push([parent, info]);
+                              }
+                          }
+                          if (identities.has(path)) assert.ok(same(identities.get(path), before));
+                          identities.set(path, before);
+                          const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+                          try {
+                              assert.ok(same(before, await handle.stat({ bigint: true })));
+                              const hash = createHash("sha256"), chunks = [], buffer = Buffer.alloc(65536); let offset = 0;
+                              while (offset < Number(before.size)) {
+                                  const read = await handle.read(buffer, 0, Math.min(buffer.length, Number(before.size) - offset), offset); assert.ok(read.bytesRead);
+                                  const bytes = buffer.subarray(0, read.bytesRead); hash.update(bytes); if (!hashOnly) chunks.push(Buffer.from(bytes)); offset += read.bytesRead;
+                              }
+                              assert.ok(same(before, await handle.stat({ bigint: true })) && same(before, await lstat(path, { bigint: true })));
+                              for (const [parent, info] of parents) assert.ok(same(info, await lstat(parent, { bigint: true })));
+                              return { bytes: hashOnly ? null : Buffer.concat(chunks), sizeBytes: offset, sha256: hash.digest("hex") };
+                          } finally { await handle.close(); }
+                      };
+                      const json = async path => JSON.parse(new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode((await readStable(path)).bytes));
+                      const checkRef = (value, actual, path = value?.path) => {
+                          assert.ok(value && Object.keys(value).sort().join(",") === "path,sha256,sizeBytes");
+                          assert.equal(value.path, path); assert.equal(value.sizeBytes, actual.sizeBytes); assert.equal(value.sha256, actual.sha256);
+                      };
+                      try {
+                          assert.equal(process.env.UNIT_OUTCOME, "success"); assert.equal(process.env.ORCHESTRATION_OUTCOME, "success");
+                          const steps = await json(join(meta, "steps.json")), status = await json(join(meta, "status.json"));
+                          assert.deepEqual(steps.map(step => [step.step, step.status, step.cleanup]), [["ACQUIRE", "PASS", "CONFIRMED"], ["OBSERVE", "PASS", "CONFIRMED"]]);
+                          assert.equal(status.status, "OBSERVED");
+                          for (const [step, directory] of [["ACQUIRE", join(root, "acquisition/acquired")], ["OBSERVE", join(root, "observation/observed")]]) {
+                              const result = status.results[step]; assert.equal(result.committed, true); assert.equal(result.cleanup, "CONFIRMED"); assert.equal(result.directory, directory);
+                              assert.deepEqual(await json(join(meta, `${step.toLowerCase()}.stdout.json`)), result);
+                          }
+                          binding = await bindCiProcess("bootstrap");
+                          const checkout = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim(), commit = process.env.GITHUB_SHA;
+                          const source = await json(join(meta, "source.json")); assert.equal(source.commit, commit); assert.equal(source.files.length, 19);
+                          const producerPaths = ["apps/runtime/scripts/runtime-node-bootstrap.ts", "apps/runtime/scripts/prepare-macos-node-bootstrap.mjs"];
+                          const producer2Refs = [];
+                          for (const path of producerPaths) {
+                              const bytes = (await readStable(join(checkout, path))).bytes;
+                              const git = execFileSync("git", ["cat-file", "blob", `${commit}:${path}`], { maxBuffer: 4 * 1024 ** 2 }); assert.deepEqual(bytes, git); producer2Refs.push(reference(path, bytes));
+                          }
+                          const verifySources = async () => {
+                              try {
+                              assert.equal(execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(), commit);
+                              for (const file of [...source.files, ...producer2Refs]) checkRef(file, await readStable(join(checkout, file.path)));
+                              await binding.verify();
+                              } catch (error) { throw Object.assign(error, { code: "PAYLOAD_SOURCE_CHANGED" }); }
+                          };
+                          await verifySources();
+                          const producerBindingBytes = Buffer.from(JSON.stringify({ kind: "NODE_BOOTSTRAP_CI_SOURCE", commit, runId: process.env.GITHUB_RUN_ID, runAttempt: Number(process.env.GITHUB_RUN_ATTEMPT), arch: process.arch, producer2Refs }));
+                          await writeFile(join(base, "source-binding.json"), producerBindingBytes, { flag: "wx", mode: 0o600 });
+                          await writeFile(process.env.GITHUB_OUTPUT, `producer2_binding_sha256=${digest(producerBindingBytes)}\n`, { flag: "a" });
+                          await mkdir(join(root, "bootstrap"), { mode: 0o700 });
+                          const space = await statfs(root, { bigint: true });
+                          await writeFile(join(base, "launch-space.json"), JSON.stringify({ availableBytes: String(space.bavail * space.bsize), blockSize: String(space.bsize), policy: "ACTUAL_REMAINING_TRANSACTION_PLAN" }), { mode: 0o600 });
+                          execution.status = "STARTED"; execution.argv = [process.execPath, "--import", "tsx", "scripts/prepare-macos-node-bootstrap.mjs", "--assets", join(root, "acquisition/acquired/assets-input.json"), "--input-root", join(root, "acquisition/acquired"), "--output-parent", join(root, "bootstrap"), "--candidate", "prepared"]; execution.cwd = process.cwd();
+                          await journal(); start = performance.now();
+                          const outcome = await binding.run({ executable: execution.argv[0], args: execution.argv.slice(1), cwd: execution.cwd, timeoutMs: 5 * 60000 });
+                          execution.elapsedMs = Math.round(performance.now() - start);
+                          const { stdout, stderr, pid, ...facts } = outcome; Object.assign(execution, facts);
+                          await writeFile(join(base, "result.stdout.json"), stdout, { mode: 0o600 }); await writeFile(join(base, "prepare.log"), stderr, { mode: 0o600 });
+                          const diagnostic = stderr.toString("utf8").match(/(PAYLOAD_[A-Z_]+) phase=([A-Z]+) cleanup=([A-Z_]+)/);
+                          execution.phase = diagnostic?.[2] ?? "UNKNOWN"; execution.cleanup = diagnostic?.[3] ?? "INCOMPLETE";
+                          execution.code = diagnostic?.[1] ?? (outcome.timedOut ? "PAYLOAD_CANCELLED" : "PAYLOAD_IO");
+                          await verifySources();
+                          assert.ok(outcome.admitted && outcome.closeConfirmed && !outcome.truncated && !outcome.timedOut && !outcome.error && outcome.exit === 0 && outcome.signal === null);
+                          const result = JSON.parse(new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(stdout));
+                          assert.equal(result.kind, "NODE_NPM_SOURCE_TREE_RESULT"); assert.equal(result.committed, true); assert.equal(result.directory, join(root, "bootstrap/prepared"));
+                          assert.ok(["CONFIRMED", "INCOMPLETE"].includes(result.cleanup)); execution.cleanup = result.cleanup;
+                          // committed 的 INCOMPLETE 仍是实际失败事实，不准入任何候选遍历；只有关闭、诊断和事务清理均明确确认时才读取有限稳定元数据，后续核验失败也不会撤销或删除生产者保留的现场。
+                          assert.equal(result.cleanup, "CONFIRMED");
+                          const candidate = result.directory, retained = new Map();
+                          for (const path of ["node-bootstrap.json", "members/node.json", "evidence/source.json", "evidence/producer/runtime-node-bootstrap.ts", "evidence/producer/prepare-macos-node-bootstrap.mjs"]) retained.set(path, await readStable(join(candidate, path), 4 * 1024 ** 2, true));
+                          checkRef(result.receipt, retained.get("node-bootstrap.json"), "node-bootstrap.json");
+                          const receipt = JSON.parse(retained.get("node-bootstrap.json").bytes), members = JSON.parse(retained.get("members/node.json").bytes);
+                          assert.equal(receipt.schemaVersion, 1); assert.equal(receipt.kind, "NODE_NPM_SOURCE_TREE"); assert.equal(receipt.arch, process.arch); assert.equal(receipt.nodeVersion, "24.22.1"); assert.equal(receipt.sourceStatus, "UNREVIEWED_SOURCE");
+                          assert.deepEqual(receipt.pending, ["SOURCE_REVIEW", "NPM_GRAPH_AND_TARGET_RESOLUTION", "EXECUTABLE_NODE_LAYOUT", "CHROME_LAYOUT_AND_EXTRACTION", "FULL_RUNTIME_STAGE"]);
+                          const assets = await readStable(join(root, "acquisition/acquired/assets-input.json")); assert.equal(receipt.inputSha256, assets.sha256);
+                          const input = JSON.parse(assets.bytes); assert.deepEqual(receipt.source, input.source);
+                          checkRef(receipt.source.evidence, retained.get("evidence/source.json"), "evidence/source.json"); assert.deepEqual(JSON.parse(retained.get("evidence/source.json").bytes), source);
+                          checkRef(receipt.members, retained.get("members/node.json"), "members/node.json");
+                          const archive = await readStable(join(candidate, "snapshots/node.tar.gz"), 2 * 1024 ** 3, true, true); checkRef(receipt.archive, archive, "snapshots/node.tar.gz");
+                          assert.equal(archive.sizeBytes, input.node.sizeBytes); assert.equal(archive.sha256, input.node.sha256);
+                          const originals = await json(join(meta, "archives.json")); checkRef(originals.files.find(file => file.path === "snapshots/node.tar.gz"), archive, "snapshots/node.tar.gz");
+                          const originalMembers = await json(join(meta, "observation/members/node.json")); assert.deepEqual(members, originalMembers);
+                          assert.equal(members.kind, "ASSET_ARCHIVE_MEMBER_FACTS"); assert.equal(members.archive, "node"); assert.ok(members.members.length <= 40000);
+                          assert.equal(receipt.producerFiles.length, 2);
+                          for (const [index, name] of ["runtime-node-bootstrap.ts", "prepare-macos-node-bootstrap.mjs"].entries()) {
+                              const path = `evidence/producer/${name}`, actual = retained.get(path); checkRef(receipt.producerFiles[index], actual, path);
+                              assert.equal(actual.sizeBytes, producer2Refs[index].sizeBytes); assert.equal(actual.sha256, producer2Refs[index].sha256);
+                          }
+                          const top = `node-v24.22.1-darwin-${process.arch}`, npmRoot = `trees/node/${top}/lib/node_modules/npm`;
+                          assert.equal(receipt.nodeMember, `trees/node/${top}/bin/node`); assert.equal(receipt.npmRoot, npmRoot);
+                          const expected = new Map(), ordinary = new Map(), logical = [];
+                          const addParents = path => { const parts = path.split("/"); for (let n = 2; n < parts.length; n++) { const parent = parts.slice(0, n).join("/"); assert.ok(!expected.has(parent) || expected.get(parent) === "directory"); expected.set(parent, "directory"); } };
+                          for (const member of members.members) {
+                              assert.ok(typeof member.path === "string" && (member.path.startsWith(`${top}/`) || member.path === top));
+                              const path = `trees/node/${member.path}`; addParents(path);
+                              if (member.kind === "link") { logical.push(path); continue; }
+                              assert.ok(["file", "directory"].includes(member.kind)); assert.ok(!ordinary.has(path)); expected.set(path, member.kind); if (member.kind === "file") ordinary.set(path, member);
+                          }
+                          for (const path of [receipt.nodeMember, `trees/node/${top}/LICENSE`, `${npmRoot}/package.json`, `${npmRoot}/bin/npm-cli.js`]) assert.ok(ordinary.has(path));
+                          let fileCount = 0, directoryCount = 0;
+                          const walk = async (path, depth = 0) => {
+                              assert.ok(depth <= 64 && expected.size <= 40002); const info = await lstat(join(candidate, path), { bigint: true });
+                              const kind = expected.get(path); assert.ok(kind); assert.ok(!info.isSymbolicLink());
+                              if (kind === "directory") {
+                                  assert.ok(info.isDirectory()); assert.equal(info.mode & 0o7777n, 0o700n); directoryCount++;
+                                  const dir = await opendir(join(candidate, path)); for await (const entry of dir) await walk(`${path}/${entry.name}`, depth + 1);
+                              } else { assert.ok(info.isFile() && info.nlink === 1n); assert.equal(info.mode & 0o7777n, 0o600n); assert.equal(info.size, BigInt(ordinary.get(path).sizeBytes)); fileCount++; }
+                              expected.delete(path); assert.ok(same(info, await lstat(join(candidate, path), { bigint: true })));
+                          };
+                          await walk("trees/node"); assert.equal(expected.size, 0);
+                          for (const path of logical) { try { await lstat(join(candidate, path)); assert.fail("Logical link materialized"); } catch (error) { assert.equal(error.code, "ENOENT"); } }
+                          // 从原始普通成员和推导目录重建 npm 的物理边界，逐个完整 package.json 核原成员摘要与回执 Ref；记录所有重复实例的独立路径，但不复制包正文，也不声称进行了目标 Node resolve 或完整依赖图闭合。
+                          const physical = physicalNpmIndex(members.members, top, () => assert.fail("Invalid physical npm boundary")), physicalRoots = physical.roots;
+                          assert.equal(directoryCount, physical.directories); assert.deepEqual(receipt.npmPackages.map(item => item.root), physicalRoots);
+                          const manifests = [];
+                          for (const item of receipt.npmPackages) {
+                              const path = `${item.root}/package.json`, member = ordinary.get(path); assert.ok(member && member.sizeBytes <= 1024 ** 2);
+                              const actual = await readStable(join(candidate, path), 1024 ** 2, true); checkRef(item.packageJson, actual, path); assert.equal(actual.sha256, member.sha256); assert.equal(actual.sizeBytes, member.sizeBytes);
+                              const manifest = JSON.parse(actual.bytes); assert.ok(typeof manifest.name === "string" && manifest.name && typeof manifest.version === "string" && manifest.version);
+                              manifests.push({ root: item.root, packageJson: item.packageJson, memberMatched: true });
+                          }
+                          await verifySources(); await binding.finish(); binding = undefined;
+                          const validation = { status: "PASS", receipt: result.receipt, archive: receipt.archive, members: receipt.members, source: receipt.source.evidence, producerFiles: receipt.producerFiles, rawMemberCount: members.members.length, ordinaryFileCount: ordinary.size, observedFileCount: fileCount, observedDirectoryCount: directoryCount, logicalLinkCount: logical.length, logicalLinksAbsent: true, modes: { files: "0600", directories: "0700" }, physicalNpmCount: physicalRoots.length, manifests };
+                          const retainedBytes = [...retained.values()].reduce((sum, file) => sum + file.sizeBytes, 0), validationBytes = Buffer.from(JSON.stringify(validation)); assert.ok(retainedBytes + validationBytes.length <= 16 * 1024 ** 2 && validationBytes.length <= 4 * 1024 ** 2);
+                          let metadataBytes = 0, logBytes = 0, metadataEntries = 0;
+                          const measureMetadata = async (directory, depth = 0) => {
+                              assert.ok(depth <= 16); const dir = await opendir(directory);
+                              for await (const entry of dir) {
+                                  assert.ok(++metadataEntries <= 512); const path = join(directory, entry.name), info = await lstat(path);
+                                  assert.ok(!info.isSymbolicLink());
+                                  if (info.isDirectory()) await measureMetadata(path, depth + 1);
+                                  else { assert.ok(info.isFile() && info.nlink === 1); if (entry.name.endsWith(".log")) logBytes += info.size; else metadataBytes += info.size; }
+                              }
+                          };
+                          await measureMetadata(meta);
+                          assert.ok(metadataBytes + retainedBytes + validationBytes.length + 1024 ** 2 <= 16 * 1024 ** 2 && logBytes <= 8 * 1024 ** 2);
+                          for (const [path, fact] of retained) { await mkdir(dirname(join(base, path)), { recursive: true, mode: 0o700 }); await writeFile(join(base, path), fact.bytes, { flag: "wx", mode: 0o600 }); }
+                          await writeFile(join(base, "validation.json"), validationBytes, { flag: "wx", mode: 0o600 });
+                          execution.status = "PASS"; execution.code = null; execution.phase = null; await journal();
+                      } catch (error) {
+                          execution.status = "FAIL"; if (error.code === "PAYLOAD_SOURCE_CHANGED") execution.code = error.code; execution.code ??= "PAYLOAD_IO"; execution.phase ??= "UNKNOWN"; execution.cleanup ??= "INCOMPLETE";
+                          if (start) execution.elapsedMs = Math.round(performance.now() - start);
+                          if (binding) { try { await binding.finish(); } catch { execution.code = "PAYLOAD_SOURCE_CHANGED"; } }
+                          await journal(); console.error(`BOOTSTRAP_FAILED code=${execution.code} phase=${execution.phase} cleanup=${execution.cleanup}`); process.exitCode = 1;
+                      }
+                  }
+                  JS
             - name: Complete bounded metadata artifact or fixed failure evidence
               id: collect
-              if: always()
+              if: always() && (github.event_name == 'push' || steps.purpose_guard.outcome == 'success')
               env:
                   BIND_OUTCOME: ${{ steps.bind.outcome }}
                   NODE_SETUP_OUTCOME: ${{ steps.node_setup.outcome }}
                   DEPENDENCIES_OUTCOME: ${{ steps.dependencies.outcome }}
                   ORCHESTRATION_OUTCOME: ${{ steps.observe.outcome }}
+                  UNIT_OUTCOME: ${{ steps.ci_unit.outcome }}
+                  UNIT_CONCLUSION: ${{ steps.ci_unit.conclusion }}
+                  BOOTSTRAP_OUTCOME: ${{ steps.bootstrap.outcome }}
+                  BOOTSTRAP_CONCLUSION: ${{ steps.bootstrap.conclusion }}
               shell: bash
               run: |
                   node --input-type=module <<'JS'
                   import { constants } from "node:fs";
-                  import { open, lstat, mkdir, opendir, rm, rename, appendFile } from "node:fs/promises";
+                  import { open, lstat, mkdir, opendir, rm, rename, appendFile, readFile } from "node:fs/promises";
                   import { join, dirname, isAbsolute } from "node:path";
                   import { createHash, randomUUID } from "node:crypto";
                   const root = process.env.ASSET_ROOT, destination = typeof root === "string" ? join(root, "upload") : "";
@@ -258,6 +681,7 @@ jobs:
                           } else {
                               if (!before.isFile() || before.nlink !== 1n || before.size < 0n || before.size > BigInt(Number.MAX_SAFE_INTEGER)) reject("ARTIFACT_BOUNDARY");
                               if (relative === "manifest.json") return;
+                              if (before.size > 4n * 1024n ** 2n && !["pnpm-install.log", "dependencies.log"].includes(relative)) reject("ARTIFACT_LIMIT");
                               const sizeBytes = Number(before.size), truncated = ["pnpm-install.log", "dependencies.log"].includes(relative) && sizeBytes > 32768;
                               const marker = truncated ? Buffer.from("\nLOG_TRUNCATED: hash binds retained prefix only\n") : Buffer.alloc(0);
                               records.push({ path, relative, before, readBytes: truncated ? 32700 : sizeBytes, outputBytes: (truncated ? 32700 : sizeBytes) + marker.length, marker, truncated });
@@ -297,7 +721,7 @@ jobs:
                           return null;
                       }
                       const setup = [process.env.BIND_OUTCOME, process.env.NODE_SETUP_OUTCOME, process.env.DEPENDENCIES_OUTCOME];
-                      const knownFailure = process.env.ORCHESTRATION_OUTCOME === "skipped" && [["failure", "skipped", "skipped"], ["success", "failure", "skipped"], ["success", "success", "failure"]].some(expected => expected.every((value, index) => setup[index] === value));
+                      const knownFailure = process.env.UNIT_OUTCOME === "skipped" && process.env.ORCHESTRATION_OUTCOME === "skipped" && [["failure", "skipped", "skipped"], ["success", "failure", "skipped"], ["success", "success", "failure"]].some(expected => expected.every((value, index) => setup[index] === value));
                       if (!knownFailure) reject("ARTIFACT_MISSING_STEPS");
                       const bytes = Buffer.from(JSON.stringify([{ step: "SETUP", status: "FAIL", code: "PAYLOAD_IO", cleanup: "NOT_NEEDED", actualBytes: null }, { step: "ACQUIRE", status: "NOT_RUN", code: null, cleanup: null, actualBytes: null }, { step: "OBSERVE", status: "NOT_RUN", code: null, cleanup: null, actualBytes: null }]));
                       if (input.sums.metadata + bytes.length > metadataLimit) reject("ARTIFACT_LIMIT");
@@ -325,6 +749,171 @@ jobs:
                           }
                       } catch (error) { primary = error; throw error; }
                       finally { await closeAll([handle], primary); }
+                  };
+                  // 新增阶段的有限状态判定只接受实际已结束或明确未准入的记录，单位失败不会伪造原两阶段成功；FULL 仅表示失败证据也完整，任何 STARTED、截断、来源变化或已准入但关闭未知都会转入既有固定失败集合。
+                  const executionState = (unit, bootstrap, steps, env) => {
+                      const fail = () => reject("ARTIFACT_MISSING_STEPS");
+                      const keys = "admitted,argv,cleanup,closeConfirmed,code,cwd,elapsedMs,error,exit,phase,reason,signal,status,step,timedOut,truncated";
+                      const shape = (record, step) => {
+                          if (!record || Object.keys(record).sort().join(",") !== keys || record.step !== step || !["PASS", "FAIL", "NOT_RUN"].includes(record.status) || typeof record.admitted !== "boolean" || typeof record.truncated !== "boolean" || typeof record.timedOut !== "boolean" || !Number.isSafeInteger(record.elapsedMs) || record.elapsedMs < 0 || !(record.exit === null || Number.isInteger(record.exit)) || !(record.signal === null || ["SIGINT", "SIGTERM", "SIGKILL", "SIGABRT", "SIGSEGV", "SIGBUS"].includes(record.signal)) || !(record.error === null || /^[A-Z_0-9]+$/.test(record.error))) fail();
+                          if (record.status === "NOT_RUN") {
+                              if (record.admitted || record.closeConfirmed !== null || record.truncated || record.timedOut || record.exit !== null || record.signal !== null || record.elapsedMs !== 0 || record.code !== null || record.phase !== null || record.cleanup !== null || record.argv !== null || record.cwd !== null || record.error !== null) fail();
+                          } else {
+                              if (record.reason !== null || !Array.isArray(record.argv) || !record.argv.every(arg => typeof arg === "string") || typeof record.cwd !== "string" || record.truncated || record.code === "PAYLOAD_SOURCE_CHANGED" || (record.admitted ? record.closeConfirmed !== true : !record.error)) fail();
+                              if (record.status === "PASS" && (!record.admitted || record.exit !== 0 || record.signal !== null || record.timedOut || record.error !== null || record.code !== null || record.phase !== null || (step === "BOOTSTRAP" ? record.cleanup !== "CONFIRMED" : record.cleanup !== null))) fail();
+                              if (record.status === "FAIL" && (typeof record.code !== "string" || !/^PAYLOAD_[A-Z_]+$/.test(record.code) || !["UNKNOWN", "INPUTS", "INTAKE", "PUBLISH"].includes(record.phase) || ![null, "CONFIRMED", "INCOMPLETE", "NOT_NEEDED"].includes(record.cleanup))) fail();
+                          }
+                      };
+                      shape(unit, "UNIT"); shape(bootstrap, "BOOTSTRAP");
+                      const pair = steps.filter(step => step.step !== "SETUP").map(step => step.status).join(",");
+                      if (unit.status === "NOT_RUN") {
+                          const setup = [env.BIND_OUTCOME, env.NODE_SETUP_OUTCOME, env.DEPENDENCIES_OUTCOME];
+                          if (env.UNIT_OUTCOME !== "skipped" || env.ORCHESTRATION_OUTCOME !== "skipped" || ![["failure", "skipped", "skipped"], ["success", "failure", "skipped"], ["success", "success", "failure"]].some(expected => expected.every((value, index) => setup[index] === value)) || steps[0]?.step !== "SETUP" || pair !== "NOT_RUN,NOT_RUN" || bootstrap.status !== "NOT_RUN" || unit.reason !== "SETUP_FAILED" || bootstrap.reason !== "SETUP_FAILED") fail();
+                          return "SETUP_FAILED";
+                      }
+                      if (unit.status === "FAIL") {
+                          if (env.UNIT_OUTCOME !== "failure" || env.ORCHESTRATION_OUTCOME !== "skipped" || pair !== "NOT_RUN,NOT_RUN" || bootstrap.status !== "NOT_RUN" || bootstrap.reason !== "UNIT_FAILED" || env.BOOTSTRAP_OUTCOME !== "success") fail();
+                          return "UNIT_FAILED";
+                      }
+                      if (env.UNIT_OUTCOME !== "success") fail();
+                      if (env.ORCHESTRATION_OUTCOME === "failure") {
+                          if (bootstrap.status !== "NOT_RUN" || bootstrap.reason !== "OBSERVER_FAILED" || env.BOOTSTRAP_OUTCOME !== "success" || !pair.includes("FAIL")) fail();
+                          return "OBSERVER_FAILED";
+                      }
+                      if (env.ORCHESTRATION_OUTCOME !== "success" || pair !== "PASS,PASS" || bootstrap.status === "NOT_RUN" || env.BOOTSTRAP_OUTCOME !== (bootstrap.status === "PASS" ? "success" : "failure")) fail();
+                      return bootstrap.status === "PASS" ? "PASS" : "BOOTSTRAP_FAILED";
+                  };
+                  // 包根来自完整原始成员加推导父目录，而不是仅扫描已有 manifest；显式空目录、scope 和逻辑目录别名都参与边界判断，因此遗漏一个物理实例或把链接目录当成普通叶子都会在回执比较之前失败关闭。
+                  const physicalNpmIndex = (members, top, fail) => {
+                      const effective = new Map(), seen = new Set();
+                      for (const member of members) {
+                          if (typeof member.path !== "string" || member.path.length > 1024 || member.path.split("/").length > 64 || !(member.path === top || member.path.startsWith(`${top}/`)) || member.path.split("/").some(part => !part || part === "." || part === ".." || /[^\x20-\x7e]|[\\:<>"|?*]/.test(part)) || !["file", "directory", "link"].includes(member.kind) || seen.has(member.path)) fail();
+                          seen.add(member.path); const parts = member.path.split("/");
+                          for (let count = 1; count < parts.length; count++) { const parent = parts.slice(0, count).join("/"); if (effective.has(parent) && effective.get(parent) !== "directory") fail(); effective.set(parent, "directory"); }
+                          if (effective.has(member.path) && effective.get(member.path) !== member.kind) fail(); effective.set(member.path, member.kind);
+                      }
+                      const children = new Map();
+                      for (const path of effective.keys()) { const parent = path.slice(0, path.lastIndexOf("/")), entries = children.get(parent) ?? []; entries.push(path); children.set(parent, entries); }
+                      const roots = [`${top}/lib/node_modules/npm`];
+                      const directory = path => { if (effective.get(path) !== "directory") fail(); };
+                      for (let index = 0; index < roots.length; index++) {
+                          const root = roots[index]; directory(root); const modules = `${root}/node_modules`;
+                          if (!effective.has(modules)) continue;
+                          directory(modules); const entries = children.get(modules) ?? []; if (!entries.length) fail();
+                          for (const entry of entries) {
+                              directory(entry); const name = entry.slice(modules.length + 1);
+                              if (name.startsWith("@")) {
+                                  if (!/^@[a-zA-Z0-9_~-][a-zA-Z0-9._~-]*$/.test(name)) fail();
+                                  const scoped = children.get(entry) ?? []; if (!scoped.length) fail();
+                                  for (const pkg of scoped) { directory(pkg); if (!/^[a-zA-Z0-9_~-][a-zA-Z0-9._~-]*$/.test(pkg.slice(entry.length + 1))) fail(); roots.push(pkg); }
+                              } else { if (!/^[a-zA-Z0-9_~-][a-zA-Z0-9._~-]*$/.test(name)) fail(); roots.push(entry); }
+                              if (roots.length > 4000) fail();
+                          }
+                      }
+                      return { roots: roots.map(path => `trees/node/${path}`).sort(), directories: [...effective.values()].filter(kind => kind === "directory").length + 1 };
+                  };
+                  const checkNewEvidence = async (files, synthesized) => {
+                      const missing = () => reject("ARTIFACT_MISSING_STEPS");
+                      const facts = new Map(files.map(file => [file.path, file]));
+                      const raw = async path => {
+                          const fact = facts.get(path); if (!fact || fact.sizeBytes > 4 * 1024 ** 2) missing();
+                          let handle, primary;
+                          try {
+                              const full = join(draft, path), before = await lstat(full, { bigint: true });
+                              handle = await open(full, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+                              if (!before.isFile() || before.nlink !== 1n || before.size !== BigInt(fact.sizeBytes) || !same(before, await handle.stat({ bigint: true }))) missing();
+                              const bytes = Buffer.alloc(fact.sizeBytes); let offset = 0;
+                              while (offset < bytes.length) { const read = await handle.read(bytes, offset, bytes.length - offset, offset); if (!read.bytesRead) missing(); offset += read.bytesRead; }
+                              if (digest(bytes) !== fact.sha256 || !same(before, await handle.stat({ bigint: true })) || !same(before, await lstat(full, { bigint: true }))) missing(); return bytes;
+                          } catch (error) { primary = error; throw error; }
+                          finally { await closeAll([handle], primary); }
+                      };
+                      const json = async path => { try { return JSON.parse(new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(await raw(path))); } catch { missing(); } };
+                      const notRun = step => ({ step, status: "NOT_RUN", reason: "SETUP_FAILED", admitted: false, closeConfirmed: null, truncated: false, timedOut: false, exit: null, signal: null, elapsedMs: 0, code: null, phase: null, cleanup: null, argv: null, cwd: null, error: null });
+                      // setup 合成只延续原有显式矩阵且要求单元阶段也 skipped，真实已存在的 bootstrap journal 不被覆盖；其它缺失的新阶段一律拒绝，不能靠跳过读取把已开始执行隐藏成完整收集。
+                      if (synthesized) for (const [path, step] of [["unit.json", "UNIT"], ["bootstrap/execution.json", "BOOTSTRAP"]]) if (!facts.has(path)) {
+                          const bytes = Buffer.from(JSON.stringify(notRun(step))); await writeOwned(join(draft, path), bytes);
+                          const fact = { path, sizeBytes: bytes.length, sha256: digest(bytes) }; files.push(fact); facts.set(path, fact);
+                      }
+                      const unit = await json("unit.json"), bootstrap = await json("bootstrap/execution.json"), steps = await json("steps.json");
+                      const state = executionState(unit, bootstrap, steps, process.env);
+                      if (process.env.UNIT_CONCLUSION !== process.env.UNIT_OUTCOME || process.env.BOOTSTRAP_CONCLUSION !== "success") missing();
+                      const githubOutcomes = Buffer.from(JSON.stringify({ unit: { outcome: process.env.UNIT_OUTCOME, conclusion: process.env.UNIT_CONCLUSION }, bootstrap: { outcome: process.env.BOOTSTRAP_OUTCOME, conclusion: process.env.BOOTSTRAP_CONCLUSION } }));
+                      await writeOwned(join(draft, "ci-step-outcomes.json"), githubOutcomes);
+                      const githubFact = { path: "ci-step-outcomes.json", sizeBytes: githubOutcomes.length, sha256: digest(githubOutcomes) }; files.push(githubFact); facts.set(githubFact.path, githubFact);
+                      const compare = (a, b) => { if (JSON.stringify(a) !== JSON.stringify(b)) missing(); };
+                      const equalRef = (expected, actual, path = expected?.path) => { if (!expected || Object.keys(expected).sort().join(",") !== "path,sha256,sizeBytes" || expected.path !== path || expected.sizeBytes !== actual?.sizeBytes || expected.sha256 !== actual?.sha256) missing(); };
+                      const bind = async stage => {
+                          const binding = await json(`ci-process/binding-${stage}.json`);
+                          if (binding.kind !== "ASSET_CI_PROCESS_SOURCE" || binding.commit !== process.env.GITHUB_SHA || binding.runId !== process.env.GITHUB_RUN_ID || binding.runAttempt !== Number(process.env.GITHUB_RUN_ATTEMPT) || binding.arch !== process.env.EXPECTED_ARCH || binding.ciProcessRefs?.length !== 2) missing();
+                          for (const [index, path] of ["apps/runtime/scripts/runtime-assets-ci-process.mjs", "apps/runtime/tests/runtime-assets-ci-process.test.mjs"].entries()) equalRef(binding.ciProcessRefs[index], facts.get(`ci-process/${index ? "test" : "helper"}.mjs`), path);
+                          return binding;
+                      };
+                      const cwd = join(process.env.GITHUB_WORKSPACE, "apps/runtime");
+                      if (unit.status !== "NOT_RUN") {
+                          await bind("unit"); await raw("unit.stdout.log"); await raw("unit.stderr.log");
+                          compare(unit.argv, [process.execPath, "--test", "tests/runtime-assets-ci-process.test.mjs"]); if (unit.cwd !== cwd || unit.elapsedMs > 66000) missing();
+                      }
+                      if (!["UNIT_FAILED", "SETUP_FAILED"].includes(state)) {
+                          await bind("observe"); const executions = await json("ci-process/observe-executions.json");
+                          if (!Array.isArray(executions) || executions.length !== 2) missing();
+                          for (const [index, outcome] of executions.entries()) {
+                              const step = steps.find(step => step.step === (index ? "OBSERVE" : "ACQUIRE"));
+                              if (step.status === "NOT_RUN") { if (outcome !== null) missing(); continue; }
+                              if (!outcome || outcome.truncated || (outcome.admitted ? outcome.closeConfirmed !== true : !outcome.error) || !Number.isSafeInteger(outcome.elapsedMs) || outcome.elapsedMs < 0 || outcome.elapsedMs > (index ? 15 : 16) * 60000 + 6000) missing();
+                              if (step.status === "PASS" && (!outcome.admitted || outcome.exit !== 0 || outcome.signal !== null || outcome.timedOut || outcome.error !== null)) missing();
+                          }
+                      }
+                      const bootstrapPaths = files.filter(file => file.path.startsWith("bootstrap/")).map(file => file.path);
+                      if (bootstrap.status === "NOT_RUN") {
+                          if (bootstrapPaths.length !== 1) missing(); return;
+                      }
+                      await bind("bootstrap");
+                      compare(bootstrap.argv, [process.execPath, "--import", "tsx", "scripts/prepare-macos-node-bootstrap.mjs", "--assets", join(root, "acquisition/acquired/assets-input.json"), "--input-root", join(root, "acquisition/acquired"), "--output-parent", join(root, "bootstrap"), "--candidate", "prepared"]);
+                      if (bootstrap.cwd !== cwd || bootstrap.elapsedMs > 306000) missing();
+                      const binding = await json("bootstrap/source-binding.json"), source = await json("source.json"), space = await json("bootstrap/launch-space.json");
+                      if (binding.kind !== "NODE_BOOTSTRAP_CI_SOURCE" || binding.commit !== process.env.GITHUB_SHA || binding.runId !== process.env.GITHUB_RUN_ID || binding.runAttempt !== Number(process.env.GITHUB_RUN_ATTEMPT) || binding.arch !== process.env.EXPECTED_ARCH || binding.producer2Refs?.length !== 2 || source.commit !== binding.commit || source.files?.length !== 19 || !/^\d+$/.test(space.availableBytes) || space.policy !== "ACTUAL_REMAINING_TRANSACTION_PLAN") missing();
+                      for (const [index, path] of ["apps/runtime/scripts/runtime-node-bootstrap.ts", "apps/runtime/scripts/prepare-macos-node-bootstrap.mjs"].entries()) if (binding.producer2Refs[index].path !== path || !/^[a-f0-9]{64}$/.test(binding.producer2Refs[index].sha256) || !Number.isSafeInteger(binding.producer2Refs[index].sizeBytes) || binding.producer2Refs[index].sizeBytes <= 0 || binding.producer2Refs[index].sizeBytes > 4 * 1024 ** 2) missing();
+                      const stdout = await raw("bootstrap/result.stdout.json"), stderr = await raw("bootstrap/prepare.log");
+                      const required = ["bootstrap/execution.json", "bootstrap/source-binding.json", "bootstrap/launch-space.json", "bootstrap/result.stdout.json", "bootstrap/prepare.log"];
+                      if (bootstrap.status === "FAIL") {
+                          if (bootstrapPaths.length !== required.length || required.some(path => !facts.has(path))) missing();
+                          // 正常零退出但清理不完整必须保留原始 committed JSON 的真实 cleanup，非零退出只承认实际诊断；固定 UNKNOWN 允许强制退出没有事务阶段，任何相互矛盾的流与 journal 都不能变成完整证据。
+                          if (bootstrap.exit === 0 && !bootstrap.timedOut && bootstrap.signal === null) {
+                              let result; try { result = JSON.parse(stdout); } catch { missing(); }
+                              if (result.kind !== "NODE_NPM_SOURCE_TREE_RESULT" || result.committed !== true || result.cleanup !== "INCOMPLETE" || bootstrap.cleanup !== "INCOMPLETE" || result.directory !== join(root, "bootstrap/prepared")) missing();
+                          } else {
+                              const diagnostic = stderr.toString("utf8").match(/(PAYLOAD_[A-Z_]+) phase=([A-Z]+) cleanup=([A-Z_]+)/);
+                              if (diagnostic && (bootstrap.code !== diagnostic[1] || bootstrap.phase !== diagnostic[2] || bootstrap.cleanup !== diagnostic[3])) missing();
+                              if (!diagnostic && (bootstrap.phase !== "UNKNOWN" || bootstrap.cleanup !== "INCOMPLETE")) missing();
+                          }
+                          return;
+                      }
+                      const result = JSON.parse(stdout), receipt = await json("bootstrap/node-bootstrap.json"), members = await json("bootstrap/members/node.json"), validation = await json("bootstrap/validation.json");
+                      required.push("bootstrap/node-bootstrap.json", "bootstrap/members/node.json", "bootstrap/evidence/source.json", "bootstrap/evidence/producer/runtime-node-bootstrap.ts", "bootstrap/evidence/producer/prepare-macos-node-bootstrap.mjs", "bootstrap/validation.json");
+                      if (bootstrapPaths.length !== required.length || required.some(path => !facts.has(path)) || result.kind !== "NODE_NPM_SOURCE_TREE_RESULT" || result.committed !== true || result.cleanup !== "CONFIRMED" || result.directory !== join(root, "bootstrap/prepared")) missing();
+                      equalRef(result.receipt, facts.get("bootstrap/node-bootstrap.json"), "node-bootstrap.json");
+                      if (receipt.kind !== "NODE_NPM_SOURCE_TREE" || receipt.schemaVersion !== 1 || receipt.arch !== process.env.EXPECTED_ARCH || receipt.nodeVersion !== "24.22.1" || receipt.sourceStatus !== "UNREVIEWED_SOURCE") missing();
+                      compare(receipt.pending, ["SOURCE_REVIEW", "NPM_GRAPH_AND_TARGET_RESOLUTION", "EXECUTABLE_NODE_LAYOUT", "CHROME_LAYOUT_AND_EXTRACTION", "FULL_RUNTIME_STAGE"]);
+                      equalRef(receipt.members, facts.get("bootstrap/members/node.json"), "members/node.json"); equalRef(receipt.source.evidence, facts.get("bootstrap/evidence/source.json"), "evidence/source.json");
+                      compare(await json("bootstrap/evidence/source.json"), source); compare(members, await json("observation/members/node.json"));
+                      const acquiredBytes = await raw("acquisition/assets-input.json"), acquired = JSON.parse(acquiredBytes), archives = await json("archives.json");
+                      if (receipt.inputSha256 !== digest(acquiredBytes)) missing(); compare(receipt.source, acquired.source);
+                      equalRef(receipt.archive, { sizeBytes: acquired.node.sizeBytes, sha256: acquired.node.sha256 }, "snapshots/node.tar.gz"); equalRef(receipt.archive, archives.files.find(file => file.path === "snapshots/node.tar.gz"), "snapshots/node.tar.gz");
+                      if (receipt.producerFiles?.length !== 2) missing();
+                      for (const [index, name] of ["runtime-node-bootstrap.ts", "prepare-macos-node-bootstrap.mjs"].entries()) {
+                          const path = `evidence/producer/${name}`; equalRef(receipt.producerFiles[index], facts.get(`bootstrap/${path}`), path); equalRef(binding.producer2Refs[index], facts.get(`bootstrap/${path}`), `apps/runtime/scripts/${name}`);
+                      }
+                      const top = `node-v24.22.1-darwin-${process.env.EXPECTED_ARCH}`, npmRoot = `trees/node/${top}/lib/node_modules/npm`;
+                      if (receipt.nodeMember !== `trees/node/${top}/bin/node` || receipt.npmRoot !== npmRoot || !Array.isArray(receipt.npmPackages) || receipt.npmPackages.length < 1 || receipt.npmPackages.length > 4000 || members.kind !== "ASSET_ARCHIVE_MEMBER_FACTS" || members.archive !== "node") missing();
+                      const ordinary = new Map(members.members.filter(member => member.kind === "file").map(member => [`trees/node/${member.path}`, member]));
+                      for (const path of [receipt.nodeMember, `trees/node/${top}/LICENSE`, `${npmRoot}/package.json`, `${npmRoot}/bin/npm-cli.js`]) if (!ordinary.has(path)) missing();
+                      const physicalIndex = physicalNpmIndex(members.members, top, missing), physical = physicalIndex.roots;
+                      compare(receipt.npmPackages.map(item => item.root), physical);
+                      for (const item of receipt.npmPackages) { const member = ordinary.get(`${item.root}/package.json`); if (!member || member.sizeBytes > 1024 ** 2) missing(); equalRef(item.packageJson, member, `${item.root}/package.json`); }
+                      if (validation.status !== "PASS" || validation.rawMemberCount !== members.members.length || validation.ordinaryFileCount !== ordinary.size || validation.observedFileCount !== ordinary.size || validation.observedDirectoryCount !== physicalIndex.directories || validation.logicalLinkCount !== members.members.filter(member => member.kind === "link").length || validation.logicalLinksAbsent !== true || validation.physicalNpmCount !== physical.length) missing();
+                      compare(validation.modes, { files: "0600", directories: "0700" }); compare(validation.receipt, result.receipt); compare(validation.archive, receipt.archive); compare(validation.members, receipt.members); compare(validation.source, receipt.source.evidence); compare(validation.producerFiles, receipt.producerFiles);
+                      compare(validation.manifests, receipt.npmPackages.map(item => ({ root: item.root, packageJson: item.packageJson, memberMatched: true })));
                   };
                   // 清单自身没有循环自摘要，但其真实编码长度仍计入最终 metadata 配额，随后全部输出按 held FD 再流读核验；目录枚举必须恰好等于本次已登记集合，任何缺项、额外成员、链接或未确认关闭都会阻止上传资格产生。
                   const audit = async (base, facts) => {
@@ -393,6 +982,8 @@ jobs:
                           files.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
                       }
                       await checkSteps(files.find(file => file.path === "steps.json"));
+                      await checkNewEvidence(files, synthesized);
+                      files.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
                       for (const directory of input.directories) if (!same(directory.before, await lstat(directory.path, { bigint: true }))) reject("ARTIFACT_BOUNDARY");
                       await promote(files, "FULL", input.records.filter(r => r.truncated).map(r => ({ path: r.relative, originalSizeBytes: Number(r.before.size), retainedBytes: r.outputBytes })));
                   } catch (error) {
@@ -422,7 +1013,7 @@ jobs:
                   if-no-files-found: error
             - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
               id: archives_upload
-              if: steps.observe.outcome == 'success'
+              if: ${{ !cancelled() && steps.observe.outcome == 'success' }}
               with:
                   name: veriq-macos-assets-archives-${{ matrix.arch }}
                   path: ${{ env.ASSET_ROOT }}/observation/observed/snapshots/
@@ -430,8 +1021,14 @@ jobs:
                   retention-days: 7
                   if-no-files-found: error
             - name: Record artifact identity matrix for independent review
-              if: always()
+              if: always() && (github.event_name == 'push' || steps.purpose_guard.outcome == 'success')
               env:
+                  UNIT_BINDING: ${{ steps.ci_unit.outputs.ci_process_binding_sha256 }}
+                  PRODUCER_BINDING: ${{ steps.bootstrap.outputs.producer2_binding_sha256 }}
+                  BOOTSTRAP_PROCESS_BINDING: ${{ steps.bootstrap.outputs.ci_process_binding_sha256 }}
+                  BOOTSTRAP_CONCLUSION: ${{ steps.bootstrap.conclusion }}
+                  BOOTSTRAP_STATE: ${{ steps.bootstrap.outcome }}
+                  UNIT_STATE: ${{ steps.ci_unit.outcome }}
                   COLLECTION_STATE: ${{ steps.collect.outputs.collection }}
                   METADATA_ID: ${{ steps.metadata_upload.outputs.artifact-id }}
                   ARCHIVES_ID: ${{ steps.archives_upload.outputs.artifact-id }}
@@ -439,4 +1036,83 @@ jobs:
                   ARCHIVES_DIGEST: ${{ steps.archives_upload.outputs.artifact-digest }}
               shell: bash
               run: |
-                  printf '%s\n' "OBSERVATION_ONLY source=$GITHUB_SHA run=$GITHUB_RUN_ID attempt=$GITHUB_RUN_ATTEMPT arch=$EXPECTED_ARCH collection=$COLLECTION_STATE metadata=$METADATA_ID metadataDigest=$METADATA_DIGEST archives=$ARCHIVES_ID archivesDigest=$ARCHIVES_DIGEST" >> "$GITHUB_STEP_SUMMARY"
+                  printf '%s\n' "OBSERVATION_ONLY source=$GITHUB_SHA run=$GITHUB_RUN_ID attempt=$GITHUB_RUN_ATTEMPT arch=$EXPECTED_ARCH unit=$UNIT_STATE bootstrap=$BOOTSTRAP_STATE bootstrapConclusion=$BOOTSTRAP_CONCLUSION ciProcessUnit=$UNIT_BINDING producer2=$PRODUCER_BINDING ciProcessBootstrap=$BOOTSTRAP_PROCESS_BINDING collection=$COLLECTION_STATE metadata=$METADATA_ID metadataDigest=$METADATA_DIGEST archives=$ARCHIVES_ID archivesDigest=$ARCHIVES_DIGEST" >> "$GITHUB_STEP_SUMMARY"
+                  if [ "$BOOTSTRAP_STATE" = failure ]; then exit 1; fi
+    production-layout:
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.purpose == 'production-layout' }}
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - runner: macos-15-intel
+                      arch: x64
+                    - runner: macos-15
+                      arch: arm64
+        runs-on: ${{ matrix.runner }}
+        timeout-minutes: 30
+        env:
+            ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+            PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+            EXPECTED_ARCH: ${{ matrix.arch }}
+            MANUAL_SOURCE: ${{ inputs.source_ref }}
+            LAYOUT_PURPOSE: ${{ inputs.purpose }}
+        steps:
+            - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+              timeout-minutes: 1
+              with:
+                  ref: ${{ github.sha }}
+                  persist-credentials: false
+            - name: Bind production source and native macOS before tooling
+              timeout-minutes: 1
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  test "$GITHUB_EVENT_NAME" = workflow_dispatch
+                  test "$LAYOUT_PURPOSE" = production-layout
+                  [[ "$MANUAL_SOURCE" =~ ^[0-9a-f]{40}$ ]]
+                  test "$MANUAL_SOURCE" = "$GITHUB_SHA"
+                  test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+                  test "$(sw_vers -productVersion | cut -d. -f1)" = 15
+                  if [ "$EXPECTED_ARCH" = arm64 ]; then test "$(uname -m)" = arm64; else test "$(uname -m)" = x86_64; fi
+                  printf '%s\n' "LAYOUT_ROOT=$RUNNER_TEMP/veriq-production-layout" >> "$GITHUB_ENV"
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+              timeout-minutes: 2
+              with:
+                  node-version: 24.22.1
+            - name: Verify inert producer and real-child filesystem gate before acquisition
+              id: layout_unit
+              timeout-minutes: 1
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  unset NODE_OPTIONS NODE_PATH NODE_EXTRA_CA_CERTS NODE_REPL_EXTERNAL_MODULE
+                  node --input-type=module -e 'if (process.platform !== "darwin" || process.arch !== process.env.EXPECTED_ARCH || process.versions.electron || !/^v24[.]/.test(process.version)) process.exit(1)'
+                  node --test apps/runtime/tests/production-layout-ci.test.mjs
+            - name: Prepare fixed store, install fresh offline production layout and observe metadata
+              id: layout
+              timeout-minutes: 23
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  unset NODE_OPTIONS NODE_PATH NODE_EXTRA_CA_CERTS NODE_REPL_EXTERNAL_MODULE
+                  node .github/scripts/production-layout.mjs
+            - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+              id: layout_upload
+              if: ${{ !cancelled() && steps.layout.outputs.collection == 'SNAPSHOTTED' }}
+              with:
+                  name: veriq-macos-production-layout-${{ matrix.arch }}
+                  path: ${{ steps.layout.outputs.upload_root }}
+                  retention-days: 7
+                  if-no-files-found: error
+            - name: Record production metadata identity and stage outcomes
+              if: always()
+              env:
+                  UNIT_STATE: ${{ steps.layout_unit.outcome }}
+                  PRODUCER_STATE: ${{ steps.layout.outcome }}
+                  STAGES: ${{ steps.layout.outputs.stages }}
+                  COLLECTION: ${{ steps.layout.outputs.collection }}
+                  METADATA_ID: ${{ steps.layout_upload.outputs.artifact-id }}
+                  METADATA_DIGEST: ${{ steps.layout_upload.outputs.artifact-digest }}
+              shell: bash
+              run: |
+                  printf '%s\n' "PHYSICAL_LAYOUT_ONLY source=$GITHUB_SHA run=$GITHUB_RUN_ID attempt=$GITHUB_RUN_ATTEMPT arch=$EXPECTED_ARCH unit=$UNIT_STATE producer=$PRODUCER_STATE stages=$STAGES collection=$COLLECTION metadata=$METADATA_ID digest=$METADATA_DIGEST" >> "$GITHUB_STEP_SUMMARY"

@@ -1,9 +1,8 @@
 /**
- * 当前选中 Workspace、AbortSignal 与切换时清理订阅的 React 作用域，外裹 QueryClient。
- * 必须用认证用户 ID 作为 Provider key，避免跨账号查询残留。
+ * VeriQ 的 Workspace 作用域把选中标识与取消控制器作为同一份快照发布，切换时关闭旧订阅并清除空间查询；认证用户仍通过 Provider 的键隔离全部会话资源。
  */
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 type ScopeState = {
@@ -18,14 +17,12 @@ const WorkspaceContext = createContext<ScopeState>({
     subscribe: () => () => {},
 });
 /**
- * 读取 selected/select/signal/subscribe；功能页用 selected 构造 Cloud*Adapter 并传入 signal。
- * 切换空间会 abort 旧控制器并移除 queryKey 含 workspace 的缓存。
+ * 功能页通过此入口读取选中空间、取消信号和订阅所有权；选择回调始终读取调用时的当前空间，同空间重复选择不会关闭订阅、取消请求或清除查询缓存。
  */
 export const useWorkspace = () => useContext(WorkspaceContext);
 
 /**
- * 创建不重试的 QueryClient，维护 selected 与 lifetime AbortController，切换时 dispose 全部订阅。
- * 卸载时 abort+cancelQueries+clear，防止离开路由后仍写入已卸载组件。
+ * 每个认证用户的 Provider 独立拥有查询客户端、订阅集合和当前控制器，普通重渲染保持这些资源存活，最终卸载读取最新控制器并清理全部查询和订阅。
  */
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const [client] = useState(
@@ -38,48 +35,64 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
             }),
     );
     const [subscriptions] = useState(() => new Set<() => void>());
-    const [selected, setSelected] = useState("");
-    const [lifetime] = useState(() => ({ controller: new AbortController() }));
-    const dispose = () => {
+    const [lifetime] = useState(() => ({
+        current: { selected: "", controller: new AbortController() },
+    }));
+    const [scope, setScope] = useState(lifetime.current);
+    const dispose = useCallback(() => {
         for (const unsubscribe of subscriptions) unsubscribe();
         subscriptions.clear();
-    };
+    }, [subscriptions]);
     useEffect(
         () => () => {
             dispose();
-            lifetime.controller.abort();
+            lifetime.current.controller.abort();
             void client.cancelQueries();
             client.clear();
         },
-        [client],
+        [client, dispose, lifetime],
     );
-    const select = (workspaceId: string) => {
-        if (workspaceId === selected) return;
-        dispose();
-        lifetime.controller.abort();
-        lifetime.controller = new AbortController();
-        void client.cancelQueries({ queryKey: ["workspace"] });
-        client.removeQueries({ queryKey: ["workspace"] });
-        setSelected(workspaceId);
-    };
+    /**
+     * 切换事件沿用先关闭订阅再终止旧请求的顺序，当前快照在事件内更新以支持保留的回调；React 提交随后同时发布空间与信号，状态更新器中不执行清理副作用。
+     */
+    const select = useCallback(
+        (workspaceId: string) => {
+            if (workspaceId === lifetime.current.selected) return;
+            dispose();
+            lifetime.current.controller.abort();
+            const next = { selected: workspaceId, controller: new AbortController() };
+            lifetime.current = next;
+            void client.cancelQueries({ queryKey: ["workspace"] });
+            client.removeQueries({ queryKey: ["workspace"] });
+            setScope(next);
+        },
+        [client, dispose, lifetime],
+    );
+    /**
+     * 订阅关闭函数的身份由单次注册持有，主动取消、空间切换及最终卸载可以重复调用同一关闭函数；首次关闭立即移出集合，避免后续清理重复释放订阅资源。
+     */
+    const subscribe = useCallback(
+        (unsubscribe: () => void) => {
+            let disposed = false;
+            const close = () => {
+                if (disposed) return;
+                disposed = true;
+                subscriptions.delete(close);
+                unsubscribe();
+            };
+            subscriptions.add(close);
+            return close;
+        },
+        [subscriptions],
+    );
     return (
         <QueryClientProvider client={client}>
             <WorkspaceContext.Provider
                 value={{
-                    selected,
+                    selected: scope.selected,
                     select,
-                    signal: lifetime.controller.signal,
-                    subscribe: (unsubscribe) => {
-                        let disposed = false;
-                        const close = () => {
-                            if (disposed) return;
-                            disposed = true;
-                            subscriptions.delete(close);
-                            unsubscribe();
-                        };
-                        subscriptions.add(close);
-                        return close;
-                    },
+                    signal: scope.controller.signal,
+                    subscribe,
                 }}
             >
                 {children}

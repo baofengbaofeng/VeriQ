@@ -16,6 +16,8 @@
 
 四组桌面目标都必须完成 F01–F14 中适用的本地功能。优先级调整不删除 Windows/Ubuntu，不允许把 Mac 仅打包成功当作完整客户端交付。
 
+Mac 正式 Bundle ID 已固定为 `io.github.baofengbaofeng.veriq`，后续打包、签名身份与升级沿用该发行契约。当前尚未接入生产 packager 的 appId/CFBundleIdentifier 配置，不因文档确认而声称实际打包或签名完成；离线资产 UUID `bundleId` 与 Runtime vault service 名称不是该应用身份，不作替换。
+
 ## 2. 最新确认最低系统版本：macOS 15（Sequoia）
 
 用户先前提出参考2020年系统，随后接受过macOS14。2026-11-14，获知GitHub的macOS14托管镜像已于2026-11-02退役后，用户最新明确将两架构兼容与验收最低基线调整为 **macOS15（Sequoia）**。此前14及Big Sur 11设想均已被替代，最低版本不再待确认；实现与实际验收仍须完成。已核验的工具链参考版本边界如下：
@@ -53,9 +55,11 @@ Darwin私有目录的`replace(name, temporary, ...)`只接受严格的`.<小写U
 
 用户于2026-11-14明确选择原生文件型（file-based）Keychain，保持独立辅助进程架构，不改为需要新增应用封装、签名授权和 provisioning profile 的 Data Protection 路线。两类实现的权限与签名模型见 Apple [TN3137](https://developer.apple.com/documentation/technotes/tn3137-on-mac-keychains)；实际签名身份、无交互策略和升级连续性仍须验证。
 
-私有测试路径不代表Keychain操作对用户偏好无影响：`SecKeychainCreate`可能更新持久搜索列表并在缺失时设置默认钥匙串，删除也会更新偏好；先创建再恢复设置不能作为隔离方案。Keychain模块在标准CI现有账户中仅执行构建及无钥匙串存储变更的协议检查，真实创建、锁定、删除必须在明确授权的独立可丢弃测试账户/会话进行，不以改变HOME或不支持的Dynamic偏好域代替隔离。
+私有测试路径不代表Keychain操作对用户偏好无影响：`SecKeychainCreate`可能更新持久搜索列表并在缺失时设置默认钥匙串，删除也会更新偏好；先创建再恢复设置不能作为隔离方案。普通标准CI账户仅执行构建及无存储变更的协议检查。用户现已明确授权专用 GitHub 临时 Mac VM/一次性账户中的 Runtime 私有测试钥匙串创建、锁定、解锁、删除及该账户偏好影响；这是现有工作流独立手动任务的有限例外，不以改变HOME或不支持的Dynamic偏好域代替隔离。
 
-用户已确认可以安排 macOS15及以上的 Intel 与 Apple Silicon 独立测试环境。Cookie 冷启动、锁定与恢复，以及安装、签名升级验收必须在独立账户的真实登录会话中进行。现有标准 CI 的钥匙串默认值、搜索列表、登录存储及信任配置不得为此修改或锁定；Runtime 私有测试钥匙串的结果不替代 Electron Cookie 验收。测试环境可安排不代表已提供访问、签名资料或实际通过，后续须交付可运行的验收工具与对应记录。
+该路线使用默认关闭且与 baseline/只读预检互斥的 `private_store_acceptance`，固定双 Mac 矩阵；checkout 前验证托管上下文，同一任务重新构建四成员、核验实际架构/UID/原生安全会话，再生成私有声明并运行未改动的7+2项测试。旧 VM 预检不能授权新 VM；`getlogin_r`、会话与图形访问谓词不等于真实控制台登录完成。仅在同次运行两架构均完整9项 PASS、来源绑定及清理证据有效时，才能接受 Runtime 私有测试存储结果。清理命令与控制器 close 从具名测试 PASS 及冻结夹具/控制器源码推导，控制器退出码 `NOT_CAPTURED`、独立确认制品 `NOT_EMITTED`，未知不由账户销毁提升为成功。精确命令、预算和制品边界见[独立 Keychain 验收](../testing/macos-keychain.md)；真实 CI 执行结果仍待完成。
+
+用户已确认可以安排 macOS15及以上的 Intel 与 Apple Silicon 独立测试环境。Cookie 冷启动、锁定与恢复，以及安装、签名升级验收必须在独立账户的真实登录会话中进行。除上述专用一次性账户内已授权的私有测试存储及偏好影响外，现有标准 CI 的钥匙串默认值、搜索列表、登录存储及信任配置不得为此修改或锁定；该例外不允许向生产默认存储发送有效请求，Runtime 私有测试钥匙串结果不替代 Electron Cookie 验收。独立环境授权不代表签名资料、实际控制台登录或验收已通过，后续仍须交付对应记录。
 
 ## 4. 已确认的原生进程停止范围
 

@@ -4,6 +4,12 @@
 
 2026-11-14范围修订：macOS Intel x64、Apple Silicon arm64均为首发必需、最高优先级；Windows11 x64、Ubuntu24.04 x64仍属MVP、优先级较低。Mac最低版本已确认为macOS15（Sequoia），测试必须使用宿主macOS的原生Chrome；停止范围已按用户确认采用[受控Worker/Chrome退出与未知隔离](macos-controlled-stop.md)，原生适配进度见[Mac范围记录](macos-mvp-scope.md)。目标范围不代表现有代码已兼容或完成安装验收。
 
+## 固定应用身份与私有钥匙串验收
+
+Mac 正式打包的 Bundle ID 固定为 `io.github.baofengbaofeng.veriq`，签名配置、应用身份校验和后续升级必须沿用该值。此项为已确认的发行契约，实际 `.app` 打包、装载、签名与升级结果仍须按目标架构验收。技术标识中的 `veriq` 保持小写，产品名称使用 VeriQ。
+
+Runtime 私有文件型 Keychain 的真实验收采用独立 GitHub 临时 Mac VM 的一次性账户，范围包括创建、锁定、解锁、删除测试钥匙串，以及这些操作对该测试账户偏好的影响。每次执行须在同一任务内重新核验账户与安全会话并保留实际清理证据；旧 VM 的预检不能替代新 VM 的检查。Cookie、真实控制台登录、生产默认钥匙串及签名安装继续单独验收，此处没有宣称它们已通过。
+
 ## 必须提供的桌面能力
 
 - 原生安装、桌面/开始菜单入口、独立窗口、单实例、托盘、后台状态、版本与诊断。

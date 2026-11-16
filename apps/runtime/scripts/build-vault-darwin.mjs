@@ -124,6 +124,11 @@ for (const job of jobs) {
         ...new Set(tokens.map((value) => resolve(root, value.replace(/\\(.)/g, "$1")))),
     ];
     if (inputs.length > 4096) throw new Error("DARWIN_VAULT_BUILD_INPUT_LIMIT");
+    if (
+        ["test", "test-red-stub", "controller"].includes(job.name) &&
+        !inputs.includes(join(root, "native/vault/darwin-read-evidence.hpp"))
+    )
+        throw new Error("DARWIN_READ_EVIDENCE_BUILD_INPUT_MISSING");
     records.push({
         name: job.name,
         args,
@@ -133,6 +138,26 @@ for (const job of jobs) {
         links: await execute("/usr/bin/otool", ["-L", output]),
         loadCommands,
     });
+}
+/** 只有显式测试构建才启动已经编译完成的控制器无存储自测，有限子进程必须正常退出并返回精确固定标记；输出错误或异常对象不会直接回显，四成员构建记录及既有编译输入格式保持原样。 */
+if (flags.includes("--tests")) {
+    let passed = false;
+    try {
+        const result = await promisify(execFile)(
+            join(root, "build/vault-darwin-test/veriq_keychain_controller"),
+            ["--read-evidence-selftest"],
+            {
+                cwd: root,
+                env: { PATH: "/usr/bin:/bin" },
+                timeout: 5000,
+                maxBuffer: 65536,
+                encoding: "utf8",
+            },
+        );
+        passed = result.stdout === "DARWIN_READ_EVIDENCE_SELFTEST_PASSED\n" && result.stderr === "";
+    } catch {}
+    if (!passed) throw new Error("DARWIN_READ_EVIDENCE_SELFTEST_FAILED");
+    process.stdout.write("DARWIN_READ_EVIDENCE_SELFTEST_PASSED\n");
 }
 const facts = {
     boundary: "native-only-no-installed-capability",

@@ -143,3 +143,13 @@ work 与 final 为独立事务；nested I 的 COMMIT_UNCONFIRMED、抛出或返�
 `PayloadResult` 深冻结，包含 kind、candidateDirectory、runtimeDirectory、receiptSha256、最终路径 inventory、committed:true 和 cleanup。外部 receipt status 固定 `DEVELOPMENT_UNSIGNED_STATIC`，files 包含 manifest，counts 沿 D3a 排除 manifest；inputReceipts 使用候选相对路径且逐份实核，receipt 自身 SHA 仅在 Result。复制证据总额64 MiB在完整 inputReceipts 形成后检查，包含 copied refs、原 inputs.json、独立 expected.json 和 archive-intake.json；这项固定配额独立于磁盘空间计划，不按相同 SHA 去重实际副本。原 Node/Chrome SHA、源码 SHA 与未签名候选身份分别保留。
 
 此 stage 不执行目标 Node、MachO、Chrome、peer resolve，不做 native ABI 装载、签名、安装、GUI、Keychain/Cookie 或 ready 晋升。双原生 Mac 来源构建和实际运行仍属 b2/D3c。全仓 B05 >40% 注释门禁仍 FAIL、未豁免，本片成功不等于 whole T20 或 MVP 完成。
+
+## Node/npm 原始源材料 bootstrap
+
+`runtime-node-bootstrap.ts` 的 `prepareMacNodeBootstrap(bytes, options)` 消费原 `AssetsObservationInput` 字节及相同 `StageOptions`，只核固定 Node24.22.1 原 tar 与来源元数据，不核 Chrome/fetch 正文。从 `apps/runtime` 执行 `node --import tsx scripts/prepare-macos-node-bootstrap.mjs --assets /absolute/assets-input.json --input-root /absolute/acquisition --output-parent /absolute/output --candidate source-id`；四个 flag 必填且各一次，宿主路径必须绝对。stdout 只有 `NodeBootstrapResult`；首信号停止准入并最多五秒收尾，二次信号或期限强制退出报告 `phase=UNKNOWN cleanup=INCOMPLETE`，正常拒绝保留核心实际阶段。
+
+产物为 `snapshots/node.tar.gz`、`trees/node/<原top>/`、空 `trees/chrome`、`members/node.json`、`evidence/source.json`、两份单独绑定的新 producer 副本及 `node-bootstrap.json`。两遍复用现有 tar scanner/事务，普通正文0600、目录0700，原 mode 与逻辑链接仅留 MemberFacts，不 chmod、不创建 aliases、不运行 Node/npm。`extractNodeSourceSnapshot` 是内部微型归档测试及材料接缝，仍独立核固定快照 Ref、真实 held-FD hash/identity，不覆盖官方入口摘要。
+
+`npmPackages` 按实际包根的 `node_modules/name`、`node_modules/@scope/name` 递归保存全部物理实例及完整原 manifest Ref，含同名同版本不同根；忽略 docs 中无关 manifest，拒绝影响发现的目录别名、缺失/无效/超1MiB manifest、空声明 node_modules 和超过4000实例。后续消费者须重核回执、原归档、MemberFacts 与实际正文，不能把旧路径当永久 capability。
+
+回执始终为 `UNREVIEWED_SOURCE`，保留 `SOURCE_REVIEW`、`NPM_GRAPH_AND_TARGET_RESOLUTION`、`EXECUTABLE_NODE_LAYOUT`、`CHROME_LAYOUT_AND_EXTRACTION`、`FULL_RUNTIME_STAGE` 五项待办；Chrome 项指下游提取和集成，已有独立 raw layout 观察并未因此抹除。HTTPS 摘要一致不是发布者认证。该树不能直接执行 Node/npm，不提供 npm graph、NODE_RESOLVE、Expected、正式 recipe 或完整 Runtime 结果；真实官方两架构提取、目标执行与完整五树仍需另行验收。
