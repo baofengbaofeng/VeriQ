@@ -116,8 +116,10 @@ inline void retirePrivateEvidence(const std::string& path, const RetentionFile& 
     directory.close();
 }
 
-/** 缓存树退休先检查有限库存再原子隔离，持有目标目录 inode 后只通过 openat 访问其子项；递归深度、总对象、总字节均有硬边界，任何链接、清单外成员或错误拥有者都会保留退休现场，不使用递归路径 rm 或修改仍在原命名空间的只读
-* 树。 */
+/**
+ * 缓存树退休先检查有限库存再原子隔离，持有目标目录 inode 后只通过 openat 访问其子项；递归深度、总对象、总字节均有硬边界，任何链接、清单外成员或错误拥有者都会保留退休现场，不使用递归路径 rm 或修改仍在原命名空间的只读
+ * 树。
+ */
 inline void retirePrivateInventory(const std::string& input, const std::string& original, const std::string& retiring,
     const std::vector<RetentionFile>& files) {
     component(original); component(retiring);

@@ -230,8 +230,10 @@ export class LocalStore {
             return { ...owner, state: "SPAWNING" };
         });
     }
-    /** 启动准入只接受当前 SQLite 已提交的 SPAWNING 所有权，事务提交后才返回 RUNNING 令牌；代际沿用实际 LAUNCH 而不递增，旧状态与旧代际均失败关闭，调用方必须更新令牌后才能写事件、检查所有权或
-     * 保存停止回执。 */
+    /**
+     * 启动准入只接受当前 SQLite 已提交的 SPAWNING 所有权，事务提交后才返回 RUNNING 令牌；代际沿用实际 LAUNCH 而不递增，旧状态与旧代际均失败关闭，调用方必须更新令牌后才能写事件、检查所有权或
+     * 保存停止回执。
+     */
     running(runId: string, attemptId: string, owner: Ownership): Ownership {
         return this.transaction(() => {
             this.requireOwner(owner);
@@ -623,8 +625,10 @@ export class LocalStore {
             return false;
         }
     }
-    /** 报告必须同时拥有每个 Attempt 的原始停止回执且范围与当前平台一致，旧结果缺字段或回执缺失均保留；这里只验证本机 SQL 事实，外层仍使用现有进程证明读取器核验真正停止，不能把结果 outcome 当作进程退出证
-     * 据。 */
+    /**
+     * 报告必须同时拥有每个 Attempt 的原始停止回执且范围与当前平台一致，旧结果缺字段或回执缺失均保留；这里只验证本机 SQL 事实，外层仍使用现有进程证明读取器核验真正停止，不能把结果 outcome 当作进程退出证
+     * 据。
+     */
     retentionStops(result: OfflineResultV1): StopReceipt[] | undefined {
         const receipts: StopReceipt[] = [];
         for (const attempt of result.attempts) {
@@ -695,8 +699,10 @@ export class LocalStore {
             .prepare("INSERT OR IGNORE INTO veriq_local_artifact_retirements VALUES(?,?,?,?,?)")
             .run(runId, attemptId, file.path, file.sha256, file.sizeBytes);
     }
-    /** 只有同一维护事务里已经通过停止、上传及年龄核验的结果能够进入退休，事件正文与完整结果在元数据期限后移除；Run 标识、Workspace、上传幂等回执和每个 Attempt 停止证明继续保留，重复维护不会复用旧 Run
-     *  或 fence。 */
+    /**
+     * 只有同一维护事务里已经通过停止、上传及年龄核验的结果能够进入退休，事件正文与完整结果在元数据期限后移除；Run 标识、Workspace、上传幂等回执和每个 Attempt 停止证明继续保留，重复维护不会复用旧 Run
+     * 或 fence。
+     */
     retireRun(workspaceId: string, runId: string, metadata: boolean): void {
         if (!this.db.isTransaction) throw new Error("LOCAL_RETENTION_GUARD_REQUIRED");
         const row = this.authorize(workspaceId, runId);

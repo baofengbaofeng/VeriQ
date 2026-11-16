@@ -11,7 +11,8 @@ import {
     type Schemas,
 } from "./types";
 
-/** 固定导入错误码只表达需要用户采取的动作，错误正文不拼接HTTP响应、凭据、URL查询或业务输入，避免一次导入失败把秘密扩散到页面通知、日志或可访问标签。
+/**
+ * 固定导入错误码只表达需要用户采取的动作，错误正文不拼接HTTP响应、凭据、URL查询或业务输入，避免一次导入失败把秘密扩散到页面通知、日志或可访问标签。
  */
 export class SampleImportError extends Error {}
 
@@ -19,7 +20,8 @@ const stable = (value: unknown) => new TextDecoder().decode(canonicalBytes(value
 const same = (left: unknown, right: unknown) => stable(left) === stable(right);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** 目标origin必须明确可达且不携带认证信息、路径或片段，非loopback使用HTTPS；允许origin仅取自这三份已检查地址，不把任何清单字符串当成可扩大网络权限的通配符。
+/**
+ * 目标origin必须明确可达且不携带认证信息、路径或片段，非loopback使用HTTPS；允许origin仅取自这三份已检查地址，不把任何清单字符串当成可扩大网络权限的通配符。
  */
 export function targetOrigin(value: string): string {
     let url: URL;
@@ -42,7 +44,8 @@ export function targetOrigin(value: string): string {
     return url.origin;
 }
 
-/** 只有固定清单顺序、真实DSL Schema和合法UUID别名都成立才接受包数据，防止损坏安装把任意路径或错误资产类型交给向导；真正跨引用语义仍由后续受管理编译器验证。
+/**
+ * 只有固定清单顺序、真实DSL Schema和合法UUID别名都成立才接受包数据，防止损坏安装把任意路径或错误资产类型交给向导；真正跨引用语义仍由后续受管理编译器验证。
  */
 export async function loadSamplePackage(signal: AbortSignal): Promise<SamplePackage> {
     const value = await request<Schemas["SampleWorkspacePackageDTO"]>(
@@ -75,7 +78,8 @@ export async function loadSamplePackage(signal: AbortSignal): Promise<SamplePack
     return candidate;
 }
 
-/** 所有分页都使用当前员工传输和同一取消信号，游标作为不透明字符串原样编码，避免只读第一页导致错误创建重复资源或把相邻空间的列表结果拼进当前导入状态。
+/**
+ * 所有分页都使用当前员工传输和同一取消信号，游标作为不透明字符串原样编码，避免只读第一页导致错误创建重复资源或把相邻空间的列表结果拼进当前导入状态。
  */
 export async function allItems<T>(path: string, signal: AbortSignal): Promise<T[]> {
     const result: T[] = [];

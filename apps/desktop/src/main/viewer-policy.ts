@@ -22,7 +22,8 @@ export function ownedTraceOrigin(value: string): string {
     return url.origin;
 }
 
-/** 快照文档需要少量浏览器内部 URL，但这些例外只属于隔离 Trace Session；普通应用的 CSP 与网络白名单完全不因此改变，且快照页面不能借重放内容联系原业务服务或其它互联网来源。
+/**
+ * 快照文档需要少量浏览器内部 URL，但这些例外只属于隔离 Trace Session；普通应用的 CSP 与网络白名单完全不因此改变，且快照页面不能借重放内容联系原业务服务或其它互联网来源。
  * 同一 origin 比较包含端口，因此同主机另一个进程仍不在白名单内。
  * blob 地址必须继承该查看器 origin，不能借其它来源的 blob 绕过限制。
  * 官方空白快照使用 base64 HTML 子框架，仅放行这一精确资源类型与前缀。

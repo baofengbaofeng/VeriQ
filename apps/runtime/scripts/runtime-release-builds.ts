@@ -23,7 +23,8 @@ import {
     releaseFileIdentity,
 } from "./runtime-release-files.ts";
 
-/** 构建上下文明确区分源码根、独占证据根和实际宿主 Node，真实命令统一交给已有有界管理器；没有可注入成功收据或预制二进制的字段，关闭未知时本轮根始终保留供后续人工处理。
+/**
+ * 构建上下文明确区分源码根、独占证据根和实际宿主 Node，真实命令统一交给已有有界管理器；没有可注入成功收据或预制二进制的字段，关闭未知时本轮根始终保留供后续人工处理。
  * target 的 Darwin 类型仅用于旧 Mac 配方，跨平台构建使用单独命令入口，不能改写平台字符串冒充相同收据。
  */
 export type RuntimeBuildContext = Readonly<{
@@ -37,7 +38,8 @@ export type RuntimeBuildContext = Readonly<{
     engineOutput: string;
     timeoutMs: number;
     run: (invocation: HostBuildInvocation) => Promise<HostBuildObservation>;
-    /** 可选签名只作用于本次新构建的两项正式 native 输出，操作员明确选择身份、受源码绑定的 entitlements 和时间戳策略；签名发生在最终库存及 receipt 摘要之前，原 Node/Chrome 归档绝不重签或改
+    /**
+     * 可选签名只作用于本次新构建的两项正式 native 输出，操作员明确选择身份、受源码绑定的 entitlements 和时间戳策略；签名发生在最终库存及 receipt 摘要之前，原 Node/Chrome 归档绝不重签或改
      * 写。
      * 实际 signer 工具身份和每条命令单独进入不透明 commandEvidence，既有公共 Tool 枚举保持原构建工具语义，签名不自动晋升候选状态。
      */
@@ -48,7 +50,8 @@ export type RuntimeBuildContext = Readonly<{
     }>;
 }>;
 
-/** 命令结算在实际调用边界记录开始结束、宿主身份和全部原始有限输出，所有不完整关闭、信号、超时或截断都拒绝；本函数仅证明直接子进程的观察，不声称任意编译后代均已清理。
+/**
+ * 命令结算在实际调用边界记录开始结束、宿主身份和全部原始有限输出，所有不完整关闭、信号、超时或截断都拒绝；本函数仅证明直接子进程的观察，不声称任意编译后代均已清理。
  * stdout 与 stderr 单独形成证据引用，JSON 不会把 Buffer 转成失去语义的数字数组，也不把命令日志解释成发行通过结论。
  */
 export async function observeRuntimeCommand(

@@ -118,8 +118,10 @@ export class ExecutionSupervisor {
         );
     }
     private async journal(value: AttemptJournal) {
-        /** 在线日志只接受可核文件和父目录提交的实现，Darwin 持有真实 B 目录完成发布，Linux 保留原 proc 描述符路径；Windows 原路径缺少父目录持久承诺仍拒绝，任何刷新或关闭不确定都阻止派生，不以
-         * 普通字符串写入回退。 */
+        /**
+         * 在线日志只接受可核文件和父目录提交的实现，Darwin 持有真实 B 目录完成发布，Linux 保留原 proc 描述符路径；Windows 原路径缺少父目录持久承诺仍拒绝，任何刷新或关闭不确定都阻止派生，不以
+         * 普通字符串写入回退。
+         */
         if (process.platform === "darwin" && this.source) {
             const parent = this.source.native.openPrivateDirectory(
                 join(this.options.root, "attempts"),
@@ -128,8 +130,10 @@ export class ExecutionSupervisor {
             try {
                 const bytes = Buffer.from(JSON.stringify(value));
                 if (bytes.length > 65536) throw new Error("ATTEMPT_JOURNAL_LIMIT");
-                /** B 内部临时名固定为 UUID，另以原 A2 名称先发布同 Attempt 的启动意图；最终日志与意图退休全部确认后才算提交，任何一步不确定都保留可识别 staging 或原生孤立项，不借错误回
-                 * 滚删除未知发布。 */
+                /**
+                 * B 内部临时名固定为 UUID，另以原 A2 名称先发布同 Attempt 的启动意图；最终日志与意图退休全部确认后才算提交，任何一步不确定都保留可识别 staging 或原生孤立项，不借错误回
+                 * 滚删除未知发布。
+                 */
                 const staging = `${value.claim.attemptId}.json.${randomUUID()}`;
                 parent.createExclusive(staging).close();
                 parent.replace(staging, `.${randomUUID()}.tmp`, bytes, 65536);

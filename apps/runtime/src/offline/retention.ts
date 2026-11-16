@@ -138,8 +138,10 @@ function inventory(value: string, bundleId: string): RetentionFile[] {
     return parsed.files;
 }
 
-/** 一次维护窗口先封住真实桌面和在线拥有者，再持续持有 SQLite 空闲事务，只有缓存隔离前的意图提交需要短暂重开同一写锁；重新加锁后若发现新离线占用立即停止，尚未执行任何文件删除，不能把一次只读 idle 查询当作长期执行许可
- * 。 */
+/**
+ * 一次维护窗口先封住真实桌面和在线拥有者，再持续持有 SQLite 空闲事务，只有缓存隔离前的意图提交需要短暂重开同一写锁；重新加锁后若发现新离线占用立即停止，尚未执行任何文件删除，不能把一次只读 idle 查询当作长期执行许可
+ * 。
+ */
 export async function pruneLocalProfile(
     profileRoot: string,
     options: LocalRetentionOptions,

@@ -28,8 +28,10 @@ export interface WindowsNative {
         workerStartTime: string,
     ): void;
     privatePath(path: string, createDirectory: boolean): void;
-    /** SQLite 仅允许在线认领日志和离线本机报告两个固定用途，真实祖先链不共享删除并保持至数据库显式关闭之后；validate 检查本体与三类辅助文件的当前 SID、无重解析和单链接身份，不提供普通配置读写或目录刷新承诺
-     * 。 */
+    /**
+     * SQLite 仅允许在线认领日志和离线本机报告两个固定用途，真实祖先链不共享删除并保持至数据库显式关闭之后；validate 检查本体与三类辅助文件的当前 SID、无重解析和单链接身份，不提供普通配置读写或目录刷新承诺
+     * 。
+     */
     openPrivateSqliteDirectory(
         directory: string,
         filename: "veriq-online.sqlite" | "veriq.sqlite",
@@ -53,8 +55,10 @@ export interface WindowsNative {
     removePrivate(path: string): void;
     /** Cookie 检查或退役仅处理固定 VeriQ 分区数据库及其日志，严格验证父链与同一真实句柄后返回存在事实；六十四兆元数据上限不扩张配置或保险库读取容量，删除成功也不表示物理擦除。 */
     privateCookieFile(path: string, retire: boolean): boolean;
-    /** 报告退休只核验并删除固定 offline/work/Attempt/evidence 或精确报告显示文件下同一普通文件，大小与 SHA256 在原生流式核对；缓存库存退休先隔离专用 UUID 命名空间后才改变只读属性，
-     * 未知成员或关闭失败保持错误，不扩大凭据读取能力。 */
+    /**
+     * 报告退休只核验并删除固定 offline/work/Attempt/evidence 或精确报告显示文件下同一普通文件，大小与 SHA256 在原生流式核对；缓存库存退休先隔离专用 UUID 命名空间后才改变只读属性，
+     * 未知成员或关闭失败保持错误，不扩大凭据读取能力。
+     */
     retirePrivateEvidence(
         path: string,
         file: { path: string; sizeBytes: number; sha256: string },

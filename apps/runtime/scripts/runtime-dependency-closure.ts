@@ -123,8 +123,10 @@ export function lockSections(bytes: Buffer) {
     return { text, packages: sections.get("packages")!, snapshots: sections.get("snapshots")! };
 }
 
-/** 缺失 optional 必须由同一锁中的精确名称版本以及明确不适用的 os 或 cpu 证明，磁盘未安装本身不足以声称目标排除；无法解析的范围、别名或新平台元数据形式保持失败，optional peer 则由真实查找缺失单独证
- * 明。 */
+/**
+ * 缺失 optional 必须由同一锁中的精确名称版本以及明确不适用的 os 或 cpu 证明，磁盘未安装本身不足以声称目标排除；无法解析的范围、别名或新平台元数据形式保持失败，optional peer 则由真实查找缺失单独证
+ * 明。
+ */
 export function targetExcluded(
     lock: ReturnType<typeof lockSections>,
     alias: string,

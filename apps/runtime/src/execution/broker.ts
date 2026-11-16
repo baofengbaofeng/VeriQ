@@ -8,8 +8,10 @@ import { randomBytes, createHash, randomUUID } from "node:crypto";
 import { resolve, dirname } from "node:path";
 import { darwinNative, type DarwinPrivateDirectory } from "../native/darwin.ts";
 import { windowsNative } from "../native/windows.ts";
-/** Mac 业务调用显式申请系统固定短临时根下的独占目录，B 锚点与随机 owner 标记共同约束关闭清理；只删除同一 inode 的自有标记和空目录，陌生成员、路径替换或未关闭 socket 都保留原现场，不静默规范化任何用户配
- * 置路径。 */
+/**
+ * Mac 业务调用显式申请系统固定短临时根下的独占目录，B 锚点与随机 owner 标记共同约束关闭清理；只删除同一 inode 的自有标记和空目录，陌生成员、路径替换或未关闭 socket 都保留原现场，不静默规范化任何用户配
+ * 置路径。
+ */
 export async function createDarwinBrokerDirectory(): Promise<{
     path: string;
     close(): Promise<void>;

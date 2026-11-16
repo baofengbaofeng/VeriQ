@@ -10,8 +10,10 @@ extern "C" NTSYSAPI NTSTATUS NTAPI NtSetInformationFile(HANDLE FileHandle, PIO_S
     PVOID FileInformation, ULONG Length, FILE_INFORMATION_CLASS FileInformationClass);
 
 namespace veriq {
-/** FileRenameInformation 使用官方 FILE_RENAME_INFORMATION 的 BOOLEAN 与计数 UTF16 布局，用户态 SDK 没有提供该结构时在内部精确定义；不混用 Win32 FILE_REN
-* AME_INFO 的路径解释或扩展标志。 */
+/**
+ * FileRenameInformation 使用官方 FILE_RENAME_INFORMATION 的 BOOLEAN 与计数 UTF16 布局，用户态 SDK 没有提供该结构时在内部精确定义；不混用 Win32 FILE_REN
+ * AME_INFO 的路径解释或扩展标志。
+ */
 struct NativeFileRenameInformation {
     BOOLEAN ReplaceIfExists;
     HANDLE RootDirectory;
@@ -78,8 +80,10 @@ inline Handle relativeFile(HANDLE parent, const std::wstring& name, ACCESS_MASK 
     attributes.Length = sizeof(attributes);
     attributes.RootDirectory = parent;
     attributes.ObjectName = &objectName;
-    /** OBJ_DONT_REPARSE 与 STATUS_REPARSE_POINT_ENCOUNTERED 是公开 NT 对象属性合同中的固定值，部分用户态 SDK 未定义对应宏；这里只保留这两个语义常量，不接受调用者指定任意对
-    * 象属性或状态覆盖。 */
+    /**
+     * OBJ_DONT_REPARSE 与 STATUS_REPARSE_POINT_ENCOUNTERED 是公开 NT 对象属性合同中的固定值，部分用户态 SDK 未定义对应宏；这里只保留这两个语义常量，不接受调用者指定任意对
+     * 象属性或状态覆盖。
+     */
     constexpr ULONG noReparse = 0x00001000;
     constexpr NTSTATUS encounteredReparse = static_cast<NTSTATUS>(0xC000050BUL);
     attributes.Attributes = OBJ_CASE_INSENSITIVE | noReparse;
@@ -249,8 +253,10 @@ inline void replacePrivateFile(const std::wstring& directory, const std::wstring
         rename->FileNameLength = static_cast<DWORD>(name.size() * sizeof(wchar_t));
         std::memcpy(rename->FileName, name.data(), rename->FileNameLength);
         parent.validate();
-        /** 同步文件句柄按官方 FileRenameInformation 类别提交计数名称，实际 NTSTATUS 和 IO_STATUS_BLOCK 都必须成功；异常的非失败状态不能假称未提交或删除临时对象，避免把未知结果当
-        * 成可以重放的回滚。 */
+        /**
+         * 同步文件句柄按官方 FileRenameInformation 类别提交计数名称，实际 NTSTATUS 和 IO_STATUS_BLOCK 都必须成功；异常的非失败状态不能假称未提交或删除临时对象，避免把未知结果当
+         * 成可以重放的回滚。
+         */
         IO_STATUS_BLOCK statusBlock{};
         statusBlock.Status = static_cast<NTSTATUS>(0xC0000001UL);
         const NTSTATUS status = NtSetInformationFile(file.value, &statusBlock, rename,

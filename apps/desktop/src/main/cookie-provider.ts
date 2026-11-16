@@ -38,8 +38,10 @@ export async function probeCookieProvider(storage: CookieSafeStorage, platform: 
                 const encoded = await storage.encryptStringAsync(probe);
                 if (!Buffer.isBuffer(encoded) || encoded.length < 16 || encoded.length > 1024)
                     throw required;
-                /** 相同 v10 字节在 Mac、Windows 与 Linux 的含义不同，必须按显式平台策略核验；使用 UTF8 解码避免 ASCII 高位屏蔽把错误前缀折叠成合法标签，可用性本身不构成保护证据
-                 * 。 */
+                /**
+                 * 相同 v10 字节在 Mac、Windows 与 Linux 的含义不同，必须按显式平台策略核验；使用 UTF8 解码避免 ASCII 高位屏蔽把错误前缀折叠成合法标签，可用性本身不构成保护证据
+                 * 。
+                 */
                 const provider = encoded.subarray(0, 3).toString("utf8");
                 if (!(platform === "linux" ? ["v11", "v12"] : ["v10"]).includes(provider))
                     throw required;

@@ -15,7 +15,8 @@ export function requireMacDesktopIdentity(identity: unknown): void {
         throw new Error("COOKIE_MAC_HOST_IDENTITY_REQUIRED");
 }
 
-/** Mac 入口在任何私有文件或原生插件装载前验证真实应用布局、最低系统与固定 Bundle ID，签名模式决定是否还必须取得原生签名验证；unsigned 明确保留开发身份，不能因恰有同名应用就被当作签名发行。
+/**
+ * Mac 入口在任何私有文件或原生插件装载前验证真实应用布局、最低系统与固定 Bundle ID，签名模式决定是否还必须取得原生签名验证；unsigned 明确保留开发身份，不能因恰有同名应用就被当作签名发行。
  * 发布者身份由外部期望写入安装资源，签名验证不能从当前待核应用自报 Authority 反推批准值。
  * ad-hoc 只要求有效本机代码签名而不宣称正式发布者，生产模式则精确匹配 Developer ID Authority。
  * 所有命令为固定系统工具与参数数组，不把 renderer、环境或清单字段拼成 shell。

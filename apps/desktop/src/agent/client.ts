@@ -2,7 +2,8 @@ import { connect } from "node:net";
 import { join } from "node:path";
 import { readPrivate } from "../../../runtime/src/offline/config.ts";
 
-/** 桌面与后台之间每次请求使用独立短连接，连接建立、认证信封、响应上限与断连失败必须在同一个 Promise 中收敛，否则主窗口可能永久等待已退出进程而无法显示真实状态。
+/**
+ * 桌面与后台之间每次请求使用独立短连接，连接建立、认证信封、响应上限与断连失败必须在同一个 Promise 中收敛，否则主窗口可能永久等待已退出进程而无法显示真实状态。
  * root 是主进程选定的私有档案目录，并不是 renderer 参数。
  * desktop-agent.json 由持锁后台写入，包含本次后台实例的随机 nonce。
  * 描述文件中的 socket 仍须匹配该档案的固定文件名，不能借配置选择任意端点。

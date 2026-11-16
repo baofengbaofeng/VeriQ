@@ -95,8 +95,10 @@ const guidance: Record<string, readonly [string, string]> = {
     ],
 };
 
-/** 桌面错误提示只从有限错误码选择可执行的中英文指引，保留机器代码供诊断但不回显异常中的路径、堆栈或系统原文；此模块没有 React、Electron 或 DOM 依赖，因此 main 与 renderer 可共享而不混淆宿主边界
- * 。 */
+/**
+ * 桌面错误提示只从有限错误码选择可执行的中英文指引，保留机器代码供诊断但不回显异常中的路径、堆栈或系统原文；此模块没有 React、Electron 或 DOM 依赖，因此 main 与 renderer 可共享而不混淆宿主边界
+ * 。
+ */
 export function desktopErrorMessage(failure: unknown, language: "zh" | "en"): string {
     const message =
         failure instanceof Error ? failure.message : typeof failure === "string" ? failure : "";

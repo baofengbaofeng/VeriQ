@@ -141,7 +141,8 @@ async function installedDistribution() {
     return installed;
 }
 
-/** Mac 已安装命令只在严格库存加载后创建同一档案下的受控私有探针目录，固定发行 Runner Node 与观察器实际自检成功才向运行和离线恢复交付能力；开发入口不因本辅助函数获得安装路径或平台后备。
+/**
+ * Mac 已安装命令只在严格库存加载后创建同一档案下的受控私有探针目录，固定发行 Runner Node 与观察器实际自检成功才向运行和离线恢复交付能力；开发入口不因本辅助函数获得安装路径或平台后备。
  * 能力保存在当前进程内，不能通过参数 JSON、业务包或档案字段恢复，失败不会开启普通子进程路径。
  */
 async function installedDarwinExecution(

@@ -69,8 +69,10 @@ function checked(root: string, value: unknown): WindowsAttemptRecord {
     return record;
 }
 
-/** 日志数据库只允许一张固定用途表而不接受触发器、视图或另一产品的 SQLite 内容，初始化版本零仅在空 schema 下准入；列类型和主键顺序也必须完全匹配，避免 CREATE IF NOT EXISTS 掩盖错误历史或损坏结
- * 构。 */
+/**
+ * 日志数据库只允许一张固定用途表而不接受触发器、视图或另一产品的 SQLite 内容，初始化版本零仅在空 schema 下准入；列类型和主键顺序也必须完全匹配，避免 CREATE IF NOT EXISTS 掩盖错误历史或损坏结
+ * 构。
+ */
 function requireSchema(db: DatabaseSync, initializing: boolean): void {
     const entries = db
         .prepare("SELECT name,type FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' LIMIT 3")
@@ -101,8 +103,10 @@ function requireSchema(db: DatabaseSync, initializing: boolean): void {
         throw new Error("WINDOWS_JOURNAL_SCHEMA_UNSUPPORTED");
 }
 
-/** SQLite 会话每次读写均保持原生私有父链，所有状态推进用 BEGIN IMMEDIATE 串行化且保留第一次 Claim 的确切字节；同名不同 fence 或请求标识拒绝覆盖，终态不能重新回到启动阶段，容量超过硬界限同样失
- * 败关闭。 */
+/**
+ * SQLite 会话每次读写均保持原生私有父链，所有状态推进用 BEGIN IMMEDIATE 串行化且保留第一次 Claim 的确切字节；同名不同 fence 或请求标识拒绝覆盖，终态不能重新回到启动阶段，容量超过硬界限同样失
+ * 败关闭。
+ */
 export class WindowsAttemptJournal {
     private constructor(
         private root: string,
@@ -155,8 +159,10 @@ export class WindowsAttemptJournal {
         }
     }
 
-    /** 迁移与维护守卫只观察已经存在的数据库，原生不会创建目录或本体且拒绝孤立辅助文件，SQLite 使用 readOnly 连接并不执行建表或变更 PRAGMA；真实完全缺失才返回空值，格式、权限、版本与关闭不确定仍阻止维护
-     * 。 */
+    /**
+     * 迁移与维护守卫只观察已经存在的数据库，原生不会创建目录或本体且拒绝孤立辅助文件，SQLite 使用 readOnly 连接并不执行建表或变更 PRAGMA；真实完全缺失才返回空值，格式、权限、版本与关闭不确定仍阻止维护
+     * 。
+     */
     static async openExisting(root: string): Promise<WindowsAttemptJournal | undefined> {
         if (process.platform !== "win32") throw new Error("WINDOWS_NATIVE_PLATFORM_REQUIRED");
         let directory: SqliteDirectory;

@@ -19,13 +19,15 @@ import {
     type RuntimeV1DependencyPreparation,
 } from "./runtime-release-v1-dependencies.ts";
 
-/** 第一版材料以调用者独立提供的完整普通文件库存为准，平台原始归档的受控提取由现有来源工具完成；Windows 与 Linux 不复用 Mac 的归档名称、Chrome Framework 链接政策或 Darwin Build 收据。
+/**
+ * 第一版材料以调用者独立提供的完整普通文件库存为准，平台原始归档的受控提取由现有来源工具完成；Windows 与 Linux 不复用 Mac 的归档名称、Chrome Framework 链接政策或 Darwin Build 收据。
  * 每棵树的根目录由调用者独占保持，任何额外文件、链接或缺失文件都会拒绝，不接受待核树自行生成的 Expected。
  */
 export type RuntimeV1Material = Readonly<{ root: string; files: readonly FileFact[] }>;
 
-/** 非 Mac 生产任务保留已有 schemaVersion1 发行合同，Node、npm 与浏览器来自独立库存，生产依赖可显式选择独立材料或内置真实准备阶段；本入口真实构建入口、原生进程/helper 与版本化引擎，不把平台差异隐藏在
- *  Mac 配方字段中。
+/**
+ * 非 Mac 生产任务保留已有 schemaVersion1 发行合同，Node、npm 与浏览器来自独立库存，生产依赖可显式选择独立材料或内置真实准备阶段；本入口真实构建入口、原生进程/helper 与版本化引擎，不把平台差异隐藏在
+ * Mac 配方字段中。
  * 内置阶段运行原锁离线 hoisted 安装、C04 工作区 JavaScript 发射、原生目标条件闭包和真实 Node 解析，外部依赖材料则必须已包含同等生成及 optional/peer/bin 产物并另附来源证据。
  * 所有主机构建工具路径都显式给出，不下载工具、SDK、Chrome 或目标 Node，也不在安装时编译。
  */
@@ -56,7 +58,8 @@ export type RuntimeV1ProductionJob = Readonly<{
     }>;
 }>;
 
-/** 材料拷贝先检查完整集合与每个独立摘要，再逐个通过 held 描述符复制并在结束后再次枚举；现有 v1 loader 禁止任何链接，因此不会解引用 pnpm 链接来伪造物理实例或静默省略平台相关包。
+/**
+ * 材料拷贝先检查完整集合与每个独立摘要，再逐个通过 held 描述符复制并在结束后再次枚举；现有 v1 loader 禁止任何链接，因此不会解引用 pnpm 链接来伪造物理实例或静默省略平台相关包。
  * 空目录不影响 v1 模块解析，但文件集合必须完全一致，目录中的未知二进制同样不能进入候选。
  */
 async function copyMaterial(material: RuntimeV1Material, destination: string): Promise<void> {
@@ -82,7 +85,8 @@ async function copyMaterial(material: RuntimeV1Material, destination: string): P
         throw new Error("RUNTIME_V1_MATERIAL_CHANGED");
 }
 
-/** 第一版生产路径在真实目标主机运行原有 Vite、node-gyp 或 Linux C 构建脚本，并只收集明确正式成员；成功产出的只是候选和完整库存，独立工具/来源审核、签名、已安装执行及 release decision 均保留后续
+/**
+ * 第一版生产路径在真实目标主机运行原有 Vite、node-gyp 或 Linux C 构建脚本，并只收集明确正式成员；成功产出的只是候选和完整库存，独立工具/来源审核、签名、已安装执行及 release decision 均保留后续
  * 门禁。
  * sourceRoot 必须为独占构建视图，失败现场不自动删除，也不会覆盖现有 candidate 或源仓库的历史证据。
  * Node 角色是原始固定二进制的独立普通文件副本，复制不改变引擎版本或进程命名策略。

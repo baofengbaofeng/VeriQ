@@ -5,7 +5,8 @@ import { useTranslation } from "react-i18next";
 import DOMPurify from "dompurify";
 import { VeriqButton } from "./VeriqButton";
 
-/** 持久化记录只包含公开业务标识和展示名称，测试行键使用服务端 id，不使用数组位置、姓名或任何认证 token；React key 与 DOM recordKey 同时设置但承担不同职责。
+/**
+ * 持久化记录只包含公开业务标识和展示名称，测试行键使用服务端 id，不使用数组位置、姓名或任何认证 token；React key 与 DOM recordKey 同时设置但承担不同职责。
  */
 export interface Employee {
     id: string;

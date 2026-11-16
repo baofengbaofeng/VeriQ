@@ -169,6 +169,7 @@ const en = {
 appI18n.addResourceBundle("zh", "examples", zh, true, true);
 appI18n.addResourceBundle("en", "examples", en, true, true);
 
-/** 向导只传入独立namespace的既有i18next实例，不创建第二个语言偏好或静默切换语言；宿主全局入口修改共享实例后，正在显示的导入进度和错误文案自动同步。
+/**
+ * 向导只传入独立namespace的既有i18next实例，不创建第二个语言偏好或静默切换语言；宿主全局入口修改共享实例后，正在显示的导入进度和错误文案自动同步。
  */
 export const exampleTranslationOptions = { i18n: appI18n };

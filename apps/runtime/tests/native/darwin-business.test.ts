@@ -143,8 +143,10 @@ async function fixtureBefore<T>(operation: Promise<T>, deadline: number): Promis
     }
 }
 
-/** Playwright 的真实错误正文只在测试内存分类，投影有限错误数量和预先固定的连接、模块、类型与断言特征；既不复制错误消息、源码片段和堆栈，也不由某个分类直接推断 SDK 根因或受控停止成功，实际修复仍须协调者按新证据裁定
- * 。 */
+/**
+ * Playwright 的真实错误正文只在测试内存分类，投影有限错误数量和预先固定的连接、模块、类型与断言特征；既不复制错误消息、源码片段和堆栈，也不由某个分类直接推断 SDK 根因或受控停止成功，实际修复仍须协调者按新证据裁定
+ * 。
+ */
 async function reportPlaywrightFacts(path: string): Promise<void> {
     const facts = {
         readable: false,
@@ -241,8 +243,10 @@ async function scanArchive(bytes: Buffer, check: (bytes: Buffer) => void): Promi
     return entries;
 }
 
-/** 观察器只保留测试内存中的完整端点和随机路径，检查 URL/JSON/百分号/base64 编码；产品私有 invocation/PW config 不属于上传容器，报告 JSON、JUnit、HTML 内嵌 ZIP 与 Tra
- * ce 解压正文则必须逐项经过真实读取。 */
+/**
+ * 观察器只保留测试内存中的完整端点和随机路径，检查 URL/JSON/百分号/base64 编码；产品私有 invocation/PW config 不属于上传容器，报告 JSON、JUnit、HTML 内嵌 ZIP 与 Tra
+ * ce 解压正文则必须逐项经过真实读取。
+ */
 async function observeBusiness(
     label:
         | "ONLINE_ASSERT_FAIL_PASS"

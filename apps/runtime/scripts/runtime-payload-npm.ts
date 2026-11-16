@@ -109,8 +109,10 @@ function same(a: BigIntStats, b: BigIntStats) {
     );
 }
 
-/** npm 链接只解析本次 intake 已核原始成员，每跳保持树内并受三十二跳和循环上限；终点只能为普通文件，目录 alias 永远不能展开成重复目录，返回 Origins 同时保留每个原 raw target 的 UTF8 摘
- * 要。 */
+/**
+ * npm 链接只解析本次 intake 已核原始成员，每跳保持树内并受三十二跳和循环上限；终点只能为普通文件，目录 alias 永远不能展开成重复目录，返回 Origins 同时保留每个原 raw target 的 UTF8 摘
+ * 要。
+ */
 export function npmLinkSource(
     path: string,
     members: readonly ArchiveMember[],
@@ -146,8 +148,10 @@ export function npmLinkSource(
     }
 }
 
-/** npm 投影先完整复制真实正文和受限临时 bin alias，再以独立 reader 核物理库存与共享 package 内容规则；原输入 native inspection 始终使用另一个 reader，所有 reader 都
- * 在生成 shim 或其它目录变换前完成身份收尾。 */
+/**
+ * npm 投影先完整复制真实正文和受限临时 bin alias，再以独立 reader 核物理库存与共享 package 内容规则；原输入 native inspection 始终使用另一个 reader，所有 reader 都
+ * 在生成 shim 或其它目录变换前完成身份收尾。
+ */
 export async function projectNpm(
     report: InputInspection,
     intake: IntakeResult,
