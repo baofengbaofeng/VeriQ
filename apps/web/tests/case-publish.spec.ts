@@ -1,10 +1,11 @@
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdtemp, readFile, rm, readdir, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { test, expect } from "@playwright/test";
 import type { ResourceDocumentV1 } from "@veriq/contracts";
+import { cleanupCaseProfile, withCleanup } from "./support/case-profile-cleanup";
 import {
     editorScope,
     createResource,
@@ -37,7 +38,7 @@ test.beforeEach(async ({ page }) => {
 
 test("resource forms save a canonical case and publish only after real Agent validation", async ({
     page,
-}) => {
+}, testInfo) => {
     test.setTimeout(180_000);
     const origin = "http://127.0.0.1:5173";
     const setup = (await (await page.request.get("/api/v1/setup")).json()).data;
@@ -83,90 +84,90 @@ test("resource forms save a canonical case and publish only after real Agent val
             child.on("close", (code) => resolve({ code, output }));
             child.stdin.end(input);
         });
-    const headers = { Origin: origin, "X-CSRF-Token": session.csrfToken };
-    const account = (
-        await (
-            await page.request.post(`/api/v1/workspaces/${workspace.id}/service-accounts`, {
-                headers,
-                data: { name: "Editor compiler" },
-            })
-        ).json()
-    ).data;
-    const enrollment = (
-        await (
-            await page.request.post(
-                `/api/v1/workspaces/${workspace.id}/service-accounts/${account.id}/tokens`,
-                { headers, data: { purpose: "RUNTIME_ENROLLMENT" } },
-            )
-        ).json()
-    ).data;
-    const enrolled = await command(
-        [
-            "enroll-service",
-            "--server",
-            origin,
-            "--name",
-            "Editor managed compiler",
-            "--share-workspace",
-            "--browser-executable",
-            "/usr/bin/chromium",
-        ],
-        enrollment.token,
-    );
-    expect(enrolled.code, enrolled.output).toBe(0);
-    const device = JSON.parse(await readFile(join(profile, "device.json"), "utf8"));
-    expect(
-        (
-            await page.request.put(
-                `/api/v1/workspaces/${workspace.id}/runtimes/${device.runnerId}/trust`,
-                {
-                    headers,
-                    data: { trustStatus: "MANAGED", allowCredentialDelivery: false },
-                },
-            )
-        ).status(),
-    ).toBe(200);
-    const compile = async () => {
-        const result = await command([
-            "runtime",
-            "start",
-            "--release-dir",
-            fileURLToPath(new URL("../../../.superpowers/cache/t11/release/", import.meta.url)),
-            "--browser-executable",
-            "/usr/bin/chromium",
-            "--once",
-        ]);
-        expect(result.code, result.output).toBe(0);
-    };
-    const publish = async () => {
-        const queuedResponse = page.waitForResponse(
-            (r) => r.url().endsWith("/validate") && r.request().method() === "POST",
-        );
-        await page.getByTestId("case.validate").click();
-        const queued = await queuedResponse;
-        expect(queued.status(), await queued.text()).toBe(202);
-        const job = (await queued.json()).data;
-        await expect(page.getByTestId("case.publish")).toBeDisabled();
-        await compile();
-        await expect(page.getByTestId("case.validation-receipt")).toBeVisible({
-            timeout: 20_000,
-        });
-        const status = (
+    await withCleanup(async () => {
+        const headers = { Origin: origin, "X-CSRF-Token": session.csrfToken };
+        const account = (
             await (
-                await page.request.get(`/api/v1/workspaces/${workspace.id}/jobs/${job.id}`)
+                await page.request.post(`/api/v1/workspaces/${workspace.id}/service-accounts`, {
+                    headers,
+                    data: { name: "Editor compiler" },
+                })
             ).json()
         ).data;
-        expect(status.outcome).toBe("PASSED");
-        const publishing = page.waitForResponse(
-            (r) => r.url().endsWith("/publish") && r.request().method() === "POST",
+        const enrollment = (
+            await (
+                await page.request.post(
+                    `/api/v1/workspaces/${workspace.id}/service-accounts/${account.id}/tokens`,
+                    { headers, data: { purpose: "RUNTIME_ENROLLMENT" } },
+                )
+            ).json()
+        ).data;
+        const enrolled = await command(
+            [
+                "enroll-service",
+                "--server",
+                origin,
+                "--name",
+                "Editor managed compiler",
+                "--share-workspace",
+                "--browser-executable",
+                "/usr/bin/chromium",
+            ],
+            enrollment.token,
         );
-        await page.getByTestId("case.publish").click();
-        const published = await publishing;
-        expect(published.status(), await published.text()).toBe(201);
-        await expect(page.getByTestId("case.published-version")).toBeVisible();
-        return (await published.json()).data;
-    };
-    try {
+        expect(enrolled.code, enrolled.output).toBe(0);
+        const device = JSON.parse(await readFile(join(profile, "device.json"), "utf8"));
+        expect(
+            (
+                await page.request.put(
+                    `/api/v1/workspaces/${workspace.id}/runtimes/${device.runnerId}/trust`,
+                    {
+                        headers,
+                        data: { trustStatus: "MANAGED", allowCredentialDelivery: false },
+                    },
+                )
+            ).status(),
+        ).toBe(200);
+        const compile = async () => {
+            const result = await command([
+                "runtime",
+                "start",
+                "--release-dir",
+                fileURLToPath(new URL("../../../.superpowers/cache/t11/release/", import.meta.url)),
+                "--browser-executable",
+                "/usr/bin/chromium",
+                "--once",
+            ]);
+            expect(result.code, result.output).toBe(0);
+        };
+        const publish = async () => {
+            const queuedResponse = page.waitForResponse(
+                (r) => r.url().endsWith("/validate") && r.request().method() === "POST",
+            );
+            await page.getByTestId("case.validate").click();
+            const queued = await queuedResponse;
+            expect(queued.status(), await queued.text()).toBe(202);
+            const job = (await queued.json()).data;
+            await expect(page.getByTestId("case.publish")).toBeDisabled();
+            await compile();
+            await expect(page.getByTestId("case.validation-receipt")).toBeVisible({
+                timeout: 20_000,
+            });
+            const status = (
+                await (
+                    await page.request.get(`/api/v1/workspaces/${workspace.id}/jobs/${job.id}`)
+                ).json()
+            ).data;
+            expect(status.outcome).toBe("PASSED");
+            const publishing = page.waitForResponse(
+                (r) => r.url().endsWith("/publish") && r.request().method() === "POST",
+            );
+            await page.getByTestId("case.publish").click();
+            const published = await publishing;
+            expect(published.status(), await published.text()).toBe(201);
+            await expect(page.getByTestId("case.published-version")).toBeVisible();
+            return (await published.json()).data;
+        };
         await page.goto("/resources");
         await expect(
             page.getByRole("heading", { name: "资源 / Resources", exact: true }),
@@ -236,45 +237,12 @@ test("resource forms save a canonical case and publish only after real Agent val
         await expect(page.getByTestId("case.generated-source")).toContainText("registerCase");
         await page.setViewportSize({ width: 1280, height: 1000 });
         await page.screenshot({
-            path: "../../.superpowers/sdd/veriq-1/evidence/t11/editor-1280.png",
+            path: testInfo.outputPath("editor-1280.png"),
             fullPage: true,
         });
-    } finally {
-        // 只保留每个真实 Agent 的有限停止结算元数据用于审阅进程释放结果，禁止把配置中的凭证、随机数、租约日志或包含业务请求正文的原始输出复制进测试证据。
-        let entries: string[] = [];
-        try {
-            entries = await readdir(join(profile, "agent/processes"));
-        } catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-        }
-        const stops = [];
-        for (const name of entries.filter((name) => name.endsWith(".process.json"))) {
-            const journal = JSON.parse(
-                await readFile(join(profile, "agent/processes", name), "utf8"),
-            );
-            stops.push({
-                attemptId: journal.attemptId,
-                state: journal.state,
-                workerPid: journal.pid,
-                guardianPid: journal.guardianPid,
-            });
-        }
-        await writeFile(
-            fileURLToPath(
-                new URL(
-                    "../../../.superpowers/sdd/veriq-1/evidence/t11/agent-stops.json",
-                    import.meta.url,
-                ),
-            ),
-            JSON.stringify(stops, null, 2),
-        );
-        // 停止结果必须全部确认后才允许删除本次测试的私有恢复目录，任何未确认进程都保留现场供操作人员核对，避免清理文件后丢失仍在运行任务的恢复依据。
-        expect(
-            stops.every((stop) => stop.state === "STOPPED"),
-            "Agent stop is unconfirmed; private profile retained at " + profile,
-        ).toBe(true);
-        await rm(profile, { recursive: true, force: true });
-    }
+    }, async () => {
+        await cleanupCaseProfile(profile, testInfo.outputPath("agent-stops.json"));
+    });
 });
 
 test("environment manager creates immutable auth and credential versions without echoing secrets", async ({
@@ -1007,7 +975,8 @@ test("T11-R3 reusable flow/template page keys round-trip and resolve only in cal
             document: {
                 ...callerSource.document,
                 steps: [
-                    ...callerSource.document.steps.slice(0, 2),
+                    callerSource.document.steps[0],
+                    ...callerSource.document.steps.slice(1, 2),
                     {
                         id: "after-flow",
                         action: "click",
@@ -1121,5 +1090,88 @@ test("T11-R4 delayed real J1 receipt cannot validate a saved candidate or queued
         release?.();
         await page.unroute(receiptPath);
         await compiler.close();
+    }
+});
+
+/** 通过真实资源创建、JSON Apply 和草稿保存观察字符串及混合 JSON 数组，重复值不能合并节点，输入不能重挂载，删除祖先行必须保留嵌套存活节点，最终正文只能含原始业务值而无私有行标记。 */
+test("primitive rows preserve focused survivors and persist only business values", async ({ page }) => {
+    await editorScope(page, `primitive-rows-${randomUUID()}`);
+    await createResource(page, "DATASET", `primitive-dataset-${randomUUID()}`);
+    const dataset: ResourceDocumentV1 = {
+        kind: "DATASET",
+        document: {
+            schemaVersion: "1.0",
+            columns: { payload: "array" },
+            rows: [{ key: "row_1", values: { payload: ["same", "same", "", ["same", "same"], { flag: true }] } }],
+        },
+    };
+    await applyDocument(page, dataset);
+    const nested = page.getByRole("textbox", { name: "payload[3][1]", exact: true });
+    const survivor = await nested.elementHandle();
+    if (!survivor) throw new Error("Missing nested primitive row");
+    await nested.focus();
+    await nested.press("End");
+    await nested.pressSequentially(" edited");
+    await expect(nested).toHaveValue("same edited");
+    expect(await survivor.evaluate((node) => node === document.activeElement)).toBe(true);
+    const root = page.getByRole("combobox", { name: "payload 类型 / Type", exact: true }).locator("../..");
+    // 原生 click 激活前面的删除按钮而不把键盘焦点移到该按钮，以便直接观察存活输入节点的焦点；不改写 DOM、值或产品事件处理，增删仍完全经过真实 React 控件。
+    await root.locator(":scope > div").first().getByRole("button", { name: "删除 / Remove 0", exact: true }).evaluate((button) => (button as HTMLButtonElement).click());
+    const shifted = page.getByRole("textbox", { name: "payload[2][1]", exact: true });
+    await expect(shifted).toHaveValue("same edited");
+    expect(await shifted.evaluate((node, retained) => node === retained, survivor)).toBe(true);
+    expect(await survivor.evaluate((node) => node === document.activeElement)).toBe(true);
+    await root.locator(":scope > button").click();
+    await root.locator(":scope > div").last().getByRole("button", { name: "删除 / Remove 4", exact: true }).click();
+    await root.locator(":scope > button").click();
+    const expected: ResourceDocumentV1 = {
+        ...dataset,
+        document: {
+            ...dataset.document,
+            rows: [{ key: "row_1", values: { payload: ["same", "", ["same", "same edited"], { flag: true }, ""] } }],
+        },
+    };
+    expect((await saveDraft(page)).content).toEqual(expected);
+    // 相同长度以及更短、更长的权威导入都开启新行生命周期，不能把旧重复值的标记猜测成新数组身份；每轮都经受支持的 JSON Apply 保存并读取服务端实际草稿。
+    for (const payload of [["fresh", "", ["x", "y"], { flag: false }, ""], [], ["a", "b", "c", "d", "e", "f"]]) {
+        const replacement: ResourceDocumentV1 = {
+            ...dataset,
+            document: { ...dataset.document, rows: [{ key: "row_1", values: { payload } }] },
+        };
+        await applyDocument(page, replacement);
+        expect(await survivor.evaluate((node) => node.isConnected)).toBe(false);
+        expect((await saveDraft(page)).content).toEqual(replacement);
+    }
+    await createResource(page, "ENVIRONMENT", `primitive-environment-${randomUUID()}`);
+    const environment = (await saveDraft(page)).content;
+    if (environment.kind !== "ENVIRONMENT") throw new Error("Expected environment document");
+    const origins = ["http://one.example", "http://two.example", "http://two.example"];
+    await applyDocument(page, { ...environment, document: { ...environment.document, allowedOrigins: origins } });
+    const group = page.getByRole("group", { name: "允许来源 / Allowed origins", exact: true });
+    const last = group.getByRole("textbox", { name: "允许来源 / Allowed origins 3", exact: true });
+    const stringSurvivor = await last.elementHandle();
+    if (!stringSurvivor) throw new Error("Missing string row");
+    await last.focus();
+    await last.press("End");
+    await last.pressSequentially("/path");
+    await group.getByRole("button", { name: "删除 / Remove", exact: true }).first().evaluate((button) => (button as HTMLButtonElement).click());
+    const remaining = group.getByRole("textbox", { name: "允许来源 / Allowed origins 2", exact: true });
+    expect(await remaining.evaluate((node, retained) => node === retained, stringSurvivor)).toBe(true);
+    expect(await stringSurvivor.evaluate((node) => node === document.activeElement)).toBe(true);
+    await group.getByTestId("content.document.allowedOrigins.add").click();
+    await group.getByRole("button", { name: "删除 / Remove", exact: true }).last().click();
+    await group.getByTestId("content.document.allowedOrigins.add").click();
+    await group.getByRole("textbox", { name: "允许来源 / Allowed origins 3", exact: true }).fill("http://three.example");
+    expect((await saveDraft(page)).content).toEqual({
+        ...environment,
+        document: { ...environment.document, allowedOrigins: ["http://two.example", "http://two.example/path", "http://three.example"] },
+    });
+    await createResource(page, "CASE", `field-labels-${randomUUID()}`);
+    // 关联检查跨越文本、枚举、数字、复选框及版本下拉分支，并保留原有测试标识与 RHF 输入；只检查真实 input.labels/htmlFor/id，不把可见文字或 aria-label 当作标签关联的替代品。
+    for (const name of ["content.document.title", "content.document.kind", "content.document.steps.0.timeoutMs", "content.document.steps.0.critical", "content.document.catalogVersionId"]) {
+        expect(await page.getByTestId(name).evaluate((element) => {
+            const control = element as HTMLInputElement | HTMLSelectElement;
+            return !!control.id && [...(control.labels ?? [])].some((label) => label.htmlFor === control.id);
+        })).toBe(true);
     }
 });

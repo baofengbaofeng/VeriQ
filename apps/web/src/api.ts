@@ -1,6 +1,6 @@
 /**
  * 本模块提供 Cookie/CSRF 会话下的 /api/v1 传输层，供各功能适配器复用同一凭证边界。写入请求必须同源且不落盘密钥。
- * 401 时广播 veriq:session-expired；非 GET 写入自动附带 X-CSRF-Token。
+ * 仅当前会话的 AUTHENTICATION_REQUIRED 广播过期事件，其他凭证错误仍由调用方展示；非 GET 写入附带当前身份拥有的内存 CSRF 令牌。
  */
 
 import type { PlatformComponents, PlatformPaths } from "@veriq/contracts";
@@ -46,6 +46,19 @@ function queryString(options: Record<string, string | number | boolean | undefin
     return query.size ? "?" + query.toString() : "";
 }
 let csrfToken = "";
+let sessionOwner = 0;
+let authRequest: AbortController | undefined;
+
+// 只有建立新身份的登录会立即使旧请求失去会话副作用权限；退出完成或当前会话确实失效时再推进代次，确保退出尚未返回期间真实的当前身份失效仍能进入登录页。
+function ownsSession(owner: number, signal?: AbortSignal): boolean {
+    return owner === sessionOwner && !signal?.aborted;
+}
+function expireSession(owner: number, code: unknown, signal?: AbortSignal): void {
+    // 登记码、服务账号凭证和登录密码错误都不是平台用户会话失效；同时保留原始 ApiError 给请求调用者，只让当前会话的认证缺失影响全局身份，不能静默吞掉业务错误。
+    if (code !== "AUTHENTICATION_REQUIRED" || !ownsSession(owner, signal)) return;
+    sessionOwner += 1;
+    window.dispatchEvent(new Event("veriq:session-expired"));
+}
 /** 桌面宿主适配器只替换业务传输而不改变页面的数据契约，Web 默认继续使用同源 Cookie；注入者负责把路径转换为有限操作标识，真正权限仍由宿主独立验证。 */
 export interface HostTransport {
     /** 共享页面把相对业务路径、方法和正文交给宿主兼容层映射，不能自行选择认证来源或浏览器 Cookie；信号用于丢弃已取消视图的结果，最终主机仍独立校验有限操作和工作区参数。 */
@@ -68,15 +81,26 @@ export function installHostTransport(transport: HostTransport): void {
     hostTransport = transport;
 }
 /** 二进制读取沿用服务端当前权限检查和禁止重定向约束，桌面宿主可仅开放生成源码读取；原始证据和签名包的 native 保存入口可以保持字节不进入渲染进程。 */
-export function binaryRequest(path: string, signal?: AbortSignal): Promise<Response> {
-    return hostTransport
-        ? hostTransport.binary(path, signal)
-        : fetch("/api/v1" + path, { credentials: "same-origin", signal, redirect: "error" });
+export async function binaryRequest(path: string, signal?: AbortSignal): Promise<Response> {
+    if (hostTransport) return hostTransport.binary(path, signal);
+    const owner = sessionOwner;
+    const response = await fetch("/api/v1" + path, {
+        credentials: "same-origin",
+        signal,
+        redirect: "error",
+    });
+    // 二进制成功响应不能按 JSON 消费，失败时仅克隆 JSON 错误信封以判断当前会话；原始 Response 原样交还既有下载适配器，保留其错误处理与字节所有权。
+    if (response.status === 401) {
+        const body = await response.clone().json();
+        expireSession(owner, body.code, signal);
+    }
+    signal?.throwIfAborted();
+    return response;
 }
 
 /**
  * 将非 2xx JSON 体映射为带 code/status/requestId 的错误，供 Notice 与适配器统一展示。
- * 401 已由 request 触发会话过期事件；调用方只消费可读 message。
+ * 当前身份的认证缺失才触发全局过期事件，过时响应和其他凭证错误仍保留原始状态、错误码及请求标识，供业务调用方按自己的请求所有权处理。
  */
 export class ApiError extends Error {
     constructor(
@@ -100,22 +124,46 @@ export async function request<T>(
     headers?: Record<string, string>,
 ): Promise<T> {
     if (hostTransport) return (await hostTransport.json(path, method, data, signal, headers)) as T;
-    const response = await fetch("/api/v1" + path, {
-        method,
-        credentials: "same-origin",
-        signal,
-        headers: {
-            ...headers,
-            "Content-Type": "application/json",
-            ...(method !== "GET" ? { "X-CSRF-Token": csrfToken } : {}),
-        },
-        ...(data === undefined ? {} : { body: JSON.stringify(data) }),
-    });
-    const body = await response.json();
-    if (response.status === 401) window.dispatchEvent(new Event("veriq:session-expired"));
-    if (!response.ok) throw new ApiError(body.code, body.message, response.status, body.requestId);
-    if (body.data?.csrfToken) csrfToken = body.data.csrfToken;
-    return body.data as T;
+    const changesCookie = method === "POST" && ["/auth/login", "/auth/logout"].includes(path);
+    let authentication: AbortController | undefined;
+    if (changesCookie) {
+        // 浏览器在 fetch 返回前就可能应用 Set-Cookie，因此不能仅在解析正文后检查代次；先取消旧认证请求，再发新请求，以阻止旧退出响应随后清除新登录的同名 Cookie。
+        authRequest?.abort();
+        authentication = new AbortController();
+        authRequest = authentication;
+        if (path === "/auth/login") sessionOwner += 1;
+    }
+    const active = authentication
+        ? signal
+            ? AbortSignal.any([signal, authentication.signal])
+            : authentication.signal
+        : signal;
+    const owner = sessionOwner;
+    try {
+        const response = await fetch("/api/v1" + path, {
+            method,
+            credentials: "same-origin",
+            signal: active,
+            headers: {
+                ...headers,
+                "Content-Type": "application/json",
+                ...(method !== "GET" ? { "X-CSRF-Token": csrfToken } : {}),
+            },
+            ...(data === undefined ? {} : { body: JSON.stringify(data) }),
+        });
+        const body = await response.json();
+        active?.throwIfAborted();
+        if (response.status === 401) expireSession(owner, body.code, active);
+        if (!response.ok) throw new ApiError(body.code, body.message, response.status, body.requestId);
+        if (ownsSession(owner, active) && typeof body.data?.csrfToken === "string")
+            csrfToken = body.data.csrfToken;
+        if (path === "/auth/logout" && changesCookie && ownsSession(owner, active))
+            sessionOwner += 1;
+        return body.data as T;
+    } finally {
+        // 旧请求结束时只释放属于自己的控制器，不能擦除较新登录或退出的取消句柄；已完成请求的 Cookie 事实不能通过代次检查撤回，相关头部顺序仍须真实浏览器验收。
+        if (authentication && authRequest === authentication) authRequest = undefined;
+    }
 }
 /**
  * 认证、账户、Workspace 成员与邀请的门面对象，所有方法最终走 request 并保持 CSRF。邀请接受走 /auth 而非空间嵌套路径。
@@ -277,6 +325,7 @@ export const runtimeApi = {
  */
 export async function streamRequest(path: string, data: unknown, signal: AbortSignal) {
     if (hostTransport) return hostTransport.stream(path, data, signal);
+    const owner = sessionOwner;
     const response = await fetch("/api/v1" + path, {
         method: "POST",
         credentials: "same-origin",
@@ -286,8 +335,10 @@ export async function streamRequest(path: string, data: unknown, signal: AbortSi
     });
     if (!response.ok) {
         const body = await response.json();
-        if (response.status === 401) window.dispatchEvent(new Event("veriq:session-expired"));
+        signal.throwIfAborted();
+        if (response.status === 401) expireSession(owner, body.code, signal);
         throw new ApiError(body.code, body.message, response.status, body.requestId);
     }
+    signal?.throwIfAborted();
     return response;
 }

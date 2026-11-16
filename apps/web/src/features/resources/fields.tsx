@@ -3,7 +3,7 @@
  * Apply/save 边界再跑 ResourceDocumentV1 校验；递归 JSON 叶不用裸 textarea 执行。
  */
 
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import {
     Controller,
     useFieldArray,
@@ -26,6 +26,7 @@ import type { JsonValue, ResourceKind, ResourceDocumentV1 } from "@veriq/contrac
 import { Button, Section } from "@veriq/ui";
 import { useTranslation } from "react-i18next";
 import { useEditorTranslationOptions } from "./i18n";
+import { usePrimitiveRows } from "./row-identity";
 /**
  * 编辑器根表单值类型，包裹资源草稿文档与 UI 辅助字段，供 useForm 泛型使用。辅助字段不会提交到 DraftWrite。
  * 与服务器 Draft.content 对齐的部分经 save 提交；其余仅本地。
@@ -94,8 +95,9 @@ export function Field({
     showUnlistedValue?: boolean;
 }) {
     const { control } = useFormContext<EditorValues>();
+    const id = useId();
     return (
-        <label className={check ? "vq-check" : ""}>
+        <label htmlFor={id} className={check ? "vq-check" : ""}>
             {label}
             <Controller
                 control={control}
@@ -103,6 +105,7 @@ export function Field({
                 render={({ field }) =>
                     check ? (
                         <input
+                            id={id}
                             type="checkbox"
                             name={field.name}
                             ref={field.ref}
@@ -113,6 +116,7 @@ export function Field({
                         />
                     ) : options ? (
                         <select
+                            id={id}
                             ref={field.ref}
                             name={field.name}
                             onBlur={field.onBlur}
@@ -142,6 +146,7 @@ export function Field({
                         </select>
                     ) : (
                         <input
+                            id={id}
                             name={field.name}
                             ref={field.ref}
                             onBlur={field.onBlur}
@@ -200,14 +205,17 @@ export function VersionField({
     optional?: boolean;
 }) {
     const { control } = useFormContext<EditorValues>();
+    const id = useId();
     return (
-        <label>
+        <label htmlFor={id}>
             {label}
             <Controller
                 control={control}
                 name={name as FieldPath<EditorValues>}
                 render={({ field }) => (
                     <select
+                        id={id}
+                        name={field.name}
                         data-testid={name}
                         value={typeof field.value === "string" ? field.value : ""}
                         onBlur={field.onBlur}
@@ -466,30 +474,13 @@ export function JsonValueControl({
                 </label>
             )}
             {Array.isArray(value) && (
-                <>
-                    {value.map((v, i) => (
-                        <div key={i}>
-                            <JsonValueControl
-                                value={v}
-                                label={`${label}[${i}]`}
-                                allowBinding={allowBinding}
-                                bindings={bindings}
-                                onChange={(next) =>
-                                    onChange(value.map((x, j) => (j === i ? next : x)))
-                                }
-                            />
-                            <Button
-                                tone="danger"
-                                onClick={() => onChange(value.filter((_, j) => j !== i))}
-                            >
-                                删除 / Remove {i}
-                            </Button>
-                        </div>
-                    ))}
-                    <Button tone="secondary" onClick={() => onChange([...value, ""])}>
-                        添加值 / Add value
-                    </Button>
-                </>
+                <JsonArrayControl
+                    value={value}
+                    label={label}
+                    onChange={onChange}
+                    allowBinding={allowBinding}
+                    bindings={bindings}
+                />
             )}
             {type === "object" && value !== null && !Array.isArray(value) && (
                 <>
@@ -547,6 +538,57 @@ export function JsonValueControl({
         </div>
     );
 }
+function JsonArrayControl({
+    value,
+    onChange,
+    label,
+    allowBinding,
+    bindings,
+}: {
+    value: JsonValue[];
+    onChange: (value: JsonValue) => void;
+    label: string;
+    allowBinding: boolean;
+    bindings?: string[];
+}) {
+    const rows = usePrimitiveRows(value.length);
+    // 数组子组件随类型分支创建与销毁，父数组删除行时也按其私有 key 保留存活子树；索引只决定当前业务写入位置，不能成为任何一层数组的 React 身份。
+    return (
+        <>
+            {value.map((item, index) => (
+                <div key={rows.keys[index]}>
+                    <JsonValueControl
+                        value={item}
+                        label={`${label}[${index}]`}
+                        allowBinding={allowBinding}
+                        bindings={bindings}
+                        onChange={(next) =>
+                            onChange(value.map((entry, position) => position === index ? next : entry))
+                        }
+                    />
+                    <Button
+                        tone="danger"
+                        onClick={() => {
+                            rows.remove(index);
+                            onChange(value.filter((_, position) => position !== index));
+                        }}
+                    >
+                        删除 / Remove {index}
+                    </Button>
+                </div>
+            ))}
+            <Button
+                tone="secondary"
+                onClick={() => {
+                    rows.append();
+                    onChange([...value, ""]);
+                }}
+            >
+                添加值 / Add value
+            </Button>
+        </>
+    );
+}
 /**
  * 单路径 JSON 编辑入口，内部用 JsonValueControl，供断言 expected 等字段复用。label 与错误就近展示。
  * 不在输入过程中 eval；仅在 Apply/save 做契约校验。
@@ -581,7 +623,7 @@ export function JsonField({
 }
 /**
  * 字符串数组编辑（允许身份 ID 等），提供增删与排序，写入指定 RHF 路径。重复项由调用方决定是否允许；是否允许重复字符串完全由调用方自行约束。
- * 空串是否保留由调用方约定；默认 trim 后提交。
+ * 空串是否允许由业务 Schema 决定，控件原样保留输入，不自动 trim、去重或包装成带 UI 标记的对象。
  */
 export function StringList({
     name,
@@ -595,8 +637,8 @@ export function StringList({
     const value = useValue<string[] | undefined>(name) ?? [],
         set = useSet();
     return (
-        <div>
-            <label>{label}</label>
+        <fieldset>
+            <legend>{label}</legend>
             {choices ? (
                 choices.map((choice) => (
                     <label key={choice} className="vq-check">
@@ -608,7 +650,7 @@ export function StringList({
                                     name,
                                     e.target.checked
                                         ? [...value, choice]
-                                        : value.filter((x) => x !== choice),
+                                        : value.filter((entry) => entry !== choice),
                                 )
                             }
                         />
@@ -616,42 +658,48 @@ export function StringList({
                     </label>
                 ))
             ) : (
-                <>
-                    {value.map((v, i) => (
-                        <div className="vq-actions" key={i}>
-                            <input
-                                aria-label={`${label} ${i + 1}`}
-                                value={v}
-                                onChange={(e) =>
-                                    set(
-                                        name,
-                                        value.map((x, j) => (j === i ? e.target.value : x)),
-                                    )
-                                }
-                            />
-                            <Button
-                                tone="danger"
-                                onClick={() =>
-                                    set(
-                                        name,
-                                        value.filter((_, j) => j !== i),
-                                    )
-                                }
-                            >
-                                删除 / Remove
-                            </Button>
-                        </div>
-                    ))}
-                    <Button
-                        tone="secondary"
-                        data-testid={`${name}.add`}
-                        onClick={() => set(name, [...value, ""])}
-                    >
-                        添加 / Add {label}
-                    </Button>
-                </>
+                <FreeStringRows name={name} label={label} value={value} />
             )}
-        </div>
+        </fieldset>
+    );
+}
+function FreeStringRows({ name, label, value }: { name: string; label: string; value: string[] }) {
+    const rows = usePrimitiveRows(value.length),
+        set = useSet();
+    // 每行仍有独立可访问名称，而 fieldset 的 legend 命名整个字符串集合；行标记与文本分离，重复或空值不会合并，删除前面的行也不会重建仍在输入的后续节点。
+    return (
+        <>
+            {value.map((entry, index) => (
+                <div className="vq-actions" key={rows.keys[index]}>
+                    <input
+                        aria-label={`${label} ${index + 1}`}
+                        value={entry}
+                        onChange={(e) =>
+                            set(name, value.map((item, position) => position === index ? e.target.value : item))
+                        }
+                    />
+                    <Button
+                        tone="danger"
+                        onClick={() => {
+                            rows.remove(index);
+                            set(name, value.filter((_, position) => position !== index));
+                        }}
+                    >
+                        删除 / Remove
+                    </Button>
+                </div>
+            ))}
+            <Button
+                tone="secondary"
+                data-testid={`${name}.add`}
+                onClick={() => {
+                    rows.append();
+                    set(name, [...value, ""]);
+                }}
+            >
+                添加 / Add {label}
+            </Button>
+        </>
     );
 }
 /**

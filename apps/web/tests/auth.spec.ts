@@ -1,5 +1,7 @@
 import { test, expect, type APIResponse, type Page, type Route } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { holdAuthResponse } from "./support/hold-auth-response";
 
 /** 屏障只延迟首个匹配路径及指定方法的真实本机响应，后续请求直接访问后端；持有的状态、头和正文原样交还浏览器，释放操作可重复调用以覆盖失败清理路径。 */
 async function holdBackendResponse(page: Page, pathname: string, method = "GET") {
@@ -536,7 +538,7 @@ test("real setup, login, account, administration and one-time reset", async ({
     await expect(page.getByTestId("sessions")).toContainText("This session");
     await expect(page.getByTestId("sessions-limit")).toBeEnabled();
     const oldRead = await holdOutgoingRequest(page, "/api/v1/account/sessions", "GET");
-    const oldLogoutResponse = await holdBackendResponse(page, "/api/v1/auth/logout", "POST");
+    const oldLogoutResponse = await holdAuthResponse(page, "/api/v1/auth/logout", "POST");
     const newerLoginEvents: { event: string; path?: string; status?: number }[] = [];
     const recordNewerLogin = (response: import("@playwright/test").Response) => {
         const path = new URL(response.url()).pathname;
@@ -558,10 +560,10 @@ test("real setup, login, account, administration and one-time reset", async ({
         newerLoginEvents.push({ event: "old-sessions-get-held-before-backend" });
         await page.getByTestId("logout").click();
         const realLogout = await oldLogoutResponse.held;
-        expect(realLogout.status()).toBe(200);
+        expect(realLogout.status).toBe(200);
         newerLoginEvents.push({
             event: "old-logout-real200-held-after-revocation",
-            status: realLogout.status(),
+            status: realLogout.status,
         });
         const realExpiredRead = page.waitForResponse(
             (response) =>
@@ -575,6 +577,9 @@ test("real setup, login, account, administration and one-time reset", async ({
         newerLoginEvents.push({ event: "real-sessions401-opened-signin-old-logout-still-held" });
         await page.getByTestId("email").fill("browser-user@example.com");
         await page.getByTestId("password").fill("Final password 123!");
+        const cancelledLogout = page.waitForEvent("requestfailed", (request) =>
+            request.method() === "POST" && new URL(request.url()).pathname === "/api/v1/auth/logout",
+        );
         const genuineLogin = page.waitForResponse(
             (response) =>
                 response.request().method() === "POST" &&
@@ -587,16 +592,32 @@ test("real setup, login, account, administration and one-time reset", async ({
         await expect(page.getByTestId("sessions").getByRole("listitem")).toHaveCount(1);
         await expect(page.getByTestId("sessions-limit")).toBeEnabled();
         newerLoginEvents.push({ event: "new-account-visible-before-old-logout-release" });
-        const deliveredLogout = page.waitForResponse(
-            (response) =>
-                response.request().method() === "POST" &&
-                new URL(response.url()).pathname === "/api/v1/auth/logout",
-        );
+        const cancelled = await cancelledLogout;
+        expect(cancelled.failure()?.errorText).toMatch(/ABORTED|CANCELLED/i);
         await oldLogoutResponse.release();
-        await (await deliveredLogout).finished();
-        newerLoginEvents.push({ event: "old-logout-response-released-after-new-account" });
-        await page.getByTestId("currentPassword").click();
-        await expect(page.getByTestId("account-info")).toContainText("Browser User");
+        newerLoginEvents.push({ event: "old-logout-cancelled-before-new-login-held-response-settled" });
+        const currentSession = await page.evaluate(async () => {
+            const path = "/src/api.ts";
+            const { api } = await import(/* @vite-ignore */ path);
+            return (await api.session()).user.email;
+        });
+        expect(currentSession).toBe("browser-user@example.com");
+        // 继续执行真实界面写入以同时验证新身份 Cookie、内存 CSRF 和 Origin，不能只点击密码输入框便宣称会话仍有效；写入完成后再次使用当前传输读取会话确认身份。
+        await page.getByRole("link", { name: "Workspaces", exact: true }).click();
+        await page.getByTestId("workspace-key").fill(`session-owner-${randomUUID()}`);
+        await page.getByTestId("workspace-name").fill("Session owner write");
+        const creation = page.waitForResponse((response) =>
+            response.request().method() === "POST" && new URL(response.url()).pathname === "/api/v1/workspaces",
+        );
+        await page.getByTestId("workspace-create").click();
+        const created = await creation;
+        expect(created.status()).toBe(201);
+        expect((await created.json()).data.role).toBe("OWNER");
+        expect(await page.evaluate(async () => {
+            const path = "/src/api.ts";
+            const { api } = await import(/* @vite-ignore */ path);
+            return (await api.session()).user.email;
+        })).toBe("browser-user@example.com");
     } finally {
         await oldRead.forward();
         await oldLogoutResponse.release();

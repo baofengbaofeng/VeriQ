@@ -598,6 +598,7 @@ function ServiceAccounts({
                   "fixture-cleanups/reconcile",
                   "capacity/reconcile",
                   "artifacts/expire",
+                  "lifecycle/expire",
               ];
     return (
         <section aria-label="Service accounts">

@@ -442,6 +442,7 @@ export function ResourceEditorView({
         serialized = pretty(content);
     const [saved, setSaved] = useState(initial),
         [mode, setMode] = useState<"form" | "json">("form"),
+        [formLifetime, setFormLifetime] = useState(0),
         [buffer, setBuffer] = useState(pretty(initial.content)),
         [jsonBaseline, setJsonBaseline] = useState(pretty(initial.content)),
         [error, setError] = useState<Error | null>(null),
@@ -483,7 +484,11 @@ export function ResourceEditorView({
         receipt && validation && candidateIsCurrent && receiptMatchesCandidate(receipt, validation)
             ? receipt
             : null;
-    const issues = validateSchema(schemas[resource.kind], content.document);
+    // clean 每次渲染都会复制文档，因此用实际序列化内容作为校验输入边界；无关状态改变不重建诊断快照，重复诊断的展示身份也不会随一次普通渲染而变化。
+    const issues = useMemo(() => {
+        const document = JSON.parse(serialized) as ResourceDocumentV1;
+        return validateSchema(schemas[resource.kind], document.document);
+    }, [resource.kind, serialized]);
     const allVersions = useQuery({
         queryKey: ["workspace", workspace.id, "reference-versions"],
         queryFn: async ({ signal: querySignal }) => {
@@ -596,6 +601,7 @@ export function ResourceEditorView({
     const restore = (remote: Draft) => {
         invalidateValidation();
         form.reset({ content: clean(remote.content) });
+        setFormLifetime((previous) => previous + 1);
         setSaved(remote);
         setBuffer(pretty(remote.content));
         setJsonBaseline(pretty(remote.content));
@@ -628,8 +634,8 @@ export function ResourceEditorView({
             )}
             {issues.length > 0 && (
                 <ul role="alert" data-testid="case.validation-errors">
-                    {issues.map((issue, index) => (
-                        <li key={index}>
+                    {diagnosticRows(issues).map(({ issue, key }) => (
+                        <li key={key}>
                             {issue.path || "/"} · {issue.code}: {issue.message}
                         </li>
                     ))}
@@ -679,7 +685,11 @@ export function ResourceEditorView({
             <FormProvider {...form}>
                 <fieldset className="vq-editor-fields" disabled={!writable || busy}>
                     {mode === "form" ? (
-                        <ResourceForms kind={resource.kind} versions={allVersions.data ?? []} />
+                        <ResourceForms
+                            key={formLifetime}
+                            kind={resource.kind}
+                            versions={allVersions.data ?? []}
+                        />
                     ) : (
                         <>
                             <Monaco
@@ -709,6 +719,7 @@ export function ResourceEditorView({
                                                 throw new Error("RESOURCE_KIND_IMMUTABLE");
                                             invalidateValidation();
                                             form.reset({ content: next as ResourceDocumentV1 });
+                                            setFormLifetime((previous) => previous + 1);
                                             setJsonBaseline(buffer);
                                             setError(null);
                                         } catch (e) {
@@ -907,8 +918,8 @@ function ValidationState({ job, receipt }: { job: Job; receipt: Receipt | null }
             </p>
             {job.diagnostics?.length ? (
                 <ul aria-label="Compiler diagnostics">
-                    {job.diagnostics.map((issue, index) => (
-                        <li key={index}>
+                    {diagnosticRows(job.diagnostics).map(({ issue, key }) => (
+                        <li key={key}>
                             <code>{issue.code}</code>{" "}
                             {issue.pathStatus === "EXACT" ? (
                                 <code>{issue.path || "/"}</code>
@@ -1144,4 +1155,15 @@ export function ErrorState({ error, retry }: { error: Error; retry?: () => void 
             )}
         </div>
     );
+}
+
+function diagnosticRows<T extends { code: string; path?: string; message: string }>(issues: T[]) {
+    // 只读诊断没有可编辑行状态，路径、代码、消息及完整快照项组成语义身份，同一诊断重复出现时再附出现次数；这种 key 保留顺序和重复项，也无需伪造后端诊断 ID。
+    const occurrences = new Map<string, number>();
+    return issues.map((issue) => {
+        const semantic = JSON.stringify(issue);
+        const occurrence = occurrences.get(semantic) ?? 0;
+        occurrences.set(semantic, occurrence + 1);
+        return { issue, key: JSON.stringify([semantic, occurrence]) };
+    });
 }

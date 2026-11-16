@@ -3,7 +3,7 @@
  * 数据经 runtimeApi 与 api.workspaces；切换空间清空本地表单状态。
  */
 
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { api, runtimeApi, type Runtime, type Workspace } from "../../api";
@@ -92,6 +92,7 @@ function RuntimeWorkspace({ workspace }: { workspace: Workspace }) {
         ),
         [sharing, setSharing] = useState("private"),
         [users, setUsers] = useState<string[]>([]);
+    const inspectGeneration = useRef(0);
     const runtimes = useInfiniteQuery({
         queryKey: ["workspace", workspace.id, "runtimes"],
         queryFn: ({ pageParam, signal }) => runtimeApi.list(workspace.id, pageParam, signal),
@@ -113,8 +114,17 @@ function RuntimeWorkspace({ workspace }: { workspace: Workspace }) {
                         onSubmit={(e) => {
                             e.preventDefault();
                             setPreview(null);
+                            const generation = ++inspectGeneration.current;
                             void a.run(async () => {
-                                setPreview(await runtimeApi.inspect(code, signal));
+                                // 用户可以在检查期间继续修改登记码，因此旧请求即使成功也不能恢复已清空的预览或审批入口；空间切换仍由现有 signal 取消，不改变平台审批和权限协议。
+                                try {
+                                    const candidate = await runtimeApi.inspect(code, signal);
+                                    if (!signal.aborted && generation === inspectGeneration.current)
+                                        setPreview(candidate);
+                                } catch (error) {
+                                    if (!signal.aborted && generation === inspectGeneration.current)
+                                        throw error;
+                                }
                             });
                         }}
                     >
@@ -127,6 +137,7 @@ function RuntimeWorkspace({ workspace }: { workspace: Workspace }) {
                                 required
                                 maxLength={12}
                                 onChange={(e) => {
+                                    inspectGeneration.current += 1;
                                     setCode(e.target.value.toUpperCase());
                                     setPreview(null);
                                 }}

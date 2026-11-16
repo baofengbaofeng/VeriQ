@@ -3,7 +3,16 @@
  * CloudReportAdapter(selected)；订阅随 Workspace signal abort。
  */
 
-import { useContext, useEffect, useMemo, useState } from "react";
+import {
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type Dispatch,
+    type SetStateAction,
+} from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -45,11 +54,15 @@ export function ReportPage() {
     const requestedWorkspace = params.get("workspaceId");
     const requestedRun = params.get("runId") ?? "";
     const items = workspaces.data?.pages.flatMap((p) => p.items) ?? [];
+    const firstWorkspaceId = items[0]?.id;
+    const availableRequestedId = items.find((w) => w.id === requestedWorkspace)?.id;
+    // URL 的目标只有在已加载分页中真正可见时才取得选择权，后续用户手动切换不会重新触发这一效果；稍后分页发现目标时仍应准确选择它，而非依赖首项变化。
     useEffect(() => {
-        if (requestedWorkspace && items.some((w) => w.id === requestedWorkspace))
-            select(requestedWorkspace);
-        else if (!selected && items.length) select(items[0]!.id);
-    }, [requestedWorkspace, items[0]?.id]);
+        if (availableRequestedId) select(availableRequestedId);
+    }, [availableRequestedId, select]);
+    useEffect(() => {
+        if (!selected && !availableRequestedId && firstWorkspaceId) select(firstWorkspaceId);
+    }, [selected, availableRequestedId, firstWorkspaceId, select]);
     const adapter = useMemo(() => new CloudReportAdapter(selected), [selected]);
     if (!user) return <Navigate to="/login" />;
     const workspace = items.find((w) => w.id === selected);
@@ -79,9 +92,24 @@ export function ReportPage() {
                     ))}
                 </select>
             </label>
-            {workspaces.error && <p role="alert">{workspaces.error.message}</p>}
+            {workspaces.isPending && <p role="status">{t("loading")}</p>}
+            {workspaces.isSuccess && !items.length && (
+                <p>请先创建或加入工作区 / Create or join a Workspace first.</p>
+            )}
+            {workspaces.error && (
+                <div>
+                    <p role="alert">{workspaces.error.message}</p>
+                    <button type="button" onClick={() => void workspaces.refetch()}>
+                        {t("retry")}
+                    </button>
+                </div>
+            )}
             {workspaces.hasNextPage && (
-                <button type="button" onClick={() => void workspaces.fetchNextPage()}>
+                <button
+                    type="button"
+                    disabled={workspaces.isFetchingNextPage}
+                    onClick={() => void workspaces.fetchNextPage()}
+                >
                     更多空间 / More Workspaces
                 </button>
             )}
@@ -129,7 +157,14 @@ export function ReportWorkspaceView({
     return (
         <div className="veriq-reports">
             <h2>{t("history")}</h2>
-            {runs.error && <p role="alert">{runs.error.message}</p>}
+            {runs.error && (
+                <div>
+                    <p role="alert">{runs.error.message}</p>
+                    <button type="button" onClick={() => void runs.refetch()}>
+                        {t("retry")}
+                    </button>
+                </div>
+            )}
             {runs.isPending && <p role="status">{t("loading")}</p>}
             {runs.isSuccess && !items.length && <p>{t("empty")}</p>}
             <ul>
@@ -143,7 +178,11 @@ export function ReportWorkspaceView({
                 ))}
             </ul>
             {runs.hasNextPage && (
-                <button type="button" onClick={() => void runs.fetchNextPage()}>
+                <button
+                    type="button"
+                    disabled={runs.isFetchingNextPage}
+                    onClick={() => void runs.fetchNextPage()}
+                >
                     {t("moreRuns")}
                 </button>
             )}
@@ -195,6 +234,105 @@ export function ReportView({
         [generation, setGeneration] = useState(0),
         [restart, setRestart] = useState(0),
         [caseLimit, setCaseLimit] = useState(25);
+    const retry = () => {
+        setError("");
+        setReport(undefined);
+        setRestart((r) => r + 1);
+    };
+    // 订阅始终占据同一子节点位置，报告由加载态变为成功态时不能重挂载；只有显式 Retry 的 key 改变才结束旧订阅，并保留父组件拥有的选中项和分页数量。
+    const subscription = (
+        <ReportSubscription
+            key={restart}
+            adapter={adapter}
+            runId={runId}
+            signal={signal}
+            setReport={setReport}
+            setError={setError}
+            setGeneration={setGeneration}
+        />
+    );
+    if (!report)
+        return (
+            <>
+                {subscription}
+                <div>
+                    <p role={error ? "alert" : "status"}>{error || t("loading")}</p>
+                    {error && (
+                        <button type="button" onClick={retry}>
+                            {t("retry")}
+                        </button>
+                    )}
+                </div>
+            </>
+        );
+    return (
+        <>
+            {subscription}
+            <section aria-label="Run report">
+                <h2>
+                    {report.run.outcome ?? report.run.state} · {report.run.source}
+                </h2>
+                <p data-testid="report-gates">
+                    {t("gateAt")}: <strong>{report.gateAtExecution.passed ? "PASS" : "BLOCKED"}</strong>{" "}
+                    · {t("gateNow")}: <strong>{report.gateNow.passed ? "PASS" : "BLOCKED"}</strong>
+                </p>
+                {!report.gateNow.passed && <p>{report.gateNow.reasons.join(", ")}</p>}
+                <p>
+                    {t("cases")}: {report.statistics.caseCount} · {t("firstPass")}:{" "}
+                    {report.statistics.firstPassCount} · {t("retryPass")}:{" "}
+                    {report.statistics.retryPassCount} · {t("infra")}:{" "}
+                    {report.statistics.infrastructureErrorCount}
+                </p>
+                {report.cases.slice(0, caseLimit).map((c) => (
+                    <CaseCard
+                        key={c.id}
+                        value={c}
+                        runId={runId}
+                        adapter={adapter}
+                        choose={setAttempt}
+                    />
+                ))}
+                {report.cases.length > caseLimit && (
+                    <button type="button" onClick={() => setCaseLimit((n) => n + 25)}>
+                        {t("moreCases")}
+                    </button>
+                )}
+                <details>
+                    <summary>{t("technical")}</summary>
+                    <p>Run {runId}</p>
+                    <pre>{JSON.stringify(report.run, null, 2)}</pre>
+                </details>
+                {attemptId && (
+                    <AttemptDetails
+                        key={attemptId + restart}
+                        adapter={adapter}
+                        runId={runId}
+                        attemptId={attemptId}
+                        generation={generation}
+                        signal={signal}
+                        rawEvidenceAllowed={rawEvidenceAllowed}
+                    />
+                )}
+            </section>
+        </>
+    );
+}
+function ReportSubscription({
+    adapter,
+    runId,
+    signal,
+    setReport,
+    setError,
+    setGeneration,
+}: {
+    adapter: ReportAdapter;
+    runId: string;
+    signal?: AbortSignal;
+    setReport: Dispatch<SetStateAction<RunReport | undefined>>;
+    setError: Dispatch<SetStateAction<string>>;
+    setGeneration: Dispatch<SetStateAction<number>>;
+}) {
+    // 初始快照与流共享同一个取消边界，流失败仍撤销同代快照请求；稳定的 React setter 不会因父组件正常渲染而更换，卸载清理时机沿用原有订阅效果。
     useEffect(() => {
         const lifetime = new AbortController();
         const active = signal ? AbortSignal.any([signal, lifetime.signal]) : lifetime.signal;
@@ -225,72 +363,10 @@ export function ReportView({
                 }
             });
         return () => lifetime.abort();
-    }, [adapter, runId, signal, restart]);
-    const retry = () => {
-        setError("");
-        setReport(undefined);
-        setRestart((r) => r + 1);
-    };
-    if (!report)
-        return (
-            <div>
-                <p role={error ? "alert" : "status"}>{error || t("loading")}</p>
-                {error && (
-                    <button type="button" onClick={retry}>
-                        {t("retry")}
-                    </button>
-                )}
-            </div>
-        );
-    return (
-        <section aria-label="Run report">
-            <h2>
-                {report.run.outcome ?? report.run.state} · {report.run.source}
-            </h2>
-            <p data-testid="report-gates">
-                {t("gateAt")}: <strong>{report.gateAtExecution.passed ? "PASS" : "BLOCKED"}</strong>{" "}
-                · {t("gateNow")}: <strong>{report.gateNow.passed ? "PASS" : "BLOCKED"}</strong>
-            </p>
-            {!report.gateNow.passed && <p>{report.gateNow.reasons.join(", ")}</p>}
-            <p>
-                {t("cases")}: {report.statistics.caseCount} · {t("firstPass")}:{" "}
-                {report.statistics.firstPassCount} · {t("retryPass")}:{" "}
-                {report.statistics.retryPassCount} · {t("infra")}:{" "}
-                {report.statistics.infrastructureErrorCount}
-            </p>
-            {report.cases.slice(0, caseLimit).map((c) => (
-                <CaseCard
-                    key={c.id}
-                    value={c}
-                    runId={runId}
-                    adapter={adapter}
-                    choose={setAttempt}
-                />
-            ))}
-            {report.cases.length > caseLimit && (
-                <button type="button" onClick={() => setCaseLimit((n) => n + 25)}>
-                    {t("moreCases")}
-                </button>
-            )}
-            <details>
-                <summary>{t("technical")}</summary>
-                <p>Run {runId}</p>
-                <pre>{JSON.stringify(report.run, null, 2)}</pre>
-            </details>
-            {attemptId && (
-                <AttemptDetails
-                    key={attemptId + restart}
-                    adapter={adapter}
-                    runId={runId}
-                    attemptId={attemptId}
-                    generation={generation}
-                    signal={signal}
-                    rawEvidenceAllowed={rawEvidenceAllowed}
-                />
-            )}
-        </section>
-    );
+    }, [adapter, runId, signal, setReport, setError, setGeneration]);
+    return null;
 }
+
 function CaseCard({
     value,
     adapter,
@@ -393,7 +469,6 @@ function AttemptDetails({
 }) {
     const t = useLabels(),
         [events, setEvents] = useState<ReportEvent[]>([]),
-        [after, setAfter] = useState(0),
         [more, setMore] = useState(false),
         [error, setError] = useState(""),
         [preview, setPreview] = useState("");
@@ -418,27 +493,27 @@ function AttemptDetails({
         queryFn: ({ signal }) =>
             adapter.display(runId, attemptId, AbortSignal.any([signal, active])),
     });
-    const load = async () => {
+    const cursor = useRef(0);
+    // 游标只供下一次显式加载读取，推进它不触发额外请求；并发响应仍按 sequence 合并且游标单调前进，既不自动排空分页，也不引入额外的过期代次丢弃协议。
+    const load = useCallback(async () => {
         try {
-            const page = await adapter.history(attemptId, after, active);
+            const page = await adapter.history(attemptId, cursor.current, active);
             if (active.aborted) return;
             setEvents((previous) => {
                 const map = new Map(previous.map((e) => [e.sequence, e]));
                 for (const e of page.items) map.set(e.sequence, e);
                 return [...map.values()].sort((a, b) => a.sequence - b.sequence);
             });
-            setAfter((old) => Math.max(old, page.nextSequence));
+            cursor.current = Math.max(cursor.current, page.nextSequence);
             setMore(page.hasMore);
         } catch (e) {
             if (!active.aborted) setError(String(e));
         }
-    };
-    useEffect(() => {
-        void load();
-    }, [generation]);
+    }, [adapter, attemptId, active]);
     const display = metadata.data?.display;
     return (
         <section aria-label="Attempt details">
+            <HistoryPageLoader key={generation} load={load} />
             <h3>{t("steps")}</h3>
             {error && <p role="alert">{error}</p>}
             {metadata.error && <p role="alert">{metadata.error.message}</p>}
@@ -680,4 +755,12 @@ function AttemptDetails({
             )}
         </section>
     );
+}
+
+function HistoryPageLoader({ load }: { load: () => Promise<void> }) {
+    // 每次服务端报告代次提交仅挂载一个无界面加载器，累计事件仍属于 AttemptDetails；证据查询完成或历史状态变化不会重挂载它，手动 More 也只调用同一加载函数一次。
+    useEffect(() => {
+        void load();
+    }, [load]);
+    return null;
 }
