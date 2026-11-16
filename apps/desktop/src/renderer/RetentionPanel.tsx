@@ -7,7 +7,8 @@ import {
     type LocalRetentionOutcome,
 } from "../shared/retention-policy";
 
-/** 本机保留期表单只发送有限工作区与数字预算，路径和文件选择始终留在可信后台；同步请求门闩防止双击在 React 忙碌状态刷新
+/**
+ * 本机保留期表单只发送有限工作区与数字预算，路径和文件选择始终留在可信后台；同步请求门闩防止双击在 React 忙碌状态刷新
  * 前重放，退出页面或关闭窗口不会被误呈现为原生清理已经撤销或回滚。操作前由 main 显示真正原生确认，
  * renderer 不能直接提交 confirmed 标记。当前工作区变化只影响之后的操作，已开始操作始终保留其实际工作区标识。没有取消按
  * 钮，因为持久退休不支持通过关闭 UI 保证撤销。结果仅显示后端返回的有限计数，
@@ -26,7 +27,8 @@ export function RetentionPanel({
     const [pending, setPending] = useState(false);
     const [result, setResult] = useState<{ workspaceId: string; outcome: LocalRetentionOutcome }>();
     const [error, setError] = useState("");
-    /** 请求中状态使用同步 ref 而不是只依赖下一次 React render，两个快速提交不能在 disabled 生效前发出两份原生请求；
+    /**
+     * 请求中状态使用同步 ref 而不是只依赖下一次 React render，两个快速提交不能在 disabled 生效前发出两份原生请求；
      * mount 标记只控制迟到UI更新，绝不把组件卸载当成后台操作的取消或事务回滚。
      * 参数输入仍保留用户刚填写的值，不因轮询状态重置表单。工作区由父层真实 Agent 状态提供，后台还会重新核对。禁用输入
      * 不会改变已经发出的命令或猜测已完成文件删除。StrictMode 清理后重新挂载会重新启用 UI 更新，
@@ -47,7 +49,8 @@ export function RetentionPanel({
         { name: "bundleDays", label: "未访问资源包天数 / Unused package days" },
         { name: "batchSize", label: "本次批量上限 / Batch limit" },
     ];
-    /** 一次提交先解析有限数字并只调用明确的 pruneCache 能力，得到真实结果后再刷新界面；如果结果已经返回而刷新失败，提示
+    /**
+     * 一次提交先解析有限数字并只调用明确的 pruneCache 能力，得到真实结果后再刷新界面；如果结果已经返回而刷新失败，提示
      * 必须区分这两件事，不能让用户误以为清理失败从而重放同一批次。setResult
      * 只存有限计数与原来工作区，不保存宿主路径或异常对象。原生确认取消通过已知错误码说明未发出保护操作。真正维护一旦开
      * 始，不提供会假称撤销的 AbortController 或取消按钮。finally 释放 UI
@@ -88,7 +91,8 @@ export function RetentionPanel({
             if (mounted.current) setPending(false);
         }
     }
-    /** 所有保留期选项使用关联label与原生number约束，disabled fieldset 同时覆盖键盘和鼠标提交；结果以双语计数表呈现，并
+    /**
+     * 所有保留期选项使用关联label与原生number约束，disabled fieldset 同时覆盖键盘和鼠标提交；结果以双语计数表呈现，并
      * 明确保留项和后续批次，不能把空数组或成功HTTP状态画成档案已经清空。
      * 工作区缺失时仍显示原因，用户无需猜测为什么按钮不可用。
      * 忙碌状态包含原生确认等待，因此一份请求不会被用户双击重放。

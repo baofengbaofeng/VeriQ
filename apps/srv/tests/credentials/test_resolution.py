@@ -232,7 +232,8 @@ async def test_adapter_and_secret_authorization_lock_serializes_revocation(site)
                     await revoking.execute(
                         select(model).where(model.id == version).with_for_update(nowait=True)
                     )
-                assert blocked.value.orig.args[0] == 3572  # MySQL NOWAIT lock conflict
+                # 另一事务用 NOWAIT 获取已持有的凭据版本行锁时须报告锁冲突，证明并发撤权无法绕过签发事务的锁定。
+                assert blocked.value.orig.args[0] == 3572
                 await revoking.rollback()
         assert await resolve_verified(issuing, proof, "business", secret["versionId"], ring) == {
             "token": "synthetic"

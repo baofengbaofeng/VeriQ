@@ -5,7 +5,8 @@ import { useTranslation } from "react-i18next";
 import DOMPurify from "dompurify";
 import { VeriqButton } from "./VeriqButton";
 
-/** 持久化记录只包含公开业务标识和展示名称，测试行键使用服务端 id，不使用数组位置、姓名或任何认证 token；React key 与
+/**
+ * 持久化记录只包含公开业务标识和展示名称，测试行键使用服务端 id，不使用数组位置、姓名或任何认证 token；React key 与
  * DOM recordKey 同时设置但承担不同职责。
  */
 export interface Employee {
@@ -24,7 +25,8 @@ async function employees(code: string, signal: AbortSignal): Promise<Employee[]>
     return body.items;
 }
 
-/** 该集成组件接收公开夹具 code 与普通富文本说明，由应用提供 QueryClientProvider 和 i18nextProvider；code
+/**
+ * 该集成组件接收公开夹具 code 与普通富文本说明，由应用提供 QueryClientProvider 和 i18nextProvider；code
  * 仅关联受控数据，不包含清理令牌，所有网络请求走正常业务会话。
  * 示例文件用于接入现有 Vite6/Tailwind3 项目，不创建第二套前端包或锁文件。
  * descriptionHtml 是不可信展示内容，清洗后仍放在固定业务锚点内。

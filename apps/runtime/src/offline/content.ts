@@ -3,7 +3,9 @@
  * content/BUNDLE_DEPENDENCY_MISSING）。
  */
 
-/** Cross-member provenance checks after signature/hash verification, before install. */
+/**
+ * Cross-member provenance checks after signature/hash verification, before install.
+ */
 import { createHash } from "node:crypto";
 import { analyze, verifyFiles, verifyDistribution } from "@veriq/compiler";
 import {

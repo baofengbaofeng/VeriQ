@@ -80,7 +80,7 @@ class IdentityRegistry:
         if row.revoked:
             raise Problem(409, "CREDENTIAL_REVOKED", "Credential version is revoked")
         allowed = role.get("allowedIdentityIds")
-        # 身份子集必须落在密钥版本声明的允许集合内，禁止运行时扩权。
+        # 调用方指定的身份子集必须包含于该密钥版本声明的允许集合，空集合或越界身份直接拒绝，禁止执行时扩大凭据作用域。
         if not allowed or not set(allowed) <= set(row.allowed_identity_ids):
             raise Problem(
                 422,

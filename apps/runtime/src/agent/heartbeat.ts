@@ -56,7 +56,7 @@ export class Heartbeat {
                 },
             );
             if (this.done) return;
-            // 平台已请求取消时立即停机，不消费剩余租约去做新的副作用。
+            // 平台明确请求取消时立即触发受控停机，停止更新租约期限，避免剩余租约继续授权新的业务副作用。
             if (grant.cancelRequested) {
                 this.stop("USER_CANCELLED");
                 return;

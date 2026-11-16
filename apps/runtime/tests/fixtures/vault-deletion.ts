@@ -1,4 +1,5 @@
-/** 真实系统凭据退休验收为本测试创建随机独立档案，通过正式消费者写入三种秘密用途后调用生产整体删除；所有 OS 观察均针对该
+/**
+ * 真实系统凭据退休验收为本测试创建随机独立档案，通过正式消费者写入三种秘密用途后调用生产整体删除；所有 OS 观察均针对该
  * 档案的精确版本，finally 再读实际缺失事实，不能把内存夹具或 helper 退出当作系统服务删除完成
  * 。
  */
@@ -10,7 +11,8 @@ import { CredentialProfile, type CredentialOptions } from "../../src/credentials
 import type { VaultKeyScope } from "../../src/credentials/backend.ts";
 import { updatePrivate } from "../../src/offline/config.ts";
 
-/** 调用者提供目标环境真实后端与本次独立目录，返回的有限事实不含密钥和业务载荷；测试保留本机退役与控制平台撤销的边界，真
+/**
+ * 调用者提供目标环境真实后端与本次独立目录，返回的有限事实不含密钥和业务载荷；测试保留本机退役与控制平台撤销的边界，真
  * 实系统密钥清理无论主断言是否成功都必须执行并核验结果。
  */
 export async function verifyCredentialDeletion(directory: string, options: CredentialOptions) {

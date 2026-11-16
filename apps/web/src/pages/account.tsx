@@ -1,4 +1,5 @@
-/** 账户页：展示资料、改密、分页列出本账户会话，并可吊销全部其他会话。不展示其他用户的会话；界面逻辑保证绝不渲染其他用户
+/**
+ * 账户页：展示资料、改密、分页列出本账户会话，并可吊销全部其他会话。不展示其他用户的会话；界面逻辑保证绝不渲染其他用户
  * 的会话行。
  * 调用 api.account/sessions/password/revokeOwn；未登录重定向 /login。
  */
@@ -9,7 +10,8 @@ import { Navigate } from "react-router-dom";
 import { api, type AccountSessions } from "../api";
 import { Auth } from "../auth-context";
 import { Notice, Field, useAction, values, Panel } from "../ui";
-/** 以当前 user.id 和所选每页数量拥有会话列表及游标，首次加载与重试替换首屏、More 仅追加当前游标的一页，并在改密或撤销后
+/**
+ * 以当前 user.id 和所选每页数量拥有会话列表及游标，首次加载与重试替换首屏、More 仅追加当前游标的一页，并在改密或撤销后
  * 通过身份刷新进入重新登录流程。
  * 不涉及 Workspace 资源；会话吊销后通过 refresh 同步 Auth。
  */
@@ -23,7 +25,8 @@ export function Account() {
     const key = JSON.stringify([userId, limit]);
     const owner = useRef({ key, request: 0, mounted: false });
     const { run } = a;
-    /** 身份和页大小共同拥有当前列表，布局阶段先失效旧请求并清空分页，避免新身份短暂展示旧行；此处只阻止过期结果发布，不
+    /**
+     * 身份和页大小共同拥有当前列表，布局阶段先失效旧请求并清空分页，避免新身份短暂展示旧行；此处只阻止过期结果发布，不
      * 会取消已经发往后端的 HTTP 请求。
      */
     useLayoutEffect(() => {
@@ -34,7 +37,8 @@ export function Account() {
             owner.current.request += 1;
         };
     }, [key]);
-    /** 未传游标时替换会话首屏，More 只追加当前游标对应的一页；调用开始与完成都核对身份和页大小，较早请求的错误也不会进
+    /**
+     * 未传游标时替换会话首屏，More 只追加当前游标对应的一页；调用开始与完成都核对身份和页大小，较早请求的错误也不会进
      * 入新列表的动作反馈区域或改变新游标。
      */
     const loadSessions = useCallback(

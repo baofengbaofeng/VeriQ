@@ -1,4 +1,5 @@
-/** 夹具搬运测试使用小型真实 ESM 包树验证可搬迁性、复制后的权限隔离与链接边界，不创建账户或挂载；源目录删除后仍须从自有
+/**
+ * 夹具搬运测试使用小型真实 ESM 包树验证可搬迁性、复制后的权限隔离与链接边界，不创建账户或挂载；源目录删除后仍须从自有
  * 副本解析依赖，因此通过只说明装载闭包成立，不能代替目标专用 UID 的凭据与卷验收。
  */
 import { test } from "node:test";
@@ -101,7 +102,8 @@ test("owned fixture copy rejects external package links before creating destinat
     }
 });
 
-/** 副本拥有者不能从源文件继承而须由实际复制调用者确定，测试逐项读取普通文件、目录与内部链接的真实属性；源包含硬链接和不
+/**
+ * 副本拥有者不能从源文件继承而须由实际复制调用者确定，测试逐项读取普通文件、目录与内部链接的真实属性；源包含硬链接和不
  * 同执行权限，确保权限规范化不会通过任何共享 inode 改变源树，也不会把身份摘要混入原有字节库存哈希。
  */
 test(
@@ -220,7 +222,8 @@ test("owned fixture copy refuses a linked target parent before creating or norma
     }
 });
 
-/** 小仓库使用完整但微型的真实 manifest、三份锁和可搬迁安装树模拟官方部署的文件接口；故意保留同版本的 peer 后缀与平台可
+/**
+ * 小仓库使用完整但微型的真实 manifest、三份锁和可搬迁安装树模拟官方部署的文件接口；故意保留同版本的 peer 后缀与平台可
  * 选边，使单纯比较包名版本或只看派生锁的实现无法通过这些行为断言。
  */
 async function graphFixture() {
@@ -401,7 +404,8 @@ test("three frozen locks accept only the exact production graph and installed in
     }
 });
 
-/** 每个错误输入都落在同一套真实文件边界上，失败来自生产验证器读取并拒绝篡改后的图或库存；特别将 current 锁单独改坏，防
+/**
+ * 每个错误输入都落在同一套真实文件边界上，失败来自生产验证器读取并拒绝篡改后的图或库存；特别将 current 锁单独改坏，防
  * 止只验证部署导出锁而遗漏实际已安装包的生产引用和完整性来源。
  */
 const graphMutations: Record<
@@ -677,7 +681,8 @@ for (const policy of ["registry", "minimumReleaseAge"])
         }
     });
 
-/** 清理只通过真实 CLI 读取先落盘的拥有状态，因此错误 nonce、UID、父路径、符号链接和部分失败目录都能观察到保留或删除结果
+/**
+ * 清理只通过真实 CLI 读取先落盘的拥有状态，因此错误 nonce、UID、父路径、符号链接和部分失败目录都能观察到保留或删除结果
  * ；受保护的外部标记始终保持原内容，测试不凭内部函数调用次数推断安全边界。
  */
 async function runStageCleanup(evidence: string, temporary: string) {

@@ -13,7 +13,8 @@ import { Panel } from "../../ui";
 import { useWorkspace } from "../workspaces/WorkspaceContext";
 import { CloudResourceAdapter, type Resource, type Version } from "../resources/adapters";
 import { CloudBundleAdapter, type BundleAdapter } from "./adapters";
-/** 拉取工作区列表并默认选中首项，再把 selected 与 adapter 交给 BundleWorkspaceView。自身不持有导出表单状态，避免与空间
+/**
+ * 拉取工作区列表并默认选中首项，再把 selected 与 adapter 交给 BundleWorkspaceView。自身不持有导出表单状态，避免与空间
  * 切换竞态。
  */
 export function BundlePage() {
@@ -72,7 +73,8 @@ export function BundlePage() {
         </Panel>
     );
 }
-/** 拥有资源/版本多选与导出进度 UI；export 带 Idempotency-Key，download 触发浏览器保存。只读依赖 CloudResourceAdapter 列
+/**
+ * 拥有资源/版本多选与导出进度 UI；export 带 Idempotency-Key，download 触发浏览器保存。只读依赖 CloudResourceAdapter 列
  * 出版本；写路径仅
  * BundleAdapter.export/download。
  */

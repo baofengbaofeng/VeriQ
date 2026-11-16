@@ -9,7 +9,8 @@ import {
     validateJournal,
 } from "./controlled-child-protocol.mjs";
 
-/** VeriQ 的 Worker 只持有固定顺序的三个直接命令，借入两份私有日志描述符且始终保留原始子对象；管理失败与实际退出独立，
+/**
+ * VeriQ 的 Worker 只持有固定顺序的三个直接命令，借入两份私有日志描述符且始终保留原始子对象；管理失败与实际退出独立，
  * 任何未知状态都不能靠迟到退出重新取得封存资格。
  */
 export function createControlledCommandOwner(options) {
@@ -45,7 +46,8 @@ export function createControlledCommandOwner(options) {
     const roles = ["npm", "compiler", "cli"];
     const preload = fileURLToPath(new URL("./controlled-child-preload.mjs", import.meta.url));
 
-    /** 管理故障先同步关闭准入并固定首个英文原因，所有尚未结清的管理观察随即失败；独立实际退出等待器不在这里完成，
+    /**
+     * 管理故障先同步关闭准入并固定首个英文原因，所有尚未结清的管理观察随即失败；独立实际退出等待器不在这里完成，
      * 描述符也不在任何故障路径被关闭。
      */
     function fail(reason = "CONTROLLED_COMMAND_OWNER_FAILED") {
@@ -57,7 +59,8 @@ export function createControlledCommandOwner(options) {
         }
     }
 
-    /** 每帧定位追加并同步刷新才允许下一步派生，短写必须取得正进展且遵守唯一 C1 上限；写入或刷新出错立即粘滞失败，
+    /**
+     * 每帧定位追加并同步刷新才允许下一步派生，短写必须取得正进展且遵守唯一 C1 上限；写入或刷新出错立即粘滞失败，
      * 不能留下半帧后继续写出看似正常的封存。
      */
     function append(type, fields = {}) {
@@ -96,7 +99,8 @@ export function createControlledCommandOwner(options) {
     append("OBSERVER_READY", commandBinding);
 
     return {
-        /** 固定角色使用当前受信 Node 执行，INTENT 刷新后立即注册同一对象的全部事件；CLI 独占目标 fd4 和可信 preload，
+        /**
+         * 固定角色使用当前受信 Node 执行，INTENT 刷新后立即注册同一对象的全部事件；CLI 独占目标 fd4 和可信 preload，
          * 另两个角色不继承观察标记或任何日志描述符。
          */
         start(role, command) {
@@ -219,7 +223,8 @@ export function createControlledCommandOwner(options) {
             return { child, exited, result };
         },
 
-        /** 同代取消先关闭准入且只对仍然存活的原始对象操作，CLI 必须先取得共享观察器授权才发 SIGINT；
+        /**
+         * 同代取消先关闭准入且只对仍然存活的原始对象操作，CLI 必须先取得共享观察器授权才发 SIGINT；
          * 错误绑定不产生任何副作用，已经发生的退出也不能补授取消。
          */
         requestStop(value) {
@@ -255,14 +260,16 @@ export function createControlledCommandOwner(options) {
             if (!member.child.kill("SIGINT")) fail("CONTROLLED_COMMAND_ERROR");
         },
 
-        /** Worker 的断连或未捕获故障只能提交固定管理失败，不允许调用方拼接第三方输出或任意错误文本；
+        /**
+         * Worker 的断连或未捕获故障只能提交固定管理失败，不允许调用方拼接第三方输出或任意错误文本；
          * 此方法不伪造命令退出，也不接管借入文件的关闭责任。
          */
         fail() {
             fail();
         },
 
-        /** 所有实际命令及 CLI 最终日志均结清后才追加唯一封存，再从原 FD 定位读取交给唯一 C1 验证器；
+        /**
+         * 所有实际命令及 CLI 最终日志均结清后才追加唯一封存，再从原 FD 定位读取交给唯一 C1 验证器；
          * 前缀可以为空但未结清意图、故障或封存后启动都不能获得成功。
          */
         seal() {

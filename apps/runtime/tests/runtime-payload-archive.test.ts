@@ -107,7 +107,8 @@ for (const arch of ["x64", "arm64"] as const)
         }
     });
 
-/** 每个拒绝案例独占真实输入和输出目录，并确认没有已发布候选或误删外部哨兵；错误断言接受正式稳定分类集合，避免底层压缩库
+/**
+ * 每个拒绝案例独占真实输入和输出目录，并确认没有已发布候选或误删外部哨兵；错误断言接受正式稳定分类集合，避免底层压缩库
  * 异常或测试夹具载入失败冒充所需安全行为。
  */
 async function refuses(
@@ -273,7 +274,8 @@ test("directory entries never carry an unchecked body", () =>
         ["PAYLOAD_ARCHIVE_FORMAT"],
     ));
 
-/** PAX 反例通过成熟 Header 编码器生成真实元数据帧，长度数字仍由 Pax.parse 解释而非测试预先替产品校验；这些案例专门证明
+/**
+ * PAX 反例通过成熟 Header 编码器生成真实元数据帧，长度数字仍由 Pax.parse 解释而非测试预先替产品校验；这些案例专门证明
  * 未知、重复、size 覆盖与静默丢弃记录会失败，不能只靠 raw 关键字过滤假称支持完整
  * PAX。
  */
@@ -316,7 +318,8 @@ test("tar member larger than fixed limit rejects small declaration-only fixture"
         ["PAYLOAD_LIMIT"],
     ));
 
-/** 正常 PAX 和 GNU 元数据必须由成熟 Parser 应用后再核有效成员路径，不能只因严格拒绝所有 meta 就让恶意样本通过测试；单个
+/**
+ * 正常 PAX 和 GNU 元数据必须由成熟 Parser 应用后再核有效成员路径，不能只因严格拒绝所有 meta 就让恶意样本通过测试；单个
  * 正常场景还保留 late explicit parent 与多个有限 Framewor
  * k 别名，保证推导和共享终点不是误判循环。
  */
@@ -463,7 +466,8 @@ test("logical link hops stay bounded even for a chain with an ordinary endpoint"
         ["PAYLOAD_ARCHIVE_LINK"],
     ));
 
-/** bit3 只表示 local 尺寸可能依赖 descriptor，产品仍以 central 声明和真实内容 CRC 为权威；夹具故意清零 local 副本证明不
+/**
+ * bit3 只表示 local 尺寸可能依赖 descriptor，产品仍以 central 声明和真实内容 CRC 为权威；夹具故意清零 local 副本证明不
  * 会误拒该允许标志，同时零正文显式目录也必须走正常解压长度与 CRC
  * 检查路径，未宣称验证 descriptor 全语法。
  */
@@ -499,7 +503,8 @@ test("ZIP allows bit3 central-authoritative entries and explicit empty directori
     }
 });
 
-/** 原归档在首次真实读取前变动仍必须按原配方固定摘要与长度拒绝，不能因为之后能解包就接受更新来源；两种篡改分别保留长度或
+/**
+ * 原归档在首次真实读取前变动仍必须按原配方固定摘要与长度拒绝，不能因为之后能解包就接受更新来源；两种篡改分别保留长度或
  * 改变长度，输出父目录必须保持空白，表明错误不会产生可被误认成功的半候选。
  */
 for (const change of ["hash", "size"] as const)
@@ -516,7 +521,8 @@ for (const change of ["hash", "size"] as const)
             ["PAYLOAD_TREE_MISMATCH"],
         ));
 
-/** Framework 名称属于独立布局准入政策，实际归档没有任何链接时也必须核验声明根而不能靠遍历链接触发；同一真实微型 ZIP 同
+/**
+ * Framework 名称属于独立布局准入政策，实际归档没有任何链接时也必须核验声明根而不能靠遍历链接触发；同一真实微型 ZIP 同
  * 时覆盖空 basename 拒绝和合法非空 basename 成功，仍从独立布局及原配方完整重绑
  * 开始。
  */
@@ -575,7 +581,8 @@ for (const basename of [".framework", "Named.framework"])
         }
     });
 
-/** 自包含回归在真正独立的 Node 子进程等待生产 tar 消费者自然结束，父级期限只把卡住分类为失败而不充当完成事件；夹具使用
+/**
+ * 自包含回归在真正独立的 Node 子进程等待生产 tar 消费者自然结束，父级期限只把卡住分类为失败而不充当完成事件；夹具使用
  * 成熟 tar 编码器与真实摘要，每次仅拥有一个小归档并在进程已结束后删除，绝不借私有证据或伪造官方身
  * 份。
  */
@@ -717,7 +724,8 @@ for (const scenario of ["cancel", "member-error"] as const)
 test("tar natural child retains permitted partial zero tail", async () =>
     naturalTarChild(16385, "zero-tail"));
 
-/** 新诊断回归只给真实事务写入一个微型归档，再消费实际 tar 或 ZIP 扫描器的失败对象；空间与分配均在独占目录核验，最后先确
+/**
+ * 新诊断回归只给真实事务写入一个微型归档，再消费实际 tar 或 ZIP 扫描器的失败对象；空间与分配均在独占目录核验，最后先确
  * 认事务关闭再删除夹具，不借用官方身份或执行任何归档成员。
  */
 async function rejectionFixture(
@@ -773,7 +781,8 @@ async function rejectionFixture(
     }
 }
 
-/** 三个首要反例分别经过真实 tar 类型拒绝、ZIP 来源类型拒绝及共用权限拒绝，先断言原分类再要求真实错误携带诊断；读取函数
+/**
+ * 三个首要反例分别经过真实 tar 类型拒绝、ZIP 来源类型拒绝及共用权限拒绝，先断言原分类再要求真实错误携带诊断；读取函数
  * 的空实现因此是行为缺失红灯，不是导入或测试装载失败。
  */
 for (const scenario of ["tar", "zip", "shared"] as const) {
@@ -811,7 +820,8 @@ for (const scenario of ["tar", "zip", "shared"] as const) {
     });
 }
 
-/** 每个元数据反例保留成熟编码器生成的真实头和精确正文，并将实际拒绝事件与这些独立字节核对；PAX 值与往返边界使用合法长度
+/**
+ * 每个元数据反例保留成熟编码器生成的真实头和精确正文，并将实际拒绝事件与这些独立字节核对；PAX 值与往返边界使用合法长度
  * 记录，不能用损坏校验和或通用格式错误替代目标拒绝。
  */
 const rejectionTarCases = [
@@ -938,7 +948,8 @@ for (const scenario of rejectionTarCases) {
     });
 }
 
-/** ZIP 复合条件分别改变公开 central 与 local 字段，并保持原有范围一致性前置检查通过；事件必须保存实际原模式、方法与来源
+/**
+ * ZIP 复合条件分别改变公开 central 与 local 字段，并保持原有范围一致性前置检查通过；事件必须保存实际原模式、方法与来源
  * 主机，不能由测试期望填入诊断或把缺失模式伪装为 Unix 权限。
  */
 for (const scenario of [
@@ -1018,7 +1029,8 @@ for (const scenario of [
     });
 }
 
-/** 共用条目检查在读取正文前拒绝权限与长度边界，因此直接提供真实扫描对象即可定位非有限数等压缩头无法合法编码的输入；断言
+/**
+ * 共用条目检查在读取正文前拒绝权限与长度边界，因此直接提供真实扫描对象即可定位非有限数等压缩头无法合法编码的输入；断言
  * 仍检查原异常分类和未消费正文，不把这些微型内部案例当成官方归档事实。
  */
 for (const scenario of [
@@ -1067,7 +1079,8 @@ for (const scenario of [
     });
 }
 
-/** 私有捕获的上限按完整 JSON 与 base64 膨胀核验，合法最大元数据和头样本仍能保存原 SHA；超限与捕获异常只丢弃可选事件，不
+/**
+ * 私有捕获的上限按完整 JSON 与 base64 膨胀核验，合法最大元数据和头样本仍能保存原 SHA；超限与捕获异常只丢弃可选事件，不
  * 改变冻结错误，也不允许后来修改缓冲或第二个事件覆盖首份事实。
  */
 test("archive rejection evidence capture bounds ownership and failure isolation", async () => {
@@ -1141,7 +1154,8 @@ test("archive rejection evidence capture bounds ownership and failure isolation"
     assert.equal(archiveRejectionLine(unrelated), null);
 });
 
-/** 缺失权限字段用成熟 Header 在新缓冲直接编码，避免手工修补校验和影响待观察的实际 guard；另一个声明超限同时带坏权限的案
+/**
+ * 缺失权限字段用成熟 Header 在新缓冲直接编码，避免手工修补校验和影响待观察的实际 guard；另一个声明超限同时带坏权限的案
  * 例证明原先限额优先选择没有被诊断重新分类。
  */
 test("archive rejection evidence missing raw mode and unchanged limit priority", async () => {
@@ -1178,7 +1192,8 @@ test("archive rejection evidence missing raw mode and unchanged limit priority",
     assert.equal(await tx.cleanup(), "NOT_NEEDED");
 });
 
-/** Stored 兼容案例只在成熟编码器生成的单成员微型归档中改变原始选项位，事务快照与双遍扫描始终消费同一字节；每例独占目录
+/**
+ * Stored 兼容案例只在成熟编码器生成的单成员微型归档中改变原始选项位，事务快照与双遍扫描始终消费同一字节；每例独占目录
  * 并在确认关闭后清理，同时核验实际磁盘分配和剩余空间。
  */
 async function storedFixture(
@@ -1224,7 +1239,8 @@ async function storedFixture(
     }
 }
 
-/** 四种方法专属选项位均保持原值传入成熟 Stored 解码器，声明长度与 CRC 来自真实头部并由实际正文完成校验；第二遍必须得到
+/**
+ * 四种方法专属选项位均保持原值传入成熟 Stored 解码器，声明长度与 CRC 来自真实头部并由实际正文完成校验；第二遍必须得到
  * 相同成员摘要和完整正文，快照原字节不能被清零或重写。
  */
 for (const flags of [0, 2, 4, 6]) {
@@ -1275,7 +1291,8 @@ for (const flags of [0, 2, 4, 6]) {
     });
 }
 
-/** 放行 Stored 方法不解释的选项位不能影响其它拒绝边界，以下每次只破坏真实微型 ZIP 的一个条件；加密输入允许先被成熟解析
+/**
+ * 放行 Stored 方法不解释的选项位不能影响其它拒绝边界，以下每次只破坏真实微型 ZIP 的一个条件；加密输入允许先被成熟解析
  * 器判为格式错误，不能把更早的诚实失败伪装成诊断守卫命中。
  */
 for (const scenario of [
@@ -1335,7 +1352,8 @@ for (const scenario of [
     });
 }
 
-/** 真实子进程只包装精确 owned 快照的单次关闭回调，实际系统关闭成功后才注入 EIO；父进程等待自然终止并记录保留目录之后才
+/**
+ * 真实子进程只包装精确 owned 快照的单次关闭回调，实际系统关闭成功后才注入 EIO；父进程等待自然终止并记录保留目录之后才
  * 删除自己的夹具，十秒看门狗只能判失败，不能替生产结算。
  */
 for (const scenario of [
@@ -1540,7 +1558,8 @@ assert.equal(calls, 1);
         }
     });
 
-/** 公开事件顺序测试只检验共享结算器的记忆和终态粘性，不冒充真实文件描述符证据；提前 close、先读错后确认、关闭重入及迟到
+/**
+ * 公开事件顺序测试只检验共享结算器的记忆和终态粘性，不冒充真实文件描述符证据；提前 close、先读错后确认、关闭重入及迟到
  * 重复事件均使用真实事务 cleanup 判断是否错误释放了所属目录。
  */
 for (const order of [

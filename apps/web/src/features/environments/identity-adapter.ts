@@ -6,16 +6,19 @@
 import type { PlatformComponents, AuthAdapterConfigV1, JsonObject } from "@veriq/contracts";
 import { request } from "../../api";
 type S = PlatformComponents["schemas"];
-/** CredentialDTO 摘要：引用名、版本与允许身份，不含 secret 明文。列表分页 cursor 可选；列表通过可选 cursor 在
+/**
+ * CredentialDTO 摘要：引用名、版本与允许身份，不含 secret 明文。列表分页 cursor 可选；列表通过可选 cursor 在
  * Workspace 内分页。
  * 列表展示与吊销目标均用此类型。
  */
 export type CredentialSummary = S["CredentialDTO"];
-/** AuthAdapterDTO 摘要：适配器配置版本元数据，供环境字段下拉固定引用。configuration 已由服务端校验。revoke 后不可再被新
+/**
+ * AuthAdapterDTO 摘要：适配器配置版本元数据，供环境字段下拉固定引用。configuration 已由服务端校验。revoke 后不可再被新
  * 环境草稿引用。
  */
 export type AdapterSummary = S["AuthAdapterDTO"];
-/** IdentityManager 依赖的接口：credentials/adapters/createAdapter/credential/revoke*。桌面可替换实现，但不得把密钥写入
+/**
+ * IdentityManager 依赖的接口：credentials/adapters/createAdapter/credential/revoke*。桌面可替换实现，但不得把密钥写入
  * 可序列化快照。
  */
 export interface IdentityAdapter {
@@ -35,7 +38,8 @@ export interface IdentityAdapter {
     ): Promise<CredentialSummary>;
     revokeCredential(ref: string, id: string, signal?: AbortSignal): Promise<CredentialSummary>;
 }
-/** HTTP 实现：/workspaces/{id}/credentials 与 auth-adapters；rotate 标志控制新版本。构造绑定单一 workspaceId，防止跨空
+/**
+ * HTTP 实现：/workspaces/{id}/credentials 与 auth-adapters；rotate 标志控制新版本。构造绑定单一 workspaceId，防止跨空
  * 间轮换凭证。
  */
 export class CloudIdentityAdapter implements IdentityAdapter {

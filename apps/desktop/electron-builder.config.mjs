@@ -3,7 +3,8 @@ import { fileURLToPath } from "node:url";
 
 const deploy = fileURLToPath(new URL("../../deploy/desktop/", import.meta.url));
 
-/** 安装配置只接受入口已经完整核验的暂存路径和明确签名选择，四种目标分开生成且不含任何自动下载业务浏览器步骤；独立
+/**
+ * 安装配置只接受入口已经完整核验的暂存路径和明确签名选择，四种目标分开生成且不含任何自动下载业务浏览器步骤；独立
  * Runtime 原样放在 ASAR 外，Electron 自带 Node 只负责 GUI。使用 pkg
  * 的安装前脚本拒绝仍运行的产品进程，避免 Finder 覆盖绕过生命周期检查。Windows NSIS 禁止自动关闭应用，Ubuntu deb 同样在
  * 包管理脚本拒绝忙碌升级。签名身份来自操作者显式输入，
@@ -20,7 +21,8 @@ export function desktopBuilderConfiguration({
 }) {
     const signed = signing.mode === "NATIVE_SIGNED";
     return {
-        /** 固定 Bundle ID、用户产品名与真实小写角色文件名分别表达不同身份，安装器不得随版本或架构改变它们；可执行名也决
+        /**
+         * 固定 Bundle ID、用户产品名与真实小写角色文件名分别表达不同身份，安装器不得随版本或架构改变它们；可执行名也决
          * 定 Mac 的技术目录 veriq.app，Finder 显示名称另外由 Info.plist
          * 保留 VeriQ。artifactName 包含目标 OS 与架构，避免两种 Mac 产物互相覆盖。版本由受核暂存 package.json 提供，不
          * 使用构建机 Electron 或 Node 版本。
@@ -33,7 +35,8 @@ export function desktopBuilderConfiguration({
         artifactName: "VeriQ-${version}-${os}-${arch}.${ext}",
         directories: { app: appDirectory, output: outputDirectory },
         files: ["out/**/*", "package.json", "node_modules/**/*"],
-        /** 独立 Node 无法读取 ASAR 虚拟文件，所以 Agent、Runner、npm、引擎与宿主 Chrome 全部保留在真实资源目录；桌面描
+        /**
+         * 独立 Node 无法读取 ASAR 虚拟文件，所以 Agent、Runner、npm、引擎与宿主 Chrome 全部保留在真实资源目录；桌面描
          * 述放在 Runtime 外，避免把期望文件加入它自己要授权的库存树。
          * Runtime 树不分拆，不重新选择浏览器，也不创建 Linux 到 Mac 的兼容映射。完整 Framework 链接由既有 Mac 库存政策
          * 决定，复制后仍会全树复验。业务包、
@@ -43,7 +46,8 @@ export function desktopBuilderConfiguration({
             { from: runtimeDirectory, to: "runtime", filter: ["**/*"] },
             { from: releaseFile, to: "desktop-release.json" },
         ],
-        /** 固定 Electron 工具版本并显式配置生产 Cookie 加密与宿主注入 fuse，独立业务 Node 不受这些 GUI 二进制开关影响；
+        /**
+         * 固定 Electron 工具版本并显式配置生产 Cookie 加密与宿主注入 fuse，独立业务 Node 不受这些 GUI 二进制开关影响；
          * 修改仅发生于 builder 的新副本，不能原位污染共享 pnpm
          * 下载缓存。runAsNode 关闭后 GUI 壳不能替代 Node24 后台角色。NODE_OPTIONS 和命令行 inspector 无法为安装 GUI 注
          * 入额外代码。OnlyLoadAppFromAsar
@@ -63,7 +67,8 @@ export function desktopBuilderConfiguration({
         },
         asar: true,
         asarUnpack: ["**/*.node"],
-        /** 依赖已由 Runtime 生产器固定并经完整库存核验，builder 不能另行安装或按 Electron 宿主重编目标原生模块；关闭默
+        /**
+         * 依赖已由 Runtime 生产器固定并经完整库存核验，builder 不能另行安装或按 Electron 宿主重编目标原生模块；关闭默
          * 认 package.json 清理还保留原始包元数据，
          * 便于后续将加载路径与原库存逐项比较。beforeBuild 的 false 只跳过 builder 依赖安装，不跳过外层任何库存或发布门
          * 禁。npmRebuild 与 nodeGypRebuild 都关闭，
@@ -79,7 +84,8 @@ export function desktopBuilderConfiguration({
         forceCodeSigning: signed && release.platform !== "linux",
         publish: null,
         compression: "normal",
-        /** Mac 两架构分别使用原生 pkg 并固定最低 macOS15，应用签名与安装器签名由两个独立身份明确选择；不自动公证、不申
+        /**
+         * Mac 两架构分别使用原生 pkg 并固定最低 macOS15，应用签名与安装器签名由两个独立身份明确选择；不自动公证、不申
          * 请证书，也不因为本机发现某个证书就改变 unsigned 候选性质。
          * hardenedRuntime 只在发布者签名模式启用，ad-hoc 不伪装成生产发布者。原始 Runtime 子树已经先签名再封库存，
          * signIgnore 禁止 builder 改写这些字节。afterPack 和
@@ -100,7 +106,8 @@ export function desktopBuilderConfiguration({
             entitlementsInherit: resolve(deploy, "macos/entitlements.plist"),
             extendInfo: { CFBundleDisplayName: "VeriQ", LSMinimumSystemVersion: "15.0" },
         },
-        /** pkg 的安装前脚本只拒绝活动角色而绝不强杀进程，固定系统安装位置使应用身份与资源根可重复核验；人工回滚依赖签名
+        /**
+         * pkg 的安装前脚本只拒绝活动角色而绝不强杀进程，固定系统安装位置使应用身份与资源根可重复核验；人工回滚依赖签名
          * 清单的明确来源版本和相同数据格式，不能被默认版本检查提前阻断。
          * isVersionChecked=false 只允许系统包管理流程安装旧版本，不授权 GUI 自动降级。GUI 回滚仍必须验签、匹配当前版本
          * 和引擎，并取得持续空闲证明。不允许安装到任意卷或当前用户 Home，避免同一
@@ -117,7 +124,8 @@ export function desktopBuilderConfiguration({
             allowCurrentUserHome: false,
             allowRootDirectory: true,
         },
-        /** Windows 使用固定 x64 NSIS 和显式 Authenticode 证书主体，安装器包含产品角色忙碌检查并替换框架默认的关闭应用动
+        /**
+         * Windows 使用固定 x64 NSIS 和显式 Authenticode 证书主体，安装器包含产品角色忙碌检查并替换框架默认的关闭应用动
          * 作；unknown 查询错误同样拒绝，不能因无法枚举进程就放行升级。
          * 默认按用户安装，不需要桌面自身接管机器级服务。安装目录不由 renderer 或业务包提供。卸载默认保留 appData，秘密
          * 退役由独立明确流程负责。runAfterFinish 关闭，
@@ -145,7 +153,8 @@ export function desktopBuilderConfiguration({
             include: resolve(deploy, "windows/installer.nsh"),
             differentialPackage: false,
         },
-        /** Ubuntu 交付原生 x64 deb 并声明真实系统运行库，测试 Chrome 使用包管理器固定 root-owned 路径的 AppArmor 用户命
+        /**
+         * Ubuntu 交付原生 x64 deb 并声明真实系统运行库，测试 Chrome 使用包管理器固定 root-owned 路径的 AppArmor 用户命
          * 名空间策略；不搬运构建宿主系统库，也不修改全局沙箱限制。GUI
          * 和业务 Chrome 分别有精确路径政策，没有任意可写路径通配。默认 electron-builder 安装后脚本负责部署该应用局部政
          * 策。安装与卸载前脚本先拒绝仍运行的自有角色，用户数据不会被清空。

@@ -6,7 +6,8 @@ import { join, dirname } from "node:path";
 import { createHash } from "node:crypto";
 import { loadRuntimeDistribution, assertRuntimeRole } from "../src/distribution.ts";
 
-/** 安装路径测试只创建几字节的合成发行文件来检查宿主解析边界，既不伪造 Node 或浏览器验收，也不下载实际载荷；真实发动执行
+/**
+ * 安装路径测试只创建几字节的合成发行文件来检查宿主解析边界，既不伪造 Node 或浏览器验收，也不下载实际载荷；真实发动执行
  * 前仍须独立校验角色版本与完整引擎库存。
  */
 async function fixture() {
@@ -55,7 +56,8 @@ async function fixture() {
     return { root, manifest };
 }
 
-/** 真实文件库存必须先验证再派生执行路径，组件版本不能偷换成产品版本；缺失或被修改的角色文件应立即拒绝，不能等到设备已注
+/**
+ * 真实文件库存必须先验证再派生执行路径，组件版本不能偷换成产品版本；缺失或被修改的角色文件应立即拒绝，不能等到设备已注
  * 册后才发现实际执行程序不可用。
  */
 test("distribution resolves physical role paths and refuses changed members", async () => {
@@ -73,7 +75,8 @@ test("distribution resolves physical role paths and refuses changed members", as
     }
 });
 
-/** 文件哈希列表必须构成完整物理闭包，额外 JavaScript 即使没有被清单引用也可能改变 Node 的模块解析结果；该检查禁止攻击者
+/**
+ * 文件哈希列表必须构成完整物理闭包，额外 JavaScript 即使没有被清单引用也可能改变 Node 的模块解析结果；该检查禁止攻击者
  * 在已核验目录内插入未登记的依赖入口后继续使用原发行身份。
  */
 test("distribution refuses an unlisted executable dependency", async () => {
@@ -86,7 +89,8 @@ test("distribution refuses an unlisted executable dependency", async () => {
     }
 });
 
-/** 清单相对路径和中间目录都属于安装信任边界，外部文件即使内容哈希正确也不可通过符号链接进入发行；该断言专门覆盖只校验字
+/**
+ * 清单相对路径和中间目录都属于安装信任边界，外部文件即使内容哈希正确也不可通过符号链接进入发行；该断言专门覆盖只校验字
  * 节却没有验证物理依赖闭包的错误实现。
  */
 test("distribution rejects linked members and unsafe manifest paths", async () => {
@@ -106,7 +110,8 @@ test("distribution rejects linked members and unsafe manifest paths", async () =
     }
 });
 
-/** 同一完整库存可明确声明不同稳定 Node24 候选，版本值必须规范且不能接受其它主版本或预发布；逐项重写真实清单再调用正式加
+/**
+ * 同一完整库存可明确声明不同稳定 Node24 候选，版本值必须规范且不能接受其它主版本或预发布；逐项重写真实清单再调用正式加
  * 载器，原有二十四点二十二点一历史样本仍保留而不是批量改写旧事实。
  */
 test("distribution validates stable Node24 manifest versions", async () => {
@@ -131,7 +136,8 @@ test("distribution validates stable Node24 manifest versions", async () => {
     }
 });
 
-/** 角色执行必须同时满足原始发行能力、真实路径和该库存声明的具体版本，同为稳定 Node24 不能替代精确发行身份；进程属性替换
+/**
+ * 角色执行必须同时满足原始发行能力、真实路径和该库存声明的具体版本，同为稳定 Node24 不能替代精确发行身份；进程属性替换
  * 只是边界注入，不声称真实二十四点二十执行验收，也不复制或安装另一份 Node 二进制。
  */
 test("installed role binds exact verified Node identity and rejects copied capabilities", async () => {
@@ -175,7 +181,8 @@ test("installed role binds exact verified Node identity and rejects copied capab
     }
 });
 
-/** Worker 的普通 Node 相对导入必须全部属于发行物理库存，逐个删除新闭包成员及其清单项后仍应拒绝；旧合成发行不能靠把必需
+/**
+ * Worker 的普通 Node 相对导入必须全部属于发行物理库存，逐个删除新闭包成员及其清单项后仍应拒绝；旧合成发行不能靠把必需
  * 成员标成可选继续获得执行路径能力。
  */
 test("distribution requires the complete controlled command runtime closure", async () => {

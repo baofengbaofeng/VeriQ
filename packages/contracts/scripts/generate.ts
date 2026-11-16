@@ -37,8 +37,7 @@ const api = astToString(
         inject:
             'import type { JsonValue as ContractJsonValue, BindingJsonValue as ContractBindingJsonValue } from "' +
             './types.generated.js";',
-        // An indexed-access recursive property cannot represent arbitrary JSON in TS.
-        // Reuse the recursive type generated from the same canonical schema instead.
+        // 递归 JSON 通过同一规范 Schema 生成的合同类型表达，索引访问递归属性不能覆盖任意 JSON 值，因此复用该类型。
         transform(_schema, { path }) {
             if (path?.endsWith("/JsonValue"))
                 return ts.factory.createTypeReferenceNode("ContractJsonValue");
@@ -56,7 +55,7 @@ const outputs = new Map([
 ]);
 for (const [name, content] of outputs) {
     const file = new URL(name, directory);
-    // 生成类型按真实显示列宽拆行，长联合类型和文档说明都经过同一确定性处理，只读检查仍逐字比较生成结果。
+    // 生成类型统一整理块注释边界并按显示列宽拆行，完整保留合同类型和说明文字，只读生成检查仍逐字比较输出结果。
     const formatted = limitGeneratedWidth(content);
     if (process.argv.includes("--check")) {
         if ((await readFile(file, "utf8")) !== formatted)

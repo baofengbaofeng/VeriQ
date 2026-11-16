@@ -1,4 +1,6 @@
-/** Cross-language test utility: consume only a host-verified snapshot in shared local UI adapter. */
+/**
+ * Cross-language test utility: consume only a host-verified snapshot in shared local UI adapter.
+ */
 import assert from "node:assert/strict";
 import { verifyBundle } from "../src/offline/verify.ts";
 import { TrustStore } from "../src/offline/trust.ts";

@@ -1,4 +1,5 @@
-/** Darwin 私有文件适配只从普通开发 Node 的固定产物或严格 Mac 库存授予的安装路径装载本架构模块，
+/**
+ * Darwin 私有文件适配只从普通开发 Node 的固定产物或严格 Mac 库存授予的安装路径装载本架构模块，
  * 正式角色没有库存能力时仍失败关闭；模块不搜索全局路径、不回退 Windows addon，也不自行授权执行或 doctor
  * 。
  * 所有 API 都同步完成有限原生操作，业务用途白名单和更小读取额度保留在调用者。
@@ -69,7 +70,8 @@ export interface DarwinNative {
         path: string,
         file: { path: string; sizeBytes: number; sha256: string },
     ): void;
-    /** 有限库存必须由宿主信任校验产生且本机 SQLite 已提交退休意图，原生只允许 bundles/UUID 到对应退休名的隔离与清单成员
+    /**
+     * 有限库存必须由宿主信任校验产生且本机 SQLite 已提交退休意图，原生只允许 bundles/UUID 到对应退休名的隔离与清单成员
      * 删除；单次最大四千零九十八文件及一百二十八 MiB，不能删除引擎、凭据或未知源目录。
      */
     retirePrivateInventory(

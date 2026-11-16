@@ -23,7 +23,8 @@ export function businessHeaders(context: BrowserContext, url: string): Record<st
         ? { authorization: `Bearer ${value.token}` }
         : {};
 }
-/** 公开函数 authenticatedRequest 在已鉴权上下文中发起业务请求：失败时保留状态码而不泄露令牌（
+/**
+ * 公开函数 authenticatedRequest 在已鉴权上下文中发起业务请求：失败时保留状态码而不泄露令牌（
  * authenticatedRequest/CANCELLED）。
  */
 export async function authenticatedRequest(

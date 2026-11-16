@@ -12,7 +12,8 @@ import { Auth } from "../../auth-context";
 import { Notice, Panel, useAction, values } from "../../ui";
 import { useWorkspace } from "../workspaces/WorkspaceContext";
 
-/** 组合工作区选择器与 Runtime/服务账号面板，调用 inspect/approve/grants/trust/revoke/issueToken。凭证投递开关走
+/**
+ * 组合工作区选择器与 Runtime/服务账号面板，调用 inspect/approve/grants/trust/revoke/issueToken。凭证投递开关走
  * delivery
  * ；吊销后列表刷新且不可再领取该空间作业。
  */

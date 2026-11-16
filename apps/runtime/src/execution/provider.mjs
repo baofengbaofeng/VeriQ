@@ -65,7 +65,7 @@ export async function createExecutionContext() {
         execution,
         finalizeExecution: async (context) => {
             try {
-                // 可信取消后不得再开可选截图；上下文关闭仍是物理完成与重试观察的必要条件。
+                // 可信取消后不再启动可选截图，但无论截图是否执行都必须关闭上下文，才能结算物理完成与重试观察。
                 const page = context.pages()[0];
                 if (!controller.signal.aborted && page && !page.isClosed())
                     await page.screenshot({

@@ -1,4 +1,5 @@
-/** 文件凭据模式的普通宿主测试只验证显式配置与实际环境拒绝边界，不把合成挂载文本或内存后端称为持久卷验收；真实专用用户、
+/**
+ * 文件凭据模式的普通宿主测试只验证显式配置与实际环境拒绝边界，不把合成挂载文本或内存后端称为持久卷验收；真实专用用户、
  * 文件模式与跨进程读回应由有限 Linux 目标夹具执行，桌面默认不能自动降级到该模式。
  */
 import { test } from "node:test";
@@ -71,7 +72,8 @@ test("restricted-file rejects UID mismatch before opening the selected volume", 
     );
 });
 
-/** 模式参数必须由真实 CLI 入口验证，非法服务 UID 在任何凭据操作之前拒绝且不创建档案；该子进程测试仅检查选择边界，不能把
+/**
+ * 模式参数必须由真实 CLI 入口验证，非法服务 UID 在任何凭据操作之前拒绝且不创建档案；该子进程测试仅检查选择边界，不能把
  * 缺少持久挂载的宿主当作文件后端成功运行或系统保险库替代证据。
  */
 test("CLI restricted-file selection rejects root service UID before any credential operation", async () => {
@@ -113,7 +115,8 @@ test("CLI restricted-file selection rejects root service UID before any credenti
     }
 });
 
-/** 显式选择 OS vault 的源码 CLI 不能因为没有发行能力而沿用旧无上下文明文分支，测试只调用自有空档案的 local-only 注销观
+/**
+ * 显式选择 OS vault 的源码 CLI 不能因为没有发行能力而沿用旧无上下文明文分支，测试只调用自有空档案的 local-only 注销观
  * 察入口选择；拒绝必须发生在创建或清空文件之前，普通开发默认路径的整体迁移仍单独验证。
  */
 test("explicit OS-vault selection refuses missing source capability instead of using legacy files", async () => {

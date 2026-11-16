@@ -1,4 +1,5 @@
-/** 此 suite 只允许在真实 macOS 执行，固定 Chrome 与 B 原生文件层都必须实际存在；可信夹具隔离 Agent/outer 组件而保留真实
+/**
+ * 此 suite 只允许在真实 macOS 执行，固定 Chrome 与 B 原生文件层都必须实际存在；可信夹具隔离 Agent/outer 组件而保留真实
  * CLI、直接 child、公共浏览器连接和原对象退出，不据此宣称完整业
  * 务、安装入口或整个平台已经就绪。
  */
@@ -30,7 +31,8 @@ assert.equal(
 );
 const worker = fileURLToPath(new URL("../fixtures/darwin-controlled-worker.mjs", import.meta.url));
 
-/** 原生成员方法可能具有不可写属性，故测试只用普通对象委托并绑定真实 B 接收者，不修改 NAPI 实例；每个读写、刷新和关闭仍
+/**
+ * 原生成员方法可能具有不可写属性，故测试只用普通对象委托并绑定真实 B 接收者，不修改 NAPI 实例；每个读写、刷新和关闭仍
  * 执行实际原生实现，有限覆写只用于观察真实 File 生命周期或在真实发布之后注入不确定结果。
  */
 function delegateDirectory(
@@ -197,7 +199,8 @@ async function fixture(
     }
 }
 
-/** 正常路径明确在真实 outer 与 Chrome 仍活着时拒绝证明，随后从日志和实际 exit 生成私有配对，重新构造无启动能力的监督器
+/**
+ * 正常路径明确在真实 outer 与 Chrome 仍活着时拒绝证明，随后从日志和实际 exit 生成私有配对，重新构造无启动能力的监督器
  * 仍能只读确认；端点只能存在于私有工作配置，不能进入任何过程证明或日志。
  */
 for (const scenario of ["normal", "business-failure"])
@@ -243,7 +246,8 @@ for (const scenario of ["normal", "business-failure"])
             );
         }));
 
-/** 显式无浏览器的两种任务仍运行真实命令前缀且 CLI 原始日志保持空，证明必须保留计划缺席而不是从对象丢失推断缺席；复用已
+/**
+ * 显式无浏览器的两种任务仍运行真实命令前缀且 CLI 原始日志保持空，证明必须保留计划缺席而不是从对象丢失推断缺席；复用已
  * 经占用的 Attempt 不得覆盖任何旧身份、日志或已提交停止证明。
  */
 for (const kind of ["VALIDATE", "CLEANUP"] as const)
@@ -266,7 +270,8 @@ for (const kind of ["VALIDATE", "CLEANUP"] as const)
             await assert.rejects(launch("normal", kind), /ALREADY|EXISTS/);
         }));
 
-/** CLI 自己通过本地 socket 屏障证明已经装好 SIGINT 处理且页面操作完成，随后父层先持久授权再取消并只接受正常一百三十；
+/**
+ * CLI 自己通过本地 socket 屏障证明已经装好 SIGINT 处理且页面操作完成，随后父层先持久授权再取消并只接受正常一百三十；
  * ACK 的存在不参与停止判断，直接 child、CLI、outer 和 Chrome 都仍须
  * 实际退出。
  */
@@ -313,7 +318,8 @@ test("authorized cancellation closes actual CLI, outer and Chrome before proof",
         }
     }));
 
-/** 尚未公开 START 的真实 outer 已经装好控制监听，停止必须先取得匹配取消 ACK 才能私下释放闸门进入取消分支；该测试若收到
+/**
+ * 尚未公开 START 的真实 outer 已经装好控制监听，停止必须先取得匹配取消 ACK 才能私下释放闸门进入取消分支；该测试若收到
  * 业务 START 或执行任一命令就无法得到预期的空前缀封存，且 ACK 自身不能替代真实退出
  * 。
  */
@@ -341,7 +347,8 @@ test("bound cancellation before business START seals empty prefix and actually e
         ]);
     }));
 
-/** 错误或缺少 ACK 不能释放已经取消的 START 闸门，夹具与生产 Worker 一样只在独立 START 消息后继续；期限不延长且只用真实
+/**
+ * 错误或缺少 ACK 不能释放已经取消的 START 闸门，夹具与生产 Worker 一样只在独立 START 消息后继续；期限不延长且只用真实
  * 所持对象清理，不能凭 ACK、outer 最终被强停或空 CLI 日志获得停止正证明
  * 。
  */
@@ -369,7 +376,8 @@ for (const scenario of ["missing-ack", "stale-ack"])
             assert.ok(!commands.includes('"type":"SEAL"'));
         }, 1500));
 
-/** 这个组件故障夹具由测试父进程实际持有一个继承同一 CLI 日志 fd4 的 Node 写者，并让已登记 outer 在未封存时退出；它验证
+/**
+ * 这个组件故障夹具由测试父进程实际持有一个继承同一 CLI 日志 fd4 的 Node 写者，并让已登记 outer 在未封存时退出；它验证
  * 未知写者尚活时原 B File 不能被回收，明确不冒充真实 outer 到 CLI 的孤
  * 儿祖先链或 Agent 操作系统崩溃。
  */
@@ -451,7 +459,8 @@ test("unsealed outer exit retains the original CLI File while an inherited write
     }
 });
 
-/** 观察故障的退出码与缺少封存不能被随后真实退出抹除，原始日志会保留用于排查且重启只能得出未确认；这里的故障属于组件边界
+/**
+ * 观察故障的退出码与缺少封存不能被随后真实退出抹除，原始日志会保留用于排查且重启只能得出未确认；这里的故障属于组件边界
  * ，不能把同进程夹具当成真实 Agent 操作系统崩溃的验收。
  */
 for (const scenario of ["missing-seal", "cli-fault", "outer-signal"])
@@ -479,7 +488,8 @@ test("missing or stale actual Worker READY cannot register or publish proof", as
         }, 1500);
 });
 
-/** prepare 的受信发布能力只支持既定两个配置成员，父层取消即使发生于 await 中也必须阻止后来 outer 派生；持久意图与已启动
+/**
+ * prepare 的受信发布能力只支持既定两个配置成员，父层取消即使发生于 await 中也必须阻止后来 outer 派生；持久意图与已启动
  * Chrome 使该路径保持未知，不能因为没有 outer 对象而编造没有任何派生。
  */
 test("cancellation during preparation closes admission before a late startup can spawn outer", async () =>
@@ -504,7 +514,8 @@ test("cancellation during preparation closes admission before a late startup can
         assert.equal((await stopped).processStopped, false);
     }));
 
-/** Chrome 只有经过持久停止授权后的实际退出才能进入正证明，先前公共 server.kill 造成的异常消失必须保持故障；准备失败同样
+/**
+ * Chrome 只有经过持久停止授权后的实际退出才能进入正证明，先前公共 server.kill 造成的异常消失必须保持故障；准备失败同样
  * 不能因为缺少 outer 句柄而返回未派生，这两种路径的测试仍持有实际 server 负责
  * finally 清理。
  */
@@ -534,7 +545,8 @@ test("unexpected actual Chrome exit and preparation failure stay quarantined", a
     });
 });
 
-/** 公共 launchServer 可能已经派生 Chrome 却在返回句柄以前拒绝，组件此时必须保守保持未知而不能自行扫描补领对象；测试包装
+/**
+ * 公共 launchServer 可能已经派生 Chrome 却在返回句柄以前拒绝，组件此时必须保守保持未知而不能自行扫描补领对象；测试包装
  * 仍保留真实 server 供 finally 清理，这只验证公开 API 部分失败边界，
  * 不伪装后端实际取得了所有权。
  */
@@ -555,7 +567,8 @@ test("public browser launch rejection after actual spawn never claims no process
         }
     }));
 
-/** 提交故障在真实 B 已经发布并刷新 proof 后抛出不确定结果，不替换原生文件行为或伪造 OS 退出；过程记录必须继续停在
+/**
+ * 提交故障在真实 B 已经发布并刷新 proof 后抛出不确定结果，不替换原生文件行为或伪造 OS 退出；过程记录必须继续停在
  * RUNNING，使随后只读恢复拒绝这个半配对，即使完整 proof 字节已经在目录中可见也不能释放容
  * 量。
  */
@@ -622,7 +635,8 @@ test("proof publication uncertainty leaves restart history unconfirmed", async (
     }
 });
 
-/** 正式历史读取只接受 Darwin 对应的两份提交成员，混入旧平台 proof、孤立成员或不同 fence 都不能通过；观察前后逐字节相同
+/**
+ * 正式历史读取只接受 Darwin 对应的两份提交成员，混入旧平台 proof、孤立成员或不同 fence 都不能通过；观察前后逐字节相同
  * 表明迁移不会修复权限、删除 staging 或把不确定历史改成受控停止。
  */
 test("private history rejects mixed proofs, orphan members and stale claim generation read-only", async () =>

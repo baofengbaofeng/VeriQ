@@ -7,7 +7,8 @@ import { App } from "./App";
 import "@veriq/web/desktop.css";
 import "./style.css";
 
-/** 桌面入口先安装受限宿主传输再挂载共享业务视图，查询缓存属于本窗口并禁止隐式写操作重试；静态 CSS 和 worker 都由打包产
+/**
+ * 桌面入口先安装受限宿主传输再挂载共享业务视图，查询缓存属于本窗口并禁止隐式写操作重试；静态 CSS 和 worker 都由打包产
  * 物提供，页面启动不依赖控制平台在线。
  */
 installDesktopTransport();

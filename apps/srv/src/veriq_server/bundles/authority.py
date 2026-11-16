@@ -60,7 +60,7 @@ async def authority_guard(
             try:
                 fd = await asyncio.shield(opened)
             except asyncio.CancelledError:
-                # 取消后工作线程仍可能打开成功；由其未取消结果负责恰好一次 close。
+                # 取消等待后工作线程仍可能打开成功，由完成回调接管结果并恰好关闭一次描述符，避免取消路径泄漏句柄。
                 def discard(task: asyncio.Task[int]) -> None:
                     if not task.cancelled() and task.exception() is None:
                         os.close(task.result())

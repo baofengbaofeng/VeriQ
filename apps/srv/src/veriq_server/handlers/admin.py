@@ -137,7 +137,7 @@ class AdminAPI(API):
                 raise Problem(404, "USER_NOT_FOUND", "User not found")
             disabled = data.get("disabled", user.disabled)
             admin = data.get("systemAdmin", user.system_admin)
-            # 禁止把最后一位启用中的系统管理员降权或禁用，以免安装失管。
+            # 对最后一位启用中的系统管理员拒绝降权和禁用，确保本次账户更新不会使整个安装失去仍可登录的管理者。
             if user.system_admin and (not user.disabled) and (disabled or not admin):
                 count = (
                     await s.execute(

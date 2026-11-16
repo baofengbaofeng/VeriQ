@@ -71,7 +71,8 @@ function portable(path, code) {
     return path;
 }
 
-/** 原生准入同时绑定人工用途、完整已审阅提交、真实 Darwin 内核和当前进程架构，声明的目标不能覆盖宿主事实；Linux
+/**
+ * 原生准入同时绑定人工用途、完整已审阅提交、真实 Darwin 内核和当前进程架构，声明的目标不能覆盖宿主事实；Linux
  * 单元测试只调用显式事实样本，正式入口始终从系统与 CI 环境重新取得这些字段。
  */
 export function admitEntryRun(value) {
@@ -90,7 +91,8 @@ export function admitEntryRun(value) {
     return Object.freeze({ ...value });
 }
 
-/** 来源选择依据完整提交树的原始 Git 模式而非当前执行位，只排除三个已批准脚本；保留每个对象身份与排除原因，链接、
+/**
+ * 来源选择依据完整提交树的原始 Git 模式而非当前执行位，只排除三个已批准脚本；保留每个对象身份与排除原因，链接、
  * 子模块、新执行文件、重复路径及父目录大小写碰撞全部拒绝。
  */
 export function selectGitInventory(raw) {
@@ -150,7 +152,8 @@ async function ancestors(root, path, code) {
     };
 }
 
-/** 每个来源文件必须物理单链接且权限恰为四百四十四或六百四十四，提交模式不能代替实际属性；持有描述符读前读后比较身份与预
+/**
+ * 每个来源文件必须物理单链接且权限恰为四百四十四或六百四十四，提交模式不能代替实际属性；持有描述符读前读后比较身份与预
  * 期字节，不会 chmod、重写或把私有副本包装成合格来源。
  */
 export async function readSourceFile(root, ref) {
@@ -186,7 +189,8 @@ export async function readSourceFile(root, ref) {
     }
 }
 
-/** 默认环境文件即使被 Git 跟踪仍不准进入构建，包与配置候选则必须具有同路径来源绑定；检查覆盖每个来源祖先和仓库以外的祖
+/**
+ * 默认环境文件即使被 Git 跟踪仍不准进入构建，包与配置候选则必须具有同路径来源绑定；检查覆盖每个来源祖先和仓库以外的祖
  * 先，缺失只接受 ENOENT，权限或链接错误不能伪装成不存在。
  */
 export async function qualifyAmbientInputs(root, refs) {
@@ -252,7 +256,8 @@ function metadataPlan(documents) {
     });
 }
 
-/** 调用者提供尚不存在的独占保留根，所有文档在创建目录之前一次性检查并复制持有；清单只描述本次有限副本，
+/**
+ * 调用者提供尚不存在的独占保留根，所有文档在创建目录之前一次性检查并复制持有；清单只描述本次有限副本，
  * 收据原路径与摘要不变，最终使用者能够据此区分原消费命名空间和下载元数据位置。
  */
 export async function sealMetadata(root, documents) {
@@ -278,7 +283,8 @@ export async function sealMetadata(root, documents) {
     return manifest;
 }
 
-/** 下载或上传前独立核查保留根、清单以及恰好这些普通单链接副本，额外文件和链接一律拒绝；这里核的是元数据副本自身字节，
+/**
+ * 下载或上传前独立核查保留根、清单以及恰好这些普通单链接副本，额外文件和链接一律拒绝；这里核的是元数据副本自身字节，
  * 绝不根据下载后的收据声称已重新哈希未保留的入口或依赖正文。
  */
 export async function verifyMetadata(root) {
@@ -346,7 +352,8 @@ export async function verifyMetadata(root) {
     return manifest;
 }
 
-/** 生产回调完成仍只是暂定结果，实际命令观察必须在返回生产器之前先记入调用者日志；未知关闭或事务不完整立即禁止最终扫描和
+/**
+ * 生产回调完成仍只是暂定结果，实际命令观察必须在返回生产器之前先记入调用者日志；未知关闭或事务不完整立即禁止最终扫描和
  * 清理，普通失败则保留首错并在已确认关闭后释放调用者资源。
  */
 export async function runEntryOperation({ journal, produce, verifyFinal, cleanup }) {
@@ -400,7 +407,8 @@ export async function runEntryOperation({ journal, produce, verifyFinal, cleanup
     return { ...result, value };
 }
 
-/** 已安装 TypeScript 负责解析真实 JSONC 与 extends，读取钩子只允许完整来源绑定中的配置字节；配置结果不写入制品，
+/**
+ * 已安装 TypeScript 负责解析真实 JSONC 与 extends，读取钩子只允许完整来源绑定中的配置字节；配置结果不写入制品，
  * 记录仅含路径和摘要，并用空目录枚举避免无关源码 glob 扩大资格检查范围。
  */
 export function qualifyTypeScriptConfigs(root, refs, ts) {
@@ -449,7 +457,8 @@ class EntryEnvironmentError extends Error {
     }
 }
 
-/** 正式进程只接收工作流显式传入的最小环境，启动 Node 与注册 tsx 之前已由 env 清空继承值；这里再次验证键集合与生产模式，
+/**
+ * 正式进程只接收工作流显式传入的最小环境，启动 Node 与注册 tsx 之前已由 env 清空继承值；这里再次验证键集合与生产模式，
  * 不打印环境值、凭据或配置正文，失败不会通过修改当前进程全局环境来补救。
  */
 export function checkCleanEnvironment(env) {
@@ -512,7 +521,8 @@ export function checkCleanEnvironment(env) {
     };
 }
 
-/** 后置环境检查保留原主函数的九项固定路径与下载标志比较，并在同一创建目录之后的位置调用；独立导出仅为逐项验证真实拒绝边
+/**
+ * 后置环境检查保留原主函数的九项固定路径与下载标志比较，并在同一创建目录之后的位置调用；独立导出仅为逐项验证真实拒绝边
  * 界，不接受调用者提供期望映射，也不修改现有环境、命令顺序或允许集合。
  */
 export function checkOwnedEnvironment(env, owned) {

@@ -1,4 +1,5 @@
-/** 本文件是 Attempt 业务工作进程入口，保持 START 闸门与既有 Linux、Windows 外部强监督；可选受信控制配置另外管理直接命令
+/**
+ * 本文件是 Attempt 业务工作进程入口，保持 START 闸门与既有 Linux、Windows 外部强监督；可选受信控制配置另外管理直接命令
  * 日志，但不开放 Darwin 入口或发布停止证明。
  */
 import { readFile, writeFile, mkdir } from "node:fs/promises";
@@ -27,7 +28,8 @@ if (invocation.controlled !== undefined) {
     }
 }
 
-/** 断连或未捕获异常必须先置粘滞管理故障，不能在普通 finally 路径补封存；原始子对象仍由 active 保留，
+/**
+ * 断连或未捕获异常必须先置粘滞管理故障，不能在普通 finally 路径补封存；原始子对象仍由 active 保留，
  * 外层最终退出也必须由父 Agent 另外实际观察。
  */
 function failManagement() {
@@ -42,7 +44,8 @@ if (invocation.controlled !== undefined) {
     process.on("uncaughtExceptionMonitor", failManagement);
 }
 
-/** START 与取消监听同时安装，使取消先于业务开始仍能关闭准入；只有完整本代绑定被所有者接受后才 ACK，错误代际不授权、
+/**
+ * START 与取消监听同时安装，使取消先于业务开始仍能关闭准入；只有完整本代绑定被所有者接受后才 ACK，错误代际不授权、
  * 不发信号，也不能改变业务取消状态。
  */
 await new Promise((resolve) => {
@@ -78,7 +81,8 @@ await new Promise((resolve) => {
         );
 });
 
-/** 受控路径显式保留管理结果与实际退出两个等待器，超时或 error 只使管理失败而不能解除原对象等待；无实际 exit 的 spawn
+/**
+ * 受控路径显式保留管理结果与实际退出两个等待器，超时或 error 只使管理失败而不能解除原对象等待；无实际 exit 的 spawn
  * error 保持挂起，交给后续 Agent 总期限隔离。
  */
 async function command(role, args, timeout) {

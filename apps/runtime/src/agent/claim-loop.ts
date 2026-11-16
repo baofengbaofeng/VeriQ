@@ -26,7 +26,7 @@ export async function claimLoop(options: {
     await mkdir(options.root, { recursive: true, mode: 0o700 });
     const pending = join(options.root, "claim-request.json");
     const recovered = await supervisor.recover();
-    // 仍有未排空进程时隔离容量，禁止在未知状态下继续认领。
+    // 恢复收据仍报告未停止进程时隔离本机容量，拒绝继续认领，以免未知执行与新任务同时占用设备。
     if (recovered.some((r) => !r.processStopped)) throw new Error("PROCESS_QUARANTINED");
     try {
         const request = JSON.parse(await readFile(pending, "utf8")) as S["ClaimRequest"];

@@ -1,4 +1,6 @@
-/* Generated from schemas/platform-v1.schema.json. Run pnpm contracts:generate. */
+/*
+ * Generated from schemas/platform-v1.schema.json. Run pnpm contracts:generate.
+ */
 
 /**
  * Hyphenated 8-4-4-4-12 hexadecimal UUID, case-insensitive; no URN, braces or surrounding whitespace.
@@ -22,14 +24,18 @@ export type Key = string;
  * via the `definition` "Version".
  */
 export type Version = string;
-/** Interpolated DSL string. Only {{data.identifier}} and {{vars.identifier}} dotted bindings are supported; arbitrary
+/**
+ * Interpolated DSL string. Only {{data.identifier}} and {{vars.identifier}} dotted bindings are supported; arbitrary
  * executable expressions are rejected. Never use for inert evidence or diagnostics.
+ *
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "SafeString".
  */
 export type SafeString = string;
-/** Inert portable JSON. Strings are literal, including arbitrary braces and invalid DSL expressions; consumers must
+/**
+ * Inert portable JSON. Strings are literal, including arbitrary braces and invalid DSL expressions; consumers must
  * never evaluate or recursively interpolate this type.
+ *
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "JsonValue".
  */
@@ -151,9 +157,11 @@ export type NetworkObserverV1 = {
 } & {
   id: Key;
   method: HttpMethod;
-  /** Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
+  /**
+   * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
    * substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized
    * base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+   *
    * This interface was referenced by `ContractDefinitions`'s JSON-Schema
    * via the `definition` "Path".
    */
@@ -272,9 +280,11 @@ export type AssertionV1 =
       type: "request";
       source: RequestRef;
       operator: "pathEquals";
-      /** Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
+      /**
+       * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
        * substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized
        * base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+       *
        * This interface was referenced by `ContractDefinitions`'s JSON-Schema
        * via the `definition` "Path".
        */
@@ -318,9 +328,11 @@ export type AssertionV1 =
       type: "eventually";
       query: {
         method: "GET";
-        /** Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
+        /**
+         * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
          * substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized
          * base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+         *
          * This interface was referenced by `ContractDefinitions`'s JSON-Schema
          * via the `definition` "Path".
          */
@@ -462,9 +474,11 @@ export type StepV1 =
       timeoutMs?: Timeout;
       failurePolicy?: "STOP_CASE" | "CONTINUE";
       action: "goto";
-      /** Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
+      /**
+       * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
        * substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized
        * base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+       *
        * This interface was referenced by `ContractDefinitions`'s JSON-Schema
        * via the `definition` "Path".
        */
@@ -595,7 +609,8 @@ export type StepV1 =
       failurePolicy?: "STOP_CASE" | "CONTINUE";
       action: "press";
       target: Key;
-      /** Interpolated DSL string. Only {{data.identifier}} and {{vars.identifier}} dotted bindings are supported;
+      /**
+       * Interpolated DSL string. Only {{data.identifier}} and {{vars.identifier}} dotted bindings are supported;
        * arbitrary executable expressions are rejected. Never use for inert evidence or diagnostics.
        */
       value: string;
@@ -703,9 +718,11 @@ export type StepV1 =
       failurePolicy?: "STOP_CASE" | "CONTINUE";
       action: "apiRequest";
       method: HttpMethod;
-      /** Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
+      /**
+       * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
        * substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized
        * base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+       *
        * This interface was referenced by `ContractDefinitions`'s JSON-Schema
        * via the `definition` "Path".
        */
@@ -888,9 +905,11 @@ export type AssetSnapshotV1 = {
 export type AuthAdapterConfigV1 =
   | {
       kind: "HTTP_BEARER";
-      /** Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
+      /**
+       * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
        * substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized
        * base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+       *
        * This interface was referenced by `ContractDefinitions`'s JSON-Schema
        * via the `definition` "Path".
        */
@@ -899,16 +918,20 @@ export type AuthAdapterConfigV1 =
     }
   | {
       kind: "HTTP_SESSION";
-      /** Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
+      /**
+       * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
        * substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized
        * base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+       *
        * This interface was referenced by `ContractDefinitions`'s JSON-Schema
        * via the `definition` "Path".
        */
       loginPath: SafeString & Path;
-      /** Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
+      /**
+       * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
        * substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized
        * base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+       *
        * This interface was referenced by `ContractDefinitions`'s JSON-Schema
        * via the `definition` "Path".
        */
@@ -941,9 +964,11 @@ export type CompiledAssetBundle = {
   dependencies: [DependencyVersion, ...DependencyVersion[]];
   validationOnly?: boolean;
 };
-/** VeriQ
- * Runtime能力合同仅允许linux/x64、win32/x64、darwin/x64及darwin/arm64；Mac目标最低系统为macOS15，但合同接受不代表设备
- * 通过原生执行、进程监督、凭据或安装验收。
+/**
+ * VeriQ
+ * Runtime能力合同仅允许linux/x64、win32/x64、darwin/x64及darwin/arm64；Mac目标最低系统为macOS15，但合同接受不代表设备通
+ * 过原生执行、进程监督、凭据或安装验收。
+ *
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "RuntimeCapabilitiesV1".
  */
@@ -977,9 +1002,11 @@ export type RuntimeCapabilitiesV11 =
       os: "darwin";
       arch: "arm64";
     };
-/** Supported RFC3339 profile: real Gregorian date, year 0001-9999, T/t separator, seconds 00-59, optional fractional
+/**
+ * Supported RFC3339 profile: real Gregorian date, year 0001-9999, T/t separator, seconds 00-59, optional fractional
  * seconds, mandatory Z/z or numeric offset (00-23:00-59). No leap seconds, spaces or surrounding whitespace. Emit UTC
  * uppercase T/Z for server timestamps.
+ *
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "Timestamp".
  */
@@ -1221,9 +1248,11 @@ export interface ContractDefinitions {
   ParameterTypes?: ParameterTypes;
   Timeout?: Timeout;
   Pointer?: Pointer;
-  /** Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
+  /**
+   * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
    * substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized
    * base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+   *
    * This interface was referenced by `ContractDefinitions`'s JSON-Schema
    * via the `definition` "Path".
    */
@@ -1500,9 +1529,11 @@ export interface FlowV1 {
  */
 export interface FixtureEndpointV1 {
   method: "POST" | "DELETE";
-  /** Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
+  /**
+   * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
    * substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized
    * base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+   *
    * This interface was referenced by `ContractDefinitions`'s JSON-Schema
    * via the `definition` "Path".
    */
@@ -1516,9 +1547,11 @@ export interface FixtureV1 {
   schemaVersion: "1.0";
   prepare: {
     method: "POST";
-    /** Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
+    /**
+     * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
      * substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized
      * base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+     *
      * This interface was referenced by `ContractDefinitions`'s JSON-Schema
      * via the `definition` "Path".
      */
@@ -1526,9 +1559,11 @@ export interface FixtureV1 {
   };
   query: {
     method: "GET";
-    /** Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
+    /**
+     * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
      * substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized
      * base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+     *
      * This interface was referenced by `ContractDefinitions`'s JSON-Schema
      * via the `definition` "Path".
      */
@@ -1798,9 +1833,11 @@ export interface ObserverResultPayloadV1 {
   requests: {
     requestId: string;
     method: HttpMethod;
-    /** Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
+    /**
+     * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
      * substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized
      * base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+     *
      * This interface was referenced by `ContractDefinitions`'s JSON-Schema
      * via the `definition` "Path".
      */
@@ -2156,8 +2193,9 @@ export interface TestCompletionManifestV1 {
   kind: "TEST";
   caseVersionId: Id;
   expectedPlansSha256: Sha256;
-  /** Actual business request observation through Context closure. Missing means UNKNOWN; not sufficient without
-   * approved expected metadata.
+  /**
+   * Actual business request observation through Context closure. Missing means UNKNOWN; not sufficient without approved
+   * expected metadata.
    */
   retrySafety?: "READ_ONLY_OBSERVED" | "WRITE_POSSIBLE" | "UNKNOWN";
   processStopScope?: ProcessStopScope;

@@ -1,4 +1,5 @@
-/** 最后一个公开 Reporter 只处理 Playwright 内建 JSON 中明确的控制端点配置字段，保留所有结果与附件结构；
+/**
+ * 最后一个公开 Reporter 只处理 Playwright 内建 JSON 中明确的控制端点配置字段，保留所有结果与附件结构；
  * 每次发布前后均进行有界完整残留扫描，主机再独立验证磁盘文件，CLI 退出码从不充当保密或交付许可。
  */
 import type { FullConfig, FullResult, Reporter } from "@playwright/test/reporter";
@@ -62,7 +63,8 @@ function forms(endpoints: readonly string[]) {
 function parsed(bytes: Buffer): ObjectValue {
     if (!bytes.length || bytes.length > LIMIT) fail();
     const value: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
-    /** 根节点先占一个名额，后续节点必须在读取成员与递归之前通过数量和深度检查；数组逐项索引、对象逐项检查自有属性，
+    /**
+     * 根节点先占一个名额，后续节点必须在读取成员与递归之前通过数量和深度检查；数组逐项索引、对象逐项检查自有属性，
      * 不物化完整值数组或待处理元组，使显式遍历栈只随已限制的深度增长。
      */
     let nodes = 1;
@@ -108,7 +110,8 @@ function endpointFields(value: ObjectValue): ObjectValue[] {
     return fields;
 }
 
-/** 纯验证器同时检查 JSON 结构、确定字段的替换标记及所有原始和规范化字节里的端点编码；不修改未知字段或删除错误、
+/**
+ * 纯验证器同时检查 JSON 结构、确定字段的替换标记及所有原始和规范化字节里的端点编码；不修改未知字段或删除错误、
  * 附件与测试结果，任何非预期残留都使整份报告失败而不是把它泛化成自动脱敏框架。
  */
 export function verifyEndpointJson(bytes: Buffer, endpoints: readonly string[]): void {
@@ -136,7 +139,8 @@ function rewrite(bytes: Buffer, endpoints: readonly string[]): Buffer {
     return result;
 }
 
-/** 打开目标父目录前逐层拒绝符号链接，最终父目录必须属于当前用户且严格私有；保持目录描述符直到读取与发布结束，原有 JSON
+/**
+ * 打开目标父目录前逐层拒绝符号链接，最终父目录必须属于当前用户且严格私有；保持目录描述符直到读取与发布结束，原有 JSON
  * 可为内建 reporter 的普通模式，新原子成员始终独占创建且只有所有者读写。
  */
 async function privateParent(path: string): Promise<FileHandle> {
@@ -218,7 +222,8 @@ async function readStable(path: string, refresh = false): Promise<{ bytes: Buffe
     }
 }
 
-/** 主机在读取任何报告附件、计算证据哈希或创建交付元数据之前独立调用这个标准库模块；它仅接受冻结 SDK 的绝对路径，
+/**
+ * 主机在读取任何报告附件、计算证据哈希或创建交付元数据之前独立调用这个标准库模块；它仅接受冻结 SDK 的绝对路径，
  * 读取同一已验证文件描述符并复核父目录和名字身份，缺失、超限、替换与残留都只抛固定安全错误。
  */
 export async function verifyEndpointJsonFile(
@@ -292,7 +297,8 @@ async function finalize(path: string, endpoints: readonly string[]) {
     }
 }
 
-/** Playwright 按配置顺序等待公开 onEnd；本 reporter 必须严格排在内建 JSON、JUnit 与 HTML 后面，端点只取公开 FullConfig
+/**
+ * Playwright 按配置顺序等待公开 onEnd；本 reporter 必须严格排在内建 JSON、JUnit 与 HTML 后面，端点只取公开 FullConfig
  * 且不改变其枚举或连接语义，失败返回公开 failed
  * 状态，仍需主机独立文件门禁才能交付。
  */
@@ -300,13 +306,15 @@ export default class EndpointJsonReporter implements Reporter {
     private endpoints: string[] = [];
     private ready = false;
     private readonly outputFile: string;
-    /** 构造阶段仅保存宿主生成的固定绝对输出路径，不接收端点、令牌、环境或命令行参数；路径和 reporter
+    /**
+     * 构造阶段仅保存宿主生成的固定绝对输出路径，不接收端点、令牌、环境或命令行参数；路径和 reporter
      * 顺序由公开配置到达时共同验证，任何错误都延迟为安全失败状态而不打印可能包含配置内容的第三方异常。
      */
     constructor(options: { outputFile: string }) {
         this.outputFile = options?.outputFile;
     }
-    /** 从公开 FullConfig 的原始与筛选项目收集去重后的实际连接端点，并确认唯一内建 JSON 写入者与本模块的最后位置；
+    /**
+     * 从公开 FullConfig 的原始与筛选项目收集去重后的实际连接端点，并确认唯一内建 JSON 写入者与本模块的最后位置；
      * 不修改活配置、属性描述符或 worker 连接选项，初始化拒绝只保存关闭状态供最终结果处理。
      */
     onBegin(config: FullConfig): void {
@@ -343,7 +351,8 @@ export default class EndpointJsonReporter implements Reporter {
             this.ready = false;
         }
     }
-    /** 所有排在前面的内建 reporter 已经实际完成写入后，执行同目录有界原子刷新与读回复核；成功时不改变 Playwright
+    /**
+     * 所有排在前面的内建 reporter 已经实际完成写入后，执行同目录有界原子刷新与读回复核；成功时不改变 Playwright
      * 原本业务状态，任一不确定只返回公开 failed 状态，独立宿主门禁仍是报告交付必经条件。
      */
     async onEnd(_result: FullResult): Promise<void | { status: "failed" }> {
@@ -354,7 +363,8 @@ export default class EndpointJsonReporter implements Reporter {
             return { status: "failed" };
         }
     }
-    /** 本模块没有控制台报告内容，公开 reporter 标志明确返回不打印标准输出；所有失败都通过结构化最终状态与主机固定错误码
+    /**
+     * 本模块没有控制台报告内容，公开 reporter 标志明确返回不打印标准输出；所有失败都通过结构化最终状态与主机固定错误码
      * 传递，不回显配置、异常正文、路径内容、控制端点或可能带秘密的动态字段。
      */
     printsToStdio(): boolean {

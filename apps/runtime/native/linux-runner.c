@@ -74,7 +74,9 @@ static bool identity(pid_t pid, uid_t uid, unsigned long long *start) {
     return end != field && *end == '\0';
 }
 static bool direct_children(uid_t uid, int signal_number) {
-    /* /proc/.../children 依赖可选内核配置；用 PPID 发现直接子进程，最终排空只认 waitpid ECHILD。 */
+    /*
+     * /proc/.../children 依赖可选内核配置；用 PPID 发现直接子进程，最终排空只认 waitpid ECHILD。
+     */
     DIR *processes = opendir("/proc");
     if (!processes) return false;
     struct dirent *entry;
@@ -94,7 +96,9 @@ static bool direct_children(uid_t uid, int signal_number) {
         int read_error = read_ok ? 0 : errno;
         fclose(file);
         if (!read_ok) {
-            /* 无关任务可能在 open/read 间消失；子进程不会被并发收割：本单线程守护独占 waitpid。 */
+            /*
+             * 无关任务可能在 open/read 间消失；子进程不会被并发收割：本单线程守护独占 waitpid。
+             */
             if (read_error == ENOENT || read_error == ESRCH) continue;
             ok = fail("SCAN_STAT_READ_FAILED", read_error, (pid_t)value, -1); break;
         }
@@ -107,7 +111,9 @@ static bool direct_children(uid_t uid, int signal_number) {
             if (kill(pid, 0) && errno == ESRCH) continue;
             ok = false; break;
         }
-        /* 当前内核子进程在 waitpid 前不会被 PID 复用，故可安全投递信号。 */
+        /*
+         * 本守护独占子进程收割，内核在 waitpid 回收前不会复用 PID，只有创建身份复核一致后才允许投递信号。
+         */
         if (!identity(pid, uid, &current) || current != before) { ok = false; break; }
         if (kill(pid, signal_number) && errno != ESRCH) { ok = false; break; }
     }
@@ -168,7 +174,10 @@ int main(int argc, char **argv) {
         execvp(argv[4], &argv[4]);
         _exit(127);
     }
-    close(gate[0]); close(3); /* Node IPC 只留给 worker，守护进程不得持有。 */
+    /*
+     * 守护父进程关闭启动门读端和继承的 Node IPC 副本，确保描述符三只由 Worker 持有，避免多余端点延长通道寿命。
+     */
+    close(gate[0]); close(3);
     if (!identity(worker, uid, &worker_start)) { kill(worker, SIGKILL); return 125; }
     dprintf(4, "{\"type\":\"READY\",\"workerPid\":%ld}\n", (long)worker);
     int flags = fcntl(5, F_GETFL);
@@ -219,7 +228,9 @@ int main(int argc, char **argv) {
             if (!direct_children(uid, signal_number)) { trusted = false; diagnostic(proof_path); }
         }
         struct pollfd poll_control = {.fd = control_open ? 5 : -1, .events = POLLIN};
-        /* 若有不可中断子进程活过有界停机请求，继续收养/收割；树未真正排空前绝不写证明。 */
+        /*
+         * 若不可中断子进程仍存活，守护继续收养并收割后代；有界停机请求到期不等于树已排空，不能提前写入停止证明。
+         */
         poll(&poll_control, 1, 20);
     }
 }

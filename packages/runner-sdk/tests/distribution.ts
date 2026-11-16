@@ -5,7 +5,9 @@ import { dirname, join, resolve, relative } from "node:path";
 import { execFileSync } from "node:child_process";
 import ts from "typescript";
 import type { EngineDistribution } from "../../compiler/src/index.js";
-/** Builds real SDK/contracts JS + declarations and exact local dependency archives; no fixture SDK. */
+/**
+ * Builds real SDK/contracts JS + declarations and exact local dependency archives; no fixture SDK.
+ */
 export function actualDistribution(root: string): EngineDistribution {
     const packages = resolve("../"),
         built = join(root, "built");

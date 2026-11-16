@@ -1,36 +1,43 @@
-/** 本模块提供 Cookie/CSRF 会话下的 /api/v1 传输层，供各功能适配器复用同一凭证边界。写入请求必须同源且不落盘密钥。
+/**
+ * 本模块提供 Cookie/CSRF 会话下的 /api/v1 传输层，供各功能适配器复用同一凭证边界。写入请求必须同源且不落盘密钥。
  * 仅当前会话的 AUTHENTICATION_REQUIRED 广播过期事件，其他凭证错误仍由调用方展示；非 GET 写入附带当前身份拥有的内存
  * CSRF 令牌。
  */
 
 import type { PlatformComponents, PlatformPaths } from "@veriq/contracts";
 type Schemas = PlatformComponents["schemas"];
-/** 账户与导航使用的 AdminUserDTO 投影，含 systemAdmin 以决定管理入口是否可见。密码哈希永不出现在此类型。来自 /account
+/**
+ * 账户与导航使用的 AdminUserDTO 投影，含 systemAdmin 以决定管理入口是否可见。密码哈希永不出现在此类型。来自 /account
  * 或管理端用户列表，不包含会话令牌或密码哈希。
  */
 export type User = Schemas["AdminUserDTO"];
-/** 登录成功后返回的 SessionDTO，仅表示服务端已建立 Cookie 会话，不含 Workspace 列表。与 account() 结果分离。前端用
+/**
+ * 登录成功后返回的 SessionDTO，仅表示服务端已建立 Cookie 会话，不含 Workspace 列表。与 account() 结果分离。前端用
  * session() 探活；真正资料展示依赖 account() 拉取的
  * User。
  */
 export type Session = Schemas["SessionDTO"];
-/** 当前账户活跃会话分页信封，供账户页列出并批量吊销本机以外的会话。nextCursor 为空即无更多页；nextCursor 为空时账户页停
+/**
+ * 当前账户活跃会话分页信封，供账户页列出并批量吊销本机以外的会话。nextCursor 为空即无更多页；nextCursor 为空时账户页停
  * 止继续追加会话行。查询参数遵循 SessionListQuery；吊销调用 revokeOwn
  * 而非逐条删除。
  */
 export type AccountSessions = Schemas["AccountSessionsDTO"];
-/** 管理员签发的一次性重置链接 DTO，短时有效且仅在 AdminUsers 页展示给操作者。复制后即视为已暴露给管理员；链接只短暂展示
+/**
+ * 管理员签发的一次性重置链接 DTO，短时有效且仅在 AdminUsers 页展示给操作者。复制后即视为已暴露给管理员；链接只短暂展示
  * 且禁止写入 localStorage。
  * 前端不得把链接写入日志或持久化到 localStorage。
  */
 export type ResetLink = Schemas["ResetLinkDTO"];
-/** 系统管理员用户列表的游标与过滤查询形状，绑定 GET /admin/users 的 OpenAPI 参数。email 过滤为前缀匹配语义。
+/**
+ * 系统管理员用户列表的游标与过滤查询形状，绑定 GET /admin/users 的 OpenAPI 参数。email 过滤为前缀匹配语义。
  * limit/cursor 变更会触发 AdminUsers 重新拉取，避免跨页状态串扰。
  */
 export type UserListQuery = NonNullable<
     PlatformPaths["/api/v1/admin/users"]["get"]["parameters"]["query"]
 >;
-/** 账户会话列表查询形状，绑定 GET /account/sessions，支持 limit 与 cursor 分页。与管理端用户会话列表形状不同。Account
+/**
+ * 账户会话列表查询形状，绑定 GET /account/sessions，支持 limit 与 cursor 分页。与管理端用户会话列表形状不同。Account
  * 页用其控制每页条数并在 Load more 时追加 items。
  */
 export type SessionListQuery = NonNullable<
@@ -58,11 +65,13 @@ function expireSession(owner: number, code: unknown, signal?: AbortSignal): void
     sessionOwner += 1;
     window.dispatchEvent(new Event("veriq:session-expired"));
 }
-/** 桌面宿主适配器只替换业务传输而不改变页面的数据契约，Web 默认继续使用同源 Cookie；注入者负责把路径转换为有限操作标识
+/**
+ * 桌面宿主适配器只替换业务传输而不改变页面的数据契约，Web 默认继续使用同源 Cookie；注入者负责把路径转换为有限操作标识
  * ，真正权限仍由宿主独立验证。
  */
 export interface HostTransport {
-    /** 共享页面把相对业务路径、方法和正文交给宿主兼容层映射，不能自行选择认证来源或浏览器 Cookie；信号用于丢弃已取消视
+    /**
+     * 共享页面把相对业务路径、方法和正文交给宿主兼容层映射，不能自行选择认证来源或浏览器 Cookie；信号用于丢弃已取消视
      * 图的结果，最终主机仍独立校验有限操作和工作区参数。
      */
     json(
@@ -72,25 +81,29 @@ export interface HostTransport {
         signal?: AbortSignal,
         headers?: Record<string, string>,
     ): Promise<unknown>;
-    /** 报告流以标准 Response 供现有 SSE 解析器消费，但底层数据来自宿主逐块拉取的有限句柄；取消信号必须释放该句柄，不能
+    /**
+     * 报告流以标准 Response 供现有 SSE 解析器消费，但底层数据来自宿主逐块拉取的有限句柄；取消信号必须释放该句柄，不能
      * 把页面取消只实现为忽略后续事件。
      */
     stream(path: string, data: unknown, signal: AbortSignal): Promise<Response>;
-    /** 二进制兼容入口只用于宿主明确开放的生成源码，Response 不意味着页面获得通用下载权限；签名包安装和原始证据使用各自
+    /**
+     * 二进制兼容入口只用于宿主明确开放的生成源码，Response 不意味着页面获得通用下载权限；签名包安装和原始证据使用各自
      * 原生入口，不能通过此方法绕过授权确认。
      */
     binary(path: string, signal?: AbortSignal): Promise<Response>;
 }
 let hostTransport: HostTransport | undefined;
 const streamOwners = new WeakMap<Response, { owner: number; signal: AbortSignal }>();
-/** 共享视图的宿主传输只允许初始化一次，桌面构建入口在挂载 React 之前安装适配器；普通 Web 入口不会调用此函数，因此现有同
+/**
+ * 共享视图的宿主传输只允许初始化一次，桌面构建入口在挂载 React 之前安装适配器；普通 Web 入口不会调用此函数，因此现有同
  * 源会话和 CSRF 处理保持不变。
  */
 export function installHostTransport(transport: HostTransport): void {
     if (hostTransport) throw new Error("HOST_TRANSPORT_ALREADY_INSTALLED");
     hostTransport = transport;
 }
-/** 二进制读取沿用服务端当前权限检查和禁止重定向约束，桌面宿主可仅开放生成源码读取；原始证据和签名包的 native 保存入口可
+/**
+ * 二进制读取沿用服务端当前权限检查和禁止重定向约束，桌面宿主可仅开放生成源码读取；原始证据和签名包的 native 保存入口可
  * 以保持字节不进入渲染进程。
  */
 export async function binaryRequest(path: string, signal?: AbortSignal): Promise<Response> {
@@ -111,7 +124,8 @@ export async function binaryRequest(path: string, signal?: AbortSignal): Promise
     return response;
 }
 
-/** 将非 2xx JSON 体映射为带 code/status/requestId 的错误，供 Notice 与适配器统一展示。当前身份的认证缺失才触发全局过期
+/**
+ * 将非 2xx JSON 体映射为带 code/status/requestId 的错误，供 Notice 与适配器统一展示。当前身份的认证缺失才触发全局过期
  * 事件，过时响应和其他凭证错误仍保留原始状态、错误码及请求标识，
  * 供业务调用方按自己的请求所有权处理。
  */
@@ -125,7 +139,8 @@ export class ApiError extends Error {
         super(message);
     }
 }
-/** 通用 JSON 请求：same-origin Cookie、可选 AbortSignal，成功时刷新内存中的 csrfToken。路径相对 /api/v1；业务适配器应传
+/**
+ * 通用 JSON 请求：same-origin Cookie、可选 AbortSignal，成功时刷新内存中的 csrfToken。路径相对 /api/v1；业务适配器应传
  * 入已含 workspaceId 的路径，勿在此层拼接作用域。
  */
 export async function request<T>(
@@ -180,7 +195,8 @@ export async function request<T>(
         if (authentication && authRequest === authentication) authRequest = undefined;
     }
 }
-/** 认证、账户、Workspace 成员与邀请的门面对象，所有方法最终走 request 并保持 CSRF。邀请接受走 /auth 而非空间嵌套路径。
+/**
+ * 认证、账户、Workspace 成员与邀请的门面对象，所有方法最终走 request 并保持 CSRF。邀请接受走 /auth 而非空间嵌套路径。
  * Workspace 相关写操作均要求显式 workspaceId，不依赖隐式全局选择。
  */
 export const api = {
@@ -253,7 +269,8 @@ export const api = {
     acceptInvitation: (data: Schemas["InvitationAcceptRequest"]) =>
         request<Schemas["UserDTO"]>("/auth/invitations/accept", "POST", data),
 };
-/** WorkspaceDTO 别名，描述空间元数据与当前用户在该空间的角色摘要。归档空间仍可只读查询历史；归档之后仍允许只读查询该空
+/**
+ * WorkspaceDTO 别名，描述空间元数据与当前用户在该空间的角色摘要。归档空间仍可只读查询历史；归档之后仍允许只读查询该空
  * 间历史记录。
  * 选择状态由 WorkspaceProvider 持有，本类型本身不含 AbortSignal。
  */
@@ -264,12 +281,14 @@ export type Workspace = Schemas["WorkspaceDTO"];
  */
 export type Member = Schemas["MemberDTO"];
 
-/** RuntimeDTO 别名，登记设备、信任状态、授权矩阵与凭证投递开关。心跳与租约语义由服务端解释；心跳与租约是否过期一律交由
+/**
+ * RuntimeDTO 别名，登记设备、信任状态、授权矩阵与凭证投递开关。心跳与租约语义由服务端解释；心跳与租约是否过期一律交由
  * 服务端判定。
  * 所有变更必须带 workspaceId；吊销后不可再领取作业。
  */
 export type Runtime = Schemas["RuntimeDTO"];
-/** Workspace 作用域内 Runtime 登记、授权、信任与服务账号令牌发放的专用 API 集合。服务账号令牌仅用于登记，不替代用户会话
+/**
+ * Workspace 作用域内 Runtime 登记、授权、信任与服务账号令牌发放的专用 API 集合。服务账号令牌仅用于登记，不替代用户会话
  * 。
  * enrollment inspect/approve 跨空间，但 grant/trust/revoke 始终绑定 workspace 路径。
  */
@@ -358,7 +377,8 @@ export async function streamRequest(path: string, data: unknown, signal: AbortSi
     return response;
 }
 
-/** HTTP200 后的真实 SSE authorization 帧仍属于最初请求，只有明确 AUTHENTICATION_REQUIRED 且所有权仍有效才失效会话；报告
+/**
+ * HTTP200 后的真实 SSE authorization 帧仍属于最初请求，只有明确 AUTHENTICATION_REQUIRED 且所有权仍有效才失效会话；报告
  * 保留期到期是410领域终态，工作区权限变化是403，二者都
  * 不能退出正常用户。
  */

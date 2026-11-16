@@ -5,7 +5,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { AttemptBroker } from "../src/execution/broker.ts";
 
-/** 使用真正的私有 Unix socket 观察后台控制命令回执，测试只缩短可配置的连接预算而不调整业务执行时限；服务器故意等待可控
+/**
+ * 使用真正的私有 Unix socket 观察后台控制命令回执，测试只缩短可配置的连接预算而不调整业务执行时限；服务器故意等待可控
  * 闸门，以区分已断开的客户端和仍在执行的命令。
  */
 async function observe(timeout: number | undefined, delayed: boolean) {
@@ -56,7 +57,8 @@ async function observe(timeout: number | undefined, delayed: boolean) {
     }
 }
 
-/** 旧调用方不传第三参数时仍能收到原有封套，显式较长预算同样不会改变命令的认证或响应结构；只有短预算连接在命令闸门释放前
+/**
+ * 旧调用方不传第三参数时仍能收到原有封套，显式较长预算同样不会改变命令的认证或响应结构；只有短预算连接在命令闸门释放前
  * 关闭，连接关闭本身不表示命令被取消。
  */
 test("broker budget preserves existing calls and distinguishes timeout from cancellation", async () => {

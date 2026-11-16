@@ -238,7 +238,8 @@ async def test_roles_scopes_endpoint_and_output_redaction(site):
         assert error.json()["data"]["status"] == "FAILED"
         assert error.json()["data"]["costState"] == "UNKNOWN"
         assert "secret-must-never-leak" not in error.text
-        assert len(model.calls) == 2  # SDK automatic retries are disabled.
+        # 失败请求只新增一次模型调用，断言总调用数保持为两次，以确认 SDK 自动重试已禁用而没有在失败后额外消耗调用预算。
+        assert len(model.calls) == 2
 
 
 async def test_invalid_output_unknown_usage_and_context_revision_guards(site):

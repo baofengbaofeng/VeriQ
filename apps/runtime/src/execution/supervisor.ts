@@ -88,11 +88,13 @@ export interface SupervisorOptions {
     releaseDirectory: string;
     browserExecutable: string;
     storageLimit?: number;
-    /** 源码宿主能力只接收工厂签发的当前对象，构造器实际验证品牌与平台后才允许 Darwin 业务；任务、profile 和 renderer
+    /**
+     * 源码宿主能力只接收工厂签发的当前对象，构造器实际验证品牌与平台后才允许 Darwin 业务；任务、profile 和 renderer
      * JSON 都没有构造这项非序列化能力的路径，安装就绪仍由独立发行入口负责。
      */
     darwinSource?: DarwinSourceCapability;
-    /** 独立安装入口提供已验证的角色与辅助模块物理路径，缺省只适用于现有源码开发调用；业务 Job 不可覆盖这个宿主设置，
+    /**
+     * 独立安装入口提供已验证的角色与辅助模块物理路径，缺省只适用于现有源码开发调用；业务 Job 不可覆盖这个宿主设置，
      * Runner 子进程继续继承自身固定 Node 的 execPath。
      */
     execution?: ExecutionPaths;
@@ -155,7 +157,8 @@ export class ExecutionSupervisor {
             }
             return;
         }
-        /** Windows 用真实私有 SQLite 的 FULL/WAL 提交承载 Claim 与围栏，祖先链保持至数据库关闭；这项平台分支不调用目录
+        /**
+         * Windows 用真实私有 SQLite 的 FULL/WAL 提交承载 Claim 与围栏，祖先链保持至数据库关闭；这项平台分支不调用目录
          * fsync，也不更改原生 Job 的全后代排空要求，关闭或提交失败仍
          * 直接阻止派生。
          */
@@ -189,12 +192,14 @@ export class ExecutionSupervisor {
             await staged.sync();
             await rename(temporary, path);
             published = true;
-            /** 文件刷新仅保证临时对象内容，目录刷新才确认原子发布的名称；任何一次失败都向上传播，派生门不会因为内存状态
+            /**
+             * 文件刷新仅保证临时对象内容，目录刷新才确认原子发布的名称；任何一次失败都向上传播，派生门不会因为内存状态
              * 已改写或磁盘上偶然可见新内容而提前打开。
              */
             await parent.sync();
         } catch (error) {
-            /** 只退休本次 wx 创建且尚未发布的原始临时 inode，旧 staging 和被替换的名称都保留以供显式恢复；写入、刷新或
+            /**
+             * 只退休本次 wx 创建且尚未发布的原始临时 inode，旧 staging 和被替换的名称都保留以供显式恢复；写入、刷新或
              * rename 失败不能留下自有可清理垃圾，也不能借清理掩盖未知提交或删除别人的
              * 记录。
              */
@@ -217,7 +222,8 @@ export class ExecutionSupervisor {
             }
         }
     }
-    /** 未派生判定只接受当前明确提交完成的前置状态，既不依赖内存 child 句柄缺失也不解释错误 reason；
+    /**
+     * 未派生判定只接受当前明确提交完成的前置状态，既不依赖内存 child 句柄缺失也不解释错误 reason；
      * 恢复还必须排除私有原生记录中的启动意图，以免旧发布窗口中的不一致被当成容量释放授权。
      */
     private async unspawned(
@@ -230,7 +236,8 @@ export class ExecutionSupervisor {
             !isPreSpawnState(record.state, "ONLINE")
         )
             return;
-        /** 旧日志的发布曾缺父目录刷新，单看白名单还不足以排除残留原生启动意图；通过既有私有记录会话检查同一 Attempt
+        /**
+         * 旧日志的发布曾缺父目录刷新，单看白名单还不足以排除残留原生启动意图；通过既有私有记录会话检查同一 Attempt
          * 的进程与证明成员，任一存在或读取不确定都转交真实停止而非推断根进程消失。
          */
         try {
@@ -278,7 +285,8 @@ export class ExecutionSupervisor {
         if (process.platform === "win32") return this.recoverWindows();
         const directory = join(this.options.root, "attempts");
         const receipts: (StopReceipt & { claimRequestId?: string })[] = [];
-        /** 恢复中的白名单是容量释放依据，必须复用实际私有记录能力读取，不能按路径跟随链接或接受宽权限文件；
+        /**
+         * 恢复中的白名单是容量释放依据，必须复用实际私有记录能力读取，不能按路径跟随链接或接受宽权限文件；
          * 同一只读会话保持目录身份，旧历史也不会在核验前被收紧权限或改写。
          */
         const records = await ProcessRecords.open(directory);
@@ -289,7 +297,8 @@ export class ExecutionSupervisor {
             for (const name of names) {
                 if (!name.endsWith(".json")) continue;
                 const record = (await records.read(name, 65536)) as AttemptJournal;
-                /** 临时对象可能包含尚未结清的 SPAWNING，即便旧正式日志仍是前置状态也不能走未派生快捷路径；只隔离受影响
+                /**
+                 * 临时对象可能包含尚未结清的 SPAWNING，即便旧正式日志仍是前置状态也不能走未派生快捷路径；只隔离受影响
                  * Attempt，其余正式日志继续执行原有内核停止核验和对账。
                  */
                 let stop =
@@ -334,7 +343,8 @@ export class ExecutionSupervisor {
                     ...(record.claimRequestId ? { claimRequestId: record.claimRequestId } : {}),
                 });
             }
-            /** 仅有临时成员时没有已提交 Claim 或 fence 可用于网络对账，仍返回明确未知以阻止 claimLoop 再认领；
+            /**
+             * 仅有临时成员时没有已提交 Claim 或 fence 可用于网络对账，仍返回明确未知以阻止 claimLoop 再认领；
              * 不删除旧文件，不凭临时 JSON 内容发信号或制造未派生成功，其他已提交 Atte
              * mpt 的对账已经完成。
              */
@@ -352,7 +362,8 @@ export class ExecutionSupervisor {
         }
         return receipts;
     }
-    /** Windows 恢复只从已经完成 SQLite 提交的原始 Claim 取得 fence，旧 JSON 或 staging 一律要求显式人工恢复；
+    /**
+     * Windows 恢复只从已经完成 SQLite 提交的原始 Claim 取得 fence，旧 JSON 或 staging 一律要求显式人工恢复；
      * 孤立进程成员不被忽略，持久前置状态仍必须没有任何原生启动意图，真正派生过
      * 的 Attempt 始终使用 Job 排空证明。
      */
@@ -393,7 +404,8 @@ export class ExecutionSupervisor {
             }
         }
     }
-    /** 历史停止证明除了内部过程与 proof 配对，还必须匹配当前已提交 Claim 的原始 fence 和任务类型；恢复不能用同一
+    /**
+     * 历史停止证明除了内部过程与 proof 配对，还必须匹配当前已提交 Claim 的原始 fence 和任务类型；恢复不能用同一
      * Attempt 名称借取另一代或另一种浏览器计划，读取或关闭不确定都保留未知容量，不重建任
      * 何活进程所有权。
      */
@@ -467,7 +479,8 @@ export class ExecutionSupervisor {
         };
         let journalCommitted = false;
         const commit = async () => {
-            /** 每次提交开始先撤销内存中的持久判定，异常时不恢复旧白名单；尤其 ACTIVATING 或 ACTIVATED 写入出错不能被
+            /**
+             * 每次提交开始先撤销内存中的持久判定，异常时不恢复旧白名单；尤其 ACTIVATING 或 ACTIVATED 写入出错不能被
              * catch 当作已落盘的未派生证明，SPAWNING 提交成功才允许实际派生
              * 。
              */
@@ -506,7 +519,8 @@ export class ExecutionSupervisor {
             "node_modules/@veriq/runner-sdk/src/endpoint-json-reporter.js",
         );
         let heartbeat!: Heartbeat;
-        /** 第一次停止同步保存唯一操作，正在 await start 的调用也已经拥有后端登记而必须关闭准入；Darwin
+        /**
+         * 第一次停止同步保存唯一操作，正在 await start 的调用也已经拥有后端登记而必须关闭准入；Darwin
          * 预算在此夹紧租约剩余量减一秒，之后 catch 与正常收尾复用同一 promise，不先等待业务
          * ACK 或退出再发送取消。
          */
@@ -879,7 +893,8 @@ export class ExecutionSupervisor {
             record.stop = stop;
             await commit();
             monitor.close();
-            /** 源码浏览器端点只保留在本次宿主闭包；真实 CLI 与停止证明完成后，先从冻结 SDK 的纯标准库模块独立复核最终
+            /**
+             * 源码浏览器端点只保留在本次宿主闭包；真实 CLI 与停止证明完成后，先从冻结 SDK 的纯标准库模块独立复核最终
              * JSON，再允许下载证据读取、附件复制、哈希、元数据或完成提交，任何未知状态保留私有原始
              * 报告而失败关闭。
              */
@@ -1116,7 +1131,8 @@ export class ExecutionSupervisor {
             try {
                 await commit();
             } catch {
-                /** 正常进程停止仍由独立内核证明支持，但未派生结论不能跨越当前日志提交失败继续释放容量；
+                /**
+                 * 正常进程停止仍由独立内核证明支持，但未派生结论不能跨越当前日志提交失败继续释放容量；
                  * 保留失败返回值且不覆盖磁盘上可能仍是旧代际的内容，供下一次显式恢复重新核验。
                  */
                 if (stop.processStopScope === "NO_PROCESS_SPAWNED")

@@ -690,7 +690,8 @@ test(
                 retried.attempts[0]!.execution!.namespace,
                 retried.attempts[1]!.execution!.namespace,
             );
-            /** 故障仅注入真实 SQLite 已写入 SPAWNING 事务的 COMMIT 操作，后续回滚、停止和报告仍走生产流程；未提交意图不
+            /**
+             * 故障仅注入真实 SQLite 已写入 SPAWNING 事务的 COMMIT 操作，后续回滚、停止和报告仍走生产流程；未提交意图不
              * 能因内存 owner 仍是 ALLOCATED 而产生未派生回执，也不能
              * 因开启重试而再次派生。
              */
@@ -836,7 +837,8 @@ test(
     },
 );
 
-/** 发布前失败只清理本次仍匹配原 inode 的 staging，测试通过真实重命名与替换观察清理边界；新对象即使占据同一旧字符串也不
+/**
+ * 发布前失败只清理本次仍匹配原 inode 的 staging，测试通过真实重命名与替换观察清理边界；新对象即使占据同一旧字符串也不
  * 能被 chmod 或删除，既有目标中的用户成员同样必须保持原字节而不被导入覆盖。
  */
 test("publication failure cleans only unchanged owned staging and preserves substituted directories", async () => {

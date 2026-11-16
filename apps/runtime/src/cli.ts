@@ -19,7 +19,8 @@ import { managedFileCredentials } from "./credentials/restricted-file.ts";
 import type { CredentialOptions } from "./credentials/profile.ts";
 import { installedCredentials } from "./credentials/host.ts";
 import { openTrace } from "./trace.ts";
-/** CLI 在独立角色入口校验完整发行库存，凭据模式只由受信任启动参数选择；源码入口的完整库存接入仍单独验证，
+/**
+ * CLI 在独立角色入口校验完整发行库存，凭据模式只由受信任启动参数选择；源码入口的完整库存接入仍单独验证，
  * 业务参数不得指定保险库辅助程序或把后端失败解释为明文授权。
  */
 import { Command } from "commander";
@@ -85,7 +86,8 @@ program.option(
     "--acknowledge-unencrypted-storage",
     "Acknowledge restricted-file provides no encryption at rest",
 );
-/** 服务文件模式必须由命令行明确选择并完整核验，不能因默认保险库构造失败而落入此分支；选择不改变设备执行位置或控制平台信
+/**
+ * 服务文件模式必须由命令行明确选择并完整核验，不能因默认保险库构造失败而落入此分支；选择不改变设备执行位置或控制平台信
  * 任等级，未选模式却携带服务参数同样拒绝，避免操作者误以为限制已经生效。
  */
 program.hook("preAction", async () => {
@@ -131,7 +133,8 @@ program.hook("preAction", async () => {
     }
 });
 
-/** 原生角色入口从物理可执行文件推导安装根，显式根仅供可信启动器传入且仍校验角色身份；开发 node 入口保持原来的源码探测，
+/**
+ * 原生角色入口从物理可执行文件推导安装根，显式根仅供可信启动器传入且仍校验角色身份；开发 node 入口保持原来的源码探测，
  * 缺失安装清单绝不静默回落到开发依赖或系统浏览器。
  */
 async function installedDistribution() {
@@ -162,7 +165,8 @@ async function installedDarwinExecution(
     return { darwinSource: await createDarwinDistribution(installed, { temporaryDirectory }) };
 }
 
-/** 注册与诊断共享完整发行核验，安装模式只允许清单中钉选的浏览器与引擎；调用者可选择控制 Origin 而不能通过 CLI
+/**
+ * 注册与诊断共享完整发行核验，安装模式只允许清单中钉选的浏览器与引擎；调用者可选择控制 Origin 而不能通过 CLI
  * 参数替换安装执行代码，避免登记出实际无法执行的组件版本。
  */
 async function nativeDoctor(options: { server?: string; browserExecutable?: string }) {
@@ -184,7 +188,8 @@ async function nativeDoctor(options: { server?: string; browserExecutable?: stri
     });
 }
 
-/** 安装 CLI 启动在线服务时必须转交给真实 Agent 角色 Node，而不是只修改当前 CLI 的进程标题；参数按原始数组传递，
+/**
+ * 安装 CLI 启动在线服务时必须转交给真实 Agent 角色 Node，而不是只修改当前 CLI 的进程标题；参数按原始数组传递，
  * 父进程等待真实退出，并把取消信号传给会执行既有排空协议的 Agent。
  */
 async function startInstalledAgent(
@@ -448,7 +453,8 @@ runtime
         const root = join(profile.directory, "agent");
         let close: (() => Promise<void>) | undefined;
         try {
-            /** Windows 在线控制通道和首次认领之前实际打开私有 SQLite 并核验旧日志，原生模块或 ACL 失败不能被 doctor
+            /**
+             * Windows 在线控制通道和首次认领之前实际打开私有 SQLite 并核验旧日志，原生模块或 ACL 失败不能被 doctor
              * 的浏览器结果掩盖；预备会话完整关闭之后才进入 Agent 控制与认领流程
              * ，不输出尚未拥有的在线就绪状态。
              */
@@ -624,7 +630,8 @@ for (const name of ["set", "remove"]) {
     );
 }
 const localRoot = () => join(store().directory, "offline");
-/** 本机维护由操作者显式调用并选定 Workspace，默认期限保持报告九十天、缓存及成功证据十四天和失败证据三十天；
+/**
+ * 本机维护由操作者显式调用并选定 Workspace，默认期限保持报告九十天、缓存及成功证据十四天和失败证据三十天；
  * 帮助与输出只包含英文有限参数及计数，真实所有权、上传和停止边界由共享 helper 持续核验，不影响云端会话或离
  * 线执行语义。
  */

@@ -1,4 +1,5 @@
-/** 本用例运行独立测试编译体，在真实 START 之后控制原算法进入取消发生于未来 ReadFile 之前的窗口；正式 guardian 和 addon
+/**
+ * 本用例运行独立测试编译体，在真实 START 之后控制原算法进入取消发生于未来 ReadFile 之前的窗口；正式 guardian 和 addon
  * 没有测试入口，调度成功也不能替代实际 Job 排空、身份回执和真实资源清理。
  */
 import assert from "node:assert/strict";
@@ -18,7 +19,8 @@ const schedule = require("../../build/native-tests/veriq_test_schedule.node") as
     releaseRead(nonce: string): void;
 };
 
-/** 测试保存的身份字段与正式日志中的字符串 FILETIME 完全一致，工作与守护 PID 分开记录；该类型仅用于校验本次真实启动返回
+/**
+ * 测试保存的身份字段与正式日志中的字符串 FILETIME 完全一致，工作与守护 PID 分开记录；该类型仅用于校验本次真实启动返回
  * 的日志，不能把不确定身份补成默认值或经浮点计算重建创建时间。
  */
 interface ScheduleJournal {
@@ -30,7 +32,8 @@ interface ScheduleJournal {
     guardianStartTime: string;
 }
 
-/** 清理只在既有五秒测试预算内等待真实操作，超时保留原始失败与私有目录而不能伪造进程已停止；调度等待自身也在原生工作线程
+/**
+ * 清理只在既有五秒测试预算内等待真实操作，超时保留原始失败与私有目录而不能伪造进程已停止；调度等待自身也在原生工作线程
  * 有界完成，因此本定时器保持可执行而非依赖同步阻塞调用返回。
  */
 async function bounded<T>(operation: () => Promise<T>): Promise<T> {

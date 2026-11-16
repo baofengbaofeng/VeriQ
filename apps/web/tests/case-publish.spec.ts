@@ -292,7 +292,8 @@ test("environment manager creates immutable auth and credential versions without
     await expect(page.getByTestId("credential-list")).toContainText("REVOKED");
 });
 
-/** 使用真实身份管理器和服务端凭证提交验证表单生命周期，认证类型的无关重渲染必须保留未提交输入；旧空间请求已提交但响应尚
+/**
+ * 使用真实身份管理器和服务端凭证提交验证表单生命周期，认证类型的无关重渲染必须保留未提交输入；旧空间请求已提交但响应尚
  * 未交付时切换空间，随后仅允许原空间显示已保存摘要。
  */
 test("identity manager retains scope across rerenders and late credential responses", async ({
@@ -1098,7 +1099,8 @@ test("T11-R4 delayed real J1 receipt cannot validate a saved candidate or queued
     }
 });
 
-/** 通过真实资源创建、JSON Apply 和草稿保存观察字符串及混合 JSON 数组，重复值不能合并节点，输入不能重挂载，删除祖先行必
+/**
+ * 通过真实资源创建、JSON Apply 和草稿保存观察字符串及混合 JSON 数组，重复值不能合并节点，输入不能重挂载，删除祖先行必
  * 须保留嵌套存活节点，最终正文只能含原始业务值而无私有行标记。
  */
 test("primitive rows preserve focused survivors and persist only business values", async ({

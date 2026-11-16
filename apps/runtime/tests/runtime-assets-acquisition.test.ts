@@ -10,7 +10,8 @@ import type { Ref } from "../scripts/runtime-payload-inputs.ts";
 import { ArchiveTransaction } from "../scripts/runtime-payload-transaction.ts";
 import { assetsFixture, fact } from "./fixtures/runtime-assets.ts";
 
-/** 正例直接消费生产下载路径同用的有界流生成器并接入真实私有事务，真实摘要来自测试字节而非替换官方常量；负例逐一改变
+/**
+ * 正例直接消费生产下载路径同用的有界流生成器并接入真实私有事务，真实摘要来自测试字节而非替换官方常量；负例逐一改变
  * HTTP 元数据与流事实，确认失败不会被写入成功证据或发布结果。
  */
 async function* body(value = Buffer.from("tiny verified body")) {
@@ -177,7 +178,8 @@ for (const args of [
         assert.match(child.stderr, /PAYLOAD_INPUT_INVALID phase=INPUTS cleanup=NOT_NEEDED/);
     });
 
-/** 请求替身只替换内部 node:https.request，并以真实 EventEmitter 与流触发有限网络拒绝路径，不创建 TCP 服务或真实请求；计
+/**
+ * 请求替身只替换内部 node:https.request，并以真实 EventEmitter 与流触发有限网络拒绝路径，不创建 TCP 服务或真实请求；计
  * 划空间在此单独替换以绕开本机七十三 MiB 限制，但输出、来源读取、事务
  * 清理和正文校验仍是真实实现。
  */
@@ -241,7 +243,8 @@ test("wrong source and altered actual host facts create zero requests", async ()
     }
 });
 
-/** 受控网络错误使用真正流及 close 事件来检验 owner 的资源收尾，官方顶层成功仍只能在真实 Mac CI 中证明；超时用测试虚拟时
+/**
+ * 受控网络错误使用真正流及 close 事件来检验 owner 的资源收尾，官方顶层成功仍只能在真实 Mac CI 中证明；超时用测试虚拟时
  * 钟推进固定生产期限，不通过暴露可覆盖限额或放宽描述符来缩短生产政策。
  */
 for (const scenario of ["status", "redirect", "headers-timeout", "cancel", "close"] as const)
@@ -326,7 +329,8 @@ for (const scenario of ["status", "redirect", "headers-timeout", "cancel", "clos
         }
     });
 
-/** 磁盘不足通过事务真实消费的内部空间检查注入固定错误，不能为了测试启动网络或把有限预算改成环境可配置项；请求替身只统计
+/**
+ * 磁盘不足通过事务真实消费的内部空间检查注入固定错误，不能为了测试启动网络或把有限预算改成环境可配置项；请求替身只统计
  * 是否误触发，事务仍执行真实锁、目录及最终清理，输出父根必须恢复为空。
  */
 test("forced disk failure issues zero requests and cleans owned transaction", async () => {
@@ -362,7 +366,8 @@ test("forced disk failure issues zero requests and cleans owned transaction", as
     }
 });
 
-/** 提交夹具保留完整官方校验文本原字节，正例必须同时核长度、真实摘要和生产消费者中的两架构记录，再改变一个字节证明拒绝；
+/**
+ * 提交夹具保留完整官方校验文本原字节，正例必须同时核长度、真实摘要和生产消费者中的两架构记录，再改变一个字节证明拒绝；
  * 测试不读取私有计划证据、不联网、不替换密码学，也不把微型正文伪装成固定官方归档。
  */
 test("actual stored checksum text validates and altered text fails", async () => {
@@ -380,7 +385,8 @@ test("actual stored checksum text validates and altered text fails", async () =>
     checkNodeChecksum(officialNodeChecksumFixture());
 });
 
-/** 小型镜像只复制已提交测试及其三份微型夹具，借用现有只读生产脚本和依赖链接以隔离真正缺失的私有证据路径；目标测试必须成
+/**
+ * 小型镜像只复制已提交测试及其三份微型夹具，借用现有只读生产脚本和依赖链接以隔离真正缺失的私有证据路径；目标测试必须成
  * 功加载并真实通过，而不是因模块缺失提前失败，也不声称这等同全新独立依赖安装或完整克隆验收。
  */
 test("committed checksum regression runs without any private evidence directory", async () => {

@@ -147,7 +147,7 @@ class ResetDispatcher:
             async with self.db.sessions.begin() as session:
                 audit(session, "reset.delivered", None, user_id)
         except Exception:
-            # 日志刻意排除异常文本、收件人与密链，防止运维日志泄露重置材料。
+            # 邮件失败日志仅记录固定事件，不附异常文本、收件人或重置链接，避免投递适配器错误将口令重置材料写入运维日志。
             log.error('{"event":"mail.delivery_failed"}')
             if token:
                 try:

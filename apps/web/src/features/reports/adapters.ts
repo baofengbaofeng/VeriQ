@@ -7,19 +7,23 @@ import type { PlatformComponents } from "@veriq/contracts";
 import { EventSourceParserStream } from "eventsource-parser/stream";
 import { request, streamRequest, streamAuthorizationError, binaryRequest } from "../../api";
 type S = PlatformComponents["schemas"];
-/** RunReportDTO：某次 Run 的汇总门禁、用例结果与当前 Attempt 指针，供报告头与列表共用。门禁字段区分执行时与当前。
+/**
+ * RunReportDTO：某次 Run 的汇总门禁、用例结果与当前 Attempt 指针，供报告头与列表共用。门禁字段区分执行时与当前。
  * subscribe 推送的也是此类型；workspaceId 必须与适配器作用域一致。
  */
 export type RunReport = S["RunReportDTO"];
-/** ReportEventDTO：Attempt 时间线中的步骤/断言/网络事件，用于增量 history 渲染。序号必须单调递增消费。after 序号分页；
+/**
+ * ReportEventDTO：Attempt 时间线中的步骤/断言/网络事件，用于增量 history 渲染。序号必须单调递增消费。after 序号分页；
  * 缺失值可能因脱敏显示为 withheld。
  */
 export type ReportEvent = S["ReportEventDTO"];
-/** ReportArtifactDTO：截图/Trace 等证据元数据；download 另取 Blob，不把原始字节放进 React state。受限证据仅
+/**
+ * ReportArtifactDTO：截图/Trace 等证据元数据；download 另取 Blob，不把原始字节放进 React state。受限证据仅
  * Owner/Admin 可取；失败时表面错误而非空文件。
  */
 export type ReportArtifact = S["ReportArtifactDTO"];
-/** ReportDisplayDTO：历史标签与脱敏后的展示投影，避免 UI 直接解析含凭证的原始 Trace。缺失标签时 UI 显示占位文案。
+/**
+ * ReportDisplayDTO：历史标签与脱敏后的展示投影，避免 UI 直接解析含凭证的原始 Trace。缺失标签时 UI 显示占位文案。
  * labels 不可用时 ReportView 显示 labelsAbsent 提示。
  */
 export type ReportDisplay = S["ReportDisplayDTO"];
@@ -29,7 +33,8 @@ export type ReportDisplay = S["ReportDisplayDTO"];
  */
 export interface ReportAdapter {
     readonly readOnly: boolean;
-    /** 桌面原始证据在宿主完成授权、校验与保存或本机查看，这个可选入口避免敏感字节经过渲染进程；普通 Web 适配器不实现它
+    /**
+     * 桌面原始证据在宿主完成授权、校验与保存或本机查看，这个可选入口避免敏感字节经过渲染进程；普通 Web 适配器不实现它
      * 时继续保持现有 Blob 下载行为。
      */
     nativeArtifact?(
@@ -51,7 +56,8 @@ export interface ReportAdapter {
         signal: AbortSignal,
     ): Promise<void>;
 }
-/** Workspace 作用域 HTTP+SSE：streamRequest 解析 report 事件，authorization 事件则抛错要求重载。download 用
+/**
+ * Workspace 作用域 HTTP+SSE：streamRequest 解析 report 事件，authorization 事件则抛错要求重载。download 用
  * same-origin fetch；audit 支持
  * after 游标。
  */

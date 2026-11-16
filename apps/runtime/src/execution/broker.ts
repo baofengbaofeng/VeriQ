@@ -102,7 +102,8 @@ export class AttemptBroker {
      */
     async open() {
         if (this.closed) throw new Error("IPC_BROKER_CLOSED");
-        /** Windows 服务端由原生适配器创建受保护且禁止远程连接的首实例管道，TypeScript 仍负责一次性 nonce
+        /**
+         * Windows 服务端由原生适配器创建受保护且禁止远程连接的首实例管道，TypeScript 仍负责一次性 nonce
          * 和有限业务分派；原生传输失败不会回退 TCP 或公共默认 ACL，也不会改写 Linux
          * 的套接字路径。
          */
@@ -125,7 +126,8 @@ export class AttemptBroker {
                         try {
                             reply(response);
                         } catch {
-                            /* 原生端已经关闭或响应超过固定字节预算时必须结束当前请求，不能在异步回调外抛出未处理异常，
+                            /*
+                             * 原生端已经关闭或响应超过固定字节预算时必须结束当前请求，不能在异步回调外抛出未处理异常，
                              * 也不能重新连接后把同一业务命令重复发送给不同的监听实例。
                              */
                         }
@@ -143,7 +145,8 @@ export class AttemptBroker {
             let bytes = 0;
             const chunks: Buffer[] = [];
             let handled = false;
-            /** 单行请求的完整字节帧才是 UTF-8 解码边界，任意 socket 分块可能切开中文或四字节字符；保留既有六十四 KiB
+            /**
+             * 单行请求的完整字节帧才是 UTF-8 解码边界，任意 socket 分块可能切开中文或四字节字符；保留既有六十四 KiB
              * 原始上限，并在认证和业务回调之前拒绝非法编码或不完整 JSON。
              */
             socket.on("data", (chunk: Buffer) => {

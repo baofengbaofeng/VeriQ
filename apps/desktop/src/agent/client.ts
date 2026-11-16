@@ -2,7 +2,8 @@ import { connect } from "node:net";
 import { join } from "node:path";
 import { readPrivate } from "../../../runtime/src/offline/config.ts";
 
-/** 桌面与后台之间每次请求使用独立短连接，连接建立、认证信封、响应上限与断连失败必须在同一个 Promise 中收敛，否则主窗口
+/**
+ * 桌面与后台之间每次请求使用独立短连接，连接建立、认证信封、响应上限与断连失败必须在同一个 Promise 中收敛，否则主窗口
  * 可能永久等待已退出进程而无法显示真实状态。root 是主进程选定的私有档案目录，并不是 renderer
  * 参数。desktop-agent.json 由持锁后台写入，包含本次后台实例的随机 nonce。描述文件中的 socket 仍须匹配该档案的固定文件
  * 名，不能借配置选择任意端点。nonce 检查只接受六十四位十六进制串，
@@ -18,12 +19,14 @@ import { readPrivate } from "../../../runtime/src/offline/config.ts";
  * TCP 控制端口，也不转发浏览器 Cookie 或设备令牌。
  */
 export class DesktopAgentClient {
-    /** 客户端只保存主进程已选定的私有档案根，实际 socket 与 nonce 在每次调用时重新读取；重新打开 GUI 可以连接原后台，而
+    /**
+     * 客户端只保存主进程已选定的私有档案根，实际 socket 与 nonce 在每次调用时重新读取；重新打开 GUI 可以连接原后台，而
      * renderer 不会得到可自行复用的认证描述。
      */
     constructor(readonly root: string) {}
 
-    /** 每次调用单独建立有界连接并读取一条完整响应，超时、错误或未知格式立即销毁连接；不开放监听 TCP 端口，也不允许调用
+    /**
+     * 每次调用单独建立有界连接并读取一条完整响应，超时、错误或未知格式立即销毁连接；不开放监听 TCP 端口，也不允许调用
      * 者传入 socket 路径或认证 nonce。
      */
     async call(input: unknown): Promise<unknown> {
@@ -61,7 +64,8 @@ export class DesktopAgentClient {
             socket.on("error", () => fail(new Error("AGENT_UNAVAILABLE")));
             socket.setTimeout(65000, () => fail(new Error("AGENT_REQUEST_TIMEOUT")));
             socket.on("connect", () => socket.write(outgoing + "\n"));
-            /** socket 分块不是 Unicode 字符边界，因此先按原始字节累计到换行帧，再一次性严格解码；预算也按原始字节检查，
+            /**
+             * socket 分块不是 Unicode 字符边界，因此先按原始字节累计到换行帧，再一次性严格解码；预算也按原始字节检查，
              * 非法 UTF-8 直接失败而不会把替换字符写入业务数据。
              */
             socket.on("data", (chunk) => {

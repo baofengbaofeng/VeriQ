@@ -182,7 +182,7 @@ class ExecutionAPI(DeviceAPI):
                     assert attempt_id
                     result = await maintenance_service.stopped(authorization, attempt_id, data)
                 else:
-                    # 维护触发必须显式携带 Workspace，禁止安装级无界清扫。
+                    # 维护请求须显式携带目标 Workspace 并交给受限维护服务执行，禁止省略范围后将触发扩展为安装级清扫。
                     if not data.get("workspaceId"):
                         raise Problem(
                             400, "WORKSPACE_REQUIRED", "Maintenance requires explicit Workspace"

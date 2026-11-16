@@ -1,4 +1,5 @@
-/** 真实 Linux 保险库验收只启动本次自有总线与非空密码的合成 keyring，所有请求经过正式库存辅助程序；每个守护进程保留创建
+/**
+ * 真实 Linux 保险库验收只启动本次自有总线与非空密码的合成 keyring，所有请求经过正式库存辅助程序；每个守护进程保留创建
  * 身份并在失败路径清理，结果不冒充正常用户登录会话或正式无人值守解锁策略。
  */
 import assert from "node:assert/strict";
@@ -29,7 +30,8 @@ type Owned = {
 };
 type VerifiedOwned = Owned & { identity: Identity };
 
-/** 进程身份同时记录内核启动时刻与实际执行文件，后续清理必须重核这两个事实才发信号；单独 PID 存在或进程名称相同不能证明
+/**
+ * 进程身份同时记录内核启动时刻与实际执行文件，后续清理必须重核这两个事实才发信号；单独 PID 存在或进程名称相同不能证明
  * 仍是本测试创建的守护进程，更不能授权终止登录会话中的其他服务。
  */
 async function identity(pid: number): Promise<Identity> {
@@ -52,7 +54,8 @@ async function until(check: () => Promise<boolean>, timeout = 5000) {
     }
 }
 
-/** 正式消费者组合在同一自有 Secret Service 会话中使用完整发行能力构造后端，迁移和重启读回经过真实 helper；合成值仅用于
+/**
+ * 正式消费者组合在同一自有 Secret Service 会话中使用完整发行能力构造后端，迁移和重启读回经过真实 helper；合成值仅用于
  * 确认磁盘没有明文，日志只记录是否成功及生命周期，不打印业务值或系统密钥。
  */
 test("real private Secret Service lifecycle, prompt refusal and owned helper termination", async (t) => {
@@ -117,7 +120,8 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
             { mode: 0o600 },
         );
 
-    /** 夹具只记录实际创建进程的内核身份与有界非秘密输出，总线地址可用于本次私有会话但密码永不进入参数或证据；普通停止先
+    /**
+     * 夹具只记录实际创建进程的内核身份与有界非秘密输出，总线地址可用于本次私有会话但密码永不进入参数或证据；普通停止先
      * 请求退出再有限升级，只有真实 exit 事件才能记为清理完成。
      */
     const start = async (file: string, args: string[]): Promise<VerifiedOwned> => {
@@ -172,7 +176,8 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
             await ownership();
             return owned as VerifiedOwned;
         } catch (error) {
-            /** 子进程一经创建就先保留真实 ChildProcess 所有权，身份捕获或登记失败时只能关闭这一个新取得的句柄并等待实际
+            /**
+             * 子进程一经创建就先保留真实 ChildProcess 所有权，身份捕获或登记失败时只能关闭这一个新取得的句柄并等待实际
              * 退出；未知身份不得伪造到兜底登记中，也不能在异常路径留下无法追踪的活进程。
              */
             owned.acquisitionFailed = true;

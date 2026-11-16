@@ -3,7 +3,8 @@ import { join } from "node:path";
 import { expect } from "../../apps/desktop/tests/fixtures";
 import { DesktopAgentClient } from "../../apps/desktop/src/agent/client";
 
-/** 测试后台身份来自实际认证状态，Linux 进程观察同时保留 uid、启动时钟和退出状态；PID 消失、启动时钟改变或已成为僵尸只证
+/**
+ * 测试后台身份来自实际认证状态，Linux 进程观察同时保留 uid、启动时钟和退出状态；PID 消失、启动时钟改变或已成为僵尸只证
  * 明原进程退出，不能把僵尸当作仍在运行的独立后台。
  */
 async function identity(pid: number) {
@@ -18,7 +19,8 @@ async function identity(pid: number) {
     }
 }
 
-/** 测试清理通过同一档案的认证协议请求停止并等待真实进程退出与描述文件撤销，不能只发 SIGTERM 就把档案交给下一场景；
+/**
+ * 测试清理通过同一档案的认证协议请求停止并等待真实进程退出与描述文件撤销，不能只发 SIGTERM 就把档案交给下一场景；
  * 身份不符时失败保留诊断，不杀未知 PID 或删除尚被拥有的数据库。
  */
 export async function stopTestAgent(profile: string, pid: number): Promise<void> {

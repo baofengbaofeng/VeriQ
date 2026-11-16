@@ -1,4 +1,5 @@
-/** Windows 在线 Claim 日志使用与离线宿主相同的 Node24 SQLite 技术，但原始认领与围栏另存专用私有数据库；提交权威来自
+/**
+ * Windows 在线 Claim 日志使用与离线宿主相同的 Node24 SQLite 技术，但原始认领与围栏另存专用私有数据库；提交权威来自
  * FULL/WAL 事务而非目录刷新，原生会话持续持有祖先链并核验数据库及辅助文件，
  * 缺少该能力不授予派生许可。
  */
@@ -10,7 +11,8 @@ import type { StopReceipt } from "./processes.ts";
 import { windowsNative } from "../native/windows.ts";
 import { ProcessRecords } from "./records.ts";
 
-/** 日志记录保存服务端原始 Claim 而不重建租约或增加有效期，work 只接受当前 Agent 根下同一 Attempt 的固定路径；
+/**
+ * 日志记录保存服务端原始 Claim 而不重建租约或增加有效期，work 只接受当前 Agent 根下同一 Attempt 的固定路径；
  * 状态与停止回执同一事务保存，恢复不得用丢失内存句柄推导没有产生过进程。
  */
 export interface WindowsAttemptRecord {
@@ -23,7 +25,8 @@ export interface WindowsAttemptRecord {
 const states = ["ALLOCATED", "ACTIVATING", "ACTIVATED", "SPAWNING", "RUNNING", "STOPPED"];
 const LIMIT = 4096;
 
-/** 这项有限能力只锁住 SQLite 所在真实祖先目录并核验四个固定数据库成员，不提供任意 NT 操作或伪造目录刷新；SQLite
+/**
+ * 这项有限能力只锁住 SQLite 所在真实祖先目录并核验四个固定数据库成员，不提供任意 NT 操作或伪造目录刷新；SQLite
  * 必须在会话关闭之前关闭，原生装载、权限和关闭错误均直接阻止开始执行。
  */
 interface SqliteDirectory {
@@ -31,7 +34,8 @@ interface SqliteDirectory {
     close(): void;
 }
 
-/** 记录解析同时检查共享 Claim 契约、状态、请求幂等标识、停止范围与固定工作区路径；磁盘内容损坏或未知字段保持失败，
+/**
+ * 记录解析同时检查共享 Claim 契约、状态、请求幂等标识、停止范围与固定工作区路径；磁盘内容损坏或未知字段保持失败，
  * 尤其旧 JSON 的前置状态不能通过这个新数据库解析器取得未派生授权。
  */
 function checked(root: string, value: unknown): WindowsAttemptRecord {
@@ -124,7 +128,8 @@ export class WindowsAttemptJournal {
         private directory: SqliteDirectory,
     ) {}
 
-    /** 打开只发生在真实 Windows 上且必须取得已安装或源码固定原生模块的有限会话，数据库结构只在 FULL/WAL 验证后初始化；
+    /**
+     * 打开只发生在真实 Windows 上且必须取得已安装或源码固定原生模块的有限会话，数据库结构只在 FULL/WAL 验证后初始化；
      * 异常先关闭 SQLite 再关闭原生链，不吞掉提交或关闭不确定性。
      */
     static async open(root: string): Promise<WindowsAttemptJournal> {
@@ -216,7 +221,8 @@ export class WindowsAttemptJournal {
             throw error;
         }
     }
-    /** 恢复读取全量但至多四千零九十六条原始认领，额外一条触发明确容量错误而不丢弃未知历史；SQL 中重复保存的 Claim
+    /**
+     * 恢复读取全量但至多四千零九十六条原始认领，额外一条触发明确容量错误而不丢弃未知历史；SQL 中重复保存的 Claim
      * 与状态必须匹配完整文档，防止局部损坏被解析成可释放容量的前置状态。
      */
     records(): WindowsAttemptRecord[] {
@@ -244,7 +250,8 @@ export class WindowsAttemptJournal {
         });
     }
 
-    /** 持久化在同一个事务内核对旧 Claim、状态与总数，只有原始认领的合法状态推进才提交；失败后的 ROLLBACK
+    /**
+     * 持久化在同一个事务内核对旧 Claim、状态与总数，只有原始认领的合法状态推进才提交；失败后的 ROLLBACK
      * 也可能报错并保持不确定，调用方不得因为旧对象仍在内存而继续派生或发未派生成功回执。
      */
     save(value: WindowsAttemptRecord): void {
@@ -301,7 +308,8 @@ export class WindowsAttemptJournal {
         }
     }
 
-    /** 旧 JSON 与 staging 从未得到新的 SQLite 提交证明，所以恢复前只要有任何遗留成员便保持隔离；不导入看似 ALLOCATED
+    /**
+     * 旧 JSON 与 staging 从未得到新的 SQLite 提交证明，所以恢复前只要有任何遗留成员便保持隔离；不导入看似 ALLOCATED
      * 的旧正文、不删除未知成员，也不把缺失数据库当作旧进程从未产生。
      */
     async requireNoLegacy(): Promise<void> {
@@ -316,7 +324,8 @@ export class WindowsAttemptJournal {
         }
     }
 
-    /** 关闭顺序使 SQLite 完成自身 WAL 生命周期之后才释放不共享删除的祖先句柄，任一关闭异常都向上传播；这里不会补做
+    /**
+     * 关闭顺序使 SQLite 完成自身 WAL 生命周期之后才释放不共享删除的祖先句柄，任一关闭异常都向上传播；这里不会补做
      * Windows 目录 fsync，也不会把文件可见性当作 Job 排空证明。
      */
     close(): void {

@@ -15,7 +15,8 @@ import { sha256 } from "../src/execution/release.ts";
 import { developmentExecutionPaths } from "../src/execution/paths.ts";
 import { ProcessSupervisor } from "../src/execution/processes.ts";
 
-/** 每个用例使用独立的真实 SQLite 档案及最小历史结果，范围声明必须由被测停止路径生成；夹具自身不提前填写停止字段，也不借
+/**
+ * 每个用例使用独立的真实 SQLite 档案及最小历史结果，范围声明必须由被测停止路径生成；夹具自身不提前填写停止字段，也不借
  * 默认平台或业务成功补造历史中的停止事实。
  */
 function initial(): OfflineResultV1 {
@@ -403,7 +404,8 @@ test("online recovery rejects linked pre-spawn journal bytes before reconciling 
     }
 });
 
-/** 在线探针使用真实原生守护和一个等待 START 的小型执行进程，私有发行清单与下载内容仍走正式校验；业务夹具只产生最小
+/**
+ * 在线探针使用真实原生守护和一个等待 START 的小型执行进程，私有发行清单与下载内容仍走正式校验；业务夹具只产生最小
  * CLEANUP 结果，测试目标是提交门、退出证明与完成清单的范围传递。
  */
 async function online(root: string) {

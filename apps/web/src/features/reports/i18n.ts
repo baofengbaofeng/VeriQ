@@ -4,7 +4,8 @@
  */
 
 import { editorI18n } from "../resources/i18n";
-/** 报告页中文（及双语）词条对象，涵盖门禁、Attempt、脱敏与原始证据提示等 UI 文案。键名变更需同步 en 镜像；增删改任一键
+/**
+ * 报告页中文（及双语）词条对象，涵盖门禁、Attempt、脱敏与原始证据提示等 UI 文案。键名变更需同步 en 镜像；增删改任一键
  * 名时必须同步更新 en 镜像表。
  * en 镜像同结构；变更键名时需同步两份并检查测试选择器文案。
  */
@@ -99,7 +100,8 @@ const en: typeof zh = {
 };
 editorI18n.addResourceBundle("zh", "reports", zh, true, true);
 editorI18n.addResourceBundle("en", "reports", en, true, true);
-/** editorI18n 的别名导出，方便报告模块以 reportI18n 引用而不直接依赖 resources/i18n 路径语义。调用方应指定 ns=reports；
+/**
+ * editorI18n 的别名导出，方便报告模块以 reportI18n 引用而不直接依赖 resources/i18n 路径语义。调用方应指定 ns=reports；
  * 默认 translation ns 仍留给资源编辑器。
  */
 export { editorI18n as reportI18n };

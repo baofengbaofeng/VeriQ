@@ -1,4 +1,5 @@
-/** Darwin 后端只拥有本次真实创建的 BrowserServer 与 outer 原始 ChildProcess，所有停止结论都来自同对象 exit
+/**
+ * Darwin 后端只拥有本次真实创建的 BrowserServer 与 outer 原始 ChildProcess，所有停止结论都来自同对象 exit
  * 和完整私有封存日志；持久意图先于任何派生，错误粘滞保留隔离，恢复读取不重建
  * 活句柄、不扫描 PID，也不发布任意后代排空保证。
  */
@@ -52,7 +53,8 @@ interface Attempt {
     cliFile?: DarwinPrivateFile;
 }
 
-/** 固定身份、有限输出和当前 IPC 对象共同限定 READY 与取消 ACK，错误只写入内存故障位而不复制不受信内容到日志；
+/**
+ * 固定身份、有限输出和当前 IPC 对象共同限定 READY 与取消 ACK，错误只写入内存故障位而不复制不受信内容到日志；
  * 即使之后实际退出，已经发生的观察错误仍不会被业务成功或重试停止覆盖。
  */
 function sameBinding(value: unknown, expected: DarwinProcessRecord["commandBinding"]): boolean {
@@ -63,7 +65,8 @@ function sameBinding(value: unknown, expected: DarwinProcessRecord["commandBindi
     }
 }
 
-/** 每次实际对象返回后立即同步登记 exit 与 error，已有退出字段表示错过观察而不是允许补登记；exited 永远只由这个对象的
+/**
+ * 每次实际对象返回后立即同步登记 exit 与 error，已有退出字段表示错过观察而不是允许补登记；exited 永远只由这个对象的
  * exit 事件完成，error 和 deadline 都不能使它伪装成已经结束。
  */
 function observe(entry: Attempt, child: ChildProcess, browser: boolean): Observation {
@@ -92,7 +95,8 @@ function observe(entry: Attempt, child: ChildProcess, browser: boolean): Observa
     return observation;
 }
 
-/** 所有异步等待共享调用方给定的绝对期限，不能把多个相对超时串联成更长的停止预算；超时只拒绝等待且不改变真实对象退出事
+/**
+ * 所有异步等待共享调用方给定的绝对期限，不能把多个相对超时串联成更长的停止预算；超时只拒绝等待且不改变真实对象退出事
  * 实，调用方继续持有对象并在同一停止路径执行保守终止和隔离。
  */
 async function before<T>(promise: Promise<T>, deadline: number): Promise<T> {
@@ -111,14 +115,16 @@ async function before<T>(promise: Promise<T>, deadline: number): Promise<T> {
     }
 }
 
-/** 实际后端可以没有源码启动能力而只承担已提交历史的读取，带能力时必须消费私有品牌原对象；同一实例保留失败和成功
+/**
+ * 实际后端可以没有源码启动能力而只承担已提交历史的读取，带能力时必须消费私有品牌原对象；同一实例保留失败和成功
  * Attempt 的终态，禁止重新使用旧意图或把未知容量随对象暂时消失而释放。
  */
 export class DarwinProcesses {
     private source?: DarwinSourceState;
     private attempts = new Map<string, Attempt>();
     private stopping = new Map<string, Promise<StopReceipt>>();
-    /** 构造只登记可选私有品牌而不创建文件或查询进程，没有源码能力的实例保持纯历史观察用途；安装角色仍会由原有 B loader
+    /**
+     * 构造只登记可选私有品牌而不创建文件或查询进程，没有源码能力的实例保持纯历史观察用途；安装角色仍会由原有 B loader
      * 拒绝，调用者不能通过恢复持久 PID 或伪造配置重新获得启动与信号发送权限。
      */
     constructor(
@@ -128,7 +134,8 @@ export class DarwinProcesses {
         if (capability !== undefined) this.source = requireDarwinSource(capability);
     }
 
-    /** 启动在第一次 await 之前同步占用 Attempt 身份并关闭重复准入，generation 来自可信宿主既有 fence；
+    /**
+     * 启动在第一次 await 之前同步占用 Attempt 身份并关闭重复准入，generation 来自可信宿主既有 fence；
      * 随后的任何持久化、浏览器或准备失败都保留同一个未知条目，不会借异常名称返回没有派生。
      */
     start(id: string, command: Command, launch?: DarwinControlledLaunch): Promise<OwnedProcess> {
@@ -231,7 +238,8 @@ export class DarwinProcesses {
         return entry.starting;
     }
 
-    /** 原子私有发布使用父层已经持有的 B 目录，不先验证字符串路径再重新打开；正式过程和证明都受六万五千字节限制，
+    /**
+     * 原子私有发布使用父层已经持有的 B 目录，不先验证字符串路径再重新打开；正式过程和证明都受六万五千字节限制，
      * 发布或父目录刷新不确定性直接传给终结路径，调用者不能自动重试覆盖未知结果。
      */
     private save(entry: Attempt): void {
@@ -246,7 +254,8 @@ export class DarwinProcesses {
         if (entry.closed || entry.fault) throw new Error("DARWIN_ATTEMPT_STOPPING");
     }
 
-    /** 启动意图的独占空成员先保留名称，完整 SPAWNING 原子落盘后才允许 Chrome 或 outer 派生；空保留、
+    /**
+     * 启动意图的独占空成员先保留名称，完整 SPAWNING 原子落盘后才允许 Chrome 或 outer 派生；空保留、
      * 中途日志目录和已存在成员都保持可见未知，绝不删除或覆盖以前的 Attempt 来取得一次新的执行机会
      * 。
      */
@@ -404,7 +413,8 @@ export class DarwinProcesses {
         };
     }
 
-    /** IPC 只送往自己保留的 outer 原对象，发送错误会粘滞破坏本次观察而不会回退裸 PID；START 与 CANCEL
+    /**
+     * IPC 只送往自己保留的 outer 原对象，发送错误会粘滞破坏本次观察而不会回退裸 PID；START 与 CANCEL
      * 的身份都由父层固定添加，外部调用者不能通过 OwnedProcess.send 开放停止期间已
      * 经关闭的业务准入。
      */
@@ -419,7 +429,8 @@ export class DarwinProcesses {
         });
     }
 
-    /** 活性查询只匹配本次确实保留的原对象，没有对象时明确拒绝而不查询 proc 或对 PID 发送零信号；单对象已经 exit
+    /**
+     * 活性查询只匹配本次确实保留的原对象，没有对象时明确拒绝而不查询 proc 或对 PID 发送零信号；单对象已经 exit
      * 只回答它的状态，不替代下方整套受控集合停止证明或容量释放。
      */
     async isRunning(pid: number): Promise<boolean> {
@@ -433,14 +444,16 @@ export class DarwinProcesses {
         throw new Error("DARWIN_PROCESS_UNKNOWN");
     }
 
-    /** 未知 Attempt 即使其原对象已经退出也继续出现在活动隔离集合，只有本实例完成持久正证明才从容量观察中移除；
+    /**
+     * 未知 Attempt 即使其原对象已经退出也继续出现在活动隔离集合，只有本实例完成持久正证明才从容量观察中移除；
      * 终态条目仍保留以拒绝旧 Attempt 重启，并且不从历史状态恢复可发信号的对象。
      */
     active(): string[] {
         return [...this.attempts].filter(([, entry]) => !entry.proved).map(([id]) => id);
     }
 
-    /** 停止去重与关闭准入都发生在返回 promise 以前，正在准备或等待 launchServer 的启动随后必须重新检查关闭位；
+    /**
+     * 停止去重与关闭准入都发生在返回 promise 以前，正在准备或等待 launchServer 的启动随后必须重新检查关闭位；
      * 所有等待共用同一绝对期限，重复原因不能重新授予授权、延长期限或覆盖先前观察故障。
      */
     terminateAttempt(
@@ -452,7 +465,8 @@ export class DarwinProcesses {
         if (existing) return existing;
         const entry = this.attempts.get(id);
         if (entry) entry.closed = true;
-        /** 调用者期限来自同一 Node 进程的单调时钟，坏参数和已耗尽预算都会立即关闭准入并保守终止；首次 promise
+        /**
+         * 调用者期限来自同一 Node 进程的单调时钟，坏参数和已耗尽预算都会立即关闭准入并保守终止；首次 promise
          * 与期限永久绑定本次 Attempt，重复停止不能刷新三十秒预算或把已经观察到的未知状态变成正常成
          * 功。
          */
@@ -473,7 +487,8 @@ export class DarwinProcesses {
         return operation;
     }
 
-    /** 历史确认只读取有限正式私有成员并检查平台专用配对，任何混入 drained、缺失、staging、超额或损坏都返回 false；
+    /**
+     * 历史确认只读取有限正式私有成员并检查平台专用配对，任何混入 drained、缺失、staging、超额或损坏都返回 false；
      * 读取不创建目录、不修权限、不删除残留，也不会从曾经记录的 PID 重新获得实际进程所有权。
      */
     async confirmStopped(id: string): Promise<boolean> {
@@ -507,7 +522,8 @@ export class DarwinProcesses {
         }
     }
 
-    /** 截止时间或管理错误后的尽力终止只使用仍保留的原对象与公共 BrowserServer.kill，不会恢复进程树或扫描任意后代；
+    /**
+     * 截止时间或管理错误后的尽力终止只使用仍保留的原对象与公共 BrowserServer.kill，不会恢复进程树或扫描任意后代；
      * 调用不代表实际 exit，所有观察器和文件拥有者仍留在 Attempt 中直到事实能够结清。
      */
     private forceHeld(entry: Attempt): void {
@@ -518,7 +534,8 @@ export class DarwinProcesses {
             });
     }
 
-    /** 关闭 File 仅发生于原始写者退出以后且最终快照已经读取，目录清理也只关闭本次拥有者而不删除证据；
+    /**
+     * 关闭 File 仅发生于原始写者退出以后且最终快照已经读取，目录清理也只关闭本次拥有者而不删除证据；
      * 错误路径若仍可能有迟到启动或写者就继续持有这些对象，不能提前关闭借出的数字描述符冒充容量释放。
      */
     private closeFiles(entry: Attempt): void {
@@ -531,7 +548,8 @@ export class DarwinProcesses {
         for (const directory of entry.directories.splice(0)) directory.close();
     }
 
-    /** outer 和 Chrome 退出不能单独证明借出 CLI 日志的写者已经退出，故原 outer 存在但 C1 最终闭合尚未核验时保留全部
+    /**
+     * outer 和 Chrome 退出不能单独证明借出 CLI 日志的写者已经退出，故原 outer 存在但 C1 最终闭合尚未核验时保留全部
      * File 与目录锚点；当前源码切片没有猜测孤儿生命周期的恢复能力，后续真实退出
      * 也不能自动绕过这道保留条件。
      */
@@ -548,7 +566,8 @@ export class DarwinProcesses {
         });
     }
 
-    /** 停止先持久取消再等待真实 outer 及两份封存，Chrome 的主动关闭同样先保存授权并等原对象 exit；proof 先于 STOPPED
+    /**
+     * 停止先持久取消再等待真实 outer 及两份封存，Chrome 的主动关闭同样先保存授权并等原对象 exit；proof 先于 STOPPED
      * 发布，中断留下的任意半配对仍然不能在重启中恢复正结论，ACK 从来不作为退
      * 出或封存证据。
      */

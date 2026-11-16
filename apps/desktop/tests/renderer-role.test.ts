@@ -9,7 +9,8 @@ const validMetrics = (): Metric[] => [
     { pid: rendererPid, type: "Tab", creationTime: 2000 },
 ];
 
-/** 这里只提供官方接口的最小受控指标以验证角色拒绝契约，不读取或终止这些数字对应的宿主进程；实际驱动必须先通过同一函数的
+/**
+ * 这里只提供官方接口的最小受控指标以验证角色拒绝契约，不读取或终止这些数字对应的宿主进程；实际驱动必须先通过同一函数的
  * 两次验证，之后才可启动固定 pidfd 辅助器。
  */
 function source(
@@ -34,7 +35,8 @@ function source(
     };
 }
 
-/** 官方 Browser/Tab 对应同一主窗 PID 且创建时间稳定时才返回完整目标，第二次验证必须接受完全相同的快照；这个纯角色检查没
+/**
+ * 官方 Browser/Tab 对应同一主窗 PID 且创建时间稳定时才返回完整目标，第二次验证必须接受完全相同的快照；这个纯角色检查没
  * 有信号能力，不能用通过结果代替实际 Electron 故障恢复。
  */
 test("official Browser and Tab metrics bind a stable app renderer", () => {
@@ -46,7 +48,8 @@ test("official Browser and Tab metrics bind a stable app renderer", () => {
     assert.deepEqual(rendererTarget(source(), initial), initial);
 });
 
-/** 缺少任一官方进程指标、同 PID 重复指标或 Browser/Tab 角色错误都必须拒绝，不能根据进程标题包含某个单词补全身份；拒绝发
+/**
+ * 缺少任一官方进程指标、同 PID 重复指标或 Browser/Tab 角色错误都必须拒绝，不能根据进程标题包含某个单词补全身份；拒绝发
  * 生在产生可供信号辅助器使用的目标快照之前。
  */
 test("missing duplicate and wrong official roles are rejected", () => {
@@ -64,7 +67,8 @@ test("missing duplicate and wrong official roles are rejected", () => {
     }
 });
 
-/** 创建时间必须为正且有限，零、负数与非数值不能被当作缺省身份；主进程和 renderer 分别验证，避免某一端时间无效时仍把另一
+/**
+ * 创建时间必须为正且有限，零、负数与非数值不能被当作缺省身份；主进程和 renderer 分别验证，避免某一端时间无效时仍把另一
  * 端的正确 PID 当作足够的故障授权。
  */
 test("both official creation times must be positive and finite", () => {
@@ -77,7 +81,8 @@ test("both official creation times must be positive and finite", () => {
     }
 });
 
-/** 监听安装后的第二次采样必须继续指向原窗口、内容和两个创建时间，任一漂移都不能继续发送故障信号；多个窗口或非应用 URL
+/**
+ * 监听安装后的第二次采样必须继续指向原窗口、内容和两个创建时间，任一漂移都不能继续发送故障信号；多个窗口或非应用 URL
  * 也拒绝，避免把 Trace 或其它页面误当目标。
  */
 test("changed official identity or app window is rejected on revalidation", () => {

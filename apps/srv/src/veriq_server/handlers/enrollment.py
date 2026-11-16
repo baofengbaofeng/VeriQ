@@ -70,7 +70,7 @@ class DeviceAPI(API):
                     result = await service.poll(data["deviceCode"])
                 except Problem as error:
                     if error.code == "ENROLLMENT_PENDING":
-                        # 仅持久化节流时间戳；此时尚未签发任何设备凭证。
+                        # 待授权轮询仅提交本次节流时间戳，保持后续轮询间隔限制；此时不返回授权结果，也尚未签发设备凭证。
                         await session.commit()
                     raise
             elif self.action == "device-rotate":
@@ -290,7 +290,7 @@ class RuntimeAPI(API):
                         )
                     ).first()
                 )
-                # MANAGED 信任前必须已有所有者共享或显式授权，防止静默托管。
+                # 批准 MANAGED 信任前核对所有者共享或显式授权，缺少同意即拒绝，防止仅凭信任状态将私人设备转为托管。
                 if data["trustStatus"] == "MANAGED" and not has_share:
                     raise Problem(
                         403,

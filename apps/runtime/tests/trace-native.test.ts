@@ -5,7 +5,8 @@ import { join, resolve } from "node:path";
 import { chromium } from "@playwright/test";
 import { openTrace } from "../src/trace.ts";
 
-/** 原生入口使用官方 Trace 服务器但不启动默认浏览器，测试先由匹配的真实 Chromium 生成可读取 Trace，再检查私有副本目录之
+/**
+ * 原生入口使用官方 Trace 服务器但不启动默认浏览器，测试先由匹配的真实 Chromium 生成可读取 Trace，再检查私有副本目录之
  * 外的读取被拒绝、关闭停止监听且原始证据字节不变。
  */
 test(

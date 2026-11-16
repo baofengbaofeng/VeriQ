@@ -36,7 +36,8 @@ import type {
 // 不复制实现或添加伪造的进程结算路径。
 import { runBoundedAssetCli } from "../scripts/runtime-assets-ci-process.mjs";
 
-/** 夹具只使用当前仓库声明的宿主构建工具与八份真实执行源码，两个入口和工作区模块另行编写，所有路径放在调用者的私有临时根
+/**
+ * 夹具只使用当前仓库声明的宿主构建工具与八份真实执行源码，两个入口和工作区模块另行编写，所有路径放在调用者的私有临时根
  * 中且不会加载构建出来的任何入口代码。
  */
 const repository = resolve(import.meta.dirname, "../../.."),
@@ -53,7 +54,8 @@ const repository = resolve(import.meta.dirname, "../../.."),
         "controlled-child-preload",
     ].map((n) => `${n}.mjs`);
 
-/** 每个行为用例独占来源、事务父目录和空构建目录，复制真实配置与执行文件而不修改宿主依赖；测试的最外层拥有清理权，因此生
+/**
+ * 每个行为用例独占来源、事务父目录和空构建目录，复制真实配置与执行文件而不修改宿主依赖；测试的最外层拥有清理权，因此生
  * 产函数返回时仍可核实其目录确实尚存。
  */
 async function fixture(
@@ -203,7 +205,8 @@ async function fixture(
     }
 }
 
-/** 成功用例通过真实 Vite 共享 chunk 和 JSON 导入验证原路径快照、完整库存与严格模式，回调期间独立 reader 再读所有文档与
+/**
+ * 成功用例通过真实 Vite 共享 chunk 和 JSON 导入验证原路径快照、完整库存与严格模式，回调期间独立 reader 再读所有文档与
  * 树，并在返回之后确认目录仍由外部调用者拥有。
  */
 test("real host Vite creates live strict entry and exact unchanged execution views", async () =>
@@ -307,7 +310,8 @@ test("real host Vite creates live strict entry and exact unchanged execution vie
         assert.equal(work.committed, false);
     }));
 
-/** 源码和锁的变更发生在生产器已观察来源、真实构建刚关闭的边界，不能依赖旧 Ref 或成功退出忽略字节变化；这里直接改真实文
+/**
+ * 源码和锁的变更发生在生产器已观察来源、真实构建刚关闭的边界，不能依赖旧 Ref 或成功退出忽略字节变化；这里直接改真实文
  * 件，回调是否运行由外部变量核实。
  */
 for (const path of [
@@ -342,7 +346,8 @@ for (const path of [
             assert.equal(mutated, true);
         }));
 
-/** 调用者在首个等待后修改数组与标量时只能影响自己持有的原对象，已快照的构建策略和动作身份必须保持原值；测试在真实宿主动
+/**
+ * 调用者在首个等待后修改数组与标量时只能影响自己持有的原对象，已快照的构建策略和动作身份必须保持原值；测试在真实宿主动
  * 作开始时修改来源数组与目标架构并检查最终收据。
  */
 test("caller metadata and action are snapshotted before first await", async () =>
@@ -373,7 +378,8 @@ test("caller metadata and action are snapshotted before first await", async () =
         await pending;
     }));
 
-/** 后置篡改用例保留真实 Vite 构建和真实关闭，只在观察前改变磁盘输出，缺 chunk、额外文件、链接与大小写冲突都不能进入已审
+/**
+ * 后置篡改用例保留真实 Vite 构建和真实关闭，只在观察前改变磁盘输出，缺 chunk、额外文件、链接与大小写冲突都不能进入已审
  * 计的事务；隐藏导入使用真实额外资产和对应内部观察。
  */
 for (const mutation of [
@@ -464,7 +470,8 @@ for (const mutation of [
             assert.equal(mutated, true);
         }));
 
-/** 普通 JSON 导入通常被 Vite 嵌入共享模块，另外的夹具专用插件发出真实 JSON 资产以覆盖资产库存边界；其配置与原 JSON 均先
+/**
+ * 普通 JSON 导入通常被 Vite 嵌入共享模块，另外的夹具专用插件发出真实 JSON 资产以覆盖资产库存边界；其配置与原 JSON 均先
  * 绑定来源，缺失资产必须在消费前拒绝，不能假称所有 schema 都会落盘。
  */
 for (const missing of [false, true])
@@ -515,7 +522,8 @@ for (const missing of [false, true])
             true,
         ));
 
-/** 关闭未知用例来自已真实执行并结算的宿主动作，然后保守降低其关闭事实并替换构建根为不可遍历链接；应先报告 INCOMPLETE 而
+/**
+ * 关闭未知用例来自已真实执行并结算的宿主动作，然后保守降低其关闭事实并替换构建根为不可遍历链接；应先报告 INCOMPLETE 而
  * 不能在该路径扫描后覆盖原始失败或尝试清理目录。
  */
 test("unknown close prevents output observation and preserves scratch", async () =>
@@ -550,7 +558,8 @@ test("unknown close prevents output observation and preserves scratch", async ()
         assert.deepEqual(await readdir(join(work.scratch, "views")), []);
     }));
 
-/** 真实构建失败与禁止的 Electron 外部导入分别验证进程和图的拒绝点，输入源码保持可解析以免用缺失依赖冒充策略测试；生产器
+/**
+ * 真实构建失败与禁止的 Electron 外部导入分别验证进程和图的拒绝点，输入源码保持可解析以免用缺失依赖冒充策略测试；生产器
  * 不应在任一失败路径调用消费回调。
  */
 for (const [name, entry] of [
@@ -587,7 +596,8 @@ for (const [name, entry] of [
             if (name === "build failure") assert(observed!.stderr.length > 0);
         }, entry));
 
-/** 未列入来源绑定的真实工作区模块即使仍可被宿主 Vite 成功解析，也不能从可读路径获得合法来源身份；用例只移除绑定并重算现
+/**
+ * 未列入来源绑定的真实工作区模块即使仍可被宿主 Vite 成功解析，也不能从可读路径获得合法来源身份；用例只移除绑定并重算现
  * 有构建头，保持真实模块文件存在以独立触发来源覆盖拒绝。
  */
 test("resolved workspace source absent from SourceBinding is rejected", async () =>
@@ -622,7 +632,8 @@ test("resolved workspace source absent from SourceBinding is rejected", async ()
         assert.equal(built, true);
     }));
 
-/** 实际工作区的最近物理清单即使未列入绑定仍参与真实 Vite 导出解析，不能让更远的绑定诱饵取代其名称与版本；两个诱饵分别验
+/**
+ * 实际工作区的最近物理清单即使未列入绑定仍参与真实 Vite 导出解析，不能让更远的绑定诱饵取代其名称与版本；两个诱饵分别验
  * 证静默丢弃归属和错误归属都在真实成功构建后被拒绝。
  */
 for (const name of ["fixture-decoy", "@veriq/decoy"])
@@ -676,7 +687,8 @@ for (const name of ["fixture-decoy", "@veriq/decoy"])
             assert.equal(consumed, false);
         }));
 
-/** 固定视图命名空间在大小写敏感宿主上也必须按可移植规则预留，大小写成对用例保持真实来源文件和正确构建绑定；拒绝必须发生
+/**
+ * 固定视图命名空间在大小写敏感宿主上也必须按可移植规则预留，大小写成对用例保持真实来源文件和正确构建绑定；拒绝必须发生
  * 在宿主动作与消费之前，不能靠后续构建错误碰巧满足断言。
  */
 for (const prefix of [
@@ -730,7 +742,8 @@ for (const prefix of [
             assert.equal(consumed, false);
         }));
 
-/** 构建目录准入与宿主动作分离，已有内容或覆盖源码和事务的根都应在真实命令开始之前拒绝；测试保留空动作计数，避免把后续构
+/**
+ * 构建目录准入与宿主动作分离，已有内容或覆盖源码和事务的根都应在真实命令开始之前拒绝；测试保留空动作计数，避免把后续构
  * 建失败错误计作所有权验证已经生效。
  */
 for (const invalid of ["nonempty", "source", "work"])
@@ -761,7 +774,8 @@ for (const invalid of ["nonempty", "source", "work"])
             assert.equal(admitted, false);
         }));
 
-/** 错误根目录中的来源副本使用事务既有私有六百权限，严格 reader 必须拒绝；同一规则还要求生产器只在 views 根提供原路径源
+/**
+ * 错误根目录中的来源副本使用事务既有私有六百权限，严格 reader 必须拒绝；同一规则还要求生产器只在 views 根提供原路径源
  * 码，不能通过放宽 reader 模式掩盖放置错误。
  */
 test("a source ref at the private transaction root is rejected", async () =>
@@ -774,7 +788,8 @@ test("a source ref at the private transaction root is rejected", async () =>
         await assert.rejects(reader.ref(ref));
     }));
 
-/** 消费者得到路径后仍处于被观察的存活阶段，篡改生成树或原始来源都必须在返回前被最终 reader 与事务审计发现；不能把回调已
+/**
+ * 消费者得到路径后仍处于被观察的存活阶段，篡改生成树或原始来源都必须在返回前被最终 reader 与事务审计发现；不能把回调已
  * 返回当作授权忽略其期间发生的实际内容变化。
  */
 for (const source of [false, true])

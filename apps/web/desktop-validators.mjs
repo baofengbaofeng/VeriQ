@@ -2,7 +2,8 @@ import { createRequire } from "node:module";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-/** 桌面共享构建使用契约包自身已锁定的 Ajv 及格式库生成独立校验函数，运行中的 renderer 不再编译字符串；替换只针对契约内
+/**
+ * 桌面共享构建使用契约包自身已锁定的 Ajv 及格式库生成独立校验函数，运行中的 renderer 不再编译字符串；替换只针对契约内
  * 部校验器模块，主进程与独立 Node 的默认入口不受影响。
  */
 export function desktopValidators() {

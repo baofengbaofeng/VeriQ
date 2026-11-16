@@ -11,7 +11,8 @@ import {
 } from "../scripts/runtime-payload-inputs.ts";
 import { fixture } from "./fixtures/runtime-payload.ts";
 import { EvidenceBudget, InputReader, limits } from "../scripts/runtime-payload-tree.ts";
-/** 树拒绝测试核对稳定产品异常而非字符串错误，所有变更发生于已封存声明之后的真实目录；因此遗漏完整枚举、权限核验或链接身
+/**
+ * 树拒绝测试核对稳定产品异常而非字符串错误，所有变更发生于已封存声明之后的真实目录；因此遗漏完整枚举、权限核验或链接身
  * 份检查都会让对应反例被错误接受。
  */
 const failure = (e: unknown) => e instanceof RuntimePayloadError;
@@ -62,7 +63,8 @@ test("inventory rejects case collisions missing parents and unsafe member paths"
     }
 });
 
-/** 根目录的每级祖先必须真实可见，不能靠 resolve 把 symlink 或 ASAR 组件隐藏；临时根中文空格已由成功样本覆盖，这里只加入
+/**
+ * 根目录的每级祖先必须真实可见，不能靠 resolve 把 symlink 或 ASAR 组件隐藏；临时根中文空格已由成功样本覆盖，这里只加入
  * 由测试拥有的别名并保证最终删除自身链接。
  */
 test("symlink ancestor and ASAR root are rejected", async () =>
@@ -78,7 +80,8 @@ test("symlink ancestor and ASAR root are rejected", async () =>
         await assert.rejects(verify(await f.save(), f.expected, { inputRoot: asar }), failure);
     }));
 
-/** 本地 Unix-domain socket 仅用于生成一个不属于普通文件或目录的 inode，没有 TCP、远程地址或任何连接流量；产品核验必须在
+/**
+ * 本地 Unix-domain socket 仅用于生成一个不属于普通文件或目录的 inode，没有 TCP、远程地址或任何连接流量；产品核验必须在
  * 打开前拒绝该 special，finally 只关闭测试自己的监听器。
  */
 test("special Unix socket inode is rejected without opening it", async () =>
@@ -103,7 +106,8 @@ test("special Unix socket inode is rejected without opening it", async () =>
         }
     }));
 
-/** 来源在 held FD 读取完成后被真实改写，即使某次 lstat 返回旧快照，收尾观察也必须发现变化；测试只拦截本机 fs 边界来安排
+/**
+ * 来源在 held FD 读取完成后被真实改写，即使某次 lstat 返回旧快照，收尾观察也必须发现变化；测试只拦截本机 fs 边界来安排
  * 确定性竞争，绝不在产品加入重试或测试专用注入钩子。
  */
 test("source mutation after held read rejects instead of retrying", async () =>
@@ -141,7 +145,8 @@ test("reference declarations exceed budget before allocating content", async () 
         );
     }));
 
-/** 五棵树共用四万成员上限，不能等扫描第二棵树时才发现总声明超额；测试只写两个几百 KiB 的库存文档，不创建声明的四万个目
+/**
+ * 五棵树共用四万成员上限，不能等扫描第二棵树时才发现总声明超额；测试只写两个几百 KiB 的库存文档，不创建声明的四万个目
  * 录，要求先按完整声明拒绝而不是误报物理遗漏。
  */
 test("combined five-tree entry declarations reject before body traversal", async () =>
@@ -158,7 +163,8 @@ test("combined five-tree entry declarations reject before body traversal", async
         );
     }));
 
-/** 类别限额必须在所有树第一次读取正文之前准入，而非等待包或引擎收尾重新读取；这里只放大声明且保留真实小文件，
+/**
+ * 类别限额必须在所有树第一次读取正文之前准入，而非等待包或引擎收尾重新读取；这里只放大声明且保留真实小文件，
  * PAYLOAD_LIMIT 与物理长度不符的区分能够直接观察拒绝顺序。
  */
 for (const [kind, path, limit] of [
@@ -177,7 +183,8 @@ for (const [kind, path, limit] of [
             );
         }));
 
-/** 大长度只作为内部生产准入组件的声明，不创建两个四十 MiB 文件；来源角色先出现再作为 evidence 消费也必须各自计入固定六
+/**
+ * 大长度只作为内部生产准入组件的声明，不创建两个四十 MiB 文件；来源角色先出现再作为 evidence 消费也必须各自计入固定六
  * 十四 MiB，不能因为路径已读或已见而跳过收费。
  */
 test("fix1 source-first evidence admissions consume the cumulative budget", () => {
@@ -193,7 +200,8 @@ test("fix1 source-first evidence admissions consume the cumulative budget", () =
     );
 });
 
-/** 单个 Ref 多次进入证据角色只收费一次，来源角色本身不占证据额度，边界恰好六十四 MiB 可准入；再加入一个字节必须拒绝，避
+/**
+ * 单个 Ref 多次进入证据角色只收费一次，来源角色本身不占证据额度，边界恰好六十四 MiB 可准入；再加入一个字节必须拒绝，避
  * 免以修改上限或双重收费来掩盖跨角色绕过。
  */
 test("fix1 evidence repeat admissions do not double-charge", () => {
@@ -213,7 +221,8 @@ test("fix1 evidence repeat admissions do not double-charge", () => {
     );
 });
 
-/** 真实小文件先按来源角色核字节，再多次以 evidence 角色重读，仍只产生一条成功读取记录；独立声明的计费不应伪造
+/**
+ * 真实小文件先按来源角色核字节，再多次以 evidence 角色重读，仍只产生一条成功读取记录；独立声明的计费不应伪造
  * checkedEvidence，也不能关闭原有同路径摘要冲突拒绝。
  */
 test("fix1 real source evidence reuse preserves exact checked records", async () =>

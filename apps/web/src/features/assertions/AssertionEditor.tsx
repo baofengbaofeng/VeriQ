@@ -1,4 +1,5 @@
-/** 断言列表编辑器：按类型切换算子/期望值，并支持模板版本引用与网络观察源。模板类型只保存 versionId；模板类型断言只持久
+/**
+ * 断言列表编辑器：按类型切换算子/期望值，并支持模板版本引用与网络观察源。模板类型只保存 versionId；模板类型断言只持久
  * 化 versionId 引用。
  * 写入资源草稿 RHF 路径；不直接调用校验 API。
  */
@@ -60,7 +61,8 @@ const operators: Record<string, string[]> = {
     duration: ["lessThanOrEqual"],
     requestCount: ["equals"],
 };
-/** 工厂：生成带短 UUID 的默认 ui/visible/BLOCK 断言，expectedSource 标明人工审核。severity 默认 BLOCK。供 List 的 add
+/**
+ * 工厂：生成带短 UUID 的默认 ui/visible/BLOCK 断言，expectedSource 标明人工审核。severity 默认 BLOCK。供 List 的 add
  * 回调使用，避免空对象未通过契约。
  */
 export const newAssertion = (): AssertionV1 => ({
@@ -104,7 +106,8 @@ function defaults(type: string, network: string[]) {
         ...(["requestField", "responseField"].includes(type) ? { pointer: "" } : {}),
     };
 }
-/** 拥有断言数组 UI：类型切换重置 defaults，网络类断言绑定 observer 名列表。pageKeys 限制 UI 目标候选。phase 区分
+/**
+ * 拥有断言数组 UI：类型切换重置 defaults，网络类断言绑定 observer 名列表。pageKeys 限制 UI 目标候选。phase 区分
  * BEFORE/AFTER/TEMPLATE；scope
  * 限制可引用的页面/模板版本。
  */

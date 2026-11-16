@@ -241,7 +241,7 @@ class WorkspaceAPI(API):
                 )
                 result["delivery"] = "SENT"
             except Exception:
-                # 可复制链接仍可用；日志不记录地址、令牌或适配器错误细节。
+                # 邀请邮件失败时保留可复制的接受链接，日志仅记录固定事件，不包含地址、令牌或适配器错误细节。
                 log.warning("Workspace invitation email delivery failed")
                 result["delivery"] = "FAILED"
         self.respond(result, 201)
@@ -278,7 +278,7 @@ class WorkspaceAPI(API):
                 if user.disabled:
                     raise Problem(403, "USER_DISABLED", "Account is disabled")
                 authenticated, _ = await self.identity(s)
-                # 邀请邮箱对应的已有账户必须与当前会话一致，防止代接受。
+                # 邀请邮箱若已有账户，只允许该账户当前会话接受邀请；身份不一致即拒绝，防止持有链接的人代为接受。
                 if authenticated.id != user.id:
                     raise Problem(
                         403, "INVITATION_IDENTITY_MISMATCH", "Sign in with the invited account"

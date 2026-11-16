@@ -53,7 +53,8 @@ async def test_private_owner_consent_current_grants_and_real_token_revocation(si
         credential = await enroll(owner, ws)
         rid = credential["runnerId"]
         base = f"/api/v1/workspaces/{ws}/runtimes/{rid}"
-        assert (await c.get(base)).status_code == 403  # Even system/Workspace owner.
+        # 系统管理员或 Workspace 所有者也不能读取他人的私人设备，设备归属检查不得因请求者具有管理身份而隐式绕过。
+        assert (await c.get(base)).status_code == 403
         assert (
             await c.put(
                 base + "/grants",

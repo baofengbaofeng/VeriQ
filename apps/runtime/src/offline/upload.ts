@@ -2,7 +2,9 @@
  * 本文件仅在显式操作下用已注册设备凭证上传离线结果：从不携带包路由元数据做自动回传（upload/LOCAL_RUN_UNFINISHED）。
  */
 
-/** Explicit upload only: enrolled device origin/credential, never bundle routing metadata. */
+/**
+ * Explicit upload only: enrolled device origin/credential, never bundle routing metadata.
+ */
 import { LocalStore } from "./store.ts";
 import { LocalReports } from "./reports.ts";
 import { controlOrigin, type DeviceConfig } from "../enrollment.ts";
@@ -62,7 +64,9 @@ export async function uploadOffline(
                         }
                     ).code;
                 } catch {
-                    /* Unstructured server error remains UPLOAD_FAILED. */
+                    /*
+                     * Unstructured server error remains UPLOAD_FAILED.
+                     */
                 }
                 if (code === "OFFLINE_VARIANT_FACTS_REQUIRED") throw new Error(code);
             }

@@ -111,7 +111,9 @@ export type SdkEvent =
  * 公开接口 ExecutionOptions 配置 executeCase 的上下文提供者、信号、事件回调与预算相关选项。
  */
 export interface ExecutionOptions {
-    /** Trusted worker closes the complete business Context before retry observation is final. */
+    /**
+     * Trusted worker closes the complete business Context before retry observation is final.
+     */
     finalizeExecution?: (context: import("@playwright/test").BrowserContext) => Promise<void>;
     page: Page;
     execution: ExecutionSnapshotV1;
@@ -120,7 +122,9 @@ export interface ExecutionOptions {
     signal?: AbortSignal;
     files?: StepContextOptions["files"];
     downloads?: StepContextOptions["downloads"];
-    /** Trusted restricted artifact sink; never an ordinary event/report callback. */
+    /**
+     * Trusted restricted artifact sink; never an ordinary event/report callback.
+     */
     restrictedEvidence?: (evidence: RestrictedEvidence) => Promise<void>;
     onEvent?: (
         event:
@@ -415,12 +419,15 @@ export async function executeCase(
     }
     return evidence.redactProtocol(result as unknown as JsonValue) as unknown as CaseResult;
 }
-/** 公开类型 ExecutionContextProvider 是创建浏览器上下文与生命周期依赖的工厂函数类型（ExecutionContextProvider/EXECUTION
+/**
+ * 公开类型 ExecutionContextProvider 是创建浏览器上下文与生命周期依赖的工厂函数类型（ExecutionContextProvider/EXECUTION
  * _CONTEXT_PROVIDER_REQUIRED）。
  */
 export type ExecutionContextProvider = (info: TestInfo) => Promise<Omit<ExecutionOptions, "page">>;
 let provider: ExecutionContextProvider | undefined;
-/** 公开函数 configureExecution 为后续 registerCase 配置默认 ExecutionContextProvider。测试可替换。 */
+/**
+ * 公开函数 configureExecution 为后续 registerCase 配置默认 ExecutionContextProvider。测试可替换。
+ */
 export function configureExecution(contextProvider: ExecutionContextProvider): void {
     provider = contextProvider;
 }

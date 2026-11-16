@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .db import AuditLog, Database, Installation, User, UserSession, UserToken
 
 password_hasher = PasswordHasher()
-# 缺失账号时仍执行同等哈希工作量的占位摘要，材料随机生成且永不对应真实口令。
+# 账号不存在时仍校验随机材料生成的占位摘要，保持同等密码哈希工作量，同时确保占位材料不对应任何真实账户口令。
 dummy_hash = password_hasher.hash(secrets.token_urlsafe(32))
 
 

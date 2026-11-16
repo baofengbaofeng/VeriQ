@@ -37,7 +37,7 @@ def validate_api(name: str, value: Any) -> None:
     勿假设通用成功默认值。
     """
     doc = api_document()
-    # 外部 Id/Timestamp 引用保持与 T01 校验器及配置文件一致。
+    # 外部 Id/Timestamp 引用复用平台合同中的规范定义，使 API 正文校验与既有校验器及配置加载使用同一标识和时间规则。
     schema_path = (
         Path(__file__).resolve().parents[4] / "packages/contracts/schemas/platform-v1.schema.json"
     )

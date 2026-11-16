@@ -56,7 +56,7 @@ class ImportAPI(API):
                 actor, _ = await self.identity(current)
                 return actor
 
-            # 等待有界验签前释放身份/设备锁，避免长时间占住安装锁。
+            # 等待有界验签前先提交事务以释放身份及设备锁，避免签名核验工作占住安装锁并阻塞其他授权或设备操作。
             await session.commit()
             receipt = await self.bounded_import(
                 lambda: ImportService(session, user, self.config, reauthorize).import_result(
@@ -155,7 +155,7 @@ async def device_actor(handler: API, session: AsyncSession, workspace_id: str) -
     from ..service import Problem
     from ..services.runtime import RuntimeService
 
-    # 遵循 RuntimeService 锁序：先安装锁，再设备令牌行。
+    # 设备结果导入遵循 RuntimeService 的统一锁序，先取得安装锁再读取设备令牌行，避免并发授权路径反向取锁。
     await lock_installation(session)
     service = RuntimeService(session)
     runtime, binding, _ = await service.require_device(
@@ -194,7 +194,7 @@ class NativeImportAPI(ImportAPI):
             async def reauthorize(current: AsyncSession) -> User:
                 return await device_actor(self, current, workspace_id)
 
-            # 等待有界验签前释放身份/设备锁，避免长时间占住安装锁。
+            # 设备结果等待有界验签前先提交事务并释放身份及设备锁，防止耗时核验阻塞安装内的设备撤权及其他身份操作。
             await session.commit()
             receipt = await self.bounded_import(
                 lambda: ImportService(session, user, self.config, reauthorize).import_result(

@@ -77,7 +77,8 @@ const labels = {
     },
 };
 
-/** 桌面工作台把平台会话与本机后台明确区分，联网编辑复用共享视图，断网缓存继续使用验签后的只读适配器；状态轮询仅读取后台
+/**
+ * 桌面工作台把平台会话与本机后台明确区分，联网编辑复用共享视图，断网缓存继续使用验签后的只读适配器；状态轮询仅读取后台
  * 事实，窗口关闭和页面切换都不会改变执行归属。
  */
 export function App() {
@@ -145,7 +146,8 @@ export function App() {
         setWorkspace(value.workspace);
         if (value.agent?.workspaceId) setLocalWorkspace(value.agent.workspaceId);
     }, []);
-    /** 统一动作包装器只管理本次交互的忙碌、错误和刷新状态，不将捕获异常改写成成功结果；后台执行有独立的 preparing 和
+    /**
+     * 统一动作包装器只管理本次交互的忙碌、错误和刷新状态，不将捕获异常改写成成功结果；后台执行有独立的 preparing 和
      * active 状态，因此 UI 请求结束并不代表业务 Run 已经终结。
      */
     async function action(work: () => Promise<unknown>) {
@@ -177,7 +179,8 @@ export function App() {
         },
         [scope, queries],
     );
-    /** 本地窗口只订阅共享应用实例，不再同时维护第二套编辑器和 AI 语言切换逻辑；Provider 负责各命名空间及偏好桥接，卸载
+    /**
+     * 本地窗口只订阅共享应用实例，不再同时维护第二套编辑器和 AI 语言切换逻辑；Provider 负责各命名空间及偏好桥接，卸载
      * 时这里移除自己的监听，不重建表单、Workspace 或报告请求作用域。
      */
     useEffect(() => {
@@ -189,7 +192,8 @@ export function App() {
         };
     }, []);
 
-    /** 从后台列出的缓存包选择其所属工作区，再获取验签资源投影与固定凭证引用供离线查看；此处不根据用户输入路径读取文件，
+    /**
+     * 从后台列出的缓存包选择其所属工作区，再获取验签资源投影与固定凭证引用供离线查看；此处不根据用户输入路径读取文件，
      * 失败会交由动作包装器显示而不会构造空成功快照。
      */
     async function chooseLocal(id: string) {
@@ -203,7 +207,8 @@ export function App() {
         setPinIndex(0);
         setTab("local");
     }
-    /** 普通登录只经过专用宿主 Session，成功后清空输入框中的密码并加载真实成员工作区；设备登记状态由另一组后台字段显示，
+    /**
+     * 普通登录只经过专用宿主 Session，成功后清空输入框中的密码并加载真实成员工作区；设备登记状态由另一组后台字段显示，
      * 登录成功不能被用来代替设备令牌的注册流程。
      */
     async function login() {
@@ -212,7 +217,8 @@ export function App() {
         setWorkspaces((await bridge.workspaces()).items);
         setNotice(t.connected);
     }
-    /** 云端工作区切换等待宿主完成成员检查后才更新页面，并清空共享查询缓存和旧资源报告选择；已有本机 Run 的持久状态由独
+    /**
+     * 云端工作区切换等待宿主完成成员检查后才更新页面，并清空共享查询缓存和旧资源报告选择；已有本机 Run 的持久状态由独
      * 立Agent 保留，清除页面选择不会取消执行。
      */
     async function selectWorkspace(id: string) {

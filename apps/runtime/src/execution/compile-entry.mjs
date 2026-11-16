@@ -30,7 +30,7 @@ if (invocation.kind === "CLEANUP") result = { kind: "READY" };
 else
     try {
         const source = JSON.parse(await readFile(join(root, "source/asset-snapshot.json"), "utf8"));
-        // 旧版已批准引擎可能没有结构化诊断；以其自带编译器为准，缺能力即缺详情。
+        // 旧版已批准引擎可能不提供结构化诊断，因此仅调用其自带编译器；缺少诊断接口时不能伪造分析详情。
         if (typeof compiler.safeDiagnostics === "function") {
             diagnostics = compiler.safeDiagnostics(compiler.analyze(source).issues);
             if (diagnostics.length) throw new Error("ASSET_VALIDATION_FAILED");

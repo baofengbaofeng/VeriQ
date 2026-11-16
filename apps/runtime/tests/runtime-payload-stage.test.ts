@@ -908,7 +908,8 @@ await import('./scripts/stage-macos-runtime.mjs');`;
     }
 });
 
-/** 真实 S 目录写入的 primary chmod 或 sync 错误必须先于随后关闭错误返回，原输入与旧 artifact 不得变化；注入仅覆盖
+/**
+ * 真实 S 目录写入的 primary chmod 或 sync 错误必须先于随后关闭错误返回，原输入与旧 artifact 不得变化；注入仅覆盖
  * runtime/browser 实际目录句柄，关闭计数只在真实 close 完成
  * 后增加，不把测试故障描述为无法关闭的内核资源。
  */
@@ -1015,7 +1016,8 @@ for (const [operation, cause] of [
             }
         });
 
-/** 完整证据预算使用微型数值 Ref 模型验证边界，不创建六十四 MiB 正文或宣称模型摘要是真实文件来源；配方、独立 expected 和
+/**
+ * 完整证据预算使用微型数值 Ref 模型验证边界，不创建六十四 MiB 正文或宣称模型摘要是真实文件来源；配方、独立 expected 和
  * intake 三份描述必须与普通 copied refs 同额收费，相同 SHA 的不同
  * 实际副本也不得去重逃过总额。
  */
@@ -1082,7 +1084,8 @@ test("R1 evidence budget rejects declarations whose combined integer size would 
     );
 });
 
-/** 真实子进程只包装精确 owned 快照的单次关闭回调，实际系统关闭成功后才注入 EIO；父进程等待自然终止并记录保留目录之后才
+/**
+ * 真实子进程只包装精确 owned 快照的单次关闭回调，实际系统关闭成功后才注入 EIO；父进程等待自然终止并记录保留目录之后才
  * 删除自己的夹具，十秒看门狗只能判失败，不能替生产结算。
  */
 for (const scenario of ["normal", "close-eio"])

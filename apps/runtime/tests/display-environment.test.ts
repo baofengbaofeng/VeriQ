@@ -5,7 +5,8 @@ import { join } from "node:path";
 import { ProcessSupervisor } from "../src/execution/processes.ts";
 import { offlineWorkerEnvironment } from "../src/offline/worker-environment.ts";
 
-/** 实际原生监管器启动一个只观察环境的 Node worker，验证可见连接穿过既有 fresh-env 边界且任意父环境秘密没有被继承；本机
+/**
+ * 实际原生监管器启动一个只观察环境的 Node worker，验证可见连接穿过既有 fresh-env 边界且任意父环境秘密没有被继承；本机
  * 此例不声称浏览器可见窗口成功，完整 Chromium 窗口另由专门 CI 实证。
  */
 test("supervised visible worker receives only trusted display connection fields", async () => {
@@ -42,7 +43,8 @@ test("supervised visible worker receives only trusted display connection fields"
     }
 });
 
-/** 无头执行不携带桌面显示授权，可见模式只认可本机 X11 显示编号与有界绝对 authority 路径；远程显示地址、控制字符和相对路
+/**
+ * 无头执行不携带桌面显示授权，可见模式只认可本机 X11 显示编号与有界绝对 authority 路径；远程显示地址、控制字符和相对路
  * 径在进程启动前失败，避免把新选项扩展成通用环境注入。
  */
 test("display environment rejects unsupported connection input and omits it in headless mode", () => {

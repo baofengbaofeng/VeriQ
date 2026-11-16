@@ -9,7 +9,8 @@ import {
     type DragEndEvent,
 } from "@dnd-kit/core";
 
-/** 排序项标识必须来自稳定业务 id，界面顺序由父应用保存并从服务端重新读取；同一记录可改变位置，但 data-record-key
+/**
+ * 排序项标识必须来自稳定业务 id，界面顺序由父应用保存并从服务端重新读取；同一记录可改变位置，但 data-record-key
  * 与拖动 id 不能随视觉下标变化。
  */
 export interface OrderItem {
@@ -46,7 +47,8 @@ function Row({ item, pending }: { item: OrderItem; pending: boolean }) {
     );
 }
 
-/** 本组件通过正常键盘拖动重新排列并调用真实持久化回调，不把拖动动画当成保存成功；父应用需要等待写入及只读查询完成后更新
+/**
+ * 本组件通过正常键盘拖动重新排列并调用真实持久化回调，不把拖动动画当成保存成功；父应用需要等待写入及只读查询完成后更新
  * items，失败时保留原顺序并向用户显示错误。
  * dnd-kit core 已在仓库基线中声明，不要求新增 sortable 依赖。
  * 键盘传感器默认支持 Space/Enter 开始和结束、Escape 取消。

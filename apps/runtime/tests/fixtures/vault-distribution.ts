@@ -1,4 +1,5 @@
-/** 保险库测试使用自有临时发行目录并真实计算每个成员摘要，只有被测辅助程序会执行，其余小文件仅满足既有库存解析契约；这些
+/**
+ * 保险库测试使用自有临时发行目录并真实计算每个成员摘要，只有被测辅助程序会执行，其余小文件仅满足既有库存解析契约；这些
  * 夹具不冒充完整 Node、浏览器或安装发行验收。
  */
 import { createHash } from "node:crypto";
@@ -7,7 +8,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { loadRuntimeDistribution } from "../../src/distribution.ts";
 
-/** 构造夹具时先创建全部固定成员再计算真实库存并调用正式解析器，辅助程序能力不会由测试对象手工伪造；无辅助成员的旧库存仍
+/**
+ * 构造夹具时先创建全部固定成员再计算真实库存并调用正式解析器，辅助程序能力不会由测试对象手工伪造；无辅助成员的旧库存仍
  * 可被解析，只有请求执行能力时才明确拒绝且不搜索全局路径。
  */
 export async function vaultDistribution(helper?: Uint8Array) {

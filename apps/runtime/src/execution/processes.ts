@@ -53,7 +53,8 @@ export interface Command {
  * 公开接口 OwnedProcess 暴露业务 worker 的 pid 与 IPC 通道：exited 等待退出码：firstLine/send 用于协议握手。
  */
 export interface OwnedProcess {
-    /** 这里公开业务工作进程的真实 PID，原生守护拥有另外的 PID 与进程组；停止证明会同时绑定两者，调用方不能把 IPC
+    /**
+     * 这里公开业务工作进程的真实 PID，原生守护拥有另外的 PID 与进程组；停止证明会同时绑定两者，调用方不能把 IPC
      * 子进程句柄中的守护身份误作业务工作进程身份。
      */
     pid: number;
@@ -101,7 +102,8 @@ export class ProcessSupervisor {
     private stopping = new Map<string, Promise<StopReceipt>>();
     private windows: WindowsProcesses | undefined;
     private darwin: DarwinProcesses | undefined;
-    /** 安装宿主只能传入完整库存已核验的 guardian 路径，开发调用默认保持原目录；第四参只接受真实 Darwin
+    /**
+     * 安装宿主只能传入完整库存已核验的 guardian 路径，开发调用默认保持原目录；第四参只接受真实 Darwin
      * 源码宿主签发的私有能力，缺少该能力仍拒绝启动，Linux 与 Windows 的持久身份及原强证明不变。
      */
     constructor(
@@ -377,7 +379,8 @@ export class ProcessSupervisor {
         this.stopping.set(id, operation);
         return operation;
     }
-    /** 迁移观察只接受已经持久化的停止状态、完整双进程身份和真实排空证明，并再次核验守护确已退出；该接口不发信号、
+    /**
+     * 迁移观察只接受已经持久化的停止状态、完整双进程身份和真实排空证明，并再次核验守护确已退出；该接口不发信号、
      * 不保存状态、不释放执行容量，缺失或无法解析的私有记录只会返回未确认。
      */
     async confirmStopped(id: string): Promise<boolean> {
@@ -456,7 +459,8 @@ export class ProcessSupervisor {
         this.live.delete(id);
     }
     private async stop(id: string, reason: string): Promise<StopReceipt> {
-        /** 范围仅随本次真实排空成功分支声明，所有身份、nonce 与原生证明核验仍在下方完成；失败回执不借根进程消失补成全后
+        /**
+         * 范围仅随本次真实排空成功分支声明，所有身份、nonce 与原生证明核验仍在下方完成；失败回执不借根进程消失补成全后
          * 代保证，旧证明本次重新核验后才生成新的明确范围。
          */
         const receipt = (processStopped: boolean, why = reason): StopReceipt => ({

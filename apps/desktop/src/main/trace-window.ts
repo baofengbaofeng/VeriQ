@@ -4,7 +4,8 @@ import type { DesktopAgentClient } from "../agent/client";
 import { object } from "./policy";
 import { ownedTraceOrigin, allowedTraceRequest } from "./viewer-policy";
 
-/** 原生 Trace 使用与主 UI 和普通登录均隔离的临时 Session，窗口没有 preload 或 VeriQ bridge；固定后台监听来源之外的导航
+/**
+ * 原生 Trace 使用与主 UI 和普通登录均隔离的临时 Session，窗口没有 preload 或 VeriQ bridge；固定后台监听来源之外的导航
  * 、弹窗、网络和权限请求全部拒绝，避免证据页面取得平台凭证。
  */
 export async function openNativeTrace(client: DesktopAgentClient, input: unknown): Promise<void> {

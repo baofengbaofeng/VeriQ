@@ -18,7 +18,8 @@ import {
     type RuntimeLinkV2,
 } from "../src/distribution-manifest-v2.ts";
 
-/** 测试使用明显标记的合成字节构造普通文件树，只验证跨宿主静态库存合同而不声称它们是 Mac 可执行程序；布局框架名称同样是
+/**
+ * 测试使用明显标记的合成字节构造普通文件树，只验证跨宿主静态库存合同而不声称它们是 Mac 可执行程序；布局框架名称同样是
  * 虚构输入，不能作为正式 Chrome 归档的来源证据。
  */
 function model(arch: MacRuntimeArch = "x64", frameworkCount = 0) {
@@ -85,7 +86,8 @@ function model(arch: MacRuntimeArch = "x64", frameworkCount = 0) {
     return { manifest, data, expected: { arch, layout } };
 }
 
-/** 父目录必须显式进入清单，测试辅助函数与产品解析器独立维护真实目录闭包；增加空目录也会保留记录，用来捕获忽略物理空目录
+/**
+ * 父目录必须显式进入清单，测试辅助函数与产品解析器独立维护真实目录闭包；增加空目录也会保留记录，用来捕获忽略物理空目录
  * 或把链接别名当成真实父目录的实现错误。
  */
 function addDirectory(manifest: MacRuntimeManifestV2, path: string) {
@@ -94,7 +96,8 @@ function addDirectory(manifest: MacRuntimeManifestV2, path: string) {
     manifest.directories.push(path);
 }
 
-/** 合成文件摘要由测试准备阶段独立计算，后续真实树核验必须重新读取相同字节而不能信任测试传入的元数据；权限使用明确的十进
+/**
+ * 合成文件摘要由测试准备阶段独立计算，后续真实树核验必须重新读取相同字节而不能信任测试传入的元数据；权限使用明确的十进
  * 制值，避免宿主默认权限掩盖执行成员的约束。
  */
 function addFile(
@@ -114,7 +117,8 @@ function addFile(
     });
 }
 
-/** 每个物理场景独占一个含中文和空格的真实临时根，并在 finally 中清理全部自有成员；几兆字节流测试也复用该生命周期，不安
+/**
+ * 每个物理场景独占一个含中文和空格的真实临时根，并在 finally 中清理全部自有成员；几兆字节流测试也复用该生命周期，不安
  * 装依赖、不运行浏览器、不留下大量持久缓存。
  */
 async function tree(
@@ -148,7 +152,8 @@ async function tree(
     }
 }
 
-/** 错误断言检查正式异常类型和稳定分类，避免仅匹配随意字符串让错误实现偶然通过；测试既不依赖源码文本也不注入文件系统回调
+/**
+ * 错误断言检查正式异常类型和稳定分类，避免仅匹配随意字符串让错误实现偶然通过；测试既不依赖源码文本也不注入文件系统回调
  * ，真实 I/O 拒绝必须由公开入口产生。
  */
 function code(expected: string) {
@@ -157,7 +162,8 @@ function code(expected: string) {
 const bytes = (value: unknown) => Buffer.from(JSON.stringify(value));
 const parsed = (value: ReturnType<typeof model>) => parse(bytes(value.manifest), value.expected);
 
-/** 两个架构必须由明确目标驱动而不能读取 Linux 宿主架构代替，公开结果只保留不可调用的静态事实；原始清单字节摘要由测试再
+/**
+ * 两个架构必须由明确目标驱动而不能读取 Linux 宿主架构代替，公开结果只保留不可调用的静态事实；原始清单字节摘要由测试再
  * 次独立计算，避免实现对序列化对象计算错误摘要。
  */
 for (const arch of ["x64", "arm64"] as const) {
@@ -205,7 +211,8 @@ for (const arch of ["x64", "arm64"] as const) {
         }, model(arch)));
 }
 
-/** 输入变异逐项保持其它合同合法，只破坏命名行为对应的不变量；这些用例防止解析器容忍旧版本、未知字段、数组伪对象或依赖
+/**
+ * 输入变异逐项保持其它合同合法，只破坏命名行为对应的不变量；这些用例防止解析器容忍旧版本、未知字段、数组伪对象或依赖
  * JavaScript 隐式转换接受错误类型与非规范版本。
  */
 const invalid: [string, (m: any) => void, string?][] = [
@@ -255,7 +262,8 @@ for (const [name, mutate, error = "MAC_MANIFEST_INVALID"] of invalid)
         assert.throws(() => parsed(m), code(error));
     });
 
-/** 路径策略刻意只接受保守 ASCII 子集，中文仅属于宿主根路径；即便 Unicode 已经规范化也拒绝，避免用 JavaScript 小写规则假
+/**
+ * 路径策略刻意只接受保守 ASCII 子集，中文仅属于宿主根路径；即便 Unicode 已经规范化也拒绝，避免用 JavaScript 小写规则假
  * 装实现 APFS 全 Unicode 碰撞判断或静默改变原始证据。
  */
 for (const path of [
@@ -290,7 +298,8 @@ for (const path of [
         assert.throws(() => parsed(m), code("MAC_MANIFEST_PATH"));
     });
 
-/** 预算测试以小声明触发文件及总量限制，不创建巨大真实文件；条目、路径、层级与清单字节各自覆盖上限和下一值，保证实现不能
+/**
+ * 预算测试以小声明触发文件及总量限制，不创建巨大真实文件；条目、路径、层级与清单字节各自覆盖上限和下一值，保证实现不能
  * 等到深递归、大分配或正文读取后才执行拒绝。
  */
 test("fixed limits are immutable and exact", () => {
@@ -375,7 +384,8 @@ test("component, full path and depth limits", () => {
     parsed(m);
 });
 
-/** 描述器不能从清单字段获得授权，所有框架根必须显式位于固定 Chrome bundle 下且互不重叠；立即修改原始输入的测试在没有
+/**
+ * 描述器不能从清单字段获得授权，所有框架根必须显式位于固定 Chrome bundle 下且互不重叠；立即修改原始输入的测试在没有
  * sleep 的情况下检验首次异步边界前完成的政策快照。
  */
 test("descriptor validation rejects missing, wrong architecture paths and roots", () => {
@@ -424,7 +434,8 @@ test("raw whitespace changes manifest digest without changing semantic inventory
         assert.notEqual(a.manifestSha256, b.manifestSha256);
     }));
 
-/** 物理变异发生在清单写出后且不更改期望策略，验证器必须实际读取文件系统而不能仅校验 JSON；额外空目录、签名资源和嵌套同
+/**
+ * 物理变异发生在清单写出后且不更改期望策略，验证器必须实际读取文件系统而不能仅校验 JSON；额外空目录、签名资源和嵌套同
  * 名清单都属于完整库存，不存在 basename 级别的宽泛豁免。
  */
 const physical: [string, (root: string) => Promise<unknown>, string][] = [
@@ -545,7 +556,8 @@ test("listed nested manifest and signature resources are hashed with multiMB fil
     }, m);
 });
 
-/** 合成 framework 保留版本目录与目录别名的真实关系，允许链接最终到普通目录或文件但不允许别名产生虚构库存；所有 raw
+/**
+ * 合成 framework 保留版本目录与目录别名的真实关系，允许链接最终到普通目录或文件但不允许别名产生虚构库存；所有 raw
  * target 都单独记录，用来识别先 normalize 后比较造成的授权扩大。
  */
 function framework() {
@@ -559,7 +571,8 @@ function framework() {
     ]);
     return { ...m, f };
 }
-/** 链接变异保持真实文件系统与清单的描述一致，仅有意破坏待检验的解析边界；这使跨根、越界后返回和目录图循环必须靠有限组件
+/**
+ * 链接变异保持真实文件系统与清单的描述一致，仅有意破坏待检验的解析边界；这使跨根、越界后返回和目录图循环必须靠有限组件
  * 解析拒绝，不能碰巧被摘要或缺失文件错误遮蔽。
  */
 function withLinks(m: ReturnType<typeof model>, links: RuntimeLinkV2[]) {
@@ -692,7 +705,8 @@ test("manifest cannot invent physical files beneath directory aliases", () => {
     );
 });
 
-/** 最小库存逐一移除每个必需普通成员，防止检查只覆盖角色入口却遗漏执行闭包、原生插件或独立保险库辅助程序；这些名字仍只是
+/**
+ * 最小库存逐一移除每个必需普通成员，防止检查只覆盖角色入口却遗漏执行闭包、原生插件或独立保险库辅助程序；这些名字仍只是
  * 静态合同，不通过文件名推断源码测试二进制是否属于正式发行。
  */
 for (const file of model().manifest.files)
@@ -782,7 +796,8 @@ test("portable subset rejects device basenames with spaces before extension", ()
     assert.throws(() => parsed(m), code("MAC_MANIFEST_PATH"));
 });
 
-/** 错误分类是公开稳定合同的一部分，运行时也不能让调用者意外覆写后误判失败原因；公开诊断只保存受控 errno，而不是把系统路
+/**
+ * 错误分类是公开稳定合同的一部分，运行时也不能让调用者意外覆写后误判失败原因；公开诊断只保存受控 errno，而不是把系统路
  * 径、JSON 原文或任意输入内容塞进消息与 cause。
  */
 test("error code is read-only at runtime", () => {
@@ -809,7 +824,8 @@ test("expected missing I/O has only sanitized errno cause", async () =>
         );
     }));
 
-/** 竞争检查使用真实句柄和真实元数据，只在已完成的第二次 fstat 后安排实际 chmod 来形成确定性变化；测试不伪造 stat 或字节
+/**
+ * 竞争检查使用真实句柄和真实元数据，只在已完成的第二次 fstat 后安排实际 chmod 来形成确定性变化；测试不伪造 stat 或字节
  * ，也不给产品入口增加回调，因而无需 sleep 或不稳定的大文件写入竞速。
  */
 test("observed file change between final fstat and path lstat has dedicated code", async (t) =>
@@ -838,7 +854,8 @@ test("observed file change between final fstat and path lstat has dedicated code
         }
     }));
 
-/** 环检测必须识别每次增加未消费后缀的递归链接，而不能只等完全相同的展开状态重复；合法路径仍可在一次展开结束后再次使用同
+/**
+ * 环检测必须识别每次增加未消费后缀的递归链接，而不能只等完全相同的展开状态重复；合法路径仍可在一次展开结束后再次使用同
  * 一个目录别名，因此不能粗暴地把所有重复路径都当作环。
  */
 for (const targets of [["a/child"], ["b/child", "a/child"]])
@@ -871,7 +888,8 @@ test("explicit framework count accepts 32 and refuses 33", () => {
     assert.throws(() => parsed(model("x64", 33)), code("MAC_MANIFEST_LIMIT"));
 });
 
-/** 读取链接前已经观察到真实 symlink，若它在 lstat 与 readlink 之间消失就属于变化而不是初始缺失；受控交错仍调用真实
+/**
+ * 读取链接前已经观察到真实 symlink，若它在 lstat 与 readlink 之间消失就属于变化而不是初始缺失；受控交错仍调用真实
  * readlink 并产生真实 ENOENT，不伪造返回值，也不使用计时器碰运气。
  */
 test("link removed after observed lstat reports changed", async (t) => {
@@ -893,7 +911,8 @@ test("link removed after observed lstat reports changed", async (t) => {
     }, m);
 });
 
-/** 清单本身的精确字节上限也用真实文件读取验收，额外空白仍属于摘要输入且只读权限必须允许；合成空目录明确列入 directories
+/**
+ * 清单本身的精确字节上限也用真实文件读取验收，额外空白仍属于摘要输入且只读权限必须允许；合成空目录明确列入 directories
  * 后可通过，避免把拒绝未知目录误实现为拒绝所有空目录。
  */
 test("physical exact 4MiB readonly manifest and listed empty directory succeed", async () => {

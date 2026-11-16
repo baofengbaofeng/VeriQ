@@ -1,4 +1,5 @@
-/** 本机保留期维护复用桌面档案所有权、在线 Agent 合作锁与离线 SQLite 写锁，只有已上传、确知停止且超过可信本机观察期的对
+/**
+ * 本机保留期维护复用桌面档案所有权、在线 Agent 合作锁与离线 SQLite 写锁，只有已上传、确知停止且超过可信本机观察期的对
  * 象才能退休；清理保留最小幂等墓碑和停止事实，不扫描任意磁盘目录、不猜测旧 mtime，也不删除引
  * 擎或凭据。
  */
@@ -21,7 +22,8 @@ import { reverifyInstalled, safePath } from "./verify.ts";
 import { TrustStore } from "./trust.ts";
 import { retireEvidence, retireInventory, type RetentionFile } from "./offline-retention-files.ts";
 
-/** 维护参数只允许工作区与有限天数、批量额度，不接收任意路径或 renderer 文件能力；桌面可复用当前进程实际持有的不透明所有
+/**
+ * 维护参数只允许工作区与有限天数、批量额度，不接收任意路径或 renderer 文件能力；桌面可复用当前进程实际持有的不透明所有
  * 权对象，CLI 缺省获取独立真实锁，伪造或跨档案能力直接拒绝。
  */
 export interface LocalRetentionOptions {
@@ -33,7 +35,8 @@ export interface LocalRetentionOptions {
     batchSize?: number;
     desktopOwner?: DesktopProfileOwner;
 }
-/** 结果只暴露有限计数和是否还有后续批次，不包含路径、凭据或无限错误数组；retained 计入尚未到期、缺少可信年龄、
+/**
+ * 结果只暴露有限计数和是否还有后续批次，不包含路径、凭据或无限错误数组；retained 计入尚未到期、缺少可信年龄、
  * 未知停止或文件核验不确定的候选，不能将其解释为所有缓存已经删除。
  */
 export interface LocalRetentionResult {
@@ -56,7 +59,8 @@ const DAY = 86400000,
     MAX_BYTES = 128 * 1024 * 1024;
 const digest = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 
-/** 输入边界只接受一至三千六百五十天以及一至一百项，避免误传零、负数、NaN 或无穷触发大批删除；默认值来自首发保留策略，
+/**
+ * 输入边界只接受一至三千六百五十天以及一至一百项，避免误传零、负数、NaN 或无穷触发大批删除；默认值来自首发保留策略，
  * 真实年龄始终从 SQLite 实际首次观察和访问时间计算。
  */
 function budget(value: number | undefined, fallback: number, maximum: number): number {
@@ -66,7 +70,8 @@ function budget(value: number | undefined, fallback: number, maximum: number): n
     return selected;
 }
 
-/** 离线进程历史必须能与本机原始停止回执逐项配对，任何孤立或未知进程成员都会阻止整个维护窗口；既有原生确认器只读取真实停
+/**
+ * 离线进程历史必须能与本机原始停止回执逐项配对，任何孤立或未知进程成员都会阻止整个维护窗口；既有原生确认器只读取真实停
  * 止证明而不发信号，Windows/Linux 继续要求全后代排空，Darwin 保持受控范围。
  */
 async function requireOfflineStopped(root: string, store: LocalStore): Promise<void> {
@@ -92,7 +97,8 @@ async function requireOfflineStopped(root: string, store: LocalStore): Promise<v
     }
 }
 
-/** 缓存索引只是受限宿主目录白名单而非年龄或签名证明，因此先严格校验有限结构再按选定工作区处理；真实包签名和库存仍由
+/**
+ * 缓存索引只是受限宿主目录白名单而非年龄或签名证明，因此先严格校验有限结构再按选定工作区处理；真实包签名和库存仍由
  * reverifyInstalled 检查，未知旧索引、额外字段或超额成员保持失败而不重建一个空目录列表。
  */
 async function catalog(profile: string): Promise<CachedBundle[]> {
@@ -128,7 +134,8 @@ async function catalog(profile: string): Promise<CachedBundle[]> {
     return value as CachedBundle[];
 }
 
-/** 退休意图包含已经核验的完整有限库存，重启只接受同一 Bundle UUID 的确定退休名并重新核验每个实际文件的摘要；
+/**
+ * 退休意图包含已经核验的完整有限库存，重启只接受同一 Bundle UUID 的确定退休名并重新核验每个实际文件的摘要；
  * 部分删除后的清单允许真实缺失，未识别 JSON 或其他路径保持拒绝，不把未知临时目录当作自有清理目标。
  */
 function inventory(value: string, bundleId: string): RetentionFile[] {
@@ -411,7 +418,8 @@ export async function pruneLocalProfile(
                 result.retained++;
             }
         }
-        /** 清单意图必须先得到真实 FULL 提交才可能隔离缓存，提交之后再取得写锁并重新检查所有离线占用；
+        /**
+         * 清单意图必须先得到真实 FULL 提交才可能隔离缓存，提交之后再取得写锁并重新检查所有离线占用；
          * 这段窗口从不删除文件，异常保留持久意图让下次在相同所有权边界下重做。
          */
         if (candidates.size) {

@@ -26,7 +26,8 @@ let workflowFixture: { profile: string; fixture: string } | undefined;
 const applicationEnvironment = { ...process.env };
 delete applicationEnvironment.DEBUG;
 
-/** 测试清理按后台、窗口、数据库夹具顺序收敛，并在任一步失败后仍尝试关闭其余自有资源；收集到的失败最终统一抛出，
+/**
+ * 测试清理按后台、窗口、数据库夹具顺序收敛，并在任一步失败后仍尝试关闭其余自有资源；收集到的失败最终统一抛出，
  * 不让一个清理异常跳过释放数据库锁，也不把发送信号或框架返回当作真实进程停止。
  */
 async function teardownDesktop(
@@ -57,7 +58,8 @@ async function teardownDesktop(
     if (failures.length) throw new AggregateError(failures, "DESKTOP_TEARDOWN_FAILED");
 }
 
-/** 最小窗口检查必须启动真实已打包 Electron，并从实际 preload 与独立后台读取状态；浏览器模拟页面、缺失二进制或缺少
+/**
+ * 最小窗口检查必须启动真实已打包 Electron，并从实际 preload 与独立后台读取状态；浏览器模拟页面、缺失二进制或缺少
  * DISPLAY 都不能代替这个产品行为测试的结果。
  */
 test("bundled desktop opens offline with strict renderer and independent Node24", async () => {
@@ -178,7 +180,8 @@ test("bundled desktop opens offline with strict renderer and independent Node24"
     }
 });
 
-/** 完整链路只通过真实平台 API 准备业务输入，随后由桌面绑定的独立 Agent 消费生产器候选生成回执；控制平面停止后继续访问业
+/**
+ * 完整链路只通过真实平台 API 准备业务输入，随后由桌面绑定的独立 Agent 消费生产器候选生成回执；控制平面停止后继续访问业
  * 务站点，报告与回传必须来自实际签名包执行而非注入结果。
  */
 test("production candidate completes the real desktop offline workflow", async ({ request }) => {
@@ -500,7 +503,8 @@ test("production candidate completes the real desktop offline workflow", async (
     }
 });
 
-/** 后半验收复用前一真实链生成的持久包、数据库和报告，重启仅恢复同一隔离控制平面；本测试必须显式提供已有 profile
+/**
+ * 后半验收复用前一真实链生成的持久包、数据库和报告，重启仅恢复同一隔离控制平面；本测试必须显式提供已有 profile
  * 与签发者目录，绝不重建已发布资源或代写测试结果来掩盖恢复失败。
  */
 test("resume durable desktop evidence and upload acceptance", async ({ request }) => {
@@ -996,7 +1000,8 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
     }
 });
 
-/** 控制服务不运行时仍从已验签包打开共享资源页及实际生成的 TypeScript，监控加载的本地产物与 CSP 错误；
+/**
+ * 控制服务不运行时仍从已验签包打开共享资源页及实际生成的 TypeScript，监控加载的本地产物与 CSP 错误；
  * 本例同时确认第二实例不会新建后台，普通关闭窗口不会终止执行服务。
  */
 test("offline shared resource assets and single instance remain local", async ({ request }) => {
@@ -1191,7 +1196,8 @@ test("offline shared resource assets and single instance remain local", async ({
     }
 });
 
-/** 联网共享编辑器的创建、JSON 保存、编译与发布均由实际窗口触发，后台继续消费相同生产候选；AI 页面只读取配置和禁用状态，
+/**
+ * 联网共享编辑器的创建、JSON 保存、编译与发布均由实际窗口触发，后台继续消费相同生产候选；AI 页面只读取配置和禁用状态，
  * 不配置模型密钥、不调用外部供应商，也不替换实际校验回执。
  */
 test("shared cloud editor publishes through the desktop host transport", async ({ request }) => {
@@ -1371,7 +1377,8 @@ test("shared cloud editor publishes through the desktop host transport", async (
     }
 });
 
-/** 本例仅验证准备中状态的实际 React 渲染与按钮参数，使用明确的组件级 bridge 替身，不宣称后台启动或业务执行成功；
+/**
+ * 本例仅验证准备中状态的实际 React 渲染与按钮参数，使用明确的组件级 bridge 替身，不宣称后台启动或业务执行成功；
  * 真实门闩与控制器归属由独立 Agent 测试覆盖，避免为了一个状态重跑完整签发链。
  */
 test("component-only startup projection cancels its exact reservation", async () => {
@@ -1457,7 +1464,8 @@ test("component-only startup projection cancels its exact reservation", async ()
     }
 });
 
-/** 真实 Cookie 验收通过生产 main 的保护门闩建立持久 Session，写入公开合成值后关闭所有自有进程再独立读取 SQLite；
+/**
+ * 真实 Cookie 验收通过生产 main 的保护门闩建立持久 Session，写入公开合成值后关闭所有自有进程再独立读取 SQLite；
  * 重启同一档案必须恢复同一 Cookie，数据库空明文列和实际提供者密文均需成立，不能以
  * safeStorage 可用替代磁盘证据。
  */

@@ -55,7 +55,7 @@ class RunAPI(ScopedExecutionAPI):
                     raise Problem(
                         403, "PLAN_REQUIRED", "Service token cannot enumerate Workspace Runs"
                     )
-                # 列表路径先做 Workspace 成员校验，防止跨租户枚举 Run id。
+                # 运行列表先校验当前用户在目标 Workspace 的成员身份，再解析分页游标与查询数据，防止跨空间枚举运行标识。
                 await WorkspaceRepository(session, WorkspaceScope(workspace_id)).authorize(user)
                 page = Page.read(
                     self,
@@ -106,7 +106,7 @@ class AttemptAuditAPI(API):
                 user, Permission.MANAGE_WORKSPACE, write=True
             )
             attempt = await session.get(Attempt, attempt_id)
-            # Attempt 必须落在同一 Workspace，防止管理员跨租户误释放容量。
+            # 释放容量前确认 Attempt 存在且属于路径中的 Workspace，防止空间管理员误用其他空间的尝试标识解除其隔离容量。
             if not attempt or attempt.workspace_id != workspace_id:
                 raise Problem(404, "ATTEMPT_NOT_FOUND", "Attempt not found")
             if attempt.capacity_state not in {"QUARANTINED", "RELEASED"}:

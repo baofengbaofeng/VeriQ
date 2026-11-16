@@ -113,7 +113,8 @@ test("intake snapshots caller bytes expected options before first await", async 
     }
 });
 
-/** 事务故障使用当前实现真实消费的内部原语注入明确失败，不提供生产测试分支或可覆盖预算选项；外部哨兵与输出目录的实际结果
+/**
+ * 事务故障使用当前实现真实消费的内部原语注入明确失败，不提供生产测试分支或可覆盖预算选项；外部哨兵与输出目录的实际结果
  * 共同证明取消、磁盘、提交前后和归属替换语义，而不是只断言调用次数或源码文本。
  */
 for (const scenario of [
@@ -294,7 +295,8 @@ test("shared member link and body limits accumulate across archive admissions", 
         );
 });
 
-/** prepare 通过真实 Node 子进程消费独立文件并输出完整结果，不执行夹具归档里的任何成员；严格 flags 与成功 JSON 分别观察
+/**
+ * prepare 通过真实 Node 子进程消费独立文件并输出完整结果，不执行夹具归档里的任何成员；严格 flags 与成功 JSON 分别观察
  * stdout、stderr 和退出码，所有输入在本测试临时根内，子进程只运行本仓库
  * 构建工具代码。
  */
@@ -388,7 +390,8 @@ process.argv=['node','prepare',...JSON.parse(process.env.VERIQ_TEST_FLAGS)];awai
     }
 });
 
-/** 信号测试只在隔离子进程暂停内部快照准入，不改变产品源码或为产品加入测试分支；父进程等待明确 IPC ready 后才发送实际
+/**
+ * 信号测试只在隔离子进程暂停内部快照准入，不改变产品源码或为产品加入测试分支；父进程等待明确 IPC ready 后才发送实际
  * POSIX 信号，分别观察首信号清理、二次退出及五秒关闭期限，不靠固定启动延时猜测监听是否建立。
  */
 for (const scenario of ["SIGINT", "SIGTERM", "second", "deadline"] as const)
@@ -472,7 +475,8 @@ await import('./scripts/prepare-macos-runtime-archives.mjs');process.removeListe
         }
     });
 
-/** 关闭故障在真实 held FD 完成系统关闭后注入不可确认结果，产品仍必须保守保留 scratch 与锁而非假报清理成功；测试补丁只影
+/**
+ * 关闭故障在真实 held FD 完成系统关闭后注入不可确认结果，产品仍必须保守保留 scratch 与锁而非假报清理成功；测试补丁只影
  * 响当前快照的第二个关闭调用，避免把前置 b1a reader 或测试 finally 本身变
  * 成故障来源。
  */
@@ -530,7 +534,8 @@ test("snapshot reader close failure retains owned artifact with incomplete clean
     }
 });
 
-/** 回执四 MiB 上限必须在扫描实际成员时消费，不能先提取数千文件再序列化出巨大 JSON 才拒绝；内部 collector 用真实空正文和
+/**
+ * 回执四 MiB 上限必须在扫描实际成员时消费，不能先提取数千文件再序列化出巨大 JSON 才拒绝；内部 collector 用真实空正文和
  * 合法长路径触发累计限制，不创建大型归档、正文或磁盘资源，路径与成员数仍严格低于各自独立上
  * 限。
  */
@@ -579,7 +584,8 @@ test("actual statfs plan rejects unavailable declared writes without allocating 
     }
 });
 
-/** 两个实际 collector 顺序使用同一个已消费预算，第二份归档不能因切换格式或顶层名字重置空间；测试以真实一字节异步正文到
+/**
+ * 两个实际 collector 顺序使用同一个已消费预算，第二份归档不能因切换格式或顶层名字重置空间；测试以真实一字节异步正文到
  * 达共享边界，另外推导父目录也会登记成员，避免只测预算类算术而漏掉扫描器调用接缝。
  */
 test("both archive collectors consume the same actual content and inferred-path budget", async () => {
@@ -636,7 +642,8 @@ test("committed result remains successful when only replaced lock cleanup is inc
     }
 });
 
-/** 提取故障只在实际树输出期间替换真实 FileHandle.write，避免快照复制先失败而漏过 tar 与 ZIP 适配器错误分支；次要 close
+/**
+ * 提取故障只在实际树输出期间替换真实 FileHandle.write，避免快照复制先失败而漏过 tar 与 ZIP 适配器错误分支；次要 close
  * 故障在完成真实关闭后注入不确认结果，首个磁盘错误及受控 errno 必须保留
  * ，外部旧候选和源归档始终不变。
  */
@@ -732,7 +739,8 @@ for (const [kind, code] of [
             }
         });
 
-/** 目录错误回归只在真实 intake 的新 Node 顶层目录句柄上注入 chmod 或 sync 磁盘故障，close 始终先真实完成再按场景报告
+/**
+ * 目录错误回归只在真实 intake 的新 Node 顶层目录句柄上注入 chmod 或 sync 磁盘故障，close 始终先真实完成再按场景报告
  * EIO；外部旧目录和原归档保持不变，测试不模拟永久内核 writer 或实际写
  * 满文件系统。
  */
@@ -829,7 +837,8 @@ for (const [operation, cause] of [
             }
         });
 
-/** 没有 chmod 或 sync 首错时，唯一关闭异常仍必须抛出并记录 INCOMPLETE，不能因为新增首错保护而吞掉真实收尾问题；两个
+/**
+ * 没有 chmod 或 sync 首错时，唯一关闭异常仍必须抛出并记录 INCOMPLETE，不能因为新增首错保护而吞掉真实收尾问题；两个
  * profile 都在初始化完成后写微型真实目录，先真实关闭句柄再注入 EIO，仅清理本场
  * 景独占根。
  */
@@ -873,7 +882,8 @@ for (const profile of ["intake", "runtime"] as const)
         }
     });
 
-/** 新的来源入口只登记有限普通 Ref 并复用旧观察集合，私有六百文件须能真实快照而无需 chmod；异步等待后修改调用数组不得改
+/**
+ * 新的来源入口只登记有限普通 Ref 并复用旧观察集合，私有六百文件须能真实快照而无需 chmod；异步等待后修改调用数组不得改
  * 变已复制声明，重复路径和过量引用必须在读取前直接失败关闭。
  */
 test("observeRefs accepts private source and snapshots original bytes", async () => {
@@ -903,7 +913,8 @@ test("observeRefs accepts private source and snapshots original bytes", async ()
     }
 });
 
-/** 有限 Ref 的权限和声明边界只作用于新入口，测试逐项使用真实普通文件、链接及重复声明观察拒绝；旧五树场景继续由同文件既
+/**
+ * 有限 Ref 的权限和声明边界只作用于新入口，测试逐项使用真实普通文件、链接及重复声明观察拒绝；旧五树场景继续由同文件既
  * 有完整回归覆盖，新入口不会降低 snapshot 的真实摘要要求或增加权限修复操作。
  */
 for (const scenario of [

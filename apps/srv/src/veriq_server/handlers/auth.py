@@ -112,7 +112,7 @@ class AuthAPI(API):
                 )
             elif self.action == "reset-request":
                 data = self.body("EmailRequest")
-                # 先投递再查库：状态码与正文永不泄露邮箱是否已注册。
+                # 重置请求统一提交到投递器后返回相同正文，不根据邮箱注册状态改变响应，避免请求接口泄露账户是否存在。
                 dispatcher = cast(ResetDispatcher, self.application.settings["reset_dispatcher"])
                 dispatcher.submit(data["email"])
                 self.respond({})

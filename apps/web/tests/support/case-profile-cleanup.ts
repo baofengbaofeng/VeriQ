@@ -1,10 +1,12 @@
-/** 用例发布浏览器测试的正文和清理必须分别结算，避免清理异常覆盖原始业务错误；本模块仅处理测试恢复目录及有限停止摘要，不
+/**
+ * 用例发布浏览器测试的正文和清理必须分别结算，避免清理异常覆盖原始业务错误；本模块仅处理测试恢复目录及有限停止摘要，不
  * 启动、终止或模拟任何 Runtime 进程。
  */
 import { readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-/** JavaScript 允许直接抛出 undefined，因此错误存在性由独立布尔字段表达；正文和清理都失败时保留两项原始对象及主因，单项
+/**
+ * JavaScript 允许直接抛出 undefined，因此错误存在性由独立布尔字段表达；正文和清理都失败时保留两项原始对象及主因，单项
  * 失败则原样抛出，绝不在 finally 中改变控制流。
  */
 export async function withCleanup(
@@ -39,7 +41,8 @@ export async function withCleanup(
     if (cleanupFailed) throw cleanupError;
 }
 
-/** 私有恢复目录只能在每份已有进程日志均明确 STOPPED、有限摘要成功写入之后删除；目录确实不存在可视为没有日志，读取失败、
+/**
+ * 私有恢复目录只能在每份已有进程日志均明确 STOPPED、有限摘要成功写入之后删除；目录确实不存在可视为没有日志，读取失败、
  * 格式异常、写入失败及未知停止状态都保留现场并失败关闭。
  */
 export async function cleanupCaseProfile(profile: string, evidencePath: string): Promise<void> {

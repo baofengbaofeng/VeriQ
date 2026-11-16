@@ -20,7 +20,8 @@ export interface RestrictedEvidence {
  */
 export class EvidencePolicy {
     private readonly values = new Set<string>();
-    /** 公开方法 protect 登记敏感字符串：后续投影时脱敏：避免密钥进入普通事件（protect），说明 protect 在 evidence
+    /**
+     * 公开方法 protect 登记敏感字符串：后续投影时脱敏：避免密钥进入普通事件（protect），说明 protect 在 evidence
      * 中的专属行为。
      */
     protect(value: JsonValue): void {
@@ -71,7 +72,9 @@ export class EvidencePolicy {
         }
         return value;
     };
-    /** Engine-owned record trees have protocol IDs/enums; their dynamic values do not. */
+    /**
+     * Engine-owned record trees have protocol IDs/enums; their dynamic values do not.
+     */
     readonly redactProtocol = (value: JsonValue): JsonValue => {
         if (Array.isArray(value)) return value.map(this.redactProtocol);
         if (!value || typeof value !== "object") return this.redact(value);

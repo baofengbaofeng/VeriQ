@@ -7,7 +7,8 @@ import { join } from "node:path";
 type Desktop = Awaited<ReturnType<typeof _electron.launch>>;
 const command = promisify(execFile);
 
-/** 角色源只暴露 Electron 官方窗口和进程指标的必要字段，不读取 renderer 自报标签或 Linux 可改写的进程标题；实际
+/**
+ * 角色源只暴露 Electron 官方窗口和进程指标的必要字段，不读取 renderer 自报标签或 Linux 可改写的进程标题；实际
  * Electron 模块可直接满足这个窄接口，拒绝测试可以提供受控指标而无需创建或终止进程。
  */
 export interface RendererRoleSource {
@@ -20,7 +21,8 @@ export interface RendererRoleSource {
     app: { getAppMetrics(): { pid: number; type: string; creationTime: number }[] };
 }
 
-/** 快照把唯一应用窗、webContents、宿主 PID 和官方 Browser/Tab 创建时间绑定成一次故障目标，第二次采样必须逐字段保持同一
+/**
+ * 快照把唯一应用窗、webContents、宿主 PID 和官方 Browser/Tab 创建时间绑定成一次故障目标，第二次采样必须逐字段保持同一
  * 身份；这些信息只来自可信主进程，不能作为业务 renderer 的通用参数入口。
  */
 export type RendererTarget = {
@@ -33,7 +35,8 @@ export type RendererTarget = {
     rendererCreationTime: number;
 };
 
-/** 同步读取官方进程角色并拒绝缺失、重复、错误类型或无效创建时间，前后快照变化也必须在调用信号辅助器之前失败；
+/**
+ * 同步读取官方进程角色并拒绝缺失、重复、错误类型或无效创建时间，前后快照变化也必须在调用信号辅助器之前失败；
  * 此函数可在 Electron main 内序列化执行，不解析 proc 标题或接受替代角色字符串。
  */
 export function rendererTarget(
@@ -86,7 +89,8 @@ export function rendererTarget(
     return target;
 }
 
-/** 故障目标只从真实 Electron 唯一应用窗口取得，不接受 renderer 传入 PID；测试用 pidfd 向该 UI renderer 注入异常死亡，
+/**
+ * 故障目标只从真实 Electron 唯一应用窗口取得，不接受 renderer 传入 PID；测试用 pidfd 向该 UI renderer 注入异常死亡，
  * 产品恢复处理器仍负责加载原应用，不能由测试主动 reload 或停止
  * 后台来制造通过。
  */

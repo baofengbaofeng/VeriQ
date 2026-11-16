@@ -1,4 +1,6 @@
-/** Retained compiler compatibility uses actual Git source and real locked archives. */
+/**
+ * Retained compiler compatibility uses actual Git source and real locked archives.
+ */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {

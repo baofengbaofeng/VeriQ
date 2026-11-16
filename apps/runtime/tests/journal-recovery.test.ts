@@ -23,7 +23,8 @@ import fs from "node:fs/promises";
 import { syncBuiltinESMExports } from "node:module";
 import { spawnSync } from "node:child_process";
 
-/** 恢复夹具把正式日志和未发布临时对象真实写入同一私有目录，transport只记录对账声明；进程存在时仍由真实原生守护排空，任
+/**
+ * 恢复夹具把正式日志和未发布临时对象真实写入同一私有目录，transport只记录对账声明；进程存在时仍由真实原生守护排空，任
  * 何临时成员都不能自行提供停止成功或未派生证明。
  */
 async function fixture(root: string) {

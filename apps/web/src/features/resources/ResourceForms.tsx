@@ -26,7 +26,8 @@ import {
     type VersionOption,
 } from "./fields";
 import { Button, Section } from "@veriq/ui";
-/** 创建资源下拉可用的 kind 枚举顺序，与契约 ResourceKind 对齐且不含已废弃值。顺序变更需同步创建表单测试。
+/**
+ * 创建资源下拉可用的 kind 枚举顺序，与契约 ResourceKind 对齐且不含已废弃值。顺序变更需同步创建表单测试。
  * EnvironmentPage 可子集过滤；顺序影响默认选中项。
  */
 export const resourceKinds: ResourceKind[] = [
@@ -40,7 +41,8 @@ export const resourceKinds: ResourceKind[] = [
     "ENVIRONMENT",
 ];
 const placeholder = "00000000-0000-4000-8000-000000000000";
-/** 按 kind/key/name 构造空 ResourceDocumentV1，供创建表单写入草稿初始 content。各 kind 默认字段集不同。不访问网络；调用
+/**
+ * 按 kind/key/name 构造空 ResourceDocumentV1，供创建表单写入草稿初始 content。各 kind 默认字段集不同。不访问网络；调用
  * 方随后 CloudResourceAdapter.create。
  */
 export function newDocument(kind: ResourceKind, key: string, name: string): ResourceDocumentV1 {
@@ -129,7 +131,8 @@ export function newDocument(kind: ResourceKind, key: string, name: string): Reso
             };
     }
 }
-/** 根据当前草稿 kind 渲染对应字段集，并接入 AssertionEditor/CaseEditor/EnvironmentFields。版本选项用于固定引用；不持有
+/**
+ * 根据当前草稿 kind 渲染对应字段集，并接入 AssertionEditor/CaseEditor/EnvironmentFields。版本选项用于固定引用；不持有
  * Workspace 选择状态。
  */
 export function ResourceForms({

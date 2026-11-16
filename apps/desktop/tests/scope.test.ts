@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { authorizeSender } from "../src/main/scope.ts";
 
-/** 可信来源是当前窗口的顶层框架加本地固定文档，单独比对应用协议或窗口编号不足以防止子框架代为调用；这些行为断言不依赖
+/**
+ * 可信来源是当前窗口的顶层框架加本地固定文档，单独比对应用协议或窗口编号不足以防止子框架代为调用；这些行为断言不依赖
  * Electron 二进制是否已安装。
  */
 test("the owned main frame can invoke its bundled local entry", () => {

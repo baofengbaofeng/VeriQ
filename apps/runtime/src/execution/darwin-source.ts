@@ -1,4 +1,5 @@
-/** Darwin 的受控宿主能力只在原生文件入口、固定独立 Node24 和具体观察器自检全部通过后签发，私有 WeakMap
+/**
+ * Darwin 的受控宿主能力只在原生文件入口、固定独立 Node24 和具体观察器自检全部通过后签发，私有 WeakMap
  * 保存实际能力而不是可复制的配置声明；源码与安装两种工厂分别保持自身的库存、角色和宿主准入条件。
  */
 import { access } from "node:fs/promises";
@@ -14,7 +15,8 @@ import { bindDarwinDistribution } from "../native/darwin.ts";
 
 declare const brand: unique symbol;
 
-/** 这个类型只能表达由本模块私有品牌登记过的当前宿主对象，外部断言、结构克隆或 JSON 反序列化都不会建立 WeakMap 所有权；
+/**
+ * 这个类型只能表达由本模块私有品牌登记过的当前宿主对象，外部断言、结构克隆或 JSON 反序列化都不会建立 WeakMap 所有权；
  * 执行监督器仍须每次通过真实能力查验，不能只依赖编译期不可见字段判断可信来源。
  */
 export interface DarwinSourceCapability {
@@ -31,7 +33,8 @@ export interface DarwinSourceOptions {
     stopTimeoutMs?: number;
 }
 
-/** 准备回调只获得双绑定、固定目标描述符和内存端点，publish 由父层持有的 B 工作目录执行有限发布；接口没有文件或目录
+/**
+ * 准备回调只获得双绑定、固定目标描述符和内存端点，publish 由父层持有的 B 工作目录执行有限发布；接口没有文件或目录
  * close 能力，因此回调不能通过取得整数或关闭宿主对象移走实际日志所有权。
  */
 export interface DarwinLaunchContext {
@@ -47,13 +50,15 @@ export interface DarwinLaunchContext {
     publish(name: "invocation.json" | "playwright.config.mjs", bytes: Buffer): void;
 }
 
-/** 启动参数来自源码宿主可信调用链，正安全代际复用既有 fence 而不创建本地计数器；prepare 是配置写入的内存函数缝，
+/**
+ * 启动参数来自源码宿主可信调用链，正安全代际复用既有 fence 而不创建本地计数器；prepare 是配置写入的内存函数缝，
  * 不能从可序列化的任务字段恢复，也不能由业务输入选择可执行插件或日志路径。
  */
 export interface DarwinControlledLaunch {
     kind: "TEST" | "VALIDATE" | "CLEANUP";
     ownerGeneration: number;
-    /** 可见模式仅接受宿主传入的实际布尔值，下载目录只能指向本次私有工作目录内的固定 downloads 子目录；
+    /**
+     * 可见模式仅接受宿主传入的实际布尔值，下载目录只能指向本次私有工作目录内的固定 downloads 子目录；
      * 这两个有限字段不开放任意浏览器参数、可执行路径或来自 Job 的 LaunchOptions。
      */
     headless?: boolean;
@@ -61,7 +66,8 @@ export interface DarwinControlledLaunch {
     prepare(context: DarwinLaunchContext): void | Promise<void>;
 }
 
-/** 实际能力状态与空的公开 token 分开存放，原生入口、固定 Chrome 和期限只有品牌验证后才向实际所有者借用；
+/**
+ * 实际能力状态与空的公开 token 分开存放，原生入口、固定 Chrome 和期限只有品牌验证后才向实际所有者借用；
  * 普通源码宿主以外的安装身份不会因为存在这份类型定义而获得任何启动或生产就绪声明。
  */
 export interface DarwinSourceState {
@@ -69,7 +75,8 @@ export interface DarwinSourceState {
     readonly browserExecutable: string;
     readonly temporaryDirectory: string;
     readonly stopTimeoutMs: number;
-    /** 执行 Node 固定于能力签发时真实探针所用的发行角色，Electron 主进程不能用自己的内嵌 Node 替代；
+    /**
+     * 执行 Node 固定于能力签发时真实探针所用的发行角色，Electron 主进程不能用自己的内嵌 Node 替代；
      * 源码能力仍固定当前独立 Node 路径，不允许业务命令修改此身份。
      */
     readonly nodeExecutable: string;
@@ -162,7 +169,8 @@ export async function createDarwinDistribution(
     return capability;
 }
 
-/** 能力消费只接受同一模块实例签发并仍由私有 WeakMap 识别的原对象，不能信任外形、符号字段、冻结状态或支持布尔值；
+/**
+ * 能力消费只接受同一模块实例签发并仍由私有 WeakMap 识别的原对象，不能信任外形、符号字段、冻结状态或支持布尔值；
  * 返回的借用状态用于实际所有者构造，业务配置与恢复历史都不得通过该接口补造能力。
  */
 export function requireDarwinSource(value: unknown): DarwinSourceState {

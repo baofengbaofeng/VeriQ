@@ -1,4 +1,5 @@
-/** 私有配置测试只操作本次创建的临时目录与合成描述文件，通过真实 Windows ACL 和目录联接建立风险前提；公开配置 API 必须拒
+/**
+ * 私有配置测试只操作本次创建的临时目录与合成描述文件，通过真实 Windows ACL 和目录联接建立风险前提；公开配置 API 必须拒
  * 绝非私有文件及祖先重解析路径，失败不能覆盖原字节，也不能以 chmod 成功冒充隔离。
  */
 import assert from "node:assert/strict";
@@ -16,7 +17,8 @@ const native = windowsNative();
 const name = "desktop-agent.json";
 const original = '{"generation":1,"label":"original 中文😀"}';
 
-/** 每个用例独占一个临时根，任何行为断言失败都保留合成文件以供目标任务诊断；只有全部断言通过才递归删除该自有根，不接触用
+/**
+ * 每个用例独占一个临时根，任何行为断言失败都保留合成文件以供目标任务诊断；只有全部断言通过才递归删除该自有根，不接触用
  * 户配置、真实凭证或本次目录之外的联接目标。
  */
 async function withFixture(context: TestContext, run: (root: string) => Promise<void>) {
@@ -30,7 +32,8 @@ async function withFixture(context: TestContext, run: (root: string) => Promise<
     }
 }
 
-/** 拒绝操作与原始字节保留是两个独立义务，前者失败后仍读取自有合成目标核对后者；聚合全部实际错误而不让一次缺失拒绝掩盖随
+/**
+ * 拒绝操作与原始字节保留是两个独立义务，前者失败后仍读取自有合成目标核对后者；聚合全部实际错误而不让一次缺失拒绝掩盖随
  * 后发生的覆盖，也不把测试清理当成恢复产品数据。
  */
 async function rejectedWithoutChange(path: string, operation: () => Promise<unknown>) {
@@ -57,7 +60,8 @@ async function rejectedWithoutChange(path: string, operation: () => Promise<unkn
         throw new AggregateError(failures, "Private configuration rejection failed");
 }
 
-/** 缺失的嵌套配置目录必须在创建时就具有当前账户保护 DACL，不能先建公共目录再把 Windows 忽略的 POSIX 模式视为私有；父级
+/**
+ * 缺失的嵌套配置目录必须在创建时就具有当前账户保护 DACL，不能先建公共目录再把 Windows 忽略的 POSIX 模式视为私有；父级
  * 临时目录属于测试场地，不要求或改写它的系统继承权限。
  */
 test("Windows privateDirectory creates protected nested configuration directories", async (context) => {
@@ -71,7 +75,8 @@ test("Windows privateDirectory creates protected nested configuration directorie
     });
 });
 
-/** 新描述文件和后续替换都必须保留真实私有 ACL，并向更新函数交付上一代完整数据；回调失败与超限内容不得改变已提交文件，最
+/**
+ * 新描述文件和后续替换都必须保留真实私有 ACL，并向更新函数交付上一代完整数据；回调失败与超限内容不得改变已提交文件，最
  * 终目录只含正式配置，正常返回不等同于已完成断电恢复证明。
  */
 test("Windows updatePrivate publishes private descriptors and preserves committed generations", async (context) => {
@@ -108,7 +113,8 @@ test("Windows updatePrivate publishes private descriptors and preserves committe
     });
 });
 
-/** 公共文件前提由 Windows 自带 icacls 给自有合成文件显式增加 Everyone 读取权限建立，随后真实原生 ACL 检查必须确认它不再
+/**
+ * 公共文件前提由 Windows 自带 icacls 给自有合成文件显式增加 Everyone 读取权限建立，随后真实原生 ACL 检查必须确认它不再
  * 私有；读取和更新分别执行，不能让单个拒绝掩盖另一路泄露或覆盖。
  */
 for (const operation of ["read", "update"] as const) {
@@ -134,7 +140,8 @@ for (const operation of ["read", "update"] as const) {
     });
 }
 
-/** 联接位于配置目录的祖先而不是最终文件，最终目录与文件本身均为真实私有对象；公开 API 必须拒绝这条路径且保留真实目标字
+/**
+ * 联接位于配置目录的祖先而不是最终文件，最终目录与文件本身均为真实私有对象；公开 API 必须拒绝这条路径且保留真实目标字
  * 节，不能只检查末级符号链接或把解析后的别名当成原始授权路径。
  */
 for (const operation of ["directory", "read", "update"] as const) {

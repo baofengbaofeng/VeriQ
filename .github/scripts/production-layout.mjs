@@ -35,7 +35,8 @@ const same = (a, b) =>
 const inside = (base, target) => target === base || target.startsWith(base + sep);
 const now = () => new Date().toISOString();
 
-/** 只有真实准入、直接子进程关闭确认、零退出且没有信号、错误、期限或截断时才允许阶段通过；这些事实必须同时成立，
+/**
+ * 只有真实准入、直接子进程关闭确认、零退出且没有信号、错误、期限或截断时才允许阶段通过；这些事实必须同时成立，
  * 成功退出码不能覆盖输出溢出或未知关闭，也不证明后代进程及事务已清理。
  */
 export function classifyCommandResult(result) {
@@ -50,7 +51,8 @@ export function classifyCommandResult(result) {
         : "FAIL";
 }
 
-/** 顺序执行固定阶段并持久化开始和结算事实，首个失败后后续阶段保持未运行；真实命令统一复用已有有界子进程接口，
+/**
+ * 顺序执行固定阶段并持久化开始和结算事实，首个失败后后续阶段保持未运行；真实命令统一复用已有有界子进程接口，
  * 阶段与整体期限取更短者，并在未知关闭后停止所有下一阶段的文件系统观察。
  */
 export async function runStages({ stages, deadlineMs, onUpdate = async () => {} }) {
@@ -207,7 +209,8 @@ function isPackageRoot(path, workspacePaths) {
     );
 }
 
-/** 从静止的自有源码副本记录完整物理实例、目录、普通文件和原始链接目标，输出有界分块及完整原清单引用；
+/**
+ * 从静止的自有源码副本记录完整物理实例、目录、普通文件和原始链接目标，输出有界分块及完整原清单引用；
  * 所有配额与身份变化均失败关闭，观察不执行包体、不跟随别名，也不求解依赖边或晋升来源信任。
  */
 export async function collectLayoutMetadata({
@@ -436,7 +439,8 @@ export async function collectLayoutMetadata({
     return { schemaVersion: 1, totals, artifacts };
 }
 
-/** 绑定本次自有前缀内固定版本的工具入口、实现正文与原始包清单身份，保持生产步骤与真实文件系统测试共用同一读取路径；
+/**
+ * 绑定本次自有前缀内固定版本的工具入口、实现正文与原始包清单身份，保持生产步骤与真实文件系统测试共用同一读取路径；
  * 绑定只记录文件事实，不执行包体，也不从兼容入口名称猜测额外信任能力。
  */
 export async function bindPinnedPnpm({ packageRoot, ownedRoot, deadlineMs = Infinity }) {

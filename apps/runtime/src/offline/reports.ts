@@ -2,7 +2,9 @@
  * 本文件把本机报告投影为共享 LocalReportAdapter 形态：供宿主读取结构化报告：不引入浏览器端依赖（reports）。
  */
 
-/** Typed host projection matching the shared LocalReportAdapter without browser imports. */
+/**
+ * Typed host projection matching the shared LocalReportAdapter without browser imports.
+ */
 import { join } from "node:path";
 import type {
     OfflineResultV1,
@@ -102,7 +104,8 @@ export class LocalReports {
                         ? "UNSTABLE"
                         : attempt.outcome;
                 const events = store.events(workspaceId, runId, attempt.attemptId, 0, 10000);
-                /** 报告只投影持久 Attempt 已声明的实际范围，缺字段仍然是历史未声明；范围不会改变业务结果、
+                /**
+                 * 报告只投影持久 Attempt 已声明的实际范围，缺字段仍然是历史未声明；范围不会改变业务结果、
                  * 清理状态或离线门禁，也不会因 processStopped 默认值而推导出 Mac 或全后代保证。
                  */
                 item.attempts.push({

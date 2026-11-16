@@ -56,7 +56,8 @@ const streamed: S["RunReportDTO"] = {
     ],
 };
 
-/** 真实共享 CloudReportAdapter 先读取无 Attempt 的排队快照，再解析标准 SSE 新 Attempt 事件，原生按钮必须立即拥有正确
+/**
+ * 真实共享 CloudReportAdapter 先读取无 Attempt 的排队快照，再解析标准 SSE 新 Attempt 事件，原生按钮必须立即拥有正确
  * Run 上下文；测试仅替换网络传输和主机动作记录，不伪造业务执行或文
  * 件授权成功。
  */

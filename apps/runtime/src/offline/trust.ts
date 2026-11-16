@@ -99,13 +99,13 @@ export class TrustStore {
         }
     }
     /**
-     * 公开方法 bind 仅在指纹匹配的未撤销密钥上建立信任：标签只作本地别名：
+     * 公开方法 bind 仅在用户给定指纹完全匹配的未撤销密钥上建立信任，标签只作当前设备的本地别名。
      * 未签名修订无权威（bind/FINGERPRINT_MISMATCH）。
      */
     async bind(value: IssuerTrust, origin: string, fingerprint: string): Promise<void> {
         const issuer = validateIssuer(value),
             server = controlOrigin(origin);
-        // 仅该指纹密钥通过认证；标签只是本地别名，未签名修订/撤销/兄弟密钥无权威。
+        // 仅把匹配该指纹的未撤销密钥交给接受流程，标签只作本地别名，未签名修订或兄弟密钥不能获信任。
         const key = issuer.keys.find((k) => !k.revoked && k.fingerprint === fingerprint);
         if (!key) throw new Error("FINGERPRINT_MISMATCH");
         await this.accept({ issuerId: issuer.issuerId, revision: 1, keys: [key] }, server, true);
@@ -130,7 +130,7 @@ export class TrustStore {
     }
     private async accept(value: IssuerTrust, origin: string, explicit: boolean) {
         await updatePrivate<Cache>(this.directory, "trust.json", (old) => {
-            // 旧缓存不能认证签发者；只保守保留撤销指纹，避免显式重绑复活已知密钥。
+            // 旧缓存无法认证签发者，迁移时仅保守保留已知撤销指纹，避免用户显式重绑时重新启用这些失效密钥。
             const cache: Cache =
                 old?.version === 2
                     ? old

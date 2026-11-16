@@ -158,7 +158,8 @@ test("an installation missing its native launcher fails closed without compiling
     const { pathToFileURL, fileURLToPath } = await import("node:url");
     const root = await mkdtemp(join(tmpdir(), "veriq-t10-no-launcher-"));
     try {
-        /** 缺守护程序的安装夹具仍保留完整真实源码布局与外部依赖解析，避免单独复制入口后先因其间接模块缺失而失败；仅不提
+        /**
+         * 缺守护程序的安装夹具仍保留完整真实源码布局与外部依赖解析，避免单独复制入口后先因其间接模块缺失而失败；仅不提
          * 供 build 下的原生 launcher，断言必须实际到达业务派生前的正式能力检查。
          */
         await cp(new URL("../src", import.meta.url), join(root, "src"), { recursive: true });

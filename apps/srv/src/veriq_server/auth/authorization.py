@@ -56,7 +56,7 @@ _ROLES = {
     Permission.MANAGE_MEMBERS: {"OWNER", "ADMIN"},
     Permission.MANAGE_WORKSPACE: {"OWNER", "ADMIN"},
     Permission.OWNERSHIP: {"OWNER"},
-    # 设备所有权与显式授权必须由 Runtime/设备服务另行校验，角色表故意留空。
+    # 设备所有权与显式授权由 Runtime/设备服务另行校验，角色表留空以免角色身份被误用为私人设备派单授权。
     Permission.PRIVATE_DISPATCH: set(),
 }
 

@@ -1,4 +1,6 @@
-/** Test-only actual-byte producer. Never imported by production controller/runtime. */
+/**
+ * Test-only actual-byte producer. Never imported by production controller/runtime.
+ */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";

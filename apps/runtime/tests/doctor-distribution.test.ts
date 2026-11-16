@@ -4,7 +4,8 @@ import { resolve } from "node:path";
 import { doctor } from "../src/doctor.ts";
 import { diagnoseRelease } from "../src/distribution.ts";
 
-/** 已经核验的发行上下文用于独立打包后台的版本定位，不能绕过版本兼容条件或把控制平台离线说成可达；本例仍启动真实匹配浏览
+/**
+ * 已经核验的发行上下文用于独立打包后台的版本定位，不能绕过版本兼容条件或把控制平台离线说成可达；本例仍启动真实匹配浏览
  * 器，三种调用方式分别检查原包探测、有效发行及不支持发行。
  */
 test("doctor keeps package probing and validates explicit distribution versions", async () => {
@@ -37,7 +38,8 @@ test("doctor keeps package probing and validates explicit distribution versions"
     }
 });
 
-/** CLI 与桌面共用发行适配后必须申报真实库存版本而非零点一组件包号，缺少所选库存时即使给出有效浏览器也不得形成能力；此例
+/**
+ * CLI 与桌面共用发行适配后必须申报真实库存版本而非零点一组件包号，缺少所选库存时即使给出有效浏览器也不得形成能力；此例
  * 仅复用受保护只读候选和既有浏览器，不生成新引擎或运行 GUI。
  */
 test("shared release doctor advertises the verified engine identity", async () => {

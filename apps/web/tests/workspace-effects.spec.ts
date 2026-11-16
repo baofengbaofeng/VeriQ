@@ -1,4 +1,5 @@
-/** VeriQ 的作用域测试直接挂载产品 Provider 与真实 QueryClient，并以已提交信号、订阅关闭及查询取消为观察依据；页面测试仅
+/**
+ * VeriQ 的作用域测试直接挂载产品 Provider 与真实 QueryClient，并以已提交信号、订阅关闭及查询取消为观察依据；页面测试仅
  * 延迟真实服务器响应，不构造资源或替换权限数据。
  */
 import { fileURLToPath } from "node:url";
@@ -159,7 +160,8 @@ test("actual Provider preserves scopes and releases the latest committed scope",
     expect(result.retainedCurrent).toBe("Alpha");
 });
 
-/** 页面入口均使用真实登录、空间创建和服务查询，先收到后端完成的旧列表再通过可见选择器切换，最后释放原响应并验证当前空间
+/**
+ * 页面入口均使用真实登录、空间创建和服务查询，先收到后端完成的旧列表再通过可见选择器切换，最后释放原响应并验证当前空间
  * 的表单没有被默认首项或引用变化重置。
  */
 test("four GUI entry selectors retain manual selection across real list refetch", async ({

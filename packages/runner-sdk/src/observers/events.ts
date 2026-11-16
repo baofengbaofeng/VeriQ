@@ -1,4 +1,5 @@
-/** 本文件装载页面/业务事件观察器：在步骤窗口内捕获事件证据：超时或取消时释放监听器，供调用方理解 events
+/**
+ * 本文件装载页面/业务事件观察器：在步骤窗口内捕获事件证据：超时或取消时释放监听器，供调用方理解 events
  * 路径上的输入与失败语义。
  */
 
@@ -11,7 +12,8 @@ import { pipeline } from "node:stream/promises";
 import type { Dialog, Download, Page } from "@playwright/test";
 import type { DialogObserverV1, NewPageObserverV1, DownloadObserverV1 } from "@veriq/contracts";
 import { budget, stringBinding, type StepContext } from "../context.js";
-/** 公开类型 EventEvidence 表示捕获到的业务/页面事件载荷摘要：供断言与报告使用（EventEvidence/DOWNLOAD_PROVIDER_REQUIRED
+/**
+ * 公开类型 EventEvidence 表示捕获到的业务/页面事件载荷摘要：供断言与报告使用（EventEvidence/DOWNLOAD_PROVIDER_REQUIRED
  * ）。
  */
 export type EventEvidence =
@@ -27,7 +29,9 @@ export type EventEvidence =
           observerId: string;
           kind: "download";
           sensitivity: "CREDENTIAL_RESTRICTED";
-          /** Present in trusted raw capture, omitted from ordinary report projection. */
+          /**
+           * Present in trusted raw capture, omitted from ordinary report projection.
+           */
           path?: string;
           sizeBytes: number;
           suggestedFilename: string;
@@ -40,7 +44,8 @@ export interface EventHandle {
     finalize(): Promise<EventEvidence>;
     dispose(): Promise<void>;
 }
-/** 公开函数 armEvent 按编译观察器描述武装事件监听：返回 EventHandle：超出步骤预算则失败（armEvent/DOWNLOAD_PROVIDER_REQ
+/**
+ * 公开函数 armEvent 按编译观察器描述武装事件监听：返回 EventHandle：超出步骤预算则失败（armEvent/DOWNLOAD_PROVIDER_REQ
  * UIRED）。
  */
 export function armEvent(

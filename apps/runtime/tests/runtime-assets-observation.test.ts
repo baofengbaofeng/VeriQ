@@ -12,7 +12,8 @@ import {
 import { ArchiveTransaction } from "../scripts/runtime-payload-transaction.ts";
 import { assetsFixture, tinyAssets, fact } from "./fixtures/runtime-assets.ts";
 
-/** 这些正例只调用顶层实际使用的扫描段并输入独立摘要的微型快照，因此检验真实 CRC、布局和原模式而不会声称官方准入通过；默
+/**
+ * 这些正例只调用顶层实际使用的扫描段并输入独立摘要的微型快照，因此检验真实 CRC、布局和原模式而不会声称官方准入通过；默
  * 认事务中的普通成员目录必须为空，证明扫描没有隐式提取或创建链接。
  */
 async function* once(bytes: Uint8Array) {
@@ -82,7 +83,8 @@ for (const args of [
         assert.match(child.stderr, /PAYLOAD_INPUT_INVALID phase=INPUTS cleanup=NOT_NEEDED/);
     });
 
-/** 元数据回归使用真实六百权限输入和独立 Ref 摘要，初次读取后再原子替换文件时旧 reader 必须保留早期身份并拒绝；快照仍通
+/**
+ * 元数据回归使用真实六百权限输入和独立 Ref 摘要，初次读取后再原子替换文件时旧 reader 必须保留早期身份并拒绝；快照仍通
  * 过实际事务复制，不能通过重新打开新路径后得到同字节就覆盖来源变化证据。
  */
 test("private metadata binds independent Ref then snapshots and detects replacement", async () =>
@@ -113,7 +115,8 @@ test("private metadata binds independent Ref then snapshots and detects replacem
         }
     }));
 
-/** 初读和事务登记之间的替换不能让后来的新身份被默认为最早来源，reader 的原观察必须与事务新登记一起收尾；即便新文件具有
+/**
+ * 初读和事务登记之间的替换不能让后来的新身份被默认为最早来源，reader 的原观察必须与事务新登记一起收尾；即便新文件具有
  * 完全相同字节、长度与摘要，也须因原 inode 及父目录变化拒绝来源一致性。
  */
 test("metadata replacement between initial read and registration remains rejected", async () =>
@@ -136,7 +139,8 @@ test("metadata replacement between initial read and registration remains rejecte
         }
     }));
 
-/** DOS 与缺失类型字段必须保留其原始公开数值而不能记录为默认 Unix 权限，损坏 CRC 则应当在真实成员读取中拒绝；此处仅修改
+/**
+ * DOS 与缺失类型字段必须保留其原始公开数值而不能记录为默认 Unix 权限，损坏 CRC 则应当在真实成员读取中拒绝；此处仅修改
  * 微型 ZIP 的公开测试头部以构造拒绝及 fallback 事实，不在产品里新造 ZIP par
  * ser。
  */
@@ -191,7 +195,8 @@ for (const scenario of ["dos", "missing", "crc", "path", "outside"] as const)
             }
         }));
 
-/** 固定官方输入的纯解析正例仅检验声明合同与深冻结，不读或伪造任何官方归档正文；每个负例只改变一个声明以证明未知字段、旧
+/**
+ * 固定官方输入的纯解析正例仅检验声明合同与深冻结，不读或伪造任何官方归档正文；每个负例只改变一个声明以证明未知字段、旧
  * 版本、错误路径和摘要在进入异步文件读取之前已经被明确拒绝。
  */
 test("official input declaration strictly parses and freezes without archive success claim", async () => {
@@ -233,7 +238,8 @@ test("official input declaration strictly parses and freezes without archive suc
         assert.throws(() => parseAssetsObservationInput(Buffer.from(JSON.stringify(changed))));
 });
 
-/** 发布回归在真实扫描段之后直接消费原事务发布边界，注入最终路径 audit 失败和已提交锁收尾不确定两种事实；测试不调用顶层
+/**
+ * 发布回归在真实扫描段之后直接消费原事务发布边界，注入最终路径 audit 失败和已提交锁收尾不确定两种事实；测试不调用顶层
  * 官方成功入口，仍要求完整保留已提交内容并明确区分 COMMIT_UNCONFIRMED 与 commit
  * ted 加 INCOMPLETE。
  */
@@ -272,7 +278,8 @@ for (const scenario of ["final-audit", "cleanup"] as const)
             assert.equal(await tx.cleanup(), "INCOMPLETE");
         }));
 
-/** 回归直接执行成熟 YAML 解析器提取出的生产 inline Node 收集段，检查真实 GITHUB_OUTPUT、最终文件集合和摘要而不模拟上传
+/**
+ * 回归直接执行成熟 YAML 解析器提取出的生产 inline Node 收集段，检查真实 GITHUB_OUTPUT、最终文件集合和摘要而不模拟上传
  * 服务；稀疏上限夹具一次只在本测试拥有的目录中创建，实际分配先核预算且所有资源关
  * 闭之后才 finally 删除。
  */
@@ -538,7 +545,8 @@ fixIO.promises.open = async (path, ...args) => {
         }
     });
 
-/** 新场景执行实际工作流中的同一收集器，分别模拟安装失败、空证据根、已开始但缺步骤与已有正式步骤；只有真实工作流明确证明
+/**
+ * 新场景执行实际工作流中的同一收集器，分别模拟安装失败、空证据根、已开始但缺步骤与已有正式步骤；只有真实工作流明确证明
  * 编排未运行时才允许合成 NOT_RUN，所有新字节均须在最终集合、清单摘要和固定预算中可独立观察。
  */
 for (const scenario of [
@@ -756,7 +764,8 @@ for (const scenario of [
         }
     });
 
-/** 归一化回归先让真实快照扫描产生带头事实的拒绝，再交正式失败出口清理事务并更换异常对象；仅被选中的首错诊断可随新对象保
+/**
+ * 归一化回归先让真实快照扫描产生带头事实的拒绝，再交正式失败出口清理事务并更换异常对象；仅被选中的首错诊断可随新对象保
  * 留，公开双参数入口和原错误字段不能因诊断扩展而改变。
  */
 test("archive rejection normalization follows real cleanup without public API changes", async () => {
@@ -816,7 +825,8 @@ test("archive rejection normalization follows real cleanup without public API ch
     }
 });
 
-/** 输出回归在独立宿主 Node 子进程调用 CLI 实际使用的有限报告函数，并以关闭管道和异步写错误验证首错退出码；子进程没有官
+/**
+ * 输出回归在独立宿主 Node 子进程调用 CLI 实际使用的有限报告函数，并以关闭管道和异步写错误验证首错退出码；子进程没有官
  * 方来源伪装或目标程序，观察仅限原公共行顺序、单事件与空标准输出。
  */
 for (const failure of ["none", "sync", "async"] as const) {
@@ -848,7 +858,8 @@ emitArchiveFailure(error, 17);
     });
 }
 
-/** 实际观察助手先完成 Node 快照再读取带原始选项位的 Stored Chrome 成员，正文摘要与原模式必须来自成熟扫描结果；微型布局
+/**
+ * 实际观察助手先完成 Node 快照再读取带原始选项位的 Stored Chrome 成员，正文摘要与原模式必须来自成熟扫描结果；微型布局
  * 只得到原有待审状态，不能借兼容修正宣称官方来源或完整 Runtime 已通过验收。
  */
 test("production snapshot helper observes stored options without rewriting flags", async () =>
@@ -925,7 +936,8 @@ test("production snapshot helper observes stored options without rewriting flags
         }
     }));
 
-/** 真实子进程只包装精确 owned 快照的单次关闭回调，实际系统关闭成功后才注入 EIO；父进程等待自然终止并记录保留目录之后才
+/**
+ * 真实子进程只包装精确 owned 快照的单次关闭回调，实际系统关闭成功后才注入 EIO；父进程等待自然终止并记录保留目录之后才
  * 删除自己的夹具，十秒看门狗只能判失败，不能替生产结算。
  */
 for (const scenario of ["normal", "close-eio"])

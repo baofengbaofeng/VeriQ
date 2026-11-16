@@ -1,4 +1,5 @@
-/** VeriQ 资源回归只经真实安装、登录与空间接口建立测试前置条件；编辑器回归单独挂载实际导出的 Monaco，并通过浏览器输入和
+/**
+ * VeriQ 资源回归只经真实安装、登录与空间接口建立测试前置条件；编辑器回归单独挂载实际导出的 Monaco，并通过浏览器输入和
  * 公共生命周期状态观察受控更新。
  */
 import { randomUUID } from "node:crypto";
@@ -6,7 +7,8 @@ import { fileURLToPath } from "node:url";
 import { test, expect } from "@playwright/test";
 import type { editor } from "monaco-editor/editor";
 
-/** 浏览器内探针仅保存测试自己拥有的真实编辑器、模型与根节点，并暴露父级重渲染和卸载动作；不替换产品组件、不修改模型内容
+/**
+ * 浏览器内探针仅保存测试自己拥有的真实编辑器、模型与根节点，并暴露父级重渲染和卸载动作；不替换产品组件、不修改模型内容
  * ，也不进入业务页面的运行路径。
  */
 interface EditorProbe {
@@ -22,7 +24,8 @@ interface EditorProbe {
 }
 
 declare global {
-    /** 测试页面在独立文档中保存自有探针以便浏览器自动化读取真实模型和订阅状态；类型声明不生成产品入口，也不向正式资源页
+    /**
+     * 测试页面在独立文档中保存自有探针以便浏览器自动化读取真实模型和订阅状态；类型声明不生成产品入口，也不向正式资源页
      * 面增加任何调试能力或状态持久化承诺。
      */
     interface Window {
@@ -86,7 +89,8 @@ test("resources retain manual workspace and unsaved values across list refresh",
         queried.some((url) => new URL(url).pathname === `/api/v1/workspaces/${first}/resources`),
     ).toBe(true);
 
-    /** 先离开资源入口取得已完成的真实列表，再在回到入口时暂缓交付下一次服务器响应；用户在响应抵达之前选择 Beta，释放后
+    /**
+     * 先离开资源入口取得已完成的真实列表，再在回到入口时暂缓交付下一次服务器响应；用户在响应抵达之前选择 Beta，释放后
      * 验证表单与选中空间都未被默认值重置。
      */
     const staged = page.waitForResponse(
@@ -178,7 +182,8 @@ test("actual Monaco preserves controlled edits and model lifetime", async ({ pag
             $RefreshSig$: () => (type: unknown) => type,
             __vite_plugin_react_preamble_installed__: true,
         });
-        /** 从 Vite 实际转换结果取得浏览器模块地址，确保测试根节点与产品组件共用同一 React 和 Monaco 实例；这里只解析依
+        /**
+         * 从 Vite 实际转换结果取得浏览器模块地址，确保测试根节点与产品组件共用同一 React 和 Monaco 实例；这里只解析依
          * 赖地址，不把源码字符串当成产品行为通过的依据。
          */
         const source = await (await fetch("/src/features/resources/Monaco.tsx")).text();
@@ -286,7 +291,8 @@ test("actual Monaco preserves controlled edits and model lifetime", async ({ pag
     await expect
         .poll(() => page.evaluate(() => window.resourceEditor.model.getValue()))
         .toBe("alpha beta");
-    /** 使用编辑器公开的撤销边界固定已经通过真实键盘输入形成的早期状态，避免假设浏览器逐键事件如何合并；后续撤销必须返回
+    /**
+     * 使用编辑器公开的撤销边界固定已经通过真实键盘输入形成的早期状态，避免假设浏览器逐键事件如何合并；后续撤销必须返回
      * 这个已观察到的内容，而不能手动设置模型来制造成功。
      */
     const selection = await page.evaluate(() => {

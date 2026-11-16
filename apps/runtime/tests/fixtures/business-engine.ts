@@ -1,4 +1,5 @@
-/** 业务测试共享真实编译、签名包与 HTTP 控制夹具构造，生产代码不导入此文件；真实引擎由固定 queue-fixture 构建 SDK、
+/**
+ * 业务测试共享真实编译、签名包与 HTTP 控制夹具构造，生产代码不导入此文件；真实引擎由固定 queue-fixture 构建 SDK、
  * contracts、compiler 和离线依赖闭包，HTTP 响应仅代表本地 Node
  * 控制夹具而非 Python/MySQL 服务验收。
  */
@@ -40,7 +41,8 @@ import { AgentClient, type Claim } from "../../src/agent/transport.ts";
 import { ExecutionSupervisor, type AttemptResult } from "../../src/execution/supervisor.ts";
 import type { DarwinSourceCapability } from "../../src/execution/darwin-source.ts";
 
-/** 失去激活回执的第三次业务探针只采样一次时钟，以同一起点推导恰好六十秒的租约终点，避免毫秒推进扩大授权窗口；此夹具接口
+/**
+ * 失去激活回执的第三次业务探针只采样一次时钟，以同一起点推导恰好六十秒的租约终点，避免毫秒推进扩大授权窗口；此夹具接口
  * 只覆盖认领时间，不改变尝试标识、生产校验或失败关闭断言。
  */
 export function businessLeaseWindow(
@@ -61,7 +63,8 @@ async function cleanup(path: string) {
     }
     await chmod(path, 0o700);
 }
-/** 签名包夹具保留原 offline suite 的恶意路径、版本及信任边界样本，真实业务调用必须显式提供实际离线发行闭包；缺省的小字
+/**
+ * 签名包夹具保留原 offline suite 的恶意路径、版本及信任边界样本，真实业务调用必须显式提供实际离线发行闭包；缺省的小字
  * 节依赖只服务签名与结构拒绝测试，不代表 SDK 执行结果、编译成功回执或浏览器停止证据。
  */
 export async function fixture(
@@ -464,7 +467,8 @@ with zipfile.ZipFile(sys.argv[2],'w',compression=zipfile.ZIP_DEFLATED) as z:
     };
 }
 
-/** 构建只调用现有测试入口生成真实且冻结的离线闭包，再按受信 inventory 重建 release 并由产品 loadRelease 核验；调用方只
+/**
+ * 构建只调用现有测试入口生成真实且冻结的离线闭包，再按受信 inventory 重建 release 并由产品 loadRelease 核验；调用方只
  * 在有充分空间的真实浏览器宿主使用，本地受限 Linux 不会复制或安装引擎。
  */
 export async function buildBusinessEngine(root: string) {
@@ -520,7 +524,8 @@ export async function buildBusinessEngine(root: string) {
     return { release, distribution };
 }
 
-/** 在线夹具沿用原 physical 测试的真实内容下载、设备会话及上传摘要核验，观察回调只在清理前读取真实证据；connectFailure
+/**
+ * 在线夹具沿用原 physical 测试的真实内容下载、设备会话及上传摘要核验，观察回调只在清理前读取真实证据；connectFailure
  * 只影响断言预期，不伪造完成清单、受控证明、报告内容或服务容量事实。
  */
 export async function onlineBusiness(
@@ -1044,7 +1049,8 @@ export async function onlineBusiness(
     }
 }
 
-/** 业务夹具在创建执行 Promise 的同一同步轮次安装完成与拒绝观察，readiness 不能单独等待而忽略提前结束或 Node 测试取消；
+/**
+ * 业务夹具在创建执行 Promise 的同一同步轮次安装完成与拒绝观察，readiness 不能单独等待而忽略提前结束或 Node 测试取消；
  * 原异常仅留在内存，固定阶段错误交给 TAP，避免私有控制内容被原始 message、c
  * ause 或堆栈片段带入日志。
  */
@@ -1091,7 +1097,8 @@ export function watchBusinessRun<T>(running: Promise<T>, signal: AbortSignal) {
     };
 }
 
-/** 诊断仅投影受信 worker 的固定阶段枚举、业务枚举与布尔事实，私有 JSON 读取先限制六万五千字节再解析；随机控制绑定、原始
+/**
+ * 诊断仅投影受信 worker 的固定阶段枚举、业务枚举与布尔事实，私有 JSON 读取先限制六万五千字节再解析；随机控制绑定、原始
  * 错误、配置正文及路径均不输出，未知代码用 OTHER 表示而不把来源字符串直接复制到日志。
  */
 export async function emitBusinessDiagnostic(
@@ -1247,7 +1254,8 @@ export async function emitBusinessDiagnostic(
     );
 }
 
-/** 主报告分类严格来自实际收集器的固定入口或交付别名，所有其他 HTML 和附件仍逐字节接受 DATA 扫描；退出观察器将扫描失败留
+/**
+ * 主报告分类严格来自实际收集器的固定入口或交付别名，所有其他 HTML 和附件仍逐字节接受 DATA 扫描；退出观察器将扫描失败留
  * 在独立粘性门禁，原进程退出事实永远不因归档解析异常变成拒绝，从而允许宿主按原始生命周期完成停止。
  */
 export function businessArtifactRole(
@@ -1259,7 +1267,8 @@ export function businessArtifactRole(
     if (path.endsWith(".zip")) return "TRACE";
     return "DATA";
 }
-/** 操作输入的来源分类必须绑定同一无链接普通文件的实际读取和前后身份，缓存不是交付豁免目录；再次使用分类时复核内容摘要和
+/**
+ * 操作输入的来源分类必须绑定同一无链接普通文件的实际读取和前后身份，缓存不是交付豁免目录；再次使用分类时复核内容摘要和
  * 元数据，任何替换或写入都使观察失败，不能沿用先前已经失效的来源判断。
  */
 async function businessInputFile(path: string) {
@@ -1299,7 +1308,8 @@ async function businessInputFile(path: string) {
     }
 }
 
-/** 扫描范围沿用真实收集器的临时目录，只把规范化配置路径对应且来源内容相等的成对编译缓存列为私有操作输入；所有目录仍继续
+/**
+ * 扫描范围沿用真实收集器的临时目录，只把规范化配置路径对应且来源内容相等的成对编译缓存列为私有操作输入；所有目录仍继续
  * 遍历，复制到报告或归档的内容与引用必须由同一检查回调拒绝，清单计数不充当交付零命中证据。
  */
 export async function visitBusinessArtifacts(
@@ -1413,7 +1423,8 @@ export async function visitBusinessArtifacts(
         for (const [name, file] of inputs) await unchanged(join(canonicalTmp, name), file);
     }
 }
-/** 异步 artifact 扫描结果独立于真实资源退出事实，观察失败只固定粘性拒绝状态而不制造新的退出拒绝；拥有者必须等待返回
+/**
+ * 异步 artifact 扫描结果独立于真实资源退出事实，观察失败只固定粘性拒绝状态而不制造新的退出拒绝；拥有者必须等待返回
  * promise 完成并检查门禁后再交付或恢复共享补丁，原始扫描异常永不进入日志或派生退出见证。
  */
 export function observeBusinessExit<T>(exited: Promise<T>, observe: () => Promise<void>) {

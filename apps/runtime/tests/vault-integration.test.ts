@@ -1,4 +1,5 @@
-/** 集成测试直接调用生产凭据消费者并读取其真实私有文件，内存后端只替代当前宿主没有的系统密钥服务；真实加密、原子发布、锁
+/**
+ * 集成测试直接调用生产凭据消费者并读取其真实私有文件，内存后端只替代当前宿主没有的系统密钥服务；真实加密、原子发布、锁
  * 和恢复均由生产代码执行，断言不能依赖夹具自行保存业务秘密。
  */
 import { test } from "node:test";
@@ -10,7 +11,8 @@ import type { VaultKeyBackend, VaultKeyScope } from "../src/credentials/backend.
 import { SecretStore } from "../src/credentials/store.ts";
 import { DeviceStore } from "../src/enrollment.ts";
 
-/** 测试后端仅保留按精确档案和版本分隔的随机密钥副本，并允许测试施加真实消费者可见的失败状态；它不会接触业务载荷或文件，
+/**
+ * 测试后端仅保留按精确档案和版本分隔的随机密钥副本，并允许测试施加真实消费者可见的失败状态；它不会接触业务载荷或文件，
  * 因而不能代替生产加密读写及错误传播的被测行为。
  */
 class MemoryKeys implements VaultKeyBackend {
@@ -139,7 +141,8 @@ test("DeviceStore and business storage share profile key while remove preserves 
         assert.equal(backend.writes, 1);
     }));
 
-/** 丢失轮换响应必须保留同一加密候选而不是生成新令牌，真实本机 HTTP 服务记录两次请求相等；磁盘检查同时覆盖旧设备与候选中
+/**
+ * 丢失轮换响应必须保留同一加密候选而不是生成新令牌，真实本机 HTTP 服务记录两次请求相等；磁盘检查同时覆盖旧设备与候选中
  * 的替换秘密，恢复后业务凭据仍须可用且候选已经退休。
  */
 test("encrypted DeviceStore rotation resumes the same request after a lost HTTP response", async () =>
@@ -198,7 +201,8 @@ test("encrypted DeviceStore rotation resumes the same request after a lost HTTP 
         }
     }));
 
-/** 业务容量仍按旧聚合 JSON 计算，接近一兆字节的真实 storageState 会产生超过一兆字节的密文；第二条短值与超额失败分别验证
+/**
+ * 业务容量仍按旧聚合 JSON 计算，接近一兆字节的真实 storageState 会产生超过一兆字节的密文；第二条短值与超额失败分别验证
  * 没有错误计入信封开销，也没有在拒绝后改变已确认的凭据。
  */
 test("large storageState keeps the original aggregate quota beyond one MiB ciphertext", async () =>
@@ -222,7 +226,8 @@ test("large storageState keeps the original aggregate quota beyond one MiB ciphe
         assert.deepEqual(await store.resolve(reference), value);
     }));
 
-/** 旧档案必须经明确停止迁移才可进入正常加密消费，测试先使用原公开接口建立真实明文，再检验拒绝、完整读回和退休；现有业务
+/**
+ * 旧档案必须经明确停止迁移才可进入正常加密消费，测试先使用原公开接口建立真实明文，再检验拒绝、完整读回和退休；现有业务
  * 及设备语义保持，迁移后新实例只能依赖系统密钥与已发布密文。
  */
 test("explicit stopped migration covers business device and rotation before retiring plaintext", async () =>
@@ -257,7 +262,8 @@ test("explicit stopped migration covers business device and rotation before reti
         assert.equal(bytes.includes(pending.replacementToken), false);
     }));
 
-/** 真实文件权限故障发生在清单已经提交后的旧记录退休阶段，测试不模拟加密或文件接口；恢复必须完成同一删除而不是假称回滚、
+/**
+ * 真实文件权限故障发生在清单已经提交后的旧记录退休阶段，测试不模拟加密或文件接口；恢复必须完成同一删除而不是假称回滚、
  * 重新运行更新函数或重新激活仍留在磁盘上的旧密文。
  */
 test("post-commit retirement failure resumes cleanup without resurrecting deleted business data", async () =>
@@ -286,7 +292,8 @@ test("post-commit retirement failure resumes cleanup without resurrecting delete
         assert.equal(backend.writes, 1);
     }));
 
-/** 活动 Agent 的真实合作锁必须阻止整个迁移事务，失败后旧明文字节保持原样；释放停止所有权后同一个显式操作才可继续，不能
+/**
+ * 活动 Agent 的真实合作锁必须阻止整个迁移事务，失败后旧明文字节保持原样；释放停止所有权后同一个显式操作才可继续，不能
  * 把短暂检查到停止状态解释为迁移期间仍拥有排他权限。
  */
 test("migration refuses active Agent ownership and preserves original bytes until release", async () =>
@@ -315,7 +322,8 @@ test("migration refuses active Agent ownership and preserves original bytes unti
         );
     }));
 
-/** 清单丢失不能使现存密文被当成空档案并生成替代密钥，测试删除当前私有清单后再次调用真实消费者；原密钥写入次数和已落盘密
+/**
+ * 清单丢失不能使现存密文被当成空档案并生成替代密钥，测试删除当前私有清单后再次调用真实消费者；原密钥写入次数和已落盘密
  * 文都必须保持，明确错误要求恢复元数据而非静默覆盖。
  */
 test("missing profile manifest with existing ciphertext refuses replacement initialization", async () =>
@@ -334,7 +342,8 @@ test("missing profile manifest with existing ciphertext refuses replacement init
             assert((await readFile(join(directory, "vault", name))).length > 0);
     }));
 
-/** 单独的 CLI 迁移必须同时排除仍持有桌面后台所有权的进程，否则在线锁空闲不能证明离线执行已经停止；真实合作锁下的拒绝必
+/**
+ * 单独的 CLI 迁移必须同时排除仍持有桌面后台所有权的进程，否则在线锁空闲不能证明离线执行已经停止；真实合作锁下的拒绝必
  * 须发生在写入密钥或退休旧明文之前，保持原字节与后端状态不变。
  */
 test("migration refuses a separately owned Desktop Agent even when the online Agent lock is free", async () =>
@@ -358,7 +367,8 @@ test("migration refuses a separately owned Desktop Agent even when the online Ag
         assert.equal(await new SecretStore(directory).resolve(reference), "desktop-owned-legacy");
     }));
 
-/** 信封文件入口必须实际容纳两兆字节但拒绝再多一个字节，一般配置入口仍保持原一兆额度；测试对已确认文件进行超额替换后核验
+/**
+ * 信封文件入口必须实际容纳两兆字节但拒绝再多一个字节，一般配置入口仍保持原一兆额度；测试对已确认文件进行超额替换后核验
  * 原字节未变，不能把 JavaScript 字符长度或配置上限当作原生能力证明。
  */
 test("vault file boundary accepts two MiB while oversized replacement and general config remain bounded", async () =>
@@ -386,7 +396,8 @@ test("vault file boundary accepts two MiB while oversized replacement and genera
         }
     }));
 
-/** 未知停止与正在恢复的离线占用即使没有活着的 Agent 锁也不能迁移，测试使用真实 SQLite 所有权转换后关闭连接再重新读取；
+/**
+ * 未知停止与正在恢复的离线占用即使没有活着的 Agent 锁也不能迁移，测试使用真实 SQLite 所有权转换后关闭连接再重新读取；
  * 拒绝发生在系统密钥创建和明文退休之前，不依据内存 Promise 或进程缺失推断停止。
  */
 test("migration refuses durable quarantined and recovering worker ownership", async () =>
@@ -426,7 +437,8 @@ test("migration refuses durable quarantined and recovering worker ownership", as
         }
     }));
 
-/** 空闲守卫必须实际阻止同进程另一 SQLite 连接和独立 OS 进程插入执行占用，测试使用原 reserve API 与原三秒忙等待；守卫释
+/**
+ * 空闲守卫必须实际阻止同进程另一 SQLite 连接和独立 OS 进程插入执行占用，测试使用原 reserve API 与原三秒忙等待；守卫释
  * 放后同一真实子程序才能登记成功，不能仅检查一个虚构锁标志。
  */
 test("idle migration guard excludes concurrent reservations across connections and OS processes", async () =>
@@ -473,7 +485,8 @@ catch(error){process.exitCode=String(error.message).includes('locked')?41:42;}fi
         assert.equal(accepted.status, 0, accepted.stderr);
     }));
 
-/** 大量短条目从真实受限旧文件一次迁移到独立认证记录，业务聚合仍小于一兆而密文总量实际超过两兆；测试核验全部引用并检查旧
+/**
+ * 大量短条目从真实受限旧文件一次迁移到独立认证记录，业务聚合仍小于一兆而密文总量实际超过两兆；测试核验全部引用并检查旧
  * 文件退休，防止把单文件信封上限误用作整个保险库容量或只覆盖单个大 storageState。
  */
 test("many short credentials preserve one MiB business quota beyond two MiB aggregate ciphertext", async () =>
@@ -514,7 +527,8 @@ test("many short credentials preserve one MiB business quota beyond two MiB aggr
         assert.equal(backend.writes, 1);
     }));
 
-/** 故障注入只包裹真实持久文件写入后的返回边界，密文、清单、日志及恢复仍执行正式实现；准备态未知失败保持旧值，发布后未知
+/**
+ * 故障注入只包裹真实持久文件写入后的返回边界，密文、清单、日志及恢复仍执行正式实现；准备态未知失败保持旧值，发布后未知
  * 失败恢复新值，两者都不得再次运行调用方回调或生成替代系统密钥。
  */
 test("interrupted staged and unconfirmed published transactions recover exact values without replay", async () =>
@@ -573,7 +587,8 @@ test("interrupted staged and unconfirmed published transactions recover exact va
         assert.equal(backend.writes, 1);
     }));
 
-/** 显式迁移在所有密文已经核验后遇到第二个明文成员退休错误，必须保留 verified 日志和仍未删除的原字节；正常消费者继续要求
+/**
+ * 显式迁移在所有密文已经核验后遇到第二个明文成员退休错误，必须保留 verified 日志和仍未删除的原字节；正常消费者继续要求
  * 迁移，随后恢复只退休剩余固定成员，不重新写入主密钥或丢失已发布业务与设备数据。
  */
 test("partial plaintext retirement remains explicit and resumes verified migration", async () =>
@@ -631,7 +646,8 @@ test("partial plaintext retirement remains explicit and resumes verified migrati
         assert.equal(backend.writes, 1);
     }));
 
-/** 初始化中断且系统确实没有原版本密钥时，只有显式恢复才可建立新版本，并保持同一档案身份；原意图与精确退休事实必须留在非
+/**
+ * 初始化中断且系统确实没有原版本密钥时，只有显式恢复才可建立新版本，并保持同一档案身份；原意图与精确退休事实必须留在非
  * 秘密日志，普通消费者重复访问不能自动生成新密钥或覆盖已发布凭据。
  */
 test("explicit empty initialization recovery changes only missing key version and preserves intent", async () =>
@@ -673,7 +689,8 @@ test("explicit empty initialization recovery changes only missing key version an
         assert.equal(backend.writes, 2);
     }));
 
-/** 活动档案缺钥、系统锁定和残留密文不是空初始化，显式恢复也必须拒绝而保留现有索引与秘密文件；该测试直接操作自有测试后端
+/**
+ * 活动档案缺钥、系统锁定和残留密文不是空初始化，显式恢复也必须拒绝而保留现有索引与秘密文件；该测试直接操作自有测试后端
  * 或文件制造这些状态，拒绝路径不得创建替代密钥或退休旧版本。
  */
 test("initialization recovery refuses active missing keys locked vaults and residual ciphertext", async () =>
@@ -709,7 +726,8 @@ test("initialization recovery refuses active missing keys locked vaults and resi
         assert.equal(backend.writes, 1);
     }));
 
-/** 新版本系统写入后旧版本才迟到时，恢复只清理同一显式日志中校验值匹配的旧钥；删除返回不确定会保留 pending 并阻断正常消
+/**
+ * 新版本系统写入后旧版本才迟到时，恢复只清理同一显式日志中校验值匹配的旧钥；删除返回不确定会保留 pending 并阻断正常消
  * 费者，再次显式恢复只确认原版本缺失，不重放新钥写入或更换已验证的新版本。
  */
 test("initialization retirement uncertainty preserves exact late key cleanup without rewriting replacement", async () =>
@@ -767,7 +785,8 @@ test("initialization retirement uncertainty preserves exact late key cleanup wit
         }
     }));
 
-/** 恢复意图已经落盘而下一清单发布未执行时，重启必须保留两个确切旧意图并另建未激活版本，不能复用已丢失随机密钥的摘要；测
+/**
+ * 恢复意图已经落盘而下一清单发布未执行时，重启必须保留两个确切旧意图并另建未激活版本，不能复用已丢失随机密钥的摘要；测
  * 试在真实日志写回后注入中断，最后核验每个退休范围与唯一可用系统密钥。
  */
 test("initialization recovery resumes a durable intent interrupted before manifest publication", async () =>

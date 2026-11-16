@@ -111,7 +111,9 @@ export async function responseData(
             body = JSON.parse(text) as JsonValue;
             bodyKind = "json";
         } catch {
-            /* Non-JSON remains evidence, never a JSON null. */
+            /*
+             * Non-JSON remains evidence, never a JSON null.
+             */
         }
     }
     return {
@@ -131,7 +133,9 @@ export function requestData(request: Request): Exchange["request"] {
         try {
             body = JSON.parse(body) as JsonValue;
         } catch {
-            /* Preserve non-JSON body. */
+            /*
+             * 请求正文解析失败时保留原始字符串，避免将非 JSON 请求体错误归类为缺失正文或 JSON 空值。
+             */
         }
     }
     return {

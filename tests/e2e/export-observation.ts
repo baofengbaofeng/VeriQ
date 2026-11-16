@@ -3,7 +3,8 @@ import { _electron } from "../../apps/desktop/tests/fixtures";
 type Desktop = Awaited<ReturnType<typeof _electron.launch>>;
 type DesktopPage = Awaited<ReturnType<Desktop["firstWindow"]>>;
 
-/** 导出诊断只观察当前测试空间的普通会话请求和真实按钮事件，不读请求正文、认证头、下载地址或业务响应；
+/**
+ * 导出诊断只观察当前测试空间的普通会话请求和真实按钮事件，不读请求正文、认证头、下载地址或业务响应；
  * 每类记录都有数量上限，原键盘动作、请求预算和成功断言继续由调用方执行。
  */
 export async function observeExport(electron: Desktop, page: DesktopPage, endpoint: string) {
@@ -110,7 +111,8 @@ export async function observeExport(electron: Desktop, page: DesktopPage, endpoi
     };
     return {
         snapshot,
-        /** 当前测试独占这四个原本未使用的宿主事件槽，结束时只撤销本次注册的槽和精确 DOM/console 回调；
+        /**
+         * 当前测试独占这四个原本未使用的宿主事件槽，结束时只撤销本次注册的槽和精确 DOM/console 回调；
          * 未来若生产新增同类监听，须先迁移诊断，不能覆盖已有监听来获取证据。
          */
         async dispose() {

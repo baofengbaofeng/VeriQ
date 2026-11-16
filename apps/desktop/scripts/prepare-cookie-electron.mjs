@@ -1,4 +1,5 @@
-/** Cookie 验收仅修改本次工作区新建的独立 Electron 副本，绝不原位修改 pnpm 硬链接或下载缓存；成熟 fuse 工具逐字节读回后
+/**
+ * Cookie 验收仅修改本次工作区新建的独立 Electron 副本，绝不原位修改 pnpm 硬链接或下载缓存；成熟 fuse 工具逐字节读回后
  * 记录原始与修改后的身份，目标策略与测试随后必须使用这个固定副本，不能把源包默认值当
  * 作产品保护。
  */
@@ -28,7 +29,8 @@ try {
 }
 const disk = await statfs(root, { bigint: true });
 if (disk.bavail * disk.bsize < 2147483648n) throw new Error("COOKIE_COPY_DISK_RESERVE_REQUIRED");
-/** 官方归档使用已锁 Electron 包附带的校验和与成熟下载器核验，缓存命中也需读回真实摘要；固定官方 URL 不继承镜像重定向配
+/**
+ * 官方归档使用已锁 Electron 包附带的校验和与成熟下载器核验，缓存命中也需读回真实摘要；固定官方 URL 不继承镜像重定向配
  * 置，只有目标 CI 会执行此处，记录实际载荷大小而非把压缩估计当作磁盘预算。
  */
 const electronRequire = createRequire(join(packageRoot, "package.json"));

@@ -1,4 +1,5 @@
-/** 资源页：Workspace 下列表、创建、草稿编辑、校验作业轮询与发布；可被桌面复用编辑器视图。归档资源默认只读；桌面宿主可嵌
+/**
+ * 资源页：Workspace 下列表、创建、草稿编辑、校验作业轮询与发布；可被桌面复用编辑器视图。归档资源默认只读；桌面宿主可嵌
  * 入同一编辑器且归档资源只读。
  * CloudResourceAdapter(selected)；桌面可注入 LocalResourceAdapter。
  */
@@ -68,7 +69,8 @@ function useLifetime(parent?: AbortSignal) {
     useEffect(() => () => controller.abort(), [controller]);
     return signal;
 }
-/** 按 kind 过滤入口（默认全部资源）；挂载工作区选择后渲染 ResourceWorkspaceView。environments 路由传入固定 kind。环境页
+/**
+ * 按 kind 过滤入口（默认全部资源）；挂载工作区选择后渲染 ResourceWorkspaceView。environments 路由传入固定 kind。环境页
  * 可传入固定 kind=ENVIRONMENT 复用同一套列表逻辑。
  */
 export function ResourcePage({
@@ -90,7 +92,8 @@ export function ResourcePage({
         enabled: !!user,
     });
     const items = workspaces.data?.pages.flatMap((p) => p.items) ?? [];
-    /** 默认空间只取首项标识并仅在尚未选择时写入，使真实列表刷新产生的新数组不会覆盖用户已经选择的空间；即使当前列表暂时
+    /**
+     * 默认空间只取首项标识并仅在尚未选择时写入，使真实列表刷新产生的新数组不会覆盖用户已经选择的空间；即使当前列表暂时
      * 未包含该选择，也保留现有作用域交接规则。
      */
     const firstWorkspaceId = items[0]?.id;
@@ -167,7 +170,8 @@ function CloudWorkspace({
         </>
     );
 }
-/** 拥有资源表、创建表单与当前编辑目标；表格 data 引用保持稳定以免 TanStack 重置环。创建成功后选中新资源；创建成功后立刻
+/**
+ * 拥有资源表、创建表单与当前编辑目标；表格 data 引用保持稳定以免 TanStack 重置环。创建成功后选中新资源；创建成功后立刻
  * 把表格选中项切到新资源。选中后打开 ResourceEditorView；错误态用
  * ErrorState+retry。
  */
@@ -408,7 +412,8 @@ function DraftLoader(props: {
     if (draft.error) return <ErrorState error={draft.error} retry={() => void draft.refetch()} />;
     return <ResourceEditorView {...props} signal={signal} initial={draft.data} />;
 }
-/** 单资源编辑器：草稿 RHF、JSON/表单切换、校验/发布、版本差异与生成源码只读查看。脏草稿阻断校验与发布按钮；存在未保存脏
+/**
+ * 单资源编辑器：草稿 RHF、JSON/表单切换、校验/发布、版本差异与生成源码只读查看。脏草稿阻断校验与发布按钮；存在未保存脏
  * 草稿时禁用校验与发布按钮。
  * 依赖 ResourceAdapter；AI 页也可嵌入此视图作为只读或可写宿主。
  */

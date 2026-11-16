@@ -52,7 +52,8 @@ test("reports show real Workspace history and clear scope on switch", async ({ p
     ).toBeVisible();
 });
 
-/** 工作区选择回归只创建真实账户空间并读取真实游标分页，不构造 Run、Attempt 或报告数据；因此它能覆盖 URL 与手动选择，却
+/**
+ * 工作区选择回归只创建真实账户空间并读取真实游标分页，不构造 Run、Attempt 或报告数据；因此它能覆盖 URL 与手动选择，却
  * 不能代替受管理引擎产生的订阅和历史验收。
  */
 async function reportSession(page: Page) {

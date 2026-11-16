@@ -7,7 +7,8 @@ import { fork } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { offlineWorkerEnvironment } from "../src/offline/worker-environment.ts";
 
-/** 本例实际启动既有 worker 并提供带空格与中文路径的 npm JavaScript 入口，检查它通过当前角色 Node 执行而不误用系统 shell
+/**
+ * 本例实际启动既有 worker 并提供带空格与中文路径的 npm JavaScript 入口，检查它通过当前角色 Node 执行而不误用系统 shell
  * 或相邻 npm 脚本；随后缺失编译归档应停在提取阶段。
  */
 test("worker executes the supplied npm JavaScript with its role Node", async () => {
@@ -49,7 +50,8 @@ test("worker executes the supplied npm JavaScript with its role Node", async () 
     }
 });
 
-/** Windows 环境构造在任何开发宿主上都可验证纯路径和白名单规则，真正系统进程及 ACL 验收仍属于后续目标机器；该检查防止复
+/**
+ * Windows 环境构造在任何开发宿主上都可验证纯路径和白名单规则，真正系统进程及 ACL 验收仍属于后续目标机器；该检查防止复
  * 用 Linux 冒号 PATH 或复制设备令牌到业务子进程。
  */
 test("Windows worker environment uses bounded native paths without host secrets", () => {
@@ -77,7 +79,8 @@ test("Windows worker environment uses bounded native paths without host secrets"
     );
 });
 
-/** 受控 Worker 夹具仅提供几字节 npm、编译桥与归档，实际入口仍运行受审 worker 和新命令所有者；父进程保留两份普通私有 FD
+/**
+ * 受控 Worker 夹具仅提供几字节 npm、编译桥与归档，实际入口仍运行受审 worker 和新命令所有者；父进程保留两份普通私有 FD
  * ，始终等外层真实退出再读取及关闭日志。
  */
 async function controlledWorker(
@@ -203,7 +206,8 @@ async function controlledWorker(
     }
 }
 
-/** 真实 CLI 正常业务失败必须保留失败码一且正常封存三命令，异常七十三则写固定管理故障并禁止 SEAL；这区分业务结果与观察完
+/**
+ * 真实 CLI 正常业务失败必须保留失败码一且正常封存三命令，异常七十三则写固定管理故障并禁止 SEAL；这区分业务结果与观察完
  * 整性，不能继续用空 catch 隐藏 CLI 异常。
  */
 test("controlled worker distinguishes CLI business failure from management fault", async () => {
@@ -231,7 +235,8 @@ test("controlled worker distinguishes CLI business failure from management fault
     );
 });
 
-/** 可信取消可以先于 START 到达，Worker 先关闭本代准入才 ACK 并在 START 后封存空前缀；ACK 只证明控制请求被接受，最终日志
+/**
+ * 可信取消可以先于 START 到达，Worker 先关闭本代准入才 ACK 并在 START 后封存空前缀；ACK 只证明控制请求被接受，最终日志
  * 仍须等外层实际退出后由父侧验证。
  */
 test("controlled worker accepts generation-bound cancellation before START", async () => {
@@ -292,7 +297,8 @@ test("Darwin component fixture keeps cancellation ACK separate from START releas
     );
 });
 
-/** 桌面 staging 在隔离的小目录中复制真实源码并计算摘要，两个目标均用普通 Node 加载所有者并激活真实 preload；此测试不安
+/**
+ * 桌面 staging 在隔离的小目录中复制真实源码并计算摘要，两个目标均用普通 Node 加载所有者并激活真实 preload；此测试不安
  * 装依赖、不使用 checkout TypeScript loader 或展开发行引擎。
  */
 test("desktop stages and hashes the complete ordinary Node command closure twice", async () => {
@@ -376,7 +382,8 @@ test("desktop stages and hashes the complete ordinary Node command closure twice
     }
 });
 
-/** 期限注入只在真实 Worker 的测试 preload 中缩短调度并暂扣同一子对象的 KILL，管理超时通知后外层必须仍等待实际 exit；释
+/**
+ * 期限注入只在真实 Worker 的测试 preload 中缩短调度并暂扣同一子对象的 KILL，管理超时通知后外层必须仍等待实际 exit；释
  * 放屏障才发送真实 KILL，避免以 timeout promise 冒充退出。
  */
 test("controlled worker waits for actual command exit after timeout observation fails", async () => {

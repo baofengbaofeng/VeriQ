@@ -1,4 +1,6 @@
-/** Test-only real UI/API/CLI helpers; never a production compiler or receipt writer. */
+/**
+ * Test-only real UI/API/CLI helpers; never a production compiler or receipt writer.
+ */
 import { spawn } from "node:child_process";
 import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";

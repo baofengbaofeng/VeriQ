@@ -1,4 +1,5 @@
-/** 用例/流程步骤编辑器：动作参数、观察者、前后断言与数据集/变量绑定。callFlow 只引用已发布流程版本；callFlow 动作只允许
+/**
+ * 用例/流程步骤编辑器：动作参数、观察者、前后断言与数据集/变量绑定。callFlow 只引用已发布流程版本；callFlow 动作只允许
  * 引用已发布的流程版本。
  * flow=true 时编辑参数声明而非 caseKey；版本引用保持固定 UUID。
  */
@@ -48,7 +49,8 @@ const actionDefaults = (action: string) =>
                   : action === "callFlow"
                     ? { versionId: "" }
                     : {};
-/** 工厂：默认 goto / 的步骤，id 含短 UUID，供步骤 List 新增行。后续由 action 切换填充默认参数。actionDefaults 在类型切
+/**
+ * 工厂：默认 goto / 的步骤，id 含短 UUID，供步骤 List 新增行。后续由 action 切换填充默认参数。actionDefaults 在类型切
  * 换时填充，避免缺字段导致保存失败。
  */
 export const newStep = (): StepV1 => ({
@@ -56,7 +58,8 @@ export const newStep = (): StepV1 => ({
     action: "goto",
     path: "/",
 });
-/** 拥有 steps/initialVariables/dataset 绑定 UI，并嵌入 AssertionEditor。fixtureBindings 合并数据集列与变量供填充提示；
+/**
+ * 拥有 steps/initialVariables/dataset 绑定 UI，并嵌入 AssertionEditor。fixtureBindings 合并数据集列与变量供填充提示；
  * 不发起 Workspace API。
  */
 export function CaseEditor({

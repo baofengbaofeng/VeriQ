@@ -6,27 +6,31 @@ import { fileURLToPath } from "node:url";
 import { trackObservedCli } from "./controlled-child.ts";
 import type { ObserverBinding } from "./controlled-child-protocol.mjs";
 
-/** 能力探针必须执行调用者指定的发行 Node 而不是只匹配版本文本，所有临时普通文件在调用者允许的目录下独立创建；
+/**
+ * 能力探针必须执行调用者指定的发行 Node 而不是只匹配版本文本，所有临时普通文件在调用者允许的目录下独立创建；
  * 失败后仍持有真实句柄清理且不改变 doctor 或平台 ready。
  */
 export interface ControlledChildCapabilityOptions {
     nodeExecutable: string;
     temporaryDirectory: string;
     timeoutMs?: number;
-    /** 安装路径由完整库存核验后的可信工厂提供，源码宿主仍使用模块相邻的固定 preload；此选项只定位同一观察器源码，
+    /**
+     * 安装路径由完整库存核验后的可信工厂提供，源码宿主仍使用模块相邻的固定 preload；此选项只定位同一观察器源码，
      * 不允许通过业务输入替换观察协议或关闭探针失败门禁。
      */
     preloadPath?: string;
 }
 
-/** 支持结果只说明本次具体 Node 实际通过公开通道、fork 继承与同步退出闸门探针，不是 macOS 真机认证或停止证明；
+/**
+ * 支持结果只说明本次具体 Node 实际通过公开通道、fork 继承与同步退出闸门探针，不是 macOS 真机认证或停止证明；
  * 失败只报告固定英文原因而不转储原始错误和执行环境。
  */
 export type ControlledChildCapability =
     | { supported: true; nodeVersion: string; coverage: "DIRECT_ASYNC_CHILDREN" }
     | { supported: false; reason: string };
 
-/** 自检在原生 --import CLI 中确认构造回调先于 spawn 返回并收到同对象 exit，再以真实 fork 检查被动继承和无日志描述符，
+/**
+ * 自检在原生 --import CLI 中确认构造回调先于 spawn 返回并收到同对象 exit，再以真实 fork 检查被动继承和无日志描述符，
  * 最后单独确认 seal 后构造即使 FD 关闭仍同步退出七十三。
  */
 export async function runControlledChildCapability(

@@ -1,4 +1,5 @@
-/** 由 generate-operations.mjs 根据明确的桌面白名单和 OpenAPI 自动生成，业务请求类型只允许固定操作
+/**
+ * 由 generate-operations.mjs 根据明确的桌面白名单和 OpenAPI 自动生成，业务请求类型只允许固定操作
  * 与契约正文；请修改生成器并重新生成，禁止直接扩张宿主权限。
  */
 import type { PlatformComponents } from "@veriq/contracts";

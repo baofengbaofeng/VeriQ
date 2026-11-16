@@ -1,4 +1,6 @@
-/** Test-only bridge: real host APIs, with control physically stopped during execute. */
+/**
+ * Test-only bridge: real host APIs, with control physically stopped during execute.
+ */
 import assert from "node:assert/strict";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";

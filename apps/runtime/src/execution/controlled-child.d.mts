@@ -1,7 +1,8 @@
 import type { ChildProcess } from "node:child_process";
 import type { ObservedObject, ObserverBinding } from "./controlled-child-protocol.mjs";
 
-/** VeriQ 的父侧接口只承认本次实际 ChildProcess 的退出观察，借入 FD 不转移所有权；超时、error 和迟到注册都保持失败，
+/**
+ * VeriQ 的父侧接口只承认本次实际 ChildProcess 的退出观察，借入 FD 不转移所有权；超时、error 和迟到注册都保持失败，
  * 调用者仍必须清理并等待真实退出后关闭描述符。
  */
 export interface ObservedCliOptions {
@@ -60,15 +61,18 @@ export type ControlledChildResult =
  * CONTROLLED_CHILD_CANCELLATION_REJECTED。
  */
 export function trackObservedCli(child: ChildProcess, options: ObservedCliOptions): {
-    /** 退出观察区分真实 exit 与超时或 error 等失败，借入描述符仍由调用方在实际退出后关闭；消费者不得把 promise
+    /**
+     * 退出观察区分真实 exit 与超时或 error 等失败，借入描述符仍由调用方在实际退出后关闭；消费者不得把 promise
      * 已完成直接解释为可释放进程容量的证明。
      */
     exited: Promise<CliExitObservation>;
-    /** 最终核验等待本次观察结果后定位读取同一普通文件并检查完整封存，缓存的结果不会因重复调用或输入对象后续改变而重新赋
+    /**
+     * 最终核验等待本次观察结果后定位读取同一普通文件并检查完整封存，缓存的结果不会因重复调用或输入对象后续改变而重新赋
      * 予取消权限或改写绑定身份。
      */
     verifyFinal(): Promise<ControlledChildResult>;
-    /** 启动后的取消授权只接受当前快照身份并在真实 exit 监听中同步关闭，尚存活时相同有效绑定可幂等调用；
+    /**
+     * 启动后的取消授权只接受当前快照身份并在真实 exit 监听中同步关闭，尚存活时相同有效绑定可幂等调用；
      * 失败调用不增加权限，也不发送终止信号或关闭借入描述符。
      */
     authorizeCancellation(binding: ObserverBinding): void;

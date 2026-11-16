@@ -1,4 +1,5 @@
-/** 在线历史守卫测试使用生产原生守护和真实持久排空证明，迁移只能观察已有停止事实而不能发送停止请求；内存密钥后端仅隔离当
+/**
+ * 在线历史守卫测试使用生产原生守护和真实持久排空证明，迁移只能观察已有停止事实而不能发送停止请求；内存密钥后端仅隔离当
  * 前主机没有的系统服务，历史内容和业务进程始终由真实代码创建。
  */
 import { test } from "node:test";
@@ -166,7 +167,8 @@ test("migration accepts valid pre-spawn history but rejects a process orphan and
         await assert.rejects(profile.migrate(), /VAULT_RUNTIME_RECOVERY_REQUIRED/);
     }));
 
-/** 文件边界用有限真实私有成员验证严格解析和扫描上限，不依赖源字符串或伪造操作系统结果；过大记录、未知成员和身份错配都必
+/**
+ * 文件边界用有限真实私有成员验证严格解析和扫描上限，不依赖源字符串或伪造操作系统结果；过大记录、未知成员和身份错配都必
  * 须让迁移保持拒绝，已有有效历史字节不因观察失败而被修复或丢弃。
  */
 test("history observation rejects oversized records, mismatched identity and unknown members", async () =>

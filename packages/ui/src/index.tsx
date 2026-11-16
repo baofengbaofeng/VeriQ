@@ -15,7 +15,9 @@ const button = cva("vq-button", {
     },
     defaultVariants: { tone: "primary" },
 });
-/** 公开组件 Button 提供 primary/secondary/danger 语气的按钮基元：默认 type=button。样式由 cva 变体生成。 */
+/**
+ * 公开组件 Button 提供 primary/secondary/danger 语气的按钮基元：默认 type=button。样式由 cva 变体生成。
+ */
 export const Button = forwardRef<
     HTMLButtonElement,
     ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -24,7 +26,8 @@ export const Button = forwardRef<
 >(({ tone, className, type = "button", ...props }, ref) => (
     <button ref={ref} type={type} className={button({ tone, className })} {...props} />
 ));
-/** 共享确认对话框保留 Radix 的焦点管理与键盘关闭语义，调用方可按当前语言提供按钮文案，未指定时沿用既有双语默认值，
+/**
+ * 共享确认对话框保留 Radix 的焦点管理与键盘关闭语义，调用方可按当前语言提供按钮文案，未指定时沿用既有双语默认值，
  * 避免桌面旧入口因语言接入而改变确认动作或丢失取消路径。
  */
 export function ConfirmDialog({

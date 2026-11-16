@@ -5,7 +5,8 @@ import { readBoundedRegularFile } from "../src/installation/bounded-file.ts";
 import { parseDesktopRelease } from "../src/installation/release.ts";
 import { verifyUpdateEnvelope } from "../src/main/update.ts";
 
-/** 发布者必须显式提供已经保管的 Ed25519 私钥与经过审核的更新正文，本命令只产生标准签名封套而不申请密钥、证书或发布权限
+/**
+ * 发布者必须显式提供已经保管的 Ed25519 私钥与经过审核的更新正文，本命令只产生标准签名封套而不申请密钥、证书或发布权限
  * ；正文仍通过当前发行公钥和全部目标兼容约束，不能签出 GUI 自己不会接受的更新策略。私钥从独立绝对路径读取，
  * 不通过 argv、日志或生成物回显任何密钥内容。POSIX 私钥必须属于当前用户并禁止组和其它用户访问，链接与多硬链接均拒绝。
  * Windows 私钥访问依赖原生发布账户 ACL，正式密钥操作前仍须独立完成该环境审查。输出只允许新文件，

@@ -149,7 +149,7 @@ class ServiceAccountAPI(API):
                     result = account_dto(account)
                 else:
                     token = await session.get(ServiceToken, token_id)
-                    # 令牌必须归属当前服务账号，防止跨账号吊销。
+                    # 待撤销令牌须归属当前服务账号，未匹配时统一返回不存在，防止同一空间的管理操作跨账号吊销令牌。
                     if not token or token.service_account_id != account.id:
                         raise Problem(404, "SERVICE_TOKEN_NOT_FOUND", "Service token not found")
                     token.revoked_at = now()

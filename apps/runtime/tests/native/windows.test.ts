@@ -14,13 +14,15 @@ import { windowsNative } from "../../src/native/windows.ts";
 import { expectedPipeResponse } from "../support/pipe-response.ts";
 import { withWindowsOwnership } from "../support/windows-ownership.ts";
 
-/** 本文件只由真实 Windows 原生验证任务执行，错误平台直接失败而不跳过；首轮在现有 Linux 专用实现上观察行为失败，随后同一
+/**
+ * 本文件只由真实 Windows 原生验证任务执行，错误平台直接失败而不跳过；首轮在现有 Linux 专用实现上观察行为失败，随后同一
  * 用例必须通过实际 Job 与私有管道实现，不能用编译成功代替。
  */
 assert.equal(process.platform, "win32", "Native Windows acceptance requires Windows");
 const addonPath = fileURLToPath(new URL("../../build/Release/veriq_native.node", import.meta.url));
 
-/** 清理阶段只等待有限时间并保留原始断言与清理异常，超时并不代表底层资源已经释放；无法证明停止时必须留下该测试的私有目录
+/**
+ * 清理阶段只等待有限时间并保留原始断言与清理异常，超时并不代表底层资源已经释放；无法证明停止时必须留下该测试的私有目录
  * ，由目标任务日志记录位置而不能删除日志伪装排空成功。
  */
 async function boundedCleanup<T>(operation: () => Promise<T>): Promise<T> {
@@ -37,7 +39,8 @@ async function boundedCleanup<T>(operation: () => Promise<T>): Promise<T> {
     }
 }
 
-/** 真实角色 Node 副本必须在 Job 分配完成后运行，并把 Unicode、空格和引号参数原样传给业务代码；停止回执只能在根进程与实
+/**
+ * 真实角色 Node 副本必须在 Job 分配完成后运行，并把 Unicode、空格和引号参数原样传给业务代码；停止回执只能在根进程与实
  * 际派生后代都退出后成功，不能仅依赖当前 PID 或进程标题。
  */
 test("Windows guardian contains renamed role Node and drains its detached descendant", async (context) => {
@@ -109,7 +112,8 @@ test("Windows guardian contains renamed role Node and drains its detached descen
     }
 });
 
-/** 已启动业务持续处理磁盘挑战并返回新值，用真实工作进度证明错误 nonce 的拒绝不能关闭守护控制流；测试恢复原始日志后才请
+/**
+ * 已启动业务持续处理磁盘挑战并返回新值，用真实工作进度证明错误 nonce 的拒绝不能关闭守护控制流；测试恢复原始日志后才请
  * 求合法排空，所有失败和未知清理均保留原始证据目录。
  */
 test("Windows denied stop preserves worker progress until authentic ownership is restored", async (context) => {
@@ -207,7 +211,8 @@ test("Windows denied stop preserves worker progress until authentic ownership is
     }
 });
 
-/** 角色 Agent 在没有相邻 node.exe 的独立目录中实际装载同一个 Node-API 模块，验证 node-gyp 延迟加载钩子能解析重命名宿主
+/**
+ * 角色 Agent 在没有相邻 node.exe 的独立目录中实际装载同一个 Node-API 模块，验证 node-gyp 延迟加载钩子能解析重命名宿主
  * 导出；测试工具设置真实进程超时，结果不能由原始 Node 宿主代跑。
  */
 test("Windows Node-API loads under the isolated renamed Agent executable", async () => {
@@ -234,7 +239,8 @@ test("Windows Node-API loads under the isolated renamed Agent executable", async
     }
 });
 
-/** 当前用户通过真实本机管道发送原始 UTF8 字节，只有正确 nonce 的有限请求可以到达业务处理器；接收测试不引入 TCP 替代通道
+/**
+ * 当前用户通过真实本机管道发送原始 UTF8 字节，只有正确 nonce 的有限请求可以到达业务处理器；接收测试不引入 TCP 替代通道
  * ，关闭时等待实际监听与连接资源释放后再清理私有目录。
  */
 test("Windows private broker serves a bounded Unicode request through a named pipe", async (context) => {
@@ -309,7 +315,8 @@ test("Windows private broker serves a bounded Unicode request through a named pi
     }
 });
 
-/** 原生测试服务在收到请求后不写任何响应就关闭私有管道，实际 Windows 客户端必须把帧前 EPIPE 保留为失败；此用例使用独立随
+/**
+ * 原生测试服务在收到请求后不写任何响应就关闭私有管道，实际 Windows 客户端必须把帧前 EPIPE 保留为失败；此用例使用独立随
  * 机端点且不发送凭证，验证完整帧修正没有变成无条件忽略断开错误。
  */
 test("Windows raw client rejects a native forced disconnect before any response frame", async (context) => {
@@ -329,7 +336,8 @@ test("Windows raw client rejects a native forced disconnect before any response 
     }
 });
 
-/** 服务已经返回完整帧后关闭仍须释放真实管道实例，即使 JavaScript 保留旧服务器和回复函数也不能占用端点；新服务器必须重新
+/**
+ * 服务已经返回完整帧后关闭仍须释放真实管道实例，即使 JavaScript 保留旧服务器和回复函数也不能占用端点；新服务器必须重新
  * 取得首实例并成功响应，证明关闭完成不是仅设置内存标志或断开连接。
  */
 test("Windows private pipe close releases the endpoint while old callbacks remain reachable", async (context) => {
@@ -377,7 +385,8 @@ test("Windows private pipe close releases the endpoint while old callbacks remai
     }
 });
 
-/** 日志中的守护 PID 指向已经真实退出且经原生查询证实未运行的测试进程时，负回执不能关闭实际活跃守护的控制流；内核可以保
+/**
+ * 日志中的守护 PID 指向已经真实退出且经原生查询证实未运行的测试进程时，负回执不能关闭实际活跃守护的控制流；内核可以保
  * 留已退出进程对象，业务持续进度与原始日志排空才是这里需要核验的事实。
  */
 test("Windows nonrunning journal guardian cannot close the actual live guardian", async (context) => {
@@ -409,7 +418,8 @@ test("Windows nonrunning journal guardian cannot close the actual live guardian"
     });
 });
 
-/** 工作进程创建时间发生合法十进制篡改时，守护身份仍然真实也不足以授权停止该 Attempt；必须先核验完整拥有关系再发送信号，
+/**
+ * 工作进程创建时间发生合法十进制篡改时，守护身份仍然真实也不足以授权停止该 Attempt；必须先核验完整拥有关系再发送信号，
  * 测试通过拒绝后的持续新进度验证业务没有被误停。
  */
 test("Windows changed worker creation time cannot authorize stopping its live job", async (context) => {
@@ -429,7 +439,8 @@ test("Windows changed worker creation time cannot authorize stopping its live jo
     });
 });
 
-/** 两个真实 Attempt 的 nonce 与守护身份不能交叉拼接成停止权限，来自第二个日志的有效 nonce 不得影响任一业务树；两个工作
+/**
+ * 两个真实 Attempt 的 nonce 与守护身份不能交叉拼接成停止权限，来自第二个日志的有效 nonce 不得影响任一业务树；两个工作
  * 进程分别接受新挑战并独立报告进度，清理恢复各自精确原始日志。
  */
 test("Windows guardian identity and another attempt nonce cannot stop either job", async (context) => {

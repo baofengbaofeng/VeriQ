@@ -70,7 +70,7 @@ class BundleAPI(API):
                 )
                 query = select(Bundle).where(Bundle.workspace_id == workspace_id)
                 _, membership = await WorkspaceRepository(session, scope).authorize(user)
-                # 非 OWNER/ADMIN/EDITOR 不得枚举含草稿内容的 Bundle。
+                # 仅 OWNER/ADMIN/EDITOR 可枚举含草稿内容的 Bundle，其他角色查询时追加过滤条件，避免列表泄露未发布资产。
                 if membership.role not in {"OWNER", "ADMIN", "EDITOR"}:
                     query = query.where(Bundle.contains_draft.is_(False))
                 if page.last:
@@ -142,7 +142,7 @@ class NativeBundleAPI(DeviceAPI):
             if self.action == "issuer-trust":
                 self.respond(Issuer(self.config.bundle_issuer_path).public())
                 return
-            # 必须是用户拥有的 Runtime，且绑定 Workspace 与路径一致。
+            # 下载要求 Runtime 具有明确所有者，且绑定 Workspace 与请求路径一致，避免设备绑定被用于跨空间读取离线包。
             if workspace_id != binding.workspace_id or not runtime.owner_user_id:
                 raise Problem(403, "WORKSPACE_FORBIDDEN", "User-owned Workspace binding required")
             user = await session.get(User, runtime.owner_user_id)

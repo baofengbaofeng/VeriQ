@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { resolveOperation } from "../src/main/policy.ts";
 
-/** 正常登录与资源查询必须映射到宿主拥有的固定路径，本组断言同时证明白名单提供实际业务能力，避免全部拒绝的空实现被当成通
+/**
+ * 正常登录与资源查询必须映射到宿主拥有的固定路径，本组断言同时证明白名单提供实际业务能力，避免全部拒绝的空实现被当成通
  * 过安全验收的实现。
  */
 test("login maps to its fixed ordinary-session route", () => {
@@ -31,7 +32,8 @@ test("resource reads bind the selected workspace", () => {
     });
 });
 
-/** 来自渲染进程的同形恶意输入不得突破固定业务操作集合，未知字段和跨工作区请求均必须在网络发送前失败，而不是交给远端错误
+/**
+ * 来自渲染进程的同形恶意输入不得突破固定业务操作集合，未知字段和跨工作区请求均必须在网络发送前失败，而不是交给远端错误
  * 偶然阻止越权。
  */
 test("arbitrary transport fields and device-token operations are rejected", () => {

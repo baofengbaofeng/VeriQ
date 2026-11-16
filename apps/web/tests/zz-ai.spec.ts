@@ -320,7 +320,8 @@ test("fix1 existing CASE review increments only its draft and rejects a stale re
     }
 });
 
-/** 真实列表中的必要记录必须经过存在性检查后才能参与默认选择和预算断言；缺少记录立即使测试失败，避免以非空断言隐藏准备失
+/**
+ * 真实列表中的必要记录必须经过存在性检查后才能参与默认选择和预算断言；缺少记录立即使测试失败，避免以非空断言隐藏准备失
  * 败或给新增回归引入静态诊断。
  */
 function aiEffectItem<T>(items: readonly T[] | undefined, index = 0): T {
@@ -329,7 +330,8 @@ function aiEffectItem<T>(items: readonly T[] | undefined, index = 0): T {
     return item;
 }
 
-/** VeriQ 的 AI 钩子回归从真实登录后的空选中作用域开始，通过服务端创建独立空间与启用的回环 Provider，避免编辑器夹具提前
+/**
+ * VeriQ 的 AI 钩子回归从真实登录后的空选中作用域开始，通过服务端创建独立空间与启用的回环 Provider，避免编辑器夹具提前
  * 选择空间而掩盖默认选择错误。
  */
 async function aiEffectScope(page: Page) {
@@ -352,7 +354,8 @@ async function aiEffectScope(page: Page) {
     return { headers, alpha: aiEffectItem(workspaces), beta: aiEffectItem(workspaces, 1) };
 }
 
-/** 每个测试 Provider 都经过真实权限、密钥加密与预算验证，唯一允许的模型目标是文件级 HTTP 夹具；不同预算使断言能够识别实
+/**
+ * 每个测试 Provider 都经过真实权限、密钥加密与预算验证，唯一允许的模型目标是文件级 HTTP 夹具；不同预算使断言能够识别实
  * 际被选中的 Provider 状态而非浏览器默认选项。
  */
 async function aiEffectProvider(
@@ -381,7 +384,8 @@ async function aiEffectProvider(
     return (await response.json()).data as PlatformComponents["schemas"]["ProviderDTO"];
 }
 
-/** 作用域完成以三个真实列表响应为依据，所有等待都在导航或选择事件之前安装；返回服务端数据供空空间断言使用，不拦截或伪造
+/**
+ * 作用域完成以三个真实列表响应为依据，所有等待都在导航或选择事件之前安装；返回服务端数据供空空间断言使用，不拦截或伪造
  * 业务响应，也不等待固定时长。
  */
 function aiEffectLists(page: Page, workspaceId: string) {

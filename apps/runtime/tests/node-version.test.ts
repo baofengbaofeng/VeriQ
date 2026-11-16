@@ -3,7 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { doctor } from "../src/doctor.ts";
 
-/** 版本矩阵同时供发行构建与真实自检使用，测试仅替换只读的进程版本事实以覆盖当前宿主无法安装的边界；浏览器路径始终不存在
+/**
+ * 版本矩阵同时供发行构建与真实自检使用，测试仅替换只读的进程版本事实以覆盖当前宿主无法安装的边界；浏览器路径始终不存在
  * 且请求已取消，因此 Node 通过也不能错误申报整体可执行能力或浏览器就绪。
  */
 test("doctor accepts stable Node24 and keeps browser readiness independent", async () => {
@@ -33,7 +34,8 @@ test("doctor accepts stable Node24 and keeps browser readiness independent", asy
     }
 });
 
-/** Electron 的内嵌 Node 即使落在同一稳定大版本也不能被当作执行器，测试通过真实自检入口核对这条进程事实边界；恢复所有描
+/**
+ * Electron 的内嵌 Node 即使落在同一稳定大版本也不能被当作执行器，测试通过真实自检入口核对这条进程事实边界；恢复所有描
  * 述符避免影响同文件后续检查，诊断仍保留实际 Node 版本供排障。
  */
 test("doctor refuses the Electron UI runtime as an independent executor", async () => {

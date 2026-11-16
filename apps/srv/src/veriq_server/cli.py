@@ -84,12 +84,12 @@ async def run(args: argparse.Namespace) -> None:
         if not existed:
             secure_write(args.config, json.dumps(persisted, indent=2) + "\n")
         else:
-            # 即使环境变量覆盖了密钥，回写时仍保留磁盘上已有密钥字节，避免无意轮换。
+            # 环境变量可覆盖本次运行配置，但回写仍保留磁盘已有的密钥字节，避免启动时的环境覆盖意外轮换持久化密钥。
             persisted.update(
                 {key: stored[key] for key in ("master_key", "signing_key") if key in stored}
             )
             if "master_key" in stored:
-                # 整环一并保留：密钥 ID 绝不可与另一组字节错配。
+                # 已有主密钥字节与密钥 ID、历史密钥环一并保留，避免回写将旧标识绑定到不同字节而使既有加密数据无法解密。
                 persisted["master_key_id"] = stored.get("master_key_id", "primary")
                 persisted["previous_master_keys"] = stored.get("previous_master_keys", {})
             if persisted != stored:
@@ -288,7 +288,7 @@ def main() -> None:
                 raise OSError("VeriQ process identity could not be set")
         asyncio.run(run(parser.parse_args()))
     except (ValidationError, ValueError, Problem, OSError):
-        # 校验错误可能含输入值：绝不 stringify 后回显给终端。
+        # 校验异常可能携带密钥等原始输入，终端仅返回固定失败提示，禁止把异常转换成字符串后回显给操作者。
         parser.exit(
             1, "VeriQ command failed. Check configuration, file permissions and command inputs.\n"
         )

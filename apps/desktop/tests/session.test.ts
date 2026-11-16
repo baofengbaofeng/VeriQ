@@ -11,7 +11,8 @@ const operation = {
     data: {},
 };
 
-/** 宿主网络边界在单测中只替换 Electron 的 fetch 与清理方法，返回标准 Response 和真实 ReadableStream；延迟响应由测试显式
+/**
+ * 宿主网络边界在单测中只替换 Electron 的 fetch 与清理方法，返回标准 Response 和真实 ReadableStream；延迟响应由测试显式
  * 释放，以确定覆盖并发请求与会话切换发生的准确先后顺序。
  */
 function fixture() {
@@ -25,7 +26,8 @@ function fixture() {
     return { host, pending };
 }
 
-/** 尚未返回响应头的订阅同样占用四条流的预算，第五条必须在发出网络请求前拒绝；释放任一实际 reader 后允许新订阅，避免仅统
+/**
+ * 尚未返回响应头的订阅同样占用四条流的预算，第五条必须在发出网络请求前拒绝；释放任一实际 reader 后允许新订阅，避免仅统
  * 计已建立连接而放大并发资源占用。
  */
 test("pending report streams reserve the same four-slot budget", async () => {
@@ -44,7 +46,8 @@ test("pending report streams reserve the same four-slot budget", async () => {
     for (const id of ids.slice(1)) await host.closeStream(id);
 });
 
-/** 网络层可能已经完成响应头而取消信号尚未传播到 reader，会话失效必须再次检查订阅所属代次；旧响应体需要被实际取消，不能
+/**
+ * 网络层可能已经完成响应头而取消信号尚未传播到 reader，会话失效必须再次检查订阅所属代次；旧响应体需要被实际取消，不能
  * 重新登记为新会话可读取的报告流。
  */
 test("a late stream response cannot survive session invalidation", async () => {
@@ -66,7 +69,8 @@ test("a late stream response cannot survive session invalidation", async () => {
     assert.equal(cancelled, true);
 });
 
-/** 设备码无效并不能撤销员工的普通 Cookie 会话，只有普通鉴权失效才清除宿主用户与工作区；这里把两种真实 HTTP 状态相同而领
+/**
+ * 设备码无效并不能撤销员工的普通 Cookie 会话，只有普通鉴权失效才清除宿主用户与工作区；这里把两种真实 HTTP 状态相同而领
  * 域错误不同的响应分别送入统一 JSON 处理路径。
  */
 test("enrollment rejection preserves ordinary authentication but session rejection clears it", async () => {
@@ -88,7 +92,8 @@ test("enrollment rejection preserves ordinary authentication but session rejecti
     assert.equal(host.workspace, undefined);
 });
 
-/** 普通登出必须实际发送共享契约要求的空 JSON 对象，成功后才完成服务器撤销路径；不允许仅清空本地用户摘要就当作退出成功，
+/**
+ * 普通登出必须实际发送共享契约要求的空 JSON 对象，成功后才完成服务器撤销路径；不允许仅清空本地用户摘要就当作退出成功，
  * 同时网络失败也必须无条件清理宿主 Cookie 与旧作用域。
  */
 test("logout sends canonical empty JSON and always clears the ordinary session", async () => {

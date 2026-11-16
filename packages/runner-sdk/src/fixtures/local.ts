@@ -1,4 +1,5 @@
-/** 本文件提供本机开发用凭证提供者：按 Attempt 钉选版本解析密钥：不假装成生产保险库实现（local/DUPLICATE_LOCAL_CREDENTIA
+/**
+ * 本文件提供本机开发用凭证提供者：按 Attempt 钉选版本解析密钥：不假装成生产保险库实现（local/DUPLICATE_LOCAL_CREDENTIA
  * L）。
  */
 

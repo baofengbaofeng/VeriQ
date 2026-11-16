@@ -35,22 +35,30 @@ export const SOURCE_SNAPSHOT_PATH = "source/asset-snapshot.json";
 export interface EngineDistribution {
     engineVersion: string;
     runnerSdkVersion: string;
-    /** Exact installable distribution package and npm v3 lock bytes, supplied by the engine release. */
+    /**
+     * Exact installable distribution package and npm v3 lock bytes, supplied by the engine release.
+     */
     packageJson: Uint8Array;
     packageLock: Uint8Array;
-    /** Complete pinned dependency inventory, including transitives. */
+    /**
+     * Complete pinned dependency inventory, including transitives.
+     */
     dependencies: DependencyVersion[];
-    /** Offline npm archives referenced by the lock; only vendor/ paths are accepted. */
+    /**
+     * Offline npm archives referenced by the lock; only vendor/ paths are accepted.
+     */
     files: Record<string, Uint8Array>;
 }
-/** 公开接口 CompiledOutput 表示编译产物：含生成文件表与 CompiledAssetBundle 元数据（CompiledOutput/ENGINE_DISTRIBUTION_
+/**
+ * 公开接口 CompiledOutput 表示编译产物：含生成文件表与 CompiledAssetBundle 元数据（CompiledOutput/ENGINE_DISTRIBUTION_
  * REQUIRED）。
  */
 export interface CompiledOutput {
     bundle: CompiledAssetBundle;
     files: Record<string, Uint8Array>;
 }
-/** 公开接口 ExecutionPackage 描述可交给运行时装配的执行包：含编译产物与发行核对所需材料（ExecutionPackage/ENGINE_DISTRI
+/**
+ * 公开接口 ExecutionPackage 描述可交给运行时装配的执行包：含编译产物与发行核对所需材料（ExecutionPackage/ENGINE_DISTRI
  * BUTION_REQUIRED）。
  */
 export interface ExecutionPackage {
@@ -59,7 +67,8 @@ export interface ExecutionPackage {
     entrypoint: string;
     snapshot: ExecutionSnapshotV1;
 }
-/** T06 实现该导入 ABI；执行上下文由 worker 注入，编译器永不把上下文写进生成代码。公开接口 RunnerSdkV1
+/**
+ * T06 实现该导入 ABI；执行上下文由 worker 注入，编译器永不把上下文写进生成代码。公开接口 RunnerSdkV1
  * 描述生成代码依赖的 runner-sdk ABI：执行上下文由 worker 注入：编译器只发射惰性调用。
  */
 export interface RunnerSdkV1 {
@@ -193,7 +202,9 @@ function distributionFiles(
 export function verifyDistribution(distribution: EngineDistribution, engineVersion: string): void {
     distributionFiles(distribution, engineVersion);
 }
-/** 使用 TypeScript printer 处理标识符与字符串转义；DSL 仅作为惰性 JSON 数据发射。 */
+/**
+ * 使用 TypeScript printer 处理标识符与字符串转义；DSL 仅作为惰性 JSON 数据发射。
+ */
 function registration(plan: CompiledCase): Uint8Array {
     const f = ts.factory;
     const json = (v: unknown): ts.Expression =>
@@ -446,8 +457,8 @@ export function verifyFiles(bundle: CompiledAssetBundle, files: Record<string, U
     if (Object.keys(files).length !== seen.size) throw new Error("UNMANIFESTED_FILE");
 }
 /**
- * 冷装配接受已下载描述符与精确文件，不依赖进程内身份注册表。
- * 公开函数 assembleExecution 冷装配下载的描述符与精确文件：不依赖进程内身份注册表：输出可运行的 ExecutionPackage。
+ * 冷装配从下载的描述符与精确文件重建执行包，核对清单字节与工作空间后才能选出快照指定的用例。
+ * 这里只使用下载内容，不依赖进程内身份注册表。
  */
 export function assembleExecution(
     bundle: CompiledAssetBundle,

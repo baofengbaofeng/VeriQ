@@ -239,9 +239,10 @@ async def test_published_selection_exports_secret_free_archive(
     revoked = await c.post(f"/api/v1/workspaces/{ws}/bundles", json=request)
     assert revoked.status_code == 409 and revoked.json()["code"] == "CREDENTIAL_REVOKED"
     async with db.sessions.begin() as session:
+        # 仅恢复本测试创建的凭据版本夹具，再继续验证既有离线包的幂等导出；这里不撤销真实环境或其他测试的凭据状态。
         (
             await session.get(SecretVersion, secret_id)
-        ).revoked = False  # restore test-owned fixture only
+        ).revoked = False
     issuer = Issuer(tmp_path / "issuer/keys.json")
     old_key = issuer.data["activeKeyId"]
     await asyncio.to_thread(issuer.rotate)

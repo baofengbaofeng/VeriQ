@@ -129,7 +129,8 @@ const wideRanges: readonly (readonly [number, number])[] = [
     [0x30000, 0x3FFFD],
 ];
 
-/** 显示列宽逐码点累计，中文和全角字符依 Unicode 宽属性占两列，组合标记与格式控制占零列，其余字符占一列。
+/**
+ * 显示列宽逐码点累计，中文和全角字符依 Unicode 宽属性占两列，组合标记与格式控制占零列，其余字符占一列。
  * 不按 Emoji 序列合并宽度，因此与仓库静态检查器和固定等宽字体的源码列定义保持一致。
  */
 function displayWidth(text: string): number {
@@ -148,7 +149,8 @@ function displayWidth(text: string): number {
 
 
 
-/** 生成器只在显示列宽超限时拆开真实注释或类型声明，扫描器保留字符串等词法单元，避免把描述文本中的符号当作代码。
+/**
+ * 生成器统一将真实块注释的边界独占一行，并仅在显示列宽超限时拆分正文或类型声明，字符串等词法单元始终保留。
  * 保持普通生成行的原有格式，使只读生成检查和源码发行得到相同结果。
  */
 export function limitGeneratedWidth(content: string): string {
@@ -159,22 +161,26 @@ export function limitGeneratedWidth(content: string): string {
         const start = scanner.getTokenPos();
         const end = scanner.getTextPos();
         const lineStart = content.lastIndexOf("\n", start - 1) + 1;
+        const lineEnd = content.indexOf("\n", end);
         const indent = content.slice(lineStart, start);
         const comment = content.slice(start, end);
-        if (indent.trim() || !comment.split("\n").some((line) => displayWidth(indent + line) > maximumWidth)) {
-            continue;
-        }
         const block = kind === ts.SyntaxKind.MultiLineCommentTrivia;
+        const suffix = content.slice(end, lineEnd < 0 ? content.length : lineEnd);
+        if (indent.trim() || suffix.trim()) continue;
+        if (!block && !comment.split("\n").some((line) => displayWidth(indent + line) > maximumWidth)) continue;
         const opening = comment.startsWith("/**") ? "/**" : block ? "/*" : "//";
         const text = block ? comment.slice(opening.length, -2) : comment.slice(2);
-        const rows: string[] = [];
-        for (const line of text.split("\n")) {
-            const body = line.trim().replace(/^\*\s?/, "");
-            if (!body) continue;
-            const prefix = rows.length === 0 ? opening + " " : block ? " * " : "// ";
-            rows.push(...wrapWords(body, maximumWidth - displayWidth(indent + prefix)).map((part, index) => {
-                return (index === 0 ? prefix : block ? " * " : "// ") + part;
-            }));
+        const bodyLines = text.split("\n").map((line) => line.trimStart().replace(/^\* ?/, "").trimEnd());
+        while (bodyLines.length && !bodyLines[0]) bodyLines.shift();
+        while (bodyLines.length && !bodyLines[bodyLines.length - 1]) bodyLines.pop();
+        const rows: string[] = block ? [opening] : [];
+        for (const body of bodyLines) {
+            if (!body) {
+                rows.push(block ? " *" : "//");
+                continue;
+            }
+            const prefix = block ? " * " : "// ";
+            rows.push(...wrapWords(body, maximumWidth - displayWidth(indent + prefix)).map((part) => prefix + part));
         }
         if (block) rows.push(" */");
         replacements.push({ start, end, text: rows.join("\n" + indent) });
@@ -214,7 +220,8 @@ export function limitGeneratedWidth(content: string): string {
     }).join("\n");
 }
 
-/** 按现有空白拆分生成文档的说明文字，中文片段逐字测量显示宽度，完整词能够放下时保持技术名称和链接的连续性。
+/**
+ * 按现有空白拆分生成文档的说明文字，中文片段逐字测量显示宽度，完整词能够放下时保持技术名称和链接的连续性。
  * 这只改变生成注释的物理换行，不参与 Schema 或业务值的计算。
  */
 function wrapWords(text: string, width: number): string[] {

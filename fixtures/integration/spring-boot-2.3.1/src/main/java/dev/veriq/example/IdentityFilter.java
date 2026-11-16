@@ -13,7 +13,8 @@ import javax.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-/** 该过滤器把普通业务、夹具服务和维护三种身份分开，并为每个实际请求生成独立 requestId 与配置的 build SHA；
+/**
+ * 该过滤器把普通业务、夹具服务和维护三种身份分开，并为每个实际请求生成独立 requestId 与配置的 build SHA；
  * 任何令牌只用于常量时间比较，禁止写入日志或响应正文。
  * 这是受控示例的正常 Bearer 认证，不提供跳过业务权限的测试后门。
  * 明确身份后仍由控制器根据操作要求校验角色，UI 隐藏不能替代服务授权。
@@ -24,7 +25,8 @@ public class IdentityFilter extends OncePerRequestFilter {
     private final Map<String, String> tokens = new LinkedHashMap<>();
     private final String buildSha;
 
-    /** 启动时要求三份足够长且互不相同的外部令牌，缺失或重复均拒绝启动，不生成硬编码演示密码；构建版本由被测应用部署方显
+    /**
+     * 启动时要求三份足够长且互不相同的外部令牌，缺失或重复均拒绝启动，不生成硬编码演示密码；构建版本由被测应用部署方显
      * 式注入并限制为安全响应头字符。
      */
     public IdentityFilter() {
@@ -45,7 +47,8 @@ public class IdentityFilter extends OncePerRequestFilter {
         return value;
     }
 
-    /** 所有路径都带有固定无缓存响应头，认证失败仅输出稳定错误码；重定向、表单参数和 Cookie 不参与 Bearer 判断，
+    /**
+     * 所有路径都带有固定无缓存响应头，认证失败仅输出稳定错误码；重定向、表单参数和 Cookie 不参与 Bearer 判断，
      * 避免把夹具身份错误地回退为其它已有业务会话。
      */
     @Override

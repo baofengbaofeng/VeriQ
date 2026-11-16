@@ -20,7 +20,8 @@ export async function privateDirectory(directory: string) {
         return;
     }
     if (process.platform === "win32") {
-        /** Windows 能力模块只在真实平台分支内按固定模块标识延迟导入，避免 Linux 测试入口加载仅供原生宿主使用的 ESM
+        /**
+         * Windows 能力模块只在真实平台分支内按固定模块标识延迟导入，避免 Linux 测试入口加载仅供原生宿主使用的 ESM
          * 位置逻辑；模块自身原有装载规则保持不变，配置内容不能选择插件路径或触发回退。
          */
         const { windowsNative } = await import("../native/windows.ts");
@@ -41,14 +42,16 @@ export async function readBoundedFile(
     limit: number,
     restricted = false,
 ): Promise<Buffer> {
-    /** Windows 私有读取由实际原生文件句柄贯穿授权与读取，不能在验证 DACL 后再调用 Node 按路径重新打开；
+    /**
+     * Windows 私有读取由实际原生文件句柄贯穿授权与读取，不能在验证 DACL 后再调用 Node 按路径重新打开；
      * 未受限的公开包读取保留既有库存校验流程，Linux 的描述符与权限合同也保持不变。
      */
     if (restricted && process.platform === "win32") {
         const { windowsNative } = await import("../native/windows.ts");
         return windowsNative().readPrivateFile(path, limit);
     }
-    /** Darwin 受限读取持有原生父目录直至读完同一实际成员，B 层检查类型、所有者、模式及扩展 ACL；公开包不走这一分支，
+    /**
+     * Darwin 受限读取持有原生父目录直至读完同一实际成员，B 层检查类型、所有者、模式及扩展 ACL；公开包不走这一分支，
      * 因此既有大包额度不会变成原生私有文件额度，也不先按路径检查再重新打开。
      */
     if (restricted && process.platform === "darwin") {
@@ -132,7 +135,8 @@ export async function updatePrivate<T>(
     const temporaryName = `.${randomUUID()}.tmp`;
     const tmp = join(directory, temporaryName);
     try {
-        /** Darwin 更新在合作锁内保留同一原生目录，从读取旧值到原子发布均使用此能力；刷新之后的提交不确定性原样传播，
+        /**
+         * Darwin 更新在合作锁内保留同一原生目录，从读取旧值到原子发布均使用此能力；刷新之后的提交不确定性原样传播，
          * finally 不通用 unlink 临时名，不会把已经发布或已被替换的对象作为回滚垃圾删除。
          */
         if (process.platform === "darwin") {
@@ -161,7 +165,8 @@ export async function updatePrivate<T>(
         }
         const value = JSON.stringify(update(old));
         if (Buffer.byteLength(value) > 1024 * 1024) throw new Error("CONFIGURATION_LIMIT");
-        /** Windows 提交使用原生持有的父目录与临时文件句柄完成，刷新失败的不确定性直接返回调用方；回调只执行一次，后续
+        /**
+         * Windows 提交使用原生持有的父目录与临时文件句柄完成，刷新失败的不确定性直接返回调用方；回调只执行一次，后续
          * finally 仅释放合作锁，不按旧临时字符串删除可能已经更换的文件。
          */
         if (process.platform === "win32") {
@@ -184,7 +189,8 @@ export async function updatePrivate<T>(
     }
 }
 
-/** 私有配置退休在 Windows 使用已授权父链下的真实文件句柄删除，Linux 保留原有 unlink 语义；调用方只能明确处理 ENOENT，
+/**
+ * 私有配置退休在 Windows 使用已授权父链下的真实文件句柄删除，Linux 保留原有 unlink 语义；调用方只能明确处理 ENOENT，
  * 权限拒绝和未知错误不能被当成已经清空配置或自动重试更新回调。
  */
 export async function removePrivate(directory: string, name: string): Promise<void> {

@@ -1,4 +1,5 @@
-/** 凭据故障只向桌面暴露有限状态与可执行的人工指引，绝不把系统错误原文、磁盘路径或秘密拼进提示；IPC 就绪与凭据可用是不同
+/**
+ * 凭据故障只向桌面暴露有限状态与可执行的人工指引，绝不把系统错误原文、磁盘路径或秘密拼进提示；IPC 就绪与凭据可用是不同
  * 事实，读取状态成功不能授权迁移、重建密钥或消费失败的档案。
  */
 export const credentialGuidance = {
@@ -40,12 +41,14 @@ export const credentialGuidance = {
         "ions and recovery records; this does not mean the device is unenrolled.",
 } as const;
 
-/** 公开错误码直接取自受审提示表，新增诊断必须同时提供用户能理解的处理指引；类型不允许任意后端消息进入 renderer，从而防
+/**
+ * 公开错误码直接取自受审提示表，新增诊断必须同时提供用户能理解的处理指引；类型不允许任意后端消息进入 renderer，从而防
  * 止错误路径意外披露凭据或宿主目录。
  */
 export type CredentialIssue = keyof typeof credentialGuidance;
 
-/** 只接受提示表中的完整消息作为稳定凭据状态，未知异常统一投影为明确失败；调用方仍须保留原业务操作的拒绝行为，不能利用状
+/**
+ * 只接受提示表中的完整消息作为稳定凭据状态，未知异常统一投影为明确失败；调用方仍须保留原业务操作的拒绝行为，不能利用状
  * 态投影吞掉其它存储或执行错误。
  */
 export function credentialIssue(error: unknown): CredentialIssue {
@@ -54,7 +57,8 @@ export function credentialIssue(error: unknown): CredentialIssue {
         : "CREDENTIAL_ACCESS_FAILED";
 }
 
-/** 主进程切换控制源前必须确认独立后台既无执行占用也无已登记设备，凭据不可读时同样无法确认可安全切换；拒绝沿用原有稳定错
+/**
+ * 主进程切换控制源前必须确认独立后台既无执行占用也无已登记设备，凭据不可读时同样无法确认可安全切换；拒绝沿用原有稳定错
  * 误码，确保失败发生在普通会话失效、设置写盘和停止后台之前。
  */
 export function assertAgentReconfigurationAllowed(state: Record<string, unknown>): void {

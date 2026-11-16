@@ -9,7 +9,8 @@ import { desktopErrorMessage } from "../src/shared/desktop-errors.ts";
 
 const workspaceId = "11111111-1111-4111-8111-111111111111";
 
-/** 保留期协议只允许实际维护器支持的工作区和有限数字策略，测试验证正常能力与超限、分数、路径扩张的拒绝结果；不靠扫描源码
+/**
+ * 保留期协议只允许实际维护器支持的工作区和有限数字策略，测试验证正常能力与超限、分数、路径扩张的拒绝结果；不靠扫描源码
  * 关键字，也不把纯协议测试冒充 SQLite、原生文件或真实删除已经执行。
  */
 test("retention policy permits bounded commands and refuses filesystem extensions", () => {
@@ -28,7 +29,8 @@ test("retention policy permits bounded commands and refuses filesystem extension
         assert.throws(() => parseLocalRetentionCommand(values), /LOCAL_RETENTION_INPUT_INVALID/);
 });
 
-/** 用户提示保留有限机器错误码但必须解释忙碌或未确认结果，并去除异常中的宿主私有路径和系统堆栈；中英文都提供后续动作，未
+/**
+ * 用户提示保留有限机器错误码但必须解释忙碌或未确认结果，并去除异常中的宿主私有路径和系统堆栈；中英文都提供后续动作，未
  * 知错误也不能因为没有词条就回显未经筛选的原生异常正文。
  */
 test("desktop errors provide actionable languages without exposing raw host messages", () => {
@@ -52,7 +54,8 @@ test("desktop errors provide actionable languages without exposing raw host mess
     );
 });
 
-/** 清理回执必须保留实际非负计数而且只包含受限协议字段，不能将缺少结果、未知路径或未确认计数转成空成功；结果解析位于真实
+/**
+ * 清理回执必须保留实际非负计数而且只包含受限协议字段，不能将缺少结果、未知路径或未确认计数转成空成功；结果解析位于真实
  * 维护之后，所以本测试只覆盖投影边界，不声明原生退休已经回滚或完成。
  */
 test("retention outcome rejects empty success and unexpected filesystem data", () => {

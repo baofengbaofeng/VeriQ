@@ -14,7 +14,9 @@ export interface CompiledAssertion {
         }
     >;
     sourcePath: string;
-    /** Original DSL identifier for report display; absent in historical compiled plans. */
+    /**
+     * Original DSL identifier for report display; absent in historical compiled plans.
+     */
     sourceId?: string;
     parameters: Record<string, JsonValue>[];
 }
@@ -24,7 +26,9 @@ export interface CompiledAssertion {
 export interface CompiledStep {
     step: StepV1;
     sourcePath: string;
-    /** Original DSL identifier for report display; absent in historical compiled plans. */
+    /**
+     * Original DSL identifier for report display; absent in historical compiled plans.
+     */
     sourceId?: string;
     before: CompiledAssertion[];
     responseAssertions: CompiledAssertion[];

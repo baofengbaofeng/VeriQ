@@ -111,7 +111,7 @@ class AccountAPI(API):
                 if not await verify(user.password_hash, data["currentPassword"]):
                     raise Problem(400, "INVALID_PASSWORD", "Current password is incorrect")
                 user.password_hash = await hash_password(data["newPassword"])
-                # 口令变更后立刻使全部会话与重置令牌失效，防止旧凭证继续访问。
+                # 新口令写入后撤销全部会话并删除重置令牌，防止旧登录态继续访问，或此前签发的重置链接再次修改口令。
                 await invalidate(s, user.id)
                 await s.execute(delete(UserToken).where(UserToken.user_id == user.id))
                 audit(s, "password.changed", user.id, user.id)

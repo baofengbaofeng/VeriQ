@@ -21,7 +21,8 @@ if (raw !== undefined) {
     const roster = new Map();
     const frames = [];
 
-    /** 激活后先消费标记并捕获公开退出入口，任何故障都先置粘滞位再同步结束当前进程；通道订阅异常可能被 Node 延迟处理，
+    /**
+     * 激活后先消费标记并捕获公开退出入口，任何故障都先置粘滞位再同步结束当前进程；通道订阅异常可能被 Node 延迟处理，
      * 因此这里绝不能以 throw 充当派生闸门。
      */
     function fail() {
@@ -33,7 +34,8 @@ if (raw !== undefined) {
         const { binding, fd } = parseActivation(raw);
         inspectJournalFd(fd, true);
 
-        /** 单写者明确从零定位写入，不依赖父子共享的隐含文件偏移；短写循环必须取得正进展且每条完整帧刷新成功，
+        /**
+         * 单写者明确从零定位写入，不依赖父子共享的隐含文件偏移；短写循环必须取得正进展且每条完整帧刷新成功，
          * 只有这样构造回调返回才表示意图已经持久写入。
          */
         function append(type, fields = {}) {
@@ -74,12 +76,14 @@ if (raw !== undefined) {
         }
 
         append("OBSERVER_READY", binding);
-        /** 未捕获异常的默认退出码也可能是一，不能与固定 CLI 的正常业务失败混同；公开 monitor 不吞掉异常，
+        /**
+         * 未捕获异常的默认退出码也可能是一，不能与固定 CLI 的正常业务失败混同；公开 monitor 不吞掉异常，
          * 而是在异常终止路径先置观察故障并同步退出专用码，保留保守语义。
          */
         process.on("uncaughtExceptionMonitor", fail);
 
-        /** 保存真正的 ChildProcess 对象而非复用 PID，先提交 INTENT 再订阅该同一对象的生命周期；error
+        /**
+         * 保存真正的 ChildProcess 对象而非复用 PID，先提交 INTENT 再订阅该同一对象的生命周期；error
          * 不猜测是否派生成功，任何不完整构造或异常事件都阻止封存。
          */
         channel("child_process").subscribe(({ process: child }) => {
@@ -117,7 +121,8 @@ if (raw !== undefined) {
             }
         });
 
-        /** 唯一正常封存点位于同步 exit handler，空 roster 仍须通过完整协议检查；先置终结闸防止重入，封存后任何后续
+        /**
+         * 唯一正常封存点位于同步 exit handler，空 roster 仍须通过完整协议检查；先置终结闸防止重入，封存后任何后续
          * exit handler 再构造对象都必须在派生前同步退出 73。
          */
         process.on("exit", () => {

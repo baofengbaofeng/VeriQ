@@ -39,7 +39,8 @@ const defaults: S["ProviderWrite"] = {
     maxOutputTokens: 1024,
     maxRequestUsd: 0.5,
 };
-/** 工作区选择壳：默认选中首个空间，再渲染 AiWorkspaceView 并传入 adapter 与 signal。无空间时提示先创建或加入。未登录重
+/**
+ * 工作区选择壳：默认选中首个空间，再渲染 AiWorkspaceView 并传入 adapter 与 signal。无空间时提示先创建或加入。未登录重
  * 定向；自身不缓存 generation 表单以免切换空间泄漏。
  */
 export function AiPage() {
@@ -98,7 +99,8 @@ export function AiPage() {
         </Panel>
     );
 }
-/** 请求输入保留表单中的原始字符串以及明确的生成用途，只有这八个字段参与人工上下文审核失效；Provider 编辑器和已完成的生
+/**
+ * 请求输入保留表单中的原始字符串以及明确的生成用途，只有这八个字段参与人工上下文审核失效；Provider 编辑器和已完成的生
  * 成历史拥有独立状态，不能被输入变更一起清空。
  */
 type RequestInputs = {
@@ -111,7 +113,8 @@ type RequestInputs = {
     resourceId: string;
     runId: string;
 };
-/** 人工预览和已审核请求与当前输入集中存储，使每次真实输入变更能够原子清除两份审核结果；成功预览只合并审核数据而保留当前
+/**
+ * 人工预览和已审核请求与当前输入集中存储，使每次真实输入变更能够原子清除两份审核结果；成功预览只合并审核数据而保留当前
  * 输入，响应归属仍由现有工作区生命周期决定。
  */
 type RequestState = {
@@ -119,7 +122,8 @@ type RequestState = {
     preview?: S["AiContextDTO"];
     reviewedRequest?: GenerationRequest;
 };
-/** 拥有 Provider 表单、生成请求、历史无限查询与审核动作等 UI 状态。Provider 禁用后隐藏生成按钮；Provider 一旦禁用就必须
+/**
+ * 拥有 Provider 表单、生成请求、历史无限查询与审核动作等 UI 状态。Provider 禁用后隐藏生成按钮；Provider 一旦禁用就必须
  * 隐藏生成入口按钮。
  * 调用 adapter.providers/generate/review/cancel；输出需人工审核，不会自动 publish。
  */
@@ -164,7 +168,8 @@ export function AiWorkspaceView({
     });
     const { inputs, preview, reviewedRequest } = requestState;
     const { providerId, purpose, prompt, versions, openapi, data, resourceId, runId } = inputs;
-    /** 所有请求字段写入共用稳定回调，并在函数式更新内比较原始值；同值编辑保持原审核对象，实际编辑即使随后恢复原值也须重
+    /**
+     * 所有请求字段写入共用稳定回调，并在函数式更新内比较原始值；同值编辑保持原审核对象，实际编辑即使随后恢复原值也须重
      * 新预览，状态更新器不触发其他状态或清理副作用。
      */
     const changeInput = useCallback(

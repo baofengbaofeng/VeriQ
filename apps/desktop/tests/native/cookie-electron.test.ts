@@ -1,4 +1,5 @@
-/** 此跨平台测试以真实 Electron 子进程运行生产保护门闩，退出后用独立 Node24 SQLite 检查实际 Cookie 行并再启动读回；
+/**
+ * 此跨平台测试以真实 Electron 子进程运行生产保护门闩，退出后用独立 Node24 SQLite 检查实际 Cookie 行并再启动读回；
  * Linux 必须来自自有非空密码 Secret Service，Windows 使
  * 用真实 DPAPI，所有结果只代表该目标运行而不冒充用户登录或安装验收。
  */
@@ -17,7 +18,8 @@ assert(executable && evidence, "COOKIE_TARGET_CONTEXT_REQUIRED");
 assert(["linux", "win32"].includes(process.platform), "COOKIE_TARGET_PLATFORM_REQUIRED");
 const value = "VeriQ-public-synthetic-cookie-native-check-2026";
 
-/** 测试驱动只启动工作流已核验的独立 Electron 副本与固定夹具入口，不从档案选择代码或可执行文件；每次调用在有限期限内要求
+/**
+ * 测试驱动只启动工作流已核验的独立 Electron 副本与固定夹具入口，不从档案选择代码或可执行文件；每次调用在有限期限内要求
  * 真实退出零且记录非秘密结果，失败不会重试或把没有窗口解释为 Cookie 已受保护。
  */
 async function launch(profile: string, phase: string) {

@@ -23,7 +23,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 
-/** 此受控 Java 示例用单进程锁与私有原子 JSON 快照保存夹具所有权和关闭墓碑，所有业务写入和清理在同一个同步临界区检查状态
+/**
+ * 此受控 Java 示例用单进程锁与私有原子 JSON 快照保存夹具所有权和关闭墓碑，所有业务写入和清理在同一个同步临界区检查状态
  * ，避免清理后的晚到提交复活记录。
  * 数据集很小，整文件快照用于展示协议，不作为高并发生产数据库。
  * 文件锁拒绝第二个进程打开同一存储，避免多进程各自写出旧快照。
@@ -37,7 +38,8 @@ public class FixtureStore {
     private final FileLock lock;
     private ObjectNode state;
 
-    /** 只接受预先配置的私有 POSIX 目录和普通存储文件，拒绝符号链接与组或其它用户权限；初始化不触碰任何默认主目录文件，
+    /**
+     * 只接受预先配置的私有 POSIX 目录和普通存储文件，拒绝符号链接与组或其它用户权限；初始化不触碰任何默认主目录文件，
      * 路径必须由操作者明确注入。
      */
     public FixtureStore(ObjectMapper mapper) throws IOException {
@@ -118,7 +120,8 @@ public class FixtureStore {
         return result;
     }
 
-    /** 相同幂等键必须与完整 JSON 参数绑定，相同参数只重放原准备结果，不延长 TTL；已关闭、已到期或被其他键占用的命名空间
+    /**
+     * 相同幂等键必须与完整 JSON 参数绑定，相同参数只重放原准备结果，不延长 TTL；已关闭、已到期或被其他键占用的命名空间
      * 都拒绝重新准备，避免旧请求复活测试数据。
      */
     public ObjectNode prepare(ObjectNode input) {
@@ -149,7 +152,8 @@ public class FixtureStore {
     private static void conflict() { throw new ResponseStatusException(HttpStatus.CONFLICT,
         "NAMESPACE_CLOSED_OR_CONFLICT"); }
 
-    /** 查询仅返回夹具标识、命名空间和状态，丢失准备响应时也能确认是否创建；不通过普通查询返回清理令牌或业务认证材料，
+    /**
+     * 查询仅返回夹具标识、命名空间和状态，丢失准备响应时也能确认是否创建；不通过普通查询返回清理令牌或业务认证材料，
      * 真实恢复可使用同参数准备重放获取完整结果。
      */
     public synchronized ObjectNode query(String key) {
@@ -187,7 +191,8 @@ public class FixtureStore {
         return mapper.createObjectNode().put("status", closed ? "ALREADY_CLEANED" : "CLEANED");
     }
 
-    /** 清理必须绑定原幂等键和精确 namespace，允许服务身份在未收到准备响应时不带 token 补偿；墓碑阻止晚到 prepare，
+    /**
+     * 清理必须绑定原幂等键和精确 namespace，允许服务身份在未收到准备响应时不带 token 补偿；墓碑阻止晚到 prepare，
      * 同步写入检查阻止晚到业务提交，重复清理保持安全。
      */
     public ObjectNode cleanup(ObjectNode input) {
@@ -204,7 +209,8 @@ public class FixtureStore {
         throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Fixture code not found");
     }
 
-    /** 普通 editor 业务写入只在当前夹具仍开放且未过期时提交，状态检查和真实员工插入共享持久化锁；fixture-service
+    /**
+     * 普通 editor 业务写入只在当前夹具仍开放且未过期时提交，状态检查和真实员工插入共享持久化锁；fixture-service
      * 无权通过本方法代替普通业务角色执行写入。
      */
     public ObjectNode create(ObjectNode input) {
@@ -226,7 +232,8 @@ public class FixtureStore {
         });
     }
 
-    /** 持久化查询只读取当前归属员工并返回稳定 id 和名称，不创建或修复业务对象；客户端应在写入结果未知时优先调用此接口，
+    /**
+     * 持久化查询只读取当前归属员工并返回稳定 id 和名称，不创建或修复业务对象；客户端应在写入结果未知时优先调用此接口，
      * 而不是盲目重新提交同一个业务写操作。
      */
     public synchronized ObjectNode employees(String namespace, String code) {
@@ -243,7 +250,8 @@ public class FixtureStore {
         return result;
     }
 
-    /** 外部维护只扫描有界数量的已到期开放夹具，并复用同一清理临界区；没有内部 Cron，响应 hasMore 供外部调度继续调用，
+    /**
+     * 外部维护只扫描有界数量的已到期开放夹具，并复用同一清理临界区；没有内部 Cron，响应 hasMore 供外部调度继续调用，
      * 未到期或其他归属数据不会被批量删除。
      */
     public ObjectNode maintenance(int limit) {
@@ -261,7 +269,8 @@ public class FixtureStore {
         });
     }
 
-    /** 容器停止时仅释放本示例持有的存储文件锁及通道，不删除存储或关闭墓碑；重启后仍能拒绝旧幂等键重放，外部 TTL
+    /**
+     * 容器停止时仅释放本示例持有的存储文件锁及通道，不删除存储或关闭墓碑；重启后仍能拒绝旧幂等键重放，外部 TTL
      * 维护继续处理此前开放的命名空间。
      */
     @PreDestroy

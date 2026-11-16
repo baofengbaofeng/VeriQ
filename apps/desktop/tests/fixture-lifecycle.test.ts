@@ -7,7 +7,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { trackFixture, stopFixture } from "../../../tests/e2e/lifecycle.ts";
 
-/** 真实 flock 子进程收到 SIGTERM 后保持受控排空状态，只有测试明确释放才退出，下一位锁拥有者在此之前必须无法进入；这个回
+/**
+ * 真实 flock 子进程收到 SIGTERM 后保持受控排空状态，只有测试明确释放才退出，下一位锁拥有者在此之前必须无法进入；这个回
  * 归检查真实 close 与文件锁释放，不用睡眠、强制删锁或重复启动把竞态隐藏。
  */
 test("fixture teardown awaits graceful drain and stdio close before releasing the next owner", async () => {

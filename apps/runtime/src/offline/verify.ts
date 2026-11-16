@@ -3,7 +3,9 @@
  * verify/INVALID_BUNDLE_SCHEMA）。
  */
 
-/** Verify exact signed bytes before writing any archive member to disk. */
+/**
+ * Verify exact signed bytes before writing any archive member to disk.
+ */
 import { createHash, verify } from "node:crypto";
 import {
     readdir,
@@ -422,7 +424,8 @@ export async function verifyBundle(
                     privateParent = undefined;
                     owned?.close();
                 } finally {
-                    /** 清理只接受仍处于 staging 阶段且 inode 未变化的本次独占目录，发布后立刻撤销该所有权；替换、
+                    /**
+                     * 清理只接受仍处于 staging 阶段且 inode 未变化的本次独占目录，发布后立刻撤销该所有权；替换、
                      * 链接或缺失保留未知现场，不能按用户目的地回滚、放宽权限或删除原有安装。
                      */
                     if (staging && stagingIdentity) {

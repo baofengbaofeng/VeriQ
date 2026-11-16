@@ -1,4 +1,6 @@
-/* Generated from openapi/platform.yaml. Run pnpm contracts:generate. */
+/*
+ * Generated from openapi/platform.yaml. Run pnpm contracts:generate.
+ */
 import type { JsonValue as ContractJsonValue,
     BindingJsonValue as ContractBindingJsonValue } from "./types.generated.js";
 export interface paths {
@@ -41,7 +43,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Returns validated nonsecret installed frontend metadata; development without a published
+        /**
+         * @description Returns validated nonsecret installed frontend metadata; development without a published
          * frontend returns 503 BUILD_INFO_UNAVAILABLE.
          */
         get: operations["buildInfo"];
@@ -62,7 +65,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Requires a same-origin Origin header and the CSRF token returned by GET /api/v1/setup; public
+        /**
+         * @description Requires a same-origin Origin header and the CSRF token returned by GET /api/v1/setup; public
          * access does not require a user session.
          */
         post: operations["login"];
@@ -113,7 +117,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Requires a same-origin Origin header and the CSRF token returned by GET /api/v1/setup; public
+        /**
+         * @description Requires a same-origin Origin header and the CSRF token returned by GET /api/v1/setup; public
          * access does not require a user session.
          */
         post: operations["requestPasswordReset"];
@@ -132,7 +137,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Requires a same-origin Origin header and the CSRF token returned by GET /api/v1/setup; public
+        /**
+         * @description Requires a same-origin Origin header and the CSRF token returned by GET /api/v1/setup; public
          * access does not require a user session.
          */
         post: operations["confirmPasswordReset"];
@@ -629,10 +635,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description T12 authorization obligation: raw Trace, screenshots, HTML and downloads are
+        /**
+         * @description T12 authorization obligation: raw Trace, screenshots, HTML and downloads are
          * CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and
-         * MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured
-         * metadata only. This schema does not implement storage or authorization.
+         * MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata
+         * only. This schema does not implement storage or authorization.
          */
         get: operations["getArtifact"];
         put?: never;
@@ -650,10 +657,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description T12 authorization obligation: raw Trace, screenshots, HTML and downloads are
+        /**
+         * @description T12 authorization obligation: raw Trace, screenshots, HTML and downloads are
          * CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and
-         * MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured
-         * metadata only. This schema does not implement storage or authorization.
+         * MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata
+         * only. This schema does not implement storage or authorization.
          */
         get: operations["downloadArtifact"];
         put?: never;
@@ -801,7 +809,8 @@ export interface paths {
         };
         get: operations["listBundles"];
         put?: never;
-        /** @description Requires a durable Workspace-scoped Idempotency-Key. Different actor or payload conflicts.
+        /**
+         * @description Requires a durable Workspace-scoped Idempotency-Key. Different actor or payload conflicts.
          * In-progress, failed or ambiguous requests are never automatically taken over.
          */
         post: operations["createBundle"];
@@ -868,7 +877,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Idempotent domain key is (workspaceId,bundleId,localRunId); validates signature, closure,
+        /**
+         * @description Idempotent domain key is (workspaceId,bundleId,localRunId); validates signature, closure,
          * provenance and current membership.
          */
         post: operations["importOfflineResult"];
@@ -1095,11 +1105,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Upload exact CompletionManifestV1 bytes first. The server verifies current device/requester,
+        /**
+         * @description Upload exact CompletionManifestV1 bytes first. The server verifies current device/requester,
          * active lease/fence and retained evidence. VALIDATE success requires a compiled descriptor; VALIDATE ERROR
          * prohibits a descriptor and requires a bounded failureCode, approved engineInventorySha256 and verified
-         * nonempty LOG evidence. Failure never creates a ValidationReceipt. Exact completed manifest replay returns
-         * the original receipt under current identity.
+         * nonempty LOG evidence. Failure never creates a ValidationReceipt. Exact completed manifest replay returns the
+         * original receipt under current identity.
          */
         post: operations["finishAttempt"];
         delete?: never;
@@ -1133,7 +1144,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Deny by default until T08/T09 inject a server verifier for authenticated device, active
+        /**
+         * @description Deny by default until T08/T09 inject a server verifier for authenticated device, active
          * assignment, membership/grants, lease and fence. Never accepts caller trust labels as proof.
          */
         post: operations["resolveCredentials"];
@@ -1152,10 +1164,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description T12 authorization obligation: raw Trace, screenshots, HTML and downloads are
+        /**
+         * @description T12 authorization obligation: raw Trace, screenshots, HTML and downloads are
          * CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and
-         * MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured
-         * metadata only. This schema does not implement storage or authorization.
+         * MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata
+         * only. This schema does not implement storage or authorization.
          */
         post: operations["createArtifactUpload"];
         delete?: never;
@@ -1173,10 +1186,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description T12 authorization obligation: raw Trace, screenshots, HTML and downloads are
+        /**
+         * @description T12 authorization obligation: raw Trace, screenshots, HTML and downloads are
          * CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and
-         * MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured
-         * metadata only. This schema does not implement storage or authorization.
+         * MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata
+         * only. This schema does not implement storage or authorization.
          */
         post: operations["commitArtifact"];
         delete?: never;
@@ -1256,7 +1270,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Retrieve a successful job validation receipt for publication
+        /**
+         * Retrieve a successful job validation receipt for publication
          * @description Authorize current caller Workspace membership/service scope and job/resource ownership. Only a
          * successful VALIDATE job returns its immutable receipt; pending, failed, cancelled or other-kind jobs return
          * 409 VALIDATION_RECEIPT_UNAVAILABLE. Unknown/inaccessible Workspace/job returns 404. The receipt is bound to
@@ -1279,7 +1294,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Download exact immutable bytes from the authorized attempt closure
+        /**
+         * Download exact immutable bytes from the authorized attempt closure
          * @description DeviceToken is necessary but not sufficient. Authorize the current device, Workspace
          * membership/grant/trust, assigned Attempt and current unexpired lease/fencing proof on every download, then
          * require sha256 membership in that Attempt immutable closure. A hash never grants access. Closure includes the
@@ -1310,7 +1326,8 @@ export interface paths {
         };
         get: operations["getSetup"];
         put?: never;
-        /** @description Requires a same-origin Origin header and the CSRF token returned by GET /api/v1/setup; public
+        /**
+         * @description Requires a same-origin Origin header and the CSRF token returned by GET /api/v1/setup; public
          * access does not require a user session.
          */
         post: operations["initializeInstallation"];
@@ -1359,7 +1376,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Own unexpired sessions only, bounded keyset pagination in stable createdAt/ID order. */
+        /**
+         * @description Own unexpired sessions only, bounded keyset pagination in stable createdAt/ID order.
+         */
         get: operations["listAccountSessions"];
         put?: never;
         post?: never;
@@ -1392,7 +1411,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Bounded keyset pagination in stable email/ID order. Concurrent changes are not a frozen
+        /**
+         * @description Bounded keyset pagination in stable email/ID order. Concurrent changes are not a frozen
          * snapshot; restart paging to refresh filters or see newly inserted preceding rows.
          */
         get: operations["listGlobalUsers"];
@@ -1716,7 +1736,8 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** @description Current Workspace OWNER/ADMIN approves credential delivery only after independent system-admin
+        /**
+         * @description Current Workspace OWNER/ADMIN approves credential delivery only after independent system-admin
          * MANAGED trust and owner sharing consent. Does not grant hardware trust.
          */
         put: operations["updateRuntimeCredentialDelivery"];
@@ -1767,10 +1788,11 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** @description T12 authorization obligation: raw Trace, screenshots, HTML and downloads are
+        /**
+         * @description T12 authorization obligation: raw Trace, screenshots, HTML and downloads are
          * CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and
-         * MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured
-         * metadata only. This schema does not implement storage or authorization.
+         * MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata
+         * only. This schema does not implement storage or authorization.
          */
         put: operations["uploadArtifactChunk"];
         post?: never;
@@ -1787,7 +1809,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** View exact retained generated TypeScript for an immutable published version
+        /**
+         * View exact retained generated TypeScript for an immutable published version
          * @description Current Workspace VIEW, resource/version/receipt/descriptor membership are required. Omit path
          * for an allowlisted TypeScript file listing. A path returns exact retained text/plain bytes verified against
          * descriptor hash/size; caller hashes, arbitrary files and raw evidence are not accepted.
@@ -1920,7 +1943,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read issuer public keys through current authenticated device binding */
+        /**
+         * Read issuer public keys through current authenticated device binding
+         */
         get: operations["getIssuerTrust"];
         put?: never;
         post?: never;
@@ -1955,7 +1980,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Idempotent domain key is (workspaceId,bundleId,localRunId); validates signature, closure,
+        /**
+         * @description Idempotent domain key is (workspaceId,bundleId,localRunId); validates signature, closure,
          * provenance and current membership.
          */
         post: operations["importNativeOfflineResult"];
@@ -2054,7 +2080,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Expire bounded completed lifecycle records under current Workspace service-token authorization
+        /**
+         * @description Expire bounded completed lifecycle records under current Workspace service-token authorization
          * and active-reference barriers. No internal scheduler.
          */
         post: operations["maintenanceExpireLifecycle"];
@@ -2071,7 +2098,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Current OWNER or ADMIN employee session is required; data is scoped to the selected Workspace.
+        /**
+         * @description Current OWNER or ADMIN employee session is required; data is scoped to the selected Workspace.
          * Dependency timeouts return 503.
          */
         get: operations["getWorkspaceOperationsMetrics"];
@@ -2090,7 +2118,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Authenticated employee read of the bundled synthetic sample resource package. Contains no live
+        /**
+         * @description Authenticated employee read of the bundled synthetic sample resource package. Contains no live
          * credentials or server configuration.
          */
         get: operations["getSampleWorkspacePackage"];
@@ -2106,7 +2135,8 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** Format: uuid
+        /**
+         * Format: uuid
          * @description Hyphenated 8-4-4-4-12 hexadecimal UUID, case-insensitive; no URN, braces or surrounding
          * whitespace.
          */
@@ -2114,11 +2144,13 @@ export interface components {
         Sha256: string;
         Key: string;
         Version: string;
-        /** @description Interpolated DSL string. Only {{data.identifier}} and {{vars.identifier}} dotted bindings are
+        /**
+         * @description Interpolated DSL string. Only {{data.identifier}} and {{vars.identifier}} dotted bindings are
          * supported; arbitrary executable expressions are rejected. Never use for inert evidence or diagnostics.
          */
         SafeString: string;
-        /** @description Inert portable JSON. Strings are literal, including arbitrary braces and invalid DSL
+        /**
+         * @description Inert portable JSON. Strings are literal, including arbitrary braces and invalid DSL
          * expressions; consumers must never evaluate or recursively interpolate this type.
          */
         JsonValue: ContractJsonValue;
@@ -2128,39 +2160,60 @@ export interface components {
         JsonSchema: {
             [key: string]: components["schemas"]["JsonValue"];
         };
-        /** @enum {string} */
+        /**
+         * @enum {string}
+         */
         ValueType: "string" | "number" | "integer" | "boolean" | "object" | "array" | "null";
         ParameterTypes: {
             [key: string]: components["schemas"]["ValueType"];
         };
         Timeout: number;
         Pointer: string;
-        /** @description Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls.
-         * After DSL substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen
-         * authorized base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+        /**
+         * @description Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls.
+         * After DSL substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized
+         * base/allowedOrigins before any request/navigation, and enforce policy on redirects.
          */
         Path: string & components["schemas"]["SafeString"];
-        /** Format: uri */
+        /**
+         * Format: uri
+         */
         HttpUrl: string;
         SourceRef: string;
         ResponseRef: string;
         RequestRef: string;
-        /** @enum {string} */
+        /**
+         * @enum {string}
+         */
         HttpMethod: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS";
-        /** @enum {string} */
+        /**
+         * @enum {string}
+         */
         Browser: "chromium" | "firefox" | "webkit";
-        /** @enum {string} */
+        /**
+         * @enum {string}
+         */
         ResourceKind: "CASE" | "ELEMENT_CATALOG" | "ASSERTION_TEMPLATE" | "DATASET" | "FLOW" | "FIXTURE" | "SUITE"
             | "ENVIRONMENT";
-        /** @enum {string} */
+        /**
+         * @enum {string}
+         */
         Outcome: "PASSED" | "FAILED" | "ERROR" | "UNSTABLE" | "CANCELLED" | "INCOMPLETE" | "SKIPPED";
-        /** @enum {string} */
+        /**
+         * @enum {string}
+         */
         AttemptOutcome: "PASSED" | "FAILED" | "ERROR" | "CANCELLED" | "INCOMPLETE" | "SKIPPED";
-        /** @enum {string} */
+        /**
+         * @enum {string}
+         */
         CleanupStatus: "NOT_REQUIRED" | "PENDING" | "SUCCEEDED" | "FAILED" | "UNKNOWN";
-        /** @enum {string} */
+        /**
+         * @enum {string}
+         */
         TrustStatus: "MANAGED" | "USER_REGISTERED" | "REVOKED";
-        /** @enum {string} */
+        /**
+         * @enum {string}
+         */
         RunSource: "MANAGED_CLOUD" | "CONNECTED_LOCAL" | "OFFLINE_IMPORT";
         FilePath: string;
         FileEntry: {
@@ -2174,11 +2227,15 @@ export interface components {
             integrity: string;
         };
         ObserverWindow: {
-            /** @constant */
+            /**
+             * @constant
+             */
             mode: "UNTIL_ACTION_SETTLED";
             quietMs?: number;
         } | {
-            /** @constant */
+            /**
+             * @constant
+             */
             mode: "FIXED";
             durationMs: components["schemas"]["Timeout"];
         };
@@ -2193,260 +2250,382 @@ export interface components {
         };
         AssertionV1: {
             id: components["schemas"]["Key"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
             expectedSource: string;
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "ui";
             target: components["schemas"]["Key"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             operator: "visible" | "enabled" | "checked" | "attached" | "editable";
             expected: boolean;
             pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
             expectedSource: string;
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "ui";
             target: components["schemas"]["Key"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             operator: "textEquals" | "textContains" | "valueEquals";
             expected: components["schemas"]["SafeString"];
             pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
             expectedSource: string;
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "ui";
             target: components["schemas"]["Key"];
-            /** @constant */
+            /**
+             * @constant
+             */
             operator: "countEquals";
             expected: number;
             pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
             expectedSource: string;
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "url";
-            /** @constant */
+            /**
+             * @constant
+             */
             source: "page";
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             operator: "equals" | "contains";
             expected: components["schemas"]["SafeString"];
             pageKey?: components["schemas"]["Key"];
         } | {
             id: components["schemas"]["Key"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
             expectedSource: string;
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "httpStatus";
             source: components["schemas"]["ResponseRef"];
-            /** @constant */
+            /**
+             * @constant
+             */
             operator: "equals";
             expected: number;
         } | {
             id: components["schemas"]["Key"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
             expectedSource: string;
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "request";
             source: components["schemas"]["RequestRef"];
-            /** @constant */
+            /**
+             * @constant
+             */
             operator: "methodEquals";
             expected: components["schemas"]["HttpMethod"];
         } | {
             id: components["schemas"]["Key"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
             expectedSource: string;
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "request";
             source: components["schemas"]["RequestRef"];
-            /** @constant */
+            /**
+             * @constant
+             */
             operator: "pathEquals";
             expected: components["schemas"]["Path"];
         } | {
             id: components["schemas"]["Key"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
             expectedSource: string;
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "responseSchema";
             source: components["schemas"]["ResponseRef"];
-            /** @constant */
+            /**
+             * @constant
+             */
             operator: "matchesSchema";
             expected: components["schemas"]["JsonSchema"];
         } | {
             id: components["schemas"]["Key"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
             expectedSource: string;
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "duration";
             source: components["schemas"]["SourceRef"];
-            /** @constant */
+            /**
+             * @constant
+             */
             operator: "lessThanOrEqual";
             expected: number;
         } | {
             id: components["schemas"]["Key"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
             expectedSource: string;
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "requestCount";
             source: components["schemas"]["RequestRef"];
-            /** @constant */
+            /**
+             * @constant
+             */
             operator: "equals";
             expected: number;
         } | {
             id: components["schemas"]["Key"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
             expectedSource: string;
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "eventually";
             query: {
-                /** @constant */
+                /**
+                 * @constant
+                 */
                 method: "GET";
                 path: components["schemas"]["Path"];
                 query?: components["schemas"]["BindingJsonObject"];
             };
             pointer: components["schemas"]["Pointer"];
-            /** @constant */
+            /**
+             * @constant
+             */
             operator: "equals";
             expected: components["schemas"]["BindingJsonValue"];
             intervalMs?: number;
         } | {
             id: components["schemas"]["Key"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
             expectedSource: string;
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "template";
             versionId: components["schemas"]["Id"];
             parameters?: components["schemas"]["BindingJsonObject"];
         } | {
             id: components["schemas"]["Key"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
             expectedSource: string;
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "responseField";
             source: components["schemas"]["ResponseRef"];
             pointer: components["schemas"]["Pointer"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             operator: "equals" | "notEquals";
             expected: components["schemas"]["BindingJsonValue"];
         } | {
             id: components["schemas"]["Key"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
             expectedSource: string;
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "responseField";
             source: components["schemas"]["ResponseRef"];
             pointer: components["schemas"]["Pointer"];
-            /** @constant */
+            /**
+             * @constant
+             */
             operator: "contains";
             expected: components["schemas"]["SafeString"] | components["schemas"]["BindingJsonValue"][];
         } | {
             id: components["schemas"]["Key"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
             expectedSource: string;
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "responseField";
             source: components["schemas"]["ResponseRef"];
             pointer: components["schemas"]["Pointer"];
-            /** @constant */
+            /**
+             * @constant
+             */
             operator: "in";
             expected: components["schemas"]["BindingJsonValue"][];
         } | {
             id: components["schemas"]["Key"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
             expectedSource: string;
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "responseField";
             source: components["schemas"]["ResponseRef"];
             pointer: components["schemas"]["Pointer"];
-            /** @constant */
+            /**
+             * @constant
+             */
             operator: "exists";
             expected: boolean;
         } | {
             id: components["schemas"]["Key"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
             expectedSource: string;
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "requestField";
             source: components["schemas"]["RequestRef"];
             pointer: components["schemas"]["Pointer"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             operator: "equals" | "notEquals";
             expected: components["schemas"]["BindingJsonValue"];
         } | {
             id: components["schemas"]["Key"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
             expectedSource: string;
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "requestField";
             source: components["schemas"]["RequestRef"];
             pointer: components["schemas"]["Pointer"];
-            /** @constant */
+            /**
+             * @constant
+             */
             operator: "contains";
             expected: components["schemas"]["SafeString"] | components["schemas"]["BindingJsonValue"][];
         } | {
             id: components["schemas"]["Key"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
             expectedSource: string;
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "requestField";
             source: components["schemas"]["RequestRef"];
             pointer: components["schemas"]["Pointer"];
-            /** @constant */
+            /**
+             * @constant
+             */
             operator: "in";
             expected: components["schemas"]["BindingJsonValue"][];
         } | {
             id: components["schemas"]["Key"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
             expectedSource: string;
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "requestField";
             source: components["schemas"]["RequestRef"];
             pointer: components["schemas"]["Pointer"];
-            /** @constant */
+            /**
+             * @constant
+             */
             operator: "exists";
             expected: boolean;
         };
@@ -2458,9 +2637,13 @@ export interface components {
             afterAssertions?: components["schemas"]["AssertionV1"][];
             extract?: components["schemas"]["ExtractionV1"][];
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             failurePolicy?: "STOP_CASE" | "CONTINUE";
-            /** @constant */
+            /**
+             * @constant
+             */
             action: "goto";
             path: components["schemas"]["Path"];
             pageKey?: components["schemas"]["Key"];
@@ -2472,9 +2655,13 @@ export interface components {
             afterAssertions?: components["schemas"]["AssertionV1"][];
             extract?: components["schemas"]["ExtractionV1"][];
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             failurePolicy?: "STOP_CASE" | "CONTINUE";
-            /** @constant */
+            /**
+             * @constant
+             */
             action: "click";
             target: components["schemas"]["Key"];
             pageKey?: components["schemas"]["Key"];
@@ -2486,9 +2673,13 @@ export interface components {
             afterAssertions?: components["schemas"]["AssertionV1"][];
             extract?: components["schemas"]["ExtractionV1"][];
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             failurePolicy?: "STOP_CASE" | "CONTINUE";
-            /** @constant */
+            /**
+             * @constant
+             */
             action: "check";
             target: components["schemas"]["Key"];
             pageKey?: components["schemas"]["Key"];
@@ -2500,9 +2691,13 @@ export interface components {
             afterAssertions?: components["schemas"]["AssertionV1"][];
             extract?: components["schemas"]["ExtractionV1"][];
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             failurePolicy?: "STOP_CASE" | "CONTINUE";
-            /** @constant */
+            /**
+             * @constant
+             */
             action: "uncheck";
             target: components["schemas"]["Key"];
             pageKey?: components["schemas"]["Key"];
@@ -2514,9 +2709,13 @@ export interface components {
             afterAssertions?: components["schemas"]["AssertionV1"][];
             extract?: components["schemas"]["ExtractionV1"][];
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             failurePolicy?: "STOP_CASE" | "CONTINUE";
-            /** @constant */
+            /**
+             * @constant
+             */
             action: "fill";
             target: components["schemas"]["Key"];
             value: components["schemas"]["SafeString"];
@@ -2529,9 +2728,13 @@ export interface components {
             afterAssertions?: components["schemas"]["AssertionV1"][];
             extract?: components["schemas"]["ExtractionV1"][];
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             failurePolicy?: "STOP_CASE" | "CONTINUE";
-            /** @constant */
+            /**
+             * @constant
+             */
             action: "press";
             target: components["schemas"]["Key"];
             value: components["schemas"]["SafeString"];
@@ -2544,9 +2747,13 @@ export interface components {
             afterAssertions?: components["schemas"]["AssertionV1"][];
             extract?: components["schemas"]["ExtractionV1"][];
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             failurePolicy?: "STOP_CASE" | "CONTINUE";
-            /** @constant */
+            /**
+             * @constant
+             */
             action: "selectOption";
             target: components["schemas"]["Key"];
             value: components["schemas"]["SafeString"] | components["schemas"]["SafeString"][];
@@ -2559,9 +2766,13 @@ export interface components {
             afterAssertions?: components["schemas"]["AssertionV1"][];
             extract?: components["schemas"]["ExtractionV1"][];
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             failurePolicy?: "STOP_CASE" | "CONTINUE";
-            /** @constant */
+            /**
+             * @constant
+             */
             action: "upload";
             target: components["schemas"]["Key"];
             value: components["schemas"]["FilePath"][];
@@ -2574,9 +2785,13 @@ export interface components {
             afterAssertions?: components["schemas"]["AssertionV1"][];
             extract?: components["schemas"]["ExtractionV1"][];
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             failurePolicy?: "STOP_CASE" | "CONTINUE";
-            /** @constant */
+            /**
+             * @constant
+             */
             action: "reload";
             pageKey?: components["schemas"]["Key"];
         } | {
@@ -2587,9 +2802,13 @@ export interface components {
             afterAssertions?: components["schemas"]["AssertionV1"][];
             extract?: components["schemas"]["ExtractionV1"][];
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             failurePolicy?: "STOP_CASE" | "CONTINUE";
-            /** @constant */
+            /**
+             * @constant
+             */
             action: "apiRequest";
             method: components["schemas"]["HttpMethod"];
             path: components["schemas"]["Path"];
@@ -2607,20 +2826,28 @@ export interface components {
             afterAssertions?: components["schemas"]["AssertionV1"][];
             extract?: components["schemas"]["ExtractionV1"][];
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             failurePolicy?: "STOP_CASE" | "CONTINUE";
-            /** @constant */
+            /**
+             * @constant
+             */
             action: "callFlow";
             versionId: components["schemas"]["Id"];
             parameters?: components["schemas"]["BindingJsonObject"];
             pageKey?: components["schemas"]["Key"];
         };
         CaseDslV1: {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             caseKey: components["schemas"]["Key"];
             title: string;
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             kind: "READ" | "WRITE";
             roleKey: components["schemas"]["Key"];
             catalogVersionId: components["schemas"]["Id"];
@@ -2632,11 +2859,15 @@ export interface components {
             initialVariables?: components["schemas"]["ParameterTypes"];
         };
         LocatorV1: {
-            /** @constant */
+            /**
+             * @constant
+             */
             by: "testId";
             value: components["schemas"]["Key"];
         } | {
-            /** @constant */
+            /**
+             * @constant
+             */
             by: "role";
             role: string;
             name?: components["schemas"]["SafeString"];
@@ -2649,12 +2880,16 @@ export interface components {
             recordKey?: components["schemas"]["SafeString"];
         };
         ElementCatalogV1: {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             elements: components["schemas"]["CatalogElementV1"][];
         };
         AssertionTemplateV1: {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             parameters?: components["schemas"]["ParameterTypes"];
             assertions: components["schemas"]["AssertionV1"][];
@@ -2664,32 +2899,44 @@ export interface components {
             values: components["schemas"]["JsonObject"];
         };
         DatasetV1: {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             columns: components["schemas"]["ParameterTypes"];
             rows: components["schemas"]["DataRowV1"][];
         };
         FlowV1: {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             parameters?: components["schemas"]["ParameterTypes"];
             steps: components["schemas"]["StepV1"][];
         };
         FixtureEndpointV1: {
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             method: "POST" | "DELETE";
             path: components["schemas"]["Path"];
         };
         FixtureV1: {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             prepare: {
-                /** @constant */
+                /**
+                 * @constant
+                 */
                 method: "POST";
                 path: components["schemas"]["Path"];
             };
             query: {
-                /** @constant */
+                /**
+                 * @constant
+                 */
                 method: "GET";
                 path: components["schemas"]["Path"];
             };
@@ -2699,7 +2946,9 @@ export interface components {
             ttlSeconds: number;
         };
         SuiteV1: {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             cases: {
                 versionId: components["schemas"]["Id"];
@@ -2716,7 +2965,9 @@ export interface components {
             allowedIdentityIds?: string[];
         };
         EnvironmentV1: {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             baseURL: components["schemas"]["HttpUrl"];
             apiBaseURL: components["schemas"]["HttpUrl"];
@@ -2729,97 +2980,131 @@ export interface components {
             fixtureIdentity?: components["schemas"]["FixtureIdentityV1"];
         };
         ResourceDocumentV1: {
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "CASE";
             document: components["schemas"]["CaseDslV1"];
         } | {
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "ELEMENT_CATALOG";
             document: components["schemas"]["ElementCatalogV1"];
         } | {
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "ASSERTION_TEMPLATE";
             document: components["schemas"]["AssertionTemplateV1"];
         } | {
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "DATASET";
             document: components["schemas"]["DatasetV1"];
         } | {
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "FLOW";
             document: components["schemas"]["FlowV1"];
         } | {
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "FIXTURE";
             document: components["schemas"]["FixtureV1"];
         } | {
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "SUITE";
             document: components["schemas"]["SuiteV1"];
         } | {
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "ENVIRONMENT";
             document: components["schemas"]["EnvironmentV1"];
         };
         AssetVersionV1: {
             resourceId: components["schemas"]["Id"];
             versionId: components["schemas"]["Id"];
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "CASE";
             sha256: components["schemas"]["Sha256"];
             document: components["schemas"]["CaseDslV1"];
         } | {
             resourceId: components["schemas"]["Id"];
             versionId: components["schemas"]["Id"];
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "ELEMENT_CATALOG";
             sha256: components["schemas"]["Sha256"];
             document: components["schemas"]["ElementCatalogV1"];
         } | {
             resourceId: components["schemas"]["Id"];
             versionId: components["schemas"]["Id"];
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "ASSERTION_TEMPLATE";
             sha256: components["schemas"]["Sha256"];
             document: components["schemas"]["AssertionTemplateV1"];
         } | {
             resourceId: components["schemas"]["Id"];
             versionId: components["schemas"]["Id"];
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "DATASET";
             sha256: components["schemas"]["Sha256"];
             document: components["schemas"]["DatasetV1"];
         } | {
             resourceId: components["schemas"]["Id"];
             versionId: components["schemas"]["Id"];
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "FLOW";
             sha256: components["schemas"]["Sha256"];
             document: components["schemas"]["FlowV1"];
         } | {
             resourceId: components["schemas"]["Id"];
             versionId: components["schemas"]["Id"];
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "FIXTURE";
             sha256: components["schemas"]["Sha256"];
             document: components["schemas"]["FixtureV1"];
         } | {
             resourceId: components["schemas"]["Id"];
             versionId: components["schemas"]["Id"];
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "SUITE";
             sha256: components["schemas"]["Sha256"];
             document: components["schemas"]["SuiteV1"];
         } | {
             resourceId: components["schemas"]["Id"];
             versionId: components["schemas"]["Id"];
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "ENVIRONMENT";
             sha256: components["schemas"]["Sha256"];
             document: components["schemas"]["EnvironmentV1"];
         };
         AssetSnapshotV1: {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             workspaceId: components["schemas"]["Id"];
             sourceHash: components["schemas"]["Sha256"];
@@ -2831,7 +3116,9 @@ export interface components {
         } & unknown;
         SnapshotV1: components["schemas"]["AssetSnapshotV1"];
         ExecutionSnapshotV1: {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             workspaceId: components["schemas"]["Id"];
             runId: components["schemas"]["Id"];
@@ -2855,7 +3142,9 @@ export interface components {
             suiteEntryIndex?: number;
         };
         CompiledAssetBundle: {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             sourceHash: components["schemas"]["Sha256"];
             engineVersion: components["schemas"]["Version"];
@@ -2866,37 +3155,58 @@ export interface components {
             dependencies: components["schemas"]["DependencyVersion"][];
             validationOnly?: boolean;
         } & unknown;
-        /** @description VeriQ
-         * Runtime能力合同仅允许linux/x64、win32/x64、darwin/x64及darwin/arm64；Mac目标最低系统为macOS15，但合同接受不
-         * 代表设备通过原生执行、进程监督、凭据或安装验收。
+        /**
+         * @description VeriQ
+         * Runtime能力合同仅允许linux/x64、win32/x64、darwin/x64及darwin/arm64；Mac目标最低系统为macOS15，但合同接受不代
+         * 表设备通过原生执行、进程监督、凭据或安装验收。
          */
         RuntimeCapabilitiesV1: {
             engineVersion: components["schemas"]["Version"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             os: "linux" | "win32" | "darwin";
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             arch: "x64" | "arm64";
             browsers: components["schemas"]["Browser"][];
             jobKinds?: ("TEST" | "VALIDATE" | "CLEANUP")[];
         } & ({
-            /** @constant */
+            /**
+             * @constant
+             */
             os: "linux";
-            /** @constant */
+            /**
+             * @constant
+             */
             arch: "x64";
         } | {
-            /** @constant */
+            /**
+             * @constant
+             */
             os: "win32";
-            /** @constant */
+            /**
+             * @constant
+             */
             arch: "x64";
         } | {
-            /** @constant */
+            /**
+             * @constant
+             */
             os: "darwin";
-            /** @constant */
+            /**
+             * @constant
+             */
             arch: "x64";
         } | {
-            /** @constant */
+            /**
+             * @constant
+             */
             os: "darwin";
-            /** @constant */
+            /**
+             * @constant
+             */
             arch: "arm64";
         });
         ClaimRequest: {
@@ -2907,7 +3217,9 @@ export interface components {
         };
         ClaimDTO: {
             jobId: components["schemas"]["Id"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             jobKind: "TEST" | "VALIDATE" | "CLEANUP";
             attemptId: components["schemas"]["Id"];
             leaseToken: string;
@@ -2917,17 +3229,23 @@ export interface components {
             snapshotSha256: components["schemas"]["Sha256"];
             serverTime: components["schemas"]["Timestamp"];
             leaseDurationMs: number;
-            /** @constant */
+            /**
+             * @constant
+             */
             activationRequired: true;
         };
         TestJobManifestV1: {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             workspaceId: components["schemas"]["Id"];
             jobId: components["schemas"]["Id"];
             snapshotSha256: components["schemas"]["Sha256"];
             engineVersion: components["schemas"]["Version"];
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "TEST";
             caseExecutionId: components["schemas"]["Id"];
             compiledBundleSha256: components["schemas"]["Sha256"];
@@ -2935,26 +3253,34 @@ export interface components {
             caseVersionId: components["schemas"]["Id"];
         };
         ValidateJobManifestV1: {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             workspaceId: components["schemas"]["Id"];
             jobId: components["schemas"]["Id"];
             snapshotSha256: components["schemas"]["Sha256"];
             engineVersion: components["schemas"]["Version"];
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "VALIDATE";
             resourceId: components["schemas"]["Id"];
             revision: number;
             sourceHash: components["schemas"]["Sha256"];
         };
         CleanupJobManifestV1: {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             workspaceId: components["schemas"]["Id"];
             jobId: components["schemas"]["Id"];
             snapshotSha256: components["schemas"]["Sha256"];
             engineVersion: components["schemas"]["Version"];
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "CLEANUP";
             maintenanceId: components["schemas"]["Id"];
             fixtureVersionId: components["schemas"]["Id"];
@@ -2964,145 +3290,195 @@ export interface components {
         JobManifestV1: components["schemas"]["TestJobManifestV1"] | components["schemas"]["ValidateJobManifestV1"]
             | components["schemas"]["CleanupJobManifestV1"];
         ExecutionEventV1: {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             attemptId: components["schemas"]["Id"];
             sequence: number;
             timestamp: components["schemas"]["Timestamp"];
             stepId?: components["schemas"]["Key"];
             assertionId?: components["schemas"]["Key"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "ATTEMPT_STARTED";
             payload: {
                 engineVersion: components["schemas"]["Version"];
                 sourceHash: components["schemas"]["Sha256"];
             };
         } | {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             attemptId: components["schemas"]["Id"];
             sequence: number;
             timestamp: components["schemas"]["Timestamp"];
             stepId?: components["schemas"]["Key"];
             assertionId?: components["schemas"]["Key"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "PHASE_CHANGED";
             payload: {
-                /** @enum {string} */
+                /**
+                 * @enum {string}
+                 */
                 phase: "LEASED" | "PREPARING" | "RUNNING" | "CLEANING" | "FINALIZING" | "FINISHED";
             };
         } | {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             attemptId: components["schemas"]["Id"];
             sequence: number;
             timestamp: components["schemas"]["Timestamp"];
             stepId: components["schemas"]["Key"];
             assertionId?: components["schemas"]["Key"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "STEP_STARTED";
             payload: Record<string, never>;
         } | {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             attemptId: components["schemas"]["Id"];
             sequence: number;
             timestamp: components["schemas"]["Timestamp"];
             stepId: components["schemas"]["Key"];
             assertionId?: components["schemas"]["Key"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "STEP_FINISHED";
             payload: components["schemas"]["StepFinishedPayloadV1"];
         } | {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             attemptId: components["schemas"]["Id"];
             sequence: number;
             timestamp: components["schemas"]["Timestamp"];
             stepId: components["schemas"]["Key"];
             assertionId: components["schemas"]["Key"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "ASSERTION_RESULT";
             payload: components["schemas"]["AssertionResultPayloadV1"];
         } | {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             attemptId: components["schemas"]["Id"];
             sequence: number;
             timestamp: components["schemas"]["Timestamp"];
             stepId: components["schemas"]["Key"];
             assertionId?: components["schemas"]["Key"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "OBSERVER_RESULT";
             payload: components["schemas"]["ObserverResultPayloadV1"];
         } | {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             attemptId: components["schemas"]["Id"];
             sequence: number;
             timestamp: components["schemas"]["Timestamp"];
             stepId: components["schemas"]["Key"];
             assertionId?: components["schemas"]["Key"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "VARIABLE_EXTRACTED";
             payload: {
                 name: components["schemas"]["Key"];
                 valueType: components["schemas"]["ValueType"];
             };
         } | {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             attemptId: components["schemas"]["Id"];
             sequence: number;
             timestamp: components["schemas"]["Timestamp"];
             stepId?: components["schemas"]["Key"];
             assertionId?: components["schemas"]["Key"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "LOG";
             payload: {
-                /** @enum {string} */
+                /**
+                 * @enum {string}
+                 */
                 level: "DEBUG" | "INFO" | "WARN" | "ERROR";
                 message: components["schemas"]["DiagnosticText"];
             };
         } | {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             attemptId: components["schemas"]["Id"];
             sequence: number;
             timestamp: components["schemas"]["Timestamp"];
             stepId?: components["schemas"]["Key"];
             assertionId?: components["schemas"]["Key"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "CLEANUP_RESULT";
             payload: {
                 cleanupStatus: components["schemas"]["CleanupStatus"];
                 errorCode?: components["schemas"]["Key"];
             };
         } | {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             attemptId: components["schemas"]["Id"];
             sequence: number;
             timestamp: components["schemas"]["Timestamp"];
             stepId?: components["schemas"]["Key"];
             assertionId?: components["schemas"]["Key"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "ARTIFACT_CREATED";
             payload: {
                 artifactId: components["schemas"]["Id"];
                 file: components["schemas"]["EvidenceFileEntryV1"];
-                /** @enum {string} */
+                /**
+                 * @enum {string}
+                 */
                 kind: "SCREENSHOT" | "TRACE" | "HTML" | "JUNIT" | "LOG" | "SOURCE" | "MANIFEST" | "DOWNLOAD";
             };
         } | {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             attemptId: components["schemas"]["Id"];
             sequence: number;
             timestamp: components["schemas"]["Timestamp"];
             stepId?: components["schemas"]["Key"];
             assertionId?: components["schemas"]["Key"];
-            /** @constant */
+            /**
+             * @constant
+             */
             type: "ATTEMPT_FINISHED";
             payload: {
                 outcome: components["schemas"]["AttemptOutcome"];
@@ -3110,7 +3486,9 @@ export interface components {
             };
         };
         BundleManifestV1: {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             bundleId: components["schemas"]["Id"];
             workspaceId: components["schemas"]["Id"];
@@ -3121,7 +3499,9 @@ export interface components {
             sourceHash: components["schemas"]["Sha256"];
             snapshotSha256: components["schemas"]["Sha256"];
             engineVersion: components["schemas"]["Version"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             validationStatus: "VALIDATED" | "UNVALIDATED_DEBUG";
             files: components["schemas"]["FileEntry"][];
         };
@@ -3136,33 +3516,45 @@ export interface components {
             artifacts: components["schemas"]["OfflineArtifactV1"][];
             execution?: components["schemas"]["ExecutionSnapshotV1"];
             processStopped?: boolean;
-            /** @enum {unknown} */
+            /**
+             * @enum {unknown}
+             */
             retrySafety?: "READ_ONLY_OBSERVED" | "WRITE_POSSIBLE" | "UNKNOWN";
-            /** @enum {unknown} */
+            /**
+             * @enum {unknown}
+             */
             sourceKind?: "PUBLISHED" | "DRAFT_DEBUG";
             variantKey?: components["schemas"]["Sha256"];
             failureCode?: string;
             diagnostics?: {
                 code: string;
                 path: string;
-                /** @enum {unknown} */
+                /**
+                 * @enum {unknown}
+                 */
                 pathStatus: "EXACT" | "REDACTED";
                 message: string;
             }[];
             processStopScope?: components["schemas"]["ProcessStopScope"];
         };
         OfflineResultV1: {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             workspaceId: components["schemas"]["Id"];
             bundleId: components["schemas"]["Id"];
             localRunId: components["schemas"]["Id"];
             deviceId: components["schemas"]["Id"];
-            /** @constant */
+            /**
+             * @constant
+             */
             source: "OFFLINE_IMPORT";
             trustStatus: components["schemas"]["TrustStatus"];
             dirty: boolean;
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             revocationStatus: "CURRENT" | "UNKNOWN" | "REVOKED";
             manifestSha256: components["schemas"]["Sha256"];
             startedAt: components["schemas"]["Timestamp"];
@@ -3174,7 +3566,9 @@ export interface components {
         };
         ValidationIssue: {
             path: string;
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             code: "SCHEMA_VIOLATION" | "INVALID_JSON";
             message: string;
         };
@@ -3182,7 +3576,9 @@ export interface components {
             leaseToken: string;
             fencingToken: number;
             progress: {
-                /** @enum {string} */
+                /**
+                 * @enum {string}
+                 */
                 phase: "LEASED" | "PREPARING" | "RUNNING" | "CLEANING" | "FINALIZING";
                 stepId?: components["schemas"]["Key"];
                 completedSteps?: number;
@@ -3205,7 +3601,9 @@ export interface components {
         FinishRequest: {
             leaseToken: string;
             fencingToken: number;
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             kind: "TEST" | "VALIDATE" | "CLEANUP";
             outcome: components["schemas"]["AttemptOutcome"];
             manifestSha256: components["schemas"]["Sha256"];
@@ -3214,7 +3612,9 @@ export interface components {
         };
         FinishDTO: {
             attemptId: components["schemas"]["Id"];
-            /** @constant */
+            /**
+             * @constant
+             */
             accepted: true;
             outcome: components["schemas"]["AttemptOutcome"];
             manifestSha256: components["schemas"]["Sha256"];
@@ -3228,13 +3628,17 @@ export interface components {
         Empty: Record<string, never>;
         UserDTO: {
             id: components["schemas"]["Id"];
-            /** Format: email */
+            /**
+             * Format: email
+             */
             email: string;
             displayName: string;
             disabled: boolean;
         };
         LoginRequest: {
-            /** Format: email */
+            /**
+             * Format: email
+             */
             email: string;
             password: string;
         };
@@ -3244,14 +3648,17 @@ export interface components {
             expiresAt: components["schemas"]["Timestamp"];
         };
         EmailRequest: {
-            /** Format: email */
+            /**
+             * Format: email
+             */
             email: string;
         };
         ResetPasswordRequest: {
             token: string;
             newPassword: string;
         };
-        /** @description Existing accounts require the matching authenticated session and token only; credentials cannot
+        /**
+         * @description Existing accounts require the matching authenticated session and token only; credentials cannot
          * be replaced. New accounts require password and displayName, creating an ordinary user without a session.
          */
         InvitationAcceptRequest: {
@@ -3263,7 +3670,9 @@ export interface components {
             id: components["schemas"]["Id"];
             key: components["schemas"]["Key"];
             name: string;
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             role: "OWNER" | "ADMIN" | "EDITOR" | "EXECUTOR" | "VIEWER";
             archived: boolean;
         };
@@ -3276,34 +3685,52 @@ export interface components {
         };
         MemberDTO: {
             userId: components["schemas"]["Id"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             role: "OWNER" | "ADMIN" | "EDITOR" | "EXECUTOR" | "VIEWER";
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             status: "ACTIVE" | "DISABLED";
-            /** Format: email */
+            /**
+             * Format: email
+             */
             email: string;
             displayName: string;
             userDisabled: boolean;
         };
         MemberWrite: {
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             role: "OWNER" | "ADMIN" | "EDITOR" | "EXECUTOR" | "VIEWER";
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             status: "ACTIVE" | "DISABLED";
         };
         InviteRequest: {
-            /** Format: email */
+            /**
+             * Format: email
+             */
             email: string;
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             role: "ADMIN" | "EDITOR" | "EXECUTOR" | "VIEWER";
-            /** @default false */
+            /**
+             * @default false
+             */
             sendEmail: boolean;
         };
         InviteDTO: {
             id: components["schemas"]["Id"];
             expiresAt: components["schemas"]["Timestamp"];
             invitationUrl: components["schemas"]["HttpUrl"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             delivery: "NOT_REQUESTED" | "SENT" | "FAILED";
         };
         ResourceDTO: {
@@ -3312,7 +3739,9 @@ export interface components {
             kind: components["schemas"]["ResourceKind"];
             key: components["schemas"]["Key"];
             name: string;
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
             latestVersionId?: components["schemas"]["Id"];
         };
@@ -3341,7 +3770,8 @@ export interface components {
             revision: number;
             sourceHash: components["schemas"]["Sha256"];
         };
-        /** @description Server-created successful VALIDATE receipt bound to Workspace, job, resource, immutable draft
+        /**
+         * @description Server-created successful VALIDATE receipt bound to Workspace, job, resource, immutable draft
          * revision, source hash, engine version and compiled bundle. Publish must verify the current authorized
          * resource/revision binding and reject stale/foreign receipts.
          */
@@ -3357,7 +3787,9 @@ export interface components {
             jobId: components["schemas"]["Id"];
             runtimeId: components["schemas"]["Id"];
             attemptId: components["schemas"]["Id"];
-            /** @constant */
+            /**
+             * @constant
+             */
             compilerTrust: "MANAGED";
         };
         PublishRequest: {
@@ -3369,7 +3801,9 @@ export interface components {
             resourceId: components["schemas"]["Id"];
             workspaceId: components["schemas"]["Id"];
             versionNo: number;
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             sha256: components["schemas"]["Sha256"];
             content: components["schemas"]["ResourceDocumentV1"];
@@ -3379,17 +3813,25 @@ export interface components {
             id: components["schemas"]["Id"];
             ownerId: components["schemas"]["Id"];
             name: string;
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             location: "MANAGED_CLOUD" | "CONNECTED_LOCAL";
             trustStatus: components["schemas"]["TrustStatus"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             status: "PENDING" | "ONLINE" | "OFFLINE" | "REVOKED";
             capabilities: components["schemas"]["RuntimeCapabilitiesV1"];
             lastSeenAt?: components["schemas"]["Timestamp"];
             workspaceId: components["schemas"]["Id"];
-            /** @enum {unknown} */
+            /**
+             * @enum {unknown}
+             */
             ownerType: "USER" | "SERVICE_ACCOUNT";
-            /** @constant */
+            /**
+             * @constant
+             */
             capabilitiesSource: "DEVICE_REPORTED";
             sharedWithWorkspace: boolean;
             sharedWithUserIds: components["schemas"]["Id"][];
@@ -3398,7 +3840,9 @@ export interface components {
         };
         EnrollmentRequest: {
             name: string;
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             location: "CONNECTED_LOCAL";
             capabilities: components["schemas"]["RuntimeCapabilitiesV1"];
         };
@@ -3408,7 +3852,9 @@ export interface components {
             userCode: string;
             verificationUrl: components["schemas"]["HttpUrl"];
             expiresAt: components["schemas"]["Timestamp"];
-            /** @constant */
+            /**
+             * @constant
+             */
             intervalSeconds: 5;
         };
         EnrollmentApprove: {
@@ -3427,7 +3873,9 @@ export interface components {
             issuerId?: components["schemas"]["Key"];
             trustedKeys?: {
                 keyId: components["schemas"]["Key"];
-                /** @constant */
+                /**
+                 * @constant
+                 */
                 algorithm: "Ed25519";
                 publicKey: string;
                 fingerprint: components["schemas"]["Sha256"];
@@ -3440,7 +3888,9 @@ export interface components {
             sharedWithWorkspace: boolean;
         };
         RuntimeTrustWrite: {
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             trustStatus: "MANAGED" | "USER_REGISTERED";
             allowCredentialDelivery: boolean;
         };
@@ -3450,7 +3900,9 @@ export interface components {
             environmentVersionId: components["schemas"]["Id"];
             browsers: components["schemas"]["Browser"][];
             runtimeIds: components["schemas"]["Id"][];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             overlapPolicy: "QUEUE" | "SKIP" | "REJECT";
             maxCaseRetries: number;
             roleKeys: string[];
@@ -3463,7 +3915,9 @@ export interface components {
             environmentVersionId: components["schemas"]["Id"];
             browsers: components["schemas"]["Browser"][];
             runtimeIds: components["schemas"]["Id"][];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             overlapPolicy: "QUEUE" | "SKIP" | "REJECT";
             maxCaseRetries: number;
             roleKeys: string[];
@@ -3485,7 +3939,9 @@ export interface components {
             browsers: components["schemas"]["Browser"][];
             runtimeIds: components["schemas"]["Id"][];
             variables?: components["schemas"]["JsonObject"];
-            /** @enum {unknown} */
+            /**
+             * @enum {unknown}
+             */
             executionLocation?: "MANAGED_CLOUD" | "CONNECTED_LOCAL";
             maxRetries?: number;
             draftValidationJobId?: components["schemas"]["Id"];
@@ -3494,36 +3950,50 @@ export interface components {
             id: components["schemas"]["Id"];
             workspaceId: components["schemas"]["Id"];
             source: components["schemas"]["RunSource"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             state: "QUEUED" | "RUNNING" | "CANCEL_REQUESTED" | "FINISHED";
             outcome?: components["schemas"]["Outcome"];
             snapshotHash: components["schemas"]["Sha256"];
             createdAt: components["schemas"]["Timestamp"];
             gateAtExecution?: boolean;
             gateNow?: boolean;
-            /** @enum {unknown} */
+            /**
+             * @enum {unknown}
+             */
             triggerKind?: "MANUAL" | "DEBUG" | "HTTP_TRIGGER" | "OFFLINE_IMPORT";
             reasonCode?: string;
         };
         JobDTO: {
             id: components["schemas"]["Id"];
             workspaceId: components["schemas"]["Id"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             kind: "TEST" | "VALIDATE" | "CLEANUP";
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             state: "QUEUED" | "LEASED" | "RUNNING" | "CANCEL_REQUESTED" | "FINISHED";
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             waitReason?: "RUNTIME_OFFLINE" | "NO_CAPABILITY" | "CAPACITY" | "RESOURCE_LOCK" | "QUARANTINED";
             activeAttemptId?: components["schemas"]["Id"];
             outcome?: components["schemas"]["AttemptOutcome"];
-            /** @description Safe code projected from retained validated Attempt facts; no raw log content. */
+            /**
+             * @description Safe code projected from retained validated Attempt facts; no raw log content.
+             */
             errorCode?: string;
             diagnostics?: components["schemas"]["CompilerDiagnosticV1"][];
         };
         ArtifactDTO: {
             id: components["schemas"]["Id"];
             attemptId: components["schemas"]["Id"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             kind: "SCREENSHOT" | "TRACE" | "HTML" | "JUNIT" | "LOG" | "SOURCE" | "MANIFEST" | "DOWNLOAD";
             filename: string;
             contentType: string;
@@ -3537,7 +4007,9 @@ export interface components {
             workspaceId: components["schemas"]["Id"];
             manifestSha256: components["schemas"]["Sha256"];
             snapshotSha256: components["schemas"]["Sha256"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             validationStatus: "VALIDATED" | "UNVALIDATED_DEBUG";
             createdAt: components["schemas"]["Timestamp"];
         };
@@ -3546,14 +4018,20 @@ export interface components {
             runId: components["schemas"]["Id"];
             localRunId: components["schemas"]["Id"];
             duplicate: boolean;
-            /** @constant */
+            /**
+             * @constant
+             */
             source: "OFFLINE_IMPORT";
-            /** @constant */
+            /**
+             * @constant
+             */
             officialGatePassed: false;
         };
         ProviderWrite: {
             name: string;
-            /** @enum {unknown} */
+            /**
+             * @enum {unknown}
+             */
             adapter: "OPENAI_COMPATIBLE" | "ANTHROPIC";
             baseURL: string;
             model: string;
@@ -3567,7 +4045,9 @@ export interface components {
         };
         ProviderDTO: {
             name: string;
-            /** @enum {unknown} */
+            /**
+             * @enum {unknown}
+             */
             adapter: "OPENAI_COMPATIBLE" | "ANTHROPIC";
             baseURL: string;
             model: string;
@@ -3585,7 +4065,9 @@ export interface components {
         GenerationRequest: {
             requestId: components["schemas"]["Id"];
             providerId: components["schemas"]["Id"];
-            /** @enum {unknown} */
+            /**
+             * @enum {unknown}
+             */
             purpose: "CASE_DRAFT" | "BOUNDARY_SUGGESTION" | "FAILURE_ANALYSIS";
             resourceId?: components["schemas"]["Id"];
             runId?: components["schemas"]["Id"];
@@ -3600,16 +4082,22 @@ export interface components {
             providerId: components["schemas"]["Id"];
             requestId: components["schemas"]["Id"];
             createdAt: components["schemas"]["Timestamp"];
-            /** @enum {unknown} */
+            /**
+             * @enum {unknown}
+             */
             status: "RUNNING" | "SUCCEEDED" | "FAILED" | "REVIEWED" | "REJECTED" | "CANCELLED";
-            /** @enum {unknown} */
+            /**
+             * @enum {unknown}
+             */
             purpose: "CASE_DRAFT" | "BOUNDARY_SUGGESTION" | "FAILURE_ANALYSIS" | "CONNECTION_TEST";
             output?: components["schemas"]["JsonValue"];
             inputTokens?: number;
             outputTokens?: number;
             costUsd?: number;
             reservedUsd: number;
-            /** @enum {unknown} */
+            /**
+             * @enum {unknown}
+             */
             costState: "ESTIMATED" | "UNKNOWN";
             errorCode?: string;
             diagnostics?: components["schemas"]["JsonObject"][];
@@ -3617,13 +4105,17 @@ export interface components {
             provenance?: components["schemas"]["JsonObject"][];
             pricing?: components["schemas"]["JsonObject"];
             resourceId?: components["schemas"]["Id"];
-            /** @constant */
+            /**
+             * @constant
+             */
             resourceState?: "DRAFT";
             revision?: number;
             original?: components["schemas"]["JsonValue"];
         };
         GenerationReview: {
-            /** @enum {unknown} */
+            /**
+             * @enum {unknown}
+             */
             decision: "ACCEPT_DRAFT" | "REJECT";
             key?: components["schemas"]["Key"];
             name?: string;
@@ -3641,7 +4133,9 @@ export interface components {
         };
         MaintenanceDTO: {
             id: components["schemas"]["Id"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             status: "QUEUED" | "RUNNING" | "FINISHED";
             processedCount: number;
             hasMore: boolean;
@@ -3660,7 +4154,9 @@ export interface components {
             id: components["schemas"]["Id"];
             key: components["schemas"]["Key"];
             versionId: components["schemas"]["Id"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             status: "ACTIVE" | "REVOKED";
             createdAt: components["schemas"]["Timestamp"];
         };
@@ -3674,7 +4170,9 @@ export interface components {
             details: components["schemas"]["JsonObject"];
         };
         HealthDTO: {
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             status: "ok" | "degraded";
             checks: {
                 [key: string]: boolean;
@@ -3700,7 +4198,9 @@ export interface components {
         };
         CredentialResolveRequest: {
             secretRef: string;
-            /** Format: uuid */
+            /**
+             * Format: uuid
+             */
             versionId: string;
         };
         CredentialResolveDTO: {
@@ -3711,7 +4211,9 @@ export interface components {
         ArtifactUploadRequest: {
             leaseToken: string;
             fencingToken: number;
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             kind: "SCREENSHOT" | "TRACE" | "HTML" | "JUNIT" | "LOG" | "SOURCE" | "MANIFEST" | "DOWNLOAD";
             filename: components["schemas"]["FilePath"];
             contentType: string;
@@ -3722,7 +4224,9 @@ export interface components {
         ArtifactUploadDTO: {
             artifactId: components["schemas"]["Id"];
             uploadUrl: components["schemas"]["HttpUrl"];
-            /** @constant */
+            /**
+             * @constant
+             */
             method: "PUT";
             expiresAt: components["schemas"]["Timestamp"];
         };
@@ -3760,7 +4264,9 @@ export interface components {
         ServiceTokenDTO: {
             id: components["schemas"]["Id"];
             token: string;
-            /** @enum {unknown} */
+            /**
+             * @enum {unknown}
+             */
             purpose: "RUNTIME_ENROLLMENT" | "MAINTENANCE" | "EXECUTION";
             expiresAt: components["schemas"]["Timestamp"];
         };
@@ -4006,7 +4512,8 @@ export interface components {
             data: components["schemas"]["ArtifactUploadDTO"];
             requestId: string;
         };
-        /** Format: date-time
+        /**
+         * Format: date-time
          * @description Supported RFC3339 profile: real Gregorian date, year 0001-9999, T/t separator, seconds 00-59,
          * optional fractional seconds, mandatory Z/z or numeric offset (00-23:00-59). No leap seconds, spaces or
          * surrounding whitespace. Emit UTC uppercase T/Z for server timestamps.
@@ -4018,7 +4525,9 @@ export interface components {
         };
         SetupRequest: {
             installationSecret: string;
-            /** Format: email */
+            /**
+             * Format: email
+             */
             email: string;
             displayName: string;
             password: string;
@@ -4029,14 +4538,18 @@ export interface components {
         };
         AdminUserDTO: {
             id: components["schemas"]["Id"];
-            /** Format: email */
+            /**
+             * Format: email
+             */
             email: string;
             displayName: string;
             disabled: boolean;
             systemAdmin: boolean;
         };
         CreateUserRequest: {
-            /** Format: email */
+            /**
+             * Format: email
+             */
             email: string;
             displayName: string;
             password: string;
@@ -4051,7 +4564,9 @@ export interface components {
             newPassword: string;
         };
         ResetLinkDTO: {
-            /** Format: uri */
+            /**
+             * Format: uri
+             */
             url: string;
             expiresAt: components["schemas"]["Timestamp"];
         };
@@ -4105,12 +4620,18 @@ export interface components {
         };
         InvitationSummaryDTO: {
             id: components["schemas"]["Id"];
-            /** Format: email */
+            /**
+             * Format: email
+             */
             email: string;
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             role: "ADMIN" | "EDITOR" | "EXECUTOR" | "VIEWER";
             expiresAt: components["schemas"]["Timestamp"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             status: "PENDING" | "ACCEPTED" | "REVOKED" | "EXPIRED";
         };
         InvitationSummaryDTOPageEnvelope: {
@@ -4144,11 +4665,15 @@ export interface components {
         EmptyObject: Record<string, never>;
         CredentialDTO: {
             secretRef: string;
-            /** Format: uuid */
+            /**
+             * Format: uuid
+             */
             versionId: string;
             revoked: boolean;
             allowedIdentityIds: string[];
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             */
             createdAt: string;
         };
         CredentialListDTO: {
@@ -4201,7 +4726,9 @@ export interface components {
             name: string;
         };
         ServiceTokenIssue: {
-            /** @enum {unknown} */
+            /**
+             * @enum {unknown}
+             */
             purpose: "RUNTIME_ENROLLMENT" | "MAINTENANCE" | "EXECUTION";
             operations?: ("expired-leases/reap" | "fixture-cleanups/reconcile" | "capacity/reconcile"
                 | "artifacts/expire" | "lifecycle/expire" | "trigger" | "read" | "cancel")[];
@@ -4221,7 +4748,9 @@ export interface components {
         };
         ActivationDTO: {
             attemptId: components["schemas"]["Id"];
-            /** @constant */
+            /**
+             * @constant
+             */
             activated: true;
             fencingToken: number;
         };
@@ -4230,7 +4759,9 @@ export interface components {
             requestId: string;
         };
         AdminReconcileRequest: {
-            /** @constant */
+            /**
+             * @constant
+             */
             processStopped: true;
             reason: string;
         };
@@ -4261,7 +4792,9 @@ export interface components {
         CompilerDiagnosticV1: {
             code: string;
             path: string;
-            /** @enum {unknown} */
+            /**
+             * @enum {unknown}
+             */
             pathStatus: "EXACT" | "REDACTED";
             message: string;
         };
@@ -4289,7 +4822,8 @@ export interface components {
                 state: string;
                 outcome: string | null;
             }[];
-            /** Format: date-time
+            /**
+             * Format: date-time
              * @description Server database UTC terminal time, independent of physical process-stop proof; null for
              * historical unknown.
              */
@@ -4342,9 +4876,13 @@ export interface components {
             sha256: components["schemas"]["Sha256"];
             sizeBytes: number;
             kind: string;
-            /** @constant */
+            /**
+             * @constant
+             */
             sensitivity: "CREDENTIAL_RESTRICTED";
-            /** @enum {unknown} */
+            /**
+             * @enum {unknown}
+             */
             state: "AVAILABLE" | "EXPIRED";
         };
         ReportArtifactsDTO: {
@@ -4394,7 +4932,9 @@ export interface components {
                     type: string;
                     operator?: string;
                     expectedSource: string;
-                    /** @enum {unknown} */
+                    /**
+                     * @enum {unknown}
+                     */
                     severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
                 }[];
                 observers: {
@@ -4407,7 +4947,9 @@ export interface components {
         };
         ReportDisplayDTO: {
             display: components["schemas"]["ReportCaseDisplayDTO"] | null;
-            /** @enum {unknown} */
+            /**
+             * @enum {unknown}
+             */
             metadataStatus: "AVAILABLE" | "ABSENT" | "REDACTED";
             environment: {
                 [key: string]: string;
@@ -4422,7 +4964,9 @@ export interface components {
             estimatedUsedUsd: number;
             heldUsd: number;
             availableUsd: number;
-            /** @constant */
+            /**
+             * @constant
+             */
             pricingBasis: "CONFIGURED_ESTIMATE";
         };
         AiContextDTO: {
@@ -4453,7 +4997,9 @@ export interface components {
             sha256: components["schemas"]["Sha256"];
             sizeBytes: number;
             sensitivity: components["schemas"]["ArtifactSensitivity"];
-            /** @enum {unknown} */
+            /**
+             * @enum {unknown}
+             */
             kind?: "TRACE" | "DOWNLOAD" | "LOG" | "SOURCE" | "MANIFEST" | "HTML" | "JUNIT" | "SCREENSHOT";
             artifactId?: components["schemas"]["Id"];
         };
@@ -4484,7 +5030,9 @@ export interface components {
             revision: number;
         };
         TriggerReceipt: {
-            /** @enum {unknown} */
+            /**
+             * @enum {unknown}
+             */
             decision: "ENQUEUED" | "REUSED" | "SKIPPED";
             runId: components["schemas"]["Id"];
             statusUrl: string;
@@ -4498,9 +5046,13 @@ export interface components {
             gatePassed: boolean;
             cases: {
                 id: components["schemas"]["Id"];
-                /** @enum {unknown} */
+                /**
+                 * @enum {unknown}
+                 */
                 state: "QUEUED" | "RUNNING" | "FINISHED";
-                /** @enum {string|null} */
+                /**
+                 * @enum {string|null}
+                 */
                 outcome: "PASSED" | "FAILED" | "ERROR" | "UNSTABLE" | "CANCELLED" | "INCOMPLETE" | "SKIPPED" | null;
             }[];
             statistics: {
@@ -4516,11 +5068,15 @@ export interface components {
         };
         ServiceTokenMetadata: {
             id: components["schemas"]["Id"];
-            /** @enum {unknown} */
+            /**
+             * @enum {unknown}
+             */
             purpose: "RUNTIME_ENROLLMENT" | "MAINTENANCE" | "EXECUTION";
             operations: string[];
             planIds: components["schemas"]["Id"][];
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             */
             expiresAt: string;
             revoked: boolean;
             consumed: boolean;
@@ -4533,7 +5089,9 @@ export interface components {
             data: components["schemas"]["ServiceTokenPage"];
             requestId: components["schemas"]["Id"];
         };
-        /** @enum {string} */
+        /**
+         * @enum {string}
+         */
         ProcessStopScope: "FULL_DESCENDANT_TREE" | "CONTROLLED_WORKER_BROWSER" | "NO_PROCESS_SPAWNED";
         OperationsMetricsDTO: {
             workspaceId: components["schemas"]["Id"];
@@ -4578,7 +5136,9 @@ export interface components {
             requestId: string;
         };
         SampleWorkspacePackageDTO: {
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             schemaVersion: "1.0";
             manifest: components["schemas"]["JsonValue"];
             assets: {
@@ -4592,7 +5152,9 @@ export interface components {
             data: components["schemas"]["SampleWorkspacePackageDTO"];
             requestId: string;
         };
-        /** @description JSON used only in interpolated DSL fields, recursively restricted to SafeString bindings. */
+        /**
+         * @description JSON used only in interpolated DSL fields, recursively restricted to SafeString bindings.
+         */
         BindingJsonValue: ContractBindingJsonValue;
         BindingJsonObject: {
             [key: string]: components["schemas"]["BindingJsonValue"];
@@ -4606,32 +5168,44 @@ export interface components {
             timeoutMs?: components["schemas"]["Timeout"];
             window?: components["schemas"]["ObserverWindow"];
             expectedCount?: number;
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             retryPolicy?: "FORBID" | "ALLOW_MATCHING_RETRIES";
         } & unknown;
         DialogObserverV1: {
             id: components["schemas"]["Key"];
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "dialog";
-            /** @enum {unknown} */
+            /**
+             * @enum {unknown}
+             */
             dialogType: "alert" | "beforeunload" | "confirm" | "prompt";
             message: components["schemas"]["SafeString"];
-            /** @enum {unknown} */
+            /**
+             * @enum {unknown}
+             */
             handling: "accept" | "dismiss";
             promptText?: components["schemas"]["SafeString"];
         } & unknown;
         NewPageObserverV1: {
             id: components["schemas"]["Key"];
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "newPage";
             pageKey: components["schemas"]["Key"];
         };
         DownloadObserverV1: {
             id: components["schemas"]["Key"];
             timeoutMs?: components["schemas"]["Timeout"];
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "download";
         };
         FixtureIdentityV1: {
@@ -4640,13 +5214,17 @@ export interface components {
             secretVersionId: components["schemas"]["Id"];
             allowedIdentityIds?: string[];
         };
-        /** @enum {string} */
+        /**
+         * @enum {string}
+         */
         ArtifactSensitivity: "REDACTED" | "CREDENTIAL_RESTRICTED";
         BundleSelectionV1: ({
             caseVersionIds?: components["schemas"]["Id"][];
             suiteVersionId?: components["schemas"]["Id"];
             environmentVersionId: components["schemas"]["Id"];
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             validationStatus: "VALIDATED" | "UNVALIDATED_DEBUG";
             draftValidationJobId?: components["schemas"]["Id"];
         } & unknown) & ({
@@ -4657,12 +5235,15 @@ export interface components {
             draftValidationJobId: unknown;
         });
         DurationMs: number;
-        /** @description Literal diagnostic/evidence text; retain invalid expressions verbatim and never evaluate or
+        /**
+         * @description Literal diagnostic/evidence text; retain invalid expressions verbatim and never evaluate or
          * interpolate it.
          */
         DiagnosticText: string;
         StepFinishedPayloadV1: {
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             status: "PASSED" | "FAILED" | "ERROR" | "SKIPPED" | "CANCELLED";
             durationMs: components["schemas"]["DurationMs"];
             errorCode?: components["schemas"]["Key"];
@@ -4671,17 +5252,25 @@ export interface components {
             blockedByAssertionId?: components["schemas"]["Key"];
         };
         ActualValueV1: {
-            /** @constant */
+            /**
+             * @constant
+             */
             present: false;
         } | {
-            /** @constant */
+            /**
+             * @constant
+             */
             present: true;
             value: components["schemas"]["JsonValue"];
         };
         AssertionResultPayloadV1: {
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             status: "PASSED" | "FAILED" | "WARN" | "SKIPPED";
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
             expectedSource: string;
             expected: components["schemas"]["JsonValue"];
@@ -4694,7 +5283,9 @@ export interface components {
         ObserverResultPayloadV1: {
             observerId: components["schemas"]["Key"];
             matchedCount: number;
-            /** @enum {string} */
+            /**
+             * @enum {string}
+             */
             windowMode: "FIXED" | "UNTIL_ACTION_SETTLED";
             durationMs: components["schemas"]["DurationMs"];
             ambiguous: boolean;
@@ -4712,12 +5303,16 @@ export interface components {
             sensitivity: components["schemas"]["ArtifactSensitivity"];
         };
         AuthAdapterConfigV1: {
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "HTTP_BEARER";
             identityPath: components["schemas"]["Path"];
             identityPointer: string;
         } | {
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "HTTP_SESSION";
             loginPath: components["schemas"]["Path"];
             identityPath: components["schemas"]["Path"];
@@ -4734,7 +5329,9 @@ export interface components {
         };
         IssuerKeyV1: {
             keyId: components["schemas"]["Key"];
-            /** @constant */
+            /**
+             * @constant
+             */
             algorithm: "Ed25519";
             publicKey: string;
             fingerprint: components["schemas"]["Sha256"];
@@ -4750,7 +5347,9 @@ export interface components {
             path: components["schemas"]["FilePath"];
         };
         TestCompletionManifestV1: {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             attemptId: components["schemas"]["Id"];
             jobManifestSha256: components["schemas"]["Sha256"];
@@ -4758,13 +5357,18 @@ export interface components {
             cleanupStatus: components["schemas"]["CleanupStatus"];
             evidence: components["schemas"]["EvidenceFileEntryV1"][];
             requiredEvidence: components["schemas"]["Sha256"][];
-            /** @constant */
+            /**
+             * @constant
+             */
             processStopped: true;
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "TEST";
             caseVersionId: components["schemas"]["Id"];
             expectedPlansSha256: components["schemas"]["Sha256"];
-            /** @description Actual business request observation through Context closure. Missing means UNKNOWN; not
+            /**
+             * @description Actual business request observation through Context closure. Missing means UNKNOWN; not
              * sufficient without approved expected metadata.
              * @enum {string}
              */
@@ -4772,36 +5376,52 @@ export interface components {
             processStopScope?: components["schemas"]["ProcessStopScope"];
         };
         ValidateSuccessCompletionManifestV1: {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             attemptId: components["schemas"]["Id"];
             jobManifestSha256: components["schemas"]["Sha256"];
-            /** @constant */
+            /**
+             * @constant
+             */
             businessOutcome: "PASSED";
             cleanupStatus: components["schemas"]["CleanupStatus"];
             evidence: components["schemas"]["EvidenceFileEntryV1"][];
             requiredEvidence: components["schemas"]["Sha256"][];
-            /** @constant */
+            /**
+             * @constant
+             */
             processStopped: true;
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "VALIDATE";
             compiledBundleSha256: components["schemas"]["Sha256"];
             engineInventorySha256: components["schemas"]["Sha256"];
             processStopScope?: components["schemas"]["ProcessStopScope"];
         };
         ValidateFailureCompletionManifestV1: {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             attemptId: components["schemas"]["Id"];
             jobManifestSha256: components["schemas"]["Sha256"];
-            /** @constant */
+            /**
+             * @constant
+             */
             businessOutcome: "ERROR";
             cleanupStatus: components["schemas"]["CleanupStatus"];
             evidence: components["schemas"]["EvidenceFileEntryV1"][];
             requiredEvidence: components["schemas"]["Sha256"][];
-            /** @constant */
+            /**
+             * @constant
+             */
             processStopped: true;
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "VALIDATE";
             engineInventorySha256: components["schemas"]["Sha256"];
             failureCode: string;
@@ -4811,7 +5431,9 @@ export interface components {
         ValidateCompletionManifestV1: components["schemas"]["ValidateSuccessCompletionManifestV1"]
             | components["schemas"]["ValidateFailureCompletionManifestV1"];
         CleanupCompletionManifestV1: {
-            /** @constant */
+            /**
+             * @constant
+             */
             schemaVersion: "1.0";
             attemptId: components["schemas"]["Id"];
             jobManifestSha256: components["schemas"]["Sha256"];
@@ -4819,9 +5441,13 @@ export interface components {
             cleanupStatus: components["schemas"]["CleanupStatus"];
             evidence: components["schemas"]["EvidenceFileEntryV1"][];
             requiredEvidence: components["schemas"]["Sha256"][];
-            /** @constant */
+            /**
+             * @constant
+             */
             processStopped: true;
-            /** @constant */
+            /**
+             * @constant
+             */
             kind: "CLEANUP";
             fixtureVersionId: components["schemas"]["Id"];
             namespace: components["schemas"]["Key"];
@@ -4845,7 +5471,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -4854,7 +5482,9 @@ export interface operations {
                     "application/json": components["schemas"]["HealthDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -4863,7 +5493,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -4872,7 +5504,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -4881,7 +5515,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -4890,7 +5526,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -4899,7 +5537,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -4908,7 +5548,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -4928,7 +5570,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -4937,7 +5581,9 @@ export interface operations {
                     "application/json": components["schemas"]["HealthDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -4946,7 +5592,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -4955,7 +5603,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -4964,7 +5614,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -4973,7 +5625,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -4982,7 +5636,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -4991,7 +5647,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -5000,7 +5658,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Database readiness check failed; connection details are withheld. */
+            /**
+             * @description Database readiness check failed; connection details are withheld.
+             */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -5020,7 +5680,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5029,7 +5691,9 @@ export interface operations {
                     "application/json": components["schemas"]["BuildInfoDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -5038,7 +5702,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -5047,7 +5713,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5056,7 +5724,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -5065,7 +5735,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5074,7 +5746,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5083,7 +5757,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -5092,7 +5768,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Development server has no published frontend build. */
+            /**
+             * @description Development server has no published frontend build.
+             */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -5116,7 +5794,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5125,7 +5805,9 @@ export interface operations {
                     "application/json": components["schemas"]["SessionDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -5134,7 +5816,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -5143,7 +5827,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5152,7 +5838,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -5161,7 +5849,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5170,7 +5860,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5179,7 +5871,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -5199,7 +5893,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5208,7 +5904,9 @@ export interface operations {
                     "application/json": components["schemas"]["SessionDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -5217,7 +5915,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -5226,7 +5926,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5235,7 +5937,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -5244,7 +5948,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5253,7 +5959,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5262,7 +5970,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -5286,7 +5996,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5295,7 +6007,9 @@ export interface operations {
                     "application/json": components["schemas"]["EmptyEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -5304,7 +6018,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -5313,7 +6029,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5322,7 +6040,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -5331,7 +6051,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5340,7 +6062,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5349,7 +6073,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -5373,7 +6099,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5382,7 +6110,9 @@ export interface operations {
                     "application/json": components["schemas"]["EmptyEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -5391,7 +6121,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -5400,7 +6132,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5409,7 +6143,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -5418,7 +6154,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5427,7 +6165,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5436,7 +6176,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -5460,7 +6202,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5469,7 +6213,9 @@ export interface operations {
                     "application/json": components["schemas"]["EmptyEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -5478,7 +6224,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -5487,7 +6235,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5496,7 +6246,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -5505,7 +6257,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5514,7 +6268,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5523,7 +6279,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -5547,7 +6305,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5556,7 +6316,9 @@ export interface operations {
                     "application/json": components["schemas"]["UserDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -5565,7 +6327,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -5574,7 +6338,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5583,7 +6349,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -5592,7 +6360,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5601,7 +6371,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5610,7 +6382,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -5634,7 +6408,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5643,7 +6419,9 @@ export interface operations {
                     "application/json": components["schemas"]["WorkspaceDTOPageEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -5652,7 +6430,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -5661,7 +6441,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5670,7 +6452,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -5679,7 +6463,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5688,7 +6474,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5697,7 +6485,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -5721,7 +6511,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -5730,7 +6522,9 @@ export interface operations {
                     "application/json": components["schemas"]["WorkspaceDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -5739,7 +6533,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -5748,7 +6544,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5757,7 +6555,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -5766,7 +6566,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5775,7 +6577,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5784,7 +6588,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -5806,7 +6612,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5815,7 +6623,9 @@ export interface operations {
                     "application/json": components["schemas"]["WorkspaceDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -5824,7 +6634,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -5833,7 +6645,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5842,7 +6656,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -5851,7 +6667,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5860,7 +6678,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5869,7 +6689,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -5891,7 +6713,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5900,7 +6724,9 @@ export interface operations {
                     "application/json": components["schemas"]["EmptyEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -5909,7 +6735,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -5918,7 +6746,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5927,7 +6757,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -5936,7 +6768,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5945,7 +6779,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5954,7 +6790,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -5980,7 +6818,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5989,7 +6829,9 @@ export interface operations {
                     "application/json": components["schemas"]["WorkspaceDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -5998,7 +6840,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -6007,7 +6851,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6016,7 +6862,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -6025,7 +6873,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -6034,7 +6884,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6043,7 +6895,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -6068,7 +6922,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -6077,7 +6933,9 @@ export interface operations {
                     "application/json": components["schemas"]["MemberDTOPageEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -6086,7 +6944,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -6095,7 +6955,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6104,7 +6966,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -6113,7 +6977,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -6122,7 +6988,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6131,7 +6999,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -6158,7 +7028,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -6167,7 +7039,9 @@ export interface operations {
                     "application/json": components["schemas"]["MemberDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -6176,7 +7050,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -6185,7 +7061,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6194,7 +7072,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -6203,7 +7083,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -6212,7 +7094,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6221,7 +7105,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -6244,7 +7130,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -6253,7 +7141,9 @@ export interface operations {
                     "application/json": components["schemas"]["EmptyEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -6262,7 +7152,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -6271,7 +7163,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6280,7 +7174,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -6289,7 +7185,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -6298,7 +7196,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6307,7 +7207,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -6332,7 +7234,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -6341,7 +7245,9 @@ export interface operations {
                     "application/json": components["schemas"]["InvitationSummaryDTOPageEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -6350,7 +7256,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -6359,7 +7267,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6368,7 +7278,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -6377,7 +7289,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -6386,7 +7300,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6395,7 +7311,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -6421,7 +7339,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -6430,7 +7350,9 @@ export interface operations {
                     "application/json": components["schemas"]["InviteDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -6439,7 +7361,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -6448,7 +7372,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6457,7 +7383,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -6466,7 +7394,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -6475,7 +7405,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6484,7 +7416,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -6511,7 +7445,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -6520,7 +7456,9 @@ export interface operations {
                     "application/json": components["schemas"]["ResourceDTOPageEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -6529,7 +7467,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -6538,7 +7478,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6547,7 +7489,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -6556,7 +7500,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -6565,7 +7511,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -6574,7 +7522,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6583,7 +7533,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -6609,7 +7561,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -6618,7 +7572,9 @@ export interface operations {
                     "application/json": components["schemas"]["ResourceDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -6627,7 +7583,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -6636,7 +7594,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6645,7 +7605,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -6654,7 +7616,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -6663,7 +7627,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -6672,7 +7638,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6681,7 +7649,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -6704,7 +7674,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -6713,7 +7685,9 @@ export interface operations {
                     "application/json": components["schemas"]["ResourceDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -6722,7 +7696,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -6731,7 +7707,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6740,7 +7718,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -6749,7 +7729,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -6758,7 +7740,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -6767,7 +7751,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6776,7 +7762,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -6803,7 +7791,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -6812,7 +7802,9 @@ export interface operations {
                     "application/json": components["schemas"]["ResourceDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -6821,7 +7813,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -6830,7 +7824,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6839,7 +7835,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -6848,7 +7846,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -6857,7 +7857,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -6866,7 +7868,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6875,7 +7879,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -6898,7 +7904,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -6907,7 +7915,9 @@ export interface operations {
                     "application/json": components["schemas"]["DraftDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -6916,7 +7926,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -6925,7 +7937,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6934,7 +7948,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -6943,7 +7959,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -6952,7 +7970,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -6961,7 +7981,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6970,7 +7992,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -6997,7 +8021,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -7006,7 +8032,9 @@ export interface operations {
                     "application/json": components["schemas"]["DraftDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -7015,7 +8043,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -7024,7 +8054,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7033,7 +8065,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -7042,7 +8076,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7051,7 +8087,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -7060,7 +8098,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7069,7 +8109,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -7096,7 +8138,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -7105,7 +8149,9 @@ export interface operations {
                     "application/json": components["schemas"]["JobDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -7114,7 +8160,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -7123,7 +8171,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7132,7 +8182,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -7141,7 +8193,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7150,7 +8204,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -7159,7 +8215,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7168,7 +8226,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -7195,7 +8255,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -7204,7 +8266,9 @@ export interface operations {
                     "application/json": components["schemas"]["ResourceVersionDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -7213,7 +8277,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -7222,7 +8288,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7231,7 +8299,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -7240,7 +8310,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7249,7 +8321,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -7258,7 +8332,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7267,7 +8343,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -7293,7 +8371,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -7302,7 +8382,9 @@ export interface operations {
                     "application/json": components["schemas"]["ResourceVersionDTOPageEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -7311,7 +8393,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -7320,7 +8404,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7329,7 +8415,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -7338,7 +8426,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7347,7 +8437,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -7356,7 +8448,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7365,7 +8459,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -7389,7 +8485,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -7398,7 +8496,9 @@ export interface operations {
                     "application/json": components["schemas"]["ResourceVersionDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -7407,7 +8507,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -7416,7 +8518,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7425,7 +8529,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -7434,7 +8540,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7443,7 +8551,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -7452,7 +8562,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7461,7 +8573,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -7487,7 +8601,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -7496,7 +8612,9 @@ export interface operations {
                     "application/json": components["schemas"]["ResourceDTOPageEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -7505,7 +8623,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -7514,7 +8634,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7523,7 +8645,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -7532,7 +8656,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7541,7 +8667,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -7550,7 +8678,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7559,7 +8689,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -7584,7 +8716,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -7593,7 +8727,9 @@ export interface operations {
                     "application/json": components["schemas"]["ExecutionPlanDTOPageEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -7602,7 +8738,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -7611,7 +8749,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7620,7 +8760,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -7629,7 +8771,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7638,7 +8782,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7647,7 +8793,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -7673,7 +8821,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -7682,7 +8832,9 @@ export interface operations {
                     "application/json": components["schemas"]["ExecutionPlanDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -7691,7 +8843,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -7700,7 +8854,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7709,7 +8865,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -7718,7 +8876,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7727,7 +8887,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7736,7 +8898,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -7759,7 +8923,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -7768,7 +8934,9 @@ export interface operations {
                     "application/json": components["schemas"]["ExecutionPlanDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -7777,7 +8945,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -7786,7 +8956,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7795,7 +8967,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -7804,7 +8978,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7813,7 +8989,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7822,7 +9000,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -7849,7 +9029,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -7858,7 +9040,9 @@ export interface operations {
                     "application/json": components["schemas"]["ExecutionPlanDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -7867,7 +9051,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -7876,7 +9062,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7885,7 +9073,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -7894,7 +9084,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7903,7 +9095,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7912,7 +9106,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -7939,7 +9135,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -7948,7 +9146,9 @@ export interface operations {
                     "application/json": components["schemas"]["EmptyEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -7957,7 +9157,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -7966,7 +9168,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7975,7 +9179,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -7984,7 +9190,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7993,7 +9201,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -8002,7 +9212,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -8027,7 +9239,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -8036,7 +9250,9 @@ export interface operations {
                     "application/json": components["schemas"]["ProviderDTOPageEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -8045,7 +9261,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -8054,7 +9272,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8063,7 +9283,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -8072,7 +9294,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -8081,7 +9305,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -8090,7 +9316,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -8099,7 +9327,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -8125,7 +9355,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -8134,7 +9366,9 @@ export interface operations {
                     "application/json": components["schemas"]["ProviderDTOEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -8143,7 +9377,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -8152,7 +9388,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8161,7 +9399,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -8170,7 +9410,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -8179,7 +9421,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -8188,7 +9432,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -8197,7 +9443,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -8220,7 +9468,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -8229,7 +9479,9 @@ export interface operations {
                     "application/json": components["schemas"]["ProviderDTOEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -8238,7 +9490,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -8247,7 +9501,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8256,7 +9512,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -8265,7 +9523,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -8274,7 +9534,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -8283,7 +9545,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -8292,7 +9556,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -8319,7 +9585,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -8328,7 +9596,9 @@ export interface operations {
                     "application/json": components["schemas"]["ProviderDTOEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -8337,7 +9607,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -8346,7 +9618,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8355,7 +9629,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -8364,7 +9640,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -8373,7 +9651,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -8382,7 +9662,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -8391,7 +9673,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -8414,7 +9698,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -8423,7 +9709,9 @@ export interface operations {
                     "application/json": components["schemas"]["EmptyEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -8432,7 +9720,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -8441,7 +9731,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8450,7 +9742,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -8459,7 +9753,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -8468,7 +9764,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -8477,7 +9775,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -8486,7 +9786,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -8511,7 +9813,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -8520,7 +9824,9 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceAccountDTOPageEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -8529,7 +9835,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -8538,7 +9846,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8547,7 +9857,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -8556,7 +9868,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -8565,7 +9879,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -8574,7 +9890,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -8600,7 +9918,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -8609,7 +9929,9 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceAccountDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -8618,7 +9940,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -8627,7 +9951,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8636,7 +9962,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -8645,7 +9973,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -8654,7 +9984,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -8663,7 +9995,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -8686,7 +10020,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -8695,7 +10031,9 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceAccountDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -8704,7 +10042,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -8713,7 +10053,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8722,7 +10064,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -8731,7 +10075,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -8740,7 +10086,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -8749,7 +10097,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -8776,7 +10126,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -8785,7 +10137,9 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceAccountDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -8794,7 +10148,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -8803,7 +10159,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8812,7 +10170,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -8821,7 +10181,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -8830,7 +10192,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -8839,7 +10203,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -8862,7 +10228,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -8871,7 +10239,9 @@ export interface operations {
                     "application/json": components["schemas"]["EmptyEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -8880,7 +10250,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -8889,7 +10261,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8898,7 +10272,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -8907,7 +10283,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -8916,7 +10294,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -8925,7 +10305,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -8940,8 +10322,8 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns
-                 * 409.
+                /**
+                 * @description Scoped to authenticated Workspace and operation. Same key/different payload returns 409.
                  */
                 "Idempotency-Key": string;
             };
@@ -8957,7 +10339,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -8966,7 +10350,9 @@ export interface operations {
                     "application/json": components["schemas"]["TriggerReceiptEnvelope"];
                 };
             };
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -8975,7 +10361,9 @@ export interface operations {
                     "application/json": components["schemas"]["TriggerReceiptEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -8984,7 +10372,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -8993,7 +10383,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9002,7 +10394,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -9011,7 +10405,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -9020,7 +10416,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -9029,7 +10427,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -9054,7 +10454,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -9063,7 +10465,9 @@ export interface operations {
                     "application/json": components["schemas"]["RunDTOPageEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -9072,7 +10476,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -9081,7 +10487,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9090,7 +10498,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -9099,7 +10509,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -9108,7 +10520,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -9117,7 +10531,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -9132,8 +10548,8 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns
-                 * 409.
+                /**
+                 * @description Scoped to authenticated Workspace and operation. Same key/different payload returns 409.
                  */
                 "Idempotency-Key": string;
             };
@@ -9148,7 +10564,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -9157,7 +10575,9 @@ export interface operations {
                     "application/json": components["schemas"]["RunDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -9166,7 +10586,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -9175,7 +10597,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9184,7 +10608,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -9193,7 +10619,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -9202,7 +10630,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -9211,7 +10641,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -9234,7 +10666,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -9243,7 +10677,9 @@ export interface operations {
                     "application/json": components["schemas"]["RunDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -9252,7 +10688,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -9261,7 +10699,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9270,7 +10710,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -9279,7 +10721,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -9288,7 +10732,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -9297,7 +10743,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -9324,7 +10772,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -9333,7 +10783,9 @@ export interface operations {
                     "application/json": components["schemas"]["RunDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -9342,7 +10794,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -9351,7 +10805,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9360,7 +10816,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -9369,7 +10827,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -9378,7 +10838,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -9387,7 +10849,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -9402,8 +10866,8 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns
-                 * 409.
+                /**
+                 * @description Scoped to authenticated Workspace and operation. Same key/different payload returns 409.
                  */
                 "Idempotency-Key": string;
             };
@@ -9419,7 +10883,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -9428,7 +10894,9 @@ export interface operations {
                     "application/json": components["schemas"]["RunDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -9437,7 +10905,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -9446,7 +10916,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9455,7 +10927,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -9464,7 +10938,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -9473,7 +10949,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -9482,7 +10960,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -9507,7 +10987,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Replayable events with cursor IDs. */
+            /**
+             * @description Replayable events with cursor IDs.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -9516,7 +10998,9 @@ export interface operations {
                     "text/event-stream": string;
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -9525,7 +11009,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -9534,7 +11020,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9543,7 +11031,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -9552,7 +11042,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -9561,7 +11053,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -9570,7 +11064,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -9593,7 +11089,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success */
+            /**
+             * @description Success
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -9602,7 +11100,9 @@ export interface operations {
                     "application/json": components["schemas"]["RunReportDTOEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -9611,7 +11111,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -9620,7 +11122,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9629,7 +11133,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -9638,7 +11144,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -9647,7 +11155,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not
+            /**
+             * @description The retained report, bundle or AI payload has expired. This is a domain result and does not
              * revoke the employee session.
              */
             410: {
@@ -9672,7 +11181,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -9681,7 +11192,9 @@ export interface operations {
                     "application/xml": string;
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -9690,7 +11203,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -9699,7 +11214,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9708,7 +11225,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -9717,7 +11236,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -9726,7 +11247,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Report metadata has expired under retention; existing employee/service-plan authorization
+            /**
+             * @description Report metadata has expired under retention; existing employee/service-plan authorization
              * still applies.
              */
             410: {
@@ -9737,7 +11259,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -9746,7 +11270,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -9771,7 +11297,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -9780,7 +11308,9 @@ export interface operations {
                     "application/json": components["schemas"]["JobDTOPageEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -9789,7 +11319,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -9798,7 +11330,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9807,7 +11341,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -9816,7 +11352,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -9825,7 +11363,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -9834,7 +11374,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -9857,7 +11399,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -9866,7 +11410,9 @@ export interface operations {
                     "application/json": components["schemas"]["JobDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -9875,7 +11421,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -9884,7 +11432,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9893,7 +11443,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -9902,7 +11454,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -9911,7 +11465,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -9920,7 +11476,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -9943,7 +11501,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -9952,7 +11512,9 @@ export interface operations {
                     "application/json": components["schemas"]["ArtifactDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -9961,7 +11523,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -9970,7 +11534,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9979,7 +11545,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -9988,7 +11556,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -9997,7 +11567,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10006,7 +11578,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -10029,7 +11603,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Authorized artifact stream. */
+            /**
+             * @description Authorized artifact stream.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -10038,7 +11614,9 @@ export interface operations {
                     "application/octet-stream": string;
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -10047,7 +11625,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -10056,7 +11636,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10065,7 +11647,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -10074,7 +11658,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10083,7 +11669,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10092,7 +11680,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -10117,7 +11707,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -10126,7 +11718,9 @@ export interface operations {
                     "application/json": components["schemas"]["RuntimeDTOPageEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -10135,7 +11729,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -10144,7 +11740,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10153,7 +11751,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -10162,7 +11762,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10171,7 +11773,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10180,7 +11784,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -10203,7 +11809,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -10212,7 +11820,9 @@ export interface operations {
                     "application/json": components["schemas"]["RuntimeDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -10221,7 +11831,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -10230,7 +11842,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10239,7 +11853,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -10248,7 +11864,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10257,7 +11875,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10266,7 +11886,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -10293,7 +11915,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -10302,7 +11926,9 @@ export interface operations {
                     "application/json": components["schemas"]["RuntimeDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -10311,7 +11937,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -10320,7 +11948,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10329,7 +11959,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -10338,7 +11970,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10347,7 +11981,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10356,7 +11992,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -10383,7 +12021,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -10392,7 +12032,9 @@ export interface operations {
                     "application/json": components["schemas"]["RuntimeDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -10401,7 +12043,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -10410,7 +12054,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10419,7 +12065,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -10428,7 +12076,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10437,7 +12087,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10446,7 +12098,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -10469,7 +12123,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -10478,7 +12134,9 @@ export interface operations {
                     "application/json": components["schemas"]["RuntimeDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -10487,7 +12145,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -10496,7 +12156,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10505,7 +12167,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -10514,7 +12178,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10523,7 +12189,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10532,7 +12200,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -10556,7 +12226,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -10565,7 +12237,9 @@ export interface operations {
                     "application/json": components["schemas"]["EnrollmentDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -10574,7 +12248,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -10583,7 +12259,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10592,7 +12270,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -10601,7 +12281,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10610,7 +12292,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10619,7 +12303,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -10645,7 +12331,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -10654,7 +12342,9 @@ export interface operations {
                     "application/json": components["schemas"]["RuntimeDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -10663,7 +12353,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -10672,7 +12364,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10681,7 +12375,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -10690,7 +12386,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10699,7 +12397,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10708,7 +12408,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -10732,7 +12434,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -10741,7 +12445,9 @@ export interface operations {
                     "application/json": components["schemas"]["DeviceCredentialsDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -10750,7 +12456,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -10759,7 +12467,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10768,7 +12478,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -10777,7 +12489,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10786,7 +12500,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10795,7 +12511,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -10820,7 +12538,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -10829,7 +12549,9 @@ export interface operations {
                     "application/json": components["schemas"]["BundleDTOPageEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -10838,7 +12560,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -10847,7 +12571,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10856,7 +12582,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -10865,7 +12593,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10874,7 +12604,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10883,7 +12615,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -10898,8 +12632,8 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns
-                 * 409.
+                /**
+                 * @description Scoped to authenticated Workspace and operation. Same key/different payload returns 409.
                  */
                 "Idempotency-Key": string;
             };
@@ -10914,7 +12648,8 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Synchronous export completed. Same key, actor and request replays this immutable bundle
+            /**
+             * @description Synchronous export completed. Same key, actor and request replays this immutable bundle
              * after current authority checks.
              */
             201: {
@@ -10925,7 +12660,9 @@ export interface operations {
                     "application/json": components["schemas"]["BundleDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -10934,7 +12671,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -10943,7 +12682,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10952,7 +12693,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -10961,7 +12704,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10970,7 +12715,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not
+            /**
+             * @description The retained report, bundle or AI payload has expired. This is a domain result and does not
              * revoke the employee session.
              */
             410: {
@@ -10981,7 +12727,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10990,7 +12738,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -11013,7 +12763,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11022,7 +12774,9 @@ export interface operations {
                     "application/json": components["schemas"]["BundleDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -11031,7 +12785,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -11040,7 +12796,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11049,7 +12807,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11058,7 +12818,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11067,7 +12829,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not
+            /**
+             * @description The retained report, bundle or AI payload has expired. This is a domain result and does not
              * revoke the employee session.
              */
             410: {
@@ -11078,7 +12841,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -11087,7 +12852,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -11110,7 +12877,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11119,7 +12888,9 @@ export interface operations {
                     "application/json": components["schemas"]["BundleManifestV1Envelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -11128,7 +12899,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -11137,7 +12910,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11146,7 +12921,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11155,7 +12932,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11164,7 +12943,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not
+            /**
+             * @description The retained report, bundle or AI payload has expired. This is a domain result and does not
              * revoke the employee session.
              */
             410: {
@@ -11175,7 +12955,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -11184,7 +12966,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -11207,7 +12991,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Authorized artifact stream. */
+            /**
+             * @description Authorized artifact stream.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11216,7 +13002,9 @@ export interface operations {
                     "application/octet-stream": string;
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -11225,7 +13013,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -11234,7 +13024,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11243,7 +13035,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11252,7 +13046,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11261,7 +13057,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not
+            /**
+             * @description The retained report, bundle or AI payload has expired. This is a domain result and does not
              * revoke the employee session.
              */
             410: {
@@ -11272,7 +13069,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -11281,7 +13080,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -11296,8 +13097,8 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns
-                 * 409.
+                /**
+                 * @description Scoped to authenticated Workspace and operation. Same key/different payload returns 409.
                  */
                 "Idempotency-Key": string;
             };
@@ -11312,7 +13113,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -11321,7 +13124,9 @@ export interface operations {
                     "application/json": components["schemas"]["ImportDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -11330,7 +13135,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -11339,7 +13146,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11348,7 +13157,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11357,7 +13168,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11366,7 +13179,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The referenced signed bundle import authority has expired. */
+            /**
+             * @description The referenced signed bundle import authority has expired.
+             */
             410: {
                 headers: {
                     [name: string]: unknown;
@@ -11375,7 +13190,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -11384,7 +13201,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -11411,7 +13230,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Recorded bounded connection generation */
+            /**
+             * @description Recorded bounded connection generation
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11420,7 +13241,9 @@ export interface operations {
                     "application/json": components["schemas"]["GenerationDTOEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -11429,7 +13252,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -11438,7 +13263,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11447,7 +13274,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11456,7 +13285,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11465,7 +13296,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -11474,7 +13307,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -11483,7 +13318,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -11508,7 +13345,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11517,7 +13356,9 @@ export interface operations {
                     "application/json": components["schemas"]["GenerationDTOPageEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -11526,7 +13367,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -11535,7 +13378,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11544,7 +13389,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11553,7 +13400,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11562,7 +13411,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -11571,7 +13422,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -11580,7 +13433,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -11606,7 +13461,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Recorded generation, completed or idempotent replay of current state */
+            /**
+             * @description Recorded generation, completed or idempotent replay of current state
+             */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -11615,7 +13472,9 @@ export interface operations {
                     "application/json": components["schemas"]["GenerationDTOEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -11624,7 +13483,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -11633,7 +13494,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11642,7 +13505,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11651,7 +13516,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11660,7 +13527,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -11669,7 +13538,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -11678,7 +13549,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -11701,7 +13574,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11710,7 +13585,9 @@ export interface operations {
                     "application/json": components["schemas"]["GenerationDTOEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -11719,7 +13596,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -11728,7 +13607,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11737,7 +13618,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11746,7 +13629,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11755,7 +13640,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not
+            /**
+             * @description The retained report, bundle or AI payload has expired. This is a domain result and does not
              * revoke the employee session.
              */
             410: {
@@ -11766,7 +13652,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -11775,7 +13663,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -11784,7 +13674,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -11811,7 +13703,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11820,7 +13714,9 @@ export interface operations {
                     "application/json": components["schemas"]["GenerationDTOEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -11829,7 +13725,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -11838,7 +13736,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11847,7 +13747,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11856,7 +13758,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11865,7 +13769,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not
+            /**
+             * @description The retained report, bundle or AI payload has expired. This is a domain result and does not
              * revoke the employee session.
              */
             410: {
@@ -11876,7 +13781,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -11885,7 +13792,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -11894,7 +13803,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -11919,7 +13830,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11928,7 +13841,9 @@ export interface operations {
                     "application/json": components["schemas"]["SecretDTOPageEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -11937,7 +13852,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -11946,7 +13863,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11955,7 +13874,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11964,7 +13885,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11973,7 +13896,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -11982,7 +13907,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -12008,7 +13935,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -12017,7 +13946,9 @@ export interface operations {
                     "application/json": components["schemas"]["SecretDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -12026,7 +13957,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -12035,7 +13968,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12044,7 +13979,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -12053,7 +13990,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -12062,7 +14001,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -12071,7 +14012,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -12098,7 +14041,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -12107,7 +14052,9 @@ export interface operations {
                     "application/json": components["schemas"]["SecretDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -12116,7 +14063,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -12125,7 +14074,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12134,7 +14085,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -12143,7 +14096,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -12152,7 +14107,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -12161,7 +14118,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -12184,7 +14143,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12193,7 +14154,9 @@ export interface operations {
                     "application/json": components["schemas"]["SecretDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -12202,7 +14165,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -12211,7 +14176,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12220,7 +14187,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -12229,7 +14198,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -12238,7 +14209,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -12247,7 +14220,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -12271,7 +14246,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success */
+            /**
+             * @description Success
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12280,7 +14257,9 @@ export interface operations {
                     "application/json": components["schemas"]["ReportAuditDTOEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -12289,7 +14268,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -12298,7 +14279,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12307,7 +14290,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -12316,7 +14301,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -12325,7 +14312,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             410: {
                 headers: {
                     [name: string]: unknown;
@@ -12351,7 +14340,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12360,7 +14351,9 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceTokenPageEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -12369,7 +14362,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -12378,7 +14373,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12387,7 +14384,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -12396,7 +14395,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -12405,7 +14406,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -12414,7 +14417,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -12441,7 +14446,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -12450,7 +14457,9 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceTokenDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -12459,7 +14468,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -12468,7 +14479,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12477,7 +14490,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -12486,7 +14501,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -12495,7 +14512,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -12504,7 +14523,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -12527,7 +14548,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12536,7 +14559,9 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceAccountDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -12545,7 +14570,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -12554,7 +14581,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12563,7 +14592,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -12572,7 +14603,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -12581,7 +14614,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -12590,7 +14625,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -12614,7 +14651,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12623,14 +14662,18 @@ export interface operations {
                     "application/json": components["schemas"]["ClaimDTOEnvelope"];
                 };
             };
-            /** @description No eligible job available. */
+            /**
+             * @description No eligible job available.
+             */
             204: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -12639,7 +14682,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -12648,7 +14693,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12657,7 +14704,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -12666,7 +14715,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -12675,7 +14726,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -12684,7 +14737,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -12710,7 +14765,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12719,7 +14776,9 @@ export interface operations {
                     "application/json": components["schemas"]["HeartbeatDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -12728,7 +14787,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -12737,7 +14798,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12746,7 +14809,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -12755,7 +14820,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -12764,7 +14831,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -12773,7 +14842,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -12799,7 +14870,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12808,7 +14881,9 @@ export interface operations {
                     "application/json": components["schemas"]["EventBatchDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -12817,7 +14892,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -12826,7 +14903,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12835,7 +14914,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -12844,7 +14925,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -12853,7 +14936,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -12862,7 +14947,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -12888,7 +14975,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12897,7 +14986,9 @@ export interface operations {
                     "application/json": components["schemas"]["FinishDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -12906,7 +14997,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -12915,7 +15008,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12924,7 +15019,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -12933,7 +15030,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -12942,7 +15041,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -12951,7 +15052,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -12977,7 +15080,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12986,7 +15091,9 @@ export interface operations {
                     "application/json": components["schemas"]["ReconcileDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -12995,7 +15102,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -13004,7 +15113,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13013,7 +15124,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -13022,7 +15135,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13031,7 +15146,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -13040,7 +15157,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -13069,7 +15188,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13078,7 +15199,9 @@ export interface operations {
                     "application/json": components["schemas"]["CredentialResolveDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -13087,7 +15210,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -13096,7 +15221,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13105,7 +15232,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -13114,7 +15243,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13123,7 +15254,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -13132,7 +15265,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -13158,7 +15293,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13167,7 +15304,9 @@ export interface operations {
                     "application/json": components["schemas"]["ArtifactUploadDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -13176,7 +15315,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -13185,7 +15326,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13194,7 +15337,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -13203,7 +15348,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13212,7 +15359,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -13221,7 +15370,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -13248,7 +15399,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13257,7 +15410,9 @@ export interface operations {
                     "application/json": components["schemas"]["ArtifactDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -13266,7 +15421,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -13275,7 +15432,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13284,7 +15443,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -13293,7 +15454,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13302,7 +15465,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -13311,7 +15476,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -13326,8 +15493,8 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns
-                 * 409.
+                /**
+                 * @description Scoped to authenticated Workspace and operation. Same key/different payload returns 409.
                  */
                 "Idempotency-Key": string;
             };
@@ -13340,7 +15507,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13349,7 +15518,9 @@ export interface operations {
                     "application/json": components["schemas"]["MaintenanceDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -13358,7 +15529,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -13367,7 +15540,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13376,7 +15551,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -13385,7 +15562,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13394,7 +15573,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -13403,7 +15584,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -13418,8 +15601,8 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns
-                 * 409.
+                /**
+                 * @description Scoped to authenticated Workspace and operation. Same key/different payload returns 409.
                  */
                 "Idempotency-Key": string;
             };
@@ -13432,7 +15615,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13441,7 +15626,9 @@ export interface operations {
                     "application/json": components["schemas"]["MaintenanceDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -13450,7 +15637,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -13459,7 +15648,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13468,7 +15659,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -13477,7 +15670,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13486,7 +15681,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -13495,7 +15692,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -13510,8 +15709,8 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns
-                 * 409.
+                /**
+                 * @description Scoped to authenticated Workspace and operation. Same key/different payload returns 409.
                  */
                 "Idempotency-Key": string;
             };
@@ -13524,7 +15723,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13533,7 +15734,9 @@ export interface operations {
                     "application/json": components["schemas"]["MaintenanceDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -13542,7 +15745,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -13551,7 +15756,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13560,7 +15767,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -13569,7 +15778,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13578,7 +15789,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -13587,7 +15800,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -13602,8 +15817,8 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns
-                 * 409.
+                /**
+                 * @description Scoped to authenticated Workspace and operation. Same key/different payload returns 409.
                  */
                 "Idempotency-Key": string;
             };
@@ -13616,7 +15831,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13625,7 +15842,9 @@ export interface operations {
                     "application/json": components["schemas"]["MaintenanceDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -13634,7 +15853,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -13643,7 +15864,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13652,7 +15875,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -13661,7 +15886,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13670,7 +15897,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -13679,7 +15908,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -13702,7 +15933,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13711,7 +15944,9 @@ export interface operations {
                     "application/json": components["schemas"]["ValidationReceiptDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -13720,7 +15955,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -13729,7 +15966,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13738,7 +15977,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -13747,7 +15988,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13756,7 +15999,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -13765,7 +16010,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -13780,9 +16027,13 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Current lease proof; secret, redact from all logs. */
+                /**
+                 * @description Current lease proof; secret, redact from all logs.
+                 */
                 "X-VeriQ-Lease-Token": string;
-                /** @description Current monotonically increasing attempt fencing token. */
+                /**
+                 * @description Current monotonically increasing attempt fencing token.
+                 */
                 "X-VeriQ-Fencing-Token": number;
             };
             path: {
@@ -13794,7 +16045,8 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Exact immutable bytes whose SHA-256 equals the sha256 path parameter. No envelope or server
+            /**
+             * @description Exact immutable bytes whose SHA-256 equals the sha256 path parameter. No envelope or server
              * reserialization.
              */
             200: {
@@ -13805,7 +16057,9 @@ export interface operations {
                     "application/octet-stream": string;
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -13814,7 +16068,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -13823,7 +16079,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13832,7 +16090,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -13841,7 +16101,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13850,7 +16112,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -13859,7 +16123,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -13879,7 +16145,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success */
+            /**
+             * @description Success
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13888,7 +16156,9 @@ export interface operations {
                     "application/json": components["schemas"]["SetupDTOEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -13897,7 +16167,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -13906,7 +16178,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13915,7 +16189,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -13924,7 +16200,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13933,7 +16211,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -13957,7 +16237,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success */
+            /**
+             * @description Success
+             */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -13966,7 +16248,9 @@ export interface operations {
                     "application/json": components["schemas"]["UserDTOEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -13975,7 +16259,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -13984,7 +16270,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13993,7 +16281,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -14002,7 +16292,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -14011,7 +16303,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -14031,7 +16325,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success */
+            /**
+             * @description Success
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14040,7 +16336,9 @@ export interface operations {
                     "application/json": components["schemas"]["AdminUserDTOEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -14049,7 +16347,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14058,7 +16358,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14067,7 +16369,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -14076,7 +16380,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -14085,7 +16391,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -14109,7 +16417,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success */
+            /**
+             * @description Success
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14118,7 +16428,9 @@ export interface operations {
                     "application/json": components["schemas"]["EmptyEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -14127,7 +16439,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14136,7 +16450,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14145,7 +16461,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -14154,7 +16472,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -14163,7 +16483,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -14177,9 +16499,12 @@ export interface operations {
     listAccountSessions: {
         parameters: {
             query?: {
-                /** @description Maximum page size; rejected outside 1–100. Default 25. */
+                /**
+                 * @description Maximum page size; rejected outside 1–100. Default 25.
+                 */
                 limit?: number;
-                /** @description Opaque continuation cursor, expires after 24 hours and is bound to the caller, list and
+                /**
+                 * @description Opaque continuation cursor, expires after 24 hours and is bound to the caller, list and
                  * active filters.
                  */
                 cursor?: string;
@@ -14190,7 +16515,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success */
+            /**
+             * @description Success
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14199,7 +16526,9 @@ export interface operations {
                     "application/json": components["schemas"]["AccountSessionsDTOEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -14208,7 +16537,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14217,7 +16548,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14226,7 +16559,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -14235,7 +16570,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -14244,7 +16581,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -14268,7 +16607,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success */
+            /**
+             * @description Success
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14277,7 +16618,9 @@ export interface operations {
                     "application/json": components["schemas"]["EmptyEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -14286,7 +16629,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14295,7 +16640,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14304,7 +16651,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -14313,7 +16662,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -14322,7 +16673,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -14336,17 +16689,26 @@ export interface operations {
     listGlobalUsers: {
         parameters: {
             query?: {
-                /** @description Maximum page size; rejected outside 1–100. Default 25. */
+                /**
+                 * @description Maximum page size; rejected outside 1–100. Default 25.
+                 */
                 limit?: number;
-                /** @description Opaque continuation cursor, expires after 24 hours and is bound to the caller, list and
+                /**
+                 * @description Opaque continuation cursor, expires after 24 hours and is bound to the caller, list and
                  * active filters.
                  */
                 cursor?: string;
-                /** @description Literal substring of email or display name; wildcard characters are literal. */
+                /**
+                 * @description Literal substring of email or display name; wildcard characters are literal.
+                 */
                 q?: string;
-                /** @description Filter by disabled status. Omit to include both. */
+                /**
+                 * @description Filter by disabled status. Omit to include both.
+                 */
                 disabled?: boolean;
-                /** @description Filter by global administrator capability. Omit to include both. */
+                /**
+                 * @description Filter by global administrator capability. Omit to include both.
+                 */
                 systemAdmin?: boolean;
             };
             header?: never;
@@ -14355,7 +16717,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success */
+            /**
+             * @description Success
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14364,7 +16728,9 @@ export interface operations {
                     "application/json": components["schemas"]["AdminUsersDTOEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -14373,7 +16739,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14382,7 +16750,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14391,7 +16761,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -14400,7 +16772,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -14409,7 +16783,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -14433,7 +16809,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success */
+            /**
+             * @description Success
+             */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -14442,7 +16820,9 @@ export interface operations {
                     "application/json": components["schemas"]["AdminUserDTOEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -14451,7 +16831,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14460,7 +16842,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14469,7 +16853,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -14478,7 +16864,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -14487,7 +16875,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -14513,7 +16903,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success */
+            /**
+             * @description Success
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14522,7 +16914,9 @@ export interface operations {
                     "application/json": components["schemas"]["AdminUserDTOEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -14531,7 +16925,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14540,7 +16936,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14549,7 +16947,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -14558,7 +16958,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -14567,7 +16969,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -14593,7 +16997,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success */
+            /**
+             * @description Success
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14602,7 +17008,9 @@ export interface operations {
                     "application/json": components["schemas"]["ResetLinkDTOEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -14611,7 +17019,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14620,7 +17030,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14629,7 +17041,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -14638,7 +17052,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -14647,7 +17063,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -14673,7 +17091,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success */
+            /**
+             * @description Success
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14682,7 +17102,9 @@ export interface operations {
                     "application/json": components["schemas"]["EmptyEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -14691,7 +17113,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14700,7 +17124,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14709,7 +17135,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -14718,7 +17146,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -14727,7 +17157,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Request failed */
+            /**
+             * @description Request failed
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -14747,7 +17179,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Healthy */
+            /**
+             * @description Healthy
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14756,7 +17190,9 @@ export interface operations {
                     "application/json": components["schemas"]["LivenessDTOEnvelope"];
                 };
             };
-            /** @description Unavailable */
+            /**
+             * @description Unavailable
+             */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -14776,7 +17212,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Healthy */
+            /**
+             * @description Healthy
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14785,7 +17223,9 @@ export interface operations {
                     "application/json": components["schemas"]["ReadinessDTOEnvelope"];
                 };
             };
-            /** @description Unavailable */
+            /**
+             * @description Unavailable
+             */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -14808,7 +17248,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14817,7 +17259,9 @@ export interface operations {
                     "application/json": components["schemas"]["EmptyEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -14826,7 +17270,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14835,7 +17281,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14844,7 +17292,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -14853,7 +17303,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -14862,7 +17314,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -14871,7 +17325,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -14894,7 +17350,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14903,7 +17361,9 @@ export interface operations {
                     "application/json": components["schemas"]["ValidationPreviewDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -14912,7 +17372,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14921,7 +17383,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14930,7 +17394,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -14939,7 +17405,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -14948,7 +17416,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -14957,7 +17427,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -14966,7 +17438,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -14991,7 +17465,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success */
+            /**
+             * @description Success
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15000,7 +17476,9 @@ export interface operations {
                     "application/json": components["schemas"]["CredentialListDTOEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -15009,7 +17487,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -15018,7 +17498,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15027,7 +17509,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -15036,7 +17520,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -15062,7 +17548,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success */
+            /**
+             * @description Success
+             */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -15071,7 +17559,9 @@ export interface operations {
                     "application/json": components["schemas"]["CredentialDTOEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -15080,7 +17570,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -15089,7 +17581,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15098,7 +17592,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -15107,7 +17603,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -15134,7 +17632,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success */
+            /**
+             * @description Success
+             */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -15143,7 +17643,9 @@ export interface operations {
                     "application/json": components["schemas"]["CredentialDTOEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -15152,7 +17654,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -15161,7 +17665,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15170,7 +17676,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -15179,7 +17687,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -15207,7 +17717,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success */
+            /**
+             * @description Success
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15216,7 +17728,9 @@ export interface operations {
                     "application/json": components["schemas"]["CredentialDTOEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -15225,7 +17739,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -15234,7 +17750,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15243,7 +17761,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -15252,7 +17772,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -15277,7 +17799,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success */
+            /**
+             * @description Success
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15286,7 +17810,9 @@ export interface operations {
                     "application/json": components["schemas"]["AuthAdapterListDTOEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -15295,7 +17821,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -15304,7 +17832,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15313,7 +17843,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -15322,7 +17854,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -15348,7 +17882,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success */
+            /**
+             * @description Success
+             */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -15357,7 +17893,9 @@ export interface operations {
                     "application/json": components["schemas"]["AuthAdapterDTOEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -15366,7 +17904,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -15375,7 +17915,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15384,7 +17926,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -15393,7 +17937,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -15420,7 +17966,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success */
+            /**
+             * @description Success
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15429,7 +17977,9 @@ export interface operations {
                     "application/json": components["schemas"]["AuthAdapterDTOEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -15438,7 +17988,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -15447,7 +17999,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15456,7 +18010,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -15465,7 +18021,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable error */
+            /**
+             * @description Stable error
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -15489,7 +18047,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15498,7 +18058,9 @@ export interface operations {
                     "application/json": components["schemas"]["EnrollmentPreviewEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -15507,7 +18069,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -15516,7 +18080,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15525,7 +18091,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -15534,7 +18102,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -15543,7 +18113,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -15552,7 +18124,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -15572,7 +18146,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15581,7 +18157,9 @@ export interface operations {
                     "application/json": components["schemas"]["RuntimeDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -15590,7 +18168,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -15599,7 +18179,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15608,7 +18190,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -15617,7 +18201,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -15626,7 +18212,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -15635,7 +18223,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -15659,7 +18249,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15668,7 +18260,9 @@ export interface operations {
                     "application/json": components["schemas"]["DeviceCredentialsDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -15677,7 +18271,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -15686,7 +18282,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15695,7 +18293,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -15704,7 +18304,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -15713,7 +18315,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -15722,7 +18326,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -15746,7 +18352,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15755,7 +18363,9 @@ export interface operations {
                     "application/json": components["schemas"]["EmptyEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -15764,7 +18374,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -15773,7 +18385,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15782,7 +18396,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -15791,7 +18407,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -15800,7 +18418,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -15809,7 +18429,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -15833,7 +18455,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -15842,7 +18466,9 @@ export interface operations {
                     "application/json": components["schemas"]["DeviceCredentialsDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -15851,7 +18477,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -15860,7 +18488,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15869,7 +18499,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -15878,7 +18510,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -15887,7 +18521,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -15896,7 +18532,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -15923,7 +18561,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15932,7 +18572,9 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceAccountDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -15941,7 +18583,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -15950,7 +18594,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15959,7 +18605,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -15968,7 +18616,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -15977,7 +18627,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -15986,7 +18638,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -16014,7 +18668,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16023,7 +18679,9 @@ export interface operations {
                     "application/json": components["schemas"]["EmptyEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -16032,7 +18690,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -16041,7 +18701,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16050,7 +18712,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -16059,7 +18723,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -16068,7 +18734,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -16077,7 +18745,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -16104,7 +18774,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16113,7 +18785,9 @@ export interface operations {
                     "application/json": components["schemas"]["RuntimeDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -16122,7 +18796,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -16131,7 +18807,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16140,7 +18818,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -16149,7 +18829,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -16158,7 +18840,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -16167,7 +18851,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -16193,7 +18879,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16202,7 +18890,9 @@ export interface operations {
                     "application/json": components["schemas"]["ActivationDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -16211,7 +18901,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -16220,7 +18912,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16229,7 +18923,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -16238,7 +18934,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -16247,7 +18945,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -16256,7 +18956,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -16283,7 +18985,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16292,7 +18996,9 @@ export interface operations {
                     "application/json": components["schemas"]["ReconcileDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -16301,7 +19007,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -16310,7 +19018,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16319,7 +19029,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -16328,7 +19040,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -16337,7 +19051,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -16346,7 +19062,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -16378,7 +19096,8 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Idempotent contiguous chunk accepted. Verify receivedBytes before sending the next offset.
+            /**
+             * @description Idempotent contiguous chunk accepted. Verify receivedBytes before sending the next offset.
              */
             200: {
                 headers: {
@@ -16388,7 +19107,9 @@ export interface operations {
                     "application/json": components["schemas"]["UploadChunkDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -16397,7 +19118,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -16406,7 +19129,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16415,7 +19140,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -16424,7 +19151,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -16433,7 +19162,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -16442,7 +19173,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -16456,7 +19189,9 @@ export interface operations {
     getPublishedCompiledSource: {
         parameters: {
             query?: {
-                /** @description An allowlisted descriptor TypeScript member path; never a filesystem path. */
+                /**
+                 * @description An allowlisted descriptor TypeScript member path; never a filesystem path.
+                 */
                 path?: string;
             };
             header?: never;
@@ -16469,7 +19204,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16479,7 +19216,9 @@ export interface operations {
                     "text/plain": string;
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -16488,7 +19227,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -16497,7 +19238,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16506,7 +19249,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -16515,7 +19260,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -16524,7 +19271,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -16533,7 +19282,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -16542,7 +19293,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -16569,7 +19322,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success */
+            /**
+             * @description Success
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16578,7 +19333,9 @@ export interface operations {
                     "text/event-stream": string;
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -16587,7 +19344,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -16596,7 +19355,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16605,7 +19366,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -16614,7 +19377,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -16623,7 +19388,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not
+            /**
+             * @description The retained report, bundle or AI payload has expired. This is a domain result and does not
              * revoke the employee session.
              */
             410: {
@@ -16650,7 +19416,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success */
+            /**
+             * @description Success
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16659,7 +19427,9 @@ export interface operations {
                     "application/json": components["schemas"]["ReportHistoryDTOEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -16668,7 +19438,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -16677,7 +19449,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16686,7 +19460,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -16695,7 +19471,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -16704,7 +19482,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not
+            /**
+             * @description The retained report, bundle or AI payload has expired. This is a domain result and does not
              * revoke the employee session.
              */
             410: {
@@ -16729,7 +19508,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success */
+            /**
+             * @description Success
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16738,7 +19519,9 @@ export interface operations {
                     "application/json": components["schemas"]["ReportArtifactsDTOEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -16747,7 +19530,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -16756,7 +19541,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16765,7 +19552,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -16774,7 +19563,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -16783,7 +19574,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not
+            /**
+             * @description The retained report, bundle or AI payload has expired. This is a domain result and does not
              * revoke the employee session.
              */
             410: {
@@ -16809,7 +19601,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success */
+            /**
+             * @description Success
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16818,7 +19612,9 @@ export interface operations {
                     "application/octet-stream": string;
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -16827,7 +19623,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -16836,7 +19634,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16845,7 +19645,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -16854,7 +19656,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -16863,7 +19667,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             410: {
                 headers: {
                     [name: string]: unknown;
@@ -16887,7 +19693,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success */
+            /**
+             * @description Success
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16896,7 +19704,9 @@ export interface operations {
                     "application/json": components["schemas"]["ReportDisplayDTOEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -16905,7 +19715,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -16914,7 +19726,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16923,7 +19737,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -16932,7 +19748,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Error */
+            /**
+             * @description Error
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -16941,7 +19759,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not
+            /**
+             * @description The retained report, bundle or AI payload has expired. This is a domain result and does not
              * revoke the employee session.
              */
             410: {
@@ -16969,7 +19788,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Redacted context and conservative estimate */
+            /**
+             * @description Redacted context and conservative estimate
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16978,7 +19799,9 @@ export interface operations {
                     "application/json": components["schemas"]["AiContextDTOEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -16987,7 +19810,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -16996,7 +19821,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17005,7 +19832,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -17014,7 +19843,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -17023,7 +19854,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -17032,7 +19865,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -17041,7 +19876,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -17064,7 +19901,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17073,7 +19912,9 @@ export interface operations {
                     "application/json": components["schemas"]["GenerationDTOEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -17082,7 +19923,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -17091,7 +19934,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17100,7 +19945,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -17109,7 +19956,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -17118,7 +19967,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not
+            /**
+             * @description The retained report, bundle or AI payload has expired. This is a domain result and does not
              * revoke the employee session.
              */
             410: {
@@ -17129,7 +19979,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -17138,7 +19990,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -17147,7 +20001,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Current authorization, bounded input, conflict or budget error */
+            /**
+             * @description Current authorization, bounded input, conflict or budget error
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -17167,7 +20023,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17176,7 +20034,9 @@ export interface operations {
                     "application/json": components["schemas"]["IssuerTrustEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -17185,7 +20045,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -17194,7 +20056,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17203,7 +20067,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -17212,7 +20078,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -17221,7 +20089,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -17230,7 +20100,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -17253,7 +20125,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Authorized artifact stream. */
+            /**
+             * @description Authorized artifact stream.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17262,7 +20136,9 @@ export interface operations {
                     "application/octet-stream": string;
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -17271,7 +20147,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -17280,7 +20158,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17289,7 +20169,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -17298,7 +20180,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -17307,7 +20191,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not
+            /**
+             * @description The retained report, bundle or AI payload has expired. This is a domain result and does not
              * revoke the employee session.
              */
             410: {
@@ -17318,7 +20203,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -17327,7 +20214,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -17342,8 +20231,8 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns
-                 * 409.
+                /**
+                 * @description Scoped to authenticated Workspace and operation. Same key/different payload returns 409.
                  */
                 "Idempotency-Key": string;
             };
@@ -17358,7 +20247,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -17367,7 +20258,9 @@ export interface operations {
                     "application/json": components["schemas"]["ImportDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -17376,7 +20269,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -17385,7 +20280,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17394,7 +20291,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -17403,7 +20302,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -17412,7 +20313,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The referenced signed bundle import authority has expired. */
+            /**
+             * @description The referenced signed bundle import authority has expired.
+             */
             410: {
                 headers: {
                     [name: string]: unknown;
@@ -17421,7 +20324,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -17430,7 +20335,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -17456,7 +20363,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Private bounded upload reservation */
+            /**
+             * @description Private bounded upload reservation
+             */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -17485,7 +20394,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Verified received offset */
+            /**
+             * @description Verified received offset
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17511,7 +20422,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Private bounded upload reservation */
+            /**
+             * @description Private bounded upload reservation
+             */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -17540,7 +20453,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Verified received offset */
+            /**
+             * @description Verified received offset
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17563,7 +20478,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17572,7 +20489,9 @@ export interface operations {
                     "application/json": components["schemas"]["CIReportEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -17581,7 +20500,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -17590,7 +20511,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17599,7 +20522,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -17608,7 +20533,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -17617,7 +20544,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Report metadata has expired under retention; existing employee/service-plan authorization
+            /**
+             * @description Report metadata has expired under retention; existing employee/service-plan authorization
              * still applies.
              */
             410: {
@@ -17628,7 +20556,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -17637,7 +20567,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -17652,8 +20584,8 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns
-                 * 409.
+                /**
+                 * @description Scoped to authenticated Workspace and operation. Same key/different payload returns 409.
                  */
                 "Idempotency-Key": string;
             };
@@ -17666,7 +20598,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Success. */
+            /**
+             * @description Success.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17675,7 +20609,9 @@ export interface operations {
                     "application/json": components["schemas"]["MaintenanceDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -17684,7 +20620,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -17693,7 +20631,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17702,7 +20642,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -17711,7 +20653,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -17720,7 +20664,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -17729,7 +20675,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -17751,7 +20699,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Workspace operational metrics. */
+            /**
+             * @description Workspace operational metrics.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17760,7 +20710,9 @@ export interface operations {
                     "application/json": components["schemas"]["OperationsMetricsDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -17769,7 +20721,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -17778,7 +20732,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17787,7 +20743,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -17796,7 +20754,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -17805,7 +20765,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description A bounded dependency observation timed out or is unavailable. */
+            /**
+             * @description A bounded dependency observation timed out or is unavailable.
+             */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -17825,7 +20787,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Bundled sample manifest, resources and source hashes. */
+            /**
+             * @description Bundled sample manifest, resources and source hashes.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17834,7 +20798,9 @@ export interface operations {
                     "application/json": components["schemas"]["SampleWorkspacePackageDTOEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -17843,7 +20809,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -17852,7 +20820,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17861,7 +20831,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stable JSON error; code is a machine-readable domain code. */
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -17870,7 +20842,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Bundled example assets are missing or inconsistent. */
+            /**
+             * @description Bundled example assets are missing or inconsistent.
+             */
             503: {
                 headers: {
                     [name: string]: unknown;

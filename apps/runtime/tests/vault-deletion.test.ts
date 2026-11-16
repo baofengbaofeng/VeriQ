@@ -1,4 +1,5 @@
-/** 整体凭据删除测试用真实私有文件和正式事务创建各用途载荷，只把系统密钥服务替换为显式受控夹具；验证删除意图先持久化、未
+/**
+ * 整体凭据删除测试用真实私有文件和正式事务创建各用途载荷，只把系统密钥服务替换为显式受控夹具；验证删除意图先持久化、未
  * 知结果保留可恢复事实，以及其他公开配置和历史不会被误当秘密一并移除。
  */
 import { test } from "node:test";
@@ -177,7 +178,8 @@ test("locked or conflicting keys cannot be deleted as a guessed profile scope", 
         );
     }));
 
-/** 旧初始化意图即使先前记录缺失，也可能在外部服务延迟完成后重新出现；此例保留实际旧版本摘要并模拟该迟到密钥，整体退役必
+/**
+ * 旧初始化意图即使先前记录缺失，也可能在外部服务延迟完成后重新出现；此例保留实际旧版本摘要并模拟该迟到密钥，整体退役必
  * 须按原范围再次核验和清理，不能只删除当前 active 版本就宣称完成。
  */
 test("whole credential deletion retains and rechecks late old initialization scopes", async () =>
@@ -237,7 +239,8 @@ test("whole deletion refuses a separately owned Desktop and leaves all credentia
         assert.equal((await readdir(join(directory, "vault"))).includes("deletion.json"), false);
     }));
 
-/** 命令行的永久退役必须带明确确认标志，测试用真实 CLI 子进程检查拒绝发生在创建凭据目录之前；失败输出只包含稳定错误，不
+/**
+ * 命令行的永久退役必须带明确确认标志，测试用真实 CLI 子进程检查拒绝发生在创建凭据目录之前；失败输出只包含稳定错误，不
  * 写入令牌、不依赖系统保险库可用性，也不通过测试专用环境变量选择后端。
  */
 test("CLI whole-profile deletion requires explicit confirmation before touching a profile", async () => {

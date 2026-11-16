@@ -108,7 +108,8 @@ export function createStepContext(options: StepContextOptions): StepContext {
         },
     };
 }
-/** 公开类 ExecutionCancelled 表示执行被取消或预算耗尽：用于中断嵌套等待而不伪装成断言失败（
+/**
+ * 公开类 ExecutionCancelled 表示执行被取消或预算耗尽：用于中断嵌套等待而不伪装成断言失败（
  * ExecutionCancelled/BUSINESS_TIMEOUT）。
  */
 export class ExecutionCancelled extends Error {

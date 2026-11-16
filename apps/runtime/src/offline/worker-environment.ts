@@ -1,6 +1,7 @@
 import { dirname, join, isAbsolute, win32, delimiter } from "node:path";
 
-/** 离线 worker 环境由可信 Node 宿主构造，只携带固定执行目录、provider 模块和明确选择的显示连接；
+/**
+ * 离线 worker 环境由可信 Node 宿主构造，只携带固定执行目录、provider 模块和明确选择的显示连接；
  * 页面不能传入环境变量集合，设备 token 与业务凭证不会因为可见模式而继承到子进程环境。
  */
 export function offlineWorkerEnvironment(
@@ -12,7 +13,8 @@ export function offlineWorkerEnvironment(
 ): Record<string, string> {
     const platform = execution.platform ?? process.platform;
     const executable = execution.runnerExecutable ?? process.execPath;
-    /** Windows 的系统目录只从可信宿主读取并校验为本地盘符绝对路径，浏览器启动所需的系统变量显式列举；禁止沿用整个宿主
+    /**
+     * Windows 的系统目录只从可信宿主读取并校验为本地盘符绝对路径，浏览器启动所需的系统变量显式列举；禁止沿用整个宿主
      * PATH 或把设备凭证、加载器选项带入业务 worker。
      */
     if (platform === "win32") {

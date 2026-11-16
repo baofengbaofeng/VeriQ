@@ -95,7 +95,8 @@ const guidance: Record<string, readonly [string, string]> = {
     ],
 };
 
-/** 桌面错误提示只从有限错误码选择可执行的中英文指引，保留机器代码供诊断但不回显异常中的路径、堆栈或系统原文；此模块没有
+/**
+ * 桌面错误提示只从有限错误码选择可执行的中英文指引，保留机器代码供诊断但不回显异常中的路径、堆栈或系统原文；此模块没有
  * React、Electron 或 DOM 依赖，因此 main 与 renderer 可共享而不混淆宿主边界
  * 。
  */
@@ -116,7 +117,8 @@ export function desktopErrorMessage(failure: unknown, language: "zh" | "en"): st
     return `${known?.[language === "zh" ? 0 : 1] ?? fallback} (${code})`;
 }
 
-/** 本机运行与上传状态保留机器代码供诊断，同时补充固定中英文含义，未知业务状态只显示原有有限值而不猜测已经成功；该映射只
+/**
+ * 本机运行与上传状态保留机器代码供诊断，同时补充固定中英文含义，未知业务状态只显示原有有限值而不猜测已经成功；该映射只
  * 用于状态投影，用户资源名、日志正文和凭据值不会进入翻译路径。
  */
 export function desktopStateLabel(state: string): string {

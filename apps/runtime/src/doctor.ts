@@ -23,7 +23,8 @@ export interface DoctorResult {
     checks: { name: string; ok: boolean; detail: string }[];
     capabilities?: Capabilities;
 }
-/** 公开函数 doctor 实测 Node 版本、引擎/SDK 包与 Chromium 启动渲染：可选探测控制 Origin 连通性（doctor）。返回
+/**
+ * 公开函数 doctor 实测 Node 版本、引擎/SDK 包与 Chromium 启动渲染：可选探测控制 Origin 连通性（doctor）。返回
  * capabilities 仅供诊断展示。
  */
 export async function doctor(
@@ -31,11 +32,13 @@ export async function doctor(
         server?: string | undefined;
         executablePath?: string | undefined;
         signal?: AbortSignal | undefined;
-        /** 安装发行可要求实际浏览器返回精确版本，不能因为另一个浏览器也能渲染页面就申报钉选执行能力；
+        /**
+         * 安装发行可要求实际浏览器返回精确版本，不能因为另一个浏览器也能渲染页面就申报钉选执行能力；
          * 此要求只增加身份校验，不改变现有启动参数、沙箱策略或设备信任级别。
          */
         expectedBrowserVersion?: string;
-        /** 发行上下文只接受调用方已经整体核验库存后提取的组件版本，避免打包后源码包不可解析造成误报；
+        /**
+         * 发行上下文只接受调用方已经整体核验库存后提取的组件版本，避免打包后源码包不可解析造成误报；
          * 此字段本身不是签名或哈希证明，未提供时仍使用原有包解析路径及兼容版本检查。
          */
         distribution?: Pick<EngineRelease["entry"], "compilerVersion" | "runnerSdkVersion">;

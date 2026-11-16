@@ -36,7 +36,8 @@ const object = (value: unknown): Record<string, unknown> =>
     value !== null && typeof value === "object" && !Array.isArray(value)
         ? (value as Record<string, unknown>)
         : {};
-/** 工作区选择与默认首项逻辑；把 adapter 交给 ReportWorkspaceView。未登录直接 Navigate 登录页。不缓存所选 runId 跨空间，
+/**
+ * 工作区选择与默认首项逻辑；把 adapter 交给 ReportWorkspaceView。未登录直接 Navigate 登录页。不缓存所选 runId 跨空间，
  * 防止串读其他空间报告。
  */
 export function ReportPage() {
@@ -118,7 +119,8 @@ export function ReportPage() {
         </Panel>
     );
 }
-/** 拥有 run 列表无限查询与当前选中 runId；打开 ReportView 并处理 Load more。切换 run 会重置 history after。空列表显示
+/**
+ * 拥有 run 列表无限查询与当前选中 runId；打开 ReportView 并处理 Load more。切换 run 会重置 history after。空列表显示
  * empty 文案；错误用 retry 重新拉取。
  */
 export function ReportWorkspaceView({
@@ -205,7 +207,8 @@ export function ReportWorkspaceView({
         </div>
     );
 }
-/** 单个 Run 的报告主体：门禁、用例树、Attempt 事件、证据下载与审计片段。原始证据区按角色条件渲染；原始证据区仅对 Owner
+/**
+ * 单个 Run 的报告主体：门禁、用例树、Attempt 事件、证据下载与审计片段。原始证据区按角色条件渲染；原始证据区仅对 Owner
  * 或 Admin 角色展开。
  * subscribe 更新 report 头；history 按 after 增量追加，不做 Playwright 重试展示。
  */

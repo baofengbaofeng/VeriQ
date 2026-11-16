@@ -1,4 +1,5 @@
-/** Workspace 管理页：创建/重命名/归档空间，以及成员角色、邀请与接受邀请流程。归档后成员列表仍可只读查看；归档完成后成员
+/**
+ * Workspace 管理页：创建/重命名/归档空间，以及成员角色、邀请与接受邀请流程。归档后成员列表仍可只读查看；归档完成后成员
  * 与邀请列表仍可只读浏览。
  * 列表走 api.workspaces；成员与邀请均嵌套在选定 workspaceId 下。
  */
@@ -21,7 +22,8 @@ const message = (error: Error | null) =>
           ? "Unable to load Workspace data. Please retry."
           : "";
 
-/** 拥有空间列表、成员与邀请分页 UI 状态；写操作调用 create/rename/archive/invite/updateMember。选择变更经
+/**
+ * 拥有空间列表、成员与邀请分页 UI 状态；写操作调用 create/rename/archive/invite/updateMember。选择变更经
  * useWorkspace.select，确保下游 Runtime/Resource
  * 页看到同一作用域。
  */

@@ -91,7 +91,8 @@ export async function stageModel(arch: Arch = "x64") {
     };
 }
 
-/** npm 反例准备按夹具原归档事实独立推导普通文件与父目录，再按最深实例切分并重封自有树摘要；它不更改 package 声明、依赖
+/**
+ * npm 反例准备按夹具原归档事实独立推导普通文件与父目录，再按最深实例切分并重封自有树摘要；它不更改 package 声明、依赖
  * 边或 bin 关系，因此正文与声明矛盾仍由产品消费者实际发现而不是被测试自动修复。
  */
 export function rehashStageNpm(value: Awaited<ReturnType<typeof stageModel>>) {

@@ -1,11 +1,13 @@
-/** 这些可移植回归只驱动真实异步结算与共用诊断编解码，不启动 Mac 控制器或模拟系统授权；如果结算丢失原错误、遗漏清理、接
+/**
+ * 这些可移植回归只驱动真实异步结算与共用诊断编解码，不启动 Mac 控制器或模拟系统授权；如果结算丢失原错误、遗漏清理、接
  * 受私有字段或覆盖首个观察边界，以下行为断言必须直接失败。
  */
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as vault from "./fixtures/darwin-vault.ts";
 
-/** 动态读取新增 API 使旧源码在红灯阶段产生明确缺失断言，而不会在模块加载时提前退出；真实实现就绪后所有测试仍调用同一个
+/**
+ * 动态读取新增 API 使旧源码在红灯阶段产生明确缺失断言，而不会在模块加载时提前退出；真实实现就绪后所有测试仍调用同一个
  * 夹具函数，不使用替身结算器或复制生产算法。
  */
 const settle = (...args: Parameters<typeof vault.settleDarwinCase>) => {
@@ -18,7 +20,8 @@ const collect = (summary: unknown) =>
         Buffer.from("# VERIQ_D1_DIAGNOSTICS " + JSON.stringify(summary) + "\n"),
     ]);
 
-/** 四个组合分别检查原对象身份及执行顺序，清理只由结算器调用一次且密钥必须先覆盖；观察器在 body 结束后已经得到状态，因此
+/**
+ * 四个组合分别检查原对象身份及执行顺序，清理只由结算器调用一次且密钥必须先覆盖；观察器在 body 结束后已经得到状态，因此
  * 后续清理不能反向掩盖原来的断言失败。
  */
 for (const bodyFails of [false, true]) {
@@ -75,7 +78,8 @@ for (const bodyFails of [false, true]) {
     }
 }
 
-/** JavaScript 允许抛出非真值，结算状态必须由独立标志决定而不能靠异常对象真值判断；这些探针保留 undefined、null、false
+/**
+ * JavaScript 允许抛出非真值，结算状态必须由独立标志决定而不能靠异常对象真值判断；这些探针保留 undefined、null、false
  * 的身份并确认失败之后仍执行覆盖与清理。
  */
 for (const primary of [undefined, null, false]) {
@@ -107,7 +111,8 @@ for (const primary of [undefined, null, false]) {
     });
 }
 
-/** 覆盖回调失败不能中止剩余密钥或清理，而观察器及异常对象上的恶意访问器都不能影响原结果；测试只验证有限来源分类，不允许
+/**
+ * 覆盖回调失败不能中止剩余密钥或清理，而观察器及异常对象上的恶意访问器都不能影响原结果；测试只验证有限来源分类，不允许
  * 读取异常文字、构造器或堆栈来生成诊断。
  */
 for (const bodyFails of [false, true]) {
@@ -161,7 +166,8 @@ for (const bodyFails of [false, true]) {
     });
 }
 
-/** 失败上下文只接收有限操作与已返回的 helper 事实，后续退出或清理拒绝不能替换首个观察；有效领域拒绝仍然是合法 V1 回复，
+/**
+ * 失败上下文只接收有限操作与已返回的 helper 事实，后续退出或清理拒绝不能替换首个观察；有效领域拒绝仍然是合法 V1 回复，
  * 只有断言失败才以明确的 body 边界来源引用它。
  */
 test("first operation retains observed exit2 empty response across cleanup", () => {
@@ -203,7 +209,8 @@ test("valid domain refusal is only a body assertion boundary", () => {
     assert.equal(summary.operationContext?.shape, "PARSED_V1");
 });
 
-/** 非法参数与观察器访问器只降低完整性而不泄漏输入或向业务抛错，命令计数耗尽后继续运行调用者代码；这些测试覆盖实际共享过
+/**
+ * 非法参数与观察器访问器只降低完整性而不泄漏输入或向业务抛错，命令计数耗尽后继续运行调用者代码；这些测试覆盖实际共享过
  * 滤器，而非由测试拼装另一个相似的导出实现。
  */
 test("unknown operations getters and ordinal exhaustion stop metadata safely", () => {
@@ -244,7 +251,8 @@ test("unknown operations getters and ordinal exhaustion stop metadata safely", (
     assert.equal(end.operationContext, undefined);
 });
 
-/** 旧概要继续有效且未知字段必须在真实收集器中拒绝，有限 Node 来源与原生记录保持独立；每个畸形输入均通过公开 JSON 路径送
+/**
+ * 旧概要继续有效且未知字段必须在真实收集器中拒绝，有限 Node 来源与原生记录保持独立；每个畸形输入均通过公开 JSON 路径送
  * 入验证器，避免只测试某个私有校验函数而遗漏导出通路。
  */
 test("strict optional case and operation schema roundtrips and rejects private facts", () => {
@@ -296,7 +304,8 @@ test("strict optional case and operation schema roundtrips and rejects private f
     assert.equal(collect(legacy).rejected, false);
 });
 
-/** 摘要使用既有五百一十二字节预留且两个正常五十四记录夹具仍在十六 KiB 总预算内；原生单行、单夹具和条数上限保持原值，超
+/**
+ * 摘要使用既有五百一十二字节预留且两个正常五十四记录夹具仍在十六 KiB 总预算内；原生单行、单夹具和条数上限保持原值，超
  * 额输入必须保留拒绝或不完整标记而不能扩大预算。
  */
 test("worst finite summaries and healthy54 records retain original caps", () => {
@@ -344,7 +353,8 @@ test("worst finite summaries and healthy54 records retain original caps", () => 
     assert.equal(summary.incomplete, true);
 });
 
-/** 有效退出码的上下界与三个已有回复形状都经实际收集器往返，无法取得 helper 退出值的控制器拒绝保持未知；恶意超长行与第九
+/**
+ * 有效退出码的上下界与三个已有回复形状都经实际收集器往返，无法取得 helper 退出值的控制器拒绝保持未知；恶意超长行与第九
  * 十七条记录分别触发原上限，不能靠一个限额掩盖另一限额失效。
  */
 test("finite returned facts and independent line record fixture caps", () => {
@@ -374,7 +384,8 @@ test("finite returned facts and independent line record fixture caps", () => {
     assert.equal(collect({ ...end, operationContext: "x".repeat(8193) }).rejected, true);
 });
 
-/** helper 事实只能附属于实际 run 调用，其他控制器操作没有可借用的子进程退出值或回复形状；生产过滤器必须在导出之前拒绝这
+/**
+ * helper 事实只能附属于实际 run 调用，其他控制器操作没有可借用的子进程退出值或回复形状；生产过滤器必须在导出之前拒绝这
  * 种矛盾组合，不能等工作流消费者发现之后才把它视作不完整。
  */
 test("producer rejects helper metadata on a non-helper operation", () => {
@@ -388,7 +399,8 @@ test("producer rejects helper metadata on a non-helper operation", () => {
     assert.equal(collect(summary).rejected, false);
 });
 
-/** 工作流消费者必须独立拒绝非 run 操作夹带的 helper 退出值和回复形状，即使来源类别不是 HELPER 也不能借此通过；每个负例
+/**
+ * 工作流消费者必须独立拒绝非 run 操作夹带的 helper 退出值和回复形状，即使来源类别不是 HELPER 也不能借此通过；每个负例
  * 通过真实 JSON 收集器，合法未知上下文仍须往返保留，防止只加强生产端而留下消费端证据矛
  * 盾。
  */
@@ -450,7 +462,8 @@ for (const operation of [
     });
 }
 
-/** 原生操作使用独立 OP 命名空间保存当前子阶段，不能借用 Node 的命令序号或 helper 退出字段；这些样本直接经过流过滤、概要
+/**
+ * 原生操作使用独立 OP 命名空间保存当前子阶段，不能借用 Node 的命令序号或 helper 退出字段；这些样本直接经过流过滤、概要
  * 导出与工作流收集，记录缺失只表示尚未观察而不推断任何系统调用结果。
  */
 const seedStages = [
@@ -552,7 +565,8 @@ test("native entered-only remains incomplete with unknown terminal and helper", 
     assert.deepEqual(collect(summary).fixtures, [summary]);
 });
 
-/** 数值事实只能出现在实际执行对应调用的子阶段，布尔值只对应原谓词而事件分类不携带读到的字节；边界值和可缺失事实均通过真
+/**
+ * 数值事实只能出现在实际执行对应调用的子阶段，布尔值只对应原谓词而事件分类不携带读到的字节；边界值和可缺失事实均通过真
  * 实收集器验证，确保消费者不会用类型强制转换或旧阶段状态补齐未知。
  */
 test("native optional returned facts accept exact finite boundaries", () => {
@@ -624,7 +638,8 @@ test("native codec rejects incompatible states stages facts and coerced values",
     }
 });
 
-/** 原生失败与 Node 正文和清理事实各自保留，最后一次成功操作不得借用前一阶段的状态码；这里用实际导出结果检查字段缺失与标
+/**
+ * 原生失败与 Node 正文和清理事实各自保留，最后一次成功操作不得借用前一阶段的状态码；这里用实际导出结果检查字段缺失与标
  * 准重建次序，同时确认诊断观察没有把合法领域拒绝转换成 helper 故障。
  */
 test("native facts remain separate from primary body secondary cleanup and canonical output", () => {
@@ -691,7 +706,8 @@ test("native privacy rejects every unapproved field on both codec paths", () => 
     }
 });
 
-/** 两个健康专用用例分别增加十六条和四条观察，旧创建清理记录与最大有限概要一起经过共享预算；这里只证明合成记录的编码上限
+/**
+ * 两个健康专用用例分别增加十六条和四条观察，旧创建清理记录与最大有限概要一起经过共享预算；这里只证明合成记录的编码上限
  * ，不代表 Objective-C++ 生产者或真实钥匙串操作已经在本机执行。
  */
 test("native legal worst case74 and case62 fit unchanged fixture and job caps", () => {
@@ -845,7 +861,8 @@ test("native legal worst case74 and case62 fit unchanged fixture and job caps", 
     assert.ok(Buffer.byteLength(JSON.stringify(output.fixtures)) <= 16384);
 });
 
-/** 不同原生操作的边界必须独立结算，后到的 seed 终态不能闭合先前缺失的拒绝观察终态；创建阶段也不能闭合操作阶段，因此进程
+/**
+ * 不同原生操作的边界必须独立结算，后到的 seed 终态不能闭合先前缺失的拒绝观察终态；创建阶段也不能闭合操作阶段，因此进程
  * 突然退出后即使出现其他合法记录仍然明确保留不完整事实。
  */
 test("native terminal cannot close another operation entered boundary", () => {
@@ -860,7 +877,8 @@ test("native terminal cannot close another operation entered boundary", () => {
     assert.deepEqual(collect(summary).fixtures, [summary]);
 });
 
-/** helper 读取事实必须经过真实共享过滤器和工作流消费器，来源固定且仅接纳首次选中调用；合成状态只验证数值约定与隐私拒绝
+/**
+ * helper 读取事实必须经过真实共享过滤器和工作流消费器，来源固定且仅接纳首次选中调用；合成状态只验证数值约定与隐私拒绝
  * ，不能被解释为本机已经执行系统查询或证明真实授权成功。
  */
 const helperRecord = (
@@ -1054,7 +1072,8 @@ test("helper admission rejects duplicates and maintains primary cleanup truth", 
     );
 });
 
-/** 合成读取成功和不同拒绝错误都只作为真实字段数值传递，控制器不得把非拒绝状态改写成通过；分块、超长和额外来源还必须经过
+/**
+ * 合成读取成功和不同拒绝错误都只作为真实字段数值传递，控制器不得把非拒绝状态改写成通过；分块、超长和额外来源还必须经过
  * 同一个导出过滤器，原始候选缓冲在所有路径被覆盖。
  */
 test("helper raw status conventions fragmentation overflow and canonical provenance", () => {
@@ -1095,7 +1114,8 @@ test("helper raw status conventions fragmentation overflow and canonical provena
     assert.ok(!JSON.stringify(summary).includes("SECRET_CANARY"));
 });
 
-/** 引用锚定读取先证明元数据查询与完整唯一目标，再单独观察秘密读取状态；这些记录驱动实际共享过滤器及报告消费器，既保留旧
+/**
+ * 引用锚定读取先证明元数据查询与完整唯一目标，再单独观察秘密读取状态；这些记录驱动实际共享过滤器及报告消费器，既保留旧
  * 记录兼容性，也防止元数据授权失败被误当成系统秘密读取拒绝。
  */
 test("reference lookup evidence preserves metadata failures and actual data status separately", () => {
@@ -1157,7 +1177,8 @@ test("reference lookup evidence preserves metadata failures and actual data stat
     }
 });
 
-/** 新查询路径只接受实际执行顺序的有限前缀，类型错误、缺失成功守卫和越阶段状态都必须失败关闭；显式查询事实不能与旧路径规
+/**
+ * 新查询路径只接受实际执行顺序的有限前缀，类型错误、缺失成功守卫和越阶段状态都必须失败关闭；显式查询事实不能与旧路径规
  * 则混用，额外秘密字段仍不得进入过滤后的记录或报告。
  */
 test("reference lookup codec rejects incomplete target proof and mixed read provenance", () => {
@@ -1215,7 +1236,8 @@ test("reference lookup codec rejects incomplete target proof and mixed read prov
         assert.equal(nativeSummary(helperRecord("denial", helper)).rejected, true);
 });
 
-/** 首次移除观察只保存原删除调用返回的数值，调用前失败和中途未返回都不能伪造系统状态；真实过滤器及报告消费者同时验证一次
+/**
+ * 首次移除观察只保存原删除调用返回的数值，调用前失败和中途未返回都不能伪造系统状态；真实过滤器及报告消费者同时验证一次
  * 进入与最多一次终态，合成数据不被解释为已执行原生删除。
  */
 test("first remove status preserves pre-call unknown and exact original API results", () => {
@@ -1261,7 +1283,8 @@ test("first remove status preserves pre-call unknown and exact original API resu
     assert.equal(output.rejected, false);
 });
 
-/** 删除状态只能出现在原调用子阶段且成功必须显式为零，布尔或字符串不能冒充系统整数；非法跨阶段字段、重复入口终态和秘密候
+/**
+ * 删除状态只能出现在原调用子阶段且成功必须显式为零，布尔或字符串不能冒充系统整数；非法跨阶段字段、重复入口终态和秘密候
  * 选同时经过过滤器及直接报告消费，不能靠只检查正常路径掩盖接纳漏洞。
  */
 test("first remove codec rejects false completion malformed facts and duplicate admission", () => {

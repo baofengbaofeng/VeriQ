@@ -51,7 +51,8 @@ type CachedBundle = {
     createdAt: string;
     debug: boolean;
 };
-/** 后台启动配置由可信桌面入口或安装包提供，包含固定引擎与浏览器路径而不接受渲染端文件参数；控制 Origin 必须与现有设备登
+/**
+ * 后台启动配置由可信桌面入口或安装包提供，包含固定引擎与浏览器路径而不接受渲染端文件参数；控制 Origin 必须与现有设备登
  * 记匹配，防止切换平台时误送设备凭证。
  */
 export interface AgentConfiguration {
@@ -60,7 +61,8 @@ export interface AgentConfiguration {
     engineVersion?: string;
     browserExecutable: string;
     headedExecutable?: string;
-    /** 正式安装由 main 写入唯一 Runtime 资源根，Agent 启动及准备执行时重新验证该目录；renderer 和签名业务包不能传入此字
+    /**
+     * 正式安装由 main 写入唯一 Runtime 资源根，Agent 启动及准备执行时重新验证该目录；renderer 和签名业务包不能传入此字
      * 段，开发配置没有该字段时保持已有独立工具路径。
      */
     distributionRoot?: string;
@@ -83,7 +85,8 @@ const failure = (error: unknown) =>
         ? error.message
         : "LOCAL_OPERATION_FAILED";
 
-/** 桌面后台是已有 Runtime 的本机操作入口，执行、验签、持久化和回传都委托原实现；进程不依赖 Electron 生命周期，状态只返
+/**
+ * 桌面后台是已有 Runtime 的本机操作入口，执行、验签、持久化和回传都委托原实现；进程不依赖 Electron 生命周期，状态只返
  * 回无密钥摘要与明确的活动占用事实。
  */
 export class DesktopAgent {
@@ -114,7 +117,8 @@ export class DesktopAgent {
         { controller: AbortController; done: Promise<void>; expiry: ReturnType<typeof setTimeout> }
     >();
 
-    /** 后台对象把设备登记、签发者信任、本机凭证与离线执行状态分别绑定到同一私有档案，而执行状态使用独立子目录；初始化只
+    /**
+     * 后台对象把设备登记、签发者信任、本机凭证与离线执行状态分别绑定到同一私有档案，而执行状态使用独立子目录；初始化只
      * 建立这些依赖和浏览器探测，不在构造函数中领取远程任务或运行签名包。控制 Origin
      * 在接触任何持久设备资料前经过 Runtime 的既有地址校验。浏览器探测 Promise 在实例创建时启动，后续状态请求复用同一安
      * 装能力事实。可见与无头探测使用两个明确配置的路径，不把 UI Chromium 当作测试浏览器。
@@ -143,7 +147,8 @@ export class DesktopAgent {
         this.executionRoot = join(root, "offline");
     }
 
-    /** 资源包目录索引只是界面可列举的缓存元数据，不是签名或执行授权证明；索引缺失表示空缓存，其它读取错误必须上报，防止
+    /**
+     * 资源包目录索引只是界面可列举的缓存元数据，不是签名或执行授权证明；索引缺失表示空缓存，其它读取错误必须上报，防止
      * 损坏的本机状态被静默覆盖成一个看似干净的新档案。列表持久化只包含标识、Workspace、引擎版本、时间和
      * DEBUG 标记。不保存设备令牌、业务凭证或指向任意外部文件的读取能力。真正选包时会再次核验安装目录内容，不能仅凭此列
      * 表启动执行。ENOENT 是首次使用的正常情况，权限和解析错误不是。返回的数组不被调用方原地修改，
@@ -158,7 +163,8 @@ export class DesktopAgent {
         }
     }
 
-    /** 读取缓存内容必须同时匹配调用者提供的合法包标识与后台当前选定 Workspace，随后重新核验安装内容；从列表里找到一个条
+    /**
+     * 读取缓存内容必须同时匹配调用者提供的合法包标识与后台当前选定 Workspace，随后重新核验安装内容；从列表里找到一个条
      * 目只建立候选关系，不能绕过签名、撤销或 DEBUG 策略。调用者先用 id 校验器规范检查包 UUID，
      * 不能把路径字符串送入此处。匹配失败统一返回 BUNDLE_WORKSPACE_MISMATCH，避免提供跨空间内容。目录由私有 root、固定
      * bundles 段和已校验 UUID 组成。签发者信任来自本机
@@ -182,7 +188,8 @@ export class DesktopAgent {
                 workspaceId: item.workspaceId,
                 debug: item.debug,
             });
-            /** 只有实际通过签名及库存重验的资源访问才刷新 SQLite 生命周期，不能根据 renderer 选择或磁盘 mtime 让旧缓存
+            /**
+             * 只有实际通过签名及库存重验的资源访问才刷新 SQLite 生命周期，不能根据 renderer 选择或磁盘 mtime 让旧缓存
              * 获得伪造年龄；读计数覆盖此事务，清理门闩不会在验签读取与访问登记之间删除同
              * 一资源。
              */
@@ -198,7 +205,8 @@ export class DesktopAgent {
         }
     }
 
-    /** 设备登记中的控制 Origin 与 Workspace 是下载和回传的认证目的地，必须与后台启动配置和当前本机选择同时一致；签名资
+    /**
+     * 设备登记中的控制 Origin 与 Workspace 是下载和回传的认证目的地，必须与后台启动配置和当前本机选择同时一致；签名资
      * 源中的业务 URL 或员工刚登录的平台会话不能改变设备令牌的发送范围。每次调用重新读取
      * DeviceStore，解绑后不能继续使用先前缓存的令牌。配置 Origin 比较避免更换控制平台后误用旧设备身份。Workspace 比较
      * 避免拿一个空间的设备访问另一个空间的包或导入。失败发生在构造带认证的网络请求之前。
@@ -212,7 +220,8 @@ export class DesktopAgent {
         return config;
     }
 
-    /** 设备缺席只接受当前存储路径的明确事实，保险库事务已有专用缺登记标识而后端系统错误不具备此含义；源码文件模式保留精
+    /**
+     * 设备缺席只接受当前存储路径的明确事实，保险库事务已有专用缺登记标识而后端系统错误不具备此含义；源码文件模式保留精
      * 确 device.json 的缺文件以及 Windows 既有有限原生缺路径合同，避免未知 ENOENT
      * 放开绑定与控制源保护。
      */
@@ -228,7 +237,8 @@ export class DesktopAgent {
         );
     }
 
-    /** 状态接口读取真实持久拥有者、历史和当前进程句柄，而不以界面忙碌状态推测执行是否结束；即使另一个请求停在签名包准备
+    /**
+     * 状态接口读取真实持久拥有者、历史和当前进程句柄，而不以界面忙碌状态推测执行是否结束；即使另一个请求停在签名包准备
      * 阶段，本方法也应独立返回可观察的准备标识和取消状态。每次状态读取独立打开 LocalStore，并在
      * finally 中关闭 SQLite 句柄。活动拥有者来自数据库，UI 崩溃后仍可恢复同一个 Run 和 Attempt。缺少活动拥有者时返回
      * null，不构造占位 Run 或声称已经停止。在线标志来自当前领取循环
@@ -252,7 +262,8 @@ export class DesktopAgent {
                 const config = await this.device.load();
                 device = { id: config.runnerId, workspaceId: config.workspaceId };
             } catch (error) {
-                /** 后台已能响应 IPC 并不代表凭据可用，锁定、旧格式与损坏只投影为有限失败状态；这里只处理设备读取，
+                /**
+                 * 后台已能响应 IPC 并不代表凭据可用，锁定、旧格式与损坏只投影为有限失败状态；这里只处理设备读取，
                  * SQLite、历史和缓存错误继续抛出，显式凭据操作仍由原 Runtime 约束执行。
                  */
                 if (!this.deviceNotEnrolled(error)) credentialError = credentialIssue(error);
@@ -303,7 +314,8 @@ export class DesktopAgent {
         }
     }
 
-    /** 每个本机命令先拒绝未知字段并验证作用域，路径始终由配置根和已登记 UUID 构造；renderer 即使绕过静态类型，也不能调
+    /**
+     * 每个本机命令先拒绝未知字段并验证作用域，路径始终由配置根和已登记 UUID 构造；renderer 即使绕过静态类型，也不能调
      * 用任意进程、文件或替换控制服务器。
      */
     async dispatch(input: unknown): Promise<unknown> {
@@ -351,7 +363,8 @@ export class DesktopAgent {
         };
         if (!Object.hasOwn(permitted, operation)) throw new Error("AGENT_OPERATION_DENIED");
         object(message, ["operation", ...permitted[operation]!]);
-        /** 清理事务拥有 SQLite 写锁时状态接口不得新开同步写连接阻塞整个 Agent 事件循环，直接返回有限忙碌分类供宿主呈现
+        /**
+         * 清理事务拥有 SQLite 写锁时状态接口不得新开同步写连接阻塞整个 Agent 事件循环，直接返回有限忙碌分类供宿主呈现
          * ；这不是空历史或后台已经退出，窗口重开后也不会因此取消原来的持久维护。
          */
         if (operation === "status" && this.transition?.operation === "pruneCache")
@@ -400,7 +413,8 @@ export class DesktopAgent {
         }
     }
 
-    /** 已经通过操作白名单的请求在这里进入具体 Runtime 适配分支，启动控制器只属于该次已预留操作；每个分支仍验证自己的字
+    /**
+     * 已经通过操作白名单的请求在这里进入具体 Runtime 适配分支，启动控制器只属于该次已预留操作；每个分支仍验证自己的字
      * 段、当前空间与资源归属，不能把统一派发校验当作业务授权已完成。私有目录创建发生在门闩预留之后，
      * 文件系统等待不会给第二个启动留下空闲窗口。开始处理前检查取消信号，已经取消的排队准备不继续做业务工作。只读请求可
      * 以没有 startup 控制器，并与执行准备并发。受保护的变更在 dispatch 中同步预留，execute
@@ -416,7 +430,8 @@ export class DesktopAgent {
         await privateDirectory(this.root);
         startup?.signal.throwIfAborted();
         if (operation === "status") return this.state();
-        /** GUI 保留期维护只消费共享解析器核过的有限策略并绑定当前本机工作区，原始 desktopOwner 能力由构造器保留而不经过
+        /**
+         * GUI 保留期维护只消费共享解析器核过的有限策略并绑定当前本机工作区，原始 desktopOwner 能力由构造器保留而不经过
          * renderer 序列化；活动执行由既有预留门闩排除，查看器和正在读取的缓存也必须先结束。
          * 真实 helper 自己核验在线与离线停止历史、合作锁和 SQLite 事务。profileRoot 只能是当前 Agent 的固定 root，不能
          * 使用页面字段改换档案。清理开始后 stop 会等待同一预留结束，不以
@@ -433,7 +448,8 @@ export class DesktopAgent {
                 ...(this.desktopOwner ? { desktopOwner: this.desktopOwner } : {}),
             });
         }
-        /** 维护准备复用同一个可中断预留而不是另设异步门闩，停止请求因此必须等本次持久锁取得或失败后才退出；查看器、在线
+        /**
+         * 维护准备复用同一个可中断预留而不是另设异步门闩，停止请求因此必须等本次持久锁取得或失败后才退出；查看器、在线
          * 执行与未知记录仍分别拒绝，准备取消会释放实际取得的空闲资源而不伪造 ready 回执。
          */
         if (operation === "prepareMaintenance") {
@@ -477,7 +493,8 @@ export class DesktopAgent {
         }
         if (operation === "doctor") return this.diagnose(true);
         if (operation === "enroll") {
-            /** 新登记必须先确认当前档案确实没有设备，锁定、旧格式或缺密钥都不能取得远端新审批码；即使 renderer 绕过禁用
+            /**
+             * 新登记必须先确认当前档案确实没有设备，锁定、旧格式或缺密钥都不能取得远端新审批码；即使 renderer 绕过禁用
              * 按钮也保持相同拒绝，最终写入仍由 Runtime 的只创建事务防止并发覆盖。
              */
             let enrolled = false;
@@ -821,7 +838,8 @@ export class DesktopAgent {
         throw new Error("AGENT_OPERATION_DENIED");
     }
 
-    /** 中断路径先占用反向控制门闩，再处理被捕获的那一次启动或执行，防止等待旧启动收敛时新任务抢入并被误取消；停止、取消
+    /**
+     * 中断路径先占用反向控制门闩，再处理被捕获的那一次启动或执行，防止等待旧启动收敛时新任务抢入并被误取消；停止、取消
      * 启动与取消真实 Run 各自保留不同的标识和完成语义。
      * 方法进入时立即捕获 transition，后续不重新选择一个可能已变化的启动对象。
      * stop 在任何 await 之前把实例标成 stopped，新工作从此拒绝。
@@ -899,7 +917,8 @@ export class DesktopAgent {
                 this.online,
                 ...[...this.viewers.values()].map((viewer) => viewer.done),
             ]);
-            /** 人工升级取得的持续空闲事务只在本次后台明确停止时释放，释放异常必须让停止失败而不能交出伪造回执；随后入口
+            /**
+             * 人工升级取得的持续空闲事务只在本次后台明确停止时释放，释放异常必须让停止失败而不能交出伪造回执；随后入口
              * 关闭 broker 并释放桌面所有权，安装器另行检查真实角色是否全部退出。
              */
             await this.maintenanceRelease?.();
@@ -910,7 +929,8 @@ export class DesktopAgent {
         }
     }
 
-    /** 独立发行中的 Agent 已内联编译器和 SDK 代码，不能依赖开发工作区包路径完成版本探测；这里必须先逐文件核验真实发行库
+    /**
+     * 独立发行中的 Agent 已内联编译器和 SDK 代码，不能依赖开发工作区包路径完成版本探测；这里必须先逐文件核验真实发行库
      * 存，才把库存中的两种组件版本交给兼容的 Runtime 自检。
      * engineVersion 来自可信安装配置，默认仍为当前桌面发行选择。
      * loadRelease 检查目录库存、文件白名单、大小和哈希，失败直接拒绝。
@@ -941,7 +961,8 @@ export class DesktopAgent {
         });
     }
 
-    /** 已安装 Darwin 执行必须先从原始库存能力取得独立 Runner 探针与私有控制目录，不能用 Electron 内置 Node 或源码
+    /**
+     * 已安装 Darwin 执行必须先从原始库存能力取得独立 Runner 探针与私有控制目录，不能用 Electron 内置 Node 或源码
      * Chrome 替代；能力只在本次进程内传给既有执行器，签名业务包和 rende
      * rer 都无法构造或覆盖它。
      */
@@ -955,7 +976,8 @@ export class DesktopAgent {
         return createDarwinDistribution(installed, { temporaryDirectory });
     }
 
-    /** 在线领取使用已绑定设备的真实会话和现有执行监管器，启动准备期间仍受同一个控制器约束；查询设备状态失败或取消会关闭
+    /**
+     * 在线领取使用已绑定设备的真实会话和现有执行监管器，启动准备期间仍受同一个控制器约束；查询设备状态失败或取消会关闭
      * 该会话，只有检查成功后才把 claimLoop 登记为活动任务。
      */
     private async startOnline(controller: AbortController) {
@@ -1012,7 +1034,8 @@ export class DesktopAgent {
             });
     }
 
-    /** 每个查看器只有一个私有 Trace 副本和独立取消句柄，宿主心跳仅维持这个窗口的租期；宿主崩溃后租期到期回收查看器，正
+    /**
+     * 每个查看器只有一个私有 Trace 副本和独立取消句柄，宿主心跳仅维持这个窗口的租期；宿主崩溃后租期到期回收查看器，正
      * 常关闭会等待真实进程退出再删副本，不中止测试 Agent。
      */
     private async startViewer(
@@ -1050,7 +1073,8 @@ export class DesktopAgent {
         return ready;
     }
 
-    /** 本机原始证据要求 main 已完成原生确认并匹配当前选定工作区，随后由 LocalReports 再检查 Run 与 Attempt 归属和文件摘
+    /**
+     * 本机原始证据要求 main 已完成原生确认并匹配当前选定工作区，随后由 LocalReports 再检查 Run 与 Attempt 归属和文件摘
      * 要；导出副本以独占创建写入私有目录，原始证据始终保留。
      */
     private async nativeArtifact(message: Record<string, unknown>) {

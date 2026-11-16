@@ -9,7 +9,8 @@ import { ASSET_SOURCES, type SourceFacts } from "../../scripts/runtime-assets-ob
 import type { Ref } from "../../scripts/runtime-payload-inputs.ts";
 import { tarBytes, zipBytes } from "./runtime-payload-archives.ts";
 
-/** 微型夹具只为真实扫描器和流校验器提供可独立计算的普通字节，从不将它们伪装成固定官方归档；来源清单始终读取真实十九个宿
+/**
+ * 微型夹具只为真实扫描器和流校验器提供可独立计算的普通字节，从不将它们伪装成固定官方归档；来源清单始终读取真实十九个宿
  * 主文件并复制其原字节，测试不会改动仓库源码或官方摘要。
  */
 export function fact(path: string, bytes: Uint8Array): Ref {
@@ -19,7 +20,8 @@ export function fact(path: string, bytes: Uint8Array): Ref {
         sha256: createHash("sha256").update(bytes).digest("hex"),
     };
 }
-/** 每个测试独占两个互不覆盖的私有目录，源清单及证据都使用真实六百权限普通文件；finally 只清除本次夹具的目录，未知事务资
+/**
+ * 每个测试独占两个互不覆盖的私有目录，源清单及证据都使用真实六百权限普通文件；finally 只清除本次夹具的目录，未知事务资
  * 源必须先由测试明确结束后才能进入夹具收尾。
  */
 export async function assetsFixture<T>(
@@ -69,7 +71,8 @@ export async function assetsFixture<T>(
         await rm(base, { recursive: true, force: true });
     }
 }
-/** 两种归档均由已锁 tar 编码器及成熟 Python zipfile 生成真实压缩体，Framework 和外部链接特意同时存在以检验候选分类；归
+/**
+ * 两种归档均由已锁 tar 编码器及成熟 Python zipfile 生成真实压缩体，Framework 和外部链接特意同时存在以检验候选分类；归
  * 档成员不会被落地提取或作为 Node、Chrome 及其它目标程序执行。
  */
 export function tinyAssets(arch: "x64" | "arm64" = "x64") {
@@ -93,7 +96,8 @@ export function tinyAssets(arch: "x64" | "arm64" = "x64") {
     ] as const;
 }
 
-/** 工作流回归通过已锁开发环境中的成熟 PyYAML 读取实际提交的 YAML，而不是另写解析器或复制生产收集算法；缓存固定在测试自
+/**
+ * 工作流回归通过已锁开发环境中的成熟 PyYAML 读取实际提交的 YAML，而不是另写解析器或复制生产收集算法；缓存固定在测试自
  * 有目录并显式 offline/no-sync，不安装依赖，也不将 Python 变成资产工具运行时
  * 的产品依赖。
  */
@@ -163,7 +167,8 @@ a0a84aa03917b578d286010b7521837e9ff1136ffb2e4a406c14316c33fd06f7  win-x64/node.l
 d61a585824e5504e1dfa0ceb7ad6981176f59531500303a97b790ccfe248a2c1  win-x64/node_pdb.zip
 `;
 
-/** 已保存的官方校验文本以完整三千一百七十一原字节进入提交夹具，调用者每次获得独立可变副本而不会污染下一次核验；此材料只
+/**
+ * 已保存的官方校验文本以完整三千一百七十一原字节进入提交夹具，调用者每次获得独立可变副本而不会污染下一次核验；此材料只
  * 支持固定 HTTPS 文本一致性测试，不提供发布签名、目标归档正文或任何网络获取行为。
  */
 export function officialNodeChecksumFixture(): Buffer {

@@ -3,13 +3,16 @@
  * 禁止远程 URL。
  */
 
-/** Local-only pinned Playwright viewer. A private copy restricts its file-serving root. */
+/**
+ * Local-only pinned Playwright viewer. A private copy restricts its file-serving root.
+ */
 import { spawn } from "node:child_process";
 import { mkdtemp, stat, copyFile, chmod, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { createRequire } from "node:module";
-/** 公开函数 openTrace 校验本地 Trace 后复制到私有临时目录：启动钉选 Playwright 查看器并限制服务根（openTrace）。
+/**
+ * 公开函数 openTrace 校验本地 Trace 后复制到私有临时目录：启动钉选 Playwright 查看器并限制服务根（openTrace）。
  * 结束后强制删除临时副本。
  */
 export async function openTrace(

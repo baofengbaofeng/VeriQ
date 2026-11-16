@@ -1,4 +1,5 @@
-/** 全站语言以独立 i18next 实例拥有展示状态，偏好只允许中文或英文并回退浏览器语言；生命周期桥接复用既有资源和 AI 实例，
+/**
+ * 全站语言以独立 i18next 实例拥有展示状态，偏好只允许中文或英文并回退浏览器语言；生命周期桥接复用既有资源和 AI 实例，
  * 语言切换不会重建 Workspace、表单、Monaco 或请求控制器。
  */
 import i18next, { type i18n } from "i18next";
@@ -42,7 +43,8 @@ for (const [key, pair] of Object.entries(messages)) {
     aliases.set(pair[1], key);
 }
 
-/** 独立应用词条实例不依赖最后初始化的全局 react-i18next 单例，所有共享页面明确引用它；源码文本键禁用点号和冒号分隔，避
+/**
+ * 独立应用词条实例不依赖最后初始化的全局 react-i18next 单例，所有共享页面明确引用它；源码文本键禁用点号和冒号分隔，避
  * 免URL、提示句或技术名称被当作嵌套路径解析。
  */
 export const appI18n: i18n = i18next.createInstance();
@@ -113,14 +115,16 @@ function acquireBridge(): () => void {
     };
 }
 
-/** 用户切换语言只接受支持的值，并把新值同步给现有命名空间及受限持久化偏好；该入口不重新加载网页、不更改组件 key、不清空
+/**
+ * 用户切换语言只接受支持的值，并把新值同步给现有命名空间及受限持久化偏好；该入口不重新加载网页、不更改组件 key、不清空
  * 表单和查询，因此未提交字段及报告订阅保持原有归属。
  */
 export function setAppLanguage(next: string): void {
     if (next === "zh" || next === "en") synchronize(next);
 }
 
-/** 每个实际翻译组件订阅应用实例，并按引用计数拥有语言桥接；桌面单独嵌入共享页面同样获得完整初始化和卸载清理，不需要导入
+/**
+ * 每个实际翻译组件订阅应用实例，并按引用计数拥有语言桥接；桌面单独嵌入共享页面同样获得完整初始化和卸载清理，不需要导入
  * Web 路由入口，也不会永久保留模块级事件监听器。
  */
 export function useAppLocale() {
@@ -129,7 +133,8 @@ export function useAppLocale() {
     return { language: language(translation.i18n.language), setLanguage: setAppLanguage };
 }
 
-/** 文案转换只查询明确登记的展示词条，并保留 JSX 文本两端有意义的空格与动态插值；未知内容原样返回，已有反馈消息可经中英
+/**
+ * 文案转换只查询明确登记的展示词条，并保留 JSX 文本两端有意义的空格与动态插值；未知内容原样返回，已有反馈消息可经中英
  * 文别名再次转换，而用户资源标识和请求正文不经过此函数。
  */
 export function tx(source: string, values?: Record<string, unknown>): string {

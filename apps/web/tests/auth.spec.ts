@@ -3,7 +3,8 @@ import { writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { holdAuthResponse } from "./support/hold-auth-response";
 
-/** 屏障只延迟首个匹配路径及指定方法的真实本机响应，后续请求直接访问后端；持有的状态、头和正文原样交还浏览器，释放操作可
+/**
+ * 屏障只延迟首个匹配路径及指定方法的真实本机响应，后续请求直接访问后端；持有的状态、头和正文原样交还浏览器，释放操作可
  * 重复调用以覆盖失败清理路径。
  */
 async function holdBackendResponse(page: Page, pathname: string, method = "GET") {
@@ -47,7 +48,8 @@ async function holdBackendResponse(page: Page, pathname: string, method = "GET")
     };
 }
 
-/** 请求屏障在真实后端处理之前暂停首个匹配路径及方法的本机请求，释放时继续发送原始内容而不构造响应；重复释放与 finally
+/**
+ * 请求屏障在真实后端处理之前暂停首个匹配路径及方法的本机请求，释放时继续发送原始内容而不构造响应；重复释放与 finally
  * 清理均等待请求确实离开处理器，避免悬挂路由。
  */
 async function holdOutgoingRequest(page: Page, pathname = "/api/v1/auth/logout", method = "POST") {
@@ -239,7 +241,8 @@ test("real setup, login, account, administration and one-time reset", async ({
     await page.goto("/reset/confirm");
     await expect(page.getByRole("alert")).toContainText("missing its token");
 
-    /** 先保留原有安装、重置、改密和撤销闭环，再创建第二位真实管理员，使自降权不会绕过服务端最后管理员保护；随后延迟实际
+    /**
+     * 先保留原有安装、重置、改密和撤销闭环，再创建第二位真实管理员，使自降权不会绕过服务端最后管理员保护；随后延迟实际
      * 账户响应验证退出意图优先。
      */
     await page.goto("/login");
@@ -255,7 +258,8 @@ test("real setup, login, account, administration and one-time reset", async ({
     await page.getByTestId("create-user").click();
     await expect(page.getByTestId("user-browser-second-admin@example.com")).toBeVisible();
 
-    /** 查询次数只涵盖已握手的本次交互窗口；非受控草稿必须等 Apply 才生效，More 则继续使用先前提交的查询与游标，不能读取
+    /**
+     * 查询次数只涵盖已握手的本次交互窗口；非受控草稿必须等 Apply 才生效，More 则继续使用先前提交的查询与游标，不能读取
      * 未提交的输入。
      */
     const userQueries: URL[] = [];
@@ -304,7 +308,8 @@ test("real setup, login, account, administration and one-time reset", async ({
     await expect(page.getByTestId("user-browser-admin@example.com")).toBeVisible();
     await expect(page.getByTestId("users-filter-submit")).toBeEnabled();
 
-    /** 自降权的真实写入先成功但响应尚未到达界面时点击退出，旧操作随后不能抢走退出意图；以原表单恢复可用或真实权限面板出
+    /**
+     * 自降权的真实写入先成功但响应尚未到达界面时点击退出，旧操作随后不能抢走退出意图；以原表单恢复可用或真实权限面板出
      * 现作为回调收敛信号，不等待修复后可以省去的账户请求。
      */
     const actorResponse = await page.request.get(`${origin}/api/v1/account`);
@@ -400,7 +405,8 @@ test("real setup, login, account, administration and one-time reset", async ({
     await expect(page.getByTestId("user-browser-admin@example.com")).toBeVisible();
     await expect(page.getByTestId("create-user")).toBeEnabled();
 
-    /** 旧账户回写可能短暂跳转账户页后又被真实会话 401 清除，因此记录释放响应到主动登录前的导航窗口，不能只检查最终登录
+    /**
+     * 旧账户回写可能短暂跳转账户页后又被真实会话 401 清除，因此记录释放响应到主动登录前的导航窗口，不能只检查最终登录
      * 页而漏掉已经发生的身份复活。
      */
     const staleAccountNavigations: string[] = [];
@@ -475,7 +481,8 @@ test("real setup, login, account, administration and one-time reset", async ({
         });
     }
 
-    /** 对首个精确会话列表请求只注入一次网络故障，以真实后端重试恢复首屏；随后持有实际分页响应并切换身份，验证旧列表不会
+    /**
+     * 对首个精确会话列表请求只注入一次网络故障，以真实后端重试恢复首屏；随后持有实际分页响应并切换身份，验证旧列表不会
      * 污染新账户或恢复旧游标。
      */
     await page.getByRole("link", { name: "Workspaces", exact: true }).click();
@@ -512,7 +519,8 @@ test("real setup, login, account, administration and one-time reset", async ({
         await sessionBarrier.release();
     }
 
-    /** 输入普通密码字段不会重新探测安装、身份或会话；最后使用当前管理员真实写入恢复原管理员权限，既验证当前 CSRF 可用，
+    /**
+     * 输入普通密码字段不会重新探测安装、身份或会话；最后使用当前管理员真实写入恢复原管理员权限，既验证当前 CSRF 可用，
      * 也恢复本测试拥有的账户状态。
      */
     const idleReads: string[] = [];
@@ -546,7 +554,8 @@ test("real setup, login, account, administration and one-time reset", async ({
     await page.getByTestId("logout").click();
     await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
 
-    /** 旧退出已在真实后端成功但响应仍被持有时，让更早的会话读取得到真实401并打开登录页；随后另一账户必须在旧响应释放前
+    /**
+     * 旧退出已在真实后端成功但响应仍被持有时，让更早的会话读取得到真实401并打开登录页；随后另一账户必须在旧响应释放前
      * 建立可见身份，不能把成功登录静默丢弃或推迟到退出完成。
      */
     await page.getByTestId("email").fill("browser-admin@example.com");

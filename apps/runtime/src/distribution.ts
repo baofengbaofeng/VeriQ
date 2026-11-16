@@ -12,7 +12,8 @@ import {
     type MacRuntimeArch,
 } from "./distribution-manifest-v2.ts";
 
-/** 安装发行描述只保存经过物理库存校验后的路径和独立版本，签名来源认证由安装器负责而不是由自报清单代替；
+/**
+ * 安装发行描述只保存经过物理库存校验后的路径和独立版本，签名来源认证由安装器负责而不是由自报清单代替；
  * 运行前仍须载入所选引擎库存并验证真实 Node 与浏览器能力。
  */
 export interface RuntimeDistribution {
@@ -32,7 +33,8 @@ export interface RuntimeDistribution {
 const nodeIdentities = new WeakMap<RuntimeDistribution, string>();
 const nativeCapabilities = new WeakMap<RuntimeDistribution, string>();
 const vaultCapabilities = new WeakMap<RuntimeDistribution, string>();
-/** 保险库辅助程序只能从已完整核验的固定发行成员获得执行能力，旧库存仍可只读解析但请求此能力必须明确失败；
+/**
+ * 保险库辅助程序只能从已完整核验的固定发行成员获得执行能力，旧库存仍可只读解析但请求此能力必须明确失败；
  * 复制发行对象字段、档案路径或环境变量均不能授权源码与全局程序作为替代入口。
  */
 export function verifiedVaultHelper(distribution: RuntimeDistribution): string {
@@ -40,7 +42,8 @@ export function verifiedVaultHelper(distribution: RuntimeDistribution): string {
     if (!path) throw new Error("RUNTIME_VAULT_CAPABILITY_UNVERIFIED");
     return path;
 }
-/** 原生能力只属于本解析器完整核验后返回的发行对象，不能靠具有相同字段的档案 JSON 或调用者自报路径获得；
+/**
+ * 原生能力只属于本解析器完整核验后返回的发行对象，不能靠具有相同字段的档案 JSON 或调用者自报路径获得；
  * 此取值接口不重新搜索源码、全局模块或配置目录，也不把完整性校验误称为发布签名。
  */
 export function verifiedNativeAddon(distribution: RuntimeDistribution): string {
@@ -141,7 +144,8 @@ export async function loadMacRuntimeDistribution(
     return Object.freeze(distribution);
 }
 
-/** 安装命令行从 Runtime 之外的固定桌面发行描述读取独立 Mac 策略，不能从待核 runtime-manifest 推导链接许可或期望摘要；
+/**
+ * 安装命令行从 Runtime 之外的固定桌面发行描述读取独立 Mac 策略，不能从待核 runtime-manifest 推导链接许可或期望摘要；
  * 描述本身的来源认证仍由安装、签名和可信启动路径负责。
  * 非 Mac 保留已有第一版加载合同，缺少桌面描述的 Mac 包明确失败，不退回源码 Node、全局 Chrome 或自报清单。
  */
@@ -195,7 +199,8 @@ export async function loadInstalledRuntimeDistribution(
     return loadMacRuntimeDistribution(directory, value.trustedRuntime);
 }
 
-/** 清单内所有成员必须是可移植的普通相对路径，不能引用父目录、盘符或 NTFS 备用数据流；这条检查在任何宿主上使用同一规则，
+/**
+ * 清单内所有成员必须是可移植的普通相对路径，不能引用父目录、盘符或 NTFS 备用数据流；这条检查在任何宿主上使用同一规则，
  * 避免 Linux 生产器认可 Windows 会另行解释的路径。
  */
 function portable(value: unknown): value is string {
@@ -210,7 +215,8 @@ function portable(value: unknown): value is string {
     );
 }
 
-/** 物理成员逐级拒绝链接并确认中间节点是目录，独立 Node 无法读取 Electron ASAR 内的虚拟资源；
+/**
+ * 物理成员逐级拒绝链接并确认中间节点是目录，独立 Node 无法读取 Electron ASAR 内的虚拟资源；
  * 最终文件哈希用流计算以避免浏览器和角色二进制把整个内存一次性占满。
  */
 async function member(root: string, name: string) {
@@ -226,7 +232,8 @@ async function member(root: string, name: string) {
     return path;
 }
 
-/** 运行发行必须完整核对清单中列出的真实文件，所有执行角色及引擎库存也必须属于该列表；未知或缺失目标不能退回开发工作区，
+/**
+ * 运行发行必须完整核对清单中列出的真实文件，所有执行角色及引擎库存也必须属于该列表；未知或缺失目标不能退回开发工作区，
  * 校验结果只是完整性事实而不冒充正式发布签名。
  */
 export async function loadRuntimeDistribution(directory: string): Promise<RuntimeDistribution> {
@@ -271,7 +278,8 @@ export async function loadRuntimeDistribution(directory: string): Promise<Runtim
         if (hash.digest("hex") !== entry.sha256) throw new Error("RUNTIME_FILE_MISMATCH");
         paths.set(entry.path, path);
     }
-    /** 目录中多出的代码可能通过 Node 的依赖查找改变执行结果，所以完整性检查不仅验证已列成员，还必须递归拒绝未登记文件；
+    /**
+     * 目录中多出的代码可能通过 Node 的依赖查找改变执行结果，所以完整性检查不仅验证已列成员，还必须递归拒绝未登记文件；
      * 清单本身是唯一例外，目录链接在展开之前立即拒绝。
      */
     async function inventory(directory: string, prefix = "") {
@@ -293,7 +301,8 @@ export async function loadRuntimeDistribution(directory: string): Promise<Runtim
     const engineDirectory = join(root, "engines", manifest.engineVersion);
     take(`engines/${manifest.engineVersion}/inventory.json`);
     take("execution/archive.mjs");
-    /** Worker 用普通 Node 相对加载同一受审命令闭包，全部运行成员必须先核库存；声明文件只服务类型检查而不属于安装执行依
+    /**
+     * Worker 用普通 Node 相对加载同一受审命令闭包，全部运行成员必须先核库存；声明文件只服务类型检查而不属于安装执行依
      * 赖，缺失任何 MJS 均不能退回源码目录。
      */
     for (const name of [
@@ -328,11 +337,13 @@ export async function loadRuntimeDistribution(directory: string): Promise<Runtim
             compileEntry: take("execution/compile-entry.mjs"),
         },
     };
-    /** 具体 Node 身份仅在完整物理库存通过后绑定到原始返回对象，公开版本只供诊断展示；浅复制或手工修改字段不能继承这个能
+    /**
+     * 具体 Node 身份仅在完整物理库存通过后绑定到原始返回对象，公开版本只供诊断展示；浅复制或手工修改字段不能继承这个能
      * 力，后续角色检查仍要求真实进程与该私有版本完全一致。
      */
     nodeIdentities.set(distribution, manifest.nodeVersion);
-    /** Windows 原生成员必须属于完整库存，真实安装角色还须先匹配物理执行路径才绑定；普通 Node 的只读解析不会装载自报目录
+    /**
+     * Windows 原生成员必须属于完整库存，真实安装角色还须先匹配物理执行路径才绑定；普通 Node 的只读解析不会装载自报目录
      * 中的代码，Electron 则由可信资源入口显式绑定后才读取档案。
      */
     if (process.platform === "win32") {
@@ -363,7 +374,8 @@ export async function loadRuntimeDistribution(directory: string): Promise<Runtim
     return Object.freeze(distribution);
 }
 
-/** CLI、云端与桌面使用同一发行自检流程，必须先完整装载选定引擎才向已有浏览器探测提供组件版本；只有所有实际检查成功才申
+/**
+ * CLI、云端与桌面使用同一发行自检流程，必须先完整装载选定引擎才向已有浏览器探测提供组件版本；只有所有实际检查成功才申
  * 报库存 engineVersion，不能把 SDK 包号当成运行发行身份。
  */
 export async function diagnoseRelease(options: {
@@ -372,7 +384,8 @@ export async function diagnoseRelease(options: {
     browserExecutable: string;
     server?: string;
     signal?: AbortSignal;
-    /** Mac 发行诊断必须显式借用原始库存对象和真实观察器能力，不能通过版本文本推断可执行平台；该上下文只改变已核安装路径
+    /**
+     * Mac 发行诊断必须显式借用原始库存对象和真实观察器能力，不能通过版本文本推断可执行平台；该上下文只改变已核安装路径
      * 的自检分支，来源批准及签名安装仍由外层发行任务负责。
      * 其它平台保留既有行为，未提供上下文的 Darwin 仍按旧路径失败关闭。
      */
@@ -398,7 +411,8 @@ export async function diagnoseRelease(options: {
     return result;
 }
 
-/** 已安装的独立入口必须由对应物理角色 Node 执行，不能以 Electron 内置 Node 或另一个同版本系统 Node 冒充；
+/**
+ * 已安装的独立入口必须由对应物理角色 Node 执行，不能以 Electron 内置 Node 或另一个同版本系统 Node 冒充；
  * 路径校验配合此前库存摘要，失败时不注册设备也不进入工作领取循环。
  */
 export function assertRuntimeRole(distribution: RuntimeDistribution, role: "agent" | "cli") {

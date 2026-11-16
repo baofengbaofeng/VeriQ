@@ -1,4 +1,5 @@
-/** Windows 保险库夹具只执行本次正式或隔离测试 helper，其余小成员用于取得完整库存能力而不冒充可运行发行；目录采用实际规
+/**
+ * Windows 保险库夹具只执行本次正式或隔离测试 helper，其余小成员用于取得完整库存能力而不冒充可运行发行；目录采用实际规
  * 范路径以避开临时目录短名别名，所有合成凭据与文件均由当前测试拥有并单独清理。
  */
 import { createHash } from "node:crypto";
@@ -7,7 +8,8 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { loadRuntimeDistribution } from "../../src/distribution.ts";
 
-/** 夹具逐成员计算真实字节摘要后调用正式发行解析器，不能靠手工对象或从配置读取的程序路径绕过能力绑定；helper 可省略以检
+/**
+ * 夹具逐成员计算真实字节摘要后调用正式发行解析器，不能靠手工对象或从配置读取的程序路径绕过能力绑定；helper 可省略以检
  * 验旧库存的明确拒绝，原生 addon 使用真实构建产物但不会由普通 Node 解析过程自动加载。
  */
 export async function windowsVaultDistribution(helper?: Uint8Array) {

@@ -51,7 +51,9 @@ export function fieldMatches(actual: Presence, operator: string, expected: JsonV
             return false;
     }
 }
-/** 公开函数 runAssertion 在 Exchange/数据上下文上执行单条编译断言：返回 AssertionResult。不把原始密钥写入结果。 */
+/**
+ * 公开函数 runAssertion 在 Exchange/数据上下文上执行单条编译断言：返回 AssertionResult。不把原始密钥写入结果。
+ */
 export async function runAssertion(
     item: CompiledAssertion,
     outer: StepContext,
@@ -160,7 +162,9 @@ export async function runAssertion(
             try {
                 actual = await uiActual(a, ctx);
             } catch {
-                /* Preserve missing evidence when the page is unavailable. */
+                /*
+                 * Preserve missing evidence when the page is unavailable.
+                 */
             }
         }
     }

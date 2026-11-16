@@ -1,4 +1,6 @@
-/** Test-only actual locked engine release; no fabricated receipt/publication. */
+/**
+ * Test-only actual locked engine release; no fabricated receipt/publication.
+ */
 import {
     mkdirSync,
     writeFileSync,

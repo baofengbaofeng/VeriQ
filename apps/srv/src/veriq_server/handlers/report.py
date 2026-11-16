@@ -115,7 +115,7 @@ class ReportAPI(API):
             async with self.db.sessions.begin() as session:
                 await lock_installation(session)
                 user, _ = await self.identity(session)
-                # 外部读取后再次授权并记审计，防止长 I/O 期间权限被撤销仍交付。
+                # 外部证据读取并校验后重新授权及记录审计，防止读取期间权限已被撤销，仍按旧授权交付下载内容。
                 await ArtifactService(session, user).authorized(scope, subject_id, upload_id)
                 audit(session, "artifact.download", user.id, upload_id, workspace_id=workspace_id)
             self.set_header("Content-Type", "application/octet-stream")
@@ -205,7 +205,7 @@ class ReportAPI(API):
                     encoded = encode_cursor(
                         self.config.signing_key.get_secret_value(), binding, positions
                     )
-                # flush/网络背压期间不得继续持有事务或权威锁。
+                # 事件正文组装完成后先离开数据库事务，再向客户端写入并等待刷新，避免网络背压期间继续持有事务或权威锁。
                 if first:
                     self.set_header("Content-Type", "text/event-stream")
                     self.set_header("X-Accel-Buffering", "no")
