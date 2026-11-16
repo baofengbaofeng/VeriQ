@@ -423,3 +423,184 @@ test("actual CLI refuses Linux before any source access installation or scratch 
         assert.match(result.stderr.toString(), /ENTRY_ADMISSION/);
         assert.deepEqual(await readdir(root), []);
     }));
+
+// 初始环境拒绝必须只说明失败谓词与有限键名，不能把来源不明的值夹带进错误或日志；这些样本直接经过当前真实门禁，缺失诊断时应保持原有拒绝并让断言失败，而不是虚构 Darwin 进程的实际环境。
+test("initial environment diagnostic separates unknown names and both fixed flags", async () => {
+    const { checkCleanEnvironment } = await import("../../../.github/scripts/runtime-entries.mjs");
+    const valid = { NODE_ENV: "production", NODE_DISABLE_COMPILE_CACHE: "1" };
+    const reject = (env) => {
+        try {
+            checkCleanEnvironment(env);
+            assert.fail("Expected environment rejection");
+        } catch (error) {
+            assert.equal(error.message, "ENTRY_ENVIRONMENT");
+            return error;
+        }
+    };
+    assert.deepEqual(
+        reject({ ...valid, VITE_SECRET: "SYNTHETIC_VALUE_MUST_NOT_APPEAR" }).diagnostic,
+        {
+            phase: "INITIAL",
+            unexpectedNamePresent: true,
+            productionModeMatch: true,
+            compileCacheDisabled: true,
+            unexpectedNameCount: 1,
+            unexpectedNames: ["VITE_SECRET"],
+        },
+    );
+    for (const [key, value, productionModeMatch, compileCacheDisabled] of [
+        ["NODE_ENV", "development", false, true],
+        ["NODE_ENV", undefined, false, true],
+        ["NODE_DISABLE_COMPILE_CACHE", "0", true, false],
+        ["NODE_DISABLE_COMPILE_CACHE", undefined, true, false],
+    ]) {
+        assert.deepEqual(reject({ ...valid, [key]: value }).diagnostic, {
+            phase: "INITIAL",
+            unexpectedNamePresent: false,
+            productionModeMatch,
+            compileCacheDisabled,
+            unexpectedNameCount: 0,
+            unexpectedNames: [],
+        });
+    }
+});
+
+test("environment diagnostic sanitizes empty malicious and overlong key names without values", async () => {
+    const { checkCleanEnvironment } = await import("../../../.github/scripts/runtime-entries.mjs");
+    const sentinel = "SYNTHETIC_VALUE_MUST_NOT_APPEAR";
+    const env = {
+        NODE_ENV: "production",
+        NODE_DISABLE_COMPILE_CACHE: "1",
+        "": sentinel,
+        "BAD\nKEY": sentinel,
+        非ASCII: sentinel,
+        ["A".repeat(200)]: sentinel,
+    };
+    assert.throws(
+        () => checkCleanEnvironment(env),
+        (error) => {
+            assert.equal(error.message, "ENTRY_ENVIRONMENT");
+            const value = error.diagnostic;
+            assert.ok(value);
+            assert.equal(value.unexpectedNameCount, 4);
+            assert.equal(value.unexpectedNamePresent, true);
+            assert.deepEqual(
+                value.unexpectedNames,
+                [
+                    "A".repeat(96),
+                    "INVALID_ENVIRONMENT_NAME",
+                    "INVALID_ENVIRONMENT_NAME",
+                    "INVALID_ENVIRONMENT_NAME",
+                ].sort(),
+            );
+            const serialized = JSON.stringify(value);
+            assert.ok(Buffer.byteLength(serialized) <= 4096);
+            assert.ok(!serialized.includes(sentinel));
+            assert.ok(
+                value.unexpectedNames.every((name) => /^[A-Za-z_][A-Za-z0-9_]{0,95}$/.test(name)),
+            );
+            return true;
+        },
+    );
+});
+
+test("environment diagnostic limits output to sixteen sorted names and four KiB", async () => {
+    const { checkCleanEnvironment } = await import("../../../.github/scripts/runtime-entries.mjs");
+    const keys = Array.from(
+        { length: 80 },
+        (_, index) => `UNKNOWN_${String(index).padStart(3, "0")}_${"Z".repeat(150)}`,
+    ).reverse();
+    const env = {
+        NODE_ENV: "production",
+        NODE_DISABLE_COMPILE_CACHE: "1",
+        ...Object.fromEntries(keys.map((key) => [key, "SYNTHETIC_VALUE_MUST_NOT_APPEAR"])),
+    };
+    assert.throws(
+        () => checkCleanEnvironment(env),
+        (error) => {
+            assert.equal(error.message, "ENTRY_ENVIRONMENT");
+            assert.ok(error.diagnostic);
+            assert.equal(error.diagnostic.unexpectedNameCount, 80);
+            assert.deepEqual(
+                error.diagnostic.unexpectedNames,
+                [...keys]
+                    .sort()
+                    .slice(0, 16)
+                    .map((key) => key.slice(0, 96)),
+            );
+            assert.ok(Buffer.byteLength(JSON.stringify(error.diagnostic)) <= 4096);
+            assert.ok(
+                !JSON.stringify(error.diagnostic).includes("SYNTHETIC_VALUE_MUST_NOT_APPEAR"),
+            );
+            return true;
+        },
+    );
+});
+
+// 后置门禁的期望映射来自同一个固定独占根，每个键逐一改错都必须继续拒绝且仅暴露固定标签；测试还检查合法样本无返回噪声，避免通过放宽比较或输出路径来掩盖这次原生首拒缺乏定位事实的问题。
+test("owned environment diagnostic identifies each original finite invariant only", async () => {
+    const { checkOwnedEnvironment } = await import("../../../.github/scripts/runtime-entries.mjs");
+    assert.equal(typeof checkOwnedEnvironment, "function");
+    const root = "/SYNTHETIC_OWNED_PATH_MUST_NOT_APPEAR";
+    const env = {
+        TMPDIR: join(root, "tmp"),
+        TSX_TMPDIR: join(root, "tmp"),
+        XDG_CACHE_HOME: join(root, "toolcache"),
+        npm_config_userconfig: join(root, "user.npmrc"),
+        npm_config_globalconfig: join(root, "global.npmrc"),
+        npm_config_cache: join(root, "npm-cache"),
+        npm_config_registry: "https://registry.npmjs.org/",
+        ELECTRON_SKIP_BINARY_DOWNLOAD: "1",
+        PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1",
+    };
+    assert.equal(checkOwnedEnvironment(env, root), undefined);
+    for (const key of Object.keys(env))
+        assert.throws(
+            () => checkOwnedEnvironment({ ...env, [key]: "SYNTHETIC_VALUE_MUST_NOT_APPEAR" }, root),
+            (error) => {
+                assert.equal(error.message, "ENTRY_ENVIRONMENT");
+                assert.deepEqual(error.diagnostic, { phase: "OWNED_PATHS", invariant: key });
+                const serialized = JSON.stringify(error.diagnostic);
+                assert.ok(!serialized.includes(root));
+                assert.ok(!serialized.includes("SYNTHETIC_VALUE_MUST_NOT_APPEAR"));
+                assert.ok(!serialized.includes("https://"));
+                return true;
+            },
+        );
+});
+
+// 失败输出由真实 Node 子进程捕获而不替换全局控制台，未知键的值只存在于合成启动参数中；入口必须在任何原生准入与目录操作之前返回既有退出一，并输出可解析、有界且不含该值的英文诊断。
+test("actual CLI environment diagnostic preserves exit one and never prints the synthetic value", async () =>
+    fixture(async (root) => {
+        const helper = join(process.cwd(), ".github/scripts/runtime-entries.mjs"),
+            sentinel = "SYNTHETIC_VALUE_MUST_NOT_APPEAR";
+        const result = await runBoundedAssetCli({
+            executable: "/usr/bin/env",
+            args: [
+                "-i",
+                `PATH=${process.env.PATH}`,
+                "NODE_ENV=production",
+                "NODE_DISABLE_COMPILE_CACHE=1",
+                `VITE_SECRET=${sentinel}`,
+                process.execPath,
+                helper,
+            ],
+            cwd: root,
+            timeoutMs: 5000,
+        });
+        assert.equal(result.exit, 1);
+        assert.equal(result.closeConfirmed, true);
+        assert.equal(result.stdout.length, 0);
+        const output = result.stderr.toString();
+        assert.ok(Buffer.byteLength(output) <= 4096);
+        assert.ok(!output.includes(sentinel));
+        assert.match(output, /Entry CI failed: ENTRY_ENVIRONMENT/);
+        const line = output
+            .split("\n")
+            .find((value) => value.startsWith("Entry environment rejection: "));
+        assert.ok(line);
+        const diagnostic = JSON.parse(line.slice("Entry environment rejection: ".length));
+        assert.equal(diagnostic.phase, "INITIAL");
+        assert.ok(diagnostic.unexpectedNames.includes("VITE_SECRET"));
+        assert.deepEqual(await readdir(root), []);
+    }));
