@@ -28,18 +28,22 @@ export const Button = forwardRef<
     <button ref={ref} type={type} className={button({ tone, className })} {...props} />
 ));
 /**
- * 公开组件 ConfirmDialog 用 Radix Dialog 实现确认/取消双按钮对话框：文案中英对照：确认后调用 onConfirm。
+ * 共享确认对话框保留 Radix 的焦点管理与键盘关闭语义，调用方可按当前语言提供按钮文案，未指定时沿用既有双语默认值，避免桌面旧入口因语言接入而改变确认动作或丢失取消路径。
  */
 export function ConfirmDialog({
     title,
     children,
     trigger,
     onConfirm,
+    cancelLabel = "取消 / Cancel",
+    confirmLabel = "确认 / Confirm",
 }: {
     title: string;
     children: ReactNode;
     trigger: string;
     onConfirm: () => void;
+    cancelLabel?: string;
+    confirmLabel?: string;
 }) {
     return (
         <Dialog.Root>
@@ -55,10 +59,10 @@ export function ConfirmDialog({
                     </Dialog.Description>
                     <div className="vq-actions">
                         <Dialog.Close asChild>
-                            <Button tone="secondary">取消 / Cancel</Button>
+                            <Button tone="secondary">{cancelLabel}</Button>
                         </Dialog.Close>
                         <Dialog.Close asChild>
-                            <Button onClick={onConfirm}>确认 / Confirm</Button>
+                            <Button onClick={onConfirm}>{confirmLabel}</Button>
                         </Dialog.Close>
                     </div>
                 </Dialog.Content>
