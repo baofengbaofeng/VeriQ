@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# 离线安装入口只在操作员明确指定的新目录创建 Python3.12 虚拟环境，并从已校验发行目录的 wheelhouse 安装依赖；已有环境拒绝覆盖，外置配置、数据库和制品不会被安装器修改。
+# 离线安装入口只在操作员明确指定的新目录创建 Python3.12 虚拟环境，并从已校验发行目录的 wheelhouse 安装依赖；
+# 已有环境拒绝覆盖，外置配置、数据库和制品不会被安装器修改。
 set -euo pipefail
 release_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 target="${1:?Usage: install.sh /absolute/new/venv}"

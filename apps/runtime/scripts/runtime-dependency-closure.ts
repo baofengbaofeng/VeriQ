@@ -6,7 +6,10 @@ import { decode, fail, limits, relative } from "./runtime-payload-tree.ts";
 import type { Edge, PackageInstance, SourceBindingV1 } from "./runtime-payload-inputs.ts";
 import type { GeneratedWorkspacePackage } from "./runtime-workspace-packages.ts";
 
-/** 物理布局记录直接复用现有 CI 观察器输出，包实例与文件归属保持原始安装路径而非包名；仅在本次已完成离线冻结安装后读取这些记录，不能把外部提供的 JSON 记录当作已观察的本地布局。 */
+/**
+ * 物理布局记录直接复用现有 CI 观察器输出，包实例与文件归属保持原始安装路径而非包名；仅在本次已完成离线冻结安装后读取这
+ * 些记录，不能把外部提供的 JSON 记录当作已观察的本地布局。
+ */
 export type LayoutRecord = {
     kind: string;
     path: string;
@@ -18,7 +21,10 @@ export type LayoutRecord = {
     mode?: number;
     target?: string;
 };
-/** 每个闭包节点同时保存安装物理根、最终根、实际原清单和生成包选择，嵌套 peer 实例不按名称合并；后续复制只能读取该节点的自有文件，node_modules 子树归属由独立物理实例承担。 */
+/**
+ * 每个闭包节点同时保存安装物理根、最终根、实际原清单和生成包选择，嵌套 peer 实例不按名称合并；后续复制只能读取该节点的
+ * 自有文件，node_modules 子树归属由独立物理实例承担。
+ */
 export type ClosurePackage = {
     id: string;
     physicalRoot: string;
@@ -27,10 +33,16 @@ export type ClosurePackage = {
     instance: Omit<PackageInstance, "packageJson" | "ownTreeSha256">;
     generated: GeneratedWorkspacePackage | null;
 };
-/** 声明边与来源消费者维持原包正文语义，optional 覆盖 dependency 而 peerMeta 决定可缺失 peer；重复 alias 的两种声明分别保留，最终解析证据仍按实际消费者和 specifier 唯一化。 */
+/**
+ * 声明边与来源消费者维持原包正文语义，optional 覆盖 dependency 而 peerMeta 决定可缺失 peer；重复 alias 的两种声明分别保
+ * 留，最终解析证据仍按实际消费者和 specifier 唯一化。
+ */
 export type ClosureDeclaration = { alias: string; requested: string; kind: Edge["kind"] };
 
-/** 包依赖字段必须为非空字符串映射且不能夹带路径 specifier，普通依赖不会被缺失的 optional 声明代替；此读取结果稍后仍由已有 verifyPackageContents 针对输出清单逐条交叉核验。 */
+/**
+ * 包依赖字段必须为非空字符串映射且不能夹带路径 specifier，普通依赖不会被缺失的 optional 声明代替；此读取结果稍后仍由已
+ * 有 verifyPackageContents 针对输出清单逐条交叉核验。
+ */
 export function dependencyDeclarations(manifest: Record<string, unknown>): ClosureDeclaration[] {
     const read = (key: string) => {
         if (manifest[key] === undefined) return {} as Record<string, string>;
@@ -86,7 +98,10 @@ export function dependencyDeclarations(manifest: Record<string, unknown>): Closu
     ];
 }
 
-/** 固定 pnpm 锁的两级块只提取真实原始 snapshot 键和包平台字段，不实现 YAML 或 exports 的通用解释器；仅接受当前锁生成器的缩进和标量形式，新的复杂语法立即拒绝而不是猜测或制造同名匹配。 */
+/**
+ * 固定 pnpm 锁的两级块只提取真实原始 snapshot 键和包平台字段，不实现 YAML 或 exports 的通用解释器；仅接受当前锁生成器的
+ * 缩进和标量形式，新的复杂语法立即拒绝而不是猜测或制造同名匹配。
+ */
 export function lockSections(bytes: Buffer) {
     const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     const sections = new Map<string, Map<string, string>>();
@@ -124,7 +139,8 @@ export function lockSections(bytes: Buffer) {
 }
 
 /**
- * 缺失 optional 必须由同一锁中的精确名称版本以及明确不适用的 os 或 cpu 证明，磁盘未安装本身不足以声称目标排除；无法解析的范围、别名或新平台元数据形式保持失败，optional peer 则由真实查找缺失单独证
+ * 缺失 optional 必须由同一锁中的精确名称版本以及明确不适用的 os 或 cpu 证明，磁盘未安装本身不足以声称目标排除；无法解析
+ * 的范围、别名或新平台元数据形式保持失败，optional peer 则由真实查找缺失单独证
  * 明。
  */
 export function targetExcluded(
@@ -160,7 +176,10 @@ export function targetExcluded(
     return { lockKey: key, rawPackageMetadata: body, target: { platform: "darwin", arch }, fields };
 }
 
-/** 最终根保留已支持的 hoisted 物理嵌套关系，工作区普通目录转换为明确包根而不保留目录链接；如果不同安装域会映射到同一个最终路径，调用方必须拒绝该布局，不能悄悄去重或把另一个 peer 实例覆盖掉。 */
+/**
+ * 最终根保留已支持的 hoisted 物理嵌套关系，工作区普通目录转换为明确包根而不保留目录链接；如果不同安装域会映射到同一个最
+ * 终路径，调用方必须拒绝该布局，不能悄悄去重或把另一个 peer 实例覆盖掉。
+ */
 function outputRoot(physical: string, generated: GeneratedWorkspacePackage | null) {
     if (generated) return `node_modules/${generated.name}`;
     if (physical.startsWith("node_modules/")) return physical;
@@ -172,7 +191,10 @@ function outputRoot(physical: string, generated: GeneratedWorkspacePackage | nul
     fail("PAYLOAD_GRAPH_MISMATCH");
 }
 
-/** 实例发现使用 Node 提供的真实包查找路径和物理清单，不解析 exports 推测安装归属；工作区链接仅可指向已绑定的原始工作区根，最终输出复制真实生成包，任何其它目录链接或越界端点均拒绝。 */
+/**
+ * 实例发现使用 Node 提供的真实包查找路径和物理清单，不解析 exports 推测安装归属；工作区链接仅可指向已绑定的原始工作区根
+ * ，最终输出复制真实生成包，任何其它目录链接或越界端点均拒绝。
+ */
 export async function collectRuntimeDependencyClosure(
     options: Readonly<{
         installation: string;
@@ -250,7 +272,8 @@ export async function collectRuntimeDependencyClosure(
                 let candidates = [...lock.snapshots.keys()].filter(
                     (key) => key === baseKey || key.startsWith(baseKey + "("),
                 );
-                // 多 peer snapshot 以每个真实已安装 peer 的版本消歧，括号文本只作为锁的精确键比较；无法唯一选择时明确失败，不按名称或第一个候选伪造上下文身份。
+                // 多 peer snapshot 以每个真实已安装 peer 的版本消歧，括号文本只作为锁的精确键比较；无法唯一选择时明确失
+                // 败，不按名称或第一个候选伪造上下文身份。
                 if (candidates.length > 1) {
                     const peers = dependencyDeclarations(manifest).filter(
                         (item) => item.kind === "peer" || item.kind === "optional-peer",
@@ -365,7 +388,10 @@ export async function collectRuntimeDependencyClosure(
     return { packages, rootBindings, edges, decisions };
 }
 
-/** 根导入允许合法包子路径并提取安装 alias，整个原 specifier 仍保留给目标 Node 解析；这里不重写子路径、条件导出或 npm alias，真实目标包身份稍后从物理清单与解析所有权再次确认。 */
+/**
+ * 根导入允许合法包子路径并提取安装 alias，整个原 specifier 仍保留给目标 Node 解析；这里不重写子路径、条件导出或 npm
+ * alias，真实目标包身份稍后从物理清单与解析所有权再次确认。
+ */
 export function packageAlias(specifier: string) {
     relative(specifier);
     const parts = specifier.split("/");

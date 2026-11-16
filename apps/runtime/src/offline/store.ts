@@ -2,7 +2,9 @@
  * 本文件是离线宿主的本机 SQLite 持久化层：渲染调用方永不接触 SQL 或数据库路径：仅暴露受控 Ownership API。
  */
 
-/** SQLite 连接仅由独立宿主创建并保存在受限档案中，渲染进程只能取得经过作用域筛选的状态投影；数据库路径、SQL 与连接能力不通过桌面协议暴露，执行所有权变化必须使用下方事务接口。 */
+/** SQLite 连接仅由独立宿主创建并保存在受限档案中，渲染进程只能取得经过作用域筛选的状态投影；数据库路径、SQL
+ * 与连接能力不通过桌面协议暴露，执行所有权变化必须使用下方事务接口。
+ */
 import { DatabaseSync } from "node:sqlite";
 import { chmod, lstat } from "node:fs/promises";
 import { join } from "node:path";
@@ -11,7 +13,8 @@ import { isPreSpawnState } from "../execution/pre-spawn.ts";
 import type { StopReceipt } from "../execution/processes.ts";
 import { privateDirectory } from "./config.ts";
 /**
- * 公开类型 Ownership 表示一次离线占用的代际令牌：含工作区、Run/Attempt 与世代：防止陈旧恢复抢占（Ownership/UNSAFE_LOCAL_STORE）。
+ * 公开类型 Ownership 表示一次离线占用的代际令牌：含工作区、Run/Attempt 与世代：
+ * 防止陈旧恢复抢占（Ownership/UNSAFE_LOCAL_STORE）。
  */
 export type Ownership = {
     workspaceId: string;
@@ -47,7 +50,9 @@ export class LocalStore {
                 throw e;
             }
         }
-        /** 首次读取版本和切换日志模式也可能遇到另一进程持有的真实数据库锁，因此在创建连接时就设置既有三秒忙等待预算；后续所有权事务沿用同一预算，不增加重试或改变升级判断。 */
+        /** 首次读取版本和切换日志模式也可能遇到另一进程持有的真实数据库锁，因此在创建连接时就设置既有三秒忙等待预算；
+         * 后续所有权事务沿用同一预算，不增加重试或改变升级判断。
+         */
         let db: DatabaseSync;
         try {
             db = new DatabaseSync(path, { timeout: 3000 });
@@ -114,7 +119,8 @@ export class LocalStore {
         }
     }
     /**
-     * 公开方法 close 关闭底层 SQLite 连接：之后任何查询都应失败：避免宿主退出后文件锁残留（close/LOCAL_OWNERSHIP_LOST）。
+     * 公开方法 close 关闭底层 SQLite 连接：之后任何查询都应失败：避免宿主退出后文件锁残留（
+     * close/LOCAL_OWNERSHIP_LOST）。
      */
     close() {
         try {
@@ -147,7 +153,9 @@ export class LocalStore {
             )
             .get() as Ownership | undefined;
     }
-    /** 凭据迁移持有真实 SQLite 写事务期间必须没有任何持久执行占用，包含未知停止、准备与恢复状态；同库其他连接或进程无法插入新所有权，调用方只在迁移完成或失败后释放，不能把一次只读检查当作持续空闲证明。 */
+    /** 凭据迁移持有真实 SQLite 写事务期间必须没有任何持久执行占用，包含未知停止、准备与恢复状态；
+     * 同库其他连接或进程无法插入新所有权，调用方只在迁移完成或失败后释放，不能把一次只读检查当作持续空闲证明。
+     */
     holdIdle(): () => void {
         this.db.exec("BEGIN IMMEDIATE");
         try {
@@ -183,7 +191,8 @@ export class LocalStore {
         this.requireOwner(owner);
     }
     /**
-     * 公开方法 reserve 为离线 Run 预留本机占用：写入初始结果骨架：冲突时拒绝抢占他人代际（reserve/LOCAL_CAPACITY_HELD）。
+     * 公开方法 reserve 为离线 Run 预留本机占用：写入初始结果骨架：冲突时拒绝抢占他人代际（
+     * reserve/LOCAL_CAPACITY_HELD）。
      */
     reserve(
         workspaceId: string,
@@ -213,7 +222,8 @@ export class LocalStore {
         });
     }
     /**
-     * 公开方法 spawning 把占用状态推进到进程拉起中：供崩溃恢复区分尚未产生排空证明的阶段（spawning/LOCAL_OWNERSHIP_LOST）。
+     * 公开方法 spawning 把占用状态推进到进程拉起中：供崩溃恢复区分尚未产生排空证明的阶段（
+     * spawning/LOCAL_OWNERSHIP_LOST）。
      */
     spawning(runId: string, attemptId: string, owner: Ownership): Ownership {
         return this.transaction(() => {
@@ -231,7 +241,8 @@ export class LocalStore {
         });
     }
     /**
-     * 启动准入只接受当前 SQLite 已提交的 SPAWNING 所有权，事务提交后才返回 RUNNING 令牌；代际沿用实际 LAUNCH 而不递增，旧状态与旧代际均失败关闭，调用方必须更新令牌后才能写事件、检查所有权或
+     * 启动准入只接受当前 SQLite 已提交的 SPAWNING 所有权，事务提交后才返回 RUNNING 令牌；代际沿用实际 LAUNCH 而不递增，
+     * 旧状态与旧代际均失败关闭，调用方必须更新令牌后才能写事件、检查所有权或
      * 保存停止回执。
      */
     running(runId: string, attemptId: string, owner: Ownership): Ownership {
@@ -254,7 +265,8 @@ export class LocalStore {
         });
     }
     /**
-     * 公开方法 claimRecovery 在恢复路径声明代际所有权：拒绝过期或旁路代际接管存活执行（claimRecovery/LOCAL_CAPACITY_HELD）。
+     * 公开方法 claimRecovery 在恢复路径声明代际所有权：拒绝过期或旁路代际接管存活执行（
+     * claimRecovery/LOCAL_CAPACITY_HELD）。
      */
     claimRecovery(observed: Ownership): Ownership | undefined {
         return this.transaction(() => {
@@ -279,7 +291,8 @@ export class LocalStore {
         });
     }
     /**
-     * 公开方法 nextAttempt 在同一 Run 下登记新的 Attempt 代际：保留历史结果：供显式重试使用（nextAttempt/LOCAL_CAPACITY_HELD）。
+     * 公开方法 nextAttempt 在同一 Run 下登记新的 Attempt 代际：保留历史结果：
+     * 供显式重试使用（nextAttempt/LOCAL_CAPACITY_HELD）。
      */
     nextAttempt(
         runId: string,
@@ -306,7 +319,9 @@ export class LocalStore {
             return next;
         });
     }
-    /** 未派生回执必须在事务内重新核验持久所有权及代际，调用方修改对象中的状态不能改变数据库事实；启动中与一般恢复状态均不具备此权限，缺少有效白名单时返回空值并要求调用真实停止。 */
+    /** 未派生回执必须在事务内重新核验持久所有权及代际，调用方修改对象中的状态不能改变数据库事实；
+     * 启动中与一般恢复状态均不具备此权限，缺少有效白名单时返回空值并要求调用真实停止。
+     */
     unspawnedStop(owner: Ownership): StopReceipt | undefined {
         return this.transaction(() => {
             const current = this.requireOwner(owner);
@@ -321,7 +336,8 @@ export class LocalStore {
         });
     }
     /**
-     * 公开方法 stopped 记录停机回执并释放或隔离占用：processStopped=false 时保留隔离语义（stopped/LOCAL_OWNERSHIP_LOST）。
+     * 公开方法 stopped 记录停机回执并释放或隔离占用：processStopped=false
+     * 时保留隔离语义（stopped/LOCAL_OWNERSHIP_LOST）。
      */
     stopped(runId: string, receipt: StopReceipt, owner: Ownership): Ownership {
         return this.transaction(() => {
@@ -340,7 +356,9 @@ export class LocalStore {
                         "ded.receipt",
                 )
                 .run(receipt.attemptId, runId, JSON.stringify(receipt));
-            /** 停止回执和报告检查点同事务提交，避免宿主恰在停机后崩溃时只保存释放状态却丢失范围；旧记录没有声明时不补值，本次失败回执也不沿用先前结果中的成功范围。 */
+            /** 停止回执和报告检查点同事务提交，避免宿主恰在停机后崩溃时只保存释放状态却丢失范围；
+             * 旧记录没有声明时不补值，本次失败回执也不沿用先前结果中的成功范围。
+             */
             const row = this.authorize(current.workspaceId, runId);
             if (row.result) {
                 const result = JSON.parse(String(row.result)) as OfflineResultV1;
@@ -409,7 +427,8 @@ export class LocalStore {
         });
     }
     /**
-     * 公开方法 events 按工作区授权分页读取已持久化的执行事件：after/limit 防止一次载入过量（events/INVALID_HISTORY_PAGE）。
+     * 公开方法 events 按工作区授权分页读取已持久化的执行事件：after/limit
+     * 防止一次载入过量（events/INVALID_HISTORY_PAGE）。
      */
     events(
         workspaceId: string,
@@ -499,7 +518,8 @@ export class LocalStore {
             .all(workspaceId, limit);
     }
     /**
-     * 公开方法 cancel 标记 Run 取消请求：执行循环必须在检查点读取该标志并停机（cancel），说明 cancel 在 store 中的专属行为。
+     * 公开方法 cancel 标记 Run 取消请求：执行循环必须在检查点读取该标志并停机（cancel），说明 cancel 在 store
+     * 中的专属行为。
      */
     cancel(workspaceId: string, runId: string) {
         this.authorize(workspaceId, runId);
@@ -514,7 +534,9 @@ export class LocalStore {
                 ?.cancel_requested === 1
         );
     }
-    /** 访问时间只由当前宿主实际读取记录时更新，历史首次观察绝不反推文件 mtime 或导入时间；已退休标志保持单调，不因一次查询、重复上传或重启重新授予已删除原始证据的可用性。 */
+    /** 访问时间只由当前宿主实际读取记录时更新，历史首次观察绝不反推文件 mtime 或导入时间；已退休标志保持单调，
+     * 不因一次查询、重复上传或重启重新授予已删除原始证据的可用性。
+     */
     private touch(runId: string): void {
         const now = Date.now();
         this.db
@@ -524,7 +546,9 @@ export class LocalStore {
             )
             .run(runId, now, now);
     }
-    /** 原始证据退休事实按 Run 保存于同一 SQLite 中，报告与读取都查询这个有界布尔投影；未知旧记录继续认为尚未退休，不能因没有生命周期行而把磁盘文件缺失伪造为成功清理。 */
+    /** 原始证据退休事实按 Run 保存于同一 SQLite 中，报告与读取都查询这个有界布尔投影；未知旧记录继续认为尚未退休，
+     * 不能因没有生命周期行而把磁盘文件缺失伪造为成功清理。
+     */
     rawRetired(workspaceId: string, runId: string): boolean {
         this.authorize(workspaceId, runId);
         return (
@@ -533,7 +557,9 @@ export class LocalStore {
                 .get(runId)?.raw_retired === 1
         );
     }
-    /** 保留期事务持有真正 SQLite 写锁并拒绝任何离线所有权，直到调用方完成有限文件退休后才提交；在线与桌面合作锁仍由外层保持，崩溃回滚只会留下下次可幂等重做的删除，不会释放未知执行占用。 */
+    /** 保留期事务持有真正 SQLite 写锁并拒绝任何离线所有权，直到调用方完成有限文件退休后才提交；
+     * 在线与桌面合作锁仍由外层保持，崩溃回滚只会留下下次可幂等重做的删除，不会释放未知执行占用。
+     */
     beginRetention(): (commit: boolean) => void {
         this.db.exec("BEGIN IMMEDIATE");
         try {
@@ -557,7 +583,9 @@ export class LocalStore {
             }
         };
     }
-    /** 维护时钟使用持久最高水位拒绝回拨后的年龄推导，首次观察的旧结果从当前时间开始计龄；每次只登记有限旧记录，未完成、待上传、未知停止或超大未核验文档始终保留，SQL 不用文件 mtime 猜测历史。 */
+    /** 维护时钟使用持久最高水位拒绝回拨后的年龄推导，首次观察的旧结果从当前时间开始计龄；每次只登记有限旧记录，未完成、
+     * 待上传、未知停止或超大未核验文档始终保留，SQL 不用文件 mtime 猜测历史。
+     */
     retentionRuns(workspaceId: string, now: number, batch: number) {
         if (
             !this.db.isTransaction ||
@@ -601,7 +629,9 @@ export class LocalStore {
                 .run(now, row.id!);
         return rows;
     }
-    /** 进程历史成员只有在同一库确有匹配 Run 的强范围停止回执时才可进入只读物理确认，未派生回执不能授权任何现存进程成员；结果已退休仍保留这份最小事实，孤立、损坏或旧范围未知记录一律返回拒绝。 */
+    /** 进程历史成员只有在同一库确有匹配 Run 的强范围停止回执时才可进入只读物理确认，未派生回执不能授权任何现存进程成
+     * 员；结果已退休仍保留这份最小事实，孤立、损坏或旧范围未知记录一律返回拒绝。
+     */
     knownStoppedAttempt(attemptId: string): boolean {
         const row = this.db
             .prepare(
@@ -626,7 +656,8 @@ export class LocalStore {
         }
     }
     /**
-     * 报告必须同时拥有每个 Attempt 的原始停止回执且范围与当前平台一致，旧结果缺字段或回执缺失均保留；这里只验证本机 SQL 事实，外层仍使用现有进程证明读取器核验真正停止，不能把结果 outcome 当作进程退出证
+     * 报告必须同时拥有每个 Attempt 的原始停止回执且范围与当前平台一致，旧结果缺字段或回执缺失均保留；这里只验证本机
+     * SQL 事实，外层仍使用现有进程证明读取器核验真正停止，不能把结果 outcome 当作进程退出证
      * 据。
      */
     retentionStops(result: OfflineResultV1): StopReceipt[] | undefined {
@@ -659,7 +690,9 @@ export class LocalStore {
         }
         return receipts;
     }
-    /** 大报告按有限证据批次前进，每份退休墓碑绑定 Run、Attempt、相对名称和原摘要及长度，下一次只重做尚未完成成员；运行级原始证据标志只在全部清单完成时设置，不能因本次额度耗尽而把剩余文件标为已删除。 */
+    /** 大报告按有限证据批次前进，每份退休墓碑绑定 Run、Attempt、相对名称和原摘要及长度，下一次只重做尚未完成成员；
+     * 运行级原始证据标志只在全部清单完成时设置，不能因本次额度耗尽而把剩余文件标为已删除。
+     */
     artifactRetired(
         workspaceId: string,
         runId: string,
@@ -675,7 +708,9 @@ export class LocalStore {
             .get(runId, attemptId, file.path);
         return !!row && row.sha256 === file.sha256 && row.size_bytes === file.sizeBytes;
     }
-    /** 单项退休仅在持续空闲的 SQLite 写事务中登记，摘要冲突不得覆盖旧墓碑；崩溃前已经删除却未提交的文件下次通过真实缺失幂等重做，成功登记不会改变业务 outcome、上传幂等键或停止证明。 */
+    /** 单项退休仅在持续空闲的 SQLite 写事务中登记，摘要冲突不得覆盖旧墓碑；崩溃前已经删除却未提交的文件下次通过真实缺失
+     * 幂等重做，成功登记不会改变业务 outcome、上传幂等键或停止证明。
+     */
     retireArtifact(
         workspaceId: string,
         runId: string,
@@ -700,7 +735,8 @@ export class LocalStore {
             .run(runId, attemptId, file.path, file.sha256, file.sizeBytes);
     }
     /**
-     * 只有同一维护事务里已经通过停止、上传及年龄核验的结果能够进入退休，事件正文与完整结果在元数据期限后移除；Run 标识、Workspace、上传幂等回执和每个 Attempt 停止证明继续保留，重复维护不会复用旧 Run
+     * 只有同一维护事务里已经通过停止、上传及年龄核验的结果能够进入退休，事件正文与完整结果在元数据期限后移除；Run
+     * 标识、Workspace、上传幂等回执和每个 Attempt 停止证明继续保留，重复维护不会复用旧 Run
      * 或 fence。
      */
     retireRun(workspaceId: string, runId: string, metadata: boolean): void {
@@ -723,7 +759,9 @@ export class LocalStore {
                 .run(runId);
         }
     }
-    /** 缓存生命周期只登记受信任宿主列出的包标识，不接受目录路径或下载文件自报年龄；仍由任何未退休结果引用的包不可退休，缺少历史生命周期的包本次只开始计龄，不根据包创建时间或磁盘修改时间补造到期事实。 */
+    /** 缓存生命周期只登记受信任宿主列出的包标识，不接受目录路径或下载文件自报年龄；仍由任何未退休结果引用的包不可退休，
+     * 缺少历史生命周期的包本次只开始计龄，不根据包创建时间或磁盘修改时间补造到期事实。
+     */
     observeCache(workspaceId: string, bundleId: string, now: number, access = false) {
         this.db
             .prepare(
@@ -746,7 +784,9 @@ export class LocalStore {
             )
             .get(bundleId, workspaceId);
     }
-    /** 缓存引用检查在持有维护写锁时逐条使用已有共享结果契约，损坏或尚无结果的记录一律阻止删除；不会只依赖当前 GUI 选择，也不删除引擎、源码或凭据，已上传但仍保留的报告同样继续持有包引用。 */
+    /** 缓存引用检查在持有维护写锁时逐条使用已有共享结果契约，损坏或尚无结果的记录一律阻止删除；不会只依赖当前 GUI
+     * 选择，也不删除引擎、源码或凭据，已上传但仍保留的报告同样继续持有包引用。
+     */
     cacheReferenced(bundleId: string): boolean {
         const rows = this.db
             .prepare("SELECT result,state FROM veriq_local_runs WHERE state<>'RETIRED' LIMIT 4097")
@@ -765,7 +805,9 @@ export class LocalStore {
             }
         });
     }
-    /** 每次访问受信任包时刷新本机 SQLite 的实际访问时间，而不是重写已签名只读清单；操作与维护共享数据库写锁，因此正在读取包或准备执行的宿主应先持有现有桌面和 Agent 所有权门闩。 */
+    /** 每次访问受信任包时刷新本机 SQLite 的实际访问时间，而不是重写已签名只读清单；操作与维护共享数据库写锁，
+     * 因此正在读取包或准备执行的宿主应先持有现有桌面和 Agent 所有权门闩。
+     */
     touchCache(workspaceId: string, bundleId: string): void {
         if (validateSchema("Id", workspaceId).length || validateSchema("Id", bundleId).length)
             throw new Error("INVALID_BUNDLE_ID");
@@ -782,7 +824,9 @@ export class LocalStore {
                 .run(now, now, bundleId, workspaceId);
         else this.observeCache(workspaceId, bundleId, now, true);
     }
-    /** 退休命名保存在 SQLite 中以支持中途崩溃后只重试同一个隔离目录，名字由包 UUID 确定且保持固定有限语法；恢复不会按重试时的新目录路径重新选择对象，也不会把文件缺失当成已核验年龄。 */
+    /** 退休命名保存在 SQLite 中以支持中途崩溃后只重试同一个隔离目录，名字由包 UUID 确定且保持固定有限语法；
+     * 恢复不会按重试时的新目录路径重新选择对象，也不会把文件缺失当成已核验年龄。
+     */
     cacheRetirement(workspaceId: string, bundleId: string, inventory: string): void {
         if (!this.db.isTransaction || Buffer.byteLength(inventory) > 2 * 1024 * 1024)
             throw new Error("LOCAL_RETENTION_GUARD_REQUIRED");
@@ -792,7 +836,9 @@ export class LocalStore {
             )
             .run(inventory, bundleId, workspaceId);
     }
-    /** 未完成的缓存退休意图即使目录已经隔离或界面索引已更新也继续可列举，下一次只重做原清单而不重新选择任意目录；完成标志保留最小包幂等墓碑，调用方必须先成功退休实际有限库存再写入 COMPLETE。 */
+    /** 未完成的缓存退休意图即使目录已经隔离或界面索引已更新也继续可列举，下一次只重做原清单而不重新选择任意目录；
+     * 完成标志保留最小包幂等墓碑，调用方必须先成功退休实际有限库存再写入 COMPLETE。
+     */
     pendingCacheRetirements(workspaceId: string, batch: number) {
         return this.db
             .prepare(
@@ -801,7 +847,9 @@ export class LocalStore {
             )
             .all(workspaceId, batch);
     }
-    /** 缓存完成只接受已经存在的退休意图，并在同一维护写锁内保存幂等完成墓碑；不删除历史 firstObserved 或允许将同包名自动复用成另一份清单，GUI 索引移除仍由外层私有配置原子更新完成。 */
+    /** 缓存完成只接受已经存在的退休意图，并在同一维护写锁内保存幂等完成墓碑；不删除历史 firstObserved
+     * 或允许将同包名自动复用成另一份清单，GUI 索引移除仍由外层私有配置原子更新完成。
+     */
     completeCacheRetirement(workspaceId: string, bundleId: string): void {
         if (!this.db.isTransaction) throw new Error("LOCAL_RETENTION_GUARD_REQUIRED");
         this.db

@@ -636,9 +636,11 @@ async def test_dependency_limit_counts_root_and_pending_ancestors(site, monkeypa
 
 
 async def test_engine_change_cannot_republish_same_immutable_revision(site):
-    """通过真实第二个应用实例使用新引擎配置重新校验同一修订，必须生成不同来源的任务并拒绝覆盖旧发布版本；测试不再修改模块常量，因为 HTTP 服务已由显式 Settings 注入选择。
+    """通过真实第二个应用实例使用新引擎配置重新校验同一修订，必须生成不同来源的任务并拒绝覆盖旧发布版本；
+    测试不再修改模块常量，因为 HTTP 服务已由显式 Settings 注入选择。
 
-    两个应用共享隔离数据库，但分别拥有确定的运行配置。新预览与新 Job 的差异在创建回执前明确验证。旧版本仍由原应用读取，确认历史响应没有被新配置改写。
+    两个应用共享隔离数据库，但分别拥有确定的运行配置。新预览与新 Job 的差异在创建回执前明确验证。旧版本仍由原应用读取，
+    确认历史响应没有被新配置改写。
     """
     import httpx
     from tornado.httpserver import HTTPServer

@@ -1,4 +1,5 @@
-/** 生产引擎候选生成器将真实 SDK 与合同源码编译成可安装包，并收集当前冻结依赖的实际字节，输出独立版本的完整库存；此命令没有签发者配置，也不会把候选自动晋升为批准发行。
+/** 生产引擎候选生成器将真实 SDK 与合同源码编译成可安装包，并收集当前冻结依赖的实际字节，输出独立版本的完整库存；此命令
+ * 没有签发者配置，也不会把候选自动晋升为批准发行。
  * 编译器归档保留 Runtime compile-entry 当前要求的 src/index.ts 路径。
  * npm 负责生成锁文件，tar 负责固定排序、时间与所有者的归档。
  * 已存在的同版本目录禁止覆盖，旧签名包的发行身份必须保留。
@@ -32,7 +33,8 @@ const version = process.argv[2];
 if (!version || !/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/.test(version))
     throw new Error("Explicit engine version required");
 const output = resolve(process.argv[3] ?? join(root, "work/engines", version));
-// 输出目录及全部现有父级必须是真实目录，词法上位于 work 内的符号链接仍可能指向外部状态，因此在创建临时目录和写入任何候选字节前逐级拒绝链接组件。
+// 输出目录及全部现有父级必须是真实目录，词法上位于 work 内的符号链接仍可能指向外部状态，因此在创建临时目录和写入任何候
+// 选字节前逐级拒绝链接组件。
 for (let ancestor = output; dirname(ancestor) !== ancestor; ancestor = dirname(ancestor)) {
     if (lstatSync(ancestor, { throwIfNoEntry: false })?.isSymbolicLink()) {
         throw new Error("Linked engine output path is forbidden");
@@ -47,7 +49,8 @@ const release = join(work, "release");
 mkdirSync(release);
 
 /**
- * 源文件集合只包含生产 TypeScript 输入，声明文件随编译输出归档，测试夹具不进入引擎；递归前确认节点类型，避免把链接到工作区外的源码作为可信发行输入。编译器自身仍由 Runtime 的 Node24 类型剥离路径加载。SDK
+ * 源文件集合只包含生产 TypeScript 输入，声明文件随编译输出归档，测试夹具不进入引擎；递归前确认节点类型，避免把链接到工
+ * 作区外的源码作为可信发行输入。编译器自身仍由 Runtime 的 Node24 类型剥离路径加载。SDK
  * 与合同输出普通 JavaScript，供生成的 Playwright 测试导入。
  */
 function sources(path: string): string[] {
@@ -92,7 +95,8 @@ try {
     >();
 
     /**
-     * 依赖解析复用 Node 对已冻结安装树的定位结果，遇到同名不同版本即失败而不自行选择版本；这份发行仅支持已审定的单版本闭包，未来多版本需求必须另行设计与验证。工作区 SDK 与合同换成刚编译的目录，并保留实际版本号。
+     * 依赖解析复用 Node 对已冻结安装树的定位结果，遇到同名不同版本即失败而不自行选择版本；这份发行仅支持已审定的单版本
+     * 闭包，未来多版本需求必须另行设计与验证。工作区 SDK 与合同换成刚编译的目录，并保留实际版本号。
      * 第三方文件只复制，不改变其元数据或许可证。对 workspace 引用的替换使用被引用包实际版本，不硬编码产品号。
      */
     function collect(name: string, from: string): void {
@@ -158,7 +162,8 @@ try {
             return;
         }
         /**
-         * 当前引擎闭包没有原生可选依赖，平台相关的 tsx 与 esbuild 属于外层 Runtime；未来依赖若增加 optionalDependencies 必须先明确跨平台收集策略，
+         * 当前引擎闭包没有原生可选依赖，平台相关的 tsx 与 esbuild 属于外层 Runtime；未来依赖若增加 optionalDependencies
+         * 必须先明确跨平台收集策略，
          * 不能静默遗漏后仍宣称同一库存可离网执行。
          */
         if (Object.keys(pkg.optionalDependencies ?? {}).length)

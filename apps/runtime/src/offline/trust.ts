@@ -77,7 +77,8 @@ export function validateIssuer(value: IssuerTrust): IssuerTrust {
     return structuredClone(value);
 }
 /**
- * 公开类 TrustStore 在私有目录持久化签发者信任：支持 bind/refresh：登出设备不会自动清空公钥根（TrustStore/ISSUER_NOT_TRUSTED）。
+ * 公开类 TrustStore 在私有目录持久化签发者信任：支持 bind/refresh：登出设备不会自动清空公钥根（
+ * TrustStore/ISSUER_NOT_TRUSTED）。
  */
 export class TrustStore {
     constructor(readonly directory: string) {}
@@ -98,7 +99,8 @@ export class TrustStore {
         }
     }
     /**
-     * 公开方法 bind 仅在指纹匹配的未撤销密钥上建立信任：标签只作本地别名：未签名修订无权威（bind/FINGERPRINT_MISMATCH）。
+     * 公开方法 bind 仅在指纹匹配的未撤销密钥上建立信任：标签只作本地别名：
+     * 未签名修订无权威（bind/FINGERPRINT_MISMATCH）。
      */
     async bind(value: IssuerTrust, origin: string, fingerprint: string): Promise<void> {
         const issuer = validateIssuer(value),
@@ -109,7 +111,8 @@ export class TrustStore {
         await this.accept({ issuerId: issuer.issuerId, revision: 1, keys: [key] }, server, true);
     }
     /**
-     * 公开方法 refresh 经已注册设备令牌从 HTTPS 控制面刷新签发者材料：拒绝非 HTTPS Origin（refresh/AUTHENTICATED_HTTPS_REQUIRED）。
+     * 公开方法 refresh 经已注册设备令牌从 HTTPS 控制面刷新签发者材料：拒绝非 HTTPS
+     * Origin（refresh/AUTHENTICATED_HTTPS_REQUIRED）。
      */
     async refresh(config: DeviceConfig, signal?: AbortSignal): Promise<void> {
         const server = controlOrigin(config.server);

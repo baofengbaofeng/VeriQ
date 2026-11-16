@@ -1,4 +1,6 @@
-/** 真实 Playwright CLI 在本机拒绝 WebSocket 握手的服务上验证失败保密，不依赖 Chrome、模型或引擎复制；单行私有配置保存随机端点，报告及归档只返回布尔计数，任何断言都不能打印原始错误或私密标记。 */
+/** 真实 Playwright CLI 在本机拒绝 WebSocket 握手的服务上验证失败保密，不依赖 Chrome、模型或引擎复制；
+ * 单行私有配置保存随机端点，报告及归档只返回布尔计数，任何断言都不能打印原始错误或私密标记。
+ */
 import { test, expect } from "vitest";
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
@@ -25,7 +27,9 @@ const require = createRequire(import.meta.url);
 const LIMIT = 5 * 1024 * 1024,
     RESERVE = 2 * 1024 * 1024;
 
-/** 子进程输出仅进入有界内存供扫描，错误对象不会进入诊断；超时只终止本次原始 ChildProcess 并等待真实退出，既不扫描 PID，也不把命令或参数中塞入控制端点，标准输入只给归档解析器使用。 */
+/** 子进程输出仅进入有界内存供扫描，错误对象不会进入诊断；超时只终止本次原始 ChildProcess 并等待真实退出，既不扫描 PID，
+ * 也不把命令或参数中塞入控制端点，标准输入只给归档解析器使用。
+ */
 async function command(executable: string, args: string[], cwd: string, input?: string) {
     const child = spawn(executable, args, {
         cwd,
@@ -61,8 +65,8 @@ async function command(executable: string, args: string[], cwd: string, input?: 
     }
 }
 
-/**
- * Python 标准 zipfile 保持既有成熟解析路径以及输入、成员、总展开额度，静态 viewer HTML 只扫描原字节而不误当主报告；若私有配置被复制进 trace source，该归档成员仍会扫描，不能为通过测试而排
+/** Python 标准 zipfile 保持既有成熟解析路径以及输入、成员、总展开额度，静态 viewer HTML 只扫描原字节而不误当主报告；
+ * 若私有配置被复制进 trace source，该归档成员仍会扫描，不能为通过测试而排
  * 除。
  */
 const scanProgram = String.raw`
@@ -254,7 +258,8 @@ test.skipIf(process.platform === "win32")(
             expect(facts.htmlZipEntries).toBeGreaterThan(0);
             expect(facts.fixedFailure).toBe(true);
             expect(facts.hits).toBe(0);
-            // 单独的无浏览器通过用例验证公开 reporter 的顺序和状态覆盖，错误配置负例不会混入上述完整保密扫描结果，也不能被当作可交付报告。
+            // 单独的无浏览器通过用例验证公开 reporter 的顺序和状态覆盖，错误配置负例不会混入上述完整保密扫描结果，
+            // 也不能被当作可交付报告。
             const { verifyEndpointJsonFile } = await import("../src/endpoint-json-reporter.js");
             const statusRoot = join(root, "status");
             await mkdir(statusRoot, { mode: 0o700 });
@@ -381,7 +386,9 @@ test.skipIf(process.platform === "win32")(
     },
 );
 
-/** 独立小堆子进程先真实解析完整 JSON，再用透明代理计数宽容器的成员读取；只输出固定状态与计数，不改变解析结果或生产接口，借此区分及时拒绝和先物化全部子节点后才拒绝，避免故意触发宿主内存耗尽。 */
+/** 独立小堆子进程先真实解析完整 JSON，再用透明代理计数宽容器的成员读取；只输出固定状态与计数，不改变解析结果或生产接口
+ * ，借此区分及时拒绝和先物化全部子节点后才拒绝，避免故意触发宿主内存耗尽。
+ */
 async function traversalProbe(kind: "array" | "object", members: number) {
     const program = String.raw`
 import { verifyEndpointJson } from ${JSON.stringify(new URL("../src/endpoint-json-reporter.ts", import.meta.url).href)};
@@ -470,7 +477,9 @@ test("endpoint JSON traversal preserves exact node and depth limits", async () =
     expect((await traversalProbe("array", 199990)).status).toBe("REPORT_PRIVACY_UNCONFIRMED");
 });
 
-/** 纯 JSON 门禁对已知配置字段以外的残留保持失败，未知结果字段绝不被删除来换取通过；文件测试都使用独占私有目录，超限样本仅建立一份稀疏 inode 并先由同一描述符元数据拒绝，绝不分配三十二兆内容。 */
+/** 纯 JSON 门禁对已知配置字段以外的残留保持失败，未知结果字段绝不被删除来换取通过；文件测试都使用独占私有目录，
+ * 超限样本仅建立一份稀疏 inode 并先由同一描述符元数据拒绝，绝不分配三十二兆内容。
+ */
 test.skipIf(process.platform === "win32")(
     "endpoint JSON gate refuses missing malformed residual symlink oversized and nonprivate files",
     async () => {
@@ -560,8 +569,8 @@ test.skipIf(process.platform === "win32")(
     },
 );
 
-/**
- * 公开 reporter 只接受实际配置的最后位置及同一内建 JSON 输出路径，缺少输入、其他字段泄漏和错误排序都返回 failed；原子替换失败保持原件与独立门禁失败，成功后保留内建 schema 与业务统计，不把错误状态改
+/** 公开 reporter 只接受实际配置的最后位置及同一内建 JSON 输出路径，缺少输入、其他字段泄漏和错误排序都返回 failed；
+ * 原子替换失败保持原件与独立门禁失败，成功后保留内建 schema 与业务统计，不把错误状态改
  * 写成通过。
  */
 test.skipIf(process.platform === "win32")(
@@ -719,8 +728,8 @@ test.skipIf(process.platform === "win32")(
     },
 );
 
-/**
- * 当前模块的私有发布门禁专用于受信 POSIX 源码浏览器流程，Windows 缺少该 uid 与模式证明时应明确拒绝而非修补 DACL；此合同只验证拒绝，不宣称 Windows 原生附件、安装或浏览器通过，既有 Windows
+/** 当前模块的私有发布门禁专用于受信 POSIX 源码浏览器流程，Windows 缺少该 uid 与模式证明时应明确拒绝而非修补 DACL；
+ * 此合同只验证拒绝，不宣称 Windows 原生附件、安装或浏览器通过，既有 Windows
  * 内核证明保持独立。
  */
 test.runIf(process.platform === "win32")(
@@ -735,8 +744,8 @@ test.runIf(process.platform === "win32")(
     },
 );
 
-/**
- * 两个公开 connect 重载都使用真实拒绝握手验证接收者和原选项传递，包含业务必需头部及随机路径；原始异常从不输出，结束后准确恢复原有属性描述符，避免 worker 之间的连接保护遗留或错误的提前还原，不需要启动 Chrom
+/** 两个公开 connect 重载都使用真实拒绝握手验证接收者和原选项传递，包含业务必需头部及随机路径；原始异常从不输出，
+ * 结束后准确恢复原有属性描述符，避免 worker 之间的连接保护遗留或错误的提前还原，不需要启动 Chrom
  * e 或创建替代 Browser。
  */
 test("public connection overloads preserve actual handshake options and restore the original method", async () => {

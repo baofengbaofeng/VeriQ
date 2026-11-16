@@ -1,4 +1,6 @@
-/** 显式线程构造故障分别检查实际首实例管道释放和 TSFN 对事件循环的引用释放，避免一个失败掩盖另一个资源事实；测试只启动独立自有 Agent 角色进程，故障注入不是自然 Windows 资源耗尽或正式构建行为。 */
+/** 显式线程构造故障分别检查实际首实例管道释放和 TSFN 对事件循环的引用释放，避免一个失败掩盖另一个资源事实；测试只启动独
+ * 立自有 Agent 角色进程，故障注入不是自然 Windows 资源耗尽或正式构建行为。
+ */
 import assert from "node:assert/strict";
 import test from "node:test";
 import { copyFile, mkdtemp, rm } from "node:fs/promises";
@@ -15,7 +17,9 @@ const fault = fileURLToPath(
 );
 const product = fileURLToPath(new URL("../../build/Release/veriq_native.node", import.meta.url));
 
-/** 两个独立场景都要求捕获精确注入标记并自然退出，首实例场景还必须在没有强制 GC 的情况下立即重新绑定同一端点；execFile 的既有五秒保护只清理该自有子进程，发生超时或强制结束仍是测试失败。 */
+/** 两个独立场景都要求捕获精确注入标记并自然退出，首实例场景还必须在没有强制 GC 的情况下立即重新绑定同一端点；execFile
+ * 的既有五秒保护只清理该自有子进程，发生超时或强制结束仍是测试失败。
+ */
 for (const scenario of [
     { name: "Windows failed pipe constructor releases its first instance before GC", rebind: true },
     {
@@ -88,8 +92,10 @@ for (const scenario of [
             if (failures.length) context.diagnostic(`Constructor fault evidence retained: ${root}`);
             else {
                 try {
-                    /** 已独立证明自有宿主自然退出并通过全部资源断言后，文件系统仍可能短暂拒绝删除角色映像；仅用 Node 文档化的有限清理重试处理 EBUSY 等删除状态，不延长产品关闭预算或把重试当作进程退
-                    * 出证据。 */
+                    /** 已独立证明自有宿主自然退出并通过全部资源断言后，文件系统仍可能短暂拒绝删除角色映像；仅用 Node 文
+                     * 档化的有限清理重试处理 EBUSY 等删除状态，不延长产品关闭预算或把重试当作进程退
+                     * 出证据。
+                     */
                     await rm(root, {
                         recursive: true,
                         force: true,

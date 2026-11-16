@@ -1,4 +1,6 @@
-/** 执行计划页面在当前员工和空间的生命周期内管理已发布资产选择及受限自动化身份，切换身份或空间时卸载全部表单和一次性令牌，查询缓存只保存无秘密的计划与令牌元数据。 */
+/** 执行计划页面在当前员工和空间的生命周期内管理已发布资产选择及受限自动化身份，切换身份或空间时卸载全部表单和一次性令牌
+ * ，查询缓存只保存无秘密的计划与令牌元数据。
+ */
 import { tx, useAppLocale } from "../../locale";
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useSearchParams } from "react-router-dom";
@@ -14,7 +16,9 @@ type Plan = S["ExecutionPlanDTO"];
 type Write = S["ExecutionPlanWrite"];
 type Page<T> = { items: T[]; nextCursor: string | null };
 
-/** 空间选择器只显示当前账户可见的真实空间并支持游标续页，页面内容以用户与空间共同作为键重新挂载，因此旧请求的表单结果和一次性令牌不会在切换后出现在另一个授权范围。 */
+/** 空间选择器只显示当前账户可见的真实空间并支持游标续页，页面内容以用户与空间共同作为键重新挂载，因此旧请求的表单结果和
+ * 一次性令牌不会在切换后出现在另一个授权范围。
+ */
 export function ExecutionPlansPage() {
     useAppLocale();
     const { user } = useContext(Auth),
@@ -47,8 +51,10 @@ export function ExecutionPlansPage() {
     useEffect(() => {
         if (availableRequestedId) select(availableRequestedId);
     }, [availableRequestedId, select]);
-    // 示例向导链接的空间先经真实权限接口确认，加载完成后只选择一次；手动切换和语言变更仍保留当前选择，后续列表分页不覆盖编辑中的计划，旧空间请求继续由 Provider 取消。
-    // 计划页只为尚未选择空间的入口补齐首项，后续分页或权限刷新不会覆盖手动选择；因此同空间的计划名称、固定版本及冲突输入仍由现有用户与空间键保留。
+    // 示例向导链接的空间先经真实权限接口确认，加载完成后只选择一次；手动切换和语言变更仍保留当前选择，后续列表分页不覆
+    // 盖编辑中的计划，旧空间请求继续由 Provider 取消。
+    // 计划页只为尚未选择空间的入口补齐首项，后续分页或权限刷新不会覆盖手动选择；因此同空间的计划名称、固定版本及冲突输
+    // 入仍由现有用户与空间键保留。
     const firstWorkspaceId = items[0]?.id;
     useEffect(() => {
         if (!selected && !availableRequestedId && firstWorkspaceId) select(firstWorkspaceId);
@@ -100,7 +106,9 @@ export function ExecutionPlansPage() {
     );
 }
 
-/** 资源版本选择器分别分页读取资源和已发布版本，选中资源改变时立即清空版本，只有服务返回的不可变版本才能写入表单；编辑旧计划时保留明确版本标识而不自动替换为最新版本。 */
+/** 资源版本选择器分别分页读取资源和已发布版本，选中资源改变时立即清空版本，只有服务返回的不可变版本才能写入表单；编辑旧
+ * 计划时保留明确版本标识而不自动替换为最新版本。
+ */
 function VersionSelector({
     workspace,
     kind,
@@ -201,7 +209,9 @@ function VersionSelector({
     );
 }
 
-/** 计划管理表单只发送明确选择，运行触发保留一次操作的幂等键供网络重试；服务端冲突会原样显示并保留用户输入，查询和轮询在页面卸载时取消，旧空间结果不会更新新空间的状态。 */
+/** 计划管理表单只发送明确选择，运行触发保留一次操作的幂等键供网络重试；服务端冲突会原样显示并保留用户输入，查询和轮询在
+ * 页面卸载时取消，旧空间结果不会更新新空间的状态。
+ */
 function PlanWorkspace({
     workspace,
     requestedPlanId,
@@ -612,7 +622,9 @@ function PlanWorkspace({
     );
 }
 
-/** 服务身份管理仅把一次性签发值留在本组件内存，关闭显示、切换账号或卸载即清除，分页缓存只保存账号和令牌元数据；签发用途分别限定维护操作、执行计划或短期设备登记，避免用途混用。 */
+/** 服务身份管理仅把一次性签发值留在本组件内存，关闭显示、切换账号或卸载即清除，分页缓存只保存账号和令牌元数据；签发用途
+ * 分别限定维护操作、执行计划或短期设备登记，避免用途混用。
+ */
 function ServiceAccounts({
     workspace,
     plans,
@@ -862,7 +874,10 @@ function ServiceAccounts({
                                 ))}
                                 <p>
                                     {tx(
-                                        "服务仅能使用自己拥有或所有者共享到空间的设备。 / Service-owned or explicitly Workspace-shared Runt" +
+                                        (
+                                            "服务仅能使用自己拥有或所有者共享到空间的设备。 / Service-owned or " +
+                                            "explicitly Workspace-shared Runt"
+                                        ) +
                                             "imes only.",
                                     )}
                                 </p>

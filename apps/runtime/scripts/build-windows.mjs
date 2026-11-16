@@ -1,5 +1,8 @@
-/** Windows 原生构建是显式开发步骤，binding.gyp 放在 native 子目录避免依赖安装时隐式编译；目标流水线使用已锁定 node-gyp 与官方 Node 头文件，成功后只把本次正式 guardian、addo
- * n 与有限凭据 helper 复制到各自固定 Runtime 开发布局供真实角色测试。 */
+/**
+ * Windows 原生构建是显式开发步骤，binding.gyp 放在 native 子目录避免依赖安装时隐式编译；目标流水线使用已锁定 node-gyp
+ * 与官方 Node 头文件，成功后只把本次正式 guardian、addo
+ * n 与有限凭据 helper 复制到各自固定 Runtime 开发布局供真实角色测试。
+ */
 import { execFileSync } from "node:child_process";
 import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { createReadStream } from "node:fs";
@@ -22,7 +25,10 @@ const options = [
     fileURLToPath(new URL("native/", root)),
 ];
 if (process.argv[2]) options.push(`--devdir=${process.argv[2]}`);
-/** 正式构建显式关闭调度及故障测试目标，只有命令行专用参数可编译独立测试二进制；该开关不启用生产 guardian 或 addon 的故障调用和导出，也不会读取全局环境变量来赋予运行时调度能力。 */
+/**
+ * 正式构建显式关闭调度及故障测试目标，只有命令行专用参数可编译独立测试二进制；该开关不启用生产 guardian 或 addon 的故障
+ * 调用和导出，也不会读取全局环境变量来赋予运行时调度能力。
+ */
 options.push("--", `-Dveriq_native_tests=${testSchedules ? 1 : 0}`);
 execFileSync(
     process.execPath,
@@ -57,7 +63,10 @@ if (testSchedules) {
     }
 }
 
-/** 只有构建流水线显式指定证据目录时才运行 SDK 导入诊断，工具来自现有 vswhere 解析出的真实 VS 安装；固定 addon 名单、参数数组与输出上限阻止任意命令或二进制采集，普通产品运行不读取此开关。 */
+/**
+ * 只有构建流水线显式指定证据目录时才运行 SDK 导入诊断，工具来自现有 vswhere 解析出的真实 VS 安装；固定 addon 名单、参数
+ * 数组与输出上限阻止任意命令或二进制采集，普通产品运行不读取此开关。
+ */
 if (process.env.VERIQ_NATIVE_EVIDENCE) {
     const evidence = process.env.VERIQ_NATIVE_EVIDENCE;
     const programFiles = process.env["ProgramFiles(x86)"];
@@ -86,7 +95,10 @@ if (process.env.VERIQ_NATIVE_EVIDENCE) {
     ).trim();
     if (!/^\d+\.\d+\.\d+$/.test(toolVersion)) throw new Error("NATIVE_IMPORT_TOOL_UNAVAILABLE");
     const dumpbin = join(installation, "VC/Tools/MSVC", toolVersion, "bin/Hostx64/x64/dumpbin.exe");
-    /** 工具和被检查模块仅流式计算摘要，记录与本次实际导入输出绑定的字节身份；既不复制系统 DLL，也不把工具版本字符串误认为编译器、运行库或所有目标系统都已固定到相同版本。 */
+    /**
+     * 工具和被检查模块仅流式计算摘要，记录与本次实际导入输出绑定的字节身份；既不复制系统 DLL，也不把工具版本字符串误认
+     * 为编译器、运行库或所有目标系统都已固定到相同版本。
+     */
     const hash = async (path) => {
         const digest = createHash("sha256");
         for await (const bytes of createReadStream(path)) digest.update(bytes);
@@ -106,7 +118,10 @@ if (process.env.VERIQ_NATIVE_EVIDENCE) {
             maxBuffer: 256 * 1024,
         });
         await writeFile(join(evidence, `${name}.imports.log`), imports);
-        /** 实际导入命令成功返回的标题才用于记录工具版本，帮助开关的非零退出不能冒充执行失败或成功；每个模块都要求同一非空版本标题，真正的导入错误仍由 execFileSync 原样抛出并阻止构建通过。 */
+        /**
+         * 实际导入命令成功返回的标题才用于记录工具版本，帮助开关的非零退出不能冒充执行失败或成功；每个模块都要求同一非
+         * 空版本标题，真正的导入错误仍由 execFileSync 原样抛出并阻止构建通过。
+         */
         const observedVersion = imports
             .split(/\r?\n/)
             .find((line) =>

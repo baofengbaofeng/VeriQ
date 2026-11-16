@@ -1,4 +1,6 @@
-/** 语言回归通过真实安装状态、浏览器表单和已挂载的独立翻译实例观察当前界面，不构造权限、资源或报告响应；切换语言只改变展示与持久化偏好，未提交输入及其实际 DOM 节点必须保持原样。 */
+/** 语言回归通过真实安装状态、浏览器表单和已挂载的独立翻译实例观察当前界面，不构造权限、资源或报告响应；切换语言只改变展
+ * 示与持久化偏好，未提交输入及其实际 DOM 节点必须保持原样。
+ */
 import { test, expect, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { createResource, editorScope } from "./editor-fixture";

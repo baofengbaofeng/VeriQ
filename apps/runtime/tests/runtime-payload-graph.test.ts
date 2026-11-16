@@ -7,7 +7,9 @@ import {
     RuntimePayloadError,
 } from "../scripts/runtime-payload-inputs.ts";
 import { fixture, model, bytes, rehashPackages } from "./fixtures/runtime-payload.ts";
-/** 图反例始终保留真实包文件与正确外层摘要，只修改需要核对的关系记录；缺少逐声明边覆盖、实例身份、解析归属或 bin 包归属检查时，这些输入会被错误接受。 */
+/** 图反例始终保留真实包文件与正确外层摘要，只修改需要核对的关系记录；缺少逐声明边覆盖、实例身份、解析归属或 bin 包归属
+ * 检查时，这些输入会被错误接受。
+ */
 const failure = (e: unknown) => e instanceof RuntimePayloadError;
 const changes: Record<string, (f: ReturnType<typeof model>) => void> = {
     missingEdge: (f: ReturnType<typeof model>) => f.graph.edges.pop(),
@@ -32,7 +34,9 @@ for (const [name, change] of Object.entries(changes))
             );
         }));
 
-/** 每个包声明的 bin 都应有明确归属计划，不能通过删掉整个 bins 数组让实际 CLI 入口从审核中消失；此测试保留 tsx 真实 package.json 的 bin 声明，要求缺计划时拒绝。 */
+/** 每个包声明的 bin 都应有明确归属计划，不能通过删掉整个 bins 数组让实际 CLI 入口从审核中消失；此测试保留 tsx 真实
+ * package.json 的 bin 声明，要求缺计划时拒绝。
+ */
 test("package-declared bins cannot disappear from the graph", async () =>
     fixture(async (f) => {
         f.graph.bins = [];
@@ -43,7 +47,9 @@ test("package-declared bins cannot disappear from the graph", async () =>
         );
     }));
 
-/** optional 覆盖普通依赖，optional peer 的缺失与 npm alias 原始 requested 文本分别保留；两个 peer 上下文仍是不同实例，测试要求有效选择成功并拒绝缺失或串换的决定证据。 */
+/** optional 覆盖普通依赖，optional peer 的缺失与 npm alias 原始 requested 文本分别保留；两个 peer 上下文仍是不同实例，
+ * 测试要求有效选择成功并拒绝缺失或串换的决定证据。
+ */
 test("optional overrides optional peers and npm alias edges stay explicit", async () =>
     fixture(async (f) => {
         f.put(
@@ -99,7 +105,9 @@ test("optional overrides optional peers and npm alias edges stay explicit", asyn
         await assert.rejects(verify(await f.save(), f.expected, { inputRoot: f.root }), failure);
     }));
 
-/** 原始 bin alias 可以是明确记录的逻辑链接，但只能指向同 owner 的真实原目标，读取阶段不会追随它；正确链接通过后再串换 target，必须由 alias 映射检查拒绝。 */
+/** 原始 bin alias 可以是明确记录的逻辑链接，但只能指向同 owner 的真实原目标，读取阶段不会追随它；正确链接通过后再串换
+ * target，必须由 alias 映射检查拒绝。
+ */
 test("bin sourceAlias logical link is checked without dereferencing", async () =>
     fixture(async (f) => {
         const bin = f.graph.bins[0]!;
@@ -125,7 +133,9 @@ test("bin sourceAlias logical link is checked without dereferencing", async () =
         await assert.rejects(verify(bad, f.expected, { inputRoot: f.root }), failure);
     }));
 
-/** 第三方 native bin 使用独立检查声明而非挤进两个产品输出，目标字节只是普通合成数据且绝不执行；成功报告必须列出检查记录和实际 evidence，架构或 minOS 串换则拒绝。 */
+/** 第三方 native bin 使用独立检查声明而非挤进两个产品输出，目标字节只是普通合成数据且绝不执行；成功报告必须列出检查记录
+ * 和实际 evidence，架构或 minOS 串换则拒绝。
+ */
 test("third party native bins bind inspection hash arch minOS and evidence", async () =>
     fixture(async (f) => {
         f.add(
@@ -212,7 +222,9 @@ test("third party native bins bind inspection hash arch minOS and evidence", asy
         }
     }));
 
-/** 静态源码使用独立于 JSON 的十六 MiB 单文件预算，声明超限必须在真实成员正文读取之前拒绝；fixture 只修改小文件的声明长度，不生成大文件来浪费共享工作区剩余磁盘。 */
+/** 静态源码使用独立于 JSON 的十六 MiB 单文件预算，声明超限必须在真实成员正文读取之前拒绝；fixture 只修改小文件的声明长
+ * 度，不生成大文件来浪费共享工作区剩余磁盘。
+ */
 test("AST declarations above sixteen MiB reject before physical body read", async () =>
     fixture(async (f) => {
         f.inventories.entries.files[0]!.sizeBytes = 16 * 1024 ** 2 + 1;
@@ -222,7 +234,9 @@ test("AST declarations above sixteen MiB reject before physical body read", asyn
         );
     }));
 
-/** JS 文件不能通过把角色声明成 asset 来隐藏实际外部导入，asset 的空 imports 仍须与其可解析代码事实一致；新增文件和库存摘要全部真实绑定，避免把拒绝归因于漏文件或 hash 错误。 */
+/** JS 文件不能通过把角色声明成 asset 来隐藏实际外部导入，asset 的空 imports 仍须与其可解析代码事实一致；新增文件和库存
+ * 摘要全部真实绑定，避免把拒绝归因于漏文件或 hash 错误。
+ */
 test("JavaScript assets cannot hide literal imports", async () =>
     fixture(async (f) => {
         f.add("entries", "hidden.js", 'import "unbound-package";\n');
@@ -233,7 +247,9 @@ test("JavaScript assets cannot hide literal imports", async () =>
         );
     }));
 
-/** 完整生产闭包不允许无引用的物理孤立包，bin 也不能自己建立新的 root；这里提供全部正确包字节与摘要，只缺从根消费者沿依赖边可达的关系，单纯端点检查无法发现该问题。 */
+/** 完整生产闭包不允许无引用的物理孤立包，bin 也不能自己建立新的 root；这里提供全部正确包字节与摘要，只缺从根消费者沿依
+ * 赖边可达的关系，单纯端点检查无法发现该问题。
+ */
 test("physical package instances must be reachable from consumers", async () =>
     fixture(async (f) => {
         f.add(
@@ -257,7 +273,9 @@ test("physical package instances must be reachable from consumers", async () =>
         );
     }));
 
-/** npm 原归档图虽未核包正文，也不能容纳自报的孤立实例或缺失明确 npm-cli 根消费者；测试只要求内部声明闭合，固定 ARCHIVE 与 npm 内容 pending 在有效样本成功后仍必须保留。 */
+/** npm 原归档图虽未核包正文，也不能容纳自报的孤立实例或缺失明确 npm-cli 根消费者；测试只要求内部声明闭合，固定 ARCHIVE
+ * 与 npm 内容 pending 在有效样本成功后仍必须保留。
+ */
 test("npm declaration graph requires reachable instances and explicit npm-cli root", async () => {
     for (const orphan of [true, false])
         await fixture(async (f) => {
@@ -282,7 +300,9 @@ test("npm declaration graph requires reachable instances and explicit npm-cli ro
         });
 });
 
-/** 完整 AST 能区分静态 export、字面动态 import 与字符串注释中的伪导入，同时保留非字面运行期加载边界；真实相对目标必须在库存中且 dynamic 标记准确，测试不会执行这些合成模块。 */
+/** 完整 AST 能区分静态 export、字面动态 import 与字符串注释中的伪导入，同时保留非字面运行期加载边界；真实相对目标必须在
+ * 库存中且 dynamic 标记准确，测试不会执行这些合成模块。
+ */
 test("AST checks literal exports dynamic imports and ignores comment strings", async () =>
     fixture(async (f) => {
         f.add(
@@ -308,7 +328,9 @@ test("AST checks literal exports dynamic imports and ignores comment strings", a
         await assert.rejects(verify(await f.save(), f.expected, { inputRoot: f.root }), failure);
     }));
 
-/** 合计 AST 预算覆盖入口与八个执行成员，而不是给每个文件独立分配六十四 MiB；测试只改九个小文件的声明长度并重写库存证据，要求在实际内容尺寸不符之前先稳定报告 LIMIT。 */
+/** 合计 AST 预算覆盖入口与八个执行成员，而不是给每个文件独立分配六十四 MiB；测试只改九个小文件的声明长度并重写库存证据
+ * ，要求在实际内容尺寸不符之前先稳定报告 LIMIT。
+ */
 test("AST cumulative declarations share sixty-four MiB budget", async () =>
     fixture(async (f) => {
         for (const file of f.inventories.execution.files) file.sizeBytes = 16 * 1024 ** 2;

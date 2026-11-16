@@ -1,7 +1,9 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { DesktopBridge } from "../shared/bridge";
 
-/** preload 仅把逐项列举的业务方法放入隔离世界，Electron 原始 IPC 与 Node 模块不暴露给页面；宿主仍会对每个请求重新验证来源和正文，不能把类型声明当成授权证明。 */
+/** preload 仅把逐项列举的业务方法放入隔离世界，Electron 原始 IPC 与 Node 模块不暴露给页面；宿主仍会对每个请求重新验证来
+ * 源和正文，不能把类型声明当成授权证明。
+ */
 const bridge: DesktopBridge = {
     state: () => ipcRenderer.invoke("veriq:desktop", "state"),
     configure: (origin, proxy) =>

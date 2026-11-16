@@ -20,7 +20,8 @@ export type Proof = Pick<Claim, "leaseToken" | "fencingToken">;
 export class AgentClient {
     constructor(readonly session: DeviceSession) {}
     /**
-     * 公开方法 request 在设备凭证队列中发起 JSON 控制请求，路径必须落在已注册控制 Origin 之内（withCredential/CONTROL_ORIGIN_MISMATCH）。
+     * 公开方法 request 在设备凭证队列中发起 JSON 控制请求，路径必须落在已注册控制 Origin
+     * 之内（withCredential/CONTROL_ORIGIN_MISMATCH）。
      */
     request<T>(path: string, method = "GET", body?: unknown, signal?: AbortSignal): Promise<T> {
         return this.session.withCredential((config) =>
@@ -41,7 +42,8 @@ export class AgentClient {
         return url.href;
     }
     /**
-     * 公开方法 binary 以租约与围栏头读写有界二进制内容，禁止重定向与 Cookie，超额则取消流式读取（binary/CHUNK_TOO_LARGE）。
+     * 公开方法 binary 以租约与围栏头读写有界二进制内容，禁止重定向与 Cookie，
+     * 超额则取消流式读取（binary/CHUNK_TOO_LARGE）。
      */
     async binary(
         path: string,
@@ -84,7 +86,8 @@ export class AgentClient {
         });
     }
     /**
-     * 公开方法 download 拉取内容后强制比对 sha256，哈希不符立即失败，防止损坏或被调包的作业成员进入执行（download/CONTENT_HASH_MISMATCH）。
+     * 公开方法 download 拉取内容后强制比对 sha256，哈希不符立即失败，防止损坏或被调包的作业成员进入执行（
+     * download/CONTENT_HASH_MISMATCH）。
      */
     async download(
         path: string,

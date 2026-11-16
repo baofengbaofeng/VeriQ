@@ -7,13 +7,16 @@ from .base import API
 
 
 class ServiceAccountAPI(API):
-    """工作区服务账号治理：分页列出、创建账号、签发/吊销令牌以及禁用账号；令牌明文仅在签发响应出现一次，库内只存摘要。（ServiceAccountAPI）ServiceAccountAPI 必须坚持 Workspace
+    """工作区服务账号治理：分页列出、创建账号、签发/吊销令牌以及禁用账号；令牌明文仅在签发响应出现一次，库内只存摘要。
+    （ServiceAccountAPI）ServiceAccountAPI 必须坚持 Workspace
 
     归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
 
     def prepare(self) -> None:
-        """账号及令牌管理只接受员工会话，任何显式 Authorization 都拒绝而不能借用同时携带的 Cookie；集合允许分页和签发，禁用与吊销仅允许 POST，普通写入继续要求原有同源和 CSRF 校验。"""
+        """账号及令牌管理只接受员工会话，任何显式 Authorization 都拒绝而不能借用同时携带的 Cookie；集合允许分页和签发，
+        禁用与吊销仅允许 POST，普通写入继续要求原有同源和 CSRF 校验。
+        """
         super().prepare()
         if "Authorization" in self.request.headers:
             raise Problem(
@@ -28,7 +31,9 @@ class ServiceAccountAPI(API):
             raise Problem(405, "METHOD_NOT_ALLOWED", "Method not allowed")
 
     async def get(self, workspace_id: str, account_id: str | None = None) -> None:
-        """账号列表和令牌元数据列表先校验当前空间管理范围，账号路径再次核对嵌套归属再生成绑定主体的游标；返回用途、范围和失效状态供界面治理，永远不返回令牌明文或数据库中的哈希材料。"""
+        """账号列表和令牌元数据列表先校验当前空间管理范围，账号路径再次核对嵌套归属再生成绑定主体的游标；返回用途、
+        范围和失效状态供界面治理，永远不返回令牌明文或数据库中的哈希材料。
+        """
         if self.action not in {"service-accounts", "service-token-issue"}:
             raise Problem(405, "METHOD_NOT_ALLOWED", "Method not allowed")
         async with self.db.sessions() as session:
@@ -107,7 +112,9 @@ class ServiceAccountAPI(API):
     async def post(
         self, workspace_id: str, account_id: str | None = None, token_id: str | None = None
     ) -> None:
-        """账号创建、限定用途令牌签发、禁用和吊销都在安装锁内验证当前管理权限；计划范围交给签发服务逐项核对，吊销还验证令牌归属，只有新令牌签发响应可以向当前操作者显示一次明文。"""
+        """账号创建、限定用途令牌签发、禁用和吊销都在安装锁内验证当前管理权限；计划范围交给签发服务逐项核对，
+        吊销还验证令牌归属，只有新令牌签发响应可以向当前操作者显示一次明文。
+        """
         data = self.body(
             {
                 "service-accounts": "ServiceAccountCreate",

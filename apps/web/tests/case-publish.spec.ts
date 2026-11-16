@@ -292,8 +292,8 @@ test("environment manager creates immutable auth and credential versions without
     await expect(page.getByTestId("credential-list")).toContainText("REVOKED");
 });
 
-/**
- * 使用真实身份管理器和服务端凭证提交验证表单生命周期，认证类型的无关重渲染必须保留未提交输入；旧空间请求已提交但响应尚未交付时切换空间，随后仅允许原空间显示已保存摘要。
+/** 使用真实身份管理器和服务端凭证提交验证表单生命周期，认证类型的无关重渲染必须保留未提交输入；旧空间请求已提交但响应尚
+ * 未交付时切换空间，随后仅允许原空间显示已保存摘要。
  */
 test("identity manager retains scope across rerenders and late credential responses", async ({
     page,
@@ -324,7 +324,8 @@ test("identity manager retains scope across rerenders and late credential respon
     await manager.getByRole("combobox", { name: "Type", exact: true }).selectOption("HTTP_BEARER");
     await expect(manager.getByRole("textbox", { name: "Login path" })).toHaveCount(0);
 
-    // 仅拦截 Alpha 的同源凭证创建请求并等待真实提交完成，持有原响应直到浏览器确认旧请求被取消；释放时只销毁响应，绝不向已中止的 Chromium 请求伪造或补发成功。
+    // 仅拦截 Alpha 的同源凭证创建请求并等待真实提交完成，持有原响应直到浏览器确认旧请求被取消；释放时只销毁响应，绝不向
+    // 已中止的 Chromium 请求伪造或补发成功。
     const credentialUrl = `${origin}/api/v1/workspaces/${alpha.workspaceId}/credentials`;
     const matches = (url: URL) => url.href === credentialUrl;
     let release!: () => void;
@@ -463,7 +464,8 @@ test("all eight kinds expose usable typed controls and preserve literal business
                 .getByTestId("content.document.steps.0.afterAssertions.0.pointer")
                 .fill("/ok");
             await page.getByTestId(observer + ".kind").selectOption("download");
-            // 事件观察器不能提供网络响应的正文或请求头，所以提取来源列表必须排除该类观察器；这里使用真实编辑控件核对来源选项，防止不可执行的引用被保存进用例。
+            // 事件观察器不能提供网络响应的正文或请求头，所以提取来源列表必须排除该类观察器；这里使用真实编辑控件核对来
+            // 源选项，防止不可执行的引用被保存进用例。
             await page.getByTestId("content.document.steps.0.extract.add").click();
             await expect(
                 page.getByTestId("content.document.steps.0.extract.0.source").locator("option"),
@@ -970,7 +972,8 @@ test("T11-R3 reusable flow/template page keys round-trip and resolve only in cal
         ).toEqual(["", "detail"]);
         expect((await saveDraft(page)).content).toEqual(callerSource);
         await compiler.publish();
-        // 导入文档里的未解析引用仍应以原始标识清晰显示在编辑器中，不能把它冒充为当前空间已有页面；断言保留引用值以便用户后续通过支持的真实资产流程修复。
+        // 导入文档里的未解析引用仍应以原始标识清晰显示在编辑器中，不能把它冒充为当前空间已有页面；断言保留引用值以便用
+        // 户后续通过支持的真实资产流程修复。
         const invalid: ResourceDocumentV1 = {
             ...callerSource,
             document: {
@@ -1058,7 +1061,8 @@ test("T11-R4 delayed real J1 receipt cannot validate a saved candidate or queued
         expect(j2.id).not.toBe(j1.id);
         release();
         await delivery;
-        // 等待下一次真实 J2 状态轮询返回后再核对界面，使旧请求的回调已经获得完整的浏览器与渲染调度机会，避免仅凭切换后立即出现的新内容误判迟到响应已被隔离。
+        // 等待下一次真实 J2 状态轮询返回后再核对界面，使旧请求的回调已经获得完整的浏览器与渲染调度机会，避免仅凭切换后
+        // 立即出现的新内容误判迟到响应已被隔离。
         await page.waitForResponse((response) => response.url().endsWith(`/jobs/${j2.id}`));
         await expect(page.getByTestId("case.validation-receipt")).toHaveCount(0);
         await expect(page.getByTestId("case.publish")).toBeDisabled();
@@ -1094,7 +1098,9 @@ test("T11-R4 delayed real J1 receipt cannot validate a saved candidate or queued
     }
 });
 
-/** 通过真实资源创建、JSON Apply 和草稿保存观察字符串及混合 JSON 数组，重复值不能合并节点，输入不能重挂载，删除祖先行必须保留嵌套存活节点，最终正文只能含原始业务值而无私有行标记。 */
+/** 通过真实资源创建、JSON Apply 和草稿保存观察字符串及混合 JSON 数组，重复值不能合并节点，输入不能重挂载，删除祖先行必
+ * 须保留嵌套存活节点，最终正文只能含原始业务值而无私有行标记。
+ */
 test("primitive rows preserve focused survivors and persist only business values", async ({
     page,
 }) => {
@@ -1125,7 +1131,8 @@ test("primitive rows preserve focused survivors and persist only business values
     const root = page
         .getByRole("combobox", { name: "payload 类型 / Type", exact: true })
         .locator("../..");
-    // 原生 click 激活前面的删除按钮而不把键盘焦点移到该按钮，以便直接观察存活输入节点的焦点；不改写 DOM、值或产品事件处理，增删仍完全经过真实 React 控件。
+    // 原生 click 激活前面的删除按钮而不把键盘焦点移到该按钮，以便直接观察存活输入节点的焦点；不改写 DOM、值或产品事件处
+    // 理，增删仍完全经过真实 React 控件。
     await root
         .locator(":scope > div")
         .first()
@@ -1155,7 +1162,8 @@ test("primitive rows preserve focused survivors and persist only business values
         },
     };
     expect((await saveDraft(page)).content).toEqual(expected);
-    // 相同长度以及更短、更长的权威导入都开启新行生命周期，不能把旧重复值的标记猜测成新数组身份；每轮都经受支持的 JSON Apply 保存并读取服务端实际草稿。
+    // 相同长度以及更短、更长的权威导入都开启新行生命周期，不能把旧重复值的标记猜测成新数组身份；每轮都经受支持的 JSON
+    // Apply 保存并读取服务端实际草稿。
     for (const payload of [
         ["fresh", "", ["x", "y"], { flag: false }, ""],
         [],
@@ -1211,7 +1219,8 @@ test("primitive rows preserve focused survivors and persist only business values
         },
     });
     await createResource(page, "CASE", `field-labels-${randomUUID()}`);
-    // 关联检查跨越文本、枚举、数字、复选框及版本下拉分支，并保留原有测试标识与 RHF 输入；只检查真实 input.labels/htmlFor/id，不把可见文字或 aria-label 当作标签关联的替代品。
+    // 关联检查跨越文本、枚举、数字、复选框及版本下拉分支，并保留原有测试标识与 RHF 输入；只检查真实
+    // input.labels/htmlFor/id，不把可见文字或 aria-label 当作标签关联的替代品。
     for (const name of [
         "content.document.title",
         "content.document.kind",

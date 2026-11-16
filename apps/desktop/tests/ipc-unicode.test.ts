@@ -9,7 +9,9 @@ import { DesktopAgentClient } from "../src/agent/client.ts";
 import { AttemptBroker } from "../../runtime/src/execution/broker.ts";
 import { updatePrivate } from "../../runtime/src/offline/config.ts";
 
-/** 响应经真实私有 socket 发送，刻意在中文与非 BMP 字符的每个字节后让出 I/O 轮次，接收方必须还原原文；这个边界不允许通过替换原始业务字符串或放宽源码哈希来掩盖传输损坏。 */
+/** 响应经真实私有 socket 发送，刻意在中文与非 BMP 字符的每个字节后让出 I/O 轮次，接收方必须还原原文；这个边界不允许通过
+ * 替换原始业务字符串或放宽源码哈希来掩盖传输损坏。
+ */
 test("client preserves fragmented Chinese and non-BMP response bytes", async () => {
     const root = await mkdtemp("/tmp/veriq-unicode-client-");
     const path = join(root, "desktop-agent.sock");
@@ -44,7 +46,9 @@ test("client preserves fragmented Chinese and non-BMP response bytes", async () 
     }
 });
 
-/** 请求经实际 AttemptBroker 的认证与帧边界解析，逐字节片段包括四字节 Unicode 和跨行 JSON 转义；超过六十四 KiB 的原始字节必须在业务回调前拒绝，不能改用 JavaScript 字符长度计费。 */
+/** 请求经实际 AttemptBroker 的认证与帧边界解析，逐字节片段包括四字节 Unicode 和跨行 JSON 转义；超过六十四 KiB 的原始字
+ * 节必须在业务回调前拒绝，不能改用 JavaScript 字符长度计费。
+ */
 test("broker preserves fragmented input and enforces its raw byte cap", async () => {
     const root = await mkdtemp("/tmp/veriq-unicode-broker-");
     let received: unknown;
@@ -84,7 +88,9 @@ test("broker preserves fragmented input and enforces its raw byte cap", async ()
     }
 });
 
-/** 恶意后台响应即使尚未形成完整 JSON 也受三十二 MiB 原始字节上限约束，达到超限后客户端必须主动断连并返回稳定错误；测试不等待协议超时，也不让本机字符串解码后的长度改变预算。 */
+/** 恶意后台响应即使尚未形成完整 JSON 也受三十二 MiB 原始字节上限约束，达到超限后客户端必须主动断连并返回稳定错误；测试
+ * 不等待协议超时，也不让本机字符串解码后的长度改变预算。
+ */
 test("client caps raw response bytes before a complete frame", async () => {
     const root = await mkdtemp("/tmp/veriq-unicode-limit-");
     const path = join(root, "desktop-agent.sock");

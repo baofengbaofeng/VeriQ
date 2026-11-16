@@ -11,7 +11,9 @@ import {
 } from "../scripts/runtime-payload-inputs.ts";
 import { fixture, model, bytes, hash } from "./fixtures/runtime-payload.ts";
 
-/** 错误断言必须经过正式异常类型和固定分类，不能让任意 TypeError 或模块载入失败替代预期行为；消息只含稳定分类，同时核对输入阶段不会虚构候选目录或清理成功。 */
+/** 错误断言必须经过正式异常类型和固定分类，不能让任意 TypeError 或模块载入失败替代预期行为；消息只含稳定分类，同时核对
+ * 输入阶段不会虚构候选目录或清理成功。
+ */
 export function rejects(code: string) {
     return (e: unknown) =>
         e instanceof RuntimePayloadError &&
@@ -105,7 +107,9 @@ test("caller mutation after admission cannot change bytes expected or root polic
         assert.equal((await task).recipe.target.arch, "x64");
     }));
 
-/** CLI 子进程只运行本机 Node 与正式 inspect 文件，不启动任何输入可执行内容；stdout 必须是单份完整报告，stderr 错误不能泄露参数、路径或配方中的秘密文本。 */
+/** CLI 子进程只运行本机 Node 与正式 inspect 文件，不启动任何输入可执行内容；stdout 必须是单份完整报告，stderr 错误不能
+ * 泄露参数、路径或配方中的秘密文本。
+ */
 async function cli(args: string[]) {
     return await new Promise<{ code: number | null; out: string; err: string }>((done) => {
         const p = spawn(
@@ -154,7 +158,9 @@ test("actual inspect CLI emits complete JSON and rejects duplicate unknown missi
         }
     }));
 
-/** 精确 DTO 验收从完整样本逐个选择嵌套对象，分别删除必填字段、添加未知字段或替换为错误类型；每次重新绑定外层字节摘要，确保拒绝来自结构校验而不是无关的 recipe hash 门槛。 */
+/** 精确 DTO 验收从完整样本逐个选择嵌套对象，分别删除必填字段、添加未知字段或替换为错误类型；每次重新绑定外层字节摘要，
+ * 确保拒绝来自结构校验而不是无关的 recipe hash 门槛。
+ */
 test("every populated recipe DTO rejects required unknown and wrong-type mutations", () => {
     const seed = model(),
         locations: (string | number)[][] = [];
@@ -186,8 +192,10 @@ test("every populated recipe DTO rejects required unknown and wrong-type mutatio
         }
 });
 
-/** 有界 CLI 取消载体观察归档首个真实读取块再向同一 inspect 进程发送信号，不靠 sleep 猜测启动时间；可选 stalled close 只用于观察二次信号和期限后的 INCOMPLETE，所有载体退出后由宿主关闭
-* 资源。 */
+/** 有界 CLI 取消载体观察归档首个真实读取块再向同一 inspect 进程发送信号，不靠 sleep 猜测启动时间；可选 stalled close 只
+ * 用于观察二次信号和期限后的 INCOMPLETE，所有载体退出后由宿主关闭
+ * 资源。
+ */
 async function cancellation(
     root: string,
     signal: "SIGINT" | "SIGTERM",
@@ -260,7 +268,9 @@ async function cancellation(
     });
 }
 
-/** 两种正常中断均发生于实际文件读取期间，退出码分别对应标准 SIGINT 和 SIGTERM，报告只能是取消错误；载体仅控制读取调度，不执行任何输入程序或对其它进程转发信号。 */
+/** 两种正常中断均发生于实际文件读取期间，退出码分别对应标准 SIGINT 和 SIGTERM，报告只能是取消错误；载体仅控制读取调度，
+ * 不执行任何输入程序或对其它进程转发信号。
+ */
 test("actual inspect CLI cancels mid-read with no success report", async () =>
     fixture(async (f) => {
         await writeFile(join(f.root, "inputs.json"), await f.save());
@@ -274,7 +284,9 @@ test("actual inspect CLI cancels mid-read with no success report", async () =>
         }
     }));
 
-/** 无法确认句柄关闭时二次信号与五秒期限必须诚实保留 INCOMPLETE，不能因为输入核验没有 scratch 就宣称清理完成；测试载体的关闭阻塞不会修改输入，子进程强制退出只影响它自己的句柄。 */
+/** 无法确认句柄关闭时二次信号与五秒期限必须诚实保留 INCOMPLETE，不能因为输入核验没有 scratch 就宣称清理完成；测试载体的
+ * 关闭阻塞不会修改输入，子进程强制退出只影响它自己的句柄。
+ */
 test("actual inspect CLI second signal and close deadline report incomplete", async () =>
     fixture(async (f) => {
         await writeFile(join(f.root, "inputs.json"), await f.save());
@@ -288,7 +300,9 @@ test("actual inspect CLI second signal and close deadline report incomplete", as
         }
     }));
 
-/** 新增末尾上下文只复制阶段与目录标量，旧三个参数仍保持原来的输入阶段及空候选语义；共享准入必须为每次调用创建独立字节和政策，调用方后续改写不能影响真实消费者之间的绑定。 */
+/** 新增末尾上下文只复制阶段与目录标量，旧三个参数仍保持原来的输入阶段及空候选语义；共享准入必须为每次调用创建独立字节和
+ * 政策，调用方后续改写不能影响真实消费者之间的绑定。
+ */
 test("intake error context copies scalars while legacy constructor stays compatible", () => {
     const context = { phase: "INTAKE" as const, candidateDirectory: "/controlled/candidate" };
     const error = new RuntimePayloadError("PAYLOAD_IO", "EIO", "CONFIRMED", context);
@@ -300,8 +314,10 @@ test("intake error context copies scalars while legacy constructor stays compati
     assert.ok(Object.isFrozen(error));
 });
 
-/** 内部共享准入仍每次复制 caller 字节和独立 expected 政策，parse 与 verify 不依赖可被重用的旧准入对象；只读政策不冻结调用方，TypedArray 则保留私有所有权而不假称 Object.freez
-* e 能保护其元素写入。 */
+/** 内部共享准入仍每次复制 caller 字节和独立 expected 政策，parse 与 verify 不依赖可被重用的旧准入对象；只读政策不冻结调
+ * 用方，TypedArray 则保留私有所有权而不假称 Object.freez
+ * e 能保护其元素写入。
+ */
 test("shared consumed admission returns independent bytes and policy each call", () => {
     const f = model(),
         input = f.seal(),

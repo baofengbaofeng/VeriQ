@@ -1,6 +1,8 @@
-"""独立 wheel 验证器核对 ZIP 唯一成员、RECORD 摘要、迁移与完整静态库存，并可在仓库外进行离线安装和生产 HTTP 探测；它不接受 editable 包作为已验证发行。
+"""独立 wheel 验证器核对 ZIP 唯一成员、RECORD 摘要、迁移与完整静态库存，并可在仓库外进行离线安装和生产 HTTP 探测；
+它不接受 editable 包作为已验证发行。
 
-归档成员先检查路径及文件类型，再写入临时目录。干净安装只从显式 wheelhouse 取依赖，不能回退网络索引。生产探测进程的 PATH 为空，数据根位于只读包目录之外。
+归档成员先检查路径及文件类型，再写入临时目录。干净安装只从显式 wheelhouse 取依赖，不能回退网络索引。生产探测进程的 PATH
+为空，数据根位于只读包目录之外。
 """
 
 import argparse
@@ -24,9 +26,11 @@ from release_support import validate_static
 
 
 def verify_wheel(wheel: Path) -> dict[str, Any]:
-    """检查真实 wheel 的所有成员与 RECORD 精确对应，再用同一静态校验器验证解压资源；返回可绑定 release.json 的构建身份，发现重复、额外或篡改字节即失败。
+    """检查真实 wheel 的所有成员与 RECORD 精确对应，再用同一静态校验器验证解压资源；返回可绑定 release.json 的构建身份，
+    发现重复、额外或篡改字节即失败。
 
-    RECORD 自身不带散列是 wheel 标准规定的唯一例外。ZIP 中的路径不能携带绝对地址或父目录段。迁移、OpenAPI 和 Schema 都是控制服务运行所需资源。文件权限只允许普通文件，归档链接不能成为安装路径跳转。
+    RECORD 自身不带散列是 wheel 标准规定的唯一例外。ZIP 中的路径不能携带绝对地址或父目录段。迁移、OpenAPI 和 Schema
+    都是控制服务运行所需资源。文件权限只允许普通文件，归档链接不能成为安装路径跳转。
     """
     with (
         zipfile.ZipFile(wheel) as archive,
@@ -99,9 +103,11 @@ def clean_install(
     evidence: Path,
     run_process: RunProcess = subprocess.run,
 ) -> dict[str, Any]:
-    """在仓库外创建空虚拟环境并仅通过离线 wheelhouse 安装候选，随后以只读包和空 PATH 启动真实生产服务；安装依赖、HTTP 行为及进程退出任何一步失败都不能形成成功证明。
+    """在仓库外创建空虚拟环境并仅通过离线 wheelhouse 安装候选，随后以只读包和空 PATH 启动真实生产服务；安装依赖、HTTP
+    行为及进程退出任何一步失败都不能形成成功证明。
 
-    临时环境验证后删除，避免占用发行构建机的有限空间。安装日志写入调用方指定证据目录，而非输出机密配置。探测只使用合成配置，不读取实际签发者或业务凭证。不验证 MySQL 迁移，这个独立断言负责包安装与静态运行闭包。
+    临时环境验证后删除，避免占用发行构建机的有限空间。安装日志写入调用方指定证据目录，而非输出机密配置。
+    探测只使用合成配置，不读取实际签发者或业务凭证。不验证 MySQL 迁移，这个独立断言负责包安装与静态运行闭包。
     """
     evidence.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="veriq-clean-install-") as directory:
@@ -165,7 +171,8 @@ def clean_install(
 
 
 def main() -> None:
-    """命令行默认只验证 wheel 字节，显式指定 wheelhouse 后再做真实离线安装；两种模式的报告字段不同，因此调用方不能把静态检查误写成已经完成无 Node 生产启动验收。
+    """命令行默认只验证 wheel 字节，显式指定 wheelhouse 后再做真实离线安装；两种模式的报告字段不同，
+    因此调用方不能把静态检查误写成已经完成无 Node 生产启动验收。
 
     错误保留英文操作诊断，并以非零退出码阻断发布。evidence 只记录构建输入和结果，不携带业务数据。
     """

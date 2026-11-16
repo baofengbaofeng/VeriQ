@@ -77,7 +77,9 @@ const labels = {
     },
 };
 
-/** 桌面工作台把平台会话与本机后台明确区分，联网编辑复用共享视图，断网缓存继续使用验签后的只读适配器；状态轮询仅读取后台事实，窗口关闭和页面切换都不会改变执行归属。 */
+/** 桌面工作台把平台会话与本机后台明确区分，联网编辑复用共享视图，断网缓存继续使用验签后的只读适配器；状态轮询仅读取后台
+ * 事实，窗口关闭和页面切换都不会改变执行归属。
+ */
 export function App() {
     const [language, setLanguage] = useState<"zh" | "en">(
             appI18n.language.startsWith("zh") ? "zh" : "en",
@@ -127,7 +129,8 @@ export function App() {
         () => (localWorkspace ? new DesktopLocalReports(localWorkspace) : undefined),
         [localWorkspace],
     );
-    // biome-ignore lint/correctness/useExhaustiveDependencies: 此控制器身份有意随三项授权视图作用域改变，虽然构造函数不读取这些值，删掉依赖会让旧报告订阅越过工作区或本机云端切
+    // biome-ignore lint/correctness/useExhaustiveDependencies: 此控制器身份有意随三项授权视图作用域改变，虽然构造函数不
+    // 读取这些值，删掉依赖会让旧报告订阅越过工作区或本机云端切
     // 换继续存活。
     const scope = useMemo(
         () => new AbortController(),
@@ -142,7 +145,9 @@ export function App() {
         setWorkspace(value.workspace);
         if (value.agent?.workspaceId) setLocalWorkspace(value.agent.workspaceId);
     }, []);
-    /** 统一动作包装器只管理本次交互的忙碌、错误和刷新状态，不将捕获异常改写成成功结果；后台执行有独立的 preparing 和 active 状态，因此 UI 请求结束并不代表业务 Run 已经终结。 */
+    /** 统一动作包装器只管理本次交互的忙碌、错误和刷新状态，不将捕获异常改写成成功结果；后台执行有独立的 preparing 和
+     * active 状态，因此 UI 请求结束并不代表业务 Run 已经终结。
+     */
     async function action(work: () => Promise<unknown>) {
         setBusy(true);
         setError("");
@@ -172,7 +177,9 @@ export function App() {
         },
         [scope, queries],
     );
-    /** 本地窗口只订阅共享应用实例，不再同时维护第二套编辑器和 AI 语言切换逻辑；Provider 负责各命名空间及偏好桥接，卸载时这里移除自己的监听，不重建表单、Workspace 或报告请求作用域。 */
+    /** 本地窗口只订阅共享应用实例，不再同时维护第二套编辑器和 AI 语言切换逻辑；Provider 负责各命名空间及偏好桥接，卸载
+     * 时这里移除自己的监听，不重建表单、Workspace 或报告请求作用域。
+     */
     useEffect(() => {
         const changed = (next: string) => setLanguage(next.startsWith("zh") ? "zh" : "en");
         appI18n.on("languageChanged", changed);
@@ -182,7 +189,9 @@ export function App() {
         };
     }, []);
 
-    /** 从后台列出的缓存包选择其所属工作区，再获取验签资源投影与固定凭证引用供离线查看；此处不根据用户输入路径读取文件，失败会交由动作包装器显示而不会构造空成功快照。 */
+    /** 从后台列出的缓存包选择其所属工作区，再获取验签资源投影与固定凭证引用供离线查看；此处不根据用户输入路径读取文件，
+     * 失败会交由动作包装器显示而不会构造空成功快照。
+     */
     async function chooseLocal(id: string) {
         const selected = agent?.bundles.find((bundle) => bundle.id === id);
         if (!selected) throw new Error("BUNDLE_NOT_FOUND");
@@ -194,14 +203,18 @@ export function App() {
         setPinIndex(0);
         setTab("local");
     }
-    /** 普通登录只经过专用宿主 Session，成功后清空输入框中的密码并加载真实成员工作区；设备登记状态由另一组后台字段显示，登录成功不能被用来代替设备令牌的注册流程。 */
+    /** 普通登录只经过专用宿主 Session，成功后清空输入框中的密码并加载真实成员工作区；设备登记状态由另一组后台字段显示，
+     * 登录成功不能被用来代替设备令牌的注册流程。
+     */
     async function login() {
         await bridge.login({ email, password });
         setPassword("");
         setWorkspaces((await bridge.workspaces()).items);
         setNotice(t.connected);
     }
-    /** 云端工作区切换等待宿主完成成员检查后才更新页面，并清空共享查询缓存和旧资源报告选择；已有本机 Run 的持久状态由独立 Agent 保留，清除页面选择不会取消执行。 */
+    /** 云端工作区切换等待宿主完成成员检查后才更新页面，并清空共享查询缓存和旧资源报告选择；已有本机 Run 的持久状态由独
+     * 立Agent 保留，清除页面选择不会取消执行。
+     */
     async function selectWorkspace(id: string) {
         const selected = await bridge.select(id);
         setWorkspace(selected);
@@ -604,7 +617,8 @@ export function App() {
                                     keeps Agent running.
                                     {state?.tray
                                         ? "托盘可重新打开窗口。 / Reopen the window from the tray."
-                                        : "本桌面未确认托盘可用，关闭时最小化；再次启动可恢复窗口。 / Tray support is unconfirmed. Closing minim" +
+                                        : "本桌面未确认托盘可用，关闭时最小化；再次启动可恢复窗口。 / Tray su" +
+                                          "pport is unconfirmed. Closing minim" +
                                           "izes the window; reopening VeriQ restores it."}{" "}
                                     / UI close does not stop Agent.
                                 </p>
@@ -1140,7 +1154,8 @@ export function App() {
                                     </button>
                                 </div>
                                 <p>
-                                    停止本机执行和在线领取后，可显式迁移旧凭据。迁移会核验系统保险库和加密数据，再移除旧明文文件。
+                                    {"停止本机执行和在线领取后，可显式迁移旧凭据。" +
+                                        "迁移会核验系统保险库和加密数据，再移除旧明文文件。"}{" "}
                                     / Stop execution and online polling before explicitly migrating
                                     legacy credentials. Migration verifies the system vault and
                                     encrypted data before removing legacy plaintext.
@@ -1160,7 +1175,8 @@ export function App() {
                                     迁移本机凭据 / Migrate local credentials
                                 </button>
                                 <p>
-                                    初始化中断且尚无凭据时，可明确恢复空保险库。已激活档案缺钥不会被替换；请先停止执行与在线领取。
+                                    {"初始化中断且尚无凭据时，可明确恢复空保险库。" +
+                                        "已激活档案缺钥不会被替换；请先停止执行与在线领取。"}{" "}
                                     / An interrupted empty initialization can be explicitly
                                     recovered. Missing keys in active profiles are not replaced.
                                     Stop execution and online polling first.
@@ -1210,7 +1226,8 @@ export function App() {
                                     准备已验证升级或回滚 / Prepare verified update
                                 </button>
                                 <p>
-                                    更新前请停止在线领取与执行；隔离或未知进程必须先恢复。卸载默认保留本机配置、凭据与历史。
+                                    {"更新前请停止在线领取与执行；隔离或未知进程必须先恢复。" +
+                                        "卸载默认保留本机配置、凭据与历史。"}{" "}
                                     / Stop online polling and execution before updates; recover
                                     unknown or quarantined processes first. Uninstall keeps local
                                     settings, credentials and history.

@@ -1,4 +1,6 @@
-"""本机测试只用自己创建的空闲子进程验证 pidfd 的真实退出语义及拒绝边界，绝不把普通进程伪装成已验收 Electron；实际 UI 故障后的恢复、Agent 连续运行与业务停止仍由完整 CI 场景证明。"""
+"""本机测试只用自己创建的空闲子进程验证 pidfd 的真实退出语义及拒绝边界，绝不把普通进程伪装成已验收 Electron；实际 UI
+故障后的恢复、Agent 连续运行与业务停止仍由完整 CI 场景证明。
+"""
 
 import os
 from pathlib import Path
@@ -14,10 +16,14 @@ import renderer_fault
 
 
 class RendererFaultBoundaryTests(unittest.TestCase):
-    """拒绝测试把发送函数设为可检查的替身，真实 proc/pidfd 仍读取自有子进程；任何前置不符都必须在信号边界前失败，不以测试清理动作充当故障注入成功。"""
+    """拒绝测试把发送函数设为可检查的替身，真实 proc/pidfd 仍读取自有子进程；任何前置不符都必须在信号边界前失败，
+    不以测试清理动作充当故障注入成功。
+    """
 
     def setUp(self):
-        """每例只创建本测试拥有的空闲 Python 子进程和不可执行的身份占位文件，读取真实 UID 与启动时钟作为预期值；拒绝案例随后逐项修改预期并确认目标仍存活，不能使用用户既有进程。"""
+        """每例只创建本测试拥有的空闲 Python 子进程和不可执行的身份占位文件，读取真实 UID 与启动时钟作为预期值；
+        拒绝案例随后逐项修改预期并确认目标仍存活，不能使用用户既有进程。
+        """
         self.directory = tempfile.TemporaryDirectory(prefix="veriq-renderer-fault-")
         self.electron = Path(self.directory.name) / "electron"
         self.electron.write_bytes(b"test identity placeholder, not executable")
@@ -32,14 +38,18 @@ class RendererFaultBoundaryTests(unittest.TestCase):
         }
 
     def tearDown(self):
-        """仅在本例子进程仍运行时请求其终止并等待实际退出，然后回收本例临时目录；该收尾独立于用例中的 pidfd 故障及退出断言，不能以清理发送的信号补造正式故障注入或业务停止证明。"""
+        """仅在本例子进程仍运行时请求其终止并等待实际退出，然后回收本例临时目录；该收尾独立于用例中的 pidfd
+        故障及退出断言，不能以清理发送的信号补造正式故障注入或业务停止证明。
+        """
         if self.child.poll() is None:
             self.child.terminate()
         self.child.wait(timeout=3)
         self.directory.cleanup()
 
     def test_real_pidfd_signal_and_exit_observation(self):
-        """直接验证内核 pidfd 引用确实指向本次创建的进程并能观察 SIGKILL 退出；这只证明故障注入原语，不绕过 helper 身份检查或声称普通子进程等同 Electron renderer。"""
+        """直接验证内核 pidfd 引用确实指向本次创建的进程并能观察 SIGKILL 退出；这只证明故障注入原语，不绕过 helper
+        身份检查或声称普通子进程等同 Electron renderer。
+        """
         fd = os.pidfd_open(self.child.pid, 0)
         try:
             renderer_fault.check_fd(fd, self.child.pid)
@@ -58,7 +68,9 @@ class RendererFaultBoundaryTests(unittest.TestCase):
             os.close(fd)
 
     def test_owner_start_and_executable_mismatches_never_signal(self):
-        """主目标相同、错误 UID、过期启动时钟与非 UI 可执行文件必须全部拒绝，发送函数零调用且真实子进程仍存活，防止失败检查后意外继续注入。"""
+        """主目标相同、错误 UID、过期启动时钟与非 UI 可执行文件必须全部拒绝，发送函数零调用且真实子进程仍存活，
+        防止失败检查后意外继续注入。
+        """
         cases = [
             ({"mainPid": self.child.pid}, "OWNER_MISMATCH"),
             ({"uid": os.getuid() + 1}, "OWNER_MISMATCH"),
@@ -83,7 +95,9 @@ class RendererFaultBoundaryTests(unittest.TestCase):
                 self.assertIsNone(self.child.poll())
 
     def test_ancestry_and_fd_mismatches_never_signal(self):
-        """受控替身仅让拒绝路径到达祖先验证，实际子进程及 pidfd 不变且发送函数仍禁止调用；窗口角色已迁至可信 Electron 指标层，这里的假可执行文件身份不用于成功或 UI 恢复声明。"""
+        """受控替身仅让拒绝路径到达祖先验证，实际子进程及 pidfd 不变且发送函数仍禁止调用；窗口角色已迁至可信 Electron
+        指标层，这里的假可执行文件身份不用于成功或 UI 恢复声明。
+        """
         original_resolve = Path.resolve
         original_identity = renderer_fault.identity
 

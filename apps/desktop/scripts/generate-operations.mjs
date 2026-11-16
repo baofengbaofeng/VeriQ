@@ -1,6 +1,8 @@
 import { readFile, writeFile } from "node:fs/promises";
 
-/** 桌面可调用的云端业务操作明确列举于此，生成器只读取现有 OpenAPI 以避免复制路由和正文类型；新增服务端接口不会自动成为渲染进程的新权限。 */
+/** 桌面可调用的云端业务操作明确列举于此，生成器只读取现有 OpenAPI 以避免复制路由和正文类型；新增服务端接口不会自动成为
+ * 渲染进程的新权限。
+ */
 const allowed = new Set(
     `login session logout getSetup getAccount listWorkspaces getWorkspace
 listResources createResource getResource updateResource getDraft updateDraft validateResource publishResource
@@ -59,11 +61,23 @@ for (const [path, item] of Object.entries(document.paths)) {
                         : "json",
         };
         types.push(
-            `    | { operation: ${JSON.stringify(name)}; ` +
-                `${ids.length ? `params: { ${ids.map((id) => `${id}: string`).join("; ")} };` : ""} ` +
-                `${Object.keys(queries).length ? "query?: Record<string, string | number | boolean>;" : ""} ` +
-                `${request ? `data: S[${JSON.stringify(request)}];` : ""} ` +
-                `${idempotency ? "idempotencyKey: string;" : ""} }`,
+            [
+                "    | {",
+                `        operation: ${JSON.stringify(name)};`,
+                ...(ids.length
+                    ? [
+                          "        params: {",
+                          ...ids.map((id) => `            ${id}: string;`),
+                          "        };",
+                      ]
+                    : []),
+                ...(Object.keys(queries).length
+                    ? ["        query?: Record<string, string | number | boolean>;"]
+                    : []),
+                ...(request ? [`        data: S[${JSON.stringify(request)}];`] : []),
+                ...(idempotency ? ["        idempotencyKey: string;"] : []),
+                "    }",
+            ].join("\n"),
         );
         allowed.delete(name);
     }
@@ -75,12 +89,19 @@ await writeFile(
 );
 await writeFile(
     new URL("../src/shared/operations.generated.ts", import.meta.url),
-    `/** 由 generate-operations.mjs 根据明确的桌面白名单和 OpenAPI 自动生成，业务请求类型只允许固定操作与契约正文；请修改生成器并重新生成，禁止直接扩张宿主权限。 */\nimport t` +
-        `ype { PlatformComponents } from "@veriq/contracts";\ntype S = PlatformComponents["schemas"];\nexport type ` +
-        `CloudOperation =\n${types.join("\n")};\n`,
+    [
+        "/** 由 generate-operations.mjs 根据明确的桌面白名单和 OpenAPI 自动生成，业务请求类型只允许固定操作",
+        " * 与契约正文；请修改生成器并重新生成，禁止直接扩张宿主权限。",
+        " */",
+        'import type { PlatformComponents } from "@veriq/contracts";',
+        'type S = PlatformComponents["schemas"];',
+        `export type CloudOperation =\n${types.join("\n")};\n`,
+    ].join("\n"),
 );
 
-/** OpenAPI 的登录等正文并不属于平台 DSL 定义集合，因此在生成阶段保留两套定义的命名空间并重写引用；宿主随后使用同一成熟 Ajv 实例检查完整正文，避免手写协议解析器。 */
+/** OpenAPI 的登录等正文并不属于平台 DSL 定义集合，因此在生成阶段保留两套定义的命名空间并重写引用；宿主随后使用同一成熟
+ * Ajv 实例检查完整正文，避免手写协议解析器。
+ */
 const platform = JSON.parse(
     await readFile(
         new URL("../../../packages/contracts/schemas/platform-v1.schema.json", import.meta.url),

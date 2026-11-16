@@ -249,7 +249,9 @@ test("claim, manifest, frozen subject, compiled bundle and files have exact-byte
     }
 });
 
-/** 执行令牌和维护令牌共享签发入口但不能共享操作范围，严格校验器同时接受完整四项维护权限并拒绝重复、未知和跨用途混合，避免生成客户端只表达部分维护能力或错误扩大自动化授权。 */
+/** 执行令牌和维护令牌共享签发入口但不能共享操作范围，严格校验器同时接受完整四项维护权限并拒绝重复、未知和跨用途混合，
+ * 避免生成客户端只表达部分维护能力或错误扩大自动化授权。
+ */
 test("execution tokens have independent plan scopes and maintenance supports all four operations", () => {
     const id = "11111111-1111-4111-8111-111111111111";
     const operations = [
@@ -293,7 +295,9 @@ test("execution tokens have independent plan scopes and maintenance supports all
     );
 });
 
-/** Runtime 能力通过规范引用同时约束公开注册与内部认领的声明，复用跨语言样本检查四组目标和非法字段；这里的 Mac 正例仅证明合同接受，不证明设备具备执行、监督或安装能力。 */
+/** Runtime 能力通过规范引用同时约束公开注册与内部认领的声明，复用跨语言样本检查四组目标和非法字段；这里的 Mac
+ * 正例仅证明合同接受，不证明设备具备执行、监督或安装能力。
+ */
 const runtimeCapabilityFixtures: { name: string; value: unknown; valid: boolean }[] =
     fixtures.filter((sample: { schema: string }) => sample.schema === "RuntimeCapabilitiesV1");
 test.each(runtimeCapabilityFixtures)(
@@ -303,7 +307,8 @@ test.each(runtimeCapabilityFixtures)(
     },
 );
 
-// 停止范围只描述客户端声明的保证边界，旧请求可以继续省略该字段，但显式空值和未知字符串必须由共同的正式合同拒绝以防传播错误事实。
+// 停止范围只描述客户端声明的保证边界，旧请求可以继续省略该字段，但显式空值和未知字符串必须由共同的正式合同拒绝以防传播
+// 错误事实。
 test("reconciliation accepts only explicit known scopes and retains legacy omission", () => {
     const value = {
         fencingToken: 1,

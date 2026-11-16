@@ -4,7 +4,9 @@ import { Header, type HeaderData } from "tar";
 import { model, hash, bytes } from "./runtime-payload.ts";
 import type { Arch } from "../../scripts/runtime-payload-inputs.ts";
 
-/** 真实归档测试保留原始路径、类型、权限和小正文作为独立期望，畸形案例可只替换一个字段；这些字节从不作为程序执行，Python 标准库仅负责开发测试生成 ZIP 而非产品运行依赖。 */
+/** 真实归档测试保留原始路径、类型、权限和小正文作为独立期望，畸形案例可只替换一个字段；这些字节从不作为程序执行，Python
+ * 标准库仅负责开发测试生成 ZIP 而非产品运行依赖。
+ */
 export type ArchiveFixtureEntry = {
     path: string;
     kind?: "file" | "directory" | "link";
@@ -14,7 +16,9 @@ export type ArchiveFixtureEntry = {
     type?: HeaderData["type"];
     declaredSize?: number;
 };
-/** tar 夹具使用已锁成熟 Header 编码器生成真正的五百一十二字节帧，再交 Node gzip 产生可校验 trailer；允许小声明补丁构造拒绝案例，不在产品实现自造归档或解压算法。 */
+/** tar 夹具使用已锁成熟 Header 编码器生成真正的五百一十二字节帧，再交 Node gzip 产生可校验 trailer；允许小声明补丁构造
+ * 拒绝案例，不在产品实现自造归档或解压算法。
+ */
 export function tarBytes(entries: readonly ArchiveFixtureEntry[], tail = Buffer.alloc(1024)) {
     const blocks: Buffer[] = [];
     for (const entry of entries) {
@@ -44,7 +48,8 @@ export function tarBytes(entries: readonly ArchiveFixtureEntry[], tail = Buffer.
     return gzipSync(Buffer.concat([...blocks, tail]));
 }
 /**
- * ZIP 夹具沿用仓库 Python zipfile 模式并只向解释器标准输入传递小 JSON，输出真实 stored 或 deflate 内容；Unix 类型和权限写入公开 external_attr，使产品必须真正读取链接正
+ * ZIP 夹具沿用仓库 Python zipfile 模式并只向解释器标准输入传递小 JSON，输出真实 stored 或 deflate 内容；Unix 类型和权限
+ * 写入公开 external_attr，使产品必须真正读取链接正
  * 文与 CRC 而非信任 DTO。
  */
 export function zipBytes(entries: readonly ArchiveFixtureEntry[], compression = 8) {
@@ -74,7 +79,9 @@ sys.stdout.buffer.write(b.getvalue())`,
         },
     );
 }
-/** 实际 intake 模型以两份微型真实归档替换旧占位正文，同时重新绑定各收据、独立布局及原配方摘要；所有其它五树来源仍复用已验夹具，使两个架构都必须先通过真实 b1a 而非绕过准入。 */
+/** 实际 intake 模型以两份微型真实归档替换旧占位正文，同时重新绑定各收据、独立布局及原配方摘要；所有其它五树来源仍复用已
+ * 验夹具，使两个架构都必须先通过真实 b1a 而非绕过准入。
+ */
 export function archiveModel(arch: Arch = "x64") {
     const value = model(arch),
         nodeTop = value.recipe.node.topDirectory,

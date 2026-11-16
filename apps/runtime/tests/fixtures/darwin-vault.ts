@@ -1,9 +1,13 @@
-/** 原生 D1 测试调用器只能启动构建脚本约定的固定成员，并把私有协议内容保存在内存中；它不授予正式 Runtime 发行能力、不修改宿主凭据后端，也不把独立测试通路误称为已安装产品接入。 */
+/** 原生 D1 测试调用器只能启动构建脚本约定的固定成员，并把私有协议内容保存在内存中；它不授予正式 Runtime 发行能力、不修
+ * 改宿主凭据后端，也不把独立测试通路误称为已安装产品接入。
+ */
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { readFile, lstat } from "node:fs/promises";
 
-/** 固定路径只供本测试模块内部验证构建成员使用，正式发行仍必须由既有库存解析器授权；其中测试辅助程序与控制器位于独立目录，任何业务配置均不能通过这里替换生产可执行程序。 */
+/** 固定路径只供本测试模块内部验证构建成员使用，正式发行仍必须由既有库存解析器授权；其中测试辅助程序与控制器位于独立目录
+ * ，任何业务配置均不能通过这里替换生产可执行程序。
+ */
 export const nativePaths = Object.freeze({
     production: fileURLToPath(new URL("../../build/vault-darwin/veriq_agent", import.meta.url)),
     test: fileURLToPath(new URL("../../build/vault-darwin-test/veriq_agent", import.meta.url)),
@@ -13,13 +17,17 @@ export const nativePaths = Object.freeze({
     memory: fileURLToPath(new URL("../../build/vault-darwin-test/veriq_acl_test", import.meta.url)),
 });
 
-/** 目标操作必须在真实 Mac 进程中开始，Linux 开发环境只能进行语法或类型验证；抛出的静态错误保留缺少实际目标的事实，既不自动下载工具链，也不将整组跳过计作原生通过。 */
+/** 目标操作必须在真实 Mac 进程中开始，Linux 开发环境只能进行语法或类型验证；抛出的静态错误保留缺少实际目标的事实，既不
+ * 自动下载工具链，也不将整组跳过计作原生通过。
+ */
 export function requireMac() {
     if (process.platform !== "darwin" || !["x64", "arm64"].includes(process.arch))
         throw new Error("DARWIN_VAULT_TARGET_REQUIRED");
 }
 
-/** 独立测试调用选项仅描述固定构建成员的协议输入、继承配置以及取消观察，不作为正式凭据后端的能力对象；期限始终限制在五十到五千毫秒，测试门闩与额外参数负例不会进入生产可执行程序的运行选择接口。 */
+/** 独立测试调用选项仅描述固定构建成员的协议输入、继承配置以及取消观察，不作为正式凭据后端的能力对象；期限始终限制在五十
+ * 到五千毫秒，测试门闩与额外参数负例不会进入生产可执行程序的运行选择接口。
+ */
 type Options = {
     args?: string[];
     capability?: object | undefined;
@@ -28,7 +36,9 @@ type Options = {
     timeoutMs?: number;
     cancel?: boolean;
 };
-/** 调用观察把实际 close 确认、退出码和停止原因分别记录，不能由超时信号推导 exitConfirmed；响应缓冲只供调用者在内存中验证并随后覆盖，原始 stderr 和系统异常对象不属于此公开测试结果类型。 */
+/** 调用观察把实际 close 确认、退出码和停止原因分别记录，不能由超时信号推导 exitConfirmed；响应缓冲只供调用者在内存中验
+ * 证并随后覆盖，原始 stderr 和系统异常对象不属于此公开测试结果类型。
+ */
 type Observation = {
     code: number | null;
     exitConfirmed: boolean;
@@ -37,7 +47,9 @@ type Observation = {
     ready: boolean;
 };
 
-/** 测试管道沿用正式协议的单帧与五秒上限，并独立等待 close 事实才完成调用；超时只终止本次子进程，任何秘密响应在断言前转换为布尔或固定状态，原始标准错误完全不进入测试报告。 */
+/** 测试管道沿用正式协议的单帧与五秒上限，并独立等待 close 事实才完成调用；超时只终止本次子进程，任何秘密响应在断言前转
+ * 换为布尔或固定状态，原始标准错误完全不进入测试报告。
+ */
 export async function nativeCall(
     path: string,
     frame: string,
@@ -105,7 +117,9 @@ export async function nativeCall(
     });
 }
 
-/** 内存测试先用合成系统状态检查生产共用错误边界，再比较跨重启模板和恶意类型树，标准输出只接受固定标记；这些回归不访问持久存储，调用者也不会把 ACL、签名数据或原始系统异常加入测试日志。 */
+/** 内存测试先用合成系统状态检查生产共用错误边界，再比较跨重启模板和恶意类型树，标准输出只接受固定标记；这些回归不访问持
+ * 久存储，调用者也不会把 ACL、签名数据或原始系统异常加入测试日志。
+ */
 export async function runMemoryChecks(): Promise<boolean> {
     const status = await nativeCall(nativePaths.memory, "", { args: ["--status-regression"] });
     const statusPassed =
@@ -133,7 +147,9 @@ export async function runMemoryChecks(): Promise<boolean> {
     return ok;
 }
 
-/** 创建诊断只允许固定阶段、有限状态和即时数值结果，字段表同时约束控制器输入与工作流收集；这里不保存原始协议、路径或异常文字，新增阶段必须经过生产者及消费者的一致性检查。 */
+/** 创建诊断只允许固定阶段、有限状态和即时数值结果，字段表同时约束控制器输入与工作流收集；这里不保存原始协议、路径或异常
+ * 文字，新增阶段必须经过生产者及消费者的一致性检查。
+ */
 const diagnosticStages = [
     "STARTUP",
     "NO_UI",
@@ -196,7 +212,9 @@ type DiagnosticRecord = {
     ownerMatches?: boolean;
     privateMode?: boolean;
 };
-/** Node 测试结算只记录固定来源与有限状态，绝不读取被抛出对象的名称、消息、堆栈或构造器；正文、覆盖和清理分别保留事实，使报告能区分主失败与随后发生的次要失败而不推断系统清理成功。 */
+/** Node 测试结算只记录固定来源与有限状态，绝不读取被抛出对象的名称、消息、堆栈或构造器；正文、覆盖和清理分别保留事实，
+ * 使报告能区分主失败与随后发生的次要失败而不推断系统清理成功。
+ */
 export type DarwinCaseFacts = {
     bodyStatus: "NOT_RECORDED" | "PASSED" | "FAILED";
     cleanupStatus: "NOT_RECORDED" | "PASSED" | "FAILED";
@@ -205,7 +223,9 @@ export type DarwinCaseFacts = {
     secondary: "NONE" | "WIPE" | "CLEANUP" | "WIPE_AND_CLEANUP";
 };
 
-/** 正文先结算并发布有限状态，然后按原序逐一尝试覆盖全部密钥且恰好清理一次，任何观察器异常均被隔离；独立布尔标志保留抛出 undefined 等值的失败事实，最后重新抛出最早的同一个对象供原测试报告器处理。 */
+/** 正文先结算并发布有限状态，然后按原序逐一尝试覆盖全部密钥且恰好清理一次，任何观察器异常均被隔离；独立布尔标志保留抛出
+ * undefined 等值的失败事实，最后重新抛出最早的同一个对象供原测试报告器处理。
+ */
 export async function settleDarwinCase(
     body: () => Promise<void>,
     wipes: (() => void)[],
@@ -290,7 +310,9 @@ type OperationContext = {
     provenance: "CONTROLLER" | "BODY_BOUNDARY";
 };
 
-/** Node 结算字段必须构成按正文、覆盖、清理顺序可到达的真实状态，额外字段和不一致主次来源一律拒绝；校验器只重建有限值对象，旧概要完全缺少此字段时仍由调用方保留未知而不是补出成功。 */
+/** Node 结算字段必须构成按正文、覆盖、清理顺序可到达的真实状态，额外字段和不一致主次来源一律拒绝；校验器只重建有限值对
+ * 象，旧概要完全缺少此字段时仍由调用方保留未知而不是补出成功。
+ */
 function caseFacts(value: unknown): DarwinCaseFacts | undefined {
     if (!value || typeof value !== "object" || Array.isArray(value)) return;
     const item = value as DarwinCaseFacts;
@@ -329,7 +351,9 @@ function caseFacts(value: unknown): DarwinCaseFacts | undefined {
     };
 }
 
-/** 操作上下文只接受固定派发表、调用方提供的协议动词和已返回的退出与形状事实，命令序号不能由字符串强制转换；正文边界仅定位断言前最后一次调用，与控制器或 helper 的失败证据明确分开。 */
+/** 操作上下文只接受固定派发表、调用方提供的协议动词和已返回的退出与形状事实，命令序号不能由字符串强制转换；正文边界仅定
+ * 位断言前最后一次调用，与控制器或 helper 的失败证据明确分开。
+ */
 function operationContext(value: unknown): OperationContext | undefined {
     if (!value || typeof value !== "object" || Array.isArray(value)) return;
     const item = value as OperationContext;
@@ -380,7 +404,9 @@ const diagnosticPrefix = "VERIQ_D1_DIAGNOSTICS ";
 const diagnosticByteLimit = 8192;
 const diagnosticRecordLimit = 96;
 
-/** 操作诊断单独使用 OP 命名空间与有限子阶段，旧创建清理阶段的字段语义不变；子阶段缺少返回事实仍然合法且保持未知，只有当前原调用已经返回的数值或原谓词已经求值的布尔值才能进入记录。 */
+/** 操作诊断单独使用 OP 命名空间与有限子阶段，旧创建清理阶段的字段语义不变；子阶段缺少返回事实仍然合法且保持未知，只有当
+ * 前原调用已经返回的数值或原谓词已经求值的布尔值才能进入记录。
+ */
 const nativeSeedStages = [
     "input",
     "account",
@@ -463,7 +489,9 @@ const nativePredicateStages = [
 ];
 const nativeEventStages = ["event-before", "event-denied", "event-after"];
 
-/** 原生操作记录只重建声明字段且逐项约束阶段与事实类型，进入及完成记录不允许携带上一步遗留数值；事件 errno 只与实际 poll 或 read 失败共同出现，原始标记字节与 helper 推测退出码始终不属于此协议。 */
+/** 原生操作记录只重建声明字段且逐项约束阶段与事实类型，进入及完成记录不允许携带上一步遗留数值；事件 errno 只与实际 poll
+ * 或 read 失败共同出现，原始标记字节与 helper 推测退出码始终不属于此协议。
+ */
 function nativeOperationRecord(item: Record<string, unknown>): DiagnosticRecord | undefined {
     if (
         Object.keys(item).some(
@@ -504,7 +532,8 @@ function nativeOperationRecord(item: Record<string, unknown>): DiagnosticRecord 
         "controllerExit",
         "controllerReply",
     ].filter((key) => key in item);
-    // 移除事实只绑定首次原始删除调用，入口及调用前失败均不得携带状态，成功必须明确保存系统零值；没有返回值的调用阶段保留失败未知，不允许借用 seed 或读取拒绝的字段来补全删除证明。
+    // 移除事实只绑定首次原始删除调用，入口及调用前失败均不得携带状态，成功必须明确保存系统零值；没有返回值的调用阶段保
+    // 留失败未知，不允许借用 seed 或读取拒绝的字段来补全删除证明。
     if (item.nativeOperation === "remove") {
         if (facts.some((key) => key !== "osStatus")) return;
         if (
@@ -609,7 +638,9 @@ function nativeOperationRecord(item: Record<string, unknown>): DiagnosticRecord 
     return safe;
 }
 
-/** 每个夹具最多接纳首次移除的入口和一个终态，校验同时用于流式过滤与已序列化报告的复核；只有入口而没有终态仍须标记不完整，第二次调用或重复终态不能冒充同一次删除的补充事实。 */
+/** 每个夹具最多接纳首次移除的入口和一个终态，校验同时用于流式过滤与已序列化报告的复核；只有入口而没有终态仍须标记不完整
+ * ，第二次调用或重复终态不能冒充同一次删除的补充事实。
+ */
 function validRemoveSequence(records: readonly DiagnosticRecord[]): boolean {
     const removes = records.filter(
         (record) => record.stage === "OP" && record.nativeOperation === "remove",
@@ -621,7 +652,9 @@ function validRemoveSequence(records: readonly DiagnosticRecord[]): boolean {
     );
 }
 
-/** 私有读取证据按控制器传输观察与 helper 已执行事实分层重建，阶段之前没有执行的字段保持缺失；完整短路前缀必须逐项为真，状态整数不接受强制转换，未知传输不能伪装成系统错误或业务成功。 */
+/** 私有读取证据按控制器传输观察与 helper 已执行事实分层重建，阶段之前没有执行的字段保持缺失；完整短路前缀必须逐项为真，
+ * 状态整数不接受强制转换，未知传输不能伪装成系统错误或业务成功。
+ */
 function helperReadRecord(item: Record<string, unknown>): DiagnosticRecord | undefined {
     if (
         Object.keys(item).some(
@@ -675,7 +708,8 @@ function helperReadRecord(item: Record<string, unknown>): DiagnosticRecord | und
     if (h.source !== "TEST_HELPER" || typeof h.phase !== "string" || !phases.includes(h.phase))
         return;
     const fields: string[] = [];
-    // 新流程的数组和唯一事实来自同一次元数据查询，唯一同时包含类型、精确服务账户与引用守卫；旧记录没有查询槽时沿用原语义，不能把新流程查询错误塞进秘密读取状态以换取合法记录。
+    // 新流程的数组和唯一事实来自同一次元数据查询，唯一同时包含类型、精确服务账户与引用守卫；旧记录没有查询槽时沿用原语
+    // 义，不能把新流程查询错误塞进秘密读取状态以换取合法记录。
     if (lookupFlow) {
         fields.push("lookupStatus");
         if (h.phase !== "lookup") {
@@ -727,7 +761,8 @@ function helperReadRecord(item: Record<string, unknown>): DiagnosticRecord | und
         if (["after", "done"].includes(h.phase)) fields.push("afterStatus");
         if (h.phase === "done") fields.push("unlockedBefore", "unlockedAfter");
     }
-    // 当前调用尚未返回时允许它的状态缺失，已经进入下一步的状态则必须存在；这种区分保留异常发生在调用中与原状态返回后失败的不同事实，避免任何缺省零值变成成功。
+    // 当前调用尚未返回时允许它的状态缺失，已经进入下一步的状态则必须存在；这种区分保留异常发生在调用中与原状态返回后失
+    // 败的不同事实，避免任何缺省零值变成成功。
     const optional =
         h.phase === "lookup"
             ? "lookupStatus"
@@ -769,7 +804,9 @@ function helperReadRecord(item: Record<string, unknown>): DiagnosticRecord | und
     return safe;
 }
 
-/** 字段校验先拒绝所有未声明属性，再重建有序的安全记录，避免反序列化对象夹带私有信息；系统状态只接受有符号三十二位整数，errno 只能是非负整数而布尔事实不接受数值替代。 */
+/** 字段校验先拒绝所有未声明属性，再重建有序的安全记录，避免反序列化对象夹带私有信息；系统状态只接受有符号三十二位整数，
+ * errno 只能是非负整数而布尔事实不接受数值替代。
+ */
 function diagnosticRecord(value: unknown): DiagnosticRecord | undefined {
     if (!value || typeof value !== "object" || Array.isArray(value)) return;
     const item = value as Record<string, unknown>;
@@ -824,7 +861,9 @@ function diagnosticRecord(value: unknown): DiagnosticRecord | undefined {
         if (typeof item[key] !== "boolean") return;
         safe[key] = item[key];
     }
-    /** 三个文件事实只允许形成原短路链可到达的终态前缀，失败必须以实际求值的假值结束且成功必须全部为真；旧记录全部缺失时继续保留未知，带 errno 的调用失败不能同时声称后续谓词已经执行。 */
+    /** 三个文件事实只允许形成原短路链可到达的终态前缀，失败必须以实际求值的假值结束且成功必须全部为真；旧记录全部缺失时
+     * 继续保留未知，带 errno 的调用失败不能同时声称后续谓词已经执行。
+     */
     if (["regularFile", "ownerMatches", "privateMode"].some((key) => key in item)) {
         if (safe.stage !== "KEYCHAIN_STAT" || safe.state === "entered" || "errno" in item) return;
         if (safe.regularFile === false) {
@@ -838,7 +877,9 @@ function diagnosticRecord(value: unknown): DiagnosticRecord | undefined {
     return safe;
 }
 
-/** 每个夹具的流式过滤器只保留已验证记录，单行原始缓冲固定为五百一十二字节且消费后覆盖；预算包含概要预留空间，达到字节或条数上限后继续排空输入但不再接受记录，也不改变控制器结果。 */
+/** 每个夹具的流式过滤器只保留已验证记录，单行原始缓冲固定为五百一十二字节且消费后覆盖；预算包含概要预留空间，达到字节或
+ * 条数上限后继续排空输入但不再接受记录，也不改变控制器结果。
+ */
 export function createDarwinDiagnosticFilter() {
     const records: DiagnosticRecord[] = [];
     const admittedReads = new Set<string>();
@@ -871,7 +912,9 @@ export function createDarwinDiagnosticFilter() {
             firstOperation = { ...current, category, provenance };
     };
     return {
-        /** 命令上下文在实际排队结束后记录，非法值与序号耗尽只停止元数据接纳而不阻断真实操作；固定动词由已知调用方提供，绝不从帧中提取档案、版本、密钥或任意请求字段加入诊断。 */
+        /** 命令上下文在实际排队结束后记录，非法值与序号耗尽只停止元数据接纳而不阻断真实操作；固定动词由已知调用方提供，
+         * 绝不从帧中提取档案、版本、密钥或任意请求字段加入诊断。
+         */
         operation(operation: string, verb: string) {
             if (metadataStopped) return;
             if (
@@ -891,7 +934,9 @@ export function createDarwinDiagnosticFilter() {
                 shape: "UNKNOWN",
             };
         },
-        /** helper 事实只来自已经返回的控制器信封以及实际回复验证结果，缺失退出码绝不猜测成非零；预期故障恢复可以传入有效条件，合法领域拒绝也不会被当作协议失败而覆盖之后正文的断言边界。 */
+        /** helper 事实只来自已经返回的控制器信封以及实际回复验证结果，缺失退出码绝不猜测成非零；预期故障恢复可以传入有
+         * 效条件，合法领域拒绝也不会被当作协议失败而覆盖之后正文的断言边界。
+         */
         helper(code: unknown, shape: string, valid: boolean) {
             if (metadataStopped || !current) return;
             if (
@@ -911,7 +956,9 @@ export function createDarwinDiagnosticFilter() {
             current.shape = shape as OperationContext["shape"];
             if (!valid) capture("HELPER", "CONTROLLER");
         },
-        /** 测试结算通过独立 Node 来源写入状态，正文失败只在尚无原操作失败时冻结最后边界；恶意访问器或观察分类异常只标记不完整，不得替换调用方原错误或将后续清理拒绝变成最早原因。 */
+        /** 测试结算通过独立 Node 来源写入状态，正文失败只在尚无原操作失败时冻结最后边界；恶意访问器或观察分类异常只标记
+         * 不完整，不得替换调用方原错误或将后续清理拒绝变成最早原因。
+         */
         nodeCase(value: DarwinCaseFacts) {
             if (metadataStopped) return;
             try {
@@ -926,7 +973,9 @@ export function createDarwinDiagnosticFilter() {
                 rejectMetadata();
             }
         },
-        /** 原始分块只逐字节进入有限行缓冲，跨块换行与非法编码使用相同验证路径；超长行直接丢弃到下一换行，达到总体上限则停止接纳，最终无论解析结果如何都覆盖调用者交付的原始分块。 */
+        /** 原始分块只逐字节进入有限行缓冲，跨块换行与非法编码使用相同验证路径；超长行直接丢弃到下一换行，达到总体上限则
+         * 停止接纳，最终无论解析结果如何都覆盖调用者交付的原始分块。
+         */
         push(bytes: Buffer) {
             try {
                 for (const byte of bytes) {
@@ -986,14 +1035,18 @@ export function createDarwinDiagnosticFilter() {
                 bytes.fill(0);
             }
         },
-        /** 首个固定失败类别一旦出现便不再被退出或清理错误覆盖，未知输入只降低观察完整性而不变成日志正文；此方法不触发 kill、重试或协议回复，也不修改调用方已有错误对象与抛出时机。 */
+        /** 首个固定失败类别一旦出现便不再被退出或清理错误覆盖，未知输入只降低观察完整性而不变成日志正文；此方法不触发
+         * kill、重试或协议回复，也不修改调用方已有错误对象与抛出时机。
+         */
         fail(reason: DiagnosticFailure) {
             if (diagnosticFailures.includes(reason)) {
                 firstFailure ??= reason;
                 capture(reason, "CONTROLLER");
             } else rejected = true;
         },
-        /** 退出事实只在真实 child close 回调写入，未记录的状态保持空值而不是猜测成功；退出信号映射到有限集合，其他信号只保留静态 OTHER 标志，不能从任何退出状态推导钥匙串清理完成。 */
+        /** 退出事实只在真实 child close 回调写入，未记录的状态保持空值而不是猜测成功；退出信号映射到有限集合，其他信号
+         * 只保留静态 OTHER 标志，不能从任何退出状态推导钥匙串清理完成。
+         */
         close(exitCode: number | null, exitSignal: string | null) {
             closeObserved = true;
             code =
@@ -1009,7 +1062,9 @@ export function createDarwinDiagnosticFilter() {
                       ? (exitSignal as DiagnosticSummary["signal"])
                       : "OTHER";
         },
-        /** 概要在原有有限退出结算后生成，未闭合阶段、残留半行和任何截断都保留为不完整观察；返回值复制已验证记录并覆盖原始缓冲，此后继续排空迟到分块但不把晚到信息补成既有清理成功。 */
+        /** 概要在原有有限退出结算后生成，未闭合阶段、残留半行和任何截断都保留为不完整观察；返回值复制已验证记录并覆盖原
+         * 始缓冲，此后继续排空迟到分块但不把晚到信息补成既有清理成功。
+         */
         finish(fixture: number): DiagnosticSummary {
             const entered = new Set<string>();
             for (const record of records) {
@@ -1053,7 +1108,9 @@ export function createDarwinDiagnosticFilter() {
     };
 }
 
-/** 工作流只消费夹具已收敛的概要并再次使用同一字段校验，诊断行从原始 TAP 日志删除后仅保存在报告内；最多两个不同序号和十六 KiB，非法或截断候选不回显，原测试失败与清理推导均保持独立。 */
+/** 工作流只消费夹具已收敛的概要并再次使用同一字段校验，诊断行从原始 TAP 日志删除后仅保存在报告内；最多两个不同序号和十
+ * 六 KiB，非法或截断候选不回显，原测试失败与清理推导均保持独立。
+ */
 export function collectDarwinDiagnostics(streams: Buffer[]) {
     const fixtures: DiagnosticSummary[] = [];
     let rejected = false;
@@ -1157,7 +1214,9 @@ export function collectDarwinDiagnostics(streams: Buffer[]) {
 }
 let diagnosticOrdinal = 0;
 
-/** 专用控制器由操作者配置的会话声明启动，并在原生层再次核对真实 UID、登录名和安全会话；声明文件不含密码或密钥，密码由系统随机源在控制器内产生，创建与删除的偏好副作用只允许发生在该可丢弃账户。 */
+/** 专用控制器由操作者配置的会话声明启动，并在原生层再次核对真实 UID、登录名和安全会话；声明文件不含密码或密钥，密码由系
+ * 统随机源在控制器内产生，创建与删除的偏好副作用只允许发生在该可丢弃账户。
+ */
 export async function dedicatedFixture() {
     requireMac();
     const configPath = process.env.VERIQ_D1_DISPOSABLE_SESSION;
@@ -1180,7 +1239,9 @@ export async function dedicatedFixture() {
     const ordinal = ++diagnosticOrdinal;
     let emitted = false;
     let settling = false;
-    /** 诊断输出延后至原控制器的有界退出结算，避免 stdout 拒绝先到而遗漏已经排队的 stderr 阶段；只有两个固定序号可导出，序列化或观察输出失败不能替换原 SESSION_REFUSED 或清理失败。 */
+    /** 诊断输出延后至原控制器的有界退出结算，避免 stdout 拒绝先到而遗漏已经排队的 stderr 阶段；只有两个固定序号可导出，
+     * 序列化或观察输出失败不能替换原 SESSION_REFUSED 或清理失败。
+     */
     const emitDiagnostics = () => {
         if (emitted || ordinal > 2) return;
         emitted = true;
@@ -1202,7 +1263,9 @@ export async function dedicatedFixture() {
             resolve();
         }),
     );
-    /** 控制器错误也必须等待真实 close 才能交回调用方，最多一秒的退出核对与五秒请求期限分别计量；超过核对期限保留明确未知结果，不把已经调用 kill 当成控制器及其自有存储都完成清理。 */
+    /** 控制器错误也必须等待真实 close 才能交回调用方，最多一秒的退出核对与五秒请求期限分别计量；超过核对期限保留明确未
+     * 知结果，不把已经调用 kill 当成控制器及其自有存储都完成清理。
+     */
     const confirmedExit = async () => {
         if (closed) return;
         await new Promise<void>((resolve, reject) => {
@@ -1386,7 +1449,9 @@ export async function dedicatedFixture() {
         }
     };
     return {
-        /** 专用测试通过同一可移植结算器先保留正文结局再逐一覆盖原缓冲和清理，只有诊断导出延后至结算完成；实际清理函数的命令、终止、期限和退出确认仍保持原顺序，失败对象交回原测试报告器。 */
+        /** 专用测试通过同一可移植结算器先保留正文结局再逐一覆盖原缓冲和清理，只有诊断导出延后至结算完成；实际清理函数的
+         * 命令、终止、期限和退出确认仍保持原顺序，失败对象交回原测试报告器。
+         */
         async settle(body: () => Promise<void>, wipes: (() => void)[]) {
             settling = true;
             try {
@@ -1398,7 +1463,9 @@ export async function dedicatedFixture() {
                 emitDiagnostics();
             }
         },
-        /** 普通状态调用只允许既有 V1 固定状态回执且要求原生进程已经正常退出，任何含密钥的读取回复都不能误入此解析器；原始管道缓冲在返回或抛错之前覆盖，测试断言只能得到不会泄漏材料的状态字符串。 */
+        /** 普通状态调用只允许既有 V1 固定状态回执且要求原生进程已经正常退出，任何含密钥的读取回复都不能误入此解析器；原
+         * 始管道缓冲在返回或抛错之前覆盖，测试断言只能得到不会泄漏材料的状态字符串。
+         */
         async status(operation: string, profile: string, version: string, key?: Buffer) {
             const result = await call(operation, profile, version, key);
             try {
@@ -1421,7 +1488,9 @@ export async function dedicatedFixture() {
                 result.bytes.fill(0);
             }
         },
-        /** 精确版本读取通过新的真实 helper 进程完成，并在内存里与期望三十二字节的规范 V1 编码比较；实际回复和期望缓冲都在 finally 中覆盖，失败仅返回布尔而不让断言框架打印两个密钥的字节差异。 */
+        /** 精确版本读取通过新的真实 helper 进程完成，并在内存里与期望三十二字节的规范 V1 编码比较；实际回复和期望缓冲都
+         * 在 finally 中覆盖，失败仅返回布尔而不让断言框架打印两个密钥的字节差异。
+         */
         async matches(profile: string, version: string, key: Buffer) {
             const result = await call("get", profile, version);
             const expected = Buffer.from(`V1 ok ${key.toString("base64url")}\n`);
@@ -1438,11 +1507,15 @@ export async function dedicatedFixture() {
                 expected.fill(0);
             }
         },
-        /** 测试管理操作只交给已经完成会话声明的固定控制器，调用方不能选择任意可执行程序或钥匙串路径；方法等待该操作的明确结果并由控制器负责真正的 lock 或 unlock，不在 TypeScript 中模拟锁定标志。 */
+        /** 测试管理操作只交给已经完成会话声明的固定控制器，调用方不能选择任意可执行程序或钥匙串路径；方法等待该操作的明
+         * 确结果并由控制器负责真正的 lock 或 unlock，不在 TypeScript 中模拟锁定标志。
+         */
         async control(operation: string, fields: object = {}) {
             await command(operation, fields);
         },
-        /** 两个真实 helper 在控制器内同时启动并停在已确认缺失的写入边界，测试要求真实系统返回一次新增和一次重复；返回值只包含计数、布尔和退出事实，不把排队串行调用误当作竞争，也不输出任一密钥正文。 */
+        /** 两个真实 helper 在控制器内同时启动并停在已确认缺失的写入边界，测试要求真实系统返回一次新增和一次重复；返回值
+         * 只包含计数、布尔和退出事实，不把排队串行调用误当作竞争，也不输出任一密钥正文。
+         */
         async race(profile: string, version: string, first: Buffer, second: Buffer) {
             const reply = await command("race", {
                 profile,
@@ -1458,7 +1531,9 @@ export async function dedicatedFixture() {
                 reply.readback === true
             );
         },
-        /** 未变化证明要求控制器实际重读目标材料、公开 ACL 和非秘密属性三个独立结果都成立，任何不可读取或不匹配都不会降级成主密文文件未变；调用方只接收布尔组合，底层材料和权限主体保持在私有通道内。 */
+        /** 未变化证明要求控制器实际重读目标材料、公开 ACL 和非秘密属性三个独立结果都成立，任何不可读取或不匹配都不会降
+         * 级成主密文文件未变；调用方只接收布尔组合，底层材料和权限主体保持在私有通道内。
+         */
         async unchanged(profile: string, version: string) {
             const reply = await command("unchanged", {
                 profile,
@@ -1470,7 +1545,9 @@ export async function dedicatedFixture() {
                 reply.attributesUnchanged === true
             );
         },
-        /** 独立系统拒绝检查要求被拒绝的 helper 实际尝试秘密读取并观察自身前后解锁，控制器另行核验真实状态及值、ACL、属性未变；所有事实与正常退出都必须成立，缺失字段或任何错误均不能被当作策略拒绝已有覆盖。 */
+        /** 独立系统拒绝检查要求被拒绝的 helper 实际尝试秘密读取并观察自身前后解锁，控制器另行核验真实状态及值、ACL、属
+         * 性未变；所有事实与正常退出都必须成立，缺失字段或任何错误均不能被当作策略拒绝已有覆盖。
+         */
         async readDenial(profile: string, version: string) {
             const reply = await command("read-denial", { profile, version });
             return [
@@ -1487,7 +1564,9 @@ export async function dedicatedFixture() {
                 "attributesUnchanged",
             ].every((field) => reply[field] === true);
         },
-        /** 测试故障分别在系统新增和删除返回后使 helper 死亡，调用器先确认没有确定性成功回复且进程确实退出，再用同一档案版本只读核对；新增读回原材料而删除读回缺失，两种结果都不能由死亡本身推导或自动重放。 */
+        /** 测试故障分别在系统新增和删除返回后使 helper 死亡，调用器先确认没有确定性成功回复且进程确实退出，再用同一档案
+         * 版本只读核对；新增读回原材料而删除读回缺失，两种结果都不能由死亡本身推导或自动重放。
+         */
         async uncertainRecovery(profile: string, version: string, key: Buffer) {
             const result = await call("set", profile, version, key, "after-add");
             const uncertain = result.code !== 0 && result.bytes.length === 0;
@@ -1516,7 +1595,9 @@ export async function dedicatedFixture() {
                 missing.bytes.fill(0);
             }
         },
-        /** 夹具清理要求控制器显式完成自有存储删除并关闭自身进程，错误路径也覆盖积累的私有响应并有界核对实际退出；若内核没有确认退出则抛出未知清理错误，而不是让 finally 结束被误解为系统状态已经恢复。 */
+        /** 夹具清理要求控制器显式完成自有存储删除并关闭自身进程，错误路径也覆盖积累的私有响应并有界核对实际退出；若内核
+         * 没有确认退出则抛出未知清理错误，而不是让 finally 结束被误解为系统状态已经恢复。
+         */
         cleanup,
     };
 }

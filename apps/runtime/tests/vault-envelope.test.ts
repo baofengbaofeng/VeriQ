@@ -1,4 +1,6 @@
-/** 凭据封装测试只使用内存中的合成密钥与载荷，通过真实标准加密核验认证绑定、大小边界及失败信息；不把独立算法测试描述为系统保险库或安装环境的持久化验收。 */
+/** 凭据封装测试只使用内存中的合成密钥与载荷，通过真实标准加密核验认证绑定、大小边界及失败信息；不把独立算法测试描述为系
+ * 统保险库或安装环境的持久化验收。
+ */
 import assert from "node:assert/strict";
 import { createCipheriv, randomBytes } from "node:crypto";
 import { test } from "node:test";

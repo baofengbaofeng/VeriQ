@@ -7,7 +7,9 @@ import { join, basename } from "node:path";
 type Desktop = Awaited<ReturnType<typeof _electron.launch>>;
 const command = promisify(execFile);
 
-/** 崩溃诊断只读取测试启动进程的身份和内核状态，旧 PID 消失或被复用均不再读取其详细信息；不发送信号、不调整 core 策略，也不把原始 proc 内容或命令行写入共享证据。 */
+/** 崩溃诊断只读取测试启动进程的身份和内核状态，旧 PID 消失或被复用均不再读取其详细信息；不发送信号、不调整 core 策略，
+ * 也不把原始 proc 内容或命令行写入共享证据。
+ */
 async function identity(pid: number) {
     try {
         const raw = await readFile(`/proc/${pid}/stat`, "utf8");
@@ -19,7 +21,9 @@ async function identity(pid: number) {
     }
 }
 
-/** 在原崩溃动作外安装不会处理异常的 monitor，并由驱动独立执行一次有界失败现场采集；十秒只是观测触发点，不解除原恢复等待、不增加业务预算，也不把截图存在当恢复成功。 */
+/** 在原崩溃动作外安装不会处理异常的 monitor，并由驱动独立执行一次有界失败现场采集；十秒只是观测触发点，
+ * 不解除原恢复等待、不增加业务预算，也不把截图存在当恢复成功。
+ */
 export async function observeCrashFailure(electron: Desktop, evidence: string) {
     const cleanup = await electron.evaluateHandle(({ BrowserWindow }) => {
         const contents = BrowserWindow.getAllWindows()[0]!.webContents;
@@ -134,7 +138,8 @@ export async function observeCrashFailure(electron: Desktop, evidence: string) {
                 corePattern: pattern.startsWith("|") ? "pipe" : "file",
                 helper: helper && /^[A-Za-z0-9_.-]{1,64}$/.test(helper) ? helper : "unknown",
             });
-            // 私有显示器只包含本轮合成验收窗口；截图命令最多运行三秒且输出限制在一 MiB，失败只记稳定诊断状态，不改主测试的等待结果或关闭任何窗口。
+            // 私有显示器只包含本轮合成验收窗口；截图命令最多运行三秒且输出限制在一 MiB，失败只记稳定诊断状态，
+            // 不改主测试的等待结果或关闭任何窗口。
             const image = await command(
                 "import",
                 ["-window", "root", "-resize", "1280x800>", "-depth", "8", "png:-"],
@@ -151,9 +156,11 @@ export async function observeCrashFailure(electron: Desktop, evidence: string) {
     return async () => {
         clearTimeout(timer);
         if (pending) await pending;
-        // 正常恢复、窗口销毁和测试 finally 都撤销本人 monitor；不安装普通 uncaughtException，因此 Electron 默认 errorBox 行为及 listenerCount 判断不变。
+        // 正常恢复、窗口销毁和测试 finally 都撤销本人 monitor；不安装普通 uncaughtException，因此 Electron 默认
+        // errorBox 行为及 listenerCount 判断不变。
         const removal = cleanup.evaluate((remove) => remove()).finally(() => cleanup.dispose());
-        // 若主线程正在默认 errorBox 内停顿，诊断自身不得无限等待；迟到 Promise 仍有拒绝处理，三秒只表示撤监听请求尚未确认，不能冒充 Agent、窗口或业务进程停止。
+        // 若主线程正在默认 errorBox 内停顿，诊断自身不得无限等待；迟到 Promise 仍有拒绝处理，三秒只表示撤监听请求尚未确
+        // 认，不能冒充 Agent、窗口或业务进程停止。
         void removal.catch(() => {});
         let deadline: ReturnType<typeof setTimeout> | undefined;
         try {

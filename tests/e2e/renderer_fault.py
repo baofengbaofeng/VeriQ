@@ -1,7 +1,6 @@
-(
-    """恢复验收只向由 Electron 主窗口确认且 pidfd 绑定的 UI renderer 注入一次异常终止，不停止 Agent 或业务浏览器；窗口角色由可信主进程先行验证，身份、祖先或平台能力不符均拒绝，不提供数字 """
-    """PID 信号或重试回退。"""
-)
+"""恢复验收只向由 Electron 主窗口确认且 pidfd 绑定的 UI renderer 注入一次异常终止，不停止 Agent 或业务浏览器；
+窗口角色由可信主进程先行验证，身份、祖先或平台能力不符均拒绝，不提供数字 PID 信号或重试回退。
+"""
 
 import json
 import os
@@ -13,11 +12,15 @@ import sys
 
 
 class FaultRejected(RuntimeError):
-    """稳定拒绝码只供 QA 解释故障注入边界，不携带命令行、私有路径或业务数据；被拒绝的目标不能进入发送信号分支，调用方也不能把拒绝当作已退出证明。"""
+    """稳定拒绝码只供 QA 解释故障注入边界，不携带命令行、私有路径或业务数据；被拒绝的目标不能进入发送信号分支，
+    调用方也不能把拒绝当作已退出证明。
+    """
 
 
 def identity(pid: int) -> dict:
-    """读取同一宿主进程的 UID、启动时钟与父进程，用启动时钟排除读取期间 PID 复用；最终信号仍只通过已打开的内核 pidfd 发送。"""
+    """读取同一宿主进程的 UID、启动时钟与父进程，用启动时钟排除读取期间 PID 复用；最终信号仍只通过已打开的内核 pidfd
+    发送。
+    """
     directory = Path(f"/proc/{pid}")
     raw = (directory / "stat").read_text()
     fields = raw[raw.rfind(")") + 2 :].split()
@@ -31,7 +34,9 @@ def identity(pid: int) -> dict:
 
 
 def matches(actual: dict, pid: int, uid: int, start: str) -> bool:
-    """身份必须同时匹配 PID、UID 和内核启动时钟，僵尸或已退出状态不能被再次当作活跃 UI renderer 注入，避免对已经终结的目标重复发送信号。"""
+    """身份必须同时匹配 PID、UID 和内核启动时钟，僵尸或已退出状态不能被再次当作活跃 UI renderer 注入，
+    避免对已经终结的目标重复发送信号。
+    """
     return (
         actual["pid"] == pid
         and actual["uid"] == uid
@@ -41,7 +46,9 @@ def matches(actual: dict, pid: int, uid: int, start: str) -> bool:
 
 
 def check_fd(fd: int, pid: int) -> None:
-    """fdinfo 必须仍指向预期进程且 pidfd 尚未就绪，已退出目标即使数字 PID 被重用也不能通过验证；没有读取到确切身份时失败关闭。"""
+    """fdinfo 必须仍指向预期进程且 pidfd 尚未就绪，已退出目标即使数字 PID 被重用也不能通过验证；没有读取到确切身份时失败
+    关闭。
+    """
     info = Path(f"/proc/self/fdinfo/{fd}").read_text()
     actual = re.search(r"^Pid:\s*(-?\d+)\s*$", info, re.MULTILINE)
     poll = select.poll()
@@ -51,7 +58,9 @@ def check_fd(fd: int, pid: int) -> None:
 
 
 def inject(request: dict) -> dict:
-    """先打开稳定进程句柄，再复核可信主进程已绑定的 UI 可执行文件和通往同身份主进程的有限祖先链；仅一次 SIGKILL 诱发真实进程丢失，并用同句柄观察退出，发送成功不等于恢复或业务停止。"""
+    """先打开稳定进程句柄，再复核可信主进程已绑定的 UI 可执行文件和通往同身份主进程的有限祖先链；仅一次 SIGKILL
+    诱发真实进程丢失，并用同句柄观察退出，发送成功不等于恢复或业务停止。
+    """
     if sys.platform != "linux" or sys.version_info[:2] != (3, 12):
         raise FaultRejected("RENDERER_FAULT_PLATFORM_REQUIRED")
     if not hasattr(os, "pidfd_open") or not hasattr(signal, "pidfd_send_signal"):

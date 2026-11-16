@@ -43,15 +43,15 @@ export interface EngineDistribution {
     /** Offline npm archives referenced by the lock; only vendor/ paths are accepted. */
     files: Record<string, Uint8Array>;
 }
-/**
- * 公开接口 CompiledOutput 表示编译产物：含生成文件表与 CompiledAssetBundle 元数据（CompiledOutput/ENGINE_DISTRIBUTION_REQUIRED）。
+/** 公开接口 CompiledOutput 表示编译产物：含生成文件表与 CompiledAssetBundle 元数据（CompiledOutput/ENGINE_DISTRIBUTION_
+ * REQUIRED）。
  */
 export interface CompiledOutput {
     bundle: CompiledAssetBundle;
     files: Record<string, Uint8Array>;
 }
-/**
- * 公开接口 ExecutionPackage 描述可交给运行时装配的执行包：含编译产物与发行核对所需材料（ExecutionPackage/ENGINE_DISTRIBUTION_REQUIRED）。
+/** 公开接口 ExecutionPackage 描述可交给运行时装配的执行包：含编译产物与发行核对所需材料（ExecutionPackage/ENGINE_DISTRI
+ * BUTION_REQUIRED）。
  */
 export interface ExecutionPackage {
     bundle: CompiledAssetBundle;
@@ -59,8 +59,8 @@ export interface ExecutionPackage {
     entrypoint: string;
     snapshot: ExecutionSnapshotV1;
 }
-/**
- * T06 实现该导入 ABI；执行上下文由 worker 注入，编译器永不把上下文写进生成代码。公开接口 RunnerSdkV1 描述生成代码依赖的 runner-sdk ABI：执行上下文由 worker 注入：编译器只发射惰性调用。
+/** T06 实现该导入 ABI；执行上下文由 worker 注入，编译器永不把上下文写进生成代码。公开接口 RunnerSdkV1
+ * 描述生成代码依赖的 runner-sdk ABI：执行上下文由 worker 注入：编译器只发射惰性调用。
  */
 export interface RunnerSdkV1 {
     registerCase(plan: CompiledCase, source: AssetSnapshotV1): void;

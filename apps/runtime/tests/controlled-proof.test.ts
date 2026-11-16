@@ -49,7 +49,9 @@ const proof = () => ({
     },
 });
 
-/** 此处只测试有限私有证明的纯格式边界，手工身份与退出事实不会伪装成操作系统观察；缺少实现时明确断言公开验证能力缺失，畸形输入不得通过私有状态字符串取得受控停止信任。 */
+/** 此处只测试有限私有证明的纯格式边界，手工身份与退出事实不会伪装成操作系统观察；缺少实现时明确断言公开验证能力缺失，畸
+ * 形输入不得通过私有状态字符串取得受控停止信任。
+ */
 async function implementation() {
     const module = await import("../src/execution/darwin-proof.ts").catch((error) => {
         if (error.code === "ERR_MODULE_NOT_FOUND") return {};
@@ -60,7 +62,9 @@ async function implementation() {
     return module;
 }
 
-/** 有效配对只表达本平台、同一代际与两份固定绑定的已提交证明，不能接受任一孤立成员或未提交状态；替换这些身份或加入排空字段应使验证失败，而不是回退到裸 PID 的存在性。 */
+/** 有效配对只表达本平台、同一代际与两份固定绑定的已提交证明，不能接受任一孤立成员或未提交状态；替换这些身份或加入排空字
+ * 段应使验证失败，而不是回退到裸 PID 的存在性。
+ */
 test("controlled proof requires exact committed identity and platform pair", async () => {
     const { validateControlledPair } = await implementation();
     const expected = { attemptId, uid: 501 };
@@ -113,7 +117,9 @@ test("controlled proof requires exact committed identity and platform pair", asy
     assert.equal(validateControlledPair(journal(), proof(), { attemptId, uid: 502 }), false);
 });
 
-/** 日志摘要必须保持有界计数与摘要格式，最大直接对象集合不能膨胀进六万五千字节的证明；未计划浏览器的验证和清理必须显式保持空浏览器事实，取消码只接受持久授权同代记录。 */
+/** 日志摘要必须保持有界计数与摘要格式，最大直接对象集合不能膨胀进六万五千字节的证明；未计划浏览器的验证和清理必须显式保
+ * 持空浏览器事实，取消码只接受持久授权同代记录。
+ */
 test("controlled proof bounds roster and distinguishes planned absence and authorized cancellation", async () => {
     const { validateControlledPair } = await implementation();
     const expected = { attemptId, uid: 501 };
@@ -179,7 +185,9 @@ test("controlled proof bounds roster and distinguishes planned absence and autho
     );
 });
 
-/** 手工字节遵循唯一 C1 帧协议而不调用生产日志生成器，故删掉封存或放宽角色顺序会被实际验证结果捕获；这些结构测试明确不提供 CLI、outer 或浏览器真实退出的替代证据。 */
+/** 手工字节遵循唯一 C1 帧协议而不调用生产日志生成器，故删掉封存或放宽角色顺序会被实际验证结果捕获；这些结构测试明确不提
+ * 供 CLI、outer 或浏览器真实退出的替代证据。
+ */
 function frames(expected: typeof binding, codes: { code: number | null; signal: string | null }[]) {
     const result: object[] = [{ ...expected, seq: 0, type: "OBSERVER_READY" }];
     for (const [index, exit] of codes.entries()) {
@@ -254,7 +262,9 @@ test("both final journals require fixed prefix, complete seals and CLI exit auth
     );
 });
 
-/** 共享记录读取器也服务 attempts 目录，因此 Darwin 停止确认必须另核 processes 角色白名单；普通 JSON、未知后缀和 staging 不能混入合法选中证明，而其他已识别的活动过程成员仍保持独立。 */
+/** 共享记录读取器也服务 attempts 目录，因此 Darwin 停止确认必须另核 processes 角色白名单；普通 JSON、未知后缀和 staging
+ * 不能混入合法选中证明，而其他已识别的活动过程成员仍保持独立。
+ */
 test("controlled process directory rejects bare JSON roles and preserves recognized active members", async () => {
     const module = await implementation();
     assert.ok("isControlledProcessMember" in module, "process-role validator must be implemented");
@@ -275,7 +285,9 @@ test("controlled process directory rejects bare JSON roles and preserves recogni
         assert.equal(module.isControlledProcessMember(name), false, name);
 });
 
-/** 私有过程和证明彼此匹配仍不能代替 Claim 的业务任务身份，无浏览器的验证或清理不能冒充 TEST；本纯测试只验证身份边，真实 Darwin 历史读取继续由原生组件 suite 独立覆盖。 */
+/** 私有过程和证明彼此匹配仍不能代替 Claim 的业务任务身份，无浏览器的验证或清理不能冒充 TEST；本纯测试只验证身份边，真实
+ * Darwin 历史读取继续由原生组件 suite 独立覆盖。
+ */
 test("controlled history binds Claim kind, generation and Attempt to the process identity", async () => {
     const module = await implementation();
     assert.ok(

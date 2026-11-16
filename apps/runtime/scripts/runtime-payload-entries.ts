@@ -32,14 +32,20 @@ import {
     type TreeInventory,
 } from "./runtime-payload-inputs.ts";
 
-/** 宿主动作只接收已固定的真实命令参数，调用者应原样交给既有 runBoundedAssetCli，不能通过这个接口取得任意事务写入权；开始与结束时刻由生产器在实际调用边界记录而不是预先声明成功。 */
+/**
+ * 宿主动作只接收已固定的真实命令参数，调用者应原样交给既有 runBoundedAssetCli，不能通过这个接口取得任意事务写入权；开始
+ * 与结束时刻由生产器在实际调用边界记录而不是预先声明成功。
+ */
 export type HostBuildInvocation = Readonly<{
     executable: string;
     args: readonly string[];
     cwd: string;
     timeoutMs: number;
 }>;
-/** 观察保留既有有界进程管理器的全部结算事实和原始输出，关闭未知、信号、错误、超时或截断都不能成为成功；直接子进程的 close 不代表任意后代清空，调用者仍拥有实际子进程与构建目录生命周期。 */
+/**
+ * 观察保留既有有界进程管理器的全部结算事实和原始输出，关闭未知、信号、错误、超时或截断都不能成为成功；直接子进程的
+ * close 不代表任意后代清空，调用者仍拥有实际子进程与构建目录生命周期。
+ */
 export type HostBuildObservation = Readonly<{
     stdout: Buffer;
     stderr: Buffer;
@@ -52,7 +58,10 @@ export type HostBuildObservation = Readonly<{
     pid: number | null;
     error: string | null;
 }>;
-/** 输入沿用现有来源和构建字段，独立空目录由调用者持有且不能位于源码或事务内；动作身份与所有元数据会在首次等待前复制，宿主工具仅用于本地构建，Darwin 目标声明绝不冒充本机平台事实。 */
+/**
+ * 输入沿用现有来源和构建字段，独立空目录由调用者持有且不能位于源码或事务内；动作身份与所有元数据会在首次等待前复制，宿
+ * 主工具仅用于本地构建，Darwin 目标声明绝不冒充本机平台事实。
+ */
 export type EntryInputOptions = Readonly<{
     source: SourceBindingV1;
     entries: Omit<Build, "commandEvidence">;
@@ -87,13 +96,19 @@ type Output = {
 };
 type Observation = { sources: string[]; outputs: Output[] };
 
-/** 固定前缀只在事务引用转换为消费者引用时移除一次，长度与摘要完全保留；原始来源路径因此仍与 SourceBinding 一致，不能把树内文件或错误根目录的六百权限副本包装成合格的证据引用。 */
+/**
+ * 固定前缀只在事务引用转换为消费者引用时移除一次，长度与摘要完全保留；原始来源路径因此仍与 SourceBinding 一致，不能把树
+ * 内文件或错误根目录的六百权限副本包装成合格的证据引用。
+ */
 function consumerRef(ref: Ref): Ref {
     if (!ref.path.startsWith("views/")) fail("PAYLOAD_PATH");
     return { ...ref, path: ref.path.slice("views/".length) };
 }
 
-/** held 文件比较记录 inode、设备、权限、链接数、长度和纳秒时间，复制前后都要匹配；这里仅检测实际观察到的变化，不宣称普通 JavaScript 能阻止恶意同用户在两个观察边界之间替换父目录。 */
+/**
+ * held 文件比较记录 inode、设备、权限、链接数、长度和纳秒时间，复制前后都要匹配；这里仅检测实际观察到的变化，不宣称普通
+ * JavaScript 能阻止恶意同用户在两个观察边界之间替换父目录。
+ */
 function same(a: BigIntStats, b: BigIntStats) {
     return (
         a.dev === b.dev &&
@@ -106,7 +121,10 @@ function same(a: BigIntStats, b: BigIntStats) {
     );
 }
 
-/** 来源和结算后的输出统一经单链接普通文件描述符流入现有事务，预期来源继续交给 write 核大小和摘要；每块大小沿用系统流限额，关闭失败保留首错并登记在事务上，避免错误的安全清理声明。 */
+/**
+ * 来源和结算后的输出统一经单链接普通文件描述符流入现有事务，预期来源继续交给 write 核大小和摘要；每块大小沿用系统流限额
+ * ，关闭失败保留首错并登记在事务上，避免错误的安全清理声明。
+ */
 async function copyFile(
     work: ArchiveTransaction,
     full: string,
@@ -161,7 +179,10 @@ async function copyFile(
     }
 }
 
-/** 构建目录只接受真实绝对路径与固定七百权限，首次准入必须为空并与源码和整个事务父根互不覆盖；初始化 reader 复用逐级无链接检查，结算后只比较同一根身份而允许已授权的 Vite 新增内容。 */
+/**
+ * 构建目录只接受真实绝对路径与固定七百权限，首次准入必须为空并与源码和整个事务父根互不覆盖；初始化 reader 复用逐级无链
+ * 接检查，结算后只比较同一根身份而允许已授权的 Vite 新增内容。
+ */
 async function admitBuildRoot(work: ArchiveTransaction, root: string) {
     if (!isAbsolute(root) || resolve(root) !== root) fail("PAYLOAD_PATH");
     for (const other of [work.inputRoot, work.outputParent]) {
@@ -183,7 +204,10 @@ async function admitBuildRoot(work: ArchiveTransaction, root: string) {
     return info;
 }
 
-/** 来源文件必须全部保持原路径，不能占用两树或元数据前缀；完整来源声明先按固定内容与总额预算准入，生产和配置引用只允许相同 SourceBinding 中的真实引用，不从自报名称推导信任。 */
+/**
+ * 来源文件必须全部保持原路径，不能占用两树或元数据前缀；完整来源声明先按固定内容与总额预算准入，生产和配置引用只允许相
+ * 同 SourceBinding 中的真实引用，不从自报名称推导信任。
+ */
 function sourcePolicy(
     source: SourceBindingV1,
     entries: Omit<Build, "commandEvidence">,
@@ -245,7 +269,10 @@ function sourcePolicy(
         if (!source.files.some((file) => file.path === path)) fail("PAYLOAD_RECEIPT_MISMATCH");
 }
 
-/** 内部 trace 的字段集合和输出角色严格有界，不能因它不是公共收据就接受额外协议字段、重复路径或路径逃逸；来源列表只是待交叉核验的真实模块观察，稍后还要逐项匹配已持有来源及工作区清单。 */
+/**
+ * 内部 trace 的字段集合和输出角色严格有界，不能因它不是公共收据就接受额外协议字段、重复路径或路径逃逸；来源列表只是待交
+ * 叉核验的真实模块观察，稍后还要逐项匹配已持有来源及工作区清单。
+ */
 function observation(value: unknown): Observation {
     if (
         !value ||
@@ -288,7 +315,10 @@ function observation(value: unknown): Observation {
     return trace;
 }
 
-/** 结算后的实际文件系统必须与 Rollup 观察完全对应，普通目录也逐个列入库存且不接受额外空目录；扫描只在已确认成功关闭后运行，链接、硬链接、特殊文件与危险权限不能通过归一化后复制混入树。 */
+/**
+ * 结算后的实际文件系统必须与 Rollup 观察完全对应，普通目录也逐个列入库存且不接受额外空目录；扫描只在已确认成功关闭后运
+ * 行，链接、硬链接、特殊文件与危险权限不能通过归一化后复制混入树。
+ */
 async function outputFiles(work: ArchiveTransaction, root: string, trace: Observation) {
     const files: string[] = [],
         directories: string[] = [];
@@ -338,7 +368,10 @@ async function outputFiles(work: ArchiveTransaction, root: string, trace: Observ
     return { directories: directories.sort(), finish };
 }
 
-/** 工具文件通过持有的真实安装文件描述符流式核身份与字节，Vite CLI、实际 Node 模块及包清单都单独绑定；允许 pnpm 已安装工具的硬链接与私有权限，但不把这种宿主资格提升为载荷规则或传递依赖认证。 */
+/**
+ * 工具文件通过持有的真实安装文件描述符流式核身份与字节，Vite CLI、实际 Node 模块及包清单都单独绑定；允许 pnpm 已安装工
+ * 具的硬链接与私有权限，但不把这种宿主资格提升为载荷规则或传递依赖认证。
+ */
 async function hostTools(
     work: ArchiveTransaction,
     source: SourceBindingV1,
@@ -370,7 +403,8 @@ async function hostTools(
             info.size > BigInt(collect ? limits.package : limits.file)
         )
             fail("PAYLOAD_LIMIT");
-        // 宿主 Node 通常大于普通脚本预算，实际身份读取采用固定文件上限且流式计算摘要；工具本身不是来源快照，不复制到输入视图，避免把本机可执行文件冒充发行载荷。
+        // 宿主 Node 通常大于普通脚本预算，实际身份读取采用固定文件上限且流式计算摘要；工具本身不是来源快照，不复制到输
+        // 入视图，避免把本机可执行文件冒充发行载荷。
         const handle = await open(fixed, constants.O_RDONLY | constants.O_NOFOLLOW);
         const digest = createHash("sha256"),
             chunks: Buffer[] = [];
@@ -445,7 +479,10 @@ async function hostTools(
     };
 }
 
-/** 工作区归属从真实已解析模块寻找最近物理清单并要求同路径的绑定引用，不能从绑定列表挑更远诱饵；名称和版本只从该清单原始字节读出，所有模块仍须属于受控来源，JSON 与转译前 TypeScript 同样记录。 */
+/**
+ * 工作区归属从真实已解析模块寻找最近物理清单并要求同路径的绑定引用，不能从绑定列表挑更远诱饵；名称和版本只从该清单原始
+ * 字节读出，所有模块仍须属于受控来源，JSON 与转译前 TypeScript 同样记录。
+ */
 async function embedded(
     source: SourceBindingV1,
     reader: InputReader,
@@ -458,7 +495,8 @@ async function embedded(
             fail("PAYLOAD_RECEIPT_MISMATCH");
         await reader.ref(refs.get(path)!, false, contentLimit(path), false);
         let manifest: Ref | undefined;
-        // 清单存在性由真实来源目录决定，存在但未绑定的最近清单必须立即拒绝而不能回退；上面的模块读取已观察所有父目录，后来增删更近清单也会在这些目录的身份收尾被发现，避免只核被选清单的字节。
+        // 清单存在性由真实来源目录决定，存在但未绑定的最近清单必须立即拒绝而不能回退；上面的模块读取已观察所有父目录，
+        // 后来增删更近清单也会在这些目录的身份收尾被发现，避免只核被选清单的字节。
         for (let parent = dirname(path); ; parent = dirname(parent)) {
             const candidate = parent === "." ? "package.json" : `${parent}/package.json`;
             let present = false;
@@ -514,7 +552,10 @@ async function embedded(
         .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** 临时入口视图只在调用者已初始化且独占的 work 事务中存活，固定使用 views 根及两棵现有 BoundTree；本函数不会发布、清理、设置运行政策或生成 Expected，回调返回后路径是否继续有效仍由外部拥有者负责。 */
+/**
+ * 临时入口视图只在调用者已初始化且独占的 work 事务中存活，固定使用 views 根及两棵现有 BoundTree；本函数不会发布、清理、
+ * 设置运行政策或生成 Expected，回调返回后路径是否继续有效仍由外部拥有者负责。
+ */
 export async function withEntryInputViews<T>(
     work: ArchiveTransaction,
     options: EntryInputOptions,
@@ -567,7 +608,8 @@ export async function withEntryInputViews<T>(
     const started = new Date().toISOString(),
         observed = await host.run(invocation),
         finished = new Date().toISOString();
-    // 未确认关闭时绝不再读取构建目录或审计输出，错误码保留动作的真实首错；观察仅由调用者负责提供，不将其直接子进程关闭提升为任意后代清理，也不在失败路径替调用者删除 scratch。
+    // 未确认关闭时绝不再读取构建目录或审计输出，错误码保留动作的真实首错；观察仅由调用者负责提供，不将其直接子进程关闭
+    // 提升为任意后代清理，也不在失败路径替调用者删除 scratch。
     if (
         observed.closeConfirmed !== true ||
         observed.admitted !== true ||
@@ -639,7 +681,8 @@ export async function withEntryInputViews<T>(
             file = { ...ref, path: output.path, mode: 0o644 as const };
         entryFiles.push(file);
     }
-    // 原始文件快照保留绑定中的完整相对路径，全部位于两树之外；八份执行文件另行记录真实进程内复制的开始和结束，固定复制策略就在此 producer 中而不是伪称由 Vite 配置执行。
+    // 原始文件快照保留绑定中的完整相对路径，全部位于两树之外；八份执行文件另行记录真实进程内复制的开始和结束，固定复制
+    // 策略就在此 producer 中而不是伪称由 Vite 配置执行。
     const copyStarted = new Date().toISOString();
     for (const name of executionNames) {
         const ref = metadata.source.files.find(
@@ -712,7 +755,8 @@ export async function withEntryInputViews<T>(
     };
     const viewRoot = join(work.scratch, "views"),
         view = new InputReader(viewRoot, work.signal, ["entries", "execution"]);
-    // 输出导入从真实已复制字节重新分析，所有 JS 资产同样受固定脚本预算约束；先复用原分类器，再额外拒绝未嵌入的 VeriQ 工作区外部边，外部普通包的 target 始终保持原 specifier。
+    // 输出导入从真实已复制字节重新分析，所有 JS 资产同样受固定脚本预算约束；先复用原分类器，再额外拒绝未嵌入的 VeriQ 工
+    // 作区外部边，外部普通包的 target 始终保持原 specifier。
     const scripts = trace.outputs.filter(
         (output) => output.kind !== "asset" || /\.(?:js|mjs|cjs)$/.test(output.path),
     );
@@ -722,7 +766,8 @@ export async function withEntryInputViews<T>(
     )
         fail("PAYLOAD_LIMIT");
     const outputs: EntriesReceipt["outputs"][number][] = [];
-    // 所有后续文档写入完成前不初始化整份视图 reader，先用只覆盖已完成入口子树的 reader 分析复制后字节；最终 reader 在完整写入后重新核树与所有外部证据，避免把自身正常的元数据新增误判为来源变化。
+    // 所有后续文档写入完成前不初始化整份视图 reader，先用只覆盖已完成入口子树的 reader 分析复制后字节；最终 reader 在完
+    // 整写入后重新核树与所有外部证据，避免把自身正常的元数据新增误判为来源变化。
     const codeReader = new InputReader(join(viewRoot, "entries"), work.signal, []);
     await codeReader.initialize();
     for (const output of trace.outputs) {
@@ -827,7 +872,8 @@ export async function withEntryInputViews<T>(
     await tools.finish();
     await view.finish();
     const value = await consume(viewRoot, trees);
-    // 回调仅在活的所有权窗口内使用输入，返回值不携带持久发布能力；消费者结束后再核来源、工具、构建输出和视图全部身份，并最后审计事务，从而拒绝消费期间发生的任何已观察替换或字节变更。
+    // 回调仅在活的所有权窗口内使用输入，返回值不携带持久发布能力；消费者结束后再核来源、工具、构建输出和视图全部身份，
+    // 并最后审计事务，从而拒绝消费期间发生的任何已观察替换或字节变更。
     for (const ref of metadata.source.files)
         await source.ref(ref, false, contentLimit(ref.path), false);
     await source.finish();

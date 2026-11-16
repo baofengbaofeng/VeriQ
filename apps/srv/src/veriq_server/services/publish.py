@@ -1,4 +1,5 @@
-"""PublishService 在校验回执与草稿修订一致后发布不可变资源版本，并更新 latest_version_id，失败不留半发布状态。继承 ResourceService 的授权与修订检查；发布必须 MANAGED
+"""PublishService 在校验回执与草稿修订一致后发布不可变资源版本，并更新 latest_version_id，失败不留半发布状态。继承
+ResourceService 的授权与修订检查；发布必须 MANAGED
 
 回执且源哈希匹配。receipt_dto 导出回执稳定字段供 API 展示。
 """
@@ -15,7 +16,8 @@ from .resource import ResourceService, document_hash, version_dto, asset_referen
 
 
 def receipt_dto(row: ValidationReceipt) -> dict[str, Any]:
-    """将 ValidationReceipt 转为 API DTO，包含引擎、源哈希与编译产物摘要等字段，receipt_dto 遵守本文件 Workspace/事务边界。
+    """将 ValidationReceipt 转为 API DTO，包含引擎、源哈希与编译产物摘要等字段，receipt_dto 遵守本文件 Workspace/事务边
+    界。
     receipt_dto 属于发布/围栏相关逻辑：未满足设备、租约或引擎清单条件时不得把排队当成已验证发布。
     """
     return {
@@ -35,7 +37,8 @@ def receipt_dto(row: ValidationReceipt) -> dict[str, Any]:
 
 
 class PublishService(ResourceService):
-    """在回执门禁通过后冻结草稿为 ResourceVersion，并维护依赖边与最新指针，PublishService 遵守本文件 Workspace/事务边界。PublishService 属于发布/围栏相关逻辑：未满足设备、
+    """在回执门禁通过后冻结草稿为 ResourceVersion，并维护依赖边与最新指针，PublishService 遵守本文件 Workspace/事务边界
+    。PublishService 属于发布/围栏相关逻辑：未满足设备、
 
     租约或引擎清单条件时不得把排队当成已验证发布。
     """
@@ -43,7 +46,8 @@ class PublishService(ResourceService):
     async def publish(
         self, scope: WorkspaceScope, resource_id: str, draft_revision: int, receipt_id: str
     ) -> dict[str, Any]:
-        """校验修订、回执与编译产物后写入不可变版本；冲突或回执失效返回 Problem，PublishService.publish 遵守本文件 Workspace/事务边界。
+        """校验修订、回执与编译产物后写入不可变版本；冲突或回执失效返回 Problem，PublishService.publish 遵守本文件
+        Workspace/事务边界。
         publish 属于发布/围栏相关逻辑：未满足设备、租约或引擎清单条件时不得把排队当成已验证发布。
         """
         resource = await self.editable(scope, resource_id, Permission.PUBLISH)

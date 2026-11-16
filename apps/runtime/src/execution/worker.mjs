@@ -1,4 +1,6 @@
-/** 本文件是 Attempt 业务工作进程入口，保持 START 闸门与既有 Linux、Windows 外部强监督；可选受信控制配置另外管理直接命令日志，但不开放 Darwin 入口或发布停止证明。 */
+/** 本文件是 Attempt 业务工作进程入口，保持 START 闸门与既有 Linux、Windows 外部强监督；可选受信控制配置另外管理直接命令
+ * 日志，但不开放 Darwin 入口或发布停止证明。
+ */
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
@@ -25,7 +27,9 @@ if (invocation.controlled !== undefined) {
     }
 }
 
-/** 断连或未捕获异常必须先置粘滞管理故障，不能在普通 finally 路径补封存；原始子对象仍由 active 保留，外层最终退出也必须由父 Agent 另外实际观察。 */
+/** 断连或未捕获异常必须先置粘滞管理故障，不能在普通 finally 路径补封存；原始子对象仍由 active 保留，
+ * 外层最终退出也必须由父 Agent 另外实际观察。
+ */
 function failManagement() {
     managementFailed = true;
     owner?.fail();
@@ -38,7 +42,9 @@ if (invocation.controlled !== undefined) {
     process.on("uncaughtExceptionMonitor", failManagement);
 }
 
-/** START 与取消监听同时安装，使取消先于业务开始仍能关闭准入；只有完整本代绑定被所有者接受后才 ACK，错误代际不授权、不发信号，也不能改变业务取消状态。 */
+/** START 与取消监听同时安装，使取消先于业务开始仍能关闭准入；只有完整本代绑定被所有者接受后才 ACK，错误代际不授权、
+ * 不发信号，也不能改变业务取消状态。
+ */
 await new Promise((resolve) => {
     process.on("message", (message) => {
         if (message?.type === "START") resolve();
@@ -57,7 +63,8 @@ await new Promise((resolve) => {
             }
         }
     });
-    // 父 Agent 必须实际观察已经安装 START 与取消监听的同一个 outer 对象，才能持久登记后交还启动能力；此消息不表示任何命令已经退出，发送失败保持管理故障且不能由后续业务结果恢复。
+    // 父 Agent 必须实际观察已经安装 START 与取消监听的同一个 outer 对象，才能持久登记后交还启动能力；
+    // 此消息不表示任何命令已经退出，发送失败保持管理故障且不能由后续业务结果恢复。
     if (owner && !managementFailed)
         process.send?.(
             {
@@ -71,7 +78,9 @@ await new Promise((resolve) => {
         );
 });
 
-/** 受控路径显式保留管理结果与实际退出两个等待器，超时或 error 只使管理失败而不能解除原对象等待；无实际 exit 的 spawn error 保持挂起，交给后续 Agent 总期限隔离。 */
+/** 受控路径显式保留管理结果与实际退出两个等待器，超时或 error 只使管理失败而不能解除原对象等待；无实际 exit 的 spawn
+ * error 保持挂起，交给后续 Agent 总期限隔离。
+ */
 async function command(role, args, timeout) {
     if (owner) {
         active = owner.start(role, {
@@ -137,7 +146,8 @@ try {
     );
     stage = "COMPILER_EXTRACTION_FAILED";
     await mkdir(join(invocation.work, "engine/compiler"), { recursive: true });
-    // 编译归档已经在激活前与运维固定库存逐项匹配，此处只解压该受信成员且继续沿用原有编译桥与结果路径，不增加业务输入可选择的新加载器或执行文件入口。
+    // 编译归档已经在激活前与运维固定库存逐项匹配，此处只解压该受信成员且继续沿用原有编译桥与结果路径，
+    // 不增加业务输入可选择的新加载器或执行文件入口。
     await extractCompiler(
         join(invocation.work, "engine/compiler.tgz"),
         join(invocation.work, "engine/compiler"),
@@ -212,7 +222,8 @@ try {
             JSON.stringify({ failureCode: stage }),
             { mode: 0o600 },
         );
-        // 第三方调用可能把凭据写入异常或原始输出，跨越 Worker 边界只保存这里选定的稳定英文阶段码，业务报告仍由原有结果文件承载，不复制异常消息或第三方日志。
+        // 第三方调用可能把凭据写入异常或原始输出，跨越 Worker 边界只保存这里选定的稳定英文阶段码，
+        // 业务报告仍由原有结果文件承载，不复制异常消息或第三方日志。
         if (invocation.kind === "CLEANUP")
             await writeFile(
                 join(invocation.work, "worker-result.json"),

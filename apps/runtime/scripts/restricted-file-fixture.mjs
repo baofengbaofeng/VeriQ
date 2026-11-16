@@ -1,5 +1,8 @@
-/** 本脚本只在临时 Ubuntu CI 中创建一次性专用账户及单个自有 bind 挂载，固定 Node 子程序通过真实文件模式验证重启和清理；状态记录绑定随机身份与实际挂载 inode，正常及 always 清理均拒绝触碰不匹配对
- * 象，不修改现有账户或全局挂载。 */
+/**
+ * 本脚本只在临时 Ubuntu CI 中创建一次性专用账户及单个自有 bind 挂载，固定 Node 子程序通过真实文件模式验证重启和清理；状
+ * 态记录绑定随机身份与实际挂载 inode，正常及 always 清理均拒绝触碰不匹配对
+ * 象，不修改现有账户或全局挂载。
+ */
 import assert from "node:assert/strict";
 import { isIndependentNode24 } from "../src/node-version.ts";
 import {
@@ -117,7 +120,10 @@ async function cleanup(label) {
             if (state.uid !== undefined) assert.equal(user.uid, state.uid);
             await nobody(user.uid);
         }
-        /** 账户名称还不足以授权清理，必须先匹配创建意图中的 passwd 注释、主目录与 UID，且观察不到该真实或有效 UID 的剩余进程；任何未知对象都会保留并记录错误，不能为了清理成功而按名称杀进程或删除别的账户。 */
+        /**
+         * 账户名称还不足以授权清理，必须先匹配创建意图中的 passwd 注释、主目录与 UID，且观察不到该真实或有效 UID 的剩余
+         * 进程；任何未知对象都会保留并记录错误，不能为了清理成功而按名称杀进程或删除别的账户。
+         */
         const entries = await mounts(),
             nested = entries.filter((entry) => entry.path.startsWith(state.root + "/"));
         assert(
@@ -125,7 +131,10 @@ async function cleanup(label) {
                 nested.every((entry) => entry.path === join(state.root, "volume")),
             "FIXTURE_UNEXPECTED_MOUNT",
         );
-        /** 挂载退休必须同时匹配原 mount ID、唯一自有目标及 backing 的实际设备和 inode，避免路径被另一个挂载占用后递归清理；先卸载并再次确认不存在任何嵌套挂载，才允许删除具有随机拥有标记的自有目录。 */
+        /**
+         * 挂载退休必须同时匹配原 mount ID、唯一自有目标及 backing 的实际设备和 inode，避免路径被另一个挂载占用后递归清
+         * 理；先卸载并再次确认不存在任何嵌套挂载，才允许删除具有随机拥有标记的自有目录。
+         */
         if (nested.length) {
             if (state.mountId !== undefined) assert.equal(nested[0].id, state.mountId);
             const source = await lstat(join(state.root, "backing")),
@@ -185,8 +194,11 @@ if (mode === "cleanup") {
     const observations = [];
     let staged;
     try {
-        /** 此临时公共祖先只承载受控布局名称，专用服务 UID 必须能取得只读目录句柄才能逐级到达私有卷；公开祖先保持 root 拥有且只读可遍历，实际 home、backing、volume 和密钥子目录仍各自保持原有七
-         * 百权限，拥有标记也继续仅 root 可读。 */
+        /**
+         * 此临时公共祖先只承载受控布局名称，专用服务 UID 必须能取得只读目录句柄才能逐级到达私有卷；公开祖先保持 root 拥
+         * 有且只读可遍历，实际 home、backing、volume 和密钥子目录仍各自保持原有七
+         * 百权限，拥有标记也继续仅 root 可读。
+         */
         await mkdir(state.root, { mode: 0o755 });
         await chmod(state.root, 0o755);
         const fixtureAncestor = await lstat(state.root);
@@ -291,8 +303,11 @@ if (mode === "cleanup") {
             acceptance:
                 "Network-isolated credential/file fixture on an owned CI account and bind volume",
         });
-        /** 每个业务子进程都先创建独立网络命名空间再降权，并由固定 timeout 监督；结束后必须同时核验账户无残留进程、真实输出的专用身份和主目录以及与父进程不同的 namespace，无法隔离时直接保留失败证据而不执
-         * 行替代业务。 */
+        /**
+         * 每个业务子进程都先创建独立网络命名空间再降权，并由固定 timeout 监督；结束后必须同时核验账户无残留进程、真实输
+         * 出的专用身份和主目录以及与父进程不同的 namespace，无法隔离时直接保留失败证据而不执
+         * 行替代业务。
+         */
         const child = async (phase, args) => {
             const result = await executeNetworkIsolatedFixture(
                 process.execPath,

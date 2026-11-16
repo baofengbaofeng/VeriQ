@@ -9,7 +9,8 @@ import { resolve, dirname } from "node:path";
 import { darwinNative, type DarwinPrivateDirectory } from "../native/darwin.ts";
 import { windowsNative } from "../native/windows.ts";
 /**
- * Mac 业务调用显式申请系统固定短临时根下的独占目录，B 锚点与随机 owner 标记共同约束关闭清理；只删除同一 inode 的自有标记和空目录，陌生成员、路径替换或未关闭 socket 都保留原现场，不静默规范化任何用户配
+ * Mac 业务调用显式申请系统固定短临时根下的独占目录，B 锚点与随机 owner 标记共同约束关闭清理；只删除同一 inode
+ * 的自有标记和空目录，陌生成员、路径替换或未关闭 socket 都保留原现场，不静默规范化任何用户配
  * 置路径。
  */
 export async function createDarwinBrokerDirectory(): Promise<{
@@ -101,8 +102,10 @@ export class AttemptBroker {
      */
     async open() {
         if (this.closed) throw new Error("IPC_BROKER_CLOSED");
-        /** Windows 服务端由原生适配器创建受保护且禁止远程连接的首实例管道，TypeScript 仍负责一次性 nonce 和有限业务分派；原生传输失败不会回退 TCP 或公共默认 ACL，也不会改写 Linux
-         * 的套接字路径。 */
+        /** Windows 服务端由原生适配器创建受保护且禁止远程连接的首实例管道，TypeScript 仍负责一次性 nonce
+         * 和有限业务分派；原生传输失败不会回退 TCP 或公共默认 ACL，也不会改写 Linux
+         * 的套接字路径。
+         */
         if (process.platform === "win32") {
             this.nativeServer = new (windowsNative().PrivatePipeServer)(
                 this.path,
@@ -122,7 +125,9 @@ export class AttemptBroker {
                         try {
                             reply(response);
                         } catch {
-                            /* 原生端已经关闭或响应超过固定字节预算时必须结束当前请求，不能在异步回调外抛出未处理异常，也不能重新连接后把同一业务命令重复发送给不同的监听实例。 */
+                            /* 原生端已经关闭或响应超过固定字节预算时必须结束当前请求，不能在异步回调外抛出未处理异常，
+                             * 也不能重新连接后把同一业务命令重复发送给不同的监听实例。
+                             */
                         }
                     })();
                 },
@@ -138,7 +143,9 @@ export class AttemptBroker {
             let bytes = 0;
             const chunks: Buffer[] = [];
             let handled = false;
-            /** 单行请求的完整字节帧才是 UTF-8 解码边界，任意 socket 分块可能切开中文或四字节字符；保留既有六十四 KiB 原始上限，并在认证和业务回调之前拒绝非法编码或不完整 JSON。 */
+            /** 单行请求的完整字节帧才是 UTF-8 解码边界，任意 socket 分块可能切开中文或四字节字符；保留既有六十四 KiB
+             * 原始上限，并在认证和业务回调之前拒绝非法编码或不完整 JSON。
+             */
             socket.on("data", (chunk: Buffer) => {
                 if (handled) return;
                 bytes += chunk.length;

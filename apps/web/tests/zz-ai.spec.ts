@@ -256,7 +256,8 @@ test("fix1 existing CASE review increments only its draft and rejects a stale re
             await expect(page.getByTestId("ai-review")).toContainText("SUCCEEDED");
         };
         await generate();
-        // 现有 CASE 的人工接受只依赖当前草稿修订号，因此这里保持新资源名称与键字段为空，以真实验证更新既有草稿的分支而不意外创建第二份资源或绕过并发修订检查。
+        // 现有 CASE 的人工接受只依赖当前草稿修订号，因此这里保持新资源名称与键字段为空，以真实验证更新既有草稿的分支而
+        // 不意外创建第二份资源或绕过并发修订检查。
         const acceptance = page.waitForResponse(
             (r) => r.url().endsWith("/review") && r.request().method() === "POST",
         );
@@ -319,14 +320,18 @@ test("fix1 existing CASE review increments only its draft and rejects a stale re
     }
 });
 
-/** 真实列表中的必要记录必须经过存在性检查后才能参与默认选择和预算断言；缺少记录立即使测试失败，避免以非空断言隐藏准备失败或给新增回归引入静态诊断。 */
+/** 真实列表中的必要记录必须经过存在性检查后才能参与默认选择和预算断言；缺少记录立即使测试失败，避免以非空断言隐藏准备失
+ * 败或给新增回归引入静态诊断。
+ */
 function aiEffectItem<T>(items: readonly T[] | undefined, index = 0): T {
     const item = items?.[index];
     if (item === undefined) throw new Error("Missing required real AI fixture record");
     return item;
 }
 
-/** VeriQ 的 AI 钩子回归从真实登录后的空选中作用域开始，通过服务端创建独立空间与启用的回环 Provider，避免编辑器夹具提前选择空间而掩盖默认选择错误。 */
+/** VeriQ 的 AI 钩子回归从真实登录后的空选中作用域开始，通过服务端创建独立空间与启用的回环 Provider，避免编辑器夹具提前
+ * 选择空间而掩盖默认选择错误。
+ */
 async function aiEffectScope(page: Page) {
     await page.goto("/login");
     await page.getByTestId("email").fill("browser-admin@example.com");
@@ -347,7 +352,9 @@ async function aiEffectScope(page: Page) {
     return { headers, alpha: aiEffectItem(workspaces), beta: aiEffectItem(workspaces, 1) };
 }
 
-/** 每个测试 Provider 都经过真实权限、密钥加密与预算验证，唯一允许的模型目标是文件级 HTTP 夹具；不同预算使断言能够识别实际被选中的 Provider 状态而非浏览器默认选项。 */
+/** 每个测试 Provider 都经过真实权限、密钥加密与预算验证，唯一允许的模型目标是文件级 HTTP 夹具；不同预算使断言能够识别实
+ * 际被选中的 Provider 状态而非浏览器默认选项。
+ */
 async function aiEffectProvider(
     page: Page,
     headers: Record<string, string>,
@@ -374,7 +381,9 @@ async function aiEffectProvider(
     return (await response.json()).data as PlatformComponents["schemas"]["ProviderDTO"];
 }
 
-/** 作用域完成以三个真实列表响应为依据，所有等待都在导航或选择事件之前安装；返回服务端数据供空空间断言使用，不拦截或伪造业务响应，也不等待固定时长。 */
+/** 作用域完成以三个真实列表响应为依据，所有等待都在导航或选择事件之前安装；返回服务端数据供空空间断言使用，不拦截或伪造
+ * 业务响应，也不等待固定时长。
+ */
 function aiEffectLists(page: Page, workspaceId: string) {
     return Promise.all(
         ["ai/providers", "ai/generations", "resources"].map(async (path) => {
@@ -492,7 +501,8 @@ test("AI request inputs invalidate reviewed context and preserve manual scope", 
     await invalidated();
     await page.getByTestId("ai-purpose").selectOption("CASE_DRAFT");
     await preview();
-    // 八个请求字段分别触发审核失效，版本、资源及运行标识仅编辑后立即恢复再预览，避免把虚构引用提交服务端；每次恢复仍需重新预览，证明编辑再撤销不会复活旧审核结果。
+    // 八个请求字段分别触发审核失效，版本、资源及运行标识仅编辑后立即恢复再预览，避免把虚构引用提交服务端；每次恢复仍需
+    // 重新预览，证明编辑再撤销不会复活旧审核结果。
     for (const [field, changed, original] of [
         ["prompt", "REQ-EFFECTS: changed requirement", "REQ-EFFECTS: reject empty passwords."],
         ["versions", "unsubmitted-version-reference", ""],

@@ -1,6 +1,7 @@
 """OpenAPI 组件校验：从源码 YAML 或打包 _openapi.json 解析文档，并绑定 platform-v1 schema 以复用 Id/Timestamp 格式。
 
-运行时控制面不依赖 Node；可编辑安装读仓库 contracts，wheel 安装读包内固化 OpenAPI/schema。validate_api 按组件名解析 $ref，校验失败由 jsonschema 抛出，调用方映射为 400
+运行时控制面不依赖 Node；可编辑安装读仓库 contracts，wheel 安装读包内固化 OpenAPI/schema。validate_api 按组件名解析
+$ref，校验失败由 jsonschema 抛出，调用方映射为 400
 级请求错误。
 """
 
@@ -16,7 +17,8 @@ from referencing import Registry, Resource
 @lru_cache
 def api_document() -> dict[str, Any]:
     """惰性加载 OpenAPI 文档：优先读取源码树 platform.yaml，否则使用 wheel 内 _openapi.json。
-    api_document 实现于 apps/srv/src/veriq_server/validation.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    api_document 实现于 apps/srv/src/veriq_server/validation.py：请按该符号的输入校验、错误码与调用方契约阅读，
+    勿假设通用成功默认值。
     """
     source = Path(__file__).resolve().parents[4] / "packages/contracts/openapi/platform.yaml"
     return cast(
@@ -31,7 +33,8 @@ def api_document() -> dict[str, Any]:
 
 def validate_api(name: str, value: Any) -> None:
     """按 OpenAPI components/schemas 中的名称校验请求或响应体，并注册外部 Id/Timestamp 引用。
-    validate_api 实现于 apps/srv/src/veriq_server/validation.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    validate_api 实现于 apps/srv/src/veriq_server/validation.py：请按该符号的输入校验、错误码与调用方契约阅读，
+    勿假设通用成功默认值。
     """
     doc = api_document()
     # 外部 Id/Timestamp 引用保持与 T01 校验器及配置文件一致。

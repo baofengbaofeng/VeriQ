@@ -1,4 +1,7 @@
-/** 保留期专用原生操作只处理已上传报告的精确证据和受信任缓存清单，流式摘要核验后才退休同一 inode；只读包必须先原子移动到持久退休命名空间，随后才改变其目录权限，已有配置与凭据的一般两兆读取额度保持不变。 */
+/**
+ * 保留期专用原生操作只处理已上传报告的精确证据和受信任缓存清单，流式摘要核验后才退休同一 inode；只读包必须先原子移动到
+ * 持久退休命名空间，随后才改变其目录权限，已有配置与凭据的一般两兆读取额度保持不变。
+ */
 #pragma once
 #include "private-files.h"
 #include <CommonCrypto/CommonDigest.h>
@@ -7,10 +10,16 @@
 #include <algorithm>
 
 namespace veriq::VERIQ_DARWIN_NAMESPACE {
-/** 清单条目只携带有限相对路径、长度与系统 SHA256 摘要，正文永远不返回 JavaScript；每次删除都在原始普通单链接 inode 上完成身份、ACL、大小与摘要核验，未知对象或预算超限保留现场。 */
+/**
+ * 清单条目只携带有限相对路径、长度与系统 SHA256 摘要，正文永远不返回 JavaScript；每次删除都在原始普通单链接 inode 上完
+ * 成身份、ACL、大小与摘要核验，未知对象或预算超限保留现场。
+ */
 struct RetentionFile { std::string path; uint64_t size; std::string sha256; };
 
-/** 路径遍历持有各级无链接目录直至操作结束，最终私有根必须属于当前 uid 且精确七百模式；缓存的五百目录只允许从已核验并隔离的根相对打开，不能通过修改原始路径权限绕过首次授权。 */
+/**
+ * 路径遍历持有各级无链接目录直至操作结束，最终私有根必须属于当前 uid 且精确七百模式；缓存的五百目录只允许从已核验并隔离
+ * 的根相对打开，不能通过修改原始路径权限绕过首次授权。
+ */
 class RetentionParents {
     std::vector<Descriptor> parents;
 public:
@@ -44,7 +53,10 @@ public:
     }
 };
 
-/** 摘要循环只使用六十四 KiB 栈缓冲区与固定预期长度，尾字节检查和前后元数据比较发现并发改写；同一文件描述符贯穿核验与退休，不以另一次字符串读取结果为删除授权，也不分配整个证据大小的 Buffer。 */
+/**
+ * 摘要循环只使用六十四 KiB 栈缓冲区与固定预期长度，尾字节检查和前后元数据比较发现并发改写；同一文件描述符贯穿核验与退休
+ * ，不以另一次字符串读取结果为删除授权，也不分配整个证据大小的 Buffer。
+ */
 inline std::string retentionDigest(int fd, uint64_t expected) {
     CC_SHA256_CTX context;
     require(CC_SHA256_Init(&context) == 1, "retention.hash");
@@ -74,7 +86,10 @@ inline std::string retentionDigest(int fd, uint64_t expected) {
     return value;
 }
 
-/** 单成员退休只接受当前 uid 的六百证据或隔离缓存四百文件，文件必须单链接且长度、摘要及同名 inode 全部匹配；unlink 后刷新父目录，必要刷新或关闭失败保留提交不确定，不重建旧文件或按路径回滚。 */
+/**
+ * 单成员退休只接受当前 uid 的六百证据或隔离缓存四百文件，文件必须单链接且长度、摘要及同名 inode 全部匹配；unlink 后刷新
+ * 父目录，必要刷新或关闭失败保留提交不确定，不重建旧文件或按路径回滚。
+ */
 inline void retireRetentionFile(int parent, const std::string& name, const RetentionFile& expected, bool isolated) {
     component(name);
     Descriptor file(openAt(parent, name.c_str(), O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC, 0, "retention.file"));
@@ -100,7 +115,10 @@ inline void retireRetentionFile(int parent, const std::string& name, const Reten
     }
 }
 
-/** 报告证据的原始路径必须以固定 offline/work/Attempt/evidence/成员结尾，父链持有到删除和刷新结束；这里只允许一段已声明文件名，不访问凭据、引擎或任意工作目录文件，也不通过大额度读取接口返回正文。 */
+/**
+ * 报告证据的原始路径必须以固定 offline/work/Attempt/evidence/成员结尾，父链持有到删除和刷新结束；这里只允许一段已声明文
+ * 件名，不访问凭据、引擎或任意工作目录文件，也不通过大额度读取接口返回正文。
+ */
 inline void retirePrivateEvidence(const std::string& path, const RetentionFile& expected) {
     const auto end = path.rfind('/'); require(end != std::string::npos, "retention.evidence-path");
     const auto parent = path.substr(0, end), name = path.substr(end + 1);
@@ -117,7 +135,8 @@ inline void retirePrivateEvidence(const std::string& path, const RetentionFile& 
 }
 
 /**
- * 缓存树退休先检查有限库存再原子隔离，持有目标目录 inode 后只通过 openat 访问其子项；递归深度、总对象、总字节均有硬边界，任何链接、清单外成员或错误拥有者都会保留退休现场，不使用递归路径 rm 或修改仍在原命名空间的只读
+ * 缓存树退休先检查有限库存再原子隔离，持有目标目录 inode 后只通过 openat 访问其子项；递归深度、总对象、总字节均有硬边界
+ * ，任何链接、清单外成员或错误拥有者都会保留退休现场，不使用递归路径 rm 或修改仍在原命名空间的只读
  * 树。
  */
 inline void retirePrivateInventory(const std::string& input, const std::string& original, const std::string& retiring,

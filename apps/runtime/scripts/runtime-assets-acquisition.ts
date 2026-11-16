@@ -24,7 +24,10 @@ import {
     type AssetsAcquisitionResult,
 } from "./runtime-assets-observation.ts";
 
-/** 原响应头按大小写无关名称收集且保留重复事实，只允许单个无歧义值进入固定字段判断；不接受库合并后的宽松 headers 对象，也不向日志写入其它响应头、错误页、凭据或远端未经控制的消息。 */
+/**
+ * 原响应头按大小写无关名称收集且保留重复事实，只允许单个无歧义值进入固定字段判断；不接受库合并后的宽松 headers 对象，也
+ * 不向日志写入其它响应头、错误页、凭据或远端未经控制的消息。
+ */
 function header(raw: readonly string[], name: string): string | null {
     if (raw.length % 2) fail("PAYLOAD_IO");
     const values: string[] = [];
@@ -33,7 +36,10 @@ function header(raw: readonly string[], name: string): string | null {
     if (values.length > 1) fail("PAYLOAD_IO");
     return values[0] ?? null;
 }
-/** 声明长度必须是单个十进制安全整数且不能包含符号、空格或逗号，正文最终仍单独累计实际长度；可空模式只供重定向无正文事实使用，真正二百响应永远要求显式 Content-Length 并匹配冻结精确长度。 */
+/**
+ * 声明长度必须是单个十进制安全整数且不能包含符号、空格或逗号，正文最终仍单独累计实际长度；可空模式只供重定向无正文事实
+ * 使用，真正二百响应永远要求显式 Content-Length 并匹配冻结精确长度。
+ */
 function length(raw: readonly string[], required: boolean): number | null {
     const value = header(raw, "content-length");
     if (value === null && !required) return null;
@@ -42,7 +48,10 @@ function length(raw: readonly string[], required: boolean): number | null {
     if (!Number.isSafeInteger(number)) fail("PAYLOAD_IO");
     return number;
 }
-/** 生产每份最终响应都经这个实际流消费者核状态、原头、精确长度和真实摘要，再以六十四 KiB 块进入事务；null 摘要只代表 Chrome 没有独立预期摘要，测试可用真实微型正文直接检验相同路径而不改官方常量。 */
+/**
+ * 生产每份最终响应都经这个实际流消费者核状态、原头、精确长度和真实摘要，再以六十四 KiB 块进入事务；null 摘要只代表
+ * Chrome 没有独立预期摘要，测试可用真实微型正文直接检验相同路径而不改官方常量。
+ */
 export async function* validatedAssetBody(
     response: {
         statusCode: number;
@@ -88,7 +97,10 @@ export async function* validatedAssetBody(
     if (actual !== sizeBytes || (sha256 !== null && digest.digest("hex") !== sha256))
         fail("PAYLOAD_ARCHIVE_HASH");
 }
-/** 环境代理及附加 CA 会改变本片冻结的 HTTPS 获取上下文，因此显式出现就拒绝而不是猜测其值是否安全；CI 清除同一列表后启动真实 CLI，默认系统 CA 本身仍是宿主信任事实而非本工具认证的发布者证明。 */
+/**
+ * 环境代理及附加 CA 会改变本片冻结的 HTTPS 获取上下文，因此显式出现就拒绝而不是猜测其值是否安全；CI 清除同一列表后启动
+ * 真实 CLI，默认系统 CA 本身仍是宿主信任事实而非本工具认证的发布者证明。
+ */
 export function assertAssetTransportEnvironment(): void {
     for (const key of [
         "NODE_TLS_REJECT_UNAUTHORIZED",
@@ -106,7 +118,8 @@ export function assertAssetTransportEnvironment(): void {
         if (Object.hasOwn(process.env, key)) fail("PAYLOAD_INPUT_INVALID");
 }
 /**
- * 每次请求拥有自己的 headers 期限及响应无进展期限，关闭事实在创建后立即注册以免丢失 close；重定向和错误页从不被排空记录，owner 销毁后必须等到 close 确认，否则标记事务保留而不能递归删除仍可能写入的目录
+ * 每次请求拥有自己的 headers 期限及响应无进展期限，关闭事实在创建后立即注册以免丢失 close；重定向和错误页从不被排空记录
+ * ，owner 销毁后必须等到 close 确认，否则标记事务保留而不能递归删除仍可能写入的目录
  * 。
  */
 async function request(
@@ -187,7 +200,8 @@ async function request(
     }
 }
 /**
- * 固定下载阶段顺序消费单个响应流，Node 与 checksum 完全拒绝跳转，Chrome 最多一次且只允许精确 Google 同架构目标；最终 body Ref 只有真实完整写入后才返回，部分正文不会进入成功获取证据或伪造结
+ * 固定下载阶段顺序消费单个响应流，Node 与 checksum 完全拒绝跳转，Chrome 最多一次且只允许精确 Google 同架构目标；最终
+ * body Ref 只有真实完整写入后才返回，部分正文不会进入成功获取证据或伪造结
  * 果。
  */
 async function fetchAsset(
@@ -272,7 +286,10 @@ async function fetchAsset(
 }
 const acquisitionProgress = new WeakMap<ArchiveTransaction, { step: string; bytes: number }>();
 const acquisitionFailures = new WeakMap<object, Readonly<{ step: string; bytes: number }>>();
-/** 失败计数只记录当前固定阶段实际收到的正文块字节，不保存远端正文、响应头或请求凭据；该内部生成器位于真实响应与验证器之间，因此超声明的最后一块也计入失败事实，而不会误记为已接受或已写入字节。 */
+/**
+ * 失败计数只记录当前固定阶段实际收到的正文块字节，不保存远端正文、响应头或请求凭据；该内部生成器位于真实响应与验证器之
+ * 间，因此超声明的最后一块也计入失败事实，而不会误记为已接受或已写入字节。
+ */
 async function* countedBody(response: AsyncIterable<Uint8Array>, progress: { bytes: number }) {
     for await (const chunk of response) {
         progress.bytes += chunk.byteLength;
@@ -280,7 +297,8 @@ async function* countedBody(response: AsyncIterable<Uint8Array>, progress: { byt
     }
 }
 /**
- * CLI 仅可读取本次真实异常绑定的有界下载失败计数，映射没有公开写入器或调用者 callback，因此不能替换传输与信任政策；返回内容只含固定阶段和实际收到字节，不改变统一 RuntimePayloadError 的冻结 DT
+ * CLI 仅可读取本次真实异常绑定的有界下载失败计数，映射没有公开写入器或调用者 callback，因此不能替换传输与信任政策；返回
+ * 内容只含固定阶段和实际收到字节，不改变统一 RuntimePayloadError 的冻结 DT
  * O 与首错语义。
  */
 export function assetAcquisitionFailure(
@@ -288,7 +306,10 @@ export function assetAcquisitionFailure(
 ): Readonly<{ step: string; bytes: number }> | null {
     return error && typeof error === "object" ? (acquisitionFailures.get(error) ?? null) : null;
 }
-/** 唯一顶层获取入口同步固定架构、来源和 options，再核真实来源证据及十九项宿主源码才可创建任何请求；官方描述符、URL 和限额没有可覆盖参数，输出只包含六个必要文件与默认空事务目录，不生成 Runtime 或批准布局。 */
+/**
+ * 唯一顶层获取入口同步固定架构、来源和 options，再核真实来源证据及十九项宿主源码才可创建任何请求；官方描述符、URL 和限
+ * 额没有可覆盖参数，输出只包含六个必要文件与默认空事务目录，不生成 Runtime 或批准布局。
+ */
 export async function acquireMacRuntimeAssets(
     arch: Arch,
     source: SourceObservation,

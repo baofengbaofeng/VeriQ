@@ -1,5 +1,5 @@
-/**
- * 资源页：Workspace 下列表、创建、草稿编辑、校验作业轮询与发布；可被桌面复用编辑器视图。归档资源默认只读；桌面宿主可嵌入同一编辑器且归档资源只读。
+/** 资源页：Workspace 下列表、创建、草稿编辑、校验作业轮询与发布；可被桌面复用编辑器视图。归档资源默认只读；桌面宿主可嵌
+ * 入同一编辑器且归档资源只读。
  * CloudResourceAdapter(selected)；桌面可注入 LocalResourceAdapter。
  */
 
@@ -68,8 +68,8 @@ function useLifetime(parent?: AbortSignal) {
     useEffect(() => () => controller.abort(), [controller]);
     return signal;
 }
-/**
- * 按 kind 过滤入口（默认全部资源）；挂载工作区选择后渲染 ResourceWorkspaceView。environments 路由传入固定 kind。环境页可传入固定 kind=ENVIRONMENT 复用同一套列表逻辑。
+/** 按 kind 过滤入口（默认全部资源）；挂载工作区选择后渲染 ResourceWorkspaceView。environments 路由传入固定 kind。环境页
+ * 可传入固定 kind=ENVIRONMENT 复用同一套列表逻辑。
  */
 export function ResourcePage({
     initialKind,
@@ -90,7 +90,9 @@ export function ResourcePage({
         enabled: !!user,
     });
     const items = workspaces.data?.pages.flatMap((p) => p.items) ?? [];
-    /** 默认空间只取首项标识并仅在尚未选择时写入，使真实列表刷新产生的新数组不会覆盖用户已经选择的空间；即使当前列表暂时未包含该选择，也保留现有作用域交接规则。 */
+    /** 默认空间只取首项标识并仅在尚未选择时写入，使真实列表刷新产生的新数组不会覆盖用户已经选择的空间；即使当前列表暂时
+     * 未包含该选择，也保留现有作用域交接规则。
+     */
     const firstWorkspaceId = items[0]?.id;
     useEffect(() => {
         if (!selected && firstWorkspaceId) select(firstWorkspaceId);
@@ -165,8 +167,8 @@ function CloudWorkspace({
         </>
     );
 }
-/**
- * 拥有资源表、创建表单与当前编辑目标；表格 data 引用保持稳定以免 TanStack 重置环。创建成功后选中新资源；创建成功后立刻把表格选中项切到新资源。选中后打开 ResourceEditorView；错误态用
+/** 拥有资源表、创建表单与当前编辑目标；表格 data 引用保持稳定以免 TanStack 重置环。创建成功后选中新资源；创建成功后立刻
+ * 把表格选中项切到新资源。选中后打开 ResourceEditorView；错误态用
  * ErrorState+retry。
  */
 export function ResourceWorkspaceView({
@@ -198,7 +200,8 @@ export function ResourceWorkspaceView({
         initialPageParam: undefined as string | undefined,
         getNextPageParam: (p) => p.nextCursor ?? undefined,
     });
-    // 资源列表的数据引用必须在创建表单编辑期间保持稳定，因为 TanStack Table 会在引用变化时重置内部行状态；已有资源也不能触发不断重排的渲染循环。仅在分页资源数据变化时重新展开列表，
+    // 资源列表的数据引用必须在创建表单编辑期间保持稳定，因为 TanStack Table 会在引用变化时重置内部行状态；已有资源也不
+    // 能触发不断重排的渲染循环。仅在分页资源数据变化时重新展开列表，
     // 同一资源查询的普通父级重渲染继续使用既有数组。
     const items = useMemo(
         () => resources.data?.pages.flatMap((p) => p.items) ?? [],
@@ -405,8 +408,8 @@ function DraftLoader(props: {
     if (draft.error) return <ErrorState error={draft.error} retry={() => void draft.refetch()} />;
     return <ResourceEditorView {...props} signal={signal} initial={draft.data} />;
 }
-/**
- * 单资源编辑器：草稿 RHF、JSON/表单切换、校验/发布、版本差异与生成源码只读查看。脏草稿阻断校验与发布按钮；存在未保存脏草稿时禁用校验与发布按钮。
+/** 单资源编辑器：草稿 RHF、JSON/表单切换、校验/发布、版本差异与生成源码只读查看。脏草稿阻断校验与发布按钮；存在未保存脏
+ * 草稿时禁用校验与发布按钮。
  * 依赖 ResourceAdapter；AI 页也可嵌入此视图作为只读或可写宿主。
  */
 export function ResourceEditorView({
@@ -480,7 +483,8 @@ export function ResourceEditorView({
         receipt && validation && candidateIsCurrent && receiptMatchesCandidate(receipt, validation)
             ? receipt
             : null;
-    // clean 每次渲染都会复制文档，因此用实际序列化内容作为校验输入边界；无关状态改变不重建诊断快照，重复诊断的展示身份也不会随一次普通渲染而变化。
+    // clean 每次渲染都会复制文档，因此用实际序列化内容作为校验输入边界；无关状态改变不重建诊断快照，重复诊断的展示身份
+    // 也不会随一次普通渲染而变化。
     const issues = useMemo(() => {
         const document = JSON.parse(serialized) as ResourceDocumentV1;
         return validateSchema(schemas[resource.kind], document.document);
@@ -1170,7 +1174,8 @@ export function ErrorState({ error, retry }: { error: Error; retry?: () => void 
 }
 
 function diagnosticRows<T extends { code: string; path?: string; message: string }>(issues: T[]) {
-    // 只读诊断没有可编辑行状态，路径、代码、消息及完整快照项组成语义身份，同一诊断重复出现时再附出现次数；这种 key 保留顺序和重复项，也无需伪造后端诊断 ID。
+    // 只读诊断没有可编辑行状态，路径、代码、消息及完整快照项组成语义身份，同一诊断重复出现时再附出现次数；这种 key 保留
+    // 顺序和重复项，也无需伪造后端诊断 ID。
     const occurrences = new Map<string, number>();
     return issues.map((issue) => {
         const semantic = JSON.stringify(issue);

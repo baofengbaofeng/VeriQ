@@ -5,11 +5,15 @@
 
 import { useEffect, useId, useRef } from "react";
 import { tx, useAppLocale } from "../../locale";
-/** Monaco 的精简编辑器入口不会提前登记所有功能服务，语言模式的异步加载却可能随后启用这些功能；首次创建编辑器前导入官方注册集合，防止离线分包顺序产生未知服务错误。 */
+/** Monaco 的精简编辑器入口不会提前登记所有功能服务，语言模式的异步加载却可能随后启用这些功能；首次创建编辑器前导入官方
+ * 注册集合，防止离线分包顺序产生未知服务错误。
+ */
 import "monaco-editor/features/register.all";
 import * as monaco from "monaco-editor/editor";
 import "monaco-editor/language/json/monaco.contribution";
-/** TypeScript 的语言服务只订阅语言激活事件，不会自行登记语言标识；必须同时加载同版官方语言定义，使只读生成源码真正创建 TypeScript 模型并启动匹配的本地语言 worker。 */
+/** TypeScript 的语言服务只订阅语言激活事件，不会自行登记语言标识；必须同时加载同版官方语言定义，使只读生成源码真正创建
+ * TypeScript 模型并启动匹配的本地语言 worker。
+ */
 import "monaco-editor/languages/definitions/typescript/register";
 import "monaco-editor/language/typescript/monaco.contribution";
 import EditorWorker from "monaco-editor/editor/editor.worker?worker";
@@ -23,7 +27,10 @@ import TsWorker from "monaco-editor/language/typescript/ts.worker?worker";
               ? new TsWorker()
               : new EditorWorker(),
 };
-/** 受控编辑器：value/onChange；只读时隐藏写入能力，供草稿 JSON 与生成源码共用。卸载时dispose编辑器实例。主题与字号固定；语言由 props 指定。 */
+/** 受控编辑器：value/onChange；只读时隐藏写入能力，供草稿 JSON 与生成源码共用。卸载时dispose编辑器实例。主题与字号固定
+ * ；
+ * 语言由 props 指定。
+ */
 export function Monaco({
     value,
     onChange,
@@ -49,7 +56,9 @@ export function Monaco({
         change = useRef(onChange),
         latestValue = useRef(value);
     change.current = onChange;
-    /** 创建模型只随语言、只读与标签变化，文本和回调通过每次渲染更新的引用读取最新值；普通受控输入继续复用同一个模型与撤销栈，外部文本变化仍由独立同步副作用处理。 */
+    /** 创建模型只随语言、只读与标签变化，文本和回调通过每次渲染更新的引用读取最新值；普通受控输入继续复用同一个模型与撤
+     * 销栈，外部文本变化仍由独立同步副作用处理。
+     */
     latestValue.current = value;
     useEffect(() => {
         const model = monaco.editor.createModel(latestValue.current, language);
@@ -75,7 +84,8 @@ export function Monaco({
             instance.current = undefined;
         };
     }, [language, readOnly, label]);
-    // 界面语言只更新编辑器已有的可访问名称，不能重建模型、清空撤销栈或改变用户选区；调用方显式修改 label、只读或代码语言时仍保留原有完整生命周期行为。
+    // 界面语言只更新编辑器已有的可访问名称，不能重建模型、清空撤销栈或改变用户选区；调用方显式修改 label、只读或代码语
+    // 言时仍保留原有完整生命周期行为。
     useEffect(() => {
         instance.current?.updateOptions({ ariaLabel: localizedLabel });
     }, [localizedLabel]);
@@ -103,7 +113,9 @@ export function Monaco({
         </div>
     );
 }
-/** 并排展示 original/modified 文本差异，用于版本内容对比，二者皆只读。左右滚动默认联动；左右窗格皆只读并且默认保持滚动位置联动。不发起网络；字符串已由适配器加载。 */
+/** 并排展示 original/modified 文本差异，用于版本内容对比，二者皆只读。左右滚动默认联动；左右窗格皆只读并且默认保持滚动
+ * 位置联动。不发起网络；字符串已由适配器加载。
+ */
 export function MonacoDiff({ original, modified }: { original: string; modified: string }) {
     useAppLocale();
     const localizedLabel = tx("Version difference");

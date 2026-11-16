@@ -1,4 +1,5 @@
-"""操作员批准引擎清单读取器校验 ApprovedEngineInventoryV1，要求 engineVersion 唯一完整发行。必备 package/lock/dependencies/compiler.tgz；
+"""操作员批准引擎清单读取器校验 ApprovedEngineInventoryV1，要求 engineVersion 唯一完整发行。必备
+package/lock/dependencies/compiler.tgz；
 
 生成源码路径不得标为批准发行。
 """
@@ -14,19 +15,23 @@ from ..settings import Settings
 
 class ApprovedEngines:
     """加载批准清单，require 返回引擎描述与规范哈希，ApprovedEngines 路径必须遵守 Workspace 作用域。
-    ApprovedEngines 实现于 apps/srv/src/veriq_server/services/engines.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    ApprovedEngines 实现于 apps/srv/src/veriq_server/services/engines.py：请按该符号的输入校验、错误码与调用方契约阅读，
+    勿假设通用成功默认值。
     """
 
     def __init__(self, settings: Settings, raw: bytes | None = None):
         """记录路径或预载 raw，便于测试注入而不读盘，ApprovedEngines.__init__ 路径必须遵守 Workspace 作用域。
-        __init__ 实现于 apps/srv/src/veriq_server/services/engines.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        __init__ 实现于 apps/srv/src/veriq_server/services/engines.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
         """
         self.path = settings.approved_engine_inventory_path
         self.raw = raw
 
     def require(self, version: str) -> tuple[dict[str, Any], str]:
-        """匹配唯一引擎版本并检查文件白名单，错误归一 ENGINE_NOT_APPROVED，ApprovedEngines.require 路径必须遵守 Workspace 作用域。
-        require 实现于 apps/srv/src/veriq_server/services/engines.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """匹配唯一引擎版本并检查文件白名单，错误归一 ENGINE_NOT_APPROVED，ApprovedEngines.require 路径必须遵守
+        Workspace 作用域。
+        require 实现于 apps/srv/src/veriq_server/services/engines.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
         """
         try:
             if not self.path:

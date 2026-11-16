@@ -35,7 +35,10 @@ import {
     type MacRuntimeStaticInventory,
 } from "../src/distribution-manifest-v2.ts";
 
-/** 私有事务把磁盘、来源身份和当前候选生命周期集中在一个拥有者中，扫描器不能自行选择输出根或删除路径；输入仍按固定配方重新读取，随机名字与标记只用于清理归属而不授予后续执行能力。 */
+/**
+ * 私有事务把磁盘、来源身份和当前候选生命周期集中在一个拥有者中，扫描器不能自行选择输出根或删除路径；输入仍按固定配方重
+ * 新读取，随机名字与标记只用于清理归属而不授予后续执行能力。
+ */
 export class ArchiveTransaction {
     readonly nonce = randomUUID();
     readonly directory: string;
@@ -63,7 +66,10 @@ export class ArchiveTransaction {
     private writers = 0;
     private closureUnconfirmed = false;
     private scratchCreated = false;
-    /** 路径和信号已由入口在首次等待之前固定，这里只派生本次随机目录与独占锁名；构造函数不进行任何异步写入，因此准入失败不会留下缺少身份记录的候选或可被误接管的事务元数据。 */
+    /**
+     * 路径和信号已由入口在首次等待之前固定，这里只派生本次随机目录与独占锁名；构造函数不进行任何异步写入，因此准入失败
+     * 不会留下缺少身份记录的候选或可被误接管的事务元数据。
+     */
     constructor(
         readonly inputRoot: string,
         readonly outputParent: string,
@@ -75,11 +81,17 @@ export class ArchiveTransaction {
         this.lockPath = join(outputParent, `.veriq-${candidateName}.lock`);
         this.scratch = join(outputParent, `.veriq-${candidateName}-${this.nonce}`);
     }
-    /** 每个真实等待与数据块周围都调用相同取消检查，首个信号后不再准入新写入；已确认提交的目录不因后来取消而撤回，发布前的最后检查由 publish 明确执行，阶段诊断始终保持固定英文分类。 */
+    /**
+     * 每个真实等待与数据块周围都调用相同取消检查，首个信号后不再准入新写入；已确认提交的目录不因后来取消而撤回，发布前
+     * 的最后检查由 publish 明确执行，阶段诊断始终保持固定英文分类。
+     */
     check() {
         if (this.signal?.aborted && !this.committed) this.fail("PAYLOAD_CANCELLED");
     }
-    /** 所有事务拒绝统一携带实际阶段和最终候选路径，不拼接压缩库消息或原始输入正文；cleanup 只由已执行且确认的资源关闭及归属检查产生，默认尚未清理时不能预先声称删除已成功完成。 */
+    /**
+     * 所有事务拒绝统一携带实际阶段和最终候选路径，不拼接压缩库消息或原始输入正文；cleanup 只由已执行且确认的资源关闭及
+     * 归属检查产生，默认尚未清理时不能预先声称删除已成功完成。
+     */
     fail(
         code: PayloadErrorCode,
         cleanup: Cleanup = "NOT_NEEDED",
@@ -90,8 +102,11 @@ export class ArchiveTransaction {
             candidateDirectory: this.directory,
         });
     }
-    /** 根目录复用已核 reader 的逐级无链接及 ASAR 检查，输入输出必须是互不覆盖的真实绝对路径；受控父目录由调用者持有，本实现明确只检测已观察替换，不把普通 JS rename 描述为恶意同 UID 下的原子独占原
-     * 语。 */
+    /**
+     * 根目录复用已核 reader 的逐级无链接及 ASAR 检查，输入输出必须是互不覆盖的真实绝对路径；受控父目录由调用者持有，本
+     * 实现明确只检测已观察替换，不把普通 JS rename 描述为恶意同 UID 下的原子独占原
+     * 语。
+     */
     async initialize() {
         this.check();
         relative(this.candidateName);
@@ -147,7 +162,10 @@ export class ArchiveTransaction {
             await this.mkdir("input-evidence");
         }
     }
-    /** 不存在检查只把明确 ENOENT 当作空位置，其它系统错误必须传播并停止事务；检查既在独占锁之前执行也紧邻 rename 再执行，避免把已有目录或符号链接当作可覆盖的旧候选而悄悄删除。 */
+    /**
+     * 不存在检查只把明确 ENOENT 当作空位置，其它系统错误必须传播并停止事务；检查既在独占锁之前执行也紧邻 rename 再执行
+     * ，避免把已有目录或符号链接当作可覆盖的旧候选而悄悄删除。
+     */
     private async absent(path: string) {
         try {
             await lstat(path);
@@ -157,7 +175,10 @@ export class ArchiveTransaction {
         }
         this.check();
     }
-    /** 固定空间模型使用真实剩余写入量和保守元数据占用，额外预留至少十六 MiB 而不要求十六 GiB 空闲；每阶段重新制定计划，每个新条目及八 MiB 数据写入后再次查询，实际 ENOSPC 与配额错误仍会失败关闭。 */
+    /**
+     * 固定空间模型使用真实剩余写入量和保守元数据占用，额外预留至少十六 MiB 而不要求十六 GiB 空闲；每阶段重新制定计划，
+     * 每个新条目及八 MiB 数据写入后再次查询，实际 ENOSPC 与配额错误仍会失败关闭。
+     */
     async plan(bytes: number, entries: number) {
         if (
             !Number.isSafeInteger(bytes) ||
@@ -169,7 +190,10 @@ export class ArchiveTransaction {
         this.remaining = bytes + entries * 4096 + limits.json + 16384;
         await this.checkSpace();
     }
-    /** 空闲量以 statfs 可用块计算并使用 BigInt 避免设备块乘积失去整数精度，调用者不能覆盖保留量或预算；本检查是保守计划而非物理磁盘精确计量，不能因此忽略后续真实写入失败或删除他人候选腾空间。 */
+    /**
+     * 空闲量以 statfs 可用块计算并使用 BigInt 避免设备块乘积失去整数精度，调用者不能覆盖保留量或预算；本检查是保守计划
+     * 而非物理磁盘精确计量，不能因此忽略后续真实写入失败或删除他人候选腾空间。
+     */
     async checkSpace() {
         this.check();
         const facts = await statfs(this.outputParent, { bigint: true });
@@ -179,7 +203,10 @@ export class ArchiveTransaction {
             this.fail("PAYLOAD_DISK_INSUFFICIENT");
         this.sinceCheck = 0;
     }
-    /** 目录只按已核可移植组件逐层建立，物理权限固定私有且不沿归档权限落盘；重复推导父目录共享同一已记录身份，任何外来同名路径都会被 exclusive mkdir 拒绝，无法通过递归 mkdir 默默接受符号链接。 */
+    /**
+     * 目录只按已核可移植组件逐层建立，物理权限固定私有且不沿归档权限落盘；重复推导父目录共享同一已记录身份，任何外来同
+     * 名路径都会被 exclusive mkdir 拒绝，无法通过递归 mkdir 默默接受符号链接。
+     */
     async mkdir(path: string) {
         if (!path || this.directories.has(path)) return;
         this.validatePath(path);
@@ -192,7 +219,8 @@ export class ArchiveTransaction {
             join(this.scratch, path),
             constants.O_RDONLY | constants.O_NOFOLLOW,
         );
-        // 目录权限或刷新失败必须作为第一错误继续向真实 intake 与 stage 边界传播，关闭只是独立收尾事实；即使真实 close 后又报告异常，也只记录清理不确定，不能把原 ENOSPC 或 EDQUOT 换成后来的
+        // 目录权限或刷新失败必须作为第一错误继续向真实 intake 与 stage 边界传播，关闭只是独立收尾事实；即使真实 close
+        // 后又报告异常，也只记录清理不确定，不能把原 ENOSPC 或 EDQUOT 换成后来的
         // EIO。
         let failed = false;
         try {
@@ -214,7 +242,10 @@ export class ArchiveTransaction {
         this.directoryModes.set(path, mode);
         this.remaining = Math.max(0, this.remaining - 4096);
     }
-    /** 流写入只接受内部扫描器确认的相对路径，使用独占六百权限普通文件并分块写到完整长度；关闭确认前保留 writer 计数，任何 sync 或 close 失败都会阻止安全清理声明，绝不把仍可能写入的目录递归删除。 */
+    /**
+     * 流写入只接受内部扫描器确认的相对路径，使用独占六百权限普通文件并分块写到完整长度；关闭确认前保留 writer 计数，任
+     * 何 sync 或 close 失败都会阻止安全清理声明，绝不把仍可能写入的目录递归删除。
+     */
     async write(
         path: string,
         chunks: AsyncIterable<Uint8Array>,
@@ -298,7 +329,10 @@ export class ArchiveTransaction {
             }
         }
     }
-    /** I 的来源观察在初次 b1a 成功后独立建立，保存实际消费文件与五树成员及全部父目录身份；它不继承 b1a 私有早期观察，也不承诺发现两个观察边界间的同字节 inode 替换，最终仍重调 b1a 固定内容政策。 */
+    /**
+     * I 的来源观察在初次 b1a 成功后独立建立，保存实际消费文件与五树成员及全部父目录身份；它不继承 b1a 私有早期观察，也
+     * 不承诺发现两个观察边界间的同字节 inode 替换，最终仍重调 b1a 固定内容政策。
+     */
     async observeSources(report: InputInspection) {
         const names = new Set(report.checkedEvidence.map((r) => r.path));
         for (const [kind, tree] of Object.entries(report.trees)) {
@@ -324,7 +358,10 @@ export class ArchiveTransaction {
             this.fail("PAYLOAD_LIMIT");
         await this.registerSources(names);
     }
-    /** 有限资产观察入口同步复制严格引用后才开始等待，最多八个普通文件并支持私有证据权限；登记只证明当前身份和长度，摘要必须继续由 snapshot 的真实 held FD 流核验，不能把声明当作可信内容。 */
+    /**
+     * 有限资产观察入口同步复制严格引用后才开始等待，最多八个普通文件并支持私有证据权限；登记只证明当前身份和长度，摘要
+     * 必须继续由 snapshot 的真实 held FD 流核验，不能把声明当作可信内容。
+     */
     async observeRefs(refs: readonly Ref[]): Promise<void> {
         if (!Array.isArray(refs) || refs.length > 8) this.fail("PAYLOAD_LIMIT");
         const copied = refs.map((value) => {
@@ -361,7 +398,10 @@ export class ArchiveTransaction {
         }
         await this.registerSources(names, new Map(copied.map((r) => [r.path, r])));
     }
-    /** 旧五树入口与新有限引用共用同一个身份登记点，重复观察绝不覆盖较早事实；旧入口仍保存全部链接和树成员，新入口才额外限制普通文件权限与父目录，祖先身份收尾依然使用原本的比较政策。 */
+    /**
+     * 旧五树入口与新有限引用共用同一个身份登记点，重复观察绝不覆盖较早事实；旧入口仍保存全部链接和树成员，新入口才额外
+     * 限制普通文件权限与父目录，祖先身份收尾依然使用原本的比较政策。
+     */
     private async registerSources(names: ReadonlySet<string>, refs?: ReadonlyMap<string, Ref>) {
         let hostParent = dirname(this.inputRoot);
         while (true) {
@@ -402,7 +442,10 @@ export class ArchiveTransaction {
             if (info.isSymbolicLink()) await readlink(full);
         }
     }
-    /** 收尾重新观察同一来源身份集合，纳秒时间、长度、权限与 inode 均需保持一致，逻辑链接不解引用；所有归档复制和两遍解析完成后才接受该事实，变化时不重试到某个偶然成功的版本。 */
+    /**
+     * 收尾重新观察同一来源身份集合，纳秒时间、长度、权限与 inode 均需保持一致，逻辑链接不解引用；所有归档复制和两遍解析
+     * 完成后才接受该事实，变化时不重试到某个偶然成功的版本。
+     */
     async finishSources() {
         for (const [path, before] of this.ancestors) {
             this.check();
@@ -417,7 +460,10 @@ export class ArchiveTransaction {
             if (!sameIdentity(before, now)) this.fail("PAYLOAD_SOURCE_CHANGED");
         }
     }
-    /** 原归档从重新观察的单链接普通文件描述符复制为独立快照，打开前后及收尾均核同一身份与完整原始摘要；复制绝不使用 hardlink 或再次按外部路径提取，后续扫描只消费本事务快照。 */
+    /**
+     * 原归档从重新观察的单链接普通文件描述符复制为独立快照，打开前后及收尾均核同一身份与完整原始摘要；复制绝不使用
+     * hardlink 或再次按外部路径提取，后续扫描只消费本事务快照。
+     */
     async snapshot(ref: Ref, destination: string) {
         this.check();
         const path = join(this.inputRoot, ref.path),
@@ -472,24 +518,36 @@ export class ArchiveTransaction {
             }
         }
     }
-    /** 次要关闭失败必须进入事务的可观察清理状态，不能被首个路径或内容错误覆盖成虚假成功；扫描器保留原始正式错误，同时用该记录阻止删除尚未确认资源边界的 scratch，CLI 仍有独立五秒期限处理无法返回的关闭。 */
+    /**
+     * 次要关闭失败必须进入事务的可观察清理状态，不能被首个路径或内容错误覆盖成虚假成功；扫描器保留原始正式错误，同时用
+     * 该记录阻止删除尚未确认资源边界的 scratch，CLI 仍有独立五秒期限处理无法返回的关闭。
+     */
     noteCloseFailure() {
         this.closureUnconfirmed = true;
     }
-    /** 固定容器不属于发行成员深度与长度预算，移除唯一内部前缀后仍逐组件检查完整逻辑路径；绝对路径、点组件和逃逸不会因为容器豁免而放行，默认 intake 保持原有路径政策供后续单独整改。 */
+    /**
+     * 固定容器不属于发行成员深度与长度预算，移除唯一内部前缀后仍逐组件检查完整逻辑路径；绝对路径、点组件和逃逸不会因为
+     * 容器豁免而放行，默认 intake 保持原有路径政策供后续单独整改。
+     */
     private validatePath(path: string) {
         if (this.profile === "runtime" && path.startsWith("runtime/")) relative(path.slice(8));
         else if (this.profile === "work" && path.startsWith("views/")) relative(path.slice(6));
         else relative(path);
     }
-    /** 只有最终 runtime 与临时 views 两个固定树使用可分发权限，其它证据和事务目录继续保持私有；权限由内部 profile 和路径共同派生，不开放任意调用者 chmod 或可绕过 audit 的文件系统钩子。 */
+    /**
+     * 只有最终 runtime 与临时 views 两个固定树使用可分发权限，其它证据和事务目录继续保持私有；权限由内部 profile 和路径
+     * 共同派生，不开放任意调用者 chmod 或可绕过 audit 的文件系统钩子。
+     */
     private publicPath(path: string) {
         return (
             (this.profile === "runtime" && (path === "runtime" || path.startsWith("runtime/"))) ||
             (this.profile === "work" && (path === "views" || path.startsWith("views/")))
         );
     }
-    /** Chrome 链接只接受已独立核验布局中明确列出的 Framework 成员，真实普通树先写完再落地精确原目标；登记集合被 audit 逐项读回，其它任何链接路径都不能借该方法获得一般文件系统写权限。 */
+    /**
+     * Chrome 链接只接受已独立核验布局中明确列出的 Framework 成员，真实普通树先写完再落地精确原目标；登记集合被 audit 逐
+     * 项读回，其它任何链接路径都不能借该方法获得一般文件系统写权限。
+     */
     async createChromeLinks(layout: MacChromeLayout) {
         if (this.profile !== "runtime") this.fail("PAYLOAD_PATH");
         for (const link of layout.allowedLinks) {
@@ -499,8 +557,11 @@ export class ArchiveTransaction {
             await this.trackedLink(`runtime/${link.path}`, link.target);
         }
     }
-    /** 临时 npm alias 只有原收据明确声明并且每跳原始链接都与本次 intake 完全一致时才建立，终点必须是真实普通文件且等于 bin 目标；链接仅用于物理内容核验并归一到投影内目标，最终 Runtime 不复制它
-     * 们。 */
+    /**
+     * 临时 npm alias 只有原收据明确声明并且每跳原始链接都与本次 intake 完全一致时才建立，终点必须是真实普通文件且等于
+     * bin 目标；链接仅用于物理内容核验并归一到投影内目标，最终 Runtime 不复制它
+     * 们。
+     */
     async createProjectionBinAliases(node: NodeReceipt, members: readonly ArchiveMember[]) {
         if (this.profile !== "work") this.fail("PAYLOAD_PATH");
         const byPath = new Map(members.map((member) => [member.path, member]));
@@ -544,7 +605,9 @@ export class ArchiveTransaction {
             await this.trackedLink(`views/${bin.aliasPath}`, target);
         }
     }
-    /** 依赖 producer 只能重建已有 bin 计划精确声明的原始别名链接，目标必须是同一事务已写入并匹配摘要的普通成员；不能用本入口为包目录、任意源码或未纳入图的路径建立一般链接能力。
+    /**
+     * 依赖 producer 只能重建已有 bin 计划精确声明的原始别名链接，目标必须是同一事务已写入并匹配摘要的普通成员；不能用本
+     * 入口为包目录、任意源码或未纳入图的路径建立一般链接能力。
      * 公开赢家和保留私有命名空间的合法性仍由完整 graph 核验，事务这里只负责精确目标与受控视图所有权。
      */
     async createDependencyInputLinks(bins: readonly Bin[], links: readonly LinkFact[]) {
@@ -572,7 +635,10 @@ export class ArchiveTransaction {
             await this.trackedLink(`views/dependencies/${link.path}`, link.target);
         }
     }
-    /** 有限消费者完成各自政策检查之后才进入同一个私有链接写入点，逐级父目录必须为本事务已登记的真实目录；链接与文件目录集合互斥，原始目标在 audit 中逐字读回而不会被当作目录递归跟随。 */
+    /**
+     * 有限消费者完成各自政策检查之后才进入同一个私有链接写入点，逐级父目录必须为本事务已登记的真实目录；链接与文件目录
+     * 集合互斥，原始目标在 audit 中逐字读回而不会被当作目录递归跟随。
+     */
     private async trackedLink(path: string, target: string) {
         this.validatePath(path);
         relative(target, true);
@@ -589,7 +655,10 @@ export class ArchiveTransaction {
         this.links.set(path, target);
         this.check();
     }
-    /** 每个快照与普通输出都通过 held FD 再次完整流 hash，目录则精确枚举已拥有集合拒绝额外或缺失路径；最终路径复核不受已提交后取消影响，无法确认内容时保留发布事实并返回提交不确定错误。 */
+    /**
+     * 每个快照与普通输出都通过 held FD 再次完整流 hash，目录则精确枚举已拥有集合拒绝额外或缺失路径；最终路径复核不受已
+     * 提交后取消影响，无法确认内容时保留发布事实并返回提交不确定错误。
+     */
     async audit(root = this.scratch) {
         const expected = new Set([
             ...this.directories,
@@ -658,7 +727,10 @@ export class ArchiveTransaction {
         await walk("");
         if (expected.size) this.fail("PAYLOAD_SOURCE_CHANGED");
     }
-    /** 发布前刷新所有私有目录并再核自有根与锁，然后紧邻 rename 检查不存在和取消；rename 一旦开始即进入不确定边界，任何失败或最终复核失败都不冒充已回滚，也不会递归删除可能已经发布的目录。 */
+    /**
+     * 发布前刷新所有私有目录并再核自有根与锁，然后紧邻 rename 检查不存在和取消；rename 一旦开始即进入不确定边界，任何失
+     * 败或最终复核失败都不冒充已回滚，也不会递归删除可能已经发布的目录。
+     */
     async publish(): Promise<Cleanup> {
         if (this.profile !== "intake" && !this.runtimePolicy) this.fail("PAYLOAD_PATH");
         this.phase = "PUBLISH";
@@ -716,8 +788,11 @@ export class ArchiveTransaction {
         }
         return this.cleanup();
     }
-    /** Runtime 发布复用原独占锁和 rename 边界，但锁收尾前还必须在真正最终目录执行完整 D3a 并匹配同一 manifest 摘要；提交后无法核验时保留候选并报告不确定，绝不通过替换旧临时 root 字段冒充最
-     * 终物理观察。 */
+    /**
+     * Runtime 发布复用原独占锁和 rename 边界，但锁收尾前还必须在真正最终目录执行完整 D3a 并匹配同一 manifest 摘要；提交
+     * 后无法核验时保留候选并报告不确定，绝不通过替换旧临时 root 字段冒充最
+     * 终物理观察。
+     */
     async publishRuntime(policy: {
         arch: MacRuntimeArch;
         layout: MacChromeLayout;
@@ -733,7 +808,10 @@ export class ArchiveTransaction {
         if (!this.finalInventory) this.fail("PAYLOAD_COMMIT_UNCONFIRMED", "INCOMPLETE");
         return { cleanup, inventory: this.finalInventory };
     }
-    /** 清理归属以真实父目录、随机根 inode、独占锁 inode 与 nonce 字节共同确认，标记本身不允许接管旧目录；被观察到替换或尚有 writer 时拒绝删除，成功提交后只收尾锁而永远保留最终内容。 */
+    /**
+     * 清理归属以真实父目录、随机根 inode、独占锁 inode 与 nonce 字节共同确认，标记本身不允许接管旧目录；被观察到替换或
+     * 尚有 writer 时拒绝删除，成功提交后只收尾锁而永远保留最终内容。
+     */
     private async owned() {
         if (
             !this.parentIdentity ||
@@ -757,7 +835,10 @@ export class ArchiveTransaction {
                 this.fail("PAYLOAD_SOURCE_CHANGED", "INCOMPLETE");
         }
     }
-    /** 仅当前事务持有的目录与锁可进入删除流程，所有写句柄关闭和原始身份确认是前置条件；清理失败只返回 INCOMPLETE 而不覆盖原始拒绝分类，既有候选、输入以及其它随机目录都不会按名字模式扫描回收。 */
+    /**
+     * 仅当前事务持有的目录与锁可进入删除流程，所有写句柄关闭和原始身份确认是前置条件；清理失败只返回 INCOMPLETE 而不覆
+     * 盖原始拒绝分类，既有候选、输入以及其它随机目录都不会按名字模式扫描回收。
+     */
     async cleanup(): Promise<Cleanup> {
         if (!this.lock && !this.rootIdentity && !this.scratchCreated) return "NOT_NEEDED";
         if ((this.lock && !this.lockIdentity) || (this.scratchCreated && !this.rootIdentity))
@@ -802,7 +883,10 @@ export class ArchiveTransaction {
     }
 }
 
-/** 身份比较区分会随目录正常写入变化的时间与固定归属字段，根和父目录只比较后者；普通源文件使用完整纳秒事实，避免同长度重写或权限改变在重新 hash 相同内容后被当作从未变化。 */
+/**
+ * 身份比较区分会随目录正常写入变化的时间与固定归属字段，根和父目录只比较后者；普通源文件使用完整纳秒事实，避免同长度重
+ * 写或权限改变在重新 hash 相同内容后被当作从未变化。
+ */
 function sameNode(a: BigIntStats, b: BigIntStats) {
     return (
         a.dev === b.dev &&
@@ -812,7 +896,10 @@ function sameNode(a: BigIntStats, b: BigIntStats) {
         a.gid === b.gid
     );
 }
-/** 完整来源比较额外保留链接数、长度与纳秒修改状态，读取不会改变参与比较的 atime；这些字段形成有界观察证据，不提供敌对同 UID 目录替换时不存在的原子整树快照保证。 */
+/**
+ * 完整来源比较额外保留链接数、长度与纳秒修改状态，读取不会改变参与比较的 atime；这些字段形成有界观察证据，不提供敌对同
+ * UID 目录替换时不存在的原子整树快照保证。
+ */
 function sameIdentity(a: BigIntStats, b: BigIntStats) {
     return (
         sameNode(a, b) &&
@@ -822,13 +909,19 @@ function sameIdentity(a: BigIntStats, b: BigIntStats) {
         a.ctimeNs === b.ctimeNs
     );
 }
-/** 错误码提取只接受对象上的字符串系统分类，公开错误映射另外使用白名单；这里不读取或传播底层 message，避免压缩库或文件系统把不受信任归档路径及输入正文拼入英文诊断。 */
+/**
+ * 错误码提取只接受对象上的字符串系统分类，公开错误映射另外使用白名单；这里不读取或传播底层 message，避免压缩库或文件系
+ * 统把不受信任归档路径及输入正文拼入英文诊断。
+ */
 export function errno(error: unknown): string | null {
     return error && typeof error === "object" && "code" in error && typeof error.code === "string"
         ? error.code
         : null;
 }
-/** 受控文件系统错误在真实写入边界先分类，避免经过压缩适配器后被误当格式错误；仅固定 errno 白名单可产生 IO 或空间不足，压缩库与未知错误返回空值保留原解释路径，首个分类与次要关闭不确认分别记录。 */
+/**
+ * 受控文件系统错误在真实写入边界先分类，避免经过压缩适配器后被误当格式错误；仅固定 errno 白名单可产生 IO 或空间不足，压
+ * 缩库与未知错误返回空值保留原解释路径，首个分类与次要关闭不确认分别记录。
+ */
 export function controlledIoFailure(
     error: unknown,
 ): Readonly<{ code: PayloadErrorCode; causeCode: string }> | null {
@@ -856,7 +949,10 @@ export function controlledIoFailure(
         causeCode: code,
     };
 }
-/** 独占锁标识使用同一个无链接 held FD 有界读取，仅接受当前事务的短 nonce 长度；它与目录和锁 inode 检查组合使用，不把任意同名字 JSON 或用户可写标记解释为清理其它目录的权限。 */
+/**
+ * 独占锁标识使用同一个无链接 held FD 有界读取，仅接受当前事务的短 nonce 长度；它与目录和锁 inode 检查组合使用，不把任意
+ * 同名字 JSON 或用户可写标记解释为清理其它目录的权限。
+ */
 async function readSmall(path: string) {
     const handle = await open(
         path,

@@ -1,4 +1,5 @@
-"""正式执行门禁综合 Attempt 结果、激活溯源与当前 Runtime 信任/绑定/请求者是否仍有效，本模块注释描述其专属不变量与失败语义。activation_provenance 固化 formalEligible；
+"""正式执行门禁综合 Attempt 结果、激活溯源与当前 Runtime 信任/绑定/请求者是否仍有效，本模块注释描述其专属不变量与失败语
+义。activation_provenance 固化 formalEligible；
 
 凭据投递事后吊销会追加失败原因。
 """
@@ -18,7 +19,8 @@ def gate(
     outcome: str | None, provenance: dict[str, Any] | None, *, current: bool = True
 ) -> dict[str, Any]:
     """汇总 outcome、provenance、current 为 passed/reasons 供报告门禁，gate 路径必须遵守 Workspace 作用域。
-    gate 实现于 apps/srv/src/veriq_server/services/gate.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    gate 实现于 apps/srv/src/veriq_server/services/gate.py：请按该符号的输入校验、错误码与调用方契约阅读，
+    勿假设通用成功默认值。
     """
     reasons = []
     if outcome != "PASSED":
@@ -36,7 +38,8 @@ async def activation_provenance(
     session: AsyncSession, job: Job, runtime: Runtime, binding: RuntimeBinding
 ) -> dict[str, Any]:
     """激活时采集信任、共享、凭据许可与正式资格写入 Attempt，activation_provenance 路径必须遵守 Workspace 作用域。
-    activation_provenance 实现于 apps/srv/src/veriq_server/services/gate.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    activation_provenance 实现于 apps/srv/src/veriq_server/services/gate.py：请按该符号的输入校验、
+    错误码与调用方契约阅读，勿假设通用成功默认值。
     """
     case = (
         await session.get(CaseExecution, job.case_execution_id) if job.case_execution_id else None
@@ -81,7 +84,8 @@ async def activation_provenance(
 
 async def current_gate(session: AsyncSession, attempt: Attempt) -> dict[str, Any]:
     """结合冻结溯源与当前权威重算门禁，投递许可吊销时追加原因，current_gate 路径必须遵守 Workspace 作用域。
-    current_gate 实现于 apps/srv/src/veriq_server/services/gate.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    current_gate 实现于 apps/srv/src/veriq_server/services/gate.py：请按该符号的输入校验、错误码与调用方契约阅读，
+    勿假设通用成功默认值。
     """
     runtime = await session.get(Runtime, attempt.runtime_id)
     binding = await session.get(RuntimeBinding, (attempt.runtime_id, attempt.workspace_id))
@@ -96,7 +100,8 @@ async def current_gate(session: AsyncSession, attempt: Attempt) -> dict[str, Any
             current = False
     result = gate(attempt.outcome, attempt.execution_provenance, current=current)
     provenance = attempt.execution_provenance or {}
-    # required 表示快照钉死了密钥引用，并不臆造运行时一定使用过这些密钥。缺少该字段区分的旧快照，保守沿用当时捕获的 credentialDeliveryAllowed 作为 required。
+    # required 表示快照钉死了密钥引用，并不臆造运行时一定使用过这些密钥。缺少该字段区分的旧快照，保守沿用当时捕获的
+    # credentialDeliveryAllowed 作为 required。
     required = provenance.get(
         "credentialDeliveryRequired", provenance.get("credentialDeliveryAllowed", False)
     )

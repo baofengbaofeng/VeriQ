@@ -21,11 +21,14 @@ test.beforeAll(async () => {
 });
 let workflowFixture: { profile: string; fixture: string } | undefined;
 
-// pw:browser 诊断只属于测试驱动，实际 Electron、控制夹具及组件浏览器使用移除 DEBUG 后的宿主环境；独立 Agent 随后继承的是 Electron 的干净环境，不能把驱动日志选项传进业务 SDK。
+// pw:browser 诊断只属于测试驱动，实际 Electron、控制夹具及组件浏览器使用移除 DEBUG 后的宿主环境；独立 Agent
+// 随后继承的是 Electron 的干净环境，不能把驱动日志选项传进业务 SDK。
 const applicationEnvironment = { ...process.env };
 delete applicationEnvironment.DEBUG;
 
-/** 测试清理按后台、窗口、数据库夹具顺序收敛，并在任一步失败后仍尝试关闭其余自有资源；收集到的失败最终统一抛出，不让一个清理异常跳过释放数据库锁，也不把发送信号或框架返回当作真实进程停止。 */
+/** 测试清理按后台、窗口、数据库夹具顺序收敛，并在任一步失败后仍尝试关闭其余自有资源；收集到的失败最终统一抛出，
+ * 不让一个清理异常跳过释放数据库锁，也不把发送信号或框架返回当作真实进程停止。
+ */
 async function teardownDesktop(
     electron: Awaited<ReturnType<typeof _electron.launch>> | undefined,
     profile: string,
@@ -54,7 +57,9 @@ async function teardownDesktop(
     if (failures.length) throw new AggregateError(failures, "DESKTOP_TEARDOWN_FAILED");
 }
 
-/** 最小窗口检查必须启动真实已打包 Electron，并从实际 preload 与独立后台读取状态；浏览器模拟页面、缺失二进制或缺少 DISPLAY 都不能代替这个产品行为测试的结果。 */
+/** 最小窗口检查必须启动真实已打包 Electron，并从实际 preload 与独立后台读取状态；浏览器模拟页面、缺失二进制或缺少
+ * DISPLAY 都不能代替这个产品行为测试的结果。
+ */
 test("bundled desktop opens offline with strict renderer and independent Node24", async () => {
     const root = resolve("../.."),
         profile = await mkdtemp("/tmp/veriq-t19-gui-");
@@ -157,7 +162,8 @@ test("bundled desktop opens offline with strict renderer and independent Node24"
     } finally {
         console.log("Closing UI test process");
         await teardownDesktop(electron, profile, agentPid);
-        // 失败时保留完整私有 profile 供诊断；正常退出须等后台描述文件消失后再清理，避免把存活后台的锁和数据库误删，这个早期空闲冒烟清理不用于证明活动 Run 的生命周期。
+        // 失败时保留完整私有 profile 供诊断；正常退出须等后台描述文件消失后再清理，避免把存活后台的锁和数据库误删，
+        // 这个早期空闲冒烟清理不用于证明活动 Run 的生命周期。
         if (agentPid) {
             await expect
                 .poll(async () =>
@@ -172,7 +178,9 @@ test("bundled desktop opens offline with strict renderer and independent Node24"
     }
 });
 
-/** 完整链路只通过真实平台 API 准备业务输入，随后由桌面绑定的独立 Agent 消费生产器候选生成回执；控制平面停止后继续访问业务站点，报告与回传必须来自实际签名包执行而非注入结果。 */
+/** 完整链路只通过真实平台 API 准备业务输入，随后由桌面绑定的独立 Agent 消费生产器候选生成回执；控制平面停止后继续访问业
+ * 务站点，报告与回传必须来自实际签名包执行而非注入结果。
+ */
 test("production candidate completes the real desktop offline workflow", async ({ request }) => {
     test.setTimeout(300000);
     const root = resolve("../..");
@@ -492,7 +500,9 @@ test("production candidate completes the real desktop offline workflow", async (
     }
 });
 
-/** 后半验收复用前一真实链生成的持久包、数据库和报告，重启仅恢复同一隔离控制平面；本测试必须显式提供已有 profile 与签发者目录，绝不重建已发布资源或代写测试结果来掩盖恢复失败。 */
+/** 后半验收复用前一真实链生成的持久包、数据库和报告，重启仅恢复同一隔离控制平面；本测试必须显式提供已有 profile
+ * 与签发者目录，绝不重建已发布资源或代写测试结果来掩盖恢复失败。
+ */
 test("resume durable desktop evidence and upload acceptance", async ({ request }) => {
     test.skip(
         !process.env.VERIQ_T19_RESUME_PROFILE && !workflowFixture,
@@ -750,7 +760,8 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
             await electron.evaluate(async ({ BrowserWindow }) => {
                 const windows = BrowserWindow.getAllWindows();
                 const contents = windows[0]!.webContents;
-                // 诊断保留原先选择首个窗口的语义，只记录有限窗口身份来区分目标选错、崩溃事件未到达和恢复加载失败；URL 不记录查询、片段或私有查看器路径，不能借观测泄露 Trace 入口能力。
+                // 诊断保留原先选择首个窗口的语义，只记录有限窗口身份来区分目标选错、崩溃事件未到达和恢复加载失败；URL
+                // 不记录查询、片段或私有查看器路径，不能借观测泄露 Trace 入口能力。
                 const location = (raw: string): string => {
                     if (!raw) return "empty";
                     const url = new URL(raw);
@@ -783,7 +794,8 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
                         location: location(window.webContents.getURL()),
                     })),
                 });
-                // 被动监听最多输出二十四条元数据，不覆盖 loadURL、不处理异常、不重载窗口，也不改变正式测试预算；did-fail-load 仅保留错误码和主 frame 标志，错误描述及实际导航地址不进入日志。
+                // 被动监听最多输出二十四条元数据，不覆盖 loadURL、不处理异常、不重载窗口，也不改变正式测试预算；
+                // did-fail-load 仅保留错误码和主 frame 标志，错误描述及实际导航地址不进入日志。
                 contents.on("render-process-gone", (_event, details) =>
                     observe("render-process-gone", {
                         reason: details.reason,
@@ -841,7 +853,8 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
         await previous.evaluate(async ({ BrowserWindow }) => {
             const contents = BrowserWindow.getAllWindows()[0]!.webContents;
             const point = await contents.executeJavaScript(
-                "(() => { const r = [...document.querySelectorAll('button')].find(b => b.textContent === '退出界面').get" +
+                "(() => { const r = [...document.querySelectorAll('button')].find(b => " +
+                "b.textContent === '退出界面').get" +
                     "BoundingClientRect(); return {x: Math.round(r.x+r.width/2), y: Math.round(r.y+r.height/2)}; })(" +
                     ")",
             );
@@ -983,7 +996,9 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
     }
 });
 
-/** 控制服务不运行时仍从已验签包打开共享资源页及实际生成的 TypeScript，监控加载的本地产物与 CSP 错误；本例同时确认第二实例不会新建后台，普通关闭窗口不会终止执行服务。 */
+/** 控制服务不运行时仍从已验签包打开共享资源页及实际生成的 TypeScript，监控加载的本地产物与 CSP 错误；
+ * 本例同时确认第二实例不会新建后台，普通关闭窗口不会终止执行服务。
+ */
 test("offline shared resource assets and single instance remain local", async ({ request }) => {
     test.skip(
         !process.env.VERIQ_T19_RESUME_PROFILE && !workflowFixture,
@@ -1176,7 +1191,9 @@ test("offline shared resource assets and single instance remain local", async ({
     }
 });
 
-/** 联网共享编辑器的创建、JSON 保存、编译与发布均由实际窗口触发，后台继续消费相同生产候选；AI 页面只读取配置和禁用状态，不配置模型密钥、不调用外部供应商，也不替换实际校验回执。 */
+/** 联网共享编辑器的创建、JSON 保存、编译与发布均由实际窗口触发，后台继续消费相同生产候选；AI 页面只读取配置和禁用状态，
+ * 不配置模型密钥、不调用外部供应商，也不替换实际校验回执。
+ */
 test("shared cloud editor publishes through the desktop host transport", async ({ request }) => {
     test.skip(
         !process.env.VERIQ_T19_RESUME_PROFILE && !workflowFixture,
@@ -1354,7 +1371,9 @@ test("shared cloud editor publishes through the desktop host transport", async (
     }
 });
 
-/** 本例仅验证准备中状态的实际 React 渲染与按钮参数，使用明确的组件级 bridge 替身，不宣称后台启动或业务执行成功；真实门闩与控制器归属由独立 Agent 测试覆盖，避免为了一个状态重跑完整签发链。 */
+/** 本例仅验证准备中状态的实际 React 渲染与按钮参数，使用明确的组件级 bridge 替身，不宣称后台启动或业务执行成功；
+ * 真实门闩与控制器归属由独立 Agent 测试覆盖，避免为了一个状态重跑完整签发链。
+ */
 test("component-only startup projection cancels its exact reservation", async () => {
     const root = resolve("../.."),
         assets = resolve("out/renderer");
@@ -1438,8 +1457,10 @@ test("component-only startup projection cancels its exact reservation", async ()
     }
 });
 
-/** 真实 Cookie 验收通过生产 main 的保护门闩建立持久 Session，写入公开合成值后关闭所有自有进程再独立读取 SQLite；重启同一档案必须恢复同一 Cookie，数据库空明文列和实际提供者密文均需成立，不能以
- * safeStorage 可用替代磁盘证据。 */
+/** 真实 Cookie 验收通过生产 main 的保护门闩建立持久 Session，写入公开合成值后关闭所有自有进程再独立读取 SQLite；
+ * 重启同一档案必须恢复同一 Cookie，数据库空明文列和实际提供者密文均需成立，不能以
+ * safeStorage 可用替代磁盘证据。
+ */
 test("production Cookie session persists protected rows and restores after restart", async () => {
     const { DatabaseSync } = await import("node:sqlite");
     const { stat, writeFile } = await import("node:fs/promises");

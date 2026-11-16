@@ -22,8 +22,8 @@ import type {
     Schemas,
 } from "./types";
 
-/**
- * 宿主传入当前员工已选择的Workspace，成功后仅收到真实空间和计划标识；新空间可先单独创建供用户授权Runtime，组件不替宿主修改全局选择或隐式授予任何设备信任和凭据权限。
+/** 宿主传入当前员工已选择的Workspace，成功后仅收到真实空间和计划标识；新空间可先单独创建供用户授权Runtime，组件不替宿主
+ * 修改全局选择或隐式授予任何设备信任和凭据权限。
  */
 export interface SampleWorkspaceWizardProps {
     workspaceId?: string;
@@ -57,9 +57,10 @@ const noSecrets: ImportSecrets = {
     adapterVersion: "",
 };
 
-/**
- * 真实示例向导从已安装包API读取DSL，通过当前员工Cookie/CSRF传输依次创建草稿、等待编译、读取回执并发布，所有取消和失败保留已接受的远端事实，绝不在前端合成成功作业或静态报告。token只存在短命表单和当前请求闭包，
- * 不进入Query缓存或恢复文件。账号或Workspace变化时终止旧请求并清空秘密，旧响应不能写入新空间。局部取消不等于远端Job取消，UI明确提示可按相同参数恢复。
+/** 真实示例向导从已安装包API读取DSL，通过当前员工Cookie/CSRF传输依次创建草稿、等待编译、读取回执并发布，所有取消和失败
+ * 保留已接受的远端事实，绝不在前端合成成功作业或静态报告。token只存在短命表单和当前请求闭包，
+ * 不进入Query缓存或恢复文件。账号或Workspace变化时终止旧请求并清空秘密，旧响应不能写入新空间。局部取消不等于远端Job取
+ * 消，UI明确提示可按相同参数恢复。
  */
 function SampleWorkspaceWizardSession({
     workspaceId,
@@ -186,7 +187,8 @@ function SampleWorkspaceWizardSession({
         setComplete(false);
         setError(null);
         setStorageWarning(false);
-        // 提交时立即清空页面令牌字段，异步请求仅保留本次所需的短命副本；恢复状态保存精确UUID和公开选择，明文不会因页面刷新、列表重取或错误通知被序列化。
+        // 提交时立即清空页面令牌字段，异步请求仅保留本次所需的短命副本；恢复状态保存精确UUID和公开选择，明文不会因页面
+        // 刷新、列表重取或错误通知被序列化。
         // 对于响应丢失的创建请求，不自动猜测密钥版本；用户可重新读取元数据并显式选择。
         // 已接受作业在本地停止后仍可能继续，重新进入会读取真实资源版本和相同校验键。
         // 配置指纹覆盖来源清单与环境，不能把旧回执套用到被修改的目标或角色。
@@ -573,7 +575,8 @@ function SampleWorkspaceWizardSession({
     );
 }
 
-/** 员工身份和当前Workspace共同作为向导实例键，宿主即使没有显式key也会在作用域变化时卸载所有秘密字段和请求控制器，旧异步完成不能污染新员工或新空间的进度与错误提示。
+/** 员工身份和当前Workspace共同作为向导实例键，宿主即使没有显式key也会在作用域变化时卸载所有秘密字段和请求控制器，旧异步
+ * 完成不能污染新员工或新空间的进度与错误提示。
  */
 export function SampleWorkspaceWizard(props: SampleWorkspaceWizardProps) {
     const { user } = useContext(Auth);

@@ -1,5 +1,6 @@
 /* Generated from openapi/platform.yaml. Run pnpm contracts:generate. */
-import type { JsonValue as ContractJsonValue, BindingJsonValue as ContractBindingJsonValue } from "./types.generated.js";
+import type { JsonValue as ContractJsonValue,
+    BindingJsonValue as ContractBindingJsonValue } from "./types.generated.js";
 export interface paths {
     "/health/live": {
         parameters: {
@@ -40,7 +41,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Returns validated nonsecret installed frontend metadata; development without a published frontend returns 503 BUILD_INFO_UNAVAILABLE. */
+        /** @description Returns validated nonsecret installed frontend metadata; development without a published
+         * frontend returns 503 BUILD_INFO_UNAVAILABLE.
+         */
         get: operations["buildInfo"];
         put?: never;
         post?: never;
@@ -59,7 +62,9 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Requires a same-origin Origin header and the CSRF token returned by GET /api/v1/setup; public access does not require a user session. */
+        /** @description Requires a same-origin Origin header and the CSRF token returned by GET /api/v1/setup; public
+         * access does not require a user session.
+         */
         post: operations["login"];
         delete?: never;
         options?: never;
@@ -108,7 +113,9 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Requires a same-origin Origin header and the CSRF token returned by GET /api/v1/setup; public access does not require a user session. */
+        /** @description Requires a same-origin Origin header and the CSRF token returned by GET /api/v1/setup; public
+         * access does not require a user session.
+         */
         post: operations["requestPasswordReset"];
         delete?: never;
         options?: never;
@@ -125,7 +132,9 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Requires a same-origin Origin header and the CSRF token returned by GET /api/v1/setup; public access does not require a user session. */
+        /** @description Requires a same-origin Origin header and the CSRF token returned by GET /api/v1/setup; public
+         * access does not require a user session.
+         */
         post: operations["confirmPasswordReset"];
         delete?: never;
         options?: never;
@@ -620,7 +629,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description T12 authorization obligation: raw Trace, screenshots, HTML and downloads are CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata only. This schema does not implement storage or authorization. */
+        /** @description T12 authorization obligation: raw Trace, screenshots, HTML and downloads are
+         * CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and
+         * MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured
+         * metadata only. This schema does not implement storage or authorization.
+         */
         get: operations["getArtifact"];
         put?: never;
         post?: never;
@@ -637,7 +650,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description T12 authorization obligation: raw Trace, screenshots, HTML and downloads are CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata only. This schema does not implement storage or authorization. */
+        /** @description T12 authorization obligation: raw Trace, screenshots, HTML and downloads are
+         * CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and
+         * MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured
+         * metadata only. This schema does not implement storage or authorization.
+         */
         get: operations["downloadArtifact"];
         put?: never;
         post?: never;
@@ -784,7 +801,9 @@ export interface paths {
         };
         get: operations["listBundles"];
         put?: never;
-        /** @description Requires a durable Workspace-scoped Idempotency-Key. Different actor or payload conflicts. In-progress, failed or ambiguous requests are never automatically taken over. */
+        /** @description Requires a durable Workspace-scoped Idempotency-Key. Different actor or payload conflicts.
+         * In-progress, failed or ambiguous requests are never automatically taken over.
+         */
         post: operations["createBundle"];
         delete?: never;
         options?: never;
@@ -849,7 +868,9 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Idempotent domain key is (workspaceId,bundleId,localRunId); validates signature, closure, provenance and current membership. */
+        /** @description Idempotent domain key is (workspaceId,bundleId,localRunId); validates signature, closure,
+         * provenance and current membership.
+         */
         post: operations["importOfflineResult"];
         delete?: never;
         options?: never;
@@ -1074,7 +1095,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Upload exact CompletionManifestV1 bytes first. The server verifies current device/requester, active lease/fence and retained evidence. VALIDATE success requires a compiled descriptor; VALIDATE ERROR prohibits a descriptor and requires a bounded failureCode, approved engineInventorySha256 and verified nonempty LOG evidence. Failure never creates a ValidationReceipt. Exact completed manifest replay returns the original receipt under current identity. */
+        /** @description Upload exact CompletionManifestV1 bytes first. The server verifies current device/requester,
+         * active lease/fence and retained evidence. VALIDATE success requires a compiled descriptor; VALIDATE ERROR
+         * prohibits a descriptor and requires a bounded failureCode, approved engineInventorySha256 and verified
+         * nonempty LOG evidence. Failure never creates a ValidationReceipt. Exact completed manifest replay returns
+         * the original receipt under current identity.
+         */
         post: operations["finishAttempt"];
         delete?: never;
         options?: never;
@@ -1107,7 +1133,9 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Deny by default until T08/T09 inject a server verifier for authenticated device, active assignment, membership/grants, lease and fence. Never accepts caller trust labels as proof. */
+        /** @description Deny by default until T08/T09 inject a server verifier for authenticated device, active
+         * assignment, membership/grants, lease and fence. Never accepts caller trust labels as proof.
+         */
         post: operations["resolveCredentials"];
         delete?: never;
         options?: never;
@@ -1124,7 +1152,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description T12 authorization obligation: raw Trace, screenshots, HTML and downloads are CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata only. This schema does not implement storage or authorization. */
+        /** @description T12 authorization obligation: raw Trace, screenshots, HTML and downloads are
+         * CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and
+         * MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured
+         * metadata only. This schema does not implement storage or authorization.
+         */
         post: operations["createArtifactUpload"];
         delete?: never;
         options?: never;
@@ -1141,7 +1173,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description T12 authorization obligation: raw Trace, screenshots, HTML and downloads are CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata only. This schema does not implement storage or authorization. */
+        /** @description T12 authorization obligation: raw Trace, screenshots, HTML and downloads are
+         * CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and
+         * MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured
+         * metadata only. This schema does not implement storage or authorization.
+         */
         post: operations["commitArtifact"];
         delete?: never;
         options?: never;
@@ -1220,9 +1256,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Retrieve a successful job validation receipt for publication
-         * @description Authorize current caller Workspace membership/service scope and job/resource ownership. Only a successful VALIDATE job returns its immutable receipt; pending, failed, cancelled or other-kind jobs return 409 VALIDATION_RECEIPT_UNAVAILABLE. Unknown/inaccessible Workspace/job returns 404. The receipt is bound to Workspace/job/resource/revision/sourceHash/engineVersion/compiledBundleSha256; publish rechecks these bindings against current draft and authorization.
+        /** Retrieve a successful job validation receipt for publication
+         * @description Authorize current caller Workspace membership/service scope and job/resource ownership. Only a
+         * successful VALIDATE job returns its immutable receipt; pending, failed, cancelled or other-kind jobs return
+         * 409 VALIDATION_RECEIPT_UNAVAILABLE. Unknown/inaccessible Workspace/job returns 404. The receipt is bound to
+         * Workspace/job/resource/revision/sourceHash/engineVersion/compiledBundleSha256; publish rechecks these
+         * bindings against current draft and authorization.
          */
         get: operations["getValidationReceipt"];
         put?: never;
@@ -1240,9 +1279,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Download exact immutable bytes from the authorized attempt closure
-         * @description DeviceToken is necessary but not sufficient. Authorize the current device, Workspace membership/grant/trust, assigned Attempt and current unexpired lease/fencing proof on every download, then require sha256 membership in that Attempt immutable closure. A hash never grants access. Closure includes the claim job manifest, manifest subject, compiled bundle descriptor, and every listed file. No global hash lookup or cross-Workspace access. Unknown/out-of-closure hashes return 404; revoked/unauthorized devices return 403; expired lease or stale fencing returns 409. Proof headers are transport secrets and must be redacted from logs; never include them in URLs/manifests. Return original application/octet-stream bytes without JSON envelope, decoding or reserialization; client verifies SHA-256 of exact received bytes (and FileEntry sizeBytes) before parsing/execution. snapshotUrl in ClaimDTO is this route for claim.snapshotSha256. All manifest subject/bundle/file hashes resolve through the same Workspace/Attempt route; clients send credentials only to the enrolled control-service origin and reject download redirects.
+        /** Download exact immutable bytes from the authorized attempt closure
+         * @description DeviceToken is necessary but not sufficient. Authorize the current device, Workspace
+         * membership/grant/trust, assigned Attempt and current unexpired lease/fencing proof on every download, then
+         * require sha256 membership in that Attempt immutable closure. A hash never grants access. Closure includes the
+         * claim job manifest, manifest subject, compiled bundle descriptor, and every listed file. No global hash
+         * lookup or cross-Workspace access. Unknown/out-of-closure hashes return 404; revoked/unauthorized devices
+         * return 403; expired lease or stale fencing returns 409. Proof headers are transport secrets and must be
+         * redacted from logs; never include them in URLs/manifests. Return original application/octet-stream bytes
+         * without JSON envelope, decoding or reserialization; client verifies SHA-256 of exact received bytes (and
+         * FileEntry sizeBytes) before parsing/execution. snapshotUrl in ClaimDTO is this route for
+         * claim.snapshotSha256. All manifest subject/bundle/file hashes resolve through the same Workspace/Attempt
+         * route; clients send credentials only to the enrolled control-service origin and reject download redirects.
          */
         get: operations["downloadAttemptContent"];
         put?: never;
@@ -1262,7 +1310,9 @@ export interface paths {
         };
         get: operations["getSetup"];
         put?: never;
-        /** @description Requires a same-origin Origin header and the CSRF token returned by GET /api/v1/setup; public access does not require a user session. */
+        /** @description Requires a same-origin Origin header and the CSRF token returned by GET /api/v1/setup; public
+         * access does not require a user session.
+         */
         post: operations["initializeInstallation"];
         delete?: never;
         options?: never;
@@ -1342,7 +1392,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Bounded keyset pagination in stable email/ID order. Concurrent changes are not a frozen snapshot; restart paging to refresh filters or see newly inserted preceding rows. */
+        /** @description Bounded keyset pagination in stable email/ID order. Concurrent changes are not a frozen
+         * snapshot; restart paging to refresh filters or see newly inserted preceding rows.
+         */
         get: operations["listGlobalUsers"];
         put?: never;
         post: operations["createGlobalUser"];
@@ -1664,7 +1716,9 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** @description Current Workspace OWNER/ADMIN approves credential delivery only after independent system-admin MANAGED trust and owner sharing consent. Does not grant hardware trust. */
+        /** @description Current Workspace OWNER/ADMIN approves credential delivery only after independent system-admin
+         * MANAGED trust and owner sharing consent. Does not grant hardware trust.
+         */
         put: operations["updateRuntimeCredentialDelivery"];
         post?: never;
         delete?: never;
@@ -1713,7 +1767,11 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** @description T12 authorization obligation: raw Trace, screenshots, HTML and downloads are CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata only. This schema does not implement storage or authorization. */
+        /** @description T12 authorization obligation: raw Trace, screenshots, HTML and downloads are
+         * CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and
+         * MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured
+         * metadata only. This schema does not implement storage or authorization.
+         */
         put: operations["uploadArtifactChunk"];
         post?: never;
         delete?: never;
@@ -1729,9 +1787,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * View exact retained generated TypeScript for an immutable published version
-         * @description Current Workspace VIEW, resource/version/receipt/descriptor membership are required. Omit path for an allowlisted TypeScript file listing. A path returns exact retained text/plain bytes verified against descriptor hash/size; caller hashes, arbitrary files and raw evidence are not accepted.
+        /** View exact retained generated TypeScript for an immutable published version
+         * @description Current Workspace VIEW, resource/version/receipt/descriptor membership are required. Omit path
+         * for an allowlisted TypeScript file listing. A path returns exact retained text/plain bytes verified against
+         * descriptor hash/size; caller hashes, arbitrary files and raw evidence are not accepted.
          */
         get: operations["getPublishedCompiledSource"];
         put?: never;
@@ -1896,7 +1955,9 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Idempotent domain key is (workspaceId,bundleId,localRunId); validates signature, closure, provenance and current membership. */
+        /** @description Idempotent domain key is (workspaceId,bundleId,localRunId); validates signature, closure,
+         * provenance and current membership.
+         */
         post: operations["importNativeOfflineResult"];
         delete?: never;
         options?: never;
@@ -1993,7 +2054,9 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Expire bounded completed lifecycle records under current Workspace service-token authorization and active-reference barriers. No internal scheduler. */
+        /** @description Expire bounded completed lifecycle records under current Workspace service-token authorization
+         * and active-reference barriers. No internal scheduler.
+         */
         post: operations["maintenanceExpireLifecycle"];
         delete?: never;
         options?: never;
@@ -2008,7 +2071,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Current OWNER or ADMIN employee session is required; data is scoped to the selected Workspace. Dependency timeouts return 503. */
+        /** @description Current OWNER or ADMIN employee session is required; data is scoped to the selected Workspace.
+         * Dependency timeouts return 503.
+         */
         get: operations["getWorkspaceOperationsMetrics"];
         put?: never;
         post?: never;
@@ -2025,7 +2090,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Authenticated employee read of the bundled synthetic sample resource package. Contains no live credentials or server configuration. */
+        /** @description Authenticated employee read of the bundled synthetic sample resource package. Contains no live
+         * credentials or server configuration.
+         */
         get: operations["getSampleWorkspacePackage"];
         put?: never;
         post?: never;
@@ -2039,17 +2106,21 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /**
-         * Format: uuid
-         * @description Hyphenated 8-4-4-4-12 hexadecimal UUID, case-insensitive; no URN, braces or surrounding whitespace.
+        /** Format: uuid
+         * @description Hyphenated 8-4-4-4-12 hexadecimal UUID, case-insensitive; no URN, braces or surrounding
+         * whitespace.
          */
         Id: string;
         Sha256: string;
         Key: string;
         Version: string;
-        /** @description Interpolated DSL string. Only {{data.identifier}} and {{vars.identifier}} dotted bindings are supported; arbitrary executable expressions are rejected. Never use for inert evidence or diagnostics. */
+        /** @description Interpolated DSL string. Only {{data.identifier}} and {{vars.identifier}} dotted bindings are
+         * supported; arbitrary executable expressions are rejected. Never use for inert evidence or diagnostics.
+         */
         SafeString: string;
-        /** @description Inert portable JSON. Strings are literal, including arbitrary braces and invalid DSL expressions; consumers must never evaluate or recursively interpolate this type. */
+        /** @description Inert portable JSON. Strings are literal, including arbitrary braces and invalid DSL
+         * expressions; consumers must never evaluate or recursively interpolate this type.
+         */
         JsonValue: ContractJsonValue;
         JsonObject: {
             [key: string]: components["schemas"]["JsonValue"];
@@ -2064,7 +2135,10 @@ export interface components {
         };
         Timeout: number;
         Pointer: string;
-        /** @description Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized base/allowedOrigins before any request/navigation, and enforce policy on redirects. */
+        /** @description Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls.
+         * After DSL substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen
+         * authorized base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+         */
         Path: string & components["schemas"]["SafeString"];
         /** Format: uri */
         HttpUrl: string;
@@ -2076,7 +2150,8 @@ export interface components {
         /** @enum {string} */
         Browser: "chromium" | "firefox" | "webkit";
         /** @enum {string} */
-        ResourceKind: "CASE" | "ELEMENT_CATALOG" | "ASSERTION_TEMPLATE" | "DATASET" | "FLOW" | "FIXTURE" | "SUITE" | "ENVIRONMENT";
+        ResourceKind: "CASE" | "ELEMENT_CATALOG" | "ASSERTION_TEMPLATE" | "DATASET" | "FLOW" | "FIXTURE" | "SUITE"
+            | "ENVIRONMENT";
         /** @enum {string} */
         Outcome: "PASSED" | "FAILED" | "ERROR" | "UNSTABLE" | "CANCELLED" | "INCOMPLETE" | "SKIPPED";
         /** @enum {string} */
@@ -2107,7 +2182,8 @@ export interface components {
             mode: "FIXED";
             durationMs: components["schemas"]["Timeout"];
         };
-        ObserverV1: components["schemas"]["NetworkObserverV1"] | components["schemas"]["DialogObserverV1"] | components["schemas"]["NewPageObserverV1"] | components["schemas"]["DownloadObserverV1"];
+        ObserverV1: components["schemas"]["NetworkObserverV1"] | components["schemas"]["DialogObserverV1"]
+            | components["schemas"]["NewPageObserverV1"] | components["schemas"]["DownloadObserverV1"];
         ExtractionV1: {
             source: components["schemas"]["SourceRef"];
             pointer: components["schemas"]["Pointer"];
@@ -2790,7 +2866,10 @@ export interface components {
             dependencies: components["schemas"]["DependencyVersion"][];
             validationOnly?: boolean;
         } & unknown;
-        /** @description VeriQ Runtime能力合同仅允许linux/x64、win32/x64、darwin/x64及darwin/arm64；Mac目标最低系统为macOS15，但合同接受不代表设备通过原生执行、进程监督、凭据或安装验收。 */
+        /** @description VeriQ
+         * Runtime能力合同仅允许linux/x64、win32/x64、darwin/x64及darwin/arm64；Mac目标最低系统为macOS15，但合同接受不
+         * 代表设备通过原生执行、进程监督、凭据或安装验收。
+         */
         RuntimeCapabilitiesV1: {
             engineVersion: components["schemas"]["Version"];
             /** @enum {string} */
@@ -2882,7 +2961,8 @@ export interface components {
             namespace: components["schemas"]["Key"];
             cleanupRef: string;
         };
-        JobManifestV1: components["schemas"]["TestJobManifestV1"] | components["schemas"]["ValidateJobManifestV1"] | components["schemas"]["CleanupJobManifestV1"];
+        JobManifestV1: components["schemas"]["TestJobManifestV1"] | components["schemas"]["ValidateJobManifestV1"]
+            | components["schemas"]["CleanupJobManifestV1"];
         ExecutionEventV1: {
             /** @constant */
             schemaVersion: "1.0";
@@ -3171,7 +3251,9 @@ export interface components {
             token: string;
             newPassword: string;
         };
-        /** @description Existing accounts require the matching authenticated session and token only; credentials cannot be replaced. New accounts require password and displayName, creating an ordinary user without a session. */
+        /** @description Existing accounts require the matching authenticated session and token only; credentials cannot
+         * be replaced. New accounts require password and displayName, creating an ordinary user without a session.
+         */
         InvitationAcceptRequest: {
             token: string;
             password?: string;
@@ -3259,7 +3341,10 @@ export interface components {
             revision: number;
             sourceHash: components["schemas"]["Sha256"];
         };
-        /** @description Server-created successful VALIDATE receipt bound to Workspace, job, resource, immutable draft revision, source hash, engine version and compiled bundle. Publish must verify the current authorized resource/revision binding and reject stale/foreign receipts. */
+        /** @description Server-created successful VALIDATE receipt bound to Workspace, job, resource, immutable draft
+         * revision, source hash, engine version and compiled bundle. Publish must verify the current authorized
+         * resource/revision binding and reject stale/foreign receipts.
+         */
         ValidationReceiptDTO: {
             id: components["schemas"]["Id"];
             resourceId: components["schemas"]["Id"];
@@ -3921,9 +4006,10 @@ export interface components {
             data: components["schemas"]["ArtifactUploadDTO"];
             requestId: string;
         };
-        /**
-         * Format: date-time
-         * @description Supported RFC3339 profile: real Gregorian date, year 0001-9999, T/t separator, seconds 00-59, optional fractional seconds, mandatory Z/z or numeric offset (00-23:00-59). No leap seconds, spaces or surrounding whitespace. Emit UTC uppercase T/Z for server timestamps.
+        /** Format: date-time
+         * @description Supported RFC3339 profile: real Gregorian date, year 0001-9999, T/t separator, seconds 00-59,
+         * optional fractional seconds, mandatory Z/z or numeric offset (00-23:00-59). No leap seconds, spaces or
+         * surrounding whitespace. Emit UTC uppercase T/Z for server timestamps.
          */
         Timestamp: string;
         ValidationReceiptDTOEnvelope: {
@@ -4117,7 +4203,8 @@ export interface components {
         ServiceTokenIssue: {
             /** @enum {unknown} */
             purpose: "RUNTIME_ENROLLMENT" | "MAINTENANCE" | "EXECUTION";
-            operations?: ("expired-leases/reap" | "fixture-cleanups/reconcile" | "capacity/reconcile" | "artifacts/expire" | "lifecycle/expire" | "trigger" | "read" | "cancel")[];
+            operations?: ("expired-leases/reap" | "fixture-cleanups/reconcile" | "capacity/reconcile"
+                | "artifacts/expire" | "lifecycle/expire" | "trigger" | "read" | "cancel")[];
             planIds?: components["schemas"]["Id"][];
         } & (unknown & unknown & unknown);
         ServiceEnrollmentRequest: {
@@ -4156,7 +4243,9 @@ export interface components {
             data: components["schemas"]["UploadChunkDTO"];
             requestId: string;
         };
-        CompletionManifestV1: components["schemas"]["TestCompletionManifestV1"] | components["schemas"]["ValidateCompletionManifestV1"] | components["schemas"]["CleanupCompletionManifestV1"];
+        CompletionManifestV1: components["schemas"]["TestCompletionManifestV1"]
+            | components["schemas"]["ValidateCompletionManifestV1"]
+            | components["schemas"]["CleanupCompletionManifestV1"];
         DeviceRotationRequest: Record<string, never> | {
             clientRequestId: components["schemas"]["Id"];
             replacementToken: string;
@@ -4200,9 +4289,9 @@ export interface components {
                 state: string;
                 outcome: string | null;
             }[];
-            /**
-             * Format: date-time
-             * @description Server database UTC terminal time, independent of physical process-stop proof; null for historical unknown.
+            /** Format: date-time
+             * @description Server database UTC terminal time, independent of physical process-stop proof; null for
+             * historical unknown.
              */
             finishedAt: string | null;
         };
@@ -4568,7 +4657,9 @@ export interface components {
             draftValidationJobId: unknown;
         });
         DurationMs: number;
-        /** @description Literal diagnostic/evidence text; retain invalid expressions verbatim and never evaluate or interpolate it. */
+        /** @description Literal diagnostic/evidence text; retain invalid expressions verbatim and never evaluate or
+         * interpolate it.
+         */
         DiagnosticText: string;
         StepFinishedPayloadV1: {
             /** @enum {string} */
@@ -4673,8 +4764,8 @@ export interface components {
             kind: "TEST";
             caseVersionId: components["schemas"]["Id"];
             expectedPlansSha256: components["schemas"]["Sha256"];
-            /**
-             * @description Actual business request observation through Context closure. Missing means UNKNOWN; not sufficient without approved expected metadata.
+            /** @description Actual business request observation through Context closure. Missing means UNKNOWN; not
+             * sufficient without approved expected metadata.
              * @enum {string}
              */
             retrySafety?: "READ_ONLY_OBSERVED" | "WRITE_POSSIBLE" | "UNKNOWN";
@@ -4717,7 +4808,8 @@ export interface components {
             diagnostics?: components["schemas"]["CompilerDiagnosticV1"][];
             processStopScope?: components["schemas"]["ProcessStopScope"];
         };
-        ValidateCompletionManifestV1: components["schemas"]["ValidateSuccessCompletionManifestV1"] | components["schemas"]["ValidateFailureCompletionManifestV1"];
+        ValidateCompletionManifestV1: components["schemas"]["ValidateSuccessCompletionManifestV1"]
+            | components["schemas"]["ValidateFailureCompletionManifestV1"];
         CleanupCompletionManifestV1: {
             /** @constant */
             schemaVersion: "1.0";
@@ -8848,7 +8940,9 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns 409. */
+                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns
+                 * 409.
+                 */
                 "Idempotency-Key": string;
             };
             path: {
@@ -9038,7 +9132,9 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns 409. */
+                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns
+                 * 409.
+                 */
                 "Idempotency-Key": string;
             };
             path: {
@@ -9306,7 +9402,9 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns 409. */
+                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns
+                 * 409.
+                 */
                 "Idempotency-Key": string;
             };
             path: {
@@ -9549,7 +9647,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session. */
+            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not
+             * revoke the employee session.
+             */
             410: {
                 headers: {
                     [name: string]: unknown;
@@ -9626,7 +9726,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Report metadata has expired under retention; existing employee/service-plan authorization still applies. */
+            /** @description Report metadata has expired under retention; existing employee/service-plan authorization
+             * still applies.
+             */
             410: {
                 headers: {
                     [name: string]: unknown;
@@ -10796,7 +10898,9 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns 409. */
+                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns
+                 * 409.
+                 */
                 "Idempotency-Key": string;
             };
             path: {
@@ -10810,7 +10914,9 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Synchronous export completed. Same key, actor and request replays this immutable bundle after current authority checks. */
+            /** @description Synchronous export completed. Same key, actor and request replays this immutable bundle
+             * after current authority checks.
+             */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -10864,7 +10970,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session. */
+            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not
+             * revoke the employee session.
+             */
             410: {
                 headers: {
                     [name: string]: unknown;
@@ -10959,7 +11067,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session. */
+            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not
+             * revoke the employee session.
+             */
             410: {
                 headers: {
                     [name: string]: unknown;
@@ -11054,7 +11164,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session. */
+            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not
+             * revoke the employee session.
+             */
             410: {
                 headers: {
                     [name: string]: unknown;
@@ -11149,7 +11261,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session. */
+            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not
+             * revoke the employee session.
+             */
             410: {
                 headers: {
                     [name: string]: unknown;
@@ -11182,7 +11296,9 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns 409. */
+                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns
+                 * 409.
+                 */
                 "Idempotency-Key": string;
             };
             path: {
@@ -11639,7 +11755,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session. */
+            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not
+             * revoke the employee session.
+             */
             410: {
                 headers: {
                     [name: string]: unknown;
@@ -11747,7 +11865,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session. */
+            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not
+             * revoke the employee session.
+             */
             410: {
                 headers: {
                     [name: string]: unknown;
@@ -13206,7 +13326,9 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns 409. */
+                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns
+                 * 409.
+                 */
                 "Idempotency-Key": string;
             };
             path?: never;
@@ -13296,7 +13418,9 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns 409. */
+                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns
+                 * 409.
+                 */
                 "Idempotency-Key": string;
             };
             path?: never;
@@ -13386,7 +13510,9 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns 409. */
+                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns
+                 * 409.
+                 */
                 "Idempotency-Key": string;
             };
             path?: never;
@@ -13476,7 +13602,9 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns 409. */
+                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns
+                 * 409.
+                 */
                 "Idempotency-Key": string;
             };
             path?: never;
@@ -13666,7 +13794,9 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Exact immutable bytes whose SHA-256 equals the sha256 path parameter. No envelope or server reserialization. */
+            /** @description Exact immutable bytes whose SHA-256 equals the sha256 path parameter. No envelope or server
+             * reserialization.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14049,7 +14179,9 @@ export interface operations {
             query?: {
                 /** @description Maximum page size; rejected outside 1–100. Default 25. */
                 limit?: number;
-                /** @description Opaque continuation cursor, expires after 24 hours and is bound to the caller, list and active filters. */
+                /** @description Opaque continuation cursor, expires after 24 hours and is bound to the caller, list and
+                 * active filters.
+                 */
                 cursor?: string;
             };
             header?: never;
@@ -14206,7 +14338,9 @@ export interface operations {
             query?: {
                 /** @description Maximum page size; rejected outside 1–100. Default 25. */
                 limit?: number;
-                /** @description Opaque continuation cursor, expires after 24 hours and is bound to the caller, list and active filters. */
+                /** @description Opaque continuation cursor, expires after 24 hours and is bound to the caller, list and
+                 * active filters.
+                 */
                 cursor?: string;
                 /** @description Literal substring of email or display name; wildcard characters are literal. */
                 q?: string;
@@ -16244,7 +16378,8 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Idempotent contiguous chunk accepted. Verify receivedBytes before sending the next offset. */
+            /** @description Idempotent contiguous chunk accepted. Verify receivedBytes before sending the next offset.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16488,7 +16623,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session. */
+            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not
+             * revoke the employee session.
+             */
             410: {
                 headers: {
                     [name: string]: unknown;
@@ -16567,7 +16704,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session. */
+            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not
+             * revoke the employee session.
+             */
             410: {
                 headers: {
                     [name: string]: unknown;
@@ -16644,7 +16783,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session. */
+            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not
+             * revoke the employee session.
+             */
             410: {
                 headers: {
                     [name: string]: unknown;
@@ -16800,7 +16941,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session. */
+            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not
+             * revoke the employee session.
+             */
             410: {
                 headers: {
                     [name: string]: unknown;
@@ -16975,7 +17118,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session. */
+            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not
+             * revoke the employee session.
+             */
             410: {
                 headers: {
                     [name: string]: unknown;
@@ -17162,7 +17307,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session. */
+            /** @description The retained report, bundle or AI payload has expired. This is a domain result and does not
+             * revoke the employee session.
+             */
             410: {
                 headers: {
                     [name: string]: unknown;
@@ -17195,7 +17342,9 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns 409. */
+                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns
+                 * 409.
+                 */
                 "Idempotency-Key": string;
             };
             path: {
@@ -17468,7 +17617,9 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Report metadata has expired under retention; existing employee/service-plan authorization still applies. */
+            /** @description Report metadata has expired under retention; existing employee/service-plan authorization
+             * still applies.
+             */
             410: {
                 headers: {
                     [name: string]: unknown;
@@ -17501,7 +17652,9 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns 409. */
+                /** @description Scoped to authenticated Workspace and operation. Same key/different payload returns
+                 * 409.
+                 */
                 "Idempotency-Key": string;
             };
             path?: never;

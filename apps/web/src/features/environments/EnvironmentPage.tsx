@@ -9,7 +9,9 @@ import { ResourcePage } from "../resources/ResourcePage";
 import { useWorkspace } from "../workspaces/WorkspaceContext";
 import { CloudIdentityAdapter } from "./identity-adapter";
 import { IdentityManager } from "./IdentityManager";
-/** 渲染 ResourcePage(kind=ENVIRONMENT) 并在侧栏或下方接入 IdentityManager。选中空间后 CloudIdentityAdapter 与资源适配器共用 selected。 */
+/** 渲染 ResourcePage(kind=ENVIRONMENT) 并在侧栏或下方接入 IdentityManager。选中空间后 CloudIdentityAdapter 与资源适配器
+ * 共用 selected。
+ */
 export function EnvironmentPage() {
     return (
         <ResourcePage

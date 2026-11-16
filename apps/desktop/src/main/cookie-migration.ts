@@ -1,4 +1,6 @@
-/** 旧 Cookie 文件必须在持久 Session 打开前经用户明确确认退役，避免仅启用 fuse 后把未重写的 SQLite 明文历史当作已加密；非秘密重置日志保留中断恢复事实，删除仅限本应用分区的两个已知布局及四个固定成员。 */
+/** 旧 Cookie 文件必须在持久 Session 打开前经用户明确确认退役，避免仅启用 fuse 后把未重写的 SQLite 明文历史当作已加密；
+ * 非秘密重置日志保留中断恢复事实，删除仅限本应用分区的两个已知布局及四个固定成员。
+ */
 import { constants } from "node:fs";
 import { open, unlink, type FileHandle } from "node:fs/promises";
 import { join, parse, resolve } from "node:path";
@@ -8,8 +10,8 @@ const names = ["Cookies", "Cookies-wal", "Cookies-shm", "Cookies-journal"];
 const limit = 64 * 1024 * 1024;
 const missing = (error: unknown) => (error as NodeJS.ErrnoException)?.code === "ENOENT";
 
-/**
- * Linux 逐级打开并持有真实父目录描述符，文件只作同句柄类型、拥有者、权限和大小检查而不读取 Cookie 内容；Windows 交给同等固定用途原生操作，真正不存在才返回 false，符号链接、公开对象与未知失败都不能被略
+/** Linux 逐级打开并持有真实父目录描述符，文件只作同句柄类型、拥有者、权限和大小检查而不读取 Cookie 内容；Windows 交给同
+ * 等固定用途原生操作，真正不存在才返回 false，符号链接、公开对象与未知失败都不能被略
  * 过。
  */
 async function member(directory: string, name: string, retire: boolean): Promise<boolean> {
@@ -69,8 +71,10 @@ async function member(directory: string, name: string, retire: boolean): Promise
     }
 }
 
-/** 调用方已验证当前运行二进制 fuse 和 OS 提供者并持有 Electron 单实例所有权，才可准备该档案 Cookie 分区；旧状态需要明确同意重新登录，已记录的重置可继续完成，完成标记不声称介质擦除或跨任意降级版本的保护
- * 。 */
+/** 调用方已验证当前运行二进制 fuse 和 OS 提供者并持有 Electron 单实例所有权，才可准备该档案 Cookie 分区；旧状态需要明确
+ * 同意重新登录，已记录的重置可继续完成，完成标记不声称介质擦除或跨任意降级版本的保护
+ * 。
+ */
 export async function prepareCookieStorage(
     profile: string,
     sessionData: string,

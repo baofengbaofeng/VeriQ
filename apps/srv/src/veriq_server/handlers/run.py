@@ -11,10 +11,14 @@ from ..services.execution_principal import ServicePrincipal
 
 
 class RunAPI(ScopedExecutionAPI):
-    """运行入口显式区分员工会话与独立执行令牌，员工仍可创建和分页读取空间运行；服务令牌只允许读取或取消授权计划产生的单个运行，所有写操作在安装锁内复核当前权限和不可变关联。"""
+    """运行入口显式区分员工会话与独立执行令牌，员工仍可创建和分页读取空间运行；服务令牌只允许读取或取消授权计划产生的单
+    个运行，所有写操作在安装锁内复核当前权限和不可变关联。
+    """
 
     async def post(self, workspace_id: str, run_id: str | None = None) -> None:
-        """普通员工通过既有幂等键创建运行，执行令牌必须使用计划触发入口而不能直接覆盖环境或资源选择；取消则委托运行服务检查相应主体的当前权限，接受请求不代表底层执行进程已停止。"""
+        """普通员工通过既有幂等键创建运行，执行令牌必须使用计划触发入口而不能直接覆盖环境或资源选择；
+        取消则委托运行服务检查相应主体的当前权限，接受请求不代表底层执行进程已停止。
+        """
         data = self.body("RunCreate" if self.action == "runs" else "CancelRequest")
         async with self.db.sessions.begin() as session:
             await lock_installation(session)
@@ -36,7 +40,9 @@ class RunAPI(ScopedExecutionAPI):
         self.respond(result, 202 if self.action == "runs" else 200)
 
     async def get(self, workspace_id: str, run_id: str | None = None) -> None:
-        """单个运行读取允许员工或受限计划主体并由服务重新核对当前授权，空间列表仅允许员工成员枚举；即使 Bearer 同时携带有效 Cookie，也不能回退会话身份获得全部运行的列表权限。"""
+        """单个运行读取允许员工或受限计划主体并由服务重新核对当前授权，空间列表仅允许员工成员枚举；即使 Bearer
+        同时携带有效 Cookie，也不能回退会话身份获得全部运行的列表权限。
+        """
         async with self.db.sessions.begin() as session:
             await lock_installation(session)
             user = await self.principal(session)
@@ -75,12 +81,14 @@ class RunAPI(ScopedExecutionAPI):
 
 
 class AttemptAuditAPI(API):
-    """管理员 Attempt 容量强制释放：仅对已隔离/已释放 Attempt 写入停机确认审计；仅处理 QUARANTINED/RELEASED，活跃 Attempt 必须先取消。
+    """管理员 Attempt 容量强制释放：仅对已隔离/已释放 Attempt 写入停机确认审计；仅处理 QUARANTINED/RELEASED，活跃
+    Attempt 必须先取消。
     AttemptAuditAPI 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
 
     async def post(self, workspace_id: str, attempt_id: str) -> None:
-        """要求 MANAGE_WORKSPACE 写权限；活跃 Attempt 必须先取消，成功后记录 administratorStopConfirmation。post 必须坚持 Workspace 归属与成员授权，
+        """要求 MANAGE_WORKSPACE 写权限；活跃 Attempt 必须先取消，成功后记录 administratorStopConfirmation。post
+        必须坚持 Workspace 归属与成员授权，
 
         嵌套资源引用不得跨空间隐式放行。
         """

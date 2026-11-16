@@ -1,4 +1,6 @@
-"""VeriQ 运维指标只聚合当前已授权工作区的数据，容量和设备信息通过工作区引用过滤，不输出令牌、池名称、模型输入或其他工作区的全局使用量与身份。"""
+"""VeriQ 运维指标只聚合当前已授权工作区的数据，容量和设备信息通过工作区引用过滤，不输出令牌、池名称、
+模型输入或其他工作区的全局使用量与身份。
+"""
 
 from datetime import timedelta
 from typing import Any
@@ -23,7 +25,9 @@ from .jobs import database_time
 
 
 async def workspace_metrics(session: AsyncSession, workspace_id: str) -> dict[str, Any]:
-    """读取带工作区条件的实际聚合值并明确指标口径，事件积压表示已接受事件与已持久化行的差额，模型未知账单独立计数而不会被零成本或预留金额冒充。"""
+    """读取带工作区条件的实际聚合值并明确指标口径，事件积压表示已接受事件与已持久化行的差额，模型未知账单独立计数而不会
+    被零成本或预留金额冒充。
+    """
     current = await database_time(session)
 
     async def count(model: Any, *conditions: Any) -> int:

@@ -1,4 +1,6 @@
-"""通过真实停止对账端点和数据库容量池核对声明语义，确保已绑定的平台与围栏先决定授权，失败关闭时保留本次未知事实且从不把声明升级为远程进程证明。"""
+"""通过真实停止对账端点和数据库容量池核对声明语义，确保已绑定的平台与围栏先决定授权，失败关闭时保留本次未知事实且从不把
+声明升级为远程进程证明。
+"""
 
 import pytest
 from test_auth import setup, login
@@ -28,7 +30,9 @@ from veriq_server.db import Attempt, Runtime, CapacityPool
 async def test_reconcile_scope_rejects_before_capacity_release(
     site, os_name, scope, allowed, finished
 ):
-    """逐一核对已登记平台的正回执允许范围与容量池实际计数，陈旧围栏必须先于范围错误被拒绝，已结束 Attempt 的后续确认也必须保存本次实际停止事实。"""
+    """逐一核对已登记平台的正回执允许范围与容量池实际计数，陈旧围栏必须先于范围错误被拒绝，已结束 Attempt
+    的后续确认也必须保存本次实际停止事实。
+    """
     c, db = site
     await setup(c)
     await login(c)
@@ -78,7 +82,9 @@ async def test_reconcile_scope_rejects_before_capacity_release(
 @pytest.mark.parametrize("finished", [False, True])
 @pytest.mark.parametrize("scope", [None, "CONTROLLED_WORKER_BROWSER", "FULL_DESCENDANT_TREE"])
 async def test_unknown_darwin_stop_preserves_facts_and_quarantine(site, finished, scope):
-    """实际调用停止未知分支核对数据库容量隔离及历史事实保留，无范围的新失败必须清除此前范围声明，合法但未确认的范围不得把 false 提升成成功回执。"""
+    """实际调用停止未知分支核对数据库容量隔离及历史事实保留，无范围的新失败必须清除此前范围声明，
+    合法但未确认的范围不得把 false 提升成成功回执。
+    """
     c, db = site
     await setup(c)
     await login(c)
@@ -124,7 +130,9 @@ async def test_unknown_darwin_stop_preserves_facts_and_quarantine(site, finished
 
 
 async def test_legacy_completed_replay_preserves_missing_scope(site):
-    """已完成的旧清单在当前身份下仍按原摘要幂等返回，后来登记的 Darwin 能力不得给历史 facts 补造范围；另一个摘要依旧冲突，防止借重放修改旧停止事实。"""
+    """已完成的旧清单在当前身份下仍按原摘要幂等返回，后来登记的 Darwin 能力不得给历史 facts 补造范围；
+    另一个摘要依旧冲突，防止借重放修改旧停止事实。
+    """
     c, db = site
     await setup(c)
     await login(c)

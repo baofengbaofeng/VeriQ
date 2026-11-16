@@ -46,7 +46,8 @@ const same = (a, b) =>
     ["dev", "ino", "mode", "nlink", "size", "mtimeNs", "ctimeNs"].every((k) => a[k] === b[k]);
 const contained = (a, b) => b === a || b.startsWith(a + sep);
 
-// 路径在 Git、来源和保留副本三个边界共用有限可移植规则，逐级大小写冲突另由清单检查；禁止先规范化点组件，否则非法原始路径可能被消除后悄悄取得一个合法文件的身份。
+// 路径在 Git、来源和保留副本三个边界共用有限可移植规则，逐级大小写冲突另由清单检查；禁止先规范化点组件，
+// 否则非法原始路径可能被消除后悄悄取得一个合法文件的身份。
 function portable(path, code) {
     if (
         typeof path !== "string" ||
@@ -70,7 +71,9 @@ function portable(path, code) {
     return path;
 }
 
-/** 原生准入同时绑定人工用途、完整已审阅提交、真实 Darwin 内核和当前进程架构，声明的目标不能覆盖宿主事实；Linux 单元测试只调用显式事实样本，正式入口始终从系统与 CI 环境重新取得这些字段。 */
+/** 原生准入同时绑定人工用途、完整已审阅提交、真实 Darwin 内核和当前进程架构，声明的目标不能覆盖宿主事实；Linux
+ * 单元测试只调用显式事实样本，正式入口始终从系统与 CI 环境重新取得这些字段。
+ */
 export function admitEntryRun(value) {
     if (
         value.event !== "workflow_dispatch" ||
@@ -87,7 +90,9 @@ export function admitEntryRun(value) {
     return Object.freeze({ ...value });
 }
 
-/** 来源选择依据完整提交树的原始 Git 模式而非当前执行位，只排除三个已批准脚本；保留每个对象身份与排除原因，链接、子模块、新执行文件、重复路径及父目录大小写碰撞全部拒绝。 */
+/** 来源选择依据完整提交树的原始 Git 模式而非当前执行位，只排除三个已批准脚本；保留每个对象身份与排除原因，链接、
+ * 子模块、新执行文件、重复路径及父目录大小写碰撞全部拒绝。
+ */
 export function selectGitInventory(raw) {
     if (!Buffer.isBuffer(raw) || raw.length > JSON_LIMIT || !raw.length || raw.at(-1) !== 0)
         fail("ENTRY_GIT");
@@ -124,7 +129,8 @@ export function selectGitInventory(raw) {
     };
 }
 
-// 从真实根到文件父目录逐级记录普通目录身份，根以上只允许平台的普通路径；文件读取前后复核祖先，拒绝观察到的替换，但不宣称同 UID 对手无法在两次观察间实施不可见竞争。
+// 从真实根到文件父目录逐级记录普通目录身份，根以上只允许平台的普通路径；文件读取前后复核祖先，拒绝观察到的替换，
+// 但不宣称同 UID 对手无法在两次观察间实施不可见竞争。
 async function ancestors(root, path, code) {
     if (!isAbsolute(root) || resolve(root) !== root || (await realpath(root)) !== root) fail(code);
     const observations = [];
@@ -144,7 +150,9 @@ async function ancestors(root, path, code) {
     };
 }
 
-/** 每个来源文件必须物理单链接且权限恰为四百四十四或六百四十四，提交模式不能代替实际属性；持有描述符读前读后比较身份与预期字节，不会 chmod、重写或把私有副本包装成合格来源。 */
+/** 每个来源文件必须物理单链接且权限恰为四百四十四或六百四十四，提交模式不能代替实际属性；持有描述符读前读后比较身份与预
+ * 期字节，不会 chmod、重写或把私有副本包装成合格来源。
+ */
 export async function readSourceFile(root, ref) {
     portable(ref.path, "ENTRY_SOURCE");
     const finish = await ancestors(root, ref.path, "ENTRY_SOURCE"),
@@ -178,7 +186,9 @@ export async function readSourceFile(root, ref) {
     }
 }
 
-/** 默认环境文件即使被 Git 跟踪仍不准进入构建，包与配置候选则必须具有同路径来源绑定；检查覆盖每个来源祖先和仓库以外的祖先，缺失只接受 ENOENT，权限或链接错误不能伪装成不存在。 */
+/** 默认环境文件即使被 Git 跟踪仍不准进入构建，包与配置候选则必须具有同路径来源绑定；检查覆盖每个来源祖先和仓库以外的祖
+ * 先，缺失只接受 ENOENT，权限或链接错误不能伪装成不存在。
+ */
 export async function qualifyAmbientInputs(root, refs) {
     const bound = new Set(refs.map((v) => v.path)),
         absent = [],
@@ -214,7 +224,8 @@ export async function qualifyAmbientInputs(root, refs) {
     return { absent: absent.sort(), present: present.sort() };
 }
 
-// 保留区只复制已持有并核过摘要的元数据，消费者引用完整保留在独立映射而不是改写生产收据；固定两 MiB 总量比既有六十四 MiB 更紧，避免失败日志使上传目录失控或误带源码正文。
+// 保留区只复制已持有并核过摘要的元数据，消费者引用完整保留在独立映射而不是改写生产收据；固定两 MiB 总量比既有六十四
+// MiB 更紧，避免失败日志使上传目录失控或误带源码正文。
 function metadataPlan(documents) {
     if (!Array.isArray(documents) || documents.length > 128) fail("ENTRY_METADATA");
     const seen = new Set();
@@ -241,7 +252,9 @@ function metadataPlan(documents) {
     });
 }
 
-/** 调用者提供尚不存在的独占保留根，所有文档在创建目录之前一次性检查并复制持有；清单只描述本次有限副本，收据原路径与摘要不变，最终使用者能够据此区分原消费命名空间和下载元数据位置。 */
+/** 调用者提供尚不存在的独占保留根，所有文档在创建目录之前一次性检查并复制持有；清单只描述本次有限副本，
+ * 收据原路径与摘要不变，最终使用者能够据此区分原消费命名空间和下载元数据位置。
+ */
 export async function sealMetadata(root, documents) {
     const planned = metadataPlan(documents);
     const manifest = {
@@ -265,7 +278,9 @@ export async function sealMetadata(root, documents) {
     return manifest;
 }
 
-/** 下载或上传前独立核查保留根、清单以及恰好这些普通单链接副本，额外文件和链接一律拒绝；这里核的是元数据副本自身字节，绝不根据下载后的收据声称已重新哈希未保留的入口或依赖正文。 */
+/** 下载或上传前独立核查保留根、清单以及恰好这些普通单链接副本，额外文件和链接一律拒绝；这里核的是元数据副本自身字节，
+ * 绝不根据下载后的收据声称已重新哈希未保留的入口或依赖正文。
+ */
 export async function verifyMetadata(root) {
     const rootInfo = await lstat(root);
     if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink() || (rootInfo.mode & 0o7777) !== 0o700)
@@ -331,7 +346,9 @@ export async function verifyMetadata(root) {
     return manifest;
 }
 
-/** 生产回调完成仍只是暂定结果，实际命令观察必须在返回生产器之前先记入调用者日志；未知关闭或事务不完整立即禁止最终扫描和清理，普通失败则保留首错并在已确认关闭后释放调用者资源。 */
+/** 生产回调完成仍只是暂定结果，实际命令观察必须在返回生产器之前先记入调用者日志；未知关闭或事务不完整立即禁止最终扫描和
+ * 清理，普通失败则保留首错并在已确认关闭后释放调用者资源。
+ */
 export async function runEntryOperation({ journal, produce, verifyFinal, cleanup }) {
     let first,
         value,
@@ -383,7 +400,9 @@ export async function runEntryOperation({ journal, produce, verifyFinal, cleanup
     return { ...result, value };
 }
 
-/** 已安装 TypeScript 负责解析真实 JSONC 与 extends，读取钩子只允许完整来源绑定中的配置字节；配置结果不写入制品，记录仅含路径和摘要，并用空目录枚举避免无关源码 glob 扩大资格检查范围。 */
+/** 已安装 TypeScript 负责解析真实 JSONC 与 extends，读取钩子只允许完整来源绑定中的配置字节；配置结果不写入制品，
+ * 记录仅含路径和摘要，并用空目录枚举避免无关源码 glob 扩大资格检查范围。
+ */
 export function qualifyTypeScriptConfigs(root, refs, ts) {
     const bound = new Map(refs.map((v) => [resolve(root, v.path), v])),
         reads = new Map();
@@ -420,7 +439,8 @@ export function qualifyTypeScriptConfigs(root, refs, ts) {
     return { reads: [...reads.values()].sort((a, b) => a.path.localeCompare(b.path)) };
 }
 
-// 此私有错误只承载由两个固定门禁构造的有限诊断，仍保留原有 ENTRY_ENVIRONMENT 消息与失败退出；序列化在构造时固定且不接受底层错误正文，CLI 只渲染这个类，避免任意异常伪造同名属性泄漏输入值。
+// 此私有错误只承载由两个固定门禁构造的有限诊断，仍保留原有 ENTRY_ENVIRONMENT 消息与失败退出；序列化在构造时固定且不接受
+// 底层错误正文，CLI 只渲染这个类，避免任意异常伪造同名属性泄漏输入值。
 class EntryEnvironmentError extends Error {
     constructor(diagnostic) {
         super("ENTRY_ENVIRONMENT");
@@ -429,7 +449,9 @@ class EntryEnvironmentError extends Error {
     }
 }
 
-/** 正式进程只接收工作流显式传入的最小环境，启动 Node 与注册 tsx 之前已由 env 清空继承值；这里再次验证键集合与生产模式，不打印环境值、凭据或配置正文，失败不会通过修改当前进程全局环境来补救。 */
+/** 正式进程只接收工作流显式传入的最小环境，启动 Node 与注册 tsx 之前已由 env 清空继承值；这里再次验证键集合与生产模式，
+ * 不打印环境值、凭据或配置正文，失败不会通过修改当前进程全局环境来补救。
+ */
 export function checkCleanEnvironment(env) {
     const allowed = new Set([
         "PATH",
@@ -464,7 +486,8 @@ export function checkCleanEnvironment(env) {
         productionModeMatch = env.NODE_ENV === "production",
         compileCacheDisabled = env.NODE_DISABLE_COMPILE_CACHE === "1";
     if (unexpected.length || !productionModeMatch || !compileCacheDisabled) {
-        // 键名仅截取排序后的前十六项，合法 ASCII 环境名最长九十六字符，空白、换行或非 ASCII 一律替换固定占位；加上固定字段后序列化小于四 KiB，实际环境值从未进入诊断对象。
+        // 键名仅截取排序后的前十六项，合法 ASCII 环境名最长九十六字符，空白、换行或非 ASCII 一律替换固定占位；
+        // 加上固定字段后序列化小于四 KiB，实际环境值从未进入诊断对象。
         const names = unexpected
             .slice(0, 16)
             .map((key) =>
@@ -489,7 +512,9 @@ export function checkCleanEnvironment(env) {
     };
 }
 
-/** 后置环境检查保留原主函数的九项固定路径与下载标志比较，并在同一创建目录之后的位置调用；独立导出仅为逐项验证真实拒绝边界，不接受调用者提供期望映射，也不修改现有环境、命令顺序或允许集合。 */
+/** 后置环境检查保留原主函数的九项固定路径与下载标志比较，并在同一创建目录之后的位置调用；独立导出仅为逐项验证真实拒绝边
+ * 界，不接受调用者提供期望映射，也不修改现有环境、命令顺序或允许集合。
+ */
 export function checkOwnedEnvironment(env, owned) {
     for (const [key, expected] of Object.entries({
         TMPDIR: join(owned, "tmp"),
@@ -506,7 +531,8 @@ export function checkOwnedEnvironment(env, owned) {
             throw new EntryEnvironmentError({ phase: "OWNED_PATHS", invariant: key });
 }
 
-// 工具不属于来源树，允许 pnpm 安装的真实链接与工具执行权限，但固定真实路径并流式读取有界文件；只保留身份、模式、链接数和摘要，不把本机可执行内容或整份依赖包上传为所谓载荷证据。
+// 工具不属于来源树，允许 pnpm 安装的真实链接与工具执行权限，但固定真实路径并流式读取有界文件；只保留身份、模式、
+// 链接数和摘要，不把本机可执行内容或整份依赖包上传为所谓载荷证据。
 async function toolIdentity(path) {
     const fixed = await realpath(path),
         before = await lstat(fixed, { bigint: true });
@@ -546,7 +572,8 @@ async function toolIdentity(path) {
     };
 }
 
-// 完整 Git 清单按一百个路径分批读取，避免现有进程管理器六十四 KiB stdout 限制；对象正文经原生 Git 和系统 shasum 的有界管道流过，不落盘或上传，工作字节摘要与对象摘要独立取得后逐项相等。
+// 完整 Git 清单按一百个路径分批读取，避免现有进程管理器六十四 KiB stdout 限制；对象正文经原生 Git 和系统 shasum
+// 的有界管道流过，不落盘或上传，工作字节摘要与对象摘要独立取得后逐项相等。
 async function bindCheckout(root, commit, command) {
     const invoke = async (args) => {
         const result = await command({
@@ -643,7 +670,8 @@ async function bindCheckout(root, commit, command) {
     };
 }
 
-// 原始日志来自已结算管理器观察，持有副本不会重新访问未知构建目录；单份日志若超过保留预算则明确保存有限前缀及原始全长摘要，日志清单也会注明截断，禁止把前缀摘要冒充完整原始日志身份。
+// 原始日志来自已结算管理器观察，持有副本不会重新访问未知构建目录；单份日志若超过保留预算则明确保存有限前缀及原始全长摘
+// 要，日志清单也会注明截断，禁止把前缀摘要冒充完整原始日志身份。
 function journalDocuments(journal) {
     const documents = [],
         serial = { ...journal, commands: [] };
@@ -673,7 +701,8 @@ function journalDocuments(journal) {
     return documents;
 }
 
-// 消费窗口只读取生产器已经登记的两个树，文档复用正式 schema 与 reader，正文另外从树根读取；原始来源快照、实际 trace、完整库存和字面导入都在窗口内核验，返回的保留物只含元数据而无源代码或入口正文。
+// 消费窗口只读取生产器已经登记的两个树，文档复用正式 schema 与 reader，正文另外从树根读取；原始来源快照、实际 trace、
+// 完整库存和字面导入都在窗口内核验，返回的保留物只含元数据而无源代码或入口正文。
 async function verifyLiveViews({
     inputRoot,
     trees,
@@ -869,7 +898,8 @@ async function verifyLiveViews({
     return { reader, receipts };
 }
 
-// 入口函数在显式执行时才加载 tsx 和 TypeScript 产品模块，全部安装及命令仍经现有有界管理器；独占父根内的事务和构建目录互为兄弟，最终来源、配置与工具复核成功后才把回调暂定结果升级为输入物化通过。
+// 入口函数在显式执行时才加载 tsx 和 TypeScript 产品模块，全部安装及命令仍经现有有界管理器；独占父根内的事务和构建目录互
+// 为兄弟，最终来源、配置与工具复核成功后才把回调暂定结果升级为输入物化通过。
 async function main() {
     const env = process.env,
         qualification = checkCleanEnvironment(env);
@@ -1036,7 +1066,8 @@ async function main() {
                 10 * 60000,
             );
             journal.stages.install = "PASS";
-            // 工具版本同时与已绑定包清单的精确声明核对，tsx 注册 API、实际 loader、Vite CLI 与模块以及 TypeScript 实现都各有身份；这只说明本次构建工具资格，并不认证完整传递依赖闭包。
+            // 工具版本同时与已绑定包清单的精确声明核对，tsx 注册 API、实际 loader、Vite CLI 与模块以及 TypeScript
+            // 实现都各有身份；这只说明本次构建工具资格，并不认证完整传递依赖闭包。
             const runtimePackage = JSON.parse(
                     await readSourceFile(
                         sourceRoot,
@@ -1212,7 +1243,8 @@ async function main() {
     journal.claim =
         "Two-tree entry input materialization only; no Runtime readiness, candidate execution, installed or MVP acce" +
             "ptance.";
-    // 失败和未知关闭都只汇总早已持有的观察与元数据，不再扫描工作或构建目录；独立保留根经完整清单读回后才公开上传路径，后续工作流只允许上传这个根，工具缓存和源码目录绝不混入制品。
+    // 失败和未知关闭都只汇总早已持有的观察与元数据，不再扫描工作或构建目录；独立保留根经完整清单读回后才公开上传路径，
+    // 后续工作流只允许上传这个根，工具缓存和源码目录绝不混入制品。
     documents.push(...journalDocuments(journal));
     await sealMetadata(join(owned, "metadata"), documents);
     await appendFile(

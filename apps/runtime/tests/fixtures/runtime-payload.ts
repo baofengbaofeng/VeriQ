@@ -21,13 +21,21 @@ import type {
     DependencyGraph,
 } from "../../scripts/runtime-payload-inputs.ts";
 
-/** 测试模型允许定向篡改每一层冻结合同，但只在测试准备阶段使用可写映射；产品入口仍接收正式只读类型，测试不会通过 any 或忽略类型检查绕过公开字段约束。 */
+/** 测试模型允许定向篡改每一层冻结合同，但只在测试准备阶段使用可写映射；产品入口仍接收正式只读类型，测试不会通过 any 或
+ * 忽略类型检查绕过公开字段约束。
+ */
 export type Mutable<T> = T extends object ? { -readonly [K in keyof T]: Mutable<T[K]> } : T;
-/** 合成字节摘要由测试独立使用 Node 密码库计算，不能从核验器的返回记录自举期望值；归档和原生文件都明确是普通测试文本，测试不会把它们作为程序执行。 */
+/** 合成字节摘要由测试独立使用 Node 密码库计算，不能从核验器的返回记录自举期望值；归档和原生文件都明确是普通测试文本，测
+ * 试不会把它们作为程序执行。
+ */
 export const hash = (value: Uint8Array) => createHash("sha256").update(value).digest("hex");
-/** 测试编码保留普通 JSON 原始字节，与引擎条目的 JCS 摘要故意采用不同编码；这可以发现错误实现混淆 inventory 原始摘要与所选 entry 规范摘要的情况。 */
+/** 测试编码保留普通 JSON 原始字节，与引擎条目的 JCS 摘要故意采用不同编码；这可以发现错误实现混淆 inventory 原始摘要与所
+ * 选 entry 规范摘要的情况。
+ */
 export const bytes = (value: unknown) => Buffer.from(JSON.stringify(value, null, 2));
-/** 稳定八个执行成员由 fixture 与产品各自列出，测试仅复制明确合成的 JavaScript 字节；真实源码和编译结果的来源真实性仍由后续目标平台验收建立。 */
+/** 稳定八个执行成员由 fixture 与产品各自列出，测试仅复制明确合成的 JavaScript 字节；真实源码和编译结果的来源真实性仍由
+ * 后续目标平台验收建立。
+ */
 export const executionNames = [
     "worker",
     "provider",
@@ -39,7 +47,9 @@ export const executionNames = [
     "controlled-child-preload",
 ].map((n) => `${n}.mjs`);
 
-/** 完整微型模型包含五棵树、独立来源文件、所有工具证据和两个同名同版本但不同 peer 上下文的包；每个引用都指向真实小文件，避免用只有 DTO 的测试冒充文件输入验收。 */
+/** 完整微型模型包含五棵树、独立来源文件、所有工具证据和两个同名同版本但不同 peer 上下文的包；每个引用都指向真实小文件，
+ * 避免用只有 DTO 的测试冒充文件输入验收。
+ */
 export function model(arch: Arch = "x64") {
     const data = new Map<string, Buffer>();
     const docs = new Map<string, unknown>();
@@ -576,7 +586,9 @@ export function model(arch: Arch = "x64") {
     };
 }
 
-/** 每个场景创建独占中文空格临时根并在 finally 删除其自有内容，绝不扫描或清理其它任务目录；可重复保存只用于准备新的输入声明，实际核验过程中不会自动修复篡改。 */
+/** 每个场景创建独占中文空格临时根并在 finally 删除其自有内容，绝不扫描或清理其它任务目录；可重复保存只用于准备新的输入
+ * 声明，实际核验过程中不会自动修复篡改。
+ */
 export async function fixture(
     run: (
         value: ReturnType<typeof model> & { root: string; save: () => Promise<Buffer> },
@@ -613,7 +625,9 @@ export async function fixture(
     }
 }
 
-/** 测试修改真实包正文后独立重算对应的 package 摘要和自有树摘要，使反例能够越过无关 hash 门槛；它不修改图中的依赖边或解析记录，关系错误仍由产品逐条核验发现。 */
+/** 测试修改真实包正文后独立重算对应的 package 摘要和自有树摘要，使反例能够越过无关 hash 门槛；它不修改图中的依赖边或解
+ * 析记录，关系错误仍由产品逐条核验发现。
+ */
 export function rehashPackages(value: ReturnType<typeof model>) {
     const inventory = value.inventories.dependencies;
     for (const p of value.graph.instances) {
@@ -649,7 +663,9 @@ export function rehashPackages(value: ReturnType<typeof model>) {
     }
 }
 
-/** 来源文档变异后重新绑定独立 expected 与五种 Build 的来源摘要，测试只更新外层身份而不修复文件声明内容；这样类别限额反例能够到达首次读取准入，避免先被无关来源 hash 不一致挡住。 */
+/** 来源文档变异后重新绑定独立 expected 与五种 Build 的来源摘要，测试只更新外层身份而不修复文件声明内容；这样类别限额反
+ * 例能够到达首次读取准入，避免先被无关来源 hash 不一致挡住。
+ */
 export function rebindSource(value: ReturnType<typeof model>) {
     value.seal();
     value.expected.sourceBindingSha256 = value.recipe.source.binding.sha256;
@@ -658,7 +674,9 @@ export function rebindSource(value: ReturnType<typeof model>) {
     return value.seal();
 }
 
-/** 引擎正文变异时独立更新物理库存、原始 inventory 与规范 entry 摘要，但不改变文件名白名单或依赖关系；该 helper 让真实小型超限 JSON 能证明旧接受缺口，而不是只触发 hash 不匹配。 */
+/** 引擎正文变异时独立更新物理库存、原始 inventory 与规范 entry 摘要，但不改变文件名白名单或依赖关系；该 helper 让真实小
+ * 型超限 JSON 能证明旧接受缺口，而不是只触发 hash 不匹配。
+ */
 export function replaceEngineFile(value: ReturnType<typeof model>, path: string, content: Buffer) {
     value.put(`trees/engine/${path}`, content);
     const fact = value.inventories.engine.files.find((f) => f.path === path)!;

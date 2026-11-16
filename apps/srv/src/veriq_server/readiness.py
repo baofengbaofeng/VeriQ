@@ -1,4 +1,6 @@
-"""VeriQ 就绪检查只在请求时检查关键依赖并复用短期结果，数据库、静态库存及存储探测分别限时，任何依赖失败都不会改变独立的进程存活响应。"""
+"""VeriQ 就绪检查只在请求时检查关键依赖并复用短期结果，数据库、静态库存及存储探测分别限时，任何依赖失败都不会改变独立的
+进程存活响应。
+"""
 
 import asyncio
 import os
@@ -21,14 +23,18 @@ from .settings import Settings
 
 
 def packaged_heads() -> tuple[str, ...]:
-    """从安装包旁的迁移目录读取精确版本头而非硬编码迁移文件名，备份恢复和就绪检查共享同一版本权威，遇到多头时由调用方明确拒绝兼容。"""
+    """从安装包旁的迁移目录读取精确版本头而非硬编码迁移文件名，备份恢复和就绪检查共享同一版本权威，
+    遇到多头时由调用方明确拒绝兼容。
+    """
     config = Config()
     config.set_main_option("script_location", str(Path(__file__).parent / "migrations"))
     return tuple(ScriptDirectory.from_config(config).get_heads())
 
 
 def file_probe(root: str) -> bool:
-    """通过逐级不跟随链接的目录描述符访问已有存储根，只写入独占随机探针并完整清除，既不自动创建根目录也不读取客户证据，从而检查真实读写及同步能力。"""
+    """通过逐级不跟随链接的目录描述符访问已有存储根，只写入独占随机探针并完整清除，既不自动创建根目录也不读取客户证据，
+    从而检查真实读写及同步能力。
+    """
     directory = os.open("/", os.O_RDONLY | os.O_DIRECTORY)
     name = ".veriq-readiness-" + secrets.token_hex(16)
     created = False
@@ -73,10 +79,14 @@ def file_probe(root: str) -> bool:
 
 
 class ReadinessMonitor:
-    """每个应用独占一个按需监视器，合并同时到达的就绪请求并保留一秒结果；阻塞工作超时后不再排队相同探针，防止故障依赖造成无限线程积累或过期成功复活。"""
+    """每个应用独占一个按需监视器，合并同时到达的就绪请求并保留一秒结果；阻塞工作超时后不再排队相同探针，
+    防止故障依赖造成无限线程积累或过期成功复活。
+    """
 
     def __init__(self, settings: Settings, db: Database, site: PublishedSite | None) -> None:
-        """保存启动时已经校验的前端身份以及数据库句柄，后续磁盘检查必须匹配这个基线，不能把运行中的新库存自动当作同一已发布安装而静默接受。"""
+        """保存启动时已经校验的前端身份以及数据库句柄，后续磁盘检查必须匹配这个基线，不能把运行中的新库存自动当作同一已
+        发布安装而静默接受。
+        """
         self.settings, self.db, self.site = settings, db, site
         self._flight: asyncio.Task[dict[str, bool]] | None = None
         self._workers: dict[str, asyncio.Task[bool]] = {}
@@ -86,7 +96,9 @@ class ReadinessMonitor:
         self._closed = False
 
     async def check(self) -> dict[str, bool]:
-        """请求共享屏蔽取消的单次检查，只有完成时间一秒以内的结果可回用；单个客户端断开不会取消其他客户端使用的检查，关闭后的调用始终返回全部依赖不可用。"""
+        """请求共享屏蔽取消的单次检查，只有完成时间一秒以内的结果可回用；单个客户端断开不会取消其他客户端使用的检查，
+        关闭后的调用始终返回全部依赖不可用。
+        """
         if self._closed:
             return dict.fromkeys(("database", "mysqlVersion", "schema", "static", "storage"), False)
         if self._result is not None and monotonic() - self._completed < 1:
@@ -228,7 +240,9 @@ class ReadinessMonitor:
         return self._result
 
     async def close(self) -> None:
-        """停止接收新就绪检查并等待本应用已经拥有的检查和阻塞工作释放描述符，线程中的文件系统或凭据发现无法被强行终止，因此关闭过程不承诺硬终止内核调用。"""
+        """停止接收新就绪检查并等待本应用已经拥有的检查和阻塞工作释放描述符，线程中的文件系统或凭据发现无法被强行终止，
+        因此关闭过程不承诺硬终止内核调用。
+        """
         self._closed = True
         if self._flight:
             await asyncio.gather(self._flight, return_exceptions=True)

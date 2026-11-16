@@ -1,4 +1,6 @@
-/** 帧边界测试使用真实本机传输和测试自有临时端点，Windows 直接运行命名管道而 Linux 运行 Unix 套接字；故障服务只发送无凭证的固定测试字节，验证客户端不能把截断、非法编码或无换行内容当作成功响应。 */
+/** 帧边界测试使用真实本机传输和测试自有临时端点，Windows 直接运行命名管道而 Linux 运行 Unix 套接字；故障服务只发送无凭
+ * 证的固定测试字节，验证客户端不能把截断、非法编码或无换行内容当作成功响应。
+ */
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer, type Socket } from "node:net";
@@ -37,7 +39,9 @@ async function withServer(write: (socket: Socket) => void, run: (path: string) =
     }
 }
 
-/** 完整正确响应到达时服务端不主动结束连接，客户端必须先完成严格结构断言再自行关闭；此用例使依赖 EOF 的旧实现无法通过，同时保证 Unicode 字节与一次性帧边界都由真实流事件触发。 */
+/** 完整正确响应到达时服务端不主动结束连接，客户端必须先完成严格结构断言再自行关闭；此用例使依赖 EOF 的旧实现无法通过，
+ * 同时保证 Unicode 字节与一次性帧边界都由真实流事件触发。
+ */
 test("pipe client validates its expected frame without waiting for server EOF", async () => {
     const events: string[] = [];
     await withServer(

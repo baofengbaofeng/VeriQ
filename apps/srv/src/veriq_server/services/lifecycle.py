@@ -1,4 +1,6 @@
-"""VeriQ 生命周期维护按有界游标压缩已经终结的报告与导出载荷，保留请求指纹、结果摘要和退役屏障；任何活动引用、隔离容量或未知清理事实都会阻止过期处理。"""
+"""VeriQ 生命周期维护按有界游标压缩已经终结的报告与导出载荷，保留请求指纹、结果摘要和退役屏障；任何活动引用、
+隔离容量或未知清理事实都会阻止过期处理。
+"""
 
 from datetime import timedelta
 from typing import Any
@@ -39,7 +41,9 @@ PHASES = (
 
 
 async def archive_pinned(session: AsyncSession, workspace: str, bundle: Bundle) -> bool:
-    """导出归档即使超过保留期也可能被其它不可变根引用，此处按已注册表的内容引用列逐项存在性检查，跳过的只有当前归档所有者，无法证明独占时继续保留而不破坏共享摘要。"""
+    """导出归档即使超过保留期也可能被其它不可变根引用，此处按已注册表的内容引用列逐项存在性检查，
+    跳过的只有当前归档所有者，无法证明独占时继续保留而不破坏共享摘要。
+    """
     fields = {
         "snapshot_hash",
         "manifest_hash",
@@ -86,7 +90,9 @@ async def archive_pinned(session: AsyncSession, workspace: str, bundle: Bundle) 
 async def expire_lifecycle(
     session: AsyncSession, settings: Settings, workspace: str, limit: int, cursor: str
 ) -> tuple[int, bool, str | None]:
-    """单次请求只扫描一个阶段的一页记录，下一游标包含阶段和稳定主键；同一回执由既有维护幂等框架保存，删除事件以有限批次推进而不是在安装锁内处理无界历史。"""
+    """单次请求只扫描一个阶段的一页记录，下一游标包含阶段和稳定主键；同一回执由既有维护幂等框架保存，
+    删除事件以有限批次推进而不是在安装锁内处理无界历史。
+    """
     phase, separator, after = cursor.partition(":")
     if not cursor:
         phase, after = "online", ""
@@ -252,7 +258,8 @@ async def expire_lifecycle(
                     },
                     "metadataExpiredAt": stamp(current),
                 }
-            # 当前 Attempt 的事件可能超过整页预算，因此继续游标必须仍指向上一行；过期标记先提交，读路径立即拒绝部分删除后的不完整报告，围栏与完成回执原样保留。
+            # 当前 Attempt 的事件可能超过整页预算，因此继续游标必须仍指向上一行；过期标记先提交，
+            # 读路径立即拒绝部分删除后的不完整报告，围栏与完成回执原样保留。
             payload_budget -= len(removed)
             if more_events or payload_budget <= 0:
                 return processed + len(removed), True, f"{phase}:{last}"
@@ -317,7 +324,8 @@ async def expire_lifecycle(
                     .limit(1)
                 )
             ).first()
-            # 已签名包在有效期内仍是离线回传的验证权威，即使下载保留期更短也不能先清除它；只清除独立归档载荷，清单、快照、签名和幂等映射继续保留以拒绝迟到复活。
+            # 已签名包在有效期内仍是离线回传的验证权威，即使下载保留期更短也不能先清除它；只清除独立归档载荷，清单、
+            # 快照、签名和幂等映射继续保留以拒绝迟到复活。
             if (
                 expiration > current
                 or active

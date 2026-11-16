@@ -41,8 +41,10 @@ import { observeRuntimeCommand } from "./runtime-release-builds.ts";
 import type { RuntimeV1Material } from "./runtime-release-v1.ts";
 
 /**
- * 原生 v1 依赖准备使用原 pnpm 锁和独立固定工具包，在本轮独占目录真正执行离线冻结生产安装；只输出普通物理布局和实际解析证据，不制造 Darwin 的 DependenciesReceipt 或借本机平台改写 Mac Expe
- * cted。pnpmPackage 完整绑定工具包，compilerImplementation 绑定 C04 发射器真实加载的 TypeScript 实现及清单，store 只提供原锁 integrity 允许的离线包体。
+ * 原生 v1 依赖准备使用原 pnpm 锁和独立固定工具包，在本轮独占目录真正执行离线冻结生产安装；只输出普通物理布局和实际解析
+ * 证据，不制造 Darwin 的 DependenciesReceipt 或借本机平台改写 Mac Expe
+ * cted。pnpmPackage 完整绑定工具包，compilerImplementation 绑定 C04 发射器真实加载的 TypeScript 实现及清单，store 只提
+ * 供原锁 integrity 允许的离线包体。
  */
 export type RuntimeV1DependencyPreparation = Readonly<{
     pnpmCli: string;
@@ -52,7 +54,8 @@ export type RuntimeV1DependencyPreparation = Readonly<{
 }>;
 
 /**
- * 依赖准备结果只描述本次真实生成并完整枚举的生产包树以及独立证据引用，不能作为外部材料来源批准；生成树由调用者继续拥有，最终 v1 manifest 和外层审核仍分别处理完整性与发行身份。
+ * 依赖准备结果只描述本次真实生成并完整枚举的生产包树以及独立证据引用，不能作为外部材料来源批准；生成树由调用者继续拥有
+ * ，最终 v1 manifest 和外层审核仍分别处理完整性与发行身份。
  * 文件路径相对 node_modules 根，source/lock/tool 事实和解析结果留在候选外层 evidence，工具缓存与安装临时树不进入产品。
  */
 export type RuntimeV1DependencyResult = Readonly<{
@@ -62,7 +65,8 @@ export type RuntimeV1DependencyResult = Readonly<{
 }>;
 
 /**
- * 构建输入观察在 Windows 不套用没有 Unix 意义的 mode 写位，但仍持有无链接普通文件并核设备、inode、链接数、时间、长度和原始摘要；这项适配只供本轮源码、工具和包体，不进入私有凭据或运行时 ACL 路径。
+ * 构建输入观察在 Windows 不套用没有 Unix 意义的 mode 写位，但仍持有无链接普通文件并核设备、inode、链接数、时间、长度和
+ * 原始摘要；这项适配只供本轮源码、工具和包体，不进入私有凭据或运行时 ACL 路径。
  * Linux 完整沿用 C04 原观察器，Windows 的原生私有文件政策没有被放宽或替代。
  */
 class NativeBuildFiles extends DependencyFiles {
@@ -134,7 +138,9 @@ class NativeBuildFiles extends DependencyFiles {
 }
 
 /**
- * 两次持有观察比较完整文件身份，不能只因摘要相同就接受已经替换的源码或安装材料；本轮工作根由调用者独占，这个检测不宣称同用户恶意并发修改下的原子整树隔离能力。目录变动只在安装和工作区投影完成后开始记录，正常生产动作不会被误认成外部篡改。
+ * 两次持有观察比较完整文件身份，不能只因摘要相同就接受已经替换的源码或安装材料；本轮工作根由调用者独占，这个检测不宣称
+ * 同用户恶意并发修改下的原子整树隔离能力。目录变动只在安装和工作区投影完成后开始记录，正常生产动作不会被误认成外部篡改
+ * 。
  */
 function same(a: BigIntStats, b: BigIntStats): boolean {
     return ["dev", "ino", "mode", "nlink", "size", "mtimeNs", "ctimeNs"].every(
@@ -143,7 +149,8 @@ function same(a: BigIntStats, b: BigIntStats): boolean {
 }
 
 /**
- * 原生路径包含关系使用宿主 relative 后转成可移植组件，Windows 盘符、大小写或分隔符不会被固定斜线前缀误判；真实包查找和 observer 归属随后仍要命中实际普通目录与已观察清单。
+ * 原生路径包含关系使用宿主 relative 后转成可移植组件，Windows 盘符、大小写或分隔符不会被固定斜线前缀误判；真实包查找和
+ * observer 归属随后仍要命中实际普通目录与已观察清单。
  * 返回值只服务同一独占根内的路径映射，不成为读取外部文件的能力。
  */
 function inside(root: string, path: string): string | null {
@@ -152,8 +159,10 @@ function inside(root: string, path: string): string | null {
 }
 
 /**
- * 外部工具库存核对全量文件和原始摘要，不能只固定一个转发 CLI 而允许 pnpm dist 实现被替换；完整工具包由独立任务准备，生产步骤只读取且在实际命令结束后再次验证同一事实集合。
- * Unix 执行位不作为 Windows 可信身份，跨平台共同绑定路径、长度与 SHA256，实际 loader 的版本输出也要逐字匹配固定 pnpm 版本。
+ * 外部工具库存核对全量文件和原始摘要，不能只固定一个转发 CLI 而允许 pnpm dist 实现被替换；完整工具包由独立任务准备，生
+ * 产步骤只读取且在实际命令结束后再次验证同一事实集合。
+ * Unix 执行位不作为 Windows 可信身份，跨平台共同绑定路径、长度与 SHA256，实际 loader 的版本输出也要逐字匹配固定 pnpm 版
+ * 本。
  */
 async function pinnedTool(material: RuntimeV1Material): Promise<void> {
     await admitReleaseRoot(material.root);
@@ -167,7 +176,8 @@ async function pinnedTool(material: RuntimeV1Material): Promise<void> {
 }
 
 /**
- * 空缺可选包必须由原锁中该精确包版本的 os/cpu 声明证明不适用当前真实目标，不能把安装缺失解释成任意 optional 成功；optional peer 只记录实际物理查找缺失，普通依赖与 required peer
+ * 空缺可选包必须由原锁中该精确包版本的 os/cpu 声明证明不适用当前真实目标，不能把安装缺失解释成任意 optional 成功；
+ * optional peer 只记录实际物理查找缺失，普通依赖与 required peer
  * 永远不能省略。这里只复用 C04 的固定锁块解析，不实现另一个 YAML 或 exports 解释器，遇到不支持的标量结构保持失败。
  */
 function excludedOptional(
@@ -208,7 +218,9 @@ function excludedOptional(
     };
 }
 
-/** v1 输出沿用原 hoisted 安装域映射，嵌套 node_modules 保留物理位置与 peer 上下文，源码工作区别名已在受控安装投影阶段替换为普通生成包；不同原域映射同一目的根时明确拒绝而不按名字或版本去重。
+/**
+ * v1 输出沿用原 hoisted 安装域映射，嵌套 node_modules 保留物理位置与 peer 上下文，源码工作区别名已在受控安装投影阶段替
+ * 换为普通生成包；不同原域映射同一目的根时明确拒绝而不按名字或版本去重。
  * 只允许 Runtime 及合同和 SDK 的依赖安装域，其它工作区不能成为独立执行根的隐式依赖来源。
  */
 function outputRoot(physical: string): string {
@@ -222,8 +234,10 @@ function outputRoot(physical: string): string {
 }
 
 /**
- * 依赖准备只在真实 Linux/Windows x64 宿主运行，源码、工具与原锁均由外层独立身份固定；安装成功后才生成工作区 JS、采集物理观察、选择可达闭包并在最终无链接布局中实际调用目标 Node 的两种解析器。任何关闭未知、
- * 超时、截断或失败立即停止后续安装树观察，保留本轮自有根，不生成成功收据或把候选包正文执行当作解析证明。调用者已经构建 entry/execution，因此根导入取真实输出 AST，额外固定根 tsx 与原 C04 一致。
+ * 依赖准备只在真实 Linux/Windows x64 宿主运行，源码、工具与原锁均由外层独立身份固定；安装成功后才生成工作区 JS、采集物
+ * 理观察、选择可达闭包并在最终无链接布局中实际调用目标 Node 的两种解析器。任何关闭未知、
+ * 超时、截断或失败立即停止后续安装树观察，保留本轮自有根，不生成成功收据或把候选包正文执行当作解析证明。调用者已经构建
+ * entry/execution，因此根导入取真实输出 AST，额外固定根 tsx 与原 C04 一致。
  */
 export async function prepareRuntimeV1Dependencies(
     options: Readonly<{
@@ -303,7 +317,8 @@ export async function prepareRuntimeV1Dependencies(
             ref,
             0o644,
         );
-    // 当前实际宿主实现也必须匹配独立源码绑定，不能只复制一份伪造同形实现到 installation；导入工具及发射器随后继续用 held 输入记录真实执行源码和 TypeScript 文件身份。
+    // 当前实际宿主实现也必须匹配独立源码绑定，不能只复制一份伪造同形实现到 installation；导入工具及发射器随后继续用
+    // held 输入记录真实执行源码和 TypeScript 文件身份。
     for (const path of source.files.filter(
         (file) =>
             /^apps\/runtime\/scripts\/runtime-(?:release-(?:v1|files|builds)|workspace-packages|dependency-)/.test(
@@ -380,7 +395,8 @@ export async function prepareRuntimeV1Dependencies(
         throw new Error("RUNTIME_V1_TYPESCRIPT_IMPLEMENTATION_MISMATCH");
     const workspaceOrigins = new Map<string, string>(),
         linkEvidence: unknown[] = [];
-    // pnpm 在 Windows 使用绝对 junction，旧 observer 只接受可移植链接文本；这里只在已关闭安装的自有投影中移除确指原始绑定工作区的链接并复制普通生成包，原始源码、锁和工具目录从不修改。
+    // pnpm 在 Windows 使用绝对 junction，旧 observer 只接受可移植链接文本；这里只在已关闭安装的自有投影中移除确指原始绑
+    // 定工作区的链接并复制普通生成包，原始源码、锁和工具目录从不修改。
     let projectionMembers = 0;
     const normalize = async (path: string, stack: readonly string[] = []): Promise<void> => {
         if (++projectionMembers > 40000 || path.split("/").length > 64)
@@ -432,7 +448,8 @@ export async function prepareRuntimeV1Dependencies(
                     })
                 )?.isDirectory()
             ) {
-                // 工作区自身安装域的嵌套依赖不能因替换 alias 丢失；逐节点复制该有限子树，已知工作区链接递归投影，循环或未知目录链接明确拒绝而不跟随到外部。
+                // 工作区自身安装域的嵌套依赖不能因替换 alias 丢失；逐节点复制该有限子树，已知工作区链接递归投影，循环或
+                // 未知目录链接明确拒绝而不跟随到外部。
                 const cloneBase = `${endpoint}/node_modules`,
                     projectedBase = `${path}/node_modules`;
                 const clone = async (
@@ -934,7 +951,8 @@ export async function prepareRuntimeV1Dependencies(
             } else await chmod(join(layoutRoot, path), 0o755);
         }
     }
-    // 两种实际 Node 解析都作用于最终普通布局，入口和执行文件只复制原始已构建字节；边 witness 可以尝试真实 bin/package.json 子路径，但所有失败保留，不猜测被 exports 阻止的路径已经成功。
+    // 两种实际 Node 解析都作用于最终普通布局，入口和执行文件只复制原始已构建字节；边 witness 可以尝试真实
+    // bin/package.json 子路径，但所有失败保留，不猜测被 exports 阻止的路径已经成功。
     for (const kind of ["entry", "execution"] as const) {
         const inventory = await inventoryReleaseTree(
             join(options.runtimeRoot, kind),

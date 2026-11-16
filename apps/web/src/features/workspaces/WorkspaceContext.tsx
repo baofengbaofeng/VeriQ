@@ -1,5 +1,5 @@
-/**
- * VeriQ 的 Workspace 作用域把选中标识与取消控制器作为同一份快照发布，切换时关闭旧订阅并清除空间查询；认证用户仍通过 Provider 的键隔离全部会话资源。
+/** VeriQ 的 Workspace 作用域把选中标识与取消控制器作为同一份快照发布，切换时关闭旧订阅并清除空间查询；认证用户仍通过
+ * Provider 的键隔离全部会话资源。
  */
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
@@ -16,13 +16,13 @@ const WorkspaceContext = createContext<ScopeState>({
     select: () => {},
     subscribe: () => () => {},
 });
-/**
- * 功能页通过此入口读取选中空间、取消信号和订阅所有权；选择回调始终读取调用时的当前空间，同空间重复选择不会关闭订阅、取消请求或清除查询缓存。
+/** 功能页通过此入口读取选中空间、取消信号和订阅所有权；选择回调始终读取调用时的当前空间，同空间重复选择不会关闭订阅、取
+ * 消请求或清除查询缓存。
  */
 export const useWorkspace = () => useContext(WorkspaceContext);
 
-/**
- * 每个认证用户的 Provider 独立拥有查询客户端、订阅集合和当前控制器，普通重渲染保持这些资源存活，最终卸载读取最新控制器并清理全部查询和订阅。
+/** 每个认证用户的 Provider 独立拥有查询客户端、订阅集合和当前控制器，普通重渲染保持这些资源存活，最终卸载读取最新控制器
+ * 并清理全部查询和订阅。
  */
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const [client] = useState(
@@ -52,8 +52,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         },
         [client, dispose, lifetime],
     );
-    /**
-     * 切换事件沿用先关闭订阅再终止旧请求的顺序，当前快照在事件内更新以支持保留的回调；React 提交随后同时发布空间与信号，状态更新器中不执行清理副作用。
+    /** 切换事件沿用先关闭订阅再终止旧请求的顺序，当前快照在事件内更新以支持保留的回调；React 提交随后同时发布空间与信号
+     * ，状态更新器中不执行清理副作用。
      */
     const select = useCallback(
         (workspaceId: string) => {
@@ -68,8 +68,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         },
         [client, dispose, lifetime],
     );
-    /**
-     * 订阅关闭函数的身份由单次注册持有，主动取消、空间切换及最终卸载可以重复调用同一关闭函数；首次关闭立即移出集合，避免后续清理重复释放订阅资源。
+    /** 订阅关闭函数的身份由单次注册持有，主动取消、空间切换及最终卸载可以重复调用同一关闭函数；首次关闭立即移出集合，避
+     * 免后续清理重复释放订阅资源。
      */
     const subscribe = useCallback(
         (unsubscribe: () => void) => {

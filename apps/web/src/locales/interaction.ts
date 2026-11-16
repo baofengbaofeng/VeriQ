@@ -1,4 +1,6 @@
-/** 原生导航、编辑器键盘提示与新增真实状态使用独立的小型词条集合，操作说明依据当前控件和实际权限行为编写；日期、技术枚举、用户名称和业务参数继续保持原值，不能通过展示翻译修改。 */
+/** 原生导航、编辑器键盘提示与新增真实状态使用独立的小型词条集合，操作说明依据当前控件和实际权限行为编写；日期、技术枚举
+ * 、用户名称和业务参数继续保持原值，不能通过展示翻译修改。
+ */
 export const interactionMessages: Record<string, readonly [string, string]> = {
     "Main navigation": ["主要导航", "Main navigation"],
     "Version difference": ["版本差异", "Version difference"],

@@ -6,7 +6,8 @@ import { archiveModel } from "./runtime-payload-archives.ts";
 import { bytes, hash } from "./runtime-payload.ts";
 
 /**
- * 完整 stage 夹具复制当前真正使用的微型源码字节并同步重封原 SourceBinding 和全部构建收据，npm 包也有真实声明与自有树摘要；假 Node 和 Chrome 都是普通测试文本，绝不执行或冒充 Mac 原生验
+ * 完整 stage 夹具复制当前真正使用的微型源码字节并同步重封原 SourceBinding 和全部构建收据，npm 包也有真实声明与自有树摘
+ * 要；假 Node 和 Chrome 都是普通测试文本，绝不执行或冒充 Mac 原生验
  * 收。
  */
 export async function stageModel(arch: Arch = "x64") {
@@ -90,7 +91,8 @@ export async function stageModel(arch: Arch = "x64") {
     };
 }
 
-/** npm 反例准备按夹具原归档事实独立推导普通文件与父目录，再按最深实例切分并重封自有树摘要；它不更改 package 声明、依赖边或 bin 关系，因此正文与声明矛盾仍由产品消费者实际发现而不是被测试自动修复。
+/** npm 反例准备按夹具原归档事实独立推导普通文件与父目录，再按最深实例切分并重封自有树摘要；它不更改 package 声明、依赖
+ * 边或 bin 关系，因此正文与声明矛盾仍由产品消费者实际发现而不是被测试自动修复。
  */
 export function rehashStageNpm(value: Awaited<ReturnType<typeof stageModel>>) {
     const root = value.nodeReceipt.npmRoot,

@@ -1,5 +1,8 @@
 # Testing standard
 
+行宽口径：源码及注释每个物理行最多 **120 个显示列**，与 IDE 的 120 列标尺一致。
+中文及其它全角/宽字符占 2 列，ASCII 占 1 列；缩进、标点和注释分隔符均计入。
+
 规定测试分层、TDD 流程、断言诚实性、覆盖率与平台相关验证要求。
 
 ## 1. 原则
@@ -80,3 +83,9 @@ python scripts/comment_audit.py --output /tmp/veriq-comment-audit.json
 - [ ] 无 sleep/假报告/擅自重试吞 flaky
 - [ ] 无模型密钥依赖；缺夹具未静默假绿
 - [ ] 覆盖率与关键路径专项测试满足要求
+
+## 源码显示列宽检查
+
+运行 `python3 scripts/line_width.py` 或 `pnpm lint:width`，覆盖测试、夹具与生成源码。
+显示列宽工具的边界验收位于 `tests/acceptance/test_line_width.py`。
+格式化通过不等于列宽合格；不得用字符个数、字节数或 IDE 软换行代替实际物理行检查。

@@ -1,5 +1,5 @@
-/**
- * Workspace 管理页：创建/重命名/归档空间，以及成员角色、邀请与接受邀请流程。归档后成员列表仍可只读查看；归档完成后成员与邀请列表仍可只读浏览。
+/** Workspace 管理页：创建/重命名/归档空间，以及成员角色、邀请与接受邀请流程。归档后成员列表仍可只读查看；归档完成后成员
+ * 与邀请列表仍可只读浏览。
  * 列表走 api.workspaces；成员与邀请均嵌套在选定 workspaceId 下。
  */
 
@@ -21,8 +21,8 @@ const message = (error: Error | null) =>
           ? "Unable to load Workspace data. Please retry."
           : "";
 
-/**
- * 拥有空间列表、成员与邀请分页 UI 状态；写操作调用 create/rename/archive/invite/updateMember。选择变更经 useWorkspace.select，确保下游 Runtime/Resource
+/** 拥有空间列表、成员与邀请分页 UI 状态；写操作调用 create/rename/archive/invite/updateMember。选择变更经
+ * useWorkspace.select，确保下游 Runtime/Resource
  * 页看到同一作用域。
  */
 export function WorkspacePage() {
@@ -44,7 +44,8 @@ export function WorkspacePage() {
         enabled: !!user,
     });
     const items = workspaces.data?.pages.flatMap((page) => page.items) ?? [];
-    // 空间管理页仅在未选择时采用首项，列表重取或续页不能替换用户正在查看的详情；手动选择即使暂时不在已加载页中，也由既有占位选项和详情查询维持归属。
+    // 空间管理页仅在未选择时采用首项，列表重取或续页不能替换用户正在查看的详情；手动选择即使暂时不在已加载页中，也由既
+    // 有占位选项和详情查询维持归属。
     const firstWorkspaceId = items[0]?.id;
     useEffect(() => {
         if (!selected && firstWorkspaceId) select(firstWorkspaceId);

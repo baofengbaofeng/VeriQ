@@ -12,7 +12,8 @@
         "test": "pnpm --filter @veriq/contracts test && pnpm --filter @veriq/compiler test && pnpm --filter @veriq/runner-sdk test && pnpm --filter @veriq/runtime test",
         "check": "pnpm --filter @veriq/contracts check && pnpm --filter @veriq/compiler check && pnpm --filter @veriq/runner-sdk check && pnpm --filter @veriq/runtime check && pnpm --filter @veriq/desktop check",
         "contracts:generate": "pnpm --filter @veriq/contracts generate",
-        "lint": "biome lint apps packages scripts tests",
+        "lint": "pnpm lint:width && biome lint apps packages scripts tests",
+        "lint:width": "python3 scripts/line_width.py",
         "format:check": "prettier --check apps packages scripts tests biome.json",
         "release": "./build.sh",
         "desktop:test": "pnpm --filter @veriq/desktop test:e2e"

@@ -1,4 +1,6 @@
-"""VeriQ 备份目录以私有普通文件保存数据库逻辑快照及制品字节，所有路径从固定快照根解析并拒绝链接，清单摘要绑定每个载荷以便恢复前完成全量完整性核验。"""
+"""VeriQ 备份目录以私有普通文件保存数据库逻辑快照及制品字节，所有路径从固定快照根解析并拒绝链接，
+清单摘要绑定每个载荷以便恢复前完成全量完整性核验。
+"""
 
 import base64
 from datetime import datetime
@@ -11,7 +13,9 @@ from typing import Any
 
 
 def encode_value(value: Any) -> dict[str, Any]:
-    """为数据库列值增加独立类型标签，避免二进制和时间戳在 JSON 中丢失精度，也避免业务 JSON 恰好使用相同键名时被恢复器误识别为特殊类型或执行任何对象反序列化。"""
+    """为数据库列值增加独立类型标签，避免二进制和时间戳在 JSON 中丢失精度，也避免业务 JSON 恰好使用相同键名时被恢复器误
+    识别为特殊类型或执行任何对象反序列化。
+    """
     if isinstance(value, bytes):
         return {"kind": "bytes", "value": base64.b64encode(value).decode("ascii")}
     if isinstance(value, datetime):
@@ -22,7 +26,9 @@ def encode_value(value: Any) -> dict[str, Any]:
 
 
 def decode_value(value: dict[str, Any]) -> Any:
-    """仅解码备份格式显式支持的列类型并拒绝未知标签，不使用 pickle 或可执行 SQL，从而让恢复载荷只能通过已安装的 SQLAlchemy 表定义和数据库约束写入目标。"""
+    """仅解码备份格式显式支持的列类型并拒绝未知标签，不使用 pickle 或可执行 SQL，从而让恢复载荷只能通过已安装的
+    SQLAlchemy 表定义和数据库约束写入目标。
+    """
     if not isinstance(value, dict) or set(value) != {"kind", "value"}:
         raise ValueError("SNAPSHOT_VALUE_INVALID")
     kind, content = value["kind"], value["value"]
@@ -38,7 +44,9 @@ def decode_value(value: dict[str, Any]) -> Any:
 
 
 def private_file(path: Path, payload: bytes) -> None:
-    """在已经受控的私有目录内独占创建文件并同步字节，已有文件直接失败而不是截断；备份包含解密所需密钥和口令哈希，因此每份载荷都固定采用操作员独占读写权限。"""
+    """在已经受控的私有目录内独占创建文件并同步字节，已有文件直接失败而不是截断；备份包含解密所需密钥和口令哈希，
+    因此每份载荷都固定采用操作员独占读写权限。
+    """
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     with os.fdopen(
         os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600), "wb"
@@ -54,7 +62,9 @@ def private_file(path: Path, payload: bytes) -> None:
 
 
 def safe_snapshot_file(root: Path, name: str) -> Path:
-    """只接受清单中规范的相对 POSIX 文件路径并逐级拒绝符号链接，快照根也必须是私有真实目录；恢复前的摘要核验和随后读取共享这一入口，不允许越界载荷替换操作员配置。"""
+    """只接受清单中规范的相对 POSIX 文件路径并逐级拒绝符号链接，快照根也必须是私有真实目录；恢复前的摘要核验和随后读取共
+    享这一入口，不允许越界载荷替换操作员配置。
+    """
     relative = PurePosixPath(name)
     if (
         not name
@@ -77,7 +87,9 @@ def safe_snapshot_file(root: Path, name: str) -> Path:
 
 
 def file_digest(path: Path) -> str:
-    """以固定大小块计算整个文件的摘要而不把数据库快照或大制品一次性读入内存，文件打开时再次拒绝最终链接，读取错误会使备份或恢复整体失败而不产生成功回执。"""
+    """以固定大小块计算整个文件的摘要而不把数据库快照或大制品一次性读入内存，文件打开时再次拒绝最终链接，
+    读取错误会使备份或恢复整体失败而不产生成功回执。
+    """
     digest = sha256()
     with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW), "rb") as stream:
         while chunk := stream.read(1024 * 1024):
@@ -86,7 +98,9 @@ def file_digest(path: Path) -> str:
 
 
 def inventory(root: Path) -> dict[str, dict[str, Any]]:
-    """在备份写完之后登记所有普通载荷的精确大小与摘要，目录树中的链接或特殊设备一律拒绝；完成清单自身稍后单独写入，其摘要由 CLI 返回给操作员作为独立恢复确认材料。"""
+    """在备份写完之后登记所有普通载荷的精确大小与摘要，目录树中的链接或特殊设备一律拒绝；完成清单自身稍后单独写入，
+    其摘要由 CLI 返回给操作员作为独立恢复确认材料。
+    """
     result = {}
     for directory, directories, files in os.walk(root, followlinks=False):
         parent = Path(directory)
@@ -101,7 +115,9 @@ def inventory(root: Path) -> dict[str, dict[str, Any]]:
 
 
 def copy_tree(source: Path, target: Path, *, existing_target: bool = False) -> None:
-    """通过目录描述符递归复制外置制品并保留零字节退役对象，任何祖先链接、设备文件或源文件变化都会拒绝；复制使用私有目标权限，不从备份继承可执行位或宽松访问控制。"""
+    """通过目录描述符递归复制外置制品并保留零字节退役对象，任何祖先链接、设备文件或源文件变化都会拒绝；
+    复制使用私有目标权限，不从备份继承可执行位或宽松访问控制。
+    """
     source = source.absolute()
     descriptor = os.open("/", os.O_RDONLY | os.O_DIRECTORY)
     try:

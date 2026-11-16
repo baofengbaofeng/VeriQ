@@ -6,7 +6,9 @@ import { ArchiveTransaction } from "../../scripts/runtime-payload-transaction.ts
 import { assetBytes } from "../../scripts/runtime-assets-observation.ts";
 import type { Arch, Ref } from "../../scripts/runtime-payload-inputs.ts";
 
-/** 微型原归档保留推导父目录、显式空目录和原始普通正文，并刻意包含不同物理根的同名同版本包；夹具只构造静态源材料，不执行假二进制，也不替换生产入口的官方摘要约束。 */
+/** 微型原归档保留推导父目录、显式空目录和原始普通正文，并刻意包含不同物理根的同名同版本包；夹具只构造静态源材料，不执行
+ * 假二进制，也不替换生产入口的官方摘要约束。
+ */
 export function nodeSourceEntries(arch: Arch = "x64"): ArchiveFixtureEntry[] {
     const top = `node-v24.22.1-darwin-${arch}`,
         npm = `${top}/lib/node_modules/npm`;
@@ -36,7 +38,9 @@ export function nodeSourceEntries(arch: Arch = "x64"): ArchiveFixtureEntry[] {
     ];
 }
 
-/** 每次 helper 测试拥有独立输入根和输出父目录，快照由真实事务独占写入并登记摘要；收尾只处理本夹具新建的有限目录，故障保留场景必须在断言锁及 scratch 后才允许测试 finally 回收。 */
+/** 每次 helper 测试拥有独立输入根和输出父目录，快照由真实事务独占写入并登记摘要；收尾只处理本夹具新建的有限目录，故障保
+ * 留场景必须在断言锁及 scratch 后才允许测试 finally 回收。
+ */
 export async function nodeSourceFixture<T>(
     run: (f: {
         tx: ArchiveTransaction;

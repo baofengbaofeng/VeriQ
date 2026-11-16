@@ -1,10 +1,13 @@
 /**
- * 本文件监控 Attempt 工作区磁盘与文件数：连同 Chromium 未完成暂存一并计入预算：超限即触发确定性停机（storage/INVALID_STORAGE_LIMIT）。
+ * 本文件监控 Attempt 工作区磁盘与文件数：连同 Chromium 未完成暂存一并计入预算：
+ * 超限即触发确定性停机（storage/INVALID_STORAGE_LIMIT）。
  */
 
 import { lstat, readdir } from "node:fs/promises";
 import { join } from "node:path";
-/** 公开函数 monitorStorage 每百毫秒扫描 Attempt 根目录累计字节与文件数：超限时调用 stop 并停止后续探测。不跟随符号链接以免扫出树外。 */
+/** 公开函数 monitorStorage 每百毫秒扫描 Attempt 根目录累计字节与文件数：超限时调用 stop 并停止后续探测。
+ * 不跟随符号链接以免扫出树外。
+ */
 export function monitorStorage(
     root: string,
     maxBytes: number,

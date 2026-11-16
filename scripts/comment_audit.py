@@ -1,6 +1,8 @@
-"""仓库注释门禁按实际语法中的注释与文档串计算非空行比例，并检查中文及六十字符首行；自动结果只证明可机械验证的条件，符号职责与解释质量仍须独立代码审查。
+"""仓库注释门禁按实际语法中的注释与文档串计算非空行比例，并检查中文及四十字符首行；自动结果只证明可机械验证的条件，
+符号职责与解释质量仍须独立代码审查。
 
-仅排除明确生成的合同文件、依赖和私有证据，不排除测试或旧代码。Python 使用 tokenize 与 AST，TypeScript 使用官方解析器区间。缺少解析工具或源码不可解析时直接失败，不输出虚假的零问题结果。
+仅排除明确生成的合同文件、依赖和私有证据，不排除测试或旧代码。Python 使用 tokenize 与 AST，TypeScript
+使用官方解析器区间。缺少解析工具或源码不可解析时直接失败，不输出虚假的零问题结果。
 """
 
 import argparse
@@ -22,9 +24,11 @@ EXTENSIONS = {".py", ".ts", ".tsx", ".js", ".mjs", ".mts", ".c", ".sh"}
 
 
 def audit(root: Path) -> dict[str, Any]:
-    """审计 Git 记录及尚未忽略的新源码，注释与代码同一行时分别进入分子和代码分母；连续行注释合并为一个块检查首行，文档串只接受 AST 确认的模块、类与函数说明。
+    """审计 Git 记录及尚未忽略的新源码，注释与代码同一行时分别进入分子和代码分母；连续行注释合并为一个块检查首行，
+    文档串只接受 AST 确认的模块、类与函数说明。
 
-    空行不计入分子，单独的注释分隔符也不制造有效说明。大段字符串常量不会被当作文档串增加比例。自动检查不能判断内容是否灌水，报告明确保留人工审查责任。每个文件保留计数，便于 T22 按实际符号整改。
+    空行不计入分子，单独的注释分隔符也不制造有效说明。大段字符串常量不会被当作文档串增加比例。自动检查不能判断内容是否灌
+    水，报告明确保留人工审查责任。每个文件保留计数，便于 T22 按实际符号整改。
     """
     names = subprocess.check_output(
         ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
@@ -53,7 +57,8 @@ def audit(root: Path) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     violations: list[dict[str, Any]] = []
     for name in selected:
-        # Node 使用原始 UTF8 文本定位注释，Python 必须保留相同的 CRLF 字符序列才能消费桥接坐标；若默认转换换行，即使文件只有基本平面字符也会把遮罩错移到后续代码。
+        # Node 使用原始 UTF8 文本定位注释，Python 必须保留相同的 CRLF 字符序列才能消费桥接坐标；若默认转换换行，
+        # 即使文件只有基本平面字符也会把遮罩错移到后续代码。
         with (root / name).open(encoding="utf-8", newline="") as source:
             text = source.read()
         lines = text.splitlines()
@@ -61,7 +66,8 @@ def audit(root: Path) -> dict[str, Any]:
         comments: set[int] = set()
         code: set[int] = set()
         if name.endswith(".py"):
-            # Python 分词器依赖逐个物理行读取，StringIO 必须启用通用换行以识别合法裸回车并与 AST 行号一致；转换仅作用于分词输入，供 Node 坐标遮罩使用的原始文本仍完整保留。
+            # Python 分词器依赖逐个物理行读取，StringIO 必须启用通用换行以识别合法裸回车并与 AST 行号一致；
+            # 转换仅作用于分词输入，供 Node 坐标遮罩使用的原始文本仍完整保留。
             for token in tokenize.generate_tokens(io.StringIO(text, newline=None).readline):
                 if token.type == tokenize.COMMENT:
                     blocks.append((token.start[0], token.end[0], token.string.lstrip("# ")))
@@ -147,12 +153,12 @@ def audit(root: Path) -> dict[str, Any]:
                 ),
                 "",
             )
-            if len(first) < 60 or not re.search(r"[\u3400-\u9fff]", first):
+            if len(first) < 40 or not re.search(r"[\u3400-\u9fff]", first):
                 violations.append(
                     {
                         "path": name,
                         "line": start,
-                        "reason": "Chinese comment first line must contain at least 60 characters",
+                        "reason": "Chinese comment first line must contain at least 40 characters",
                     }
                 )
         code.intersection_update(index for index, line in enumerate(lines, 1) if line.strip())
@@ -174,7 +180,8 @@ def audit(root: Path) -> dict[str, Any]:
 
 
 def main() -> None:
-    """输出可保存的逐文件计数与违规位置，并以严格大于百分之四十及首行规则共同决定退出码；报告中的人工审查标志不能被自动流水线解释为已证明注释语义质量。
+    """输出可保存的逐文件计数与违规位置，并以严格大于百分之四十及首行规则共同决定退出码；报告中的人工审查标志不能被自动
+    流水线解释为已证明注释语义质量。
 
     默认根目录来自脚本位置，不受调用 cwd 影响。不提供跳过旧代码或降低阈值的命令行参数。
     """

@@ -13,7 +13,9 @@ import { Panel } from "../../ui";
 import { useWorkspace } from "../workspaces/WorkspaceContext";
 import { CloudResourceAdapter, type Resource, type Version } from "../resources/adapters";
 import { CloudBundleAdapter, type BundleAdapter } from "./adapters";
-/** 拉取工作区列表并默认选中首项，再把 selected 与 adapter 交给 BundleWorkspaceView。自身不持有导出表单状态，避免与空间切换竞态。 */
+/** 拉取工作区列表并默认选中首项，再把 selected 与 adapter 交给 BundleWorkspaceView。自身不持有导出表单状态，避免与空间
+ * 切换竞态。
+ */
 export function BundlePage() {
     useAppLocale();
     const { user } = useContext(Auth),
@@ -26,7 +28,8 @@ export function BundlePage() {
         enabled: !!user,
     });
     const items = workspaces.data?.pages.flatMap((p) => p.items) ?? [];
-    // 离线包入口只在空间尚未选定时采用首项，列表引用更新不改变手动选择；适配器仍按空间标识缓存，使同空间的版本篮子与环境选择继续由原有子组件持有。
+    // 离线包入口只在空间尚未选定时采用首项，列表引用更新不改变手动选择；适配器仍按空间标识缓存，使同空间的版本篮子与环
+    // 境选择继续由原有子组件持有。
     const firstWorkspaceId = items[0]?.id;
     useEffect(() => {
         if (!selected && firstWorkspaceId) select(firstWorkspaceId);
@@ -69,8 +72,8 @@ export function BundlePage() {
         </Panel>
     );
 }
-/**
- * 拥有资源/版本多选与导出进度 UI；export 带 Idempotency-Key，download 触发浏览器保存。只读依赖 CloudResourceAdapter 列出版本；写路径仅
+/** 拥有资源/版本多选与导出进度 UI；export 带 Idempotency-Key，download 触发浏览器保存。只读依赖 CloudResourceAdapter 列
+ * 出版本；写路径仅
  * BundleAdapter.export/download。
  */
 export function BundleWorkspaceView({
@@ -214,7 +217,8 @@ export function BundleWorkspaceView({
         <section data-testid="bundle-workspace">
             <p>
                 {tx(
-                    "签名用于来源与完整性校验。本地运行使用本机凭证，离线撤销状态未知。 / Signatures verify source and integrity. Local runs use loca" +
+                    "签名用于来源与完整性校验。本地运行使用本机凭证，离线撤销状态未知。 / Signatu" +
+                        "res verify source and integrity. Local runs use loca" +
                         "l credentials; offline revocation status is unknown.",
                 )}
             </p>
@@ -391,7 +395,8 @@ export function BundleWorkspaceView({
                     {kind === "DRAFT" && (
                         <p>
                             {tx(
-                                "未验证 DSL 快照；本地必须先编译，不用于正式门禁。 / Unvalidated DSL snapshot; local compilation required," +
+                                "未验证 DSL 快照；本地必须先编译，不用于正式门禁。 / Unvalidated DSL snapsh" +
+                                    "ot; local compilation required," +
                                     " excluded from formal gates.",
                             )}
                         </p>

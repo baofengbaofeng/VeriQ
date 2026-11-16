@@ -138,7 +138,9 @@ test("two OS processes compete for one durable local context", async () => {
             `nst store=await LocalStore.open(process.argv[1]);try{store.reserve(randomUUID(),randomUUID(` +
             `),randomUUID());console.log('ACQUIRED');}catch(e){console.log(e.message);}finally{store.clo` +
             `se();}`;
-        /** 两个独立子进程仍同时争抢同一自有 SQLite 档案，失败时保留有限输出与真实退出状态以定位原因；这只增加诊断，不改变竞争时序、断言、重试次数或把子进程失败当作容量已释放。 */
+        /** 两个独立子进程仍同时争抢同一自有 SQLite 档案，失败时保留有限输出与真实退出状态以定位原因；这只增加诊断，不改
+         * 变竞争时序、断言、重试次数或把子进程失败当作容量已释放。
+         */
         const compete = () =>
             new Promise<string>((resolve, reject) => {
                 const child = spawn(
@@ -176,7 +178,9 @@ test("two OS processes compete for one durable local context", async () => {
     }
 });
 
-/** 启动完成只推进相同持久代际的状态而不重贴新代际，旧 SPAWNING 令牌及重复提交必须拒绝；重开后 RUNNING 仍持有容量，既不能借内存状态释放，也不能成为没有派生的停止依据。 */
+/** 启动完成只推进相同持久代际的状态而不重贴新代际，旧 SPAWNING 令牌及重复提交必须拒绝；重开后 RUNNING 仍持有容量，既不
+ * 能借内存状态释放，也不能成为没有派生的停止依据。
+ */
 test("running admission commits the launch generation and rejects stale state after reopen", async () => {
     const { LocalStore } = await import("../src/offline/store.ts");
     const directory = await mkdtemp(join(tmpdir(), "veriq-local-running-"));

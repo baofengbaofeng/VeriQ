@@ -115,8 +115,8 @@ export async function prepareFixture(request: FixtureRequest): Promise<FixtureCo
         cleanupToken: result.cleanupToken!,
     };
 }
-/**
- * 公开函数 cleanupFixture 在独立预算信号下执行幂等清理：即使业务失败或取消也必须尝试（cleanupFixture/CLEANUP_RESPONSE_INVALID）。
+/** 公开函数 cleanupFixture 在独立预算信号下执行幂等清理：即使业务失败或取消也必须尝试（cleanupFixture/CLEANUP_RESPONSE_
+ * INVALID）。
  */
 export async function cleanupFixture(
     context: FixtureRequest & { cleanupToken?: JsonValue },

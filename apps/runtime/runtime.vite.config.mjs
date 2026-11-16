@@ -2,11 +2,15 @@ import { isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 
-/** 配置始终从被绑定的自身位置推导来源根，Vite 的工作目录只负责宿主命令上下文而不能替代来源选择；普通包保持外部依赖，VeriQ 工作区交给 Vite 原有解析与 Rollup 打包并记录真实输入。 */
+/** 配置始终从被绑定的自身位置推导来源根，Vite 的工作目录只负责宿主命令上下文而不能替代来源选择；普通包保持外部依赖，
+ * VeriQ 工作区交给 Vite 原有解析与 Rollup 打包并记录真实输入。
+ */
 const sourceRoot = fileURLToPath(new URL("../../", import.meta.url));
 const traceName = ".veriq-entry-trace.json";
 
-/** 私有观察记录实际 Rollup 输出角色和物理输入，既不充当发行收据也不推断目标 Node 解析结果；生产器会独立核查所有路径、来源绑定及落盘文件，任何外部来源都在构建时直接失败。 */
+/** 私有观察记录实际 Rollup 输出角色和物理输入，既不充当发行收据也不推断目标 Node 解析结果；生产器会独立核查所有路径、
+ * 来源绑定及落盘文件，任何外部来源都在构建时直接失败。
+ */
 function observation() {
     return {
         name: "veriq-entry-input-observation",
@@ -48,7 +52,9 @@ function observation() {
     };
 }
 
-/** 两个 Node 入口明确排除 Electron 主进程与界面，固定入口名并保留共享 chunk 和真正生成的资产；禁用公共目录拷贝、配置缓存与隐式依赖扫描，避免未绑定文件混入独立构建目录。 */
+/** 两个 Node 入口明确排除 Electron 主进程与界面，固定入口名并保留共享 chunk 和真正生成的资产；禁用公共目录拷贝、
+ * 配置缓存与隐式依赖扫描，避免未绑定文件混入独立构建目录。
+ */
 export default {
     root: sourceRoot,
     publicDir: false,

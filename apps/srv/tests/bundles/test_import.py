@@ -870,14 +870,17 @@ async def test_archived_workspace_blocks_import_replay_and_new_upload(approved_m
     )
 
 
-# 离线历史只保存原始回执实际提供的字段，不依据当前导入设备猜测旧平台；报告中的同一事实还必须保持原有非官方门禁，不能释放任何在线容量。
+# 离线历史只保存原始回执实际提供的字段，不依据当前导入设备猜测旧平台；报告中的同一事实还必须保持原有非官方门禁，
+# 不能释放任何在线容量。
 @pytest.mark.parametrize(
     "scope", [None, "FULL_DESCENDANT_TREE", "CONTROLLED_WORKER_BROWSER", "NO_PROCESS_SPAWNED"]
 )
 async def test_import_preserves_declared_process_scope_without_inventing_history(
     approved_metadata, site, scope
 ):
-    """将不同停止范围的离线结果送入真实导入端点并读取报告，校验原样保留实际提供的字段、旧结果保持缺字段，以及非官方可信门禁与在线容量始终未被提升或释放。"""
+    """将不同停止范围的离线结果送入真实导入端点并读取报告，校验原样保留实际提供的字段、旧结果保持缺字段，
+    以及非官方可信门禁与在线容量始终未被提升或释放。
+    """
     from sqlalchemy import select
     from veriq_server.db import OfflineAttempt, CapacityPool
 

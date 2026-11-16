@@ -3,7 +3,9 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { DesktopAgent } from "../src/agent/service.ts";
 
-/** 后台测试在真实私有临时目录创建持久状态，状态接口必须反映独立 Node 版本与空历史；未知命令及任意文件路径在触及执行引擎之前被拒绝，不依赖模拟浏览器结果。 */
+/** 后台测试在真实私有临时目录创建持久状态，状态接口必须反映独立 Node 版本与空历史；未知命令及任意文件路径在触及执行引擎
+ * 之前被拒绝，不依赖模拟浏览器结果。
+ */
 test("independent Node24 agent reports an idle durable profile", async () => {
     const root = await mkdtemp("/tmp/veriq-t19-agent-");
     try {
@@ -44,7 +46,9 @@ test("agent refuses arbitrary path and process operations", async () => {
     }
 });
 
-/** 可见模式不能仅凭配置里存在一个路径就启用，真实已安装 headless shell 通过版本探测后仍只能用于无头运行；缺失文件必须返回不可用而不能把宿主路径或异常细节透传到 renderer。 */
+/** 可见模式不能仅凭配置里存在一个路径就启用，真实已安装 headless shell 通过版本探测后仍只能用于无头运行；缺失文件必须返
+ * 回不可用而不能把宿主路径或异常细节透传到 renderer。
+ */
 test("browser capability distinguishes the installed headless shell from headed distribution", async () => {
     const { probeBrowser } = await import("../src/agent/browser-capability.ts");
     const { resolve } = await import("node:path");
@@ -57,7 +61,9 @@ test("browser capability distinguishes the installed headless shell from headed 
     assert.equal((await probeBrowser(undefined, true)).available, false);
 });
 
-/** 自检版本上下文只能来自实际库存核验，缺失发行目录时后台必须拒绝诊断而不能用配置中的版本字符串制造能力；这个失败发生在任何设备注册之前，状态中仍没有设备授权。 */
+/** 自检版本上下文只能来自实际库存核验，缺失发行目录时后台必须拒绝诊断而不能用配置中的版本字符串制造能力；这个失败发生在
+ * 任何设备注册之前，状态中仍没有设备授权。
+ */
 test("missing production release cannot produce advertised capabilities", async () => {
     const root = await mkdtemp("/tmp/veriq-release-missing-");
     try {

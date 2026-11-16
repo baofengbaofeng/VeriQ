@@ -4,7 +4,9 @@ import { copyFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { withArtifactExport } from "../src/main/artifact-export.ts";
 
-/** 使用真实临时文件覆盖原生查看与保存的副本寿命，失败回调模拟已经到达主机的查看器启动错误而非业务执行结果；成功和取消都必须回收本次导出，同时保持原始证据字节不变。 */
+/** 使用真实临时文件覆盖原生查看与保存的副本寿命，失败回调模拟已经到达主机的查看器启动错误而非业务执行结果；成功和取消都
+ * 必须回收本次导出，同时保持原始证据字节不变。
+ */
 test("native export is reclaimed after success, user cancellation and viewer failure", async () => {
     const root = await mkdtemp("/tmp/veriq-export-");
     const original = join(root, "original.png");

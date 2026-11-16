@@ -1,4 +1,6 @@
-/** 真实钥匙串行为仅允许明确声明为可丢弃且已配置的独立登录会话执行，未提供操作者声明或实际会话身份不符时直接失败，不通过跳过用例把缺少系统验收包装为成功结果。 */
+/** 真实钥匙串行为仅允许明确声明为可丢弃且已配置的独立登录会话执行，未提供操作者声明或实际会话身份不符时直接失败，不通过
+ * 跳过用例把缺少系统验收包装为成功结果。
+ */
 import test from "node:test";
 import assert from "node:assert/strict";
 import { dedicatedFixture, requireMac } from "../fixtures/darwin-vault.ts";
@@ -65,7 +67,9 @@ test("dedicated session proves persistent exact-scope storage and refusal behavi
     ]);
 });
 
-/** 此独立负例保留前面的生产策略拒绝测试，并额外让同一 helper 在禁止交互状态下真正请求被 ACL 拒绝的数据；成功必须包含两个主体观察的真实解锁状态和授权主体读回的未变化证明，缺少会话时仍硬失败而非跳过。 */
+/** 此独立负例保留前面的生产策略拒绝测试，并额外让同一 helper 在禁止交互状态下真正请求被 ACL 拒绝的数据；成功必须包含两
+ * 个主体观察的真实解锁状态和授权主体读回的未变化证明，缺少会话时仍硬失败而非跳过。
+ */
 test("dedicated session observes real unlocked OS secret-read denial", async () => {
     const fixture = await dedicatedFixture();
     const key = Buffer.alloc(32, 73);

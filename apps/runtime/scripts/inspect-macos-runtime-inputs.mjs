@@ -3,7 +3,10 @@ import { verifyRuntimePayloadInputs, RuntimePayloadError } from "./runtime-paylo
 import { InputReader, decode } from "./runtime-payload-tree.ts";
 import { checked, schemas } from "./runtime-payload-receipts.ts";
 
-/** inspect 只接受三个显式且不重复的参数，不从环境变量或隐式工作目录补选任何输入；成功只输出一份完整静态报告，失败仅输出固定英文分类，避免路径或 JSON 正文进入诊断。 */
+/**
+ * inspect 只接受三个显式且不重复的参数，不从环境变量或隐式工作目录补选任何输入；成功只输出一份完整静态报告，失败仅输出
+ * 固定英文分类，避免路径或 JSON 正文进入诊断。
+ */
 function flags(args) {
     const values = new Map();
     for (let index = 0; index < args.length; index += 2) {
@@ -21,7 +24,10 @@ function flags(args) {
     if (values.size !== 3) throw new RuntimePayloadError("PAYLOAD_INPUT_INVALID");
     return values;
 }
-/** 信号处理与所有读取共享同一 AbortController，首次信号停止准入并等待 finally 关闭句柄；二次信号或五秒期限必须报告 INCOMPLETE，不声称关闭已确认，也绝不删除任何输入或转发给输入程序。 */
+/**
+ * 信号处理与所有读取共享同一 AbortController，首次信号停止准入并等待 finally 关闭句柄；二次信号或五秒期限必须报告
+ * INCOMPLETE，不声称关闭已确认，也绝不删除任何输入或转发给输入程序。
+ */
 const controller = new AbortController();
 let signalExit = 0,
     timer;
@@ -44,7 +50,10 @@ const onInt = () => interrupt("SIGINT"),
     onTerm = () => interrupt("SIGTERM");
 process.on("SIGINT", onInt);
 process.on("SIGTERM", onTerm);
-/** 外层两个 JSON 使用相同只读身份策略和四 MiB 上限，expected 由独立文件提供而不从 recipe 自生成；持有句柄的 reader 在每次读取后关闭自身资源，核心 verify 随后重新绑定所有真实输入。 */
+/**
+ * 外层两个 JSON 使用相同只读身份策略和四 MiB 上限，expected 由独立文件提供而不从 recipe 自生成；持有句柄的 reader 在每
+ * 次读取后关闭自身资源，核心 verify 随后重新绑定所有真实输入。
+ */
 async function input(path) {
     const absolute = resolve(path),
         reader = new InputReader(dirname(absolute), controller.signal, []);

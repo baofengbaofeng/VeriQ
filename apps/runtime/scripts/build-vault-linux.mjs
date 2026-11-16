@@ -1,4 +1,7 @@
-/** 构建脚本只在目标 Linux 编译固定保险库辅助程序并记录真实工具与动态库身份，开发宿主不自动安装任何系统依赖；测试提示驱动必须显式启用且输出到独立目录，不能混入正式发行库存。 */
+/**
+ * 构建脚本只在目标 Linux 编译固定保险库辅助程序并记录真实工具与动态库身份，开发宿主不自动安装任何系统依赖；测试提示驱动
+ * 必须显式启用且输出到独立目录，不能混入正式发行库存。
+ */
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createHash } from "node:crypto";

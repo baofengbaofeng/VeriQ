@@ -1,5 +1,5 @@
-/**
- * 断言列表编辑器：按类型切换算子/期望值，并支持模板版本引用与网络观察源。模板类型只保存 versionId；模板类型断言只持久化 versionId 引用。
+/** 断言列表编辑器：按类型切换算子/期望值，并支持模板版本引用与网络观察源。模板类型只保存 versionId；模板类型断言只持久
+ * 化 versionId 引用。
  * 写入资源草稿 RHF 路径；不直接调用校验 API。
  */
 
@@ -60,7 +60,9 @@ const operators: Record<string, string[]> = {
     duration: ["lessThanOrEqual"],
     requestCount: ["equals"],
 };
-/** 工厂：生成带短 UUID 的默认 ui/visible/BLOCK 断言，expectedSource 标明人工审核。severity 默认 BLOCK。供 List 的 add 回调使用，避免空对象未通过契约。 */
+/** 工厂：生成带短 UUID 的默认 ui/visible/BLOCK 断言，expectedSource 标明人工审核。severity 默认 BLOCK。供 List 的 add
+ * 回调使用，避免空对象未通过契约。
+ */
 export const newAssertion = (): AssertionV1 => ({
     id: "assertion_" + crypto.randomUUID().slice(0, 8),
     type: "ui",
@@ -102,8 +104,8 @@ function defaults(type: string, network: string[]) {
         ...(["requestField", "responseField"].includes(type) ? { pointer: "" } : {}),
     };
 }
-/**
- * 拥有断言数组 UI：类型切换重置 defaults，网络类断言绑定 observer 名列表。pageKeys 限制 UI 目标候选。phase 区分 BEFORE/AFTER/TEMPLATE；scope
+/** 拥有断言数组 UI：类型切换重置 defaults，网络类断言绑定 observer 名列表。pageKeys 限制 UI 目标候选。phase 区分
+ * BEFORE/AFTER/TEMPLATE；scope
  * 限制可引用的页面/模板版本。
  */
 export function AssertionEditor({
@@ -129,7 +131,8 @@ export function AssertionEditor({
             {phase === "BEFORE" && (
                 <p data-testid={`${name}.phase`}>
                     {tx(
-                        "前置断言先于本步骤监听器安装；网络响应、计数与耗时断言应放在后置阶段。模板同样受调用阶段约束。 / BEFORE runs before step observers are arm" +
+                        "前置断言先于本步骤监听器安装；网络响应、计数与耗时断言应放在后置阶段。模板同" +
+                            "样受调用阶段约束。 / BEFORE runs before step observers are arm" +
                             "ed; network assertions belong AFTER. Templates inherit the calling phase.",
                     )}
                 </p>
@@ -281,7 +284,8 @@ function AssertionFields({
                                           "仅显式选择；公共流程内部新页面不泄漏到调用方 / Explicit lexical page scope",
                                       )
                                     : tx(
-                                          "可填写调用方页面 key；实际调用时验证作用域，省略仍为原始页面。 / Symbolic caller page key; checked at " +
+                                          "可填写调用方页面 key；实际调用时验证作用域，省略仍为原始页面。 /" +
+                                              " Symbolic caller page key; checked at " +
                                               "the calling case. Omission means original page.",
                                       )
                             }
@@ -294,7 +298,8 @@ function AssertionFields({
                             hint={
                                 network === undefined
                                     ? tx(
-                                          "模板在调用方网络监听器作用域内解析，例如 response:save / Symbolic observer reference resolved" +
+                                          "模板在调用方网络监听器作用域内解析，例如 response:save / Symboli" +
+                                              "c observer reference resolved" +
                                               " in caller scope.",
                                       )
                                     : undefined

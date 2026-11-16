@@ -1,4 +1,6 @@
-/** 受管理无桌面 Linux 服务可以明确选择私有文件密钥模式，但该模式不提供静态加密保护，也不能由桌面或保险库失败自动启用；后端只在核验指定服务 UID、真实持久挂载及私有目录后操作本产品有限密钥成员，不赋予控制平台信任。 */
+/** 受管理无桌面 Linux 服务可以明确选择私有文件密钥模式，但该模式不提供静态加密保护，也不能由桌面或保险库失败自动启用；
+ * 后端只在核验指定服务 UID、真实持久挂载及私有目录后操作本产品有限密钥成员，不赋予控制平台信任。
+ */
 import { open, lstat } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import lockfile from "proper-lockfile";
@@ -12,7 +14,9 @@ import type {
 } from "./backend.ts";
 import type { CredentialOptions } from "./profile.ts";
 
-/** 文件模式策略由可信服务启动入口明确构造，必须独立确认专用运行用户和不提供静态加密的性质；卷与档案只能是绝对数据路径，不能指定可执行程序，系统管理员仍需负责该账户专用性和外置卷的实际持久运维。 */
+/** 文件模式策略由可信服务启动入口明确构造，必须独立确认专用运行用户和不提供静态加密的性质；卷与档案只能是绝对数据路径，
+ * 不能指定可执行程序，系统管理员仍需负责该账户专用性和外置卷的实际持久运维。
+ */
 export type ManagedFilePolicy = {
     mode: "restricted-file";
     managedHeadless: boolean;
@@ -63,7 +67,9 @@ function unescapeMount(value: string): string {
         String.fromCharCode(parseInt(octal, 8)),
     );
 }
-/** 挂载观察只读取当前命名空间的固定 proc 文件，按一兆字节上限完成而不相信伪文件的零长度 stat；选定卷必须恰为一个可写非内存挂载点，普通目录、容器可写层、重复遮蔽和根卷均不能冒充独立持久卷。 */
+/** 挂载观察只读取当前命名空间的固定 proc 文件，按一兆字节上限完成而不相信伪文件的零长度 stat；
+ * 选定卷必须恰为一个可写非内存挂载点，普通目录、容器可写层、重复遮蔽和根卷均不能冒充独立持久卷。
+ */
 async function mountedVolume(volume: string): Promise<Mount> {
     const handle = await open("/proc/self/mountinfo", "r");
     const bytes = Buffer.alloc(1024 * 1024 + 1);
@@ -147,7 +153,9 @@ function key(wire: string, scope: VaultKeyScope): Buffer {
     }
     return result;
 }
-/** 文件后端不会获得 OS vault 身份，原始随机密钥保存在同卷受限目录，因此密文载荷只复用现有完整性与事务格式；每次操作重查真实挂载与用户，读写删除均持密钥目录合作锁，不能覆盖已有确切版本或把提交不确定映射成成功。 */
+/** 文件后端不会获得 OS vault 身份，原始随机密钥保存在同卷受限目录，因此密文载荷只复用现有完整性与事务格式；
+ * 每次操作重查真实挂载与用户，读写删除均持密钥目录合作锁，不能覆盖已有确切版本或把提交不确定映射成成功。
+ */
 class RestrictedFileBackend implements VaultKeyBackend {
     private readonly directory: string;
     constructor(
@@ -192,7 +200,9 @@ class RestrictedFileBackend implements VaultKeyBackend {
             },
         );
     }
-    /** 读取仅解码指定档案与版本的原始三十二字节密钥并交付独立缓冲区，畸形内容和权限错误保持失败；本模式的原始密钥可以由合法文件拥有者读取，因此任何调用方都不能把它描述成系统保险库或加密静态存储。 */
+    /** 读取仅解码指定档案与版本的原始三十二字节密钥并交付独立缓冲区，畸形内容和权限错误保持失败；
+     * 本模式的原始密钥可以由合法文件拥有者读取，因此任何调用方都不能把它描述成系统保险库或加密静态存储。
+     */
     async get(
         scope: VaultKeyScope,
         signal: AbortSignal,
@@ -210,7 +220,9 @@ class RestrictedFileBackend implements VaultKeyBackend {
                 : { status: "ok" as const, key: key(wire, scope) };
         })) as { status: "ok"; key: Buffer } | VaultBackendFailure;
     }
-    /** 写入只接受新的精确版本与固定长度密钥，合作锁内发现既存成员就拒绝而不覆盖；原子文件发布复用现有刷新及未知提交处理，取消后仍报告可能已提交，不能通过再次生成随机密钥掩盖第一次写入状态。 */
+    /** 写入只接受新的精确版本与固定长度密钥，合作锁内发现既存成员就拒绝而不覆盖；原子文件发布复用现有刷新及未知提交处
+     * 理，取消后仍报告可能已提交，不能通过再次生成随机密钥掩盖第一次写入状态。
+     */
     async set(
         scope: VaultKeyScope,
         material: Buffer,
@@ -236,7 +248,9 @@ class RestrictedFileBackend implements VaultKeyBackend {
             return { status: "ok" as const };
         }) as Promise<VaultMutationResult>;
     }
-    /** 删除只核验指定成员的完整范围与私有文件格式，未找到才报告 missing；调用方的凭据退休日志仍负责原密钥摘要和删除后的实际缺失确认，单独本接口不会枚举其他档案、擦除整个目录或撤销控制平台设备。 */
+    /** 删除只核验指定成员的完整范围与私有文件格式，未找到才报告 missing；调用方的凭据退休日志仍负责原密钥摘要和删除后的
+     * 实际缺失确认，单独本接口不会枚举其他档案、擦除整个目录或撤销控制平台设备。
+     */
     async delete(scope: VaultKeyScope, signal: AbortSignal): Promise<VaultMutationResult> {
         let member: string;
         try {
@@ -253,14 +267,18 @@ class RestrictedFileBackend implements VaultKeyBackend {
             return { status: "ok" as const };
         }) as Promise<VaultMutationResult>;
     }
-    /** 探测只证明当前时刻的用户、挂载身份和私有目录可访问，不声称外部卷在机器销毁后必然保留；服务部署者需要另外配置持久生命周期，后端不会因探测失败搜索系统保险库或选择另一个可写目录继续运行。 */
+    /** 探测只证明当前时刻的用户、挂载身份和私有目录可访问，不声称外部卷在机器销毁后必然保留；服务部署者需要另外配置持久
+     * 生命周期，后端不会因探测失败搜索系统保险库或选择另一个可写目录继续运行。
+     */
     async probe(signal: AbortSignal): Promise<{ status: "ready" } | VaultBackendFailure> {
         return (await this.operation(signal, async () => ({ status: "ready" as const }))) as
             | { status: "ready" }
             | VaultBackendFailure;
     }
 }
-/** 只有显式受管理无桌面 Linux 启动可以构造此凭据上下文，所有事实检查成功后才创建档案和密钥目录；函数不注册设备或授予 MANAGED 信任，也不能被桌面保险库故障路径调用作为自动降级，固定模式声明必须由调用者展示。 */
+/** 只有显式受管理无桌面 Linux 启动可以构造此凭据上下文，所有事实检查成功后才创建档案和密钥目录；函数不注册设备或授予
+ * MANAGED 信任，也不能被桌面保险库故障路径调用作为自动降级，固定模式声明必须由调用者展示。
+ */
 export async function managedFileCredentials(input: ManagedFilePolicy): Promise<CredentialOptions> {
     const policy = Object.freeze({ ...input });
     context(policy);

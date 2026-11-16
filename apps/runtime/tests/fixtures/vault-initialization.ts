@@ -1,4 +1,6 @@
-/** 真实 OS 后端的空初始化恢复验收只为本测试新建的随机档案写入非秘密未激活意图，首先确认该确切版本实际缺失；之后经正式恢复与消费者写入读回，并在 finally 精确删除本测试旧新版本，绝不枚举或触碰用户其他系统凭据。 */
+/** 真实 OS 后端的空初始化恢复验收只为本测试新建的随机档案写入非秘密未激活意图，首先确认该确切版本实际缺失；之后经正式恢
+ * 复与消费者写入读回，并在 finally 精确删除本测试旧新版本，绝不枚举或触碰用户其他系统凭据。
+ */
 import assert from "node:assert/strict";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -8,7 +10,8 @@ import { VaultFiles } from "../../src/credentials/files.ts";
 import { SecretStore } from "../../src/credentials/store.ts";
 
 /**
- * 调用者必须提供目标测试已经核验的正式 helper 后端，夹具只准备确实没有业务数据的初始化边界而不替代系统调用；返回值限于非秘密验证事实，任何恢复、读取或清理失败都会使原目标用例失败，不能把 fixture 构造当作 OS
+ * 调用者必须提供目标测试已经核验的正式 helper 后端，夹具只准备确实没有业务数据的初始化边界而不替代系统调用；返回值限于
+ * 非秘密验证事实，任何恢复、读取或清理失败都会使原目标用例失败，不能把 fixture 构造当作 OS
  * 验收结果。
  */
 export async function verifyEmptyInitialization(directory: string, options: CredentialOptions) {

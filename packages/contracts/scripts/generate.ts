@@ -2,6 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { compile } from "json-schema-to-typescript";
 import openapiTS, { astToString } from "openapi-typescript";
 import ts from "typescript";
+import { limitGeneratedWidth } from "./generated-width.js";
 
 const directory = new URL("../", import.meta.url);
 const source = JSON.parse(
@@ -55,10 +56,12 @@ const outputs = new Map([
 ]);
 for (const [name, content] of outputs) {
     const file = new URL(name, directory);
+    // 生成类型按真实显示列宽拆行，长联合类型和文档说明都经过同一确定性处理，只读检查仍逐字比较生成结果。
+    const formatted = limitGeneratedWidth(content);
     if (process.argv.includes("--check")) {
-        if ((await readFile(file, "utf8")) !== content)
+        if ((await readFile(file, "utf8")) !== formatted)
             throw new Error(`${name} is stale; run pnpm contracts:generate`);
     } else {
-        await writeFile(file, content);
+        await writeFile(file, formatted);
     }
 }

@@ -1,4 +1,6 @@
-/** Cookie 迁移测试仅在自有临时档案中创建合成数据库与日志文件，检查确认、恢复和固定成员退役行为；既不读取用户登录 Cookie，也不把文件消失当作物理擦除或 Chromium 实际加密证明。 */
+/** Cookie 迁移测试仅在自有临时档案中创建合成数据库与日志文件，检查确认、恢复和固定成员退役行为；既不读取用户登录 Cookie
+ * ，也不把文件消失当作物理擦除或 Chromium 实际加密证明。
+ */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile, readFile, rm, chmod } from "node:fs/promises";
@@ -85,7 +87,9 @@ test("interrupted approved retirement keeps pending state and resumes before any
         await assert.rejects(readFile(join(partition, "Network/Cookies")), { code: "ENOENT" });
     }));
 
-/** 数据库尺寸与文件类型检查均通过真实临时成员完成，稀疏文件只占少量测试磁盘；超过通用配置额度的 Cookie 可退役，但链接、公开文件和超出固定 Cookie 元数据上限都必须保留原状且不得请求用户确认删除。 */
+/** 数据库尺寸与文件类型检查均通过真实临时成员完成，稀疏文件只占少量测试磁盘；超过通用配置额度的 Cookie 可退役，但链接、
+ * 公开文件和超出固定 Cookie 元数据上限都必须保留原状且不得请求用户确认删除。
+ */
 test("Cookie retirement is metadata-only for large files and refuses unsafe members", async () =>
     fixture(async (profile, partition) => {
         const { open, symlink, lstat } = await import("node:fs/promises");

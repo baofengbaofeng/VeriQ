@@ -3,7 +3,9 @@ import test from "node:test";
 import path from "node:path";
 import { bundledAssetPath } from "../src/main/asset-path.ts";
 
-/** 用两套真实标准库路径规则验证同一个静态协议入口，Windows 反斜杠与 POSIX 斜杠都应接受根内普通页面；父级跳转、根本身及相似前缀目录必须拒绝，不能靠换分隔符修好首页却放开越界读取。 */
+/** 用两套真实标准库路径规则验证同一个静态协议入口，Windows 反斜杠与 POSIX 斜杠都应接受根内普通页面；父级跳转、根本身及
+ * 相似前缀目录必须拒绝，不能靠换分隔符修好首页却放开越界读取。
+ */
 test("bundled assets use Windows and POSIX containment semantics", () => {
     for (const [paths, root] of [
         [path.posix, "/opt/VeriQ/out/renderer"],

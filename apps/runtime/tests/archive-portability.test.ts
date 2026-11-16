@@ -5,7 +5,9 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { create } from "tar";
 
-/** 归档检查直接调用运行时实际使用的成熟 tar 适配，不执行完整引擎构建；相同内容在源时间变化后必须得到相同字节，解压后的中文与空格路径则必须保留原始内容而不依赖宿主 tar 程序。 */
+/** 归档检查直接调用运行时实际使用的成熟 tar 适配，不执行完整引擎构建；相同内容在源时间变化后必须得到相同字节，解压后的
+ * 中文与空格路径则必须保留原始内容而不依赖宿主 tar 程序。
+ */
 test("portable engine archive is deterministic and extracts actual files", async () => {
     const { archive, extractCompiler } = await import(
         new URL("../src/execution/archive.mjs", import.meta.url).href
@@ -34,7 +36,9 @@ test("portable engine archive is deterministic and extracts actual files", async
     }
 });
 
-/** 已核验归档仍不能带入可逃逸编译目录的链接，先扫描后写入的边界必须在任何实际成员落盘之前拒绝；测试以成熟 tar 生成真实链接归档，避免用模拟对象绕过解析器行为。 */
+/** 已核验归档仍不能带入可逃逸编译目录的链接，先扫描后写入的边界必须在任何实际成员落盘之前拒绝；测试以成熟 tar 生成真实
+ * 链接归档，避免用模拟对象绕过解析器行为。
+ */
 test("compiler extraction rejects links before writing any member", async () => {
     const { extractCompiler } = await import(
         new URL("../src/execution/archive.mjs", import.meta.url).href

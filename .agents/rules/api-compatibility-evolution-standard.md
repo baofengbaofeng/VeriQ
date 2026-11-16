@@ -1,5 +1,8 @@
 # API compatibility and evolution standard
 
+行宽口径：源码及注释每个物理行最多 **120 个显示列**，与 IDE 的 120 列标尺一致。
+中文及其它全角/宽字符占 2 列，ASCII 占 1 列；缩进、标点和注释分隔符均计入。
+
 约束公共 HTTP/IPC/结果协议的变更方式，保证客户端、Runtime 与外部调度可安全演进。
 
 ## 1. 单一事实来源

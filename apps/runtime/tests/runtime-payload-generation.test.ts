@@ -19,7 +19,8 @@ test("fixed twenty actual generator sources match original input copies", async 
     );
 });
 
-// 自报输入副本与全部构建绑定同步改成伪造源码时，普通输入核验仍可通过而实际生成器绑定必须拒绝；此反例保留真实宿主文件不写回仓库，证明来源核验不能只相信配方中相互一致的摘要声明。
+// 自报输入副本与全部构建绑定同步改成伪造源码时，普通输入核验仍可通过而实际生成器绑定必须拒绝；此反例保留真实宿主文件不
+// 写回仓库，证明来源核验不能只相信配方中相互一致的摘要声明。
 test("forged source copies and synchronized bindings cannot impersonate actual generator code", async () => {
     const value = await stageModel();
     const source = value.sourceBinding.files.find((file) =>
@@ -36,7 +37,8 @@ test("forged source copies and synchronized bindings cannot impersonate actual g
     }, value);
 });
 
-// 导出的来源描述不能泄露可改写的 URL 对象从而改变内部宿主读取位置，调用者修改可见描述后仍必须绑定固定实际源码；反例只改内存中的 URL 并在 finally 恢复，不触碰真实仓库文件或读取任意调用者路径。
+// 导出的来源描述不能泄露可改写的 URL 对象从而改变内部宿主读取位置，调用者修改可见描述后仍必须绑定固定实际源码；反例只改
+// 内存中的 URL 并在 finally 恢复，不触碰真实仓库文件或读取任意调用者路径。
 test("caller cannot redirect fixed host sources through exported URL objects", async () => {
     const { GENERATOR_SOURCES } = await import("../scripts/runtime-payload-generation.ts");
     const descriptor: unknown = GENERATOR_SOURCES[0]!.url;
@@ -56,7 +58,8 @@ test("caller cannot redirect fixed host sources through exported URL objects", a
     }
 });
 
-// 完成前的实际宿主重读通过受控 FileHandle 读取结果故障来模拟源码变化，真实仓库字节始终不写入；初次绑定必须成功而 finish 拒绝第二次不同内容，防止只做生成开始检查却漏掉结束复验的实现获得通过。
+// 完成前的实际宿主重读通过受控 FileHandle 读取结果故障来模拟源码变化，真实仓库字节始终不写入；初次绑定必须成功而 finish
+// 拒绝第二次不同内容，防止只做生成开始检查却漏掉结束复验的实现获得通过。
 test("generator finish rejects changed host bytes without writing real repository", async (t) => {
     const { InputReader } = await import("../scripts/runtime-payload-tree.ts");
     const input = InputReader.prototype.input;

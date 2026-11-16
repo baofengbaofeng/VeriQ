@@ -41,7 +41,8 @@ test("npm physically projects real package bytes before shared package content v
     }
 });
 
-// 每个 npm 物理投影场景都使用真实 fresh intake 和独立工作事务，清理只针对本场景根；坏 ownTree 或 package 声明必须在共享内容 helper 读到真实正文后拒绝，不能被已有静态 graph 声明或原输入
+// 每个 npm 物理投影场景都使用真实 fresh intake 和独立工作事务，清理只针对本场景根；坏 ownTree 或 package 声明必须在共享
+// 内容 helper 读到真实正文后拒绝，不能被已有静态 graph 声明或原输入
 // 同名路径代替。
 async function projectionCase(
     run: (value: Awaited<ReturnType<typeof stageModel>>) => void,

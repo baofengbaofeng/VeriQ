@@ -44,7 +44,10 @@ import {
     type MacRuntimeStaticInventory,
 } from "../src/distribution-manifest-v2.ts";
 
-/** 候选结果只包含最终路径实际完成的 D3a 库存和外部 receipt 摘要，所有嵌套事实返回前深冻结；已提交但锁或工作目录收尾不确认仍明确 INCOMPLETE，不能改写 committed 或删除候选伪称已经回滚。 */
+/**
+ * 候选结果只包含最终路径实际完成的 D3a 库存和外部 receipt 摘要，所有嵌套事实返回前深冻结；已提交但锁或工作目录收尾不确
+ * 认仍明确 INCOMPLETE，不能改写 committed 或删除候选伪称已经回滚。
+ */
 export type PayloadResult = Readonly<{
     kind: "MAC_RUNTIME_PAYLOAD_CANDIDATE";
     candidateDirectory: string;
@@ -59,7 +62,8 @@ type Copy = { fact: OutputFact; root: string; source: Ref };
 const rootPackage = Buffer.from('{"private":true,"type":"module"}\n');
 
 /**
- * 所有实际复制到包外 input-evidence 的 Ref 必须共享固定六十四 MiB 总额，原配方、独立 expected 和本次 intake 收据也逐份计入；该检查只核数值预算而不冒充来源或文件真实性验证，磁盘剩余写入
+ * 所有实际复制到包外 input-evidence 的 Ref 必须共享固定六十四 MiB 总额，原配方、独立 expected 和本次 intake 收据也逐份
+ * 计入；该检查只核数值预算而不冒充来源或文件真实性验证，磁盘剩余写入
  * 计划另行处理。
  */
 export function assertPayloadEvidenceBudget(receipts: readonly Ref[]): void {
@@ -73,7 +77,10 @@ export function assertPayloadEvidenceBudget(receipts: readonly Ref[]): void {
     }
 }
 
-/** 完整 stage 首次等待前私有复制配方与独立 policy 并快照全部选项，之后真实重验五树和本次归档 intake；最终 Runtime 只从已核源独立复制和固定模板生成，未知子事务状态会保留父目录而不会被外层清理覆盖。 */
+/**
+ * 完整 stage 首次等待前私有复制配方与独立 policy 并快照全部选项，之后真实重验五树和本次归档 intake；最终 Runtime 只从已
+ * 核源独立复制和固定模板生成，未知子事务状态会保留父目录而不会被外层清理覆盖。
+ */
 export async function stageMacRuntimePayload(
     bytes: Uint8Array,
     expected: ExpectedPayloadInputs,
@@ -113,7 +120,8 @@ export async function stageMacRuntimePayload(
         await final.observeSources(report);
         await work.initialize();
         work.phase = "INTAKE";
-        // 子 intake 使用工作目录内固定短候选名，必须等待实际返回或异常后才能决定是否清理父目录；任何关闭或提交不确定立即粘住 work 归属，独立 final 的成功清理不能覆盖这份未知事实。
+        // 子 intake 使用工作目录内固定短候选名，必须等待实际返回或异常后才能决定是否清理父目录；任何关闭或提交不确定立
+        // 即粘住 work 归属，独立 final 的成功清理不能覆盖这份未知事实。
         let intake: IntakeResult;
         try {
             intake = await intakeRuntimeArchives(admitted.bytes, admitted.expected, {
@@ -141,7 +149,8 @@ export async function stageMacRuntimePayload(
         await explicitZipModes(intake, work);
         work.phase = "COPY";
         const npm = await projectNpm(report, intake, work);
-        // 目标所有权先在内存中登记完整逻辑成员，文件与大小写冲突即使正文摘要相同也拒绝，只有明确普通目录可合并；真实写入尚未开始，因此空间计划与后续清单来自同一最终输出集合。
+        // 目标所有权先在内存中登记完整逻辑成员，文件与大小写冲突即使正文摘要相同也拒绝，只有明确普通目录可合并；真实写
+        // 入尚未开始，因此空间计划与后续清单来自同一最终输出集合。
         const files: OutputFact[] = [],
             directories = new Set<string>(),
             copies: Copy[] = [],
@@ -183,7 +192,8 @@ export async function stageMacRuntimePayload(
             copies.push({ fact, root, source });
             files.push(fact);
         };
-        // 生成来源只能从本次实际宿主源码与输入副本三方匹配后的固定清单选择，不能用任意 producer 别名或伪造空路径代替；每个固定生成文件都必须取得真实 Ref 才进入候选输出集合。
+        // 生成来源只能从本次实际宿主源码与输入副本三方匹配后的固定清单选择，不能用任意 producer 别名或伪造空路径代替；
+        // 每个固定生成文件都必须取得真实 Ref 才进入候选输出集合。
         const code = (path: string, transform: Origin["transform"]): Origin => {
             const ref = generation.files.find(
                 (file) => file.path === `apps/runtime/scripts/${path}`,
@@ -317,7 +327,8 @@ export async function stageMacRuntimePayload(
         addGenerated("package.json", rootPackage, 0o644, [
             code("runtime-payload-stage.ts", "runtime-package-v1"),
         ]);
-        // 原 alias 先被真实内容核验并从普通复制集合精确跳过，原 target 永远保留原包位置；现在才生成独立普通 shim，并把 package.json、目标正文、原始 alias 链及固定模板代码来源一起记入收据。
+        // 原 alias 先被真实内容核验并从普通复制集合精确跳过，原 target 永远保留原包位置；现在才生成独立普通 shim，并把
+        // package.json、目标正文、原始 alias 链及固定模板代码来源一起记入收据。
         for (const [graph, input, inventory] of [
             [report.nodeReceipt.npmGraph, "node", npm.inventory],
             [
@@ -393,7 +404,8 @@ export async function stageMacRuntimePayload(
         addGenerated("runtime-manifest.json", manifest, 0o644, [
             code("runtime-payload-manifest.ts", "manifest-v2"),
         ]);
-        // 大源码和原压缩归档只保留外部身份，不复制进安装树；必需的小证据使用 refs 子目录保持原相对路径，原配方、独立 expected 与本次 intake 原回执另占固定名称，避免与输入证据的命名冲突。
+        // 大源码和原压缩归档只保留外部身份，不复制进安装树；必需的小证据使用 refs 子目录保持原相对路径，原配方、独立
+        // expected 与本次 intake 原回执另占固定名称，避免与输入证据的命名冲突。
         const sourceNames = new Set(report.sourceBinding.files.map((file) => file.path));
         const excluded = new Set([
             report.recipe.source.archive.path,
@@ -455,7 +467,8 @@ export async function stageMacRuntimePayload(
                 parent = dirname(parent)
             )
                 evidenceDirectories.add(parent);
-        // 当前磁盘已实际容纳 work 内的快照、解压树和 npm 投影，此处只计算尚未写入的最终独立副本与完整证据；三角色逐份收费，不能按相同摘要去重，也不把已经占用的 work 字节再次加入 remaining。
+        // 当前磁盘已实际容纳 work 内的快照、解压树和 npm 投影，此处只计算尚未写入的最终独立副本与完整证据；三角色逐份收
+        // 费，不能按相同摘要去重，也不把已经占用的 work 字节再次加入 remaining。
         await final.plan(
             files.reduce((sum, file) => sum + file.sizeBytes, 0) +
                 inputReceipts.reduce((sum, file) => sum + file.sizeBytes, 0) +
@@ -500,7 +513,8 @@ export async function stageMacRuntimePayload(
                 descriptorRefs[index],
             );
         const receiptFact = await final.write("payload-receipt.json", once(receiptBytes));
-        // 临时 D3a 与包外回执写完后，先复核原输入和实际生成代码再进入发布边界；publishRuntime 内部必须在 rename 后真正再核最终 runtime，不能把此处库存对象的 root 改成最终路径冒充实测。
+        // 临时 D3a 与包外回执写完后，先复核原输入和实际生成代码再进入发布边界；publishRuntime 内部必须在 rename 后真正
+        // 再核最终 runtime，不能把此处库存对象的 root 改成最终路径冒充实测。
         await final.finishSources();
         await verifyRuntimePayloadInputs(admitted.bytes, admitted.expected, {
             inputRoot,
@@ -527,7 +541,8 @@ export async function stageMacRuntimePayload(
                     : "CONFIRMED",
         });
     } catch (error) {
-        // 两个事务独立关闭和清理，并用最保守的实际结果聚合失败状态；已提交或尚有 writer 的 artifact 由各自事务保留，原始磁盘分类和首错误不能被后续成功清理或次要关闭异常覆盖。
+        // 两个事务独立关闭和清理，并用最保守的实际结果聚合失败状态；已提交或尚有 writer 的 artifact 由各自事务保留，原
+        // 始磁盘分类和首错误不能被后续成功清理或次要关闭异常覆盖。
         const finalCleanup = await final.cleanup();
         workCleanup = await work.cleanup();
         const cleanup: Cleanup = [
@@ -560,8 +575,11 @@ export async function stageMacRuntimePayload(
     }
 }
 
-/** 所有 resolution consumer 与目标都必须是本次真实复制的普通成员，只有固定根 tsx consumer 由 stage 生成 package.json；此处补齐静态证据闭合，不执行目标 Node 解析，也不把
- *  GraphProof 自报结果提升为实际运行证明。 */
+/**
+ * 所有 resolution consumer 与目标都必须是本次真实复制的普通成员，只有固定根 tsx consumer 由 stage 生成 package.json；此
+ * 处补齐静态证据闭合，不执行目标 Node 解析，也不把
+ * GraphProof 自报结果提升为实际运行证明。
+ */
 function verifyConsumers(
     report: InputInspection,
     output: readonly OutputFact[],
@@ -581,8 +599,11 @@ function verifyConsumers(
     }
 }
 
-/** ZIP 的第二消费者只用 yauzl 公开 central metadata 施加明确 Unix 原模式政策，并逐项对照 fresh intake 的成员集合；不解压、不重计同一归档资源，也不试图补造 descriptor 或
- * 完整 ZIP 语法解码器来掩盖 I 的延期模式 fallback。 */
+/**
+ * ZIP 的第二消费者只用 yauzl 公开 central metadata 施加明确 Unix 原模式政策，并逐项对照 fresh intake 的成员集合；不解压
+ * 、不重计同一归档资源，也不试图补造 descriptor 或
+ * 完整 ZIP 语法解码器来掩盖 I 的延期模式 fallback。
+ */
 async function explicitZipModes(intake: IntakeResult, tx: ArchiveTransaction) {
     const archive = intake.receipt.archives.find((item) => item.kind === "chrome")!;
     const path = join(intake.directory, archive.snapshot.path);
@@ -694,7 +715,10 @@ async function explicitZipModes(intake: IntakeResult, tx: ArchiveTransaction) {
     }
 }
 
-/** 每次 metadata 请求只保留当前 entry、结束和错误监听，任一完成后立即卸载其它监听避免旧事件影响下一成员；取消导致的关闭也明确拒绝，库不会预取下一条目或访问 yauzl 私有状态来猜测收尾事实。 */
+/**
+ * 每次 metadata 请求只保留当前 entry、结束和错误监听，任一完成后立即卸载其它监听避免旧事件影响下一成员；取消导致的关闭
+ * 也明确拒绝，库不会预取下一条目或访问 yauzl 私有状态来猜测收尾事实。
+ */
 function zipEntry(zip: ZipFile): Promise<Entry | null> {
     return new Promise((resolve, reject) => {
         const clear = () => {

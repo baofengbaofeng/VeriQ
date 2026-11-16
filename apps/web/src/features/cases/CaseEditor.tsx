@@ -1,5 +1,5 @@
-/**
- * 用例/流程步骤编辑器：动作参数、观察者、前后断言与数据集/变量绑定。callFlow 只引用已发布流程版本；callFlow 动作只允许引用已发布的流程版本。
+/** 用例/流程步骤编辑器：动作参数、观察者、前后断言与数据集/变量绑定。callFlow 只引用已发布流程版本；callFlow 动作只允许
+ * 引用已发布的流程版本。
  * flow=true 时编辑参数声明而非 caseKey；版本引用保持固定 UUID。
  */
 
@@ -48,13 +48,17 @@ const actionDefaults = (action: string) =>
                   : action === "callFlow"
                     ? { versionId: "" }
                     : {};
-/** 工厂：默认 goto / 的步骤，id 含短 UUID，供步骤 List 新增行。后续由 action 切换填充默认参数。actionDefaults 在类型切换时填充，避免缺字段导致保存失败。 */
+/** 工厂：默认 goto / 的步骤，id 含短 UUID，供步骤 List 新增行。后续由 action 切换填充默认参数。actionDefaults 在类型切
+ * 换时填充，避免缺字段导致保存失败。
+ */
 export const newStep = (): StepV1 => ({
     id: "step_" + crypto.randomUUID().slice(0, 8),
     action: "goto",
     path: "/",
 });
-/** 拥有 steps/initialVariables/dataset 绑定 UI，并嵌入 AssertionEditor。fixtureBindings 合并数据集列与变量供填充提示；不发起 Workspace API。 */
+/** 拥有 steps/initialVariables/dataset 绑定 UI，并嵌入 AssertionEditor。fixtureBindings 合并数据集列与变量供填充提示；
+ * 不发起 Workspace API。
+ */
 export function CaseEditor({
     versions,
     flow = false,
@@ -123,12 +127,14 @@ export function CaseEditor({
                     />
                     <small>
                         {tx(
-                            "这里只声明类型；实际值在执行时冻结，不写入生成源码 / Types only; values belong to execution snapshots.",
+                            "这里只声明类型；实际值在执行时冻结，不写入生成源码 / Types only; values belo" +
+                                "ng to execution snapshots.",
                         )}
                     </small>
                     <small>
                         {tx(
-                            "准备前只能引用所选数据集和已声明初始变量，不包含未来 Fixture 输出或提取值 / Before prepare: selected data columns and d" +
+                            "准备前只能引用所选数据集和已声明初始变量，不包含未来 Fixture 输出或提取值 / " +
+                                "Before prepare: selected data columns and d" +
                                 "eclared initial variables only.",
                         )}
                     </small>
@@ -234,11 +240,13 @@ function StepFields({
                 hint={
                     scope === "FLOW"
                         ? tx(
-                              "可填写调用方或流程内先前捕获的页面 key；实际调用时检查词法作用域。流程内部页面不会泄漏给调用方。 / Caller or preceding flow page ke" +
+                              "可填写调用方或流程内先前捕获的页面 key；实际调用时检查词法作用域。流程内部页" +
+                                  "面不会泄漏给调用方。 / Caller or preceding flow page ke" +
                                   "y; resolved in the calling case. Flow-local pages do not escape.",
                           )
                         : tx(
-                              "省略=原始页面；本步骤捕获的新页面只供之后的断言和步骤使用 / Omitted means original page; new pages become availab" +
+                              "省略=原始页面；本步骤捕获的新页面只供之后的断言和步骤使用 / Omitted means or" +
+                                  "iginal page; new pages become availab" +
                                   "le after capture.",
                           )
                 }

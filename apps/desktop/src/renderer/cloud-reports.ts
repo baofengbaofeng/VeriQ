@@ -4,7 +4,9 @@ import type { DesktopBridge } from "../shared/bridge";
 
 type Report = PlatformComponents["schemas"]["RunReportDTO"];
 
-/** 云端报告的原生证据按钮使用已展示报告建立的 Attempt 到 Run 归属，装饰器保留共享报告读取和订阅接口；这个映射只提供请求上下文，main 与服务端仍重新执行工作区、制品范围和当前权限检查。 */
+/** 云端报告的原生证据按钮使用已展示报告建立的 Attempt 到 Run 归属，装饰器保留共享报告读取和订阅接口；这个映射只提供请求
+ * 上下文，main 与服务端仍重新执行工作区、制品范围和当前权限检查。
+ */
 export function nativeCloudReports(
     workspaceId: string,
     reports: ReportAdapter,

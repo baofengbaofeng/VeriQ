@@ -5,7 +5,10 @@ import {
 } from "../src/distribution-manifest-v2.ts";
 import type { FileFact, LinkFact, Recipe, Ref, TreeKind } from "./runtime-payload-inputs.ts";
 
-/** 每个输出来源都保留原输入成员和摘要，链接复制逐跳列原始目标摘要，生成成员指向真正绑定的生成器源码；来源事实不能把原归档、源码或未签名候选的不同身份互相代替，也不能授权执行。 */
+/**
+ * 每个输出来源都保留原输入成员和摘要，链接复制逐跳列原始目标摘要，生成成员指向真正绑定的生成器源码；来源事实不能把原归
+ * 档、源码或未签名候选的不同身份互相代替，也不能授权执行。
+ */
 export type Origin = Readonly<{
     input: "node" | "chrome" | TreeKind | "generated";
     path: string;
@@ -19,9 +22,15 @@ export type Origin = Readonly<{
         | "runtime-package-v1"
         | "manifest-v2";
 }>;
-/** 输出文件事实在外部收据完整包含 manifest 本身及至少一个真实来源，目录集合则由第二版清单绑定；角色文件即使相同字节也必须独立物理写入，不能按摘要去重或通过链接冒充三份执行角色。 */
+/**
+ * 输出文件事实在外部收据完整包含 manifest 本身及至少一个真实来源，目录集合则由第二版清单绑定；角色文件即使相同字节也必
+ * 须独立物理写入，不能按摘要去重或通过链接冒充三份执行角色。
+ */
 export type OutputFact = FileFact & Readonly<{ origins: readonly Origin[] }>;
-/** 候选回执明确标记开发未签名静态状态，保留来源与原工具声明并列出实际复制的外部证据；文件计数沿 D3a 不含 manifest，外部 receipt 自身摘要只放 Result 避免自引用封印。 */
+/**
+ * 候选回执明确标记开发未签名静态状态，保留来源与原工具声明并列出实际复制的外部证据；文件计数沿 D3a 不含 manifest，外部
+ * receipt 自身摘要只放 Result 避免自引用封印。
+ */
 export type PayloadReceipt = Readonly<{
     schemaVersion: 1;
     kind: "MAC_RUNTIME_PAYLOAD_CANDIDATE";
@@ -39,7 +48,10 @@ export type PayloadReceipt = Readonly<{
     templateSha256: string;
 }>;
 
-/** 清单生成仅序列化已经计划并真实写入的文件目录与独立 Chrome 链接，随后仍由 D3a 在临时与最终路径各自核验；先解析生成字节可以在任何发布前拒绝所需成员缺失、冲突、数量和权限错误。 */
+/**
+ * 清单生成仅序列化已经计划并真实写入的文件目录与独立 Chrome 链接，随后仍由 D3a 在临时与最终路径各自核验；先解析生成字节
+ * 可以在任何发布前拒绝所需成员缺失、冲突、数量和权限错误。
+ */
 export function manifestBytes(
     recipe: Recipe,
     layout: MacChromeLayout,

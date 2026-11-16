@@ -1,4 +1,7 @@
-/** Linux 密钥辅助程序仅处理固定产品档案的三十二字节随机材料，私有 SecretService 实例拒绝所有交互提示；父输入死亡监视在调用系统库前建立，避免父进程崩溃后遗留可能无限等待的库调用。 */
+/**
+ * Linux 密钥辅助程序仅处理固定产品档案的三十二字节随机材料，私有 SecretService 实例拒绝所有交互提示；父输入死亡监视在调
+ * 用系统库前建立，避免父进程崩溃后遗留可能无限等待的库调用。
+ */
 #define _GNU_SOURCE
 #include <libsecret/secret.h>
 #include <errno.h>
@@ -14,7 +17,10 @@ typedef struct { SecretService parent; gboolean prompt_refused; } VeriqService;
 typedef struct { SecretServiceClass parent; } VeriqServiceClass;
 G_DEFINE_TYPE(VeriqService, veriq_service, SECRET_TYPE_SERVICE)
 
-/** 私有实例覆盖同步和异步提示入口并返回固定锁定错误，完全不调用默认 Prompt 实现；该操作只改变本进程持有的客户端类型，不解锁集合、不生成用户界面，也不修改系统服务或其他应用的行为。 */
+/**
+ * 私有实例覆盖同步和异步提示入口并返回固定锁定错误，完全不调用默认 Prompt 实现；该操作只改变本进程持有的客户端类型，不
+ * 解锁集合、不生成用户界面，也不修改系统服务或其他应用的行为。
+ */
 static GVariant *deny_prompt_sync(SecretService *service, SecretPrompt *prompt,
         GCancellable *cancel, const GVariantType *type, GError **error) {
     (void)prompt; (void)cancel; (void)type;
@@ -48,7 +54,10 @@ static const SecretSchema schema = {
         {"profile", SECRET_SCHEMA_ATTRIBUTE_STRING}, {"version", SECRET_SCHEMA_ATTRIBUTE_STRING}, {NULL, 0}}
 };
 
-/** 请求帧读取完成后独立线程继续监视父输入，正常父进程必须保持该控制管道打开直到辅助程序退出；任何额外字节或 EOF 都结束本进程，不按名称查杀其他进程，也不依赖主线程正在等待的库及时取消。 */
+/**
+ * 请求帧读取完成后独立线程继续监视父输入，正常父进程必须保持该控制管道打开直到辅助程序退出；任何额外字节或 EOF 都结束本
+ * 进程，不按名称查杀其他进程，也不依赖主线程正在等待的库及时取消。
+ */
 static void *watch_parent(void *unused) {
     (void)unused;
     char byte;
@@ -96,7 +105,10 @@ static guchar *decode_key(const char *text) {
     return key;
 }
 
-/** 错误只依据结构化域与代码分类，锁定和明确服务缺失不折叠为条目缺失，所有其他系统错误也不输出原始文本；修改开始后的未知失败保留不确定性，避免上层把网络断开错误理解为已经回滚。 */
+/**
+ * 错误只依据结构化域与代码分类，锁定和明确服务缺失不折叠为条目缺失，所有其他系统错误也不输出原始文本；修改开始后的未知
+ * 失败保留不确定性，避免上层把网络断开错误理解为已经回滚。
+ */
 static const char *error_status(GError *error, gboolean mutation) {
     if (error && g_error_matches(error, SECRET_ERROR, SECRET_ERROR_IS_LOCKED)) return "locked";
     if (mutation) return "mutation-unconfirmed";
@@ -107,7 +119,10 @@ static const char *error_status(GError *error, gboolean mutation) {
     return "failed";
 }
 
-/** GNOME keyring 的返回协议会把保存的二进制秘密标为 text/plain，标签不代表需要文本解码；仅兼容这两个已知标签且仍要求原始载荷严格三十二字节，禁止截断、编码转换或把其他格式当成有效密钥。 */
+/**
+ * GNOME keyring 的返回协议会把保存的二进制秘密标为 text/plain，标签不代表需要文本解码；仅兼容这两个已知标签且仍要求原始
+ * 载荷严格三十二字节，禁止截断、编码转换或把其他格式当成有效密钥。
+ */
 static gboolean read_key(SecretItem *item, guchar key[32], GError **error) {
     if (!secret_item_load_secret_sync(item, NULL, error)) return FALSE;
     SecretValue *value = secret_item_get_secret(item);
@@ -122,7 +137,10 @@ static gboolean read_key(SecretItem *item, guchar key[32], GError **error) {
     return valid;
 }
 
-/** 主操作只在固定产品属性下搜索精确档案与密钥版本，拒绝重复条目并禁止不同密钥覆盖已使用版本；搜索加创建不是跨客户端原子比较交换，因此调用者仍须持有档案锁、唯一版本和恢复日志。 */
+/**
+ * 主操作只在固定产品属性下搜索精确档案与密钥版本，拒绝重复条目并禁止不同密钥覆盖已使用版本；搜索加创建不是跨客户端原子
+ * 比较交换，因此调用者仍须持有档案锁、唯一版本和恢复日志。
+ */
 static const char *operate(char **parts, guchar *input, gchar **output) {
     const char *status = "failed";
     GError *error = NULL;
@@ -131,7 +149,10 @@ static const char *operate(char **parts, guchar *input, gchar **output) {
     SecretCollection *collection = NULL;
     SecretService *service = NULL;
     const char *address = g_getenv("DBUS_SESSION_BUS_ADDRESS");
-    /* 只使用明确的本地会话总线，禁止缺失会话时由库猜测并启动外部 dbus-launch 或执行其他地址传输程序；实际桌面与测试上下文都必须提供真实地址，不把此失败改为文件后端。 */
+    /*
+     * 只使用明确的本地会话总线，禁止缺失会话时由库猜测并启动外部 dbus-launch 或执行其他地址传输程序；实际桌面与测试上下
+     * 文都必须提供真实地址，不把此失败改为文件后端。
+     */
     if (!address || !g_str_has_prefix(address, "unix:") || strchr(address, ';')) return "unavailable";
     service = secret_service_open_sync(veriq_service_get_type(), "org.freedesktop.secrets",
         SECRET_SERVICE_OPEN_SESSION, NULL, &error);
@@ -140,7 +161,10 @@ static const char *operate(char **parts, guchar *input, gchar **output) {
         SECRET_COLLECTION_NONE, NULL, &error);
     if (!collection) { status = error ? error_status(error, FALSE) : "unavailable"; goto cleanup; }
 #ifdef VERIQ_VAULT_TEST_DRIVER
-    /* 默认关闭的独立测试程序只对测试自有默认集合触发真实锁定与提示路径，复用同一拒绝提示实例；这些命令不会编入正式辅助程序，也不能加入安装库存或当作生产通用系统接口使用。 */
+    /*
+     * 默认关闭的独立测试程序只对测试自有默认集合触发真实锁定与提示路径，复用同一拒绝提示实例；这些命令不会编入正式辅助
+     * 程序，也不能加入安装库存或当作生产通用系统接口使用。
+     */
     if (strcmp(parts[1], "lock") == 0 || strcmp(parts[1], "prompt") == 0) {
         GList *objects = g_list_append(NULL, collection), *changed = NULL;
         if (strcmp(parts[1], "lock") == 0) {
@@ -165,7 +189,10 @@ static const char *operate(char **parts, guchar *input, gchar **output) {
     SecretItem *item = items ? SECRET_ITEM(items->data) : NULL;
     if (item && secret_item_get_locked(item)) { status = "locked"; goto cleanup; }
 #ifdef VERIQ_VAULT_TEST_DRIVER
-    /** 独立测试驱动只报告实际读取的字节数量和固定类型分类，失败时仅报告有限错误域类别及数字代码；不输出秘密、属性值、任意 MIME 文本或系统错误消息，这个诊断操作不编入正式辅助程序。 */
+    /**
+     * 独立测试驱动只报告实际读取的字节数量和固定类型分类，失败时仅报告有限错误域类别及数字代码；不输出秘密、属性值、任
+     * 意 MIME 文本或系统错误消息，这个诊断操作不编入正式辅助程序。
+     */
     if (strcmp(parts[1], "shape") == 0) {
         if (!item) { status = "missing"; goto cleanup; }
         if (!secret_item_load_secret_sync(item, NULL, &error)) {
@@ -222,7 +249,10 @@ cleanup:
     return status;
 }
 
-/** 入口在任何系统库访问前建立 Linux 父死亡信号并读取一个有限 ASCII 请求，密钥只经匿名管道传递而不出现于参数；响应最多一行固定状态，格式错误不会进入服务操作或暴露库错误及提示内容。 */
+/**
+ * 入口在任何系统库访问前建立 Linux 父死亡信号并读取一个有限 ASCII 请求，密钥只经匿名管道传递而不出现于参数；响应最多一
+ * 行固定状态，格式错误不会进入服务操作或暴露库错误及提示内容。
+ */
 int main(int argc, char **argv) {
     (void)argv;
     if (argc != 1) return 2;

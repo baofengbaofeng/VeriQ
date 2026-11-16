@@ -25,7 +25,10 @@ import {
     type SourceObservation,
 } from "./runtime-assets-observation.ts";
 
-/** 包实例只指向本 artifact 中真正提取的物理目录及原始 manifest 字节，重复名称和版本仍保存不同根；这里不生成依赖图、不猜测解析结果，也不把静态来源材料变成可执行 Node 布局或批准收据。 */
+/**
+ * 包实例只指向本 artifact 中真正提取的物理目录及原始 manifest 字节，重复名称和版本仍保存不同根；这里不生成依赖图、不猜
+ * 测解析结果，也不把静态来源材料变成可执行 Node 布局或批准收据。
+ */
 export type NpmPackageSource = Readonly<{ root: string; packageJson: Ref }>;
 const pending = [
     "SOURCE_REVIEW",
@@ -34,7 +37,10 @@ const pending = [
     "CHROME_LAYOUT_AND_EXTRACTION",
     "FULL_RUNTIME_STAGE",
 ] as const;
-/** 回执只绑定 Node 原归档、原成员和完整物理包实例材料，来源未审与后续待办始终保留；Chrome 字段不在本入口消费，后续提取及集成仍待完成，已有独立布局观察不会被本回执重新声称验证。 */
+/**
+ * 回执只绑定 Node 原归档、原成员和完整物理包实例材料，来源未审与后续待办始终保留；Chrome 字段不在本入口消费，后续提取及
+ * 集成仍待完成，已有独立布局观察不会被本回执重新声称验证。
+ */
 export type NodeBootstrapReceipt = Readonly<{
     schemaVersion: 1;
     kind: "NODE_NPM_SOURCE_TREE";
@@ -52,7 +58,8 @@ export type NodeBootstrapReceipt = Readonly<{
     pending: typeof pending;
 }>;
 /**
- * 结果只有在事务完成最终路径 audit 后才返回 committed，cleanup 直接沿用真实事务关闭和锁收尾事实；回执摘要放在外层 Ref 而不写自摘要，成功不代表 Node 可执行、来源已审或完整 Runtime 已交
+ * 结果只有在事务完成最终路径 audit 后才返回 committed，cleanup 直接沿用真实事务关闭和锁收尾事实；回执摘要放在外层 Ref
+ * 而不写自摘要，成功不代表 Node 可执行、来源已审或完整 Runtime 已交
  * 付。
  */
 export type NodeBootstrapResult = Readonly<{
@@ -65,7 +72,10 @@ export type NodeBootstrapResult = Readonly<{
 const extractedReaders = new WeakMap<ArchiveTransaction, { finish: () => Promise<void> }>();
 const metadataReserve = 2 * limits.json + 2 * limits.json;
 
-/** 身份比较覆盖设备、inode、长度、模式、链接数和纳秒时间，读取与收尾都保持第一次观察而不重试；此处只检测已观察变化，不承诺抵抗恶意同 UID 对父路径并发替换的原子整树能力。 */
+/**
+ * 身份比较覆盖设备、inode、长度、模式、链接数和纳秒时间，读取与收尾都保持第一次观察而不重试；此处只检测已观察变化，不承
+ * 诺抵抗恶意同 UID 对父路径并发替换的原子整树能力。
+ */
 function same(a: BigIntStats, b: BigIntStats) {
     return (
         a.dev === b.dev &&
@@ -78,7 +88,10 @@ function same(a: BigIntStats, b: BigIntStats) {
     );
 }
 
-/** 位置读取把 FD 的生命周期留在本模块唯一拥有者内，每块六十四 KiB 且显式偏移从零开始；不会积累完整大包或让重复创建的 ReadStream 隐式参与 close，producer 复制也复用相同有界读取。 */
+/**
+ * 位置读取把 FD 的生命周期留在本模块唯一拥有者内，每块六十四 KiB 且显式偏移从零开始；不会积累完整大包或让重复创建的
+ * ReadStream 隐式参与 close，producer 复制也复用相同有界读取。
+ */
 async function* fileChunks(tx: ArchiveTransaction, handle: FileHandle): AsyncGenerator<Buffer> {
     const buffer = Buffer.alloc(65536);
     let position = 0;
@@ -92,7 +105,10 @@ async function* fileChunks(tx: ArchiveTransaction, handle: FileHandle): AsyncGen
     }
 }
 
-/** 大快照通过独立 held FD 以六十四 KiB 块核原始长度和摘要，拒绝 whole-buffer 读取及单独路径断言；close 只尝试一次，无法确认时通知事务保留 scratch，绝不重试可能已经复用的数字 FD。 */
+/**
+ * 大快照通过独立 held FD 以六十四 KiB 块核原始长度和摘要，拒绝 whole-buffer 读取及单独路径断言；close 只尝试一次，无法
+ * 确认时通知事务保留 scratch，绝不重试可能已经复用的数字 FD。
+ */
 async function holdFile(
     tx: ArchiveTransaction,
     path: string,
@@ -178,7 +194,8 @@ async function holdFile(
 }
 
 /**
- * 提取 manifest 的读取由当前事务唯一拥有 FD 及关闭状态，根准入仍复用 InputReader 而不调用其无法转交 close 状态的 input；每个父目录与文件保留初始身份，完整有界正文独立核原成员摘要，发布前
+ * 提取 manifest 的读取由当前事务唯一拥有 FD 及关闭状态，根准入仍复用 InputReader 而不调用其无法转交 close 状态的 input
+ * ；每个父目录与文件保留初始身份，完整有界正文独立核原成员摘要，发布前
  * finish 继续核相同观察。
  */
 async function extractedManifestReader(tx: ArchiveTransaction) {
@@ -243,7 +260,8 @@ async function extractedManifestReader(tx: ArchiveTransaction) {
             held = undefined;
             return bytes;
         } finally {
-            // 只有确认关闭才从成功路径返回；失败路径保留最早的读取、身份或摘要拒绝，次要关闭不确定由唯一拥有者先通知事务，防止 assetFailure 在未知 FD 尚存时递归删除 scratch 或锁。
+            // 只有确认关闭才从成功路径返回；失败路径保留最早的读取、身份或摘要拒绝，次要关闭不确定由唯一拥有者先通知事
+            // 务，防止 assetFailure 在未知 FD 尚存时递归删除 scratch 或锁。
             if (held) {
                 try {
                     await held.close();
@@ -257,7 +275,8 @@ async function extractedManifestReader(tx: ArchiveTransaction) {
 }
 
 /**
- * 包根发现只沿实例自身的 node_modules 和可选 scope 两级边界推进，目录名允许 npm alias 而不要求等于 manifest.name；空目录、非目录包根及影响发现的链接都失败关闭，普通文件链接仍仅保留在
+ * 包根发现只沿实例自身的 node_modules 和可选 scope 两级边界推进，目录名允许 npm alias 而不要求等于 manifest.name；空目
+ * 录、非目录包根及影响发现的链接都失败关闭，普通文件链接仍仅保留在
  * 成员事实。
  */
 function packageRoots(scan: ArchiveScan, npm: string): string[] {
@@ -306,7 +325,10 @@ function packageRoots(scan: ArchiveScan, npm: string): string[] {
     return roots.sort();
 }
 
-/** 内部接缝消费真实事务拥有的固定 Node 快照，两遍仍使用同一成熟扫描器和活的第一遍成员表；返回原始成员及物理包 manifest 引用，不允许覆盖官方入口描述或伪造依赖图及目标解析证明。 */
+/**
+ * 内部接缝消费真实事务拥有的固定 Node 快照，两遍仍使用同一成熟扫描器和活的第一遍成员表；返回原始成员及物理包 manifest
+ * 引用，不允许覆盖官方入口描述或伪造依赖图及目标解析证明。
+ */
 export async function extractNodeSourceSnapshot(
     tx: ArchiveTransaction,
     arch: Arch,
@@ -360,7 +382,8 @@ export async function extractNodeSourceSnapshot(
         }
         await held.check();
         await tx.finishSources();
-        // plan 会重置剩余量，所以必须包含全部尚未写入正文、有效条目及成员与回执和两个 producer 的有界上限；快照已经落盘不再计费，第二遍也不再次消费 ArchiveBudget 的逻辑成员费用。
+        // plan 会重置剩余量，所以必须包含全部尚未写入正文、有效条目及成员与回执和两个 producer 的有界上限；快照已经落盘
+        // 不再计费，第二遍也不再次消费 ArchiveBudget 的逻辑成员费用。
         await tx.plan(
             [...files.values()].reduce((n, f) => n + f.sizeBytes, 0) + metadataReserve,
             first.effective.size + 12,
@@ -415,7 +438,8 @@ export async function extractNodeSourceSnapshot(
         held = undefined;
         return result;
     } finally {
-        // 成功路径必须先确认 close 才能返回，进入这里时只可能已有首错或 close 本身已失败；次要关闭异常由 close 标记事务保留，不能覆盖原始扫描拒绝，也不会重试已经尝试的系统 FD。
+        // 成功路径必须先确认 close 才能返回，进入这里时只可能已有首错或 close 本身已失败；次要关闭异常由 close 标记事务
+        // 保留，不能覆盖原始扫描拒绝，也不会重试已经尝试的系统 FD。
         if (held) {
             try {
                 await held.close();
@@ -426,7 +450,10 @@ export async function extractNodeSourceSnapshot(
     }
 }
 
-/** 生产入口在首次等待之前独占输入原字节及选项，只消费声明中的 Node 与来源字段并固定未审标签；源码十九项保持原绑定，两份新 producer 另行 held FD 保存，最终来源与树收尾成功后才允许事务发布。 */
+/**
+ * 生产入口在首次等待之前独占输入原字节及选项，只消费声明中的 Node 与来源字段并固定未审标签；源码十九项保持原绑定，两份
+ * 新 producer 另行 held FD 保存，最终来源与树收尾成功后才允许事务发布。
+ */
 export async function prepareMacNodeBootstrap(
     bytes: Uint8Array,
     options: StageOptions,

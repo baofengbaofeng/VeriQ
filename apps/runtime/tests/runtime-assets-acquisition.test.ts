@@ -10,7 +10,9 @@ import type { Ref } from "../scripts/runtime-payload-inputs.ts";
 import { ArchiveTransaction } from "../scripts/runtime-payload-transaction.ts";
 import { assetsFixture, fact } from "./fixtures/runtime-assets.ts";
 
-/** 正例直接消费生产下载路径同用的有界流生成器并接入真实私有事务，真实摘要来自测试字节而非替换官方常量；负例逐一改变 HTTP 元数据与流事实，确认失败不会被写入成功证据或发布结果。 */
+/** 正例直接消费生产下载路径同用的有界流生成器并接入真实私有事务，真实摘要来自测试字节而非替换官方常量；负例逐一改变
+ * HTTP 元数据与流事实，确认失败不会被写入成功证据或发布结果。
+ */
 async function* body(value = Buffer.from("tiny verified body")) {
     yield value;
 }
@@ -175,8 +177,10 @@ for (const args of [
         assert.match(child.stderr, /PAYLOAD_INPUT_INVALID phase=INPUTS cleanup=NOT_NEEDED/);
     });
 
-/** 请求替身只替换内部 node:https.request，并以真实 EventEmitter 与流触发有限网络拒绝路径，不创建 TCP 服务或真实请求；计划空间在此单独替换以绕开本机七十三 MiB 限制，但输出、来源读取、事务
- * 清理和正文校验仍是真实实现。 */
+/** 请求替身只替换内部 node:https.request，并以真实 EventEmitter 与流触发有限网络拒绝路径，不创建 TCP 服务或真实请求；计
+ * 划空间在此单独替换以绕开本机七十三 MiB 限制，但输出、来源读取、事务
+ * 清理和正文校验仍是真实实现。
+ */
 test("wrong source and altered actual host facts create zero requests", async () => {
     const https = (await import("node:https")).default;
     const original = https.request;
@@ -237,7 +241,9 @@ test("wrong source and altered actual host facts create zero requests", async ()
     }
 });
 
-/** 受控网络错误使用真正流及 close 事件来检验 owner 的资源收尾，官方顶层成功仍只能在真实 Mac CI 中证明；超时用测试虚拟时钟推进固定生产期限，不通过暴露可覆盖限额或放宽描述符来缩短生产政策。 */
+/** 受控网络错误使用真正流及 close 事件来检验 owner 的资源收尾，官方顶层成功仍只能在真实 Mac CI 中证明；超时用测试虚拟时
+ * 钟推进固定生产期限，不通过暴露可覆盖限额或放宽描述符来缩短生产政策。
+ */
 for (const scenario of ["status", "redirect", "headers-timeout", "cancel", "close"] as const)
     test(`acquisition owner bounded rejection ${scenario}`, async (t) => {
         const https = (await import("node:https")).default,
@@ -320,7 +326,9 @@ for (const scenario of ["status", "redirect", "headers-timeout", "cancel", "clos
         }
     });
 
-/** 磁盘不足通过事务真实消费的内部空间检查注入固定错误，不能为了测试启动网络或把有限预算改成环境可配置项；请求替身只统计是否误触发，事务仍执行真实锁、目录及最终清理，输出父根必须恢复为空。 */
+/** 磁盘不足通过事务真实消费的内部空间检查注入固定错误，不能为了测试启动网络或把有限预算改成环境可配置项；请求替身只统计
+ * 是否误触发，事务仍执行真实锁、目录及最终清理，输出父根必须恢复为空。
+ */
 test("forced disk failure issues zero requests and cleans owned transaction", async () => {
     const https = (await import("node:https")).default,
         original = https.request;
@@ -354,7 +362,9 @@ test("forced disk failure issues zero requests and cleans owned transaction", as
     }
 });
 
-/** 提交夹具保留完整官方校验文本原字节，正例必须同时核长度、真实摘要和生产消费者中的两架构记录，再改变一个字节证明拒绝；测试不读取私有计划证据、不联网、不替换密码学，也不把微型正文伪装成固定官方归档。 */
+/** 提交夹具保留完整官方校验文本原字节，正例必须同时核长度、真实摘要和生产消费者中的两架构记录，再改变一个字节证明拒绝；
+ * 测试不读取私有计划证据、不联网、不替换密码学，也不把微型正文伪装成固定官方归档。
+ */
 test("actual stored checksum text validates and altered text fails", async () => {
     const { officialNodeChecksumFixture } = await import("./fixtures/runtime-assets.ts");
     const { checkNodeChecksum } = await import("../scripts/runtime-assets-observation.ts");
@@ -370,7 +380,9 @@ test("actual stored checksum text validates and altered text fails", async () =>
     checkNodeChecksum(officialNodeChecksumFixture());
 });
 
-/** 小型镜像只复制已提交测试及其三份微型夹具，借用现有只读生产脚本和依赖链接以隔离真正缺失的私有证据路径；目标测试必须成功加载并真实通过，而不是因模块缺失提前失败，也不声称这等同全新独立依赖安装或完整克隆验收。 */
+/** 小型镜像只复制已提交测试及其三份微型夹具，借用现有只读生产脚本和依赖链接以隔离真正缺失的私有证据路径；目标测试必须成
+ * 功加载并真实通过，而不是因模块缺失提前失败，也不声称这等同全新独立依赖安装或完整克隆验收。
+ */
 test("committed checksum regression runs without any private evidence directory", async () => {
     const { mkdtemp, mkdir, copyFile, symlink, lstat, rm } = await import("node:fs/promises"),
         { tmpdir } = await import("node:os"),
@@ -405,7 +417,8 @@ test("committed checksum regression runs without any private evidence directory"
         );
         await symlink(join(root, "node_modules"), join(base, "node_modules"), "dir");
         await assert.rejects(lstat(join(base, ".superpowers")), { code: "ENOENT" });
-        // 嵌套测试进程必须移除父 runner 的内部 IPC 上下文并显式使用文本报告，否则 Node 会把独立 child 当作已有 runner 通道而直接退出；这里仅复制子环境，不修改当前进程或跳过目标回归的任何断言。
+        // 嵌套测试进程必须移除父 runner 的内部 IPC 上下文并显式使用文本报告，否则 Node 会把独立 child 当作已有 runner
+        // 通道而直接退出；这里仅复制子环境，不修改当前进程或跳过目标回归的任何断言。
         const childEnvironment = { ...process.env };
         delete childEnvironment.NODE_TEST_CONTEXT;
         const result = spawnSync(

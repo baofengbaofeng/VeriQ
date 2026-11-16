@@ -1,5 +1,7 @@
-/** 这个可信夹具只隔离 Agent 组件的实际所有权边界，命令仍由生产 C2a2 所有者派生并通过真实 preload 记录；页面由固定 Playwright 公共连接实际创建，夹具不写业务成功报告，也不把组件结果冒充完整引擎验收
- * 。 */
+/** 这个可信夹具只隔离 Agent 组件的实际所有权边界，命令仍由生产 C2a2 所有者派生并通过真实 preload 记录；页面由固定
+ * Playwright 公共连接实际创建，夹具不写业务成功报告，也不把组件结果冒充完整引擎验收
+ * 。
+ */
 import { readFileSync, appendFileSync } from "node:fs";
 import { join } from "node:path";
 import { spawn } from "node:child_process";

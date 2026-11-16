@@ -1,4 +1,6 @@
-/** 非读取客户端保留真正的 Node 文件描述符，使响应确实留在内核管道而没有 socket 预读；独立 Agent 的关闭测试通过私有事件控制取消发生于未来 I/O 之前，真实宿主退出与清理事实分别记录，不能把超时当成功。 */
+/** 非读取客户端保留真正的 Node 文件描述符，使响应确实留在内核管道而没有 socket 预读；独立 Agent 的关闭测试通过私有事件
+ * 控制取消发生于未来 I/O 之前，真实宿主退出与清理事实分别记录，不能把超时当成功。
+ */
 import assert from "node:assert/strict";
 import test from "node:test";
 import { copyFile, mkdtemp, rm } from "node:fs/promises";
@@ -22,7 +24,9 @@ const scheduled = fileURLToPath(
 );
 const product = require("../../build/Release/veriq_native.node") as Record<string, unknown>;
 
-/** 测试父进程的期限不会被子进程同步 close 阻塞，计时器到期必须保留失败并进入实际句柄清理；关闭验证沿用三点五秒总预算，准备与 finally 使用既有五秒上限，不通过延迟或重试等待偶然窗口。 */
+/** 测试父进程的期限不会被子进程同步 close 阻塞，计时器到期必须保留失败并进入实际句柄清理；关闭验证沿用三点五秒总预算，
+ * 准备与 finally 使用既有五秒上限，不通过延迟或重试等待偶然窗口。
+ */
 async function bounded<T>(operation: Promise<T>, timeout = 5000): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
@@ -37,7 +41,9 @@ async function bounded<T>(operation: Promise<T>, timeout = 5000): Promise<T> {
     }
 }
 
-/** 实际响应写入后才请求 JavaScript 同步关闭，内核证实同一会话线程取消未命中后放行下一次真实 I/O；客户端此时仍未读取或关闭，服务器必须自行在总期限内返回，而不能靠 finally 的 EOF 才满足首次断言。 */
+/** 实际响应写入后才请求 JavaScript 同步关闭，内核证实同一会话线程取消未命中后放行下一次真实 I/O；客户端此时仍未读取或关
+ * 闭，服务器必须自行在总期限内返回，而不能靠 finally 的 EOF 才满足首次断言。
+ */
 test("Windows pipe close finishes when cancellation precedes response draining", async (context) => {
     const root = await mkdtemp(join(tmpdir(), "veriq response 中文 "));
     const role = join(root, "veriq_agent.exe");

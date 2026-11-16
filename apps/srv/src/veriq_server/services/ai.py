@@ -1,4 +1,5 @@
-"""AI 草稿服务：管理 Workspace 内提供方、预算、上下文预览与生成草稿，模型输出永不自动发布为资源版本，本文件注释描述专属不变量。sanitize 去除受保护字段；测试可在无真实模型凭据下覆盖失败路径。review
+"""AI 草稿服务：管理 Workspace 内提供方、预算、上下文预览与生成草稿，模型输出永不自动发布为资源版本，
+本文件注释描述专属不变量。sanitize 去除受保护字段；测试可在无真实模型凭据下覆盖失败路径。review
 
 仅在人工确认后进入可编辑草稿，取消与预算超限返回稳定错误码。
 """
@@ -46,7 +47,8 @@ ADVICE_SCHEMA = {
 
 def output_schema(purpose: str) -> dict[str, Any]:
     """按生成目的返回期望输出 JSON schema，供模型响应结构校验，output_schema 遵守本文件边界，失败返回稳定 Problem。
-    output_schema 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    output_schema 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+    勿假设通用成功默认值。
     """
     if purpose != "CASE_DRAFT":
         return ADVICE_SCHEMA
@@ -77,15 +79,19 @@ def output_schema(purpose: str) -> dict[str, Any]:
 
 
 def micros(value: Any) -> int:
-    """将价格输入规范为微单位整数，拒绝非有限或非法数值，micros 遵守本文件边界，失败返回稳定 Problem，并在事务提交前完成全部不变量检查。
-    micros 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """将价格输入规范为微单位整数，拒绝非有限或非法数值，micros 遵守本文件边界，失败返回稳定 Problem，
+    并在事务提交前完成全部不变量检查。
+    micros 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+    勿假设通用成功默认值。
     """
     return int((Decimal(str(value)) * 1000000).to_integral_value(rounding=ROUND_CEILING))
 
 
 def priced(input_tokens: int, output_tokens: int, prices: dict[str, Any]) -> int:
-    """按输入输出 token 数量与单价计算费用微单位，priced 遵守本文件边界，失败返回稳定 Problem，并在事务提交前完成全部不变量检查。
-    priced 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """按输入输出 token 数量与单价计算费用微单位，priced 遵守本文件边界，失败返回稳定 Problem，
+    并在事务提交前完成全部不变量检查。
+    priced 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+    勿假设通用成功默认值。
     """
     return int(
         (
@@ -96,8 +102,10 @@ def priced(input_tokens: int, output_tokens: int, prices: dict[str, Any]) -> int
 
 
 def sanitize(value: Any, protected: set[str] | None = None) -> Any:
-    """递归清理提示与上下文中的受保护密钥字段，防止回显泄露，sanitize 遵守本文件边界，失败返回稳定 Problem，并在事务提交前完成全部不变量检查。
-    sanitize 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """递归清理提示与上下文中的受保护密钥字段，防止回显泄露，sanitize 遵守本文件边界，失败返回稳定 Problem，
+    并在事务提交前完成全部不变量检查。
+    sanitize 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+    勿假设通用成功默认值。
     """
     value = redact(value, protected or set())
     if isinstance(value, str):
@@ -128,7 +136,8 @@ def sanitize(value: Any, protected: set[str] | None = None) -> Any:
 
 
 class AiService:
-    """编排提供方 CRUD、生成、预览、取消与审核，强制 Workspace 与预算边界，AiService 遵守本文件边界。AiService 属于 AI 辅助路径：无有效 Provider 时不得假装成功，
+    """编排提供方 CRUD、生成、预览、取消与审核，强制 Workspace 与预算边界，AiService 遵守本文件边界。AiService 属于 AI
+    辅助路径：无有效 Provider 时不得假装成功，
 
     模型输出不得自动发布为正式资产。
     """
@@ -141,7 +150,8 @@ class AiService:
         registry: Any = None,
     ):
         """注入依赖，包括会话工厂、设置与可选模型调用端口，AiService.__init__ 遵守本文件边界，失败返回稳定 Problem。
-        __init__ 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        __init__ 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
         """
         self.db, self.settings, self.identity, self.registry = db, settings, identity, registry
 
@@ -150,7 +160,8 @@ class AiService:
         self, scope: WorkspaceScope, permission: Permission = Permission.VIEW, write: bool = False
     ) -> AsyncIterator[tuple[AsyncSession, User]]:
         """在事务中执行 AI 相关写操作并统一映射为 Problem，AiService.transaction 遵守本文件边界。
-        transaction 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        transaction 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
         """
         async with self.db.sessions.begin() as s:
             await lock_installation(s)
@@ -162,7 +173,8 @@ class AiService:
         self, s: AsyncSession, scope: WorkspaceScope, pid: str, *, enabled: bool = False
     ) -> AiProvider:
         """按 ID 加载本 Workspace 的 AI 提供方配置行，AiService.provider 遵守本文件边界，失败返回稳定 Problem。
-        provider 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        provider 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
         """
         row = await s.get(AiProvider, pid)
         if not row or row.workspace_id != scope.workspace_id or row.deleted:
@@ -174,8 +186,10 @@ class AiService:
         return row
 
     async def budget(self, s: AsyncSession, row: AiProvider) -> dict[str, Any]:
-        """计算提供方剩余预算与当前用量快照信息，AiService.budget 遵守本文件边界，失败返回稳定 Problem，并在事务提交前完成全部不变量检查。
-        budget 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """计算提供方剩余预算与当前用量快照信息，AiService.budget 遵守本文件边界，失败返回稳定 Problem，
+        并在事务提交前完成全部不变量检查。
+        budget 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
         """
         month = now().strftime("%Y-%m")
         used, held = (
@@ -210,7 +224,8 @@ class AiService:
 
     async def provider_dto(self, s: AsyncSession, row: AiProvider) -> dict[str, Any]:
         """导出提供方 DTO，并遮蔽任何密钥明文材料，AiService.provider_dto 遵守本文件边界，失败返回稳定 Problem。
-        provider_dto 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        provider_dto 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
         """
         return {
             **row.config,
@@ -225,7 +240,8 @@ class AiService:
         self, scope: WorkspaceScope, page: Page, pid: str | None = None
     ) -> dict[str, Any]:
         """列出当前 Workspace 内全部 AI 提供方配置，AiService.providers 遵守本文件边界，失败返回稳定 Problem。
-        providers 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        providers 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
         """
         async with self.transaction(scope) as (s, _):
             if pid:
@@ -256,7 +272,8 @@ class AiService:
         self, scope: WorkspaceScope, data: dict[str, Any], pid: str | None = None
     ) -> dict[str, Any]:
         """创建或更新提供方，校验允许的 base URL 白名单，AiService.write_provider 遵守本文件边界。
-        write_provider 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        write_provider 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
         """
         allowed_endpoint(data["baseURL"], self.settings)
         async with self.transaction(scope, Permission.MANAGE_WORKSPACE, True) as (s, user):
@@ -325,7 +342,8 @@ class AiService:
 
     async def delete_provider(self, scope: WorkspaceScope, pid: str) -> dict[str, Any]:
         """删除提供方配置，不影响既有生成历史行，AiService.delete_provider 遵守本文件边界，失败返回稳定 Problem。
-        delete_provider 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        delete_provider 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
         """
         async with self.transaction(scope, Permission.MANAGE_WORKSPACE, True) as (s, user):
             row = await self.provider(s, scope, pid)
@@ -344,7 +362,8 @@ class AiService:
         provider: AiProvider,
     ) -> tuple[dict[str, Any], DraftContext]:
         """组装生成上下文预览，内容已经过 sanitize 处理，AiService.context 遵守本文件边界，失败返回稳定 Problem。
-        context 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        context 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
         """
         repo = ResourceRepository(s, scope)
         context = {
@@ -457,8 +476,10 @@ class AiService:
         return result, dc
 
     def key(self, row: AiProvider) -> str:
-        """派生提供方缓存或幂等键，结果中不含密钥明文，AiService.key 遵守本文件边界，失败返回稳定 Problem，并在事务提交前完成全部不变量检查。
-        key 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """派生提供方缓存或幂等键，结果中不含密钥明文，AiService.key 遵守本文件边界，失败返回稳定 Problem，
+        并在事务提交前完成全部不变量检查。
+        key 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
         """
         try:
             result = configured_keyring(self.settings, purpose=PURPOSE).decrypt(
@@ -477,7 +498,8 @@ class AiService:
 
     async def preview(self, scope: WorkspaceScope, req: dict[str, Any]) -> dict[str, Any]:
         """预览生成请求费用与上下文，不落库正式草稿，AiService.preview 遵守本文件边界，失败返回稳定 Problem。
-        preview 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        preview 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
         """
         async with self.transaction(scope, Permission.EDIT) as (s, user):
             p = await self.provider(s, scope, req["providerId"], enabled=True)
@@ -486,7 +508,8 @@ class AiService:
 
     async def generation(self, s: AsyncSession, scope: WorkspaceScope, gid: str) -> AiGeneration:
         """加载生成记录并校验属于当前 Workspace，AiService.generation 遵守本文件边界，失败返回稳定 Problem。
-        generation 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        generation 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
         """
         g = await s.get(AiGeneration, gid)
         if not g or g.workspace_id != scope.workspace_id:
@@ -497,7 +520,8 @@ class AiService:
 
     async def dto(self, s: AsyncSession, scope: WorkspaceScope, g: AiGeneration) -> dict[str, Any]:
         """导出生成记录 DTO，含状态与费用，不含原始密钥，AiService.dto 遵守本文件边界，失败返回稳定 Problem。
-        dto 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        dto 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
         """
         result = {
             "id": g.id,
@@ -550,7 +574,8 @@ class AiService:
         self, scope: WorkspaceScope, page: Page, gid: str | None = None
     ) -> dict[str, Any]:
         """分页列出 Workspace 内的 AI 生成历史记录，AiService.history 遵守本文件边界，失败返回稳定 Problem。
-        history 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        history 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
         """
         async with self.transaction(scope) as (s, _):
             if gid:
@@ -576,7 +601,8 @@ class AiService:
         self, scope: WorkspaceScope, req: dict[str, Any], *, connection: bool = False
     ) -> dict[str, Any]:
         """创建生成草稿并调用模型端口；失败记 FAILED 且不发布，AiService.create_draft 遵守本文件边界。
-        create_draft 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        create_draft 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
         """
         request_hash = sha256(canonical_bytes(req)).hexdigest()
         async with self.transaction(
@@ -761,8 +787,10 @@ class AiService:
             return await self.dto(s, scope, g)
 
     async def cancel(self, scope: WorkspaceScope, gid: str) -> dict[str, Any]:
-        """取消进行中的生成任务并更新状态机，AiService.cancel 遵守本文件边界，失败返回稳定 Problem，并在事务提交前完成全部不变量检查。
-        cancel 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """取消进行中的生成任务并更新状态机，AiService.cancel 遵守本文件边界，失败返回稳定 Problem，
+        并在事务提交前完成全部不变量检查。
+        cancel 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
         """
         async with self.transaction(scope, Permission.EDIT, True) as (s, user):
             g = await self.generation(s, scope, gid)
@@ -774,7 +802,8 @@ class AiService:
 
     async def review(self, scope: WorkspaceScope, gid: str, data: dict[str, Any]) -> dict[str, Any]:
         """人工审核生成结果，通过后才可进入资源草稿编辑流，AiService.review 遵守本文件边界，失败返回稳定 Problem。
-        review 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        review 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
         """
         async with self.transaction(scope, Permission.EDIT, True) as (s, user):
             g = await self.generation(s, scope, gid)

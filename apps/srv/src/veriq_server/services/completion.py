@@ -1,4 +1,5 @@
-"""CompletionService 处理事件追加、finish、校验回执落地与 Run/Job 聚合；整案重试最多一次且重试通过记 UNSTABLE。finish 校验围栏与租约后写入 outcome；validation 生成
+"""CompletionService 处理事件追加、finish、校验回执落地与 Run/Job 聚合；整案重试最多一次且重试通过记 UNSTABLE。finish
+校验围栏与租约后写入 outcome；validation 生成
 
 ValidationReceipt。retry_is_safe 判断失败是否允许整案重试，避免不安全副作用重放。
 """
@@ -27,12 +28,14 @@ from .process_stop import validate_process_stop_claim
 
 class CompletionService:
     """在租约证明下完成 Attempt 收尾、事件持久化与结果聚合，CompletionService 遵守本文件边界，失败返回稳定 Problem。
-    CompletionService 实现于 apps/srv/src/veriq_server/services/completion.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    CompletionService 实现于 apps/srv/src/veriq_server/services/completion.py：请按该符号的输入校验、
+    错误码与调用方契约阅读，勿假设通用成功默认值。
     """
 
     def __init__(self, session: AsyncSession, settings: Settings):
         """注入会话与 Settings，供租约校验与重试策略读取，CompletionService.__init__ 遵守本文件边界。
-        __init__ 实现于 apps/srv/src/veriq_server/services/completion.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        __init__ 实现于 apps/srv/src/veriq_server/services/completion.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
         """
         self.session, self.settings = session, settings
 
@@ -40,7 +43,8 @@ class CompletionService:
         self, attempt_id: str, proof: CredentialProofTransport, events: list[dict[str, Any]]
     ) -> dict[str, Any]:
         """在有效围栏下按序追加 AttemptEvent，序号冲突拒绝，CompletionService.events 遵守本文件边界。
-        events 实现于 apps/srv/src/veriq_server/services/completion.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        events 实现于 apps/srv/src/veriq_server/services/completion.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
         """
         attempt, _, _, _ = await LeaseService(self.session, self.settings).proof(attempt_id, proof)
         for event in events:
@@ -71,7 +75,8 @@ class CompletionService:
         self, attempt_id: str, proof: CredentialProofTransport, data: dict[str, Any]
     ) -> dict[str, Any]:
         """校验租约与 fence 后落库 outcome，触发 Job/Run 聚合或安全重试，CompletionService.finish 遵守本文件边界。
-        finish 实现于 apps/srv/src/veriq_server/services/completion.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        finish 实现于 apps/srv/src/veriq_server/services/completion.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
         """
         runtime, binding, _ = await RuntimeService(self.session).require_device(proof.authorization)
         attempt = await self.session.get(Attempt, attempt_id)
@@ -118,7 +123,8 @@ class CompletionService:
             or manifest["cleanupStatus"] != data["cleanupStatus"]
         ):
             raise Problem(409, "INVALID_COMPLETION", "Completion does not match frozen assignment")
-        # 完成清单先通过身份、租约和原始字节绑定后才校验范围，保证任何归约或发布回执都不会把错平台的正声明变成可释放的在线容量证明。
+        # 完成清单先通过身份、租约和原始字节绑定后才校验范围，保证任何归约或发布回执都不会把错平台的正声明变成可释放的在
+        # 线容量证明。
         validate_process_stop_claim(
             runtime.capabilities, manifest["processStopped"], manifest.get("processStopScope")
         )
@@ -239,7 +245,8 @@ class CompletionService:
                 if status == "SUCCEEDED" and evidence_complete
                 else "INCOMPLETE",
             }
-        # 各 kind 的归约器只裁定业务结果；停止布尔值与实际提供的范围单独保留，历史清单未声明范围时不得替它补造全后代或受控集合的保证。
+        # 各 kind 的归约器只裁定业务结果；停止布尔值与实际提供的范围单独保留，历史清单未声明范围时不得替它补造全后代或受
+        # 控集合的保证。
         facts["processStopped"] = manifest["processStopped"]
         if "processStopScope" in manifest:
             facts["processStopScope"] = manifest["processStopScope"]
@@ -302,7 +309,8 @@ class CompletionService:
         matched_evidence: list[AttemptUpload],
     ) -> dict[str, Any]:
         """VALIDATE 成功时写入 ValidationReceipt 并绑定编译产物摘要，CompletionService.validation 遵守本文件边界。
-        validation 实现于 apps/srv/src/veriq_server/services/completion.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        validation 实现于 apps/srv/src/veriq_server/services/completion.py：请按该符号的输入校验、
+        错误码与调用方契约阅读，勿假设通用成功默认值。
         """
         if trust != "MANAGED":
             raise Problem(
@@ -439,7 +447,8 @@ class CompletionService:
 
     async def aggregate_job(self, job: Job, attempt: Attempt) -> None:
         """根据 Attempt 结果更新 Job 终态，必要时调度唯一一次重试，CompletionService.aggregate_job 遵守本文件边界。
-        aggregate_job 实现于 apps/srv/src/veriq_server/services/completion.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        aggregate_job 实现于 apps/srv/src/veriq_server/services/completion.py：请按该符号的输入校验、
+        错误码与调用方契约阅读，勿假设通用成功默认值。
         """
         if job.case_execution_id:
             execution = await self.session.get(CaseExecution, job.case_execution_id)
@@ -465,7 +474,8 @@ class CompletionService:
 
     async def aggregate_run(self, run_id: str) -> None:
         """汇总 CaseExecution 结果更新 Run 状态与正式门禁相关字段，CompletionService.aggregate_run 遵守本文件边界。
-        aggregate_run 实现于 apps/srv/src/veriq_server/services/completion.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        aggregate_run 实现于 apps/srv/src/veriq_server/services/completion.py：请按该符号的输入校验、
+        错误码与调用方契约阅读，勿假设通用成功默认值。
         """
         run = await self.session.get(Run, run_id)
         assert run
@@ -491,8 +501,10 @@ def retry_is_safe(
     fixture_declared: bool,
     cleanup_status: str,
 ) -> bool:
-    """判断失败是否允许整案重试；不安全副作用场景返回 False 禁止重放，retry_is_safe 遵守本文件边界，失败返回稳定 Problem。
-    retry_is_safe 实现于 apps/srv/src/veriq_server/services/completion.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """判断失败是否允许整案重试；不安全副作用场景返回 False 禁止重放，retry_is_safe 遵守本文件边界，失败返回稳定
+    Problem。
+    retry_is_safe 实现于 apps/srv/src/veriq_server/services/completion.py：请按该符号的输入校验、
+    错误码与调用方契约阅读，勿假设通用成功默认值。
     """
     return (fixture_declared and cleanup_status == "SUCCEEDED") or (
         has_potential_writes is False and observed == "READ_ONLY_OBSERVED"

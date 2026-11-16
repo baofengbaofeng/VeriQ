@@ -18,19 +18,28 @@ import { verifyPackageContents } from "./runtime-payload-graph.ts";
 import { nativeBin } from "./runtime-payload-receipts.ts";
 import type { Origin } from "./runtime-payload-manifest.ts";
 
-/** npm 投影结果完整保留逻辑库存、真实树外证据与每个普通正文的原始来源，source.path 仍指本次 intake 的物理成员；临时链接只供核验，最终复制者按精确 sourceAlias 跳过并另外生成受控 shim。 */
+/**
+ * npm 投影结果完整保留逻辑库存、真实树外证据与每个普通正文的原始来源，source.path 仍指本次 intake 的物理成员；临时链接
+ * 只供核验，最终复制者按精确 sourceAlias 跳过并另外生成受控 shim。
+ */
 export type NpmProjection = Readonly<{
     inventory: TreeInventory;
     tree: BoundTree;
     files: readonly Readonly<{ fact: FileFact; source: Ref; origins: readonly Origin[] }>[];
 }>;
 
-/** 安全权限只保留只读或拥有者可写以及原执行位意图，归档组写和其它写权限不会直接进入 Runtime；独立 package 自有树摘要仍须与投影事实吻合，不能为了通过摘要而把实际落盘权限伪装成别的模式。 */
+/**
+ * 安全权限只保留只读或拥有者可写以及原执行位意图，归档组写和其它写权限不会直接进入 Runtime；独立 package 自有树摘要仍须
+ * 与投影事实吻合，不能为了通过摘要而把实际落盘权限伪装成别的模式。
+ */
 export function safeMode(mode: number): FileFact["mode"] {
     return mode & 0o111 ? (mode & 0o200 ? 0o755 : 0o555) : mode & 0o200 ? 0o644 : 0o444;
 }
 
-/** 单个已核普通文件通过 held FD 顺序流入事务独占文件，源和目标都不使用 hardlink 或跟随最后一级符号链接；每个父目录及文件身份在复制前后复核，关闭不确认必须持久记录到拥有者以阻止虚假清理成功。 */
+/**
+ * 单个已核普通文件通过 held FD 顺序流入事务独占文件，源和目标都不使用 hardlink 或跟随最后一级符号链接；每个父目录及文件
+ * 身份在复制前后复核，关闭不确认必须持久记录到拥有者以阻止虚假清理成功。
+ */
 export async function copyPayloadFile(
     tx: ArchiveTransaction,
     sourceRoot: string,
@@ -96,7 +105,10 @@ export async function copyPayloadFile(
     }
 }
 
-/** 来源文件复制需要完整纳秒身份相等，目录检查同样覆盖读取期间新增或替换子项的变化；比较不依赖文件内容恰好相同，因此同字节替换也不能在本次观察边界内悄悄取得原来源身份。 */
+/**
+ * 来源文件复制需要完整纳秒身份相等，目录检查同样覆盖读取期间新增或替换子项的变化；比较不依赖文件内容恰好相同，因此同字
+ * 节替换也不能在本次观察边界内悄悄取得原来源身份。
+ */
 function same(a: BigIntStats, b: BigIntStats) {
     return (
         a.dev === b.dev &&
@@ -110,7 +122,8 @@ function same(a: BigIntStats, b: BigIntStats) {
 }
 
 /**
- * npm 链接只解析本次 intake 已核原始成员，每跳保持树内并受三十二跳和循环上限；终点只能为普通文件，目录 alias 永远不能展开成重复目录，返回 Origins 同时保留每个原 raw target 的 UTF8 摘
+ * npm 链接只解析本次 intake 已核原始成员，每跳保持树内并受三十二跳和循环上限；终点只能为普通文件，目录 alias 永远不能展
+ * 开成重复目录，返回 Origins 同时保留每个原 raw target 的 UTF8 摘
  * 要。
  */
 export function npmLinkSource(
@@ -149,7 +162,8 @@ export function npmLinkSource(
 }
 
 /**
- * npm 投影先完整复制真实正文和受限临时 bin alias，再以独立 reader 核物理库存与共享 package 内容规则；原输入 native inspection 始终使用另一个 reader，所有 reader 都
+ * npm 投影先完整复制真实正文和受限临时 bin alias，再以独立 reader 核物理库存与共享 package 内容规则；原输入 native
+ * inspection 始终使用另一个 reader，所有 reader 都
  * 在生成 shim 或其它目录变换前完成身份收尾。
  */
 export async function projectNpm(
@@ -269,7 +283,10 @@ export async function projectNpm(
     return freeze({ inventory, tree, files });
 }
 
-/** 小型已核 JSON 或固定生成字节以单块异步源进入同一事务写入器，仍经过独占写入和摘要权限审计；普通输入正文另走顺序流复制，不能借此辅助函数把整个 Node 或 Chrome 大文件装进内存。 */
+/**
+ * 小型已核 JSON 或固定生成字节以单块异步源进入同一事务写入器，仍经过独占写入和摘要权限审计；普通输入正文另走顺序流复制
+ * ，不能借此辅助函数把整个 Node 或 Chrome 大文件装进内存。
+ */
 export async function* once(bytes: Uint8Array) {
     yield bytes;
 }

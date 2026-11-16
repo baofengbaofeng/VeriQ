@@ -1,4 +1,7 @@
-/** Windows 原生边界统一使用当前用户 SID、受保护 DACL 与精确 FILETIME 身份；句柄通过唯一所有者释放，任何权限检查失败都会抛出稳定错误，不能退回公共管道或仅凭 PID 操作。 */
+/**
+ * Windows 原生边界统一使用当前用户 SID、受保护 DACL 与精确 FILETIME 身份；句柄通过唯一所有者释放，任何权限检查失败都会
+ * 抛出稳定错误，不能退回公共管道或仅凭 PID 操作。
+ */
 #pragma once
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -11,7 +14,10 @@
 #include <utility>
 
 namespace veriq {
-/** 原生失败携带固定源码错误码及调用当时的 Win32 状态，逻辑条件失败的系统码固定为零；附加位仅表示 ACL 检查结果，不保存路径、SID 或业务数据，使异步管道诊断不会因异常展开丢失真正失败原因。 */
+/**
+ * 原生失败携带固定源码错误码及调用当时的 Win32 状态，逻辑条件失败的系统码固定为零；附加位仅表示 ACL 检查结果，不保存路
+ * 径、SID 或业务数据，使异步管道诊断不会因异常展开丢失真正失败原因。
+ */
 class NativeFailure : public std::runtime_error {
 public:
     DWORD win32;
@@ -19,7 +25,10 @@ public:
     NativeFailure(const char* code, DWORD system = 0, DWORD evidence = 0) : std::runtime_error(code), win32(
         system), checks(evidence) {}
 };
-/** 每个内核句柄在本层只具有一个释放者，移动操作清空原值，异常离开作用域时仍会关闭资源；无效句柄与空句柄统一拒绝使用，禁止把裸 HANDLE 数值传给 JavaScript 或当作 Node 文件描述符。 */
+/**
+ * 每个内核句柄在本层只具有一个释放者，移动操作清空原值，异常离开作用域时仍会关闭资源；无效句柄与空句柄统一拒绝使用，禁
+ * 止把裸 HANDLE 数值传给 JavaScript 或当作 Node 文件描述符。
+ */
 class Handle {
 public:
     HANDLE value = INVALID_HANDLE_VALUE;
@@ -77,13 +86,19 @@ inline std::string creationTime(HANDLE process) {
     exact.HighPart = creation.dwHighDateTime;
     return std::to_string(exact.QuadPart);
 }
-/** 停止事件名同时绑定随机 nonce、守护与工作进程的 PID 和完整 FILETIME，双方必须用同一拥有关系生成名称；创建时间始终保留十进制字符串，不经过浮点转换，也不兼容仅凭 nonce 打开其他任务事件的旧名称。 */
+/**
+ * 停止事件名同时绑定随机 nonce、守护与工作进程的 PID 和完整 FILETIME，双方必须用同一拥有关系生成名称；创建时间始终保留
+ * 十进制字符串，不经过浮点转换，也不兼容仅凭 nonce 打开其他任务事件的旧名称。
+ */
 inline std::wstring stopEventName(const std::wstring& nonce, DWORD guardianPid, const std::string& guardianTime,
     DWORD workerPid, const std::string& workerTime) {
     return L"Local\\VeriQ-stop-" + nonce + L"-" + std::to_wstring(guardianPid) + L"-" + wide(guardianTime) +
         L"-" + std::to_wstring(workerPid) + L"-" + wide(workerTime);
 }
-/** 创建对象时就安装当前用户独占的保护 DACL，目录可显式让当前 SID 权限继承到库创建的子对象；句柄默认不继承，只有显式子进程标准流允许继承，避免先创建公共文件再事后收紧的暴露窗口。 */
+/**
+ * 创建对象时就安装当前用户独占的保护 DACL，目录可显式让当前 SID 权限继承到库创建的子对象；句柄默认不继承，只有显式子进
+ * 程标准流允许继承，避免先创建公共文件再事后收紧的暴露窗口。
+ */
 class PrivateSecurity {
     PSECURITY_DESCRIPTOR descriptor = nullptr;
 public:
@@ -99,7 +114,10 @@ public:
     PrivateSecurity(const PrivateSecurity&) = delete;
     PrivateSecurity& operator=(const PrivateSecurity&) = delete;
 };
-/** ACL 检查通过已打开句柄拒绝非当前用户所有者与额外允许项，默认仍要求保护且非继承的单一当前 SID；文件适配器仅在已持有私有父链时允许继承项，管道与内核对象不使用此例外。 */
+/**
+ * ACL 检查通过已打开句柄拒绝非当前用户所有者与额外允许项，默认仍要求保护且非继承的单一当前 SID；文件适配器仅在已持有私
+ * 有父链时允许继承项，管道与内核对象不使用此例外。
+ */
 inline void verifyPrivate(HANDLE handle, SE_OBJECT_TYPE type = SE_FILE_OBJECT, bool privateParent = false) {
     require(!privateParent || type == SE_FILE_OBJECT, "NATIVE_ACL_NOT_PRIVATE");
     PSID owner = nullptr;

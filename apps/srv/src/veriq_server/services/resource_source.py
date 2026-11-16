@@ -1,4 +1,6 @@
-"""已发布编译源码读取核对回执、VALIDATE Job 与 CompiledAssetBundle 后仅暴露白名单 TS 路径。回执须匹配修订/源哈希/引擎/MANAGED；size 不一致拒绝，防清单漂移。"""
+"""已发布编译源码读取核对回执、VALIDATE Job 与 CompiledAssetBundle 后仅暴露白名单 TS
+路径。回执须匹配修订/源哈希/引擎/MANAGED；size 不一致拒绝，防清单漂移。
+"""
 
 import json
 import re
@@ -16,7 +18,8 @@ async def compiled_source(
     repo: ResourceRepository, resource_id: str, version_id: str, path: str | None
 ) -> tuple[dict[str, Any], bytes | None]:
     """验证发布溯源后返回元数据，可选读取单个生成 TypeScript 文件字节，compiled_source 路径必须遵守 Workspace 作用域。
-    compiled_source 实现于 apps/srv/src/veriq_server/services/resource_source.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    compiled_source 实现于 apps/srv/src/veriq_server/services/resource_source.py：请按该符号的输入校验、
+    错误码与调用方契约阅读，勿假设通用成功默认值。
     """
     await repo.resource(resource_id)
     version = await repo.version(version_id)

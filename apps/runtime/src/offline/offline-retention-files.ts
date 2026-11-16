@@ -1,12 +1,16 @@
-/** 保留期文件适配只接收已核验报告或包清单，Linux 以持有目录描述符锚定所有操作，Windows/Darwin 交给固定用途原生入口；所有文件先核同一实体的大小和流式摘要再退休，未知权限、链接、名称或关闭错误保持失败，不提供任
- * 意根目录 rm。 */
+/** 保留期文件适配只接收已核验报告或包清单，Linux 以持有目录描述符锚定所有操作，Windows/Darwin 交给固定用途原生入口；
+ * 所有文件先核同一实体的大小和流式摘要再退休，未知权限、链接、名称或关闭错误保持失败，不提供任
+ * 意根目录 rm。
+ */
 import { constants } from "node:fs";
 import { open, opendir, lstat, rename, unlink, rmdir, type FileHandle } from "node:fs/promises";
 import { join, parse, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { safePath } from "./verify.ts";
 
-/** 文件描述符只包含相对清单名、精确长度与 SHA256，宿主不将绝对目录或文件系统操作能力交给 renderer；证据单项最大三十二 MiB，缓存整份清单至多四千零九十八文件和一百二十八 MiB。 */
+/** 文件描述符只包含相对清单名、精确长度与 SHA256，宿主不将绝对目录或文件系统操作能力交给 renderer；证据单项最大三十二
+ * MiB，缓存整份清单至多四千零九十八文件和一百二十八 MiB。
+ */
 export interface RetentionFile {
     path: string;
     sizeBytes: number;
@@ -15,7 +19,9 @@ export interface RetentionFile {
 const MAX_FILE = 32 * 1024 * 1024;
 const missing = (error: unknown) => (error as NodeJS.ErrnoException).code === "ENOENT";
 
-/** Linux 私有根从卷根逐级拒绝符号链接并保留最终原始目录 fd，后续通过 proc 引用操作这个对象；最终七百模式、当前 uid 与目录类型不能由 chmod 修复，缓存只读子树必须另经隔离授权才允许改变权限。 */
+/** Linux 私有根从卷根逐级拒绝符号链接并保留最终原始目录 fd，后续通过 proc 引用操作这个对象；最终七百模式、当前 uid
+ * 与目录类型不能由 chmod 修复，缓存只读子树必须另经隔离授权才允许改变权限。
+ */
 async function parent(directory: string): Promise<FileHandle> {
     directory = resolve(directory);
     let handle = await open(parse(directory).root, constants.O_RDONLY | constants.O_DIRECTORY);
@@ -42,7 +48,9 @@ async function parent(directory: string): Promise<FileHandle> {
 }
 const pathAt = (directory: FileHandle, name: string) => `/proc/self/fd/${directory.fd}/${name}`;
 
-/** 描述符限额与严格路径语法在接触文件系统前检查，成员不能携带根、父目录、反斜杠或深层路径；清单累计额度独立检查，不因为每项合法就允许无限总字节、重复别名或无限递归深度。 */
+/** 描述符限额与严格路径语法在接触文件系统前检查，成员不能携带根、父目录、反斜杠或深层路径；清单累计额度独立检查，
+ * 不因为每项合法就允许无限总字节、重复别名或无限递归深度。
+ */
 function checked(files: RetentionFile[]): void {
     if (files.length > 4098) throw new Error("LOCAL_RETENTION_INVENTORY_LIMIT");
     let bytes = 0;
@@ -64,8 +72,10 @@ function checked(files: RetentionFile[]): void {
     if (bytes > 128 * 1024 * 1024) throw new Error("LOCAL_RETENTION_INVENTORY_LIMIT");
 }
 
-/** 同一普通单链接文件在流式摘要前后都检查 inode、时间、模式与长度，再核父目录当前同名 inode 后 unlink；已退休成员的真实 ENOENT 可供重做，任何其他错误都保留失败，必要目录刷新或文件关闭也不能被当作清理成
- * 功吞掉。 */
+/** 同一普通单链接文件在流式摘要前后都检查 inode、时间、模式与长度，再核父目录当前同名 inode 后 unlink；
+ * 已退休成员的真实 ENOENT 可供重做，任何其他错误都保留失败，必要目录刷新或文件关闭也不能被当作清理成
+ * 功吞掉。
+ */
 async function retireFile(
     directory: FileHandle,
     name: string,
@@ -132,8 +142,10 @@ async function retireFile(
     }
 }
 
-/** 原始证据退休仅由可信报告描述符选择一段文件名，并固定在本档案 offline/work/Attempt/evidence 下；每个平台实际核验摘要与大小，不递归工作目录、不删除凭据、不跟随链接，也不从文件 mtime 推导保留
- * 年龄。 */
+/** 原始证据退休仅由可信报告描述符选择一段文件名，并固定在本档案 offline/work/Attempt/evidence 下；
+ * 每个平台实际核验摘要与大小，不递归工作目录、不删除凭据、不跟随链接，也不从文件 mtime 推导保留
+ * 年龄。
+ */
 export async function retireEvidence(
     profile: string,
     attemptId: string,
@@ -176,8 +188,10 @@ export async function retireEvidence(
     }
 }
 
-/** 缓存删除只接受 profile/bundles 下已核验 UUID 的完整有限清单，先隔离到对应退休名称再改变只读目录；任何未知成员导致保留现场，重启使用已经提交的清单重做缺失成员，绝不按 renderer 路径或任意目录递归
- * 清空。 */
+/** 缓存删除只接受 profile/bundles 下已核验 UUID 的完整有限清单，先隔离到对应退休名称再改变只读目录；
+ * 任何未知成员导致保留现场，重启使用已经提交的清单重做缺失成员，绝不按 renderer 路径或任意目录递归
+ * 清空。
+ */
 export async function retireInventory(
     profile: string,
     bundleId: string,

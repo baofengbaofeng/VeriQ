@@ -1,6 +1,8 @@
-"""VeriQ 发行编排器按前端检查构建、完整暂存、服务检查测试、wheel、干净安装和原子输出顺序执行，所有阶段以同一源码及锁文件身份绑定；失败证据保留在 work，而成功指针最后才切换。
+"""VeriQ 发行编排器按前端检查构建、完整暂存、服务检查测试、wheel、干净安装和原子输出顺序执行，所有阶段以同一源码及锁文件
+身份绑定；失败证据保留在 work，而成功指针最后才切换。
 
-应急跳过只影响动态测试，不影响类型、格式、注释或包完整性门禁。构建独占锁覆盖所有共享暂存文件，取消也不会产生成功 release.json。正常发布要求在 Ubuntu24.04 x64 与 Python3.12 上实际验证。
+应急跳过只影响动态测试，不影响类型、格式、注释或包完整性门禁。构建独占锁覆盖所有共享暂存文件，取消也不会产生成功
+release.json。正常发布要求在 Ubuntu24.04 x64 与 Python3.12 上实际验证。
 容器镜像有独立流水线，不能把宿主验证写成镜像证明。
 """
 
@@ -34,7 +36,8 @@ from release_support import safe_path
 
 @dataclass(frozen=True)
 class BuildOptions:
-    """构建参数明确是否跳过动态测试、对应原因和新引擎版本，根目录来自入口而非任意清理目标；调用方不能通过选项关闭静态、包完整性或目标平台验证。
+    """构建参数明确是否跳过动态测试、对应原因和新引擎版本，根目录来自入口而非任意清理目标；调用方不能通过选项关闭静态、
+    包完整性或目标平台验证。
 
     默认值代表正常完整发行。引擎版本独立于产品版本，旧库存不在构建时自动晋升。
     """
@@ -49,9 +52,11 @@ ReleaseManifest = dict[str, Any]
 
 
 def source_binding(root: Path, run_process: RunProcess = subprocess.run) -> dict[str, str]:
-    """记录全部受版本控制的源码与新增未忽略文件的精确散列，构建结束时重新读取并比较；生成物与私有证据不进入 Git 文件集合，锁文件仍明确参与相同身份检查。
+    """记录全部受版本控制的源码与新增未忽略文件的精确散列，构建结束时重新读取并比较；生成物与私有证据不进入 Git
+    文件集合，锁文件仍明确参与相同身份检查。
 
-    字节身份比单独的 commit 更严格，能够检测脏工作区或运行期间编辑。正常发行仍另外要求工作区干净，候选验证可独立使用这份映射。
+    字节身份比单独的 commit 更严格，能够检测脏工作区或运行期间编辑。正常发行仍另外要求工作区干净，
+    候选验证可独立使用这份映射。
     """
     names = run_process(
         ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
@@ -68,9 +73,11 @@ def source_binding(root: Path, run_process: RunProcess = subprocess.run) -> dict
 
 
 def publish(candidate: Path, output: Path) -> None:
-    """候选具备验证状态与摘要清单后才移动到不可变目录并原子替换 server 符号链接；任何前置校验失败都保留旧指针，已有普通目录不会被递归清理或静默覆盖。
+    """候选具备验证状态与摘要清单后才移动到不可变目录并原子替换 server 符号链接；任何前置校验失败都保留旧指针，
+    已有普通目录不会被递归清理或静默覆盖。
 
-    版本目录与指针位于同一文件系统，os.replace 提供单次切换。旧版本保留供运维审查和回滚，构建器不自动删除历史发行。发布前核对 sha256sums，防止最后阶段的文件修改被遗漏。
+    版本目录与指针位于同一文件系统，os.replace 提供单次切换。旧版本保留供运维审查和回滚，构建器不自动删除历史发行。
+    发布前核对 sha256sums，防止最后阶段的文件修改被遗漏。
     """
     safe_path(candidate)
     manifest = json.loads((candidate / "release.json").read_bytes())
@@ -121,9 +128,11 @@ def publish(candidate: Path, output: Path) -> None:
 
 
 def build_release(options: BuildOptions) -> ReleaseManifest:
-    """在独占构建锁内运行真实工具与默认完整测试，逐阶段保存命令、开始结束时间和退出结果；只有完整包校验、离线启动、源码复核与目标 ABI 验收全部成功后才发布。
+    """在独占构建锁内运行真实工具与默认完整测试，逐阶段保存命令、开始结束时间和退出结果；只有完整包校验、离线启动、
+    源码复核与目标 ABI 验收全部成功后才发布。
 
-    子进程继承显式测试配置但日志不打印环境变量。数据库相关测试统一由同一 flock 串行，避免夹具互相清空数据库。SDK 保持原始两个工作进程和超时，不配置重试到通过。缺测试配置或浏览器的默认构建直接失败。所有测试跳过状态写入
+    子进程继承显式测试配置但日志不打印环境变量。数据库相关测试统一由同一 flock 串行，避免夹具互相清空数据库。SDK
+    保持原始两个工作进程和超时，不配置重试到通过。缺测试配置或浏览器的默认构建直接失败。所有测试跳过状态写入
     release，常规 CI 还会明确拒绝应急包。
     """
     root = options.root.resolve()
@@ -144,7 +153,8 @@ def build_release(options: BuildOptions) -> ReleaseManifest:
             records = []
 
             def command(name: str, argv: list[str]) -> None:
-                """每个真实命令单独保存日志与时间，退出失败时立刻写入阶段记录并中止后续步骤；不捕获并忽略 CalledProcessError，也不把缺条件的测试改成成功状态。
+                """每个真实命令单独保存日志与时间，退出失败时立刻写入阶段记录并中止后续步骤；不捕获并忽略
+                CalledProcessError，也不把缺条件的测试改成成功状态。
 
                 argv 是数组，不经 shell 插值。记录仅包含公开命令参数，不读取机密环境值。
                 """
@@ -198,7 +208,8 @@ def build_release(options: BuildOptions) -> ReleaseManifest:
                 actual = managed.run(
                     [tool, "--version"], text=True, check=True, stdout=subprocess.PIPE
                 ).stdout.strip()
-                # Node 兼容条件只接受有限位数的规范稳定二十四主版本，不能把建议的大版本字符串写成实测身份；其余工具继续沿用原有版本门禁，探测成功后才形成候选构建记录。
+                # Node 兼容条件只接受有限位数的规范稳定二十四主版本，不能把建议的大版本字符串写成实测身份；
+                # 其余工具继续沿用原有版本门禁，探测成功后才形成候选构建记录。
                 compatible = (
                     re.fullmatch(r"v24\.(?:0|[1-9][0-9]{0,8})\.(?:0|[1-9][0-9]{0,8})", actual)
                     is not None
@@ -481,7 +492,8 @@ def build_release(options: BuildOptions) -> ReleaseManifest:
             (candidate / "release.json").write_text(json.dumps(manifest, indent=2) + "\n")
 
             def checksums() -> str:
-                """递归散列候选内全部普通文件并以相对路径记录，先生成归档内清单再增加归档本身摘要；仅排除清单自身，避免循环哈希，同时覆盖部署脚本、许可与 wheelhouse 的独立文件。
+                """递归散列候选内全部普通文件并以相对路径记录，先生成归档内清单再增加归档本身摘要；仅排除清单自身，
+                避免循环哈希，同时覆盖部署脚本、许可与 wheelhouse 的独立文件。
 
                 内层清单用于解压后的离线安装检查。外层清单额外绑定最终压缩包字节。
                 """
@@ -504,7 +516,8 @@ def build_release(options: BuildOptions) -> ReleaseManifest:
 
 
 def main() -> None:
-    """默认执行全部门禁，with-tests 是相同语义的显式别名，skip-tests 必须附带非空原因；命令行不会提供绕过静态验证或目标平台验证的隐藏选项。
+    """默认执行全部门禁，with-tests 是相同语义的显式别名，skip-tests 必须附带非空原因；命令行不会提供绕过静态验证或目标
+    平台验证的隐藏选项。
 
     错误结束保留 work 内日志，由操作员读取对应阶段。正常输出只有完整成功后返回的公开发行描述。
     """

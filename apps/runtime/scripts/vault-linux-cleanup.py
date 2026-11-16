@@ -1,4 +1,6 @@
-"""目标测试的兜底清理只通过稳定 pidfd 向已核验创建身份和用户的自有进程发信号，拒绝退回数字 PID 的检查后终止；本工具仅由构建验证调用，不是安装后 Runtime 的 Python 依赖或通用进程管理接口。"""
+"""目标测试的兜底清理只通过稳定 pidfd 向已核验创建身份和用户的自有进程发信号，拒绝退回数字 PID 的检查后终止；
+本工具仅由构建验证调用，不是安装后 Runtime 的 Python 依赖或通用进程管理接口。
+"""
 
 import errno
 import json
@@ -12,7 +14,9 @@ import time
 
 
 def exited(handle, timeout_ms):
-    """等待内核对同一进程句柄报告终止而不重新按数字 PID 查找目标，句柄即使在进程退出或编号被复用后也不会指向替代者；异常轮询状态必须失败关闭，不能把不可读取的进程路径猜成已完成停止。"""
+    """等待内核对同一进程句柄报告终止而不重新按数字 PID 查找目标，句柄即使在进程退出或编号被复用后也不会指向替代者；
+    异常轮询状态必须失败关闭，不能把不可读取的进程路径猜成已完成停止。
+    """
     poller = select.poll()
     poller.register(handle, select.POLLIN | select.POLLHUP)
     events = poller.poll(max(0, timeout_ms))
@@ -24,7 +28,9 @@ def exited(handle, timeout_ms):
 
 
 def cleanup(owner, deadline):
-    """先打开 pidfd 再核验登记的启动时刻、执行文件与全部用户身份，验证之后的信号始终使用该句柄而非原 PID；身份不匹配绝不发信号，整个批次还受共同期限约束，避免多个异常进程拖延清理或隐藏未确认退出。"""
+    """先打开 pidfd 再核验登记的启动时刻、执行文件与全部用户身份，验证之后的信号始终使用该句柄而非原 PID；
+    身份不匹配绝不发信号，整个批次还受共同期限约束，避免多个异常进程拖延清理或隐藏未确认退出。
+    """
     if set(owner) != {"pid", "uid", "start", "executable"}:
         raise RuntimeError("VAULT_PIDFD_OWNER_INVALID")
     pid = owner.get("pid")
@@ -89,7 +95,9 @@ def cleanup(owner, deadline):
 
 
 def main():
-    """登记文件以拒绝符号链接的方式打开并核验所有者、私有权限和大小，同一读取快照限定进程与目录数量；缺少 pidfd 支持或身份不完整时只报告失败，不改用数字信号，也不授权删除仍可能被进程使用的目录。"""
+    """登记文件以拒绝符号链接的方式打开并核验所有者、私有权限和大小，同一读取快照限定进程与目录数量；
+    缺少 pidfd 支持或身份不完整时只报告失败，不改用数字信号，也不授权删除仍可能被进程使用的目录。
+    """
     supported = hasattr(os, "pidfd_open") and hasattr(signal, "pidfd_send_signal")
     result = {
         "registryPresent": False,

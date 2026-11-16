@@ -1,4 +1,6 @@
-/** 整体凭据退休只处理显式确认的有限密文成员与确切系统密钥版本，非秘密意图在任何删除前落盘；完成标记持续阻止普通访问重新初始化，未知服务结果保留精确事实，不声称远端恰好一次或磁盘物理擦除。 */
+/** 整体凭据退休只处理显式确认的有限密文成员与确切系统密钥版本，非秘密意图在任何删除前落盘；完成标记持续阻止普通访问重新
+ * 初始化，未知服务结果保留精确事实，不声称远端恰好一次或磁盘物理擦除。
+ */
 import { createHash } from "node:crypto";
 import type { VaultKeyBackend } from "./backend.ts";
 import type { VaultFiles } from "./files.ts";
@@ -11,7 +13,9 @@ const digest = (value: string | Buffer) => createHash("sha256").update(value).di
 function fail(status: string): never {
     throw new Error(`VAULT_${status.replaceAll("-", "_").toUpperCase()}`);
 }
-/** 删除计划只包含已核验的档案身份、清单摘要和过去所有密钥版本的非秘密校验值，记录列表精确指向本档案密文；字段不能由渲染器或通用路径请求指定，构造者必须已经取得同一停止所有权和档案锁。 */
+/** 删除计划只包含已核验的档案身份、清单摘要和过去所有密钥版本的非秘密校验值，记录列表精确指向本档案密文；
+ * 字段不能由渲染器或通用路径请求指定，构造者必须已经取得同一停止所有权和档案锁。
+ */
 export type CredentialDeletion = {
     version: 1;
     profileId: string;
@@ -20,7 +24,9 @@ export type CredentialDeletion = {
     records: string[];
     keys: Array<{ keyVersion: string; keyHash: string; status: "pending" | "absent" }>;
 };
-/** 删除日志每次从私有文件严格解析，有限唯一成员和确切字段结构阻止损坏元数据授权任意删除；只将真实缺失解释为没有删除意图，解析失败或已完成却仍记录未确认密钥都不能进入普通初始化。 */
+/** 删除日志每次从私有文件严格解析，有限唯一成员和确切字段结构阻止损坏元数据授权任意删除；只将真实缺失解释为没有删除意
+ * 图，解析失败或已完成却仍记录未确认密钥都不能进入普通初始化。
+ */
 export async function readCredentialDeletion(
     files: VaultFiles,
 ): Promise<CredentialDeletion | undefined> {
@@ -64,7 +70,9 @@ export async function readCredentialDeletion(
         fail("deletion-corrupt");
     return value;
 }
-/** 所有普通消费与空初始化恢复都必须先观察删除标记，尚未完成和已经完成分别返回稳定错误；该函数只读取元数据，不触发密钥访问、文件恢复或重新生成档案，因此调用方不能无意撤销用户的删除决定。 */
+/** 所有普通消费与空初始化恢复都必须先观察删除标记，尚未完成和已经完成分别返回稳定错误；该函数只读取元数据，
+ * 不触发密钥访问、文件恢复或重新生成档案，因此调用方不能无意撤销用户的删除决定。
+ */
 export async function requireNotDeleting(files: VaultFiles): Promise<void> {
     const journal = await readCredentialDeletion(files);
     if (journal)
@@ -88,7 +96,9 @@ async function observedKey(
     }
     return true;
 }
-/** 退休先核对所有现存精确密钥并持久化意图，再删除全部密文与索引，最后逐版本删除和读回确认缺失；每次显式继续先读实际状态，已缺失时不重放删除，晚出现的旧意图也必须匹配原摘要才能退休。 */
+/** 退休先核对所有现存精确密钥并持久化意图，再删除全部密文与索引，最后逐版本删除和读回确认缺失；
+ * 每次显式继续先读实际状态，已缺失时不重放删除，晚出现的旧意图也必须匹配原摘要才能退休。
+ */
 export async function retireCredentialFiles(
     files: VaultFiles,
     backend: VaultKeyBackend,

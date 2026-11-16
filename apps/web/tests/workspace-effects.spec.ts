@@ -1,4 +1,6 @@
-/** VeriQ 的作用域测试直接挂载产品 Provider 与真实 QueryClient，并以已提交信号、订阅关闭及查询取消为观察依据；页面测试仅延迟真实服务器响应，不构造资源或替换权限数据。 */
+/** VeriQ 的作用域测试直接挂载产品 Provider 与真实 QueryClient，并以已提交信号、订阅关闭及查询取消为观察依据；页面测试仅
+ * 延迟真实服务器响应，不构造资源或替换权限数据。
+ */
 import { fileURLToPath } from "node:url";
 import { test, expect } from "@playwright/test";
 
@@ -17,7 +19,8 @@ test("actual Provider preserves scopes and releases the latest committed scope",
             $RefreshSig$: () => (type: unknown) => type,
             __vite_plugin_react_preamble_installed__: true,
         });
-        // 私有 Vite 缓存中的依赖带各自的浏览器版本参数，这里只读取实际模块地址以共享产品使用的 React 与查询上下文；断言始终观察真实组件行为而不检查源码字符串。
+        // 私有 Vite 缓存中的依赖带各自的浏览器版本参数，这里只读取实际模块地址以共享产品使用的 React 与查询上下文；断言
+        // 始终观察真实组件行为而不检查源码字符串。
         const source = await (await fetch("/src/features/workspaces/WorkspaceContext.tsx")).text();
         const reactPath = source.match(/from "([^"\n]+\/react\.js[^"\n]*)"/)?.[1];
         if (!reactPath) throw new Error("Missing browser React module");
@@ -35,7 +38,8 @@ test("actual Provider preserves scopes and releases the latest committed scope",
         let scope: ReturnType<typeof useWorkspace>;
         let client: ReturnType<typeof useQueryClient>;
         const events: string[] = [];
-        // biome-ignore lint/correctness/noComponentHookFactories: 此组件必须在序列化到浏览器的隔离回调中定义，该回调每项测试只执行一次，重复渲染始终复用同一函数身份，不能捕
+        // biome-ignore lint/correctness/noComponentHookFactories: 此组件必须在序列化到浏览器的隔离回调中定义，该回调每
+        // 项测试只执行一次，重复渲染始终复用同一函数身份，不能捕
         // 获 Node 测试进程的模块或状态。
         function Probe() {
             scope = useWorkspace();
@@ -155,7 +159,9 @@ test("actual Provider preserves scopes and releases the latest committed scope",
     expect(result.retainedCurrent).toBe("Alpha");
 });
 
-/** 页面入口均使用真实登录、空间创建和服务查询，先收到后端完成的旧列表再通过可见选择器切换，最后释放原响应并验证当前空间的表单没有被默认首项或引用变化重置。 */
+/** 页面入口均使用真实登录、空间创建和服务查询，先收到后端完成的旧列表再通过可见选择器切换，最后释放原响应并验证当前空间
+ * 的表单没有被默认首项或引用变化重置。
+ */
 test("four GUI entry selectors retain manual selection across real list refetch", async ({
     page,
 }) => {

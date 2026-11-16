@@ -1,5 +1,6 @@
 /**
- * 本机保留期退休只接受受信任清单列出的有限普通文件，正文按固定缓冲区交给系统 SHA256 后才删除同一实际句柄；只读缓存先通过真实目录句柄隔离到专用退休名字，之后才清除只读位，不扩大凭据或配置读取容量，也不向 JavaScript
+ * 本机保留期退休只接受受信任清单列出的有限普通文件，正文按固定缓冲区交给系统 SHA256 后才删除同一实际句柄；只读缓存先通
+ * 过真实目录句柄隔离到专用退休名字，之后才清除只读位，不扩大凭据或配置读取容量，也不向 JavaScript
  * 返回正文或句柄。
  */
 #pragma once
@@ -11,7 +12,10 @@
 #include <memory>
 
 namespace veriq {
-/** 每个清单条目都由宿主已验签资源或已上传报告给出准确长度和摘要，原生再次核对普通单链接文件并流式读取；同句柄拒绝写共享，实际删除仍由这个已核验实体完成，不在检查后按完整路径重开。 */
+/**
+ * 每个清单条目都由宿主已验签资源或已上传报告给出准确长度和摘要，原生再次核对普通单链接文件并流式读取；同句柄拒绝写共享
+ * ，实际删除仍由这个已核验实体完成，不在检查后按完整路径重开。
+ */
 struct RetentionFile { std::wstring path; unsigned long long size; std::string sha256; };
 inline std::string retentionDigest(HANDLE file, unsigned long long expected) {
     HCRYPTPROV provider = 0;
@@ -46,7 +50,10 @@ inline std::string retentionDigest(HANDLE file, unsigned long long expected) {
         throw;
     }
 }
-/** 系统文件标识与长度在流式摘要前后都必须稳定，硬链接、非当前用户、重解析或目录对象全部拒绝；只读属性只允许已隔离缓存清除，报告 evidence 原始目录不会因此被赋予改变权限或删除未知文件的能力。 */
+/**
+ * 系统文件标识与长度在流式摘要前后都必须稳定，硬链接、非当前用户、重解析或目录对象全部拒绝；只读属性只允许已隔离缓存清
+ * 除，报告 evidence 原始目录不会因此被赋予改变权限或删除未知文件的能力。
+ */
 inline void retireRetentionFile(const DirectoryChain& parent, const std::wstring& name, const RetentionFile& expected,
     bool isolated) {
     auto file = relativeFile(parent.handle(), name, GENERIC_READ | DELETE | READ_CONTROL | FILE_READ_ATTRIBUTES | (
@@ -82,7 +89,10 @@ inline void retireRetentionFile(const DirectoryChain& parent, const std::wstring
     const HANDLE removed = std::exchange(file.value, INVALID_HANDLE_VALUE);
     requireWin32(CloseHandle(removed) != 0, "NATIVE_RETENTION_REMOVE_UNCONFIRMED");
 }
-/** 原始证据入口的目录后缀固定为 offline/work/Attempt/evidence，文件名字只能是一段报告清单成员；它没有递归或权限修复行为，真实缺失由外层明确映射幂等完成，其他读取、摘要或关闭错误保持失败。 */
+/**
+ * 原始证据入口的目录后缀固定为 offline/work/Attempt/evidence，文件名字只能是一段报告清单成员；它没有递归或权限修复行为
+ * ，真实缺失由外层明确映射幂等完成，其他读取、摘要或关闭错误保持失败。
+ */
 inline void retirePrivateEvidence(const std::wstring& input, const RetentionFile& expected) {
     const FilePath path(input);
     const auto size = path.parts.size();
@@ -94,7 +104,10 @@ inline void retirePrivateEvidence(const std::wstring& input, const RetentionFile
     retireRetentionFile(parent, path.parts.back(), expected, false);
     parent.close();
 }
-/** 清单路径只能在隔离缓存根内逐级打开，每个中间目录保持祖先链且不共享删除；先枚举全部有限对象确认没有清单外文件，再删除允许成员，因此未知子目录、链接或额外内容会保留整个退休现场而不是被递归 rm。 */
+/**
+ * 清单路径只能在隔离缓存根内逐级打开，每个中间目录保持祖先链且不共享删除；先枚举全部有限对象确认没有清单外文件，再删除
+ * 允许成员，因此未知子目录、链接或额外内容会保留整个退休现场而不是被递归 rm。
+ */
 inline void retirePrivateInventory(const std::wstring& input, const std::wstring& original,
     const std::wstring& retiring,
     const std::vector<RetentionFile>& files) {

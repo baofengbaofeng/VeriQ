@@ -1,4 +1,6 @@
-/** 普通 Mac 流水线只观察有界协议、真实子进程退出及内存中的权限模板，这组测试绝不发送能够触及默认钥匙串的合法生产请求，因而不能代替独立登录会话中的持久存储验收。 */
+/** 普通 Mac 流水线只观察有界协议、真实子进程退出及内存中的权限模板，这组测试绝不发送能够触及默认钥匙串的合法生产请求，
+ * 因而不能代替独立登录会话中的持久存储验收。
+ */
 import test from "node:test";
 import assert from "node:assert/strict";
 import { nativeCall, nativePaths, requireMac, runMemoryChecks } from "../fixtures/darwin-vault.ts";

@@ -7,7 +7,10 @@ import { DependencyFiles, writeDependencySource } from "./runtime-dependency-fil
 import { decode, fail, limits, relative, sha, freeze } from "./runtime-payload-tree.ts";
 import type { Ref, SourceBindingV1 } from "./runtime-payload-inputs.ts";
 
-/** 生成包记录明确区分原始 Git 来源、原清单和输出清单，所有 JS 与声明文件来自本次真实 TypeScript 发射；消费者只能将输出文件当作生成材料，不能把它们倒写入 SourceBinding 冒充已存在的源码。 */
+/**
+ * 生成包记录明确区分原始 Git 来源、原清单和输出清单，所有 JS 与声明文件来自本次真实 TypeScript 发射；消费者只能将输出文
+ * 件当作生成材料，不能把它们倒写入 SourceBinding 冒充已存在的源码。
+ */
 export type GeneratedWorkspacePackage = Readonly<{
     name: string;
     version: string;
@@ -19,14 +22,20 @@ export type GeneratedWorkspacePackage = Readonly<{
     files: readonly Ref[];
 }>;
 
-/** 编译宿主文件保留实际绝对路径供后续同机材料复核，区别于 SourceBinding 中相对源码根的 Ref；第三方声明、标准库和编译器实现都属于宿主观察，不能借同形摘要结构被解释为原始 Git 文件。 */
+/**
+ * 编译宿主文件保留实际绝对路径供后续同机材料复核，区别于 SourceBinding 中相对源码根的 Ref；第三方声明、标准库和编译器实
+ * 现都属于宿主观察，不能借同形摘要结构被解释为原始 Git 文件。
+ */
 export type WorkspaceCompilerFile = Readonly<{
     absolutePath: string;
     sizeBytes: number;
     sha256: string;
 }>;
 
-/** 编译证据记录真实工具版本、选项、读取文件摘要和全部输出，原始源码与生成包路径保持不同根语义；它描述本次宿主操作而不扩展现有收据的来源认证强度，也不签发引擎批准或最终发行状态。 */
+/**
+ * 编译证据记录真实工具版本、选项、读取文件摘要和全部输出，原始源码与生成包路径保持不同根语义；它描述本次宿主操作而不扩
+ * 展现有收据的来源认证强度，也不签发引擎批准或最终发行状态。
+ */
 export type WorkspaceGenerationEvidence = Readonly<{
     typescriptVersion: string;
     compilerImplementation: readonly WorkspaceCompilerFile[];
@@ -35,7 +44,10 @@ export type WorkspaceGenerationEvidence = Readonly<{
     packages: readonly GeneratedWorkspacePackage[];
 }>;
 
-/** 递归源集合先确认每个真实节点类型和路径预算，再与绑定中对应子树完全比较，遗漏的源码或资产都会失败；链接、测试目录和共享 node_modules 不会通过扫描进入生产工作区生成包。 */
+/**
+ * 递归源集合先确认每个真实节点类型和路径预算，再与绑定中对应子树完全比较，遗漏的源码或资产都会失败；链接、测试目录和共
+ * 享 node_modules 不会通过扫描进入生产工作区生成包。
+ */
 async function sourceMembers(
     root: string,
     prefix: string,
@@ -57,8 +69,11 @@ async function sourceMembers(
     return output.sort();
 }
 
-/** 包 exports 保留原有条件与全部子路径，只把指向已发射 TypeScript 模块的字符串转换为对应 JavaScript；schemas 通配符和其它资产路径逐字保留，不能用只有点入口的简化清单丢掉 contracts
- *  的 openapi 或 schema 导出。 */
+/**
+ * 包 exports 保留原有条件与全部子路径，只把指向已发射 TypeScript 模块的字符串转换为对应 JavaScript；schemas 通配符和其
+ * 它资产路径逐字保留，不能用只有点入口的简化清单丢掉 contracts
+ * 的 openapi 或 schema 导出。
+ */
 function emittedExports(value: unknown): unknown {
     if (typeof value === "string") return value.replace(/(?<!\.d)\.ts$/, ".js");
     if (Array.isArray(value)) return value.map(emittedExports);
@@ -70,8 +85,11 @@ function emittedExports(value: unknown): unknown {
     fail("PAYLOAD_RECEIPT_MISMATCH");
 }
 
-/** 生产工作区使用仓库已声明 TypeScript API 发射 contracts 与 SDK 的真实 JS 和声明文件，并保存全部原清单与资产；引擎 compiler 的 TS 归档与显式 tsx 调用完全由既有引擎生产器负责
- * ，此函数不安装全局加载器。 */
+/**
+ * 生产工作区使用仓库已声明 TypeScript API 发射 contracts 与 SDK 的真实 JS 和声明文件，并保存全部原清单与资产；引擎
+ * compiler 的 TS 归档与显式 tsx 调用完全由既有引擎生产器负责
+ * ，此函数不安装全局加载器。
+ */
 export async function materializeRuntimeWorkspacePackages(
     options: Readonly<{
         sourceRoot: string;
@@ -148,7 +166,8 @@ export async function materializeRuntimeWorkspacePackages(
         rootDir: join(sourceRoot, "packages"),
         typeRoots: [join(sourceRoot, "packages/runner-sdk/node_modules/@types")],
     };
-    // 编译器的同步宿主只记录已实际读取的字节，读取来源包时必须存在独立绑定；第三方声明和 TypeScript 标准库也保留摘要，后续验证可识别真实宿主工具输入而不会误称它们是 Git 原源码。
+    // 编译器的同步宿主只记录已实际读取的字节，读取来源包时必须存在独立绑定；第三方声明和 TypeScript 标准库也保留摘要，
+    // 后续验证可识别真实宿主工具输入而不会误称它们是 Git 原源码。
     const host = ts.createCompilerHost(compilerOptions);
     const originalRead = host.readFile.bind(host);
     const compilerReads = new Map<string, WorkspaceCompilerFile>();
@@ -240,7 +259,8 @@ export async function materializeRuntimeWorkspacePackages(
             files: outputRefs,
         });
     }
-    // emit 结束后重新持有编译器实际读取的全部源文件、声明和工具文件，避免同步读取记录在等待写出之后失效；文本输入要求 UTF8 原字节一致，带 BOM 或编码变化不能通过 TypeScript 的解码宽容掩盖。
+    // emit 结束后重新持有编译器实际读取的全部源文件、声明和工具文件，避免同步读取记录在等待写出之后失效；文本输入要求
+    // UTF8 原字节一致，带 BOM 或编码变化不能通过 TypeScript 的解码宽容掩盖。
     for (const ref of compilerReads.values()) {
         const bytes = await files.read(ref.absolutePath, limits.javascript);
         if (bytes.length !== ref.sizeBytes || sha(bytes) !== ref.sha256)

@@ -1,5 +1,7 @@
-/** 此有限子程序只在临时 Linux CI 的自有专用账户和 bind 卷内运行，实际跨进程创建、读取与退休凭据并检查权限拒绝；所有业务值均为公开合成标记，随机原始密钥绝不写入输出，测试不声称 OS vault、机器掉电或正式部署
- * 持久性验收。 */
+/** 此有限子程序只在临时 Linux CI 的自有专用账户和 bind 卷内运行，实际跨进程创建、读取与退休凭据并检查权限拒绝；所有业务
+ * 值均为公开合成标记，随机原始密钥绝不写入输出，测试不声称 OS vault、机器掉电或正式部署
+ * 持久性验收。
+ */
 import assert from "node:assert/strict";
 import { constants } from "node:fs";
 import { isIndependentNode24 } from "../../src/node-version.ts";
@@ -39,7 +41,8 @@ assert.equal(code.mode & 0o777, 0o755);
 assert.equal(source.uid, 0);
 assert.equal(source.mode & 0o777, 0o644);
 /**
- * 服务进程在凭据工厂之前亲自打开固定夹具祖先，防止 root 能读目录却掩盖降权账户只有执行权限的布局错误；同一持有句柄须确认 root 拥有、七五五模式及原目录 inode，finally 关闭后再把实际身份写入阶段报告，不读
+ * 服务进程在凭据工厂之前亲自打开固定夹具祖先，防止 root 能读目录却掩盖降权账户只有执行权限的布局错误；同一持有句柄须确
+ * 认 root 拥有、七五五模式及原目录 inode，finally 关闭后再把实际身份写入阶段报告，不读
  * 取拥有标记或任何凭据。
  */
 assert.equal(process.getuid!(), Number(uid));
@@ -141,7 +144,8 @@ assert.equal(process.getuid!(), Number(uid));
 assert.equal((await backend.probe(AbortSignal.timeout(5000))).status, "ready");
 if (phase === "closure") {
     /**
-     * 此枚举必须经过 tsx 所用的 esbuild 转换才能在默认 Node24 类型擦除模式下执行，随后逐个真实导入部署 manifest 的生产公共入口；只记录最终落在副本树内的入口，不调用浏览器、CLI 或控制平台，
+     * 此枚举必须经过 tsx 所用的 esbuild 转换才能在默认 Node24 类型擦除模式下执行，随后逐个真实导入部署 manifest 的生产
+     * 公共入口；只记录最终落在副本树内的入口，不调用浏览器、CLI 或控制平台，
      * 从而单独证明准备闭包的离网装载能力。
      */
     enum LoaderMarker {
@@ -247,7 +251,9 @@ if (phase === "closure") {
             "missing",
         );
     }
-    /** 这里注入发生在真实文件发布及真实 unlink 已完成后的返回错误，验证生产后端不会把清理异常误报成未修改；故障是明确的测试缝，不声称内核真实失败，后续仍用正式读取确认精确密钥存在或缺失。 */
+    /** 这里注入发生在真实文件发布及真实 unlink 已完成后的返回错误，验证生产后端不会把清理异常误报成未修改；故障是明确的
+     * 测试缝，不声称内核真实失败，后续仍用正式读取确认精确密钥存在或缺失。
+     */
     const uncertainScope = { profileId: randomUUID(), keyVersion: randomUUID() },
         uncertainMaterial = randomBytes(32);
     const originalClose = VaultFiles.prototype.close,

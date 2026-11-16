@@ -58,7 +58,10 @@ import type {
 } from "./runtime-payload-inputs.ts";
 import { RuntimePayloadError } from "./runtime-payload-inputs.ts";
 
-/** 依赖生产输入固定源码、真实消费者和独占离线安装位置，宿主动作沿用已有有界进程接口；调用者提供的是工具路径而不是依赖收据或 NODE_RESOLVE 声明，所有成功事实都必须来自本次实际动作及物理读取。 */
+/**
+ * 依赖生产输入固定源码、真实消费者和独占离线安装位置，宿主动作沿用已有有界进程接口；调用者提供的是工具路径而不是依赖收
+ * 据或 NODE_RESOLVE 声明，所有成功事实都必须来自本次实际动作及物理读取。
+ */
 export type DependencyInputOptions = Readonly<{
     source: SourceBindingV1;
     dependencies: Omit<Build, "commandEvidence">;
@@ -104,7 +107,10 @@ type ResolverRow = {
     require: { path: string | null; error: string | null };
 };
 
-/** 来源策略绑定当前生产器及冻结锁原文，不接受与来源绑定无关的 config 或任意工具集合；源文件不能占用依赖树与证据前缀，预算在复制前执行，生成包的来源和输出因此不会互相覆盖。 */
+/**
+ * 来源策略绑定当前生产器及冻结锁原文，不接受与来源绑定无关的 config 或任意工具集合；源文件不能占用依赖树与证据前缀，预
+ * 算在复制前执行，生成包的来源和输出因此不会互相覆盖。
+ */
 function sourcePolicy(source: SourceBindingV1, build: Omit<Build, "commandEvidence">) {
     checked(source, schemas.source);
     paths(source.files.map((ref) => ref.path));
@@ -143,7 +149,10 @@ function sourcePolicy(source: SourceBindingV1, build: Omit<Build, "commandEviden
             fail("PAYLOAD_RECEIPT_MISMATCH");
 }
 
-/** 原始安装布局由既有 CI 观察器真实采集，再逐个读取它刚写出的有界片段并核对摘要；观察器记录完整安装事实，最终依赖树只选择真实消费者可达闭包，未选择的包不会因位于同一 node_modules 就获得运行时根身份。 */
+/**
+ * 原始安装布局由既有 CI 观察器真实采集，再逐个读取它刚写出的有界片段并核对摘要；观察器记录完整安装事实，最终依赖树只选
+ * 择真实消费者可达闭包，未选择的包不会因位于同一 node_modules 就获得运行时根身份。
+ */
 async function observeInstallation(
     installation: string,
     evidenceDir: string,
@@ -171,7 +180,10 @@ async function observeInstallation(
     return { layout, records, artifacts };
 }
 
-/** 消费者需求直接从已经完成的入口和执行树字节分析，并保留实际 Runtime 相对路径；独立 tsx 根显式加入，内建和相对边仍由已有分类器检查，不从包清单把所有 Runtime 声明误当成实际入口根。 */
+/**
+ * 消费者需求直接从已经完成的入口和执行树字节分析，并保留实际 Runtime 相对路径；独立 tsx 根显式加入，内建和相对边仍由已
+ * 有分类器检查，不从包清单把所有 Runtime 声明误当成实际入口根。
+ */
 async function readConsumers(
     options: DependencyInputOptions["consumers"],
     signal: AbortSignal | undefined,
@@ -221,14 +233,20 @@ async function readConsumers(
     };
 }
 
-/** 包自有目录只从实际目录记录或真实生成文件父路径建立，嵌套 node_modules 由其它实例负责；父目录在最终完整库存中显式闭合，空目录也保留，不能只复制文件后忽略安装树的其它普通成员。 */
+/**
+ * 包自有目录只从实际目录记录或真实生成文件父路径建立，嵌套 node_modules 由其它实例负责；父目录在最终完整库存中显式闭合
+ * ，空目录也保留，不能只复制文件后忽略安装树的其它普通成员。
+ */
 function parents(path: string, directories: Set<string>) {
     for (let current = posix.dirname(path); current !== "."; current = posix.dirname(current))
         directories.add(current);
 }
 
-/** 单个 bin 声明保持原始目标正文和包路径，字符串简写按 npm 无 scope 名称展开；命令 alias 在最终 runtime 中重新生成，所以原安装 shim 仅留原始布局证据，不复制成改变相对查找语义的伪造可执行正文
- * 。 */
+/**
+ * 单个 bin 声明保持原始目标正文和包路径，字符串简写按 npm 无 scope 名称展开；命令 alias 在最终 runtime 中重新生成，所以
+ * 原安装 shim 仅留原始布局证据，不复制成改变相对查找语义的伪造可执行正文
+ * 。
+ */
 function binDeclarations(pkg: Record<string, unknown>) {
     if (pkg.bin === undefined) return [] as [string, string][];
     const raw =
@@ -248,7 +266,10 @@ function binDeclarations(pkg: Record<string, unknown>) {
     });
 }
 
-/** 原安装域的 bin 目录只能映射到与包根相同的有限 Runtime 安装域，Desktop 或其它工作区的命令不得意外获得公共胜者身份；这里处理路径归属，不分析 exports 或执行任意安装脚本正文。 */
+/**
+ * 原安装域的 bin 目录只能映射到与包根相同的有限 Runtime 安装域，Desktop 或其它工作区的命令不得意外获得公共胜者身份；这
+ * 里处理路径归属，不分析 exports 或执行任意安装脚本正文。
+ */
 function runtimeAliasPath(path: string): string | null {
     if (path.startsWith("node_modules/")) return path;
     if (path.startsWith("apps/runtime/node_modules/")) return path.slice("apps/runtime/".length);
@@ -258,7 +279,10 @@ function runtimeAliasPath(path: string): string | null {
     return null;
 }
 
-/** 依赖输入在调用者持有的单独 work 事务内生产，真正安装、编译、复制和目标解析完成后才进入回调；路径仅在这次所有权窗口内可消费，返回后继续核来源、工具、布局和视图，既不发布也不生成 Expected 或 ready。 */
+/**
+ * 依赖输入在调用者持有的单独 work 事务内生产，真正安装、编译、复制和目标解析完成后才进入回调；路径仅在这次所有权窗口内
+ * 可消费，返回后继续核来源、工具、布局和视图，既不发布也不生成 Expected 或 ready。
+ */
 export async function withDependencyInputViews<T>(
     work: ArchiveTransaction,
     options: DependencyInputOptions,
@@ -307,7 +331,8 @@ export async function withDependencyInputViews<T>(
         const bytes = await source.ref(ref, true, contentLimit(ref.path), false);
         await writeDependencySource(installation, ref.path, bytes);
     }
-    // 新生产器和观察器必须同时匹配当前执行源码，不能只把一个自报 SourceBinding 复制到安装目录；模块 URL 固定相对当前生产器，调用者无法替换宿主代码路径选择另一份生成实现。
+    // 新生产器和观察器必须同时匹配当前执行源码，不能只把一个自报 SourceBinding 复制到安装目录；模块 URL 固定相对当前生
+    // 产器，调用者无法替换宿主代码路径选择另一份生成实现。
     for (const path of requiredSources.filter(
         (path) => path.endsWith(".ts") || path.endsWith(".mjs"),
     )) {
@@ -395,7 +420,8 @@ export async function withDependencyInputViews<T>(
         "--store-dir",
         host.pnpmStore,
     ]);
-    // 原始来源和锁在安装动作之后全部逐字复核，安装留下的元数据由独立观察器采集；生产生成包只写另一个目录，绝不会通过改原始 manifests 或锁文件使冻结安装看起来成功。
+    // 原始来源和锁在安装动作之后全部逐字复核，安装留下的元数据由独立观察器采集；生产生成包只写另一个目录，绝不会通过改
+    // 原始 manifests 或锁文件使冻结安装看起来成功。
     for (const ref of metadata.source.files) {
         const bytes = await files.read(join(installation, ref.path), contentLimit(ref.path));
         if (bytes.length !== ref.sizeBytes || sha(bytes) !== ref.sha256)
@@ -648,7 +674,8 @@ export async function withDependencyInputViews<T>(
                 inspection,
             });
         }
-    // 公共 alias 的胜者必须来自持有的真实安装链接或固定 pnpm shim 的 exec 目标，不能按包遍历顺序选一个覆盖其它声明；其余命令保留完整正文并使用 owner 摘要派生的私有命名空间，使每个声明都有唯一可检查的启
+    // 公共 alias 的胜者必须来自持有的真实安装链接或固定 pnpm shim 的 exec 目标，不能按包遍历顺序选一个覆盖其它声明；其
+    // 余命令保留完整正文并使用 owner 摘要派生的私有命名空间，使每个声明都有唯一可检查的启
     // 动路径。
     const aliasGroups = new Map<string, Bin[]>();
     for (const bin of bins)
@@ -857,7 +884,8 @@ export async function withDependencyInputViews<T>(
             if (matching.length !== 1) fail("PAYLOAD_GRAPH_MISMATCH");
             return matching[0]!;
         });
-        // 部分真实平台包只有 bin/esbuild 这样的子路径而没有可导入的包根，优先使用实际 bin 再回退可导出的 package.json；所有候选都交给真实 Node，不能自己解释 exports 或把文件存在等同于
+        // 部分真实平台包只有 bin/esbuild 这样的子路径而没有可导入的包根，优先使用实际 bin 再回退可导出的 package.json；
+        // 所有候选都交给真实 Node，不能自己解释 exports 或把文件存在等同于
         // 已解析成功。
         const row =
             rows.find(

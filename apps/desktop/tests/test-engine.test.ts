@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { resolve } from "node:path";
 import { testEngine } from "../../../tests/e2e/engine.ts";
 
-/** 候选参数在任何平台夹具启动前必须完整且可校验，实际选定库存用于验证默认身份或本轮新候选以及错误规范摘要拒绝；这些测试不生产新候选、不写发行批准文件，也不依赖 renderer 提供版本来绕过库存验证。 */
+/** 候选参数在任何平台夹具启动前必须完整且可校验，实际选定库存用于验证默认身份或本轮新候选以及错误规范摘要拒绝；这些测试
+ * 不生产新候选、不写发行批准文件，也不依赖 renderer 提供版本来绕过库存验证。
+ */
 test(
     "trusted engine selection verifies the selected in" +
         "ventory and rejects incomplete or wrong identities",

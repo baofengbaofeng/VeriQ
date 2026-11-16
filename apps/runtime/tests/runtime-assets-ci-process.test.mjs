@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { runBoundedAssetCli } from "../scripts/runtime-assets-ci-process.mjs";
 
-// 真实微型子进程用二进制输出验证生命周期边界，去掉任一 close 等待或字节上限都会改变这里的可观察结果；不创建官方归档、不替换摘要算法，也不运行被提取的程序或扩展清理到未登记后代。
+// 真实微型子进程用二进制输出验证生命周期边界，去掉任一 close 等待或字节上限都会改变这里的可观察结果；不创建官方归档、不
+// 替换摘要算法，也不运行被提取的程序或扩展清理到未登记后代。
 const run = (source, timeoutMs = 4000) =>
     runBoundedAssetCli({
         executable: process.execPath,
@@ -109,7 +110,8 @@ test("ignored SIGTERM is forcibly closed within the fixed outer grace", async ()
     gone(result);
 });
 
-// stdout 溢出也必须进入相同的有限强制关闭通道，不能只有超时分支才安排 SIGKILL；这里让真实子进程忽略首个信号，观察最终信号与完整前缀，确保停止原因不被后来的定时器改写成 timeout。
+// stdout 溢出也必须进入相同的有限强制关闭通道，不能只有超时分支才安排 SIGKILL；这里让真实子进程忽略首个信号，观察最终信
+// 号与完整前缀，确保停止原因不被后来的定时器改写成 timeout。
 test("stdout overflow also forcibly closes a child that ignores SIGTERM", async () => {
     const result = await run(
         'process.on("SIGTERM",()=>{});process.stdout.write(Buffer.alloc(128*1024,99));setInterval(()=>{},1000);',

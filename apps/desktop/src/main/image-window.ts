@@ -1,7 +1,9 @@
 import { BrowserWindow, nativeImage, session } from "electron";
 import { randomUUID } from "node:crypto";
 
-/** 截图预览只接收宿主已经核验过的有界图像字节，原生解码成功后转成固定 PNG 数据地址；独立窗口没有脚本、preload、平台 Cookie 或文件 URL，因此关闭后也不需要保留明文导出副本。 */
+/** 截图预览只接收宿主已经核验过的有界图像字节，原生解码成功后转成固定 PNG 数据地址；独立窗口没有脚本、preload、平台
+ * Cookie 或文件 URL，因此关闭后也不需要保留明文导出副本。
+ */
 export async function openNativeImage(bytes: Uint8Array): Promise<void> {
     if (bytes.length > 32 * 1024 * 1024) throw new Error("IMAGE_SIZE_LIMIT");
     const decoded = nativeImage.createFromBuffer(Buffer.from(bytes));

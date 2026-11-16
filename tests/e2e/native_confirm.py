@@ -1,4 +1,6 @@
-"""私有 Xvfb 显示内只向当前 Electron 主窗口拥有的真实模态对话框发送确认按键，先沿聚焦窗口父链校验 WM_TRANSIENT_FOR，避免用替换对话框返回值或无目标的全局键盘事件伪造用户确认。"""
+"""私有 Xvfb 显示内只向当前 Electron 主窗口拥有的真实模态对话框发送确认按键，先沿聚焦窗口父链校验 WM_TRANSIENT_FOR，
+避免用替换对话框返回值或无目标的全局键盘事件伪造用户确认。
+"""
 
 import ctypes as c
 import sys

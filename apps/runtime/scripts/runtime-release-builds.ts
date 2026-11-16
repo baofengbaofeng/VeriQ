@@ -24,7 +24,8 @@ import {
 } from "./runtime-release-files.ts";
 
 /**
- * 构建上下文明确区分源码根、独占证据根和实际宿主 Node，真实命令统一交给已有有界管理器；没有可注入成功收据或预制二进制的字段，关闭未知时本轮根始终保留供后续人工处理。
+ * 构建上下文明确区分源码根、独占证据根和实际宿主 Node，真实命令统一交给已有有界管理器；没有可注入成功收据或预制二进制的
+ * 字段，关闭未知时本轮根始终保留供后续人工处理。
  * target 的 Darwin 类型仅用于旧 Mac 配方，跨平台构建使用单独命令入口，不能改写平台字符串冒充相同收据。
  */
 export type RuntimeBuildContext = Readonly<{
@@ -39,8 +40,10 @@ export type RuntimeBuildContext = Readonly<{
     timeoutMs: number;
     run: (invocation: HostBuildInvocation) => Promise<HostBuildObservation>;
     /**
-     * 可选签名只作用于本次新构建的两项正式 native 输出，操作员明确选择身份、受源码绑定的 entitlements 和时间戳策略；签名发生在最终库存及 receipt 摘要之前，原 Node/Chrome
-     * 归档绝不重签或改写。实际 signer 工具身份和每条命令单独进入不透明 commandEvidence，既有公共 Tool 枚举保持原构建工具语义，签名不自动晋升候选状态。
+     * 可选签名只作用于本次新构建的两项正式 native 输出，操作员明确选择身份、受源码绑定的 entitlements 和时间戳策略；签
+     * 名发生在最终库存及 receipt 摘要之前，原 Node/Chrome
+     * 归档绝不重签或改写。实际 signer 工具身份和每条命令单独进入不透明 commandEvidence，既有公共 Tool 枚举保持原构建工
+     * 具语义，签名不自动晋升候选状态。
      */
     nativeSigning?: Readonly<{
         identity: string;
@@ -50,7 +53,8 @@ export type RuntimeBuildContext = Readonly<{
 }>;
 
 /**
- * 命令结算在实际调用边界记录开始结束、宿主身份和全部原始有限输出，所有不完整关闭、信号、超时或截断都拒绝；本函数仅证明直接子进程的观察，不声称任意编译后代均已清理。
+ * 命令结算在实际调用边界记录开始结束、宿主身份和全部原始有限输出，所有不完整关闭、信号、超时或截断都拒绝；本函数仅证明
+ * 直接子进程的观察，不声称任意编译后代均已清理。
  * stdout 与 stderr 单独形成证据引用，JSON 不会把 Buffer 转成失去语义的数字数组，也不把命令日志解释成发行通过结论。
  */
 export async function observeRuntimeCommand(
@@ -77,7 +81,8 @@ export async function observeRuntimeCommand(
         Buffer.isBuffer(result.stderr) &&
         result.stdout.length <= 65536 &&
         result.stderr.length <= limits.json;
-    // 失败观察也必须留下事实而不是生成成功的领域收据；在关闭未知时只写到独立证据根，绝不遍历仍可能由子进程写入的构建根。
+    // 失败观察也必须留下事实而不是生成成功的领域收据；在关闭未知时只写到独立证据根，绝不遍历仍可能由子进程写入的构建根
+    // 。
     const stdout = bounded
         ? await writeReleaseBytes(
               context.inputRoot,
@@ -109,7 +114,9 @@ export async function observeRuntimeCommand(
     return { evidence, stdout: result.stdout.toString("utf8") };
 }
 
-/** Build 头只引用独立来源绑定中已有的真实 producer 与配置文件，锁摘要同样来自原始绑定；找不到任何必须文件立即拒绝，不自动补写来源文档以适应本轮产物。
+/**
+ * Build 头只引用独立来源绑定中已有的真实 producer 与配置文件，锁摘要同样来自原始绑定；找不到任何必须文件立即拒绝，不自
+ * 动补写来源文档以适应本轮产物。
  * commandEvidence 在真实动作完成后单独加入，避免把尚未执行的计划伪装成已运行收据。
  */
 export function runtimeBuildHeader(
@@ -134,7 +141,9 @@ export function runtimeBuildHeader(
     };
 }
 
-/** Mac 正式原生产物复用已有两个构建脚本，随后用系统 lipo 与 otool 检查本轮真实文件的架构及最低系统声明；SDK 路径和版本来自真实 xcrun，测试开关、故障宏和测试二进制从未进入命令参数。
+/**
+ * Mac 正式原生产物复用已有两个构建脚本，随后用系统 lipo 与 otool 检查本轮真实文件的架构及最低系统声明；SDK 路径和版本来
+ * 自真实 xcrun，测试开关、故障宏和测试二进制从未进入命令参数。
  * node-gyp 使用调用者明确提供的缓存，生产脚本自身的工具及头文件准备仍属于后续受控构建环境责任。
  * 本函数不执行 addon、Keychain helper 或任何真实凭据操作，静态构建证据不代表业务能力验收。
  */
@@ -380,7 +389,9 @@ export async function produceMacNativeTree(context: RuntimeBuildContext): Promis
     };
 }
 
-/** 引擎材料必须由既有生产编译器真实生成，而不是接收外部填充的 ENGINE_PAYLOAD 收据；已存在输出路径拒绝覆盖，原 inventory 使用现有 Schema 并单独核唯一目标条目和所有真实文件。
+/**
+ * 引擎材料必须由既有生产编译器真实生成，而不是接收外部填充的 ENGINE_PAYLOAD 收据；已存在输出路径拒绝覆盖，原 inventory
+ * 使用现有 Schema 并单独核唯一目标条目和所有真实文件。
  * 编译器包含原始 TS 源、SDK 与合同编译后的 JS、离线 vendor 包及冻结 npm 锁，版本和完整性由原 producer 决定。
  * candidate 没有签发者或晋升入口，ApprovedEngineInventoryV1 是现有文档格式名而非本次获得的批准结论。
  */

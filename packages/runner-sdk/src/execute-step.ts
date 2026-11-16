@@ -1,5 +1,5 @@
-/**
- * 本文件执行或跳过单个编译步骤：驱动观察器、断言与子步骤：并把实时事件交给上层登记回调（execute-step）（execute_step）。
+/** 本文件执行或跳过单个编译步骤：驱动观察器、断言与子步骤：并把实时事件交给上层登记回调（execute-step）（execute_step）
+ * 。
  */
 
 import { armEvent, type EventHandle } from "./observers/events.js";

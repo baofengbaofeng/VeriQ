@@ -24,8 +24,8 @@ export const Button = forwardRef<
 >(({ tone, className, type = "button", ...props }, ref) => (
     <button ref={ref} type={type} className={button({ tone, className })} {...props} />
 ));
-/**
- * 共享确认对话框保留 Radix 的焦点管理与键盘关闭语义，调用方可按当前语言提供按钮文案，未指定时沿用既有双语默认值，避免桌面旧入口因语言接入而改变确认动作或丢失取消路径。
+/** 共享确认对话框保留 Radix 的焦点管理与键盘关闭语义，调用方可按当前语言提供按钮文案，未指定时沿用既有双语默认值，
+ * 避免桌面旧入口因语言接入而改变确认动作或丢失取消路径。
  */
 export function ConfirmDialog({
     title,

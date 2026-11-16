@@ -1,6 +1,7 @@
 """操作员 CLI：初始化配置与安装密钥、迁移、诊断、创建管理员或启动 Tornado 控制服务，失败信息刻意不回显敏感输入。
 
-`init` 以 0600 独占写配置与 installation-secret，并登记密钥摘要；重复 init 保留已有主密钥环字节。issuer 子命令仅输出公钥元数据；create-admin 消费安装密钥后删除密钥文件。
+`init` 以 0600 独占写配置与 installation-secret，并登记密钥摘要；重复 init 保留已有主密钥环字节。issuer
+子命令仅输出公钥元数据；create-admin 消费安装密钥后删除密钥文件。
 异常路径统一短错误，避免 ValidationError/Problem 字符串化泄露口令或密钥材料。
 """
 
@@ -27,8 +28,10 @@ from .settings import Settings, load_settings, resolve_settings_values, operator
 
 
 def secure_write(path: Path, content: str) -> None:
-    """以目录 0700、文件 0600 且 O_EXCL 独占创建的方式写入操作员机密文件，拒绝覆盖已有路径，secure_write 的失败路径返回稳定错误。
-    secure_write 实现于 apps/srv/src/veriq_server/cli.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """以目录 0700、文件 0600 且 O_EXCL 独占创建的方式写入操作员机密文件，拒绝覆盖已有路径，secure_write
+    的失败路径返回稳定错误。
+    secure_write 实现于 apps/srv/src/veriq_server/cli.py：请按该符号的输入校验、错误码与调用方契约阅读，
+    勿假设通用成功默认值。
     """
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
@@ -225,7 +228,8 @@ async def run(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    """解析 veriq_server 子命令并运行异步入口；敏感校验失败时只打印固定短错误信息不回显输入，main 的失败路径返回稳定错误。main 实现于
+    """解析 veriq_server 子命令并运行异步入口；敏感校验失败时只打印固定短错误信息不回显输入，main
+    的失败路径返回稳定错误。main 实现于
 
     apps/srv/src/veriq_server/cli.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """

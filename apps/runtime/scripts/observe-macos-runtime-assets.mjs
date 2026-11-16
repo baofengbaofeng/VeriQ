@@ -4,7 +4,10 @@ import { observeMacRuntimeAssets } from "./runtime-assets-observation.ts";
 import { emitArchiveFailure } from "./runtime-payload-archive.ts";
 import { InputReader, decode } from "./runtime-payload-tree.ts";
 
-/** 资产工具只接受冻结的显式且各出现一次的参数，所有宿主路径必须绝对而候选名由核心入口核可移植规则；不从环境变量、网络或隐式工作目录补齐来源，成功 stdout 只包含完整封存结果 JSON，诊断只用稳定英文分类。 */
+/**
+ * 资产工具只接受冻结的显式且各出现一次的参数，所有宿主路径必须绝对而候选名由核心入口核可移植规则；不从环境变量、网络或
+ * 隐式工作目录补齐来源，成功 stdout 只包含完整封存结果 JSON，诊断只用稳定英文分类。
+ */
 function flags(args) {
     const names = ["--assets", "--input-root", "--output-parent", "--candidate"],
         values = new Map();
@@ -24,7 +27,10 @@ function flags(args) {
     if (values.size !== names.length) throw new RuntimePayloadError("PAYLOAD_INPUT_INVALID");
     return values;
 }
-/** 外层输入 JSON 复用原 reader 的 held FD、无链接祖先、四 MiB 实际长度与身份收尾策略，不另造宽松解析；核心入口随后同步复制字节并核固定来源与身份，外层读取不授予后续执行或布局信任。 */
+/**
+ * 外层输入 JSON 复用原 reader 的 held FD、无链接祖先、四 MiB 实际长度与身份收尾策略，不另造宽松解析；核心入口随后同步复
+ * 制字节并核固定来源与身份，外层读取不授予后续执行或布局信任。
+ */
 async function input(path) {
     const reader = new InputReader(dirname(path), controller.signal, []);
     await reader.initialize();
@@ -32,7 +38,10 @@ async function input(path) {
     await reader.finish();
     return bytes;
 }
-/** 信号处理只取消当前自有文件与流，首个信号启动五秒关闭期限，二次信号或期限到达明确报告 INCOMPLETE；CLI 不执行或转发信号给任何归档程序，SIGKILL 和断电不属于可确认清理范围，未确认 writer 的目录保留。 */
+/**
+ * 信号处理只取消当前自有文件与流，首个信号启动五秒关闭期限，二次信号或期限到达明确报告 INCOMPLETE；CLI 不执行或转发信号
+ * 给任何归档程序，SIGKILL 和断电不属于可确认清理范围，未确认 writer 的目录保留。
+ */
 const controller = new AbortController();
 let exit = 0,
     timer;

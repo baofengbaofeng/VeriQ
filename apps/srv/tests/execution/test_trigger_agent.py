@@ -1,4 +1,6 @@
-"""完整组合验收通过实际服务账号设备、已发布套件、HTTP 触发与 Node Agent 执行读取业务页面，再由独立 CI 进程轮询并下载安全 JUnit；测试保留开发 Chromium 来源而不冒称正式发行浏览器验收。"""
+"""完整组合验收通过实际服务账号设备、已发布套件、HTTP 触发与 Node Agent 执行读取业务页面，再由独立 CI
+进程轮询并下载安全 JUnit；测试保留开发 Chromium 来源而不冒称正式发行浏览器验收。
+"""
 
 import asyncio
 import json
@@ -17,7 +19,9 @@ business = test_agent_mysql.business
 
 
 async def test_real_service_plan_agent_ci_is_independent_of_creator_login(site, tmp_path, business):
-    """真实服务设备完成所有资源编译发布后，以受限执行令牌触发套件并禁用创建者员工；执行、凭证下发、完成和 CI 状态读取仍依赖独立服务主体，原始报告拒绝该令牌且安全 JUnit 不含业务密钥。"""
+    """真实服务设备完成所有资源编译发布后，以受限执行令牌触发套件并禁用创建者员工；执行、凭证下发、完成和 CI
+    状态读取仍依赖独立服务主体，原始报告拒绝该令牌且安全 JUnit 不含业务密钥。
+    """
     c, db = site
     await setup(c)
     await login(c)

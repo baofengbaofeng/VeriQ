@@ -29,7 +29,9 @@ const cliBinding: ObserverBinding = {
     commandSlot: "33333333-3333-3333-3333-333333333333",
 };
 
-/** 测试只借用两份本次私有普通文件并保留所有真实子对象，最终清理先等待实际退出再关闭描述符；动态加载让缺少实现的 RED 明确失败于公开能力而非静态解析。 */
+/** 测试只借用两份本次私有普通文件并保留所有真实子对象，最终清理先等待实际退出再关闭描述符；动态加载让缺少实现的 RED 明
+ * 确失败于公开能力而非静态解析。
+ */
 async function fixture(
     run: (f: {
         owner: ControlledCommandOwner;
@@ -94,7 +96,9 @@ async function fixture(
     }
 }
 
-/** 屏障使用普通本地 socket 而不为受控命令添加额外继承 FD，主体明确报告就绪后才发送取消或故障；测试结束总是关闭连接与监听器，不用睡眠猜测调度时机。 */
+/** 屏障使用普通本地 socket 而不为受控命令添加额外继承 FD，主体明确报告就绪后才发送取消或故障；测试结束总是关闭连接与监
+ * 听器，不用睡眠猜测调度时机。
+ */
 async function barrier(run: (port: number, ready: Promise<Socket>) => Promise<void>) {
     let accept!: (socket: Socket) => void;
     const ready = new Promise<Socket>((resolve) => {
@@ -116,7 +120,9 @@ const waiting =
     `import {connect} from 'node:net'; const socket=connect(Number(process.env.TEST_PORT),'127.0.0.1',(` +
     `)=>socket.write('ready')); socket.on('data',()=>socket.end());`;
 
-/** 两个直接命令的主体分别定位读取父日志以证明 INTENT 已经刷新，最终只接受固定顺序与原对象真实退出；命令失败码一仍是业务事实，不得被当成管理故障。 */
+/** 两个直接命令的主体分别定位读取父日志以证明 INTENT 已经刷新，最终只接受固定顺序与原对象真实退出；命令失败码一仍是业务
+ * 事实，不得被当成管理故障。
+ */
 test("durable intent precedes body and fixed completed prefix seals with real exit", async () => {
     await fixture(async ({ owner, start, root, commandFd }) => {
         const body =
@@ -143,7 +149,9 @@ test("durable intent precedes body and fixed completed prefix seals with real ex
     });
 });
 
-/** 正常 CLI 业务码零和一必须穿过同一个真实 preload 与最终验证器，未授权一百三十和观察专用七十三不能封存；每个用例的 npm 与编译器都是实际 Node 子对象。 */
+/** 正常 CLI 业务码零和一必须穿过同一个真实 preload 与最终验证器，未授权一百三十和观察专用七十三不能封存；每个用例的 npm
+ * 与编译器都是实际 Node 子对象。
+ */
 for (const code of [0, 1, 130, 73])
     test(`CLI ${code} retains business code only with valid management closure`, async () => {
         await fixture(async ({ owner, start }) => {
@@ -161,7 +169,9 @@ for (const code of [0, 1, 130, 73])
         });
     });
 
-/** 取消只接受本代完整绑定，重复有效取消不重复发信号；实际 CLI 先装 SIGINT 处理再经 socket 表示就绪，父侧授权后正常退出一百三十仍须完整日志核验。 */
+/** 取消只接受本代完整绑定，重复有效取消不重复发信号；实际 CLI 先装 SIGINT 处理再经 socket 表示就绪，父侧授权后正常退出
+ * 一百三十仍须完整日志核验。
+ */
 test("live CLI cancellation authorizes before SIGINT and rejects stale identities", async () => {
     await fixture(async ({ owner, start }) => {
         await start("npm", "").result;
@@ -201,7 +211,9 @@ test("live CLI cancellation authorizes before SIGINT and rejects stale identitie
     });
 });
 
-/** 超时只终结管理观察而不会伪造 exit，Promise 回调在真实 exit 事件前检查独立等待器仍挂起；随后实际退出仍保留粘滞故障且借入 FD 一直由测试拥有。 */
+/** 超时只终结管理观察而不会伪造 exit，Promise 回调在真实 exit 事件前检查独立等待器仍挂起；随后实际退出仍保留粘滞故障且
+ * 借入 FD 一直由测试拥有。
+ */
 test("timeout rejection is not actual exit and late exit cannot clear fault", async () => {
     await fixture(async ({ owner, start, commandFd, cliFd }) => {
         await barrier(async (port, ready) => {
@@ -222,7 +234,9 @@ test("timeout rejection is not actual exit and late exit cannot clear fault", as
     });
 });
 
-/** npm 与编译器只有本代主动取消才允许信号结清，提前取消关闭准入并可封存空前缀；未授权信号或真实 spawn error 都保持未知，不使用 ENOENT 猜测没有派生。 */
+/** npm 与编译器只有本代主动取消才允许信号结清，提前取消关闭准入并可封存空前缀；未授权信号或真实 spawn error 都保持未知
+ * ，不使用 ENOENT 猜测没有派生。
+ */
 test("direct cancellation retains signal while unrequested signal and spawn error prevent seal", async () => {
     await fixture(async ({ owner, start }) => {
         await barrier(async (port, ready) => {
@@ -266,7 +280,9 @@ test("direct cancellation retains signal while unrequested signal and spawn erro
     });
 });
 
-/** 固定三角色顺序和 kind 限制在派生前拒绝违规请求，故障关闭同样不再允许新命令；这些测试直接观察私有日志内容，不以产品源码字符串替代行为。 */
+/** 固定三角色顺序和 kind 限制在派生前拒绝违规请求，故障关闭同样不再允许新命令；这些测试直接观察私有日志内容，不以产品源
+ * 码字符串替代行为。
+ */
 test("role order, kind limits, pending object and owner faults fail closed", async () => {
     await fixture(async ({ owner, start }) => {
         assert.throws(() => start("compiler", ""), /CONTROLLED_COMMAND_ROLE_REJECTED/);
@@ -291,7 +307,9 @@ test("role order, kind limits, pending object and owner faults fail closed", asy
     });
 });
 
-/** npm 与编译器绝不继承激活标记或任一日志文件，检查 dev 与 inode 而非碰巧相同槽号；CLI 的普通 fork 被既有 preload 被动继承且不能获得日志描述符。 */
+/** npm 与编译器绝不继承激活标记或任一日志文件，检查 dev 与 inode 而非碰巧相同槽号；CLI 的普通 fork 被既有 preload 被动
+ * 继承且不能获得日志描述符。
+ */
 test("direct roles cannot inherit observer marker or either private journal", async () => {
     await fixture(async ({ owner, start, commandFd, cliFd }) => {
         const identities = [fstatSync(commandFd), fstatSync(cliFd)].map((s) => [
@@ -317,7 +335,9 @@ test("direct roles cannot inherit observer marker or either private journal", as
     });
 });
 
-/** 日志注入只替换测试进程的内建写入或刷新函数，真实文件和真实子对象仍由产品执行；短写可完成而零写入或刷新错误必须永久阻止封存，生产没有故障开关。 */
+/** 日志注入只替换测试进程的内建写入或刷新函数，真实文件和真实子对象仍由产品执行；短写可完成而零写入或刷新错误必须永久阻
+ * 止封存，生产没有故障开关。
+ */
 test("partial write completes while zero progress and fsync failure remain sticky", async () => {
     for (const mode of ["partial", "zero", "fsync"] as const)
         await fixture(async ({ owner, start }) => {
@@ -360,7 +380,9 @@ test("partial write completes while zero progress and fsync failure remain stick
         });
 });
 
-/** 真实固定 Playwright 公共 CLI 运行失败后更换 worker，全程不启动浏览器；新 owner 的三成员封存必须同时通过 CLI 的实际 fork 日志，业务失败码一不能吞成管理成功零。 */
+/** 真实固定 Playwright 公共 CLI 运行失败后更换 worker，全程不启动浏览器；新 owner 的三成员封存必须同时通过 CLI 的实际
+ * fork 日志，业务失败码一不能吞成管理成功零。
+ */
 test("fixed Playwright CLI replacement workers close through new command owner", async () => {
     const require = createRequire(import.meta.url);
     await fixture(async ({ owner, start, root, cliFd }) => {
@@ -396,7 +418,9 @@ test("fixed Playwright CLI replacement workers close through new command owner",
     });
 });
 
-/** CLI 缺少封存、真实 signal 或已经退出后才收到取消都不能产生管理成功；prepend exit 回调只让外部监听更早运行，仍不能在真实退出字段已经可见时补授权一百三十。 */
+/** CLI 缺少封存、真实 signal 或已经退出后才收到取消都不能产生管理成功；prepend exit 回调只让外部监听更早运行，仍不能在
+ * 真实退出字段已经可见时补授权一百三十。
+ */
 test("CLI missing seal, signal and late cancellation cannot become management success", async () => {
     for (const source of [
         "process.removeAllListeners('exit')",
@@ -416,7 +440,9 @@ test("CLI missing seal, signal and late cancellation cannot become management su
     }
 });
 
-/** 两份本代绑定必须结构精确且描述符对应不同空私有文件，调用方后续改写原配置不能移动身份；这些负例直接调用真实 FD 验证器而不伪造文件状态或复制协议解析规则。 */
+/** 两份本代绑定必须结构精确且描述符对应不同空私有文件，调用方后续改写原配置不能移动身份；这些负例直接调用真实 FD 验证器
+ * 而不伪造文件状态或复制协议解析规则。
+ */
 test("configuration rejects reused files and mismatched generation before READY", async () => {
     const { createControlledCommandOwner } = await import(
         "../src/execution/controlled-command.mjs"
@@ -459,7 +485,9 @@ test("configuration rejects reused files and mismatched generation before READY"
     }
 });
 
-/** CLI 显式映射到 fd4 后普通 fork 仍须保持自己的 fd3 IPC，继承 preload 只能处于被动模式；子进程逐个核对两份日志的设备与 inode，避免仅验证环境标记而漏掉可写 FD 继承。 */
+/** CLI 显式映射到 fd4 后普通 fork 仍须保持自己的 fd3 IPC，继承 preload 只能处于被动模式；子进程逐个核对两份日志的设备与
+ * inode，避免仅验证环境标记而漏掉可写 FD 继承。
+ */
 test("owner CLI preserves ordinary fork IPC without lending either journal", async () => {
     await fixture(async ({ owner, start, root, commandFd, cliFd }) => {
         await start("npm", "").result;
@@ -491,7 +519,9 @@ test("owner CLI preserves ordinary fork IPC without lending either journal", asy
     });
 });
 
-/** 派生已经返回之后的 SPAWNED 刷新失败不能遗失真实对象，管理失败立即拒绝但实际退出仍由原等待器结清；恢复测试刷新函数并不能恢复这一代所有者的封存资格。 */
+/** 派生已经返回之后的 SPAWNED 刷新失败不能遗失真实对象，管理失败立即拒绝但实际退出仍由原等待器结清；恢复测试刷新函数并
+ * 不能恢复这一代所有者的封存资格。
+ */
 test("spawn-frame flush failure retains actual object and sticky management error", async () => {
     await fixture(async ({ owner, start }) => {
         const originalSync = fs.fsyncSync;
@@ -511,7 +541,9 @@ test("spawn-frame flush failure retains actual object and sticky management erro
     });
 });
 
-/** 同步构造异常已经留下 INTENT，所有者必须固定管理故障且只抛出公开稳定码，不能再拒绝调用方根本拿不到的隐藏 promise；此例用真实 Node 参数检查触发异常而不伪造事件。 */
+/** 同步构造异常已经留下 INTENT，所有者必须固定管理故障且只抛出公开稳定码，不能再拒绝调用方根本拿不到的隐藏 promise；此
+ * 例用真实 Node 参数检查触发异常而不伪造事件。
+ */
 test("synchronous spawn exception cannot leak an unobservable rejection or seal intent", async () => {
     await fixture(async ({ owner }) => {
         assert.throws(

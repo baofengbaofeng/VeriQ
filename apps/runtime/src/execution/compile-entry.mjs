@@ -1,5 +1,6 @@
 /**
- * 本文件是工作进程内的编译入口桥接模块：只加载钉选发行中的编译器：不接受 DSL 或包外路径选择编译器（compile-entry/ASSET_VALIDATION_FAILED）。
+ * 本文件是工作进程内的编译入口桥接模块：只加载钉选发行中的编译器：不接受 DSL 或包外路径选择编译器（
+ * compile-entry/ASSET_VALIDATION_FAILED）。
  */
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join, dirname } from "node:path";

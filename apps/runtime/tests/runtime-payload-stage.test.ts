@@ -170,7 +170,8 @@ for (const arch of ["x64", "arm64"] as const)
         }
     });
 
-// 每份模式反例仍先经过真实 I 提取，只有 S 消费者拒绝缺少明确 Unix 类型权限的 ZIP；测试只改公开 central 属性并同步绑定归档与独立布局摘要，不把 I 当前可接受的 fallback 模式假称为原始权限证据。
+// 每份模式反例仍先经过真实 I 提取，只有 S 消费者拒绝缺少明确 Unix 类型权限的 ZIP；测试只改公开 central 属性并同步绑定归
+// 档与独立布局摘要，不把 I 当前可接受的 fallback 模式假称为原始权限证据。
 for (const mode of ["DOS", "ZERO"] as const)
     test(`S rejects ${mode} ZIP mode metadata even though fresh intake accepts fallback`, async () => {
         const { zipBytes, tarBytes } = await import("./fixtures/runtime-payload-archives.ts");
@@ -209,7 +210,8 @@ for (const mode of ["DOS", "ZERO"] as const)
         }
     });
 
-// 子 I 的未知写入或关闭事实必须粘住整个 work 父目录，外层独立 final 清理成功也不能擦掉 sentinel；故障发生在实际子事务 initialize 之后，确保测试观察的不是尚未创建工作目录的纯参数拒绝。
+// 子 I 的未知写入或关闭事实必须粘住整个 work 父目录，外层独立 final 清理成功也不能擦掉 sentinel；故障发生在实际子事务
+// initialize 之后，确保测试观察的不是尚未创建工作目录的纯参数拒绝。
 for (const outcome of [
     "COMMIT_UNCONFIRMED",
     "THROW_INCOMPLETE",
@@ -293,7 +295,8 @@ for (const outcome of [
         }
     });
 
-// 磁盘故障发生在 S 真正写入角色文件时才替换 FileHandle.write，I 快照和归档提取均保持正常；次要 close 失败在真实关闭后注入不确认结果，第一 ENOSPC 或 EDQUOT 必须保留，工作事务正常收尾不能抹掉 
+// 磁盘故障发生在 S 真正写入角色文件时才替换 FileHandle.write，I 快照和归档提取均保持正常；次要 close 失败在真实关闭后注
+// 入不确认结果，第一 ENOSPC 或 EDQUOT 必须保留，工作事务正常收尾不能抹掉
 // final 的不确定状态。
 for (const errno of ["ENOSPC", "EDQUOT"])
     for (const uncertain of [false, true])
@@ -400,7 +403,8 @@ for (const errno of ["ENOSPC", "EDQUOT"])
             }
         });
 
-// 最终路径的 D3a 必须真正再读文件，不能只沿用 scratch 库存或把 root 字段改名；在 rename 后 audit 完成与 D3a 开始之间修改候选正文，已提交目录要保留并报告提交不确定，绝不回传成功 JSON 或声称已
+// 最终路径的 D3a 必须真正再读文件，不能只沿用 scratch 库存或把 root 字段改名；在 rename 后 audit 完成与 D3a 开始之间修
+// 改候选正文，已提交目录要保留并报告提交不确定，绝不回传成功 JSON 或声称已
 // 回滚。
 test("actual final D3a detects post-rename content change and retains committed artifact", async (t) => {
     const { ArchiveTransaction } = await import("../scripts/runtime-payload-transaction.ts");
@@ -548,7 +552,8 @@ test("replaced final lock preserves successful candidate with cleanup INCOMPLETE
     }
 });
 
-// CLI 信号测试用独立已知宿主 Node 进程和 IPC 精确停在 S 角色写入边界，首信号可释放或故意保留 JavaScript 等待；后两种场景仅验证五秒或二次信号的诚实 INCOMPLETE 诊断，不声称能够取消永久卡在内核的 
+// CLI 信号测试用独立已知宿主 Node 进程和 IPC 精确停在 S 角色写入边界，首信号可释放或故意保留 JavaScript 等待；后两种场
+// 景仅验证五秒或二次信号的诚实 INCOMPLETE 诊断，不声称能够取消永久卡在内核的
 // writer。
 for (const scenario of ["SIGINT", "SIGTERM", "SECOND", "DEADLINE"] as const)
     test(`actual stage CLI ${scenario} reports controlled cancellation and owned cleanup`, async () => {
@@ -807,7 +812,8 @@ test("same-byte output ownership collision rejects instead of silently merging f
     }
 });
 
-// 内部 runtime 或 views 容器不应消耗最终逻辑成员的六十四层路径额度，测试只写一个微型普通文件并核实际模式和 audit；默认 intake 的已知前缀缩限不在此测试中放宽，也不伪称已修复其延期解析政策。
+// 内部 runtime 或 views 容器不应消耗最终逻辑成员的六十四层路径额度，测试只写一个微型普通文件并核实际模式和 audit；默认
+// intake 的已知前缀缩限不在此测试中放宽，也不伪称已修复其延期解析政策。
 for (const profile of ["runtime", "work"] as const)
     test(`${profile} fixed container preserves sixty-four component member budget`, async () => {
         const { ArchiveTransaction } = await import("../scripts/runtime-payload-transaction.ts");
@@ -902,8 +908,10 @@ await import('./scripts/stage-macos-runtime.mjs');`;
     }
 });
 
-/** 真实 S 目录写入的 primary chmod 或 sync 错误必须先于随后关闭错误返回，原输入与旧 artifact 不得变化；注入仅覆盖 runtime/browser 实际目录句柄，关闭计数只在真实 close 完成
-* 后增加，不把测试故障描述为无法关闭的内核资源。 */
+/** 真实 S 目录写入的 primary chmod 或 sync 错误必须先于随后关闭错误返回，原输入与旧 artifact 不得变化；注入仅覆盖
+ * runtime/browser 实际目录句柄，关闭计数只在真实 close 完成
+ * 后增加，不把测试故障描述为无法关闭的内核资源。
+ */
 for (const [operation, cause] of [
     ["chmod", "ENOSPC"],
     ["sync", "EDQUOT"],
@@ -1007,8 +1015,10 @@ for (const [operation, cause] of [
             }
         });
 
-/** 完整证据预算使用微型数值 Ref 模型验证边界，不创建六十四 MiB 正文或宣称模型摘要是真实文件来源；配方、独立 expected 和 intake 三份描述必须与普通 copied refs 同额收费，相同 SHA 的不同
-* 实际副本也不得去重逃过总额。 */
+/** 完整证据预算使用微型数值 Ref 模型验证边界，不创建六十四 MiB 正文或宣称模型摘要是真实文件来源；配方、独立 expected 和
+ * intake 三份描述必须与普通 copied refs 同额收费，相同 SHA 的不同
+ * 实际副本也不得去重逃过总额。
+ */
 test("R1 evidence budget includes all three descriptors beyond copied refs", () => {
     const ref = (path: string, sizeBytes: number): Ref => ({
         path,
@@ -1072,7 +1082,9 @@ test("R1 evidence budget rejects declarations whose combined integer size would 
     );
 });
 
-/** 真实子进程只包装精确 owned 快照的单次关闭回调，实际系统关闭成功后才注入 EIO；父进程等待自然终止并记录保留目录之后才删除自己的夹具，十秒看门狗只能判失败，不能替生产结算。 */
+/** 真实子进程只包装精确 owned 快照的单次关闭回调，实际系统关闭成功后才注入 EIO；父进程等待自然终止并记录保留目录之后才
+ * 删除自己的夹具，十秒看门狗只能判失败，不能替生产结算。
+ */
 for (const scenario of ["normal", "close-eio"])
     test(`finite ZIP close stage ${scenario}`, async (t) => {
         const { spawnSync } = await import("node:child_process");

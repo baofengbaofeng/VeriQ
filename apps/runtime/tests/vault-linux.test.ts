@@ -1,4 +1,6 @@
-/** 本地 Linux 后端测试运行实际自有子进程来观察协议、环境投影和取消后的真实退出，所有密钥都为合成内存值；脚本夹具只验证宿主边界，不替代目标系统 libsecret 或真实锁定保险库的证据。 */
+/** 本地 Linux 后端测试运行实际自有子进程来观察协议、环境投影和取消后的真实退出，所有密钥都为合成内存值；脚本夹具只验证
+ * 宿主边界，不替代目标系统 libsecret 或真实锁定保险库的证据。
+ */
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { randomBytes } from "node:crypto";

@@ -1,5 +1,6 @@
 /**
- * 本文件按真实平台分派 Attempt 监督器：Linux 保持子收割守护与 ECHILD 证明，Windows 使用独立 Job 守护，Darwin 只允许私有源码宿主能力启用受控对象所有权；各平台只在对应可信范围证明成立后确认停止。
+ * 本文件按真实平台分派 Attempt 监督器：Linux 保持子收割守护与 ECHILD 证明，Windows 使用独立 Job 守护，Darwin
+ * 只允许私有源码宿主能力启用受控对象所有权；各平台只在对应可信范围证明成立后确认停止。
  * 未知进程必须隔离容量。
  */
 
@@ -19,7 +20,8 @@ import { WindowsProcesses } from "./windows-processes.ts";
 import type { DarwinControlledLaunch, DarwinSourceCapability } from "./darwin-source.ts";
 import { DarwinProcesses } from "./darwin-processes.ts";
 /**
- * 停止回执分别记录是否已确认与实际核验的进程范围，缺失范围保持未声明；新范围只能由本次平台证明或持久未派生状态产生，读取旧回执不会补写或升级其保证。
+ * 停止回执分别记录是否已确认与实际核验的进程范围，缺失范围保持未声明；新范围只能由本次平台证明或持久未派生状态产生，
+ * 读取旧回执不会补写或升级其保证。
  */
 export interface StopReceipt {
     attemptId: string;
@@ -51,7 +53,9 @@ export interface Command {
  * 公开接口 OwnedProcess 暴露业务 worker 的 pid 与 IPC 通道：exited 等待退出码：firstLine/send 用于协议握手。
  */
 export interface OwnedProcess {
-    /** 这里公开业务工作进程的真实 PID，原生守护拥有另外的 PID 与进程组；停止证明会同时绑定两者，调用方不能把 IPC 子进程句柄中的守护身份误作业务工作进程身份。 */
+    /** 这里公开业务工作进程的真实 PID，原生守护拥有另外的 PID 与进程组；停止证明会同时绑定两者，调用方不能把 IPC
+     * 子进程句柄中的守护身份误作业务工作进程身份。
+     */
     pid: number;
     exited: Promise<{ code: number | null; signal: NodeJS.Signals | null }>;
     firstLine(): Promise<string>;
@@ -97,7 +101,9 @@ export class ProcessSupervisor {
     private stopping = new Map<string, Promise<StopReceipt>>();
     private windows: WindowsProcesses | undefined;
     private darwin: DarwinProcesses | undefined;
-    /** 安装宿主只能传入完整库存已核验的 guardian 路径，开发调用默认保持原目录；第四参只接受真实 Darwin 源码宿主签发的私有能力，缺少该能力仍拒绝启动，Linux 与 Windows 的持久身份及原强证明不变。 */
+    /** 安装宿主只能传入完整库存已核验的 guardian 路径，开发调用默认保持原目录；第四参只接受真实 Darwin
+     * 源码宿主签发的私有能力，缺少该能力仍拒绝启动，Linux 与 Windows 的持久身份及原强证明不变。
+     */
     constructor(
         private directory: string,
         private graceMs = 500,
@@ -136,7 +142,8 @@ export class ProcessSupervisor {
         }
     }
     /**
-     * 公开方法 start 先选择平台实现并写入进程日志，再拉起受信任的原生守护等待 READY 与 worker 身份校验通过；未支持的平台和重复 Attempt 都在业务执行前失败，不能绕过平台所有权协议。
+     * 公开方法 start 先选择平台实现并写入进程日志，再拉起受信任的原生守护等待 READY 与 worker 身份校验通过；
+     * 未支持的平台和重复 Attempt 都在业务执行前失败，不能绕过平台所有权协议。
      */
     async start(
         id: string,
@@ -147,7 +154,8 @@ export class ProcessSupervisor {
         if (this.darwin) return this.darwin.start(id, command, controlledLaunch);
         if (process.platform !== "linux") throw new Error("UNSUPPORTED_PROCESS_PLATFORM");
         if (this.live.has(id)) throw new Error("PROCESS_ALREADY_RUNNING");
-        // 启动前只检查安装宿主交入的固定守护路径是否可执行，业务 Job 无权选择该程序；缺少已构建组件时直接失败，不能通过搜索全局工具或临时编译改变发行组件身份。
+        // 启动前只检查安装宿主交入的固定守护路径是否可执行，业务 Job 无权选择该程序；缺少已构建组件时直接失败，
+        // 不能通过搜索全局工具或临时编译改变发行组件身份。
         try {
             await access(this.launcherPath, constants.X_OK);
         } catch {
@@ -320,7 +328,8 @@ export class ProcessSupervisor {
                 },
             };
             this.live.set(id, owned);
-            // 原生守护持有工作进程启动门，只有工作进程与守护的双身份都已持久化后才发送 START；即使待执行的是可信 Node 代码，也不能在恢复日志落盘之前开始运行。
+            // 原生守护持有工作进程启动门，只有工作进程与守护的双身份都已持久化后才发送 START；即使待执行的是可信 Node
+            // 代码，也不能在恢复日志落盘之前开始运行。
             control.write("START\n");
             return owned;
         } catch (error) {
@@ -331,7 +340,8 @@ export class ProcessSupervisor {
         }
     }
     /**
-     * 活性查询按真实平台执行，Linux 保持 proc 状态读取而 Darwin 只接受仍保留原始对象的身份；Darwin 缺少对象时明确未知，不能把数字 PID 查询、进程消失或单对象退出作为集合停止证明。
+     * 活性查询按真实平台执行，Linux 保持 proc 状态读取而 Darwin 只接受仍保留原始对象的身份；Darwin 缺少对象时明确未知，
+     * 不能把数字 PID 查询、进程消失或单对象退出作为集合停止证明。
      */
     async isRunning(pid: number) {
         if (this.windows) return this.windows.isRunning(pid);
@@ -350,7 +360,8 @@ export class ProcessSupervisor {
               : [...this.live.keys()];
     }
     /**
-     * 公开方法 terminateAttempt 按实际平台停止拥有的对象并等待证明，Darwin 可接收当前 Node performance.now 毫秒绝对期限且首次调用粘滞；Linux/Windows 保留原排空行为并忽略该
+     * 公开方法 terminateAttempt 按实际平台停止拥有的对象并等待证明，Darwin 可接收当前 Node performance.now
+     * 毫秒绝对期限且首次调用粘滞；Linux/Windows 保留原排空行为并忽略该
      * 可选参数，缺少实际证明时继续隔离容量。
      */
     terminateAttempt(
@@ -366,7 +377,9 @@ export class ProcessSupervisor {
         this.stopping.set(id, operation);
         return operation;
     }
-    /** 迁移观察只接受已经持久化的停止状态、完整双进程身份和真实排空证明，并再次核验守护确已退出；该接口不发信号、不保存状态、不释放执行容量，缺失或无法解析的私有记录只会返回未确认。 */
+    /** 迁移观察只接受已经持久化的停止状态、完整双进程身份和真实排空证明，并再次核验守护确已退出；该接口不发信号、
+     * 不保存状态、不释放执行容量，缺失或无法解析的私有记录只会返回未确认。
+     */
     async confirmStopped(id: string): Promise<boolean> {
         if (this.windows) return this.windows.confirmStopped(id);
         if (this.darwin) return this.darwin.confirmStopped(id);
@@ -443,7 +456,9 @@ export class ProcessSupervisor {
         this.live.delete(id);
     }
     private async stop(id: string, reason: string): Promise<StopReceipt> {
-        /** 范围仅随本次真实排空成功分支声明，所有身份、nonce 与原生证明核验仍在下方完成；失败回执不借根进程消失补成全后代保证，旧证明本次重新核验后才生成新的明确范围。 */
+        /** 范围仅随本次真实排空成功分支声明，所有身份、nonce 与原生证明核验仍在下方完成；失败回执不借根进程消失补成全后
+         * 代保证，旧证明本次重新核验后才生成新的明确范围。
+         */
         const receipt = (processStopped: boolean, why = reason): StopReceipt => ({
             attemptId: id,
             processStopped,
@@ -486,10 +501,12 @@ export class ProcessSupervisor {
             if (worker && (worker.uid !== journal.uid || worker.startTime !== journal.startTime))
                 return receipt(false, "PROCESS_IDENTITY_CHANGED");
             if (!guardian || ["Z", "X"].includes(guardian.state)) {
-                // 首次证明文件观察可能早于守护完成刷新和退出，这里再次观察原有交接窗口；仍必须匹配完整排空证明和守护身份，不能因为工作进程或守护先消失就宣称整棵树已停止。
+                // 首次证明文件观察可能早于守护完成刷新和退出，这里再次观察原有交接窗口；仍必须匹配完整排空证明和守护身
+                // 份，不能因为工作进程或守护先消失就宣称整棵树已停止。
                 const drained = await confirmed();
                 if (drained) return drained;
-                // 对已知工作进程的尽力停止无法证明失去守护的后代树已经排空，因此即使该 PID 的退出已被观察也必须保留不确定回执；后续恢复只能依赖原始守护生成的可信证明。
+                // 对已知工作进程的尽力停止无法证明失去守护的后代树已经排空，因此即使该 PID 的退出已被观察也必须保留不确
+                // 定回执；后续恢复只能依赖原始守护生成的可信证明。
                 if (worker && worker.group === journal.pid) process.kill(-worker.group, "SIGKILL");
                 this.releaseHandles(id);
                 return receipt(false, "CONTAINMENT_LOST");

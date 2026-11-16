@@ -49,13 +49,19 @@ export interface OfflineConfig {
     secrets: SecretStore;
     releaseDirectory: string;
     browserExecutable: string;
-    /** 离线宿主从完整发行清单选择执行角色及辅助模块路径，签名包仅选择受支持引擎版本而不携带可执行路径；源码开发调用可缺省，已安装入口必须显式提供已验证配置。 */
+    /** 离线宿主从完整发行清单选择执行角色及辅助模块路径，签名包仅选择受支持引擎版本而不携带可执行路径；
+     * 源码开发调用可缺省，已安装入口必须显式提供已验证配置。
+     */
     execution?: ExecutionPaths;
-    /** 当前源码宿主可显式借用工厂私有品牌能力，真实平台核验后才连接 Darwin 受控后端；离线包、Job 和 renderer 不能反序列化此对象，缺失能力不会因 headless、路径或系统名称而自动开放执行。 */
+    /** 当前源码宿主可显式借用工厂私有品牌能力，真实平台核验后才连接 Darwin 受控后端；离线包、Job 和 renderer
+     * 不能反序列化此对象，缺失能力不会因 headless、路径或系统名称而自动开放执行。
+     */
     darwinSource?: DarwinSourceCapability;
     deviceId: string;
     debug?: boolean;
-    /** 桌面宿主可以明确选择可见浏览器，默认仍保持无头执行；此字段只影响当前启动配置，不修改签名业务快照，宿主必须先证明安装的浏览器具备所选择的显示能力。 */
+    /** 桌面宿主可以明确选择可见浏览器，默认仍保持无头执行；此字段只影响当前启动配置，不修改签名业务快照，
+     * 宿主必须先证明安装的浏览器具备所选择的显示能力。
+     */
     headless?: boolean;
     signal?: AbortSignal;
     browsers?: Browser[];
@@ -259,8 +265,10 @@ async function attempt(
     );
     let cancellationObserver: ReturnType<typeof setInterval> | undefined;
     const controller = new AbortController();
-    /** Darwin 的首次取消立即调用并保存唯一终结操作，start 尚未返回 child 时也已同步登记准入；后续轮询、存储错误和 finally 共享同一预算，不以 ACK、短等待或未赋值的 child 推断已经退出或没
-     * 有派生。 */
+    /** Darwin 的首次取消立即调用并保存唯一终结操作，start 尚未返回 child 时也已同步登记准入；后续轮询、存储错误和
+     * finally 共享同一预算，不以 ACK、短等待或未赋值的 child 推断已经退出或没
+     * 有派生。
+     */
     const stopOnce = (why: string) =>
         (stopOperation ??= processes.terminateAttempt(attemptId, why));
     const unspawned = async () => {
@@ -487,13 +495,17 @@ async function attempt(
             process.env,
             { runnerExecutable: executionPaths.runnerExecutable },
         );
-        /** 在尝试提交启动意图之前关闭未派生快捷路径，SQLite 提交抛错也不能继续使用内存中的旧 ALLOCATED；只有完整成功取得新代际状态之后才允许调用原生监督器拉起进程。 */
+        /** 在尝试提交启动意图之前关闭未派生快捷路径，SQLite 提交抛错也不能继续使用内存中的旧 ALLOCATED；
+         * 只有完整成功取得新代际状态之后才允许调用原生监督器拉起进程。
+         */
         spawning = true;
         owner = store.spawning(runId, attemptId, owner);
         if (controller.signal.aborted || store.cancelled(runId)) throw new Error("USER_CANCELLED");
         startIssued = true;
-        /** 持久取消由其他 SQLite 连接写入而不会派发当前 AbortSignal，因此在实际启动准入之前武装相同一百毫秒观察；启动仍在等待 Chrome 或 READY 时也走首次停止操作，读取异常同样关闭准入，f
-         * inally 清除后才允许关闭数据库。 */
+        /** 持久取消由其他 SQLite 连接写入而不会派发当前 AbortSignal，因此在实际启动准入之前武装相同一百毫秒观察；
+         * 启动仍在等待 Chrome 或 READY 时也走首次停止操作，读取异常同样关闭准入，f
+         * inally 清除后才允许关闭数据库。
+         */
         if (source)
             cancellationObserver = setInterval(() => {
                 if (controller.signal.aborted) return;
@@ -584,7 +596,9 @@ async function attempt(
         }
         stop = await stopOnce(failure ?? "COMPLETED");
         if (!stop.processStopped) throw new Error("PROCESS_STOP_UNCONFIRMED");
-        /** 与线上保持独立的磁盘门禁：真实 CLI 停止之后但任何 add、哈希、证据事件和本地报告呈现之前验证最终 JSON；错误不借用 CLI 的业务退出码或受控停止范围，私有原始目录仅在保密定稿不确定时保留用于定位。 */
+        /** 与线上保持独立的磁盘门禁：真实 CLI 停止之后但任何 add、哈希、证据事件和本地报告呈现之前验证最终 JSON；
+         * 错误不借用 CLI 的业务退出码或受控停止范围，私有原始目录仅在保密定稿不确定时保留用于定位。
+         */
         if (source) {
             if (controller.signal.aborted || store.cancelled(runId))
                 throw new Error(failure ?? "USER_CANCELLED");
@@ -858,7 +872,8 @@ export async function runOffline(
     }
 }
 /**
- * 公开函数 recoverOffline 由原生宿主显式触发恢复或取消：对未知进程隔离容量：绝不自动释放未排空进程（recoverOffline/LOCAL_OWNERSHIP_CHANGED）。
+ * 公开函数 recoverOffline 由原生宿主显式触发恢复或取消：对未知进程隔离容量：绝不自动释放未排空进程（
+ * recoverOffline/LOCAL_OWNERSHIP_CHANGED）。
  */
 export async function recoverOffline(
     root: string,

@@ -1,10 +1,14 @@
-/** 资源、环境、断言、报告及离线包的补充中英文文案用于替换原先固定双语文本，动态插值只包含已有展示值；业务 JSON、版本引用和原始编译内容保持不变，不能被语言转换写回。 */
+/** 资源、环境、断言、报告及离线包的补充中英文文案用于替换原先固定双语文本，动态插值只包含已有展示值；业务 JSON、版本引
+ * 用和原始编译内容保持不变，不能被语言转换写回。
+ */
 export const editorMessages: Record<string, readonly [string, string]> = {
     "语言 / Language": ["语言", "Language"],
     Adapter: ["适配器", "Adapter"],
     "tokens · USD": ["Token · 美元", "tokens · USD"],
     "tokens)": ["Token）", "tokens)"],
-    ["前置断言先于本步骤监听器安装；网络响应、计数与耗时断言应放在后置阶段。模板同样受调用阶段约束。 / BEFORE runs before step observers are armed; network asse" +
+    ["前置断言先于本步骤监听器安装；网络响应、计数与耗时断言应放在后置阶段。模板同" +
+    "样受调用阶段约束。 / BEFORE runs before step observers are armed; network as" +
+    "se" +
     "rtions belong AFTER. Templates inherit the calling phase."]: [
         "前置断言先于本步骤监听器安装；网络响应、计数与耗时断言应放在后置阶段。模板同样受调用阶段约束。",
         "BEFORE runs before step observers are armed; network assertions belong AFTER. Templates inherit the cal" +
@@ -28,7 +32,8 @@ export const editorMessages: Record<string, readonly [string, string]> = {
         "仅显式选择；公共流程内部新页面不泄漏到调用方",
         "Explicit lexical page scope",
     ],
-    ["可填写调用方页面 key；实际调用时验证作用域，省略仍为原始页面。 / Symbolic caller page key; checked at the calling case. Omission means o" +
+    ["可填写调用方页面 key；实际调用时验证作用域，省略仍为原始页面。 / Symbolic ca" +
+    "ller page key; checked at the calling case. Omission means o" +
     "riginal page."]: [
         "可填写调用方页面 key；实际调用时验证作用域，省略仍为原始页面。",
         "Symbolic caller page key; checked at the calling case. Omission means original page.",
@@ -51,7 +56,8 @@ export const editorMessages: Record<string, readonly [string, string]> = {
     "预期值 / Expected value": ["预期值", "Expected value"],
     "离线包 / Offline bundles": ["离线包", "Offline bundles"],
     "Bundle Workspace": ["离线包工作区", "Bundle Workspace"],
-    ["签名用于来源与完整性校验。本地运行使用本机凭证，离线撤销状态未知。 / Signatures verify source and integrity. Local runs use local credential" +
+    ["签名用于来源与完整性校验。本地运行使用本机凭证，离线撤销状态未知。 / Signatu" +
+    "res verify source and integrity. Local runs use local credential" +
     "s; offline revocation status is unknown."]: [
         "签名用于来源与完整性校验。本地运行使用本机凭证，离线撤销状态未知。",
         "Signatures verify source and integrity. Local runs use local credentials; offline revocation status is " +
@@ -72,11 +78,11 @@ export const editorMessages: Record<string, readonly [string, string]> = {
     "移除 / Remove": ["移除", "Remove"],
     "环境版本 / Environment version": ["环境版本", "Environment version"],
     "更多环境版本 / More environment versions": ["更多环境版本", "More environment versions"],
-    "未验证 DSL 快照；本地必须先编译，不用于正式门禁。 / Unvalidated DSL snapshot; local compilation required, excluded from formal gates.":
-        [
-            "未验证 DSL 快照；本地必须先编译，不用于正式门禁。",
-            "Unvalidated DSL snapshot; local compilation required, excluded from formal gates.",
-        ],
+    ["未验证 DSL 快照；本地必须先编译，不用于正式门禁。 / Unvalidated DSL snapshot" +
+    "; local compilation required, excluded from formal gates."]: [
+        "未验证 DSL 快照；本地必须先编译，不用于正式门禁。",
+        "Unvalidated DSL snapshot; local compilation required, excluded from formal gates.",
+    ],
     "导出签名包 / Export signed bundle": ["导出签名包", "Export signed bundle"],
     "已导出 / Exports": ["已导出", "Exports"],
     "下载 / Download": ["下载", "Download"],
@@ -101,7 +107,8 @@ export const editorMessages: Record<string, readonly [string, string]> = {
             "这里只声明类型；实际值在执行时冻结，不写入生成源码",
             "Types only; values belong to execution snapshots.",
         ],
-    ["准备前只能引用所选数据集和已声明初始变量，不包含未来 Fixture 输出或提取值 / Before prepare: selected data columns and declared initial vari" +
+    ["准备前只能引用所选数据集和已声明初始变量，不包含未来 Fixture 输出或提取值 / " +
+    "Before prepare: selected data columns and declared initial vari" +
     "ables only."]: [
         "准备前只能引用所选数据集和已声明初始变量，不包含未来 Fixture 输出或提取值",
         "Before prepare: selected data columns and declared initial variables only.",
@@ -113,16 +120,18 @@ export const editorMessages: Record<string, readonly [string, string]> = {
     "关键步骤 / Critical": ["关键步骤", "Critical"],
     "失败策略 / Failure policy": ["失败策略", "Failure policy"],
     "动作页面 / Action page": ["动作页面", "Action page"],
-    ["可填写调用方或流程内先前捕获的页面 key；实际调用时检查词法作用域。流程内部页面不会泄漏给调用方。 / Caller or preceding flow page key; resolved in the cal" +
+    ["可填写调用方或流程内先前捕获的页面 key；实际调用时检查词法作用域。流程内部页" +
+    "面不会泄漏给调用方。 / Caller or preceding flow page key; resolved in the ca" +
+    "l" +
     "ling case. Flow-local pages do not escape."]: [
         "可填写调用方或流程内先前捕获的页面 key；实际调用时检查词法作用域。流程内部页面不会泄漏给调用方。",
         "Caller or preceding flow page key; resolved in the calling case. Flow-local pages do not escape.",
     ],
-    "省略=原始页面；本步骤捕获的新页面只供之后的断言和步骤使用 / Omitted means original page; new pages become available after capture.":
-        [
-            "省略=原始页面；本步骤捕获的新页面只供之后的断言和步骤使用",
-            "Omitted means original page; new pages become available after capture.",
-        ],
+    ["省略=原始页面；本步骤捕获的新页面只供之后的断言和步骤使用 / Omitted means or" +
+    "iginal page; new pages become available after capture."]: [
+        "省略=原始页面；本步骤捕获的新页面只供之后的断言和步骤使用",
+        "Omitted means original page; new pages become available after capture.",
+    ],
     "相对路径 / Origin-relative path": ["相对路径", "Origin-relative path"],
     "值 / Value (bindings allowed)": ["值", "Value (bindings allowed)"],
     "选项 / String or string array": ["选项", "String or string array"],
@@ -197,7 +206,8 @@ export const editorMessages: Record<string, readonly [string, string]> = {
         "环境身份与凭证",
         "Environment identities and credentials",
     ],
-    ["创建新的固定版本；原文不会回显。修改环境引用后需重新校验发布 / Create immutable versions; values are never returned. Republish environmen" +
+    ["创建新的固定版本；原文不会回显。修改环境引用后需重新校验发布 / Create immuta" +
+    "ble versions; values are never returned. Republish environmen" +
     "ts after changing references."]: [
         "创建新的固定版本；原文不会回显。修改环境引用后需重新校验发布",
         "Create immutable versions; values are never returned. Republish environments after changing references.",

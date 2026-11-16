@@ -1,4 +1,6 @@
-"""VeriQ 主密钥轮换先生成保留完整历史环的私有新配置，再按显式停机命令分批重新封装凭据和模型密钥；版本身份与业务明文不变，任何解密失败都会回滚该批而不丢弃旧密钥。"""
+"""VeriQ 主密钥轮换先生成保留完整历史环的私有新配置，再按显式停机命令分批重新封装凭据和模型密钥；
+版本身份与业务明文不变，任何解密失败都会回滚该批而不丢弃旧密钥。
+"""
 
 import json
 from pathlib import Path
@@ -15,7 +17,9 @@ from .snapshot_io import private_file
 
 
 def rotate_configuration(settings: Settings, output: Path, key_id: str) -> None:
-    """只生成一份新的外置配置并保留当前及历史密钥字节，拒绝复用已有标识或覆盖正在使用的配置；操作员切换到新配置后再重封装，命令不会打印新密钥或擅自替换服务配置文件。"""
+    """只生成一份新的外置配置并保留当前及历史密钥字节，拒绝复用已有标识或覆盖正在使用的配置；操作员切换到新配置后再重封
+    装，命令不会打印新密钥或擅自替换服务配置文件。
+    """
     if (
         not output.is_absolute()
         or key_id == settings.master_key_id
@@ -32,7 +36,9 @@ def rotate_configuration(settings: Settings, output: Path, key_id: str) -> None:
 async def rekey(
     db: Database, settings: Settings, *, services_stopped: bool, limit: int
 ) -> dict[str, Any]:
-    """在安装锁下按有限批次解密旧密钥版本并用当前密钥重新封装，凭据版本和供应商 key_version 原样保留；完成后统计仍引用历史密钥的行数，只有两个表都为零才能考虑移除历史密钥。"""
+    """在安装锁下按有限批次解密旧密钥版本并用当前密钥重新封装，凭据版本和供应商 key_version 原样保留；
+    完成后统计仍引用历史密钥的行数，只有两个表都为零才能考虑移除历史密钥。
+    """
     if not services_stopped or not 1 <= limit <= 1000:
         raise ValueError("REKEY_QUIESCENCE_AND_BOUNDED_LIMIT_REQUIRED")
     processed = 0

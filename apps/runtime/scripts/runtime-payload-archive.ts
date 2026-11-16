@@ -15,7 +15,10 @@ import { ArchiveTransaction, controlledIoFailure } from "./runtime-payload-trans
 import { scanTar } from "./runtime-payload-tar.ts";
 import { scanZip } from "./runtime-payload-zip.ts";
 
-/** 拒绝事实只描述当前成熟解析器已读到的有限字段，不提供额外解析器或可配置准入能力；类型限定原有十二个拒绝点，普通正文和任意异常消息不属于这个内部观察合同。 */
+/**
+ * 拒绝事实只描述当前成熟解析器已读到的有限字段，不提供额外解析器或可配置准入能力；类型限定原有十二个拒绝点，普通正文和
+ * 任意异常消息不属于这个内部观察合同。
+ */
 export type ArchiveRejectionFacts = Readonly<{
     archive: "node" | "chrome";
     stage: "TAR_FRAME" | "TAR_METADATA" | "TAR_ENTRY" | "ZIP_ENTRY";
@@ -45,12 +48,18 @@ export type ArchiveRejectionFacts = Readonly<{
     details?: Readonly<Record<string, string | number | boolean | null | undefined>> | undefined;
 }>;
 
-/** 私有弱表只保存已经序列化的自有字符串，冻结异常无需新增字段也不会持有调用方可变缓冲；首个错误身份与首个已捕获事件保持一一对应，另一次扫描不能污染本次归一化结果。 */
+/**
+ * 私有弱表只保存已经序列化的自有字符串，冻结异常无需新增字段也不会持有调用方可变缓冲；首个错误身份与首个已捕获事件保持
+ * 一一对应，另一次扫描不能污染本次归一化结果。
+ */
 const rejectionLines = new WeakMap<RuntimePayloadError, string>();
 const rejectionLineLimit = 96 * 1024;
 const rejectionContexts = new WeakMap<ArchiveScan, Omit<ArchiveRejectionFacts, "reason">>();
 
-/** 每个扫描对象的原头上下文只在这个私有弱表存活，适配器交付当前成员前写入已观察字段；它不成为构造参数或公开结果，跨扫描没有共享当前条目，捕获失败也不能打断正常解析。 */
+/**
+ * 每个扫描对象的原头上下文只在这个私有弱表存活，适配器交付当前成员前写入已观察字段；它不成为构造参数或公开结果，跨扫描
+ * 没有共享当前条目，捕获失败也不能打断正常解析。
+ */
 export function setArchiveRejectionContext(
     scan: ArchiveScan,
     context: Omit<ArchiveRejectionFacts, "reason">,
@@ -62,7 +71,10 @@ export function setArchiveRejectionContext(
     }
 }
 
-/** 数字观察区分不存在、非有限值与超出安全整数的有限值，不让 JSON 把 NaN 或 Infinity 静默编码成普通空值；原数字在安全时保留原值，分类仅供定位拒绝原因而不参与准入。 */
+/**
+ * 数字观察区分不存在、非有限值与超出安全整数的有限值，不让 JSON 把 NaN 或 Infinity 静默编码成普通空值；原数字在安全时保
+ * 留原值，分类仅供定位拒绝原因而不参与准入。
+ */
 function observedNumber(value: number | undefined) {
     return {
         value: value !== undefined && Number.isFinite(value) ? value : null,
@@ -81,7 +93,10 @@ function observedNumber(value: number | undefined) {
     };
 }
 
-/** 捕获入口在复制与散列之前核每个输入的硬界限，再把完整 JSON 连同换行按真实 UTF8 字节计费；捕获失败只丢弃诊断，始终保留调用方原异常，禁止把截断样本冒充完整成员元数据。 */
+/**
+ * 捕获入口在复制与散列之前核每个输入的硬界限，再把完整 JSON 连同换行按真实 UTF8 字节计费；捕获失败只丢弃诊断，始终保留
+ * 调用方原异常，禁止把截断样本冒充完整成员元数据。
+ */
 export function attachArchiveRejection(error: unknown, facts: ArchiveRejectionFacts): void {
     try {
         if (
@@ -155,16 +170,23 @@ export function attachArchiveRejection(error: unknown, facts: ArchiveRejectionFa
             }) + "\n";
         if (Buffer.byteLength(line) <= rejectionLineLimit) rejectionLines.set(error, line);
     } catch {
-        // 捕获本身没有文件或流所有权，散列、分配或序列化失败时仅放弃这份可选事实；调用点仍抛出已经选定的原异常，不借诊断失败改变其分类、阶段、清理状态或首错顺序。
+        // 捕获本身没有文件或流所有权，散列、分配或序列化失败时仅放弃这份可选事实；调用点仍抛出已经选定的原异常，不借诊
+        // 断失败改变其分类、阶段、清理状态或首错顺序。
     }
 }
 
-/** 归档拒绝诊断读取只按真实异常身份寻找私有事实，不改变已冻结异常的字段与公开分类；没有实际捕获时返回空值，调用方不得把缺失记录推断成扫描成功或已观察任何成员。 */
+/**
+ * 归档拒绝诊断读取只按真实异常身份寻找私有事实，不改变已冻结异常的字段与公开分类；没有实际捕获时返回空值，调用方不得把
+ * 缺失记录推断成扫描成功或已观察任何成员。
+ */
 export function archiveRejectionLine(error: unknown): string | null {
     return error instanceof RuntimePayloadError ? (rejectionLines.get(error) ?? null) : null;
 }
 
-/** 事务清理完成后的异常归一化只迁移被选中首错的私有字符串，不覆盖目标已有事件或复制其它异常事实；返回对象仍是调用方刚构造的正式错误，公开字段与原构造参数完全一致。 */
+/**
+ * 事务清理完成后的异常归一化只迁移被选中首错的私有字符串，不覆盖目标已有事件或复制其它异常事实；返回对象仍是调用方刚构
+ * 造的正式错误，公开字段与原构造参数完全一致。
+ */
 export function transferArchiveRejection(
     source: unknown,
     target: RuntimePayloadError,
@@ -174,12 +196,16 @@ export function transferArchiveRejection(
         if (line && target.code === "PAYLOAD_ARCHIVE_UNSUPPORTED" && !rejectionLines.has(target))
             rejectionLines.set(target, line);
     } catch {
-        // 迁移是异常报告的附属操作且不持有任何资源，弱表读取或写入失败时保留目标异常原样；不得用迁移异常覆盖实际扫描首错，也不得从其它扫描借用一个貌似完整的事件。
+        // 迁移是异常报告的附属操作且不持有任何资源，弱表读取或写入失败时保留目标异常原样；不得用迁移异常覆盖实际扫描首
+        // 错，也不得从其它扫描借用一个貌似完整的事件。
     }
     return target;
 }
 
-/** CLI 在真实清理返回后调用这个有限输出入口，先设置原退出码再写原公共分类和最多一条私有诊断；输出管道失败不改变业务首错，异步错误监听只属于 CLI 报告阶段而不进入扫描生命周期。 */
+/**
+ * CLI 在真实清理返回后调用这个有限输出入口，先设置原退出码再写原公共分类和最多一条私有诊断；输出管道失败不改变业务首错
+ * ，异步错误监听只属于 CLI 报告阶段而不进入扫描生命周期。
+ */
 export function emitArchiveFailure(error: RuntimePayloadError, exitCode: number): void {
     process.exitCode = exitCode;
     try {
@@ -188,17 +214,24 @@ export function emitArchiveFailure(error: RuntimePayloadError, exitCode: number)
         const line = archiveRejectionLine(error);
         if (line) process.stderr.write(line);
     } catch {
-        // 诊断输出只是已完成失败的报告尝试，关闭的管道或同步写入异常不会重启扫描也不应升级成不同业务错误；原退出码已经设置，标准输出仍为空且不会伪造任何成功结果。
+        // 诊断输出只是已完成失败的报告尝试，关闭的管道或同步写入异常不会重启扫描也不应升级成不同业务错误；原退出码已经
+        // 设置，标准输出仍为空且不会伪造任何成功结果。
     }
 }
 
-/** 归档条目保留真实原路径、权限与文件摘要或原始链接目标，推导父目录不会伪造成原归档成员；所有嵌套字段均为只读事实，逻辑链接不会因此获得物理创建或执行能力，后续组装必须重新核原始来源。 */
+/**
+ * 归档条目保留真实原路径、权限与文件摘要或原始链接目标，推导父目录不会伪造成原归档成员；所有嵌套字段均为只读事实，逻辑
+ * 链接不会因此获得物理创建或执行能力，后续组装必须重新核原始来源。
+ */
 export type ArchiveMember =
     | Readonly<{ path: string; kind: "file"; sizeBytes: number; sha256: string; mode: number }>
     | Readonly<{ path: string; kind: "directory"; mode: number }>
     | Readonly<{ path: string; kind: "link"; target: string; mode: number }>;
-/** intake 回执明确区分 gzip 完整流 CRC 与 ZIP 各成员 CRC，只声明公开 API 能证明的 local header 和 data 范围；展开字节含逻辑目标，streamBytes 在 tar 表示真实解压
- * 流而 ZIP 表示完整原快照长度。 */
+/**
+ * intake 回执明确区分 gzip 完整流 CRC 与 ZIP 各成员 CRC，只声明公开 API 能证明的 local header 和 data 范围；展开字节含
+ * 逻辑目标，streamBytes 在 tar 表示真实解压
+ * 流而 ZIP 表示完整原快照长度。
+ */
 export type IntakeReceipt = Readonly<{
     schemaVersion: 1;
     kind: "RUNTIME_ARCHIVE_INTAKE";
@@ -215,7 +248,10 @@ export type IntakeReceipt = Readonly<{
         }>;
     }>[];
 }>;
-/** 成功结果只说明归档普通文件树已经提交并复核，不是 Runtime 候选或执行许可；锁和事务元数据收尾未完成时仍诚实保留 committed，同时 cleanup 明确为 INCOMPLETE，不能删除最终目录假装回滚。 */
+/**
+ * 成功结果只说明归档普通文件树已经提交并复核，不是 Runtime 候选或执行许可；锁和事务元数据收尾未完成时仍诚实保留
+ * committed，同时 cleanup 明确为 INCOMPLETE，不能删除最终目录假装回滚。
+ */
 export type IntakeResult = Readonly<{
     directory: string;
     receiptSha256: string;
@@ -223,7 +259,10 @@ export type IntakeResult = Readonly<{
     committed: true;
     cleanup: Cleanup;
 }>;
-/** 阶段选项只接收显式真实输入根、受控输出父目录与单个可移植候选名，不能通过选项放宽任何资源预算；取消信号只固定引用，库入口不注册全局进程事件，也不接收调用者文件系统或提取回调。 */
+/**
+ * 阶段选项只接收显式真实输入根、受控输出父目录与单个可移植候选名，不能通过选项放宽任何资源预算；取消信号只固定引用，库
+ * 入口不注册全局进程事件，也不接收调用者文件系统或提取回调。
+ */
 export type StageOptions = Readonly<{
     inputRoot: string;
     outputParent: string;
@@ -231,13 +270,19 @@ export type StageOptions = Readonly<{
     signal?: AbortSignal;
 }>;
 
-/** 固定共享预算同时累计五棵已核树与两份归档的有效物理路径、链接和内容，缺省父目录只计一次；声明级准入用于在读取巨大正文前拒绝不可能计划，实际逐块长度还必须与同一声明精确相等，不能由调用者覆写上限。 */
+/**
+ * 固定共享预算同时累计五棵已核树与两份归档的有效物理路径、链接和内容，缺省父目录只计一次；声明级准入用于在读取巨大正文
+ * 前拒绝不可能计划，实际逐块长度还必须与同一声明精确相等，不能由调用者覆写上限。
+ */
 export class ArchiveBudget {
     private entries = 0;
     private links = 0;
     private bytes = 0;
     private receiptBytes = 0;
-    /** 预算种子来自本次真实 verify 报告，不接受旧报告当作 intake 能力；树的 fileBytes 仍只代表普通文件，逻辑链接目标 UTF8 字节在此单独加入，避免遗漏或重复收费改变字段原本含义。 */
+    /**
+     * 预算种子来自本次真实 verify 报告，不接受旧报告当作 intake 能力；树的 fileBytes 仍只代表普通文件，逻辑链接目标
+     * UTF8 字节在此单独加入，避免遗漏或重复收费改变字段原本含义。
+     */
     constructor(report?: InputInspection) {
         if (report)
             for (const tree of Object.values(report.trees))
@@ -248,7 +293,10 @@ export class ArchiveBudget {
                         tree.inventory.links.reduce((n, l) => n + Buffer.byteLength(l.target), 0),
                 );
     }
-    /** 每一次有效路径和实际声明正文进入同一个累计计数器，两份归档之间不会重置额度；整型和负值也拒绝，测试可以只用小声明验证跨边界关系而不分配数 GiB 文件或公开生产预算旋钮。 */
+    /**
+     * 每一次有效路径和实际声明正文进入同一个累计计数器，两份归档之间不会重置额度；整型和负值也拒绝，测试可以只用小声明
+     * 验证跨边界关系而不分配数 GiB 文件或公开生产预算旋钮。
+     */
     add(entries: number, links: number, bytes: number) {
         if (
             ![entries, links, bytes].every((n) => Number.isSafeInteger(n) && n >= 0) ||
@@ -261,14 +309,20 @@ export class ArchiveBudget {
         this.links += links;
         this.bytes += bytes;
     }
-    /** 回执成员按实际序列化字节消费独立四 MiB 上限，正文尚未提取即可拒绝过长事实集合；这里只计成员部分，最终完整规范回执仍另核总长度，临时序列化永远只包含单个受路径和目标上限约束的小条目。 */
+    /**
+     * 回执成员按实际序列化字节消费独立四 MiB 上限，正文尚未提取即可拒绝过长事实集合；这里只计成员部分，最终完整规范回执
+     * 仍另核总长度，临时序列化永远只包含单个受路径和目标上限约束的小条目。
+     */
     member(value: ArchiveMember) {
         this.receiptBytes += Buffer.byteLength(JSON.stringify(value)) + 1;
         if (this.receiptBytes > limits.json) throw new RuntimePayloadError("PAYLOAD_LIMIT");
     }
 }
 
-/** 内部扫描条目只包含成熟解析器已经解释的有效路径和真实类型，尚未读取正文时不声称有内容摘要；两个成熟归档适配器使用同一 collector 消费有界流，调用者无法注入自定义提取函数或选择任意输出路径。 */
+/**
+ * 内部扫描条目只包含成熟解析器已经解释的有效路径和真实类型，尚未读取正文时不声称有内容摘要；两个成熟归档适配器使用同一
+ * collector 消费有界流，调用者无法注入自定义提取函数或选择任意输出路径。
+ */
 export type ScanEntry = Readonly<{
     path: string;
     kind: "file" | "directory" | "link";
@@ -276,7 +330,10 @@ export type ScanEntry = Readonly<{
     size: number;
     target?: string;
 }>;
-/** 单份扫描表合并实际成员与推导父目录，先完整扫描再从同一快照对照提取；成员顺序、原模式、类型、长度、摘要及原始目标均必须逐项相同，第二遍不会通过重新扫描外部来源偷偷替换第一遍的事实。 */
+/**
+ * 单份扫描表合并实际成员与推导父目录，先完整扫描再从同一快照对照提取；成员顺序、原模式、类型、长度、摘要及原始目标均必
+ * 须逐项相同，第二遍不会通过重新扫描外部来源偷偷替换第一遍的事实。
+ */
 export class ArchiveScan {
     readonly members: ArchiveMember[] = [];
     readonly effective = new Map<string, { kind: ArchiveMember["kind"]; explicit: boolean }>();
@@ -284,7 +341,10 @@ export class ArchiveScan {
     private cursor = 0;
     private rejectionIndex = 0;
     private readonly cases = new Map<string, string>();
-    /** 扫描与提取共用固定顶层目录和当前事务，只在第二遍获得已扫描成员列表；第一遍不写普通正文，第二遍不会重新收费共享逻辑预算，但仍按实际流长度与原摘要比较以发现损坏或替换。 */
+    /**
+     * 扫描与提取共用固定顶层目录和当前事务，只在第二遍获得已扫描成员列表；第一遍不写普通正文，第二遍不会重新收费共享逻
+     * 辑预算，但仍按实际流长度与原摘要比较以发现损坏或替换。
+     */
     constructor(
         readonly kind: "node" | "chrome",
         readonly top: string,
@@ -292,7 +352,10 @@ export class ArchiveScan {
         private readonly budget: ArchiveBudget,
         private readonly previous?: ArchiveScan,
     ) {}
-    /** 每个路径先核原始可移植拼写，再按全部父组件登记大小写和类型身份；允许一次显式目录补上先前推导父目录，重复显式条目、链接下真实孩子和目录文件冲突都在任何正文写入前拒绝。 */
+    /**
+     * 每个路径先核原始可移植拼写，再按全部父组件登记大小写和类型身份；允许一次显式目录补上先前推导父目录，重复显式条目
+     * 、链接下真实孩子和目录文件冲突都在任何正文写入前拒绝。
+     */
     private register(path: string, kind: ArchiveMember["kind"], explicit: boolean) {
         relative(path);
         if (path !== this.top && !path.startsWith(this.top + "/")) this.tx.fail("PAYLOAD_PATH");
@@ -316,7 +379,10 @@ export class ArchiveScan {
             }
         }
     }
-    /** 正文消费执行单文件两 GiB、目录零字节与链接一千零二十四 ASCII 字节的固定限制；第一遍仅存小链接正文和摘要，第二遍直接背压写入私有普通文件，任何流超声明、权限特殊位或摘要差异都会终止整个事务。 */
+    /**
+     * 正文消费执行单文件两 GiB、目录零字节与链接一千零二十四 ASCII 字节的固定限制；第一遍仅存小链接正文和摘要，第二遍直
+     * 接背压写入私有普通文件，任何流超声明、权限特殊位或摘要差异都会终止整个事务。
+     */
     async entry(entry: ScanEntry, chunks: AsyncIterable<Uint8Array>) {
         this.tx.check();
         this.rejectionIndex++;
@@ -397,7 +463,10 @@ export class ArchiveScan {
             await this.tx.write(`trees/${this.kind}/${path}`, consume(this), expected);
         else
             for await (const _chunk of consume(this)) {
-                /* 扫描阶段只消费并摘要当前块，正文不在内存或临时文件中累计，只有受限链接目标会保留到逻辑核验阶段以便精确比较原始目标，避免把巨大普通文件无意缓存而绕过流式内存边界。 */
+                /*
+                 * 扫描阶段只消费并摘要当前块，正文不在内存或临时文件中累计，只有受限链接目标会保留到逻辑核验阶段以便精
+                 * 确比较原始目标，避免把巨大普通文件无意缓存而绕过流式内存边界。
+                 */
             }
         let member: ArchiveMember;
         if (entry.kind === "file")
@@ -429,7 +498,10 @@ export class ArchiveScan {
                   : 0;
         this.tx.check();
     }
-    /** 完整流结束后确认第二遍条目没有遗漏，再建立推导目录供零正文目录和逻辑解析使用；显式成员列表仍只包含实际归档条目，不能凭落地需要发明原目录模式或把没有扫描过的成员写进回执。 */
+    /**
+     * 完整流结束后确认第二遍条目没有遗漏，再建立推导目录供零正文目录和逻辑解析使用；显式成员列表仍只包含实际归档条目，
+     * 不能凭落地需要发明原目录模式或把没有扫描过的成员写进回执。
+     */
     async finish() {
         if (!this.members.length || (this.previous && this.cursor !== this.previous.members.length))
             this.tx.fail("PAYLOAD_ARCHIVE_FORMAT");
@@ -437,7 +509,10 @@ export class ArchiveScan {
             for (const [path, value] of this.previous.effective)
                 if (value.kind === "directory") await this.tx.mkdir(`trees/${this.kind}/${path}`);
     }
-    /** 链接先逐字符组件在明确根内解析，每次跟随别名都消费固定跳数且必须终止于存在成员；物理目录边与目录别名边组成有界图后再做迭代环检，合法重复别名共享终点而不展开可能无限的虚拟目录树。 */
+    /**
+     * 链接先逐字符组件在明确根内解析，每次跟随别名都消费固定跳数且必须终止于存在成员；物理目录边与目录别名边组成有界图
+     * 后再做迭代环检，合法重复别名共享终点而不展开可能无限的虚拟目录树。
+     */
     links(
         allowed: readonly Readonly<{ path: string; target: string }>[],
         frameworkRoots: readonly string[] = [],
@@ -526,7 +601,10 @@ export class ArchiveScan {
     }
 }
 
-/** 唯一 intake 入口同步取得私有配方字节、独立政策与选项标量后再开始真实验证，完整扫描两份独立快照后才执行第二遍私有普通提取；没有安装、执行输入、签名或 Runtime 角色晋升，成功仅交可重新验证的归档封存事实。 */
+/**
+ * 唯一 intake 入口同步取得私有配方字节、独立政策与选项标量后再开始真实验证，完整扫描两份独立快照后才执行第二遍私有普通
+ * 提取；没有安装、执行输入、签名或 Runtime 角色晋升，成功仅交可重新验证的归档封存事实。
+ */
 export async function intakeRuntimeArchives(
     bytes: Uint8Array,
     expected: ExpectedPayloadInputs,
@@ -570,7 +648,10 @@ export async function intakeRuntimeArchives(
             report.recipe.chrome.file.sizeBytes,
         );
         scans[0].links(report.nodeReceipt.inputLinks);
-        /** 每个声明 Framework 根都先核独立布局的明确前缀和非空名称，准入不能依赖该根是否恰好含有链接；逐跳物理根与目录图检查仍由原链接流程执行，空链接集合不会再绕过本片新增的命名政策。 */
+        /**
+         * 每个声明 Framework 根都先核独立布局的明确前缀和非空名称，准入不能依赖该根是否恰好含有链接；逐跳物理根与目录图
+         * 检查仍由原链接流程执行，空链接集合不会再绕过本片新增的命名政策。
+         */
         const frameworkPrefix = `${report.chromeLayout.layout.bundlePath}/Contents/Frameworks/`;
         for (const root of report.chromeLayout.layout.frameworkRoots) {
             const name = root.slice(frameworkPrefix.length);
@@ -675,7 +756,10 @@ export async function intakeRuntimeArchives(
         );
     }
 }
-/** 小型规范回执使用同一个流写入和 fsync 路径，而非额外宽松文件写入捷径；单块来源已受四 MiB 限制，不用于归档正文缓存，所有普通文件仍由事务独占权限和最终复核共同约束。 */
+/**
+ * 小型规范回执使用同一个流写入和 fsync 路径，而非额外宽松文件写入捷径；单块来源已受四 MiB 限制，不用于归档正文缓存，所
+ * 有普通文件仍由事务独占权限和最终复核共同约束。
+ */
 async function* once(bytes: Uint8Array) {
     yield bytes;
 }

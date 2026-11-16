@@ -1,4 +1,7 @@
-/** 专用账户夹具的依赖先由原 CI 账户通过官方冻结部署联网准备，再核对完整三锁生产图与实际库存；root 只消费成功证据并复制独立包树，权限调整仅作用于新副本，业务阶段通过单独网络命名空间证明离网装载和凭据文件行为。 */
+/**
+ * 专用账户夹具的依赖先由原 CI 账户通过官方冻结部署联网准备，再核对完整三锁生产图与实际库存；root 只消费成功证据并复制独
+ * 立包树，权限调整仅作用于新副本，业务阶段通过单独网络命名空间证明离网装载和凭据文件行为。
+ */
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -38,7 +41,8 @@ const attributesOf = (path, entry, type) => ({
 });
 
 /**
- * 库存观察必须始终只读，普通文件和目录的身份、拥有者与模式同字节哈希一起保留，符号链接则单独记录自身属性和内部目标；所有复制前后的完整证明都先完成，不能在扫描途中 chmod 或 chown 后才发现目标仍共享源 inode 而
+ * 库存观察必须始终只读，普通文件和目录的身份、拥有者与模式同字节哈希一起保留，符号链接则单独记录自身属性和内部目标；所
+ * 有复制前后的完整证明都先完成，不能在扫描途中 chmod 或 chown 后才发现目标仍共享源 inode 而
  * 破坏原文件。
  */
 async function inspect(root) {
@@ -106,8 +110,11 @@ function proveIndependentCopy(before, copied) {
     }
 }
 
-/** Linux 的 copyFile 会在权限允许时保留源 UID 和 GID，因此必须对已经完整证明独立的新副本建立调用者拥有的代码边界；每次修改都持有 O_NOFOLLOW 打开的实际普通文件或目录句柄并重验 inode，符号
- * 链接完全排除，失败不会返回可用库存或触碰原树。 */
+/**
+ * Linux 的 copyFile 会在权限允许时保留源 UID 和 GID，因此必须对已经完整证明独立的新副本建立调用者拥有的代码边界；每次修
+ * 改都持有 O_NOFOLLOW 打开的实际普通文件或目录句柄并重验 inode，符号
+ * 链接完全排除，失败不会返回可用库存或触碰原树。
+ */
 async function normalizeCopiedOwnership(target, copied) {
     const uid = process.getuid(),
         gid = process.getgid();
@@ -141,7 +148,10 @@ async function normalizeCopiedOwnership(target, copied) {
     return { uid, gid, regularFiles: files.length, directories: directories.length };
 }
 
-/** 输入必须是 pnpm 冻结导出的完整目录，所有包链接均在该目录内；复制前后逐文件哈希相等且实际 inode 独立才返回可启动副本，并记录容量与库存摘要，原目录的权限、身份与内容都不能被副本的权限规范化影响。 */
+/**
+ * 输入必须是 pnpm 冻结导出的完整目录，所有包链接均在该目录内；复制前后逐文件哈希相等且实际 inode 独立才返回可启动副本，
+ * 并记录容量与库存摘要，原目录的权限、身份与内容都不能被副本的权限规范化影响。
+ */
 export async function stageOwnedFixture(source, target) {
     assert(isAbsolute(source) && isAbsolute(target), "FIXTURE_ABSOLUTE_PATH_REQUIRED");
     assert.equal(await realpath(source), resolve(source), "FIXTURE_SOURCE_LINKED");
@@ -236,7 +246,10 @@ const packageName = (name) =>
 const fields = ["dependencies", "optionalDependencies"];
 const workspaceNames = ["compiler", "contracts", "runner-sdk"];
 
-/** 业务子进程先在 timeout 监督下创建新的网络命名空间，再仅对本次进程执行专用 UID 和 GID 降权；严格重建环境并关闭 tsx 缓存，避免继承 HOME 或外部模块路径，命名空间权限不足时原样失败而不回退到宿主网络。 */
+/**
+ * 业务子进程先在 timeout 监督下创建新的网络命名空间，再仅对本次进程执行专用 UID 和 GID 降权；严格重建环境并关闭 tsx 缓
+ * 存，避免继承 HOME 或外部模块路径，命名空间权限不足时原样失败而不回退到宿主网络。
+ */
 export async function executeNetworkIsolatedFixture(
     node,
     uid,
@@ -287,8 +300,11 @@ export async function executeNetworkIsolatedFixture(
     );
 }
 
-/** YAML 只属于原账户准备工具的开发依赖，先从 contracts 已声明的生成工具公共入口确定 require 边界，再加载其已声明的 js-yaml 公共入口；业务副本与 root 复制验证均不调用这里，缺失版本或模块立即
- * 失败而不搜索私有存储路径。 */
+/**
+ * YAML 只属于原账户准备工具的开发依赖，先从 contracts 已声明的生成工具公共入口确定 require 边界，再加载其已声明的
+ * js-yaml 公共入口；业务副本与 root 复制验证均不调用这里，缺失版本或模块立即
+ * 失败而不搜索私有存储路径。
+ */
 function yamlParser() {
     const contracts = createRequire(join(repositoryRoot, "packages/contracts/package.json"));
     assert.equal(
@@ -376,8 +392,11 @@ function manifestEdges(manifest, importer) {
     }
 }
 
-/** 生产闭包从根 runtime 的全部必需和可选边逐项推导，registry 保留完整 peer 后缀及元数据，workspace 仅接受三个真实仓库目录；输出是有限的期望部署图，不能用版本集合、包名集合或宽松路径规范化取代任何
- * 声明与依赖边。 */
+/**
+ * 生产闭包从根 runtime 的全部必需和可选边逐项推导，registry 保留完整 peer 后缀及元数据，workspace 仅接受三个真实仓库目
+ * 录；输出是有限的期望部署图，不能用版本集合、包名集合或宽松路径规范化取代任何
+ * 声明与依赖边。
+ */
 async function expectedGraph(repository, source, root) {
     assert(
         String(root.lockfileVersion) === "9.0" &&
@@ -527,8 +546,11 @@ function compatible(values, actual) {
     );
 }
 
-/** 安装库存同时核对实际目录、manifest 身份和每条依赖链接，不能仅相信 current 锁中的声明；可选缺包必须由锁的操作系统或架构条件与 modules 的 skipped 双重解释，所有实际包根目录都须属于刚才走过的生
- * 产图，额外开发包会被拒绝。 */
+/**
+ * 安装库存同时核对实际目录、manifest 身份和每条依赖链接，不能仅相信 current 锁中的声明；可选缺包必须由锁的操作系统或架
+ * 构条件与 modules 的 skipped 双重解释，所有实际包根目录都须属于刚才走过的生
+ * 产图，额外开发包会被拒绝。
+ */
 async function installedGraph(source, expected, modules, inventory) {
     assert.equal(modules.packageManager, "pnpm@11.25.0", "FIXTURE_MODULES_MANAGER");
     assert.equal(modules.nodeLinker, "isolated", "FIXTURE_MODULES_LINKER");
@@ -641,7 +663,10 @@ function inventoryProof(inventory) {
     };
 }
 
-/** 原账户准备完成后必须同时证明根锁、派生锁和实际 current 锁的完整生产图，并检查可选平台跳过与实际链接库存；此公开工具只读取有限文件，返回可持久化的哈希与精确图证据，任何不匹配都不生成可供专用账户使用的成功结果。 */
+/**
+ * 原账户准备完成后必须同时证明根锁、派生锁和实际 current 锁的完整生产图，并检查可选平台跳过与实际链接库存；此公开工具只
+ * 读取有限文件，返回可持久化的哈希与精确图证据，任何不匹配都不生成可供专用账户使用的成功结果。
+ */
 export async function verifyFrozenFixtureDeployment(repository, source) {
     assert(isAbsolute(repository) && isAbsolute(source), "FIXTURE_ABSOLUTE_PATH_REQUIRED");
     assert.equal(await realpath(repository), repository, "FIXTURE_REPOSITORY_LINKED");
@@ -737,8 +762,11 @@ async function ownedState(state, temporary, uid) {
     );
 }
 
-/** root 只能消费带独立成功结果的部署描述，必须再次匹配原账户 UID、随机拥有标记、精确源路径及所有文件库存哈希；这个读取接口不加载开发 YAML 工具，缺结果、错误身份或失败后残树均在复制前关闭，避免把准备意图误认成可启动
- * 证据。 */
+/**
+ * root 只能消费带独立成功结果的部署描述，必须再次匹配原账户 UID、随机拥有标记、精确源路径及所有文件库存哈希；这个读取接
+ * 口不加载开发 YAML 工具，缺结果、错误身份或失败后残树均在复制前关闭，避免把准备意图误认成可启动
+ * 证据。
+ */
 export async function readPreparedFixtureDeployment(
     evidence,
     temporary,
@@ -769,8 +797,11 @@ export async function readPreparedFixtureDeployment(
     return { ...state, result };
 }
 
-/** 联网准备只运行固定版本的官方非 legacy frozen 部署，并先保存独占目录和拥有标记以支持失败后的 always 清理；执行器缝只供有限小仓库验证参数与失败路径，生产默认始终使用受超时及输出上限约束的真实 Node 子
- * 进程，成功证据最后才落盘。 */
+/**
+ * 联网准备只运行固定版本的官方非 legacy frozen 部署，并先保存独占目录和拥有标记以支持失败后的 always 清理；执行器缝只供
+ * 有限小仓库验证参数与失败路径，生产默认始终使用受超时及输出上限约束的真实 Node 子
+ * 进程，成功证据最后才落盘。
+ */
 export async function prepareFixtureDeployment(
     evidence,
     pnpm,
@@ -827,8 +858,11 @@ export async function prepareFixtureDeployment(
         ];
         const config = await document(join(repository, "pnpm-workspace.yaml"), yamlParser());
         assert.equal(config.minimumReleaseAge, 1440, "FIXTURE_RELEASE_AGE_POLICY");
-        /** 工作区文件哈希只能证明声明未改，不能排除原账户环境或 npmrc 覆盖，因此通过同一 pnpm 的公开 config get 分别读取实际 registry 与 age；每个查询独立限制时长和输出，拒绝任何偏离
-         * 既定政策的值，绝不转储其它配置或凭据。 */
+        /**
+         * 工作区文件哈希只能证明声明未改，不能排除原账户环境或 npmrc 覆盖，因此通过同一 pnpm 的公开 config get 分别读取
+         * 实际 registry 与 age；每个查询独立限制时长和输出，拒绝任何偏离
+         * 既定政策的值，绝不转储其它配置或凭据。
+         */
         const effective = {};
         for (const key of ["registry", "minimumReleaseAge"]) {
             const value = await execute(process.execPath, [pnpm, "config", "get", key], {
@@ -892,8 +926,11 @@ export async function prepareFixtureDeployment(
     }
 }
 
-/** 部署目录清理只依赖先行写入的创建意图，严格核对临时父目录、随机 basename、原账户 UID 和 marker 后才递归删除；没有 descriptor 时明确记录未开始，任何身份或路径异常都保留现场并返回失败，绝不靠强制
- * 清理把失败残树变成成功证据。 */
+/**
+ * 部署目录清理只依赖先行写入的创建意图，严格核对临时父目录、随机 basename、原账户 UID 和 marker 后才递归删除；没有
+ * descriptor 时明确记录未开始，任何身份或路径异常都保留现场并返回失败，绝不靠强制
+ * 清理把失败残树变成成功证据。
+ */
 async function cleanupDeployment(evidence) {
     const temporary = await realpath(process.env.RUNNER_TEMP);
     let state;

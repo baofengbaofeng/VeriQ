@@ -1,4 +1,7 @@
-/** 目标验证证据脚本仅采集本次选定系统包与真实源码身份，清理只依据自有登记中的 PID 创建时间和程序路径；既不上传密码或 keyring 内容，也不按进程名称终止系统总线与其他用户的凭据服务。 */
+/**
+ * 目标验证证据脚本仅采集本次选定系统包与真实源码身份，清理只依据自有登记中的 PID 创建时间和程序路径；既不上传密码或
+ * keyring 内容，也不按进程名称终止系统总线与其他用户的凭据服务。
+ */
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createHash } from "node:crypto";

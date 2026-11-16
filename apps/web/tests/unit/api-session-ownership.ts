@@ -1,4 +1,6 @@
-/** 传输单元用例通过受控 fetch 观察请求取消、全局事件和 CSRF 头归属，不构造报告、作业或领域回执；它们无法证明浏览器何时应用真实 Set-Cookie，该部分单独交给 V01 的真实会话验收。 */
+/** 传输单元用例通过受控 fetch 观察请求取消、全局事件和 CSRF 头归属，不构造报告、作业或领域回执；它们无法证明浏览器何时
+ * 应用真实 Set-Cookie，该部分单独交给 V01 的真实会话验收。
+ */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -36,7 +38,8 @@ test("transport side effects belong to the current session and request lifetime"
         expiries += 1;
     });
     try {
-        // 旧 JSON、SSE、下载及安装探测响应都在新登录前发起，登录之后原样返回；请求本身保留真实错误语义，但全局过期事件和 CSRF 令牌只能由当前身份拥有。
+        // 旧 JSON、SSE、下载及安装探测响应都在新登录前发起，登录之后原样返回；请求本身保留真实错误语义，但全局过期事件
+        // 和 CSRF 令牌只能由当前身份拥有。
         await context.test(
             "stale responses cannot expire a newer login or replace its token",
             async (t) => {
@@ -137,7 +140,8 @@ test("transport side effects belong to the current session and request lifetime"
                 assert.equal(expiries, before + 1);
             },
         );
-        // 新认证请求发出前必须已经取消仍在等待的旧退出，旧响应即使被测试交付也只能作为 AbortError 结束；这验证控制器顺序，不能等同于浏览器网络层已经排除了 Cookie 头。
+        // 新认证请求发出前必须已经取消仍在等待的旧退出，旧响应即使被测试交付也只能作为 AbortError 结束；这验证控制器顺
+        // 序，不能等同于浏览器网络层已经排除了 Cookie 头。
         await context.test(
             "new login cancels a pending logout before sending its request",
             async (t) => {

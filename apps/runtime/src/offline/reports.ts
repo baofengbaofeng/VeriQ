@@ -30,7 +30,8 @@ const blocked = {
     reasons: ["OFFLINE_IMPORT", "REVOCATION_UNKNOWN", "RESULT_AUTHENTICITY_UNVERIFIED"],
 };
 /**
- * 公开类 LocalReports 从 LocalStore 投影报告快照：并在授权范围内读取原始证据字节（LocalReports/INVALID_REPORT_DISPLAY）。
+ * 公开类 LocalReports 从 LocalStore 投影报告快照：并在授权范围内读取原始证据字节（
+ * LocalReports/INVALID_REPORT_DISPLAY）。
  */
 export class LocalReports {
     constructor(
@@ -38,7 +39,8 @@ export class LocalReports {
         private authorizeRaw: (workspaceId: string) => boolean,
     ) {}
     /**
-     * 公开方法 snapshot 按工作区与 Run 组装本机报告投影：供桌面/CLI 展示而不暴露数据库路径（snapshot/INVALID_REPORT_DISPLAY）。
+     * 公开方法 snapshot 按工作区与 Run 组装本机报告投影：供桌面/CLI 展示而不暴露数据库路径（
+     * snapshot/INVALID_REPORT_DISPLAY）。
      */
     async snapshot(workspaceId: string, runId: string): Promise<LocalReportSnapshot> {
         const store = await LocalStore.open(this.root);
@@ -100,7 +102,9 @@ export class LocalReports {
                         ? "UNSTABLE"
                         : attempt.outcome;
                 const events = store.events(workspaceId, runId, attempt.attemptId, 0, 10000);
-                /** 报告只投影持久 Attempt 已声明的实际范围，缺字段仍然是历史未声明；范围不会改变业务结果、清理状态或离线门禁，也不会因 processStopped 默认值而推导出 Mac 或全后代保证。 */
+                /** 报告只投影持久 Attempt 已声明的实际范围，缺字段仍然是历史未声明；范围不会改变业务结果、
+                 * 清理状态或离线门禁，也不会因 processStopped 默认值而推导出 Mac 或全后代保证。
+                 */
                 item.attempts.push({
                     id: attempt.attemptId,
                     attemptNo: attempt.attemptNo,

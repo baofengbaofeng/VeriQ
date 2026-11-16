@@ -1,5 +1,6 @@
 /**
- * SQLite 私有会话只持有固定本地数据库用途的祖先链，Node24 SQLite 在该链仍活跃时打开原始数据库并自行执行 WAL/FULL 提交；这里核验普通单链接文件及当前 SID，不把 Windows 目录句柄刷新伪装成持久化
+ * SQLite 私有会话只持有固定本地数据库用途的祖先链，Node24 SQLite 在该链仍活跃时打开原始数据库并自行执行 WAL/FULL 提交；
+ * 这里核验普通单链接文件及当前 SID，不把 Windows 目录句柄刷新伪装成持久化
  * 能力，也不操作 SQL 或 Job 停止证明。
  */
 #pragma once
@@ -7,12 +8,18 @@
 #include <memory>
 
 namespace veriq {
-/** 固定目录能力禁止共享删除以保持从卷根到最终数据库目录的命名绑定，数据库本体只在缺失时创建且不截断已有内容；辅助文件由 SQLite 继承当前用户私有目录 ACL，既有宽权限或重解析对象一律拒绝而不修复。 */
+/**
+ * 固定目录能力禁止共享删除以保持从卷根到最终数据库目录的命名绑定，数据库本体只在缺失时创建且不截断已有内容；辅助文件由
+ * SQLite 继承当前用户私有目录 ACL，既有宽权限或重解析对象一律拒绝而不修复。
+ */
 class PrivateSqliteDirectory {
     std::unique_ptr<DirectoryChain> directory;
     std::wstring filename;
 public:
-    /** 只有两种宿主数据库名与对应固定用途目录能够进入此类，祖先链创建沿用当前 SID 可继承 DACL；普通配置、保险库或业务文件无法通过这个入口获得更大的文件额度、持久声明或任意路径退休能力。 */
+    /**
+     * 只有两种宿主数据库名与对应固定用途目录能够进入此类，祖先链创建沿用当前 SID 可继承 DACL；普通配置、保险库或业务文
+     * 件无法通过这个入口获得更大的文件额度、持久声明或任意路径退休能力。
+     */
     PrivateSqliteDirectory(const std::wstring& input, const std::wstring& name, bool create = true) : filename(name) {
         const FilePath path(input);
         require(!path.parts.empty() && (name == L"veriq-online.sqlite" || name == L"veriq.sqlite"),
@@ -49,7 +56,10 @@ public:
         requireWin32(CloseHandle(created) != 0, "NATIVE_SQLITE_CLOSE_UNCONFIRMED");
         validate();
     }
-    /** 同一真实文件的链接数和大小均用已打开句柄读取，拒绝把外部硬链接数据库或超额 WAL 当成本档案状态；此检查不读取数据库正文，也不扩大一般私有配置或凭据信封原来的读取限额。 */
+    /**
+     * 同一真实文件的链接数和大小均用已打开句柄读取，拒绝把外部硬链接数据库或超额 WAL 当成本档案状态；此检查不读取数据库
+     * 正文，也不扩大一般私有配置或凭据信封原来的读取限额。
+     */
     static void checked(HANDLE file) {
         require(!(plainFile(file) & FILE_ATTRIBUTE_DIRECTORY), "NATIVE_SQLITE_FILE_INVALID");
         BY_HANDLE_FILE_INFORMATION info{};
@@ -57,7 +67,10 @@ public:
         require(info.nNumberOfLinks == 1 && info.nFileSizeHigh == 0 && info.nFileSizeLow <= 512 * 1024 * 1024,
             "NATIVE_SQLITE_FILE_LIMIT");
     }
-    /** 每次 SQLite 打开、事务提交及读历史前均重新核验四个精确名字，缺失的辅助文件是合法生命周期但缺失本体不是；原生父链继续保活，未知权限、文件类型、拥有者或关闭错误阻止调用方继续派生。 */
+    /**
+     * 每次 SQLite 打开、事务提交及读历史前均重新核验四个精确名字，缺失的辅助文件是合法生命周期但缺失本体不是；原生父链
+     * 继续保活，未知权限、文件类型、拥有者或关闭错误阻止调用方继续派生。
+     */
     void validate() const {
         require(directory != nullptr, "NATIVE_SQLITE_SESSION_CLOSED");
         directory->validate();
@@ -75,7 +88,10 @@ public:
             }
         }
     }
-    /** 显式关闭逐一释放整条实际祖先链并保留第一个系统关闭错误，先撤销本对象的能力再报错；垃圾回收只兜底释放资源，不能被调用方解释为 SQLite 已提交或原生停止已经得到证明。 */
+    /**
+     * 显式关闭逐一释放整条实际祖先链并保留第一个系统关闭错误，先撤销本对象的能力再报错；垃圾回收只兜底释放资源，不能被
+     * 调用方解释为 SQLite 已提交或原生停止已经得到证明。
+     */
     void close() {
         auto owned = std::move(directory);
         if (owned) owned->close();

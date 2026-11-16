@@ -1,5 +1,6 @@
 /**
- * 本文件在落盘前校验离线包签名与成员哈希：并在执行边界重读已安装树：调用方内存对象不构成权威（verify/INVALID_BUNDLE_SCHEMA）。
+ * 本文件在落盘前校验离线包签名与成员哈希：并在执行边界重读已安装树：调用方内存对象不构成权威（
+ * verify/INVALID_BUNDLE_SCHEMA）。
  */
 
 /** Verify exact signed bytes before writing any archive member to disk. */
@@ -37,7 +38,8 @@ const MAX_ARCHIVE = 64 * 1024 * 1024,
     MAX_FILES = 4096;
 const digest = (raw: Uint8Array) => createHash("sha256").update(raw).digest("hex");
 /**
- * 公开函数 safePath 判定归档成员路径是否可安全落盘：拒绝绝对路径、父目录穿越与 Windows 保留名（safePath/INVALID_BUNDLE_SCHEMA）。
+ * 公开函数 safePath 判定归档成员路径是否可安全落盘：拒绝绝对路径、父目录穿越与 Windows
+ * 保留名（safePath/INVALID_BUNDLE_SCHEMA）。
  */
 export function safePath(path: string): boolean {
     return (
@@ -127,7 +129,8 @@ async function bytes(zip: ZipFile, entry: Entry, max: number): Promise<Buffer> {
 }
 type S = PlatformComponents["schemas"];
 /**
- * 公开类型 VerifiedBundle 表示签名与哈希均已通过的离线包：含清单、快照与可安装成员字节（VerifiedBundle/UNSAFE_ARCHIVE）。
+ * 公开类型 VerifiedBundle 表示签名与哈希均已通过的离线包：含清单、快照与可安装成员字节（
+ * VerifiedBundle/UNSAFE_ARCHIVE）。
  */
 export type VerifiedBundle = {
     manifest: BundleManifestV1;
@@ -146,7 +149,8 @@ export type VerifiedBundle = {
     };
 };
 /**
- * 公开函数 verifyBundle 在写入任何成员前验证签名字节与清单哈希：失败时清理临时树：通过后才允许安装（verifyBundle/UNSAFE_ARCHIVE）。
+ * 公开函数 verifyBundle 在写入任何成员前验证签名字节与清单哈希：失败时清理临时树：
+ * 通过后才允许安装（verifyBundle/UNSAFE_ARCHIVE）。
  */
 export async function verifyBundle(
     input: string,
@@ -288,7 +292,8 @@ export async function verifyBundle(
             }
         }
         /**
-         * Darwin rename 需要本次根仍可写，因此内部成员先全部封存，只保留独占根的七百权限至发布；根 fd 跨名称变化保活，发布后仅对该实际 inode 封存，不按 installed 字符串重开或修复用户目
+         * Darwin rename 需要本次根仍可写，因此内部成员先全部封存，只保留独占根的七百权限至发布；根 fd 跨名称变化保活，
+         * 发布后仅对该实际 inode 封存，不按 installed 字符串重开或修复用户目
          * 录，任一不确定都拒绝成功。
          */
         for (const directory of [...directories].sort((a, b) => b.length - a.length))
@@ -417,7 +422,9 @@ export async function verifyBundle(
                     privateParent = undefined;
                     owned?.close();
                 } finally {
-                    /** 清理只接受仍处于 staging 阶段且 inode 未变化的本次独占目录，发布后立刻撤销该所有权；替换、链接或缺失保留未知现场，不能按用户目的地回滚、放宽权限或删除原有安装。 */
+                    /** 清理只接受仍处于 staging 阶段且 inode 未变化的本次独占目录，发布后立刻撤销该所有权；替换、
+                     * 链接或缺失保留未知现场，不能按用户目的地回滚、放宽权限或删除原有安装。
+                     */
                     if (staging && stagingIdentity) {
                         const current = await lstat(staging).catch(
                             (error: NodeJS.ErrnoException) => {
@@ -450,7 +457,8 @@ export async function verifyBundle(
 }
 
 /**
- * 公开函数 reverifyInstalled 在执行边界重读已安装目录并复核哈希：调用方持有的对象副本不具备权威（reverifyInstalled/UNSAFE_BUNDLE_DIRECTORY）。
+ * 公开函数 reverifyInstalled 在执行边界重读已安装目录并复核哈希：调用方持有的对象副本不具备权威（
+ * reverifyInstalled/UNSAFE_BUNDLE_DIRECTORY）。
  */
 export async function reverifyInstalled(
     directory: string,

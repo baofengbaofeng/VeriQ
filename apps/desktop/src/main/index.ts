@@ -47,15 +47,22 @@ import {
     updatePrivate,
 } from "../../../runtime/src/offline/config.ts";
 
-/**
- * 主进程负责桌面窗口、普通登录网络与独立后台的连接边界，启动配置只从可信安装路径或开发启动器读取；这些进程级设置不能通过资源 DSL、资源包内容或 renderer 自选路径覆盖。模块目录用于定位随包的 preload、
- * renderer 和独立 Agent JavaScript。默认档案位于 Electron 的用户数据目录，安装升级不应把用户证据放进程序目录。测试或可信开发启动器可显式给出独立档案，以隔离设备、Cookie 和历史。自定义档案时
- * Electron userData 放在其 electron 子目录。这样同档案的单实例锁、Cookie 分区和后台配置属于一致的本机身份。窗口产品名使用 VeriQ，主进程 title 使用技术进程名 veriq。应用协议在
- * Electron ready 之前登记为标准且安全的来源。supportFetchAPI 仅让同来源的资源和 worker 正常工作，不授予任意 HTTP。全局 window 指向当前授权主窗口，证据窗口不会替换这个引用。
- * quitting 区分用户明确退出与普通关闭按钮事件。普通关闭保留后台，明确退出也只结束 UI，不顺带停止独立 Node。HostSession 的 origin 与设备配置中的 origin 分开保存并各自校验。默认
- * loopback 仅用于本机开发，正式配置仍要求 HTTPS。代理值由有限配置接口校验，不接收包含用户名和密码的代理 URL。AgentClient 从私有档案取得 socket 和 nonce，页面不会获得这两项。开发默认
- * Node 路径指向资源目录，安装模式改由完整发行清单派生角色路径。Node 的实际版本还会在启动时核对，不能仅凭文件名 node 假设匹配。默认引擎目录与测试浏览器目录都是安装资源路径。开发可见浏览器允许单独配置，
- * 安装模式使用同一完整 Chrome，不把 headless shell 重新标记为有界面。这些配置仅决定本机执行候选，真正执行前 Runtime 仍核验发行与签名包。没有从 renderer 暴露 env、argv、
+/** 主进程负责桌面窗口、普通登录网络与独立后台的连接边界，启动配置只从可信安装路径或开发启动器读取；这些进程级设置不能通
+ * 过资源 DSL、资源包内容或 renderer 自选路径覆盖。模块目录用于定位随包的 preload、
+ * renderer 和独立 Agent JavaScript。默认档案位于 Electron 的用户数据目录，安装升级不应把用户证据放进程序目录。测试或可
+ * 信开发启动器可显式给出独立档案，以隔离设备、Cookie 和历史。自定义档案时
+ * Electron userData 放在其 electron 子目录。这样同档案的单实例锁、Cookie 分区和后台配置属于一致的本机身份。窗口产品名
+ * 使用 VeriQ，主进程 title 使用技术进程名 veriq。应用协议在
+ * Electron ready 之前登记为标准且安全的来源。supportFetchAPI 仅让同来源的资源和 worker 正常工作，不授予任意 HTTP。全局
+ * window 指向当前授权主窗口，证据窗口不会替换这个引用。
+ * quitting 区分用户明确退出与普通关闭按钮事件。普通关闭保留后台，明确退出也只结束 UI，不顺带停止独立 Node。
+ * HostSession 的 origin 与设备配置中的 origin 分开保存并各自校验。默认
+ * loopback 仅用于本机开发，正式配置仍要求 HTTPS。代理值由有限配置接口校验，不接收包含用户名和密码的代理 URL。
+ * AgentClient 从私有档案取得 socket 和 nonce，页面不会获得这两项。开发默认
+ * Node 路径指向资源目录，安装模式改由完整发行清单派生角色路径。Node 的实际版本还会在启动时核对，不能仅凭文件名 node 假
+ * 设匹配。默认引擎目录与测试浏览器目录都是安装资源路径。开发可见浏览器允许单独配置，
+ * 安装模式使用同一完整 Chrome，不把 headless shell 重新标记为有界面。这些配置仅决定本机执行候选，真正执行前 Runtime 仍
+ * 核验发行与签名包。没有从 renderer 暴露 env、argv、
  * 任意读写文件或进程启动接口。
  */
 const directory = dirname(fileURLToPath(import.meta.url));
@@ -90,14 +97,20 @@ const runtime = {
         : {}),
 };
 
-/**
- * 连接已有后台优先于拉起新进程，只有明确的不可用或首次档案缺失才进入启动路径；已损坏的描述文件与未知错误必须原样失败，避免错误重启抢占仍在执行的同一档案。先调用真实 status，成功说明该 nonce 和 socket
- * 对应的后台能处理协议。仅看到 socket 文件存在不足以证明进程可用，因此不采用文件存在即成功。启动配置写入之前，选定 Node 必须实测为稳定24.x，安装发行还须与清单具体版本一致。版本探测使用 execFile 和参数数组，
- * 不经 shell 拼接。十秒版本探测只限制这个工具查询，不改变业务用例时限。后台配置写入使用私有原子配置接口，包含当前明确选择的控制 Origin。日志打开为追加模式，重连不会覆盖前一次后台启动的诊断。新日志的权限限制为当前用户，
- * 避免把后台诊断交给其它本机账户。独立 Node 只执行随包 agent.js，运行时不使用开发 tsx 入口。detached 让后台生命周期脱离 UI 进程的正常关闭。标准输入忽略，后台不能等待一个已经退出的 UI 提供终端输入。
- * 输出和错误都写本机日志，不保留继承 GUI 驱动管道的句柄。明确代理配置通过 Node 原生代理环境变量传入。没有代理设置时不人为伪造一个不同于系统环境的网络路径。unref 解除 UI 事件循环对该 child 的等待，
- * 不代表后台已经执行成功。主进程关闭自己的日志 fd，child 继续持有它已继承的句柄。启动后通过有限次数的实际状态请求等待协议可用。等待之间的短延时只用于 IPC 就绪检查，不参与业务正确性判定。最终不可用时返回
- * AGENT_START_FAILED，界面仍可显示其它本地信息。后台自身的档案锁负责并发启动排他，不能仅依赖 UI 的单实例锁。此处不杀死未知 PID，也不删除无法证明属于本档案的进程资源。
+/** 连接已有后台优先于拉起新进程，只有明确的不可用或首次档案缺失才进入启动路径；已损坏的描述文件与未知错误必须原样失败，
+ * 避免错误重启抢占仍在执行的同一档案。先调用真实 status，成功说明该 nonce 和 socket
+ * 对应的后台能处理协议。仅看到 socket 文件存在不足以证明进程可用，因此不采用文件存在即成功。启动配置写入之前，选定
+ * Node 必须实测为稳定24.x，安装发行还须与清单具体版本一致。版本探测使用 execFile 和参数数组，
+ * 不经 shell 拼接。十秒版本探测只限制这个工具查询，不改变业务用例时限。后台配置写入使用私有原子配置接口，包含当前明确
+ * 选择的控制 Origin。日志打开为追加模式，重连不会覆盖前一次后台启动的诊断。新日志的权限限制为当前用户，
+ * 避免把后台诊断交给其它本机账户。独立 Node 只执行随包 agent.js，运行时不使用开发 tsx 入口。detached 让后台生命周期脱
+ * 离 UI 进程的正常关闭。标准输入忽略，后台不能等待一个已经退出的 UI 提供终端输入。
+ * 输出和错误都写本机日志，不保留继承 GUI 驱动管道的句柄。明确代理配置通过 Node 原生代理环境变量传入。没有代理设置时不
+ * 人为伪造一个不同于系统环境的网络路径。unref 解除 UI 事件循环对该 child 的等待，
+ * 不代表后台已经执行成功。主进程关闭自己的日志 fd，child 继续持有它已继承的句柄。启动后通过有限次数的实际状态请求等待
+ * 协议可用。等待之间的短延时只用于 IPC 就绪检查，不参与业务正确性判定。最终不可用时返回
+ * AGENT_START_FAILED，界面仍可显示其它本地信息。后台自身的档案锁负责并发启动排他，不能仅依赖 UI 的单实例锁。此处不杀死
+ * 未知 PID，也不删除无法证明属于本档案的进程资源。
  */
 async function ensureAgent(): Promise<void> {
     try {
@@ -166,7 +179,8 @@ async function ensureAgent(): Promise<void> {
     throw new Error("AGENT_START_FAILED");
 }
 
-/** 公开状态组合普通会话的最小投影与后台的无密钥事实，后台暂时无法连接时仍允许窗口显示已配置 Origin 和 UI 版本；这里不会因为轮询而重新启动用户明确停止的后台。
+/** 公开状态组合普通会话的最小投影与后台的无密钥事实，后台暂时无法连接时仍允许窗口显示已配置 Origin 和 UI 版本；这里不会
+ * 因为轮询而重新启动用户明确停止的后台。
  * 后台读取失败时 agent 字段缺省，页面据此显示不可用。
  * 用户信息来自 HostSession 的 PublicSession，不含 masked CSRF。
  * 工作区信息来自最近一次服务端成员校验，不由 renderer 写入角色。
@@ -220,7 +234,8 @@ async function state(): Promise<DesktopState> {
     };
 }
 
-/** 恢复入口总是作用于已拥有的主窗口，先显示再恢复并请求焦点，供托盘、系统激活和第二实例共用；它不创建新窗口、不建立新后台，也不改变当前执行或用户的 Workspace 选择。
+/** 恢复入口总是作用于已拥有的主窗口，先显示再恢复并请求焦点，供托盘、系统激活和第二实例共用；它不创建新窗口、不建立新后
+ * 台，也不改变当前执行或用户的 Workspace 选择。
  * 隐藏到托盘的窗口需要 show 才重新出现在桌面。
  * 已经最小化的窗口需要 restore 才能恢复到可交互状态。
  * focus 是对系统窗口管理器的请求，不保证抢占其它应用焦点。
@@ -232,7 +247,8 @@ function show() {
     window?.restore();
     window?.focus();
 }
-/** 涉及退出、停止、解绑和原始证据的确认由主进程创建真实原生对话框，renderer 只能请求某个有限操作而不能直接提交确认结果；对话框默认选择取消，关闭对话框同样视为未授权。
+/** 涉及退出、停止、解绑和原始证据的确认由主进程创建真实原生对话框，renderer 只能请求某个有限操作而不能直接提交确认结果
+ * ；对话框默认选择取消，关闭对话框同样视为未授权。
  * 必须存在当前主窗口，不能在未绑定窗口身份时弹出后台确认。
  * 原生对话框绑定该窗口，测试也据此精确识别 transient 所属关系。
  * 按钮文案同时给出中英文，避免系统语言与应用语言不同导致误解。
@@ -256,13 +272,16 @@ async function confirm(message: string) {
     return answer.response === 1;
 }
 
-/** 界面退出总是明确说明独立后台会继续运行，正在准备或执行时同时展示当前真实占用；系统菜单和快捷键复用此入口，不能通过 before-quit 绕过原生确认，也不把 UI 退出当成进程停止证明。 */
+/** 界面退出总是明确说明独立后台会继续运行，正在准备或执行时同时展示当前真实占用；系统菜单和快捷键复用此入口，不能通过
+ * before-quit 绕过原生确认，也不把 UI 退出当成进程停止证明。
+ */
 async function quitUI(): Promise<void> {
     const current = await state();
     const busy = !!(current.agent?.active || current.agent?.preparing || current.agent?.online);
     if (
         await confirm(
-            `${busy ? "当前有执行或在线领取。 / Active work or polling exists. " : ""}退出界面后后台继续。 / Quit UI while Agent continues?`,
+            `${busy ? "当前有执行或在线领取。 / Active work or polling exists. " : ""}` +
+                "退出界面后后台继续。 / Quit UI while Agent continues?",
         )
     ) {
         quitting = true;
@@ -270,7 +289,9 @@ async function quitUI(): Promise<void> {
     }
 }
 
-/** 停止后台可能取消业务执行，因此与退出窗口保持独立原生确认；只有后台真实停止回执才视为请求完成，超时与未知错误直接展示，后续更新仍必须再次取得不含隔离占用的持久维护边界。 */
+/** 停止后台可能取消业务执行，因此与退出窗口保持独立原生确认；只有后台真实停止回执才视为请求完成，超时与未知错误直接展示
+ * ，后续更新仍必须再次取得不含隔离占用的持久维护边界。
+ */
 async function stopAgent(): Promise<void> {
     if (await confirm("停止后台会取消正在执行的测试。 / Stop Agent and cancel active work?")) {
         const result = object(await client.call({ operation: "stop" }));
@@ -278,7 +299,8 @@ async function stopAgent(): Promise<void> {
     }
 }
 
-/** 人工升级和回滚只接受用户选择的发布者签名清单，原生安装器先暂存并验证后才请求持续空闲证明；活动 Run、准备阶段、在线领取及隔离历史一律拒绝，不以更新为由强制取消业务或替换仍在使用的文件。
+/** 人工升级和回滚只接受用户选择的发布者签名清单，原生安装器先暂存并验证后才请求持续空闲证明；活动 Run、准备阶段、在线领
+ * 取及隔离历史一律拒绝，不以更新为由强制取消业务或替换仍在使用的文件。
  * 成功准备后停止后台并打开已核验安装器所在目录，退出 UI 后由用户手动启动原生安装。
  * 不直接抢先启动 NSIS，避免安装器检查忙碌时旧 UI 尚未完全退出的竞争。
  * 系统安装脚本仍会再次拒绝真实活动角色，准备回执不授权未来任意时刻强制更新。
@@ -300,7 +322,8 @@ async function prepareUpdate(): Promise<void> {
         if (
             !(await confirm(
                 `准备 ${staged.update.direction} 至 VeriQ ${staged.update.version}` +
-                    `。后台必须完全空闲；将退出界面，请在退出后手动打开已验证安装器。用户数据保留。 / Prepare verified ${staged.update.direction}` +
+                    "。后台必须完全空闲；将退出界面，请在退出后手动打开已验证安装器。" +
+                    `用户数据保留。 / Prepare verified ${staged.update.direction}` +
                     `; Agent must be idle. UI will quit. Open the verified installer after exit. User data is retai` +
                     `ned.`,
             ))
@@ -321,7 +344,8 @@ async function prepareUpdate(): Promise<void> {
     }
 }
 
-/** 本机命令白名单是 renderer 到后台之间的第二道有限能力边界，不能把后台内部的停止、证据导出或查看器保活命令原样透传；主进程先处理必须原生确认的业务动作，再连接固定档案的 Agent。
+/** 本机命令白名单是 renderer 到后台之间的第二道有限能力边界，不能把后台内部的停止、证据导出或查看器保活命令原样透传；主
+ * 进程先处理必须原生确认的业务动作，再连接固定档案的 Agent。
  * 输入先限制为普通对象，不能以数组或异常原型模拟操作信封。
  * operation 必须是明确列举的业务名，不接受命令行程序名。
  * 后台还会逐项核验参数，因此这个白名单不替代 Node 的校验。
@@ -376,14 +400,19 @@ async function local(input: unknown) {
         ))
     )
         throw new Error("USER_CANCELLED");
-    /** 保留期清理在确认前展示本次实际工作区和全部有限预算，拒绝 renderer 路径或隐藏字段；用户取消不会发送后台清理，确认之后仍必须由 Agent 核对当前空间、独占空闲和持久停止历史，不能把对话框当成文件授权。 */
+    /** 保留期清理在确认前展示本次实际工作区和全部有限预算，拒绝 renderer 路径或隐藏字段；用户取消不会发送后台清理，确认
+     * 之后仍必须由 Agent 核对当前空间、独占空闲和持久停止历史，不能把对话框当成文件授权。
+     */
     if (command.operation === "pruneCache") {
         const policy = parseLocalRetentionCommand(command);
         if (
             !(await confirm(
-                `清理工作区 ${policy.workspaceId} 的过期本机材料？成功/失败原始证据 ${policy.rawSuccessDays}/${policy.rawFailureDays}` +
-                    ` 天，元数据 ${policy.metadataDays} 天，未访问包 ${policy.bundleDays} 天，每批 ${policy.batchSize}` +
-                    `。未回传、活动和未知占用保留。关闭界面不保证撤销。 / Retire expired local data? Successful/failed raw evidence ` +
+                `清理工作区 ${policy.workspaceId} 的过期本机材料？成功/失败原始证据 ` +
+                    `${policy.rawSuccessDays}/${policy.rawFailureDays}` +
+                    ` 天，元数据 ${policy.metadataDays} 天，未访问包 ${policy.bundleDays} 天，` +
+                    `每批 ${policy.batchSize}` +
+                    "。未回传、活动和未知占用保留。关闭界面不保证撤销。 / " +
+                    "Retire expired local data? Successful/failed raw evidence " +
                     `${policy.rawSuccessDays}/${policy.rawFailureDays} days, metadata ${policy.metadataDays}` +
                     ` days, unused packages ${policy.bundleDays} days, batch ${policy.batchSize}` +
                     `. Pending uploads and unconfirmed ownership remain protected. Closing UI does not guarantee ca` +
@@ -397,7 +426,8 @@ async function local(input: unknown) {
         if (
             Object.keys(command.overrides as object).length &&
             !(await confirm(
-                "本次执行将向以下本机环境路由发送业务请求及该身份的凭证，并标记为非原始环境。 / Authorize this run's business routing and credentials?\n" +
+                "本次执行将向以下本机环境路由发送业务请求及该身份的凭证，并标记为非原始环境。" +
+                    " / Authorize this run's business routing and credentials?\n" +
                     JSON.stringify(command.overrides, null, 2),
             ))
         )
@@ -407,7 +437,8 @@ async function local(input: unknown) {
     return client.call(command);
 }
 
-/** 原始证据操作统一先取得当前用户的原生确认，再分别走本机已拥有报告或云端当前权限的读取路径；renderer 只能提交有限标识与动作，不能提交下载 URL、目标文件路径或可执行命令。
+/** 原始证据操作统一先取得当前用户的原生确认，再分别走本机已拥有报告或云端当前权限的读取路径；renderer 只能提交有限标识
+ * 与动作，不能提交下载 URL、目标文件路径或可执行命令。
  * local 标志必须是真布尔值，不能用字符串真值选择授权路径。
  * action 只允许保存、Trace 查看和截图预览。
  * Run、Attempt 和制品标识先检查 UUID 形态，再交给实际存储做归属核验。
@@ -520,7 +551,8 @@ async function artifact(input: unknown) {
     });
 }
 
-/** 统一 IPC 处理器先验证发送窗口、主 frame 和随包入口，再进入逐操作处理分支；同源 URL 或知道通道名称都不足以取得能力，所有网络和本机路径参数仍由所属分支独立验证。
+/** 统一 IPC 处理器先验证发送窗口、主 frame 和随包入口，再进入逐操作处理分支；同源 URL 或知道通道名称都不足以取得能力，
+ * 所有网络和本机路径参数仍由所属分支独立验证。
  * 没有当前窗口时拒绝，避免启动和退出期间出现悬空授权对象。
  * 缺少真实 senderFrame 时不能用 URL 字符串补造一个主 frame。
  * 授权上下文使用当前 window.webContents，而非消息中的任意字段。
@@ -647,7 +679,8 @@ function installBridge() {
     });
 }
 
-/** 应用准备完成后按私有配置、独立 Session、本地协议和主窗口的顺序建立桌面环境，首窗加载与控制平台恢复相互独立；离线或后台不可用不应让随包工作台消失，也不能因此放宽网络和沙箱设置。
+/** 应用准备完成后按私有配置、独立 Session、本地协议和主窗口的顺序建立桌面环境，首窗加载与控制平台恢复相互独立；离线或后
+ * 台不可用不应让随包工作台消失，也不能因此放宽网络和沙箱设置。
  * 先等待 Electron ready，避免在平台尚未初始化时创建 Session 或窗口。
  * 档案目录由 Runtime 私有目录工具检查，不能默许链接或宽权限状态。
  * 读取本机设置时再次校验控制 Origin，不信任曾经写入的 JSON 一定合法。
@@ -683,7 +716,9 @@ function installBridge() {
  */
 async function main() {
     await app.whenReady();
-    /** 正式 Electron 入口从自身资源布局核验独立 Runtime 并绑定原生能力，再读取任何私有档案；配置无法指定 addon 路径，库存失败也不能因为已有后台可连接而跳过本次宿主的启动授权。 */
+    /** 正式 Electron 入口从自身资源布局核验独立 Runtime 并绑定原生能力，再读取任何私有档案；配置无法指定 addon 路径，库
+     * 存失败也不能因为已有后台可连接而跳过本次宿主的启动授权。
+     */
     release = app.isPackaged ? await readDesktopRelease(process.resourcesPath) : undefined;
     const hostIdentity = release
         ? await verifyDesktopHost(release, process.resourcesPath)
@@ -726,7 +761,8 @@ async function main() {
             message:
                 "删除旧登录 Cookie 并重新登录？ / Remove legacy login cookies and sign in again?",
             detail:
-                "旧 Cookie 数据库及其日志可能以明文保存。仅删除 VeriQ 的这些文件；不会删除设备身份或业务凭据，也不保证介质擦除。 / Only VeriQ login cookie files" +
+                "旧 Cookie 数据库及其日志可能以明文保存。仅删除 VeriQ 的这些文件；不会删除设" +
+                "备身份或业务凭据，也不保证介质擦除。 / Only VeriQ login cookie files" +
                 " are removed; device and business credentials remain. This does not guarantee physical erasure.",
             buttons: ["取消 / Cancel", "删除并重新登录 / Remove and sign in again"],
             defaultId: 0,
@@ -800,9 +836,12 @@ async function main() {
                         type: "info",
                         title: "VeriQ",
                         message: tray
-                            ? "窗口收起后后台继续运行，可从托盘或 Dock 恢复。 / Agent continues; reopen from the tray or Dock."
+                            ? "窗口收起后后台继续运行，可从托盘或 Dock 恢复。 / Agent continues; reopen fro" +
+                              "m the tray or Dock."
                             : "窗口将最小化，后台继续运行。 / Window is minimized; Agent continues.",
-                        detail: "退出界面与停止后台是不同操作，请使用菜单中的明确入口。 / Quit UI and Stop Agent are separate menu actions.",
+                        detail:
+                            "退出界面与停止后台是不同操作，请使用菜单中的明确入口。 / Quit UI and Stop Ag" +
+                            "ent are separate menu actions.",
                     })
                     .then(() => {
                         tray ? window?.hide() : window?.minimize();

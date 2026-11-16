@@ -1,4 +1,6 @@
-"""计划服务在安装锁内冻结已发布资源选择并分配稳定序号，复用现有运行服务展开矩阵与统一任务队列；幂等请求绑定调用输入和主体，计划后续修改不会重写已经接受的运行快照。"""
+"""计划服务在安装锁内冻结已发布资源选择并分配稳定序号，复用现有运行服务展开矩阵与统一任务队列；
+幂等请求绑定调用输入和主体，计划后续修改不会重写已经接受的运行快照。
+"""
 
 from hashlib import sha256
 from typing import Any, Literal, TypedDict
@@ -17,7 +19,9 @@ from .runs import RunService
 
 
 class TriggerReceipt(TypedDict):
-    """触发回执只描述本次请求的接受、复用或跳过决策与权威状态地址，不承载业务通过结论；服务接口返回统一类型，由 HTTP 层依据决策选择状态码，避免调用者误把创建成功当作执行成功。"""
+    """触发回执只描述本次请求的接受、复用或跳过决策与权威状态地址，不承载业务通过结论；服务接口返回统一类型，由 HTTP
+    层依据决策选择状态码，避免调用者误把创建成功当作执行成功。
+    """
 
     decision: Literal["ENQUEUED", "REUSED", "SKIPPED"]
     runId: str
@@ -27,7 +31,9 @@ class TriggerReceipt(TypedDict):
 async def earlier_plan_work(
     session: AsyncSession, plan_id: str, sequence: int | None = None
 ) -> bool:
-    """后续运行既等待前驱逻辑终态，也等待其真实进程占用已释放；序号由安装锁串行分配而不依赖同一微秒时间排序，未知物理进程即使已标记失败也继续阻止重叠运行领取。"""
+    """后续运行既等待前驱逻辑终态，也等待其真实进程占用已释放；序号由安装锁串行分配而不依赖同一微秒时间排序，
+    未知物理进程即使已标记失败也继续阻止重叠运行领取。
+    """
     query = select(Run.id).where(Run.plan_id == plan_id)
     if sequence is not None:
         query = query.where(Run.plan_sequence < sequence)
@@ -45,7 +51,9 @@ async def earlier_plan_work(
 
 
 def plan_dto(plan: ExecutionPlan) -> dict[str, Any]:
-    """计划响应包含当前修订和显式归档状态以及原始选择，客户端必须携带修订才能更新或归档；服务只返回资源引用和非敏感配置，不从身份适配器或凭证库补入任何秘密明文。"""
+    """计划响应包含当前修订和显式归档状态以及原始选择，客户端必须携带修订才能更新或归档；服务只返回资源引用和非敏感配置
+    ，不从身份适配器或凭证库补入任何秘密明文。
+    """
     return {
         "id": plan.id,
         "workspaceId": plan.workspace_id,
@@ -57,14 +65,20 @@ def plan_dto(plan: ExecutionPlan) -> dict[str, Any]:
 
 
 class ExecutionPlanService:
-    """计划管理与触发分别校验编辑、执行权限，服务账号仅能使用已授予的计划而不能修改其配置；所有方法依赖调用者提供安装锁事务以原子处理修订、重叠判定和全局运行准入。"""
+    """计划管理与触发分别校验编辑、执行权限，服务账号仅能使用已授予的计划而不能修改其配置；所有方法依赖调用者提供安装锁
+    事务以原子处理修订、重叠判定和全局运行准入。
+    """
 
     def __init__(self, session: AsyncSession, actor: User | ServicePrincipal):
-        """保存调用主体但不将服务账号转换成员工，后续管理操作明确要求用户而触发允许受限服务身份；归因仍由现有用户外键承载，权限判定只读取当前主体自己的授权来源。"""
+        """保存调用主体但不将服务账号转换成员工，后续管理操作明确要求用户而触发允许受限服务身份；
+        归因仍由现有用户外键承载，权限判定只读取当前主体自己的授权来源。
+        """
         self.session, self.actor = session, actor
 
     async def get(self, workspace_id: str, plan_id: str) -> ExecutionPlan:
-        """嵌套计划查询总是先约束空间归属，用户需当前成员权限而独立服务身份需具体计划执行范围；归档计划保留供管理界面展示，实际触发路径再拒绝使用其生成新运行。"""
+        """嵌套计划查询总是先约束空间归属，用户需当前成员权限而独立服务身份需具体计划执行范围；
+        归档计划保留供管理界面展示，实际触发路径再拒绝使用其生成新运行。
+        """
         if isinstance(self.actor, ServicePrincipal):
             _, granted_plan = await self.actor.require(
                 self.session, workspace_id, plan_id, "trigger"
@@ -79,7 +93,9 @@ class ExecutionPlanService:
     async def write(
         self, workspace_id: str, data: dict[str, Any], plan_id: str | None = None
     ) -> ExecutionPlan:
-        """管理写入验证真实已发布套件和环境、当前设备派发权与角色集合，更新以修订号防止覆盖并保留原序号；计划只能引用本空间资源，变量和值会随触发复制到不可变运行快照。"""
+        """管理写入验证真实已发布套件和环境、当前设备派发权与角色集合，更新以修订号防止覆盖并保留原序号；
+        计划只能引用本空间资源，变量和值会随触发复制到不可变运行快照。
+        """
         if isinstance(self.actor, ServicePrincipal):
             raise Problem(403, "PLAN_MANAGEMENT_FORBIDDEN", "Employee editor permission required")
         await WorkspaceRepository(self.session, WorkspaceScope(workspace_id)).authorize(
@@ -138,7 +154,9 @@ class ExecutionPlanService:
         return plan
 
     async def archive(self, workspace_id: str, plan_id: str, revision: int) -> None:
-        """归档只改变当前可用性并保留历史快照和运行关联，必须核对当前编辑权限与修订，防止管理界面陈旧请求覆盖新设置；服务执行阶段看到归档立即停止继续授予执行权限。"""
+        """归档只改变当前可用性并保留历史快照和运行关联，必须核对当前编辑权限与修订，防止管理界面陈旧请求覆盖新设置；
+        服务执行阶段看到归档立即停止继续授予执行权限。
+        """
         if isinstance(self.actor, ServicePrincipal):
             raise Problem(403, "PLAN_MANAGEMENT_FORBIDDEN", "Employee editor permission required")
         await WorkspaceRepository(self.session, WorkspaceScope(workspace_id)).authorize(
@@ -158,12 +176,16 @@ class ExecutionPlanService:
 
 
 class TriggerService(ExecutionPlanService):
-    """触发服务复用现有运行创建路径，仅增加计划冻结、稳定串行序号及轻量跳过记录；请求重放首先验证当前主体，再比较原始输入摘要，不重新套用已经修改的计划参数或重新生成任务。"""
+    """触发服务复用现有运行创建路径，仅增加计划冻结、稳定串行序号及轻量跳过记录；请求重放首先验证当前主体，
+    再比较原始输入摘要，不重新套用已经修改的计划参数或重新生成任务。
+    """
 
     async def trigger(
         self, scope: WorkspaceScope, plan_id: str, input: dict[str, Any], idempotency_key: str
     ) -> TriggerReceipt:
-        """首次准入返回接受或跳过回执，重复请求返回同一运行而不同输入冲突；重叠包含未知物理占用，QUEUE 准入继续受原有十运行限制，实际领取另核对前驱序号与物理释放状态。"""
+        """首次准入返回接受或跳过回执，重复请求返回同一运行而不同输入冲突；重叠包含未知物理占用，QUEUE
+        准入继续受原有十运行限制，实际领取另核对前驱序号与物理释放状态。
+        """
         workspace_id = scope.workspace_id
         plan = await self.get(workspace_id, plan_id)
         if plan.archived:
@@ -274,7 +296,9 @@ class TriggerService(ExecutionPlanService):
 
     @staticmethod
     def receipt(run: Run, decision: Literal["ENQUEUED", "REUSED", "SKIPPED"]) -> TriggerReceipt:
-        """回执只暴露决策、运行标识和同源轮询地址，不把 HTTP 接受等同业务通过；跳过状态由运行详情保留独立原因，CI 必须继续按最终结果与门禁事实决定退出码而不能仅检查请求成功。"""
+        """回执只暴露决策、运行标识和同源轮询地址，不把 HTTP 接受等同业务通过；跳过状态由运行详情保留独立原因，CI
+        必须继续按最终结果与门禁事实决定退出码而不能仅检查请求成功。
+        """
         return {
             "decision": decision,
             "runId": run.id,

@@ -6,7 +6,9 @@
 import { tx, useAppLocale } from "../../locale";
 import { Field, List, StringList, useValue, useSet } from "../resources/fields";
 import { Button } from "@veriq/ui";
-/** 在给定 RHF path 下编辑 authAdapter/secret 版本引用与 allowedIdentityIds。role=true 时额外要求 roleKey；注释提示禁止保存明文。 */
+/** 在给定 RHF path 下编辑 authAdapter/secret 版本引用与 allowedIdentityIds。role=true 时额外要求 roleKey；注释提示禁止
+ * 保存明文。
+ */
 export function IdentityFields({ path, role = false }: { path: string; role?: boolean }) {
     useAppLocale();
     return (
@@ -33,8 +35,8 @@ export function IdentityFields({ path, role = false }: { path: string; role?: bo
         </>
     );
 }
-/**
- * 环境文档根字段：夹具身份、角色映射与浏览器相关配置入口。fixtureIdentity 可为空对象；fixtureIdentity 允许先用空对象占位再补全。
+/** 环境文档根字段：夹具身份、角色映射与浏览器相关配置入口。fixtureIdentity 可为空对象；fixtureIdentity 允许先用空对象占
+ * 位再补全。
  * 读写仅经 useValue/useSet；保存由资源编辑器工具栏触发。
  */
 export function EnvironmentFields() {

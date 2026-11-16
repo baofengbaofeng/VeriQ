@@ -36,7 +36,9 @@ const object = (value: unknown): Record<string, unknown> =>
     value !== null && typeof value === "object" && !Array.isArray(value)
         ? (value as Record<string, unknown>)
         : {};
-/** 工作区选择与默认首项逻辑；把 adapter 交给 ReportWorkspaceView。未登录直接 Navigate 登录页。不缓存所选 runId 跨空间，防止串读其他空间报告。 */
+/** 工作区选择与默认首项逻辑；把 adapter 交给 ReportWorkspaceView。未登录直接 Navigate 登录页。不缓存所选 runId 跨空间，
+ * 防止串读其他空间报告。
+ */
 export function ReportPage() {
     useAppLocale();
     const t = useLabels(),
@@ -55,7 +57,8 @@ export function ReportPage() {
     const items = workspaces.data?.pages.flatMap((p) => p.items) ?? [];
     const firstWorkspaceId = items[0]?.id;
     const availableRequestedId = items.find((w) => w.id === requestedWorkspace)?.id;
-    // URL 的目标只有在已加载分页中真正可见时才取得选择权，后续用户手动切换不会重新触发这一效果；稍后分页发现目标时仍应准确选择它，而非依赖首项变化。
+    // URL 的目标只有在已加载分页中真正可见时才取得选择权，后续用户手动切换不会重新触发这一效果；稍后分页发现目标时仍应
+    // 准确选择它，而非依赖首项变化。
     useEffect(() => {
         if (availableRequestedId) select(availableRequestedId);
     }, [availableRequestedId, select]);
@@ -115,7 +118,9 @@ export function ReportPage() {
         </Panel>
     );
 }
-/** 拥有 run 列表无限查询与当前选中 runId；打开 ReportView 并处理 Load more。切换 run 会重置 history after。空列表显示 empty 文案；错误用 retry 重新拉取。 */
+/** 拥有 run 列表无限查询与当前选中 runId；打开 ReportView 并处理 Load more。切换 run 会重置 history after。空列表显示
+ * empty 文案；错误用 retry 重新拉取。
+ */
 export function ReportWorkspaceView({
     initialRunId = "",
     adapter,
@@ -200,8 +205,8 @@ export function ReportWorkspaceView({
         </div>
     );
 }
-/**
- * 单个 Run 的报告主体：门禁、用例树、Attempt 事件、证据下载与审计片段。原始证据区按角色条件渲染；原始证据区仅对 Owner 或 Admin 角色展开。
+/** 单个 Run 的报告主体：门禁、用例树、Attempt 事件、证据下载与审计片段。原始证据区按角色条件渲染；原始证据区仅对 Owner
+ * 或 Admin 角色展开。
  * subscribe 更新 report 头；history 按 after 增量追加，不做 Playwright 重试展示。
  */
 export function ReportView({
@@ -228,7 +233,8 @@ export function ReportView({
         setReport(undefined);
         setRestart((r) => r + 1);
     };
-    // 订阅始终占据同一子节点位置，报告由加载态变为成功态时不能重挂载；只有显式 Retry 的 key 改变才结束旧订阅，并保留父组件拥有的选中项和分页数量。
+    // 订阅始终占据同一子节点位置，报告由加载态变为成功态时不能重挂载；只有显式 Retry 的 key 改变才结束旧订阅，并保留父
+    // 组件拥有的选中项和分页数量。
     const subscription = (
         <ReportSubscription
             key={restart}
@@ -326,7 +332,8 @@ function ReportSubscription({
     setGeneration: Dispatch<SetStateAction<number>>;
 }) {
     useAppLocale();
-    // 初始快照与流共享同一个取消边界，流失败仍撤销同代快照请求；稳定的 React setter 不会因父组件正常渲染而更换，卸载清理时机沿用原有订阅效果。
+    // 初始快照与流共享同一个取消边界，流失败仍撤销同代快照请求；稳定的 React setter 不会因父组件正常渲染而更换，卸载清
+    // 理时机沿用原有订阅效果。
     useEffect(() => {
         const lifetime = new AbortController();
         const active = signal ? AbortSignal.any([signal, lifetime.signal]) : lifetime.signal;
@@ -491,7 +498,8 @@ function AttemptDetails({
             adapter.display(runId, attemptId, AbortSignal.any([signal, active])),
     });
     const cursor = useRef(0);
-    // 游标只供下一次显式加载读取，推进它不触发额外请求；并发响应仍按 sequence 合并且游标单调前进，既不自动排空分页，也不引入额外的过期代次丢弃协议。
+    // 游标只供下一次显式加载读取，推进它不触发额外请求；并发响应仍按 sequence 合并且游标单调前进，既不自动排空分页，也
+    // 不引入额外的过期代次丢弃协议。
     const load = useCallback(async () => {
         try {
             const page = await adapter.history(attemptId, cursor.current, active);
@@ -780,7 +788,8 @@ function AttemptDetails({
 
 function HistoryPageLoader({ load }: { load: () => Promise<void> }) {
     useAppLocale();
-    // 每次服务端报告代次提交仅挂载一个无界面加载器，累计事件仍属于 AttemptDetails；证据查询完成或历史状态变化不会重挂载它，手动 More 也只调用同一加载函数一次。
+    // 每次服务端报告代次提交仅挂载一个无界面加载器，累计事件仍属于 AttemptDetails；证据查询完成或历史状态变化不会重挂载
+    // 它，手动 More 也只调用同一加载函数一次。
     useEffect(() => {
         void load();
     }, [load]);

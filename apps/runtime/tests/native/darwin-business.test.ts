@@ -1,5 +1,7 @@
-/** 此入口只在真实 macOS15 原生宿主运行完整业务，复用现有真实 SDK/compiler/npm 离线闭包与 Playwright CLI；所有扫描在私有配置之外执行，诊断只输出计数，任何真实端点命中都会令当前交付门禁失败
- * 并保留窄范围泄漏结论。 */
+/** 此入口只在真实 macOS15 原生宿主运行完整业务，复用现有真实 SDK/compiler/npm 离线闭包与 Playwright CLI；所有扫描在私有
+ * 配置之外执行，诊断只输出计数，任何真实端点命中都会令当前交付门禁失败
+ * 并保留窄范围泄漏结论。
+ */
 import assert from "node:assert/strict";
 import { test, before, after } from "node:test";
 import fs from "node:fs/promises";
@@ -82,7 +84,9 @@ after(async () => {
     else await rm(root, { recursive: true, force: true });
 });
 
-/** 私有控制成员与第三方异常只在夹具内转换为固定阶段，TAP 不得借 JSON 语法片段、错误 cause 或动态 message 输出端点和控制 nonce；真正的原始对象与结果仍由测试保留，诊断只输出受限枚举与布尔分类。 */
+/** 私有控制成员与第三方异常只在夹具内转换为固定阶段，TAP 不得借 JSON 语法片段、错误 cause 或动态 message 输出端点和控制
+ * nonce；真正的原始对象与结果仍由测试保留，诊断只输出受限枚举与布尔分类。
+ */
 function privateJson(bytes: string | Buffer): any {
     try {
         return JSON.parse(bytes.toString());
@@ -120,7 +124,9 @@ function reportNativeFailure(
     );
 }
 
-/** 夹具收尾只等待原对象的实际操作，并共用首次收尾得到的现有 source 上限绝对期限；到期或拒绝只产生未确认失败，不猜测 PID、不调用 test-force-exit，也不会把随后由夹具终止得到的事实写回产品停止回执。 */
+/** 夹具收尾只等待原对象的实际操作，并共用首次收尾得到的现有 source 上限绝对期限；到期或拒绝只产生未确认失败，不猜测 PID
+ * 、不调用 test-force-exit，也不会把随后由夹具终止得到的事实写回产品停止回执。
+ */
 async function fixtureBefore<T>(operation: Promise<T>, deadline: number): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
@@ -144,7 +150,8 @@ async function fixtureBefore<T>(operation: Promise<T>, deadline: number): Promis
 }
 
 /**
- * Playwright 的真实错误正文只在测试内存分类，投影有限错误数量和预先固定的连接、模块、类型与断言特征；既不复制错误消息、源码片段和堆栈，也不由某个分类直接推断 SDK 根因或受控停止成功，实际修复仍须协调者按新证据裁定
+ * Playwright 的真实错误正文只在测试内存分类，投影有限错误数量和预先固定的连接、模块、类型与断言特征；既不复制错误消息、
+ * 源码片段和堆栈，也不由某个分类直接推断 SDK 根因或受控停止成功，实际修复仍须协调者按新证据裁定
  * 。
  */
 async function reportPlaywrightFacts(path: string): Promise<void> {
@@ -181,7 +188,9 @@ async function reportPlaywrightFacts(path: string): Promise<void> {
     console.log(JSON.stringify({ playwrightDiagnostic: facts }));
 }
 
-/** ZIP 解析只复用已有 yauzl，以输入、条目数量、单项及总解压字节四重限额读取真实归档；条目名字同样受扫描，嵌套只允许 HTML 选定数据与 Trace 两层，不把压缩原字节未命中当成已检查正文。 */
+/** ZIP 解析只复用已有 yauzl，以输入、条目数量、单项及总解压字节四重限额读取真实归档；条目名字同样受扫描，嵌套只允许
+ * HTML 选定数据与 Trace 两层，不把压缩原字节未命中当成已检查正文。
+ */
 async function scanArchive(bytes: Buffer, check: (bytes: Buffer) => void): Promise<number> {
     assert.ok(bytes.length <= 32 * 1024 * 1024, "Archive input limit");
     const zip = await new Promise<ZipFile>((resolve, reject) =>
@@ -244,7 +253,8 @@ async function scanArchive(bytes: Buffer, check: (bytes: Buffer) => void): Promi
 }
 
 /**
- * 观察器只保留测试内存中的完整端点和随机路径，检查 URL/JSON/百分号/base64 编码；产品私有 invocation/PW config 不属于上传容器，报告 JSON、JUnit、HTML 内嵌 ZIP 与 Tra
+ * 观察器只保留测试内存中的完整端点和随机路径，检查 URL/JSON/百分号/base64 编码；产品私有 invocation/PW config 不属于上
+ * 传容器，报告 JSON、JUnit、HTML 内嵌 ZIP 与 Tra
  * ce 解压正文则必须逐项经过真实读取。
  */
 async function observeBusiness(
@@ -289,7 +299,9 @@ async function observeBusiness(
         fields: Record<string, number> = {};
     const check = (bytes: Buffer) => {
         buffers++;
-        /** 引用检查覆盖同一个原始字节和归档成员入口，避免端点仅存在于未交付缓存时把报告中的缓存链接当作安全；任何已验证操作输入的引用仍计入总命中和独立桶，原工作流的阳性阻断条件保持有效。 */
+        /** 引用检查覆盖同一个原始字节和归档成员入口，避免端点仅存在于未交付缓存时把报告中的缓存链接当作安全；任何已验证
+         * 操作输入的引用仍计入总命中和独立桶，原工作流的阳性阻断条件保持有效。
+         */
         if (operationalReferences.some((contains) => contains(bytes))) {
             hits++;
             operationalInputs.referenceHits++;
@@ -420,7 +432,9 @@ async function observeBusiness(
             );
             await emitBusinessDiagnostic("WORKER_EXIT", args[1].cwd, undefined);
             await reportPlaywrightFacts(join(invocation.tmp, "playwright.json"));
-            /** 配置编译缓存只有在来源、成对文件及稳定内容均已确认时才进入独立操作清单；回调先登记引用检查，再扫描所有真实交付字节和解码成员，因此复制、嵌入或引用缓存仍增加阳性计数并阻断原交付门禁。 */
+            /** 配置编译缓存只有在来源、成对文件及稳定内容均已确认时才进入独立操作清单；回调先登记引用检查，再扫描所有真
+             * 实交付字节和解码成员，因此复制、嵌入或引用缓存仍增加阳性计数并阻断原交付门禁。
+             */
             await visitBusinessArtifacts(invocation.tmp, args[1].cwd, inspect, (inventory) => {
                 operationalInputs.files += inventory.files;
                 operationalInputs.bytes += inventory.bytes;
@@ -503,7 +517,9 @@ async function observeBusiness(
     }
 }
 
-/** 线上业务复用原 physical 的真实失败与第二次成功，并在清理前扫描实际上传和报告容器；HTTP 夹具只确认传输封套，容量、fence 服务事务和真实 MySQL 结论仍由独立 Linux 服务门禁证明。 */
+/** 线上业务复用原 physical 的真实失败与第二次成功，并在清理前扫描实际上传和报告容器；HTTP 夹具只确认传输封套，容量、
+ * fence 服务事务和真实 MySQL 结论仍由独立 Linux 服务门禁证明。
+ */
 test(
     "online actual SDK assertion FAIL/PASS preserves CONTROLLED proof and scans decoded artifacts",
     { timeout: 240000 },
@@ -553,7 +569,9 @@ test(
     },
 );
 
-/** 离线执行只访问测试业务 HTTP 页面而没有控制平台客户端，正常与断言失败均走真正冻结 npm 闭包和 CLI；重新打开 SQLite 报告与恢复入口保留同代受控范围，不把普通业务失败解释为进程生命周期失败。 */
+/** 离线执行只访问测试业务 HTTP 页面而没有控制平台客户端，正常与断言失败均走真正冻结 npm 闭包和 CLI；重新打开 SQLite 报
+ * 告与恢复入口保留同代受控范围，不把普通业务失败解释为进程生命周期失败。
+ */
 async function offlineReportScenario(failing: boolean, connectFailure = false) {
     const server = createServer((request, response) => {
         response.setHeader(
@@ -760,7 +778,9 @@ test(
     async () => offlineReportScenario(false, true),
 );
 
-/** 私有配置真实读取与发布使用 B 能力，宽权限、ALLOW ACL 和超过调用者限额都拒绝；这里不修复对象权限，提交失败保留不确定性，公开大包读取也不会因此扩大原生两兆硬上限。 */
+/** 私有配置真实读取与发布使用 B 能力，宽权限、ALLOW ACL 和超过调用者限额都拒绝；这里不修复对象权限，提交失败保留不确定
+ * 性，公开大包读取也不会因此扩大原生两兆硬上限。
+ */
 test("Darwin private config rejects insecure mode and ALLOW ACL without repair", async () => {
     const directory = join(root, "private-config");
     await privateDirectory(directory);
@@ -778,8 +798,10 @@ test("Darwin private config rejects insecure mode and ALLOW ACL without repair",
     }
 });
 
-/** Broker 只使用可信短临时根的独占目录，构造器按实际 UTF8 字节拒绝 sockaddr_un 溢出；业务根再长也不会被静默 realpath，真实传输仍验证 nonce、EOF 以及关闭后只退休当前拥有的套接字和标记目
- * 录。 */
+/** Broker 只使用可信短临时根的独占目录，构造器按实际 UTF8 字节拒绝 sockaddr_un 溢出；业务根再长也不会被静默 realpath，
+ * 真实传输仍验证 nonce、EOF 以及关闭后只退休当前拥有的套接字和标记目
+ * 录。
+ */
 test("Darwin broker validates UTF8 boundary and transports through an owned short B directory", async () => {
     assert.doesNotThrow(() => new AttemptBroker("x".repeat(103), async () => null));
     assert.throws(() => new AttemptBroker("x".repeat(104), async () => null), /IPC_PATH_INVALID/);
@@ -822,7 +844,9 @@ test("Darwin broker validates UTF8 boundary and transports through an owned shor
     }
 });
 
-/** 本夹具在真实离线包周围提供实际业务服务器、可取消请求与原 BrowserServer 句柄，异常后只终止本次真正创建的 Chrome 并等原对象退出；不以 PID 查询补证明，也不把启动取消或提交不确定性假称没有派生。 */
+/** 本夹具在真实离线包周围提供实际业务服务器、可取消请求与原 BrowserServer 句柄，异常后只终止本次真正创建的 Chrome 并等
+ * 原对象退出；不以 PID 查询补证明，也不把启动取消或提交不确定性假称没有派生。
+ */
 async function offlineScenario(
     run: (value: {
         local: string;
@@ -998,7 +1022,9 @@ async function offlineScenario(
     }
 }
 
-/** 离线操作一创建就附加拒绝处理，结果的有界阶段投影在目录清理前完成；异常只输出固定代码和类型分类，不能把内部错误 cause 或私有控制配置交给 TAP，同时原始业务枚举与停止断言保持不变。 */
+/** 离线操作一创建就附加拒绝处理，结果的有界阶段投影在目录清理前完成；异常只输出固定代码和类型分类，不能把内部错误 cause
+ * 或私有控制配置交给 TAP，同时原始业务枚举与停止断言保持不变。
+ */
 function diagnosedOfflineRun(
     bundle: Parameters<typeof runOffline>[0],
     config: Parameters<typeof runOffline>[1],
@@ -1016,7 +1042,9 @@ function diagnosedOfflineRun(
     );
 }
 
-/** 取消在真实页面请求已到达后发生，CLI 必须按同代授权退出并完成观察封存，在线与离线的终结调用数均保持一次；这里不把取消 ACK 或 BrowserServer.close 返回单独作为停止结论。 */
+/** 取消在真实页面请求已到达后发生，CLI 必须按同代授权退出并完成观察封存，在线与离线的终结调用数均保持一次；这里不把取消
+ * ACK 或 BrowserServer.close 返回单独作为停止结论。
+ */
 test(
     "offline real running CLI cancellation immediately uses one stop operation and actual CONTROLLED proof",
     { timeout: 180000 },
@@ -1105,8 +1133,10 @@ test(
     },
 );
 
-/** 启动中的取消发生在真实 start 已同步登记且尚未返回 child 的窗口，后台准入必须立即关闭；后续 start 拒绝与 finally 复用首次停止，SQLite 保留隔离，不允许重贴恢复代际或把空 child 当成未派
- * 生。 */
+/** 启动中的取消发生在真实 start 已同步登记且尚未返回 child 的窗口，后台准入必须立即关闭；后续 start 拒绝与 finally 复用
+ * 首次停止，SQLite 保留隔离，不允许重贴恢复代际或把空 child 当成未派
+ * 生。
+ */
 test(
     "offline cancel while awaiting actual start closes admission without late business START",
     { timeout: 180000 },
@@ -1147,7 +1177,9 @@ test(
         }),
 );
 
-/** 过期和非有限截止在真实 worker 已登记但尚未 START 时触发，终结 promise 必须粘滞且立即保守失败；之后更长的预算不能延长首次租约，也不能因浏览器或 worker 最终退出而改写未知证明。 */
+/** 过期和非有限截止在真实 worker 已登记但尚未 START 时触发，终结 promise 必须粘滞且立即保守失败；之后更长的预算不能延长
+ * 首次租约，也不能因浏览器或 worker 最终退出而改写未知证明。
+ */
 for (const invalid of ["expired", "nan", "infinity"] as const)
     test(
         `actual Darwin ${invalid} stop deadline closes admission and remains sticky`,
@@ -1190,7 +1222,9 @@ for (const invalid of ["expired", "nan", "infinity"] as const)
             }),
     );
 
-/** 原生目录包装只在真实 replace 完成后注入不确定结果，全部实际 B 文件核验、刷新及 Chrome 生命周期仍保留；私有 invocation 已经可见也不能宣称没有派生，重开恢复继续保留未知容量。 */
+/** 原生目录包装只在真实 replace 完成后注入不确定结果，全部实际 B 文件核验、刷新及 Chrome 生命周期仍保留；私有
+ * invocation 已经可见也不能宣称没有派生，重开恢复继续保留未知容量。
+ */
 test(
     "actual private invocation publication uncertainty cannot become NO_PROCESS or release offline owner",
     { timeout: 180000 },
@@ -1232,7 +1266,9 @@ test(
         }),
 );
 
-/** 线上 RUNNING 发布故障发生于真实 B 原子提交之后，outer 已存在而业务 START 尚未发送；后续只能复用真实受控停止结论，不能用 child 或普通路径提交猜测没有派生，也不能继续进入页面或上传成功完成清单。 */
+/** 线上 RUNNING 发布故障发生于真实 B 原子提交之后，outer 已存在而业务 START 尚未发送；后续只能复用真实受控停止结论，不
+ * 能用 child 或普通路径提交猜测没有派生，也不能继续进入页面或上传成功完成清单。
+ */
 test(
     "online RUNNING journal publication uncertainty blocks business START and preserves controlled stopping",
     { timeout: 180000 },
@@ -1292,8 +1328,10 @@ test(
     },
 );
 
-/** SQLite 的故障点先执行真实 RUNNING COMMIT 再抛错，因此调用方手中的旧 SPAWNING token 不能授权后续状态写入；停止仍立即执行，持久占用保持可恢复未知，不能在 finally 中用状态失配释放容
- * 量或补发业务 START。 */
+/** SQLite 的故障点先执行真实 RUNNING COMMIT 再抛错，因此调用方手中的旧 SPAWNING token 不能授权后续状态写入；停止仍立即
+ * 执行，持久占用保持可恢复未知，不能在 finally 中用状态失配释放容
+ * 量或补发业务 START。
+ */
 test(
     "offline actual RUNNING commit uncertainty retains capacity and never sends late START",
     { timeout: 180000 },
@@ -1344,8 +1382,10 @@ test(
         }),
 );
 
-/** 真正重试为每个 Attempt 写独立控制证明，第二次 LAUNCH 使用 SQLite 已提交的新代际而不是覆盖第一份历史；断言失败后通过仍显示 UNSTABLE，重开报告保留两个受控范围，不把新 owner generat
- * ion 重贴到旧 proof。 */
+/** 真正重试为每个 Attempt 写独立控制证明，第二次 LAUNCH 使用 SQLite 已提交的新代际而不是覆盖第一份历史；断言失败后通过
+ * 仍显示 UNSTABLE，重开报告保留两个受控范围，不把新 owner generat
+ * ion 重贴到旧 proof。
+ */
 test(
     "offline real retry retains both launch generations and CONTROLLED report scopes",
     { timeout: 240000 },
@@ -1427,7 +1467,9 @@ test(
     },
 );
 
-/** 即使停止先于任何实际 start 登记，首次终结也必须关闭该 Attempt 的未来准入，否则旧去重 promise 可能遮蔽后来创建的活进程；非法可见模式和下载目录同样必须在 Chrome 派生之前由真实受信入口拒绝。 */
+/** 即使停止先于任何实际 start 登记，首次终结也必须关闭该 Attempt 的未来准入，否则旧去重 promise 可能遮蔽后来创建的活进
+ * 程；非法可见模式和下载目录同样必须在 Chrome 派生之前由真实受信入口拒绝。
+ */
 test("Darwin first stop closes future admission and rejects untrusted browser options", async () => {
     const source = await createDarwinSource({ temporaryDirectory: root }),
         directory = join(root, "admission"),
@@ -1461,7 +1503,9 @@ test("Darwin first stop closes future admission and rejects untrusted browser op
     );
 });
 
-/** 最终日志读取故障发生在真实 outer 与 CLI 已经结束之后，仍不能把普通 EOF、业务断言结果或已返回读字节提升成受控停止；包装保留实际 B File 拥有者，只注入读取结果不确定性，生产终结路径必须保留未知范围和容量。 */
+/** 最终日志读取故障发生在真实 outer 与 CLI 已经结束之后，仍不能把普通 EOF、业务断言结果或已返回读字节提升成受控停止；包
+ * 装保留实际 B File 拥有者，只注入读取结果不确定性，生产终结路径必须保留未知范围和容量。
+ */
 test(
     "online actual final B journal read uncertainty prevents delivery and positive scope",
     { timeout: 180000 },
@@ -1513,8 +1557,10 @@ test(
     },
 );
 
-/** 真实业务先生成完整停止证明，再只改变在线 journal 中的 Claim fence，恢复必须拒绝把有效旧 proof 借给不同代际；此测试不重写 proof、不伪造进程退出，也不以 HTTP 夹具的 reconcile A
- * CK 代替服务端真实容量事务。 */
+/** 真实业务先生成完整停止证明，再只改变在线 journal 中的 Claim fence，恢复必须拒绝把有效旧 proof 借给不同代际；此测试不
+ * 重写 proof、不伪造进程退出，也不以 HTTP 夹具的 reconcile A
+ * CK 代替服务端真实容量事务。
+ */
 test(
     "online actual controlled history cannot reconcile a different claim generation or kind",
     { timeout: 240000 },
@@ -1556,8 +1602,10 @@ test(
     },
 );
 
-/** 持久取消通过第二个真实 SQLite 连接写入，故意不派发 AbortSignal，实际 Chrome 已创建但 BrowserServer 返回受测试闸门控制；后台必须在释放闸门前观察取消并关闭启动准入，不能等待完整 sta
- * rt 返回或把未赋值 child 当成未派生。 */
+/** 持久取消通过第二个真实 SQLite 连接写入，故意不派发 AbortSignal，实际 Chrome 已创建但 BrowserServer 返回受测试闸门控
+ * 制；后台必须在释放闸门前观察取消并关闭启动准入，不能等待完整 sta
+ * rt 返回或把未赋值 child 当成未派生。
+ */
 test(
     "persisted offline cancellation closes pending real BrowserServer admission before barrier release",
     { timeout: 180000 },
@@ -1668,8 +1716,10 @@ test(
         ),
 );
 
-/** Mac 发布只允许本次独占根在 rename 时暂存七百权限，所有内部目录和成员必须已经只读；返回前通过原 fd 将同一个根封为五百，测试比较真实 inode 并拒绝覆盖已有目标，不能由字符串 chmod 修复已安装或用户目录
- * 。 */
+/** Mac 发布只允许本次独占根在 rename 时暂存七百权限，所有内部目录和成员必须已经只读；返回前通过原 fd 将同一个根封为五百
+ * ，测试比较真实 inode 并拒绝覆盖已有目标，不能由字符串 chmod 修复已安装或用户目录
+ * 。
+ */
 test("Darwin bundle publication renames only its owned writable root and returns a fully sealed tree", async () => {
     const f = await fixture(),
         rename = fs.rename;
@@ -1713,7 +1763,9 @@ test("Darwin bundle publication renames only its owned writable root and returns
     }
 });
 
-/** fd 封存先真实成功再注入不确定性，发布后的同一树必须保留且接口拒绝成功返回；finally 不得拿已经退出 staging 所有权的 installed 字符串去改权限或递归删除，更不能因此覆盖调用者原有目录。 */
+/** fd 封存先真实成功再注入不确定性，发布后的同一树必须保留且接口拒绝成功返回；finally 不得拿已经退出 staging 所有权的
+ * installed 字符串去改权限或递归删除，更不能因此覆盖调用者原有目录。
+ */
 test("Darwin post-publication fd seal uncertainty retains the published sealed inode without success", async () => {
     const f = await fixture(),
         open = fs.open;
@@ -1753,7 +1805,9 @@ test("Darwin post-publication fd seal uncertainty retains the published sealed i
     }
 });
 
-/** 启动闸门内的取消查询若真实 SQLite 包装报告读取不确定，观察器必须走同一首次停止并关闭后端准入；测试只在实际 Chrome 已创建后注入固定读取错误，不伪造取消位、不派发用户信号，也不把失败解释成正常业务成功。 */
+/** 启动闸门内的取消查询若真实 SQLite 包装报告读取不确定，观察器必须走同一首次停止并关闭后端准入；测试只在实际 Chrome 已
+ * 创建后注入固定读取错误，不伪造取消位、不派发用户信号，也不把失败解释成正常业务成功。
+ */
 test(
     "pending-start persisted cancellation read failure closes admission with one conservative stop",
     { timeout: 180000 },
@@ -1842,8 +1896,10 @@ test(
         ),
 );
 
-/** 在同一个真实 CLI 已返回一的进程对象上破坏最终 JSON，观察器只保存故障而仍返回原始退出事实；这两个独立门禁负例不属于完整保密扫描组，必须证明报告拒绝并不损伤实际 CONTROLLED 停机回执，而且不会产生附件、交付请
- * 求或可读本地证据。 */
+/** 在同一个真实 CLI 已返回一的进程对象上破坏最终 JSON，观察器只保存故障而仍返回原始退出事实；这两个独立门禁负例不属于完
+ * 整保密扫描组，必须证明报告拒绝并不损伤实际 CONTROLLED 停机回执，而且不会产生附件、交付请
+ * 求或可读本地证据。
+ */
 async function invalidFinalJson(
     label: "ONLINE_JSON_INVALID" | "OFFLINE_JSON_INVALID",
     run: () => Promise<void>,

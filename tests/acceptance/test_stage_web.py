@@ -1,6 +1,8 @@
-"""静态暂存测试通过独立进程传入真实目录与文件，验证完整物理闭包、旧资源替换和符号链接拒绝；复制的公开文件故意不出现在 Vite 图中，防止把模块图误当成发行库存。
+"""静态暂存测试通过独立进程传入真实目录与文件，验证完整物理闭包、旧资源替换和符号链接拒绝；复制的公开文件故意不出现在
+Vite 图中，防止把模块图误当成发行库存。
 
-所有输入限定在临时工作区，不改动开发者已经构建的管理台。非法目标必须在任何写入之前被拒绝。失败断言检查原目录字节，确保坏输入不能破坏上一次有效暂存。
+所有输入限定在临时工作区，不改动开发者已经构建的管理台。非法目标必须在任何写入之前被拒绝。失败断言检查原目录字节，
+确保坏输入不能破坏上一次有效暂存。
 """
 
 from hashlib import sha256
@@ -17,9 +19,12 @@ ROOT = Path(__file__).resolve().parents[2]
 
 @pytest.fixture
 def site(tmp_path: Path) -> tuple[Path, Path, Path]:
-    """准备合法入口、真实模块图以及图外 worker 字节，并保留一个旧指纹资源作为清理探针；只有清单来自所有普通文件时才能同时覆盖这两类相反的发布要求。
+    """准备合法入口、真实模块图以及图外 worker 字节，并保留一个旧指纹资源作为清理探针；只有清单来自所有普通文件时才能同
+    时覆盖这两类相反的发布要求。
 
-    source 与 target 使用生产规定的唯一相对路径。临时根携带最小项目标识，不能因此允许任意目标目录。目标的旧文件用于证明成功发布不会留下旧资源。
+    source 与 target 使用生产规定的唯一相对路径。临时根携带最小项目标识，不能因此允许任意目标目录。目标的旧文件用于证明
+    成功发布不会留下旧资源。
+
     """
     source = tmp_path / "apps/web/dist"
     target = tmp_path / "apps/srv/src/veriq_server/static/dist"
@@ -37,9 +42,11 @@ def site(tmp_path: Path) -> tuple[Path, Path, Path]:
 
 
 def _stage(root: Path, target: Path | None = None) -> subprocess.CompletedProcess[str]:
-    """使用公开暂存命令传递明确的构建身份及测试根，诊断由子进程保留给调用断言；该帮助方法不替换文件复制或清单生成，因此能观察真实路径保护和发布结果。
+    """使用公开暂存命令传递明确的构建身份及测试根，诊断由子进程保留给调用断言；该帮助方法不替换文件复制或清单生成，
+    因此能观察真实路径保护和发布结果。
 
     目标覆盖参数只用于验证严格白名单的拒绝行为。commit 使用完整十六进制身份，避免身份校验先遮住文件测试。
+
     """
     command = [
         sys.executable,
@@ -57,9 +64,11 @@ def _stage(root: Path, target: Path | None = None) -> subprocess.CompletedProces
 
 
 def test_stage_inventories_graph_externals_and_removes_old_files(site) -> None:
-    """成功暂存必须列出入口、Vite 图与未被图引用的 worker，并将清单原始字节哈希写入四字段构建身份；旧资源不得成为本次产物的一部分，即使其名字看似合法。
+    """成功暂存必须列出入口、Vite 图与未被图引用的 worker，并将清单原始字节哈希写入四字段构建身份；旧资源不得成为本次产
+    物的一部分，即使其名字看似合法。
 
     哈希计算读取落盘字节，不重新序列化库存。每一项同时验证长度与摘要，避免只检查文件名。
+
     """
     root, source, target = site
     result = _stage(root)
@@ -87,9 +96,11 @@ def test_stage_inventories_graph_externals_and_removes_old_files(site) -> None:
 
 @pytest.mark.parametrize("attack", ["source-link", "directory-link", "target-link", "wrong-target"])
 def test_stage_rejects_unsafe_paths_before_replacing_previous_site(site, attack) -> None:
-    """源文件、源目录或目标路径中的符号链接必须拒绝，调用者也不能把清理目标改为任意目录；失败后旧站点仍保留原字节，证明检查发生在破坏性替换之前。
+    """源文件、源目录或目标路径中的符号链接必须拒绝，调用者也不能把清理目标改为任意目录；失败后旧站点仍保留原字节，
+    证明检查发生在破坏性替换之前。
 
     外部文件作为链接探针，禁止将其复制到公开站点。目标链接指向另一个有价值目录，禁止沿链接清理。
+
     """
     root, source, target = site
     outside = root / "outside"

@@ -15,7 +15,8 @@ import {
 } from "./runtime-payload-archive.ts";
 
 /**
- * tar framing guard 只用成熟公开 Header 解释数字和校验和，把真实流分成有界 header、正文及 padding；它同时要求双零终止和有限零尾，不能因为 Parser 提前看到 EOF 就忽略后续 gz
+ * tar framing guard 只用成熟公开 Header 解释数字和校验和，把真实流分成有界 header、正文及 padding；它同时要求双零终止和
+ * 有限零尾，不能因为 Parser 提前看到 EOF 就忽略后续 gz
  * ip trailer 损坏或非零垃圾。
  */
 class TarFrames {
@@ -31,7 +32,10 @@ class TarFrames {
     private afterMeta = false;
     private index = 0;
     private context: Omit<ArchiveRejectionFacts, "reason"> | undefined;
-    /** 每个 framing 拒绝都复用刚读到的成熟 Header 上下文，只在原本要抛错的位置附加诊断；捕获内部失败由弱表入口吸收，仍抛原先相同分类的异常，不继续解析或等待后续成员。 */
+    /**
+     * 每个 framing 拒绝都复用刚读到的成熟 Header 上下文，只在原本要抛错的位置附加诊断；捕获内部失败由弱表入口吸收，仍抛
+     * 原先相同分类的异常，不继续解析或等待后续成员。
+     */
     private unsupported(
         reason: ArchiveRejectionFacts["reason"],
         details: ArchiveRejectionFacts["details"] = {},
@@ -56,12 +60,14 @@ class TarFrames {
                     },
                 });
         } catch {
-            // 这里的可选上下文合并与未知键摘要同样属于诊断而非归档准入，捕获或分配失败时仍必须抛下方原异常；不能让辅助事实构造遮蔽真实成员类型、元数据或权限拒绝。
+            // 这里的可选上下文合并与未知键摘要同样属于诊断而非归档准入，捕获或分配失败时仍必须抛下方原异常；不能让辅助
+            // 事实构造遮蔽真实成员类型、元数据或权限拒绝。
         }
         throw error;
     }
     /**
-     * 每个输入块只保留不足一个 header 或最多六十四 KiB 元数据，普通正文直接流过不累计；guard 在普通帧结束处向协调器报告边界，让下一成员必须等待当前正文、摘要及私有输出句柄全部完成后才进入成熟 Parser
+     * 每个输入块只保留不足一个 header 或最多六十四 KiB 元数据，普通正文直接流过不累计；guard 在普通帧结束处向协调器报告
+     * 边界，让下一成员必须等待当前正文、摘要及私有输出句柄全部完成后才进入成熟 Parser
      * 。
      */
     *feed(input: Buffer, scan: ArchiveScan): Generator<{ bytes: Buffer; boundary: boolean }> {
@@ -173,7 +179,8 @@ class TarFrames {
         }
     }
     /**
-     * PAX 支持限于明确单行 ASCII 字段，raw 检查只识别 key 与记录存在性而不解码长度或数值；每条都交公开 Pax.parse 且必须保留有效事实，再经 encodeField 与 parse 往返核解释一致
+     * PAX 支持限于明确单行 ASCII 字段，raw 检查只识别 key 与记录存在性而不解码长度或数值；每条都交公开 Pax.parse 且必须
+     * 保留有效事实，再经 encodeField 与 parse 往返核解释一致
      * ，静默丢弃或未知扩展不会被忽略。
      */
     private metadata() {
@@ -290,7 +297,10 @@ class TarFrames {
             boundary: false,
         };
     }
-    /** 完整解压流结束时必须正好处于帧边界并且看到两个终止零块，不能用 gzip 成功替代 tar 完整性；残余 header、正文或 padding 都是截断，尾部元数据没有实际成员消费也不能得到成功回执。 */
+    /**
+     * 完整解压流结束时必须正好处于帧边界并且看到两个终止零块，不能用 gzip 成功替代 tar 完整性；残余 header、正文或
+     * padding 都是截断，尾部元数据没有实际成员消费也不能得到成功回执。
+     */
     finish() {
         if (
             this.pending.length ||
@@ -305,7 +315,8 @@ class TarFrames {
 }
 
 /**
- * 有界 tar 适配器从当前私有快照 held FD 完整消费 gzip，并用公开 Parser 应用已验证元数据后才交公共路径表；逐帧背压与成员任务串行保证只有当前正文在读取，所有失败会中止流、Parser 和当前 ReadE
+ * 有界 tar 适配器从当前私有快照 held FD 完整消费 gzip，并用公开 Parser 应用已验证元数据后才交公共路径表；逐帧背压与成员
+ * 任务串行保证只有当前正文在读取，所有失败会中止流、Parser 和当前 ReadE
  * ntry 并等待它们结束。
  */
 export async function scanTar(path: string, scan: ArchiveScan): Promise<number> {
@@ -377,7 +388,8 @@ export async function scanTar(path: string, scan: ArchiveScan): Promise<number> 
             scan.tx.check();
             for (const frame of framing.feed(Buffer.from(value), scan)) {
                 if (failure) throw failure;
-                // 成熟 Parser 的正文循环仍以五百一十二字节为最小推进单位，不能先喂入非整块正文再单独等待短 padding；这里只延迟最多五百一十一字节并合并下一帧，成员边界必然全部交付后才等待消费者结束，背压仍
+                // 成熟 Parser 的正文循环仍以五百一十二字节为最小推进单位，不能先喂入非整块正文再单独等待短 padding；这
+                // 里只延迟最多五百一十一字节并合并下一帧，成员边界必然全部交付后才等待消费者结束，背压仍
                 // 逐次遵守。
                 const bytes = parserTail.length
                     ? Buffer.concat([parserTail, frame.bytes])
@@ -400,7 +412,8 @@ export async function scanTar(path: string, scan: ArchiveScan): Promise<number> 
         await pumping;
         if (failure) throw failure;
         framing.finish();
-        // 所有普通成员已经在完整块边界结束，最后不足一块的剩余只可能是 guard 已逐字证明的有限零尾；仍交给原 Parser 并遵守返回的背压，完整 gzip trailer 和 tar 终止检查不会因小缓存被跳过或提前宣布
+        // 所有普通成员已经在完整块边界结束，最后不足一块的剩余只可能是 guard 已逐字证明的有限零尾；仍交给原 Parser 并遵
+        // 守返回的背压，完整 gzip trailer 和 tar 终止检查不会因小缓存被跳过或提前宣布
         // 成功。
         if (parserTail.length) {
             const accepted = parser.write(parserTail);

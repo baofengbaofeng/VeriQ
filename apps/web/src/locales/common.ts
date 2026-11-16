@@ -1,4 +1,6 @@
-/** 全站导航、共同反馈与基础操作使用同一组明确中英文文案，资源键保留源码语义以便调用方定位；这些条目仅用于展示，不会翻译请求参数、技术标识或用户创建的业务名称。 */
+/** 全站导航、共同反馈与基础操作使用同一组明确中英文文案，资源键保留源码语义以便调用方定位；这些条目仅用于展示，不会翻译
+ * 请求参数、技术标识或用户创建的业务名称。
+ */
 export const commonMessages: Record<string, readonly [string, string]> = {
     Runtimes: ["Runtime 设备", "Runtimes"],
     Workspaces: ["工作区", "Workspaces"],

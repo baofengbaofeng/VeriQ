@@ -5,7 +5,8 @@ import { createRequire } from "node:module";
 import { resolve, relative, sep, isAbsolute } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-// 此脚本只在经过外层准入的目标 Node 中执行解析，不导入或运行任何候选包正文；两个真实 Node 解析器的结果分别记录，导出条件指向不同物理实例时交给外层明确拒绝，不自行解析 exports。
+// 此脚本只在经过外层准入的目标 Node 中执行解析，不导入或运行任何候选包正文；两个真实 Node 解析器的结果分别记录，导出条
+// 件指向不同物理实例时交给外层明确拒绝，不自行解析 exports。
 const [root, requestPath, resultPath] = process.argv.slice(2);
 if (
     !root ||
@@ -41,7 +42,8 @@ for (const request of requests) {
         import: null,
         require: null,
     };
-    // import.meta.resolve 使用 Node24 的真实 ESM 条件和明确父 URL，createRequire 则覆盖真实 CommonJS 条件；只把标准的未找到或未导出作为解析缺失，I/O 与其它内部错误始终
+    // import.meta.resolve 使用 Node24 的真实 ESM 条件和明确父 URL，createRequire 则覆盖真实 CommonJS 条件；只把标准的未
+    // 找到或未导出作为解析缺失，I/O 与其它内部错误始终
     // 终止本次有界动作。
     for (const mode of ["import", "require"]) {
         try {

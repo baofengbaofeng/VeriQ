@@ -164,15 +164,15 @@
 细则见 [编码规范总则](./.agents/rules/coding-standard.md)、[Python 编码规范](./.agents/rules/coding-standard-rules/python-coding-standard.md) 与 [TypeScript/JavaScript 编码规范](./.agents/rules/coding-standard-rules/typescript-javascript-coding-standard.md)。下列条目与这些文件一致：
 
 - 缩进：TypeScript/JavaScript、Python、C/C++ 以及同仓库其它可编程源码一律使用 **4 个空格**；禁止 Tab 缩进（`.editorconfig` 明确例外者除外，如 `Makefile`）。新增与改动文件必须符合 `.editorconfig`（UTF-8、LF、文件末换行）。
-- 行宽：代码行和注释行最多 **120** 个字符。唯一例外是很长的导入语句。长字符串、机器指令、注释中的 URL，以及格式化工具无法压进行宽的行，都不得超过 120。
+- 行宽：代码和注释每个物理行最多 **120 个显示列**，与 IDE 的 120 列标尺一致。中文等全角/宽字符占 2 列，ASCII 占 1 列；缩进、标点和注释分隔符也计入。导入、长字符串、URL 和生成源码同样遵守上限；完整 Unicode 口径见编码规范总则。
 - 注释语言：源码注释（含模块说明、公开 API 文档串、关键路径旁注）一律使用**中文**；产品名 VeriQ 与技术标识可保留原文。
 - 注释覆盖率：可编程源代码注释覆盖率必须 **大于 40%**（注释行 / (注释行 + 非空代码行)）。仅排除生成物与 vendored 依赖。覆盖率必须靠针对当前代码的有效说明达成，禁止用套话、政策复读或占位长句批量粘贴凑数。
 - 注释质量：每条注释必须解释**此处**的职责、不变量、失败关闭点或非显而易见的取舍。禁止在每个注释块重复粘贴通用安全或契约口号。测试文件以行为说明为主。
 - 公开 API 注释：所有公开方法、公开类、公开接口、类型定义和导出函数都必须有中文注释。核心功能、关键分支、关键逻辑与重点执行路径也必须有注释。
-- 注释块首行：各个注释块（`#` / `//` 连续块、`/* */`、`/** */`、三引号 docstring）的**首行有效注释文字至少 40 个字符**，且须含中文。每一行注释最多 120 个字符，注释行没有放宽上限的例外。
+- 注释块首行：各个注释块（`#` / `//` 连续块、`/* */`、`/** */`、三引号 docstring）的**首行有效注释文字至少 40 个字符**，且须含中文。每一行注释最多 120 个显示列，注释行没有放宽上限的例外。
 - 日志语言：所有日志输出（logger、诊断 print、结构化 log event message）必须使用**英文**。请求或领域数据体中的其它语言可以保留。禁止在日志中输出密钥、token、Cookie、密码或未脱敏的隐私字段。
 - Python：解释器只使用 **3.12**。静态检查必须使用 pylint，并配合 pylintrc。格式化必须使用 Black 或 Pyink。
-- TypeScript/JavaScript：以 Biome、Prettier 与 `tsc` 为准。Prettier 的 `printWidth` 为 120。普通字符串使用双引号（`singleQuote: false`）；仅当字符串含有双引号、需要避免转义时允许单引号。
+- TypeScript/JavaScript：以 Biome、Prettier 与 `tsc` 为准。Prettier 的 `printWidth` 为 120，仅为排版目标；显示列宽硬上限由 `python3 scripts/line_width.py` / `pnpm lint:width` 检查。普通字符串使用双引号（`singleQuote: false`）；仅当字符串含有双引号、需要避免转义时允许单引号。
 - 机械检查：`scripts/comment_audit.py`（syntax-comments-v1）。自动通过只证明可机械验证的条件；注释实质仍须人工审查。
 - 不得以虚构、占位、CTF 式表述或临时代码弱化上述规则。协调者与实现者在评审中均须执行。
 

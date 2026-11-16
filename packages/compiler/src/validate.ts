@@ -27,8 +27,8 @@ import {
     resolvePointer,
     type ValidationIssue,
 } from "./dependency.js";
-/**
- * 公开常量 MAX_EXPANDED_ASSERTIONS 限制模板断言展开后的上限：防止恶意或误配快照耗尽编译内存（MAX_EXPANDED_ASSERTIONS）。
+/** 公开常量 MAX_EXPANDED_ASSERTIONS 限制模板断言展开后的上限：防止恶意或误配快照耗尽编译内存（MAX_EXPANDED_ASSERTIONS）
+ * 。
  */
 export const MAX_EXPANDED_ASSERTIONS = 5000;
 import type { CompiledAssertion, CompiledStep, CompiledCase } from "@veriq/contracts";

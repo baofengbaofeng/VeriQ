@@ -1,4 +1,6 @@
-/** 保险库宿主后端只执行完整发行库存授予的固定平台辅助程序，用单次有界私有输入输出隔离可能无限等待的系统库；取消必须等到自有进程实际退出，未知修改结果不冒充回滚或自动选择明文回退。 */
+/** 保险库宿主后端只执行完整发行库存授予的固定平台辅助程序，用单次有界私有输入输出隔离可能无限等待的系统库；
+ * 取消必须等到自有进程实际退出，未知修改结果不冒充回滚或自动选择明文回退。
+ */
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { verifiedVaultHelper, type RuntimeDistribution } from "../distribution.ts";
 import type {
@@ -15,7 +17,9 @@ type ReadResult = { status: "ok"; key: Buffer } | VaultBackendFailure;
 type ProbeResult = { status: "ready" } | VaultBackendFailure;
 type Result = ReadResult | ProbeResult | VaultMutationResult;
 
-/** 自有辅助进程观察只记录实际 PID、退出码、信号和停止原因，不包含协议载荷或原始标准错误；退出未被确认时必须保留该事实，不能把已请求终止当成资源释放或业务工作进程的停止证明。 */
+/** 自有辅助进程观察只记录实际 PID、退出码、信号和停止原因，不包含协议载荷或原始标准错误；退出未被确认时必须保留该事实，
+ * 不能把已请求终止当成资源释放或业务工作进程的停止证明。
+ */
 export type VaultHelperObservation = {
     pid: number | undefined;
     code: number | null;
@@ -24,7 +28,9 @@ export type VaultHelperObservation = {
     reason: "complete" | "spawn" | "protocol" | "timeout" | "cancelled" | "exit";
 };
 
-/** 辅助程序仅继承真实用户会话所需环境，所有动态加载、Node 注入及任意模块搜索配置均不透传；系统命令搜索路径固定且程序通过绝对库存路径启动，因此档案与业务环境不能替换执行器或依赖库。 */
+/** 辅助程序仅继承真实用户会话所需环境，所有动态加载、Node 注入及任意模块搜索配置均不透传；系统命令搜索路径固定且程序通
+ * 过绝对库存路径启动，因此档案与业务环境不能替换执行器或依赖库。
+ */
 function environment(): NodeJS.ProcessEnv {
     if (process.platform === "win32") {
         const systemRoot = process.env.SystemRoot;
@@ -85,7 +91,9 @@ function response(bytes: Buffer, operation: Operation): Result | undefined {
     }
 }
 
-/** 有限后端把每个操作交给一个独立拥有的辅助进程，默认五秒且内部测试期限只能为五十至五千毫秒；观察回调只接收非秘密生命周期事实，不提供任意程序路径、系统属性或通用命令的授权入口。 */
+/** 有限后端把每个操作交给一个独立拥有的辅助进程，默认五秒且内部测试期限只能为五十至五千毫秒；观察回调只接收非秘密生命周
+ * 期事实，不提供任意程序路径、系统属性或通用命令的授权入口。
+ */
 export class VaultHelperBackend implements VaultKeyBackend {
     private readonly executable: string;
     private readonly timeoutMs: number;
@@ -104,7 +112,9 @@ export class VaultHelperBackend implements VaultKeyBackend {
             throw new Error("VAULT_DEADLINE_INVALID");
     }
 
-    /** 读取只接受精确档案与密钥版本并返回独立字节缓冲区，缺失、锁定和服务失败保持后端原始分类；取消或无效输入不会创建新密钥，所有操作均不从档案配置获取可执行程序路径或秘密命令参数。 */
+    /** 读取只接受精确档案与密钥版本并返回独立字节缓冲区，缺失、锁定和服务失败保持后端原始分类；取消或无效输入不会创建新
+     * 密钥，所有操作均不从档案配置获取可执行程序路径或秘密命令参数。
+     */
     async get(scope: VaultKeyScope, signal: AbortSignal): Promise<ReadResult> {
         if (!validScope(scope)) return { status: "failed" };
         return (await this.run(
@@ -114,7 +124,9 @@ export class VaultHelperBackend implements VaultKeyBackend {
         )) as ReadResult;
     }
 
-    /** 写入只传递三十二字节随机材料且不修改调用方缓冲区，已使用版本的冲突由辅助程序明确拒绝；请求发出后的异常退出或取消必须保留提交不确定状态，而非自动重试或假定旧值已经恢复。 */
+    /** 写入只传递三十二字节随机材料且不修改调用方缓冲区，已使用版本的冲突由辅助程序明确拒绝；请求发出后的异常退出或取消
+     * 必须保留提交不确定状态，而非自动重试或假定旧值已经恢复。
+     */
     async set(
         scope: VaultKeyScope,
         key: Buffer,
@@ -129,7 +141,9 @@ export class VaultHelperBackend implements VaultKeyBackend {
         )) as VaultMutationResult;
     }
 
-    /** 删除仅针对同一产品命名空间下指定档案和密钥版本，不提供清空集合或按属性泛查的接口；调用者仍须持有档案所有权并维护恢复日志，才能确定删除不会破坏其他仍引用此版本的密文。 */
+    /** 删除仅针对同一产品命名空间下指定档案和密钥版本，不提供清空集合或按属性泛查的接口；调用者仍须持有档案所有权并维护
+     * 恢复日志，才能确定删除不会破坏其他仍引用此版本的密文。
+     */
     async delete(scope: VaultKeyScope, signal: AbortSignal): Promise<VaultMutationResult> {
         if (!validScope(scope)) return { status: "failed" };
         return (await this.run(
@@ -139,12 +153,16 @@ export class VaultHelperBackend implements VaultKeyBackend {
         )) as VaultMutationResult;
     }
 
-    /** 可用性探测由对应平台的真实系统服务决定而不读取业务载荷，返回准备就绪不等同于跨重启持久化验收；Linux 集合锁定与 Windows 无登录会话保持各自实际分类，不打开提示、不自动解锁，也不改变桌面默认后端。 */
+    /** 可用性探测由对应平台的真实系统服务决定而不读取业务载荷，返回准备就绪不等同于跨重启持久化验收；Linux 集合锁定与
+     * Windows 无登录会话保持各自实际分类，不打开提示、不自动解锁，也不改变桌面默认后端。
+     */
     async probe(signal: AbortSignal): Promise<ProbeResult> {
         return (await this.run("probe", "V1 probe\n", signal)) as ProbeResult;
     }
 
-    /** 控制输入写完单帧后保持打开直到实际退出，避免 EOF 死亡监视误杀正常请求；期限、取消或输出越界只终止本次真实 child 并额外等待至多一秒，未确认退出的观察会保留而不虚报清理成功。 */
+    /** 控制输入写完单帧后保持打开直到实际退出，避免 EOF 死亡监视误杀正常请求；期限、取消或输出越界只终止本次真实 child
+     * 并额外等待至多一秒，未确认退出的观察会保留而不虚报清理成功。
+     */
     private async run(operation: Operation, frame: string, signal: AbortSignal): Promise<Result> {
         if (!(signal instanceof AbortSignal) || signal.aborted || ownedHelpers.has(this.executable))
             return { status: "failed" };
@@ -202,7 +220,9 @@ export class VaultHelperBackend implements VaultKeyBackend {
                         reason,
                     });
                 } catch {
-                    /* 生命周期观察者只接收非秘密的进程事实，其自身异常不能转发为系统库错误或改变已经确认的退出状态，也不能把已提交或不确定的写入伪装为回滚，因此这里保留原操作结果而不重放请求。 */
+                    /* 生命周期观察者只接收非秘密的进程事实，其自身异常不能转发为系统库错误或改变已经确认的退出状态，
+                     * 也不能把已提交或不确定的写入伪装为回滚，因此这里保留原操作结果而不重放请求。
+                     */
                 }
                 resolve(result);
             };
@@ -244,7 +264,9 @@ export class VaultHelperBackend implements VaultKeyBackend {
                 exitSignal = valueSignal;
             });
             child.once("close", () => {
-                /** 只有实际退出或明确未创建进程才释放共享所有权，超时返回仍保留句柄与阻断状态；迟到的退出事实可以解除阻断，但不会重跑已返回不确定结果的修改操作或触发替代子进程。 */
+                /** 只有实际退出或明确未创建进程才释放共享所有权，超时返回仍保留句柄与阻断状态；迟到的退出事实可以解除阻
+                 * 断，但不会重跑已返回不确定结果的修改操作或触发替代子进程。
+                 */
                 if (
                     (exitConfirmed || child.pid === undefined) &&
                     ownedHelpers.get(this.executable) === ownership
@@ -260,7 +282,9 @@ export class VaultHelperBackend implements VaultKeyBackend {
                             reason,
                         });
                     } catch {
-                        /* 迟到的真实退出已按身份解除共享阻断，观察回调异常不能恢复一个已退出进程的所有权或改写先前返回的不确定结果；后续调用仍由当前阻断状态决定，绝不在观察路径中自动启动替代程序。 */
+                        /* 迟到的真实退出已按身份解除共享阻断，观察回调异常不能恢复一个已退出进程的所有权或改写先前返回
+                         * 的不确定结果；后续调用仍由当前阻断状态决定，绝不在观察路径中自动启动替代程序。
+                         */
                     }
                     return;
                 }

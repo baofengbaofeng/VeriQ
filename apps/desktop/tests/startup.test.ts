@@ -7,7 +7,9 @@ import { DesktopAgent } from "../src/agent/service.ts";
 const uuid = "11111111-1111-4111-8111-111111111111";
 const run = { operation: "run", bundleId: uuid, headed: false, retry: false };
 
-/** 启动阶段复用真实 DesktopAgent 与私有文件状态，只把第一次目录读取延迟到测试明确释放；目录内容仍由原方法取得，不伪造签名包、业务结果或浏览器回执，以确定覆盖首个 await 期间的竞争。 */
+/** 启动阶段复用真实 DesktopAgent 与私有文件状态，只把第一次目录读取延迟到测试明确释放；目录内容仍由原方法取得，不伪造签
+ * 名包、业务结果或浏览器回执，以确定覆盖首个 await 期间的竞争。
+ */
 async function pendingStart() {
     const root = await mkdtemp("/tmp/veriq-startup-");
     const agent = new DesktopAgent(root, {
@@ -51,7 +53,9 @@ async function pendingStart() {
     };
 }
 
-/** 两个启动请求以及工作区、在线模式切换不能同时占有尚未完成的启动事务，读取状态却应继续返回；第一个真实目录读取失败之后，预留必须释放，后续请求不得永远停留在 BUSY。 */
+/** 两个启动请求以及工作区、在线模式切换不能同时占有尚未完成的启动事务，读取状态却应继续返回；第一个真实目录读取失败之后
+ * ，预留必须释放，后续请求不得永远停留在 BUSY。
+ */
 test("pending startup rejects competing mutations and releases after failure", async () => {
     const fixture = await pendingStart();
     try {
@@ -78,7 +82,9 @@ test("pending startup rejects competing mutations and releases after failure", a
     }
 });
 
-/** 取消引用状态中那一次启动的独立标识，陈旧标识必须拒绝而不能伤及当前启动；取消成功仅说明该启动已收敛，不能伪造 Run 或进程停止回执，之后允许用户重新发起新的操作。 */
+/** 取消引用状态中那一次启动的独立标识，陈旧标识必须拒绝而不能伤及当前启动；取消成功仅说明该启动已收敛，不能伪造 Run 或
+ * 进程停止回执，之后允许用户重新发起新的操作。
+ */
 test("startup cancellation targets its operation and waits for release", async () => {
     const fixture = await pendingStart();
     try {
@@ -132,7 +138,9 @@ test("startup cancellation targets its operation and waits for release", async (
     }
 });
 
-/** 停止后台先撤销已经预留的启动并等待它退出，不允许在等待间隙接受新启动；实例关闭后继续收到的旧 IPC 也应失败，以覆盖 broker 发完停止回执到实际关闭 socket 之间的小窗口。 */
+/** 停止后台先撤销已经预留的启动并等待它退出，不允许在等待间隙接受新启动；实例关闭后继续收到的旧 IPC 也应失败，以覆盖
+ * broker 发完停止回执到实际关闭 socket 之间的小窗口。
+ */
 test("stop drains the reserved startup and prevents later work", async () => {
     const fixture = await pendingStart();
     try {
@@ -151,7 +159,9 @@ test("stop drains the reserved startup and prevents later work", async () => {
     }
 });
 
-/** 人工升级准备在真实临时档案取得合作锁与 SQLite 空闲事务之后才返回，准备完成立即封住后续执行并等待显式停止释放；测试不运行安装器或伪造进程排空记录，空历史只证明这个新建测试档案没有旧执行。 */
+/** 人工升级准备在真实临时档案取得合作锁与 SQLite 空闲事务之后才返回，准备完成立即封住后续执行并等待显式停止释放；测试不
+ * 运行安装器或伪造进程排空记录，空历史只证明这个新建测试档案没有旧执行。
+ */
 test("maintenance holds idle ownership until explicit stop and prevents a new run", async () => {
     const root = await mkdtemp("/tmp/veriq-maintenance-");
     const agent = new DesktopAgent(root, {

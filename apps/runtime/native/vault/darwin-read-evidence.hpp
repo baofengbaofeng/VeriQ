@@ -1,4 +1,7 @@
-/** 测试读取诊断共用同一写入实现与有限阶段类型，控制器的无存储自测直接调用这些代码而不是复制预期输出；此文件仅由测试 helper 与控制器包含，生产二进制不会获得额外描述符或读取接口。 */
+/**
+ * 测试读取诊断共用同一写入实现与有限阶段类型，控制器的无存储自测直接调用这些代码而不是复制预期输出；此文件仅由测试
+ * helper 与控制器包含，生产二进制不会获得额外描述符或读取接口。
+ */
 #pragma once
 #include <Foundation/Foundation.h>
 #include <Security/Security.h>
@@ -16,7 +19,10 @@ inline NSString *const readPhaseNames[] = { @"entry", @"no-ui", @"store", @"stat
     @"dispatch", @"channel", @"before", @"read", @"after", @"array", @"unique", @"data32", @"encoding", @"done",
         @"lookup" };
 
-/** 诊断写入只尝试一次有界非阻塞发送，独立套接字的禁止 SIGPIPE 选项保护已关闭读端；长度错误、已满或失效端点只丢失证据，调用前 errno 始终恢复且不重试、不等待也不改变原操作结果。 */
+/**
+ * 诊断写入只尝试一次有界非阻塞发送，独立套接字的禁止 SIGPIPE 选项保护已关闭读端；长度错误、已满或失效端点只丢失证据，调
+ * 用前 errno 始终恢复且不重试、不等待也不改变原操作结果。
+ */
 inline void writeReadPacket(int fd, const void *bytes, size_t length) noexcept {
     const int saved = errno;
     const int one = 1;
@@ -25,7 +31,10 @@ inline void writeReadPacket(int fd, const void *bytes, size_t length) noexcept {
     errno = saved;
 }
 
-/** 读取观察器只保存原表达式返回的整数与布尔前缀，在析构或拒绝标记前输出一次固定事实；字段不存在表示尚未执行，观察器不能查询系统错误说明、持有结果数据或在异常展开时替换原始异常。 */
+/**
+ * 读取观察器只保存原表达式返回的整数与布尔前缀，在析构或拒绝标记前输出一次固定事实；字段不存在表示尚未执行，观察器不能
+ * 查询系统错误说明、持有结果数据或在异常展开时替换原始异常。
+ */
 class ReadEvidence {
     int descriptor = -1;
     bool denial = false;
@@ -35,7 +44,10 @@ class ReadEvidence {
     bool unlockedBefore = false, unlockedAfter = false;
     int predicates[4] {-1, -1, -1, -1};
 public:
-    /** 只接受控制器配置中的专用测试模式与严格整数描述符，端点必须位于标准通道之外且已经设置非阻塞；解析和传输验证失败时观察器保持无效，但原配置验证及 Security 执行仍由原函数负责。 */
+    /**
+     * 只接受控制器配置中的专用测试模式与严格整数描述符，端点必须位于标准通道之外且已经设置非阻塞；解析和传输验证失败时
+     * 观察器保持无效，但原配置验证及 Security 执行仍由原函数负责。
+     */
     explicit ReadEvidence(NSDictionary *config) noexcept {
         const int saved = errno;
         try { @try {
@@ -59,11 +71,20 @@ public:
         errno = saved;
     }
     ReadEvidence(const ReadEvidence &) = delete;
-    /** 析构只结算本观察器拥有的私有端点，显式发送后描述符已经移走因此不会再次关闭；这个边界覆盖 NoUI、存储守卫和读取形状异常，原返回值与异常身份不依赖写入是否成功。 */
+    /**
+     * 析构只结算本观察器拥有的私有端点，显式发送后描述符已经移走因此不会再次关闭；这个边界覆盖 NoUI、存储守卫和读取形状
+     * 异常，原返回值与异常身份不依赖写入是否成功。
+     */
     ~ReadEvidence() noexcept { emit(); }
-    /** 阶段前进发生在原操作之前，既不查询状态也不触发输出，先前真正返回的读取事实仍留在独立槽中；当前谓词尚未求值时对应槽保持缺失，因此不会借用上一条调用的布尔值。 */
+    /**
+     * 阶段前进发生在原操作之前，既不查询状态也不触发输出，先前真正返回的读取事实仍留在独立槽中；当前谓词尚未求值时对应
+     * 槽保持缺失，因此不会借用上一条调用的布尔值。
+     */
     void step(ReadPhase value) noexcept { phase = value; }
-    /** 状态代理只接收当前调用实际返回的整数，再原样交回原判断表达式；元数据查询有独立槽并随本次观察保留，秘密读取槽仍只绑定真实数据请求，查询失败不会借用或伪造拒绝读取状态。 */
+    /**
+     * 状态代理只接收当前调用实际返回的整数，再原样交回原判断表达式；元数据查询有独立槽并随本次观察保留，秘密读取槽仍只
+     * 绑定真实数据请求，查询失败不会借用或伪造拒绝读取状态。
+     */
     OSStatus status(ReadPhase value, OSStatus result) noexcept {
         phase = value;
         if (value == ReadPhase::LOOKUP) { hasLookup = true; lookupStatus = result; }
@@ -72,17 +93,26 @@ public:
         if (value == ReadPhase::AFTER) { hasAfter = true; after = result; }
         return result;
     }
-    /** 四个形状槽只记录已经求值的短路谓词，新查询流程的数组与唯一槽属于元数据且唯一包含完整精确目标守卫；数据和编码槽属于随后秘密读取，未执行槽保持缺失，旧记录的原始语义由解码器保留。 */
+    /**
+     * 四个形状槽只记录已经求值的短路谓词，新查询流程的数组与唯一槽属于元数据且唯一包含完整精确目标守卫；数据和编码槽属
+     * 于随后秘密读取，未执行槽保持缺失，旧记录的原始语义由解码器保留。
+     */
     bool predicate(ReadPhase value, bool result) noexcept {
         phase = value;
         const int slot = static_cast<int>(value) - static_cast<int>(ReadPhase::ARRAY);
         if (slot >= 0 && slot < 4) predicates[slot] = result ? 1 : 0;
         return result;
     }
-    /** 解锁布尔值直接来自原 U 标记判定的相同结果，不新增状态查询或改变标记字节；只有三个调用都返回后才登记完整组合，发送发生在原 marker 写入之前以便错误标记路径也能读取证据。 */
+    /**
+     * 解锁布尔值直接来自原 U 标记判定的相同结果，不新增状态查询或改变标记字节；只有三个调用都返回后才登记完整组合，发送
+     * 发生在原 marker 写入之前以便错误标记路径也能读取证据。
+     */
     void unlocked(bool first, bool last) noexcept {
         hasUnlocked = true; unlockedBefore = first; unlockedAfter = last; phase = ReadPhase::DONE; }
-    /** 输出重建白名单字典后只发送一条不超过五百一十二字节的记录并关闭自有端点，Foundation 或 POSIX 失败均局限于诊断；没有重试或备用日志，原始数据与框架异常不可能进入此记录。 */
+    /**
+     * 输出重建白名单字典后只发送一条不超过五百一十二字节的记录并关闭自有端点，Foundation 或 POSIX 失败均局限于诊断；没
+     * 有重试或备用日志，原始数据与框架异常不可能进入此记录。
+     */
     void emit() noexcept {
         if (descriptor < 0) return;
         const int saved = errno, fd = descriptor;

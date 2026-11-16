@@ -1,4 +1,6 @@
-"""VeriQ 停机备份以 MySQL 全局读锁固定所有表的同一状态，同时保存真实制品和生效密钥配置；恢复仅面向已经显式迁移的空目标，版本、摘要、密钥和外键全部匹配才可解除失败标记。"""
+"""VeriQ 停机备份以 MySQL 全局读锁固定所有表的同一状态，同时保存真实制品和生效密钥配置；恢复仅面向已经显式迁移的空目标，
+版本、摘要、密钥和外键全部匹配才可解除失败标记。
+"""
 
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
@@ -31,7 +33,9 @@ from .snapshot_io import (
 
 @asynccontextmanager
 async def maintenance_connection(db: Database, *, freeze: bool) -> AsyncIterator[AsyncConnection]:
-    """复用迁移命名锁阻止升级与恢复交错，备份额外持有全局读锁冻结真实数据库；命名锁失败或清理无法确认时直接失败，不自动重连伪造旧物理会话已经释放锁的结论。"""
+    """复用迁移命名锁阻止升级与恢复交错，备份额外持有全局读锁冻结真实数据库；命名锁失败或清理无法确认时直接失败，
+    不自动重连伪造旧物理会话已经释放锁的结论。
+    """
     async with db.engine.connect() as connection:
         database = (await connection.execute(text("SELECT DATABASE()"))).scalar_one()
         name = _migration_lock_name(database)
@@ -64,7 +68,9 @@ async def maintenance_connection(db: Database, *, freeze: bool) -> AsyncIterator
 
 
 async def installed_tables(connection: AsyncConnection) -> MetaData:
-    """读取目标已安装的真实表及外键并要求与当前程序完整匹配，恢复不会执行 DDL 或忽略未知平台表；迁移头必须精确一致，避免把新数据库交给旧软件进行猜测式回滚。"""
+    """读取目标已安装的真实表及外键并要求与当前程序完整匹配，恢复不会执行 DDL 或忽略未知平台表；迁移头必须精确一致，
+    避免把新数据库交给旧软件进行猜测式回滚。
+    """
     version = str((await connection.execute(text("SELECT VERSION()"))).scalar_one())
     if not version.startswith("8.4.") or "mariadb" in version.lower():
         raise ValueError("MYSQL_VERSION_UNSUPPORTED")
@@ -83,7 +89,9 @@ async def installed_tables(connection: AsyncConnection) -> MetaData:
 
 
 async def require_quiescent(connection: AsyncConnection, metadata: MetaData) -> None:
-    """停机声明之外再检查数据库中的在途任务、隔离容量、未完成发布和导出；这些状态可能仍有外部进程写入，因此无法仅靠暂停 HTTP 服务证明制品已经稳定，遇到任何一个就拒绝备份。"""
+    """停机声明之外再检查数据库中的在途任务、隔离容量、未完成发布和导出；这些状态可能仍有外部进程写入，因此无法仅靠暂停
+    HTTP 服务证明制品已经稳定，遇到任何一个就拒绝备份。
+    """
     checks = {
         "veriq_attempts": lambda t: (t.c.phase != "FINISHED") | (t.c.capacity_state != "RELEASED"),
         "veriq_resource_leases": lambda t: t.c.state != "RELEASED",
@@ -98,7 +106,9 @@ async def require_quiescent(connection: AsyncConnection, metadata: MetaData) -> 
 
 
 def key_fingerprints(settings: Settings) -> dict[str, str]:
-    """只为兼容比较计算生效密钥的摘要，完整配置仅写入私有备份载荷而不输出到日志；密钥标识与字节共同参与比较，防止同名密钥被错误替换后恢复出不可解密的数据库。"""
+    """只为兼容比较计算生效密钥的摘要，完整配置仅写入私有备份载荷而不输出到日志；密钥标识与字节共同参与比较，
+    防止同名密钥被错误替换后恢复出不可解密的数据库。
+    """
     values = {**settings.previous_master_keys, settings.master_key_id: settings.master_key}
     return {
         key: sha256(bytes.fromhex(value.get_secret_value())).hexdigest()
@@ -107,7 +117,9 @@ def key_fingerprints(settings: Settings) -> dict[str, str]:
 
 
 def s3_client(settings: Settings) -> Any:
-    """仅在备份中确实存在 S3 记录或恢复明确允许桶清单检查时创建真实客户端，操作使用既有 boto3 依赖与有界网络超时，不改变业务存储适配器或探测策略的权限默认值。"""
+    """仅在备份中确实存在 S3 记录或恢复明确允许桶清单检查时创建真实客户端，操作使用既有 boto3 依赖与有界网络超时，
+    不改变业务存储适配器或探测策略的权限默认值。
+    """
     import boto3
     from botocore.config import Config
 
@@ -129,7 +141,9 @@ async def backup(
     services_stopped: bool,
     configuration_path: Path,
 ) -> str:
-    """操作员确认所有写入服务停止后，在同一全局读锁窗口流式导出全部真实表与外置字节并保存生效配置、签发私钥和引擎库存，只有所有载荷同步完成才写入完成清单并返回摘要。"""
+    """操作员确认所有写入服务停止后，在同一全局读锁窗口流式导出全部真实表与外置字节并保存生效配置、签发私钥和引擎库存，
+    只有所有载荷同步完成才写入完成清单并返回摘要。
+    """
     if not services_stopped or not destination.is_absolute() or destination.exists():
         raise ValueError("BACKUP_REQUIRES_QUIESCENT_NEW_ABSOLUTE_DIRECTORY")
     artifact_root = Path(settings.artifact_directory).absolute()
@@ -242,7 +256,8 @@ async def backup(
         finally:
             if client:
                 client.close()
-        # 制品删除记录是防止迟到写入复活的权威，不能只备份当前存活对象；恢复在重新写入存活对象之前先重建这些零字节屏障，精确保留旧 incarnation 的拒绝事实。
+        # 制品删除记录是防止迟到写入复活的权威，不能只备份当前存活对象；恢复在重新写入存活对象之前先重建这些零字节屏障，
+        # 精确保留旧 incarnation 的拒绝事实。
         tombstones = []
         deletions = metadata.tables["veriq_artifact_deletions"]
         for row in (
@@ -289,7 +304,9 @@ async def restore(
     allow_s3_inventory: bool,
     configuration_path: Path,
 ) -> None:
-    """恢复必须携带独立清单摘要和三项显式停机及空目标确认，拒绝任何版本或密钥不兼容；外部制品写入失败时保留不完整标记，禁止将部分恢复的目标自动报告为可用服务。"""
+    """恢复必须携带独立清单摘要和三项显式停机及空目标确认，拒绝任何版本或密钥不兼容；外部制品写入失败时保留不完整标记，
+    禁止将部分恢复的目标自动报告为可用服务。
+    """
     if (
         not services_stopped
         or not allow_restore
@@ -422,7 +439,8 @@ async def restore(
                         Key=item["key"],
                         Body=raw,
                     )
-            # 循环外键无法简单按表排序恢复，因此仅在本恢复会话临时停用外键检查；全部写入之后逐条外键执行反向存在性校验，任一悬空引用都回滚，绝不以重新启用检查冒充已有数据已经验证。
+            # 循环外键无法简单按表排序恢复，因此仅在本恢复会话临时停用外键检查；全部写入之后逐条外键执行反向存在性校验，
+            # 任一悬空引用都回滚，绝不以重新启用检查冒充已有数据已经验证。
             await connection.execute(text("SET FOREIGN_KEY_CHECKS=0"))
             try:
                 await connection.execute(metadata.tables["veriq_installation"].delete())

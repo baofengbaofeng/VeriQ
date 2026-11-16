@@ -1,4 +1,6 @@
-"""执行计划与服务令牌契约测试同时覆盖有效全量范围和用途混合等负样本，并核对历史游标及 AI 的真实 Cookie 认证声明；测试只验证公开边界，不以源文本比较代替实际 JSON Schema 校验。"""
+"""执行计划与服务令牌契约测试同时覆盖有效全量范围和用途混合等负样本，并核对历史游标及 AI 的真实 Cookie 认证声明；
+测试只验证公开边界，不以源文本比较代替实际 JSON Schema 校验。
+"""
 
 from uuid import uuid4
 import pytest
@@ -45,7 +47,9 @@ from veriq_server.validation import validate_api, api_document
     ],
 )
 def test_service_token_purpose_separates_operation_and_plan_scope(value, valid):
-    """维护允许全部四项注册操作但禁止重复和未知项，执行令牌必须绑定非空计划列表且不能混入维护权限；登记令牌保持原有短期独立用途，契约拒绝额外操作比服务层更早关闭无效输入。"""
+    """维护允许全部四项注册操作但禁止重复和未知项，执行令牌必须绑定非空计划列表且不能混入维护权限；
+    登记令牌保持原有短期独立用途，契约拒绝额外操作比服务层更早关闭无效输入。
+    """
     if valid:
         validate_api("ServiceTokenIssue", value)
     else:
@@ -57,7 +61,9 @@ def test_service_token_purpose_separates_operation_and_plan_scope(value, valid):
     "policy,valid", [("QUEUE", True), ("SKIP", True), ("REJECT", True), ("ALLOW", False)]
 )
 def test_plan_overlap_matches_binding_scheduler_semantics(policy, valid):
-    """计划只允许规范确定的串行、跳过和拒绝策略，旧占位契约中的 ALLOW 必须明确失败；角色、浏览器、设备与变量选择构成实际可创建计划，不以缺少其他必填字段的无效样本混淆策略校验。"""
+    """计划只允许规范确定的串行、跳过和拒绝策略，旧占位契约中的 ALLOW 必须明确失败；角色、浏览器、
+    设备与变量选择构成实际可创建计划，不以缺少其他必填字段的无效样本混淆策略校验。
+    """
     body = {
         "name": "Plan",
         "suiteVersionId": str(uuid4()),
@@ -77,7 +83,9 @@ def test_plan_overlap_matches_binding_scheduler_semantics(policy, valid):
 
 
 def test_history_queries_and_ai_authentication_match_implemented_routes():
-    """公开查询声明必须包含实现已消费的事件序号或审计游标，AI 仍仅由普通员工 Cookie 访问而不能宣称支持服务令牌；核对公开文档对象帮助生成客户端与实际路由保持一致。"""
+    """公开查询声明必须包含实现已消费的事件序号或审计游标，AI 仍仅由普通员工 Cookie 访问而不能宣称支持服务令牌；
+    核对公开文档对象帮助生成客户端与实际路由保持一致。
+    """
     paths = api_document()["paths"]
     for path, operations in paths.items():
         if path.endswith("/audit") or ("/attempts/" in path and path.endswith("/history")):
@@ -99,7 +107,9 @@ def test_history_queries_and_ai_authentication_match_implemented_routes():
     "outcome", ["FAILED", "ERROR", "UNSTABLE", "CANCELLED", "INCOMPLETE", "SKIPPED"]
 )
 def test_safe_junit_preserves_nonpassing_gate_for_all_terminal_outcomes(outcome):
-    """所有非通过终态都必须生成标准 JUnit 可识别的失败节点，即便用例本身看似成功或整体被跳过也不能得到零失败；额外放入的原始业务字段不得流入 XML，确保安全投影只输出允许的事实。"""
+    """所有非通过终态都必须生成标准 JUnit 可识别的失败节点，即便用例本身看似成功或整体被跳过也不能得到零失败；
+    额外放入的原始业务字段不得流入 XML，确保安全投影只输出允许的事实。
+    """
     from xml.etree.ElementTree import fromstring
     from veriq_server.handlers.trigger import sanitized_junit
 
@@ -117,7 +127,9 @@ def test_safe_junit_preserves_nonpassing_gate_for_all_terminal_outcomes(outcome)
 
 
 def test_plan_management_does_not_advertise_execution_bearer_authority():
-    """执行令牌只获授权触发既有计划而不能管理选择本身，公开管理契约必须仅声明员工认证；否则自动生成客户端会误导调用方以为执行令牌能够修改环境或设备，从而扩大服务授权的含义。"""
+    """执行令牌只获授权触发既有计划而不能管理选择本身，公开管理契约必须仅声明员工认证；否则自动生成客户端会误导调用方以
+    为执行令牌能够修改环境或设备，从而扩大服务授权的含义。
+    """
     paths = api_document()["paths"]
     for path in [
         "/api/v1/workspaces/{workspaceId}/execution-plans",
@@ -127,10 +139,13 @@ def test_plan_management_does_not_advertise_execution_bearer_authority():
             assert all("ServiceToken" not in security for security in operation["security"])
 
 
-# 正式 OpenAPI 校验应与共享完成清单采用相同枚举，在进入服务校验前拒绝空值和未知类型，同时允许历史请求完全省略停止范围而不被自动补造字段。
+# 正式 OpenAPI 校验应与共享完成清单采用相同枚举，在进入服务校验前拒绝空值和未知类型，同时允许历史请求完全省略停止范围而
+# 不被自动补造字段。
 @pytest.mark.parametrize("scope", [None, "UNKNOWN", False, 7])
 def test_reconcile_rejects_invalid_scope(scope):
-    """服务入口使用的正式 OpenAPI 校验器必须拒绝范围的空值、未知字符串和错误类型，让这些无效声明在进入停止服务之前得到与 Node 一致的合同拒绝结果。"""
+    """服务入口使用的正式 OpenAPI 校验器必须拒绝范围的空值、未知字符串和错误类型，让这些无效声明在进入停止服务之前得到与
+    Node 一致的合同拒绝结果。
+    """
     body = {
         "fencingToken": 1,
         "processStopped": False,
@@ -146,7 +161,9 @@ def test_reconcile_rejects_invalid_scope(scope):
     "scope", [None, "FULL_DESCENDANT_TREE", "CONTROLLED_WORKER_BROWSER", "NO_PROCESS_SPAWNED"]
 )
 def test_reconcile_accepts_known_scope_and_legacy_omission(scope):
-    """三个已定义范围必须可以作为请求正文传到服务，历史客户端完全省略字段时同样保持可报告性，兼容行为不能靠默认填充范围或自动转换请求类型实现。"""
+    """三个已定义范围必须可以作为请求正文传到服务，历史客户端完全省略字段时同样保持可报告性，兼容行为不能靠默认填充范围
+    或自动转换请求类型实现。
+    """
     body = {
         "fencingToken": 1,
         "processStopped": False,

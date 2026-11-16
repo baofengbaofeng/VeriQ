@@ -52,7 +52,9 @@ test("reports show real Workspace history and clear scope on switch", async ({ p
     ).toBeVisible();
 });
 
-/** 工作区选择回归只创建真实账户空间并读取真实游标分页，不构造 Run、Attempt 或报告数据；因此它能覆盖 URL 与手动选择，却不能代替受管理引擎产生的订阅和历史验收。 */
+/** 工作区选择回归只创建真实账户空间并读取真实游标分页，不构造 Run、Attempt 或报告数据；因此它能覆盖 URL 与手动选择，却
+ * 不能代替受管理引擎产生的订阅和历史验收。
+ */
 async function reportSession(page: Page) {
     const setup = (await (await page.request.get("/api/v1/setup")).json()).data;
     if (!setup.initialized) {
@@ -111,7 +113,8 @@ test("reports discover URL workspace on a later genuine page and retain manual c
     await page.getByTestId("app-language").selectOption("en");
     await expect(page.getByRole("heading", { name: "Reports", exact: true })).toBeVisible();
     await expect(selector).toHaveValue(fallback.id);
-    // 同一个真实列表还覆盖首屏可见目标和缺失目标，页面导航新建选择生命周期；不能假设创建顺序就是服务端排序，所有目标与回退项均来自刚读取的 API 分页。
+    // 同一个真实列表还覆盖首屏可见目标和缺失目标，页面导航新建选择生命周期；不能假设创建顺序就是服务端排序，所有目标与
+    // 回退项均来自刚读取的 API 分页。
     await page.goto(`/reports?workspaceId=${fallback.id}`);
     await expect(selector).toHaveValue(fallback.id);
     const other = first.items.find((item) => item.id !== fallback.id);

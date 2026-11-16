@@ -42,7 +42,8 @@ const admitted = {
 };
 const gitRecord = (mode, path) => `${mode} blob ${"b".repeat(40)}\t${path}\0`;
 
-// 这些真实小目录只用于控制器的元数据和失败边界测试，外层授权包装器提供独占内存临时根；每个测试拥有自己的目录并在已等待直接子进程关闭后移除，不能据此声称原生项目构建或全局后代已通过验收。
+// 这些真实小目录只用于控制器的元数据和失败边界测试，外层授权包装器提供独占内存临时根；每个测试拥有自己的目录并在已等待
+// 直接子进程关闭后移除，不能据此声称原生项目构建或全局后代已通过验收。
 async function fixture(consume) {
     const root = await mkdtemp(join(tmpdir(), "veriq-entry-ci-test-"));
     try {
@@ -327,7 +328,8 @@ test("successful real direct child settles before final verification and owned c
         assert.ok(journal.commands[0].started <= journal.commands[0].finished);
     }));
 
-// 配置扩展由已安装的 TypeScript 正式解析器处理，测试只提供微小真实配置并检查外部或遗漏绑定被拒绝；不复制解析器、exports 算法或生产器夹具，也不把这些 Linux 控制器断言作为 Mac 构建证据。
+// 配置扩展由已安装的 TypeScript 正式解析器处理，测试只提供微小真实配置并检查外部或遗漏绑定被拒绝；不复制解析器、exports
+// 算法或生产器夹具，也不把这些 Linux 控制器断言作为 Mac 构建证据。
 test("real TypeScript config tooling rejects unbound or external extends", async () =>
     fixture(async (root) => {
         const { qualifyTypeScriptConfigs } = await import(
@@ -370,7 +372,8 @@ test("clean launch rejects ambient injection and pins production mode before loa
         assert.throws(() => checkCleanEnvironment({ ...env, ...patch }), /ENTRY_ENVIRONMENT/);
 });
 
-// 此例让生产回调故意忽略真实非零退出，控制器仍须从已持有观察拒绝升级最终成功；回归保护的是阶段组合边界，不允许一个已失败的直接子进程被后续普通回调返回值覆盖。
+// 此例让生产回调故意忽略真实非零退出，控制器仍须从已持有观察拒绝升级最终成功；回归保护的是阶段组合边界，不允许一个已失
+// 败的直接子进程被后续普通回调返回值覆盖。
 test("ignored real child failure cannot reach final verification or PASS", async () =>
     fixture(async (root) => {
         let final = false,
@@ -397,7 +400,8 @@ test("ignored real child failure cannot reach final verification or PASS", async
         assert.equal(cleaned, true);
     }));
 
-// 真实 CLI 入口在 Linux 上必须于创建独占根或触发安装前停止，测试通过一个清空环境的真实子进程观察退出与目录；这验证原生门禁确实接入主函数，但不声称具有任何 Mac 项目构建成功证据。
+// 真实 CLI 入口在 Linux 上必须于创建独占根或触发安装前停止，测试通过一个清空环境的真实子进程观察退出与目录；这验证原生
+// 门禁确实接入主函数，但不声称具有任何 Mac 项目构建成功证据。
 test("actual CLI refuses Linux before any source access installation or scratch creation", async () =>
     fixture(async (root) => {
         if (process.platform === "darwin") return;
@@ -426,7 +430,8 @@ test("actual CLI refuses Linux before any source access installation or scratch 
         assert.deepEqual(await readdir(root), []);
     }));
 
-// 初始环境拒绝必须只说明失败谓词与有限键名，不能把来源不明的值夹带进错误或日志；这些样本直接经过当前真实门禁，缺失诊断时应保持原有拒绝并让断言失败，而不是虚构 Darwin 进程的实际环境。
+// 初始环境拒绝必须只说明失败谓词与有限键名，不能把来源不明的值夹带进错误或日志；这些样本直接经过当前真实门禁，缺失诊断
+// 时应保持原有拒绝并让断言失败，而不是虚构 Darwin 进程的实际环境。
 test("initial environment diagnostic separates unknown names and both fixed flags", async () => {
     const { checkCleanEnvironment } = await import("../../../.github/scripts/runtime-entries.mjs");
     const valid = { NODE_ENV: "production", NODE_DISABLE_COMPILE_CACHE: "1" };
@@ -539,7 +544,8 @@ test("environment diagnostic limits output to sixteen sorted names and four KiB"
     );
 });
 
-// 后置门禁的期望映射来自同一个固定独占根，每个键逐一改错都必须继续拒绝且仅暴露固定标签；测试还检查合法样本无返回噪声，避免通过放宽比较或输出路径来掩盖这次原生首拒缺乏定位事实的问题。
+// 后置门禁的期望映射来自同一个固定独占根，每个键逐一改错都必须继续拒绝且仅暴露固定标签；测试还检查合法样本无返回噪声，
+// 避免通过放宽比较或输出路径来掩盖这次原生首拒缺乏定位事实的问题。
 test("owned environment diagnostic identifies each original finite invariant only", async () => {
     const { checkOwnedEnvironment } = await import("../../../.github/scripts/runtime-entries.mjs");
     assert.equal(typeof checkOwnedEnvironment, "function");
@@ -571,7 +577,8 @@ test("owned environment diagnostic identifies each original finite invariant onl
         );
 });
 
-// 失败输出由真实 Node 子进程捕获而不替换全局控制台，未知键的值只存在于合成启动参数中；入口必须在任何原生准入与目录操作之前返回既有退出一，并输出可解析、有界且不含该值的英文诊断。
+// 失败输出由真实 Node 子进程捕获而不替换全局控制台，未知键的值只存在于合成启动参数中；入口必须在任何原生准入与目录操作
+// 之前返回既有退出一，并输出可解析、有界且不含该值的英文诊断。
 test("actual CLI environment diagnostic preserves exit one and never prints the synthetic value", async () =>
     fixture(async (root) => {
         const helper = join(process.cwd(), ".github/scripts/runtime-entries.mjs"),

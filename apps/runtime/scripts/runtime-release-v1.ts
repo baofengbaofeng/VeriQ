@@ -20,15 +20,19 @@ import {
 } from "./runtime-release-v1-dependencies.ts";
 
 /**
- * 第一版材料以调用者独立提供的完整普通文件库存为准，平台原始归档的受控提取由现有来源工具完成；Windows 与 Linux 不复用 Mac 的归档名称、Chrome Framework 链接政策或 Darwin Build 收据。
+ * 第一版材料以调用者独立提供的完整普通文件库存为准，平台原始归档的受控提取由现有来源工具完成；Windows 与 Linux 不复用
+ * Mac 的归档名称、Chrome Framework 链接政策或 Darwin Build 收据。
  * 每棵树的根目录由调用者独占保持，任何额外文件、链接或缺失文件都会拒绝，不接受待核树自行生成的 Expected。
  */
 export type RuntimeV1Material = Readonly<{ root: string; files: readonly FileFact[] }>;
 
 /**
- * 非 Mac 生产任务保留已有 schemaVersion1 发行合同，Node、npm 与浏览器来自独立库存，生产依赖可显式选择独立材料或内置真实准备阶段；本入口真实构建入口、原生进程/helper 与版本化引擎，
- * 不把平台差异隐藏在Mac 配方字段中。内置阶段运行原锁离线 hoisted 安装、C04 工作区 JavaScript 发射、原生目标条件闭包和真实 Node 解析，外部依赖材料则必须已包含同等生成及
- * optional/peer/bin 产物并另附来源证据。所有主机构建工具路径都显式给出，不下载工具、SDK、Chrome 或目标 Node，也不在安装时编译。
+ * 非 Mac 生产任务保留已有 schemaVersion1 发行合同，Node、npm 与浏览器来自独立库存，生产依赖可显式选择独立材料或内置真实
+ * 准备阶段；本入口真实构建入口、原生进程/helper 与版本化引擎，
+ * 不把平台差异隐藏在Mac 配方字段中。内置阶段运行原锁离线 hoisted 安装、C04 工作区 JavaScript 发射、原生目标条件闭包和真
+ * 实 Node 解析，外部依赖材料则必须已包含同等生成及
+ * optional/peer/bin 产物并另附来源证据。所有主机构建工具路径都显式给出，不下载工具、SDK、Chrome 或目标 Node，也不在安装
+ * 时编译。
  */
 export type RuntimeV1ProductionJob = Readonly<{
     platform: "linux" | "win32";
@@ -58,7 +62,8 @@ export type RuntimeV1ProductionJob = Readonly<{
 }>;
 
 /**
- * 材料拷贝先检查完整集合与每个独立摘要，再逐个通过 held 描述符复制并在结束后再次枚举；现有 v1 loader 禁止任何链接，因此不会解引用 pnpm 链接来伪造物理实例或静默省略平台相关包。
+ * 材料拷贝先检查完整集合与每个独立摘要，再逐个通过 held 描述符复制并在结束后再次枚举；现有 v1 loader 禁止任何链接，因此
+ * 不会解引用 pnpm 链接来伪造物理实例或静默省略平台相关包。
  * 空目录不影响 v1 模块解析，但文件集合必须完全一致，目录中的未知二进制同样不能进入候选。
  */
 async function copyMaterial(material: RuntimeV1Material, destination: string): Promise<void> {
@@ -85,8 +90,10 @@ async function copyMaterial(material: RuntimeV1Material, destination: string): P
 }
 
 /**
- * 第一版生产路径在真实目标主机运行原有 Vite、node-gyp 或 Linux C 构建脚本，并只收集明确正式成员；成功产出的只是候选和完整库存，独立工具/来源审核、签名、已安装执行及 release decision
- * 均保留后续门禁。sourceRoot 必须为独占构建视图，失败现场不自动删除，也不会覆盖现有 candidate 或源仓库的历史证据。Node 角色是原始固定二进制的独立普通文件副本，复制不改变引擎版本或进程命名策略。
+ * 第一版生产路径在真实目标主机运行原有 Vite、node-gyp 或 Linux C 构建脚本，并只收集明确正式成员；成功产出的只是候选和完
+ * 整库存，独立工具/来源审核、签名、已安装执行及 release decision
+ * 均保留后续门禁。sourceRoot 必须为独占构建视图，失败现场不自动删除，也不会覆盖现有 candidate 或源仓库的历史证据。Node
+ * 角色是原始固定二进制的独立普通文件副本，复制不改变引擎版本或进程命名策略。
  */
 export async function produceRuntimeV1(
     input: RuntimeV1ProductionJob,
@@ -182,7 +189,8 @@ export async function produceRuntimeV1(
         "--outDir",
         build,
     ]);
-    // 原有配置生成的观察文件是构建证据而不是运行成员，完整枚举其余实际产物；两个固定入口必须存在，未知链接和特殊文件在 inventoryReleaseTree 中直接失败。
+    // 原有配置生成的观察文件是构建证据而不是运行成员，完整枚举其余实际产物；两个固定入口必须存在，未知链接和特殊文件在
+    // inventoryReleaseTree 中直接失败。
     const entryInventory = await inventoryReleaseTree(build, "entries");
     if (
         !["agent.js", "cli.js", ".veriq-entry-trace.json"].every((name) =>
@@ -344,7 +352,8 @@ export async function produceRuntimeV1(
             undefined,
             0o644,
         );
-        // 现有 v1 ExecutionPaths 的 guardian 名称固定为 veriq_runner.exe，真实产品构建名为 veriq_guardian.exe；这里只复制同一正式 guardian 原字节，绝不使
+        // 现有 v1 ExecutionPaths 的 guardian 名称固定为 veriq_runner.exe，真实产品构建名为 veriq_guardian.exe；这里只复
+        // 制同一正式 guardian 原字节，绝不使
         // 用角色 Node 或测试 guardian 替代。
         await copyReleaseFile(
             join(job.sourceRoot, "apps/runtime/build/Release/veriq_guardian.exe"),
@@ -389,7 +398,8 @@ export async function produceRuntimeV1(
         { root: job.hostBuild.engineOutput, files: engineInventory.files },
         join(runtime, "engines", job.engineVersion),
     );
-    // 根 package.json 明确选择 ESM，避免 Vite 入口和生成 Workspace 包因宿主目录中其他 package.json 而被解释成 CommonJS；依赖输入已经单独核全量文件，生成根不承载或修改锁定依赖
+    // 根 package.json 明确选择 ESM，避免 Vite 入口和生成 Workspace 包因宿主目录中其他 package.json 而被解释成 CommonJS
+    // ；依赖输入已经单独核全量文件，生成根不承载或修改锁定依赖
     // 声明。
     await writeReleaseJson(runtime, "package.json", { private: true, type: "module" });
     const inventory = await inventoryReleaseTree(runtime, "entries");

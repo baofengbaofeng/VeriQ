@@ -1,4 +1,5 @@
-"""服务账号与令牌在 Workspace 管理权限下创建、签发与吊销，并供维护端点与 service enroll 消费 Bearer。consume 只接受未吊销哈希匹配令牌；require_maintenance
+"""服务账号与令牌在 Workspace 管理权限下创建、签发与吊销，并供维护端点与 service enroll 消费 Bearer。consume
+只接受未吊销哈希匹配令牌；require_maintenance
 
 额外校验账号未禁用与维护资格。DTO 与列表响应不返回令牌明文，签发接口仅当时回显一次。
 """
@@ -16,18 +17,22 @@ from .workspace import WorkspaceRepository
 
 
 class ServiceAccountService:
-    """编排服务账号生命周期与令牌签发校验，突变限定在已授权 Workspace，ServiceAccountService 遵守本文件 Workspace/事务边界。
+    """编排服务账号生命周期与令牌签发校验，突变限定在已授权 Workspace，ServiceAccountService 遵守本文件 Workspace/事务边
+    界。
     ServiceAccountService 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
 
     def __init__(self, session: AsyncSession):
-        """注入数据库会话；令牌哈希与审计辅助复用 service 层公共函数，ServiceAccountService.__init__ 遵守本文件 Workspace/事务边界。
-        __init__ 实现于 apps/srv/src/veriq_server/services/service_account.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """注入数据库会话；令牌哈希与审计辅助复用 service 层公共函数，ServiceAccountService.__init__ 遵守本文件
+        Workspace/事务边界。
+        __init__ 实现于 apps/srv/src/veriq_server/services/service_account.py：请按该符号的输入校验、
+        错误码与调用方契约阅读，勿假设通用成功默认值。
         """
         self.session = session
 
     async def authorize(self, actor: User, workspace_id: str, *, write: bool = False) -> None:
-        """按 write 要求 MANAGE_WORKSPACE 或只读成员权限，归档租户拒绝写，ServiceAccountService.authorize 遵守本文件 Workspace/事务边界。
+        """按 write 要求 MANAGE_WORKSPACE 或只读成员权限，归档租户拒绝写，ServiceAccountService.authorize 遵守本文件
+        Workspace/事务边界。
         authorize 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
         """
         await WorkspaceRepository(self.session, WorkspaceScope(workspace_id)).authorize(
@@ -35,7 +40,8 @@ class ServiceAccountService:
         )
 
     async def get(self, workspace_id: str, account_id: str) -> ServiceAccount:
-        """在 Workspace 内按 ID 加载服务账号，缺失返回 Problem，ServiceAccountService.get 遵守本文件 Workspace/事务边界。
+        """在 Workspace 内按 ID 加载服务账号，缺失返回 Problem，ServiceAccountService.get 遵守本文件 Workspace/事务边界
+        。
         get 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
         """
         row = await self.session.get(ServiceAccount, account_id)
@@ -44,7 +50,8 @@ class ServiceAccountService:
         return row
 
     async def create(self, actor: User, workspace_id: str, name: str) -> ServiceAccount:
-        """创建未禁用服务账号并返回实体，名称仅在租户内有意义，ServiceAccountService.create 遵守本文件 Workspace/事务边界。create 必须坚持 Workspace 归属与成员授权，
+        """创建未禁用服务账号并返回实体，名称仅在租户内有意义，ServiceAccountService.create 遵守本文件 Workspace/事务边
+        界。create 必须坚持 Workspace 归属与成员授权，
 
         嵌套资源引用不得跨空间隐式放行。
         """
@@ -69,7 +76,9 @@ class ServiceAccountService:
         operations: list[str] | None = None,
         plan_ids: list[str] | None = None,
     ) -> dict[str, Any]:
-        """令牌用途严格区分设备注册、维护操作和计划执行，执行令牌必须限定当前空间的有效计划及独立操作集合；明文只在本次签发返回，数据库保存哈希且不把创建者登录状态当作服务账号权限。"""
+        """令牌用途严格区分设备注册、维护操作和计划执行，执行令牌必须限定当前空间的有效计划及独立操作集合；
+        明文只在本次签发返回，数据库保存哈希且不把创建者登录状态当作服务账号权限。
+        """
         await self.authorize(actor, account.workspace_id, write=True)
         if account.disabled:
             raise Problem(403, "SERVICE_ACCOUNT_DISABLED", "Service account is disabled")
@@ -134,7 +143,8 @@ class ServiceAccountService:
     async def require_maintenance(
         self, authorization: str, workspace_id: str, operation: str
     ) -> ServiceAccount:
-        """校验 Bearer 对应未禁用账号且具备维护触发资格，ServiceAccountService.require_maintenance 遵守本文件 Workspace/事务边界。
+        """校验 Bearer 对应未禁用账号且具备维护触发资格，ServiceAccountService.require_maintenance 遵守本文件
+        Workspace/事务边界。
         require_maintenance 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
         """
         if not authorization.startswith("Bearer "):
@@ -170,8 +180,10 @@ class ServiceAccountService:
         return account
 
     async def consume(self, authorization: str) -> ServiceAccount:
-        """解析 Authorization 中的服务令牌，哈希匹配且未吊销则返回账号，ServiceAccountService.consume 遵守本文件 Workspace/事务边界。
-        consume 实现于 apps/srv/src/veriq_server/services/service_account.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """解析 Authorization 中的服务令牌，哈希匹配且未吊销则返回账号，ServiceAccountService.consume 遵守本文件
+        Workspace/事务边界。
+        consume 实现于 apps/srv/src/veriq_server/services/service_account.py：请按该符号的输入校验、
+        错误码与调用方契约阅读，勿假设通用成功默认值。
         """
         if not authorization.startswith("Bearer ") or not 43 <= len(authorization[7:]) <= 128:
             raise Problem(401, "SERVICE_TOKEN_INVALID", "Valid service enrollment token required")
@@ -201,7 +213,8 @@ class ServiceAccountService:
 
 def account_dto(row: ServiceAccount) -> dict[str, Any]:
     """导出服务账号对外字段，刻意省略任何令牌哈希或密钥材料，account_dto 遵守本文件 Workspace/事务边界。
-    account_dto 实现于 apps/srv/src/veriq_server/services/service_account.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    account_dto 实现于 apps/srv/src/veriq_server/services/service_account.py：请按该符号的输入校验、
+    错误码与调用方契约阅读，勿假设通用成功默认值。
     """
     return {
         "id": row.id,

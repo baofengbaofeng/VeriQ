@@ -1,4 +1,7 @@
-/** Mac 保险库使用系统 Objective-C++ 编译器生成固定独立成员，测试目标始终位于不同目录且不能进入发行授权；构建同时记录实际编译参数、SDK 依赖文件与二进制身份，Linux 开发机不会下载或伪装 Mac 工具链。 */
+/**
+ * Mac 保险库使用系统 Objective-C++ 编译器生成固定独立成员，测试目标始终位于不同目录且不能进入发行授权；构建同时记录实际
+ * 编译参数、SDK 依赖文件与二进制身份，Linux 开发机不会下载或伪装 Mac 工具链。
+ */
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createHash } from "node:crypto";
@@ -27,7 +30,10 @@ const execute = async (file, args) =>
             encoding: "utf8",
         })
     ).stdout;
-/** 系统 clang++ 可能只是指向 clang 的符号链接，但驱动根据调用名称选择是否隐式链接 C++ 标准库；执行时保留 xcrun 返回的 C++ 驱动名称，规范物理路径仅用于工具身份哈希，不能用身份归一化改变构建语义。 */
+/**
+ * 系统 clang++ 可能只是指向 clang 的符号链接，但驱动根据调用名称选择是否隐式链接 C++ 标准库；执行时保留 xcrun 返回的
+ * C++ 驱动名称，规范物理路径仅用于工具身份哈希，不能用身份归一化改变构建语义。
+ */
 const compilerDriver = (await execute("/usr/bin/xcrun", ["--find", "clang++"])).trim();
 const compiler = await realpath(compilerDriver);
 const sdk = await realpath((await execute("/usr/bin/xcrun", ["--show-sdk-path"])).trim());
@@ -139,7 +145,10 @@ for (const job of jobs) {
         loadCommands,
     });
 }
-/** 只有显式测试构建才启动已经编译完成的控制器无存储自测，有限子进程必须正常退出并返回精确固定标记；输出错误或异常对象不会直接回显，四成员构建记录及既有编译输入格式保持原样。 */
+/**
+ * 只有显式测试构建才启动已经编译完成的控制器无存储自测，有限子进程必须正常退出并返回精确固定标记；输出错误或异常对象不
+ * 会直接回显，四成员构建记录及既有编译输入格式保持原样。
+ */
 if (flags.includes("--tests")) {
     let passed = false;
     try {

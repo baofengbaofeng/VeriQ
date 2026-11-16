@@ -19,7 +19,10 @@ const core = [
     "receipts",
     "graph",
 ];
-/** 固定源码清单只从当前模块 URL 与实际 contracts 入口相邻位置定位宿主字节，配方永远不能指定任意宿主路径；仓库相对键保持审核合同中的二十项身份，即使共享依赖来自工作区实际模块位置也不改变来源含义。 */
+/**
+ * 固定源码清单只从当前模块 URL 与实际 contracts 入口相邻位置定位宿主字节，配方永远不能指定任意宿主路径；仓库相对键保持
+ * 审核合同中的二十项身份，即使共享依赖来自工作区实际模块位置也不改变来源含义。
+ */
 export const GENERATOR_SOURCES: readonly Readonly<{ path: string; url: string }>[] = Object.freeze(
     [
         ...core.map((name) => ({
@@ -47,10 +50,16 @@ export const GENERATOR_SOURCES: readonly Readonly<{ path: string; url: string }>
     ].map((source) => Object.freeze({ path: source.path, url: source.url.href })),
 );
 
-/** 源码绑定结果保留真正读取的固定源码事实与收尾复验动作，所有生成模板和清单只能引用这些已匹配的 Ref；此受控 checkout 一致性不认证宿主已加载机器指令或第三方包，实际来源构建仍交后续 CI 验证。 */
+/**
+ * 源码绑定结果保留真正读取的固定源码事实与收尾复验动作，所有生成模板和清单只能引用这些已匹配的 Ref；此受控 checkout 一
+ * 致性不认证宿主已加载机器指令或第三方包，实际来源构建仍交后续 CI 验证。
+ */
 export type GeneratorBinding = Readonly<{ files: readonly Ref[]; finish: () => Promise<void> }>;
 
-/** 生成之前必须同时匹配独立 SourceBinding、输入根源码副本与实际宿主固定源码，结束时再观察并重读同一集合；同步伪造输入副本和全部自报摘要也不能使与本次生成器不同的代码获得候选来源身份。 */
+/**
+ * 生成之前必须同时匹配独立 SourceBinding、输入根源码副本与实际宿主固定源码，结束时再观察并重读同一集合；同步伪造输入副
+ * 本和全部自报摘要也不能使与本次生成器不同的代码获得候选来源身份。
+ */
 export async function bindGeneratorSources(
     report: InputInspection,
     inputRoot: string,

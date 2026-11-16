@@ -15,7 +15,8 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, m
 
 class Settings(BaseModel):
     """控制面强类型配置模型；extra=forbid，生产环境额外强制 HTTPS 公网源以及 SMTP TLS，Settings 的失败路径返回稳定错误。
-    Settings 实现于 apps/srv/src/veriq_server/settings.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    Settings 实现于 apps/srv/src/veriq_server/settings.py：请按该符号的输入校验、错误码与调用方契约阅读，
+    勿假设通用成功默认值。
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -34,7 +35,8 @@ class Settings(BaseModel):
     bundle_issuer_path: str | None = None
     bundle_lifetime_days: int = Field(default=30, ge=1, le=365)
     approved_engine_inventory_path: str | None = None
-    # 验证引擎选择只影响此后创建的快照，默认保留既有开发版本；生产运维必须先晋升完整新发行再切换配置，旧 Job、签名包与发布回执继续携带冻结时的版本身份。
+    # 验证引擎选择只影响此后创建的快照，默认保留既有开发版本；生产运维必须先晋升完整新发行再切换配置，旧 Job、
+    # 签名包与发布回执继续携带冻结时的版本身份。
     validation_engine_version: str = Field(
         default="0.1.0", pattern=r"^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$"
     )
@@ -52,7 +54,8 @@ class Settings(BaseModel):
     metadata_retention_days: int = Field(default=90, ge=1, le=3650)
     export_retention_days: int = Field(default=14, ge=1, le=3650)
     upload_retention_days: int = Field(default=1, ge=1, le=3650)
-    # 引用图必须整体完成才可判断缓存不可达，因此显式限制根行、节点与总字节而非在超限时使用部分图；较大工作区只能由操作员按可用内存提高这些预算，任何超限仍保留所有候选并留下审计原因。
+    # 引用图必须整体完成才可判断缓存不可达，因此显式限制根行、节点与总字节而非在超限时使用部分图；
+    # 较大工作区只能由操作员按可用内存提高这些预算，任何超限仍保留所有候选并留下审计原因。
     lifecycle_graph_max_rows: int = Field(default=2048, ge=1, le=100000)
     lifecycle_graph_max_nodes: int = Field(default=2048, ge=1, le=100000)
     lifecycle_graph_max_bytes: int = Field(default=8388608, ge=1024, le=268435456)
@@ -75,8 +78,10 @@ class Settings(BaseModel):
 
     @model_validator(mode="after")
     def production_origin(self) -> "Settings":
-        """交叉校验主密钥环、生产公网源与 SMTP 成套配置，拒绝任何不安全或不完整的组合，Settings.production_origin 的失败路径返回稳定错误。
-        production_origin 实现于 apps/srv/src/veriq_server/settings.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """交叉校验主密钥环、生产公网源与 SMTP 成套配置，拒绝任何不安全或不完整的组合，Settings.production_origin
+        的失败路径返回稳定错误。
+        production_origin 实现于 apps/srv/src/veriq_server/settings.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
         """
         if self.readiness_s3_strategy == "read-object" and (
             not self.readiness_s3_object_key or not self.readiness_s3_object_sha256
@@ -106,8 +111,10 @@ class Settings(BaseModel):
     @field_validator("database_url")
     @classmethod
     def database(cls, v: SecretStr) -> SecretStr:
-        """要求 mysql+asyncmy:// 形式的 DSN，排除同步驱动与非 MySQL 方言进入控制面，Settings.database 的失败路径返回稳定错误。
-        database 实现于 apps/srv/src/veriq_server/settings.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """要求 mysql+asyncmy:// 形式的 DSN，排除同步驱动与非 MySQL 方言进入控制面，Settings.database
+        的失败路径返回稳定错误。
+        database 实现于 apps/srv/src/veriq_server/settings.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
         """
         if not v.get_secret_value().startswith("mysql+asyncmy://"):
             raise ValueError("An async MySQL database is required")
@@ -116,8 +123,10 @@ class Settings(BaseModel):
     @field_validator("master_key", "signing_key")
     @classmethod
     def key(cls, v: SecretStr) -> SecretStr:
-        """密钥必须为精确 32 字节的十六进制编码字符串，长度不符或解码失败时一律拒绝，Settings.key 的失败路径返回稳定错误。
-        key 实现于 apps/srv/src/veriq_server/settings.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """密钥必须为精确 32 字节的十六进制编码字符串，长度不符或解码失败时一律拒绝，Settings.key
+        的失败路径返回稳定错误。
+        key 实现于 apps/srv/src/veriq_server/settings.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
         """
         if len(v.get_secret_value()) != 64:
             raise ValueError("Key must contain 32 bytes encoded as hex")
@@ -128,8 +137,10 @@ class Settings(BaseModel):
     @field_validator("public_url")
     @classmethod
     def url(cls, v: str) -> str:
-        """公网 URL 必须是无用户信息、无查询与片段的 HTTP(S) origin，末尾斜杠会被剥离，Settings.url 的失败路径返回稳定错误。
-        url 实现于 apps/srv/src/veriq_server/settings.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """公网 URL 必须是无用户信息、无查询与片段的 HTTP(S) origin，末尾斜杠会被剥离，Settings.url
+        的失败路径返回稳定错误。
+        url 实现于 apps/srv/src/veriq_server/settings.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
         """
         u = urlsplit(v)
         if (
@@ -146,8 +157,10 @@ class Settings(BaseModel):
 
 
 def resolve_settings_values(path: Path, overrides: dict[str, Any] | None = None) -> dict[str, Any]:
-    """合并配置文件、VERIQ_* 环境变量与 CLI 覆盖为原始字典，供 Settings 校验，resolve_settings_values 的失败路径返回稳定错误。
-    resolve_settings_values 实现于 apps/srv/src/veriq_server/settings.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """合并配置文件、VERIQ_* 环境变量与 CLI 覆盖为原始字典，供 Settings 校验，resolve_settings_values
+    的失败路径返回稳定错误。
+    resolve_settings_values 实现于 apps/srv/src/veriq_server/settings.py：请按该符号的输入校验、错误码与调用方契约阅读，
+    勿假设通用成功默认值。
     """
     values = json.loads(path.read_text()) if path.exists() else {}
     if not isinstance(values, dict):
@@ -165,14 +178,17 @@ def resolve_settings_values(path: Path, overrides: dict[str, Any] | None = None)
 
 def load_settings(path: Path, overrides: dict[str, Any] | None = None) -> Settings:
     """读取并校验配置文件，返回不可变语义的 Settings 实例供应用与 CLI 共享使用，load_settings 的失败路径返回稳定错误。
-    load_settings 实现于 apps/srv/src/veriq_server/settings.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    load_settings 实现于 apps/srv/src/veriq_server/settings.py：请按该符号的输入校验、错误码与调用方契约阅读，
+    勿假设通用成功默认值。
     """
     return Settings.model_validate(resolve_settings_values(path, overrides))
 
 
 def operator_config_values(value: Any) -> Any:
-    """递归展开 SecretStr，生成可写回操作员配置文件的明文 JSON 可序列化结构，operator_config_values 的失败路径返回稳定错误。
-    operator_config_values 实现于 apps/srv/src/veriq_server/settings.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """递归展开 SecretStr，生成可写回操作员配置文件的明文 JSON 可序列化结构，operator_config_values
+    的失败路径返回稳定错误。
+    operator_config_values 实现于 apps/srv/src/veriq_server/settings.py：请按该符号的输入校验、错误码与调用方契约阅读，
+    勿假设通用成功默认值。
     """
     if isinstance(value, SecretStr):
         return value.get_secret_value()

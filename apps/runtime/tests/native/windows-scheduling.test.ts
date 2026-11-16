@@ -1,4 +1,6 @@
-/** 本用例运行独立测试编译体，在真实 START 之后控制原算法进入取消发生于未来 ReadFile 之前的窗口；正式 guardian 和 addon 没有测试入口，调度成功也不能替代实际 Job 排空、身份回执和真实资源清理。 */
+/** 本用例运行独立测试编译体，在真实 START 之后控制原算法进入取消发生于未来 ReadFile 之前的窗口；正式 guardian 和 addon
+ * 没有测试入口，调度成功也不能替代实际 Job 排空、身份回执和真实资源清理。
+ */
 import assert from "node:assert/strict";
 import test from "node:test";
 import { copyFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -16,7 +18,9 @@ const schedule = require("../../build/native-tests/veriq_test_schedule.node") as
     releaseRead(nonce: string): void;
 };
 
-/** 测试保存的身份字段与正式日志中的字符串 FILETIME 完全一致，工作与守护 PID 分开记录；该类型仅用于校验本次真实启动返回的日志，不能把不确定身份补成默认值或经浮点计算重建创建时间。 */
+/** 测试保存的身份字段与正式日志中的字符串 FILETIME 完全一致，工作与守护 PID 分开记录；该类型仅用于校验本次真实启动返回
+ * 的日志，不能把不确定身份补成默认值或经浮点计算重建创建时间。
+ */
 interface ScheduleJournal {
     nonce: string;
     sid: string;
@@ -26,7 +30,9 @@ interface ScheduleJournal {
     guardianStartTime: string;
 }
 
-/** 清理只在既有五秒测试预算内等待真实操作，超时保留原始失败与私有目录而不能伪造进程已停止；调度等待自身也在原生工作线程有界完成，因此本定时器保持可执行而非依赖同步阻塞调用返回。 */
+/** 清理只在既有五秒测试预算内等待真实操作，超时保留原始失败与私有目录而不能伪造进程已停止；调度等待自身也在原生工作线程
+ * 有界完成，因此本定时器保持可执行而非依赖同步阻塞调用返回。
+ */
 async function bounded<T>(operation: () => Promise<T>): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
@@ -42,7 +48,8 @@ async function bounded<T>(operation: () => Promise<T>): Promise<T> {
 }
 
 /**
- * 已消费 START 的控制线程停在原始 closed 检查之后，只有真实 CancelSynchronousIo 返回无挂起操作才放行下一次系统读取；请求必须在原有期限内产生真实 DRAINED，不能靠测试关闭输入流才能获得首
+ * 已消费 START 的控制线程停在原始 closed 检查之后，只有真实 CancelSynchronousIo 返回无挂起操作才放行下一次系统读取；请
+ * 求必须在原有期限内产生真实 DRAINED，不能靠测试关闭输入流才能获得首
  * 次成功回执。
  */
 test("Windows guardian drains when cancellation precedes its next synchronous control read", async (context) => {

@@ -1,4 +1,5 @@
-"""引擎发行测试分别验证新快照选择与旧版本不变，以及操作员晋升的不可变身份约束；使用合成签发者和真实文件字节，不访问正式密钥，也不把测试库存声明为生产批准发行。
+"""引擎发行测试分别验证新快照选择与旧版本不变，以及操作员晋升的不可变身份约束；使用合成签发者和真实文件字节，
+不访问正式密钥，也不把测试库存声明为生产批准发行。
 
 数据库之外的快照输入没有依赖引用，因此不需要模拟 SQL 结果。晋升使用真实异步权威锁和原子文件替换。
 """
@@ -17,9 +18,11 @@ from veriq_server.settings import Settings
 
 
 async def test_new_engine_selection_changes_source_hash_without_mutating_old_snapshot() -> None:
-    """新选择只影响随后冻结的快照和 sourceHash，默认仍保留旧开发引擎版本；此前返回的快照字节保持原样，因此旧签名包、Job 和发布回执不会随服务配置改变而被重新解释。
+    """新选择只影响随后冻结的快照和 sourceHash，默认仍保留旧开发引擎版本；此前返回的快照字节保持原样，因此旧签名包、Job
+    和发布回执不会随服务配置改变而被重新解释。
 
     无依赖目录资产让测试聚焦实际 snapshot 逻辑。两次冻结使用相同资源、修订和文档，唯一变化是引擎选择。
+
     """
     resource = SimpleNamespace(id=str(uuid4()), kind="ELEMENT_CATALOG")
     draft = SimpleNamespace(
@@ -46,9 +49,11 @@ async def test_new_engine_selection_changes_source_hash_without_mutating_old_sna
 
 @pytest.fixture
 def promotion(tmp_path: Path):
-    """操作员晋升应将新版本加入已有批准清单，而同版本不同字节必须拒绝并保留原文件；真实合成签发者使测试走与并发 Bundle 导出相同的 issuer 和 inventory 锁协议。
+    """操作员晋升应将新版本加入已有批准清单，而同版本不同字节必须拒绝并保留原文件；真实合成签发者使测试走与并发 Bundle
+    导出相同的 issuer 和 inventory 锁协议。
 
     四个候选文件的长度和摘要由实际字节计算。初始空库存表示尚未批准任何发行，不需要虚构旧批准记录。
+
     """
     from veriq_server.bundles.issuer import Issuer
 
@@ -93,9 +98,11 @@ def promotion(tmp_path: Path):
 async def test_promotion_retains_old_version_and_rejects_same_version_different_bytes(
     promotion,
 ) -> None:
-    """操作员新增版本时保留旧批准条目，重复版本只有完全相同的规范字节才允许幂等成功；改变编译器身份即使文件摘要未变也必须拒绝，防止历史回执被重新解释为不同发行。
+    """操作员新增版本时保留旧批准条目，重复版本只有完全相同的规范字节才允许幂等成功；改变编译器身份即使文件摘要未变也必
+    须拒绝，防止历史回执被重新解释为不同发行。
 
     两次成功晋升分别建立旧版本与新候选版本。冲突失败后直接比较批准文件字节，确认没有部分写入。
+
     """
     from veriq_server.promote_engine import promote_engine
 
@@ -120,9 +127,12 @@ async def test_promotion_retains_old_version_and_rejects_same_version_different_
 async def test_promotion_waits_for_issuer_guard_and_cancellation_keeps_inventory(
     promotion, monkeypatch
 ) -> None:
-    """真实操作员锁阻塞晋升时取消任务必须保留原库存并释放稍后打开的文件描述符，随后新的晋升仍能完成；观察器只记录真实 open_lock 调用，不替代 flock 或伪造等待结果。
+    """真实操作员锁阻塞晋升时取消任务必须保留原库存并释放稍后打开的文件描述符，随后新的晋升仍能完成；观察器只记录真实
+    open_lock 调用，不替代 flock 或伪造等待结果。
 
-    外部描述符模拟同时进行的签发者维护。事件握手确认被测任务确实进入权威锁路径。取消不会留下一个稍后继续执行的后台库存替换。
+    外部描述符模拟同时进行的签发者维护。事件握手确认被测任务确实进入权威锁路径。取消不会留下一个稍后继续执行的后台库存替
+    换。
+
     """
     import asyncio
     import fcntl
@@ -164,9 +174,12 @@ async def test_promotion_waits_for_issuer_guard_and_cancellation_keeps_inventory
 async def test_promotion_rechecks_candidate_after_waiting_for_guard(
     promotion, monkeypatch, changed
 ) -> None:
-    """取得权威锁前候选已验证，但等待真实 issuer 锁期间其库存或同长度文件发生变化时必须拒绝晋升；批准文件保持原始字节，避免对已经损坏或被替换的候选报告批准成功。
+    """取得权威锁前候选已验证，但等待真实 issuer 锁期间其库存或同长度文件发生变化时必须拒绝晋升；批准文件保持原始字节，
+    避免对已经损坏或被替换的候选报告批准成功。
 
-    观察器只为真实 open_lock 建立握手，不替代操作系统文件锁。库存变化保持合法结构，文件变化保持原长度，分别隔离身份与摘要检查。
+    观察器只为真实 open_lock 建立握手，不替代操作系统文件锁。库存变化保持合法结构，文件变化保持原长度，
+    分别隔离身份与摘要检查。
+
     """
     import asyncio
     import fcntl

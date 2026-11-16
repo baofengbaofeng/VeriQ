@@ -1,6 +1,8 @@
 import { fstatSync } from "node:fs";
 
-/** VeriQ 的 CLI 日志只存储受控对象的结构事实，本模块同时约束激活身份、私有普通描述符和最终封存状态，避免父子两侧对同一字节流采用不同的成功判据。 */
+/** VeriQ 的 CLI 日志只存储受控对象的结构事实，本模块同时约束激活身份、私有普通描述符和最终封存状态，
+ * 避免父子两侧对同一字节流采用不同的成功判据。
+ */
 export const LIMITS = Object.freeze({
     frameBytes: 4096,
     fileBytes: 1024 * 1024,
@@ -12,19 +14,25 @@ const noncePattern = /^[0-9a-f]{64}$/;
 const identityKeys = ["version", "attemptId", "ownerGeneration", "commandSlot", "nonce"];
 const positive = (value) => Number.isSafeInteger(value) && value > 0;
 
-/** 所有拒绝只暴露固定英文错误码而不包含原始行、路径或环境值，调用层可据此保守处理失败且不会把身份之外的秘密从恶意输入复制到日志或报告中。 */
+/** 所有拒绝只暴露固定英文错误码而不包含原始行、路径或环境值，调用层可据此保守处理失败且不会把身份之外的秘密从恶意输入复
+ * 制到日志或报告中。
+ */
 function reject() {
     throw new Error("CONTROLLED_CHILD_PROTOCOL_INVALID");
 }
 
-/** 精确字段集合既拒绝未知字段也拒绝数组与空值，键顺序仍允许由生产者选择；重复字段的字节歧义由后续 stringify 往返检查独立拒绝而非依赖 JSON.parse。 */
+/** 精确字段集合既拒绝未知字段也拒绝数组与空值，键顺序仍允许由生产者选择；重复字段的字节歧义由后续 stringify
+ * 往返检查独立拒绝而非依赖 JSON.parse。
+ */
 function exact(value, keys) {
     if (!value || Array.isArray(value) || typeof value !== "object") reject();
     const actual = Object.keys(value);
     if (actual.length !== keys.length || actual.some((key) => !keys.includes(key))) reject();
 }
 
-/** 身份只接受明确的小写 UUID、正安全代际和三十二字节随机量的十六进制表示；这个验证不声称 nonce 的来源可信，随机生成与可信调用路径由未来父层负责。 */
+/** 身份只接受明确的小写 UUID、正安全代际和三十二字节随机量的十六进制表示；这个验证不声称 nonce 的来源可信，
+ * 随机生成与可信调用路径由未来父层负责。
+ */
 function identity(value) {
     if (
         value.version !== 1 ||
@@ -39,14 +47,18 @@ function identity(value) {
         reject();
 }
 
-/** 父侧期望绑定不携带任何可复用的 PID 或描述符编号，验证时复制有限字段形成独立快照，因此调用者随后修改输入对象不会改变已注册观察所绑定的 Attempt。 */
+/** 父侧期望绑定不携带任何可复用的 PID 或描述符编号，验证时复制有限字段形成独立快照，因此调用者随后修改输入对象不会改变
+ * 已注册观察所绑定的 Attempt。
+ */
 export function validateBinding(value) {
     exact(value, identityKeys);
     identity(value);
     return Object.fromEntries(identityKeys.map((key) => [key, value[key]]));
 }
 
-/** 激活标记中的 fd 是子 CLI 的显式 stdio 槽位而非父进程原编号，严格往返要求消除重复键与数字歧义，使错误激活只能进入专用失败退出而不能悄悄退化为无观察执行。 */
+/** 激活标记中的 fd 是子 CLI 的显式 stdio 槽位而非父进程原编号，严格往返要求消除重复键与数字歧义，
+ * 使错误激活只能进入专用失败退出而不能悄悄退化为无观察执行。
+ */
 export function parseActivation(raw) {
     if (typeof raw !== "string" || Buffer.byteLength(raw) > LIMITS.frameBytes) reject();
     const marker = JSON.parse(raw);
@@ -58,7 +70,9 @@ export function parseActivation(raw) {
     return { binding, fd: marker.fd };
 }
 
-/** 描述符校验只针对已经打开的同一文件对象，不按字符串重新打开也不假造 Windows ACL；普通文件的所有者和精确权限可核实后才允许写入或读取，目录持久条件留给 B。 */
+/** 描述符校验只针对已经打开的同一文件对象，不按字符串重新打开也不假造 Windows ACL；普通文件的所有者和精确权限可核实后才
+ * 允许写入或读取，目录持久条件留给 B。
+ */
 export function inspectJournalFd(fd, requireEmpty = false) {
     if (
         !Number.isSafeInteger(fd) ||
@@ -80,7 +94,9 @@ export function inspectJournalFd(fd, requireEmpty = false) {
     return stat;
 }
 
-/** 最终字节流只能采用严格 UTF8 与单 LF 分帧，首条 READY 后连续序号并以唯一 SEAL 收尾；普通文件暂时 EOF 不是结束事实，这个纯验证器本身不对外授予生命周期成功。 */
+/** 最终字节流只能采用严格 UTF8 与单 LF 分帧，首条 READY 后连续序号并以唯一 SEAL 收尾；普通文件暂时 EOF 不是结束事实，
+ * 这个纯验证器本身不对外授予生命周期成功。
+ */
 export function validateJournal(bytes, expectedBinding) {
     const binding = validateBinding(expectedBinding);
     if (

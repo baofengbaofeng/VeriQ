@@ -1,5 +1,5 @@
-/**
- * Web 入口先探测安装状态再读取当前会话与账户，向 Auth 注入稳定刷新入口并按用户身份挂载各功能路由，使启动、重试和退出共享明确的异步结果发布边界。
+/** Web 入口先探测安装状态再读取当前会话与账户，向 Auth 注入稳定刷新入口并按用户身份挂载各功能路由，使启动、重试和退出共
+ * 享明确的异步结果发布边界。
  * 每个需空间作用域的路由用 user.id 作 Provider key，身份切换即清空查询与订阅。
  */
 
@@ -34,7 +34,9 @@ function App() {
         identityGeneration = useRef(0),
         loadGeneration = useRef(0),
         logoutIntent = useRef<number | null>(null);
-    /** 会话探测与账户读取共用调用者分配的身份代次，每个 await 后都检查当前归属；过期事件先清除身份，旧成功及旧异常均不能重新发布已失效的账户或故障状态。 */
+    /** 会话探测与账户读取共用调用者分配的身份代次，每个 await 后都检查当前归属；过期事件先清除身份，旧成功及旧异常均不
+     * 能重新发布已失效的账户或故障状态。
+     */
     const readIdentity = useCallback(async (request: number): Promise<void> => {
         const current = () => mounted.current && identityGeneration.current === request;
         try {
@@ -49,13 +51,17 @@ function App() {
             else throw e;
         }
     }, []);
-    /** 稳定刷新入口只在退出意图仍拥有当前身份代次时拒绝旧操作回调，防止其抢走退出发布权；真实会话过期使旧意图失效后，后来的成功登录可立即建立新身份而不必等待旧退出响应。 */
+    /** 稳定刷新入口只在退出意图仍拥有当前身份代次时拒绝旧操作回调，防止其抢走退出发布权；真实会话过期使旧意图失效后，后
+     * 来的成功登录可立即建立新身份而不必等待旧退出响应。
+     */
     const refresh = useCallback(async (): Promise<void> => {
         if (logoutIntent.current === identityGeneration.current) return;
         loadGeneration.current += 1;
         await readIdentity(++identityGeneration.current);
     }, [readIdentity]);
-    /** 安装探测的所有权独立于身份探测，因此本轮匿名会话的正常 401 仍可完成启动；新的刷新、退出或卸载会使旧启动失效，防止旧 Retry 覆盖当前就绪或失败状态。 */
+    /** 安装探测的所有权独立于身份探测，因此本轮匿名会话的正常 401 仍可完成启动；新的刷新、退出或卸载会使旧启动失效，防
+     * 止旧 Retry 覆盖当前就绪或失败状态。
+     */
     const load = useCallback(async (): Promise<void> => {
         const request = ++loadGeneration.current;
         const identityRequest = ++identityGeneration.current;
@@ -87,7 +93,9 @@ function App() {
             window.removeEventListener("veriq:session-expired", expired);
         };
     }, [load]);
-    /** 退出意图在发送请求前就撤销旧身份读取的发布权，随后复用同一代次探测真正的退出结果；只有仍归属于这次退出的异常可以显示失败，避免旧 catch 干扰后续登录。 */
+    /** 退出意图在发送请求前就撤销旧身份读取的发布权，随后复用同一代次探测真正的退出结果；只有仍归属于这次退出的异常可以
+     * 显示失败，避免旧 catch 干扰后续登录。
+     */
     const logout = useCallback(async (): Promise<void> => {
         const request = ++identityGeneration.current;
         logoutIntent.current = request;

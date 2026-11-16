@@ -12,7 +12,10 @@ import { Auth } from "../../auth-context";
 import { Notice, Panel, useAction, values } from "../../ui";
 import { useWorkspace } from "../workspaces/WorkspaceContext";
 
-/** 组合工作区选择器与 Runtime/服务账号面板，调用 inspect/approve/grants/trust/revoke/issueToken。凭证投递开关走 delivery；吊销后列表刷新且不可再领取该空间作业。 */
+/** 组合工作区选择器与 Runtime/服务账号面板，调用 inspect/approve/grants/trust/revoke/issueToken。凭证投递开关走
+ * delivery
+ * ；吊销后列表刷新且不可再领取该空间作业。
+ */
 export function RuntimePage() {
     useAppLocale();
     const { user } = useContext(Auth),
@@ -25,7 +28,8 @@ export function RuntimePage() {
         enabled: !!user,
     });
     const items = workspaces.data?.pages.flatMap((p) => p.items) ?? [];
-    // 设备页面的首项标识只负责补齐空选择，权限和归档状态仍从当前列表重新计算；无关列表刷新不应重挂载正在填写登记码或服务账号名称的同空间表单。
+    // 设备页面的首项标识只负责补齐空选择，权限和归档状态仍从当前列表重新计算；无关列表刷新不应重挂载正在填写登记码或服
+    // 务账号名称的同空间表单。
     const firstWorkspaceId = items[0]?.id;
     useEffect(() => {
         if (!selected && firstWorkspaceId) select(firstWorkspaceId);
@@ -119,7 +123,8 @@ function RuntimeWorkspace({ workspace }: { workspace: Workspace }) {
                             setPreview(null);
                             const generation = ++inspectGeneration.current;
                             void a.run(async () => {
-                                // 用户可以在检查期间继续修改登记码，因此旧请求即使成功也不能恢复已清空的预览或审批入口；空间切换仍由现有 signal 取消，不改变平台审批和权限协议。
+                                // 用户可以在检查期间继续修改登记码，因此旧请求即使成功也不能恢复已清空的预览或审批入口
+                                // ；空间切换仍由现有 signal 取消，不改变平台审批和权限协议。
                                 try {
                                     const candidate = await runtimeApi.inspect(code, signal);
                                     if (!signal.aborted && generation === inspectGeneration.current)

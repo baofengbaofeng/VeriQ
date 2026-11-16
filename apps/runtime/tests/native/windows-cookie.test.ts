@@ -1,5 +1,7 @@
-/** Windows Cookie 退役测试只访问本次临时根下合成的固定分区文件，并通过正式原生同句柄操作验证超一兆元数据删除和路径拒绝；它不读取用户浏览器数据、不放宽当前 SID 拥有者规则，也不代表 Electron 的 DPA
- * PI 或安装验收。 */
+/** Windows Cookie 退役测试只访问本次临时根下合成的固定分区文件，并通过正式原生同句柄操作验证超一兆元数据删除和路径拒绝
+ * ；它不读取用户浏览器数据、不放宽当前 SID 拥有者规则，也不代表 Electron 的 DPA
+ * PI 或安装验收。
+ */
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { execFile } from "node:child_process";
@@ -13,7 +15,8 @@ import { prepareCookieStorage } from "../../../desktop/src/main/cookie-migration
 assert.equal(process.platform, "win32");
 
 /**
- * 失败诊断仅查询本次合成根及固定 Cookie 成员的实际 owner 和 ACE，不改变账户、令牌、DACL 或夹具创建方式；输出使用有限 UTF8 只读命令，观察本身失败也不能覆盖原断言错误，更不能把未取得的 ACL 推测成
+ * 失败诊断仅查询本次合成根及固定 Cookie 成员的实际 owner 和 ACE，不改变账户、令牌、DACL 或夹具创建方式；输出使用有限
+ * UTF8 只读命令，观察本身失败也不能覆盖原断言错误，更不能把未取得的 ACL 推测成
  * 管理员政策结论。
  */
 async function observeAcl(context: TestContext, paths: string[]) {

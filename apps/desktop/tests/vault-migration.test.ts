@@ -1,4 +1,6 @@
-/** 桌面迁移测试通过实际有限派发器和真实私有文件验证用户入口，内存后端只替代宿主缺失的系统服务；结果仅包含完成与模式摘要，秘密必须继续由生产密文消费者读取，不能回传给渲染界面。 */
+/** 桌面迁移测试通过实际有限派发器和真实私有文件验证用户入口，内存后端只替代宿主缺失的系统服务；结果仅包含完成与模式摘要
+ * ，秘密必须继续由生产密文消费者读取，不能回传给渲染界面。
+ */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
@@ -11,7 +13,9 @@ import { SecretStore } from "../../runtime/src/credentials/store.ts";
 import type { VaultKeyBackend } from "../../runtime/src/credentials/backend.ts";
 import { assertAgentReconfigurationAllowed } from "../src/shared/credential-status.ts";
 
-/** 控制源切换保护从主进程提取后仍须保留原有三个拒绝条件及固定错误，空后台才允许后续设置操作；测试直接调用被主进程消费的同一策略，不导入带窗口和进程启动副作用的 Electron 入口。 */
+/** 控制源切换保护从主进程提取后仍须保留原有三个拒绝条件及固定错误，空后台才允许后续设置操作；测试直接调用被主进程消费的
+ * 同一策略，不导入带窗口和进程启动副作用的 Electron 入口。
+ */
 test("Agent reconfiguration preserves existing active online and enrolled guards", () => {
     assert.doesNotThrow(() => assertAgentReconfigurationAllowed({ active: null, online: false }));
     for (const state of [
@@ -24,7 +28,9 @@ test("Agent reconfiguration preserves existing active online and enrolled guards
         });
 });
 
-/** 未传入保险库上下文的源码档案仍使用 device.json 的真实缺文件结果表示尚未绑定，收紧系统异常分类不能阻止首次登记；后续缺失引擎库存的明确路径证明请求已越过凭据前检，而不是把设备缺席异常直接抛回。 */
+/** 未传入保险库上下文的源码档案仍使用 device.json 的真实缺文件结果表示尚未绑定，收紧系统异常分类不能阻止首次登记；后续
+ * 缺失引擎库存的明确路径证明请求已越过凭据前检，而不是把设备缺席异常直接抛回。
+ */
 test("DesktopAgent preserves a genuinely unenrolled source profile", async () => {
     const directory = await mkdtemp(join(tmpdir(), "veriq-desktop-unenrolled-"));
     try {
@@ -115,7 +121,9 @@ test("DesktopAgent exposes explicit migration through its guarded finite dispatc
     }
 });
 
-/** GUI 的初始化恢复必须经过同一个有限命令门闩，测试后端首写确实丢失且未产生业务密文；派发完成仅返回非秘密模式摘要，再用真实消费者验证新版本可用，不能靠按钮回显声称缺失主密钥已恢复。 */
+/** GUI 的初始化恢复必须经过同一个有限命令门闩，测试后端首写确实丢失且未产生业务密文；派发完成仅返回非秘密模式摘要，再用
+ * 真实消费者验证新版本可用，不能靠按钮回显声称缺失主密钥已恢复。
+ */
 test("DesktopAgent exposes explicit empty key initialization recovery", async () => {
     const directory = await mkdtemp(join(tmpdir(), "veriq-desktop-initialization-"));
     const keys = new Map<string, Buffer>();
@@ -189,7 +197,9 @@ test("DesktopAgent exposes explicit empty key initialization recovery", async ()
     }
 });
 
-/** 状态可达不意味着凭据可消费，真实密文档案在后端锁定、不可用或未知异常时必须保持原密钥与文件；测试逐次轮询验证有限错误投影及秘密不外泄，再恢复同一后端读取原设备，不能用新建空档案把失败伪装为未绑定。 */
+/** 状态可达不意味着凭据可消费，真实密文档案在后端锁定、不可用或未知异常时必须保持原密钥与文件；测试逐次轮询验证有限错误
+ * 投影及秘密不外泄，再恢复同一后端读取原设备，不能用新建空档案把失败伪装为未绑定。
+ */
 test("DesktopAgent keeps credential failures visible without exposing secrets or replacing keys", async () => {
     const directory = await mkdtemp(join(tmpdir(), "veriq-desktop-locked-"));
     const keys = new Map<string, Buffer>();
@@ -263,7 +273,9 @@ test("DesktopAgent keeps credential failures visible without exposing secrets or
                 credentialError?: string;
                 device?: unknown;
             };
-            /** 后端服务自身的条目缺失不能证明设备登记不存在，必须同时核对公开状态、控制源保护和登记前检的真实结果；引擎故意缺失以识别越过凭据前检的路径，不能把后续诊断失败当作安全拒绝。 */
+            /** 后端服务自身的条目缺失不能证明设备登记不存在，必须同时核对公开状态、控制源保护和登记前检的真实结果；引擎
+             * 故意缺失以识别越过凭据前检的路径，不能把后续诊断失败当作安全拒绝。
+             */
             if (mode === "enoent") {
                 let reconfigurationAllowed = true;
                 try {
@@ -322,7 +334,9 @@ test("DesktopAgent keeps credential failures visible without exposing secrets or
         await assert.rejects(agent.dispatch({ operation: "enroll", name: "replacement" }), {
             message: "ALREADY_ENROLLED",
         });
-        /** 活跃档案丢失外部密钥之后仍保留登记密文和原代际，显式空初始化恢复必须拒绝并保持零次新写钥；重新提供原密钥才可读回同一身份，不能把恢复按钮作为业务凭据重建入口。 */
+        /** 活跃档案丢失外部密钥之后仍保留登记密文和原代际，显式空初始化恢复必须拒绝并保持零次新写钥；重新提供原密钥才可
+         * 读回同一身份，不能把恢复按钮作为业务凭据重建入口。
+         */
         const originalKeys = new Map(keys);
         keys.clear();
         assert.equal(
@@ -345,7 +359,9 @@ test("DesktopAgent keeps credential failures visible without exposing secrets or
         for (const [scope, key] of originalKeys) keys.set(scope, key);
         assert.deepEqual(await store.load(), config);
 
-        /** 凭据故障投影的捕获范围不得扩展到资源目录或执行数据库，真实损坏必须继续拒绝整个状态读取；这些场景只改当前测试的私有临时档案，验证完成由外层清理而不触碰任何宿主证据。 */
+        /** 凭据故障投影的捕获范围不得扩展到资源目录或执行数据库，真实损坏必须继续拒绝整个状态读取；这些场景只改当前测试
+         * 的私有临时档案，验证完成由外层清理而不触碰任何宿主证据。
+         */
         await writeFile(join(directory, "desktop-bundles.json"), "{", { mode: 0o600 });
         await assert.rejects(agent.dispatch({ operation: "status" }), SyntaxError);
         await rm(join(directory, "desktop-bundles.json"));

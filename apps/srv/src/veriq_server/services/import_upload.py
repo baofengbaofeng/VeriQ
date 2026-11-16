@@ -18,13 +18,15 @@ from .artifact import artifact_store, listed_offline_artifact
 
 
 class ImportUploadService(ImportService):
-    """扩展 ImportService，提供离线产物分块预订、写入与提交前校验，ImportUploadService 遵守本文件边界。ImportUploadService 处理导入或离线回传时需保持幂等键与来源标识，
+    """扩展 ImportService，提供离线产物分块预订、写入与提交前校验，ImportUploadService
+    遵守本文件边界。ImportUploadService 处理导入或离线回传时需保持幂等键与来源标识，
 
     重复提交不得制造双份业务副作用。
     """
 
     async def reserve(self, scope: WorkspaceScope, req: dict[str, Any]) -> OfflineImportUpload:
-        """按清单预订上传槽位与 PENDING publication，重复键幂等返回，ImportUploadService.reserve 遵守本文件边界。reserve 处理导入或离线回传时需保持幂等键与来源标识，
+        """按清单预订上传槽位与 PENDING publication，重复键幂等返回，ImportUploadService.reserve 遵守本文件边界。
+        reserve 处理导入或离线回传时需保持幂等键与来源标识，
 
         重复提交不得制造双份业务副作用。
         """
@@ -108,8 +110,8 @@ class ImportUploadService(ImportService):
     async def imported(
         self, scope: WorkspaceScope, bundle_id: str, local_run_id: str
     ) -> OfflineImport | None:
-        """查询上传是否已随导入提交，供客户端决定是否续传，ImportUploadService.imported 遵守本文件边界。imported 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
-
+        """查询上传是否已随导入提交，供客户端决定是否续传，ImportUploadService.imported 遵守本文件边界。imported
+        处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
         """
         return (
             await self.session.execute(
@@ -150,7 +152,8 @@ class ImportUploadService(ImportService):
     async def current(
         self, scope: WorkspaceScope, upload_id: str, authority: Any
     ) -> OfflineImportUpload:
-        """返回当前上传进度与状态，越权 Workspace 拒绝，ImportUploadService.current 遵守本文件边界。current 处理导入或离线回传时需保持幂等键与来源标识，
+        """返回当前上传进度与状态，越权 Workspace 拒绝，ImportUploadService.current 遵守本文件边界。current
+        处理导入或离线回传时需保持幂等键与来源标识，
 
         重复提交不得制造双份业务副作用。
         """
@@ -170,7 +173,8 @@ class ImportUploadService(ImportService):
     async def chunk(
         self, scope: WorkspaceScope, upload_id: str, offset: int, raw: bytes
     ) -> dict[str, Any]:
-        """按偏移写入分块；偏移不连续或超出声明大小则失败，ImportUploadService.chunk 遵守本文件边界，失败返回稳定 Problem。chunk 处理导入或离线回传时需保持幂等键与来源标识，
+        """按偏移写入分块；偏移不连续或超出声明大小则失败，ImportUploadService.chunk 遵守本文件边界，失败返回稳定
+        Problem。chunk 处理导入或离线回传时需保持幂等键与来源标识，
 
         重复提交不得制造双份业务副作用。
         """
@@ -292,7 +296,8 @@ class ImportUploadService(ImportService):
     async def completed_chunk(
         self, scope: WorkspaceScope, upload_id: str, offset: int, raw: bytes
     ) -> dict[str, Any] | None:
-        """标记分块完成并在全部到齐时推进 publication 状态，ImportUploadService.completed_chunk 遵守本文件边界。completed_chunk
+        """标记分块完成并在全部到齐时推进 publication 状态，ImportUploadService.completed_chunk 遵守本文件边界。
+        completed_chunk
 
         处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
         """

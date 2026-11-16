@@ -124,7 +124,8 @@ export async function fixture() {
     await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
     const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
     const browser = await chromium.launch({
-        // 测试默认交由已锁定 Playwright 选择匹配浏览器，仅当操作员明确指定路径时覆盖；系统安装的 Chromium 不能成为未记录的正式门禁输入。
+        // 测试默认交由已锁定 Playwright 选择匹配浏览器，仅当操作员明确指定路径时覆盖；系统安装的 Chromium
+        // 不能成为未记录的正式门禁输入。
         ...(process.env.VERIQ_TEST_CHROMIUM
             ? { executablePath: process.env.VERIQ_TEST_CHROMIUM }
             : {}),

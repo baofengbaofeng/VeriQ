@@ -13,7 +13,10 @@ import {
 } from "./runtime-payload-archive.ts";
 import { type ArchiveTransaction, controlledIoFailure } from "./runtime-payload-transaction.ts";
 
-/** 三个 ZIP 消费者共用这份有限结算状态，计时只从首次关闭请求开始且在终态清除；Promise 永不提前拒绝，未知结果先粘住事务归属，随后由调用者保留已有首错或生成受控关闭错误。 */
+/**
+ * 三个 ZIP 消费者共用这份有限结算状态，计时只从首次关闭请求开始且在终态清除；Promise 永不提前拒绝，未知结果先粘住事务归
+ * 属，随后由调用者保留已有首错或生成受控关闭错误。
+ */
 function closeSettlement(tx: ArchiveTransaction) {
     let requested = false,
         terminal = false,
@@ -41,7 +44,8 @@ function closeSettlement(tx: ArchiveTransaction) {
         request(action: () => void) {
             if (requested || terminal) return;
             requested = true;
-            // yauzl 已发首个解析错误后可能压掉关闭回调的第二个错误，必须用实际持活的私有期限结束未知等待；它只证明五秒内没有关闭确认，绝不推断数字 FD 已释放或重试关闭。
+            // yauzl 已发首个解析错误后可能压掉关闭回调的第二个错误，必须用实际持活的私有期限结束未知等待；它只证明五秒
+            // 内没有关闭确认，绝不推断数字 FD 已释放或重试关闭。
             timer = setTimeout(() => finish(false), 5000);
             try {
                 action();
@@ -57,7 +61,10 @@ function closeSettlement(tx: ArchiveTransaction) {
     };
 }
 
-/** 此内部工具仅供既有 ZIP 扫描及两个元数据消费者共享生命周期，必须在注册取消或请求读取之前安装；读取错误先保存，只有 close 事件证明关闭，迟到错误仍被消费且不能改写已经结算的未知事实。 */
+/**
+ * 此内部工具仅供既有 ZIP 扫描及两个元数据消费者共享生命周期，必须在注册取消或请求读取之前安装；读取错误先保存，只有
+ * close 事件证明关闭，迟到错误仍被消费且不能改写已经结算的未知事实。
+ */
 export function trackZipClosure(
     zip: Pick<ZipFile, "close" | "isOpen"> & Pick<EventEmitter, "on">,
     tx: ArchiveTransaction,
@@ -79,7 +86,10 @@ export function trackZipClosure(
     };
 }
 
-/** 初始化未成功移交给 yauzl 的描述符仍由当前消费者拥有，直接关闭也使用同一有限结算；回调错误或缺失会先保留事务，迟到回调不重新解释终态，更不会按可能复用的数字描述符再次关闭。 */
+/**
+ * 初始化未成功移交给 yauzl 的描述符仍由当前消费者拥有，直接关闭也使用同一有限结算；回调错误或缺失会先保留事务，迟到回调
+ * 不重新解释终态，更不会按可能复用的数字描述符再次关闭。
+ */
 export async function closeUntransferredZipFd(fd: number, tx: ArchiveTransaction) {
     const settlement = closeSettlement(tx);
     settlement.request(() =>
@@ -92,12 +102,16 @@ export async function closeUntransferredZipFd(fd: number, tx: ArchiveTransaction
 }
 
 /**
- * ZIP 范围检查只消费公开的 local header offset、dataStart 与 central compressedSize，保证文件边界和各 local/data 区间互斥；不读取私有 cursor 或自造 E
+ * ZIP 范围检查只消费公开的 local header offset、dataStart 与 central compressedSize，保证文件边界和各 local/data 区间互
+ * 斥；不读取私有 cursor 或自造 E
  * OCD、ZIP64 与 descriptor 解释器，因此不会声称验证公开 API 无法证明的全域语法。
  */
 export class ZipRanges {
     private readonly ranges: { start: number; end: number }[] = [];
-    /** 区间以安全整数逐项准入，二分位置同时检查左右相邻区间即可证明整体不重叠；重复 local header 和越界都在打开正文流之前拒绝，最多四万个条目保持有界，未压缩长度不被拿来代替实际 data 范围。 */
+    /**
+     * 区间以安全整数逐项准入，二分位置同时检查左右相邻区间即可证明整体不重叠；重复 local header 和越界都在打开正文流之
+     * 前拒绝，最多四万个条目保持有界，未压缩长度不被拿来代替实际 data 范围。
+     */
     add(start: number, dataStart: number, end: number, fileSize: number) {
         if (
             ![start, dataStart, end, fileSize].every(Number.isSafeInteger) ||
@@ -124,7 +138,8 @@ export class ZipRanges {
     }
 }
 /**
- * lazy ZIP 每次只读一个 central entry，等待其完整解压流关闭后才允许 readEntry；原始文件名与 local flags、method 必须逐字一致，Node crc32 对普通文件、空目录及逻辑链接
+ * lazy ZIP 每次只读一个 central entry，等待其完整解压流关闭后才允许 readEntry；原始文件名与 local flags、method 必须逐
+ * 字一致，Node crc32 对普通文件、空目录及逻辑链接
  * 均按实际解压块累计并核对最终长度。
  */
 export async function scanZip(path: string, scan: ArchiveScan, fileSize: number) {
@@ -233,7 +248,8 @@ export async function scanZip(path: string, scan: ArchiveScan, fileSize: number)
                 }
             };
             /**
-             * Stored 的 0x6 位没有本方法定义的解码含义，固定资产与成熟解码器的逐字节校验支持保留原值作为元数据；仍核对原始 local/central flags，诊断 storedFlags 只记录位存
+             * Stored 的 0x6 位没有本方法定义的解码含义，固定资产与成熟解码器的逐字节校验支持保留原值作为元数据；仍核对
+             * 原始 local/central flags，诊断 storedFlags 只记录位存
              * 在而不单独拒绝。
              */
             if (![0, 8].includes(entry.compressionMethod) || entry.generalPurposeBitFlag & ~0x80e)
@@ -333,7 +349,10 @@ export async function scanZip(path: string, scan: ArchiveScan, fileSize: number)
         }
     }
 }
-/** 每次 central 准入都同时监听结束、错误和当前 entry，并在任何结果后移除另外两个监听；不预读下一成员或访问库私有游标，异步关闭和取消由同一拥有者负责，不遗留会被下一次请求误消费的事件处理器。 */
+/**
+ * 每次 central 准入都同时监听结束、错误和当前 entry，并在任何结果后移除另外两个监听；不预读下一成员或访问库私有游标，异
+ * 步关闭和取消由同一拥有者负责，不遗留会被下一次请求误消费的事件处理器。
+ */
 function next(zip: ZipFile): Promise<Entry | null> {
     return new Promise((resolve, reject) => {
         const cleanup = () => {

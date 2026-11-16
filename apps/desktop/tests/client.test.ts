@@ -6,7 +6,9 @@ import { join } from "node:path";
 import { DesktopAgentClient } from "../src/agent/client.ts";
 import { updatePrivate } from "../../runtime/src/offline/config.ts";
 
-/** Agent 可能在命令完成之前退出或主动拒绝连接，宿主必须把真实 socket 关闭转为明确失败；这个测试用本机端点结束无响应连接，避免页面状态调用永久挂起且不以长超时掩盖断连。 */
+/** Agent 可能在命令完成之前退出或主动拒绝连接，宿主必须把真实 socket 关闭转为明确失败；这个测试用本机端点结束无响应连接
+ * ，避免页面状态调用永久挂起且不以长超时掩盖断连。
+ */
 test("agent client rejects a connection closed without response", { timeout: 1500 }, async () => {
     const root = await mkdtemp("/tmp/veriq-t19-client-");
     const path = join(root, "desktop-agent.sock");

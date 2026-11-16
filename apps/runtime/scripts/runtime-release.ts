@@ -33,8 +33,10 @@ import {
 } from "./runtime-release-builds.ts";
 
 /**
- * 五树生产任务只接收独立来源材料、真实工具路径和原始资产配方，原配方不包含尚未产生的五树或 Expected；外层必须对本次产出的配方另行审核，不能将新摘要自动升级为 trusted Expected。seedRoot 保存原始
- * Node/Chrome 归档、工具及来源证据，sourceRoot 是具有冻结依赖和真实构建工具的独占源码工作视图。workParent 必须位于源码根之外且由调用者独占，构建脚本自身的原生输出及 engineOutput
+ * 五树生产任务只接收独立来源材料、真实工具路径和原始资产配方，原配方不包含尚未产生的五树或 Expected；外层必须对本次产出
+ * 的配方另行审核，不能将新摘要自动升级为 trusted Expected。seedRoot 保存原始
+ * Node/Chrome 归档、工具及来源证据，sourceRoot 是具有冻结依赖和真实构建工具的独占源码工作视图。workParent 必须位于源码
+ * 根之外且由调用者独占，构建脚本自身的原生输出及 engineOutput
  * 仍留在明确源码 work 范围内。
  */
 export type MacRuntimeProductionJob = Readonly<{
@@ -56,7 +58,8 @@ export type MacRuntimeProductionJob = Readonly<{
 }>;
 
 /**
- * 产出描述只指向真实五树材料、配方原字节和各 producer 的清理结算，状态明确停留在等待独立审核；它不含 Expected 文档、ready、签名或安装完成字段，不能直接充当 desktop 的 trustedRuntime。
+ * 产出描述只指向真实五树材料、配方原字节和各 producer 的清理结算，状态明确停留在等待独立审核；它不含 Expected 文档、
+ * ready、签名或安装完成字段，不能直接充当 desktop 的 trustedRuntime。
  * 失败保留本轮独占根，已有 SDD 证据和其他候选目录均不被覆盖或清理。
  */
 export type RuntimeProductionResult = Readonly<{
@@ -69,7 +72,8 @@ export type RuntimeProductionResult = Readonly<{
 }>;
 
 /**
- * 来源材料从独立绑定读取且在整个生产窗口前后复验，全部源码副本保持原始相对路径；此函数不遍历源码根的 node_modules 或 .git，也不把 Git 提交声明解释为已获得发布来源批准。
+ * 来源材料从独立绑定读取且在整个生产窗口前后复验，全部源码副本保持原始相对路径；此函数不遍历源码根的 node_modules 或
+ * .git，也不把 Git 提交声明解释为已获得发布来源批准。
  * 跨树相同源码只复制一次，最初 seedRoot 若已有副本则由合并过程核字节完全一致而不是覆盖。
  */
 async function sourceSnapshot(
@@ -103,8 +107,10 @@ async function sourceSnapshot(
 }
 
 /**
- * 每个 producer 都有单独事务和单独空构建根，回调只把只读视图复制到调用者第三 intake 根；只有完整返回并完成自己的 reader 收尾后，后续 producer 才能继续修改该 intake，避免 D04
- * 的活视图被自身写入污染。真实进程通过调用者提供的既有有界管理器执行，命令观察不可被预制收据替代，未知关闭时不再读取构建输出。此函数只生产材料，不调用 stage，因此时间戳和真实构建证据不会被自派生 Expected 的循环信任掩盖。
+ * 每个 producer 都有单独事务和单独空构建根，回调只把只读视图复制到调用者第三 intake 根；只有完整返回并完成自己的 reader
+ * 收尾后，后续 producer 才能继续修改该 intake，避免 D04
+ * 的活视图被自身写入污染。真实进程通过调用者提供的既有有界管理器执行，命令观察不可被预制收据替代，未知关闭时不再读取构
+ * 建输出。此函数只生产材料，不调用 stage，因此时间戳和真实构建证据不会被自派生 Expected 的循环信任掩盖。
  */
 export async function produceMacRuntimeInputs(
     jobInput: MacRuntimeProductionJob,
@@ -184,7 +190,8 @@ export async function produceMacRuntimeInputs(
         run,
         ...(job.nativeSigning ? { nativeSigning: job.nativeSigning } : {}),
     };
-    // Node/npm bootstrap 单独消费外层独立资产输入，保存原有 UNREVIEWED_SOURCE 和 pending，不把原始树提取结果冒充可执行布局；正式 stage 稍后仍重新消费原归档及独立 receipt。
+    // Node/npm bootstrap 单独消费外层独立资产输入，保存原有 UNREVIEWED_SOURCE 和 pending，不把原始树提取结果冒充可执行
+    // 布局；正式 stage 稍后仍重新消费原归档及独立 receipt。
     if (job.nodeBootstrapAssets) {
         const assets = await seed.ref(job.nodeBootstrapAssets, true);
         const bootstrapParent = join(owned, "bootstrap");
@@ -265,7 +272,8 @@ export async function produceMacRuntimeInputs(
             targetNode: job.targetNode,
         },
         async (root, trees) => {
-            // 依赖生产器仍持有 consumers reader，因此回调阶段只能写到另一份 snapshot；其收尾完成后才允许把依赖及生成来源证据合并到第三 intake 根。
+            // 依赖生产器仍持有 consumers reader，因此回调阶段只能写到另一份 snapshot；其收尾完成后才允许把依赖及生成来
+            // 源证据合并到第三 intake 根。
             await mergeReleaseView(root, dependencySnapshot, true);
             dependencyTrees = structuredClone(trees);
         },
@@ -304,7 +312,9 @@ export async function produceMacRuntimeInputs(
     };
 }
 
-/** 独立 stage 调用只接收审核方给出的 Expected 并直接委托原有五树核验器，不生成或修正任何可信值；输出保留原始清理状态，调用者不能把成功提交但收尾未知的候选标为可发布。
+/**
+ * 独立 stage 调用只接收审核方给出的 Expected 并直接委托原有五树核验器，不生成或修正任何可信值；输出保留原始清理状态，调
+ * 用者不能把成功提交但收尾未知的候选标为可发布。
  * 生产输入与 stage 分开使审核者能在所有真实命令证据形成之后批准精确配方摘要，避免生产器同时扮演发行批准者。
  */
 export async function stageProducedMacRuntime(

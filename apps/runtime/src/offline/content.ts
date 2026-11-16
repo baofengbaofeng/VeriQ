@@ -1,5 +1,6 @@
 /**
- * 本文件在签名与哈希校验通过后做跨成员来源检查：安装前核对快照、清单与资产引用一致性（content/BUNDLE_DEPENDENCY_MISSING）。
+ * 本文件在签名与哈希校验通过后做跨成员来源检查：安装前核对快照、清单与资产引用一致性（
+ * content/BUNDLE_DEPENDENCY_MISSING）。
  */
 
 /** Cross-member provenance checks after signature/hash verification, before install. */

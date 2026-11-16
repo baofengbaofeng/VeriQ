@@ -7,7 +7,8 @@ import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { controlOrigin, type DeviceConfig } from "../enrollment.ts";
 /**
- * 公开函数 downloadBundle 向已登记控制 Origin 发起 Bearer 下载：校验响应哈希与体积上限：失败时不留下半截归档（downloadBundle）。
+ * 公开函数 downloadBundle 向已登记控制 Origin 发起 Bearer 下载：校验响应哈希与体积上限：
+ * 失败时不留下半截归档（downloadBundle）。
  */
 export async function downloadBundle(
     config: DeviceConfig,

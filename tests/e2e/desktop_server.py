@@ -1,4 +1,6 @@
-"""桌面验收服务持有全仓专用测试库锁，使用隔离签发者显式晋升真实生产器候选，并允许测试停止控制平面后保持业务站点在线；不插入伪造回执、资源版本或离线报告来替代实际 Agent 执行。"""
+"""桌面验收服务持有全仓专用测试库锁，使用隔离签发者显式晋升真实生产器候选，并允许测试停止控制平面后保持业务站点在线；
+不插入伪造回执、资源版本或离线报告来替代实际 Agent 执行。
+"""
 
 import asyncio
 import json
@@ -23,7 +25,9 @@ from veriq_server.settings import Settings
 
 
 async def main():
-    """建立专用测试平台及独立业务站点，初次运行仅重建允许清单中的 veriq_test 表；恢复模式保留原安装、签发者和回执，由外层驱动持有全仓数据库锁，真实候选仍通过正式晋升函数检查。"""
+    """建立专用测试平台及独立业务站点，初次运行仅重建允许清单中的 veriq_test 表；恢复模式保留原安装、签发者和回执，
+    由外层驱动持有全仓数据库锁，真实候选仍通过正式晋升函数检查。
+    """
     env = json.loads(Path(".superpowers/sdd/veriq-1/test-env.json").read_text())
     assert make_url(env["mysql_dsn"]).database == "veriq_test"
     evidence = Path(sys.argv[1])
@@ -37,7 +41,8 @@ async def main():
     resume = "--resume" in sys.argv
     if not resume:
         inventory.write_text(json.dumps({"schemaVersion": "1.0", "engines": []}))
-    # 候选覆盖必须由测试启动器同时给出目录、版本和规范摘要，任何缺失都在建库前失败；正式晋升仍负责完整文件库存校验，下面的摘要比较额外绑定本轮生产阶段，不能把新字节冒充旧候选身份。
+    # 候选覆盖必须由测试启动器同时给出目录、版本和规范摘要，任何缺失都在建库前失败；正式晋升仍负责完整文件库存校验，
+    # 下面的摘要比较额外绑定本轮生产阶段，不能把新字节冒充旧候选身份。
     candidate = [
         os.environ.get(name)
         for name in (
@@ -151,10 +156,14 @@ async def main():
     business_waiting = 0
 
     class Business(RequestHandler):
-        """业务夹具只提供真实浏览器可访问的本机页面和受固定合成凭证保护的身份端点，测试可显式暂停页面响应以观察活动 Run；该控制不改变平台状态，也不直接写入用例结果或停止回执。"""
+        """业务夹具只提供真实浏览器可访问的本机页面和受固定合成凭证保护的身份端点，测试可显式暂停页面响应以观察活动
+        Run；该控制不改变平台状态，也不直接写入用例结果或停止回执。
+        """
 
         async def post(self):
-            """暂停和释放只作用于业务页面的 asyncio Event，允许验收准确观察 Run 跨窗口退出期间仍在等待；未知控制路径返回错误，事件恢复后页面继续由真实浏览器访问并执行断言。"""
+            """暂停和释放只作用于业务页面的 asyncio Event，允许验收准确观察 Run 跨窗口退出期间仍在等待；
+            未知控制路径返回错误，事件恢复后页面继续由真实浏览器访问并执行断言。
+            """
             if self.request.path == "/__hold":
                 business_release.clear()
             elif self.request.path == "/__release":
@@ -164,7 +173,9 @@ async def main():
             self.finish({"held": not business_release.is_set()})
 
         async def get(self):
-            """身份端点严格检查合成 Bearer 凭证，其余页面在释放事件后返回可见业务内容；等待计数在 finally 中回收，用于判断浏览器实际到达请求边界，而不是以任意睡眠猜测执行进度。"""
+            """身份端点严格检查合成 Bearer 凭证，其余页面在释放事件后返回可见业务内容；等待计数在 finally 中回收，
+            用于判断浏览器实际到达请求边界，而不是以任意睡眠猜测执行进度。
+            """
             nonlocal business_waiting
             if self.request.path == "/__state":
                 self.finish({"waiting": business_waiting})
@@ -190,13 +201,17 @@ async def main():
     loop = asyncio.get_running_loop()
 
     async def offline():
-        """断网阶段只停止控制平台监听并关闭它已建立的连接，独立业务站点继续保持可达；这样离线执行需要真实签名缓存和业务访问，不能因所有网络都关闭而把环境错误当作业务结果。"""
+        """断网阶段只停止控制平台监听并关闭它已建立的连接，独立业务站点继续保持可达；这样离线执行需要真实签名缓存和业务
+        访问，不能因所有网络都关闭而把环境错误当作业务结果。
+        """
         server.stop()
         await server.close_all_connections()
         print("Control platform stopped", flush=True)
 
     def online():
-        """恢复阶段重新监听相同控制 Origin 并复用原应用与数据库连接，保留设备身份、导入回执和安装加密材料；这个操作不重新初始化数据库，因此回传幂等验证仍针对同一次原始执行。"""
+        """恢复阶段重新监听相同控制 Origin 并复用原应用与数据库连接，保留设备身份、导入回执和安装加密材料；
+        这个操作不重新初始化数据库，因此回传幂等验证仍针对同一次原始执行。
+        """
         server.listen(8888, "127.0.0.1")
         print("Control platform restored", flush=True)
 

@@ -1,4 +1,6 @@
-"""新增计划和独立执行令牌的最小持久化关联，既有用户运行与离线导入保持空计划字段，升级不重写历史快照或归因，降级拒绝丢弃已有计划及其服务授权信息。"""
+"""新增计划和独立执行令牌的最小持久化关联，既有用户运行与离线导入保持空计划字段，升级不重写历史快照或归因，
+降级拒绝丢弃已有计划及其服务授权信息。
+"""
 
 from alembic import op
 import sqlalchemy as sa
@@ -11,7 +13,9 @@ depends_on = None
 
 
 def upgrade() -> None:
-    """计划的序号在安装锁事务内分配并保存在运行上，令牌计划列表只存授权标识而不含密钥；所有新增外键均保留原有用户归因，使历史执行无需迁移成虚构服务用户。"""
+    """计划的序号在安装锁事务内分配并保存在运行上，令牌计划列表只存授权标识而不含密钥；所有新增外键均保留原有用户归因，
+    使历史执行无需迁移成虚构服务用户。
+    """
     uid = sa.String(36, collation="ascii_bin")
     op.create_table(
         "veriq_execution_plans",
@@ -49,7 +53,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """存在计划或执行令牌时拒绝降级，因为旧版本不能表达已授予的计划范围或运行顺序；空数据库才可逆向删除本迁移字段，避免降级悄然扩大或遗失独立服务身份的授权。"""
+    """存在计划或执行令牌时拒绝降级，因为旧版本不能表达已授予的计划范围或运行顺序；空数据库才可逆向删除本迁移字段，
+    避免降级悄然扩大或遗失独立服务身份的授权。
+    """
     connection = op.get_bind()
     if connection.execute(sa.text("SELECT COUNT(*) FROM veriq_execution_plans")).scalar():
         raise RuntimeError("Execution plans must be retained; downgrade refused")

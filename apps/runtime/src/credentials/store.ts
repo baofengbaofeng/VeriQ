@@ -1,5 +1,6 @@
 /**
- * 本文件提供 Attempt 钉选凭证的本机存储与解析：按不可变版本查找密钥：禁止回落到最新版本或跨工作区读取（store/INVALID_SECRET_REFERENCE）。
+ * 本文件提供 Attempt 钉选凭证的本机存储与解析：按不可变版本查找密钥：禁止回落到最新版本或跨工作区读取（
+ * store/INVALID_SECRET_REFERENCE）。
  */
 
 import type { JsonValue } from "@veriq/contracts";
@@ -14,7 +15,8 @@ export type SecretReference = {
     versionId: string;
 };
 /**
- * 公开类型 SecretValue 即契约 JsonValue：表示本机保险库中的密钥载荷：不得写入日志（SecretValue/INVALID_SECRET_REFERENCE）。
+ * 公开类型 SecretValue 即契约 JsonValue：表示本机保险库中的密钥载荷：
+ * 不得写入日志（SecretValue/INVALID_SECRET_REFERENCE）。
  */
 export type SecretValue = JsonValue;
 function key(ref: SecretReference) {
@@ -27,7 +29,8 @@ function key(ref: SecretReference) {
     return JSON.stringify([ref.issuerId, ref.workspaceId, ref.secretRef, ref.versionId]);
 }
 /**
- * SecretStore 在显式凭据上下文中使用同一档案事务保护每个完整引用的密文，锁定、认证和缺钥保持不同错误；现有无上下文分支暂供既有开发契约与迁移源读取，安装入口必须注入经过库存核验的系统后端。
+ * SecretStore 在显式凭据上下文中使用同一档案事务保护每个完整引用的密文，锁定、认证和缺钥保持不同错误；
+ * 现有无上下文分支暂供既有开发契约与迁移源读取，安装入口必须注入经过库存核验的系统后端。
  */
 export class SecretStore {
     private profile?: CredentialProfile;

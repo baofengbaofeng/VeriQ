@@ -20,8 +20,8 @@ export interface RestrictedEvidence {
  */
 export class EvidencePolicy {
     private readonly values = new Set<string>();
-    /**
-     * 公开方法 protect 登记敏感字符串：后续投影时脱敏：避免密钥进入普通事件（protect），说明 protect 在 evidence 中的专属行为。
+    /** 公开方法 protect 登记敏感字符串：后续投影时脱敏：避免密钥进入普通事件（protect），说明 protect 在 evidence
+     * 中的专属行为。
      */
     protect(value: JsonValue): void {
         if (typeof value === "string" && value) {

@@ -14,7 +14,8 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runBoundedAssetCli } from "../../apps/runtime/scripts/runtime-assets-ci-process.mjs";
 
-// VeriQ 的此工具仅负责受控 CI 的命令结算和物理布局事实，所有默认配额来自已批准生产输入边界；测试可以缩小配额，但不能增加上限、改变进程管理器或把观察结果当作可执行发行物。
+// VeriQ 的此工具仅负责受控 CI 的命令结算和物理布局事实，所有默认配额来自已批准生产输入边界；测试可以缩小配额，
+// 但不能增加上限、改变进程管理器或把观察结果当作可执行发行物。
 const CAPS = Object.freeze({
     instances: 4000,
     members: 40000,
@@ -34,7 +35,9 @@ const same = (a, b) =>
 const inside = (base, target) => target === base || target.startsWith(base + sep);
 const now = () => new Date().toISOString();
 
-/** 只有真实准入、直接子进程关闭确认、零退出且没有信号、错误、期限或截断时才允许阶段通过；这些事实必须同时成立，成功退出码不能覆盖输出溢出或未知关闭，也不证明后代进程及事务已清理。 */
+/** 只有真实准入、直接子进程关闭确认、零退出且没有信号、错误、期限或截断时才允许阶段通过；这些事实必须同时成立，
+ * 成功退出码不能覆盖输出溢出或未知关闭，也不证明后代进程及事务已清理。
+ */
 export function classifyCommandResult(result) {
     return result?.admitted === true &&
         result.closeConfirmed === true &&
@@ -47,9 +50,12 @@ export function classifyCommandResult(result) {
         : "FAIL";
 }
 
-/** 顺序执行固定阶段并持久化开始和结算事实，首个失败后后续阶段保持未运行；真实命令统一复用已有有界子进程接口，阶段与整体期限取更短者，并在未知关闭后停止所有下一阶段的文件系统观察。 */
+/** 顺序执行固定阶段并持久化开始和结算事实，首个失败后后续阶段保持未运行；真实命令统一复用已有有界子进程接口，
+ * 阶段与整体期限取更短者，并在未知关闭后停止所有下一阶段的文件系统观察。
+ */
 export async function runStages({ stages, deadlineMs, onUpdate = async () => {} }) {
-    // 阶段列表在任何命令前一次性建立未运行状态，随后每次写日志都保留尚未开始的尾部阶段；即使第一次准入就拒绝，也能区分失败阶段与从未取得执行资格的观察阶段，避免事后按退出码推算执行历史。
+    // 阶段列表在任何命令前一次性建立未运行状态，随后每次写日志都保留尚未开始的尾部阶段；即使第一次准入就拒绝，
+    // 也能区分失败阶段与从未取得执行资格的观察阶段，避免事后按退出码推算执行历史。
     const journal = stages.map(({ name }) => ({ name, status: "NOT_RUN", commands: [] }));
     for (const [index, stage] of stages.entries()) {
         const entry = journal[index];
@@ -60,7 +66,8 @@ export async function runStages({ stages, deadlineMs, onUpdate = async () => {} 
         entry.deadlineMs = end;
         entry.overallDeadlineMs = deadlineMs;
         await onUpdate(journal);
-        // 整体截止时间和阶段期限在调用前合并，关闭等待仍由原管理器负责有限结算；剩余时间为零时不会创建新子进程，较短期限也不能由后续命令重置或通过更换工作目录绕过。
+        // 整体截止时间和阶段期限在调用前合并，关闭等待仍由原管理器负责有限结算；剩余时间为零时不会创建新子进程，
+        // 较短期限也不能由后续命令重置或通过更换工作目录绕过。
         try {
             if (end <= Date.now()) fail("PRODUCER_DEADLINE");
             const command = async (executable, args, cwd) => {
@@ -104,7 +111,8 @@ export async function runStages({ stages, deadlineMs, onUpdate = async () => {} 
     return journal;
 }
 
-// 普通文件始终使用不跟随链接的持有描述符，并在读取前后核验路径身份与描述符身份；分段读取限制内存且观察正文增长，摘要只说明当前静止源字节，不提供敌对父目录替换下的原子整树承诺。
+// 普通文件始终使用不跟随链接的持有描述符，并在读取前后核验路径身份与描述符身份；分段读取限制内存且观察正文增长，
+// 摘要只说明当前静止源字节，不提供敌对父目录替换下的原子整树承诺。
 async function inspectFile(path, cap, retain = false, check = () => {}) {
     const before = await lstat(path, { bigint: true });
     if (!before.isFile() || before.size > BigInt(cap)) fail("LAYOUT_FILE_LIMIT");
@@ -141,7 +149,8 @@ async function inspectFile(path, cap, retain = false, check = () => {}) {
     }
 }
 
-// 清单 JSON 的原始 UTF8 字节另存完整引用，解析仅提取观察字段且拒绝数组、无效编码和非法声明类型；任何自定义字段仍由原始清单保留，不重序列化成会丢失未知字段或空白的替代文本。
+// 清单 JSON 的原始 UTF8 字节另存完整引用，解析仅提取观察字段且拒绝数组、无效编码和非法声明类型；任何自定义字段仍由原始
+// 清单保留，不重序列化成会丢失未知字段或空白的替代文本。
 function parseManifest(bytes) {
     let value;
     try {
@@ -185,7 +194,8 @@ function parseManifest(bytes) {
     return value;
 }
 
-// 目录树观察不展开符号链接，包根只按真实 node_modules 位置、根包及显式工作区识别；嵌套同名实例保持独立路径，普通文件归属最近包根，父包不能吞并子包正文或把版本相同当作同一实例。
+// 目录树观察不展开符号链接，包根只按真实 node_modules 位置、根包及显式工作区识别；嵌套同名实例保持独立路径，
+// 普通文件归属最近包根，父包不能吞并子包正文或把版本相同当作同一实例。
 function isPackageRoot(path, workspacePaths) {
     if (!path || workspacePaths.has(path)) return true;
     const parts = path.split("/"),
@@ -197,7 +207,9 @@ function isPackageRoot(path, workspacePaths) {
     );
 }
 
-/** 从静止的自有源码副本记录完整物理实例、目录、普通文件和原始链接目标，输出有界分块及完整原清单引用；所有配额与身份变化均失败关闭，观察不执行包体、不跟随别名，也不求解依赖边或晋升来源信任。 */
+/** 从静止的自有源码副本记录完整物理实例、目录、普通文件和原始链接目标，输出有界分块及完整原清单引用；
+ * 所有配额与身份变化均失败关闭，观察不执行包体、不跟随别名，也不求解依赖边或晋升来源信任。
+ */
 export async function collectLayoutMetadata({
     root,
     evidenceDir,
@@ -230,7 +242,8 @@ export async function collectLayoutMetadata({
         workspacePaths.set(entry.path, entry.sourcePath);
     }
     await mkdir(evidenceDir, { mode: 0o700 });
-    // 主清单第一次读取后保存其完整摘要，稍后的普通文件遍历必须再次匹配同一原始字节；这补上声明事实和正文事实之间的时间窗口，不把两个分别稳定但彼此不同的清单当成同一次观察。
+    // 主清单第一次读取后保存其完整摘要，稍后的普通文件遍历必须再次匹配同一原始字节；这补上声明事实和正文事实之间的时间
+    // 窗口，不把两个分别稳定但彼此不同的清单当成同一次观察。
     const primaryManifests = new Map();
     const artifacts = [],
         totals = {
@@ -291,7 +304,8 @@ export async function collectLayoutMetadata({
         pathCheck(path);
         const before = await lstat(absolute, { bigint: true });
         if (path && ++totals.members > caps.members) fail("LAYOUT_MEMBER_LIMIT");
-        // 链接先按自身类型分流，读取的只有链接原文，端点比较使用纯词法路径而不调用 realpath；外部毒化文件和目录不会获得读取机会，工作区映射也只是未解析链接事实的注解。
+        // 链接先按自身类型分流，读取的只有链接原文，端点比较使用纯词法路径而不调用 realpath；外部毒化文件和目录不会获得
+        // 读取机会，工作区映射也只是未解析链接事实的注解。
         if (before.isSymbolicLink()) {
             if (++totals.links > caps.links) fail("LAYOUT_LINK_LIMIT");
             const target = new TextDecoder("utf-8", { fatal: true }).decode(
@@ -317,7 +331,8 @@ export async function collectLayoutMetadata({
             });
         } else if (before.isDirectory()) {
             totals.directories++;
-            // 目录项通过有限缓冲的迭代接口逐个取得，达到成员上限即停止并关闭目录描述符；排序只处理已准入的小集合，避免先把未知巨大目录完整读入内存后才检查预算。
+            // 目录项通过有限缓冲的迭代接口逐个取得，达到成员上限即停止并关闭目录描述符；排序只处理已准入的小集合，
+            // 避免先把未知巨大目录完整读入内存后才检查预算。
             const children = [];
             const directory = await opendir(absolute, { encoding: "buffer" });
             for await (const child of directory) {
@@ -341,7 +356,8 @@ export async function collectLayoutMetadata({
                     manifest.sha256,
                 );
                 if (++totals.instances > caps.instances) fail("LAYOUT_INSTANCE_LIMIT");
-                // 包归属在真实包根处切换并随递归参数传递，子包普通文件不会累加到父包的自有正文集合；身份相同但路径不同的实例分别计数，原始清单也各自持有独立完整引用。
+                // 包归属在真实包根处切换并随递归参数传递，子包普通文件不会累加到父包的自有正文集合；
+                // 身份相同但路径不同的实例分别计数，原始清单也各自持有独立完整引用。
                 owner = path;
                 const ref = await artifact(
                     "manifest",
@@ -420,7 +436,9 @@ export async function collectLayoutMetadata({
     return { schemaVersion: 1, totals, artifacts };
 }
 
-/** 绑定本次自有前缀内固定版本的工具入口、实现正文与原始包清单身份，保持生产步骤与真实文件系统测试共用同一读取路径；绑定只记录文件事实，不执行包体，也不从兼容入口名称猜测额外信任能力。 */
+/** 绑定本次自有前缀内固定版本的工具入口、实现正文与原始包清单身份，保持生产步骤与真实文件系统测试共用同一读取路径；
+ * 绑定只记录文件事实，不执行包体，也不从兼容入口名称猜测额外信任能力。
+ */
 export async function bindPinnedPnpm({ packageRoot, ownedRoot, deadlineMs = Infinity }) {
     if (
         typeof packageRoot !== "string" ||
@@ -443,7 +461,8 @@ export async function bindPinnedPnpm({ packageRoot, ownedRoot, deadlineMs = Infi
         paths.push(ancestor);
     }
     paths.push(join(packageRoot, "bin"), join(packageRoot, "dist"));
-    // 自有前缀到工具包及两个实际代码父目录逐段核验真实目录，阻止父目录别名绕过文件本身的不跟随链接读取；收尾再次核同一组身份，不宣称对敌对同 UID 并发替换提供原子目录能力。
+    // 自有前缀到工具包及两个实际代码父目录逐段核验真实目录，阻止父目录别名绕过文件本身的不跟随链接读取；
+    // 收尾再次核同一组身份，不宣称对敌对同 UID 并发替换提供原子目录能力。
     for (const path of paths) {
         check();
         const identity = await lstat(path, { bigint: true });
@@ -467,7 +486,8 @@ export async function bindPinnedPnpm({ packageRoot, ownedRoot, deadlineMs = Infi
         manifest.bin.pnpm !== "bin/pnpm.mjs"
     )
         fail("PNPM_PACKAGE_IDENTITY");
-    // 固定版本的公开入口和真正加载的实现均按已经核验的 ESM 布局绑定，兼容 CJS shim 的存在不参与推断；完整原始包清单单独交给调用者保留，摘要只绑定这次实际读取的字节而非远端发布者身份。
+    // 固定版本的公开入口和真正加载的实现均按已经核验的 ESM 布局绑定，兼容 CJS shim 的存在不参与推断；
+    // 完整原始包清单单独交给调用者保留，摘要只绑定这次实际读取的字节而非远端发布者身份。
     const cliPath = join(packageRoot, "bin/pnpm.mjs"),
         implementationPath = join(packageRoot, "dist/pnpm.mjs");
     const cli = { path: cliPath, ...(await inspectFile(cliPath, CAPS.jsonBytes, false, check)) };
@@ -488,7 +508,8 @@ export async function bindPinnedPnpm({ packageRoot, ownedRoot, deadlineMs = Infi
     };
 }
 
-// CI 环境中的宿主工具只继承必要的平台路径，所有 Node 注入与 npm 凭据覆盖先删除再指向独占缓存；不输出环境或完整配置，不改变真实 HOME 的含义，也不覆盖仓库的 peer、年龄或 overrides 规则。
+// CI 环境中的宿主工具只继承必要的平台路径，所有 Node 注入与 npm 凭据覆盖先删除再指向独占缓存；不输出环境或完整配置，
+// 不改变真实 HOME 的含义，也不覆盖仓库的 peer、年龄或 overrides 规则。
 function sanitizeEnvironment(owned) {
     for (const key of Object.keys(process.env)) {
         if (
@@ -517,7 +538,8 @@ function sanitizeEnvironment(owned) {
     });
 }
 
-// 占用扫描只在所有已启动直接子进程已确认关闭后运行，链接仅计其本身且不展开外部存储；独立复制准入根据实际 store 与准备副本的普通文件长度保守计费，再保留至少四 GiB 空闲。
+// 占用扫描只在所有已启动直接子进程已确认关闭后运行，链接仅计其本身且不展开外部存储；独立复制准入根据实际 store
+// 与准备副本的普通文件长度保守计费，再保留至少四 GiB 空闲。
 async function occupancy(path, deadlineMs) {
     let bytes = 0,
         members = 0;
@@ -537,7 +559,8 @@ const freeSpace = async (path) => {
     return Number(info.bavail * info.bsize);
 };
 
-// 直接入口负责形成固定的自有工作根与已持有证据映射，输出集合只复制这个映射，永远不递归上传源码、store 或未知 writer 目录；失败阶段可留下诊断，但不存在清理成功或目标执行能力的推断。
+// 直接入口负责形成固定的自有工作根与已持有证据映射，输出集合只复制这个映射，永远不递归上传源码、store 或未知 writer
+// 目录；失败阶段可留下诊断，但不存在清理成功或目标执行能力的推断。
 async function main() {
     const env = process.env,
         source = process.cwd(),
@@ -559,7 +582,8 @@ async function main() {
         tools = join(owned, "tools");
     for (const directory of [metadata, store, tools, join(owned, "tmp")])
         await mkdir(directory, { mode: 0o700 });
-    // 允许上传的路径从本次执行创建的持有映射产生，路径值由固定前缀或本工具生成的分块名构成；既不枚举工作树来猜测允许集合，也不在未知关闭后从可能活跃的 writer 目录追补日志。
+    // 允许上传的路径从本次执行创建的持有映射产生，路径值由固定前缀或本工具生成的分块名构成；既不枚举工作树来猜测允许集
+    // 合，也不在未知关闭后从可能活跃的 writer 目录追补日志。
     const held = new Map();
     let heldBytes = 0,
         journal = [],
@@ -580,7 +604,8 @@ async function main() {
         heldBytes = next;
         return { path, bytes: bytes.length, sha256: hash(bytes) };
     };
-    // 命令结果里的原始 Buffer 另存有长度和摘要的日志快照，journal 只保留状态与引用以免 JSON 序列化重复膨胀；截断摘要明确只绑定已捕获部分，不能被误解成完整进程输出摘要。
+    // 命令结果里的原始 Buffer 另存有长度和摘要的日志快照，journal 只保留状态与引用以免 JSON 序列化重复膨胀；
+    // 截断摘要明确只绑定已捕获部分，不能被误解成完整进程输出摘要。
     const onUpdate = async (entries) => {
         journal = entries;
         const snapshot = entries.map((entry, index) => ({
@@ -670,7 +695,8 @@ async function main() {
                             .filter(Boolean);
                         if (tracked.some((path) => path.split("/").includes("node_modules")))
                             fail("SOURCE_CONTAINS_NODE_MODULES");
-                        // 来源选择包括所有受 Git 管理的包清单和 npm 配置，而非只取 Runtime 的直接清单；安装前后的同一集合逐项比对，仓库策略和工作区声明不会因宿主工具运行而悄悄改变。
+                        // 来源选择包括所有受 Git 管理的包清单和 npm 配置，而非只取 Runtime 的直接清单；
+                        // 安装前后的同一集合逐项比对，仓库策略和工作区声明不会因宿主工具运行而悄悄改变。
                         const selected = tracked.filter(
                             (path) =>
                                 /(^|\/)package\.json$/.test(path) ||
@@ -748,7 +774,8 @@ async function main() {
                         entry.initialFreeBytes = await freeSpace(owned);
                         if (entry.initialFreeBytes < 4 * 1024 ** 3)
                             fail("ACQUISITION_DISK_RESERVE");
-                        // 工具获取也属于需要空闲空间准入的获取动作，先记实际可用字节再设置私有配置；宿主 npm 的代码来自已选定 Node 安装，新增 pnpm 仅装入本次独占前缀并关闭生命周期脚本。
+                        // 工具获取也属于需要空闲空间准入的获取动作，先记实际可用字节再设置私有配置；宿主 npm
+                        // 的代码来自已选定 Node 安装，新增 pnpm 仅装入本次独占前缀并关闭生命周期脚本。
                         sanitizeEnvironment(owned);
                         await writeFile(join(owned, "user.npmrc"), "", { flag: "wx", mode: 0o600 });
                         await writeFile(join(owned, "global.npmrc"), "", {
@@ -805,7 +832,8 @@ async function main() {
                                 snapshot: hold("pnpm-package.json", packageJson),
                             },
                         };
-                        // 版本命令也可能失败，因此先把已经形成的工具绑定冻结成证据快照，保证 STARTED 与失败 journal 的来源摘要始终能在同次上传集合内复核；成功后的再次保存只确认同一对象而不改变来
+                        // 版本命令也可能失败，因此先把已经形成的工具绑定冻结成证据快照，保证 STARTED 与失败 journal
+                        // 的来源摘要始终能在同次上传集合内复核；成功后的再次保存只确认同一对象而不改变来
                         // 源身份。
                         hold("binding.json", binding);
                         const version = await command(
@@ -838,7 +866,8 @@ async function main() {
                         entry.freeBytesBeforeAcquisition = await freeSpace(owned);
                         if (entry.freeBytesBeforeAcquisition < 4 * 1024 ** 3)
                             fail("ACQUISITION_DISK_RESERVE");
-                        // fetch 不带 Runtime 过滤器，因为冻结工作区锁定义的生产获取范围本来就更宽；任何不支持选项或仓库策略拒绝原样保留为失败，关闭确认前绝不进入锁复核、占用扫描或下一阶段。
+                        // fetch 不带 Runtime 过滤器，因为冻结工作区锁定义的生产获取范围本来就更宽；任何不支持选项或仓库
+                        // 策略拒绝原样保留为失败，关闭确认前绝不进入锁复核、占用扫描或下一阶段。
                         try {
                             await command(
                                 process.execPath,
@@ -871,7 +900,8 @@ async function main() {
                         entry.storeBefore = await occupancy(store, end);
                         entry.preparationBefore = await occupancy(preparation, end);
                         entry.freeBytesBefore = await freeSpace(owned);
-                        // copy 方法不能依赖共享 inode 的节省来通过磁盘准入，按实际存储加准备副本的普通文件字节预留独立副本；额外四 GiB 缓冲仍单独保留，不通过删除共享缓存或其它候选腾挪空间。
+                        // copy 方法不能依赖共享 inode 的节省来通过磁盘准入，按实际存储加准备副本的普通文件字节预留独立
+                        // 副本；额外四 GiB 缓冲仍单独保留，不通过删除共享缓存或其它候选腾挪空间。
                         entry.independentCopyRequiredBytes =
                             entry.storeBefore.bytes + entry.preparationBefore.bytes;
                         if (
@@ -920,7 +950,8 @@ async function main() {
                     run: async (command, end, entry) => {
                         await checkLock(installation, entry, "lockBefore");
                         await checkSource(installation, entry, "sourceBefore", end);
-                        // Workspace 身份发现故意不复用请求过滤器，也不展开依赖树，避免把请求范围误认为真实安装范围；原始模块配置另存供后续审查，物理普通文件与实例仍以独立遍历结果为准。
+                        // Workspace 身份发现故意不复用请求过滤器，也不展开依赖树，避免把请求范围误认为真实安装范围；
+                        // 原始模块配置另存供后续审查，物理普通文件与实例仍以独立遍历结果为准。
                         const discovery = await command(
                             process.execPath,
                             [pnpm, "-r", "list", "--depth", "-1", "--json"],
@@ -989,7 +1020,8 @@ async function main() {
     } catch (error) {
         problem = error.message;
     }
-    // 输出根仅接收内存中已经冻结的固定证据与成功观察引用，命令关闭未知时不会再触碰安装树或 store；上传清单本身也计入总预算，任何收集失败都会阻止输出路径标记，避免上传旧目录或残缺成功证据。
+    // 输出根仅接收内存中已经冻结的固定证据与成功观察引用，命令关闭未知时不会再触碰安装树或 store；上传清单本身也计入总
+    // 预算，任何收集失败都会阻止输出路径标记，避免上传旧目录或残缺成功证据。
     const passed =
         !problem && journal.length === 4 && journal.every((stage) => stage.status === "PASS");
     hold("outcome.json", {
@@ -1047,7 +1079,8 @@ async function main() {
     if (!passed) process.exitCode = 1;
 }
 
-// 模块被测试或其它 CI 工具导入时绝不启动生产入口，只有真实文件路径匹配直接参数才执行；顶层拒绝只输出固定英文错误类别，不打印命令环境、凭据或未经审查的依赖正文内容。
+// 模块被测试或其它 CI 工具导入时绝不启动生产入口，只有真实文件路径匹配直接参数才执行；顶层拒绝只输出固定英文错误类别，
+// 不打印命令环境、凭据或未经审查的依赖正文内容。
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
     main().catch((error) => {
         console.error(`Production layout producer failed: ${error.message}`);

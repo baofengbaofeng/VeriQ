@@ -1,6 +1,8 @@
-"""VeriQ 受控示例通过真实业务认证、SQLite 事务与独立夹具身份演示完整生命周期，数据仅写入显式配置的私有路径，禁止连接生产业务数据库。
+"""VeriQ 受控示例通过真实业务认证、SQLite 事务与独立夹具身份演示完整生命周期，数据仅写入显式配置的私有路径，
+禁止连接生产业务数据库。
 
-示例沿用控制服务已有的 Tornado 环境，不增加框架或依赖锁。令牌由外部环境注入，夹具准备与普通业务写入采用不同身份。外部调用维护接口完成 TTL 补偿，进程内部不启动定时器。
+示例沿用控制服务已有的 Tornado 环境，不增加框架或依赖锁。令牌由外部环境注入，夹具准备与普通业务写入采用不同身份。
+外部调用维护接口完成 TTL 补偿，进程内部不启动定时器。
 """
 
 import asyncio
@@ -83,7 +85,8 @@ class Store:
                 "SELECT * FROM fixtures WHERE key=? AND namespace=?", (key, namespace)
             ).fetchone()
             if row is None:
-                # 清理先建立关闭墓碑，阻止尚未到达的准备请求重新打开这个命名空间；数据库唯一约束同时禁止其它幂等键取得既有命名空间的归属权，失败不提交事务。
+                # 清理先建立关闭墓碑，阻止尚未到达的准备请求重新打开这个命名空间；数据库唯一约束同时禁止其它幂等键取得既
+                # 有命名空间的归属权，失败不提交事务。
                 self.db.execute(
                     "INSERT INTO fixtures VALUES(?,?,?,?,?,?,?,?)",
                     (str(uuid4()), key, namespace, "closed", "", "CLOSED", time.time(), "{}"),
@@ -121,9 +124,11 @@ class Store:
             raise
 
     def namespace_for_code(self, code):
-        """把夹具公开输出的稳定业务代码解析为真实命名空间，保持既有严格输出 Schema 只含 code，并让可导入 DSL 无需假设运行时存在隐藏变量。此查询不返回 cleanupToken，
+        """把夹具公开输出的稳定业务代码解析为真实命名空间，保持既有严格输出 Schema 只含 code，并让可导入 DSL
+        无需假设运行时存在隐藏变量。此查询不返回 cleanupToken，
 
         关闭的命名空间仍交由事务内的写入检查拒绝。
+
         """
         if not isinstance(code, str) or not code:
             raise HTTPError(400)
@@ -187,7 +192,9 @@ class Handler(RequestHandler):
         )
 
     async def validate_employee(self, name):
-        """业务名称在写入前执行正常类型和长度校验，子类可用于受控竞争测试阻塞请求，但真正提交时必须在同一事务重新检查命名空间，不能以先前的校验结果绕过清理围栏。
+        """业务名称在写入前执行正常类型和长度校验，子类可用于受控竞争测试阻塞请求，但真正提交时必须在同一事务重新检查命
+        名空间，不能以先前的校验结果绕过清理围栏。
+
         """
         if not isinstance(name, str) or not 1 <= len(name) <= 160:
             raise HTTPError(400)
@@ -347,7 +354,9 @@ def application(store, business_token, fixture_token, maintenance_token, handler
 
 
 async def main():
-    """示例服务只使用操作者明确配置的私有数据路径并从秘密环境读取独立令牌，启动前拒绝符号链接或公开文件；网络监听显式配置，不自动接入真实生产业务系统。
+    """示例服务只使用操作者明确配置的私有数据路径并从秘密环境读取独立令牌，启动前拒绝符号链接或公开文件；
+    网络监听显式配置，不自动接入真实生产业务系统。
+
     """
     database = Path(os.environ["VERIQ_DEMO_DATABASE"]).absolute()
     if database.parent.stat().st_mode & 0o022:

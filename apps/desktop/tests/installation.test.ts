@@ -9,7 +9,9 @@ import { requireMacDesktopIdentity } from "../src/installation/host-identity.ts"
 import { verifyUpdateEnvelope, type DesktopUpdate } from "../src/main/update.ts";
 import { desktopInventory } from "../scripts/desktop-inventory.mjs";
 
-/** 每个用例生成仅供合成签名验证的临时发布者密钥与版本关系，不读取操作系统保险库或使用生产证书；fixture 只描述当前应用的本地信任输入，绝不冒充真实签名安装、Mac 目标或可发布候选已经验收。 */
+/** 每个用例生成仅供合成签名验证的临时发布者密钥与版本关系，不读取操作系统保险库或使用生产证书；fixture 只描述当前应用的
+ * 本地信任输入，绝不冒充真实签名安装、Mac 目标或可发布候选已经验收。
+ */
 function fixture() {
     const keys = generateKeyPairSync("ed25519");
     const release: DesktopRelease = {
@@ -63,7 +65,9 @@ function fixture() {
     return { release, update, envelope };
 }
 
-/** 发布者签名只能认证精确安装器与当前来源版本，测试同时观察正常升级和明确兼容的回滚；回滚方向不是跳过版本或格式检查的万能开关，同版本重放、旧格式与缺少当前引擎支持都必须拒绝。 */
+/** 发布者签名只能认证精确安装器与当前来源版本，测试同时观察正常升级和明确兼容的回滚；回滚方向不是跳过版本或格式检查的万
+ * 能开关，同版本重放、旧格式与缺少当前引擎支持都必须拒绝。
+ */
 test("signed update requires exact target, origin version, profile and engine compatibility", () => {
     const { release, update, envelope } = fixture();
     assert.deepEqual(verifyUpdateEnvelope(envelope(), release), update);
@@ -89,7 +93,9 @@ test("signed update requires exact target, origin version, profile and engine co
         );
 });
 
-/** 合法正文和另一发布者签名、字节篡改以及本机缺少更新公钥不能获得同一更新权限，测试使用真实标准签名算法而不替换验签结果；失败在解释安装文件路径和请求维护停止之前发生，业务执行不受影响。 */
+/** 合法正文和另一发布者签名、字节篡改以及本机缺少更新公钥不能获得同一更新权限，测试使用真实标准签名算法而不替换验签结果
+ * ；失败在解释安装文件路径和请求维护停止之前发生，业务执行不受影响。
+ */
 test("update rejects altered payload, unknown publisher and missing trust root", () => {
     const first = fixture(),
         second = fixture();
@@ -112,7 +118,9 @@ test("update rejects altered payload, unknown publisher and missing trust root",
     );
 });
 
-/** 桌面身份必须固定 Bundle ID 与四种架构组合，Mac Cookie 能力更要求同进程真实宿主核验的私有品牌；结构相同、冻结或复制的对象都无法通过这个边界，测试不授予合成 Mac 实际 Keychain 操作权限。 */
+/** 桌面身份必须固定 Bundle ID 与四种架构组合，Mac Cookie 能力更要求同进程真实宿主核验的私有品牌；结构相同、冻结或复制的
+ * 对象都无法通过这个边界，测试不授予合成 Mac 实际 Keychain 操作权限。
+ */
 test("desktop release identities and Mac host capabilities fail closed", () => {
     const { release } = fixture();
     assert.equal(parseDesktopRelease(release), release);
@@ -131,7 +139,9 @@ test("desktop release identities and Mac host capabilities fail closed", () => {
         assert.throws(() => requireMacDesktopIdentity(value), /COOKIE_MAC_HOST_IDENTITY_REQUIRED/);
 });
 
-/** GUI 字节库存覆盖真实生成入口与本地 renderer 资源，新增文件改变独立摘要而链接不能进入候选；测试创建临时普通文件并核对可观察结果，不通过扫描源码关键字或假造打包回执证明安装器可用。 */
+/** GUI 字节库存覆盖真实生成入口与本地 renderer 资源，新增文件改变独立摘要而链接不能进入候选；测试创建临时普通文件并核对
+ * 可观察结果，不通过扫描源码关键字或假造打包回执证明安装器可用。
+ */
 test("GUI inventory covers all resources and refuses linked input", async () => {
     const directory = await mkdtemp(join(tmpdir(), "veriq-gui-inventory-"));
     try {

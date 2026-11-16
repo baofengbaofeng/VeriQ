@@ -135,7 +135,9 @@ const zh: typeof en = {
     diagnostics: "诊断",
     failed: "操作失败",
 };
-/** 已 init 的 i18next 实例，供 AiPage 的 useTranslation('ai', { i18n: aiI18n }) 使用。initImmediate 关闭时仍同步注册资源包，避免首屏闪英文。 */
+/** 已 init 的 i18next 实例，供 AiPage 的 useTranslation('ai', { i18n: aiI18n }) 使用。initImmediate 关闭时仍同步注册资
+ * 源包，避免首屏闪英文。
+ */
 export const aiI18n: i18n = i18next.createInstance();
 void aiI18n.use(initReactI18next).init({
     resources: { en: { ai: en }, zh: { ai: zh } },

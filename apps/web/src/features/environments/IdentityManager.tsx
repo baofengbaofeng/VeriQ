@@ -1,5 +1,5 @@
-/**
- * 身份与凭证管理面板：列出/创建认证适配器与凭证轮换，密钥经适配器直达服务端。轮换成功后刷新版本摘要；轮换成功后立即刷新适配器与凭证版本摘要。
+/** 身份与凭证管理面板：列出/创建认证适配器与凭证轮换，密钥经适配器直达服务端。轮换成功后刷新版本摘要；轮换成功后立即刷
+ * 新适配器与凭证版本摘要。
  * 接收已授权 host transport；secret 值不进入 React Query 或文档 state。
  */
 
@@ -26,7 +26,9 @@ type AdapterForm = {
     identityPointer: string;
     loginPath: string;
 };
-/** 身份面板只在当前已授权空间内持有表单与请求状态，服务端保存后读取不可变版本摘要；组件真正卸载时中止自身请求并清空两份表单，避免旧空间的凭证继续保留。成功后刷新摘要列表；失败展示 ApiError，不回显提交的密钥。 */
+/** 身份面板只在当前已授权空间内持有表单与请求状态，服务端保存后读取不可变版本摘要；组件真正卸载时中止自身请求并清空两份
+ * 表单，避免旧空间的凭证继续保留。成功后刷新摘要列表；失败展示 ApiError，不回显提交的密钥。
+ */
 export function IdentityManager({
     adapter,
     workspaceId,
@@ -57,7 +59,8 @@ export function IdentityManager({
             loginPath: "/login",
         },
     });
-    // 两个 reset 方法由各自的 React Hook Form 控制器稳定持有，清理只依赖这些方法与当前生命周期控制器，认证类型变化引起的普通重渲染不会清空未提交凭证或中止仍有效的请求。
+    // 两个 reset 方法由各自的 React Hook Form 控制器稳定持有，清理只依赖这些方法与当前生命周期控制器，认证类型变化引起
+    // 的普通重渲染不会清空未提交凭证或中止仍有效的请求。
     const { reset: resetCredential } = credential;
     const { reset: resetAuth } = auth;
     const [controller] = useState(() => new AbortController()),
@@ -113,7 +116,8 @@ export function IdentityManager({
             <h2>{tx("环境身份与凭证 / Environment identities and credentials")}</h2>
             <p>
                 {tx(
-                    "创建新的固定版本；原文不会回显。修改环境引用后需重新校验发布 / Create immutable versions; values are never returned. Republis" +
+                    "创建新的固定版本；原文不会回显。修改环境引用后需重新校验发布 / Create immuta" +
+                        "ble versions; values are never returned. Republis" +
                         "h environments after changing references.",
                 )}
             </p>
@@ -247,7 +251,8 @@ export function IdentityManager({
                                 setSuccess("已保存凭证版本 / Credential saved: " + saved.versionId);
                                 await refresh();
                             } finally {
-                                // 保存完成或失败后清除当前表单的密钥，空间卸载已由生命周期清理负责清空；旧请求的迟到结算不得再向已释放表单写入状态，因此需要先确认捕获的请求范围仍然有效。
+                                // 保存完成或失败后清除当前表单的密钥，空间卸载已由生命周期清理负责清空；旧请求的迟到结
+                                // 算不得再向已释放表单写入状态，因此需要先确认捕获的请求范围仍然有效。
                                 if (!scope.aborted) clearSecret();
                             }
                         }),

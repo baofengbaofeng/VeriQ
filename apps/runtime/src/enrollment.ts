@@ -2,7 +2,9 @@
  * 本文件实现设备注册、令牌轮换与配置持久化：审批码轮询与服务账号注册共用受控文件存储：令牌不进 URL/日志（enrollment）。
  */
 
-/** 设备级凭证只通过受控请求正文和私有配置传递，不进入 URL、Cookie、命令参数或日志；开发与安装宿主共享校验和轮换协议，平台差异仅限本机文件权限与原子提交实现。 */
+/** 设备级凭证只通过受控请求正文和私有配置传递，不进入 URL、Cookie、命令参数或日志；开发与安装宿主共享校验和轮换协议，
+ * 平台差异仅限本机文件权限与原子提交实现。
+ */
 import { chmod, open, lstat, mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { join, basename, dirname } from "node:path";
 import { privateDirectory, readBoundedFile, removePrivate } from "./offline/config.ts";
@@ -47,7 +49,8 @@ export function controlOrigin(value: string): string {
     return url.origin;
 }
 /**
- * 公开类 RuntimeError 表示控制面请求失败：携带稳定 code 与可选 HTTP 状态：供 CLI/Agent 映射用户可见错误（RuntimeError）。
+ * 公开类 RuntimeError 表示控制面请求失败：携带稳定 code 与可选 HTTP 状态：供 CLI/Agent
+ * 映射用户可见错误（RuntimeError）。
  */
 export class RuntimeError extends Error {
     code: string;
@@ -96,7 +99,8 @@ export class RuntimeClient {
             throw new RuntimeError(signal?.aborted ? "CANCELLED" : "NETWORK_UNAVAILABLE", 0);
         }
         if (response.status === 204) return undefined as T;
-        // 控制面响应在解析前按实际传输字节限制为六万五千五百三十六，代理和错误正文也受同一限制；达到上限即取消 reader 并返回固定错误，避免把秘密响应或无限输入转交日志和解析器。
+        // 控制面响应在解析前按实际传输字节限制为六万五千五百三十六，代理和错误正文也受同一限制；达到上限即取消 reader
+        // 并返回固定错误，避免把秘密响应或无限输入转交日志和解析器。
         const reader = response.body?.getReader();
         let size = 0;
         const chunks: Uint8Array[] = [];
@@ -166,7 +170,8 @@ export class RuntimeClient {
         );
     }
     /**
-     * 公开方法 poll 轮询人工审批结果：成功后取回设备令牌：过期或拒绝映射稳定错误码（poll），说明 poll 在 enrollment 中的专属行为（poll）。
+     * 公开方法 poll 轮询人工审批结果：成功后取回设备令牌：过期或拒绝映射稳定错误码（poll），说明 poll 在 enrollment
+     * 中的专属行为（poll）。
      */
     poll(deviceCode: string, signal?: AbortSignal) {
         return this.request<Schemas["DeviceCredentialsDTO"]>(
@@ -231,17 +236,23 @@ export class DeviceStore {
         this.directory = directory;
         if (options) this.profile = new CredentialProfile(directory, options);
     }
-    /** 用户显式请求迁移时委托同一凭据上下文取得停止所有权并核验全部旧用途，返回值不包含秘密；没有安全上下文的开发调用不能把这次请求解释为明文模式认可或自动选择另一种后端。 */
+    /** 用户显式请求迁移时委托同一凭据上下文取得停止所有权并核验全部旧用途，返回值不包含秘密；没有安全上下文的开发调用不
+     * 能把这次请求解释为明文模式认可或自动选择另一种后端。
+     */
     async migrateCredentials(): Promise<void> {
         if (!this.profile) throw new Error("VAULT_CONTEXT_REQUIRED");
         await this.profile.migrate();
     }
-    /** 整体退役接口只删除本机凭据档案中的全部秘密用途与精确密钥，保留不可自动重建的非秘密完成标记及公开配置；它不调用控制平台撤销设备，也不等于注销或单用途清空，调用者必须明确确认本机永久退役。 */
+    /** 整体退役接口只删除本机凭据档案中的全部秘密用途与精确密钥，保留不可自动重建的非秘密完成标记及公开配置；
+     * 它不调用控制平台撤销设备，也不等于注销或单用途清空，调用者必须明确确认本机永久退役。
+     */
     async deleteCredentials(): Promise<void> {
         if (!this.profile) throw new Error("VAULT_CONTEXT_REQUIRED");
         await this.profile.deleteCredentials();
     }
-    /** 用户明确恢复未完成初始化时复用系统后端和持续停止所有权，只处理没有任何业务密文的初始档案；活动密钥缺失、残留数据、冲突或系统不可用仍拒绝，调用方不会取得密钥或自动回退到明文。 */
+    /** 用户明确恢复未完成初始化时复用系统后端和持续停止所有权，只处理没有任何业务密文的初始档案；活动密钥缺失、
+     * 残留数据、冲突或系统不可用仍拒绝，调用方不会取得密钥或自动回退到明文。
+     */
     async recoverCredentialInitialization(): Promise<void> {
         if (!this.profile) throw new Error("VAULT_CONTEXT_REQUIRED");
         await this.profile.recoverInitialization();
@@ -313,7 +324,9 @@ export class DeviceStore {
                 ? { lockfilePath: join(this.directory, ".device.lock") }
                 : {}),
         });
-        /** Windows 初次注册使用已持有父目录下的独占私有创建，目录内合作锁同样从私有父项继承；已有对象不被收紧或覆盖，原生明确的存在错误仍映射为原先的已注册状态。 */
+        /** Windows 初次注册使用已持有父目录下的独占私有创建，目录内合作锁同样从私有父项继承；已有对象不被收紧或覆盖，
+         * 原生明确的存在错误仍映射为原先的已注册状态。
+         */
         if (process.platform === "win32") {
             try {
                 const value = JSON.stringify(config);
@@ -466,7 +479,9 @@ export class DeviceStore {
                 receipt.deviceToken !== pending.replacementToken
             )
                 throw new Error("DEVICE_PRINCIPAL_CHANGED");
-            /** 合作锁覆盖轮换事务但不能代替提交前的设备身份核对，另一代设备或令牌变化必须直接拒绝；不能把旧候选覆盖到重新注册的设备上，也不能在提交不确定时重放服务端轮换。 */
+            /** 合作锁覆盖轮换事务但不能代替提交前的设备身份核对，另一代设备或令牌变化必须直接拒绝；
+             * 不能把旧候选覆盖到重新注册的设备上，也不能在提交不确定时重放服务端轮换。
+             */
             if (JSON.stringify(await this.load()) !== JSON.stringify(current))
                 throw new Error("DEVICE_CREDENTIAL_CHANGED");
             const replacement = { ...current, ...receipt };
@@ -477,7 +492,9 @@ export class DeviceStore {
             await release();
         }
     }
-    /** 加密轮换在同一档案事务锁内读取当前设备与候选，原请求在网络失败后保留而不生成替代秘密；正式设备发布后才退休候选，任何提交不确定性直接上抛，下一次显式恢复按同一请求和当前代际判断。 */
+    /** 加密轮换在同一档案事务锁内读取当前设备与候选，原请求在网络失败后保留而不生成替代秘密；正式设备发布后才退休候选，
+     * 任何提交不确定性直接上抛，下一次显式恢复按同一请求和当前代际判断。
+     */
     private async renewVault(
         tx: CredentialTransaction,
         client: RuntimeClient,
@@ -605,7 +622,9 @@ export class DeviceStore {
                     : {}),
             });
             try {
-                /** 先退休轮换候选再删除正式凭证，使崩溃恢复不会用旧候选复活已注销档案；未知删除失败继续上抛，只有明确不存在可以忽略，档案锁直到两步处理结束才释放。 */
+                /** 先退休轮换候选再删除正式凭证，使崩溃恢复不会用旧候选复活已注销档案；未知删除失败继续上抛，
+                 * 只有明确不存在可以忽略，档案锁直到两步处理结束才释放。
+                 */
                 await removePrivate(this.directory, "rotation.json").catch(
                     (error: NodeJS.ErrnoException) => {
                         if (error.code !== "ENOENT") throw error;

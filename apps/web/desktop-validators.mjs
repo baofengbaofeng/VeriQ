@@ -2,7 +2,9 @@ import { createRequire } from "node:module";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-/** 桌面共享构建使用契约包自身已锁定的 Ajv 及格式库生成独立校验函数，运行中的 renderer 不再编译字符串；替换只针对契约内部校验器模块，主进程与独立 Node 的默认入口不受影响。 */
+/** 桌面共享构建使用契约包自身已锁定的 Ajv 及格式库生成独立校验函数，运行中的 renderer 不再编译字符串；替换只针对契约内
+ * 部校验器模块，主进程与独立 Node 的默认入口不受影响。
+ */
 export function desktopValidators() {
     const contracts = resolve("../../packages/contracts");
     const require = createRequire(resolve(contracts, "package.json"));
@@ -28,7 +30,8 @@ export function desktopValidators() {
             const validators = Object.fromEntries(
                 Object.keys(schema.$defs).map((name) => [name, `${schema.$id}#/$defs/${name}`]),
             );
-            // 官方生成器保留格式校验运行时引用；按契约包解析绝对依赖路径供 Vite 打包，产物中不会保留本机路径或需要额外下载的脚本。
+            // 官方生成器保留格式校验运行时引用；按契约包解析绝对依赖路径供 Vite 打包，产物中不会保留本机路径或需要额外
+            // 下载的脚本。
             const generated = standalone(ajv, validators).replace(
                 /require\("([^" ]+)"\)/g,
                 (_match, id) => `require(${JSON.stringify(require.resolve(id))})`,

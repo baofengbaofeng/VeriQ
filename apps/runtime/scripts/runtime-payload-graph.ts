@@ -19,7 +19,10 @@ import type {
 
 const builtins = new Set(builtinModules.map((n) => (n.startsWith("node:") ? n : `node:${n}`)));
 type ImportFact = { specifier: string; dynamic: boolean };
-/** 静态导入分析使用已锁 TypeScript 的语法树处理字面 import、export 与动态 import，避免正则把注释或字符串当成依赖；非字面动态加载保留在固定执行 pending 边界内，不假装穷尽运行期路径。 */
+/**
+ * 静态导入分析使用已锁 TypeScript 的语法树处理字面 import、export 与动态 import，避免正则把注释或字符串当成依赖；非字面
+ * 动态加载保留在固定执行 pending 边界内，不假装穷尽运行期路径。
+ */
 function imports(bytes: Buffer, path: string): ImportFact[] {
     try {
         const sourceText = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
@@ -58,7 +61,10 @@ function imports(bytes: Buffer, path: string): ImportFact[] {
         fail("PAYLOAD_GRAPH_MISMATCH");
     }
 }
-/** 依赖归属选择最深的明确包实例，并剔除该实例内部 node_modules 与生成 bin 目录；这样嵌套包不能被父包吞并，未列出实例的子树也不会凭路径前缀自动获得所有权。 */
+/**
+ * 依赖归属选择最深的明确包实例，并剔除该实例内部 node_modules 与生成 bin 目录；这样嵌套包不能被父包吞并，未列出实例的子
+ * 树也不会凭路径前缀自动获得所有权。
+ */
 function owner(graph: DependencyGraph, path: string): PackageInstance | undefined {
     const candidates = graph.instances
         .filter((p) => path.startsWith(p.root + "/"))
@@ -72,7 +78,10 @@ function owner(graph: DependencyGraph, path: string): PackageInstance | undefine
         ? undefined
         : first;
 }
-/** 关系记录的唯一键保留来源实例、消费者和 specifier，不按包名合并 peer 上下文；重复 key 即便内容相同也拒绝，避免后续 Map 覆盖隐藏冲突记录或降低边覆盖要求。 */
+/**
+ * 关系记录的唯一键保留来源实例、消费者和 specifier，不按包名合并 peer 上下文；重复 key 即便内容相同也拒绝，避免后续 Map
+ * 覆盖隐藏冲突记录或降低边覆盖要求。
+ */
 function unique<T>(values: readonly T[], key: (v: T) => string) {
     const seen = new Set<string>();
     for (const value of values) {
@@ -82,9 +91,12 @@ function unique<T>(values: readonly T[], key: (v: T) => string) {
     }
     return seen;
 }
-/** 包级依赖边可以由真实 Node 成功解析的公开子路径证明归属，但其包 alias 必须逐组件完全一致；@scope/name 的边不能被 @scope/name-other 或父路径混淆，入口和执行源码的字面 specifier 仍
+/**
+ * 包级依赖边可以由真实 Node 成功解析的公开子路径证明归属，但其包 alias 必须逐组件完全一致；@scope/name 的边不能被
+ * @scope/name-other 或父路径混淆，入口和执行源码的字面 specifier 仍
  * 在各自根绑定分支逐字核验。
- * 本函数只核静态声明关联，exports 是否允许和解析是否真实成功仍由持有结果文件的 Node 生产器提供证据，不能据此猜测不存在的根入口。
+ * 本函数只核静态声明关联，exports 是否允许和解析是否真实成功仍由持有结果文件的 Node 生产器提供证据，不能据此猜测不存在
+ * 的根入口。
  */
 function edgeWitness(specifier: string, alias: string): boolean {
     if (specifier === alias) return true;
@@ -98,7 +110,10 @@ function edgeWitness(specifier: string, alias: string): boolean {
             .every((part) => !!part && part !== "." && part !== ".." && !/[\\:%?#]/.test(part))
     );
 }
-/** 图结构闭包在读取包正文前先验证所有端点、absence 语义与工具目标，npm pending 图也必须满足这些有界声明规则；执行 Node resolve 及归档内真实 npm 文件的检查并不发生在此处。 */
+/**
+ * 图结构闭包在读取包正文前先验证所有端点、absence 语义与工具目标，npm pending 图也必须满足这些有界声明规则；执行 Node
+ * resolve 及归档内真实 npm 文件的检查并不发生在此处。
+ */
 async function graphReferences(
     graph: DependencyGraph,
     recipe: Recipe,
@@ -142,7 +157,8 @@ async function graphReferences(
             fail("PAYLOAD_GRAPH_MISMATCH");
     }
     for (const b of graph.rootBindings) if (!byId.has(b.to)) fail("PAYLOAD_GRAPH_MISMATCH");
-    // 每个实例都要从显式消费者经已声明的非空依赖边可达，bin 不能自举额外生产根；迭代队列按实例编号保留 peer 上下文，访问集合允许合法循环并受 schema 的实例边数预算约束。
+    // 每个实例都要从显式消费者经已声明的非空依赖边可达，bin 不能自举额外生产根；迭代队列按实例编号保留 peer 上下文，访
+    // 问集合允许合法循环并受 schema 的实例边数预算约束。
     const reached = new Set(graph.rootBindings.map((b) => b.to)),
         queue = [...reached],
         adjacency = new Map<string, string[]>();
@@ -235,7 +251,8 @@ async function graphReferences(
             const owner = byId.get(candidate.owner);
             return owner && publicAlias(owner, candidate.name) === alias;
         });
-        // 同层同名命令必须保留实际公开 alias 的唯一拥有者，其他声明只能进入由完整 owner.id 摘要派生的保留命名空间；私有 alias 不获得公开命令胜者身份，任意目录、截断摘要或独占命令的伪私有 alias 均拒
+        // 同层同名命令必须保留实际公开 alias 的唯一拥有者，其他声明只能进入由完整 owner.id 摘要派生的保留命名空间；私有
+        // alias 不获得公开命令胜者身份，任意目录、截断摘要或独占命令的伪私有 alias 均拒
         // 绝。
         if (
             !alias ||
@@ -276,8 +293,11 @@ async function graphReferences(
     }
 }
 
-/** package.json 的依赖字段保持 npm 原始文本，optionalDependencies 覆盖同名普通依赖，peerMeta 决定可空 peer；读取真实正文后逐条覆盖声明，不能让外部 graph 自己证明没有漏边
- * 。 */
+/**
+ * package.json 的依赖字段保持 npm 原始文本，optionalDependencies 覆盖同名普通依赖，peerMeta 决定可空 peer；读取真实正文
+ * 后逐条覆盖声明，不能让外部 graph 自己证明没有漏边
+ * 。
+ */
 function declarations(pkg: Record<string, unknown>) {
     const read = (key: string) => {
         const value = pkg[key];
@@ -326,8 +346,11 @@ function declarations(pkg: Record<string, unknown>) {
     }
     return output;
 }
-/** 自有树摘要使用合同规定的 JCS 文件事实，路径改为包内相对并按 ASCII 排序，剔除嵌套 node_modules 与 generated bin；真实 package 正文的 name/version 和精确摘要也必须同
- * 时匹配实例声明。 */
+/**
+ * 自有树摘要使用合同规定的 JCS 文件事实，路径改为包内相对并按 ASCII 排序，剔除嵌套 node_modules 与 generated bin；真实
+ * package 正文的 name/version 和精确摘要也必须同
+ * 时匹配实例声明。
+ */
 export async function verifyPackageContents(
     graph: DependencyGraph,
     inventory: TreeInventory,
@@ -369,7 +392,8 @@ export async function verifyPackageContents(
             .sort();
         if (sha(canonicalBytes({ directories, files })) !== p.ownTreeSha256)
             fail("PAYLOAD_GRAPH_MISMATCH");
-        // 包声明的每个命令都必须保留明确 bin 计划，不能删掉整个列表来跳过入口归属检查；字符串缩写按 npm 的无 scope 包名展开，对象形式则逐个保留原命令名称与相对目标声明。
+        // 包声明的每个命令都必须保留明确 bin 计划，不能删掉整个列表来跳过入口归属检查；字符串缩写按 npm 的无 scope 包名
+        // 展开，对象形式则逐个保留原命令名称与相对目标声明。
         const bins = pkg.bin;
         if (bins !== undefined) {
             const names =
@@ -445,7 +469,8 @@ export async function verifyPackageContents(
             const end = content.indexOf(10),
                 line = content.subarray(0, end < 0 ? content.length : end).toString(),
                 nodeHeader = line === "#!/usr/bin/env node" || line === "#!/usr/bin/node";
-            // 已有 JS 扩展名规则继续成立，无扩展名命令只接受 held 原字节中的两种精确 Node 首行；其他扩展名、带参数的 env、shell 和二进制均不能借 launcher 声明取得 Node 执行身份，也不
+            // 已有 JS 扩展名规则继续成立，无扩展名命令只接受 held 原字节中的两种精确 Node 首行；其他扩展名、带参数的
+            // env、shell 和二进制均不能借 launcher 声明取得 Node 执行身份，也不
             // 改变真实包路径。
             if (
                 !/\.(?:mjs|cjs|js)$/.test(b.targetPath) &&
@@ -459,7 +484,10 @@ export async function verifyPackageContents(
     }
 }
 
-/** 导入分类保持 runtime 相对消费者与树内真实文件的边界，node 内建只允许当前锁定 Node24 的显式 node 前缀白名单；相对目标必须存在，受控 compiler Attempt 路径只有既有固定例外。 */
+/**
+ * 导入分类保持 runtime 相对消费者与树内真实文件的边界，node 内建只允许当前锁定 Node24 的显式 node 前缀白名单；相对目标
+ * 必须存在，受控 compiler Attempt 路径只有既有固定例外。
+ */
 function edgeFor(
     fact: ImportFact,
     consumer: string,
@@ -498,9 +526,15 @@ function edgeFor(
         fail("PAYLOAD_GRAPH_MISMATCH");
     return { ...fact, kind: "external", target: specifier };
 }
-/** 两树输入生产器复用同一静态语法分析与边分类规则，不复制解析器或改变完整五树图核验；别名只暴露已有行为，调用者仍须独立核工作区嵌入与真实输出归属才能接受入口收据。 */
+/**
+ * 两树输入生产器复用同一静态语法分析与边分类规则，不复制解析器或改变完整五树图核验；别名只暴露已有行为，调用者仍须独立
+ * 核工作区嵌入与真实输出归属才能接受入口收据。
+ */
 export { imports as scanRuntimeLiteralImports, edgeFor as classifyRuntimeModuleEdge };
-/** 最终静态图把真实输出 AST、包正文、边与归属串为同一输入观察，npm 原归档图则只完成声明闭包并保持 pending；返回值不包含 resolver 能力，也不会加载或执行任何输入模块。 */
+/**
+ * 最终静态图把真实输出 AST、包正文、边与归属串为同一输入观察，npm 原归档图则只完成声明闭包并保持 pending；返回值不包含
+ * resolver 能力，也不会加载或执行任何输入模块。
+ */
 export async function verifyGraph(
     recipe: Recipe,
     reader: InputReader,

@@ -1,4 +1,6 @@
-/** 凭据档案把系统密钥生命周期、私有密文索引与业务消费者放在同一个排他事务中，密钥只留在内存及系统保险库；非秘密恢复日志绑定确切档案和旧新清单，不使用最新版本猜测或重新调用业务更新函数。 */
+/** 凭据档案把系统密钥生命周期、私有密文索引与业务消费者放在同一个排他事务中，密钥只留在内存及系统保险库；
+ * 非秘密恢复日志绑定确切档案和旧新清单，不使用最新版本猜测或重新调用业务更新函数。
+ */
 import { randomBytes, randomUUID, createHash, createHmac } from "node:crypto";
 import { join } from "node:path";
 import lockfile from "proper-lockfile";
@@ -17,9 +19,13 @@ import {
 import type { SecretReference } from "./store.ts";
 import type { DeviceConfig } from "../enrollment.ts";
 
-/** 宿主显式提供已选择的有限密钥后端，配置文件不能指定可执行路径或任意插件；测试也通过同一个接口提供独立夹具，生产构造器不会检查环境变量或秘密内容来决定是否绕过系统服务。 */
+/** 宿主显式提供已选择的有限密钥后端，配置文件不能指定可执行路径或任意插件；测试也通过同一个接口提供独立夹具，
+ * 生产构造器不会检查环境变量或秘密内容来决定是否绕过系统服务。
+ */
 export type CredentialOptions = { backend: VaultKeyBackend; desktopOwner?: DesktopProfileOwner };
-/** 轮换候选沿用既有服务端幂等协议，旧设备与替换令牌必须一起经过认证加密；请求标识独立保存在当前私有索引以形成预期认证绑定，不从待解密载荷中自行选择恢复请求。 */
+/** 轮换候选沿用既有服务端幂等协议，旧设备与替换令牌必须一起经过认证加密；请求标识独立保存在当前私有索引以形成预期认证绑
+ * 定，不从待解密载荷中自行选择恢复请求。
+ */
 export type Rotation = {
     previous: DeviceConfig;
     clientRequestId: string;
@@ -106,7 +112,9 @@ function parseManifest(wire: string): Manifest {
         fail("profile-corrupt");
     return value;
 }
-/** 显式恢复日志只保存未激活版本的随机密钥校验值与精确退休结果，最多保留一百二十八个历史意图以限制损坏数据开销；旧新版本必须唯一且属于同一档案，日志不能自行引入业务条目、路径或系统凭据目标。 */
+/** 显式恢复日志只保存未激活版本的随机密钥校验值与精确退休结果，最多保留一百二十八个历史意图以限制损坏数据开销；
+ * 旧新版本必须唯一且属于同一档案，日志不能自行引入业务条目、路径或系统凭据目标。
+ */
 function parseInitialization(wire: string): Initialization {
     let value: Initialization;
     try {
@@ -178,7 +186,9 @@ function binding(
     } as EnvelopeBinding;
 }
 
-/** 凭据事务在清单认证上下文下访问三种固定用途，业务引用由调用方给定而设备代际由当前私有清单提供；新密文先写入不可变名称并完整解密读回，成功后才允许原子发布索引，不让未提交文件成为有效数据。 */
+/** 凭据事务在清单认证上下文下访问三种固定用途，业务引用由调用方给定而设备代际由当前私有清单提供；
+ * 新密文先写入不可变名称并完整解密读回，成功后才允许原子发布索引，不让未提交文件成为有效数据。
+ */
 export class CredentialTransaction {
     constructor(
         private files: VaultFiles,
@@ -254,13 +264,17 @@ export class CredentialTransaction {
         await this.commit(next, [{ entry, reference, value }]);
     }
 
-    /** 业务查找必须使用外层授权过的完整四元引用，当前索引只决定要读取的有限文件名称，不能以密文自报的版本补全引用；真实条目缺失才产生本地凭据缺失，密钥和认证错误继续上抛。 */
+    /** 业务查找必须使用外层授权过的完整四元引用，当前索引只决定要读取的有限文件名称，不能以密文自报的版本补全引用；
+     * 真实条目缺失才产生本地凭据缺失，密钥和认证错误继续上抛。
+     */
     async resolve(ref: SecretReference): Promise<JsonValue> {
         const value = await this.read(businessSlot(ref), ref);
         if (value === undefined) throw new Error("LOCAL_CREDENTIAL_MISSING");
         return value;
     }
-    /** 写入容量按原四元组键值表的完整明文 JSON 字节计算，逐条解密核验旧值后再加入替换值；信封开销不计入业务额度，同时每个实际文件仍受独立两兆字节硬上限保护。 */
+    /** 写入容量按原四元组键值表的完整明文 JSON 字节计算，逐条解密核验旧值后再加入替换值；信封开销不计入业务额度，
+     * 同时每个实际文件仍受独立两兆字节硬上限保护。
+     */
     async set(ref: SecretReference, value: JsonValue): Promise<void> {
         const aggregate: Record<string, JsonValue> = Object.create(null) as Record<
             string,
@@ -275,7 +289,9 @@ export class CredentialTransaction {
             throw new Error("CONFIGURATION_LIMIT");
         await this.put(businessSlot(ref), "business", ref, value);
     }
-    /** 删除指定业务引用或整个业务集合只发布删减后的索引并退休这些文件，不删除其他用途或主密钥；跨文件清理中断保留确切日志，恢复不会把已经移除的条目重新激活。 */
+    /** 删除指定业务引用或整个业务集合只发布删减后的索引并退休这些文件，不删除其他用途或主密钥；跨文件清理中断保留确切日
+     * 志，恢复不会把已经移除的条目重新激活。
+     */
     async removeBusiness(ref?: SecretReference): Promise<void> {
         const next = structuredClone(this.manifest);
         for (const [slot, entry] of Object.entries(next.entries)) {
@@ -284,11 +300,15 @@ export class CredentialTransaction {
         }
         await this.commit(next, []);
     }
-    /** 设备读取以当前私有索引保存的登记主体和稳定代际为预期上下文，缺失保持原公开接口的 ENOENT；结果仍须由 DeviceStore 执行既有控制源和服务端 DTO 校验，不能仅凭解密成功授权联网。 */
+    /** 设备读取以当前私有索引保存的登记主体和稳定代际为预期上下文，缺失保持原公开接口的 ENOENT；结果仍须由 DeviceStore
+     * 执行既有控制源和服务端 DTO 校验，不能仅凭解密成功授权联网。
+     */
     async device(): Promise<DeviceConfig> {
         return ((await this.read("device")) ?? absent()) as DeviceConfig;
     }
-    /** 首次设备登记创建新的本地代际，后续轮换必须保留相同服务端主体及代际；容量保持原六万五千五百三十六字节且 create-only 在同一事务锁中检查，不允许覆盖已注册设备。 */
+    /** 首次设备登记创建新的本地代际，后续轮换必须保留相同服务端主体及代际；容量保持原六万五千五百三十六字节且
+     * create-only 在同一事务锁中检查，不允许覆盖已注册设备。
+     */
     async saveDevice(value: DeviceConfig, createOnly: boolean): Promise<void> {
         if (Buffer.byteLength(JSON.stringify(value)) > 65536)
             throw new Error("CONFIGURATION_LIMIT");
@@ -314,11 +334,15 @@ export class CredentialTransaction {
         }
         await this.put("device", "device", reference, value as JsonValue);
     }
-    /** 读取待恢复轮换时使用索引固定的原请求标识进行认证，候选不存在才允许 DeviceStore 生成新请求；损坏或不确定提交必须先解决，不能用新令牌覆盖未知服务端已经接受的轮换。 */
+    /** 读取待恢复轮换时使用索引固定的原请求标识进行认证，候选不存在才允许 DeviceStore 生成新请求；
+     * 损坏或不确定提交必须先解决，不能用新令牌覆盖未知服务端已经接受的轮换。
+     */
     async rotation(): Promise<Rotation | undefined> {
         return (await this.read("rotation")) as Rotation | undefined;
     }
-    /** 轮换日志保存完整旧凭据和替换令牌的密文，同时绑定当前登记代际与固定请求标识；只有当前设备存在且业务体未超过原容量才发布，确保网络调用开始之前可以按同一候选恢复。 */
+    /** 轮换日志保存完整旧凭据和替换令牌的密文，同时绑定当前登记代际与固定请求标识；只有当前设备存在且业务体未超过原容量
+     * 才发布，确保网络调用开始之前可以按同一候选恢复。
+     */
     async saveRotation(value: Rotation): Promise<void> {
         const current = this.manifest.entries.device;
         if (!current) absent();
@@ -331,7 +355,9 @@ export class CredentialTransaction {
             value as JsonValue,
         );
     }
-    /** 迁移仅由持有停止所有权的档案入口调用，源文件校验值使用主密钥 HMAC 而非可离线猜测密码的普通摘要；全部用途写入同一新清单并读回后才标记可退休，恢复只处理固定三个旧文件名。 */
+    /** 迁移仅由持有停止所有权的档案入口调用，源文件校验值使用主密钥 HMAC 而非可离线猜测密码的普通摘要；
+     * 全部用途写入同一新清单并读回后才标记可退休，恢复只处理固定三个旧文件名。
+     */
     async migrate(root: VaultFiles): Promise<void> {
         const names = ["local-secrets.json", "device.json", "rotation.json"] as const;
         type Migration = {
@@ -494,7 +520,9 @@ export class CredentialTransaction {
         for (const name of names) if (journal.sources[name]) await root.remove(name);
         await this.files.remove("migration.json");
     }
-    /** 设备删除先在同一新清单中同时退休轮换和设备，单独完成轮换只删候选；业务密文及系统主密钥保持可用，删除日志失败不会被误报为整个档案已经完全清理或物理擦除。 */
+    /** 设备删除先在同一新清单中同时退休轮换和设备，单独完成轮换只删候选；业务密文及系统主密钥保持可用，
+     * 删除日志失败不会被误报为整个档案已经完全清理或物理擦除。
+     */
     async removeDevice(rotationOnly = false): Promise<void> {
         const next = structuredClone(this.manifest);
         delete next.entries.rotation;
@@ -506,7 +534,9 @@ export class CredentialTransaction {
     }
 }
 
-/** 恢复只接受绑定当前档案和确切旧新清单摘要的有限日志，准备阶段只清理尚未发布的新文件，已准备阶段则完成同一确定提交；不执行业务回调、不生成替代密钥，也不对任意路径实施清理。 */
+/** 恢复只接受绑定当前档案和确切旧新清单摘要的有限日志，准备阶段只清理尚未发布的新文件，已准备阶段则完成同一确定提交；
+ * 不执行业务回调、不生成替代密钥，也不对任意路径实施清理。
+ */
 async function recover(files: VaultFiles, manifest: Manifest, key: Buffer): Promise<Manifest> {
     const wire = await files.read(JOURNAL);
     if (wire === undefined) return manifest;
@@ -577,21 +607,27 @@ async function recover(files: VaultFiles, manifest: Manifest, key: Buffer): Prom
     return manifest;
 }
 
-/** 档案对象由宿主显式后端构造，所有消费者共用同一目录合作锁，允许在一次持锁回调中依次提交轮换候选和正式设备；回调只调用一次，失败后仅释放资源，不自动重复网络请求或密钥写入。 */
+/** 档案对象由宿主显式后端构造，所有消费者共用同一目录合作锁，允许在一次持锁回调中依次提交轮换候选和正式设备；
+ * 回调只调用一次，失败后仅释放资源，不自动重复网络请求或密钥写入。
+ */
 export class CredentialProfile {
     constructor(
         readonly directory: string,
         private options: CredentialOptions,
     ) {}
 
-    /** 显式迁移在整个读取、密文发布、完整核验与明文退休期间持有 Agent 停止所有权和同一档案事务锁；正在运行的 Agent 会使获取失败，不能把一次性状态检查视为持续停止证明或绕过已有运行者。 */
+    /** 显式迁移在整个读取、密文发布、完整核验与明文退休期间持有 Agent 停止所有权和同一档案事务锁；正在运行的 Agent
+     * 会使获取失败，不能把一次性状态检查视为持续停止证明或绕过已有运行者。
+     */
     async migrate(): Promise<void> {
         await this.withStoppedProfile((root) =>
             this.withTransaction((tx) => tx.migrate(root), true),
         );
     }
 
-    /** 用户明确删除全部凭据时保持整个档案停止且排他，只退役业务、设备和轮换密文及精确系统密钥；信任根、公钥、历史与非秘密配置继续保留，完成标记阻止普通调用自动重建，部分失败只能显式继续原意图。 */
+    /** 用户明确删除全部凭据时保持整个档案停止且排他，只退役业务、设备和轮换密文及精确系统密钥；信任根、公钥、
+     * 历史与非秘密配置继续保留，完成标记阻止普通调用自动重建，部分失败只能显式继续原意图。
+     */
     async deleteCredentials(): Promise<void> {
         await this.withStoppedProfile(() =>
             this.withLockedFiles(async (root, files) => {
@@ -640,7 +676,9 @@ export class CredentialProfile {
         );
     }
 
-    /** 用户显式请求才允许恢复确实空的未激活初始化，原版本必须精确读为缺失才能建立新随机版本；同一档案身份保持，旧意图及逐版本缺失证明持续保存在非秘密日志，活动凭据、残留密文和未知状态一律不能被重置。 */
+    /** 用户显式请求才允许恢复确实空的未激活初始化，原版本必须精确读为缺失才能建立新随机版本；同一档案身份保持，
+     * 旧意图及逐版本缺失证明持续保存在非秘密日志，活动凭据、残留密文和未知状态一律不能被重置。
+     */
     async recoverInitialization(): Promise<void> {
         await this.withStoppedProfile(() =>
             this.withLockedFiles(async (_root, files) => {
@@ -689,7 +727,9 @@ export class CredentialProfile {
                     }
                     return true;
                 };
-                /** 旧版本只能在显式记录的档案范围内退休，先核对随机密钥校验值再调用精确 delete；修改失败或删除后无法确认缺失都保留 pending，下一次仅按原意图核验，不把不确定返回伪装为密钥已清理。 */
+                /** 旧版本只能在显式记录的档案范围内退休，先核对随机密钥校验值再调用精确 delete；修改失败或删除后无法确
+                 * 认缺失都保留 pending，下一次仅按原意图核验，不把不确定返回伪装为密钥已清理。
+                 */
                 const retire = async () => {
                     if (!journal) return;
                     for (const previous of journal.previous) {
@@ -780,7 +820,9 @@ export class CredentialProfile {
         );
     }
 
-    /** 迁移与空初始化恢复共享同一持续停止边界，执行记录、在线所有权和离线 SQLite 占用全部通过后才调用私有操作；资源始终按事务、数据库、Agent 和桌面所有权逆序释放，失败不会授权强杀或清理未知执行。 */
+    /** 迁移与空初始化恢复共享同一持续停止边界，执行记录、在线所有权和离线 SQLite 占用全部通过后才调用私有操作；
+     * 资源始终按事务、数据库、Agent 和桌面所有权逆序释放，失败不会授权强杀或清理未知执行。
+     */
     private async withStoppedProfile<T>(run: (root: VaultFiles) => Promise<T>): Promise<T> {
         const root = await VaultFiles.acquire(this.directory);
         let owner: VaultFiles | undefined;
@@ -838,12 +880,16 @@ export class CredentialProfile {
         }
     }
 
-    /** 消费者事务只使用明确的密钥后端和当前档案，普通调用不能开启迁移或读回遗留明文；实现通过私有入口复用单锁资源管理，业务回调不会因后端失败、未知提交或恢复日志而自动重复执行。 */
+    /** 消费者事务只使用明确的密钥后端和当前档案，普通调用不能开启迁移或读回遗留明文；实现通过私有入口复用单锁资源管理，
+     * 业务回调不会因后端失败、未知提交或恢复日志而自动重复执行。
+     */
     async transaction<T>(run: (transaction: CredentialTransaction) => Promise<T>): Promise<T> {
         return this.withTransaction(run, false);
     }
 
-    /** 事务入口先取得私有目录和既有设备锁，再恢复有限文件日志并读取确切系统密钥；新档案先持久化初始化意图及随机密钥校验值，未知 OS 写入只保留恢复事实，后续仅按原版本读回而不覆盖。 */
+    /** 事务入口先取得私有目录和既有设备锁，再恢复有限文件日志并读取确切系统密钥；新档案先持久化初始化意图及随机密钥校验
+     * 值，未知 OS 写入只保留恢复事实，后续仅按原版本读回而不覆盖。
+     */
     private async withTransaction<T>(
         run: (transaction: CredentialTransaction) => Promise<T>,
         migrating: boolean,
@@ -912,7 +958,9 @@ export class CredentialProfile {
         });
     }
 
-    /** 凭据事务与显式初始化恢复只复用同一个档案锁和有限文件会话，不嵌套取得设备锁；所有异常在资源释放后继续传播，调用方没有自动重放业务函数、系统写入或未知文件发布的机会。 */
+    /** 凭据事务与显式初始化恢复只复用同一个档案锁和有限文件会话，不嵌套取得设备锁；所有异常在资源释放后继续传播，
+     * 调用方没有自动重放业务函数、系统写入或未知文件发布的机会。
+     */
     private async withLockedFiles<T>(
         run: (root: VaultFiles, files: VaultFiles) => Promise<T>,
     ): Promise<T> {

@@ -1,6 +1,8 @@
-"""示例 Workspace 导入只消费公开平台 API 返回的真实版本、作业与回执，按依赖顺序创建和发布资产，进度中不保存密码或业务令牌，也不伪造编译结果。
+"""示例 Workspace 导入只消费公开平台 API 返回的真实版本、作业与回执，按依赖顺序创建和发布资产，
+进度中不保存密码或业务令牌，也不伪造编译结果。
 
-先用 workspace-only 创建空间，再由操作者登记或授权 Runtime。恢复时复核已发布内容，冲突停止，绝不覆盖其它人的编辑。验证等待有总时限，超时保留已完成对象供相同参数重新进入。
+先用 workspace-only 创建空间，再由操作者登记或授权 Runtime。恢复时复核已发布内容，冲突停止，绝不覆盖其它人的编辑。
+验证等待有总时限，超时保留已完成对象供相同参数重新进入。
 """
 
 import argparse
@@ -18,9 +20,11 @@ from .resources import sample_package
 
 
 def save_state(path: Path, state: dict[str, Any]) -> None:
-    """通过同目录私有临时文件和原子替换保存已完成的真实 API 标识，写入前拒绝符号链接及非私有旧文件，避免断电产生半截 JSON 或把会话材料写进共享路径。
+    """通过同目录私有临时文件和原子替换保存已完成的真实 API 标识，写入前拒绝符号链接及非私有旧文件，避免断电产生半截
+    JSON 或把会话材料写进共享路径。
 
-    进度仅含平台 origin、Workspace、凭据版本和资产标识。不保存 token、密码、Cookie、cleanupToken 或整个 API 响应。父目录由使用者创建并控制，不尝试自动修复不可信目录权限。
+    进度仅含平台 origin、Workspace、凭据版本和资产标识。不保存 token、密码、Cookie、cleanupToken 或整个 API 响应。
+    父目录由使用者创建并控制，不尝试自动修复不可信目录权限。
     """
     if path.exists() or path.is_symlink():
         info = path.lstat()
@@ -43,7 +47,8 @@ def save_state(path: Path, state: dict[str, Any]) -> None:
 
 
 def replace_ids(value: Any, aliases: dict[str, str]) -> Any:
-    """仅替换示例模板中完整匹配的 UUID 字符串，不解释 DSL 占位符、不执行任意表达式，保证变量绑定仍由真正的编译器和执行 SDK 按固定契约处理。
+    """仅替换示例模板中完整匹配的 UUID 字符串，不解释 DSL 占位符、不执行任意表达式，保证变量绑定仍由真正的编译器和执行
+    SDK 按固定契约处理。
     """
     if isinstance(value, dict):
         return {key: replace_ids(item, aliases) for key, item in value.items()}
@@ -53,9 +58,11 @@ def replace_ids(value: Any, aliases: dict[str, str]) -> Any:
 
 
 def publish(api: Platform, base: str, resource: dict[str, Any], content: dict[str, Any], timeout: int) -> str:
-    """复用真实草稿修订、服务端 sourceHash 预览和异步验证作业，仅在匹配回执可读取后调用发布端点；任何失败均保留草稿，不把排队状态写成已发布版本。
+    """复用真实草稿修订、服务端 sourceHash 预览和异步验证作业，仅在匹配回执可读取后调用发布端点；任何失败均保留草稿，
+    不把排队状态写成已发布版本。
 
-    已有发布版本必须与当前示例文档一致，否则明确停止。草稿被并发修改时使用平台原有 revision 冲突阻止覆盖。等待只用于读取真实编译结果，不调用内部完成或回执入口。
+    已有发布版本必须与当前示例文档一致，否则明确停止。草稿被并发修改时使用平台原有 revision 冲突阻止覆盖。
+    等待只用于读取真实编译结果，不调用内部完成或回执入口。
     """
     route = base + "/resources/" + resource["id"]
     if resource.get("latestVersionId"):
@@ -89,9 +96,11 @@ def publish(api: Platform, base: str, resource: dict[str, Any], content: dict[st
 
 
 def import_workspace(api: Platform, args: argparse.Namespace, state: dict[str, Any]) -> None:
-    """按真实依赖图导入七类资产及 HTTP 执行计划，认证适配器和密钥仅通过环境管理 API 创建，所有外部 UUID 都来自当前空间的服务端响应并在恢复时继续绑定原目标。
+    """按真实依赖图导入七类资产及 HTTP 执行计划，认证适配器和密钥仅通过环境管理 API 创建，所有外部 UUID
+    都来自当前空间的服务端响应并在恢复时继续绑定原目标。
 
-    第一阶段允许只创建 Workspace，便于操作者显式授权设备。正式导入需要员工环境管理权限、受信编译器及有效执行设备。业务地址来自 Runtime 可达的配置，绝不假定 localhost 指向控制服务。
+    第一阶段允许只创建 Workspace，便于操作者显式授权设备。正式导入需要员工环境管理权限、受信编译器及有效执行设备。
+    业务地址来自 Runtime 可达的配置，绝不假定 localhost 指向控制服务。
     """
     package = sample_package()
     if "sampleSourceInventory" in state and state["sampleSourceInventory"] != package["sourceInventory"]:
@@ -181,9 +190,11 @@ def import_workspace(api: Platform, args: argparse.Namespace, state: dict[str, A
 
 
 def main() -> None:
-    """读取非秘密命令参数和秘密环境，要求状态文件绑定相同平台及空间键，退出时尽力注销当前临时员工会话，错误输出只包含已受控的固定诊断信息。
+    """读取非秘密命令参数和秘密环境，要求状态文件绑定相同平台及空间键，退出时尽力注销当前临时员工会话，
+    错误输出只包含已受控的固定诊断信息。
 
-    参数不接受密码或业务令牌，防止操作系统进程列表泄漏。build SHA 来自目标应用，不能用 VeriQ 本身提交替代。示例导入不调用模型、不触发 Run、不自动授予 Runtime 信任。
+    参数不接受密码或业务令牌，防止操作系统进程列表泄漏。build SHA 来自目标应用，不能用 VeriQ 本身提交替代。
+    示例导入不调用模型、不触发 Run、不自动授予 Runtime 信任。
     """
     parser = argparse.ArgumentParser(description="Import real VeriQ sample assets through public APIs")
     parser.add_argument("--server", required=True)
@@ -224,7 +235,8 @@ def main() -> None:
 
 
 def entrypoint() -> None:
-    """安装后的模块和仓库薄入口共享同一失败映射，输出只使用受控错误描述而不包含命令环境或凭据正文，确保源码运行与 wheel 安装运行不会形成两套导入行为。
+    """安装后的模块和仓库薄入口共享同一失败映射，输出只使用受控错误描述而不包含命令环境或凭据正文，确保源码运行与 wheel
+    安装运行不会形成两套导入行为。
     """
     try:
         main()

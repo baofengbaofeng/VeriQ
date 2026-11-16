@@ -23,7 +23,8 @@ import {
     runStages,
 } from "../../../.github/scripts/production-layout.mjs";
 
-// 这些测试只使用测试自己创建的小文件与真实宿主子进程，验证生产布局调用方的失败关闭和物理事实，不把微型夹具当作真实 pnpm、原生 SDK 或目标 Runtime 验收结果。
+// 这些测试只使用测试自己创建的小文件与真实宿主子进程，验证生产布局调用方的失败关闭和物理事实，不把微型夹具当作真实 pnpm
+// 、原生 SDK 或目标 Runtime 验收结果。
 const fixture = async (body) => {
     const base = await mkdtemp(join(tmpdir(), "veriq-layout-test-"));
     try {
@@ -42,7 +43,8 @@ const nodeStage = (name, script, timeoutMs = 2000) => ({
     run: (command) => command(process.execPath, ["-e", script], process.cwd()),
 });
 
-// 真实退出零仍可能带有截断或关闭未知，调用方必须把这些正交事实逐一检查；手工翻转真实结果的单个字段只验证分类谓词，不替代已有进程管理器的行为测试。
+// 真实退出零仍可能带有截断或关闭未知，调用方必须把这些正交事实逐一检查；手工翻转真实结果的单个字段只验证分类谓词，不替
+// 代已有进程管理器的行为测试。
 test("classifies actual children and every success predicate", async () => {
     const result = await runBoundedAssetCli({
         executable: process.execPath,
@@ -71,7 +73,8 @@ test("classifies actual children and every success predicate", async () => {
     assert.equal(classifyCommandResult(absent), "FAIL");
 });
 
-// 每个失败阶段之后必须保留尚未执行状态，且捕获真实退出、管道溢出和期限事实；第二个阶段若被错误执行会产生清晰断言失败，不能通过伪造业务响应蒙混过关。
+// 每个失败阶段之后必须保留尚未执行状态，且捕获真实退出、管道溢出和期限事实；第二个阶段若被错误执行会产生清晰断言失败，
+// 不能通过伪造业务响应蒙混过关。
 for (const [label, script, timeoutMs] of [
     ["exit", "process.exit(7)", 2000],
     ["stdout overflow", "process.stdout.write(Buffer.alloc(70000));", 2000],
@@ -91,7 +94,8 @@ for (const [label, script, timeoutMs] of [
     });
 }
 
-// 完整原始清单必须逐字节保留，同名同版本的嵌套包具有不同根与文件归属；每个输出引用都核对实际长度和摘要，防止成功结果仅留下不可复核的内存汇总或省略的清单。
+// 完整原始清单必须逐字节保留，同名同版本的嵌套包具有不同根与文件归属；每个输出引用都核对实际长度和摘要，防止成功结果仅
+// 留下不可复核的内存汇总或省略的清单。
 test("keeps nested duplicate instances, original manifests, ownership and complete references", () =>
     fixture(async ({ root, evidenceDir }) => {
         const outer = join(root, "node_modules/pkg"),
@@ -130,7 +134,8 @@ test("keeps nested duplicate instances, original manifests, ownership and comple
         assert.equal(records.filter((entry) => entry.kind === "bin").length, 2);
     }));
 
-// 外部目标刻意放置无效清单，若观察器解引用目录或文件链接就会读到毒化字节并错误失败；合格结果仅保留链接原文和词法端点，不宣称目标内容或生产依赖边已经闭合。
+// 外部目标刻意放置无效清单，若观察器解引用目录或文件链接就会读到毒化字节并错误失败；合格结果仅保留链接原文和词法端点，
+// 不宣称目标内容或生产依赖边已经闭合。
 test("does not follow poisoned links and maps workspace endpoints lexically", () =>
     fixture(async ({ base, root, evidenceDir }) => {
         const outside = join(base, "outside"),
@@ -168,7 +173,8 @@ test("does not follow poisoned links and maps workspace endpoints lexically", ()
         );
     }));
 
-// 生产上限只允许在测试中缩小，任何非法清单、计数、路径或正文超限都必须抛出而不能截断成成功；同时核验未知选项和超大限额不会偷偷关闭默认保护。
+// 生产上限只允许在测试中缩小，任何非法清单、计数、路径或正文超限都必须抛出而不能截断成成功；同时核验未知选项和超大限额
+// 不会偷偷关闭默认保护。
 for (const [label, setup, limits] of [
     ["malformed manifest", async (root) => writeFile(join(root, "package.json"), "{"), {}],
     [
@@ -194,7 +200,8 @@ for (const [label, setup, limits] of [
         }));
 }
 
-// 模块导入必须没有命令、目录或日志副作用，子进程在空白目录中导入真实模块后只输出目录项；这能捕获意外顶层生产入口而不执行网络获取、pnpm 安装或真实工作流。
+// 模块导入必须没有命令、目录或日志副作用，子进程在空白目录中导入真实模块后只输出目录项；这能捕获意外顶层生产入口而不执
+// 行网络获取、pnpm 安装或真实工作流。
 test("import is inert in an empty working directory", () =>
     fixture(async ({ root }) => {
         const target = pathToFileURL(
@@ -217,7 +224,8 @@ test("import is inert in an empty working directory", () =>
         assert.deepEqual(await readdir(root), []);
     }));
 
-// stderr 超限不会主动杀死子进程，因此真实零退出仍然能携带截断事实；此用例直接覆盖调用方曾容易遗漏的组合，并确认阶段不能因为退出零而准许后续观察执行。
+// stderr 超限不会主动杀死子进程，因此真实零退出仍然能携带截断事实；此用例直接覆盖调用方曾容易遗漏的组合，并确认阶段不能
+// 因为退出零而准许后续观察执行。
 test("actual exit zero with truncated stderr still blocks later stages", async () => {
     const journal = await runStages({
         stages: [
@@ -234,7 +242,8 @@ test("actual exit zero with truncated stderr still blocks later stages", async (
     );
 });
 
-// 成功流水线的开始和结束事件均应可持久化，期限已过时不接纳任何新命令；两种真实调用共同验证 journal 不是事后猜测，且整体期限不能被每个阶段重新计时而延长。
+// 成功流水线的开始和结束事件均应可持久化，期限已过时不接纳任何新命令；两种真实调用共同验证 journal 不是事后猜测，且整体
+// 期限不能被每个阶段重新计时而延长。
 test("journals actual transitions and refuses expired overall admission", async () => {
     const events = [];
     const success = await runStages({
@@ -259,7 +268,8 @@ test("journals actual transitions and refuses expired overall admission", async 
     );
 });
 
-// 缩小单块 JSON 预算迫使普通文件事实分成多块，完整文件路径集合仍必须全部存在；每块独立可解析并核验摘要，证明分块不是静默丢弃尾部成员的另一种截断方式。
+// 缩小单块 JSON 预算迫使普通文件事实分成多块，完整文件路径集合仍必须全部存在；每块独立可解析并核验摘要，证明分块不是静
+// 默丢弃尾部成员的另一种截断方式。
 test("chunks inventories without omissions under a reduced JSON budget", () =>
     fixture(async ({ root, evidenceDir }) => {
         for (let index = 0; index < 16; index++)
@@ -286,7 +296,8 @@ test("chunks inventories without omissions under a reduced JSON budget", () =>
         );
     }));
 
-// 工作区端点不接受根外或非规范路径，包入口清单也不能借链接从外部读入；失败发生在内容解引用之前，输入根与证据根重叠时同样拒绝，避免将新输出再次当作被观察的源成员。
+// 工作区端点不接受根外或非规范路径，包入口清单也不能借链接从外部读入；失败发生在内容解引用之前，输入根与证据根重叠时同
+// 样拒绝，避免将新输出再次当作被观察的源成员。
 test("rejects linked package manifests and invalid workspace boundaries", () =>
     fixture(async ({ base, root, evidenceDir }) => {
         await assert.rejects(
@@ -309,7 +320,8 @@ test("rejects linked package manifests and invalid workspace boundaries", () =>
         await assert.rejects(collectLayoutMetadata({ root, evidenceDir, workspaceRoots: [] }));
     }));
 
-// 关闭未知夹具先由实际持有管道的进程发送 nonce 与身份确认，再让直接子进程退出零；控制器只能在捕获同一 READY 后判断关闭事实，启动未达条件会明确失败，不能把任意短期限当作继承管道已经建立的证明。
+// 关闭未知夹具先由实际持有管道的进程发送 nonce 与身份确认，再让直接子进程退出零；控制器只能在捕获同一 READY 后判断关闭
+// 事实，启动未达条件会明确失败，不能把任意短期限当作继承管道已经建立的证明。
 const inheritedPipeFixture = async (delayMs) => {
     const root = await mkdtemp(join(tmpdir(), "veriq-layout-pipe-")),
         nonce = randomUUID();
@@ -317,7 +329,8 @@ const inheritedPipeFixture = async (delayMs) => {
         releasePath = join(root, "release.json"),
         donePath = join(root, "done.json"),
         errorPath = join(root, "error.json");
-    // 三个握手标记都先完整写入同目录临时文件再 rename 发布，读取者只能见到缺失或完整 JSON；这防止 release 的创建与写入窗口被继承者误判成解析失败，同时保留真实异常文件而不把清理错误吞掉。
+    // 三个握手标记都先完整写入同目录临时文件再 rename 发布，读取者只能见到缺失或完整 JSON；这防止 release 的创建与写入
+    // 窗口被继承者误判成解析失败，同时保留真实异常文件而不把清理错误吞掉。
     const inheritor =
         `
         const fs = require("node:fs");
@@ -413,7 +426,8 @@ const inheritedPipeFixture = async (delayMs) => {
         primaryError = error;
         throw error;
     } finally {
-        // release 文件只对本次 nonce 生效，DONE 在继承的两个描述符真实关闭之后写入；条件轮询有独立短期限，失败时保留夹具并报告未知，不能在仍可能存在 writer 时递归删除以制造清理成功表象。
+        // release 文件只对本次 nonce 生效，DONE 在继承的两个描述符真实关闭之后写入；条件轮询有独立短期限，失败时保留夹
+        // 具并报告未知，不能在仍可能存在 writer 时递归删除以制造清理成功表象。
         const end = Date.now() + 2000;
         try {
             await writeFile(releasePath + ".tmp", JSON.stringify({ nonce }));
@@ -463,11 +477,13 @@ const inheritedPipeFixture = async (delayMs) => {
 
 test("actual unknown close follows actual inheritor READY", () => inheritedPipeFixture(0));
 
-// 额外的真实启动延迟超过旧夹具的一百二十毫秒，但不会改变生产期限或进程关闭谓词；该场景只运行一次，必须先收到实际继承者 READY 再观察未知关闭，不依赖重复执行或操作系统专用跳过来取得绿色结果。
+// 额外的真实启动延迟超过旧夹具的一百二十毫秒，但不会改变生产期限或进程关闭谓词；该场景只运行一次，必须先收到实际继承者
+// READY 再观察未知关闭，不依赖重复执行或操作系统专用跳过来取得绿色结果。
 test("delayed startup establishes READY before unchanged unknown-close predicates", () =>
     inheritedPipeFixture(250));
 
-// 真实固定版本的工具入口是 ESM loader 加 ESM bundle，兼容 CJS shim 不能推导出同名 dist 文件；微型夹具保留原始清单与实际文件摘要，但任何夹具包体都不执行，错误扩展名必须在真实文件读取时暴露。
+// 真实固定版本的工具入口是 ESM loader 加 ESM bundle，兼容 CJS shim 不能推导出同名 dist 文件；微型夹具保留原始清单与实际
+// 文件摘要，但任何夹具包体都不执行，错误扩展名必须在真实文件读取时暴露。
 const pnpmFixture = (body) =>
     fixture(async ({ root, base }) => {
         const packageRoot = join(root, "pnpm");
@@ -501,7 +517,8 @@ test("binds pinned pnpm ESM files and complete original package identity", () =>
         }
     }));
 
-// 固定版本与入口声明的拒绝必须先于任何错误路径回退，所有负例在真实自有目录中改变一项事实；链接祖先、根外路径及不能读取为普通实现正文的对象均失败，而不是靠兼容 shim 或另一个 bundle 猜测成功。
+// 固定版本与入口声明的拒绝必须先于任何错误路径回退，所有负例在真实自有目录中改变一项事实；链接祖先、根外路径及不能读取
+// 为普通实现正文的对象均失败，而不是靠兼容 shim 或另一个 bundle 猜测成功。
 for (const [label, change, pattern] of [
     [
         "version",
@@ -591,7 +608,8 @@ for (const [label, change, pattern] of [
         }));
 }
 
-// 工具根必须位于调用者已经持有的前缀内，验证入口前后还受原阶段截止时间约束；这些边界只作用于工具绑定，不延长生产阶段预算，也不把绝对路径正常化当作对外部来源的访问许可。
+// 工具根必须位于调用者已经持有的前缀内，验证入口前后还受原阶段截止时间约束；这些边界只作用于工具绑定，不延长生产阶段预
+// 算，也不把绝对路径正常化当作对外部来源的访问许可。
 test("rejects pinned pnpm root escape and expired binding deadline", () =>
     pnpmFixture(async ({ packageRoot, ownedRoot, base }) => {
         await assert.rejects(

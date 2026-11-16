@@ -1,4 +1,6 @@
-/** Windows Attempt 监督器把持久身份日志与原生 Job 守护的 START 门相连，业务输出和可信状态分帧处理；停止只接受匹配 SID、nonce、精确创建时间的排空证明，守护消失而无证明时保留隔离状态。 */
+/** Windows Attempt 监督器把持久身份日志与原生 Job 守护的 START 门相连，业务输出和可信状态分帧处理；停止只接受匹配 SID、
+ * nonce、精确创建时间的排空证明，守护消失而无证明时保留隔离状态。
+ */
 import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -16,7 +18,9 @@ interface Journal {
     guardianPid?: number;
     guardianStartTime?: string;
 }
-/** Windows 实现保持与 Linux 相同的有限 Attempt 生命周期接口，独立保存每次启动的 Job 身份和退出承诺；恢复停止不能依赖内存映射存在，必须重新检查持久日志和内核对象身份再发出请求。 */
+/** Windows 实现保持与 Linux 相同的有限 Attempt 生命周期接口，独立保存每次启动的 Job 身份和退出承诺；
+ * 恢复停止不能依赖内存映射存在，必须重新检查持久日志和内核对象身份再发出请求。
+ */
 export class WindowsProcesses {
     private live = new Map<string, OwnedProcess>();
     private stopping = new Map<string, Promise<StopReceipt>>();
@@ -39,7 +43,9 @@ export class WindowsProcesses {
             JSON.stringify(journal),
         );
     }
-    /** 启动先创建私有日志，再让守护挂起并归属 Job；只有 READY 中的双进程身份与内核查询一致且 RUNNING 日志落盘后才允许原生 START，因此取消或宿主死亡不会留下已运行却尚未登记的业务进程。 */
+    /** 启动先创建私有日志，再让守护挂起并归属 Job；只有 READY 中的双进程身份与内核查询一致且 RUNNING
+     * 日志落盘后才允许原生 START，因此取消或宿主死亡不会留下已运行却尚未登记的业务进程。
+     */
     async start(id: string, command: Command): Promise<OwnedProcess> {
         const native = windowsNative();
         if (this.live.has(id)) throw new Error("PROCESS_ALREADY_RUNNING");
@@ -213,15 +219,21 @@ export class WindowsProcesses {
             clearTimeout(timer);
         }
     }
-    /** 查询仅返回本次真实内核进程句柄的运行状态，访问被拒绝或身份不可读时抛出异常而不是当作已停止；业务停止证明仍必须走完整 Job 回执流程，不能把单个 PID 不存在等价为后代排空。 */
+    /** 查询仅返回本次真实内核进程句柄的运行状态，访问被拒绝或身份不可读时抛出异常而不是当作已停止；
+     * 业务停止证明仍必须走完整 Job 回执流程，不能把单个 PID 不存在等价为后代排空。
+     */
     async isRunning(pid: number) {
         return windowsNative().identity(pid)?.running ?? false;
     }
-    /** 内存中的活跃 Attempt 只用于宿主状态展示与重复启动保护，恢复流程仍以磁盘日志为准；释放连接不会删除未知日志，也不会把正在隔离的容量转换为可用执行配额。 */
+    /** 内存中的活跃 Attempt 只用于宿主状态展示与重复启动保护，恢复流程仍以磁盘日志为准；释放连接不会删除未知日志，
+     * 也不会把正在隔离的容量转换为可用执行配额。
+     */
     active() {
         return [...this.live.keys()];
     }
-    /** 同一 Attempt 的同时停止请求共享一个有界操作，身份和证明检查的任何失败都返回负回执；只有确认根进程已信号且 Job 为空的守护证明才能把持久状态转为 STOPPED 并释放宿主句柄。 */
+    /** 同一 Attempt 的同时停止请求共享一个有界操作，身份和证明检查的任何失败都返回负回执；只有确认根进程已信号且 Job
+     * 为空的守护证明才能把持久状态转为 STOPPED 并释放宿主句柄。
+     */
     terminateAttempt(id: string, reason: string): Promise<StopReceipt> {
         const existing = this.stopping.get(id);
         if (existing) return existing;
@@ -229,7 +241,9 @@ export class WindowsProcesses {
         this.stopping.set(id, operation);
         return operation;
     }
-    /** 凭据迁移只观察既有停止日志及匹配 SID、nonce 和双进程创建时间的原生排空证明，不向守护发送停止事件；任何私有读取或身份核验失败都保持未确认，不能通过缺失 PID 或人工 STOPPED 文本放行。 */
+    /** 凭据迁移只观察既有停止日志及匹配 SID、nonce 和双进程创建时间的原生排空证明，不向守护发送停止事件；
+     * 任何私有读取或身份核验失败都保持未确认，不能通过缺失 PID 或人工 STOPPED 文本放行。
+     */
     async confirmStopped(id: string): Promise<boolean> {
         try {
             const native = windowsNative();
@@ -285,7 +299,9 @@ export class WindowsProcesses {
         }
     }
     private async stop(id: string, reason: string): Promise<StopReceipt> {
-        /** 范围仅随本次真实排空成功分支声明，所有身份、nonce 与原生证明核验仍在下方完成；失败回执不借根进程消失补成全后代保证，旧证明本次重新核验后才生成新的明确范围。 */
+        /** 范围仅随本次真实排空成功分支声明，所有身份、nonce 与原生证明核验仍在下方完成；失败回执不借根进程消失补成全后
+         * 代保证，旧证明本次重新核验后才生成新的明确范围。
+         */
         const receipt = (processStopped: boolean, why = reason): StopReceipt => ({
             attemptId: id,
             processStopped,
@@ -323,7 +339,9 @@ export class WindowsProcesses {
             if (!guardian?.running) return receipt(false, "CONTAINMENT_LOST");
             if (guardian.sid !== journal.sid || guardian.startTime !== journal.guardianStartTime)
                 return receipt(false, "PROCESS_IDENTITY_CHANGED");
-            /** 日志中真实的守护身份不能替代工作进程身份核验，二者必须同时属于当前用户并匹配精确创建时间；原生层还会用同时持有的两个句柄和同一 nonce 打开绑定事件，避免独立真实字段被跨 Attempt 拼接。 */
+            /** 日志中真实的守护身份不能替代工作进程身份核验，二者必须同时属于当前用户并匹配精确创建时间；
+             * 原生层还会用同时持有的两个句柄和同一 nonce 打开绑定事件，避免独立真实字段被跨 Attempt 拼接。
+             */
             const worker = native.identity(journal.pid);
             if (!worker || worker.sid !== journal.sid || worker.startTime !== journal.startTime)
                 return receipt(false, "PROCESS_IDENTITY_CHANGED");
@@ -339,10 +357,14 @@ export class WindowsProcesses {
                 if (await confirmed()) return receipt(true);
                 await delay(20);
             }
-            /** 停止请求和等待期限均不能替代排空证明，即便此前核验通过也保留现有守护连接与占用状态；之后再次查询可以接受迟到的真实证明，不能靠关闭输入流造成新的终止副作用来掩盖未知状态。 */
+            /** 停止请求和等待期限均不能替代排空证明，即便此前核验通过也保留现有守护连接与占用状态；
+             * 之后再次查询可以接受迟到的真实证明，不能靠关闭输入流造成新的终止副作用来掩盖未知状态。
+             */
             return receipt(false, "PROCESS_STOP_UNCONFIRMED");
         } catch {
-            /** 身份查询或停止事件打开失败不授予关闭活跃守护标准输入的权限，因为管道 EOF 本身会终止整个 Job；保留宿主连接和隔离日志，等待真实所有权恢复后的显式停止与排空证明。 */
+            /** 身份查询或停止事件打开失败不授予关闭活跃守护标准输入的权限，因为管道 EOF 本身会终止整个 Job；
+             * 保留宿主连接和隔离日志，等待真实所有权恢复后的显式停止与排空证明。
+             */
             return receipt(false, "PROCESS_IDENTITY_UNKNOWN");
         }
     }

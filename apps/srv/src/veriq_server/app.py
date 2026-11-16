@@ -1,6 +1,8 @@
-"""Tornado 唯一应用工厂统一装配健康、构建信息、现有 API 与包内前端资源，并保留密码重置调度、身份注册表、导出并发槽和尝试证明校验器等既有运行依赖。
+"""Tornado 唯一应用工厂统一装配健康、构建信息、现有 API 与包内前端资源，并保留密码重置调度、身份注册表、
+导出并发槽和尝试证明校验器等既有运行依赖。
 
-production 先验证静态包库存与身份，缺失时不能绑定可服务的应用。development 不读取 dist，前端仍由独立 Vite 代理访问后端。未知 API 和内部路径先返回结构化错误，不能落入前端入口。公开文件与精确登记
+production 先验证静态包库存与身份，缺失时不能绑定可服务的应用。development 不读取 dist，前端仍由独立 Vite 代理访问后端。
+未知 API 和内部路径先返回结构化错误，不能落入前端入口。公开文件与精确登记
 SPA 路由之后才使用最终 JSON 404。控制面运行时仍不需要 Node 或 Chrome，执行能力继续由独立 Runtime 承担。
 """
 
@@ -46,12 +48,15 @@ log = logging.getLogger("veriq.http")
 
 
 class UnknownAPI(API):
-    """兜底处理器：对未登记路径的任意 HTTP 动词统一抛出 NOT_FOUND，避免静默 200 或方法泄露，UnknownAPI 的失败路径返回稳定错误。
-    UnknownAPI 实现于 apps/srv/src/veriq_server/app.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """兜底处理器：对未登记路径的任意 HTTP 动词统一抛出 NOT_FOUND，避免静默 200 或方法泄露，UnknownAPI
+    的失败路径返回稳定错误。
+    UnknownAPI 实现于 apps/srv/src/veriq_server/app.py：请按该符号的输入校验、错误码与调用方契约阅读，
+    勿假设通用成功默认值。
     """
 
     async def get(self, *args: str) -> None:
-        """拒绝未知路径上的 GET（以及其他动词别名），返回 404 问题对象给客户端，UnknownAPI.get 的失败路径返回稳定错误。get 实现于
+        """拒绝未知路径上的 GET（以及其他动词别名），返回 404 问题对象给客户端，UnknownAPI.get 的失败路径返回稳定错误。
+        get 实现于
 
         apps/srv/src/veriq_server/app.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
         """
@@ -66,7 +71,8 @@ class UnknownAPI(API):
 
 def handler_for(action: str) -> type[API]:
     """按路由动作名选择具体 API 处理器类；当动作未匹配时回退到 UnknownAPI，handler_for 的失败路径返回稳定错误。
-    handler_for 实现于 apps/srv/src/veriq_server/app.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    handler_for 实现于 apps/srv/src/veriq_server/app.py：请按该符号的输入校验、错误码与调用方契约阅读，
+    勿假设通用成功默认值。
     """
     if action == "operations-metrics":
         return OperationsAPI
@@ -191,11 +197,15 @@ def handler_for(action: str) -> type[API]:
 
 
 def make_app(settings: Settings, db: Database, delivery: Delivery | None = None) -> Application:
-    """构建唯一 Tornado Application 并在接受请求前校验正式静态发布输入，按既有动作表注入全部 API 依赖；新增文件与页面路由不创建第二工厂，也不替换原有身份、投递或调度控制插槽。
+    """构建唯一 Tornado Application 并在接受请求前校验正式静态发布输入，按既有动作表注入全部 API 依赖；
+    新增文件与页面路由不创建第二工厂，也不替换原有身份、投递或调度控制插槽。
 
-    静态预检先于路由与应用创建，生产缺包必须立即失败。delivery 的显式注入优先级仍高于 SMTP 配置默认值。既有 action 与 handler_for 映射保留，避免接口在装配中丢失。
-    健康与构建信息匿名端点位于普通业务路由之前。未知 api/internal 路径在静态处理之前封闭。公开文件路径来自已验证的库存集合，不来自磁盘扫描扩权。SPA 路径精确登记，不能通过客户端星号路由无限 fallback。
-    应用仍启用原有 CSRF Cookie 和正式 Secure+Strict 属性。日志只记录既有请求关联与耗时，不增加配置或路径载荷。export Semaphore、ResetDispatcher
+    静态预检先于路由与应用创建，生产缺包必须立即失败。delivery 的显式注入优先级仍高于 SMTP 配置默认值。既有 action 与
+    handler_for 映射保留，避免接口在装配中丢失。
+    健康与构建信息匿名端点位于普通业务路由之前。未知 api/internal 路径在静态处理之前封闭。公开文件路径来自已验证的库存集
+    合，不来自磁盘扫描扩权。SPA 路径精确登记，不能通过客户端星号路由无限 fallback。
+    应用仍启用原有 CSRF Cookie 和正式 Secure+Strict 属性。日志只记录既有请求关联与耗时，不增加配置或路径载荷。export
+    Semaphore、ResetDispatcher
     与证明校验器继续使用原有实例职责。
     """
     published_site = load_published_site(settings)
@@ -429,8 +439,10 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
     ]
 
     def request_log(handler: RequestHandler) -> None:
-        """结构化访问日志：仅记录请求 ID、方法、状态与耗时，不含路径参数与载荷；该符号的输入校验、错误返回与调用方契约以本文件实现为准。
-        request_log 实现于 apps/srv/src/veriq_server/app.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """结构化访问日志：仅记录请求 ID、方法、状态与耗时，不含路径参数与载荷；该符号的输入校验、
+        错误返回与调用方契约以本文件实现为准。
+        request_log 实现于 apps/srv/src/veriq_server/app.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
         """
         log.info(
             json.dumps(
@@ -457,7 +469,8 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
         (path, handler_for(action), {"config": settings, "db": db, "action": action})
         for path, action in routes
     ]
-    # API 与内部命名空间先封闭未知路径，再登记清单文件和精确 SPA 路由，最终结构化兜底保持所有旧错误语义；生产入口绝不接管未经登记的页面或证据下载。静态描述只在生产模式存在，因此开发 API 启动不读取 dist，也不依赖
+    # API 与内部命名空间先封闭未知路径，再登记清单文件和精确 SPA 路由，最终结构化兜底保持所有旧错误语义；
+    # 生产入口绝不接管未经登记的页面或证据下载。静态描述只在生产模式存在，因此开发 API 启动不读取 dist，也不依赖
     # Node 或浏览器。原有投递调度、导出并发和身份校验插槽继续由下方唯一 Application 实例保存。
     handlers.append((r"/(?:api|internal)(?:/.*)?", UnknownAPI, {"config": settings, "db": db}))
     if published_site is not None:

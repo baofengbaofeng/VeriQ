@@ -26,7 +26,8 @@ for (const launcher of ["node", "native"] as const)
             await mkdir(dirname(alias), { recursive: true });
             await mkdir(dirname(target), { recursive: true });
             await mkdir(join(root, "roles/runner"), { recursive: true });
-            // 单独测试载体只位于候选之外的微型目录，通过明确宿主 Node 执行原 JavaScript 来观察相对 require 和原始参数；它既不复制宿主二进制，也不会被报告为有效 Mac 角色或进入 stage 输出
+            // 单独测试载体只位于候选之外的微型目录，通过明确宿主 Node 执行原 JavaScript 来观察相对 require 和原始参数；
+            // 它既不复制宿主二进制，也不会被报告为有效 Mac 角色或进入 stage 输出
             // 。
             const carrier = `#!/bin/sh\nexec '${process.execPath.replaceAll("'", "'\\''")}' "$@"\n`;
             await writeFile(join(root, "roles/runner/veriq_runner"), carrier, { mode: 0o755 });

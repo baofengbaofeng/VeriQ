@@ -1,4 +1,5 @@
-"""RunService 在 Workspace 内创建幂等 Run、展开用例执行为 TEST Job，并处理取消；预算默认三十分钟。create 绑定已发布或冻结草稿用例版本；idempotency_key 冲突复用既有 Run。
+"""RunService 在 Workspace 内创建幂等 Run、展开用例执行为 TEST Job，并处理取消；预算默认三十分钟。create
+绑定已发布或冻结草稿用例版本；idempotency_key 冲突复用既有 Run。
 
 cancel 对未启动重试立即收尾并保留既有失败语义。
 """
@@ -24,7 +25,8 @@ from .execution_principal import ServicePrincipal
 
 def run_dto(run: Run) -> dict[str, Any]:
     """导出 Run 对外字段含状态与时间戳，供列表与详情 API 使用，run_dto 遵守本文件边界，失败返回稳定 Problem。
-    run_dto 实现于 apps/srv/src/veriq_server/services/runs.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    run_dto 实现于 apps/srv/src/veriq_server/services/runs.py：请按该符号的输入校验、错误码与调用方契约阅读，
+    勿假设通用成功默认值。
     """
     return {
         "id": run.id,
@@ -40,13 +42,16 @@ def run_dto(run: Run) -> dict[str, Any]:
 
 
 class RunService:
-    """编排 Run 创建、用例展开与取消，所有写入限定 actor 已授权 Workspace，RunService 遵守本文件边界。RunService 必须坚持 Workspace 归属与成员授权，
+    """编排 Run 创建、用例展开与取消，所有写入限定 actor 已授权 Workspace，RunService 遵守本文件边界。RunService
+    必须坚持 Workspace 归属与成员授权，
 
     嵌套资源引用不得跨空间隐式放行。
     """
 
     def __init__(self, session: AsyncSession, actor: User | ServicePrincipal):
-        """保存用户或独立服务主体并将审计归因单独保存，服务账号不会借用创建者的登录状态；计划标识只由受限触发服务设置，后续准入使用当前主体权限而非用户外键来判断是否允许执行。"""
+        """保存用户或独立服务主体并将审计归因单独保存，服务账号不会借用创建者的登录状态；计划标识只由受限触发服务设置，
+        后续准入使用当前主体权限而非用户外键来判断是否允许执行。
+        """
         self.session, self.actor = session, actor
         self.plan_id: str | None = None
         self.attribution = (
@@ -54,7 +59,9 @@ class RunService:
         )
 
     async def authorize(self, workspace_id: str) -> None:
-        """员工派发需要当前空间执行权限，独立服务主体则必须具有显式计划和触发范围；缺少计划时立即拒绝通用创建路径，避免受限令牌通过直接构造运行选择扩大其执行资源范围。"""
+        """员工派发需要当前空间执行权限，独立服务主体则必须具有显式计划和触发范围；缺少计划时立即拒绝通用创建路径，
+        避免受限令牌通过直接构造运行选择扩大其执行资源范围。
+        """
         if isinstance(self.actor, ServicePrincipal):
             if not self.plan_id:
                 raise Problem(403, "PLAN_REQUIRED", "Service execution requires an explicit plan")
@@ -65,7 +72,9 @@ class RunService:
             )
 
     async def get(self, workspace_id: str, run_id: str) -> Run:
-        """普通员工按当前空间成员资格读取运行，服务主体只读取当前授权计划的在线运行并复核冻结设备选择；不存在或跨空间的编号统一拒绝，原始证据权限仍由报告入口独立判定。"""
+        """普通员工按当前空间成员资格读取运行，服务主体只读取当前授权计划的在线运行并复核冻结设备选择；
+        不存在或跨空间的编号统一拒绝，原始证据权限仍由报告入口独立判定。
+        """
         if isinstance(self.actor, ServicePrincipal):
             return await self.actor.run(self.session, workspace_id, run_id)
         await WorkspaceRepository(self.session, WorkspaceScope(workspace_id)).authorize(self.actor)
@@ -75,7 +84,9 @@ class RunService:
         return run
 
     async def create(self, workspace_id: str, key: str, data: dict[str, Any]) -> dict[str, Any]:
-        """复用已验证发布来源冻结运行并展开用例矩阵，在创建任何变体前计算既有千条上限；主体权限、设备选择和幂等摘要先行验证，服务账号仅保留创建者归因而不继承员工访问权。"""
+        """复用已验证发布来源冻结运行并展开用例矩阵，在创建任何变体前计算既有千条上限；主体权限、
+        设备选择和幂等摘要先行验证，服务账号仅保留创建者归因而不继承员工访问权。
+        """
         await self.authorize(workspace_id)
         if not key or len(key) > 160:
             raise Problem(400, "IDEMPOTENCY_KEY_REQUIRED", "Bounded idempotency key required")
@@ -200,7 +211,8 @@ class RunService:
                         raise Problem(409, "COMPILED_PROVENANCE_REQUIRED", "Compiled bytes differ")
                 root = next(a for a in source["assets"] if a["versionId"] == version.id)
                 selections.append((root, source, validation, receipt.compiled_bundle_sha256))
-        # 先按冻结来源中的数据行、角色和浏览器数量计算矩阵，超过既有上限立即拒绝，避免在安装锁内逐个创建大量快照和数据库对象后才回滚事务。
+        # 先按冻结来源中的数据行、角色和浏览器数量计算矩阵，超过既有上限立即拒绝，避免在安装锁内逐个创建大量快照和数据库
+        # 对象后才回滚事务。
         cardinality = 0
         for root, source, _, _ in selections:
             assets = {a["versionId"]: a for a in source["assets"]}
@@ -443,7 +455,9 @@ class RunService:
         return run_dto(run)
 
     async def cancel(self, workspace_id: str, run_id: str) -> dict[str, Any]:
-        """员工取消继续要求空间执行权，独立服务主体则要求当前计划的取消范围并重新核对设备授权；已完成运行返回原有终态，其他运行只请求取消并由现有进程回收路径证明真实停止。"""
+        """员工取消继续要求空间执行权，独立服务主体则要求当前计划的取消范围并重新核对设备授权；已完成运行返回原有终态，
+        其他运行只请求取消并由现有进程回收路径证明真实停止。
+        """
         if isinstance(self.actor, ServicePrincipal):
             run = await self.actor.run(self.session, workspace_id, run_id, "cancel")
         else:

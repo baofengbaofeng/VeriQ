@@ -1,5 +1,7 @@
-/** Windows Credential Manager 测试仅操作随机测试档案的当前用户通用凭据，通过真实库存 helper 和公开生产消费者执行；不会枚举用户真实保险库、修改登录策略或令牌，也不把构建服务器结果称为 Windo
- * ws11 桌面安装验收。 */
+/** Windows Credential Manager 测试仅操作随机测试档案的当前用户通用凭据，通过真实库存 helper 和公开生产消费者执行；不会
+ * 枚举用户真实保险库、修改登录策略或令牌，也不把构建服务器结果称为 Windo
+ * ws11 桌面安装验收。
+ */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
@@ -166,7 +168,9 @@ test("production profile migration and reopen use real Windows credentials witho
         }
     }));
 
-/** 默认关闭的等待目标只用于观察宿主期限和真实子进程退出，正式 helper 字节另行核验且不包含等待命令；已经发送的写入超时必须保持不确定，释放同一路径 fence 需要实际退出，测试不会暂停系统凭据服务。 */
+/** 默认关闭的等待目标只用于观察宿主期限和真实子进程退出，正式 helper 字节另行核验且不包含等待命令；已经发送的写入超时必
+ * 须保持不确定，释放同一路径 fence 需要实际退出，测试不会暂停系统凭据服务。
+ */
 test("Windows helper deadline observes real exit and retains mutation uncertainty", async () => {
     const { WindowsVaultBackend } = await import("../../src/credentials/windows.ts");
     const driver = await readFile(
@@ -206,7 +210,9 @@ test("Windows helper deadline observes real exit and retains mutation uncertaint
     }
 });
 
-/** 正式 helper 的输入协议只接受单个有界版本帧，测试通过真实匿名管道保留输入直到程序自然退出；未知命令不能成为诊断后门，父端提前关闭时必须看到明确的控制关闭退出而非无限残留进程。 */
+/** 正式 helper 的输入协议只接受单个有界版本帧，测试通过真实匿名管道保留输入直到程序自然退出；未知命令不能成为诊断后门，
+ * 父端提前关闭时必须看到明确的控制关闭退出而非无限残留进程。
+ */
 test("formal Windows helper refuses malformed frames and exits on owned control EOF", async () => {
     const { spawn } = await import("node:child_process");
     const own = await windowsVaultDistribution(await helper());
@@ -261,7 +267,9 @@ test("formal Windows helper refuses malformed frames and exits on owned control 
     }
 });
 
-/** 父进程死亡测试让真实 Node 宿主持有等待 helper 的匿名输入，再仅终止本测试拥有的宿主；观察 helper 的当前 SID 与完整创建时间后确认原进程已退出，不用同名枚举或向一个重新查到的数字 PID 发送终止。 */
+/** 父进程死亡测试让真实 Node 宿主持有等待 helper 的匿名输入，再仅终止本测试拥有的宿主；观察 helper 的当前 SID 与完整创
+ * 建时间后确认原进程已退出，不用同名枚举或向一个重新查到的数字 PID 发送终止。
+ */
 test("Windows helper exits when its actual owning parent dies with control open", async () => {
     const { spawn } = await import("node:child_process");
     const { setTimeout: delay } = await import("node:timers/promises");
@@ -363,8 +371,10 @@ test("Windows helper exits when its actual owning parent dies with control open"
     }
 });
 
-/** 当前用户真实 Credential Manager 中的随机旧版本必须确实缺失，才能通过显式空初始化恢复建立新版本并使用生产消费者；该测试只记录范围内的验证结果，清理精确旧新目标，严格 owner 与已有真实停止断言均保持不变
- * 。 */
+/** 当前用户真实 Credential Manager 中的随机旧版本必须确实缺失，才能通过显式空初始化恢复建立新版本并使用生产消费者；该测
+ * 试只记录范围内的验证结果，清理精确旧新目标，严格 owner 与已有真实停止断言均保持不变
+ * 。
+ */
 test("real Windows vault recovers an explicitly abandoned empty initialization", async () =>
     fixture(async (root, _backend, distribution) => {
         const { verifyEmptyInitialization } = await import("../fixtures/vault-initialization.ts");
@@ -375,7 +385,9 @@ test("real Windows vault recovers an explicitly abandoned empty initialization",
         assert.equal(result.consumerReadback, true);
     }));
 
-/** 真实 Credential Manager 中的随机独立档案包含业务、设备和轮换三种用途，整体退役后必须实际查无精确密钥并拒绝重启自动初始化；测试保留公开标记与非秘密删除记录，不能把本机结果冒充控制平台撤销或磁盘物理擦除。 */
+/** 真实 Credential Manager 中的随机独立档案包含业务、设备和轮换三种用途，整体退役后必须实际查无精确密钥并拒绝重启自动初
+ * 始化；测试保留公开标记与非秘密删除记录，不能把本机结果冒充控制平台撤销或磁盘物理擦除。
+ */
 test("real Windows vault retires every credential purpose and confirms the exact key missing", async () =>
     fixture(async (root, _backend, distribution) => {
         const { verifyCredentialDeletion } = await import("../fixtures/vault-deletion.ts");

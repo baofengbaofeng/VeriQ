@@ -1,4 +1,6 @@
-/** 提供者测试仅使用有限合成对象和受控时钟检查已锁 Electron 的平台策略，公开探针不含用户数据；这里不会初始化 Electron、读取真实 Keychain、创建 Cookie 或把合成成功当成 Mac 原生验收。 */
+/** 提供者测试仅使用有限合成对象和受控时钟检查已锁 Electron 的平台策略，公开探针不含用户数据；这里不会初始化 Electron、
+ * 读取真实 Keychain、创建 Cookie 或把合成成功当成 Mac 原生验收。
+ */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { probeCookieProvider, type CookieSafeStorage } from "../src/main/cookie-provider.ts";

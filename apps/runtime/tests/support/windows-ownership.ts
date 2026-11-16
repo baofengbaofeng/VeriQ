@@ -1,4 +1,6 @@
-/** 所有权负例共用真实重命名 Node 与原生守护夹具，每个 Attempt 单独保存未经改写的日志；无论业务断言还是部分启动失败，清理都必须取得实际排空回执，未知状态只保留证据而不能删除目录。 */
+/** 所有权负例共用真实重命名 Node 与原生守护夹具，每个 Attempt 单独保存未经改写的日志；无论业务断言还是部分启动失败，清
+ * 理都必须取得实际排空回执，未知状态只保留证据而不能删除目录。
+ */
 import assert from "node:assert/strict";
 import type { TestContext } from "node:test";
 import { copyFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -8,7 +10,9 @@ import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { ProcessSupervisor } from "../../src/execution/processes.ts";
 
-/** 测试只对清理等待设置既有五秒上限，超时必须作为未知资源状态保留而不伪造停止成功；定时器总在操作结束后释放，实际停止仍由监督器核验身份、请求守护并读取真实排空证明。 */
+/** 测试只对清理等待设置既有五秒上限，超时必须作为未知资源状态保留而不伪造停止成功；定时器总在操作结束后释放，实际停止仍
+ * 由监督器核验身份、请求守护并读取真实排空证明。
+ */
 async function bounded<T>(operation: () => Promise<T>): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
@@ -23,18 +27,26 @@ async function bounded<T>(operation: () => Promise<T>): Promise<T> {
     }
 }
 
-/** 场景只能改写指定 Attempt 的测试日志或观察其真实工作进度，夹具另外持有不可被场景覆盖的原始字节；角色可执行文件来自当前固定 Node，所有停止操作仍经过正式监督器而非测试替代实现。 */
+/** 场景只能改写指定 Attempt 的测试日志或观察其真实工作进度，夹具另外持有不可被场景覆盖的原始字节；角色可执行文件来自当
+ * 前固定 Node，所有停止操作仍经过正式监督器而非测试替代实现。
+ */
 export interface WindowsOwnershipScenario {
     processes: ProcessSupervisor;
     role: string;
     journals: ReadonlyMap<string, Readonly<Record<string, unknown>>>;
-    /** 日志改写始终以该 Attempt 的原始数据为基础，仅替换当前负例指定的字段并保留原文件的 DACL；夹具的独立原始字节不会随此操作变化，供之后重新核验真实身份并合法排空使用。 */
+    /** 日志改写始终以该 Attempt 的原始数据为基础，仅替换当前负例指定的字段并保留原文件的 DACL；夹具的独立原始字节不会随
+     * 此操作变化，供之后重新核验真实身份并合法排空使用。
+     */
     replaceJournal(id: string, changes: Record<string, unknown>): Promise<void>;
-    /** 新挑战只在拒绝停止之后发给指定业务进程，每个进程必须继续处理并推进二十五次真实迭代；所有观察并行完成后统一报告，避免第一个断言失败掩盖另一个 Attempt 已被误停的事实。 */
+    /** 新挑战只在拒绝停止之后发给指定业务进程，每个进程必须继续处理并推进二十五次真实迭代；所有观察并行完成后统一报告，
+     * 避免第一个断言失败掩盖另一个 Attempt 已被误停的事实。
+     */
     requireProgress(ids: string[]): Promise<void>;
 }
 
-/** 夹具只在真实 Windows 原生测试中使用，启动前就记录待清理的 Attempt，以覆盖 READY 或业务握手中途失败；每次清理恢复精确日志并保留原始失败和排空错误，任何不确定状态都不能变成成功清理。 */
+/** 夹具只在真实 Windows 原生测试中使用，启动前就记录待清理的 Attempt，以覆盖 READY 或业务握手中途失败；每次清理恢复精确
+ * 日志并保留原始失败和排空错误，任何不确定状态都不能变成成功清理。
+ */
 export async function withWindowsOwnership(
     context: TestContext,
     ids: string[],

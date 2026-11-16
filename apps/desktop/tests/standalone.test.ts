@@ -5,7 +5,9 @@ import { createRequire } from "node:module";
 import { validateSchema } from "@veriq/contracts";
 import { schemaValidator } from "../../../packages/contracts/src/validators.ts";
 
-/** 构建出的静态校验器逐项对照原契约入口及跨语言规范样本，包括嵌套引用、非法附加字段和格式错误；这验证 CSP 兼容改动沿用相同规则，不能以空校验器换取桌面成功挂载。 */
+/** 构建出的静态校验器逐项对照原契约入口及跨语言规范样本，包括嵌套引用、非法附加字段和格式错误；这验证 CSP 兼容改动沿用
+ * 相同规则，不能以空校验器换取桌面成功挂载。
+ */
 test("desktop standalone validators preserve contract sample results and errors", async () => {
     const generated = createRequire(import.meta.url)("../../web/dist-desktop/validators.cjs");
     const cases: { schema: string; value: unknown; valid: boolean }[] = JSON.parse(

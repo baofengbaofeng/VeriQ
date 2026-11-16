@@ -415,8 +415,8 @@ export async function executeCase(
     }
     return evidence.redactProtocol(result as unknown as JsonValue) as unknown as CaseResult;
 }
-/**
- * 公开类型 ExecutionContextProvider 是创建浏览器上下文与生命周期依赖的工厂函数类型（ExecutionContextProvider/EXECUTION_CONTEXT_PROVIDER_REQUIRED）。
+/** 公开类型 ExecutionContextProvider 是创建浏览器上下文与生命周期依赖的工厂函数类型（ExecutionContextProvider/EXECUTION
+ * _CONTEXT_PROVIDER_REQUIRED）。
  */
 export type ExecutionContextProvider = (info: TestInfo) => Promise<Omit<ExecutionOptions, "page">>;
 let provider: ExecutionContextProvider | undefined;
