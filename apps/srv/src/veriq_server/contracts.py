@@ -1,7 +1,7 @@
 """从打包 schema 或源码树加载 platform-v1 契约，校验可移植 JSON，并计算资源快照的规范哈希与序列化输出。
 
-本模块运行时不依赖 Node 与检出树；wheel 内嵌 _schemas，可编辑安装回退到 packages/contracts。
-拒绝 NaN/Infinity 与超出 JS 安全整数的数值，保证跨语言契约与 rfc8785 规范字节一致。
+本模块运行时不依赖 Node 与检出树；wheel 内嵌 _schemas，可编辑安装回退到 packages/contracts。拒绝 NaN/Infinity 与超出 JS 安全整数的数值，保证跨语言契约与 rfc8785
+规范字节一致。
 """
 
 from __future__ import annotations

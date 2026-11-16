@@ -6,8 +6,8 @@ import { join } from "node:path";
 import { connect } from "node:net";
 import { AttemptBroker } from "../execution/broker.ts";
 /**
- * 公开函数 serveAgentControl 在配置根下打开带 nonce 的本机控制套接字，供同机 CLI 查询状态或请求停机。
- * 写入 agent-control.json 前先清除陈旧套接字；返回的关闭回调会拆除代理并删除控制描述文件。
+ * 公开函数 serveAgentControl 在配置根下打开带 nonce 的本机控制套接字，供同机 CLI 查询状态或请求停机。写入 agent-control.json 前先清除陈旧套接字；
+ * 返回的关闭回调会拆除代理并删除控制描述文件。
  */
 export async function serveAgentControl(root: string, stop: () => void) {
     await mkdir(root, { recursive: true, mode: 0o700 });
@@ -32,8 +32,8 @@ export async function serveAgentControl(root: string, stop: () => void) {
     };
 }
 /**
- * 公开函数 agentControl 连接本机 agent-control.json 描述的套接字，发送 stop/status 并校验 nonce 与超时。
- * 连接失败、超时或非 ok 应答一律映射为 AGENT_UNAVAILABLE，避免把内部错误细节泄漏给调用方。
+ * 公开函数 agentControl 连接本机 agent-control.json 描述的套接字，发送 stop/status 并校验 nonce 与超时。连接失败、超时或非 ok 应答一律映射为 AGENT_UNAVAILABLE，
+ * 避免把内部错误细节泄漏给调用方。
  */
 export async function agentControl(root: string, type: "stop" | "status") {
     const config = JSON.parse(await readFile(join(root, "agent-control.json"), "utf8")) as {

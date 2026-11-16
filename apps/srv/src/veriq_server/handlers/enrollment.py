@@ -146,8 +146,9 @@ class EnrollmentAPI(API):
 
 
 class RuntimeAPI(API):
-    """工作区 Runtime 管理：列表可见范围、授权共享、信任审批、凭据投递开关与吊销；信任审批与授权名单变更都写 runtime.* 审计事件。
-    RuntimeAPI 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """工作区 Runtime 管理：列表可见范围、授权共享、信任审批、凭据投递开关与吊销；信任审批与授权名单变更都写 runtime.* 审计事件。RuntimeAPI 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
 
     def prepare(self) -> None:
@@ -167,8 +168,9 @@ class RuntimeAPI(API):
             raise Problem(405, "METHOD_NOT_ALLOWED", "Method not allowed")
 
     async def get(self, workspace_id: str, runtime_id: str | None = None) -> None:
-        """GET 读取单机或列出本人拥有/被共享/服务账号（管理员）可见的 Runtime；可见性条件在 SQL 层用 OR 组合，避免应用层二次过滤泄露。
-        get 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """GET 读取单机或列出本人拥有/被共享/服务账号（管理员）可见的 Runtime；可见性条件在 SQL 层用 OR 组合，避免应用层二次过滤泄露。get 必须坚持 Workspace 归属与成员授权，
+
+        嵌套资源引用不得跨空间隐式放行。
         """
         if self.action not in {"runtimes", "runtime"}:
             raise Problem(405, "METHOD_NOT_ALLOWED", "Method not allowed")
@@ -226,8 +228,9 @@ class RuntimeAPI(API):
             )
 
     async def put(self, workspace_id: str, runtime_id: str) -> None:
-        """PUT 更新授权名单、凭据投递开关或由系统管理员审批 MANAGED 信任；凭据投递打开时额外要求 MANAGE_ENVIRONMENT 写权限。
-        put 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """PUT 更新授权名单、凭据投递开关或由系统管理员审批 MANAGED 信任；凭据投递打开时额外要求 MANAGE_ENVIRONMENT 写权限。put 必须坚持 Workspace 归属与成员授权，
+
+        嵌套资源引用不得跨空间隐式放行。
         """
         if self.action not in {"runtime-grants", "runtime-trust", "runtime-delivery"}:
             raise Problem(405, "METHOD_NOT_ALLOWED", "Method not allowed")
@@ -293,8 +296,9 @@ class RuntimeAPI(API):
         self.respond(result)
 
     async def post(self, workspace_id: str, runtime_id: str) -> None:
-        """POST runtime-revoke：所有者吊销信任、停用绑定并关闭凭据投递；吊销后 binding.active=False，后续派发将被拒绝。
-        post 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """POST runtime-revoke：所有者吊销信任、停用绑定并关闭凭据投递；吊销后 binding.active=False，后续派发将被拒绝。post 必须坚持 Workspace 归属与成员授权，
+
+        嵌套资源引用不得跨空间隐式放行。
         """
         if self.action != "runtime-revoke":
             raise Problem(405, "METHOD_NOT_ALLOWED", "Method not allowed")

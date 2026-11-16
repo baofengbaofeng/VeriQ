@@ -101,8 +101,7 @@ export async function createDarwinSource(
 
 /**
  * 安装宿主只能从完整 Mac 库存解析器的原对象取得原生能力，实际探针使用同一库存中的独立 Runner Node 与固定观察器；Electron 主进程因此仍不被当成 Node24，执行路径、浏览器和版本均来自不可变的已核发行。
- * 本函数会在真实运行阶段执行有限观察器探针，源码交付阶段不调用，不通过任何探针结果授予任意后代清理或产品 ready。
- * 私有临时目录先交原生同句柄策略检查，失败不回退到普通路径创建或已开发模块。
+ * 本函数会在真实运行阶段执行有限观察器探针，源码交付阶段不调用，不通过任何探针结果授予任意后代清理或产品 ready。私有临时目录先交原生同句柄策略检查，失败不回退到普通路径创建或已开发模块。
  */
 export async function createDarwinDistribution(
     distribution: RuntimeDistribution,

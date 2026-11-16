@@ -9,8 +9,7 @@ import { isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * 参数只允许一个明确绝对缓存目录与可选独立测试开关，pnpm 传来的单个分隔符在解析前移除；拒绝多余参数以免把拼写错误静默解释成正式构建或把 header 下载到本地默认全局缓存。
- * 缓存路径只用于构建工具，不能变成产品原生模块搜索路径。
+ * 参数只允许一个明确绝对缓存目录与可选独立测试开关，pnpm 传来的单个分隔符在解析前移除；拒绝多余参数以免把拼写错误静默解释成正式构建或把 header 下载到本地默认全局缓存。缓存路径只用于构建工具，不能变成产品原生模块搜索路径。
  * 非 Mac 宿主在任何目录创建和 node-gyp 调用前拒绝，不下载 Darwin headers 到 Linux。
  */
 if (process.platform !== "darwin") throw new Error("DARWIN_NATIVE_BUILD_REQUIRED");
@@ -29,12 +28,9 @@ const headers = resolve(args[0]);
 const native = new URL("native/darwin/", root);
 
 /**
- * 原生调用采用参数数组且明确独立目录和 header 缓存，测试开关只决定是否构建额外 addon；正式代码没有测试宏，后续加载器也只寻找正式 Darwin 产物，不会把测试二进制作为回退。
- * 继承标准输出保留真实 clang/node-gyp 错误，失败不复制旧成功产物冒充本轮输出。
- * Node 头文件下载只发生在 CI 已分配的真实 Mac 构建环境。
- * 缓存由 runner-temp 显式传入，安装过程中不会自动执行本脚本。
- * node-gyp 的所有非零结果阻止后续复制，不把旧构建输出当作当前成功。
- * testSchedules 只作为 gyp 变量，不传入产品运行环境。
+ * 原生调用采用参数数组且明确独立目录和 header 缓存，测试开关只决定是否构建额外 addon；正式代码没有测试宏，后续加载器也只寻找正式 Darwin 产物，不会把测试二进制作为回退。继承标准输出保留真实
+ * clang/node-gyp 错误，失败不复制旧成功产物冒充本轮输出。Node 头文件下载只发生在 CI 已分配的真实 Mac 构建环境。缓存由 runner-temp 显式传入，安装过程中不会自动执行本脚本。node-gyp
+ * 的所有非零结果阻止后续复制，不把旧构建输出当作当前成功。testSchedules 只作为 gyp 变量，不传入产品运行环境。
  */
 await mkdir(headers, { recursive: true, mode: 0o700 });
 execFileSync(

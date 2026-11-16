@@ -19,10 +19,7 @@ const messages: Record<string, string> = {
     DOCUMENT_HASH_MISMATCH: "Resource document integrity check failed.",
     INVALID_ENTRY_CASE: "Selected entry is not a case version.",
 };
-/**
- * 公开函数 safeDiagnostics 截断并脱敏 ValidationIssue：路径段不在白名单时标记 REDACTED。
- * 消息映射到稳定中文友好说明。
- */
+/** 公开函数 safeDiagnostics 截断并脱敏 ValidationIssue：路径段不在白名单时标记 REDACTED。消息映射到稳定中文友好说明。 */
 export function safeDiagnostics(issues: ValidationIssue[]) {
     return issues.slice(0, 100).map((issue) => {
         const exact =

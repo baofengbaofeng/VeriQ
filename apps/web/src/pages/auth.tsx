@@ -9,10 +9,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { Auth } from "../auth-context";
 import { Notice, Field, useAction, values, Panel } from "../ui";
-/**
- * 邮箱密码登录表单：调用 api.login 后 auth.refresh，失败由 useAction 写入 Notice。
- * 已登录用户由路由层 Navigate 到 /account，本组件不重复判断。
- */
+/** 邮箱密码登录表单：调用 api.login 后 auth.refresh，失败由 useAction 写入 Notice。已登录用户由路由层 Navigate 到 /account，本组件不重复判断。 */
 export function SignIn() {
     useAppLocale();
     const a = useAction(),
@@ -41,8 +38,7 @@ export function SignIn() {
     );
 }
 /**
- * 首次安装：用 installationSecret 创建系统管理员，成功后 setupComplete 并跳转登录。重复初始化由服务端拒绝。
- * 仅在 setup.initialized=false 时由路由展示；密码最少 12 字符。
+ * 首次安装：用 installationSecret 创建系统管理员，成功后 setupComplete 并跳转登录。重复初始化由服务端拒绝。仅在 setup.initialized=false 时由路由展示；密码最少 12 字符。
  */
 export function Setup() {
     useAppLocale();
@@ -92,10 +88,7 @@ export function Setup() {
         </Panel>
     );
 }
-/**
- * 提交邮箱触发 api.resetRequest；无论账号是否存在都显示中性成功提示以防枚举。不区分邮箱是否注册；成功文案保持中性以防止邮箱枚举攻击。
- * 实际重置链接由管理员签发或邮件投递，本页不展示令牌。
- */
+/** 提交邮箱触发 api.resetRequest；无论账号是否存在都显示中性成功提示以防枚举。不区分邮箱是否注册；成功文案保持中性以防止邮箱枚举攻击。实际重置链接由管理员签发或邮件投递，本页不展示令牌。 */
 export function ResetRequest() {
     useAppLocale();
     const a = useAction();
@@ -128,10 +121,7 @@ export function ResetRequest() {
         </Panel>
     );
 }
-/**
- * 从 location.hash 读取一次性 token 后立即清 hash，再调用 resetConfirm 设置新密码。
- * 缺少 token 时仅告警；成功后 refresh 会话以便进入账户。
- */
+/** 从 location.hash 读取一次性 token 后立即清 hash，再调用 resetConfirm 设置新密码。缺少 token 时仅告警；成功后 refresh 会话以便进入账户。 */
 export function ResetConfirm() {
     useAppLocale();
     const auth = useContext(Auth);

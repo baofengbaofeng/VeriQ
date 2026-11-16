@@ -1,6 +1,6 @@
-"""ResourceRepository 在已授权 WorkspaceScope 内读取资源、草稿、版本、任务与内联产物，写路径必须先持有安装行锁护栏。
-全部查询附加 workspace_id；产物读取校验 sha256、长度与未过期；store 以内容寻址写入 INLINE。
-外部后端未过期对象在钉死内联字节前先 retire，避免双后端同时指向同一 digest。
+"""ResourceRepository 在已授权 WorkspaceScope 内读取资源、草稿、版本、任务与内联产物，写路径必须先持有安装行锁护栏。全部查询附加 workspace_id；产物读取校验 sha256、长度与未过期；
+
+store 以内容寻址写入 INLINE。外部后端未过期对象在钉死内联字节前先 retire，避免双后端同时指向同一 digest。
 """
 
 from typing import Protocol, cast
@@ -157,8 +157,7 @@ class ResourceRepository:
             )
             await self.session.flush()
         elif existing.content is None or existing.expired_at is not None:
-            # 后续源码或清单写入会把精确字节钉死为内联；原始读取 ACL
-            # 仍绑定 AttemptUpload，而不是物理存储形态本身。
+            # 后续源码或清单写入会把精确字节钉死为内联；原始读取 ACL 仍绑定 AttemptUpload，而不是物理存储形态本身。
             if existing.storage_backend != "INLINE" and existing.expired_at is None:
                 from ..services.publication import retire
 

@@ -9,8 +9,8 @@ from ..service import Problem
 
 
 def adapter_dto(row: AuthAdapterVersion) -> dict[str, Any]:
-    """把认证适配器版本行投影为对外 DTO，只暴露配置哈希与内容而不泄露内部审计字段；供注册表冻结与 HTTP 列表共用，保持字段稳定。
-    adapter_dto 触及凭证材料：管理面不得回传明文，日志与审计只能保留摘要或引用标识。
+    """把认证适配器版本行投影为对外 DTO，只暴露配置哈希与内容而不泄露内部审计字段；供注册表冻结与 HTTP 列表共用，保持字段稳定。adapter_dto 触及凭证材料：管理面不得回传明文，日志与审计只能保留摘要或引用标识。
+
     """
     return {
         "workspaceId": row.workspace_id,
@@ -21,8 +21,9 @@ def adapter_dto(row: AuthAdapterVersion) -> dict[str, Any]:
 
 
 class IdentityRegistry:
-    """发布前身份冻结注册表：校验适配器未撤销、密钥版本仍可用，并收紧 allowedIdentityIds；冻结顺序先适配器再密钥，降低死锁与竞态窗口。
-    IdentityRegistry 触及凭证材料：管理面不得回传明文，日志与审计只能保留摘要或引用标识。
+    """发布前身份冻结注册表：校验适配器未撤销、密钥版本仍可用，并收紧 allowedIdentityIds；冻结顺序先适配器再密钥，降低死锁与竞态窗口。IdentityRegistry 触及凭证材料：管理面不得回传明文，
+
+    日志与审计只能保留摘要或引用标识。
     """
 
     async def adapter(
@@ -54,8 +55,9 @@ class IdentityRegistry:
     async def require_role(
         self, session: AsyncSession, scope: WorkspaceScope, role: dict[str, Any]
     ) -> None:
-        """校验角色绑定的适配器与密钥版本均未撤销，且显式身份集合不超出密钥允许范围；allowedIdentityIds 必须非空且为密钥允许集子集。
-        require_role 触及凭证材料：管理面不得回传明文，日志与审计只能保留摘要或引用标识。
+        """校验角色绑定的适配器与密钥版本均未撤销，且显式身份集合不超出密钥允许范围；allowedIdentityIds 必须非空且为密钥允许集子集。require_role 触及凭证材料：管理面不得回传明文，
+
+        日志与审计只能保留摘要或引用标识。
         """
         await self.adapter(session, scope, role["authAdapterVersionId"])
         row = (
@@ -86,8 +88,8 @@ class IdentityRegistry:
     async def freeze(
         self, session: AsyncSession, scope: WorkspaceScope, roles: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        """按稳定顺序冻结 Attempt 身份引用，返回去重后的适配器快照供导出与解析共用；返回按 versionId 排序的去重适配器快照列表。
-        freeze 触及凭证材料：管理面不得回传明文，日志与审计只能保留摘要或引用标识。
+        """按稳定顺序冻结 Attempt 身份引用，返回去重后的适配器快照供导出与解析共用；返回按 versionId 排序的去重适配器快照列表。freeze 触及凭证材料：管理面不得回传明文，日志与审计只能保留摘要或引用标识。
+
         """
         result = {}
         for version in sorted({role["authAdapterVersionId"] for role in roles}):

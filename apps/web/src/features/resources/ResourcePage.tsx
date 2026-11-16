@@ -69,8 +69,7 @@ function useLifetime(parent?: AbortSignal) {
     return signal;
 }
 /**
- * 按 kind 过滤入口（默认全部资源）；挂载工作区选择后渲染 ResourceWorkspaceView。environments 路由传入固定 kind。
- * 环境页可传入固定 kind=ENVIRONMENT 复用同一套列表逻辑。
+ * 按 kind 过滤入口（默认全部资源）；挂载工作区选择后渲染 ResourceWorkspaceView。environments 路由传入固定 kind。环境页可传入固定 kind=ENVIRONMENT 复用同一套列表逻辑。
  */
 export function ResourcePage({
     initialKind,
@@ -167,8 +166,8 @@ function CloudWorkspace({
     );
 }
 /**
- * 拥有资源表、创建表单与当前编辑目标；表格 data 引用保持稳定以免 TanStack 重置环。创建成功后选中新资源；创建成功后立刻把表格选中项切到新资源。
- * 选中后打开 ResourceEditorView；错误态用 ErrorState+retry。
+ * 拥有资源表、创建表单与当前编辑目标；表格 data 引用保持稳定以免 TanStack 重置环。创建成功后选中新资源；创建成功后立刻把表格选中项切到新资源。选中后打开 ResourceEditorView；错误态用
+ * ErrorState+retry。
  */
 export function ResourceWorkspaceView({
     workspace,
@@ -199,8 +198,8 @@ export function ResourceWorkspaceView({
         initialPageParam: undefined as string | undefined,
         getNextPageParam: (p) => p.nextCursor ?? undefined,
     });
-    // 资源列表的数据引用必须在创建表单编辑期间保持稳定，因为 TanStack Table 会在引用变化时重置内部行状态；已有资源也不能触发不断重排的渲染循环。
-    // 仅在分页资源数据变化时重新展开列表，同一资源查询的普通父级重渲染继续使用既有数组。
+    // 资源列表的数据引用必须在创建表单编辑期间保持稳定，因为 TanStack Table 会在引用变化时重置内部行状态；已有资源也不能触发不断重排的渲染循环。仅在分页资源数据变化时重新展开列表，
+    // 同一资源查询的普通父级重渲染继续使用既有数组。
     const items = useMemo(
         () => resources.data?.pages.flatMap((p) => p.items) ?? [],
         [resources.data],

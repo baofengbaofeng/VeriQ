@@ -1,7 +1,7 @@
 """OpenAPI 组件校验：从源码 YAML 或打包 _openapi.json 解析文档，并绑定 platform-v1 schema 以复用 Id/Timestamp 格式。
 
-运行时控制面不依赖 Node；可编辑安装读仓库 contracts，wheel 安装读包内固化 OpenAPI/schema。
-validate_api 按组件名解析 $ref，校验失败由 jsonschema 抛出，调用方映射为 400 级请求错误。
+运行时控制面不依赖 Node；可编辑安装读仓库 contracts，wheel 安装读包内固化 OpenAPI/schema。validate_api 按组件名解析 $ref，校验失败由 jsonschema 抛出，调用方映射为 400
+级请求错误。
 """
 
 import json

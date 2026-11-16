@@ -27,10 +27,8 @@ def wheelhouse(
 ) -> list[dict[str, Any]]:
     """先让 uv 按冻结锁导出生产依赖，再从每个锁定包的 wheel 列表选择当前 ABI 可安装的兼容文件；缺少二进制、哈希不符或空间不足均失败，不用宿主编译产物补齐发行。
 
-    marker 由 packaging 标准解析器按当前 Python3.12 Linux 环境判断。
-    wheel 文件名与标签由同一成熟库解析。
-    下载以临时文件落盘，校验后才改名为可安装 wheel。
-    requirements.txt 保留 uv 给出的完整哈希供离线审计。
+    marker 由 packaging 标准解析器按当前 Python3.12 Linux 环境判断。wheel 文件名与标签由同一成熟库解析。下载以临时文件落盘，校验后才改名为可安装 wheel。requirements.txt
+    保留 uv 给出的完整哈希供离线审计。
     """
     exported = run_process(
         [

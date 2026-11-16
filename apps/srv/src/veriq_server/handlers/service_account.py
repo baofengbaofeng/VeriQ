@@ -7,8 +7,9 @@ from .base import API
 
 
 class ServiceAccountAPI(API):
-    """工作区服务账号治理：分页列出、创建账号、签发/吊销令牌以及禁用账号；令牌明文仅在签发响应出现一次，库内只存摘要。（ServiceAccountAPI）
-    ServiceAccountAPI 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """工作区服务账号治理：分页列出、创建账号、签发/吊销令牌以及禁用账号；令牌明文仅在签发响应出现一次，库内只存摘要。（ServiceAccountAPI）ServiceAccountAPI 必须坚持 Workspace
+
+    归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
 
     def prepare(self) -> None:

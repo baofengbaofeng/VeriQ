@@ -6,11 +6,7 @@ import type { JsonValue } from "@veriq/contracts";
 import { validateSchema } from "@veriq/contracts";
 import { readPrivate, updatePrivate } from "../offline/config.ts";
 import { CredentialProfile, type CredentialOptions } from "./profile.ts";
-/**
- * 公开类型 SecretReference 钉选 issuer/workspace/secretRef/versionId。
- * 四元组缺一不可。
- * 防止模糊解析到错误密钥。
- */
+/** 公开类型 SecretReference 钉选 issuer/workspace/secretRef/versionId。四元组缺一不可。防止模糊解析到错误密钥。 */
 export type SecretReference = {
     issuerId: string;
     workspaceId: string;

@@ -14,10 +14,8 @@ export interface Employee {
 }
 
 async function employees(code: string, signal: AbortSignal): Promise<Employee[]> {
-    // 查询遵守当前正常应用会话，不从组件属性接收高权限 fixture token；AbortSignal 交给 fetch，旧数据范围卸载时可以取消请求，避免旧响应覆盖新的业务范围。
-    // Query key 同时包含 code，使每个独立夹具的缓存隔离，不共享上一轮测试记录。
-    // 失败仅抛固定诊断，原始请求头、业务响应和会话 Cookie 不进入异常文本。
-    // 示例结果来自真正 HTTP GET，页面不会把 mutation 参数伪装成持久化数据。
+    // 查询遵守当前正常应用会话，不从组件属性接收高权限 fixture token；AbortSignal 交给 fetch，旧数据范围卸载时可以取消请求，避免旧响应覆盖新的业务范围。Query key 同时包含 code，
+    // 使每个独立夹具的缓存隔离，不共享上一轮测试记录。失败仅抛固定诊断，原始请求头、业务响应和会话 Cookie 不进入异常文本。示例结果来自真正 HTTP GET，页面不会把 mutation 参数伪装成持久化数据。
     const response = await fetch(`/employees?${new URLSearchParams({ code })}`, { signal });
     if (!response.ok) throw new Error("Employee query failed");
     const body: { items: Employee[] } = await response.json();

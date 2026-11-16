@@ -1,6 +1,6 @@
-"""PublishService 在校验回执与草稿修订一致后发布不可变资源版本，并更新 latest_version_id，失败不留半发布状态。
-继承 ResourceService 的授权与修订检查；发布必须 MANAGED 回执且源哈希匹配。
-receipt_dto 导出回执稳定字段供 API 展示。
+"""PublishService 在校验回执与草稿修订一致后发布不可变资源版本，并更新 latest_version_id，失败不留半发布状态。继承 ResourceService 的授权与修订检查；发布必须 MANAGED
+
+回执且源哈希匹配。receipt_dto 导出回执稳定字段供 API 展示。
 """
 
 import json
@@ -35,8 +35,9 @@ def receipt_dto(row: ValidationReceipt) -> dict[str, Any]:
 
 
 class PublishService(ResourceService):
-    """在回执门禁通过后冻结草稿为 ResourceVersion，并维护依赖边与最新指针，PublishService 遵守本文件 Workspace/事务边界。
-    PublishService 属于发布/围栏相关逻辑：未满足设备、租约或引擎清单条件时不得把排队当成已验证发布。
+    """在回执门禁通过后冻结草稿为 ResourceVersion，并维护依赖边与最新指针，PublishService 遵守本文件 Workspace/事务边界。PublishService 属于发布/围栏相关逻辑：未满足设备、
+
+    租约或引擎清单条件时不得把排队当成已验证发布。
     """
 
     async def publish(

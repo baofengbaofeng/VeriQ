@@ -1,5 +1,5 @@
-"""RunService 在 Workspace 内创建幂等 Run、展开用例执行为 TEST Job，并处理取消；预算默认三十分钟。
-create 绑定已发布或冻结草稿用例版本；idempotency_key 冲突复用既有 Run。
+"""RunService 在 Workspace 内创建幂等 Run、展开用例执行为 TEST Job，并处理取消；预算默认三十分钟。create 绑定已发布或冻结草稿用例版本；idempotency_key 冲突复用既有 Run。
+
 cancel 对未启动重试立即收尾并保留既有失败语义。
 """
 
@@ -40,8 +40,9 @@ def run_dto(run: Run) -> dict[str, Any]:
 
 
 class RunService:
-    """编排 Run 创建、用例展开与取消，所有写入限定 actor 已授权 Workspace，RunService 遵守本文件边界。
-    RunService 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """编排 Run 创建、用例展开与取消，所有写入限定 actor 已授权 Workspace，RunService 遵守本文件边界。RunService 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
 
     def __init__(self, session: AsyncSession, actor: User | ServicePrincipal):

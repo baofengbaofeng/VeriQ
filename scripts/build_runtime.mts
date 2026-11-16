@@ -15,8 +15,8 @@ import type { ExpectedPayloadInputs } from "../apps/runtime/scripts/runtime-payl
 import type { MacChromeLayout, MacRuntimeArch } from "../apps/runtime/src/distribution-manifest-v2.ts";
 
 /**
- * 命令行只接受固定动作的精确参数集合和绝对宿主路径，每个参数仅能出现一次；没有环境变量后备、隐式下载、默认发行版本或从候选清单推导出的可信期望值。
- * 单独 package 需要独立 Mac policy 文档才能允许 Framework 链接，非 Mac 不提供此文档并坚持原有无链接合同。
+ * 命令行只接受固定动作的精确参数集合和绝对宿主路径，每个参数仅能出现一次；没有环境变量后备、隐式下载、默认发行版本或从候选清单推导出的可信期望值。单独 package 需要独立 Mac policy 文档才能允许 Framework
+ * 链接，非 Mac 不提供此文档并坚持原有无链接合同。
  */
 function argumentsFor(command: string | undefined, args: string[]): Map<string, string> {
     const definitions: Record<string, { required: string[]; optional?: string[] }> = {

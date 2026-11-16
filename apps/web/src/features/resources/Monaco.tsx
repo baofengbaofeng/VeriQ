@@ -23,10 +23,7 @@ import TsWorker from "monaco-editor/language/typescript/ts.worker?worker";
               ? new TsWorker()
               : new EditorWorker(),
 };
-/**
- * 受控编辑器：value/onChange；只读时隐藏写入能力，供草稿 JSON 与生成源码共用。卸载时dispose编辑器实例。
- * 主题与字号固定；语言由 props 指定。
- */
+/** 受控编辑器：value/onChange；只读时隐藏写入能力，供草稿 JSON 与生成源码共用。卸载时dispose编辑器实例。主题与字号固定；语言由 props 指定。 */
 export function Monaco({
     value,
     onChange,
@@ -106,10 +103,7 @@ export function Monaco({
         </div>
     );
 }
-/**
- * 并排展示 original/modified 文本差异，用于版本内容对比，二者皆只读。左右滚动默认联动；左右窗格皆只读并且默认保持滚动位置联动。
- * 不发起网络；字符串已由适配器加载。
- */
+/** 并排展示 original/modified 文本差异，用于版本内容对比，二者皆只读。左右滚动默认联动；左右窗格皆只读并且默认保持滚动位置联动。不发起网络；字符串已由适配器加载。 */
 export function MonacoDiff({ original, modified }: { original: string; modified: string }) {
     useAppLocale();
     const localizedLabel = tx("Version difference");

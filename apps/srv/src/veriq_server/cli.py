@@ -1,7 +1,6 @@
 """操作员 CLI：初始化配置与安装密钥、迁移、诊断、创建管理员或启动 Tornado 控制服务，失败信息刻意不回显敏感输入。
 
-`init` 以 0600 独占写配置与 installation-secret，并登记密钥摘要；重复 init 保留已有主密钥环字节。
-issuer 子命令仅输出公钥元数据；create-admin 消费安装密钥后删除密钥文件。
+`init` 以 0600 独占写配置与 installation-secret，并登记密钥摘要；重复 init 保留已有主密钥环字节。issuer 子命令仅输出公钥元数据；create-admin 消费安装密钥后删除密钥文件。
 异常路径统一短错误，避免 ValidationError/Problem 字符串化泄露口令或密钥材料。
 """
 
@@ -38,8 +37,9 @@ def secure_write(path: Path, content: str) -> None:
 
 
 async def run(args: argparse.Namespace) -> None:
-    """按子命令执行 issuer、init、migrate、doctor、create-admin 或 serve，并统一管理数据库生命周期。
-    run 实现于 apps/srv/src/veriq_server/cli.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """按子命令执行 issuer、init、migrate、doctor、create-admin 或 serve，并统一管理数据库生命周期。run 实现于
+
+    apps/srv/src/veriq_server/cli.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
     overrides = {
         field: getattr(args, field, None) for field in ("public_url", "host", "port", "environment")
@@ -225,8 +225,9 @@ async def run(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    """解析 veriq_server 子命令并运行异步入口；敏感校验失败时只打印固定短错误信息不回显输入，main 的失败路径返回稳定错误。
-    main 实现于 apps/srv/src/veriq_server/cli.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """解析 veriq_server 子命令并运行异步入口；敏感校验失败时只打印固定短错误信息不回显输入，main 的失败路径返回稳定错误。main 实现于
+
+    apps/srv/src/veriq_server/cli.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
     parser = argparse.ArgumentParser(prog="veriq", description="VeriQ control service")
     parser.add_argument("--config", type=Path, default=Path("veriq.json"))

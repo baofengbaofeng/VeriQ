@@ -352,8 +352,8 @@ test("a real absent-proof observation delivered after natural guardian exit is r
         await worker.firstLine();
         const journal = JSON.parse(await readFile(join(root, "handoff.process.json"), "utf8"));
         let first = true;
-        // Scheduling barrier only: preserve the actual first filesystem result while the
-        // real worker voluntarily exits and the real helper durably publishes its proof.
+        // Scheduling barrier only: preserve the actual first filesystem result while the real worker voluntarily exits
+        // and the real helper durably publishes its proof.
         Reflect.set(supervisor, "hasProof", async (value: unknown) => {
             const observed = await original(value);
             if (first) {

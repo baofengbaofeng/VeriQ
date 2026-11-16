@@ -1,6 +1,4 @@
-"""维护触发服务：幂等 key 执行租约收割、夹具清理调和、容量调和与产物过期，供内部维护 HTTP 调用，本文件注释描述专属不变量。
-无内置 Cron；外部调度命中这些端点。过期未知进程隔离容量直至 stop 调和。
-"""
+"""维护触发服务：幂等 key 执行租约收割、夹具清理调和、容量调和与产物过期，供内部维护 HTTP 调用，本文件注释描述专属不变量。无内置 Cron；外部调度命中这些端点。过期未知进程隔离容量直至 stop 调和。"""
 
 from datetime import datetime, timedelta
 import json
@@ -35,8 +33,9 @@ from .service_account import ServiceAccountService
 
 
 class MaintenanceService:
-    """执行幂等维护动作并写入 MaintenanceReceipt，必要时派生 CLEANUP Job，MaintenanceService 遵守本文件边界。
-    MaintenanceService 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """执行幂等维护动作并写入 MaintenanceReceipt，必要时派生 CLEANUP Job，MaintenanceService 遵守本文件边界。MaintenanceService 必须坚持 Workspace
+
+    归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
 
     def __init__(self, session: AsyncSession, settings: Settings):
@@ -54,8 +53,9 @@ class MaintenanceService:
         limit: int,
         cursor: str = "",
     ) -> dict[str, Any]:
-        """按维护类型与 key 幂等执行；重复 key 回放回执不加倍副作用，MaintenanceService.execute 遵守本文件边界。
-        execute 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """按维护类型与 key 幂等执行；重复 key 回放回执不加倍副作用，MaintenanceService.execute 遵守本文件边界。execute 必须坚持 Workspace 归属与成员授权，
+
+        嵌套资源引用不得跨空间隐式放行。
         """
         await ServiceAccountService(self.session).require_maintenance(
             authorization, workspace_id, operation
@@ -418,8 +418,8 @@ class MaintenanceService:
                     self.session, workspace_id, upload.sha256
                 ):
                     continue
-                # Exact source/assignment roots stay pinned. Compiler/engine closure members
-                # are pinned by their retained non-raw uploads in the reference check above.
+                # Exact source/assignment roots stay pinned. Compiler/engine closure members are pinned by their
+                # retained non-raw uploads in the reference check above.
                 digest = upload.sha256
                 from ..db import Bundle
 

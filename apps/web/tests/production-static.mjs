@@ -6,22 +6,19 @@
 import assert from "node:assert/strict";
 import { chromium, expect } from "@playwright/test";
 
-// 目标 origin 由 Python 测试绑定随机 HTTPS 端口后传入，脚本只接受这个测试实例的完整源；没有硬编码真实平台地址，也不会读取设备或正式发布凭据。
-// 固定账号已经在专用测试数据库创建。
-// 浏览器退出由 finally 负责，断言失败也不会遗留测试进程。
+// 目标 origin 由 Python 测试绑定随机 HTTPS 端口后传入，脚本只接受这个测试实例的完整源；没有硬编码真实平台地址，也不会读取设备或正式发布凭据。固定账号已经在专用测试数据库创建。浏览器退出由 finally 负责，
+// 断言失败也不会遗留测试进程。
 const origin = process.argv[2];
 const browser = await chromium.launch({
     executablePath: process.env.VERIQ_TEST_CHROMIUM,
 });
 try {
-    // 独立上下文仅忽略临时测试证书的信任链错误，页面仍通过 HTTPS 加载并执行真实 Cookie 安全规则；这不是关闭 Origin 校验或将正式配置降级为开发模式。
-    // 与开发代理测试不同，此处没有 Vite 服务。
+    // 独立上下文仅忽略临时测试证书的信任链错误，页面仍通过 HTTPS 加载并执行真实 Cookie 安全规则；这不是关闭 Origin 校验或将正式配置降级为开发模式。与开发代理测试不同，此处没有 Vite 服务。
     // 每个脚本实例从空 Cookie 存储开始，不能借用此前登录状态。
     const context = await browser.newContext({ ignoreHTTPSErrors: true });
     const page = await context.newPage();
-    // 直接访问登记登录路径验证服务器深链接入口，之后等待实际前端与会话探测完成再填写表单；不向页面注入假用户、模拟路由或拦截 API 响应。
-    // 表单动作使用现有稳定 testId。
-    // 自动等待来自 Playwright 的可见性断言，不添加固定延时。
+    // 直接访问登记登录路径验证服务器深链接入口，之后等待实际前端与会话探测完成再填写表单；不向页面注入假用户、模拟路由或拦截 API 响应。表单动作使用现有稳定 testId。自动等待来自 Playwright 的可见性断言，
+    // 不添加固定延时。
     await page.goto(`${origin}/login`);
     await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
     await page.getByTestId("email").fill("admin@example.com");

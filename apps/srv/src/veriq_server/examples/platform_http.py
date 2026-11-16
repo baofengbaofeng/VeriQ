@@ -1,8 +1,6 @@
 """示例导入器仅通过员工会话与真实控制服务交互，所有写操作携带同源和 CSRF，拒绝重定向以防止 Cookie、口令或凭据在意外目标上继续发送。
 
-Cookie 只保存在当前进程内存，不落入导入进度文件。
-失败仅显示服务端稳定错误码，不输出正文、密码或认证头。
-此客户端不调用设备回执或数据库接口，也不会代替受信 Runtime 编译。
+Cookie 只保存在当前进程内存，不落入导入进度文件。失败仅显示服务端稳定错误码，不输出正文、密码或认证头。此客户端不调用设备回执或数据库接口，也不会代替受信 Runtime 编译。
 """
 
 import http.cookiejar
@@ -17,8 +15,7 @@ from typing import Any, Iterator
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     """禁止员工认证及凭据创建请求被重定向到另一地址，即便代理或配置返回同源重定向也明确失败，要求操作者修正实际公开服务地址后再重试导入。
 
-    urllib 默认可能把原请求改为 GET，破坏写操作语义。
-    返回 None 使调用路径转为受控 HTTP 错误而非追随跳转。
+    urllib 默认可能把原请求改为 GET，破坏写操作语义。返回 None 使调用路径转为受控 HTTP 错误而非追随跳转。
     """
 
     def redirect_request(self, req: Any, fp: Any, code: Any, msg: Any, headers: Any, newurl: Any) -> None:
@@ -30,9 +27,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 class Platform:
     """封装真实平台 JSON 信封与临时 Cookie 会话，调用者只能传入固定 API 前缀内的相对路径，避免把环境或示例资产中的任意地址当成控制平台请求执行。
 
-    生产地址必须 HTTPS，HTTP 仅允许显式 loopback 开发。
-    每次响应有体积上限，单次连接有超时，无隐式写入重试。
-    员工 Cookie 与业务 fixture token 不属于同一认证协议。
+    生产地址必须 HTTPS，HTTP 仅允许显式 loopback 开发。每次响应有体积上限，单次连接有超时，无隐式写入重试。员工 Cookie 与业务 fixture token 不属于同一认证协议。
     """
 
     def __init__(self, server: str) -> None:
@@ -59,9 +54,7 @@ class Platform:
     def request(self, method: str, path: str, data: Any = None) -> Any:
         """发送有界 JSON 请求并解开真实平台信封；服务端拒绝、响应过大或非 JSON 均直接中止，禁止把 HTTP 接受或未知响应转换成导入成功记录。
 
-        写请求携带当前 CSRF，登录后立即使用新返回值。
-        网络异常不包含原始 URL、请求头或正文，便于安全共享诊断。
-        未知写入结果由重新读取资源和进度恢复处理，不能盲目重发。
+        写请求携带当前 CSRF，登录后立即使用新返回值。网络异常不包含原始 URL、请求头或正文，便于安全共享诊断。未知写入结果由重新读取资源和进度恢复处理，不能盲目重发。
         """
         if not path.startswith("/api/v1/") or "#" in path:
             raise ValueError("Expected a platform API path")

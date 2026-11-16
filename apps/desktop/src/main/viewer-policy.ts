@@ -23,14 +23,10 @@ export function ownedTraceOrigin(value: string): string {
 }
 
 /**
- * 快照文档需要少量浏览器内部 URL，但这些例外只属于隔离 Trace Session；普通应用的 CSP 与网络白名单完全不因此改变，且快照页面不能借重放内容联系原业务服务或其它互联网来源。
- * 同一 origin 比较包含端口，因此同主机另一个进程仍不在白名单内。
- * blob 地址必须继承该查看器 origin，不能借其它来源的 blob 绕过限制。
- * 官方空白快照使用 base64 HTML 子框架，仅放行这一精确资源类型与前缀。
- * data 主框架不在例外内，不能把应用导航到携带脚本的任意文档。
- * 普通 fetch、图片和脚本请求不能借用 subFrame 例外。
- * 该判定由主进程的真实 webRequest 资源类型驱动，不读取页面自报类型。
- * 窗口权限处理器仍全部拒绝，网络允许并不授予摄像头、剪贴板等系统权限。
+ * 快照文档需要少量浏览器内部 URL，但这些例外只属于隔离 Trace Session；普通应用的 CSP 与网络白名单完全不因此改变，且快照页面不能借重放内容联系原业务服务或其它互联网来源。同一 origin 比较包含端口，
+ * 因此同主机另一个进程仍不在白名单内。blob 地址必须继承该查看器 origin，不能借其它来源的 blob 绕过限制。官方空白快照使用 base64 HTML 子框架，仅放行这一精确资源类型与前缀。data 主框架不在例外内，
+ * 不能把应用导航到携带脚本的任意文档。普通 fetch、图片和脚本请求不能借用 subFrame 例外。该判定由主进程的真实 webRequest 资源类型驱动，不读取页面自报类型。窗口权限处理器仍全部拒绝，网络允许并不授予摄像头、
+ * 剪贴板等系统权限。
  */
 export function allowedTraceRequest(value: string, resourceType: string, origin: string): boolean {
     const url = new URL(value);

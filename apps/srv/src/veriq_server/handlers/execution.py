@@ -11,8 +11,9 @@ from .enrollment import DeviceAPI
 
 
 class ExecutionAPI(DeviceAPI):
-    """设备执行面：认领任务、租约心跳、证据分块上传、完成事件以及维护触发端点；继承 DeviceAPI，故跳过浏览器 CSRF 而依赖租约证明。
-    ExecutionAPI 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """设备执行面：认领任务、租约心跳、证据分块上传、完成事件以及维护触发端点；继承 DeviceAPI，故跳过浏览器 CSRF 而依赖租约证明。ExecutionAPI 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
 
     body_limit = CHUNK_BYTES
@@ -289,8 +290,9 @@ class ExecutionAPI(DeviceAPI):
             self.respond(result, 201 if self.action == "upload-create" else 200)
 
     async def get(self, *args: str) -> None:
-        """GET content：在租约证明下按 Workspace/Attempt/摘要下载已授权证据字节；下载响应为原始字节流，不走 JSON 成功信封。
-        get 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+        """GET content：在租约证明下按 Workspace/Attempt/摘要下载已授权证据字节；下载响应为原始字节流，不走 JSON 成功信封。get 必须坚持 Workspace 归属与成员授权，
+
+        嵌套资源引用不得跨空间隐式放行。
         """
         if self.action != "content":
             raise Problem(405, "METHOD_NOT_ALLOWED", "Method not allowed")

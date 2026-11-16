@@ -1,7 +1,6 @@
 """真实 MySQL 集成验证引擎配置切换只改变新校验的快照与能力要求，旧预览提交必须冲突且旧 Job 的来源字节保持不变；未批准发行仍由既有 ApprovedEngines 边界拒绝。
 
-复用现有鉴权与隔离数据库夹具，不创建第二套资源服务。
-校验任务可以等待 Runtime，不把排队任务当作成功回执。
+复用现有鉴权与隔离数据库夹具，不创建第二套资源服务。校验任务可以等待 Runtime，不把排队任务当作成功回执。
 """
 
 import json
@@ -23,8 +22,7 @@ from veriq_server.settings import Settings
 async def test_engine_switch_conflicts_stale_preview_and_keeps_old_job(site) -> None:
     """通过真实 HTTP 创建资产后在同一授权服务中分别选择旧、新引擎，检查旧预览 sourceHash 被拒绝以及已排队 Job 的持久化快照不变，确保配置切换不能重写历史编译输入。
 
-    安装行锁沿用资源写入事务协议。
-    比较读取到的 Artifact 原始字节，而非只比较内存 DTO。
+    安装行锁沿用资源写入事务协议。比较读取到的 Artifact 原始字节，而非只比较内存 DTO。
     """
     client, database = site
     await setup(client)
@@ -60,8 +58,7 @@ async def test_engine_switch_conflicts_stale_preview_and_keeps_old_job(site) -> 
 def test_unknown_engine_cannot_become_approved_by_selection(tmp_path) -> None:
     """配置中选择一个语法合法但未批准的版本不能授予发行权威，正式发布需要的 ApprovedEngines 查询仍返回 ENGINE_NOT_APPROVED；该拒绝不限制原有未验证 DSL 调试流程。
 
-    空批准列表代表操作员尚未晋升任何候选。
-    Settings 接受选择值与批准查询拒绝是不同责任边界。
+    空批准列表代表操作员尚未晋升任何候选。Settings 接受选择值与批准查询拒绝是不同责任边界。
     """
     path = tmp_path / "approved.json"
     path.write_text('{"schemaVersion":"1.0","engines":[]}')
@@ -81,9 +78,7 @@ def test_unknown_engine_cannot_become_approved_by_selection(tmp_path) -> None:
 async def test_selected_engine_publishes_through_http_with_matching_receipt(site) -> None:
     """非默认引擎的发布必须沿用同一 HTTP 应用的配置，并精确绑定当前成功校验回执；这里复用现有发布服务夹具测试配置传递，真实生产器编译与浏览器执行另由桌面完整验收证明。
 
-    旧测试只检查新引擎不能覆盖已发布修订，错误的默认引擎回退也可能产生同样的 409。
-    本例创建全新资源并要求 201，因而漏传引擎配置会稳定失败。
-    发布结果必须保留回执来源摘要和明确的 1.0.0 版本。
+    旧测试只检查新引擎不能覆盖已发布修订，错误的默认引擎回退也可能产生同样的 409。本例创建全新资源并要求 201，因而漏传引擎配置会稳定失败。发布结果必须保留回执来源摘要和明确的 1.0.0 版本。
     """
     import httpx
     from tornado.httpserver import HTTPServer

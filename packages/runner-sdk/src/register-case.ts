@@ -420,10 +420,7 @@ export async function executeCase(
  */
 export type ExecutionContextProvider = (info: TestInfo) => Promise<Omit<ExecutionOptions, "page">>;
 let provider: ExecutionContextProvider | undefined;
-/**
- * 公开函数 configureExecution 为后续 registerCase 配置默认 ExecutionContextProvider。
- * 测试可替换。
- */
+/** 公开函数 configureExecution 为后续 registerCase 配置默认 ExecutionContextProvider。测试可替换。 */
 export function configureExecution(contextProvider: ExecutionContextProvider): void {
     provider = contextProvider;
 }

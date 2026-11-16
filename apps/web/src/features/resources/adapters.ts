@@ -16,39 +16,24 @@ type S = PlatformComponents["schemas"];
  * workspaceId 必须与适配器一致；归档后只读除非 restore。
  */
 export type Resource = S["ResourceDTO"];
-/**
- * DraftDTO：可编辑 DSL 文档与 revision；保存冲突时保留本地内容并提示采用远端修订号。revision 用于乐观并发控制。
- * 校验/发布前必须已保存；JSON 模式未 apply 时禁止提交。
- */
+/** DraftDTO：可编辑 DSL 文档与 revision；保存冲突时保留本地内容并提示采用远端修订号。revision 用于乐观并发控制。校验/发布前必须已保存；JSON 模式未 apply 时禁止提交。 */
 export type Draft = S["DraftDTO"];
 /**
  * ResourceVersionDTO：不可变已发布版本，含内容摘要与编译产物描述符。content 摘要供差异预览；content 摘要只用于版本差异预览不写回。
  * sourceFiles/source 只读打开生成 TS；不可在此接口回写。
  */
 export type Version = S["ResourceVersionDTO"];
-/**
- * JobDTO：托管 Runtime 上的编译校验作业状态；queued 不代表通过。轮询间隔由编辑器控制；queued 状态绝不表示编译校验已经通过。
- * 轮询 job() 直至完成再取 receipt。
- */
+/** JobDTO：托管 Runtime 上的编译校验作业状态；queued 不代表通过。轮询间隔由编辑器控制；queued 状态绝不表示编译校验已经通过。轮询 job() 直至完成再取 receipt。 */
 export type Job = S["JobDTO"];
-/**
- * ValidationReceiptDTO：校验通过/失败的结构化回执，驱动编辑器诊断列表。诊断列表按严重级别排序展示；诊断条目按严重级别排序后呈现给编辑者。
- * 发布围栏依赖成功回执；失败不得 publish。
- */
+/** ValidationReceiptDTO：校验通过/失败的结构化回执，驱动编辑器诊断列表。诊断列表按严重级别排序展示；诊断条目按严重级别排序后呈现给编辑者。发布围栏依赖成功回执；失败不得 publish。 */
 export type Receipt = S["ValidationReceiptDTO"];
-/**
- * 游标分页信封 {items,nextCursor}，资源列表/版本/依赖共用此泛型形状。items 可为异构 ResourceDTO。
- * nextCursor 为空表示没有更多页。
- */
+/** 游标分页信封 {items,nextCursor}，资源列表/版本/依赖共用此泛型形状。items 可为异构 ResourceDTO。nextCursor 为空表示没有更多页。 */
 export type Page<T> = { items: T[]; nextCursor: string | null };
-/**
- * CompiledSourceDTO：已发布版本的生成文件清单（path/size/sha256），供 Monaco 只读打开。
- * 实际字节经 source() 下载并校验摘要。
- */
+/** CompiledSourceDTO：已发布版本的生成文件清单（path/size/sha256），供 Monaco 只读打开。实际字节经 source() 下载并校验摘要。 */
 export type SourceFiles = S["CompiledSourceDTO"];
 /**
- * 编辑器可依赖的唯一资源接口；传输、凭证与签名快照信任由宿主实现。readOnly 由实现类固定；readOnly 标志由 Cloud/Local 实现类写死。
- * readOnly=true 时禁止 create/save/validate/publish。
+ * 编辑器可依赖的唯一资源接口；传输、凭证与签名快照信任由宿主实现。readOnly 由实现类固定；readOnly 标志由 Cloud/Local 实现类写死。readOnly=true 时禁止
+ * create/save/validate/publish。
  */
 export interface ResourceAdapter {
     readonly readOnly: boolean;
@@ -77,10 +62,7 @@ const query = (values: Record<string, string | undefined>) => {
     for (const [k, v] of Object.entries(values)) if (v) p.set(k, v);
     return p.size ? "?" + p.toString() : "";
 };
-/**
- * 路径 /workspaces/{id}/resources* 与 jobs；source 下载后做 SHA-256 与大小核对。
- * 构造固定 workspaceId，杜绝跨空间草稿读写。
- */
+/** 路径 /workspaces/{id}/resources* 与 jobs；source 下载后做 SHA-256 与大小核对。构造固定 workspaceId，杜绝跨空间草稿读写。 */
 export class CloudResourceAdapter implements ResourceAdapter {
     readonly readOnly = false;
     constructor(readonly workspaceId: string) {}

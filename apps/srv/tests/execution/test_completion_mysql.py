@@ -184,8 +184,8 @@ async def test_managed_real_compilation_finishes_once_and_can_publish(site, tmp_
         "engineInventorySha256": records["inventoryHash"],
     }
     if kind == "ELEMENT_CATALOG":
-        # Actual non-CASE compiler emits two different metadata paths with identical
-        # canonical empty cases. Both upload/event identities must survive CAS sharing.
+        # Actual non-CASE compiler emits two different metadata paths with identical canonical empty cases. Both
+        # upload/event identities must survive CAS sharing.
         from sqlalchemy import select
         from veriq_server.db import AttemptUpload
 

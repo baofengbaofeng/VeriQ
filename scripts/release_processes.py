@@ -1,7 +1,6 @@
 """发行过程的子进程统一在独立进程组内运行，取消信号在构建锁作用域中转为可清理异常；只有组内不再存在可继续写共享状态的进程后才返回，安装探测与 SBOM 调用也使用同一入口。
 
-本模块只面向 Linux 发行构建，不修改全局 subprocess 函数。
-阶段监督者使用内核 subreaper，实际回收包含独立 session 的孤儿后代。
+本模块只面向 Linux 发行构建，不修改全局 subprocess 函数。阶段监督者使用内核 subreaper，实际回收包含独立 session 的孤儿后代。
 """
 
 from collections.abc import Callable, Iterator
@@ -28,8 +27,7 @@ class BuildCancelled(RuntimeError):
 class ReleaseProcesses:
     """记录构建创建的每个进程组并提供与当前发行辅助函数兼容的运行入口，避免只保护顶层命令而遗漏安装、库存导出或 SBOM 子进程；调用方必须在持有构建锁时进入信号作用域。
 
-    不采用全局 Popen 替换，因此其它调用方及测试进程不受影响。
-    每个阶段的监督者只收养自己的后代，不枚举或终止调用方的其它子进程。
+    不采用全局 Popen 替换，因此其它调用方及测试进程不受影响。每个阶段的监督者只收养自己的后代，不枚举或终止调用方的其它子进程。
     """
 
     def __init__(self, evidence: Path, lock_fd: int) -> None:
@@ -60,8 +58,7 @@ class ReleaseProcesses:
     def stop(self) -> None:
         """取消时只通知阶段监督者，等待它收养并回收独立 session 后代后检查完整退出证明；监督者继承同一构建锁描述符，外层不会在十秒宽限届满时杀死监督者而遗失浏览器后代。
 
-        监督者异常退出且缺少证明时写隔离标记，后续构建在任何工具启动前拒绝。
-        正常退出码来自实际命令，监督者本身的退出码另行保留。
+        监督者异常退出且缺少证明时写隔离标记，后续构建在任何工具启动前拒绝。正常退出码来自实际命令，监督者本身的退出码另行保留。
         """
         self.cleaning = True
         process = self.active
@@ -94,8 +91,7 @@ class ReleaseProcesses:
     def run(self, argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[Any]:
         """以参数数组启动真实命令并在独立组内等待结果，兼容现有辅助函数需要的捕获输出与检查选项；成功、非零退出及取消均持久记录，任何异常都先终止整组后代再交回调用方。
 
-        Popen 创建期间的信号延迟到活动引用登记后处理。
-        即使直接子进程正常返回，监督者也回收它留下的独立 session 后代。
+        Popen 创建期间的信号延迟到活动引用登记后处理。即使直接子进程正常返回，监督者也回收它留下的独立 session 后代。
         """
         self.cleaning = False
         check = kwargs.pop("check", False)

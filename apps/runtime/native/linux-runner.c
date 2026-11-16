@@ -20,10 +20,7 @@
 #include <time.h>
 #include <unistd.h>
 
-/*
- * 每 Attempt 一个子收割守护：FD4 私有状态、FD5 父进程控制；业务 worker 不继承二者，也不具备写证明能力。
- * 单一 spawn 门关闭后的 ECHILD 才是正向排空证明。
- */
+/* 每 Attempt 一个子收割守护：FD4 私有状态、FD5 父进程控制；业务 worker 不继承二者，也不具备写证明能力。单一 spawn 门关闭后的 ECHILD 才是正向排空证明。 */
 static volatile sig_atomic_t stop_requested;
 static const char *failure_code;
 static int failure_errno;

@@ -308,8 +308,8 @@ export function armObserver(spec: NetworkObserverV1, ctx: NetworkContext): Obser
         },
         async finalize() {
             const settled = Date.now();
-            // Exact-count windows validate their count below. An ordinary observer
-            // must acquire a request, but need not await its response body.
+            // Exact-count windows validate their count below. An ordinary observer must acquire a request, but need
+            // not await its response body.
             if (spec.expectedCount === undefined) {
                 const acquisitionEnd = Math.min(timeout, fixedEnd ?? Infinity);
                 while (records.length === 0) {

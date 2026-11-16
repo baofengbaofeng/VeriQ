@@ -5,19 +5,16 @@
 
 import type { PlatformComponents, PlatformPaths } from "@veriq/contracts";
 type Schemas = PlatformComponents["schemas"];
-/**
- * 账户与导航使用的 AdminUserDTO 投影，含 systemAdmin 以决定管理入口是否可见。密码哈希永不出现在此类型。
- * 来自 /account 或管理端用户列表，不包含会话令牌或密码哈希。
- */
+/** 账户与导航使用的 AdminUserDTO 投影，含 systemAdmin 以决定管理入口是否可见。密码哈希永不出现在此类型。来自 /account 或管理端用户列表，不包含会话令牌或密码哈希。 */
 export type User = Schemas["AdminUserDTO"];
 /**
- * 登录成功后返回的 SessionDTO，仅表示服务端已建立 Cookie 会话，不含 Workspace 列表。与 account() 结果分离。
- * 前端用 session() 探活；真正资料展示依赖 account() 拉取的 User。
+ * 登录成功后返回的 SessionDTO，仅表示服务端已建立 Cookie 会话，不含 Workspace 列表。与 account() 结果分离。前端用 session() 探活；真正资料展示依赖 account() 拉取的
+ * User。
  */
 export type Session = Schemas["SessionDTO"];
 /**
- * 当前账户活跃会话分页信封，供账户页列出并批量吊销本机以外的会话。nextCursor 为空即无更多页；nextCursor 为空时账户页停止继续追加会话行。
- * 查询参数遵循 SessionListQuery；吊销调用 revokeOwn 而非逐条删除。
+ * 当前账户活跃会话分页信封，供账户页列出并批量吊销本机以外的会话。nextCursor 为空即无更多页；nextCursor 为空时账户页停止继续追加会话行。查询参数遵循 SessionListQuery；吊销调用 revokeOwn
+ * 而非逐条删除。
  */
 export type AccountSessions = Schemas["AccountSessionsDTO"];
 /**
@@ -25,17 +22,11 @@ export type AccountSessions = Schemas["AccountSessionsDTO"];
  * 前端不得把链接写入日志或持久化到 localStorage。
  */
 export type ResetLink = Schemas["ResetLinkDTO"];
-/**
- * 系统管理员用户列表的游标与过滤查询形状，绑定 GET /admin/users 的 OpenAPI 参数。email 过滤为前缀匹配语义。
- * limit/cursor 变更会触发 AdminUsers 重新拉取，避免跨页状态串扰。
- */
+/** 系统管理员用户列表的游标与过滤查询形状，绑定 GET /admin/users 的 OpenAPI 参数。email 过滤为前缀匹配语义。limit/cursor 变更会触发 AdminUsers 重新拉取，避免跨页状态串扰。 */
 export type UserListQuery = NonNullable<
     PlatformPaths["/api/v1/admin/users"]["get"]["parameters"]["query"]
 >;
-/**
- * 账户会话列表查询形状，绑定 GET /account/sessions，支持 limit 与 cursor 分页。与管理端用户会话列表形状不同。
- * Account 页用其控制每页条数并在 Load more 时追加 items。
- */
+/** 账户会话列表查询形状，绑定 GET /account/sessions，支持 limit 与 cursor 分页。与管理端用户会话列表形状不同。Account 页用其控制每页条数并在 Load more 时追加 items。 */
 export type SessionListQuery = NonNullable<
     PlatformPaths["/api/v1/account/sessions"]["get"]["parameters"]["query"]
 >;
@@ -100,8 +91,8 @@ export async function binaryRequest(path: string, signal?: AbortSignal): Promise
 }
 
 /**
- * 将非 2xx JSON 体映射为带 code/status/requestId 的错误，供 Notice 与适配器统一展示。
- * 当前身份的认证缺失才触发全局过期事件，过时响应和其他凭证错误仍保留原始状态、错误码及请求标识，供业务调用方按自己的请求所有权处理。
+ * 将非 2xx JSON 体映射为带 code/status/requestId 的错误，供 Notice 与适配器统一展示。当前身份的认证缺失才触发全局过期事件，过时响应和其他凭证错误仍保留原始状态、错误码及请求标识，
+ * 供业务调用方按自己的请求所有权处理。
  */
 export class ApiError extends Error {
     constructor(
@@ -114,8 +105,7 @@ export class ApiError extends Error {
     }
 }
 /**
- * 通用 JSON 请求：same-origin Cookie、可选 AbortSignal，成功时刷新内存中的 csrfToken。
- * 路径相对 /api/v1；业务适配器应传入已含 workspaceId 的路径，勿在此层拼接作用域。
+ * 通用 JSON 请求：same-origin Cookie、可选 AbortSignal，成功时刷新内存中的 csrfToken。路径相对 /api/v1；业务适配器应传入已含 workspaceId 的路径，勿在此层拼接作用域。
  */
 export async function request<T>(
     path: string,
@@ -168,8 +158,7 @@ export async function request<T>(
     }
 }
 /**
- * 认证、账户、Workspace 成员与邀请的门面对象，所有方法最终走 request 并保持 CSRF。邀请接受走 /auth 而非空间嵌套路径。
- * Workspace 相关写操作均要求显式 workspaceId，不依赖隐式全局选择。
+ * 认证、账户、Workspace 成员与邀请的门面对象，所有方法最终走 request 并保持 CSRF。邀请接受走 /auth 而非空间嵌套路径。Workspace 相关写操作均要求显式 workspaceId，不依赖隐式全局选择。
  */
 export const api = {
     setup: () => request<Schemas["SetupDTO"]>("/setup"),

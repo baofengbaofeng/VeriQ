@@ -1,5 +1,6 @@
-"""在线 Attempt 证据上传与内容下载：分块写入受租约与围栏约束，完成前对报告不可见，下载校验 digest，本文件注释仅描述该模块专属行为。
-create_upload 建立 AttemptUpload 与 publication；chunk 追加字节并校验偏移。
+"""在线 Attempt 证据上传与内容下载：分块写入受租约与围栏约束，完成前对报告不可见，下载校验 digest，本文件注释仅描述该模块专属行为。create_upload 建立 AttemptUpload 与 publication；
+
+chunk 追加字节并校验偏移。
 """
 
 import json
@@ -23,8 +24,9 @@ CHUNK_BYTES = 1024 * 1024
 
 
 class ContentService:
-    """编排在线证据上传会话与按 digest 下载，所有操作绑定 Attempt 租约证明，ContentService 遵守本文件 Workspace/事务边界。
-    ContentService 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """编排在线证据上传会话与按 digest 下载，所有操作绑定 Attempt 租约证明，ContentService 遵守本文件 Workspace/事务边界。ContentService 必须坚持 Workspace
+
+    归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
 
     def __init__(self, session: AsyncSession, settings: Settings):

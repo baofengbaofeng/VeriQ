@@ -39,9 +39,8 @@ export type RuntimeBuildContext = Readonly<{
     timeoutMs: number;
     run: (invocation: HostBuildInvocation) => Promise<HostBuildObservation>;
     /**
-     * 可选签名只作用于本次新构建的两项正式 native 输出，操作员明确选择身份、受源码绑定的 entitlements 和时间戳策略；签名发生在最终库存及 receipt 摘要之前，原 Node/Chrome 归档绝不重签或改
-     * 写。
-     * 实际 signer 工具身份和每条命令单独进入不透明 commandEvidence，既有公共 Tool 枚举保持原构建工具语义，签名不自动晋升候选状态。
+     * 可选签名只作用于本次新构建的两项正式 native 输出，操作员明确选择身份、受源码绑定的 entitlements 和时间戳策略；签名发生在最终库存及 receipt 摘要之前，原 Node/Chrome
+     * 归档绝不重签或改写。实际 signer 工具身份和每条命令单独进入不透明 commandEvidence，既有公共 Tool 枚举保持原构建工具语义，签名不自动晋升候选状态。
      */
     nativeSigning?: Readonly<{
         identity: string;

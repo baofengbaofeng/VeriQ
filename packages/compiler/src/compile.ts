@@ -60,8 +60,7 @@ export interface ExecutionPackage {
     snapshot: ExecutionSnapshotV1;
 }
 /**
- * T06 实现该导入 ABI；执行上下文由 worker 注入，编译器永不把上下文写进生成代码。
- * 公开接口 RunnerSdkV1 描述生成代码依赖的 runner-sdk ABI：执行上下文由 worker 注入：编译器只发射惰性调用。
+ * T06 实现该导入 ABI；执行上下文由 worker 注入，编译器永不把上下文写进生成代码。公开接口 RunnerSdkV1 描述生成代码依赖的 runner-sdk ABI：执行上下文由 worker 注入：编译器只发射惰性调用。
  */
 export interface RunnerSdkV1 {
     registerCase(plan: CompiledCase, source: AssetSnapshotV1): void;

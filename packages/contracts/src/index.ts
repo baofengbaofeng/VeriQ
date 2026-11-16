@@ -11,10 +11,7 @@ import schema from "../schemas/platform-v1.schema.json" with { type: "json" };
 export type * from "./types.generated.js";
 export type { paths as PlatformPaths, components as PlatformComponents } from "./api.generated.js";
 
-/**
- * 公开接口 ValidationIssue 描述契约校验问题：code 仅 SCHEMA_VIOLATION 或 INVALID_JSON。
- * 供各层稳定映射。
- */
+/** 公开接口 ValidationIssue 描述契约校验问题：code 仅 SCHEMA_VIOLATION 或 INVALID_JSON。供各层稳定映射。 */
 export interface ValidationIssue {
     path: string;
     code: "SCHEMA_VIOLATION" | "INVALID_JSON";
@@ -39,10 +36,7 @@ function portableJson(value: unknown, ancestors = new Set<object>()): boolean {
     }
 }
 
-/**
- * 不做强制转换、默认填充、删字段或语义引用解析，只报告 schema 违例。
- * 公开函数 validateSchema 按 schema 名对值做严格校验：无强制、无默认、无删字段：也不做语义引用解析。
- */
+/** 不做强制转换、默认填充、删字段或语义引用解析，只报告 schema 违例。公开函数 validateSchema 按 schema 名对值做严格校验：无强制、无默认、无删字段：也不做语义引用解析。 */
 export function validateSchema(schemaName: string, value: unknown): ValidationIssue[] {
     if (!Object.hasOwn(schema.$defs, schemaName))
         throw new Error(`Unknown contract schema: ${schemaName}`);

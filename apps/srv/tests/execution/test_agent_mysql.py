@@ -554,9 +554,9 @@ async def test_agent_actual_compiler_completion_and_sanitized_no_bundle_failure(
             assert run.state == "FINISHED" and run.outcome == "CANCELLED"
         assert facts["cleanup"][-1] == facts["prepare"][-1]
 
-        # Both cases use actual compilation/publication and the same approved release.
-        # No fixture exists to close a namespace: retry must depend on trusted source
-        # plus the complete physical business observation, never the exit code alone.
+        # Both cases use actual compilation/publication and the same approved release. No fixture exists to close a
+        # namespace: retry must depend on trusted source plus the complete physical business observation, never the
+        # exit code alone.
         for method in ["POST", "GET"]:
             retry_doc = {k: v for k, v in doc.items() if k != "fixtureVersionId"}
             retry_doc["caseKey"] = "no-fixture-" + method.lower()

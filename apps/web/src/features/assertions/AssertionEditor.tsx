@@ -60,10 +60,7 @@ const operators: Record<string, string[]> = {
     duration: ["lessThanOrEqual"],
     requestCount: ["equals"],
 };
-/**
- * 工厂：生成带短 UUID 的默认 ui/visible/BLOCK 断言，expectedSource 标明人工审核。severity 默认 BLOCK。
- * 供 List 的 add 回调使用，避免空对象未通过契约。
- */
+/** 工厂：生成带短 UUID 的默认 ui/visible/BLOCK 断言，expectedSource 标明人工审核。severity 默认 BLOCK。供 List 的 add 回调使用，避免空对象未通过契约。 */
 export const newAssertion = (): AssertionV1 => ({
     id: "assertion_" + crypto.randomUUID().slice(0, 8),
     type: "ui",
@@ -106,8 +103,8 @@ function defaults(type: string, network: string[]) {
     };
 }
 /**
- * 拥有断言数组 UI：类型切换重置 defaults，网络类断言绑定 observer 名列表。pageKeys 限制 UI 目标候选。
- * phase 区分 BEFORE/AFTER/TEMPLATE；scope 限制可引用的页面/模板版本。
+ * 拥有断言数组 UI：类型切换重置 defaults，网络类断言绑定 observer 名列表。pageKeys 限制 UI 目标候选。phase 区分 BEFORE/AFTER/TEMPLATE；scope
+ * 限制可引用的页面/模板版本。
  */
 export function AssertionEditor({
     name,

@@ -22,8 +22,8 @@ const message = (error: Error | null) =>
           : "";
 
 /**
- * 拥有空间列表、成员与邀请分页 UI 状态；写操作调用 create/rename/archive/invite/updateMember。
- * 选择变更经 useWorkspace.select，确保下游 Runtime/Resource 页看到同一作用域。
+ * 拥有空间列表、成员与邀请分页 UI 状态；写操作调用 create/rename/archive/invite/updateMember。选择变更经 useWorkspace.select，确保下游 Runtime/Resource
+ * 页看到同一作用域。
  */
 export function WorkspacePage() {
     useAppLocale();

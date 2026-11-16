@@ -10,8 +10,7 @@ import type { AgentClient, Claim } from "./transport.ts";
 import { ExecutionSupervisor } from "../execution/supervisor.ts";
 type S = PlatformComponents["schemas"];
 /**
- * 公开函数 claimLoop 在租约预算内幂等认领平台任务，崩溃恢复时先隔离未知进程，再串行跑完一整次 Attempt。
- * 平台独占重试 Attempt 的创建；停机证明失败则抛出 PROCESS_QUARANTINED，禁止继续认领。
+ * 公开函数 claimLoop 在租约预算内幂等认领平台任务，崩溃恢复时先隔离未知进程，再串行跑完一整次 Attempt。平台独占重试 Attempt 的创建；停机证明失败则抛出 PROCESS_QUARANTINED，禁止继续认领。
  */
 export async function claimLoop(options: {
     client: AgentClient;

@@ -1,7 +1,6 @@
 // 此页面只把服务端查询返回的真实员工渲染为持久化表格，保存成功提示与刷新后独立读回使用不同锚点，避免把客户端乐观状态误当成数据库提交证据。
-// 命名空间或公开夹具代码由受控用例导航传入，浏览器不会接收夹具清理令牌。
-// 元素内容通过 textContent 写入，业务名称不会作为 HTML 或脚本执行。
-// 本页面保留既有 name、save、result 锚点，便于现有浏览器夹具继续调用。
+// 命名空间或公开夹具代码由受控用例导航传入，浏览器不会接收夹具清理令牌。元素内容通过 textContent 写入，业务名称不会作为 HTML 或脚本执行。本页面保留既有 name、save、result 锚点，
+// 便于现有浏览器夹具继续调用。
 const params = new URL(location.href).searchParams;
 const owner = params.has("namespace")
     ? { namespace: params.get("namespace") }
@@ -10,10 +9,8 @@ const status = document.querySelector("[data-testid=result]");
 const form = document.querySelector("form");
 const button = document.querySelector("button");
 
-// 列表刷新始终重新请求普通业务接口，并使用响应标识作为稳定行键，使重新排序和页面刷新不会改变员工对应关系，也不会依赖视觉位置定位记录。
-// 错误响应交给调用方显示固定消息，禁止把响应正文或认证材料拼进页面诊断。
-// 未绑定夹具的人工打开不发出无归属的业务查询，表格保持空白供用户配置。
-// 这不是自动重试循环，网络失败后不会再次发出业务写操作。
+// 列表刷新始终重新请求普通业务接口，并使用响应标识作为稳定行键，使重新排序和页面刷新不会改变员工对应关系，也不会依赖视觉位置定位记录。错误响应交给调用方显示固定消息，禁止把响应正文或认证材料拼进页面诊断。
+// 未绑定夹具的人工打开不发出无归属的业务查询，表格保持空白供用户配置。这不是自动重试循环，网络失败后不会再次发出业务写操作。
 async function refresh() {
     if (!Object.values(owner)[0]) return;
     const response = await fetch(`/employees?${new URLSearchParams(owner)}`);

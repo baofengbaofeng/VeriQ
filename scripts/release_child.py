@@ -1,7 +1,6 @@
 """每个发行阶段使用独立 Linux 子监督进程收养其孤儿后代，覆盖 Playwright 浏览器另起 session 的实际路径；只有 waitpid 确认没有任何子进程后才写完成证明并退出，继承的构建锁在此之前保持有效。
 
-本进程不属于产品运行时，也不改变调用方的全局 subreaper 属性。
-实际命令继承原环境、工作目录和标准流，不能继承构建锁描述符。
+本进程不属于产品运行时，也不改变调用方的全局 subreaper 属性。实际命令继承原环境、工作目录和标准流，不能继承构建锁描述符。
 """
 
 import ctypes
@@ -33,8 +32,7 @@ def _children() -> list[int]:
 def supervise(argv: list[str], state: Path) -> int:
     """安装仅记录取消的信号处理器后启用内核 subreaper，再启动唯一阶段命令；取消或首进程退出后清理全部被收养后代，十秒后升级 KILL 但永不通过杀监督者来假装子树已经停止。
 
-    ECHILD 是完成的唯一依据，僵尸由本监督者实际回收。
-    失败诊断使用英文，未知清理状态不写 treeStopped 成功证明。
+    ECHILD 是完成的唯一依据，僵尸由本监督者实际回收。失败诊断使用英文，未知清理状态不写 treeStopped 成功证明。
     """
     requested: int | None = None
 

@@ -26,10 +26,7 @@ type AdapterForm = {
     identityPointer: string;
     loginPath: string;
 };
-/**
- * 身份面板只在当前已授权空间内持有表单与请求状态，服务端保存后读取不可变版本摘要；组件真正卸载时中止自身请求并清空两份表单，避免旧空间的凭证继续保留。
- * 成功后刷新摘要列表；失败展示 ApiError，不回显提交的密钥。
- */
+/** 身份面板只在当前已授权空间内持有表单与请求状态，服务端保存后读取不可变版本摘要；组件真正卸载时中止自身请求并清空两份表单，避免旧空间的凭证继续保留。成功后刷新摘要列表；失败展示 ApiError，不回显提交的密钥。 */
 export function IdentityManager({
     adapter,
     workspaceId,

@@ -15,10 +15,7 @@ const button = cva("vq-button", {
     },
     defaultVariants: { tone: "primary" },
 });
-/**
- * 公开组件 Button 提供 primary/secondary/danger 语气的按钮基元：默认 type=button。
- * 样式由 cva 变体生成。
- */
+/** 公开组件 Button 提供 primary/secondary/danger 语气的按钮基元：默认 type=button。样式由 cva 变体生成。 */
 export const Button = forwardRef<
     HTMLButtonElement,
     ButtonHTMLAttributes<HTMLButtonElement> & {

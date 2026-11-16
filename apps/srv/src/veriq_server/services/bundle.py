@@ -1,5 +1,6 @@
-"""离线包导出：幂等预订、准备清单、组装签名归档，下载受 Workspace 授权与导出槽位并发限制，本文件注释描述专属不变量。
-safe_path 防止路径穿越；publish 在签发后落 Bundle 元数据，replay 重放同一 Idempotency-Key。
+"""离线包导出：幂等预订、准备清单、组装签名归档，下载受 Workspace 授权与导出槽位并发限制，本文件注释描述专属不变量。safe_path 防止路径穿越；publish 在签发后落 Bundle 元数据，replay 重放同一
+
+Idempotency-Key。
 """
 
 import asyncio
@@ -97,8 +98,8 @@ class BundleService:
             canonical_bytes({"actorId": self.actor.id, "request": req})
         ).hexdigest()
         reservation_id: str | None = None
-        # identity() may have started a read transaction; no configuration guard
-        # is ever acquired with a database transaction still open.
+        # identity() may have started a read transaction; no configuration guard is ever acquired with a database
+        # transaction still open.
         await self.session.commit()
         try:
             async with authority_guard(self.settings, "draftValidationJobId" in req) as authority:
@@ -179,8 +180,8 @@ class BundleService:
         except BaseException:
             await self.session.rollback()
             if reservation_id:
-                # An uncertain commit must never overwrite COMPLETE. If this cleanup
-                # itself cannot commit, IN_PROGRESS remains safely unreplayable.
+                # An uncertain commit must never overwrite COMPLETE. If this cleanup itself cannot commit, IN_PROGRESS
+                # remains safely unreplayable.
                 async with self.session.begin():
                     await lock_installation(self.session)
                     reservation = await self.session.get(

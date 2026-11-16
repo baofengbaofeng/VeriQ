@@ -1,6 +1,6 @@
-"""资源领域服务：创建资源与草稿、乐观修订更新、校验预览与 VALIDATE 任务投递，身份引用经注册表冻结，本文件注释描述专属不变量。
-check_document 按 kind 跑契约；snapshot 冻结依赖与身份；发布由 PublishService 接续。
-所有突变要求 Workspace 编辑权限并持安装护栏至提交。
+"""资源领域服务：创建资源与草稿、乐观修订更新、校验预览与 VALIDATE 任务投递，身份引用经注册表冻结，本文件注释描述专属不变量。check_document 按 kind 跑契约；snapshot 冻结依赖与身份；发布由
+
+PublishService 接续。所有突变要求 Workspace 编辑权限并持安装护栏至提交。
 """
 
 from hashlib import sha256

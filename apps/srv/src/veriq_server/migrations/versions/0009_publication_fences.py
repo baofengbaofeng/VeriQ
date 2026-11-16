@@ -35,8 +35,8 @@ def upgrade() -> None:
         "veriq_artifact_publications",
         ["workspace_id", "state", "id"],
     )
-    # An older delete acknowledgment did not fence still-pending create-only writes.
-    # Revisit exact recorded keys once to install empty barriers on upgrade.
+    # An older delete acknowledgment did not fence still-pending create-only writes. Revisit exact recorded keys once
+    # to install empty barriers on upgrade.
     op.execute("UPDATE veriq_artifact_deletions SET deleted_at = NULL")
 
 

@@ -1,6 +1,6 @@
-"""产物发布围栏：retire/recover/expire_offline 管理 PENDING 到 COMMITTED/RETIRED 与外部对象清理，均限定 Workspace。
-offline_pins 判断 digest 是否仍被离线导入钉住，决定过期删除是否必须让路。
-恢复路径按 limit 批量推进，避免一次扫描拖垮控制面事务。
+"""产物发布围栏：retire/recover/expire_offline 管理 PENDING 到 COMMITTED/RETIRED 与外部对象清理，均限定 Workspace。offline_pins 判断 digest
+
+是否仍被离线导入钉住，决定过期删除是否必须让路。恢复路径按 limit 批量推进，避免一次扫描拖垮控制面事务。
 """
 
 from uuid import uuid4
@@ -131,8 +131,9 @@ async def recover(session: AsyncSession, workspace: str, limit: int) -> None:
 
 
 async def offline_pins(session: AsyncSession, workspace: str, digest: str) -> bool:
-    """检查离线导入是否仍钉住该 digest，防止过早物理删除仍需展示的证据，offline_pins 遵守本文件 Workspace/事务边界。
-    offline_pins 属于发布/围栏相关逻辑：未满足设备、租约或引擎清单条件时不得把排队当成已验证发布。
+    """检查离线导入是否仍钉住该 digest，防止过早物理删除仍需展示的证据，offline_pins 遵守本文件 Workspace/事务边界。offline_pins 属于发布/围栏相关逻辑：未满足设备、
+
+    租约或引擎清单条件时不得把排队当成已验证发布。
     """
     current = await database_time(session)
     rows = (
@@ -150,8 +151,9 @@ async def offline_pins(session: AsyncSession, workspace: str, digest: str) -> bo
 async def expire_offline(
     session: AsyncSession, workspace: str, limit: int, after: str = ""
 ) -> tuple[int, str, bool]:
-    """按保留策略过期离线产物并排队删除，遇到 pins 则跳过该 digest，expire_offline 遵守本文件 Workspace/事务边界。
-    expire_offline 属于发布/围栏相关逻辑：未满足设备、租约或引擎清单条件时不得把排队当成已验证发布。
+    """按保留策略过期离线产物并排队删除，遇到 pins 则跳过该 digest，expire_offline 遵守本文件 Workspace/事务边界。expire_offline 属于发布/围栏相关逻辑：未满足设备、
+
+    租约或引擎清单条件时不得把排队当成已验证发布。
     """
     current = await database_time(session)
     rows = list(

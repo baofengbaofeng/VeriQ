@@ -28,8 +28,9 @@ from .settings import Settings
 
 
 class Base(DeclarativeBase):
-    """全部 ORM 模型的声明式基类，集中注册元数据，供 Alembic 迁移脚本与异步引擎共享同一套表定义。表前缀统一为 veriq_。
-    Base 实现于 apps/srv/src/veriq_server/db.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """全部 ORM 模型的声明式基类，集中注册元数据，供 Alembic 迁移脚本与异步引擎共享同一套表定义。表前缀统一为 veriq_。Base 实现于
+
+    apps/srv/src/veriq_server/db.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
 
     pass
@@ -51,8 +52,9 @@ class Installation(Base):
 
 
 class User(Base):
-    """控制面用户账号：唯一邮箱（大小写不敏感）、Argon2 口令哈希、禁用标记与系统管理员标志。邮箱唯一索引防重复注册。邮箱唯一索引防止重复注册。
-    User 实现于 apps/srv/src/veriq_server/db.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """控制面用户账号：唯一邮箱（大小写不敏感）、Argon2 口令哈希、禁用标记与系统管理员标志。邮箱唯一索引防重复注册。邮箱唯一索引防止重复注册。User 实现于
+
+    apps/srv/src/veriq_server/db.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
 
     __tablename__ = "veriq_users"
@@ -91,9 +93,7 @@ class UserToken(Base):
 
 
 class AuditLog(Base):
-    """安全审计追加日志可绑定 actor、target 与 Workspace，随业务事务提交失败则回滚。不承载业务补偿逻辑。
-    AuditLog 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
-    """
+    """安全审计追加日志可绑定 actor、target 与 Workspace，随业务事务提交失败则回滚。不承载业务补偿逻辑。AuditLog 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。"""
 
     __tablename__ = "veriq_audit_logs"
     id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
@@ -107,8 +107,9 @@ class AuditLog(Base):
 
 
 class Workspace(Base):
-    """租户 Workspace 持有稳定 ascii key、显示名与归档标记，是资源与授权的根边界。归档后仍保留历史只读。归档后历史数据仍可只读保留。
-    Workspace 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """租户 Workspace 持有稳定 ascii key、显示名与归档标记，是资源与授权的根边界。归档后仍保留历史只读。归档后历史数据仍可只读保留。Workspace 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
 
     __tablename__ = "veriq_workspaces"
@@ -120,8 +121,9 @@ class Workspace(Base):
 
 
 class WorkspaceMember(Base):
-    """Workspace 成员关系以复合主键携带角色与状态，授权查询以此表为真源。status 区分邀请中与生效。status 区分邀请中与已生效成员。
-    WorkspaceMember 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """Workspace 成员关系以复合主键携带角色与状态，授权查询以此表为真源。status 区分邀请中与生效。status 区分邀请中与已生效成员。WorkspaceMember 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
 
     __tablename__ = "veriq_workspace_members"
@@ -136,8 +138,9 @@ class WorkspaceMember(Base):
 
 
 class WorkspaceInvite(Base):
-    """成员邀请以 token_hash 唯一，含过期、消费与吊销标志，防止重复接受。revoked 与 consumed 互不复活。
-    WorkspaceInvite 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """成员邀请以 token_hash 唯一，含过期、消费与吊销标志，防止重复接受。revoked 与 consumed 互不复活。WorkspaceInvite 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
 
     __tablename__ = "veriq_workspace_invites"
@@ -156,13 +159,15 @@ class WorkspaceInvite(Base):
 
 
 class Database:
-    """异步引擎与会话工厂：READ COMMITTED、utf8mb4、UTC，并 hide_parameters 防日志泄密。
-    Database 实现于 apps/srv/src/veriq_server/db.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """异步引擎与会话工厂：READ COMMITTED、utf8mb4、UTC，并 hide_parameters 防日志泄密。Database 实现于
+
+    apps/srv/src/veriq_server/db.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
 
     def __init__(self, settings: Settings):
-        """根据 Settings 创建隐藏 SQL 参数的异步引擎，以及 expire_on_commit=False 的会话工厂供请求复用。
-        __init__ 实现于 apps/srv/src/veriq_server/db.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """根据 Settings 创建隐藏 SQL 参数的异步引擎，以及 expire_on_commit=False 的会话工厂供请求复用。__init__ 实现于
+
+        apps/srv/src/veriq_server/db.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
         """
         self.engine = create_async_engine(
             settings.database_url.get_secret_value(),
@@ -174,16 +179,18 @@ class Database:
         self.sessions = async_sessionmaker(self.engine, expire_on_commit=False)
 
     async def close(self) -> None:
-        """释放异步引擎连接池中的全部连接，供 CLI 子命令与应用进程关闭路径安全地调用，Database.close 的失败路径返回稳定错误。
-        close 实现于 apps/srv/src/veriq_server/db.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+        """释放异步引擎连接池中的全部连接，供 CLI 子命令与应用进程关闭路径安全地调用，Database.close 的失败路径返回稳定错误。close 实现于
+
+        apps/srv/src/veriq_server/db.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
         """
         await self.engine.dispose()
 
 
 # 不可变源码、内容与校验溯源均归属既有 Workspace，查询与外键不得跨租户拼接。
 class Resource(Base):
-    """Workspace 内资源头：kind+key 唯一，跟踪状态与 latest_version_id 发布指针。跨 Workspace 查询必须失败。
-    Resource 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """Workspace 内资源头：kind+key 唯一，跟踪状态与 latest_version_id 发布指针。跨 Workspace 查询必须失败。Resource 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
 
     __tablename__ = "veriq_resources"
@@ -201,8 +208,9 @@ class Resource(Base):
 
 
 class ResourceDraft(Base):
-    """可编辑草稿以 revision 乐观锁保护 document_json，发布时冻结为不可变版本。更新必须比对 revision。
-    ResourceDraft 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """可编辑草稿以 revision 乐观锁保护 document_json，发布时冻结为不可变版本。更新必须比对 revision。ResourceDraft 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
 
     __tablename__ = "veriq_resource_drafts"
@@ -220,8 +228,9 @@ class ResourceDraft(Base):
 
 
 class ResourceVersion(Base):
-    """不可变已发布版本绑定草稿修订、哈希、引擎与校验回执，禁止就地改写历史。version_no 在资源内递增。version_no 在同一资源内单调递增。
-    ResourceVersion 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """不可变已发布版本绑定草稿修订、哈希、引擎与校验回执，禁止就地改写历史。version_no 在资源内递增。version_no 在同一资源内单调递增。ResourceVersion 必须坚持 Workspace
+
+    归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
 
     __tablename__ = "veriq_resource_versions"
@@ -249,8 +258,9 @@ class ResourceVersion(Base):
 
 
 class ResourceDependency(Base):
-    """同 Workspace 版本依赖边两侧外键均带 workspace_id，阻断跨租户引用。依赖版本必须同租户。依赖版本必须与引用方同租户。
-    ResourceDependency 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """同 Workspace 版本依赖边两侧外键均带 workspace_id，阻断跨租户引用。依赖版本必须同租户。依赖版本必须与引用方同租户。ResourceDependency 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
 
     __tablename__ = "veriq_resource_dependencies"
@@ -270,9 +280,7 @@ class ResourceDependency(Base):
 
 
 class Artifact(Base):
-    """按 Workspace+sha256 内容寻址产物，可 INLINE/外部后端，含 incarnation 与过期删除戳。
-    Artifact 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
-    """
+    """按 Workspace+sha256 内容寻址产物，可 INLINE/外部后端，含 incarnation 与过期删除戳。Artifact 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。"""
 
     __tablename__ = "veriq_artifacts"
     __table_args__ = (Index("ix_veriq_artifact_retention", "workspace_id", "created_at", "sha256"),)
@@ -310,8 +318,9 @@ class ArtifactDeletion(Base):
 
 
 class ArtifactPublication(Base):
-    """发布围栏 PENDING/COMMITTED/RETIRED，在线上传与离线上传所有者互斥。CheckConstraint 固化所有者互斥。
-    ArtifactPublication 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """发布围栏 PENDING/COMMITTED/RETIRED，在线上传与离线上传所有者互斥。CheckConstraint 固化所有者互斥。ArtifactPublication 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
 
     __tablename__ = "veriq_artifact_publications"
@@ -437,8 +446,9 @@ class Job(Base):
 
 
 class ValidationReceipt(Base):
-    """校验回执将成功 VALIDATE Attempt 与编译产物摘要钉到资源修订供发布核对。job_id 唯一约束防重复回执。
-    ValidationReceipt 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """校验回执将成功 VALIDATE Attempt 与编译产物摘要钉到资源修订供发布核对。job_id 唯一约束防重复回执。ValidationReceipt 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
 
     __tablename__ = "veriq_validation_receipts"
@@ -480,9 +490,9 @@ class ValidationReceipt(Base):
 
 
 class SecretRef(Base):
-    """Workspace 密钥引用名只存 key；密文与身份白名单在 SecretVersion。不在此表存放任何密文字节。本表不存放任何密文字节内容。
-    SecretRef 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
-    SecretRef 触及凭证材料：管理面不得回传明文，日志与审计只能保留摘要或引用标识。
+    """Workspace 密钥引用名只存 key；密文与身份白名单在 SecretVersion。不在此表存放任何密文字节。本表不存放任何密文字节内容。SecretRef 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。SecretRef 触及凭证材料：管理面不得回传明文，日志与审计只能保留摘要或引用标识。
     """
 
     __tablename__ = "veriq_secret_refs"
@@ -494,9 +504,9 @@ class SecretRef(Base):
 
 
 class SecretVersion(Base):
-    """密钥不可变版本：主密钥封装密文、允许身份列表与吊销标记，解析须版本钉死。revoked 后不可再被解析投递。revoked 后不可再被解析或投递。
-    SecretVersion 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
-    SecretVersion 触及凭证材料：管理面不得回传明文，日志与审计只能保留摘要或引用标识。
+    """密钥不可变版本：主密钥封装密文、允许身份列表与吊销标记，解析须版本钉死。revoked 后不可再被解析投递。revoked 后不可再被解析或投递。SecretVersion 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。SecretVersion 触及凭证材料：管理面不得回传明文，日志与审计只能保留摘要或引用标识。
     """
 
     __tablename__ = "veriq_secret_versions"
@@ -519,8 +529,9 @@ class SecretVersion(Base):
 
 
 class AuthAdapterVersion(Base):
-    """认证适配器不可变版本含内容哈希与配置 JSON，可吊销但不可改历史字节。content_hash 用于快照钉死。content_hash 用于执行快照钉死。
-    AuthAdapterVersion 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """认证适配器不可变版本含内容哈希与配置 JSON，可吊销但不可改历史字节。content_hash 用于快照钉死。content_hash 用于执行快照钉死。AuthAdapterVersion 必须坚持 Workspace
+
+    归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
 
     __tablename__ = "veriq_auth_adapter_versions"
@@ -535,8 +546,9 @@ class AuthAdapterVersion(Base):
 
 
 class Runtime(Base):
-    """执行设备 Runtime：用户或服务账号二选一所有者，含信任状态、位置与能力。trust_status 影响正式门禁资格。
-    Runtime 实现于 apps/srv/src/veriq_server/db.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
+    """执行设备 Runtime：用户或服务账号二选一所有者，含信任状态、位置与能力。trust_status 影响正式门禁资格。Runtime 实现于
+
+    apps/srv/src/veriq_server/db.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
 
     __tablename__ = "veriq_runtimes"
@@ -560,8 +572,9 @@ class Runtime(Base):
 
 
 class RuntimeBinding(Base):
-    """Runtime 与 Workspace 绑定：共享范围、凭据投递许可与激活状态。active=false 立即切断派发。
-    RuntimeBinding 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """Runtime 与 Workspace 绑定：共享范围、凭据投递许可与激活状态。active=false 立即切断派发。RuntimeBinding 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
 
     __tablename__ = "veriq_runtime_bindings"
@@ -577,8 +590,9 @@ class RuntimeBinding(Base):
 
 
 class RuntimeGrant(Base):
-    """私有 Runtime 显式共享给 Workspace 内具名用户的授权行，非全员默认开放。授权变更需管理权限。变更共享授权需要管理工作区权限。
-    RuntimeGrant 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """私有 Runtime 显式共享给 Workspace 内具名用户的授权行，非全员默认开放。授权变更需管理权限。变更共享授权需要管理工作区权限。RuntimeGrant 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
 
     __tablename__ = "veriq_runtime_grants"
@@ -613,8 +627,9 @@ class RuntimeEnrollment(Base):
 
 
 class RuntimeToken(Base):
-    """设备凭证代际以哈希存当前/候选轮换令牌，配合 fencing 防旧代重放。轮换候选未确认前不覆盖当前。轮换候选未确认前不覆盖当前令牌。
-    RuntimeToken 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """设备凭证代际以哈希存当前/候选轮换令牌，配合 fencing 防旧代重放。轮换候选未确认前不覆盖当前。轮换候选未确认前不覆盖当前令牌。RuntimeToken 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
 
     __tablename__ = "veriq_runtime_tokens"
@@ -636,8 +651,9 @@ class RuntimeToken(Base):
 
 
 class ServiceAccount(Base):
-    """Workspace 服务账号用于无人值守 Runtime 注册与维护触发，禁用后令牌失效。名称仅在 Workspace 内有意义。
-    ServiceAccount 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """Workspace 服务账号用于无人值守 Runtime 注册与维护触发，禁用后令牌失效。名称仅在 Workspace 内有意义。ServiceAccount 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
 
     __tablename__ = "veriq_service_accounts"
@@ -688,9 +704,7 @@ class ExecutionPlan(Base):
 
 
 class Run(Base):
-    """一次套件/用例执行批次：幂等键绑定意图，状态机受 30 分钟预算与取消约束。idempotency_key 防重复创建。
-    Run 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
-    """
+    """一次套件/用例执行批次：幂等键绑定意图，状态机受 30 分钟预算与取消约束。idempotency_key 防重复创建。Run 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。"""
 
     __tablename__ = "veriq_runs"
     __table_args__ = (
@@ -728,8 +742,8 @@ class Run(Base):
 
 
 class CaseExecution(Base):
-    """Run 内单用例执行：绑定发布或冻结草稿版本，并聚合 Attempt 结果与门禁。与 Job.subject 外键对齐。
-    CaseExecution 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """Run 内单用例执行：绑定发布或冻结草稿版本，并聚合 Attempt 结果与门禁。与 Job.subject 外键对齐。CaseExecution 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+
     """
 
     __tablename__ = "veriq_case_executions"
@@ -771,8 +785,9 @@ class CaseExecution(Base):
 
 
 class Attempt(Base):
-    """Job 一次领取尝试：租约、围栏、阶段与容量；过期或未知进程失权威并隔离容量。lease_token 仅存哈希。lease_token 仅以哈希形式持久化。
-    Attempt 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """Job 一次领取尝试：租约、围栏、阶段与容量；过期或未知进程失权威并隔离容量。lease_token 仅存哈希。lease_token 仅以哈希形式持久化。Attempt 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
 
     __tablename__ = "veriq_attempts"
@@ -846,9 +861,9 @@ class CapacityPool(Base):
 
 
 class ResourceLease(Base):
-    """Attempt 容量占用行 HELD/QUARANTINED/RELEASED，释放时必须回退 pool.used。隔离态不回退 used 直至调和。
-    ResourceLease 路径涉及租约或 fencing：过期、错配令牌或不属于本设备的占用必须失败关闭而非降级继续。
-    ResourceLease 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """Attempt 容量占用行 HELD/QUARANTINED/RELEASED，释放时必须回退 pool.used。隔离态不回退 used 直至调和。ResourceLease 路径涉及租约或 fencing：过期、
+
+    错配令牌或不属于本设备的占用必须失败关闭而非降级继续。ResourceLease 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
 
     __tablename__ = "veriq_resource_leases"
@@ -866,9 +881,9 @@ class ResourceLease(Base):
 
 
 class ClaimReceipt(Base):
-    """领取回执记录 Runtime 成功 claim Job 的事实，支撑审计与重复领取诊断。与 fence 递增一起审计。与 fencingToken 递增一并审计。
-    ClaimReceipt 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
-    ClaimReceipt 的领取/竞争语义依赖数据库锁或原子更新，禁止先读计数再无锁启动执行。
+    """领取回执记录 Runtime 成功 claim Job 的事实，支撑审计与重复领取诊断。与 fence 递增一起审计。与 fencingToken 递增一并审计。ClaimReceipt 必须坚持 Workspace
+
+    归属与成员授权，嵌套资源引用不得跨空间隐式放行。ClaimReceipt 的领取/竞争语义依赖数据库锁或原子更新，禁止先读计数再无锁启动执行。
     """
 
     __tablename__ = "veriq_claim_receipts"
@@ -911,8 +926,9 @@ class AttemptEvent(Base):
 
 
 class AttemptUpload(Base):
-    """在线证据上传会话分块写入并与 publication 围栏联动，提交前对报告不可见。完成后才提交 publication。
-    AttemptUpload 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """在线证据上传会话分块写入并与 publication 围栏联动，提交前对报告不可见。完成后才提交 publication。AttemptUpload 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
 
     __tablename__ = "veriq_attempt_uploads"
@@ -933,8 +949,9 @@ class AttemptUpload(Base):
 
 
 class MaintenanceReceipt(Base):
-    """幂等维护触发回执以 key 绑定操作，清理 Job 以其标识为 subject_id。相同 key 重放同一回执。相同 key 重放返回同一回执。
-    MaintenanceReceipt 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """幂等维护触发回执以 key 绑定操作，清理 Job 以其标识为 subject_id。相同 key 重放同一回执。相同 key 重放返回同一回执。MaintenanceReceipt 必须坚持 Workspace
+
+    归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
 
     __tablename__ = "veriq_maintenance_receipts"
@@ -951,8 +968,8 @@ class MaintenanceReceipt(Base):
 
 
 class AiProvider(Base):
-    """Workspace AI 提供方限制允许 base URL、密钥引用与预算；测试可不依赖真实模型。密钥经主密钥封装存放。
-    AiProvider 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """Workspace AI 提供方限制允许 base URL、密钥引用与预算；测试可不依赖真实模型。密钥经主密钥封装存放。AiProvider 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+
     AiProvider 属于 AI 辅助路径：无有效 Provider 时不得假装成功，模型输出不得自动发布为正式资产。
     """
 
@@ -972,9 +989,9 @@ class AiProvider(Base):
 
 
 class AiGeneration(Base):
-    """AI 生成草稿含预览/失败/人工审核状态机，模型输出永不自动发布为资源版本。审核通过才可进入草稿编辑。审核通过后才可进入草稿编辑流。
-    AiGeneration 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
-    AiGeneration 属于 AI 辅助路径：无有效 Provider 时不得假装成功，模型输出不得自动发布为正式资产。
+    """AI 生成草稿含预览/失败/人工审核状态机，模型输出永不自动发布为资源版本。审核通过才可进入草稿编辑。审核通过后才可进入草稿编辑流。AiGeneration 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。AiGeneration 属于 AI 辅助路径：无有效 Provider 时不得假装成功，模型输出不得自动发布为正式资产。
     """
 
     __tablename__ = "veriq_ai_generations"
@@ -998,8 +1015,9 @@ class AiGeneration(Base):
 
 
 class Bundle(Base):
-    """离线导出包元数据含清单哈希、过期与签名信息；字节由导出流水线组装签名。下载需 Workspace 授权。下载接口必须校验 Workspace 授权。
-    Bundle 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """离线导出包元数据含清单哈希、过期与签名信息；字节由导出流水线组装签名。下载需 Workspace 授权。下载接口必须校验 Workspace 授权。Bundle 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
 
     __tablename__ = "veriq_bundles"
@@ -1018,8 +1036,9 @@ class Bundle(Base):
 
 
 class BundleExport(Base):
-    """导出幂等预订用 Idempotency-Key 绑定 Workspace 与请求指纹，同键可安全重放。并发导出受信号量限制。
-    BundleExport 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """导出幂等预订用 Idempotency-Key 绑定 Workspace 与请求指纹，同键可安全重放。并发导出受信号量限制。BundleExport 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
 
     __tablename__ = "veriq_bundle_exports"
@@ -1036,9 +1055,9 @@ class BundleExport(Base):
 
 
 class OfflineImport(Base):
-    """离线结果导入头：幂等键与清单哈希，来源固定 OFFLINE_IMPORT，重复返回既有回执。不提升非正式结果门禁。导入不提升非正式结果的正式门禁。
-    OfflineImport 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
-    OfflineImport 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
+    """离线结果导入头：幂等键与清单哈希，来源固定 OFFLINE_IMPORT，重复返回既有回执。不提升非正式结果门禁。导入不提升非正式结果的正式门禁。OfflineImport 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。OfflineImport 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
     """
 
     __tablename__ = "veriq_offline_imports"
@@ -1059,9 +1078,9 @@ class OfflineImport(Base):
 
 
 class OfflineImportKey(Base):
-    """导入幂等键登记确保同 Workspace 键不被不同清单或主体悄悄复用覆盖。键与主体一并固化。键与导入主体一并固化登记。
-    OfflineImportKey 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
-    OfflineImportKey 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
+    """导入幂等键登记确保同 Workspace 键不被不同清单或主体悄悄复用覆盖。键与主体一并固化。键与导入主体一并固化登记。OfflineImportKey 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。OfflineImportKey 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
     """
 
     __tablename__ = "veriq_offline_import_keys"
@@ -1079,8 +1098,9 @@ class OfflineImportKey(Base):
 
 
 class OfflineAttempt(Base):
-    """导入生成的离线 Attempt 投影供报告只读；变体缺失时正式门禁保持未通过。不参与在线领取状态机。不参与在线领取与租约状态机。
-    OfflineAttempt 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
+    """导入生成的离线 Attempt 投影供报告只读；变体缺失时正式门禁保持未通过。不参与在线领取状态机。不参与在线领取与租约状态机。OfflineAttempt 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
     """
 
     __tablename__ = "veriq_offline_attempts"
@@ -1113,9 +1133,9 @@ class OfflineAttempt(Base):
 
 
 class OfflineImportUpload(Base):
-    """离线产物分块上传与 publication 围栏绑定，未 COMMITTED 前不作已提交证据。分块校验摘要与大小。分块写入时校验摘要与声明大小。
-    OfflineImportUpload 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
-    OfflineImportUpload 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
+    """离线产物分块上传与 publication 围栏绑定，未 COMMITTED 前不作已提交证据。分块校验摘要与大小。分块写入时校验摘要与声明大小。OfflineImportUpload 必须坚持 Workspace
+
+    归属与成员授权，嵌套资源引用不得跨空间隐式放行。OfflineImportUpload 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
     """
 
     __tablename__ = "veriq_offline_import_uploads"

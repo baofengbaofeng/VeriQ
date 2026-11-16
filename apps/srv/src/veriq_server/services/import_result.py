@@ -1,6 +1,6 @@
-"""离线结果导入：验签归档、核对清单与变体、幂等写入 OfflineImport，来源固定 OFFLINE_IMPORT 且不提升正式门禁。
-verify_archive 校验清单哈希与公钥；expected_variants 决定缺失变体时的保守展示。
-重复 Idempotency-Key 返回既有回执，不覆盖不同清单。
+"""离线结果导入：验签归档、核对清单与变体、幂等写入 OfflineImport，来源固定 OFFLINE_IMPORT 且不提升正式门禁。verify_archive 校验清单哈希与公钥；expected_variants
+
+决定缺失变体时的保守展示。重复 Idempotency-Key 返回既有回执，不覆盖不同清单。
 """
 
 import asyncio
@@ -44,8 +44,9 @@ from .completion import retry_is_safe
 
 
 def verify_archive(raw: bytes, manifest_hash: str, public: dict[str, Any]) -> dict[str, Any]:
-    """校验离线归档签名、清单哈希与公钥信任，失败拒绝导入，verify_archive 遵守本文件边界，失败返回稳定 Problem。
-    verify_archive 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
+    """校验离线归档签名、清单哈希与公钥信任，失败拒绝导入，verify_archive 遵守本文件边界，失败返回稳定 Problem。verify_archive 处理导入或离线回传时需保持幂等键与来源标识，
+
+    重复提交不得制造双份业务副作用。
     """
     try:
         if len(raw) > MAX_ARCHIVE:
@@ -113,8 +114,9 @@ def verify_archive(raw: bytes, manifest_hash: str, public: dict[str, Any]) -> di
 
 
 def expected_variants(checked: dict[str, Any], result: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    """根据已校验清单与结果推导期望变体表，缺失时保持保守门禁，expected_variants 遵守本文件边界，失败返回稳定 Problem。
-    expected_variants 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
+    """根据已校验清单与结果推导期望变体表，缺失时保持保守门禁，expected_variants 遵守本文件边界，失败返回稳定 Problem。expected_variants 处理导入或离线回传时需保持幂等键与来源标识，
+
+    重复提交不得制造双份业务副作用。
     """
     assets = {a["versionId"]: a for a in checked["snapshot"]["assets"]}
     selection, files = checked["selection"], checked["files"]
@@ -193,8 +195,9 @@ def expected_variants(checked: dict[str, Any], result: dict[str, Any]) -> dict[s
 
 
 class ImportService:
-    """编排授权、验档、事实校验与幂等落库，禁止跨 Workspace 导入，ImportService 遵守本文件边界，失败返回稳定 Problem。
-    ImportService 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
+    """编排授权、验档、事实校验与幂等落库，禁止跨 Workspace 导入，ImportService 遵守本文件边界，失败返回稳定 Problem。ImportService 处理导入或离线回传时需保持幂等键与来源标识，
+
+    重复提交不得制造双份业务副作用。
     """
 
     def __init__(
@@ -204,8 +207,8 @@ class ImportService:
         settings: Settings,
         reauthorize: Callable[[AsyncSession], Awaitable[User]] | None = None,
     ):
-        """注入会话、用户与设置，后续验签依赖 issuer 信任配置，ImportService.__init__ 遵守本文件边界。
-        __init__ 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
+        """注入会话、用户与设置，后续验签依赖 issuer 信任配置，ImportService.__init__ 遵守本文件边界。__init__ 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
+
         """
         self.session, self.actor, self.settings, self.reauthorize = (
             session,
@@ -217,8 +220,8 @@ class ImportService:
     async def authorize(
         self, scope: WorkspaceScope, bundle_id: str, authority: tuple[Issuer, ApprovedEngines]
     ) -> Bundle:
-        """要求 Workspace 导入相关权限，归档租户拒绝写入，ImportService.authorize 遵守本文件边界。
-        authorize 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
+        """要求 Workspace 导入相关权限，归档租户拒绝写入，ImportService.authorize 遵守本文件边界。authorize 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
+
         """
         await self.session.refresh(self.actor)
         if self.reauthorize:
@@ -245,8 +248,9 @@ class ImportService:
     async def import_result(
         self, scope: WorkspaceScope, result: dict[str, Any], key: str
     ) -> dict[str, Any]:
-        """幂等导入离线结果；键冲突且清单不同则拒绝，相同则回放回执，ImportService.import_result 遵守本文件边界。
-        import_result 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
+        """幂等导入离线结果；键冲突且清单不同则拒绝，相同则回放回执，ImportService.import_result 遵守本文件边界。import_result 处理导入或离线回传时需保持幂等键与来源标识，
+
+        重复提交不得制造双份业务副作用。
         """
         if not re.fullmatch(r"[!-~]{1,160}", key):
             raise Problem(
@@ -425,8 +429,9 @@ class ImportService:
 
     @staticmethod
     def receipt(row: OfflineImport, duplicate: bool) -> dict[str, Any]:
-        """将 OfflineImport 转为导入回执 DTO，duplicate 标记是否重放，ImportService.receipt 遵守本文件边界。
-        receipt 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
+        """将 OfflineImport 转为导入回执 DTO，duplicate 标记是否重放，ImportService.receipt 遵守本文件边界。receipt 处理导入或离线回传时需保持幂等键与来源标识，
+
+        重复提交不得制造双份业务副作用。
         """
         return {
             "id": row.id,
@@ -440,8 +445,9 @@ class ImportService:
     async def validate_facts(
         self, scope: WorkspaceScope, result: dict[str, Any], checked: dict[str, Any]
     ) -> list[dict[str, Any]]:
-        """核对导入事实与清单一致性，防止篡改步骤或产物引用，ImportService.validate_facts 遵守本文件边界。
-        validate_facts 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
+        """核对导入事实与清单一致性，防止篡改步骤或产物引用，ImportService.validate_facts 遵守本文件边界。validate_facts 处理导入或离线回传时需保持幂等键与来源标识，
+
+        重复提交不得制造双份业务副作用。
         """
         rows = expected_variants(checked, result)
         assets = {a["versionId"]: a for a in checked["snapshot"]["assets"]}

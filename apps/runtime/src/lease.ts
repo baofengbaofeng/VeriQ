@@ -32,10 +32,9 @@ export function leaseDeadline(
         responseReceived < requestStarted
     )
         throw new Error("INVALID_LEASE");
-    // 从发送时刻起算扣完整往返，延迟应答也会吃掉租约预算。
-    // 预留一秒让监督器在服务端授权结束前完成停机与排空。
-    // Starting at send time deducts the complete roundtrip, including delayed responses.
-    // A one-second reserve allows the supervisor to stop before the server authorization ends.
+    // 从发送时刻起算扣完整往返，延迟应答也会吃掉租约预算。预留一秒让监督器在服务端授权结束前完成停机与排空。Starting at send time deducts the complete roundtrip,
+    // including delayed responses. A one-second reserve allows the supervisor to stop before the server authorization
+    // ends.
     const deadline = requestStarted + Math.min(duration, grant.leaseDurationMs) - 1000;
     if (deadline <= responseReceived) throw new Error("LEASE_BUDGET_EXHAUSTED");
     return deadline;

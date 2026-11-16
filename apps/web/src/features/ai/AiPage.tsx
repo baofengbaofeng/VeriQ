@@ -39,10 +39,7 @@ const defaults: S["ProviderWrite"] = {
     maxOutputTokens: 1024,
     maxRequestUsd: 0.5,
 };
-/**
- * 工作区选择壳：默认选中首个空间，再渲染 AiWorkspaceView 并传入 adapter 与 signal。无空间时提示先创建或加入。
- * 未登录重定向；自身不缓存 generation 表单以免切换空间泄漏。
- */
+/** 工作区选择壳：默认选中首个空间，再渲染 AiWorkspaceView 并传入 adapter 与 signal。无空间时提示先创建或加入。未登录重定向；自身不缓存 generation 表单以免切换空间泄漏。 */
 export function AiPage() {
     useAppLocale();
     const t = useLabels(),

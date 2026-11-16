@@ -99,8 +99,5 @@ const en: typeof zh = {
 };
 editorI18n.addResourceBundle("zh", "reports", zh, true, true);
 editorI18n.addResourceBundle("en", "reports", en, true, true);
-/**
- * editorI18n 的别名导出，方便报告模块以 reportI18n 引用而不直接依赖 resources/i18n 路径语义。
- * 调用方应指定 ns=reports；默认 translation ns 仍留给资源编辑器。
- */
+/** editorI18n 的别名导出，方便报告模块以 reportI18n 引用而不直接依赖 resources/i18n 路径语义。调用方应指定 ns=reports；默认 translation ns 仍留给资源编辑器。 */
 export { editorI18n as reportI18n };
