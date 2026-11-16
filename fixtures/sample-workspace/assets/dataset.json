@@ -1,0 +1,23 @@
+{
+    "kind": "DATASET",
+    "document": {
+        "schemaVersion": "1.0",
+        "columns": {
+            "name": "string"
+        },
+        "rows": [
+            {
+                "key": "latin",
+                "values": {
+                    "name": "Ada Example"
+                }
+            },
+            {
+                "key": "unicode",
+                "values": {
+                    "name": "示例员工"
+                }
+            }
+        ]
+    }
+}

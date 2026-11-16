@@ -1,7 +1,8 @@
-"""VeriQ controlled demo business + fixture HTTP service (SQLite persistence).
+"""VeriQ 受控示例通过真实业务认证、SQLite 事务与独立夹具身份演示完整生命周期，数据仅写入显式配置的私有路径，禁止连接生产业务数据库。
 
-Run using the service Python environment. All tokens must be supplied externally.
-No internal scheduler: external callers invoke authenticated /maintenance.
+示例沿用控制服务已有的 Tornado 环境，不增加框架或依赖锁。
+令牌由外部环境注入，夹具准备与普通业务写入采用不同身份。
+外部调用维护接口完成 TTL 补偿，进程内部不启动定时器。
 """
 
 import asyncio
@@ -11,6 +12,7 @@ import json
 import os
 import secrets
 import sqlite3
+import stat
 import time
 from pathlib import Path
 from uuid import uuid4
@@ -42,7 +44,7 @@ class Store:
             "SELECT * FROM fixtures WHERE key=?", (data["idempotencyKey"],)
         ).fetchone()
         if row:
-            if row["request_hash"] != digest or row["state"] != "OPEN":
+            if row["request_hash"] != digest or row["state"] != "OPEN" or row["expires"] <= time.time():
                 raise HTTPError(409)
             return self.context(row)
         fixture_id = str(uuid4())
@@ -83,7 +85,7 @@ class Store:
                 "SELECT * FROM fixtures WHERE key=? AND namespace=?", (key, namespace)
             ).fetchone()
             if row is None:
-                # A close tombstone prevents a delayed prepare from reopening this namespace.
+                # 清理先建立关闭墓碑，阻止尚未到达的准备请求重新打开这个命名空间；数据库唯一约束同时禁止其它幂等键取得既有命名空间的归属权，失败不提交事务。
                 self.db.execute(
                     "INSERT INTO fixtures VALUES(?,?,?,?,?,?,?,?)",
                     (str(uuid4()), key, namespace, "closed", "", "CLOSED", time.time(), "{}"),
@@ -120,15 +122,30 @@ class Store:
             self.db.execute("ROLLBACK")
             raise
 
+    def namespace_for_code(self, code):
+        """把夹具公开输出的稳定业务代码解析为真实命名空间，保持既有严格输出 Schema 只含 code，并让可导入 DSL 无需假设运行时存在隐藏变量。
+        此查询不返回 cleanupToken，关闭的命名空间仍交由事务内的写入检查拒绝。
+        """
+        if not isinstance(code, str) or not code:
+            raise HTTPError(400)
+        rows = self.db.execute("SELECT namespace,variables FROM fixtures").fetchall()
+        for row in rows:
+            if json.loads(row["variables"]).get("code") == code:
+                return row["namespace"]
+        raise HTTPError(404)
+
 
 class Handler(RequestHandler):
-    def initialize(self, store, business_token, fixture_token, maintenance_token):
+    def initialize(self, store, business_token, fixture_token, maintenance_token, build_sha="development"):
         self.store = store
         self.tokens = {
             "editor": business_token,
             "fixture-service": fixture_token,
             "maintenance": maintenance_token,
         }
+        self.build_sha = build_sha
+        self.set_header("X-Request-Id", str(uuid4()))
+        self.set_header("X-Build-Sha", build_sha)
 
     def set_default_headers(self):
         self.set_header("Cache-Control", "no-store")
@@ -171,7 +188,8 @@ class Handler(RequestHandler):
         )
 
     async def validate_employee(self, name):
-        """Business validation extension point; committing rechecks namespace atomically."""
+        """业务名称在写入前执行正常类型和长度校验，子类可用于受控竞争测试阻塞请求，但真正提交时必须在同一事务重新检查命名空间，不能以先前的校验结果绕过清理围栏。
+        """
         if not isinstance(name, str) or not 1 <= len(name) <= 160:
             raise HTTPError(400)
 
@@ -179,8 +197,14 @@ class Handler(RequestHandler):
         path = self.request.path
         if path == "/":
             self.set_header("Content-Type", "text/html")
-            self.finish("""<!doctype html><title>VeriQ demo</title><label>Name<input data-testid="name"></label><button data-testid="save">Save</button><div data-testid="result"></div><script>
-            document.querySelector('button').onclick=async()=>{const response=await fetch('/employees',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({namespace:new URL(location.href).searchParams.get('namespace'),name:document.querySelector('input').value})});const result=await response.json();document.querySelector('[data-testid=result]').textContent=result.status||result.code;};</script>""")
+            self.finish(Path(__file__).with_name("index.html").read_text(encoding="utf-8"))
+        elif path == "/demo.js":
+            self.set_header("Content-Type", "application/javascript; charset=utf-8")
+            self.finish(Path(__file__).with_name("demo.js").read_text(encoding="utf-8"))
+        elif path == "/build-info":
+            self.finish({"buildSha": self.build_sha})
+        elif path == "/openapi.json":
+            self.finish(json.loads(Path(__file__).with_name("openapi.json").read_text(encoding="utf-8")))
         elif path == "/me":
             self.finish({"id": self.identity()})
         elif path == "/query":
@@ -199,9 +223,16 @@ class Handler(RequestHandler):
             )
         elif path == "/employees":
             self.require("editor")
+            namespace = self.get_query_argument("namespace", None)
+            if namespace is not None and self.get_query_argument("code", None) is not None:
+                raise HTTPError(400)
+            if namespace is not None and not namespace:
+                raise HTTPError(400)
+            if namespace is None:
+                namespace = self.store.namespace_for_code(self.get_query_argument("code"))
             rows = self.store.db.execute(
                 "SELECT id,name FROM employees WHERE namespace=?",
-                (self.get_query_argument("namespace"),),
+                (namespace,),
             ).fetchall()
             self.finish({"items": [dict(r) for r in rows]})
         else:
@@ -212,6 +243,8 @@ class Handler(RequestHandler):
         path = self.request.path
         if path == "/login":
             token = data.get("token", "")
+            if set(data) != {"token"}:
+                raise HTTPError(400)
             if not isinstance(token, str) or token not in self.tokens.values():
                 raise HTTPError(401)
             self.set_cookie(
@@ -224,25 +257,32 @@ class Handler(RequestHandler):
             self.finish({"status": "AUTHENTICATED"})
         elif path in {"/prepare", "/cleanup"}:
             self.require("fixture-service")
+            allowed = {"workspaceId", "caseExecutionId", "attemptNo", "namespace", "idempotencyKey"}
+            allowed |= {"input", "ttlSeconds"} if path == "/prepare" else {"cleanupToken"}
+            if set(data) - allowed:
+                raise HTTPError(400)
             if any(
                 not isinstance(data.get(k), str) or not data[k]
                 for k in ["workspaceId", "caseExecutionId", "namespace", "idempotencyKey"]
             ):
                 raise HTTPError(400)
             expected = f"{data['workspaceId']}:{data['caseExecutionId']}:{data.get('attemptNo')}"
-            if data["idempotencyKey"] != expected or data.get("attemptNo") not in (1, 2):
+            if data["idempotencyKey"] != expected or type(data.get("attemptNo")) is not int or data.get("attemptNo") not in (1, 2):
                 raise HTTPError(400)
             if path == "/prepare":
                 if (
                     not isinstance(data.get("input"), dict)
                     or set(data["input"]) != {"name"}
                     or not isinstance(data["input"]["name"], str)
-                    or not isinstance(data.get("ttlSeconds"), int)
+                    or not data["input"]["name"]
+                    or type(data.get("ttlSeconds")) is not int
                     or not 1 <= data["ttlSeconds"] <= 604800
                 ):
                     raise HTTPError(400)
                 self.finish(self.store.prepare(data))
             else:
+                if "cleanupToken" in data and (not isinstance(data["cleanupToken"], str) or not data["cleanupToken"]):
+                    raise HTTPError(400)
                 self.finish(
                     self.store.cleanup(
                         data["idempotencyKey"], data["namespace"], data.get("cleanupToken")
@@ -250,12 +290,23 @@ class Handler(RequestHandler):
                 )
         elif path == "/employees":
             self.require("editor")
+            if set(data) - {"namespace", "code", "name"} or ("namespace" in data) == ("code" in data):
+                raise HTTPError(400)
             await self.validate_employee(data.get("name"))
-            self.finish(self.store.create_employee(data.get("namespace"), data["name"]))
+            namespace = data.get("namespace")
+            if "namespace" in data and (not isinstance(namespace, str) or not namespace):
+                raise HTTPError(400)
+            if namespace is not None and data.get("code") is not None:
+                raise HTTPError(400)
+            if namespace is None:
+                namespace = self.store.namespace_for_code(data.get("code"))
+            self.finish(self.store.create_employee(namespace, data["name"]))
         elif path == "/maintenance":
             self.require("maintenance")
+            if set(data) - {"limit"}:
+                raise HTTPError(400)
             limit = data.get("limit", 100)
-            if not isinstance(limit, int) or not 1 <= limit <= 100:
+            if type(limit) is not int or not 1 <= limit <= 100:
                 raise HTTPError(400)
             rows = self.store.db.execute(
                 "SELECT key,namespace FROM fixtures WHERE state='OPEN' AND expires<=? ORDER BY expires LIMIT ?",
@@ -273,7 +324,7 @@ class Handler(RequestHandler):
         await self.post()
 
 
-def application(store, business_token, fixture_token, maintenance_token, handler=Handler):
+def application(store, business_token, fixture_token, maintenance_token, handler=Handler, build_sha="development"):
     if len({business_token, fixture_token, maintenance_token}) != 3 or any(
         len(t) < 24 for t in [business_token, fixture_token, maintenance_token]
     ):
@@ -288,6 +339,7 @@ def application(store, business_token, fixture_token, maintenance_token, handler
                     business_token=business_token,
                     fixture_token=fixture_token,
                     maintenance_token=maintenance_token,
+                    build_sha=build_sha,
                 ),
             )
         ]
@@ -295,14 +347,28 @@ def application(store, business_token, fixture_token, maintenance_token, handler
 
 
 async def main():
-    store = Store(os.environ["VERIQ_DEMO_DATABASE"])
+    """示例服务只使用操作者明确配置的私有数据路径并从秘密环境读取独立令牌，启动前拒绝符号链接或公开文件；网络监听显式配置，不自动接入真实生产业务系统。
+    """
+    database = Path(os.environ["VERIQ_DEMO_DATABASE"]).absolute()
+    if database.parent.stat().st_mode & 0o022:
+        raise ValueError("Database directory must not be writable by group or others")
+    if database.exists() or database.is_symlink():
+        info = database.lstat()
+        if not stat.S_ISREG(info.st_mode) or info.st_mode & 0o077:
+            raise ValueError("Database must be a private regular file")
+    os.umask(0o077)
+    store = Store(database)
     app = application(
         store,
         os.environ["VERIQ_DEMO_BUSINESS_TOKEN"],
         os.environ["VERIQ_DEMO_FIXTURE_TOKEN"],
         os.environ["VERIQ_DEMO_MAINTENANCE_TOKEN"],
+        build_sha=os.environ.get("VERIQ_DEMO_BUILD_SHA", "development"),
     )
-    app.listen(int(os.environ.get("VERIQ_DEMO_PORT", "8090")), address="127.0.0.1")
+    app.listen(
+        int(os.environ.get("VERIQ_DEMO_PORT", "8090")),
+        address=os.environ.get("VERIQ_DEMO_BIND", "127.0.0.1"),
+    )
     await asyncio.Event().wait()
 
 

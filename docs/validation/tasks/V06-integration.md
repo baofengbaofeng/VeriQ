@@ -1,0 +1,114 @@
+# V06：示例、接入和手册真实复现
+
+状态：**C06 源码交付；本轮未执行测试、类型检查、构建、数据库、网络、浏览器、CI、依赖安装或独立复审。** 本文件是后续 Agent 的执行任务，不是通过记录。不替代[V01–V10](../mvp-handoff.md)及正式发布门禁。
+
+## SOURCE_DELIVERY
+
+| 已实现源码 | 入口与实际行为 | 未完成/适用边界 |
+| --- | --- | --- |
+| 七类现有 DSL | `fixtures/sample-workspace/assets/{catalog,dataset,fixture,flow,case,suite,environment}.json`；严格变量、数据行、公共流程、真实写请求和持久化检查 | 不含第八类 ASSERTION_TEMPLATE；本任务要求的七类齐全，未宣称覆盖所有动作/断言 |
+| API bootstrap | `fixtures/sample-workspace/{bootstrap.py,platform_http.py,manifest.json}`；员工Cookie/CSRF、真实预览/validate/poll/receipt/publish、真实计划、恢复不覆盖编辑 | 需实际MANAGED编译器、批准引擎库存、设备授权；不自动晋升或信任设备；未触发Run |
+| Python业务示例 | `fixtures/demo-app/{app.py,index.html,demo.js,openapi.json}`；code归属查询、持久化列表、稳定行键、requestId/build、外部补偿 | SQLite受控样例；未验证C06对既有fixture/browser测试的兼容性；不是客户数据库 |
+| 标准库HTTP示例 | `fixtures/integration/python/lifecycle.py`；准备/重放/冲突/身份反例/写入/GET/finally/重复清理 | 真实网络执行留后；不覆盖浏览器或UI |
+| Java样例 | `fixtures/integration/spring-boot-2.3.1/`；Java11+SpringBoot2.3.1，三类Bearer、POSIX私有快照、文件锁、全生命周期/OpenAPI/UI源码复用 | 未编译；仅单进程小数据集，未实现生产DB/多实例/目录fsync掉电保证/SSO；不能声称跨OS存储支持 |
+| React接入源码 | `fixtures/integration/react18/{VeriqButton,EmployeePanel,KeyboardOrder}.tsx`；CVA/ref/asChild、Portal、Query、i18next、DOMPurify、键盘拖动 | drop-in组件，需消费工程Providers/翻译/直接依赖；排序persist由业务真实实现，demo无排序API；未纳入产品build，需单独集成验证 |
+| 指南 | `docs/guides/{README,sample-workspace,frontend-react18,backend-http,users-and-operators}.md`，各fixture README | 源码运行指南；不包含正式安装通过结论；不重复现有发行/迁移/调度协议 |
+
+源目录不自动成为已安装 wheel/OCI 的示例资源；若正式发行要求安装后离线使用本示例，协调者需由发行所有者把这些文件和明确入口纳入发行库存/安装验证。当前提供仓库源码 CLI，不宣称已有安装向导自动导入 hook。
+
+## 环境、授权与材料
+
+| 项目 | 必须具备 | 失败/未具备时 |
+| --- | --- | --- |
+| 源码/工具 | 记录实际commit、Python3.12、固定仓库锁、Node24、pnpm、Java11/Maven实际版本 | 不借用旧提交通过结果；缺失则记录阻塞 |
+| 控制平台 | 隔离MySQL8.4、迁移、真实setup和员工会话、准确public_url、私有密钥/制品目录 | 不向生产DB/现有客户业务写入；不直接插成功回执 |
+| 角色 | 平台系统管理员；空间Owner/Admin/Editor/Viewer；两个互隔离Workspace；业务editor、fixture-service、maintenance | 记录实际角色，不让fixture高权限代替业务权限 |
+| Runtime | 批准的真实引擎库存、MANAGED编译器、在线Worker、所有者共享、空间凭据投递授权、派发权 | QUEUED/OFFLINE不算编译通过；授权缺失是阻塞或预期拒绝 |
+| 浏览器 | 固定Chrome/Playwright版本和真实路径；Mac15+ Intel与ARM分别宿主原生Chrome | Linux VM不能替代Mac；OS原生安装结论归V03/V05 |
+| 业务服务 | Python私有SQLite或Java私有POSIX快照；三份独立随机秘密环境；目标build SHA | 严禁默认密码和真实支付/业务调用 |
+| 网络/TLS | 从实际Runtime可达UI/API/fixture/认证；HTTPS非loopback；证书信任；代理保留requestId/build | localhost是Runtime本机/容器；不得通过关闭TLS校验通过 |
+| UI组件消费工程 | React18/Vite6/Tailwind3，已有直接依赖、Query/i18next Providers、受控翻译 | 不以产品Web自身build替代未被tsconfig收录的fixture组件验证 |
+| 外部调度 | 受限EXECUTION token、单计划trigger/read/cancel；独立MAINTENANCE token；允许合成调用 | token在秘密管理器，不写argv/URL/证据；本轮未授权真实外部Provider调用 |
+
+先读根 `AGENTS.md` 与[当前交付约束](../../plans/code-delivery.md)，确认后续任务确已转为执行验证阶段。准备环境和依赖安装是后续任务动作，本轮没有执行。
+
+## 后续命令与预期
+
+从仓库根执行，参数/秘密由隔离环境提供。每条记录实际命令、commit、环境、退出码、预期/实际及失败路径；不要把本文件里的预期填成实际。
+
+```sh
+# Use the configured service environment; no credentials in arguments.
+uv run --project apps/srv python - <<'PY'
+import json
+from pathlib import Path
+from veriq_server.contracts import validate_schema
+for path in sorted(Path('fixtures/sample-workspace/assets').glob('*.json')):
+    errors = validate_schema('ResourceDocumentV1', json.loads(path.read_text()))
+    if errors:
+        raise SystemExit(f'Sample schema rejected: {path.name}')
+print('Sample resource document schemas accepted')
+PY
+```
+
+预期七个JSON被现有Schema接受；这只检查文档结构，不证明跨引用、身份或编译发布成立。若不接受，修源码再重跑，不能弱化Schema。
+
+```sh
+pnpm --filter @veriq/runner-sdk test
+uv run --project apps/srv pytest -c apps/srv/pyproject.toml apps/srv/tests/execution/test_cleanup_mysql.py -q
+mvn -f fixtures/integration/spring-boot-2.3.1/pom.xml package
+```
+
+SDK测试需要真实Chromium及其既有HTTP测试夹具；MySQL测试只使用仓库允许的专用测试库/配置，按既有测试保护要求运行并与其他用库任务串行。Java `package` 验证独立样例编译，不存在Java测试源，因此构建成功也不证明生命周期通过。新组件要在专门消费工程执行严格TypeScript/Vite构建和真实浏览器测试，父工程产品build不包含这些源码，不得记为已覆盖。全量lint/注释审计/覆盖率交V09，不允许以样例检查替代。
+
+按[示例指南](../../guides/sample-workspace.md)依次执行：启动Python demo → bootstrap `--workspace-only` → 实际Runtime授权和启动 → bootstrap完整发布 → 创建受限服务token → `scripts/veriq_ci.py`真实触发。Java则按[后端指南](../../guides/backend-http.md)启动8091和独立数据文件，然后运行同一生命周期客户端及相同DSL（新空间、新URL/build和密钥），不能复用Python已发布环境冒充Java结果。
+
+```sh
+python fixtures/integration/python/lifecycle.py \
+    --base-url http://127.0.0.1:8090 --build-sha example-build-001 \
+    --workspace '<workspace-uuid>' --probe-contract
+python fixtures/integration/python/lifecycle.py \
+    --base-url http://127.0.0.1:8091 --build-sha java-example-build-001 \
+    --workspace '<workspace-uuid>' --probe-contract
+```
+
+预期：真实身份匹配；同prepare重放一致、不同参数409；两种角色越权403；员工来自真实GET；finally清理和重复清理；最终归属员工为零。返回非零保留失败，不能删库后改为通过。
+
+## 8条真实流程，每条至少5轮
+
+每轮使用新Run/幂等键/Attempt/namespace，保存真实build、locale、timezone、role、浏览器/OS、Run/Job/Attempt标识、预期/实际、cleanup和gate。完全相同触发的网络重放保留原键，不算新一轮。下表所有轮次目前均未执行。
+
+| 流程 | 实际操作及必须观察的结果 | 轮1 | 轮2 | 轮3 | 轮4 | 轮5 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 导入/恢复 | 七类Schema→真实编译→发布→计划；中途超时后相同参数恢复；变化草稿/计划拒绝覆盖 | 未执行 | 未执行 | 未执行 | 未执行 | 未执行 |
+| 2 Python UI正常写入 | 两数据行经FLOW填写→观察POST业务码→提取id→reload行键→独立GET持久化→真实清理 | 未执行 | 未执行 | 未执行 | 未执行 | 未执行 |
+| 3 Java完整链路 | 独立Java环境和身份，同DSL+UI/标准库生命周期；服务重启后幂等和关闭墓碑保留 | 未执行 | 未执行 | 未执行 | 未执行 | 未执行 |
+| 4 角色/空间/凭据拒绝 | Viewer写操作、业务editor调用prepare、fixture写业务、跨空间嵌套引用、旧/撤销secret与未授权设备均拒绝 | 未执行 | 未执行 | 未执行 | 未执行 | 未执行 |
+| 5 Query/Portal/键盘 | 消费React组件；乐观失败回滚/后台GET不误捕；asChild/ref真实DOM；Portal独立scope；Escape焦点恢复；键盘排序后GET+reload | 未执行 | 未执行 | 未执行 | 未执行 | 未执行 |
+| 6 locale/记录/HTML | en-US/UTC与zh-CN/Asia-Shanghai；改排序/分页仍命中同id；DOMPurify过滤脚本/危险URL/伪testId，合法富文本可见 | 未执行 | 未执行 | 未执行 | 未执行 | 未执行 |
+| 7 HTTP计划与门禁 | 同键重放同Run、改正文409；QUEUE/SKIP/REJECT；受限read/cancel；PASSED双gate/真实用例才CI0，UNSTABLE/空/跳过不通过 | 未执行 | 未执行 | 未执行 | 未执行 | 未执行 |
+| 8 失败/取消/补偿 | 写响应丢失先查询不重发；prepare丢失仍精确cleanup；实际Worker退出/取消；晚到写在清理后拒绝；外部TTL清到归属零且不碰邻namespace | 未执行 | 未执行 | 未执行 | 未执行 | 未执行 |
+
+流程5的排序回调必须接入隔离消费应用的真实保存/查询接口；原demo没有排序业务API，不能用内存回调返回成功充当持久化。流程6涉及日期时需在客户应用实现真实日期/金额展示与受控预期，原demo只有姓名，不能凭切时区参数宣称已覆盖夏令时/金额。
+
+## 标签、tokenId 和敏感证据专项
+
+使用独立合成秘密与可识别的无价值tokenId标记；实际值只在受限检查进程内存中，不写报告或截图。检查必须由两种角色执行，不能只用Owner看授权页。
+
+| 检查 | 预期 | 当前结果 |
+| --- | --- | --- |
+| 普通业务DOM | textContent、label、aria-label、title、data-testid、data-record-key均无token/cleanupToken/tokenId/secretVersionId标记 | 未执行 |
+| URL/日志 | path/query/hash、Console、结构化事件、requestId诊断、HTTP客户端错误无秘密；业务key不冒充凭据id | 未执行 |
+| 管理令牌视图 | 授权Owner/Admin只在元数据区域看到tokenId；明文token只签发一次，不成为行公开testId/aria-label；Viewer不可访问管理内容 | 未执行 |
+| 报告/CI | 普通报告与安全CI/JUnit无标记；原始Trace/HTML/截图保持独立证据权限，EXECUTION token不能下载原始证据 | 未执行 |
+| 注入/重名 | 富文本恶意data-testid/recordKey被清洗，不遮盖可信scope；业务姓名不能注入HTML或覆盖诊断label | 未执行 |
+| 包/进度 | DSL、导入状态、签名离线包无密码/Cookie/storageState/设备token/cleanupToken；元数据UUID仅按授权读取 | 未执行 |
+
+只记录“命中/未命中、字段/路径及受限证据引用”，不要把搜索到的秘密复制到交接。若发现泄漏立即保留失败、撤销合成令牌、修源码再重跑；不能通过删断言或省略证据通过。
+
+## 清理、故障和收尾
+
+每轮 finally 后读回精确namespace，检查CLEANED/ALREADY_CLEANED与真实员工为空；保留另一个邻namespace哨兵不被删。故障轮允许记录CLEANUP_FAILED/PENDING，但不能当最终完成，必须通过授权Runtime补偿或外部demo maintenance查明结果。原始证据保留在受限目录，安全摘要记录真实失败。
+
+终止Worker/Chrome只使用对应目标OS批准的受控停止路径，不随意杀任意后代；Mac不扩大内核后代清理承诺。不确定进程保持quarantine/manual recovery，由V03/V05收证。确认无活动Run、真实进程已停止、无待补偿/未过期fixture后，再停止demo/Java进程、归档示例计划和空间、撤销服务/业务密钥；移除本次私有样例数据库前先保存脱敏结果，不能删库掩盖清理失败。
+
+已知平台历史阻塞继续见[主交接](../mvp-handoff.md)：Mac入口环境、Windows ACL、旧Web lint与全仓注释规范债务不能从本任务推断已修复。本次源码没有任何新执行结果，也没有独立代码审查结论。后续Agent完成以上工作后填写实际结果与残留功能缺口，再由整体验收决定是否满足MVP。
