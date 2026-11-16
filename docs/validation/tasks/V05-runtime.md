@@ -18,6 +18,7 @@
 | Mac 凭据 | 新 DarwinVaultBackend 接原有有限 V1 helper 传输，helper 必须由库存授予；原生 Keychain helper 无修改 | 构造不访问系统 store；真实锁定/同值恢复/提交不确定/ACL/重启行为仍需独立运行 |
 | 真实 bin 修正 | held 字节的精确 Node 首行允许无扩展名 Node 命令；保留公开赢家、其余同名命令使用 `.bin/.veriq/<sha256(owner.id)>/<name>`；边归属 witness 可采用真实解析子路径 | 根绑定与 entry/execution 字面 specifier 仍精确匹配；不改包路径、不改正文、不伪造 native inspection 或 Node 成功解析 |
 | Windows 在线持久化与本机保留期 | 交给协调者分配的 [V11](V11-local-durability.md)，本批未宣称完成 | Windows 旧 `ONLINE_JOURNAL_DURABILITY_UNSUPPORTED` 与缺少 active/unknown Attempt 安全保留期入口是具体源码缺口，由 V11 独立记录实际交付 |
+| Windows 历史目录接缝 | C05b 的 `stopped-history.ts` 使用 C07 `WindowsAttemptJournal.openExisting` 只读读取原始 Claim 行，复用原有状态/路径/停止回执与真实 Job 排空核验 | SQLite 提交只证明认领日志，不能替代 native process/drained 成员或 full descendant proof；未知旧 JSON/staging、孤立 sidecar/native 记录继续隔离 |
 
 ## 接口与材料
 
@@ -49,6 +50,8 @@ v1 与 Mac stage 候选布局都为 `<candidate>/runtime/runtime-manifest.json` 
 Mac 安装 descriptor 为 Runtime 根之外固定兄弟 `desktop-release.json`，`trustedRuntime` 必须包含 `{arch,layout,manifestSha256,productVersion,nodeVersion,engineVersion}`。Mac loader 使用精确 `{arch,layout}` 调原 v2 核验器，再核全部独立身份；不从 manifest 推导允许链接。CLI 与独立 Agent 各进程都重新取得库存对象；WeakMap 不能跨进程复制。
 
 `createDarwinDistribution(distribution,{temporaryDirectory,stopTimeoutMs?})` 要求真实私有临时目录并实际运行观察器探针，返回 DarwinSourceCapability；其独立 Node 路径来自库存 Runner 角色。`recoverOffline(root,{execution?,darwinSource?})` 接同一 token。Mac doctor 只有同时获得已核 Runtime 对象与探针 token，浏览器/runner 路径完全一致时才进入安装 Mac 分支；源码直接 doctor 保留原拒绝路径。
+
+C05b 的 Windows `requireStoppedHistory(root)` 必须使用 C07 非创建的 `openExisting(root)`：没有数据库及 sidecar 时才能得到 undefined；existing reader 不创建目录/数据库、不执行 CREATE TABLE、不切换 journal_mode、不补写原认领。任何旧 `attempts/*.json` 或 staging 均拒绝，不据其 ALLOCATED 声明推断未派生。每条原始持久行再核 ClaimDTO、attemptId、固定 work 路径、请求标识与回执；前置状态必须没有 native 过程成员，其他状态必须具备同一 Attempt 的 `.process.json` 与 `.drained.json` 且原 `confirmStopped` 确认真正排空。数据库没有行但有进程成员时仍为孤立历史。Linux/Darwin 继续使用原 JSON、原证明及 Darwin fencing 绑定，不受此分支迁移。
 
 ## 独立执行命令
 
@@ -88,6 +91,7 @@ node --import tsx --test apps/runtime/tests/controlled-*.test.ts apps/runtime/te
 | 库存/归档 | 缺项、额外文件、hardlink、special、逃逸 symlink、危险权限、超预算、来源变化拒绝；Mac 只允许独立 Framework 布局；v1 完全拒绝链接；归档/sidecar 原字节校验和闭合 |
 | 安装能力 | 复制原对象字段、伪 descriptor、自生成布局或错误宿主不获原生能力；实际角色路径与精确独立 Node 版本必须匹配；Electron 仅取得主进程有限 native 能力 |
 | 停止/恢复 | Mac 保留受控 Worker/Chrome 有界证明与未知隔离；Windows/Linux 保留 full descendant proof；日志未知或 owner 代际变化不能释放容量；V11 单独处理 Windows 持久 Claim 与保留期 |
+| Windows 历史目录 | 空历史只读检查不得创建 DB/目录；DB 缺失但有 WAL/SHM/journal、畸形 Claim/回执、旧 JSON/staging、错 Attempt/work、前置行混 native 成员、有行无排空证明或无行有 native 成员均拒绝；SQLite 行不能伪造 Job 空结果或自动退休旧历史 |
 | 凭据 | 原 helper 的锁定、拒绝、同值恢复、冲突、mutation-unconfirmed 与取消后真实退出保持；实际 Keychain/Cookie/生产信任另需明确环境及授权，不在普通源码验证中调用 |
 
 ## 已知失败与尚未闭合事项
