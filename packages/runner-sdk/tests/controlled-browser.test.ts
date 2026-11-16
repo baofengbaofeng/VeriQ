@@ -61,8 +61,10 @@ async function command(executable: string, args: string[], cwd: string, input?: 
     }
 }
 
-/** Python 标准 zipfile 保持既有成熟解析路径以及输入、成员、总展开额度，静态 viewer HTML 只扫描原字节而不误当主报告；若私有配置被复制进 trace source，该归档成员仍会扫描，不能为通过测试而排
-* 除。 */
+/**
+ * Python 标准 zipfile 保持既有成熟解析路径以及输入、成员、总展开额度，静态 viewer HTML 只扫描原字节而不误当主报告；若私有配置被复制进 trace source，该归档成员仍会扫描，不能为通过测试而排
+ * 除。
+ */
 const scanProgram = String.raw`
 import base64,io,json,pathlib,re,sys,urllib.parse,zipfile
 v=json.load(sys.stdin)
@@ -558,8 +560,10 @@ test.skipIf(process.platform === "win32")(
     },
 );
 
-/** 公开 reporter 只接受实际配置的最后位置及同一内建 JSON 输出路径，缺少输入、其他字段泄漏和错误排序都返回 failed；原子替换失败保持原件与独立门禁失败，成功后保留内建 schema 与业务统计，不把错误状态改
-* 写成通过。 */
+/**
+ * 公开 reporter 只接受实际配置的最后位置及同一内建 JSON 输出路径，缺少输入、其他字段泄漏和错误排序都返回 failed；原子替换失败保持原件与独立门禁失败，成功后保留内建 schema 与业务统计，不把错误状态改
+ * 写成通过。
+ */
 test.skipIf(process.platform === "win32")(
     "final JSON reporter preserves builtin results and fails closed on finalization uncertainty",
     async () => {
@@ -715,8 +719,10 @@ test.skipIf(process.platform === "win32")(
     },
 );
 
-/** 当前模块的私有发布门禁专用于受信 POSIX 源码浏览器流程，Windows 缺少该 uid 与模式证明时应明确拒绝而非修补 DACL；此合同只验证拒绝，不宣称 Windows 原生附件、安装或浏览器通过，既有 Windows
-*  内核证明保持独立。 */
+/**
+ * 当前模块的私有发布门禁专用于受信 POSIX 源码浏览器流程，Windows 缺少该 uid 与模式证明时应明确拒绝而非修补 DACL；此合同只验证拒绝，不宣称 Windows 原生附件、安装或浏览器通过，既有 Windows
+ * 内核证明保持独立。
+ */
 test.runIf(process.platform === "win32")(
     "POSIX endpoint file gate fails closed on unsupported Windows metadata",
     async () => {
@@ -729,8 +735,10 @@ test.runIf(process.platform === "win32")(
     },
 );
 
-/** 两个公开 connect 重载都使用真实拒绝握手验证接收者和原选项传递，包含业务必需头部及随机路径；原始异常从不输出，结束后准确恢复原有属性描述符，避免 worker 之间的连接保护遗留或错误的提前还原，不需要启动 Chrom
-* e 或创建替代 Browser。 */
+/**
+ * 两个公开 connect 重载都使用真实拒绝握手验证接收者和原选项传递，包含业务必需头部及随机路径；原始异常从不输出，结束后准确恢复原有属性描述符，避免 worker 之间的连接保护遗留或错误的提前还原，不需要启动 Chrom
+ * e 或创建替代 Browser。
+ */
 test("public connection overloads preserve actual handshake options and restore the original method", async () => {
     const { chromium } = await import("@playwright/test");
     const { protectBrowserConnection } = await import("../src/controlled-browser.js");

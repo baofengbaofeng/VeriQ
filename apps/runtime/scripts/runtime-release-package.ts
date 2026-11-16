@@ -15,7 +15,8 @@ import {
     writeReleaseJson,
 } from "./runtime-release-files.ts";
 
-/** 归档描述保留本次实际 tar.gz 的大小与摘要及完整 Runtime manifest 身份，签名和独立批准仍由后续发行者完成；调用者不能把候选 archive 的校验和文件当作可信 Expected 或正式发布签名。
+/**
+ * 归档描述保留本次实际 tar.gz 的大小与摘要及完整 Runtime manifest 身份，签名和独立批准仍由后续发行者完成；调用者不能把候选 archive 的校验和文件当作可信 Expected 或正式发布签名。
  * receipt 原字节作为独立 sidecar 一起交付，压缩归档只包含安装 Runtime 根，不将源码、构建工具或私有缓存带进安装包。
  */
 export type RuntimeArchiveResult = Readonly<{
@@ -26,7 +27,8 @@ export type RuntimeArchiveResult = Readonly<{
     status: "UNVERIFIED";
 }>;
 
-/** 完整发行归档只消费静态库存允许的成员，Mac 使用独立链接布局先后两次真实复验，其他平台则复用无链接完整普通树枚举；tar 不追随链接且不递归已列目录，避免 Framework 别名重复展开或打包额外文件。
+/**
+ * 完整发行归档只消费静态库存允许的成员，Mac 使用独立链接布局先后两次真实复验，其他平台则复用无链接完整普通树枚举；tar 不追随链接且不递归已列目录，避免 Framework 别名重复展开或打包额外文件。
  * 压缩时间和属主元数据固定，结束后再核原树库存与 manifest 原始摘要，观察到任何变化都保留失败输出而不交付成功描述。
  * 新输出目录由本轮独占创建，已有候选和历史归档永不覆盖，任何异常都保留供独立验证任务诊断。
  */

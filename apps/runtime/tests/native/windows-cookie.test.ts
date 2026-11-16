@@ -12,8 +12,10 @@ import { prepareCookieStorage } from "../../../desktop/src/main/cookie-migration
 
 assert.equal(process.platform, "win32");
 
-/** 失败诊断仅查询本次合成根及固定 Cookie 成员的实际 owner 和 ACE，不改变账户、令牌、DACL 或夹具创建方式；输出使用有限 UTF8 只读命令，观察本身失败也不能覆盖原断言错误，更不能把未取得的 ACL 推测成
- * 管理员政策结论。 */
+/**
+ * 失败诊断仅查询本次合成根及固定 Cookie 成员的实际 owner 和 ACE，不改变账户、令牌、DACL 或夹具创建方式；输出使用有限 UTF8 只读命令，观察本身失败也不能覆盖原断言错误，更不能把未取得的 ACL 推测成
+ * 管理员政策结论。
+ */
 async function observeAcl(context: TestContext, paths: string[]) {
     try {
         const script =

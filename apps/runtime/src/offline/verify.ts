@@ -287,8 +287,10 @@ export async function verifyBundle(
                 parent = dirname(parent);
             }
         }
-        /** Darwin rename 需要本次根仍可写，因此内部成员先全部封存，只保留独占根的七百权限至发布；根 fd 跨名称变化保活，发布后仅对该实际 inode 封存，不按 installed 字符串重开或修复用户目
-         * 录，任一不确定都拒绝成功。 */
+        /**
+         * Darwin rename 需要本次根仍可写，因此内部成员先全部封存，只保留独占根的七百权限至发布；根 fd 跨名称变化保活，发布后仅对该实际 inode 封存，不按 installed 字符串重开或修复用户目
+         * 录，任一不确定都拒绝成功。
+         */
         for (const directory of [...directories].sort((a, b) => b.length - a.length))
             if (!publicationRoot || directory !== staging) await chmod(directory, 0o500);
         if (publicationRoot) {

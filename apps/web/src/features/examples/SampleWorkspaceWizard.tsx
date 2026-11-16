@@ -22,7 +22,8 @@ import type {
     Schemas,
 } from "./types";
 
-/** 宿主传入当前员工已选择的Workspace，成功后仅收到真实空间和计划标识；新空间可先单独创建供用户授权Runtime，组件不替宿主修改全局选择或隐式授予任何设备信任和凭据权限。
+/**
+ * 宿主传入当前员工已选择的Workspace，成功后仅收到真实空间和计划标识；新空间可先单独创建供用户授权Runtime，组件不替宿主修改全局选择或隐式授予任何设备信任和凭据权限。
  */
 export interface SampleWorkspaceWizardProps {
     workspaceId?: string;
@@ -56,7 +57,8 @@ const noSecrets: ImportSecrets = {
     adapterVersion: "",
 };
 
-/** 真实示例向导从已安装包API读取DSL，通过当前员工Cookie/CSRF传输依次创建草稿、等待编译、读取回执并发布，所有取消和失败保留已接受的远端事实，绝不在前端合成成功作业或静态报告。
+/**
+ * 真实示例向导从已安装包API读取DSL，通过当前员工Cookie/CSRF传输依次创建草稿、等待编译、读取回执并发布，所有取消和失败保留已接受的远端事实，绝不在前端合成成功作业或静态报告。
  * token只存在短命表单和当前请求闭包，不进入Query缓存或恢复文件。
  * 账号或Workspace变化时终止旧请求并清空秘密，旧响应不能写入新空间。
  * 局部取消不等于远端Job取消，UI明确提示可按相同参数恢复。

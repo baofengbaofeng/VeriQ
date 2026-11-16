@@ -44,8 +44,10 @@ function delegateDirectory(
     };
 }
 
-/** 原始 BrowserServer 与实际 Chrome 对象由测试额外保留用于故障后的可靠清理，包装仍执行真实公共 launchServer 且核对 sandbox 与端点约束；finally 仅操作本次所得原对象并等 exi
- * t，不扫描 PID 或删除未退出写者仍需的日志。 */
+/**
+ * 原始 BrowserServer 与实际 Chrome 对象由测试额外保留用于故障后的可靠清理，包装仍执行真实公共 launchServer 且核对 sandbox 与端点约束；finally 仅操作本次所得原对象并等 exi
+ * t，不扫描 PID 或删除未退出写者仍需的日志。
+ */
 async function fixture(
     run: (f: {
         root: string;

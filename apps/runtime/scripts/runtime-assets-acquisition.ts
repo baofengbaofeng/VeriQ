@@ -105,8 +105,10 @@ export function assertAssetTransportEnvironment(): void {
     ])
         if (Object.hasOwn(process.env, key)) fail("PAYLOAD_INPUT_INVALID");
 }
-/** 每次请求拥有自己的 headers 期限及响应无进展期限，关闭事实在创建后立即注册以免丢失 close；重定向和错误页从不被排空记录，owner 销毁后必须等到 close 确认，否则标记事务保留而不能递归删除仍可能写入的目录
- * 。 */
+/**
+ * 每次请求拥有自己的 headers 期限及响应无进展期限，关闭事实在创建后立即注册以免丢失 close；重定向和错误页从不被排空记录，owner 销毁后必须等到 close 确认，否则标记事务保留而不能递归删除仍可能写入的目录
+ * 。
+ */
 async function request(
     tx: ArchiveTransaction,
     url: string,
@@ -184,8 +186,10 @@ async function request(
         }
     }
 }
-/** 固定下载阶段顺序消费单个响应流，Node 与 checksum 完全拒绝跳转，Chrome 最多一次且只允许精确 Google 同架构目标；最终 body Ref 只有真实完整写入后才返回，部分正文不会进入成功获取证据或伪造结
- * 果。 */
+/**
+ * 固定下载阶段顺序消费单个响应流，Node 与 checksum 完全拒绝跳转，Chrome 最多一次且只允许精确 Google 同架构目标；最终 body Ref 只有真实完整写入后才返回，部分正文不会进入成功获取证据或伪造结
+ * 果。
+ */
 async function fetchAsset(
     tx: ArchiveTransaction,
     requestedUrl: string,
@@ -275,8 +279,10 @@ async function* countedBody(response: AsyncIterable<Uint8Array>, progress: { byt
         yield chunk;
     }
 }
-/** CLI 仅可读取本次真实异常绑定的有界下载失败计数，映射没有公开写入器或调用者 callback，因此不能替换传输与信任政策；返回内容只含固定阶段和实际收到字节，不改变统一 RuntimePayloadError 的冻结 DT
- * O 与首错语义。 */
+/**
+ * CLI 仅可读取本次真实异常绑定的有界下载失败计数，映射没有公开写入器或调用者 callback，因此不能替换传输与信任政策；返回内容只含固定阶段和实际收到字节，不改变统一 RuntimePayloadError 的冻结 DT
+ * O 与首错语义。
+ */
 export function assetAcquisitionFailure(
     error: unknown,
 ): Readonly<{ step: string; bytes: number }> | null {

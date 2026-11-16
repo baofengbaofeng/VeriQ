@@ -18,8 +18,10 @@ async function currentFuses(): Promise<Record<string | number, unknown>> {
     return getCurrentFuseWire(executable);
 }
 
-/** 正式持久会话先验证平台与 Mac 原始宿主身份能力，再核验当前二进制的 Cookie fuse，最后执行有限提供者探针；Mac 安装、签名和最低系统检查缺一不可，源码交付不会把真实 Cookie 或 Keychain 验收标为
- * 通过。 */
+/**
+ * 正式持久会话先验证平台与 Mac 原始宿主身份能力，再核验当前二进制的 Cookie fuse，最后执行有限提供者探针；Mac 安装、签名和最低系统检查缺一不可，源码交付不会把真实 Cookie 或 Keychain 验收标为
+ * 通过。
+ */
 export async function requireCookieProtection(
     storage: CookieSafeStorage,
     platform: NodeJS.Platform = process.platform,

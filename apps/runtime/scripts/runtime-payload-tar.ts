@@ -14,8 +14,10 @@ import {
     type ArchiveRejectionFacts,
 } from "./runtime-payload-archive.ts";
 
-/** tar framing guard 只用成熟公开 Header 解释数字和校验和，把真实流分成有界 header、正文及 padding；它同时要求双零终止和有限零尾，不能因为 Parser 提前看到 EOF 就忽略后续 gz
- * ip trailer 损坏或非零垃圾。 */
+/**
+ * tar framing guard 只用成熟公开 Header 解释数字和校验和，把真实流分成有界 header、正文及 padding；它同时要求双零终止和有限零尾，不能因为 Parser 提前看到 EOF 就忽略后续 gz
+ * ip trailer 损坏或非零垃圾。
+ */
 class TarFrames {
     bytes = 0;
     private pending = Buffer.alloc(0);
@@ -58,8 +60,10 @@ class TarFrames {
         }
         throw error;
     }
-    /** 每个输入块只保留不足一个 header 或最多六十四 KiB 元数据，普通正文直接流过不累计；guard 在普通帧结束处向协调器报告边界，让下一成员必须等待当前正文、摘要及私有输出句柄全部完成后才进入成熟 Parser
-     * 。 */
+    /**
+     * 每个输入块只保留不足一个 header 或最多六十四 KiB 元数据，普通正文直接流过不累计；guard 在普通帧结束处向协调器报告边界，让下一成员必须等待当前正文、摘要及私有输出句柄全部完成后才进入成熟 Parser
+     * 。
+     */
     *feed(input: Buffer, scan: ArchiveScan): Generator<{ bytes: Buffer; boundary: boolean }> {
         this.bytes += input.length;
         if (this.bytes > limits.total + 64 * 1024 ** 2)
@@ -168,8 +172,10 @@ class TarFrames {
             this.padding = (512 - (size % 512)) % 512;
         }
     }
-    /** PAX 支持限于明确单行 ASCII 字段，raw 检查只识别 key 与记录存在性而不解码长度或数值；每条都交公开 Pax.parse 且必须保留有效事实，再经 encodeField 与 parse 往返核解释一致
-     * ，静默丢弃或未知扩展不会被忽略。 */
+    /**
+     * PAX 支持限于明确单行 ASCII 字段，raw 检查只识别 key 与记录存在性而不解码长度或数值；每条都交公开 Pax.parse 且必须保留有效事实，再经 encodeField 与 parse 往返核解释一致
+     * ，静默丢弃或未知扩展不会被忽略。
+     */
     private metadata() {
         const meta = this.meta!,
             body = Buffer.concat(meta.body, meta.size);
@@ -298,8 +304,10 @@ class TarFrames {
     }
 }
 
-/** 有界 tar 适配器从当前私有快照 held FD 完整消费 gzip，并用公开 Parser 应用已验证元数据后才交公共路径表；逐帧背压与成员任务串行保证只有当前正文在读取，所有失败会中止流、Parser 和当前 ReadE
- * ntry 并等待它们结束。 */
+/**
+ * 有界 tar 适配器从当前私有快照 held FD 完整消费 gzip，并用公开 Parser 应用已验证元数据后才交公共路径表；逐帧背压与成员任务串行保证只有当前正文在读取，所有失败会中止流、Parser 和当前 ReadE
+ * ntry 并等待它们结束。
+ */
 export async function scanTar(path: string, scan: ArchiveScan): Promise<number> {
     const handle = await open(
         path,

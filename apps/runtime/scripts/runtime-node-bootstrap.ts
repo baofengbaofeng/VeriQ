@@ -51,8 +51,10 @@ export type NodeBootstrapReceipt = Readonly<{
     producerFiles: readonly Ref[];
     pending: typeof pending;
 }>;
-/** 结果只有在事务完成最终路径 audit 后才返回 committed，cleanup 直接沿用真实事务关闭和锁收尾事实；回执摘要放在外层 Ref 而不写自摘要，成功不代表 Node 可执行、来源已审或完整 Runtime 已交
- * 付。 */
+/**
+ * 结果只有在事务完成最终路径 audit 后才返回 committed，cleanup 直接沿用真实事务关闭和锁收尾事实；回执摘要放在外层 Ref 而不写自摘要，成功不代表 Node 可执行、来源已审或完整 Runtime 已交
+ * 付。
+ */
 export type NodeBootstrapResult = Readonly<{
     kind: "NODE_NPM_SOURCE_TREE_RESULT";
     directory: string;
@@ -175,8 +177,10 @@ async function holdFile(
     }
 }
 
-/** 提取 manifest 的读取由当前事务唯一拥有 FD 及关闭状态，根准入仍复用 InputReader 而不调用其无法转交 close 状态的 input；每个父目录与文件保留初始身份，完整有界正文独立核原成员摘要，发布前
- * finish 继续核相同观察。 */
+/**
+ * 提取 manifest 的读取由当前事务唯一拥有 FD 及关闭状态，根准入仍复用 InputReader 而不调用其无法转交 close 状态的 input；每个父目录与文件保留初始身份，完整有界正文独立核原成员摘要，发布前
+ * finish 继续核相同观察。
+ */
 async function extractedManifestReader(tx: ArchiveTransaction) {
     const root = join(tx.scratch, "trees/node"),
         admission = new InputReader(root, tx.signal, []);
@@ -252,8 +256,10 @@ async function extractedManifestReader(tx: ArchiveTransaction) {
     return Object.freeze({ read, finish });
 }
 
-/** 包根发现只沿实例自身的 node_modules 和可选 scope 两级边界推进，目录名允许 npm alias 而不要求等于 manifest.name；空目录、非目录包根及影响发现的链接都失败关闭，普通文件链接仍仅保留在
- * 成员事实。 */
+/**
+ * 包根发现只沿实例自身的 node_modules 和可选 scope 两级边界推进，目录名允许 npm alias 而不要求等于 manifest.name；空目录、非目录包根及影响发现的链接都失败关闭，普通文件链接仍仅保留在
+ * 成员事实。
+ */
 function packageRoots(scan: ArchiveScan, npm: string): string[] {
     const children = new Map<string, string[]>();
     for (const path of scan.effective.keys()) {

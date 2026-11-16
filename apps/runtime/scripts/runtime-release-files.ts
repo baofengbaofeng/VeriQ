@@ -6,7 +6,8 @@ import { canonicalBytes } from "@veriq/contracts";
 import { InputReader, limits, relative, sha } from "./runtime-payload-tree.ts";
 import type { Ref, FileFact, TreeInventory, TreeKind } from "./runtime-payload-inputs.ts";
 
-/** 文件复制在已持有描述符上比较完整身份，任何观察到的长度、权限或时间变化都会拒绝；此处复用发行预算而不宣称普通 Node 能抵抗同用户在两个观察边界之间替换父目录的竞态。
+/**
+ * 文件复制在已持有描述符上比较完整身份，任何观察到的长度、权限或时间变化都会拒绝；此处复用发行预算而不宣称普通 Node 能抵抗同用户在两个观察边界之间替换父目录的竞态。
  * 目录必须由调用者独占拥有，调用者负责保留关闭未知时的现场，本模块不执行递归删除。
  */
 function same(a: BigIntStats, b: BigIntStats): boolean {
@@ -15,7 +16,8 @@ function same(a: BigIntStats, b: BigIntStats): boolean {
     );
 }
 
-/** 独立输入根和输出根都先经过既有 reader 的逐级无链接检查，目录创建仅发生在已由本轮拥有的根内；允许已存在父目录是为了合并同一来源副本，不允许已有非目录或链接充当路径组件。
+/**
+ * 独立输入根和输出根都先经过既有 reader 的逐级无链接检查，目录创建仅发生在已由本轮拥有的根内；允许已存在父目录是为了合并同一来源副本，不允许已有非目录或链接充当路径组件。
  * 此入口不接受相对宿主路径，也不创建根本身，以免把错误配置静默变成新的发行目录。
  */
 export async function admitReleaseRoot(root: string): Promise<void> {
@@ -40,7 +42,8 @@ export async function admitReleaseRoot(root: string): Promise<void> {
     await reader.finish();
 }
 
-/** 路径创建逐级确认已有目录身份且保持明确可移植组件，最终权限只设置在本轮新建目录；不会改变既有输入目录权限，源树与输出树的权限语义在复制时明确区分。
+/**
+ * 路径创建逐级确认已有目录身份且保持明确可移植组件，最终权限只设置在本轮新建目录；不会改变既有输入目录权限，源树与输出树的权限语义在复制时明确区分。
  * 文件生成必须先调用此函数建立受控父目录，根目录由上层先行准入。
  */
 export async function releaseDirectory(root: string, name: string): Promise<void> {
@@ -63,7 +66,8 @@ export async function releaseDirectory(root: string, name: string): Promise<void
     }
 }
 
-/** 原始文件始终通过 O_NOFOLLOW 描述符分块读取并核对结束身份，单链接与大小预算在分配正文前拒绝；调用者提供的期望值独立匹配原始字节，不能由复制后的文件反向推导可信输入。
+/**
+ * 原始文件始终通过 O_NOFOLLOW 描述符分块读取并核对结束身份，单链接与大小预算在分配正文前拒绝；调用者提供的期望值独立匹配原始字节，不能由复制后的文件反向推导可信输入。
  * 摘要和字节数同时返回供库存使用，输出创建独占并刷新，任何 close 错误继续上抛而不伪称已安全删除。
  */
 export async function copyReleaseFile(
@@ -145,7 +149,8 @@ export async function copyReleaseFile(
     }
 }
 
-/** 合并视图时只允许完全相同的重复普通文件，先核对已有目标的原始字节再跳过；依赖树链接可显式保留但必须为留在原根内的相对链接，最终配方核验仍逐项核链接清单和归属。
+/**
+ * 合并视图时只允许完全相同的重复普通文件，先核对已有目标的原始字节再跳过；依赖树链接可显式保留但必须为留在原根内的相对链接，最终配方核验仍逐项核链接清单和归属。
  * 此函数只复制到第三方自有 intake 根，绝不写入仍由 entry 或 dependency producer 持有 reader 的视图。
  * 输入目录身份在枚举后复验，数量、深度和总字节沿用现有 Runtime 固定预算。
  */

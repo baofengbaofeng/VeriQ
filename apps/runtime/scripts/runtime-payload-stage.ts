@@ -58,8 +58,10 @@ export type PayloadResult = Readonly<{
 type Copy = { fact: OutputFact; root: string; source: Ref };
 const rootPackage = Buffer.from('{"private":true,"type":"module"}\n');
 
-/** 所有实际复制到包外 input-evidence 的 Ref 必须共享固定六十四 MiB 总额，原配方、独立 expected 和本次 intake 收据也逐份计入；该检查只核数值预算而不冒充来源或文件真实性验证，磁盘剩余写入
- * 计划另行处理。 */
+/**
+ * 所有实际复制到包外 input-evidence 的 Ref 必须共享固定六十四 MiB 总额，原配方、独立 expected 和本次 intake 收据也逐份计入；该检查只核数值预算而不冒充来源或文件真实性验证，磁盘剩余写入
+ * 计划另行处理。
+ */
 export function assertPayloadEvidenceBudget(receipts: readonly Ref[]): void {
     let total = 0;
     for (const receipt of receipts) {

@@ -26,7 +26,8 @@ export const limits = Object.freeze({
     edges: 20000,
     bins: 2000,
 });
-/** 已知源码和树成员按语义文件名选择较小内容类别，package.json 优先于普通 JSON，普通二进制仍保留两 GiB；归档引用不经此分类，以免任意归档文件名被误当作 JSON 文档限制。
+/**
+ * 已知源码和树成员按语义文件名选择较小内容类别，package.json 优先于普通 JSON，普通二进制仍保留两 GiB；归档引用不经此分类，以免任意归档文件名被误当作 JSON 文档限制。
  * 同一个分类函数同时用于声明预检与首次实际流读，不能只在后续 package 或 engine 解码时才补限额。
  */
 export function contentLimit(path: string): number {

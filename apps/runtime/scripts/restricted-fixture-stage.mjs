@@ -37,8 +37,10 @@ const attributesOf = (path, entry, type) => ({
     gid: entry.gid,
 });
 
-/** 库存观察必须始终只读，普通文件和目录的身份、拥有者与模式同字节哈希一起保留，符号链接则单独记录自身属性和内部目标；所有复制前后的完整证明都先完成，不能在扫描途中 chmod 或 chown 后才发现目标仍共享源 inode 而
- * 破坏原文件。 */
+/**
+ * 库存观察必须始终只读，普通文件和目录的身份、拥有者与模式同字节哈希一起保留，符号链接则单独记录自身属性和内部目标；所有复制前后的完整证明都先完成，不能在扫描途中 chmod 或 chown 后才发现目标仍共享源 inode 而
+ * 破坏原文件。
+ */
 async function inspect(root) {
     const entries = [];
     const attributes = [];

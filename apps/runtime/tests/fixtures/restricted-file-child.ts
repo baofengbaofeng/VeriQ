@@ -38,8 +38,10 @@ assert.equal(code.uid, 0);
 assert.equal(code.mode & 0o777, 0o755);
 assert.equal(source.uid, 0);
 assert.equal(source.mode & 0o777, 0o644);
-/** 服务进程在凭据工厂之前亲自打开固定夹具祖先，防止 root 能读目录却掩盖降权账户只有执行权限的布局错误；同一持有句柄须确认 root 拥有、七五五模式及原目录 inode，finally 关闭后再把实际身份写入阶段报告，不读
- * 取拥有标记或任何凭据。 */
+/**
+ * 服务进程在凭据工厂之前亲自打开固定夹具祖先，防止 root 能读目录却掩盖降权账户只有执行权限的布局错误；同一持有句柄须确认 root 拥有、七五五模式及原目录 inode，finally 关闭后再把实际身份写入阶段报告，不读
+ * 取拥有标记或任何凭据。
+ */
 assert.equal(process.getuid!(), Number(uid));
 assert.equal(process.geteuid!(), Number(uid));
 const fixtureAncestor = resolve(codeRoot, "../../..");
@@ -138,8 +140,10 @@ Object.assign(facts, { procUid, procGid, noNewPrivileges: true });
 assert.equal(process.getuid!(), Number(uid));
 assert.equal((await backend.probe(AbortSignal.timeout(5000))).status, "ready");
 if (phase === "closure") {
-    /** 此枚举必须经过 tsx 所用的 esbuild 转换才能在默认 Node24 类型擦除模式下执行，随后逐个真实导入部署 manifest 的生产公共入口；只记录最终落在副本树内的入口，不调用浏览器、CLI 或控制平台，
-     * 从而单独证明准备闭包的离网装载能力。 */
+    /**
+     * 此枚举必须经过 tsx 所用的 esbuild 转换才能在默认 Node24 类型擦除模式下执行，随后逐个真实导入部署 manifest 的生产公共入口；只记录最终落在副本树内的入口，不调用浏览器、CLI 或控制平台，
+     * 从而单独证明准备闭包的离网装载能力。
+     */
     enum LoaderMarker {
         Ready = "tsx-esbuild",
     }

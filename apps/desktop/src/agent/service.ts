@@ -108,7 +108,8 @@ export class DesktopAgent {
         { controller: AbortController; done: Promise<void>; expiry: ReturnType<typeof setTimeout> }
     >();
 
-    /** 后台对象把设备登记、签发者信任、本机凭证与离线执行状态分别绑定到同一私有档案，而执行状态使用独立子目录；初始化只建立这些依赖和浏览器探测，不在构造函数中领取远程任务或运行签名包。
+    /**
+     * 后台对象把设备登记、签发者信任、本机凭证与离线执行状态分别绑定到同一私有档案，而执行状态使用独立子目录；初始化只建立这些依赖和浏览器探测，不在构造函数中领取远程任务或运行签名包。
      * 控制 Origin 在接触任何持久设备资料前经过 Runtime 的既有地址校验。
      * 浏览器探测 Promise 在实例创建时启动，后续状态请求复用同一安装能力事实。
      * 可见与无头探测使用两个明确配置的路径，不把 UI Chromium 当作测试浏览器。
@@ -141,7 +142,8 @@ export class DesktopAgent {
         this.executionRoot = join(root, "offline");
     }
 
-    /** 资源包目录索引只是界面可列举的缓存元数据，不是签名或执行授权证明；索引缺失表示空缓存，其它读取错误必须上报，防止损坏的本机状态被静默覆盖成一个看似干净的新档案。
+    /**
+     * 资源包目录索引只是界面可列举的缓存元数据，不是签名或执行授权证明；索引缺失表示空缓存，其它读取错误必须上报，防止损坏的本机状态被静默覆盖成一个看似干净的新档案。
      * 列表持久化只包含标识、Workspace、引擎版本、时间和 DEBUG 标记。
      * 不保存设备令牌、业务凭证或指向任意外部文件的读取能力。
      * 真正选包时会再次核验安装目录内容，不能仅凭此列表启动执行。
@@ -158,7 +160,8 @@ export class DesktopAgent {
         }
     }
 
-    /** 读取缓存内容必须同时匹配调用者提供的合法包标识与后台当前选定 Workspace，随后重新核验安装内容；从列表里找到一个条目只建立候选关系，不能绕过签名、撤销或 DEBUG 策略。
+    /**
+     * 读取缓存内容必须同时匹配调用者提供的合法包标识与后台当前选定 Workspace，随后重新核验安装内容；从列表里找到一个条目只建立候选关系，不能绕过签名、撤销或 DEBUG 策略。
      * 调用者先用 id 校验器规范检查包 UUID，不能把路径字符串送入此处。
      * 匹配失败统一返回 BUNDLE_WORKSPACE_MISMATCH，避免提供跨空间内容。
      * 目录由私有 root、固定 bundles 段和已校验 UUID 组成。
@@ -184,8 +187,10 @@ export class DesktopAgent {
                 workspaceId: item.workspaceId,
                 debug: item.debug,
             });
-            /** 只有实际通过签名及库存重验的资源访问才刷新 SQLite 生命周期，不能根据 renderer 选择或磁盘 mtime 让旧缓存获得伪造年龄；读计数覆盖此事务，清理门闩不会在验签读取与访问登记之间删除同
-             * 一资源。 */
+            /**
+             * 只有实际通过签名及库存重验的资源访问才刷新 SQLite 生命周期，不能根据 renderer 选择或磁盘 mtime 让旧缓存获得伪造年龄；读计数覆盖此事务，清理门闩不会在验签读取与访问登记之间删除同
+             * 一资源。
+             */
             const store = await LocalStore.open(this.executionRoot);
             try {
                 store.touchCache(item.workspaceId, item.id);
@@ -198,7 +203,8 @@ export class DesktopAgent {
         }
     }
 
-    /** 设备登记中的控制 Origin 与 Workspace 是下载和回传的认证目的地，必须与后台启动配置和当前本机选择同时一致；签名资源中的业务 URL 或员工刚登录的平台会话不能改变设备令牌的发送范围。
+    /**
+     * 设备登记中的控制 Origin 与 Workspace 是下载和回传的认证目的地，必须与后台启动配置和当前本机选择同时一致；签名资源中的业务 URL 或员工刚登录的平台会话不能改变设备令牌的发送范围。
      * 每次调用重新读取 DeviceStore，解绑后不能继续使用先前缓存的令牌。
      * 配置 Origin 比较避免更换控制平台后误用旧设备身份。
      * Workspace 比较避免拿一个空间的设备访问另一个空间的包或导入。
@@ -214,8 +220,10 @@ export class DesktopAgent {
         return config;
     }
 
-    /** 设备缺席只接受当前存储路径的明确事实，保险库事务已有专用缺登记标识而后端系统错误不具备此含义；源码文件模式保留精确 device.json 的缺文件以及 Windows 既有有限原生缺路径合同，避免未知 ENOENT
-     * 放开绑定与控制源保护。 */
+    /**
+     * 设备缺席只接受当前存储路径的明确事实，保险库事务已有专用缺登记标识而后端系统错误不具备此含义；源码文件模式保留精确 device.json 的缺文件以及 Windows 既有有限原生缺路径合同，避免未知 ENOENT
+     * 放开绑定与控制源保护。
+     */
     private deviceNotEnrolled(error: unknown): boolean {
         if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) return false;
         if (this.credentialProfile) return error.message === "DEVICE_NOT_ENROLLED";
@@ -228,7 +236,8 @@ export class DesktopAgent {
         );
     }
 
-    /** 状态接口读取真实持久拥有者、历史和当前进程句柄，而不以界面忙碌状态推测执行是否结束；即使另一个请求停在签名包准备阶段，本方法也应独立返回可观察的准备标识和取消状态。
+    /**
+     * 状态接口读取真实持久拥有者、历史和当前进程句柄，而不以界面忙碌状态推测执行是否结束；即使另一个请求停在签名包准备阶段，本方法也应独立返回可观察的准备标识和取消状态。
      * 每次状态读取独立打开 LocalStore，并在 finally 中关闭 SQLite 句柄。
      * 活动拥有者来自数据库，UI 崩溃后仍可恢复同一个 Run 和 Attempt。
      * 缺少活动拥有者时返回 null，不构造占位 Run 或声称已经停止。
@@ -400,7 +409,8 @@ export class DesktopAgent {
         }
     }
 
-    /** 已经通过操作白名单的请求在这里进入具体 Runtime 适配分支，启动控制器只属于该次已预留操作；每个分支仍验证自己的字段、当前空间与资源归属，不能把统一派发校验当作业务授权已完成。
+    /**
+     * 已经通过操作白名单的请求在这里进入具体 Runtime 适配分支，启动控制器只属于该次已预留操作；每个分支仍验证自己的字段、当前空间与资源归属，不能把统一派发校验当作业务授权已完成。
      * 私有目录创建发生在门闩预留之后，文件系统等待不会给第二个启动留下空闲窗口。
      * 开始处理前检查取消信号，已经取消的排队准备不继续做业务工作。
      * 只读请求可以没有 startup 控制器，并与执行准备并发。
@@ -418,7 +428,8 @@ export class DesktopAgent {
         await privateDirectory(this.root);
         startup?.signal.throwIfAborted();
         if (operation === "status") return this.state();
-        /** GUI 保留期维护只消费共享解析器核过的有限策略并绑定当前本机工作区，原始 desktopOwner 能力由构造器保留而不经过 renderer 序列化；活动执行由既有预留门闩排除，查看器和正在读取的缓存也必须先结束
+        /**
+         * GUI 保留期维护只消费共享解析器核过的有限策略并绑定当前本机工作区，原始 desktopOwner 能力由构造器保留而不经过 renderer 序列化；活动执行由既有预留门闩排除，查看器和正在读取的缓存也必须先结束
          * 。
          * 真实 helper 自己核验在线与离线停止历史、合作锁和 SQLite 事务。
          * profileRoot 只能是当前 Agent 的固定 root，不能使用页面字段改换档案。

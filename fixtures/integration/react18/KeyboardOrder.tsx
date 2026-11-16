@@ -9,7 +9,8 @@ import {
     type DragEndEvent,
 } from "@dnd-kit/core";
 
-/** 排序项标识必须来自稳定业务 id，界面顺序由父应用保存并从服务端重新读取；同一记录可改变位置，但 data-record-key 与拖动 id 不能随视觉下标变化。
+/**
+ * 排序项标识必须来自稳定业务 id，界面顺序由父应用保存并从服务端重新读取；同一记录可改变位置，但 data-record-key 与拖动 id 不能随视觉下标变化。
  */
 export interface OrderItem {
     id: string;

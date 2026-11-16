@@ -151,8 +151,10 @@ async function controlledWorker(
             child!.once("exit", resolve);
             child!.once("error", reject);
         });
-        /** 实际 READY 与测试 preload 的门消息可能在同一 IPC 批次到达，因此从 spawn 后立即建立有界按类型队列；消费 READY 不会丢弃紧随其后的测试屏障，真实退出而缺少目标帧则明确失败，不改变
-         * 任何原有超时或取消断言。 */
+        /**
+         * 实际 READY 与测试 preload 的门消息可能在同一 IPC 批次到达，因此从 spawn 后立即建立有界按类型队列；消费 READY 不会丢弃紧随其后的测试屏障，真实退出而缺少目标帧则明确失败，不改变
+         * 任何原有超时或取消断言。
+         */
         const buffered: unknown[] = [];
         const waiting = new Map<string, ((value: unknown) => void)[]>();
         child.on("message", (value) => {
@@ -239,8 +241,10 @@ test("controlled worker accepts generation-bound cancellation before START", asy
     );
 });
 
-/** Mac 组件夹具必须保留生产 Worker 的独立 START 闸门，取消 ACK 后仍能实际查询到门未释放，只有下一条 START 才进入空前缀退出；这在普通 Node 上验证夹具语义，不把它当成 Darwin 文件层或 C
- * hrome 所有权证据。 */
+/**
+ * Mac 组件夹具必须保留生产 Worker 的独立 START 闸门，取消 ACK 后仍能实际查询到门未释放，只有下一条 START 才进入空前缀退出；这在普通 Node 上验证夹具语义，不把它当成 Darwin 文件层或 C
+ * hrome 所有权证据。
+ */
 test("Darwin component fixture keeps cancellation ACK separate from START release", async () => {
     await controlledWorker(
         "",

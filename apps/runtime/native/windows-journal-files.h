@@ -1,5 +1,7 @@
-/** SQLite 私有会话只持有固定本地数据库用途的祖先链，Node24 SQLite 在该链仍活跃时打开原始数据库并自行执行 WAL/FULL 提交；这里核验普通单链接文件及当前 SID，不把 Windows 目录句柄刷新伪装成持久化
-* 能力，也不操作 SQL 或 Job 停止证明。 */
+/**
+ * SQLite 私有会话只持有固定本地数据库用途的祖先链，Node24 SQLite 在该链仍活跃时打开原始数据库并自行执行 WAL/FULL 提交；这里核验普通单链接文件及当前 SID，不把 Windows 目录句柄刷新伪装成持久化
+ * 能力，也不操作 SQL 或 Job 停止证明。
+ */
 #pragma once
 #include "windows-files.h"
 #include <memory>

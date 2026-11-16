@@ -6,7 +6,8 @@ import {
     validateJournal,
 } from "./controlled-child-protocol.mjs";
 
-/** VeriQ 的父侧观察器统一服务普通 Node 与 TypeScript 消费者，保留原始 ChildProcess 的 exit 和 error 事实；它借入日志 FD 而不接管进程终止、描述符关闭或持久停止证明的所有权。
+/**
+ * VeriQ 的父侧观察器统一服务普通 Node 与 TypeScript 消费者，保留原始 ChildProcess 的 exit 和 error 事实；它借入日志 FD 而不接管进程终止、描述符关闭或持久停止证明的所有权。
  * 调用方应在 spawn 返回后立即同步调用，任何异步等待都会造成错过 exit 的风险。
  * 仅有日志尾部 SEAL 或当前读取到 EOF 均不能结束本次观察。
  * 正常业务码零和一保留原规则，一百三十额外要求本次取消已获授权。
@@ -26,7 +27,8 @@ export function trackObservedCli(child, options) {
         settle = resolve;
     });
 
-    /** 首次终结同步关闭取消窗口并固定退出观察，后续真实 exit 不能把先前超时或 error 改成成功；定时器只约束观察等待，清除定时器不代替任何实际子进程清理。
+    /**
+     * 首次终结同步关闭取消窗口并固定退出观察，后续真实 exit 不能把先前超时或 error 改成成功；定时器只约束观察等待，清除定时器不代替任何实际子进程清理。
      * terminal 在 resolve 前置位，防止 promise 回调或其他 exit 监听补授权。
      * exit、error 和 timeout 共享同一闸门，失败状态不能因事件顺序被覆盖。
      * 真实 error 另有粘滞标志，最终核验仍优先拒绝它。
@@ -48,7 +50,8 @@ export function trackObservedCli(child, options) {
     if (child.exitCode !== null || child.signalCode !== null)
         finish({ kind: "failure", reason: "CLI_ALREADY_EXITED" });
 
-    /** 期望身份与启动时兼容授权都立即经过原协议验证器复制，之后只保留快照或匹配布尔值；对复制结果再次核验可拒绝 getter 在校验与取值之间改变身份的恶意输入。
+    /**
+     * 期望身份与启动时兼容授权都立即经过原协议验证器复制，之后只保留快照或匹配布尔值；对复制结果再次核验可拒绝 getter 在校验与取值之间改变身份的恶意输入。
      * 不在这里复制协议字段列表、UUID 规则或 nonce 规则，避免产生第二套解析器。
      * 第一次验证读取调用者对象，第二次验证只读取普通快照数据。
      * 二次验证同时阻止 getter 返回错误类型却在首轮检查时暂时合法。
@@ -66,7 +69,8 @@ export function trackObservedCli(child, options) {
             : JSON.stringify(validateBinding(validateBinding(options.authorizedCancellation))) ===
               JSON.stringify(binding);
 
-    /** 超时仅在注册未发现终结状态时安排，已经错过退出的对象不能再挂起一个无意义定时器；期限回调走与真实事件相同的同步闸门，不能使后续授权复活该观察。
+    /**
+     * 超时仅在注册未发现终结状态时安排，已经错过退出的对象不能再挂起一个无意义定时器；期限回调走与真实事件相同的同步闸门，不能使后续授权复活该观察。
      * 正安全整数沿用原公开选项合同，不引入额外等待策略。
      * 定时器不调用 kill，调用者仍负责决定如何结束自己的子对象。
      * 未指定期限时不添加默认值，保持既有无限等待真实事件的语义。
@@ -85,7 +89,8 @@ export function trackObservedCli(child, options) {
     return {
         exited,
 
-        /** 动态授权只接受仍存活且观察未终结的当前身份，检查真实对象的退出字段以覆盖 exit 分发前后的窗口；所有无效输入都转换成固定英文拒绝，不泄漏 getter 原始异常。
+        /**
+         * 动态授权只接受仍存活且观察未终结的当前身份，检查真实对象的退出字段以覆盖 exit 分发前后的窗口；所有无效输入都转换成固定英文拒绝，不泄漏 getter 原始异常。
          * validateBinding 负责严格结构与快照复制，本接口不接受部分绑定或字段合并。
          * 比较全部身份字段后才写 authorized，任何失败分支都没有权限副作用。
          * 再次核验普通快照，避免访问器在协议校验后返回不同代际或无效结构。
@@ -115,7 +120,8 @@ export function trackObservedCli(child, options) {
             }
         },
 
-        /** 最终核验缓存同一个 promise 并先等待观察终结，保留原有业务退出和严格日志规则；授权只能在真实退出前发生，verifyFinal 的调用时机不会重新打开授权窗口。
+        /**
+         * 最终核验缓存同一个 promise 并先等待观察终结，保留原有业务退出和严格日志规则；授权只能在真实退出前发生，verifyFinal 的调用时机不会重新打开授权窗口。
          * 观察失败直接返回原英文原因，不把 timeout 映射为正常退出。
          * signal、未知代码、专用故障码与未授权一百三十都拒绝进入正结果。
          * 合法退出码只是日志核验的前提，不能单独证明对象 roster 闭合。
@@ -146,7 +152,8 @@ export function trackObservedCli(child, options) {
                         offset += count;
                     }
 
-                    /** 同一 FD 的设备、inode、长度与纳秒时间戳必须在定位读取前后保持一致，额外读取还须确认尾部没有增长；截断、重写或变化都不交给解析器猜测已封存。
+                    /**
+                     * 同一 FD 的设备、inode、长度与纳秒时间戳必须在定位读取前后保持一致，额外读取还须确认尾部没有增长；截断、重写或变化都不交给解析器猜测已封存。
                      * inspectJournalFd 同时核实普通文件、所有者、精确权限和大小上限。
                      * 本检查不按字符串路径重新打开文件，避免被替换路径引入不同对象。
                      * 完整读取后依旧检查额外字节，暂时 EOF 不能越过真实退出前提。

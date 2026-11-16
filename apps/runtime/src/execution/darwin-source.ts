@@ -17,8 +17,10 @@ export interface DarwinSourceCapability {
     readonly [brand]: true;
 }
 
-/** 受信源码宿主只提供已经 B 核验的临时根，浏览器固定取当前锁定 Playwright 的公共 executablePath；测试可以缩短单次停止期限但不能超过正式三十秒，业务 Job、DSL 和 renderer 不参与构造这
- * 个非序列化能力。 */
+/**
+ * 受信源码宿主只提供已经 B 核验的临时根，浏览器固定取当前锁定 Playwright 的公共 executablePath；测试可以缩短单次停止期限但不能超过正式三十秒，业务 Job、DSL 和 renderer 不参与构造这
+ * 个非序列化能力。
+ */
 export interface DarwinSourceOptions {
     temporaryDirectory: string;
     stopTimeoutMs?: number;
@@ -60,8 +62,10 @@ export interface DarwinSourceState {
 const capabilities = new WeakMap<object, DarwinSourceState>();
 const installedCapabilities = new WeakSet<object>();
 
-/** 工厂在真实 Darwin 当前进程上先核独立稳定 Node24，再通过原 B loader 与私有临时目录完成实际子对象探针；浏览器仅检查固定公共库存路径可执行，不在能力签发期间提前派生 Chrome 或把探针结果提升成完整产
- * 品 ready。 */
+/**
+ * 工厂在真实 Darwin 当前进程上先核独立稳定 Node24，再通过原 B loader 与私有临时目录完成实际子对象探针；浏览器仅检查固定公共库存路径可执行，不在能力签发期间提前派生 Chrome 或把探针结果提升成完整产
+ * 品 ready。
+ */
 export async function createDarwinSource(
     options: DarwinSourceOptions,
 ): Promise<DarwinSourceCapability> {
@@ -95,7 +99,8 @@ export async function createDarwinSource(
     return capability;
 }
 
-/** 安装宿主只能从完整 Mac 库存解析器的原对象取得原生能力，实际探针使用同一库存中的独立 Runner Node 与固定观察器；Electron 主进程因此仍不被当成 Node24，执行路径、浏览器和版本均来自不可变的已核发行。
+/**
+ * 安装宿主只能从完整 Mac 库存解析器的原对象取得原生能力，实际探针使用同一库存中的独立 Runner Node 与固定观察器；Electron 主进程因此仍不被当成 Node24，执行路径、浏览器和版本均来自不可变的已核发行。
  * 本函数会在真实运行阶段执行有限观察器探针，源码交付阶段不调用，不通过任何探针结果授予任意后代清理或产品 ready。
  * 私有临时目录先交原生同句柄策略检查，失败不回退到普通路径创建或已开发模块。
  */
