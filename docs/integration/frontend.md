@@ -1,4 +1,5 @@
-# VeriQ 前端接入规范
+<a id="veriq-前端接入规范"></a>
+# Frontend
 
 本文面向被测业务系统的 React 18 / Vite 前端。VeriQ 的定位器契约以[公共 Schema](../../packages/contracts/schemas/platform-v1.schema.json)为准；测试目录、用例和断言发布后固定版本。前端团队维护可观察的业务界面，测试团队将这些锚点登记为 `ELEMENT_CATALOG`，再使用相同编译器和 SDK 执行回归。
 
@@ -125,6 +126,7 @@ Playwright 自动等待用于正常可交互状态。最终一致由有限的只
 
 接入验收至少覆盖：稳定唯一定位、表单成功与失败、后台刷新关联、重复行排序、Portal、中文/英文、键盘、真实权限、乐观更新回滚，以及写入后的独立查询。企业业务系统需要用自己的环境和身份执行这些检查；仓库示例通过不能替代客户系统验收。
 
-## Implementation references
+<a id="implementation-references"></a>
+## 实现参考
 
-The current contract supports stable test IDs, role locators, nested catalog scopes and exact `data-record-key` filtering. See [locator resolution](../../packages/runner-sdk/src/context.ts), [action execution](../../packages/runner-sdk/src/execute-step.ts), [UI assertions](../../packages/runner-sdk/src/assertions/ui.ts), [network observers](../../packages/runner-sdk/src/observers/network.ts) and the [backend integration contract](backend.md). Examples above describe integration patterns; final full-product and installed-platform acceptance remains tracked in the [milestone ledger](../plans/milestones.md).
+当前契约支持稳定 testId、role 定位器、嵌套目录作用域及精确的 `data-record-key` 筛选。实现见[定位器解析](../../packages/runner-sdk/src/context.ts)、[动作执行](../../packages/runner-sdk/src/execute-step.ts)、[UI 断言](../../packages/runner-sdk/src/assertions/ui.ts)、[网络观察器](../../packages/runner-sdk/src/observers/network.ts)及[后端接入契约](backend.md)。上文示例描述接入方式；完整产品与已安装平台的最终验收仍以[里程碑台账](../plans/milestones.md)为准。

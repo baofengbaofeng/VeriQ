@@ -1,4 +1,6 @@
-# VeriQ桌面图形客户端：需求修订与技术候选
+<a id="veriq桌面图形客户端需求修订与技术候选"></a>
+
+# Desktop
 
 日期：2026-11-10。用户明确要求本地Runtime提供类似本地软件的图形界面。本文覆盖此前“首版仅CLI、不建设桌面界面”的描述；桌面GUI属于首发完整MVP，CLI与无人值守Agent继续保留。按用户确认采用Electron桌面方向，精确依赖版本仍须锁定。
 
@@ -26,10 +28,10 @@ Runtime 私有文件型 Keychain 的真实验收采用独立 GitHub 临时 Mac V
 
 | 维度 | Electron + React | Tauri 2 + React |
 |---|---|---|
-| 团队与引擎适配 | TypeScript/Node生态一致，现成集成较多 | Rust侧更重，Playwright以Node sidecar提供 |
+| 团队与引擎适配 | TypeScript/Node生态一致，现成集成较多 | Rust侧更重，Playwright以Node 辅助进程提供 |
 | UI运行环境 | 内置Chromium，跨系统一致性较高 | 使用系统WebView，需验证WebView2/WebKit依赖 |
 | 资源占用 | 安装体积和内存较大 | UI壳通常更轻，但Node/测试浏览器体积仍存在 |
-| 第三方基础能力 | electron-builder/electron-vite等候选 | 官方插件/sidecar/capabilities等候选 |
+| 第三方基础能力 | electron-builder/electron-vite等候选 | 官方插件、辅助进程及能力授权配置等候选 |
 | 推荐适用 | 优先交付完整功能与复用现有TS栈 | 优先减少UI壳资源且愿意维护Rust侧 |
 
 推荐Electron + React + 独立Node24 Runtime。Electron内嵌Node版本随其版本变化，不能等同于锁定的Node24执行引擎；Agent/Runner使用单独固定版本。Playwright测试浏览器与桌面UI Chromium分离，桌面壳版本更新不静默升级测试引擎。
@@ -38,13 +40,13 @@ Runtime 私有文件型 Keychain 的真实验收采用独立 GitHub 临时 Mac V
 
 ## 代码与部署调整
 
-- 新增apps/desktop，包含main、preload、renderer；复用packages/ui和可共享feature，使用Cloud/Local适配器区分数据来源。
-- 桌面React产物随安装包本地提供，不能只load远程管理网址，否则离线GUI不可用。
-- Electron main使用contextIsolation、关闭renderer Node集成、启用适用的sandbox；preload只暴露白名单类型化IPC，验证参数与sender。设备token、密钥、spawn和任意文件访问不暴露给renderer。
-- Mac已确认由Electron主进程直接加载已核验的Darwin Node-API插件处理私有档案与有限Cookie文件操作；先核库存/宿主/架构再绑定能力，不向renderer开放原生接口。独立Keychain helper不变，实际双架构装载及签名/权限仍须验收。
+- 新增apps/desktop，包含主进程、预加载脚本、渲染进程；复用packages/ui和可共享功能，使用云端／本地适配器区分数据来源。
+- 桌面React产物随安装包本地提供，不能只加载远程管理网址，否则离线GUI不可用。
+- Electron 主进程使用contextIsolation、关闭渲染进程 Node集成、启用适用的沙箱（sandbox）；预加载脚本只暴露白名单类型化IPC，验证参数与发送者（sender）。设备token、密钥、spawn和任意文件访问不暴露给渲染进程。
+- Mac已确认由Electron主进程直接加载已核验的Darwin Node-API插件处理私有档案与有限Cookie文件操作；先核库存/宿主/架构再绑定能力，不向渲染进程开放原生接口。独立Keychain 辅助进程不变，实际双架构装载及签名/权限仍须验收。
 - Agent与UI之间使用受限本机IPC，服务端凭证不嵌入桌面前端；不开放无认证本地HTTP控制接口。
 - CLI、桌面和云端共用编译器/SDK/结果协议，不实现两套测试引擎。
-- 服务端仍按web build→Python static/dist→wheel统一发布；桌面产物按macOS x64、macOS arm64、Windows x64、Ubuntu x64分别构建，优先完成Mac两架构，包含GUI/Agent/Runner及所需依赖。共享业务代码不替代各平台凭据库、进程监督、原生文件和生命周期适配。
+- 服务端仍按前端构建→Python static/dist→wheel统一发布；桌面产物按macOS x64、macOS arm64、Windows x64、Ubuntu x64分别构建，优先完成Mac两架构，包含GUI/Agent/Runner及所需依赖。共享业务代码不替代各平台凭据库、进程监督、原生文件和生命周期适配。
 - 新增桌面构建/签名、GUI E2E、断网GUI、托盘/退出、崩溃重连、IPC授权与进程命名验收。升级/回滚使用签名校验并兼容引擎；执行中不强制更新。
 
 ## 完整MVP验收追加

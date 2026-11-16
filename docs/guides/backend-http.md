@@ -1,4 +1,5 @@
-# Java / Python HTTP 后端接入
+<a id="java--python-http-后端接入"></a>
+# Backend HTTP
 
 VeriQ 通过正常 HTTP 认证、固定 OpenAPI 和 fixture 生命周期与被测后端交互。控制服务仍使用 Python3.12/Tornado/MySQL8.4；Java 不成为另一套控制服务或执行引擎。精确字段见[后端规范](../integration/backend.md)和[Schema](../../packages/contracts/schemas/platform-v1.schema.json)。C06 的新增代码尚未执行或复审。
 
@@ -59,7 +60,8 @@ python fixtures/integration/python/lifecycle.py \
 
 命令创建合成数据，验证两类正常身份、准备重放、变更参数409、fixture 冒充业务写入403、editor 调用准备403、真实持久化 GET、finally 清理和重复清理。它真实发送请求，不可针对未授权业务环境运行。网络错误不自动重试，任何失败退出非零；没有输出 token、cleanupToken 或完整响应。该 HTTP 命令不运行浏览器，不能代替 UI/SDK 验收。
 
-## Java Spring Boot2.3.1
+<a id="java-spring-boot231"></a>
+## Java Spring Boot 2.3.1 示例
 
 前置：独立开发 JDK11/Maven 环境、允许获取已固定 Maven 依赖、POSIX 文件系统及私有目录；本轮没有安装、下载或运行。三个 `VERIQ_DEMO_*_TOKEN` 与 Python 示例角色名称相同，但两个服务应使用各自独立值。
 

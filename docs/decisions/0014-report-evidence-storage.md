@@ -1,147 +1,42 @@
-# ADR 0014 — report provenance and restricted evidence storage
+<a id="adr-0014--report-provenance-and-restricted-evidence-storage"></a>
+# 0014 Report Evidence Storage
 
-Status: accepted for T12 by coordinator, 2026-11-11.
+状态：协调者于 2026-11-11 接受 T12。
 
-Reports project the existing CompletionService writer and results reducer. Activation
-freezes authoritative Runtime trust, location and current grants before side effects.
-Completion retains that snapshot; historical absence remains UNKNOWN. Current gates
-cannot promote an originally unmanaged, unknown, dirty or offline execution.
+报告投影既有 CompletionService 写入方及结果归约器。激活在副作用前冻结权威 Runtime 信任、位置及当前授权，完成时保留该快照；历史缺失仍为 UNKNOWN。当前门禁不能提升原本非托管、未知、脏或离线执行的信任。
 
-Raw uploaded bytes (including LOG) require current Workspace MANAGE_ENVIRONMENT and
-Attempt linkage. Effective sensitivity is server-derived independently of immutable
-submitted upload metadata. Trace, HTML, screenshot and download claims cannot downgrade
-access. Ordinary reports expose structured facts with sensitive headers and frozen
-credential values (exact, URL and base64 forms) redacted; unavailable decryption withholds
-value-bearing fields explicitly. No generic device read or direct/presigned URL is added.
-Raw HTML is attachment-only with sandbox/nosniff. Local Trace viewing reuses pinned
-Playwright and never uploads to a public viewer.
+原始上传字节（包括 LOG）要求当前 Workspace MANAGE_ENVIRONMENT 和 Attempt 关联。有效敏感度由服务端独立于不可变上传声明推导，Trace、HTML、截图、下载声明不能降低访问要求。普通报告提供结构化事实，遮盖敏感请求头及冻结凭据值的精确、URL、base64 形式；无法解密时明确扣留含值字段。不添加通用设备读取或直接/预签名 URL。原始 HTML 仅作附件并带 sandbox/nosniff。本地 Trace 查看复用固定 Playwright，不上传公共查看器。
 
-New raw evidence uses a File/S3 CAS. Existing inline artifacts and source/manifest/engine
-closure readers remain intact. External bytes are staged outside authority transactions;
-current grants/fence and immutable metadata are checked again before commit/response.
-Completed-upload replay must verify exact offsets/bytes through that same staged boundary.
-Storage is bounded to existing32MiB file limits; File publishes immutable bytes atomically;
-S3 uses conditional writes and verifies retained hash/length. Shared inline source digests
-stay inline. No parallel artifact/result writer is introduced.
+新增原始证据使用 File/S3 CAS，既有内联产物及源码/清单/引擎闭包读取保持不变。外部字节在授权事务外暂存，提交/响应前重新检查当前授权/fence 及不可变元数据。已完成上传重放也必须经过相同暂存边界，验证精确偏移与字节。存储沿用单文件 32 MiB 上限；File 原子发布不可变字节，S3 条件写入并验证保留摘要/长度。共享内联源码摘要仍内联存储，不引入平行产物/结果写入方。
 
-External MAINTENANCE artifacts/expire tombstones only eligible terminal TEST evidence,
-pins actual source/compiled/engine closure, retains receipts/manifests/provenance, and
-reports EXPIRED without rewriting historical evidence completeness or outcome. External
-I/O runs outside DB transactions and deletion retries are idempotent. No internal Cron.
+外部 MAINTENANCE artifacts/expire 仅为符合条件的终态 TEST 证据设置墓碑，固定实际源码/编译/引擎闭包，保留回执/清单/来源，并报告 EXPIRED，不重写历史证据完整性或结果。外部 I/O 在数据库事务外执行，删除重试幂等，不设内部 Cron。
 
-S3 uses mature boto3; exact versions and new dependency graph/license/advisory evidence
-are recorded with the final lock. Moto loopback HTTP is emulator verification, not live
-AWS certification. No cloud service or paid account is required.
+S3 使用成熟 boto3；精确版本及新增依赖图、许可和公告证据记录于最终锁。Moto 回环 HTTP 验证属于模拟器证据，不是线上 AWS 认证；不要求云服务或付费账号。
 
-Compiler diagnostics come from actual analyze().issues, never parsed error prose. The
-canonical optional failure diagnostics retain real code/path and static safe messages;
-unsafe or unavailable paths have an explicit marker, not a fabricated ancestor. Old
-failures remain absent. The existing Job/editor/report projections consume those facts.
+编译诊断来自真实 analyze().issues，绝不解析错误说明。规范可选失败诊断保留真实代码/路径及静态安全消息；路径不安全或不可用时有显式标记，不伪造祖先路径。旧失败仍保持缺失。既有 Job、编辑器与报告投影消费这些事实。
 
-The stream uses POST + fetch ReadableStream and eventsource-parser4.1.3 (MIT), current
-cookie/CSRF/Origin, and a256KiB body. The signed actor/Workspace/Run cursor contains at
-most2000 TEST Attempt positions (1000 admitted matrix variants ×2 retries). Cursor never
-travels in URL or header. Event pages retain sequence and cap count100/approximately1MiB;
-clients explicitly reload authoritative report/history after invalid/expired cursor.
-Cleanup compensation and current gates are reprojected even without new TEST events.
-Transactions finish before SSE flush; authorization is rechecked every bounded read cycle.
+流使用 POST + fetch ReadableStream 和 eventsource-parser4.1.3（MIT），沿用当前 Cookie/CSRF/Origin，正文上限 256 KiB。签名游标绑定操作者/Workspace/Run，最多包含 2000 个 TEST Attempt 位置（1000 个准入矩阵变体 ×2 次尝试）。游标不放 URL 或请求头。事件页保留序号，最多 100 项、约 1 MiB；游标无效或过期后，客户端显式重载权威报告/历史。即使没有新 TEST 事件，也重新投影清理补偿和当前门禁。SSE flush 前结束事务，每轮有界读取重新授权。
 
-New exact dependencies: boto3 1.44.0 / botocore1.44.0 (Apache-2.0), dev-only Moto5.2.5
-(Apache-2.0), Flask3.1.3 (BSD-3-Clause), Flask-CORS6.0.5 (MIT). Flask-CORS is required by
-Moto's loopback HTTP server; it does not enable production controller CORS. Minimal dev
-packages avoid the unrelated full moto[server] dependency graph. Botocore requires
-python-dateutil>=2.1,<3.0, so the resolver changes the former4.0.0 to2.9.0.post0; existing
-JSON Schema date-time validation and affected platform checks are retained. All changed
-Python packages and eventsource-parser are audited via OSV with exact versions; the
-2026-11-11 query returned zero advisories across19 changed/new packages. Locks retain
-transitive versions/hashes. This is a point-in-time advisory result, not a guarantee.
+新增精确依赖：boto3 1.44.0 / botocore1.44.0（Apache-2.0），仅开发使用 Moto5.2.5（Apache-2.0）、Flask3.1.3（BSD-3-Clause）、Flask-CORS6.0.5（MIT）。Flask-CORS 是 Moto 回环 HTTP 服务所需，不开启生产控制器 CORS。最小开发包避免引入无关的完整 moto[server] 图。Botocore 要求 python-dateutil>=2.1,<3.0，解析器因此将原 4.0.0 改为 2.9.0.post0；保留既有 JSON Schema 日期时间校验及受影响平台检查。所有变动 Python 包和 eventsource-parser 按精确版本经 OSV 审计，2026-11-11 查询覆盖 19 个变更/新增包，无公告。锁保留传递版本及摘要；这是时点结果，不是保证。
 
-A CAS reservation is persisted before final raw-byte I/O. Failed/revoked finalization keeps
-an incomplete upload and its reservation eligible for later external retention, without
-marking bytes complete. A later exact source upload promotes shared bytes inline, pinning
-them; source/manifest/non-raw uploads and actual assignment/receipt roots prevent expiry.
-Legacy inline raw-only TEST evidence can expire after those same reference checks.
+最终原始字节 I/O 前先持久化 CAS 预留。最终提交失败或授权撤销时，不完整上传及其预留仍可被后续外部保留期维护处理，不将字节标记完成。之后精确源码上传可将共享字节提升为内联并固定它们；源码/清单/非原始上传和真实分配/回执根阻止过期。旧的仅内联原始 TEST 证据在相同引用检查后可过期。
 
+协调者审阅首个真实报告 UI 后，批准增量 ReportDisplayV1 元数据成员。编译器在传输 ID 变换前保留原源码步骤/断言 ID，发射白名单标题、键、动作、父级/顺序、断言元数据及观察器摘要，不发射动作值或认证载荷。按范围授权的 Run/Attempt 显示端点验证不可变描述符摘要/大小/Schema 及精确 ExpectedPlans 成员关系后，返回脱敏元数据。旧包保持不可变，并明确没有显示元数据。主报告展示结构化比较和时间顺序步骤，协议/来源 JSON 为可选技术细节。该元数据增加消费者 ABI，因此源码冻结后必须执行一次带观测的完整 SDK 门禁。
 
-The coordinator approved an additive ReportDisplayV1 metadata member after reviewing the
-first real report UI. The compiler preserves original source step/assertion IDs before
-wire transforms and emits allowlisted titles/keys/actions, parent/order, assertion metadata
-and observer summaries. No action values or auth payloads are emitted. A scoped
-Run/Attempt display endpoint verifies immutable descriptor hash/size/schema and exact
-ExpectedPlans membership before returning redacted metadata. Old bundles remain immutable
-and explicitly lack display metadata. Main reports present structured comparisons and
-chronological steps; protocol/provenance JSON is optional technical detail. The metadata
-adds consumer ABI, so one instrumented full SDK gate is required after source freeze.
+真实目录编译暴露两个路径下相同的空 ExpectedPlans/ReportDisplay 字节。完成处理必须把每个证据条目匹配到其完整上传及精确关联的 ARTIFACT_CREATED 事件，不能把全部证据身份压成只按摘要索引的映射。描述符闭包仍按内容寻址，保留现有写入方和归约器。
 
-Real catalog compilation exposed identical empty ExpectedPlans/ReportDisplay bytes at two
-paths. Completion must match each evidence entry to its complete upload and exact linked
-ARTIFACT_CREATED event, not collapse all evidence identities into a digest-only map.
-Descriptor closure remains content-addressed and the existing writer/reducer is retained.
+保留期使用 0008 新增、可空且由服务端拥有的 Attempt.finished_at。现有完成、租约丢失/reap 和协调终态转换只写入一次数据库 UTC；重放不重置。这是平台终态时间，不是物理停止证明。历史缺失时间保持未知并保留，不捏造回填。原始 PASSED 证据默认 14 天（`artifact_success_retention_days`），其他终态证据 30 天（`artifact_retention_days`）；活动、共享、固定闭包字节不可过期。完整元数据 90 天及成功导出包生命周期，须在 T14/T15 资源存在后由 T21 完成；本任务有意保留这些引用，不提前删除。
 
-Retention uses nullable server-owned Attempt.finished_at added in0008. Existing completion,
-lease-loss/reap and reconciliation terminal transitions stamp database UTC once; replay
-never resets it. This is platform terminal time, not a physical-stop assertion. Historical
-missing times remain unknown and retained, with no invented backfill. Raw PASSED evidence
-defaults to14days (`artifact_success_retention_days`), other terminal evidence30days
-(`artifact_retention_days`); active/shared/pinned closure bytes cannot expire. Full metadata90
-and successful export-package lifecycle remain required T21 work after T14/T15 resources
-exist; this task deliberately retains those references rather than deleting them early.
+协调者要求 T12 实现逻辑链接过期及相同字节安全重复上传，而不是永久按摘要返回 410。AttemptUpload.expired_at 永久为旧链接设墓碑。Artifact 只记录当前私有存储世代；新外部键为 Workspace/SHA.UUID（旧 null 世代保留 Workspace/SHA）。所有引用均过期且没有源码/引擎根固定字节后，维护持久记录精确后端/世代以供删除，并为当前 CAS 设墓碑。新的获授权上传预留新 UUID，在事务外暂存已验证字节，提交前复查当前证明/fence/世代。待删除始终指向旧不可变键，不能删新字节。源码提升可排队删除冗余外部世代，同时保留已验证内联字节。逻辑 processedCount 统计过期上传链接，物理待删除独立重试。不暴露原始存储键，不增加执行队列或 Cron，旧链接永不复活。
 
-The coordinator required logical link expiry and safe repeated identical-byte uploads in
-T12, not a permanent digest410. AttemptUpload.expired_at permanently tombstones each old
-link. Artifact records only the current private storage incarnation; new external keys are
-Workspace/SHA.UUID (legacy null incarnation preserves Workspace/SHA). Once every reference
-is expired and no source/engine root pins bytes, maintenance durably records that exact
-backend/incarnation for deletion and tombstones the current CAS. A newly authorized upload
-reserves a fresh UUID, stages verified bytes outside the transaction and rechecks current
-proof/fence/incarnation before committing. Pending deletion always addresses the old
-immutable key and cannot delete new bytes. Source promotion may enqueue its redundant
-external incarnation while preserving verified inline bytes. Logical processedCount counts
-expired upload links; physical pending deletion is independently retryable. No raw storage
-key is exposed, no execution queue or Cron is added, and old links never revive.
+冻结执行的固定引用要求凭据投递时，当前门禁也阻止撤回已捕获的投递批准。激活捕获该权威要求，不据此推断真实使用了凭据。旧来源记录没有这一区别时保守处理。投影政策不改变投递授权或历史结果。
 
-Current gates also block withdrawal of captured credential-delivery approval when frozen
-execution pins require delivery. Activation captures that authoritative requirement; no
-claim of actual credential use is inferred. Legacy provenance without the distinction is
-conservative. This projection policy does not alter delivery grants or historical outcomes.
+独立复审 R1 暴露了已完成删除后的晚发布。协调者批准迁移 0009 及每世代持久发布日志：PENDING 仅能在现有带 fence 的上传事务中转为 COMMITTED，RETIRED 不可逆。源码提升退休精确先前世代。认证且有界的维护按持久引用/租约/fence 事实恢复待定发布。当前活动别名保留待定字节，完整活动别名协调为 COMMITTED。即使原请求从未返回，被替代或放弃世代仍退休。租约过期授权退休，但绝不证明外部 I/O 已停止。
 
-Independent review R1 exposed publication after a previously completed deletion. The
-coordinator approved migration0009 and a durable per-incarnation publication journal:
-PENDING becomes COMMITTED only in the existing fenced upload transaction; RETIRED is
-irreversible. Source promotion retires the exact prior incarnation. Authenticated bounded
-maintenance recovers pending publications from durable reference/lease/fence facts. An
-active current alias keeps its pending bytes; a complete live alias reconciles COMMITTED.
-Superseded or abandoned incarnations retire even if the original request never returned.
-Lease expiry authorizes retirement but is never treated as proof that external I/O stopped.
+退休现通过原子替换私有 File 键为已 fsync 空文件，或向同一键写空 S3 对象完成。每次发布仍仅创建（os.link / IfNoneMatch=*），晚写不能覆盖该屏障。旧证据/凭据字节已移除，空对象是持久安全元数据，不是保留证据。即使原对象本来为零字节，持久 RETIRED 状态仍拒绝读取。发布日志和删除确认暴露内部 pending/retired/completed 状态；维护 processedCount 仍统计逻辑上传过期，而不计安全标记。迁移 0009 将旧删除确认重新排队一次以安装屏障，降级拒绝丢弃非空发布日志。新 UUID 重建、内联源码提升和永久逻辑过期保持原行为。
 
-Retirement now atomically replaces the private File key with an fsynced empty file, or
-writes an empty S3 object at the same key. Every publication remains create-only (os.link /
-IfNoneMatch=*), so a late writer cannot overwrite this fence. The old evidence/credential
-bytes are removed; the empty object is persistent safety metadata, not retained evidence.
-Even an originally zero-byte object is denied by the durable RETIRED state. The publication
-journal and deletion acknowledgment expose internal pending/retired/completed state;
-maintenance processedCount still counts logical upload expirations, not safety markers.
-Migration0009 requeues previous deletion acknowledgments once to install these barriers.
-Its downgrade refuses to discard a nonempty publication journal. New UUID rehydration,
-inline source promotion and permanent logical expiry retain their existing behavior.
+代价：每个退休世代保留一个最小空存储键及日志/删除元数据。T21 元数据 90 天政策不能盲删这些安全屏障；清理需要未来协议证明旧的仅创建写入方不可能再发布，不能只依赖超时。不公开原始键/URL，不增加内部维护定时器。真实 File 和回环 Moto 测试覆盖：发布在源码提升前暂停、执行维护再恢复，以及在 put 前/后持久中断，随后尝试晚 put。
 
-Cost: one minimal empty storage key and journal/deletion metadata remain per retired
-incarnation. T21's metadata90 policy must not blindly delete these safety fences: their GC
-requires a future protocol proving no old create-only writer can publish, not a timeout.
-No raw key/URL becomes public and no internal maintenance timer is introduced. Real File
-and loopback Moto tests cover publication paused before source promotion, maintenance,
-then resume, and persisted interruption before/after put followed by a late put attempt.
+R2 同时保护动态断言 JsonValue 的成员名和值，包括精确、URL、base64 形式及已吊销冻结固定值。受保护动态键使整个所属对象替换为 [REDACTED]，防止键碰撞或静默合并。协议信封、ActualValue 及编译器显示键保持 Schema 自有形状。SDK 原有成员键脱敏接缝仍是离线 T15 验收前必须完成的 T14 工作。
 
-R2 protects dynamic assertion JsonValue member names as well as values (exact/URL/base64,
-including revoked frozen pins). A protected dynamic key withholds its entire containing
-object as [REDACTED], preventing key collisions and silent merges. Protocol envelope,
-ActualValue and compiler display keys retain their schema-owned shape. The unchanged SDK
-member-key redaction seam remains mandatory T14 work before offline T15 acceptance.
-
-R3 keeps the Runtime entry compatible with operator-approved retained compiler archives:
-it imports the namespace and uses safeDiagnostics only when the selected compiler exports
-that capability. Older engines retain honest absent diagnostics/display; their own compiler
-and unchanged bundle/file hash comparison still decide validity. The regression reconstructs
-actual BASE10379f0 compiler/SDK/contracts sources, exact dependency archives/lock/inventory,
-and runs both VALIDATE and TEST assembly plus changed-bundle rejection through the entry.
-R4 derives firstPassCount from attemptNo==1, independently of UUID query ordering.
+R3 让 Runtime 入口兼容操作员批准并保留的旧编译器归档：以命名空间导入，仅当所选编译器导出能力时使用 safeDiagnostics。旧引擎如实缺少诊断/显示元数据，仍由自身编译器及不变的包/文件摘要比较决定合法性。回归重建真实 BASE10379f0 编译器/SDK/contracts 源码、精确依赖归档/锁/库存，经入口运行 VALIDATE、TEST 组装及变更包拒绝。R4 按 attemptNo==1 推导 firstPassCount，不受 UUID 查询顺序影响。

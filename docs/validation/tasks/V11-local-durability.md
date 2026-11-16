@@ -1,8 +1,12 @@
-# V11 — 本机 Claim 持久化与保留期源码交接
+<a id="v11--本机-claim-持久化与保留期源码交接"></a>
 
-状态：**SOURCE_DELIVERY；全部验证未执行**。用户要求先完成源码再独立验证；本任务未运行测试、类型检查、构建、原生程序、SQLite 打开、安装、CI、网络或独立复审。本文是后续执行清单，不是通过记录。Linux/Darwin 原在线日志提交实现和 Windows Job 全后代停止证明保持既有范围。
+# V11 Local Durability
 
-## SOURCE_DELIVERY
+状态：**源码交付；全部验证未执行**。用户要求先完成源码再独立验证；本任务未运行测试、类型检查、构建、原生程序、SQLite 打开、安装、CI、网络或独立复审。本文是后续执行清单，不是通过记录。Linux/Darwin 原在线日志提交实现和 Windows Job 全后代停止证明保持既有范围。
+
+<a id="source_delivery"></a>
+
+## 源码交付
 
 | 范围 | 已交付源码 | 实际行为及边界 |
 | --- | --- | --- |
@@ -40,28 +44,28 @@ pruneLocalProfile(profileRoot: string, {
 
 ## 精确待执行检查
 
-以下全部结果均为 **NOT RUN**，后续任务需要先取得对应真实目标、固定依赖与测试档案执行许可。不要在当前源码交付阶段运行这些命令。
+以下全部结果均为 **未执行**，后续任务需要先取得对应真实目标、固定依赖与测试档案执行许可。不要在当前源码交付阶段运行这些命令。
 
 | 环境 | 命令或操作 | 预期与失败边界 | 结果 |
 | --- | --- | --- | --- |
-| 独立 Node24、固定 pnpm 锁 | `pnpm --filter @veriq/runtime check` | 新 API 类型、SQLite 类型、GUI/Runtime 引用一致；不得用 transpile-only 当作类型通过。 | NOT RUN |
-| Windows11 x64 普通用户；另跑 CI 管理员用户 | `pnpm --filter @veriq/runtime build:native:windows`；其后在 runtime cwd `node --import tsx --test tests/native/windows-profile.test.ts tests/native/windows-private-config.test.ts tests/native/windows.test.ts` | 实际 N-API 加载、SID/owner/DACL/继承、单链接/重解析、数据库与辅助文件共享方式；普通用户和 CI Admin 拥有者事实分别记录，不能放宽 owner 政策修历史失败。 | NOT RUN |
-| macOS15 x64、macOS15 arm64 分别原生宿主 | `pnpm --filter @veriq/runtime build:native:darwin`；在 runtime cwd 执行 `node --import tsx --test tests/native/darwin-private-files.test.ts` | 新 CommonCrypto 流式摘要与固定退休入口、实际 ACL、只读树、RENAME_EXCL、fsync/close 错误；两架构均需真实原生编译和装载。 | NOT RUN |
-| Ubuntu24.04 x64 + Node24 | 在 runtime cwd：`node --import tsx --test tests/offline-store.test.ts tests/offline-recovery.test.ts tests/journal-recovery.test.ts tests/supervisor.test.ts` | Linux 原 journal/进程证明行为不回归，retention 的 fd 锚点、单链接、同名 inode、目录 sync/close 与有限批次。 | NOT RUN |
-| 新增专用行为回归 | 为 `windows-journal` 与 `offline-retention` 新增独立测试文件并执行 | 当前没有为新增路径伪造通过结果；既有用例不足以覆盖新数据库和退休协议，需要真实可观察行为测试。 | NOT RUN |
-| Windows 冷重启/断电、SQLite 故障 | 新档案初始化；分别在 ALLOCATED/ACTIVATING/ACTIVATED/SPAWNING 提交前后、提交后进程拉起前、RUNNING/STOPPED、提交后关闭错误点终止宿主并冷重启；另做真实存储断电试验 | 原始 fence/request ID 保持；SPAWNING 或未知不推断未派生；FULL/WAL commit 及数据库辅助文件持久性真实核验；进程活性只认原 Job FULL_DESCENDANT_TREE。SQLite/OS 成功不等于介质断电保证已经通过。 | NOT RUN |
-| Windows 历史/路径对抗 | 损坏 DB/WAL、未知 schema/version/触发器、同 Attempt 不同 Claim/fence、孤立 sidecar、旧 JSON/staging、孤立 process/drained、数据库/父链换名、reparse/hardlink、关闭失败 | 均阻止派生或维护，不截断、不自动修 ACL、不把未知旧日志迁移成 NO_PROCESS_SPAWNED。验证现有 `openExisting` 无目录/主库创建副作用。 | NOT RUN |
-| 四目标保留期 fixture | 已上传成功14d/失败30d/元数据90d/包14d；分别配置最短、最长、非法天数和 batch | 仅可信本机观察/访问年龄生效；首次遇到旧数据不凭 mtime 到期；任何 raw 保留期比 metadata 更长时仍先满足 raw 期限；回拨、未来 finishedAt、不可信或超大结果保留。 | NOT RUN |
-| 活动与引用屏障 | 同时尝试 CLI run/GUI view/online start/prune；QUARANTINED、未知停止范围、缺原生证明、待上传、失败上传、引用同包的另一 Workspace/Run | 持久占用或未知进程阻止维护，已上传但仍保留的报告继续引用包；引擎、源码依赖与凭据不被当无用目录清理。 | NOT RUN |
-| 退休故障与重做 | 每个证据 unlink 前后、单项墓碑提交前后、缓存意图提交、隔离、只读变更、部分文件/目录删除、索引更新、SQLite 最终提交、关闭点崩溃；重复调用直到 hasMore=false | 只重做同一可信库存；部分报告逐项 EXPIRED；预算耗尽有后续批次；未知额外成员保留；最小幂等/停止事实不丢失，任何部分失败不生成全部清理成功。 | NOT RUN |
-| 桌面真实 GUI | `pnpm --filter @veriq/desktop check`、`pnpm --filter @veriq/desktop test:unit`；再真实安装 GUI 点击维护确认、取消确认、重复点击、忙状态与结果提示 | 实际 helper调用、desktopOwner 品牌和固定 Workspace，active viewers/resource reads 阻止清理；没有 renderer 路径/SQL/任意 fs 通道。 | NOT RUN |
+| 独立 Node24、固定 pnpm 锁 | `pnpm --filter @veriq/runtime check` | 新 API 类型、SQLite 类型、GUI/Runtime 引用一致；不得用 transpile-only 当作类型通过。 | 未执行 |
+| Windows11 x64 普通用户；另跑 CI 管理员用户 | `pnpm --filter @veriq/runtime build:native:windows`；其后在 Runtime 工作目录 `node --import tsx --test tests/native/windows-profile.test.ts tests/native/windows-private-config.test.ts tests/native/windows.test.ts` | 实际 N-API 加载、SID/owner/DACL/继承、单链接/重解析、数据库与辅助文件共享方式；普通用户和 CI 管理员拥有者事实分别记录，不能放宽 owner 政策修历史失败。 | 未执行 |
+| macOS15 x64、macOS15 arm64 分别原生宿主 | `pnpm --filter @veriq/runtime build:native:darwin`；在 Runtime 工作目录执行 `node --import tsx --test tests/native/darwin-private-files.test.ts` | 新 CommonCrypto 流式摘要与固定退休入口、实际 ACL、只读树、RENAME_EXCL、fsync/close 错误；两架构均需真实原生编译和装载。 | 未执行 |
+| Ubuntu24.04 x64 + Node24 | 在 Runtime 工作目录：`node --import tsx --test tests/offline-store.test.ts tests/offline-recovery.test.ts tests/journal-recovery.test.ts tests/supervisor.test.ts` | Linux 原 journal/进程证明行为不回归，retention 的 fd 锚点、单链接、同名 inode、目录 sync/close 与有限批次。 | 未执行 |
+| 新增专用行为回归 | 为 `windows-journal` 与 `offline-retention` 新增独立测试文件并执行 | 当前没有为新增路径伪造通过结果；既有用例不足以覆盖新数据库和退休协议，需要真实可观察行为测试。 | 未执行 |
+| Windows 冷重启/断电、SQLite 故障 | 新档案初始化；分别在 ALLOCATED/ACTIVATING/ACTIVATED/SPAWNING 提交前后、提交后进程拉起前、RUNNING/STOPPED、提交后关闭错误点终止宿主并冷重启；另做真实存储断电试验 | 原始 fence/request ID 保持；SPAWNING 或未知不推断未派生；FULL/WAL commit 及数据库辅助文件持久性真实核验；进程活性只认原 Job FULL_DESCENDANT_TREE。SQLite/OS 成功不等于介质断电保证已经通过。 | 未执行 |
+| Windows 历史/路径对抗 | 损坏 DB/WAL、未知 schema/version/触发器、同 Attempt 不同 Claim/fence、孤立辅助成员、旧 JSON/staging、孤立 process/drained、数据库/父链换名、reparse/hardlink、关闭失败 | 均阻止派生或维护，不截断、不自动修 ACL、不把未知旧日志迁移成 NO_PROCESS_SPAWNED。验证现有 `openExisting` 无目录/主库创建副作用。 | 未执行 |
+| 四目标保留期 fixture | 已上传成功14d/失败30d/元数据90d/包14d；分别配置最短、最长、非法天数和 batch | 仅可信本机观察/访问年龄生效；首次遇到旧数据不凭 mtime 到期；任何 raw 保留期比 metadata 更长时仍先满足 raw 期限；回拨、未来 finishedAt、不可信或超大结果保留。 | 未执行 |
+| 活动与引用屏障 | 同时尝试 CLI run/GUI view/online start/prune；QUARANTINED、未知停止范围、缺原生证明、待上传、失败上传、引用同包的另一 Workspace/Run | 持久占用或未知进程阻止维护，已上传但仍保留的报告继续引用包；引擎、源码依赖与凭据不被当无用目录清理。 | 未执行 |
+| 退休故障与重做 | 每个证据 unlink 前后、单项墓碑提交前后、缓存意图提交、隔离、只读变更、部分文件/目录删除、索引更新、SQLite 最终提交、关闭点崩溃；重复调用直到 hasMore=false | 只重做同一可信库存；部分报告逐项 EXPIRED；预算耗尽有后续批次；未知额外成员保留；最小幂等/停止事实不丢失，任何部分失败不生成全部清理成功。 | 未执行 |
+| 桌面真实 GUI | `pnpm --filter @veriq/desktop check`、`pnpm --filter @veriq/desktop test:unit`；再真实安装 GUI 点击维护确认、取消确认、重复点击、忙状态与结果提示 | 实际辅助进程调用、desktopOwner 品牌和固定 Workspace，活动查看器／资源读取阻止清理；没有渲染进程路径/SQL/任意 fs 通道。 | 未执行 |
 
 ## 已知边界和未完成验收
 
-- Windows 既有 CI 曾有三项 ACL/所有者失败；本源码不改变该政策，也没有证明这些失败已经解决。旧安装 addon 缺新增方法时保持失败，必须由后续原生构建/库存/安装任务交付匹配产物。
+- Windows 既有 CI 曾有三项 ACL/所有者失败；本源码不改变该政策，也没有证明这些失败已经解决。旧安装插件缺新增方法时保持失败，必须由后续原生构建/库存/安装任务交付匹配产物。
 - 旧 Windows JSON/staging 无自动迁移或清除功能，非空即隔离并要求显式人工恢复；不能凭原有弱发布窗口制造未派生证明。这是明确保留的恢复边界。
 - 在线日志目前硬上限4096条，不自动归档或删除原始 Claim/fence；达到上限拒绝继续认领执行，需要后续受审阅的生命周期/归档方案才能长期超过这一历史规模。
 - 缓存只覆盖可信桌面 `desktop-bundles.json` 中的签名安装包。任意 `bundle download --output`、外部 `bundle verify --destination`、未知/超额/撤销后无法重新核验的库存与未声明 work/staging 均保留；不是磁盘任意垃圾回收器。
 - 未可信计龄、待上传、缺少原生停止证明、单份结果超过8 MiB、缓存引用检查超过4096条未退休 Run 或包含损坏结果时，保守保留。达到文件、目录深度/数量或字节预算后拒绝/分批，不以去掉边界换取“清完”。
-- 本机结果本来不承诺抵御同一 OS 用户主动篡改其全部私有档案；Linux Node rename 的隔离依赖私有维护命名空间及随后 inode 核验，实际 parent/path swap 竞争仍需独立真实故障验证。没有把普通路径检查升级成已经验证的安全结论。
-- 本阶段没有独立质量审计或覆盖率结论，新增源代码、原生编译、完整注释规范与发行库存均需后续门禁；SOURCE_DELIVERY 不表示支持矩阵、功耗/断电耐久性或完整 MVP 已验收。
+- 本机结果本来不承诺抵御同一 OS 用户主动篡改其全部私有档案；Linux Node rename 的隔离依赖私有维护命名空间及随后 inode 核验，实际父目录／路径替换竞争仍需独立真实故障验证。没有把普通路径检查升级成已经验证的安全结论。
+- 本阶段没有独立质量审计或覆盖率结论，新增源代码、原生编译、完整注释规范与发行库存均需后续门禁；源码交付不表示支持矩阵、功耗/断电耐久性或完整 MVP 已验收。

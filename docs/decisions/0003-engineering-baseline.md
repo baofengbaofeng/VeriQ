@@ -1,58 +1,63 @@
-# ADR 0003: VeriQ engineering baseline and shared contracts
+<a id="adr-0003-veriq-engineering-baseline-and-shared-contracts"></a>
+# 0003 Engineering Baseline
 
-- Status: selected engineering baseline for T01; user constraints and ADRs 0001/0002/0004 govern Tornado, branding and Router. This ADR does not declare product release or target-platform acceptance.
-- Date: 2026-11-10.
-- License: existing project AGPL-3.0 retained; technical identifiers remain `veriq`. No forked application code or additional proprietary framework is introduced.
+- 状态：选定的 T01 工程基线；Tornado、品牌名称与 Router 分别受用户约束及 ADR 0001/0002/0004 管理。本 ADR 不宣告产品发行或目标平台验收通过。
+- 日期：2026-11-10。
+- 许可：保留项目既有 AGPL-3.0，技术标识仍为 `veriq`；不引入分叉应用代码或额外专有框架。
 
-## Toolchains and native entry
+<a id="toolchains-and-native-entry"></a>
+## 工具链与原生入口
 
-Use Python 3.12.14 with uv 0.13.5; Node 24.22.1 with pnpm 11.25.0; MySQL Community Server 8.4.13. Coordinator verified the running database and image `mysql@sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902`. Python/Node versions are recorded in `.python-version` / `.node-version`; package-manager and engine constraints live in root `package.json`. MySQL communicates over its protocol; there is no embedded MySQL library in the control service.
+使用 Python 3.12.14 与 uv 0.13.5、Node 24.22.1 与 pnpm 11.25.0、MySQL Community Server 8.4.13。协调者已核验运行数据库及镜像 `mysql@sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902`。Python/Node 版本记录于 `.python-version` / `.node-version`，包管理器及引擎约束放在根 `package.json`。MySQL 经自身协议通信，控制服务不嵌入 MySQL 库。
 
-Use the already selected Electron direction for the desktop native executable (`veriq` / `veriq.exe`), built with electron-builder. Keep Node 24 independent of Electron's embedded Node and Chromium. Agent/Runner distributions copy the exact Node runtime under `veriq_agent` / `veriq_runner` executable names (with `.exe` on Windows), retain Node notices, and initialize the real OS process name before processing work. CLI may use `veriq_cli`. No Rust shell, SEA assumption or second execution engine is selected.
+桌面原生可执行文件（`veriq` / `veriq.exe`）沿用已选 Electron 方向，以 electron-builder 构建。Node 24 与 Electron 内嵌 Node、Chromium 保持独立。Agent/Runner 发行复制精确 Node 运行时，分别命名为 `veriq_agent` / `veriq_runner`（Windows 增加 `.exe`），保留 Node 许可声明，并在处理工作前初始化真实 OS 进程名。CLI 可用 `veriq_cli`。未选择 Rust 外壳、SEA 假设或第二套执行引擎。
 
-Linux POC: executing a renamed Node binary alone returned `MainThread` from `/proc/self/comm`; setting `process.title` to the required role at bootstrap returned actual kernel names `veriq_agent` and `veriq_runner`. This is evidence about real OS state, not merely a log label. The POC binaries are ignored local tools. Desktop executable naming, descendant Playwright processes, worker bootstrap, process groups, Windows task-manager names, GUI packaging and signing still require their real downstream platform tests. No Windows or desktop acceptance is claimed here.
+Linux 概念验证：单独运行重命名的 Node 二进制，`/proc/self/comm` 返回 `MainThread`；启动时设置 `process.title` 为所需角色后，内核实际名称返回 `veriq_agent` 与 `veriq_runner`。这是实际 OS 状态证据，不只是日志标签。验证用二进制为被忽略的本地工具。桌面可执行命名、后代 Playwright 进程、Worker 引导、进程组、Windows 任务管理器名称、GUI 打包与签名仍须真实下游平台测试；这里不声称 Windows 或桌面已验收。
 
-Node uses its MIT license plus bundled third-party notices; Electron/electron-builder use MIT, and Electron's Chromium/other components retain their own notices. MySQL Community Server has GPL-2.0 distribution obligations. Final platform-specific binary/SBOM/license verification belongs to release assembly; package metadata inventories below are not substitutes for binary notices.
+Node 使用 MIT 并附捆绑第三方声明；Electron/electron-builder 使用 MIT，Electron 中 Chromium 等组件保留各自声明。MySQL Community Server 有 GPL-2.0 分发义务。各平台最终二进制、SBOM 与许可核验属于发行组装，下方包元数据库存不能代替二进制许可声明。
 
-## Reproducible dependency policy
+<a id="reproducible-dependency-policy"></a>
+## 可复现依赖政策
 
-All direct third-party requirements below are exact; all resolved transitive versions and integrity hashes are in `pnpm-lock.yaml` and `apps/srv/uv.lock`. Internal packages use workspace references. There are no `latest` requirements.
+下方全部第三方直接依赖均使用精确版本；解析后的传递版本和完整性摘要记录于 `pnpm-lock.yaml` 与 `apps/srv/uv.lock`。内部包使用 workspace 引用，没有 `latest` 依赖。
 
-pnpm 11 reads project settings from `pnpm-workspace.yaml`. Keep exact saving, strict engines and peers, a 1440-minute minimum release age, explicit `enableGlobalVirtualStore: false`, a portable ignored project-local store, and `verifyDepsBeforeRun: error`. This preserves dependency verification and avoids a CI/local default difference that otherwise triggered implicit installation and a non-TTY directory-purge error. A targeted Monaco→DOMPurify 3.4.17 patch override removes the older vulnerable sanitizer; Vitest’s compatible Vite dependency is pinned to 6.4.5 to retain the required Vite 6 family. esbuild and electron-winstaller lifecycle scripts are explicitly allowed; the latter selects the packaged 7-Zip architecture. Electron's executable installation and browser downloads are separate from this contract test baseline.
+pnpm 11 从 `pnpm-workspace.yaml` 读取项目设置。保留精确保存、严格引擎及 peer 检查、1440 分钟最短发布时间、显式 `enableGlobalVirtualStore: false`、可移植且被忽略的项目本地存储，以及 `verifyDepsBeforeRun: error`。这样可保持依赖校验，并消除曾导致隐式安装及非 TTY 目录清理报错的 CI/本地默认差异。Monaco→DOMPurify 3.4.17 的定向补丁覆盖移除旧漏洞净化器；Vitest 兼容的 Vite 依赖固定为 6.4.5，保留要求的 Vite 6 族。显式允许 esbuild 与 electron-winstaller 生命周期脚本，后者负责选择捆绑的 7-Zip 架构。Electron 可执行安装及浏览器下载与本契约测试基线分离。
 
-Vite 6.4.6 was published less than 24 hours before selection and failed the minimum release age check; select 6.4.5. React 18, Vite 6, Tailwind 3, Router 7.18.5 (ADR 0004), Query 5, SQLAlchemy 2 and Python/Node major families remain user constraints. These constrained majors are deliberate compatibility choices, not claims of indefinite upstream support. Published version availability, engine/peer resolution, actual installation and the POCs/tests are the maintenance/compatibility evidence at T01. Future updates require review of advisories and upstream support as well as tests; a lockfile alone is not a security audit.
+Vite 6.4.6 在选型前发布不足 24 小时，未通过最短发布时间检查，因此选择 6.4.5。React 18、Vite 6、Tailwind 3、Router 7.18.5（ADR 0004）、Query 5、SQLAlchemy 2 及 Python/Node 主版本族仍为用户约束。这些受限主版本是有意的兼容选择，不代表上游无限期支持。已发布版本的可用性、引擎/peer 解析、真实安装及概念验证/测试构成 T01 的维护与兼容证据。未来更新必须审查公告、上游支持并测试；锁文件本身不是安全审计。
 
-## Python direct dependencies
+<a id="python-direct-dependencies"></a>
+## Python 直接依赖
 
-| Package | Exact version | Declared license | Purpose / replacement boundary |
+| 包 | 精确版本 | 声明许可 | 用途及替换边界 |
 | --- | --- | --- | --- |
-| tornado | 6.6.1 | Apache-2.0 | Required control API/event loop; ADR 0001 user-approved security upgrade |
-| sqlalchemy | 2.0.46 | MIT | ORM/transactions; repositories isolate it |
-| alembic | 1.18.4 | MIT | Migrations; no custom migration engine |
-| asyncmy | 0.2.18 | Apache-2.0 | Async MySQL driver; SQLAlchemy dialect boundary, aiomysql candidate |
-| pydantic | 2.12.5 | MIT | HTTP/config models; shared DSL source remains JSON Schema |
-| jsonschema[format-nongpl] | 4.26.0 | MIT | Draft 2020-12 validation plus actual URI/date-time checks; format extras avoid GPL optional formats |
-| argon2-cffi | 25.1.0 | MIT | Password hashing; authentication adapter boundary |
-| cryptography | 50.0.2 | Apache-2.0 OR BSD-3-Clause | AES-GCM/Ed25519; select BSD-3-Clause alternative, no custom crypto |
-| httpx | 0.28.1 | BSD-3-Clause | Outbound HTTP adapters; aiohttp remains unselected candidate |
-| structlog | 25.5.0 | MIT OR Apache-2.0 | Structured logs; select MIT alternative, standard logging adapter replaceable |
-| pytest | 9.2.0 | MIT | Python behavior tests |
-| pytest-asyncio | 1.3.0 | Apache-2.0 | Async test execution |
-| pytest-cov | 7.0.0 | MIT | Python coverage evidence |
-| ruff | 0.15.1 | MIT | Lint/format checks |
-| mypy | 1.19.1 | MIT | Strict Python typing |
-| types-jsonschema | 4.26.0.20260202 | Apache-2.0 | jsonschema typing |
-| build | 1.4.0 | MIT | PEP 517 wheel build frontend |
-| hatchling | 1.27.0 | MIT | Editable/wheel backend and canonical-schema inclusion |
-| pyyaml | 6.0.3 | MIT | Contract/deployment YAML tooling |
+| tornado | 6.6.1 | Apache-2.0 | 必需的控制 API/事件循环；ADR 0001 记录用户批准的安全升级 |
+| sqlalchemy | 2.0.46 | MIT | ORM/事务，由仓储层隔离 |
+| alembic | 1.18.4 | MIT | 数据库迁移，不自研迁移引擎 |
+| asyncmy | 0.2.18 | Apache-2.0 | 异步 MySQL 驱动，通过 SQLAlchemy 方言隔离；aiomysql 为候选 |
+| pydantic | 2.12.5 | MIT | HTTP/配置模型；共享 DSL 源仍为 JSON Schema |
+| jsonschema[format-nongpl] | 4.26.0 | MIT | Draft 2020-12 校验及真实 URI/日期时间检查；格式扩展避免可选 GPL 格式 |
+| argon2-cffi | 25.1.0 | MIT | 密码哈希，通过认证适配器隔离 |
+| cryptography | 50.0.2 | Apache-2.0 OR BSD-3-Clause | AES-GCM/Ed25519；选择 BSD-3-Clause 分支，不自研密码学 |
+| httpx | 0.28.1 | BSD-3-Clause | 出站 HTTP 适配器；aiohttp 仍是未选候选 |
+| structlog | 25.5.0 | MIT OR Apache-2.0 | 结构化日志；选择 MIT 分支，标准日志适配器可替换 |
+| pytest | 9.2.0 | MIT | Python 行为测试 |
+| pytest-asyncio | 1.3.0 | Apache-2.0 | 异步测试执行 |
+| pytest-cov | 7.0.0 | MIT | Python 覆盖率证据 |
+| ruff | 0.15.1 | MIT | lint/格式检查 |
+| mypy | 1.19.1 | MIT | 严格 Python 类型检查 |
+| types-jsonschema | 4.26.0.20260202 | Apache-2.0 | jsonschema 类型定义 |
+| build | 1.4.0 | MIT | PEP 517 wheel 构建前端 |
+| hatchling | 1.27.0 | MIT | editable/wheel 后端及规范 Schema 打包 |
+| pyyaml | 6.0.3 | MIT | 契约/部署 YAML 工具 |
 
-Control-service dependencies import/install under Python 3.12; shared schema tests, typing and an isolated installed-wheel POC validate the contract path. Database migrations, real MySQL transactions, auth/crypto flows and HTTP application behavior are downstream tests, not claims from package installation.
+控制服务依赖在 Python 3.12 下导入/安装；共享 Schema 测试、类型检查及隔离已安装 wheel 概念验证核对契约路径。数据库迁移、真实 MySQL 事务、认证/密码学流程及 HTTP 应用行为属于后续测试，不能由包安装推断通过。
 
-## JavaScript direct dependencies
+<a id="javascript-direct-dependencies"></a>
+## JavaScript 直接依赖
 
-Versions and license declarations below come from installed exact package metadata. Full installed transitive metadata (including development dependencies) is in [npm-licenses.json](../dependencies/npm-licenses.json); Python equivalents are in [python-licenses.json](../dependencies/python-licenses.json). Full target-specific optional packages are locked even when not installed on this Linux host.
+下表版本和许可声明来自实际安装的精确包元数据。完整已安装传递元数据（含开发依赖）见 [npm-licenses.json](../dependencies/npm-licenses.json)，Python 对应项见 [python-licenses.json](../dependencies/python-licenses.json)。即使未安装在当前 Linux 宿主，完整目标平台可选包仍被锁定。
 
-| Package | Exact version | Declared license | Workspaces |
+| 包 | 精确版本 | 声明许可 | 工作区包 |
 | --- | --- | --- | --- |
 | @apidevtools/swagger-parser | 12.1.0 | MIT | contracts |
 | @dnd-kit/core | 6.3.1 | MIT | web |
@@ -90,41 +95,42 @@ Versions and license declarations below come from installed exact package metada
 | vite | 6.4.5 | MIT | desktop, web |
 | vitest | 4.1.12 | MIT | compiler, contracts, runner-sdk |
 
-For DOMPurify select its Apache-2.0 alternative. Preserve Apache notices for TypeScript, Playwright and CVA. All other direct npm packages report MIT. These metadata declarations do not certify the contents of downloaded native binaries.
+DOMPurify 选择 Apache-2.0 分支。保留 TypeScript、Playwright 与 CVA 的 Apache 声明，其余直接 npm 包均声明 MIT。这些元数据声明不能认证所下载原生二进制的内容。
 
-Selection/replacement boundaries:
+选型及替换边界：
 
-- React/Vite/plugin-react/Router/Query/Tailwind are the required UI families. Radix dialog and CVA provide accessible primitives and variants; i18next/react-i18next provide translation. Shared UI/feature adapters isolate these dependencies.
-- React Hook Form, TanStack Table and Monaco provide mature forms/tables/JSON editing rather than bespoke frameworks. dnd-kit supplies accessible drag operations; DOMPurify handles any allowed rich content. None implies these application features have been implemented.
-- Electron/electron-builder implement the selected desktop direction and native packaging. Tauri/Rust/SEA are not additional selected dependencies.
-- Commander, env-paths, proper-lockfile and Pino provide CLI/data paths/locking/logging behind Runtime adapters.
-- Playwright Test is the single browser execution engine. Runner SDK owns integration; Playwright retries must remain zero, and VeriQ owns whole-case retries.
-- Ajv2020 + ajv-formats mirror Python jsonschema over canonical sources. json-schema-to-typescript generates wire types; openapi-typescript generates API client types; Swagger Parser validates the resolved API. There is no independently maintained Zod/TS DSL schema.
-- TypeScript/types, tsx and Vitest are development tools. Upgrading or replacing generators must preserve generated APIs, checked fixture behavior and generation staleness checks.
+- React/Vite/plugin-react/Router/Query/Tailwind 为必需 UI 族。Radix dialog 与 CVA 提供无障碍基础组件及变体，i18next/react-i18next 提供翻译；共享 UI/功能适配器隔离这些依赖。
+- React Hook Form、TanStack Table、Monaco 提供成熟表单、表格及 JSON 编辑能力，避免自研框架。dnd-kit 提供无障碍拖动，DOMPurify 处理获允许的富内容。选型不表示对应应用功能已经实现。
+- Electron/electron-builder 实现已选桌面方向及原生打包；Tauri/Rust/SEA 并非额外选定依赖。
+- Commander、env-paths、proper-lockfile、Pino 经 Runtime 适配器提供 CLI、数据路径、锁与日志。
+- Playwright Test 是唯一浏览器执行引擎。Runner SDK 负责集成，Playwright retries 必须为零，整用例重试由 VeriQ 管理。
+- Ajv2020 + ajv-formats 与 Python jsonschema 针对规范源保持一致。json-schema-to-typescript 生成传输类型，openapi-typescript 生成 API 客户端类型，Swagger Parser 验证解析后的 API；不存在独立维护的 Zod/TS DSL Schema。
+- TypeScript/类型定义、tsx、Vitest 为开发工具。升级或替换生成器必须保持生成 API、已检查夹具行为及生成过期检查。
 
-Installation with strict peers succeeds on Node 24.22.1. Actual contract tests, generated TypeScript compilation, OpenAPI resolution and DTO validation supply the POC; no app build or browser/desktop test is implied. pnpm reported deprecated transitive boolean 3.2.0, glob 7.2.3, inflight 1.0.6 and rimraf 2.6.3; they are recorded in the lock/inventory and need normal upstream tracking.
+在 Node 24.22.1 上，严格 peer 安装成功。实际契约测试、生成 TypeScript 编译、OpenAPI 解析及 DTO 校验提供概念验证，不意味着应用构建或浏览器/桌面测试已通过。pnpm 报告传递依赖 boolean 3.2.0、glob 7.2.3、inflight 1.0.6、rimraf 2.6.3 已弃用；它们记录在锁/库存中，需按正常流程跟踪上游。
 
-AI Provider SDKs, Midscene, Tenacity, boto3, Allure, ReportPortal, PyCasbin and additional Radix controls remain unselected candidates until their task has a concrete need and dependency/license review. No candidate is described as approved or implemented.
+AI Provider SDK、Midscene、Tenacity、boto3、Allure、ReportPortal、PyCasbin 及额外 Radix 控件仍为未选候选，须到任务存在具体需求并完成依赖/许可评估后再决定。不得将候选写成已批准或已实现。
 
-## Contract/source and packaging decision
+<a id="contractsource-and-packaging-decision"></a>
+## 契约源码与打包决策
 
-`packages/contracts/schemas/platform-v1.schema.json` is the canonical schema source. Small per-contract schema aliases reference it. Python and Ajv reject unknown fields, invalid discriminators/operator/value combinations, unsafe executable bindings in explicitly interpolated DSL fields, non-finite JSON and unsafe integers. Inert JSON/evidence/diagnostics retain arbitrary literal strings; recursive binding JSON is a separate canonical type. UUID and Timestamp constraints define the same documented lexical/calendar profile for Python and Node. Compiler/service semantics remain separate: reference ownership, variable/type flow, publication receipts, Workspace authorization and source-hash verification are not implied by schema success.
+`packages/contracts/schemas/platform-v1.schema.json` 是规范 Schema 源，小型分契约 Schema 别名引用它。Python 与 Ajv 拒绝未知字段、非法判别/操作符/值组合、显式插值 DSL 字段中的不安全可执行绑定、非有限 JSON 和不安全整数。惰性 JSON、证据及诊断保留任意字面字符串，递归绑定 JSON 是独立规范类型。UUID 和 Timestamp 在 Python/Node 定义相同已记录的词法/日历范围。编译器及服务语义保持分离：Schema 校验成功不表示已验证引用所有权、变量/类型流、发布回执、Workspace 授权或源码摘要。
 
-Wire types are generated from canonical JSON Schema. A pure reference alias is emitted explicitly, preventing the generator from hiding `AssetSnapshotV1` behind `SnapshotV1`. OpenAPI references those schema definitions; its recursive JSON types import the same generated `JsonValue`/`BindingJsonValue` to avoid TypeScript indexed-access recursion. Generated files are committed and `pnpm check` compares regeneration byte-for-byte.
+传输类型从规范 JSON Schema 生成；纯引用别名显式发射，避免生成器将 `AssetSnapshotV1` 隐藏在 `SnapshotV1` 后。OpenAPI 引用这些定义，递归 JSON 类型导入同一生成的 `JsonValue`/`BindingJsonValue`，避免 TypeScript 索引访问递归。生成文件提交入库，`pnpm check` 逐字节比较重新生成的结果。
 
-The Python wheel force-includes the canonical schema directory under `veriq_server/_schemas`; the loader prefers installed package resources and only falls back to the checkout for editable development. The isolated-wheel POC validates all shared fixtures from outside the checkout with Node unavailable. This avoids a runtime Node requirement or two hand-maintained schema copies.
+Python wheel 强制将规范 Schema 目录打入 `veriq_server/_schemas`；加载器优先使用已安装包资源，仅在 editable 开发时回退工作副本。隔离 wheel 概念验证在工作副本之外、Node 不可用时验证全部共享夹具，避免运行时依赖 Node 或人工维护两份 Schema。
 
-This is an engineering wheel smoke test. T02/T18 must add frontend staging, migrations/version artifacts, strict production build completeness and clean installation without breaking editable installs. A T01 smoke wheel is not a production server release.
+这是工程 wheel 冒烟测试。T02/T18 必须补充前端暂存、迁移/版本产物、严格生产构建完整性及干净安装，同时不能破坏 editable 安装。T01 冒烟 wheel 不是生产服务端发行。
 
-Final distributable SBOMs, complete license texts/notices for every platform binary and installer, and security/release gates remain T18 deliverables. [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md) records the current inventory scope honestly.
+最终可分发 SBOM、各平台二进制和安装器完整许可原文/声明，以及安全/发行门禁仍属 T18 交付。[THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md) 如实记录当前库存范围。
 
+<a id="security-remediation-and-applicability"></a>
+## 安全修复与适用性
 
-## Security remediation and applicability
+用户在 ADR 0004 批准 Router 7.18.5，保留 React 18/Vite 6；ADR 0001 批准 Tornado 6.6.1。上表最终直接版本还包括 asyncmy 0.2.18、cryptography 50.0.2、pytest 9.2.0、Vitest 4.1.12、tsx 4.23.15，Monaco 精确传递 DOMPurify 3.4.15 被修补到 3.4.17。这些更新替代初始审计基线，不会静默把有漏洞的初始版本视为已接受。
 
-The user approved Router 7.18.5 in ADR 0004, retaining React 18/Vite 6. Tornado 6.6.1 was approved in ADR 0001. Final direct versions above also include asyncmy 0.2.18, cryptography 50.0.2, pytest 9.2.0, Vitest 4.1.12 and tsx 4.23.15; Monaco's exact DOMPurify 3.4.15 transitive is patched to 3.4.17. These updates replace the initial audited baseline; no vulnerable initial version is silently treated as accepted.
+asyncmy 公告缺少首个已修复版本，但官方 [v0.2.12 发行](https://github.com/long2ice/asyncmy/releases/tag/v0.2.12) 明确移除了 CVE-2025-65896 对应的不安全 escape_dict。保留驱动 0.2.18 避免无必要的架构变更。真实 MySQL 8.4/SQLAlchemy 2 探针保留类型化 JSON 和引号/反斜杠绑定。转换器现在将字典引用为标量字符串，而不返回旧的未转义映射；它不一定拒绝字典。cryptography 50.0.2 的 AES-GCM/AAD、Ed25519/篡改兼容探针通过。
 
-The asyncmy advisory lacked a first-patched version, but the official [v0.2.12 release](https://github.com/long2ice/asyncmy/releases/tag/v0.2.12) explicitly removed unsafe escape_dict for CVE-2025-65896. Retaining the driver at 0.2.18 avoids an unnecessary architecture change. A real MySQL 8.4/SQLAlchemy 2 probe preserves typed JSON and quote/backslash binds. Converter behavior now quotes a dictionary as a scalar string rather than returning the old unescaped mapping; it does not necessarily reject dictionaries. AES-GCM/AAD and Ed25519/tamper compatibility probes pass with cryptography 50.0.2.
+修复后审计在 61 个受审 Python 包中没有已知问题，npm 没有高危/严重发现。npm 仍报告仅构建工具 minimatch 9.0.9/10.2.6 的中等级别 [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249)。维护者说明受影响操作要求攻击者控制 glob 模式且 optimizationLevel>=2。已安装 app-builder-lib FileMatcher 仅传 `{dot:true}`，@electron/universal 仅传 `{matchBase:true}`，minimatch 默认 optimizationLevel 为 1。未在这些调用者中发现受影响路径，构建模式来自可信、受版本控制的配置，而非应用请求输入。须保留适用性记录，在桌面打包或调用者/配置改变时重查。不盲目覆盖 9/10→11，也不整体抑制审计。正常完整 npm 审计因该已记录发现仍为非零，不能称为无问题。
 
-Post-remediation audits find no known issues in the 61 audited Python packages and no npm high/critical findings. npm still reports [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249), moderate, against builder-only minimatch 9.0.9/10.2.6. The maintainer's affected operation requires attacker-controlled glob patterns and optimizationLevel>=2. Installed app-builder-lib FileMatcher passes only `{dot:true}`; @electron/universal passes only `{matchBase:true}`; minimatch defaults optimizationLevel to 1. No affected call path was identified in those callers, and builder patterns are trusted source-controlled configuration, not application request input. Preserve this applicability record and recheck at desktop packaging or whenever callers/configuration change. No blind 9/10→11 override or blanket audit suppression is used. The ordinary full npm audit remains nonzero for this recorded finding; it is not called clean.
-
-Audit metadata, candidate checks and upstream patch evidence are retained in the task evidence. An audit matches known versions to advisories; it neither proves every finding is exploitable nor establishes absence of unknown vulnerabilities. Final target-platform binaries and release assembly still require their own review.
+审计元数据、候选核验与上游补丁证据保留于任务证据中。审计将已知版本匹配公告，既不证明每个命中可被利用，也不证明没有未知漏洞。最终目标平台二进制及发行组装仍须独立审查。

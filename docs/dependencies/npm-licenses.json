@@ -1,5 +1,5 @@
 {
-  "description": "Installed npm dependency metadata inventory for VeriQ T01, including development dependencies. Not an OS/binary release SBOM; lockfile covers additional target-specific optional packages.",
+  "description": "VeriQ T01 已安装 npm 依赖的元数据清单，包含开发依赖。此清单不是操作系统或二进制发行 SBOM；锁文件还包含未在本机安装的其他目标平台可选包。",
   "packages": [
     {
       "name": "@alloc/quick-lru",
@@ -3124,13 +3124,13 @@
       "name": "@biomejs/biome",
       "version": "2.6.7",
       "license": "MIT OR Apache-2.0",
-      "scope": "T18 development-only build tooling"
+      "scope": "T18 仅用于开发阶段的构建工具"
     },
     {
       "name": "@biomejs/cli-linux-x64",
       "version": "2.6.7",
       "license": "MIT OR Apache-2.0",
-      "scope": "T18 development-only build tooling"
+      "scope": "T18 仅用于开发阶段的构建工具"
     }
   ]
 }

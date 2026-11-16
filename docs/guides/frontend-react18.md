@@ -1,4 +1,5 @@
-# React18 / Vite6 前端接入
+<a id="react18--vite6-前端接入"></a>
+# Frontend React 18
 
 面向被测业务前端。VeriQ 的 DSL/API 定义仍以[公共契约](../contracts.md)和[原接入规范](../integration/frontend.md)为准。本次提供[可复用组件源码](../../fixtures/integration/react18/)，没有运行构建、浏览器或类型验证；它们不自动加入产品 Web 或声明已验收。
 

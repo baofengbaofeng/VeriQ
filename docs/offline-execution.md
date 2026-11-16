@@ -1,8 +1,10 @@
-# VeriQ disconnected execution and result import
+# Offline Execution
 
-Use the existing trust binding and signed bundle verification workflow in [offline bundles](offline-bundles.md). Execution rechecks the installed tree's exact signature, member list and hashes, captures the verified bytes, and uses the existing isolated Node worker/compiler/SDK. A JavaScript `VerifiedBundle` object is not an authorization credential. Known revoked keys are rejected; offline revocation remains UNKNOWN. The control platform is not contacted while running; the business system and fixture endpoints must remain reachable.
+<a id="veriq-disconnected-execution-and-result-import"></a>
 
-Development Linux commands, from `apps/runtime`:
+沿用[离线资源包](offline-bundles.md)中的信任绑定和签名包验证流程。执行时重新核验已安装树的确切签名、成员列表和摘要，捕获核验后的字节，再使用既有隔离 Node worker、编译器和 SDK。JavaScript `VerifiedBundle` 对象不是授权凭据。已知撤销的密钥会被拒绝，离线撤销状态仍为 UNKNOWN。运行时不连接控制平台，但业务系统和 fixture 端点必须可达。
+
+以下为开发环境 Linux 命令，在 `apps/runtime` 下执行：
 
 ```sh
 pnpm build:launcher
@@ -14,22 +16,22 @@ pnpm dev --config-dir /private/veriq results recover
 pnpm dev --config-dir /private/veriq results upload LOCAL_RUN_UUID
 ```
 
-`--debug` explicitly admits expired/unvalidated signed bundles and records dirty provenance. DSL-only DEBUG compiles the original immutable candidate with the matching installed approved engine; compiler diagnostics are retained and no published version or validation receipt is invented. Missing local credentials record `LOCAL_CREDENTIAL_MISSING`. Set exact issuer/Workspace/reference/version mappings using the existing secret-stdin command. Secrets are resolved only in the native host and private broker; the restricted file store is a development seam, with OS vault integration owned by packaging.
+`--debug` 显式允许过期或未校验的签名包，并记录来源已变更。只有 DSL 的 DEBUG 包使用匹配的已安装批准引擎编译原始不可变候选，保留编译诊断，不虚构发布版本或校验回执。本机凭据缺失会记录 `LOCAL_CREDENTIAL_MISSING`。通过既有从标准输入读取秘密的命令，设置精确的签发者、Workspace、引用和版本映射。秘密只在原生宿主及私有 broker 中解析；受限文件存储是开发接缝，OS vault 集成归打包任务负责。
 
-`--base-url` and `--fixture-url` explicitly authorize public routing changes and make the run dirty. Other engine, authentication or code overrides are not supported. The typed host requires an authorization callback for routing changes. `--retry` permits at most one safe whole-case retry using observed read safety plus compiler expectations, or successful declared fixture cleanup. A retry pass yields UNSTABLE and a new fixture namespace. Playwright retries remain zero.
+`--base-url` 和 `--fixture-url` 显式授权公开路由变更，并将运行标记为来源已变更。不支持其他引擎、认证或代码覆盖。类型化宿主要求路由变更授权回调。`--retry` 最多允许一次安全的整用例重试，依据已观察的只读安全性及编译器期望，或成功执行的已声明 fixture 清理。重试通过得到 UNSTABLE，并使用新的 fixture 命名空间。Playwright 自身重试次数仍为零。
 
-A private Node SQLite database (`veriq_` tables, WAL/FULL synchronous commits) holds one local execution context across processes. Run checkpoints, canonical ordered events, cancellation requests, reports, stop receipts and upload retry state survive reopening. The Linux guardian's durable drain proof and exit authorize physical stop; unknown ownership remains quarantined. `results recover` explicitly reconciles an interrupted host. Cancellation requests do not claim physical stop until this proof exists. The CLI execution host is named `veriq`; the existing supervised workers use `veriq_runner`.
+私有 Node SQLite 数据库（`veriq_` 表、WAL/FULL 同步提交）在跨进程场景下保持一个本机执行上下文。Run 检查点、规范有序事件、取消请求、报告、停止回执和上传重试状态在重新打开后仍保留。Linux guardian 的持久化排空证明及退出事实共同授权物理停止；所有权未知时继续隔离。`results recover` 显式核对被中断的宿主。取消请求只有在具备上述证明后才能宣称物理停止。CLI 执行宿主进程名为 `veriq`，既有受监督 worker 使用 `veriq_runner`。
 
-`LocalReports.snapshot(workspaceId, runId)` returns the shared report adapter shape without importing the browser API module. The raw accessor validates nested IDs, a host authorization callback, exact size and checksum; it never supplies arbitrary renderer filesystem access. Existing `trace open` invokes the pinned local Playwright viewer. Desktop IPC, GUI controls and packaged Windows/native viewer acceptance remain T19/T20.
+`LocalReports.snapshot(workspaceId, runId)` 返回共享报告适配器结构，不导入浏览器 API 模块。原始证据访问器校验嵌套 ID、宿主授权回调、精确大小及摘要，绝不提供 renderer 任意文件系统访问。既有 `trace open` 调用钉死版本的本机 Playwright 查看器。桌面 IPC、GUI 控件及打包后的 Windows/原生查看器验收仍归 T19/T20。
 
-Upload is explicit and uses separately enrolled device configuration, never an issuer routing label from out-of-band metadata. Failed requests remain PENDING locally and can be retried. Artifacts use authenticated reservations and at most 1 MiB chunks, with 32 MiB per file, 1000 upload reservations per local run, bounded responses and exact-origin/no-redirect transport. Result JSON is bounded to 8 MiB. Raw bytes never enter JSON/base64 and remain private attachments (`application/octet-stream`, sandbox CSP).
+上传须显式触发，并使用独立登记的设备配置，绝不使用带外元数据中的签发者路由标签。失败请求在本机保留 PENDING，可再次重试。制品使用已授权的预留及最多 1 MiB 的分块；每文件上限 32 MiB、每个本机 Run 最多 1000 份上传预留，并使用有界响应、精确来源匹配及无重定向传输。结果 JSON 上限为 8 MiB。原始字节不进入 JSON/base64，保持为私有附件（`application/octet-stream`、沙箱 CSP）。
 
-Public imports require Cookie/CSRF, current EXECUTE and DOWNLOAD, plus EDIT for draft content. Native routes require a current user-owned enrolled device and current owner/Workspace execution authority. Import authorization is repeated after external work and on replay. Domain identity `(workspace, bundle, localRunId)` and header-key aliases are immutable; a changed body returns409. Each import creates a distinct OFFLINE_IMPORT Run and separate offline attempt records, without online Attempt/lease/fencing/capacity writes.
+公开导入要求 Cookie/CSRF、当前 EXECUTE 与 DOWNLOAD 权限；草稿内容另需 EDIT。原生路由要求当前用户拥有的已登记设备，以及当前所有者/Workspace 执行权限。外部操作完成后及重放时再次检查导入授权。领域身份 `(workspace, bundle, localRunId)` 与请求头键别名均不可变，正文变化返回409。每次导入创建独立 OFFLINE_IMPORT Run 及独立离线 Attempt 记录，不写在线 Attempt、租约、fencing 或容量。
 
-The server retains declared facts separately from verified bundle/current-authority facts, reduces outcomes using retained compiler expectations and canonical events, and always returns `officialGatePassed: false`. Claimed MANAGED/CURRENT fields do not elevate trust. Older results lacking variant facts or DEBUG results lacking a signed expected plan import conservatively as INCOMPLETE. Imported event views retain structural facts and withhold dynamic values because local vault values are unavailable to the server; local reports retain the SDK's sanitized details. Raw access uses the existing MANAGE_ENVIRONMENT permission. Pending publication recovery, shared aliases and irreversible empty retirement fences are shared with the online File/S3 evidence lifecycle. Maintenance continuations are opaque: replay the returned nextCursor with a new request key until hasMore is false; online then offline phases share the requested limit. Replaying the same key/body returns the same receipt.
+服务端将声明事实与已核验包/当前权限事实分开保留，基于保留的编译器期望和规范事件归约结果，并始终返回 `officialGatePassed: false`。声明 MANAGED/CURRENT 字段不会提升信任。缺少变体事实的旧结果，或没有签名预期计划的 DEBUG 结果，保守导入为 INCOMPLETE。导入事件视图保留结构事实，但不披露动态值，因为服务端无法取得本机 vault 的值；本机报告保留 SDK 脱敏后的详情。原始访问沿用 MANAGE_ENVIRONMENT 权限。待发布恢复、共享别名和不可逆空退役栅栏与在线 File/S3 证据生命周期共用。维护续传令牌不透明：用新请求键重放返回的 nextCursor，直到 hasMore 为 false；在线、离线两个阶段共享请求上限。重放相同键和正文返回同一回执。
 
-Native execution currently has Linux physical-stop evidence. Apt Chromium156 used in development differs from Playwright1.65's expected browser158; this is not the matched-browser formal SDK gate. Windows native/process/vault/installer acceptance and the outstanding official SDK browser gate remain separate release work. No Provider or model is used by deterministic execution.
+当前原生执行具备 Linux 物理停止证据。开发所用 Apt Chromium156 与 Playwright1.65 预期的浏览器158 不同，不能当作匹配浏览器的正式 SDK 门禁。Windows 原生、进程、vault、安装器验收及尚未完成的官方 SDK 浏览器门禁仍是独立发行任务。确定性执行不使用 Provider 或模型。
 
-The result records permitted fallback browsers in `executionChoices.browsers`; older results default to Chromium. A signed SUITE's explicit browsers, roles and dataset rows take precedence. Imports account for the complete signed matrix (maximum 1000 variants), displaying absent work as INCOMPLETE with no fabricated attempts. Published SUITEs use their own original compiled source; draft SUITEs use the exact signed draft source and remain conservative DEBUG imports.
+结果在 `executionChoices.browsers` 中记录允许的后备浏览器；旧结果默认 Chromium。签名 SUITE 的显式浏览器、角色和数据集行优先。导入按完整签名矩阵核算（最多 1000 个变体），缺失工作显示 INCOMPLETE，不虚构 Attempt。已发布 SUITE 使用各自原始编译源码；草稿 SUITE 使用确切的签名草稿源码，并继续作为保守的 DEBUG 导入。
 
-An old result without execution facts can be imported only when its CASE has one unambiguous selected variant. `OFFLINE_VARIANT_FACTS_REQUIRED` (HTTP 422) means the server cannot safely attribute its facts. Retain the local report and pending upload for inspection; the client does not rerun business actions automatically. Current hosts record variant identity durably before launch, including when later recovery is needed.
+没有执行事实的旧结果，仅当 CASE 有一个无歧义的选中变体时才能导入。`OFFLINE_VARIANT_FACTS_REQUIRED`（HTTP 422）表示服务端无法安全归属其事实。保留本机报告和待上传状态供检查；客户端不会自动重执行业务操作。当前宿主在启动前持久化变体身份，即使之后需要恢复也会保留。

@@ -1,15 +1,16 @@
-# 0015 — Optional AI providers, review and bounded spending
+<a id="0015--optional-ai-providers-review-and-bounded-spending"></a>
+# 0015 AI Provider Boundaries
 
-Accepted for T13 after coordinator preflight. Ordinary Run/Agent execution never imports or calls a model gateway.
+状态：协调者预研后，T13 已接受。普通 Run/Agent 执行绝不导入或调用模型网关。
 
-Use official `openai==2.29.0` (Apache-2.0) and `anthropic==0.84.0` (MIT) SDKs through one small async gateway. The new resolved graph was audited with OSV; the recorded seven-package query returned no advisories. HTTPX retains TLS verification, exact operator-configured base URL authorization, disabled redirects and retries, 30 second timeout and bounded response bytes. Model/endpoint/rate configuration is explicit; no discovery calls or implicit paid retries.
+经小型统一异步网关使用官方 `openai==2.29.0`（Apache-2.0）与 `anthropic==0.84.0`（MIT）SDK。新增解析图经 OSV 审计，记录的七包查询未返回公告。HTTPX 保留 TLS 验证、操作员配置的精确 base URL 授权、禁用重定向与重试、30 秒超时及有界响应字节。模型、端点和费率显式配置，不做发现调用或隐式付费重试。
 
-Provider keys are write-only API input. Separate provider rows use the existing AES-GCM Keyring with AAD purpose `veriq-ai-provider-v1`; business credential AAD stays `veriq-credential-v1`. Provider keys never enter model context, history, audit, normal errors, or credential delivery. The earlier unimplemented OpenAPI `secretRef` is replaced by `apiKey` input and `keyConfigured` output. There are no persisted earlier AI records to migrate.
+Provider 密钥只作为只写 API 输入。独立 Provider 记录使用现有 AES-GCM Keyring，AAD 用途为 `veriq-ai-provider-v1`；业务凭据 AAD 仍为 `veriq-credential-v1`。Provider 密钥不进入模型上下文、历史、审计、普通错误或凭据投递。早期未实现的 OpenAPI `secretRef` 替换为 `apiKey` 输入与 `keyConfigured` 输出，没有已持久化的旧 AI 记录需要迁移。
 
-Owner/Admin manage providers and connection tests. Editor and above generate/review; members view current scoped history. Current installation/identity/membership/provider checks bracket network calls; no database transaction or lock spans external I/O. Revocation prevents subsequent output disclosure or application. Generation uses request UUID and canonical request hash for idempotency, including after ambiguous failures.
+Owner/Admin 管理 Provider 和连接测试；Editor 及以上可生成/审核，成员查看当前范围历史。网络调用前后检查当前安装、身份、成员与 Provider；不跨外部 I/O 持有数据库事务或锁。撤销阻止后续披露或应用输出。生成使用请求 UUID 与规范请求摘要实现幂等，包括结果不明的失败之后。
 
-Each call snapshots endpoint/model/rates/currency and reserves an integer micro-USD estimate before sending. Input bound includes the UTF-8 byte size of the complete serialized messages/system/schema/context plus 8192 provider framing tokens. Output is capped at 8192 tokens, total input bound at 262144 tokens, request reserve at USD5, monthly configured budget at USD10000. These conservative configurable prices are estimates, not guarantees about provider billing. Verified usage computes estimated cost using the immutable price snapshot. Missing usage, errors, cancellation and process interruption keep the reservation charged and show unknown actual usage/cost. UTC calendar months are accounted lazily, with unresolved reservations carried into future admission. No Cron and no automatic refund/retry/reconciliation. Budget cannot be lowered below held/used amounts; in-flight calls permit disabling only, not incompatible model/key/rate changes.
+每次调用冻结端点、模型、费率、币种，并在发送前预留整数微美元估算。输入上界包含完整序列化 messages/system/schema/context 的 UTF-8 字节量及 8192 个 Provider 封装 token。输出最多 8192 token，总输入上界 262144 token，单请求预留最多 USD5，月配置预算最多 USD10000。这些保守可配置价格是估计，不保证 Provider 实际计费。验证后的用量按不可变价格快照估算成本；缺少用量、错误、取消或进程中断继续占用预留，并显示实际用量/成本未知。UTC 自然月按需记账，未解决预留带入后续准入；不设 Cron，不自动退款、重试或协调。预算不得低于已持有/已使用额；有在途调用时只允许禁用，不允许不兼容的模型、密钥或费率变更。
 
-Context is selected and reviewable: requirements, supplied OpenAPI/nonsecret data, selected immutable catalog/data versions, optional current CASE revision and sanitized ReportService projections. No arbitrary fetch, tools, raw artifacts, business secret resolver or workspace dump. Canonical JSON Schema validates bounded model output. Only explicit human acceptance writes a CASE draft through ResourceService, preserving revision/reference checks. Boundary and failure analysis remain advice. Runtime compilation/debug/publication stays in the existing editor.
+上下文经过选择且可审阅：需求、提供的 OpenAPI/非秘密数据、选定不可变目录/数据版本、可选当前 CASE 修订及 ReportService 脱敏投影。不任意抓取、使用工具、读取原始产物、解析业务秘密或导出整个 Workspace。规范 JSON Schema 校验有界模型输出。只有人工显式接受，才经 ResourceService 写 CASE 草稿，保留修订/引用检查；边界和失败分析仍只是建议。Runtime 编译、调试、发布继续使用现有编辑器。
 
-Local protocol emulator evidence is distinct from an actual provider. A paid external acceptance call requires user-approved endpoint, model and budget and a key entered through the provider UI/settings. No secret values are requested in chat and none are configured in the managed environment.
+本地协议模拟器证据与真实 Provider 验收分开。付费外部验收调用要求用户批准端点、模型及预算，并在 Provider UI/设置输入密钥。不在聊天中索取秘密，也不在托管环境配置秘密值。

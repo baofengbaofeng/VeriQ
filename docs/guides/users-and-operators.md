@@ -1,4 +1,5 @@
-# VeriQ 用户、管理员与运维快速手册
+<a id="veriq-用户管理员与运维快速手册"></a>
+# Users and Operators
 
 当前源码交付与实际验收分开记录。C06 新增示例/指南尚未运行；平台已知发行、Mac/Windows 和质量阻塞继续保留在[MVP 交接](../validation/mvp-handoff.md)。这里提供可操作路径和故障判断，不改变正式发布门禁。
 

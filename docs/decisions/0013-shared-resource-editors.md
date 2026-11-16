@@ -1,38 +1,12 @@
-# ADR 0013 — Shared resource forms and retained generated source
+<a id="adr-0013--shared-resource-forms-and-retained-generated-source"></a>
+# 0013 Shared Resource Editors
 
-Status: coordinator-approved bounded T11 preflight, 2026-11-11.
+状态：协调者于 2026-11-11 批准的有界 T11 预研。
 
-The eight resource editors share React Hook Form document state and canonical AJV
-validation. Monaco holds an independent text buffer only while editing JSON; an explicit
-Apply validates and replaces that same document. Unapplied text blocks save, compile and
-publish. Typed action/assertion/observer controls retain the canonical DSL and source
-metadata, initial-variable declarations carry types only, and business JSON values remain
-inert. No alternate DSL validator or frontend compiler is introduced. Monaco workers are
-bundled locally. The existing exact dependency pins are unchanged.
+八种资源编辑器共享 React Hook Form 文档状态及规范 AJV 校验。Monaco 仅在编辑 JSON 时持有独立文本缓冲；显式“应用”会校验并替换同一文档。未应用文本阻止保存、编译及发布。类型化动作/断言/观察器控件保留规范 DSL 和源码元数据，初始变量声明仅含类型，业务 JSON 值仍为惰性数据。不引入替代 DSL 校验器或前端编译器。Monaco Worker 本地捆绑，既有精确依赖版本不变。
 
-Resource views receive a typed ResourceAdapter and an abortable Workspace lifetime. The
-Cloud adapter owns session transport. The read-only Local adapter consumes snapshots
-verified by a trusted host/provider; it does not verify signatures or authenticate an
-untrusted input using a caller-provided flag. Local edits and synchronization are outside
-this task. Authenticated-user and Workspace keyed mounts clear queries, editor models and
-one-time credentials on changes. Current backend authorization remains authoritative.
+资源视图接收类型化 ResourceAdapter 及可取消的 Workspace 生命周期。Cloud 适配器负责会话传输；只读 Local 适配器消费可信宿主/提供器验证的快照，不自行验签，也不按调用方标志认证不可信输入。本任务不含本地编辑或同步。按已认证用户与 Workspace 键控挂载，在变化时清理查询、编辑器模型及一次性凭据；当前后端授权仍为权威。
 
-The existing job read projects actual outcome/waitReason and a bounded safe errorCode
-from retained Attempt facts. It does not expose raw LOG artifacts or invent structured
-compiler issue paths. Canonical local validation supplies schema pointers. The current
-Agent sanitizes compiler failures into stable codes; richer structured compiler diagnostics
-must be integrated with the retained-event/report pipeline in T12 rather than inferred from
-untrusted strings by the UI.
+现有任务读取从保留 Attempt 事实投影真实 outcome/waitReason 及有界安全 errorCode，不暴露原始 LOG 产物，也不虚构结构化编译问题路径。规范本地校验提供 Schema 指针。当前 Agent 将编译失败净化为稳定代码；更丰富的结构化诊断必须在 T12 接入保留事件/报告管道，不能由 UI 从不可信字符串推断。
 
-`GET /api/v1/workspaces/{ws}/resources/{resource}/versions/{version}/compiled-source`
-is a human-view seam for already-published versions. Current Workspace VIEW authorization,
-resource/version ownership and the immutable version's retained receipt bind the descriptor.
-Without `path` it returns only allowlisted generated TypeScript file metadata and descriptor
-hash. With `path` it returns that descriptor member's exact retained bytes after hash and
-length verification. Caller hashes, filesystem paths, arbitrary descriptor files and raw
-evidence are not accepted. Text is served as non-executable `text/plain`, private/no-store
-and nosniff, and Monaco is read-only; this route never executes or recompiles the file.
-It reuses the current Artifact repository, successful receipt and single Job pipeline.
-Candidate source viewing is not added; after publication the preview identifies the immutable
-version and its original descriptor. T12 retains ownership of broader storage, reports,
-raw evidence access and retention.
+`GET /api/v1/workspaces/{ws}/resources/{resource}/versions/{version}/compiled-source` 是已发布版本的人工查看入口。当前 Workspace VIEW 授权、资源/版本所有权及不可变版本保留的回执共同绑定描述符。不带 `path` 时只返回白名单生成 TypeScript 文件元数据和描述符摘要；带 `path` 时，在摘要和长度核验后返回该描述符成员的精确保留字节。不接受调用方摘要、文件系统路径、任意描述符文件或原始证据。文本以不可执行 `text/plain`、private/no-store、nosniff 提供，Monaco 只读；该路由不执行或重新编译文件。复用现有 Artifact 仓储、成功回执及唯一 Job 管道。不增加候选源码查看；发布后预览标识不可变版本及其原描述符。更广泛的存储、报告、原始证据访问和保留期仍由 T12 负责。

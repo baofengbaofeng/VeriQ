@@ -1,30 +1,36 @@
-# VeriQ AI assistance
+# AI
 
-AI is optional. The `/ai` page provides Workspace-scoped provider configuration, connection tests, reviewed generation, boundary advice, sanitized Run analysis and call history. Ordinary deterministic execution does not use a model; provider disablement and exhausted budgets do not prevent Runs.
+<a id="veriq-ai-assistance"></a>
 
-## Configure
+AI 是可选能力。`/ai` 页面提供 Workspace 范围内的 Provider 配置、连接测试、经审核的生成、边界建议、脱敏 Run 分析和调用历史。普通确定性执行不使用模型；禁用 Provider 或预算耗尽不会阻止 Run。
 
-1. An operator sets `ai_allowed_base_urls` in the normal server configuration. Defaults authorize exactly `https://api.openai.com/v1` and `https://api.anthropic.com/v1`; URL matching includes scheme, host, effective port and path. Redirects are rejected. Custom HTTPS endpoints require explicit operator authorization. Local HTTP is permitted only for explicitly configured loopback endpoints in development, as used by protocol-emulator tests.
-2. A Workspace Owner/Admin opens AI and enters the endpoint, adapter, model, estimated input/output USD per million tokens, monthly budget, per-call limit and maximum output tokens. Model IDs must support the adapter's JSON chat/text interface. Provider-specific reasoning, multimodal, tools, streaming and hosted web search are not enabled.
-3. Enter the API key in the password field, save and enable the provider. Keys are write-only: the field clears after a successful save and the server returns only `keyConfigured`. Leaving the key blank while editing preserves it. The server stores an AES-GCM encrypted key in a separate AI-purpose namespace; it is never a business `secretRef` or an Agent credential.
-4. Connection test is a bounded synthetic generation, uses the same reservation policy, and appears in history. It is a real request to the configured provider, so obtain authorization for external costs before using a paid endpoint.
+<a id="configure"></a>
+## 配置
 
-## Review and generate
+1. 运维人员在正常服务配置中设置 `ai_allowed_base_urls`。默认只授权 `https://api.openai.com/v1` 和 `https://api.anthropic.com/v1`；URL 匹配包含协议、主机、有效端口和路径，拒绝重定向。自定义 HTTPS 端点须经运维人员明确授权。只有开发环境中显式配置的回环端点可使用本机 HTTP，协议模拟器测试采用此方式。
+2. Workspace Owner/Admin 打开 AI 页面，填写端点、适配器、模型、每百万输入/输出 Token 的预估美元单价、月预算、单次调用上限及最大输出 Token。模型 ID 必须支持适配器的 JSON 聊天/文本接口；未启用 Provider 专有推理、多模态、工具、流式输出或托管网页搜索。
+3. 在密码字段中输入 API Key，保存并启用 Provider。密钥只写：保存成功后字段清空，服务端只返回 `keyConfigured`；编辑时留空会保留原密钥。服务端将 AES-GCM 加密的密钥存入独立 AI 用途命名空间，绝不将其作为业务 `secretRef` 或 Agent 凭据。
+4. 连接测试是一次有界的合成生成，使用相同的预算预留策略并记录到历史。它会真实请求已配置的 Provider，因此使用付费端点前必须取得外部费用授权。
 
-Select only needed immutable resource versions, enter requirements and optionally supplied OpenAPI/nonsecret test data. Select an existing CASE for revision-bound modification or leave it blank for a new draft. Failure analysis additionally requires a Run ID. Context preview shows the exact sanitized context, provenance, conservative token bound and reservation before any request is sent. Credentials, identity references, raw Trace/HTML/screenshots/downloads and raw logs are excluded. Review freeform supplied material before sending: no automatic sanitizer can identify every secret hidden under an arbitrary business field name.
+<a id="review-and-generate"></a>
+## 审核与生成
 
-Generate sends that context to the selected provider. Output must pass canonical JSON Schema and reference restrictions. The view displays diagnostics, original candidate and proposed output. Boundary suggestions and analysis remain advice. Explicit acceptance creates or updates only a CASE DRAFT through the existing resource service; current permissions, revision and references are rechecked. Open the embedded resource editor to edit, validate with a real Runtime, debug, and publish using its normal authorization and receipt workflow. Model output is never automatically published or used to rewrite assertion truth during execution.
+只选择所需的不可变资源版本，输入需求，并可选提供 OpenAPI 或不含秘密的测试数据。选择已有 CASE 可进行绑定修订号的修改；留空则创建新草稿。失败分析还需要 Run ID。上下文预览在发送请求前展示确切的脱敏上下文、来源、保守 Token 上界和预算预留。凭据、身份引用、原始 Trace/HTML/截图/下载文件及原始日志均被排除。发送前须审核自由输入材料：任何自动脱敏器都无法识别任意业务字段名下隐藏的所有秘密。
 
-## Spending and cancellation
+生成操作将上述上下文发送至所选 Provider。输出必须通过规范 JSON Schema 和引用限制校验。界面展示诊断、原候选和建议输出；边界建议和分析始终只是建议。显式接受只会通过既有资源服务创建或更新 CASE DRAFT，并重新检查当前权限、修订号和引用。打开内嵌资源编辑器后，可编辑、使用真实 Runtime 校验、调试，并通过正常授权及回执流程发布。模型输出绝不自动发布，也不会在执行期间改写断言真值。
 
-All prices are **operator-configured estimates**, not provider invoices or a guarantee against a provider changing its prices. Each immutable call record snapshots model, endpoint, rates and USD currency. Admission reserves a conservative UTF-8 byte bound for the complete system/schema/context messages plus 8192 framing tokens, and the configured output cap. Limits: 64 KiB selected context, 262144 input-bound tokens, 8192 output tokens, USD5 per request, USD10000 per monthly provider budget and 20 configured providers per Workspace.
+<a id="spending-and-cancellation"></a>
+## 费用与取消
 
-Successful reported usage calculates estimated spending. Missing/invalid usage, errors, timeouts, cancellation and server interruption retain the reservation and show UNKNOWN, never fabricated zero cost. Unknown reservations remain charged across UTC month changes; known usage is accounted in the reservation's UTC month. There is no internal Cron, automatic refund, automatic paid retry, or automatic unknown-cost reconciliation. Lowering a budget below held and used spending is rejected. Active calls allow provider disablement but reject incompatible configuration/key changes.
+所有价格都是**运维人员配置的估算值**，不是 Provider 账单，也不保证 Provider 不会变价。每条不可变调用记录保存模型、端点、费率和 USD 币种快照。准入时，根据完整系统消息、Schema 和上下文消息的 UTF-8 字节数计算保守输入上界，再加 8192 个框架 Token，并预留配置的输出上限。限制为：选中上下文 64 KiB、输入上界 262144 Token、输出 8192 Token、单请求 USD5、单 Provider 月预算 USD10000，以及每个 Workspace 最多配置 20 个 Provider。
 
-A request UUID and canonical body provide idempotency; reuse the identical request to retrieve its current record without paying twice. A different body with the same UUID is rejected. Cancel records local cancellation and withholds the result. It cannot guarantee that the external provider stopped or that billing ceased. If verified usage arrives afterward, its estimate is retained even for a cancelled result. A disconnected tab can refresh history to inspect/cancel the durable reservation. Disabling/deleting a provider or losing current authorization prevents output disclosure/application.
+成功且返回有效用量时，按该用量计算预估费用。用量缺失或无效、错误、超时、取消和服务中断都会保留预留额并显示 UNKNOWN，绝不伪造零费用。未知预留跨 UTC 月份继续计费；已知用量计入预留所属 UTC 月。内部不设 Cron，不自动退款、不自动进行付费重试，也不自动核销未知费用。不能把预算调低至已占用和已使用费用之下。活动调用期间可以禁用 Provider，但拒绝不兼容的配置或密钥变更。
 
-## Verification and actual-provider acceptance
+请求 UUID 与规范请求正文共同提供幂等性；复用完全相同的请求可取得当前记录，不会重复付费。同一 UUID 携带不同正文会被拒绝。取消会记录本地取消并停止交付结果，但不保证外部 Provider 已停止或不再计费。若之后收到已核实的用量，即使结果已取消，也保留费用估算。标签页断连后可刷新历史，检查或取消持久化预留。禁用/删除 Provider 或失去当前授权后，不再披露或应用输出。
 
-Automated tests use an explicitly local HTTP protocol emulator through both official SDKs, never a fake UI or a claim of paid-provider execution. Native Agent/Chromium tests verify PASSED Runs with disabled/exhausted providers and zero model HTTP requests. Browser tests cover configuration, key clearing, context/estimate preview, explicit review, genuine Runtime compilation/publication, cancellation, history and Workspace clearing.
+<a id="verification-and-actual-provider-acceptance"></a>
+## 验证与真实 Provider 验收
 
-Actual external-provider acceptance is separate and remains pending authorized provider credentials and a durable operator-owned acceptance environment. Do not enter real provider keys in the resettable `veriq_test` database or automated browser fixture. A proposed minimal acceptance uses one synthetic boundary-suggestion call, an explicitly approved model/endpoint, 128 output tokens and a reviewed reservation no greater than USD0.02. The operator must authorize the endpoint/model/budget and enter the key through the secure form; never send keys in chat or use internal tool credentials.
+自动化测试通过两个官方 SDK 使用显式配置的本机 HTTP 协议模拟器，既不使用假 UI，也不冒充付费 Provider 执行。原生 Agent/Chromium 测试验证了在 Provider 禁用或预算耗尽时 Run 仍为 PASSED，且模型 HTTP 请求数为零。浏览器测试覆盖配置、密钥清空、上下文/费用预览、显式审核、真实 Runtime 编译/发布、取消、历史及 Workspace 清空。
+
+真实外部 Provider 验收单独进行，仍等待获授权的 Provider 凭据和运维人员拥有的持久化验收环境。不得把真实 Provider Key 写入可重置的 `veriq_test` 数据库或自动化浏览器夹具。建议的最小验收为一次合成边界建议调用，使用明确批准的模型/端点、128 个输出 Token，以及经审核且不超过 USD0.02 的预留。运维人员必须授权端点、模型和预算，并通过安全表单输入密钥；不要在聊天中发送密钥，也不要使用内部工具凭据。

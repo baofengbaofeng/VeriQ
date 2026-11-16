@@ -1,4 +1,5 @@
-# VeriQ：macOS Runtime Keychain 独立验收
+<a id="veriqmacos-runtime-keychain-独立验收"></a>
+# macOS Keychain
 
 本文用于 macOS15及以上 Intel x64、Apple Silicon arm64 两套独立测试环境。当前实现处于开发和审查阶段，本文提供运行入口，不代表已经完成真实钥匙串、安装或签名升级验收。Runtime helper 的结果不替代 Electron Cookie 验收。
 

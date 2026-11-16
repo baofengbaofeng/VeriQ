@@ -1,4 +1,5 @@
-# VeriQ 后端接入规范 / Backend integration
+<a id="veriq-后端接入规范--backend-integration"></a>
+# Backend
 
 本规范适用于 Java / Spring Boot 或 Python 业务服务；双方通过 HTTP、固定 OpenAPI、正常业务认证及 fixture 生命周期协作。VeriQ 控制服务的 Python 技术栈不限制被测后端语言。先完成下面的接入交付，再阅读后文现有示例和 SDK 的精确契约。
 
@@ -41,31 +42,32 @@ UI 隐藏按钮不能替代后端越权校验。权限回归使用正常业务�
 
 完整接入需结合[前端锚点规范](frontend.md)、[外部调度](external-scheduler.md)、[公共契约](../contracts.md)及[里程碑](../plans/milestones.md)。客户业务服务仍须在自身数据库与网络环境通过实际契约、权限、并发和故障测试。
 
-## Runnable sample and exact SDK contract
+<a id="runnable-sample-and-exact-sdk-contract"></a>
+## 可运行示例与精确 SDK 契约
 
-T07 ships a runnable controlled Python/Tornado demo at `fixtures/demo-app/app.py` and HTTP lifecycle clients in `@veriq/runner-sdk`. The demo persists fixture ownership, closed namespaces and employees in SQLite. It is a sample target, not the MySQL-backed VeriQ control service. Tests exercise this target with real Chromium and real HTTP; they do not certify arbitrary customer Java/Spring or Python deployments.
+T07 在 `fixtures/demo-app/app.py` 提供可运行的受控 Python/Tornado 示例，并在 `@veriq/runner-sdk` 中提供 HTTP 生命周期客户端。示例通过 SQLite 持久化 fixture 所有权、已关闭的命名空间和员工数据。它是被测示例目标，不是使用 MySQL 的 VeriQ 控制服务。测试使用真实 Chromium 和 HTTP 请求访问这个目标，不能据此认定任意客户 Java/Spring 或 Python 部署已通过验收。
 
-Start the demo with the service Python environment and externally supplied configuration:
+使用服务端 Python 环境及外部提供的配置启动示例：
 
 ```sh
 export VERIQ_DEMO_DATABASE=/restricted/demo.sqlite
-# Supply three distinct random tokens (at least 24 characters) through your secret manager:
+# 通过秘密管理器提供三个互不相同、每个至少 24 字符的随机令牌，供业务、fixture 与维护身份分别使用：
 # VERIQ_DEMO_BUSINESS_TOKEN, VERIQ_DEMO_FIXTURE_TOKEN, VERIQ_DEMO_MAINTENANCE_TOKEN
 apps/srv/.venv/bin/python fixtures/demo-app/app.py
 ```
 
-It listens on loopback port 8090 (`VERIQ_DEMO_PORT` overrides it). Put an authenticated TLS terminator in front of non-local deployments. Test-support barrier routes live only in `fixtures/test-support/server.py`; the normal demo has none. The HTTP contract is documented in `fixtures/demo-app/openapi.json`.
+默认监听回环地址的 8090 端口，可通过 `VERIQ_DEMO_PORT` 覆盖。非本机部署应在前方配置带认证的 TLS 终止代理。测试屏障路由仅存在于 `fixtures/test-support/server.py`，普通示例服务不提供这些路由。HTTP 契约见 `fixtures/demo-app/openapi.json`。
 
-Prepare receives `{workspaceId,caseExecutionId,attemptNo,namespace,idempotencyKey,input,ttlSeconds}`. The exact idempotency key is `workspaceId:caseExecutionId:attemptNo`. Repeated identical requests return the same fixture ID; altered parameters return 409. The client validates explicit `CaseDslV1.fixtureInput` against the pinned Fixture inputSchema before authentication or network calls. `CaseDslV1.initialVariables` declares allowed initial names and ValueType types (for example `{"name":"string"}`); actual values remain in frozen `ExecutionSnapshot.variables`. Every declared key must be present and correctly typed before authentication. Inputs resolve only these declared initial variables plus the selected data row, never future fixture outputs. Inputs never implicitly include all execution variables. Prepare returns `{fixtureId,namespace,variables,cleanupToken}`; variables validate against outputSchema before assignment. Cleanup sends the same ownership fields and optional cleanupToken in a POST/DELETE JSON body. Query uses GET with idempotencyKey, never the token.
+准备请求接收 `{workspaceId,caseExecutionId,attemptNo,namespace,idempotencyKey,input,ttlSeconds}`，精确幂等键为 `workspaceId:caseExecutionId:attemptNo`。重复的相同请求返回原 fixture ID，参数改变则返回 409。客户端在认证或发起网络调用前，使用固定 Fixture 的 inputSchema 验证显式声明的 `CaseDslV1.fixtureInput`。`CaseDslV1.initialVariables` 声明允许的初始变量名与 ValueType 类型，例如 `{"name":"string"}`；实际值仍保存在冻结的 `ExecutionSnapshot.variables` 中。认证前必须确认每个声明的键均存在且类型正确。输入只能解析这些已声明的初始变量及选中数据行，不能读取尚未产生的 fixture 输出，也不会隐式包含全部执行变量。准备响应为 `{fixtureId,namespace,variables,cleanupToken}`；变量赋值前须通过 outputSchema 验证。清理通过 POST/DELETE 的 JSON 正文发送相同所有权字段及可选 cleanupToken；查询通过 GET 和 idempotencyKey 进行，绝不使用令牌作为查询参数。
 
-Fixture calls use Environment.fixtureIdentity and fixtureBaseURL. Ordinary UI/API permission checks use the selected business role. `HTTP_BEARER` takes local/resolved `{token}` and verifies identity at identityPath. `HTTP_SESSION` POSTs the credential JSON to loginPath and verifies identityPath; both extract the identity using identityPointer and require it in allowedIdentityIds. These bounded built-ins support common token and HTTP session login integrations. Custom SSO/MFA flows or customer-specific response transformations are not implemented. Credentials and adapter versions are created/revoked through the Workspace APIs; no authentication code upload exists.
+fixture 调用使用 Environment.fixtureIdentity 与 fixtureBaseURL；普通 UI/API 权限检查使用选定的业务角色。`HTTP_BEARER` 接收本地提供或已解析的 `{token}`，并在 identityPath 核验身份。`HTTP_SESSION` 将凭据 JSON 通过 POST 发送至 loginPath，再核验 identityPath。两者均通过 identityPointer 提取身份，要求身份位于 allowedIdentityIds 中。这些有界内置适配器支持常见令牌与 HTTP 会话登录集成，尚未实现自定义 SSO/MFA 流程或客户专用响应转换。凭据和适配器版本通过 Workspace API 创建、撤销，不提供认证代码上传入口。
 
-The business endpoint attaches every created resource to a namespace and checks that namespace is OPEN and unexpired inside the same transaction as its write. Cleanup marks the namespace CLOSED and deletes only its owned resources in one transaction. It keeps a closed tombstone, including when prepare has not yet returned. A late UI/API commit must fail after cleanup. The test suite holds a business validation operation after the server accepts it, cleans the fixture, then resumes the operation and verifies 409 and resource removal. Duplicate cleanup alone is not this guarantee.
+业务端点将每个新建资源归属到一个命名空间，并在数据写入的同一事务中检查命名空间为 OPEN 且尚未到期。清理在同一事务中将命名空间标记为 CLOSED，只删除该命名空间拥有的资源，并保留关闭墓碑；即使准备请求尚未返回也须如此。清理后的晚到 UI/API 提交必须失败。测试套件在服务端接收业务校验操作后暂停它，清理 fixture，再恢复该操作并确认返回 409 且资源已移除；仅验证重复清理不能证明这一保证。
 
-External scheduling invokes authenticated `POST /maintenance` with `{limit:1..100}` using the independent maintenance token. It returns `{processed,hasMore}` and is safe to repeat. There is no internal Cron. Worker death requires this external TTL reconciliation even if no cleanup receipt/token was returned. Customer Java/Spring and Python services should implement the same transaction/ownership guarantees using their own database; calling DELETE from a browser finally block is insufficient. Retain closed namespace tombstones for the full retry/idempotency window. The demo retains them indefinitely.
+外部调度使用独立维护令牌调用经过认证的 `POST /maintenance`，正文为 `{limit:1..100}`，响应为 `{processed,hasMore}`，可安全重复执行。系统没有内部 Cron。Worker 退出后仍需外部 TTL 核对，即使此前没有取得清理回执或令牌也不能省略。客户 Java/Spring 与 Python 服务应在自身数据库中实现相同的事务和所有权保证；只在浏览器 finally 块中调用 DELETE 并不足够。关闭命名空间的墓碑至少保留至完整重试和幂等窗口结束；本示例无限期保留。
 
-The SDK exports `prepareFixture`, `cleanupFixture`, `createHttpLifecycle`, `LocalCredentialProvider`, and `EvidencePolicy`. `LifecycleContext.fixtureInput` carries resolved input separately; cleanup accepts an undefined token and relies on the stable namespace/key. Clients abort isolated requests on their signal, never replay writes across redirects, and dispose authentication sessions. `LocalCredentialProvider` accepts only exact Workspace/reference/version mappings; T20 supplies OS-vault/restricted-config integration. It has no platform-network fallback.
+SDK 导出 `prepareFixture`、`cleanupFixture`、`createHttpLifecycle`、`LocalCredentialProvider` 和 `EvidencePolicy`。`LifecycleContext.fixtureInput` 单独携带已解析输入；清理允许令牌未定义，并依赖稳定的命名空间与幂等键。客户端收到取消信号时中止本次隔离请求，不跨重定向重放写入，并释放认证会话。`LocalCredentialProvider` 只接受精确的 Workspace、引用与版本映射；T20 提供操作系统保险库和受限配置集成，不提供回退到平台网络取凭据的能力。
 
-Raw screenshots, Trace and downloads are restricted evidence. Ordinary reports retain redacted structured steps/assertions/errors and artifact metadata, without raw local paths or bytes. `EvidencePolicy` can collect real screenshots and Trace into mode-0700 directories/mode-0600 files. Explicit trusted local credential-evidence capability is required for raw access. The control service applies Workspace-scoped MANAGE_ENVIRONMENT authorization before granting restricted artifact access. Raw Trace remains viewable with the pinned Playwright Trace viewer by an authorized operator; do not upload it to a public service. Sessions are held in isolated memory contexts; no storageState file is written by these adapters.
+原始截图、Trace 和下载文件属于受限证据。普通报告保留已脱敏的结构化步骤、断言、错误及制品元数据，不包含本机原始路径或字节。`EvidencePolicy` 可将真实截图与 Trace 保存到权限为 0700 的目录和权限为 0600 的文件；访问原始证据需要显式、可信的本机凭据与证据能力。控制服务在授权读取受限制品前执行 Workspace 范围的 MANAGE_ENVIRONMENT 校验。获授权操作员仍可使用固定版本的 Playwright Trace 查看器打开原始 Trace，不应将其上传至公共服务。这些适配器将会话保存在隔离内存上下文中，不写入 storageState 文件。
 
-The normal control-service factory injects `DatabaseAttemptProofVerifier`. It authenticates device authorization and lease/fencing headers, checking the active assignment, current Workspace membership, environment/device grants, server-granted MANAGED trust and exact pinned role/fixture references under the installation authority transaction. A caller's trust labels never establish authority. T09/T10 freeze registry records and hash the full ExecutionSnapshot before assignment. Signed offline profiles contain only non-secret configuration and references. T12 provides restricted artifact storage and authorization, and T11 provides management editors. Final whole-product and installed-platform acceptance remains tracked in the milestone ledger.
+控制服务的正常工厂注入 `DatabaseAttemptProofVerifier`。它校验设备授权及租约、围栏请求头，并在安装级权威事务内检查当前派单、Workspace 成员身份、环境和设备授权、服务端授予的 MANAGED 信任，以及精确固定的角色和 fixture 引用。调用方自报的信任标签不能形成授权依据。T09/T10 在派单前冻结登记记录，并对完整 ExecutionSnapshot 计算散列。签名离线档案只包含非秘密配置与引用。T12 提供受限制品存储及授权，T11 提供管理编辑器。完整产品和已安装平台的最终验收仍记录在里程碑台账中。

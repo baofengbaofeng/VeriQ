@@ -1,94 +1,30 @@
-# ADR 0010 — Unified queue and verified execution boundaries
+<a id="adr-0010--unified-queue-and-verified-execution-boundaries"></a>
+# 0010 Unified Fenced Execution
 
-Status: coordinator-approved T09 implementation choices; implementation evidence is recorded separately.
+状态：协调者批准的 T09 实现选择；实现证据另行记录。
 
-All jobs remain in `veriq_jobs`. Run admission freezes Workspace-authorized published
-assets or an immutable draft candidate, environment, role, browser, dataset version,
-row and suite ordinal. Candidate UUIDs never pretend to reference published rows.
-Trigger kind, source/location and the exact requested Runtime selector remain separate.
-Service Run principals require actual scoped grants; enrollment secrets never authorize runs.
+全部任务仍位于 `veriq_jobs`。Run 准入冻结 Workspace 授权的已发布资产或不可变草稿候选、环境、角色、浏览器、数据集版本、数据行及套件序号。候选 UUID 不得假装引用已发布记录。触发类型、来源/位置和精确请求的 Runtime 选择器保持分离。服务 Run 主体必须拥有真实范围授权；登记秘密不能授权执行。
 
-Every protected operation holds the existing installation authorization lock before
-current device and requester reads through commit. Capacity locks follow global,
-Workspace, Runtime, environment, resource order. Defaults are four global and two
-Workspace browser slots; compilation and cleanup have independent global defaults of
-two, Workspace one, and server-configured Runtime total headroom one. Claims never
-increase headroom from availableSlots. At most ten unfinished Runs are admitted.
+每个受保护操作在读取当前设备和请求者之前取得既有安装授权锁，并持有到提交。容量锁依全局、Workspace、Runtime、环境、资源顺序取得。默认全局四个、Workspace 两个浏览器槽；编译和清理有独立默认值：全局二个、Workspace 一个，Runtime 总余量由服务端配置，默认为一。领取不能根据 availableSlots 增加余量。最多准入十个未结束 Run。
 
-Allocation is not activation. Hash-only lease secrets authorize a LEASED Attempt;
-explicit acknowledged activation must precede authentication, fixtures and business
-side effects. Recovering an unactivated request rotates both token and fence. An
-already activated request returns conflict without new authority and without
-quarantining a healthy execution. Unknown processes after expiry retain their slots
-and resource locks until original-device stop confirmation or scoped audited admin
-reconciliation. Server database UTC grants 60-second leases and Runtime sends a
-10-second heartbeat. Local deadlines use monotonic request roundtrip budgets,
-never a comparison against the device wall clock.
+分配不等于激活。仅存摘要的租约秘密授权 LEASED Attempt；认证、fixture 和业务副作用之前必须完成显式激活确认。恢复尚未激活的请求会同时轮换令牌和 fence。已激活请求返回冲突，不新增权限，也不隔离健康执行。过期后的未知进程保留槽位及资源锁，直到原设备确认停止，或具有范围授权且留审计的管理员完成协调。服务端数据库 UTC 签发 60 秒租约，Runtime 每 10 秒心跳。本地期限使用单调时钟和请求往返预算，绝不与设备墙上时间比较。
 
-Empty (204) claim receipts have a documented 24-hour recovery window and a hard
-per-Runtime admission bound; external maintenance removes eligible old empty receipts.
-Nonempty receipts remain tied to the retained Attempt and cannot allocate another business
-execution. Clients must never reuse request UUIDs. No internal timer
-or Cron is added. MAINTENANCE tokens are Workspace scoped, hash-only, independently
-revocable, and explicitly limited to named operations; enrollment tokens remain
-one-time and unable to call maintenance. Ordinary service-account disabling applies.
+空（204）领取回执具有已记录的 24 小时恢复窗口及每 Runtime 硬准入上限；外部维护删除符合条件的旧空回执。非空回执仍绑定保留的 Attempt，不能分配第二次业务执行。客户端绝不能复用请求 UUID。不增加内部定时器或 Cron。MAINTENANCE 令牌以 Workspace 为范围、仅存摘要、可独立吊销，并明确限制到具名操作；登记令牌仍为单次且不可调用维护。普通服务账号禁用规则继续生效。
 
-ApprovedEngineInventoryV1 is operator-controlled configuration, unavailable by default.
-It binds engine/compiler/SDK versions and exact release package, lock, code, vendor
-bytes and dependencies. Uploaded inventories cannot approve themselves. Generated
-CASE files and expected-plan metadata are authenticated by current MANAGED compiler
-identity plus active lease/fence and checked against retained source/descriptor bytes.
-The controller never runs Node or Chrome. T18/T20 must promote the same release bytes.
+ApprovedEngineInventoryV1 由操作员控制，默认不可用。它绑定引擎/编译器/SDK 版本以及精确发行包、锁、代码、vendor 字节和依赖；上传库存不能自我批准。生成 CASE 文件及预期计划元数据，由当前 MANAGED 编译器身份加活动租约/fence 认证，并与保留源码/描述符字节比较。控制器从不运行 Node 或 Chrome。T18/T20 必须晋升同一发行字节。
 
-CompletionManifestV1 is separate from the legacy attempt-manifest alias for JobManifestV1.
-Compiler analysis emits expected step/assertion/observer identities and dependency
-metadata into a hash-listed file. Server reduction checks actual retained events,
-explicit justified skips and required evidence; missing metadata cannot imply PASSED.
-Raw business, cleanup and evidence results remain distinct. Exact successful finish
-replays use the saved receipt under current authorization; differing manifests cannot
-overwrite a terminal result. T12 extends this retained-byte pipeline for File/S3,
-retention, reports and UI; it does not introduce another receipt writer or queue.
+CompletionManifestV1 与 JobManifestV1 的旧 attempt-manifest 别名分离。编译分析将预期步骤、断言、观察器身份及依赖元数据写入摘要列明的文件。服务端归约检查真实保留事件、明确且有理由的跳过以及所需证据；缺少元数据不能推断 PASSED。原始业务、清理和证据结果保持分离。精确成功完成重放在当前授权下使用已存回执；不同清单不能覆盖终态结果。T12 将该保留字节管道扩展至 File/S3、保留期、报告和 UI，不再引入回执写入方或队列。
 
-Artifact uploads retain the 3 MiB transport ceiling. Bounded proof-authorized chunks,
-explicit offsets and exact hashes avoid increasing pre-auth buffering on other routes.
+产物上传保持 3 MiB 传输上限。经证明授权的有界分块、显式偏移和精确摘要，避免提高其他路由认证前的缓冲量。
 
-T09 implementation refinement: explicit unknown-process reconciliation immediately
-terminalizes the Attempt as ERROR/WORKER_LOST, aggregates CaseExecution/Run and quarantines
-capacity; a later stop only releases capacity and preserves outcome. A live confirmed
-stop without verified completion is INCOMPLETE. External reap also enforces the30-minute
-Run budget on bounded queued jobs, marking unstarted cases CANCELLED/RUN_TIMEOUT and
-aggregating; active unknown processes retain quarantine. No timeout implies success.
+T09 实现细化：显式未知进程协调立即将 Attempt 终结为 ERROR/WORKER_LOST，聚合 CaseExecution/Run 并隔离容量；稍后的停止只释放容量，保留结果。已确认实时停止但没有验证完成的执行为 INCOMPLETE。外部 reap 还对有界排队任务执行 30 分钟 Run 预算，把未启动用例标为 CANCELLED/RUN_TIMEOUT 并聚合；活动未知进程继续隔离。任何超时都不意味着成功。
 
-The database enforces TEST Run+CaseExecution and CLEANUP maintenance-receipt/original-
-Attempt subject relationships, source artifact references, published-or-candidate CASE
-identity, Attempt phase/fence bounds and compiler receipt Runtime+Attempt provenance.
-MySQL migration preserves existing queued VALIDATE identities and source bytes.
+数据库强制维护 TEST 的 Run+CaseExecution、CLEANUP 的维护回执/原 Attempt 主体关系、源码产物引用、已发布或候选 CASE 身份、Attempt 阶段/fence 边界，以及编译器回执 Runtime+Attempt 来源。MySQL 迁移保留既有排队 VALIDATE 身份和源码字节。
 
-Writer hardening checks the exact retained source sidecar against frozen source (CASE
-projection omits validationTarget, library validation retains it), selected entrypoint
-paths and validationOnly boundary. Evidence requires a retained matching
-ARTIFACT_CREATED event linked to the actual Attempt upload, not just a declared hash.
-Public transport/metadata/completion and T10/T12/T18/T20 obligations are recorded in
-`docs/contracts.md`; real browser execution is not claimed by server protocol fixtures.
+写入加固要求精确保留的源码侧车与冻结源码一致（CASE 投影省略 validationTarget，库验证保留它），并检查选定入口路径及 validationOnly 边界。证据必须具有保留且匹配的 ARTIFACT_CREATED 事件，关联真实 Attempt 上传，不能只声明摘要。公开传输、元数据、完成协议及 T10/T12/T18/T20 义务记录在 `docs/contracts.md`；服务端协议夹具不能宣称真实浏览器执行。
 
-Coordinator-approved failure ABI refinement: VALIDATE success is explicitly PASSED
-with a descriptor; actual compiler failure is a separate strict ERROR branch forbidding
-compiledBundleSha256. It retains approved engineInventorySha256, current assignment/
-proof, processStopped:true, bounded safe failureCode and verified nonempty LOG evidence.
-Missing diagnostic bytes/event linkage is rejected. This branch never mints a receipt,
-never authorizes publish, and preserves exact completion replay. Dependent DEBUG work
-finishes ERROR when the failed validation is examined rather than waiting for Run timeout.
+协调者批准的失败 ABI 细化：VALIDATE 成功明确为带描述符的 PASSED，实际编译失败为独立严格 ERROR 分支，禁止 compiledBundleSha256。它保留批准的 engineInventorySha256、当前分配/证明、processStopped:true、有界安全 failureCode 及经验证的非空 LOG 证据。缺诊断字节或事件关联则拒绝。该分支不签发回执，不授权发布，保留精确完成重放。依赖的 DEBUG 工作在读取该验证失败时完成为 ERROR，不等待 Run 超时。
 
-Review fix1 preserves negative manifest/terminal facts and validates lifecycle, nested
-step intervals, sibling order and actual assertion stages. Compiler-only expected-plan
-FINALIZE marks deferred requestCount assertions; the DSL and SDK execution stay unchanged.
-Same-step later-stage BLOCK skips require an actual preceding failed BLOCK fact. Missing
-observers require explicit failed-step block proof and are recorded as blockedObservers,
-never PASSED; ancestor prevention of children requires BEFORE plus explicit child SKIPPED.
-Only LOG/ARTIFACT_CREATED tails may follow terminal execution.
+复审修复 1 保留负面清单/终态事实，校验生命周期、嵌套步骤区间、同级顺序及真实断言阶段。仅编译器使用的预期计划 FINALIZE 标注延迟的 requestCount 断言；DSL 和 SDK 执行不变。同一步后续阶段的 BLOCK 跳过必须有真实先前失败 BLOCK 事实。缺失观察器必须有明确的失败步骤阻断证明，记录为 blockedObservers，绝不是 PASSED；祖先阻止子项必须发生在 BEFORE 并明确标记子项 SKIPPED。终态执行后只允许 LOG/ARTIFACT_CREATED 尾部事件。
 
-Queued-retry cancellation records USER_CANCELLED, immediately finishes stopped queued
-work, and reduces original history plus CANCELLED by fixed severity; it does not erase
-FAILED/ERROR Attempts. Claim uses stable SQL predicates and100-row keyset pages through
-the finite transaction queue. This removes head-of-queue starvation while preserving
-installation/capacity lock ordering; aggregate lock time scales with matching queue size.
+取消排队重试会记录 USER_CANCELLED，立即结束已停止的排队工作，并按固定严重度归约原历史与 CANCELLED，不抹除 FAILED/ERROR Attempt。领取使用稳定 SQL 谓词及 100 行 keyset 分页遍历有限事务队列，在保持安装/容量锁序的同时消除队首饥饿；聚合锁定时间随匹配队列大小增长。

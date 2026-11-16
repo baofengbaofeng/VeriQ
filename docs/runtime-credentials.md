@@ -1,6 +1,8 @@
-# 本机凭据档案退役 / Local credential profile retirement
+# Runtime Credentials
 
-`secret delete-profile` 永久退役所选本机凭据档案中的业务凭据、设备令牌和轮换候选。它与注销或清空单一用途不同：后两者保留其他用途仍需的主密钥。运行本命令需要具有已核验 RuntimeDistribution 凭据能力的 CLI，以及明确确认标志：
+<a id="本机凭据档案退役--local-credential-profile-retirement"></a>
+
+`secret delete-profile` 永久退役所选本机凭据档案中的业务凭据、设备令牌和轮换候选。它与注销或清空单一用途不同：后两者保留其他用途仍需的主密钥。运行本命令需要具有已核验 RuntimeDistribution 凭据能力的 CLI，以及明确确认标志 `--confirm-all`：
 
 ```text
 veriq_cli --config-dir <profile-directory> secret delete-profile --confirm-all
@@ -14,10 +16,9 @@ veriq_cli --config-dir <profile-directory> secret delete-profile --confirm-all
 
 信任根、公钥、执行历史和非秘密配置继续保留。本机退役**不会撤销控制平台上的设备**；服务器设备撤销需通过控制平台单独执行。GUI 的永久退役入口尚未交付，将随可用的档案选择与确认流程验证；现有注销、单用途清空和显式迁移入口不变。
 
-The command permanently retires all credential purposes in the selected local profile. It requires explicit `--confirm-all`, continuous stopped ownership, exact key scope checks and confirmed missing readback. A partial result retains a recoverable journal; completion retains a tombstone and prevents automatic reinitialization. Use a different profile directory for future credentials. Public configuration and execution history remain. Local retirement does not revoke the server device or promise physical erasure. A permanent-retirement GUI flow is still pending.
 
-
-## 显式服务文件模式 / Explicit managed file mode
+<a id="显式服务文件模式--explicit-managed-file-mode"></a>
+## 显式服务文件模式
 
 只有无桌面的受管理 Linux 服务可明确选择 `restricted-file`。服务部署者负责提供专用非 root 账户和外置持久卷；Runtime 核验所声明 UID 与实际 UID/eUID 一致、没有 Electron/图形会话环境，卷为可写的独立挂载点，档案位于该卷内，最终目录属于当前用户且为 `0700`，密钥文件为 `0600`。路径须为规范绝对路径，不接受符号链接、根卷、普通未挂载目录或已知易失文件系统/容器 overlay。每次后端操作重查挂载身份和私有文件属性，不自动 chmod 修复已有公开数据。
 
@@ -32,5 +33,3 @@ veriq_cli --config-dir /srv/veriq-volume/profile --credential-mode restricted-fi
 `os-vault` 仍是默认选择；锁定、不可用或出错不会选择文件模式。Desktop 没有文件模式选择入口。每次服务命令都须显式选择文件模式；改变模式参数不会自动搬迁既有 OS-vault 主密钥，已有加密档案在所选后端缺钥时仍明确失败。服务模式不改变设备的执行位置或 `trustStatus`，不会自动授予控制平台 `MANAGED` 信任。显式指定 `--credential-mode os-vault` 而缺少发行能力时会直接拒绝，不执行旧文件分支。此前未指定模式的源码无凭据上下文兼容路径仍在安全默认闭合工作中；不能把本节的显式入口当作完整源码默认路径已验收。
 
 挂载检查和独立 Node 进程重启读回只证明当前环境观察到的卷及文件状态，不能证明 VM 销毁、掉电或部署升级后卷必然保留。实际 Compose/systemd 安装、账户与卷生命周期及运维仍属于部署验收。文件模式的整体凭据退役使用同一精确删除日志和完成标记，保留公共配置及历史，不自动撤销服务器设备。
-
-Managed headless Linux must explicitly select the mode, match the configured nonroot service UID, supply a private external writable mount and acknowledge no encryption at rest. Raw master keys reside on the same volume; payload authentication does not provide confidentiality against readers of that volume. No Desktop fallback or server trust grant occurs. Mount checks and process restarts are not power-loss or deployment durability proof.

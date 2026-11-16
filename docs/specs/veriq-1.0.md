@@ -1,6 +1,8 @@
 > 已确认补充：桌面GUI属于完整MVP，采用Electron方向；见 [桌面规格](desktop.md)。桌面规格覆盖本文中CLI入口/薄原生启动器的过时候选，不另引入Rust桌面壳。
 
-# VeriQ 1.0 需求与技术规格（审阅稿）
+<a id="veriq-10-需求与技术规格审阅稿"></a>
+
+# VeriQ 1.0
 
 日期：2026-11-10。本文统一替代前序方案中冲突的技术与范围描述，配套实施任务见docs/plans/veriq-1.0.md。本文用于审阅后开展AI编码，不表示产品已实现、构建或通过测试。
 
@@ -53,7 +55,7 @@ AI模块开箱提供完整配置和操作引导；实际模型调用使用用户
 | ORM/迁移 | SQLAlchemy2、Alembic | SQLModel增加抽象；手写迁移框架没有收益 |
 | 异步MySQL | asyncmy | aiomysql可替换；同步PyMySQL仅迁移/工具场景 |
 | 参数/DSL | Pydantic2、jsonschema、Ajv | Zod适合前端局部表单，不作为另一套DSL来源 |
-| 密码/会话 | argon2-cffi、服务端opaque Session | bcrypt可选；JWT不利于小规模即时撤销 |
+| 密码/会话 | argon2-cffi、服务端不透明会话 | bcrypt可选；JWT不利于小规模即时撤销 |
 | 权限 | 固定角色矩阵与SQL归属条件 | PyCasbin用于策略变复杂时；OPA增加独立服务 |
 | HTTP/重试 | HTTPX、Tenacity | aiohttp可替换；重试库不能自动重试业务写入 |
 | 前端表单/表格 | React Hook Form、TanStack Table | Formik/AG Grid Community作替代；核验高级功能许可 |
@@ -129,7 +131,7 @@ veriq/
   AGENTS.md
 ```
 
-开发：Vite运行5173，Tornado运行8888，Vite将/api和必要事件连接代理到后端，HMR保留。后端可独立调试；不启用宽泛的credentialed CORS。Runtime另行启动。
+开发：Vite运行5173，Tornado运行8888，Vite将/api和必要事件连接代理到后端，HMR保留。后端可独立调试；不启用宽泛的携带凭据的 CORS。Runtime另行启动。
 
 生产：Tornado单个对外端口同时提供API和static/dist。Node/pnpm只在构建机使用，服务端镜像不要求Node、pnpm或Chrome。独立Runtime包提供浏览器运行依赖。
 
@@ -139,7 +141,7 @@ veriq/
 
 - /api或/internal未知路径返回结构化404，不返回index.html。
 - 缺失JS/CSS/图片返回404，不返回index.html。
-- /login、/setup、/workspaces等登记前端路由的GET/HEAD支持深链接刷新；其他未知路径不无限fallback。
+- /login、/setup、/workspaces等登记前端路由的GET/HEAD支持深链接刷新；其他未知路径不无限回退路径。
 - StaticFileHandler只服务发布包目录，防路径穿越；用户上传证据不放static目录。
 - index.html不缓存或使用no-cache；带hash的assets使用immutable缓存。
 - Web/APIs同源；凭证不注入Vite编译环境或JS产物。
@@ -177,7 +179,7 @@ Web使用HttpOnly/Secure/SameSite Cookie和CSRF；设备token与Web Session分�
 
 资源kind：CASE、ELEMENT_CATALOG、ASSERTION_TEMPLATE、DATASET、FLOW、FIXTURE、SUITE、ENVIRONMENT。统一资源注册/版本表减少重复CRUD，文档按kind分别Schema校验；执行结果使用关系表便于查询。
 
-主要字段：resource(id,workspace_id,kind,key,name,status)；draft(resource_id,revision,document_json,updated_by)；version(resource_id,version_no,schema_version,document_json,sha256,published_by)；Run(workspace_id,source,snapshot_hash,state,outcome,idempotency_key)；Job(workspace_id,kind,subject_id,snapshot_hash,state,required_capabilities,active_attempt_id)；Attempt(job_id,case_execution_id可空,attempt_no,runtime_id,lease_token_hash,fencing_token,lease_expires_at,phase,outcome)；assertion_result(attempt_id,step_id,assertion_id,expected_json,actual_json,status,error_code)；bundle(workspace_id,snapshot_hash,engine_version,manifest_hash,signature,exported_by)。
+主要字段：resource(id,workspace_id,kind,key,name,status)；草稿(resource_id,revision,document_json,updated_by)；version(resource_id,version_no,schema_version,document_json,sha256,published_by)；Run(workspace_id,source,snapshot_hash,state,outcome,idempotency_key)；Job(workspace_id,kind,subject_id,snapshot_hash,state,required_capabilities,active_attempt_id)；Attempt(job_id,case_execution_id可空,attempt_no,runtime_id,lease_token_hash,fencing_token,lease_expires_at,phase,outcome)；assertion_result(attempt_id,step_id,assertion_id,expected_json,actual_json,status,error_code)；bundle(workspace_id,snapshot_hash,engine_version,manifest_hash,signature,exported_by)。
 
 veriq_jobs为统一Runtime领取队列，kind=TEST/VALIDATE/CLEANUP。TEST关联CaseExecution，VALIDATE关联不可变草稿校验快照，CLEANUP关联维护记录；三类共享授权、租约和终态协议，manifest采用按kind区分的联合类型。只有需要浏览器的任务占浏览器容量，编译与清理各有独立并发配额。不另外实现三套领取循环。
 
@@ -191,7 +193,7 @@ packages/contracts提供case、catalog、fixture、snapshot、event、attempt-ma
 
 草稿携带revision更新，冲突409；校验结构、引用、变量、模板版本、关键断言、流程环和限制。发布前由获授权Runtime针对资产hash进行编译验证，保存引擎版本与回执；变更草稿使旧回执失效。无Runtime可编辑和导出调试包，不能伪称已验证发布。
 
-发布固定用例、目录、模板、流程、数据集、fixture及编译器版本；Run创建时额外冻结环境、角色、浏览器、数据行与应用build SHA。执行不读取最新版资产。DSL为可编辑源，生成TS为产物；下载包包含实际TS/SDK/锁文件，可脱离平台复现。
+发布固定用例、目录、模板、流程、数据集、fixture及编译器版本；Run创建时额外冻结环境、角色、浏览器、数据行与应用构建 SHA。执行不读取最新版资产。DSL为可编辑源，生成TS为产物；下载包包含实际TS/SDK/锁文件，可脱离平台复现。
 
 编译器compileAssets(AssetSnapshotV1)生成CompiledAssetBundle，Runtime在VALIDATE任务上传实际TS、依赖清单、文件manifest、sourceHash与验证回执；控制服务校验后保存制品，正式发布/导出复用，服务端不需要Node。assembleExecution(bundle, ExecutionSnapshotV1)附加环境/数据/运行上下文，不静默改写已验证源码。无Runtime导出的草稿调试包仅含DSL及依赖定义，标记unvalidated，本地先编译，不能冒充包含已验证TS的发布包。
 
@@ -209,13 +211,13 @@ packages/contracts提供case、catalog、fixture、snapshot、event、attempt-ma
 
 变量包括data、fixture输出、vars和secretRef。完整占位符保留类型，缺失立即失败。fixture声明输入/输出Schema；提取先验证响应再赋值。流程固定版本，最大深度5、展开500步，禁止递归和eval。每个数据行独立执行。预期来自需求/API/受控数据/人工审核，模型不能复制当前实现当真值。
 
-UI采用Playwright自动等待；最终一致每500ms只读查询、默认总限10秒，可配置。禁止轮询内重复写入，禁止固定sleep和force click掩盖失败。不可见按钮仍需后端越权请求验证。
+UI采用Playwright自动等待；最终一致每500ms只读查询、默认总限10秒，可配置。禁止轮询内重复写入，禁止固定sleep和强制点击掩盖失败。不可见按钮仍需后端越权请求验证。
 
 ## 11. 执行状态、容量、租约和取消
 
-Run包含CaseExecution(版本×数据行×角色×浏览器)，后者包含独立Attempt。Run state为QUEUED/RUNNING/CANCEL_REQUESTED/FINISHED；outcome为PASSED/FAILED/ERROR/UNSTABLE/CANCELLED/INCOMPLETE。Attempt phase为LEASED/PREPARING/RUNNING/CLEANING/FINALIZING/FINISHED，另存业务/清理结果及最终outcome。
+Run包含CaseExecution(版本×数据行×角色×浏览器)，后者包含独立Attempt。Run 状态为QUEUED/RUNNING/CANCEL_REQUESTED/FINISHED；outcome为PASSED/FAILED/ERROR/UNSTABLE/CANCELLED/INCOMPLETE。Attempt 阶段为LEASED/PREPARING/RUNNING/CLEANING/FINALIZING/FINISHED，另存业务/清理结果及最终outcome。
 
-Job state为QUEUED/LEASED/RUNNING/CANCEL_REQUESTED/FINISHED；CaseExecution state为QUEUED/RUNNING/FINISHED。等待设备/容量等存waitReason(RUNTIME_OFFLINE/NO_CAPABILITY/CAPACITY/RESOURCE_LOCK/QUARANTINED)，WAITING_FOR_RUNTIME仅是界面展示，不另造状态。重试时Job回QUEUED，新建Attempt，旧Attempt终态不变。
+Job 状态为QUEUED/LEASED/RUNNING/CANCEL_REQUESTED/FINISHED；CaseExecution 状态为QUEUED/RUNNING/FINISHED。等待设备/容量等存waitReason(RUNTIME_OFFLINE/NO_CAPABILITY/CAPACITY/RESOURCE_LOCK/QUARANTINED)，WAITING_FOR_RUNTIME仅是界面展示，不另造状态。重试时Job回QUEUED，新建Attempt，旧Attempt终态不变。
 
 结果归约固定为ERROR > INCOMPLETE > FAILED > CANCELLED > UNSTABLE > SKIPPED > PASSED。Run额外支持SKIPPED用于计划重叠策略；Attempt不使用UNSTABLE，只有Job/CaseExecution/Run汇总重试历史后生成。业务通过但清理失败=ERROR/CLEANUP_FAILED；失联=ERROR/WORKER_LOST；关键证据不全=INCOMPLETE；明确取消且最小取消记录齐全=CANCELLED；取消同时证据缺失=INCOMPLETE；零用例=INCOMPLETE/NO_CASES_SELECTED；已知BLOCK后的依赖跳过如实登记，不另冒充丢事件。预期完成且全部必需内容通过才PASSED。原始业务/清理/证据结果均保留，不能只存最高优先级字符串。
 
@@ -227,7 +229,7 @@ MySQL短事务按固定顺序锁global/workspace/runtime/environment容量和资
 
 超时：动作10秒、UI5秒、网络15秒、准备60秒、业务120秒、独立清理30秒、Run30分钟。嵌套等待受剩余总预算限制。
 
-取消先标记并停止新领取，Runtime中断操作、取消监听、清理，再按平台已确认范围验证停止后释放容量：Linux/Windows保留全部后代排空证明；Mac核验受控Worker/Chrome退出，不承诺任意游离后代内核级全清理，具体登记、回执与恢复见[Mac停止设计](macos-controlled-stop.md)。无法确认停止时保留未知/失联状态和补偿，不直接标成功或安全重派。联网Runtime丢租约停止，不自动改离线继续。租约过期撤销结果写入权，但不证明原进程已经停止：对应设备/容量/独占资源进入QUARANTINED，收到停止证明或管理员审计解除后才复用；不通过盲目回收slot掩盖可能仍在运行的浏览器。
+取消先标记并停止新领取，Runtime中断操作、取消监听、清理，再按平台已确认范围验证停止后释放容量：Linux/Windows保留全部后代排空证明；Mac核验受控Worker/Chrome退出，不承诺任意游离后代内核级全清理，具体登记、回执与恢复见[Mac停止设计](macos-controlled-stop.md)。无法确认停止时保留未知/失联状态和补偿，不直接标成功或安全重派。联网Runtime丢租约停止，不自动改离线继续。租约过期撤销结果写入权，但不证明原进程已经停止：对应设备/容量/独占资源进入QUARANTINED，收到停止证明或管理员审计解除后才复用；不通过盲目回收槽位掩盖可能仍在运行的浏览器。
 
 ## 12. HTTP触发与维护
 
@@ -247,13 +249,13 @@ TriggerReceipt包含decision(ENQUEUED/REUSED/SKIPPED)、runId、statusUrl。SKIP
 
 ## 13. Runtime分发、命名与设备授权
 
-原生入口veriq/veriq.exe；后台veriq_agent；执行veriq_runner。要求OS实际进程名，不能只改日志。推荐薄原生启动器配锁定Node运行文件及ESM代码；Node副本按角色名称分发，保留许可，Playwright worker继承相应execPath。Windows进程树和Linux进程组都要实测；浏览器与开发工具沿用原生名。SEA作为可选方案，不在未验证动态依赖前假定可用。
+原生入口veriq/veriq.exe；后台veriq_agent；执行veriq_runner。要求OS实际进程名，不能只改日志。推荐薄原生启动器配锁定Node运行文件及ESM代码；Node副本按角色名称分发，保留许可，Playwright Worker继承相应execPath。Windows进程树和Linux进程组都要实测；浏览器与开发工具沿用原生名。SEA作为可选方案，不在未验证动态依赖前假定可用。
 
 绑定流程：CLI发设备码→用户确认设备、空间和共享范围→短效/可轮换设备凭证→doctor检测OS/arch/Node/SDK/浏览器/网络→上线。设备token最小权限、只存摘要/本地安全存储，撤销可查。私人设备分享由owner控制。任务匹配空间、设备授权、引擎、浏览器、网络和容量；无合适设备显示WAITING_FOR_RUNTIME，不静默换机。
 
 CLI：login/logout；workspace list/use；runtime start/status/stop；doctor；bundle download；run --offline；results upload；trace open。每条都有help、退出码、日志定位与错误恢复文档。命令参数以数组spawn，不执行用户shell字符串。
 
-云端Runtime使用同一Linux发行包和独立含浏览器镜像，提供Compose可选runtime profile及systemd示例。部署账号经短效一次性登记凭证注册，持久化设备身份和信任配置；控制服务镜像仍无Node/Chrome。trustStatus只能由系统管理员在设备所有者已授权共享的范围内授予，客户端不得自报。MANAGED_CLOUD/CONNECTED_LOCAL是执行位置，MANAGED/USER_REGISTERED/REVOKED是独立信任等级。私人本地设备也可经正式授权成为MANAGED，云端位置本身不自动可信。撤销不改历史outcome，当前门禁重新检查可信策略；历史gateAtExecution与当前gateNow分别显示。
+云端Runtime使用同一Linux发行包和独立含浏览器镜像，提供Compose可选Runtime 档案及systemd示例。部署账号经短效一次性登记凭证注册，持久化设备身份和信任配置；控制服务镜像仍无Node/Chrome。trustStatus只能由系统管理员在设备所有者已授权共享的范围内授予，客户端不得自报。MANAGED_CLOUD/CONNECTED_LOCAL是执行位置，MANAGED/USER_REGISTERED/REVOKED是独立信任等级。私人本地设备也可经正式授权成为MANAGED，云端位置本身不自动可信。撤销不改历史outcome，当前门禁重新检查可信策略；历史gateAtExecution与当前gateNow分别显示。
 
 ## 14. 离线包、凭证与结果来源
 
@@ -261,11 +263,11 @@ CLI：login/logout；workspace list/use；runtime start/status/stop；doctor；b
 
 验签信任根来自经过认证的HTTPS设备绑定或管理员带外分发并核对指纹的issuer公钥，存Runtime配置；不从待验证包中自我建立信任。manifest携带issuerId/keyId；轮换经可信旧key链或重新认证绑定接受，记录缓存撤销列表。离线时不能得知最新撤销，报告标记撤销状态未知；已知撤销key硬拒绝，过期包只允许显式DEBUG覆盖且不能通过正式门禁。安装包签名用于验证发行程序，与企业自托管平台的测试包issuer根分开。
 
-普通包无密码、Cookie、storageState、设备token、清理令牌。secretRef在本地OS凭证库或受限配置中映射。缺凭证明确失败。baseURL/fixture地址覆盖要授权并记录实际环境，不能冒充原环境。首期下载只读快照，本地改动dirty，重新提交草稿而不自动双向同步。
+普通包无密码、Cookie、storageState、设备token、清理令牌。secretRef在本地OS凭证库或受限配置中映射。缺凭证明确失败。baseURL/fixture地址覆盖要授权并记录实际环境，不能冒充原环境。首期下载只读快照，本地改动未保存状态，重新提交草稿而不自动双向同步。
 
 独立模式执行不连接平台，但仍需业务系统可达。全离网依赖OS/arch离线安装包；不同系统不共用node_modules。localRunId独立产生，本地报告可用，恢复连接后上传。导入检查当前权限、包来源/签名/hash、版本、结果Schema和制品，幂等键(ws,bundle,localRunId)。新建OFFLINE_IMPORT，不覆盖线上Attempt。
 
-来源MANAGED_CLOUD/CONNECTED_LOCAL/OFFLINE_IMPORT；另存设备trustStatus、dirty、实际配置。包签名不证明本地结果绝未被伪造，正式门禁默认仅受管理设备。断网时无法保证远程取消、权限即时回收和跨机并发上限。
+来源MANAGED_CLOUD/CONNECTED_LOCAL/OFFLINE_IMPORT；另存设备trustStatus、未保存状态、实际配置。包签名不证明本地结果绝未被伪造，正式门禁默认仅受管理设备。断网时无法保证远程取消、权限即时回收和跨机并发上限。
 
 ## 15. 报告、制品和AI
 
@@ -281,13 +283,13 @@ AI完整提供Provider配置/连接测试、需求+OpenAPI+元素+数据生成�
 
 前端testId表达业务语义，覆盖关键交互、结果、错误、加载/空态；重复行结合稳定recordKey，不用随机数/数组下标/翻译文案。Radix Trigger/Content和Portal单独锚点；CVA/asChild透传属性/ref。TanStack Query的后台请求不能误配，乐观更新须持久化验证；i18next固定locale/timezone；dnd-kit采用稳定目标和键盘优先；DOMPurify不为测试放宽清洗。
 
-Java/Python后端均以HTTP接入，提供固定OpenAPI、角色与正常认证、fixture准备/查询/cleanup、requestId和build SHA。fixture幂等、每Attempt独立namespace、UI创建资源可精确归属、finally和TTL补偿；同key不同参数409；清理重复安全且不能触碰其他fixture。测试支持仅在受控环境鉴权开放。权限测试使用普通业务身份。所有地址从实际Runtime可达。
+Java/Python后端均以HTTP接入，提供固定OpenAPI、角色与正常认证、fixture准备/查询/cleanup、requestId和构建 SHA。fixture幂等、每Attempt独立命名空间、UI创建资源可精确归属、finally和TTL补偿；同key不同参数409；清理重复安全且不能触碰其他fixture。测试支持仅在受控环境鉴权开放。权限测试使用普通业务身份。所有地址从实际Runtime可达。
 
 ## 17. 统一API协议
 
 外部/api/v1，设备内部/internal/v1；Web Cookie/CSRF，自动化token，设备token分别授权。成功含data/requestId；错误含稳定code/message/details/requestId。未知API返回JSON404。
 
-资源：/workspaces/{ws}/resources、draft、validate、publish、versions、dependents。空间成员、环境、凭证引用、Runtime、execution-plans、runs、bundles、result-imports、ai/generations、audit分别有完整API。修改draft用revision；列表有分页、筛选和稳定排序；导出支持流式传输与限额。
+资源：/workspaces/{ws}/resources、草稿、validate、publish、versions、dependents。空间成员、环境、凭证引用、Runtime、execution-plans、runs、bundles、result-imports、ai/generations、audit分别有完整API。修改草稿用revision；列表有分页、筛选和稳定排序；导出支持流式传输与限额。
 
 设备内部claim/heartbeat/events/artifact-uploads/finish固定契约，claim返回attempt、snapshot URL/hash、leaseToken、fencingToken、expiresAt。制品通过受控上传/下载，磁盘key由服务端生成，不接受任意文件路径。
 
@@ -295,7 +297,7 @@ Java/Python后端均以HTTP接入，提供固定OpenAPI、角色与正常认证�
 
 ## 17A. 业务凭证的在线/离线解析
 
-环境版本将roleKey映射到认证适配器版本、secretRef和允许的身份范围。Run冻结secretVersionId引用而非明文；已撤销版本不能继续发放，返回CREDENTIAL_REVOKED，不自动换成新密码改变快照含义。secret版本用cryptography AES-GCM加密、随机nonce及空间/引用/版本AAD，主密钥外置、标keyId并支持轮换。
+环境版本将roleKey映射到认证适配器版本、secretRef和允许的身份范围。Run冻结secretVersionId引用而非明文；已撤销版本不能继续发放，返回CREDENTIAL_REVOKED，不自动换成新密码改变快照含义。secret版本用cryptography AES-GCM加密、随机随机标识及空间/引用/版本AAD，主密钥外置、标keyId并支持轮换。
 
 受管理云端Runtime可在授权环境内通过POST /internal/v1/attempts/{id}/credentials/resolve领取任务所需值，校验成员/服务身份、环境角色、Runtime允许列表、trustStatus和有效lease/fencing。默认个人联网Runtime只使用本地映射；管理员显式授权设备后才可接收平台凭证。离线只用本地映射，包中不含凭证。配置UI提供创建/更新/撤销但不回显原文。
 
@@ -303,7 +305,7 @@ Java/Python后端均以HTTP接入，提供固定OpenAPI、角色与正常认证�
 
 ## 18. 构建、打包和发布的强制契约
 
-构建入口./build.sh，默认完整测试；--with-tests同默认；--skip-tests必须附--reason，始终保留类型/lint/格式/打包完整性检查，release.json明确标testsSkipped和原因。常规release CI拒绝跳过测试的包；紧急包另行留痕，不能伪称已验证。
+构建入口./build.sh，默认完整测试；--with-tests同默认；--skip-tests必须附--reason，始终保留类型/lint/格式/打包完整性检查，release.json明确标testsSkipped和原因。常规发行 CI拒绝跳过测试的包；紧急包另行留痕，不能伪称已验证。
 
 构建顺序：
 
@@ -327,7 +329,7 @@ exclude = ["src/veriq_server/static/dist/**"]
 path = "hatch_build.py"
 ```
 
-apps/srv/hatch_build.py继承Hatchling BuildHookInterface：editable版本不注入静态目录；正式wheel检查index与manifest后，向build_data.force_include登记static/dist→veriq_server/static/dist。显式exclude防止默认遍历与强制映射重复。若发布sdist，hook将相同产物映射到源码相对路径并随源发行打包。以干净checkout的editable安装、正式wheel和无.git源码构建三种场景测试，不只看开发目录能启动。
+apps/srv/hatch_build.py继承Hatchling BuildHookInterface：editable版本不注入静态目录；正式wheel检查index与manifest后，向build_data.force_include登记static/dist→veriq_server/static/dist。显式exclude防止默认遍历与强制映射重复。若发布sdist，hook将相同产物映射到源码相对路径并随源发行打包。以干净源码检出的editable安装、正式wheel和无.git源码构建三种场景测试，不只看开发目录能启动。
 
 同样验证migrations和示例资源随wheel发布。后端包目录只读，日志/制品/状态写配置的数据目录。Python发行不套用jar语义；可交付含wheel与依赖wheelhouse的tar包及OCI镜像，均包含同一前端产物。服务端启动采用python -m veriq_server serve。
 
@@ -339,7 +341,7 @@ Runtime产物在对应Windows/Linux构建与测试job产生，含原生入口、
 
 ## 19. 安装、配置、升级与运维
 
-开箱提供两种服务端安装：Docker Compose（API+MySQL，制品默认volume）和Python3.12部署包（venv+wheelhouse）。独立本地Runtime提供Mac双架构优先及Windows/Ubuntu的安装卸载、登录或开机启动/停止说明。Compose的可选demo profile包含示例业务与fixture；初始化向导导入示例Workspace/目录/套件，并按Runtime实际网络映射URL。
+开箱提供两种服务端安装：Docker Compose（API+MySQL，制品默认volume）和Python3.12部署包（venv+wheelhouse）。独立本地Runtime提供Mac双架构优先及Windows/Ubuntu的安装卸载、登录或开机启动/停止说明。Compose的可选演示档案包含示例业务与fixture；初始化向导导入示例Workspace/目录/套件，并按Runtime实际网络映射URL。
 
 配置优先CLI > VERIQ_环境变量 > 配置文件 >默认。默认仅非敏感值；DB、加密主密钥、签名密钥和对外URL必须显式配置或通过安全安装流程生成。主密钥不存数据库或静态文件；密钥丢失的恢复影响写入手册。
 
@@ -355,7 +357,7 @@ Runtime产物在对应Windows/Linux构建与测试job产生，含原生入口、
 
 功能验收覆盖F01-F14；并发验收同时10Run、默认不超过4上下文/空间2；故障验收快速响应、业务失败、未持久化、歧义定位、失联、迟到回报、取消、清理/证据失败；权限覆盖跨空间和私人设备；离线覆盖无平台执行、缺凭证、篡改、重复导入；生产打包覆盖wheel真实安装与深链接。
 
-完整验收不依赖模型Key，但AI Provider通过mock协议与至少一个经授权实际Provider分别验证，真实调用数据/成本如实记录。真实业务接入5～10条关键流程至少5轮，保留首次失败和修复证据，不将轮次当统计可靠性证明。
+完整验收不依赖模型Key，但AI Provider通过模拟协议与至少一个经授权实际Provider分别验证，真实调用数据/成本如实记录。真实业务接入5～10条关键流程至少5轮，保留首次失败和修复证据，不将轮次当统计可靠性证明。
 
 最终交付：源代码/锁文件/迁移/契约、服务端包与镜像、两平台Runtime包、示例工程和数据、完整用户/接入/管理员/运维/故障手册、第三方许可清单、真实测试报告与已知限制。达到全部验收后才标记1.0完成。
 
@@ -414,4 +416,4 @@ heartbeat输入令牌与fencing和progress，返回leaseExpiresAt/cancelRequeste
 }
 ```
 
-正式示例工程提供对应目录/fixture/数据集；跨Workspace导入示例时生成新UUID并重写依赖。JSON Schema对每种action/type用oneOf限定字段，additionalProperties=false；timeout缺省使用正文值。observer先等首个候选以执行断言，窗口关闭时再确认歧义/次数；窗口策略显式写入正式Schema与报告。没有精确计数需求时不宣称验证了完整时间范围的请求次数。
+正式示例工程提供对应目录/fixture/数据集；跨Workspace导入示例时生成新UUID并重写依赖。JSON Schema对每种action/type用oneOf限定字段，additionalProperties=false；timeout缺省使用正文值。观察器先等首个候选以执行断言，窗口关闭时再确认歧义/次数；窗口策略显式写入正式Schema与报告。没有精确计数需求时不宣称验证了完整时间范围的请求次数。

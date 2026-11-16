@@ -1,4 +1,6 @@
-# VeriQ F01–F14 验证定位表
+<a id="veriq-f01f14-验证定位表"></a>
+
+# Requirements Matrix
 
 本表用于后续 Agent 定位实现和独立验收，不是通过报告。实际源码提交与尚未完成的实现事项见[代码交付计划](../plans/code-delivery.md)，详细命令和环境见[验证索引](mvp-handoff.md)。
 

@@ -1,4 +1,6 @@
-# V08：服务端正常发行与安装
+<a id="v08服务端正常发行与安装"></a>
+
+# V08 Release
 
 状态：未执行新源码验证。关联 F01、T18、T21、T23。阅读 `docs/release.md`、`deploy/OPERATIONS.md`、`docs/guides/README.md` 和 V00/V02/V06。
 
@@ -7,7 +9,7 @@
 | 步骤 | 操作 | 通过标准 |
 | --- | --- | --- |
 | 1 | 按实际配置运行默认 `./build.sh` | 冻结安装、静态/规范、完整测试和覆盖率均实际通过；失败保留日志，不创建成功 output |
-| 2 | 检查前端编译、stage、wheel 顺序 | React 产物进入 `apps/srv/src/veriq_server/static/dist`，随 Python wheel 发布 |
+| 2 | 检查前端编译、组装阶段、wheel 顺序 | React 产物进入 `apps/srv/src/veriq_server/static/dist`，随 Python wheel 发布 |
 | 3 | 核对正常包、库存、RECORD、示例资源、迁移和许可 | 无丢失/重复/多余文件，包含 `0015_artifact_retention` 及安装态示例；无仓库父目录依赖 |
 | 4 | 在仓库外、无 Node 的 Python 环境离线安装并启动 | 控制服务无需 Node/Chrome；深链接、API/static 404、健康、版本、缓存与只读安装符合契约 |
 | 5 | 从安装包运行规范示例模块并在 GUI 导入 | 使用真实 API/托管编译器/回执，不能靠仓库专用路径或假数据通过 |

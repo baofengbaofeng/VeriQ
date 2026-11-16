@@ -1,4 +1,6 @@
-# VeriQ：Mac 首发范围、兼容性与开发接续
+<a id="veriqmac-首发范围兼容性与开发接续"></a>
+
+# macOS MVP Scope
 
 更新：2026-11-14（北京时间）。本文记录用户已确认的范围、固定工具链核验结果与未决事项，补充主规格和桌面规格；不是已批准的新原生架构、安装报告或支持声明。已有 Windows/Linux 实现及真实失败、成功证据继续保留。
 
@@ -16,7 +18,7 @@
 
 四组桌面目标都必须完成 F01–F14 中适用的本地功能。优先级调整不删除 Windows/Ubuntu，不允许把 Mac 仅打包成功当作完整客户端交付。
 
-Mac 正式 Bundle ID 已固定为 `io.github.baofengbaofeng.veriq`，后续打包、签名身份与升级沿用该发行契约。当前尚未接入生产 packager 的 appId/CFBundleIdentifier 配置，不因文档确认而声称实际打包或签名完成；离线资产 UUID `bundleId` 与 Runtime vault service 名称不是该应用身份，不作替换。
+Mac 正式 Bundle ID 已固定为 `io.github.baofengbaofeng.veriq`，后续打包、签名身份与升级沿用该发行契约。当前尚未接入生产打包器的 appId/CFBundleIdentifier 配置，不因文档确认而声称实际打包或签名完成；离线资产 UUID `bundleId` 与 Runtime 保险库服务名称不是该应用身份，不作替换。
 
 ## 2. 最新确认最低系统版本：macOS 15（Sequoia）
 
@@ -42,22 +44,22 @@ CI已配置标准标签`macos-15-intel`（Intel）与`macos-15`（Apple Silicon�
 | --- | --- | --- |
 | 平台合同 | `986a2d8`已实现并通过独立切片复审 | Schema/OpenAPI/生成类型与桌面派生Schema严格限制linux/x64、win32/x64、darwin/x64、darwin/arm64；251项契约及196项Python兼容检查通过。契约表达不证明主机系统版本或执行就绪 |
 | 物理依赖闭包 | Node、Chrome、esbuild、原生组件均按平台产生 | 分别验证 x64/arm64；不能复制 Linux node_modules 或仅将 Electron 做 universal 就视为整个 Runtime 通用 |
-| `.app` 与完整性 | 701eb92已交付v2静态库存组件及161项定向回归，独立复审通过；现有安装执行解析器仍保留schema1入口 | 继续核真实固定资产，向载荷生产和安装角色接入有限Framework链接；实际descriptor尚待归档枚举，禁止全局放开链接或盲目展平bundle |
+| `.app` 与完整性 | 701eb92已交付v2静态库存组件及161项定向回归，独立复审通过；现有安装执行解析器仍保留schema1入口 | 继续核真实固定资产，向载荷生产和安装角色接入有限Framework链接；实际描述信息尚待归档枚举，禁止全局放开链接或盲目展平bundle |
 | 私有文件 | B已实现Darwin公开POSIX目录句柄相对访问；`4966090`复审通过 | 双架构各44项实际测试通过；继续保持同FD owner、类型、权限、扩展ACL及提交不确定性检查，C2须保活File至真实CLI退出和最终核验 |
-| Runtime Keychain | 用户已确认采用原生文件型 Keychain；独立 helper 及工具已完成源码复审和双架构安全 CI，真实存取待验收 | 复用有限 helper 协议与标准加密信封，通过独立辅助进程存取；锁定或访问失败时拒绝执行，无明文 fallback，签名身份及无交互策略须实际验证 |
+| Runtime Keychain | 用户已确认采用原生文件型 Keychain；独立辅助进程及工具已完成源码复审和双架构安全 CI，真实存取待验收 | 复用有限辅助进程协议与标准加密信封，通过独立辅助进程存取；锁定或访问失败时拒绝执行，无明文回退路径，签名身份及无交互策略须实际验证 |
 | Electron Cookie | Mac 使用 Keychain，现有生产保护门未开放 Darwin | 最终签名 bundle 的 fuse、真实 provider、SQLite 密文、重启、锁定及旧 Cookie 退役均需真实验证 |
 | 桌面生命周期 | 菜单栏、Dock、activate、登录项及安装路径存在平台差异 | 区分窗口关闭、退出 UI、停止 Agent、取消任务；保留后台执行与恢复能力 |
 | 安装与升级 | Mac 安装载体及签名布局尚待设计 | 双架构独立产物是研究建议，尚非用户已选方案；必须核验执行中升级拒绝、兼容回滚与卸载保留数据 |
 
-用户于2026-11-15（北京时间）确认：Mac Electron 主进程直接加载已核验的 Darwin Node-API 插件，用于私有档案和有限旧 Cookie 文件操作，不新增独立 Node 文件代理。只有完整库存、真实宿主身份、目标架构和对应签名/装载校验通过后才能绑定原生能力；renderer 不得直接取得插件、任意路径或句柄。两架构需验证实际 Electron 装载，Node-API 稳定接口本身不代替验收。独立文件型 Keychain helper 及其授权边界保持不变，此选择不授权真实钥匙串、Cookie 会话或信任配置操作。
+用户于2026-11-15（北京时间）确认：Mac Electron 主进程直接加载已核验的 Darwin Node-API 插件，用于私有档案和有限旧 Cookie 文件操作，不新增独立 Node 文件代理。只有完整库存、真实宿主身份、目标架构和对应签名/装载校验通过后才能绑定原生能力；渲染进程不得直接取得插件、任意路径或句柄。两架构需验证实际 Electron 装载，Node-API 稳定接口本身不代替验收。独立文件型 Keychain 辅助进程及其授权边界保持不变，此选择不授权真实钥匙串、Cookie 会话或信任配置操作。
 
 Darwin私有目录的`replace(name, temporary, ...)`只接受严格的`.<小写UUID>.tmp`临时成员名（41字节）；业务暂存意图名与底层发布临时名是两个参数，不可互相替代。调用方须保留按Attempt识别的中断意图与提交不确定性，不通过放宽原生名称规则修复调用错误。
 
-用户于2026-11-14明确选择原生文件型（file-based）Keychain，保持独立辅助进程架构，不改为需要新增应用封装、签名授权和 provisioning profile 的 Data Protection 路线。两类实现的权限与签名模型见 Apple [TN3137](https://developer.apple.com/documentation/technotes/tn3137-on-mac-keychains)；实际签名身份、无交互策略和升级连续性仍须验证。
+用户于2026-11-14明确选择原生文件型（file-based）Keychain，保持独立辅助进程架构，不改为需要新增应用封装、签名授权和预置授权描述文件（provisioning profile） 的 Data Protection 路线。两类实现的权限与签名模型见 Apple [TN3137](https://developer.apple.com/documentation/technotes/tn3137-on-mac-keychains)；实际签名身份、无交互策略和升级连续性仍须验证。
 
 私有测试路径不代表Keychain操作对用户偏好无影响：`SecKeychainCreate`可能更新持久搜索列表并在缺失时设置默认钥匙串，删除也会更新偏好；先创建再恢复设置不能作为隔离方案。普通标准CI账户仅执行构建及无存储变更的协议检查。用户现已明确授权专用 GitHub 临时 Mac VM/一次性账户中的 Runtime 私有测试钥匙串创建、锁定、解锁、删除及该账户偏好影响；这是现有工作流独立手动任务的有限例外，不以改变HOME或不支持的Dynamic偏好域代替隔离。
 
-该路线使用默认关闭且与 baseline/只读预检互斥的 `private_store_acceptance`，固定双 Mac 矩阵；checkout 前验证托管上下文，同一任务重新构建四成员、核验实际架构/UID/原生安全会话，再生成私有声明并运行未改动的7+2项测试。旧 VM 预检不能授权新 VM；`getlogin_r`、会话与图形访问谓词不等于真实控制台登录完成。仅在同次运行两架构均完整9项 PASS、来源绑定及清理证据有效时，才能接受 Runtime 私有测试存储结果。清理命令与控制器 close 从具名测试 PASS 及冻结夹具/控制器源码推导，控制器退出码 `NOT_CAPTURED`、独立确认制品 `NOT_EMITTED`，未知不由账户销毁提升为成功。精确命令、预算和制品边界见[独立 Keychain 验收](../testing/macos-keychain.md)；真实 CI 执行结果仍待完成。
+该路线使用默认关闭且与 baseline/只读预检互斥的 `private_store_acceptance`，固定双 Mac 矩阵；源码检出前验证托管上下文，同一任务重新构建四成员、核验实际架构/UID/原生安全会话，再生成私有声明并运行未改动的7+2项测试。旧 VM 预检不能授权新 VM；`getlogin_r`、会话与图形访问谓词不等于真实控制台登录完成。仅在同次运行两架构均完整9项通过、来源绑定及清理证据有效时，才能接受 Runtime 私有测试存储结果。清理命令与控制器 close 从具名测试通过及冻结夹具/控制器源码推导，控制器退出码 `NOT_CAPTURED`、独立确认制品 `NOT_EMITTED`，未知不由账户销毁提升为成功。精确命令、预算和制品边界见[独立 Keychain 验收](../testing/macos-keychain.md)；真实 CI 执行结果仍待完成。
 
 用户已确认可以安排 macOS15及以上的 Intel 与 Apple Silicon 独立测试环境。Cookie 冷启动、锁定与恢复，以及安装、签名升级验收必须在独立账户的真实登录会话中进行。除上述专用一次性账户内已授权的私有测试存储及偏好影响外，现有标准 CI 的钥匙串默认值、搜索列表、登录存储及信任配置不得为此修改或锁定；该例外不允许向生产默认存储发送有效请求，Runtime 私有测试钥匙串结果不替代 Electron Cookie 验收。独立环境授权不代表签名资料、实际控制台登录或验收已通过，后续仍须交付对应记录。
 
@@ -67,9 +69,9 @@ Darwin私有目录的`replace(name, temporary, ...)`只接受严格的`.<小写U
 
 按[受控停止设计](macos-controlled-stop.md)与[实施子计划](../plans/macos-controlled-stop.md)推进：复用Playwright BrowserServer公共API和受控进程登记/退出观察；停止回执明确标识范围，不能写成Linux/Windows的全后代DRAINED证明。Linux subreaper和Windows Job继续保留原有强保证；未知不能自动释放容量。
 
-此前可行性研究仍约束实现：kqueue的NOTE_TRACK不受支持，进程组或PID扫描不构成退出事实；Endpoint Security另需Apple批准/root/FDA且没有已证实的全排空通路，本方案不依赖；Linux VM浏览器已被用户排除。当前工程路线改为可信CLI通过公开Node通道持有真实子进程对象，不依赖非child peer身份链；具体发行Node自检、Darwin私有fd存储和双架构实际退出仍须验证，不能用未核实API补成就绪。
+此前可行性研究仍约束实现：kqueue的NOTE_TRACK不受支持，进程组或PID扫描不构成退出事实；Endpoint Security另需Apple批准/root/FDA且没有已证实的全排空通路，本方案不依赖；Linux VM浏览器已被用户排除。当前工程路线改为可信CLI通过公开Node通道持有真实子进程对象，不依赖非子进程对端身份链；具体发行Node自检、Darwin私有fd存储和双架构实际退出仍须验证，不能用未核实API补成就绪。
 
-官方依据：[Apple XNU进程事件实现](https://github.com/apple-oss-distributions/xnu/blob/xnu-12377.1.9/bsd/kern/kern_event.c#L1100)、[Endpoint Security entitlement](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.endpoint-security.client)。这些资料是先前研究依据，不是Mac实现或测试通过记录。
+官方依据：[Apple XNU进程事件实现](https://github.com/apple-oss-distributions/xnu/blob/xnu-12377.1.9/bsd/kern/kern_event.c#L1100)、[Endpoint Security 特殊授权](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.endpoint-security.client)。这些资料是先前研究依据，不是Mac实现或测试通过记录。
 
 ## 5. 证书与用户提前准备事项
 
@@ -89,7 +91,7 @@ Darwin私有目录的`replace(name, temporary, ...)`只接受严格的`.<小写U
 | 2 | 完成公共凭据故障状态与显式恢复入口 | `ae38f0a`及修复`b2baf88`通过独立定向复审；最终48项桌面单测通过，适用host/renderer严格检查通过；不依赖Mac原生机制，不代表GUI/目标OS验收 |
 | 3 | 落实最低macOS与受控进程停止 | 最低15、宿主原生Chrome、受控停止范围均已确认；源码私有文件/受控业务组件已验，完整安装与真机产品验收待完成 |
 | 4 | 扩展四组目标的平台合同，再按确认设计实施原生适配、依赖库存和双架构构建 | 合同切片`986a2d8`及B/C源码组件已验；继续系统凭据、完整库存与发行接入，就绪须实际证明，不能绕过受控停止设计 |
-| 4a | Mac Runtime载荷输入与组装 | v2静态库存、输入核验器及有界归档intake已完成源码审查；intake修复后74项通过，输入核验67项通过，各自Minor留T22。继续以相同合同完成真实Runtime候选目录；当前不授予installed/ready、签名或凭据操作能力，双架构目标执行及Electron实际装载仍待验收 |
+| 4a | Mac Runtime载荷输入与组装 | v2静态库存、输入核验器及有界归档归档接收已完成源码审查；归档接收修复后74项通过，输入核验67项通过，各自Minor留T22。继续以相同合同完成真实Runtime候选目录；当前不授予installed/ready、签名或凭据操作能力，双架构目标执行及Electron实际装载仍待验收 |
 | 5 | 两类 Mac 原生安装与全功能验收 | 用户已确认可安排两架构独立测试环境；具体访问/独立登录会话、签名输入和实际验收记录仍待落实 |
 | 6 | 完成较低优先级 Windows/Ubuntu 发行及 T21–T23 | 全部仍在首发范围；保留原有实现、失败和证据，不重新归零 |
 

@@ -1,4 +1,6 @@
-# V09：全量质量、覆盖率与规范整改
+<a id="v09全量质量覆盖率与规范整改"></a>
+
+# V09 Quality
 
 状态：待执行及整改。代码优先阶段没有运行本轮类型、lint、格式、测试或覆盖率；不能依据历史通过数或“已提交”给出质量结论。
 
@@ -24,6 +26,6 @@ PyCharm 的 TS5097 配置修复与定向诊断见
 
 行宽专项：运行 `python3 scripts/line_width.py`（也可 `pnpm lint:width`），按 IDE 显示列检查整个源码范围。中文及其它全角/宽字符占 2 列，ASCII 占 1 列；注释符号和缩进均计入每行 120 列上限。`len()`、UTF-8 字节数、JavaScript `length`、Prettier/Black/Ruff 的排版目标均不能替代该判定。全量业务验证仍单独执行。
 
-入口参考：根 `pnpm check`/`pnpm test`、各包 scripts、服务端 pytest/ruff/mypy 配置、`scripts/comment_audit.py` 及正常 `./build.sh`。先阅读当前接口或 `--help`，不要复制旧私有 launcher 作为正式冻结构建证明。只在源码变化、失败或具体疑点需要时重复检查。
+入口参考：根 `pnpm check`/`pnpm test`、各包 scripts、服务端 pytest/ruff/mypy 配置、`scripts/comment_audit.py` 及正常 `./build.sh`。先阅读当前接口或 `--help`，不要复制旧私有启动器作为正式冻结构建证明。只在源码变化、失败或具体疑点需要时重复检查。
 
 输出：原始检查结果、范围与排除规则、覆盖率、规范整改和修复提交、剩余问题。全部任务合格前不能给出 V08/V10 正常发行通过结论。

@@ -1,21 +1,12 @@
-# Signed offline bundles
+# Offline Bundles
 
-The Bundles page exports selected published CASE versions or a SUITE with a published
-environment. It downloads an immutable, signed ZIP. Selecting Draft DEBUG freezes the
-current candidate using the existing validation queue; an Agent is not required to
-export that DSL-only snapshot. Local compilation/execution is the next Runtime module.
-Signature verification proves package source and integrity, not the honesty of local
-results. Offline verification reports revocation UNKNOWN and never grants a formal gate.
+<a id="signed-offline-bundles"></a>
 
-The controller retains each original immutable validation source, receipt, compiled
-descriptor and generated file. The combined snapshot contains the complete exact
-version closure, public environment/adapter configuration and secretRef/version pins.
-It never resolves credential values. Store passwords/tokens in credential mappings;
-do not author sensitive literal values in resource documents or datasets.
+资源包页面将选定的已发布 CASE 版本或 SUITE 与已发布环境导出为不可变签名 ZIP。选择草稿 DEBUG 时，通过既有校验队列冻结当前候选；导出仅含 DSL 的快照不需要 Agent。本机编译/执行属于后续 Runtime 模块。签名验证证明包的来源和完整性，不证明本机结果诚实。离线验证将撤销状态报告为 UNKNOWN，绝不授予正式门禁通过。
 
-New installations initialize a separate Ed25519 issuer under an operator-only directory.
-Existing installations must explicitly provision one and set `bundle_issuer_path` in
-configuration. The cookie/HMAC `signing_key` has a different purpose and is never reused.
+控制服务保留每份原始不可变校验源码、回执、编译描述符及生成文件。合并快照含完整精确版本闭包、公开环境/适配器配置及 secretRef/版本钉选，绝不解析凭据值。密码和令牌应存入凭据映射，不要在资源文档或数据集中编写敏感字面量。
+
+新安装在运维人员独占目录下初始化独立 Ed25519 签发者。已有安装必须显式准备签发者，并在配置中设置 `bundle_issuer_path`。Cookie/HMAC 的 `signing_key` 用途不同，绝不复用。
 
 ```sh
 uv run --project apps/srv python -m veriq_server issuer init --path /private/veriq-issuer/issuer.json
@@ -24,15 +15,9 @@ uv run --project apps/srv python -m veriq_server issuer rotate --path /private/v
 uv run --project apps/srv python -m veriq_server issuer revoke --path /private/veriq-issuer/issuer.json --key-id OLD_KEY_ID
 ```
 
-Commands print public metadata only. Back up the private issuer file and its history;
-all service instances must use the same operator-managed material. Rotation keeps old
-public keys. Rotate before revoking the active key. Restart never invents a new identity.
-Missing/lost keys disable exports clearly while unrelated platform functions continue.
-Loss requiring a new issuer needs explicit authenticated rebind or administrator
-fingerprint redistribution; old packages remain verifiable with retained trusted roots.
-Do not restore stale revocation state over a newer trusted cache.
+命令只输出公开元数据。须备份签发者私有文件及历史，所有服务实例必须使用同一套运维管理材料。轮换保留旧公钥；撤销活动密钥前先轮换。重启绝不凭空生成新身份。密钥缺失或丢失时明确禁用导出，平台其他功能继续工作。若丢失后必须更换签发者，须显式通过已认证的重新绑定或由管理员重新分发指纹；保留可信根时旧包仍可验证。不得用过期撤销状态覆盖较新的可信缓存。
 
-The native CLI uses bearer authentication, exact origin and no redirects/cookies:
+原生 CLI 使用 Bearer 认证、精确 Origin，不接受重定向或 Cookie：
 
 ```sh
 veriq_cli trust refresh
@@ -40,78 +25,28 @@ veriq_cli bundle download BUNDLE_UUID --output ./download/bundle.zip
 veriq_cli bundle verify ./download/bundle.zip --destination ./snapshots/BUNDLE_UUID
 ```
 
-`trust refresh` requires an enrolled HTTPS server and current device authorization.
-For initial out-of-band trust, obtain the issuer's public JSON through the administrator
-and independently compare an active key fingerprint:
+`trust refresh` 要求已登记的 HTTPS 服务和当前设备授权。首次带外信任时，通过管理员取得签发者公开 JSON，并独立核对一个活动密钥的指纹：
 
 ```sh
 veriq_cli trust bind issuer-public.json --origin https://control.example --fingerprint SHA256
 ```
 
-A ZIP cannot install its own key. Known revoked keys always fail. Expired or unvalidated
-packages fail unless `bundle verify --debug` is explicit; this remains non-formal.
-Issuer replacement requires an explicit fingerprint rebind. Public roots/revocations
-remain after logout; clearing the entire native profile is a distinct intentional action.
+ZIP 不能安装自己的密钥。已知撤销的密钥始终失败。过期或未校验的包默认失败，只有显式使用 `bundle verify --debug` 才允许，且仍非正式结果。更换签发者要求显式按指纹重新绑定。注销后保留公开根及撤销信息；清空整个原生档案是另一项有意操作。
 
-Local credentials are keyed by issuer, Workspace, exact secretRef and version UUID.
-Use `secret set` with JSON on stdin, never a value in argv or a renderer field transported
-to arbitrary filesystem APIs. `secret remove` accepts the same exact reference options.
+本机凭据以签发者、Workspace、确切 secretRef 和版本 UUID 为键。使用 `secret set` 从标准输入接收 JSON；不得把值放入 argv，也不能通过 renderer 字段传入任意文件系统 API。`secret remove` 接受同一组精确引用选项。
 
 ```sh
 veriq_cli secret set --issuer ISSUER --workspace WORKSPACE_UUID --ref reader --version VERSION_UUID
 ```
 
-The current native seam uses a 0700 directory and atomic 0600 configuration file; it is
-not an OS vault. Values never appear in command output. Missing mappings fail explicitly;
-there is no automatic online resolution or substitution of a newer version. Logout clears
-local mappings while retaining trust. T20 owns OS vault/native installation validation.
+当前原生接缝使用 0700 目录及原子替换的 0600 配置文件，并非 OS vault。值不会出现在命令输出中。映射缺失时明确失败，不自动在线解析，也不替换为较新版本。注销清除本机映射但保留信任。OS vault/原生安装验证归 T20。
 
-Limits are 100 selected CASE roots, 1000 assets, reference depth100, 2MiB per resource,
-16MiB source closure, 4096 ZIP entries, 64MiB compressed archive, 128MiB expanded output,
-16MiB per member, and 1MiB manifest. Verification checks the exact detached signature
-before writing archive members, then complete hashes/provenance before atomically
-publishing a read-only snapshot. Paths use a bounded portable ASCII subset; traversal,
-backslashes, Windows reserved names/ADS/trailing dots, collisions, symlinks/devices,
-encryption and undeclared/missing files are rejected. Existing destinations are not
-intentionally overwritten. Reverify downloaded bytes after any local modification.
+上限为：选定 CASE 根 100 个、资产 1000 个、引用深度100、每资源 2MiB、源码闭包 16MiB、ZIP 条目 4096 个、压缩归档 64MiB、展开输出 128MiB、每成员 16MiB，以及清单 1MiB。验证先检查精确的分离签名，之后才写归档成员；再校验完整摘要及来源，最后原子发布只读快照。路径采用有界、可移植 ASCII 子集，拒绝路径穿越、反斜杠、Windows 保留名/ADS/尾点、冲突、符号链接/设备、加密及未声明或缺失文件。不主动覆盖已有目标。本机修改下载字节后须重新验证。
 
-The ZIP carries engine identity/inventory and lock metadata, not cross-OS node_modules.
-Install a matching supported Runtime and browsers separately. A missing dependency or
-unavailable original provenance fails export/verification. Data is read-only; this does
-not add offline editing, automatic sync, result import or another online Attempt path.
-T15 owns distinct OFFLINE_IMPORT results. Package/metadata lifecycle and explicit
-read-only cache deletion are T21; raw Trace remains credential-restricted.
+ZIP 携带引擎身份、库存及锁元数据，不携带跨 OS 的 node_modules。须另外安装匹配的受支持 Runtime 和浏览器。依赖缺失或原始来源不可用时，导出/验证失败。数据只读，不增加离线编辑、自动同步、结果导入或另一条在线 Attempt 路径。独立 OFFLINE_IMPORT 结果归 T15；包/元数据生命周期与显式只读缓存删除归 T21；原始 Trace 继续受凭据访问限制。
 
-Fingerprint binding trusts only the individually checked signing key. Other keys,
-unsigned revisions and revocation claims in that JSON do not gain authority. Issuer IDs
-in this path are local lookup labels; they never select a credential destination.
-Authenticated refresh uses the independently enrolled Runtime origin and checks its
-monotonic authenticated metadata. Rotation requires authenticated refresh or a separate
-fingerprint check for each new key. Known revoked fingerprints remain denied across
-aliases, rebind and logout. Pre-fix trust caches cannot authenticate signing roots;
-explicit rebind retains conservative known-revocation denies while dropping old roots.
+指纹绑定只信任逐一核对的签名密钥；同一 JSON 中的其他密钥、未签名修订和撤销声明不会因此获得权威性。这条路径中的签发者 ID 只是本机查询标签，绝不选择凭据目的地。已认证刷新使用独立登记的 Runtime Origin，并核对单调的已认证元数据。轮换须通过已认证刷新，或分别核对每把新密钥的指纹。已知撤销指纹跨别名、重新绑定及注销仍被拒绝。修复前的信任缓存不能认证签名根；显式重新绑定在移除旧根时，保留对已知撤销项的保守拒绝。
 
-Web bundle creation is synchronous201 and accepts only WebSession+CSRF. Supply a
-printable ASCII `Idempotency-Key` (1–160 characters). Workspace+key binds the actor and
-canonical request. Same actor/body returns the original immutable bundle after current
-membership, credential pins, signing-key status and approved-engine checks; no archive
-is regenerated. Different actor/body returns409. IN_PROGRESS or FAILED reservations
-return explicit409 and are never automatically taken over. After a crash or ambiguous
-response, reconcile the prior export before deliberately choosing a new key. These
-reservations survive restart; T21 must retain retry bindings when applying lifecycle.
-The GUI retains a key for retries of the same submitted selection, a visible CASE
-resource/version basket, and cursor pagination for CASE/SUITE/environment versions.
+Web 创建资源包同步返回201，只接受 WebSession+CSRF。提供可打印 ASCII `Idempotency-Key`（1～160 字符）。Workspace+键绑定操作者及规范请求。同一操作者和正文，在重新检查当前成员身份、凭据钉选、签名密钥状态及批准引擎后，返回原始不可变资源包，不重新生成归档。不同操作者或正文返回409。IN_PROGRESS 或 FAILED 预留明确返回409，绝不自动接管。崩溃或响应不确定时，应先核对原导出，再有意选择新键。这些预留在重启后保留；T21 应用生命周期时必须保留重试绑定。GUI 对同一已提交选择的重试保留键，展示 CASE 资源/版本选择篮，并为 CASE/SUITE/环境版本提供游标分页。
 
-Operator configuration promotion must coordinate with exports. Stable lock paths are
-`Path(bundle_issuer_path).with_suffix(".lock")` and
-`Path(bundle_issuer_path).with_suffix(".inventory.lock")`, in the private writable issuer
-state directory (never beside read-only release assets). All instances share this state.
-Take exclusive `flock` on issuer lock, then inventory lock; atomically replace the approved
-inventory, fsync file/directory, then release in reverse order. Issuer rotation/revocation
-CLI takes the first lock. Never replace lock files themselves. Service acquires these
-locks before DB transactions, reads current files outside DB locks, then holds them through
-publish/replay commit. Compression releases both guards and DB transactions; final
-publication reacquires fresh authority. Unguarded manual hot replacement is unsupported.
-T18 engine promotion must use this exact coordination protocol. Acquisition is bounded
-five seconds per guard and cancellation releases eventual descriptors; no time-based reservation
-takeover or internal scheduler is introduced.
+运维配置晋升必须与导出协调。稳定锁路径为 `Path(bundle_issuer_path).with_suffix(".lock")` 及 `Path(bundle_issuer_path).with_suffix(".inventory.lock")`，放在私有可写的签发者状态目录中，绝不放在只读发行资产旁。所有实例共享这份状态。依次对签发者锁、库存锁取得独占 `flock`，原子替换批准库存，对文件和目录执行 fsync，再逆序释放。签发者轮换/撤销 CLI 取得第一把锁。锁文件本身绝不能被替换。服务在数据库事务之前取得这些锁，在数据库锁外读取当前文件，随后一直持有至发布/重放提交。压缩阶段释放两把守卫锁及数据库事务；最终发布重新取得最新权威状态。不支持无守卫的手工热替换。T18 引擎晋升必须使用这一精确协调协议。每把守卫锁的获取时间上限为五秒；取消时会释放最终取得的描述符，不引入按时间接管预留或内部调度器。

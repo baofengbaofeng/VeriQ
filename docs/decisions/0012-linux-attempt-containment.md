@@ -1,56 +1,18 @@
-# ADR 0012 — Kernel-owned Attempt containment and correlated claim recovery
+<a id="adr-0012--kernel-owned-attempt-containment-and-correlated-claim-recovery"></a>
+# 0012 Linux Attempt Containment
 
-Status: accepted for T10 review fix1 after coordinator preflight approval.
+状态：协调者预研批准后，T10 复审修复 1 已接受。
 
-A real counterexample invalidated the original stop-time ownership scan: a worker can start
-an empty-environment detached child, then exit before discovery. The orphan loses both the
-recorded parent relation and inherited nonce. An empty scan cannot establish physical stop.
-Ordinary signal-forwarding init wrappers are also insufficient: exiting with the primary
-worker or forwarding only its process group does not establish that all adopted children
-are gone. This decision supersedes the positive scanning proof in ADR0011.
+真实反例推翻了原停止时的所有权扫描：Worker 可启动空环境且脱离的子进程，并在发现前退出；孤儿失去已记录父关系及继承 nonce，空扫描不能证明物理停止。普通信号转发 init 包装同样不足：随主 Worker 退出，或只转发其进程组，都不能证明全部收养子进程消失。本决策取代 ADR0011 的正向扫描证明。
 
-A thin per-Attempt Linux guardian uses the existing kernel `PR_SET_CHILD_SUBREAPER` primitive.
-It successfully enables adoption before its single fork. The business worker stays behind
-an internal gate until Node has durably journaled actual UID, worker and guardian PID/start
-times. The existing server activation acknowledgment precedes this entire path; the trusted
-Node worker retains its additional START message gate before compiler/auth/fixture work.
+每 Attempt 的薄 Linux guardian 使用既有内核 `PR_SET_CHILD_SUBREAPER` 原语，在唯一一次 fork 前成功启用收养。业务 Worker 停在内部门后，直到 Node 持久记录真实 UID、Worker 与 guardian PID/启动时间。现有服务端激活确认先于整条路径，可信 Node Worker 在编译/认证/fixture 前仍保留额外 START 消息门。
 
-The guardian has no device or lease credential. Node IPC to the original worker remains FD3.
-Private guardian status/control channels are FD4/FD5, distinct from business stdout/stderr;
-the worker closes both before exec and cannot hold control open or emit a guardian status.
-The bounded version1 protocol has READY(workerPid), EXIT(code/signal), START and STOP. Parent
-control EOF or a termination signal initiates cleanup; signal handlers only set a flag.
-The main loop exclusively waits/reaps and signals actual same-UID direct children after
-start-time verification. `/proc` PPID enumeration works without the optional task/children
-file. Kernel adoption brings descendants back to the guardian regardless of setsid, exec,
-environment replacement or intervening parent death. Scanning never establishes success.
+guardian 没有设备或租约凭据。到原 Worker 的 Node IPC 仍为 FD3，私有 guardian 状态/控制通道为 FD4/FD5，与业务 stdout/stderr 分离。Worker 在 exec 前关闭两者，不能持有控制通道或伪造 guardian 状态。有界版本 1 协议包含 READY(workerPid)、EXIT(code/signal)、START、STOP。父控制 EOF 或终止信号启动清理，信号处理器只设置标志。主循环独占 wait/reap，并在启动时间验证后向真实同 UID 直接子进程发信号。`/proc` PPID 枚举不依赖可选 task/children 文件。无论 setsid、exec、环境替换或中间父进程死亡，内核收养都把后代交回 guardian；扫描绝不作为成功依据。
 
-Only a closed spawn gate plus `waitpid(-1) == -1` with ECHILD permits the guardian to write
-its private DRAINED proof. It fsyncs the file and directory before exit. Version1 proof binds
-nonce, UID, guardian PID/start time and worker PID/start time. Node validates those exact
-journal identities and waits for guardian exit before positive stop. It retains bounded
-TERM grace (500ms by default) followed by KILL, with a bounded parent stop wait of grace+2s.
-An uninterruptible child can outlive that wait: the guardian continues adopting/reaping,
-while Node returns unknown and capacity stays quarantined. Missing proof, guardian death,
-identity mismatch, inaccessible ownership facts or old journals lacking containment never
-become success through a fallback scan. After guardian death Node may kill the exactly
-identified known worker group as best effort, while still returning unknown for the tree.
+只有派生门已关闭，且 `waitpid(-1) == -1`、errno 为 ECHILD，guardian 才可写私有 DRAINED 证明。退出前 fsync 文件和目录。版本 1 证明绑定 nonce、UID、guardian PID/启动时间及 Worker PID/启动时间。Node 精确验证这些日志身份，并等待 guardian 退出后才能确认停止。保留有界 TERM 宽限（默认 500ms），随后 KILL；父进程停止等待上限为宽限+2s。不可中断子进程可能活过等待：guardian 继续收养/收割，Node 返回未知，容量继续隔离。缺证明、guardian 死亡、身份不匹配、所有权事实不可读或旧日志缺少隔离信息，均不能靠回退扫描变成成功。guardian 死亡后，Node 可尽力终止精确识别的已知 Worker 组，但整树仍返回未知。
 
-Source is `apps/runtime/native/linux-runner.c`. The development-only `build:launcher` command
-uses a C compiler and outputs ignored `apps/runtime/build/veriq_runner`; normal Runtime
-start never compiles or invokes bwrap/unshare/Python. Runtime uses this fixed installed path,
-never a Job-selected executable. Missing helper fails closed. T20 must build and distribute
-the same helper ABI/source for each supported Linux target alongside the Agent, using its
-native release controls; this developer build is not a production installer. Windows job
-objects and native image/vault integration remain T20. No npm dependency pins changed.
+源码为 `apps/runtime/native/linux-runner.c`。仅开发使用的 `build:launcher` 调用 C 编译器，输出被忽略的 `apps/runtime/build/veriq_runner`；正常 Runtime 启动不编译，也不调用 bwrap/unshare/Python。Runtime 使用固定安装路径，不接受 Job 选择可执行文件；缺少助手则失败关闭。T20 必须按原生发行控制，为每个支持的 Linux 目标构建并随 Agent 分发相同助手 ABI/源码；开发构建不是生产安装器。Windows Job Object、原生映像/保险库集成仍属 T20，npm 依赖固定版本未改变。
 
-Separately, claim request recovery now journals the exact clientRequestId with the assigned
-Attempt. Only successful reconciliation of that same request permits removal of its pending
-request file. Unrelated historical journals cannot erase a newer unacknowledged UUID. Old
-journals without association are conservative; no new queue, manifest or server fence path
-is introduced.
+另外，领取请求恢复现将精确 clientRequestId 与分配 Attempt 一同记入日志。只有成功协调同一请求后才能删除其待定请求文件；无关历史日志不能擦除更新且尚未确认的 UUID。没有关联信息的旧日志保守处理，不引入新队列、清单或服务端 fence 路径。
 
-The initial absence of a proof is a time-bounded observation. The guardian can fsync its
-proof and exit before the parent's subsequent `/proc` read. On that exit handoff the parent
-rechecks the complete proof binding and guardian exit before returning unknown. A live
-UID/start-time/nonce mismatch is still rejected; empty `/proc` results alone remain insufficient.
+初次未发现证明只是有时限的观测。guardian 可能在父进程随后读取 `/proc` 前 fsync 证明并退出；该退出交接时，父进程在返回未知前再次检查完整证明绑定和 guardian 退出。活动 UID/启动时间/nonce 不匹配仍拒绝，仅空 `/proc` 结果始终不足。

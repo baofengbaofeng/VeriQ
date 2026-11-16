@@ -1,4 +1,6 @@
-# ADR 0021：独立 Runtime、原生边界与桌面发行
+<a id="adr-0021独立-runtime原生边界与桌面发行"></a>
+<a id="adr-0021-independent-runtime-and-native-distribution"></a>
+# 0021 Runtime Distribution
 
 状态：2026-11-14，T20 实现边界已确定，正在分步实施；本文不是安装包或目标系统验收报告。T19 源码 `eb2dc4e` 的模块与六项修复复审已通过，完整发行仍需 T20–T23 的实际证据。状态以[里程碑](../plans/milestones.md)为准。
 
@@ -21,7 +23,7 @@
 | 凭据库 | @napi-rs/keyring2.1.2，MIT | 暂不引入原始预编译包；原生闭包有待处置的公告，Linux 默认还可能回退到易失 keyutils | 如后续重选须重新评审实际目标二进制及第三方许可 |
 | 凭据库 | keytar7.9.0，MIT | 不选；上游归档且 Node24 预编译兼容尚未证明 | 不因直接包无公告就视原生图已安全 |
 | 系统凭据 | Windows Credential Manager、Linux libsecret/Secret Service | 复用成熟 OS 服务，用有限原生适配访问；独立 Agent 在 UI 退出后仍可工作 | Ubuntu 精确系统包/ABI/许可、锁定与不可用、重启和真实用户隔离 |
-| 大凭据载荷 | Node 标准 crypto 认证加密 | OS vault 保存随机密钥，版本化私有密文保存 storageState、设备与轮换载荷；保留精确引用和恢复日志 | AAD/原子替换/失败恢复/迁移/删除及大对象上限 |
+| 大凭据载荷 | Node 标准 crypto 认证加密 | OS 保险库 保存随机密钥，版本化私有密文保存 storageState、设备与轮换载荷；保留精确引用和恢复日志 | AAD/原子替换/失败恢复/迁移/删除及大对象上限 |
 
 以上是实现选择和比较，尚未安装的包不写成已集成。 构建工具21个精确版本的逐项许可、完整性和即时查询见[原生构建依赖记录](../dependencies/t20-native-build-audit.json)；该记录不代替原生源码审查或目标系统验收。tar 的既有精确闭包为 @isaacs/fs-minipass4.0.1、chownr3.0.0、minipass7.1.3、minizlib3.1.0、yallist5.0.0，沿用根锁中的版本；不因为 registry 存在更新版本而静默升级。node-addon-api 仅用于构建，安装后的机器不要求编译器。
 
@@ -29,11 +31,11 @@
 
 ## 独立发行闭包与身份
 
-GUI 随包携带本地页面。Agent、CLI、Worker、编译 helper、运行依赖、Node 角色文件、浏览器和引擎放在真正的 ASAR 外资源目录；独立 Node 不依赖 Electron 的虚拟文件系统、仓库源码链接、全局工具或在线下载。实际可执行文件名为 veriq、veriq_agent、veriq_runner，CLI 可为 veriq_cli；每个进程的执行路径、hash 与 OS 名称均须核验。完整库存核验后的原始发行对象私有绑定清单具体 Node 版本，角色实测版本必须精确一致；复制对象或同主版本的其它 Node 不继承执行能力。既有24.22.1库存与真实审计事实不改写。原生 guardian 和角色 Node 可以在不同目录各自使用 veriq_runner 名称，所有权通过实际句柄与启动身份区分。
+GUI 随包携带本地页面。Agent、CLI、Worker、编译助手、运行依赖、Node 角色文件、浏览器和引擎放在真正的 ASAR 外资源目录；独立 Node 不依赖 Electron 的虚拟文件系统、仓库源码链接、全局工具或在线下载。实际可执行文件名为 veriq、veriq_agent、veriq_runner，CLI 可为 veriq_cli；每个进程的执行路径、hash 与 OS 名称均须核验。完整库存核验后的原始发行对象私有绑定清单具体 Node 版本，角色实测版本必须精确一致；复制对象或同主版本的其它 Node 不继承执行能力。既有24.22.1库存与真实审计事实不改写。原生 guardian 和角色 Node 可以在不同目录各自使用 veriq_runner 名称，所有权通过实际句柄与启动身份区分。
 
 npm 使用固定 Node 发行物中的 npm-cli.js 和完整依赖，通过角色 Node 调用，不依赖 npm.cmd、系统 npm 或 shell 拼接。固定 Node 归档内实际 npm 版本与依赖图仍需在获取时记录。生产 Runtime 不要求 Python、MySQL、cc、pnpm 或开发 checkout。
 
-发行 resolver 验证实际文件和引擎库存后，才给 CLI、桌面、云端注册、doctor 和启动报告同一分发身份。product、engine、compiler、SDK 版本分开。初始开发候选命名为 product1.0.0-dev.t20、engine1.0.3-t20-<完整sourceSHA>；生成前冻结真实输入，之后任何输入变化另建候选。保留原1.0.0、1.0.1-t19 与1.0.2-t19-fix1，不覆盖旧签名包所需的字节。跨 OS 可选原生依赖是否进入同一引擎库存必须由实际生产器及离网安装证明。
+发行解析器 验证实际文件和引擎库存后，才给 CLI、桌面、云端注册、doctor 和启动报告同一分发身份。product、engine、compiler、SDK 版本分开。初始开发候选命名为 product1.0.0-dev.t20、engine1.0.3-t20-<完整sourceSHA>；生成前冻结真实输入，之后任何输入变化另建候选。保留原1.0.0、1.0.1-t19 与1.0.2-t19-fix1，不覆盖旧签名包所需的字节。跨 OS 可选原生依赖是否进入同一引擎库存必须由实际生产器及离网安装证明。
 
 ## 私有 IPC、凭据和生命周期
 
@@ -45,9 +47,9 @@ Windows 停止事件将 nonce、guardian PID/完整 FILETIME、Worker PID/完整
 
 Windows 私有配置通过有限系统适配使用 `NtCreateFile` 逐组件相对父目录句柄打开，拒绝重解析点，并在同一文件句柄完成 ACL、类型、大小检查和有界读取；新私有目录从创建时具有当前 SID 的保护继承 DACL，既有公开对象直接拒绝。原子替换先刷新自有临时文件，再用 `NtSetInformationFile(FileRenameInformation)` 绑定同一源句柄、父目录句柄和单个目标名称，提交后刷新同一文件；提交后错误返回不确定性，不能假称回滚或重放回调。不向 JavaScript 暴露任意 NT 操作、原始句柄或通用 FFI；仅复用系统 ntdll 链接，不分发系统 DLL。`c6a5a22` 的29项实际 Windows Server 测试及三个模块导入观测通过，但 Node/SQLite 子文件继承、完整消费者、安装和断电恢复仍有独立验证要求。此前 Win32 重命名调用的参数错误内部原因未确定，补终止字符的比较未解决该错误；不能将 API 替换描述为已证明某个未观测内部原因。
 
-桌面默认使用系统凭据库，锁定、缺失、不可用和错误不能都折叠为缺凭据。凭据库不可用时明确失败，不自动降级。大型载荷使用标准认证加密，密钥独立保存在 OS vault，元数据绑定 profile、purpose、精确引用和版本。当前设备 token、旧/新轮换 token 与业务凭据一起纳入；迁移须显式进行，在停止且独占的 profile 中写入、读回核验和记录进度，再删除旧明文。中途失败保留可恢复事实。
+桌面默认使用系统凭据库，锁定、缺失、不可用和错误不能都折叠为缺凭据。凭据库不可用时明确失败，不自动降级。大型载荷使用标准认证加密，密钥独立保存在 OS 保险库，元数据绑定 profile、purpose、精确引用和版本。当前设备 token、旧/新轮换 token 与业务凭据一起纳入；迁移须显式进行，在停止且独占的 profile 中写入、读回核验和记录进度，再删除旧明文。中途失败保留可恢复事实。
 
-无桌面 Linux 服务可按既有规格显式选择 restricted-file：专用用户、拥有者核验、0700目录和0600文件、外置持久卷及明示的非加密存储性质。该模式不是桌面 fallback，不声称 OS vault 或加密静态存储。登记秘密经有界标准输入或 OS 服务凭据通道注入，不写入 argv、镜像或日志。
+无桌面 Linux 服务可按既有规格显式选择 restricted-file：专用用户、拥有者核验、0700目录和0600文件、外置持久卷及明示的非加密存储性质。该模式不是桌面回退，不声称 OS 保险库 或加密静态存储。登记秘密经有界标准输入或 OS 服务凭据通道注入，不写入 argv、镜像或日志。
 
 更新与卸载须把 preparing startupId、正在执行、在线 Worker、未知或隔离进程都视为忙。替换文件前获得同一次操作的真实停止证明。首版采用人工发起的已验证安装升级，不增加自动更新依赖；不能依赖安装器强杀所有同名进程。回滚必须兼容数据库、本地日志和旧引擎，卸载默认保留外置历史与配置。
 
@@ -55,16 +57,6 @@ Windows 私有配置通过有限系统适配使用 `NtCreateFile` 逐组件相�
 
 业务 Playwright 当前存在显式关闭沙箱的历史配置，必须在 T20 中用启动、可见/无头及同 Attempt 停止测试处理；Electron UI 沙箱证明不覆盖业务浏览器。目标默认启用适用沙箱，Ubuntu .deb 可为 root-owned 固定程序路径提供包管理的精确 AppArmor 策略；不授权任意可写路径，不修改全局限制。任意路径解压的独立包不能假定已有宿主授权，doctor 必须说明缺失条件。
 
-开发候选标记 DEVELOPMENT_UNSIGNED，hash 只证明完整性。正式 Windows Authenticode、Linux 发行签名及发布授权另行配置；安装包发行信任与企业测试包 issuer 信任分开。候选流水线不自动发布、不晋升引擎、不使用正式凭据。
+开发候选标记 DEVELOPMENT_UNSIGNED，hash 只证明完整性。正式 Windows Authenticode、Linux 发行签名及发布授权另行配置；安装包发行信任与企业测试包 签发者信任分开。候选流水线不自动发布、不晋升引擎、不使用正式凭据。
 
-Node、Electron、完整 Chrome 的压缩元数据合计约 Linux363MB、Windows412MB，未含角色副本、运行依赖、原生模块、系统库和打包暂存，不能作为安装空间承诺。当前约142MiB空闲宿主只做有界源码检查；大包在新建目标 CI 按平台串行构建。初始规划预留12GiB，实际测量后调整；不删除保护的旧引擎、profile 或证据。Ubuntu 系统库/字体与 Windows DLL 闭包分别在目标解析、锁定和离网验证，不搬运 Debian 宿主库。
-
-# ADR 0021: independent Runtime and native distribution
-
-Retain the frozen Electron toolchain, independent stable Node24.x (`>=24 <25`) and full Playwright-matched Chrome158. Stage actual role executables, JS/helper/dependency closure, npm, browser and verified engines outside ASAR. CI follows `24.x`; each candidate records its actual bundled Node version. Complete inventory hashes, physical role paths and the exact recorded Node version remain mandatory, with execution capability bound to the original verified distribution object. Existing 24.22.1 artifacts and evidence remain unchanged. Product, engine, compiler and SDK identities remain distinct and immutable. Windows11 and Ubuntu24.04 installed acceptance require their actual targets.
-
-Reuse locked tar/tsx, Win32 Jobs, Credential Manager and Linux Secret Service through narrow native adapters. node-addon-api8.9.2 is selected as build-only assistance, subject to actual acquisition and target graph verification. Do not introduce unchanged keyring2.1.2 while its native advisory disposition remains unresolved. Desktop vault keys protect standard authenticated encrypted payloads; explicit restricted-file mode is permitted for unattended Linux, without a silent desktop downgrade or an encryption claim.
-
-Private IPC validates the actual user, operation and bounded frames. Updates must honor preparing, active, online and quarantined ownership and actual stop proof. Candidate NSIS/.deb/standalone artifacts are development unsigned until formal signing is configured and authorized; checksums are not publisher authenticity. Large payload work runs on target CI, preserving existing evidence. These decisions do not claim implementation, target acceptance or complete MVP delivery.
-
-Windows private configuration now uses finite handle-relative NtCreateFile/NtSetInformationFile operations, with same-handle ACL/read checks and explicit post-commit uncertainty. Source c6a5a22 passes the unchanged29 real Windows Server cases and actual system-import observations. This does not establish power-loss durability, complete consumer integration or installed Windows11 acceptance.
+Node、Electron、完整 Chrome 的压缩元数据合计约 Linux363MB、Windows412MB，未含角色副本、运行依赖、原生模块、系统库和打包暂存，不能作为安装空间承诺。当前约142MiB空闲宿主只做有界源码检查；大包在新建目标 CI 按平台串行构建。初始规划预留12GiB，实际测量后调整；不删除保护的旧引擎、配置档案或证据。Ubuntu 系统库/字体与 Windows DLL 闭包分别在目标解析、锁定和离网验证，不搬运 Debian 宿主库。

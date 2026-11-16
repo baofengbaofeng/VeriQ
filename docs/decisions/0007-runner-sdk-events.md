@@ -1,17 +1,18 @@
-# ADR 0007: Deterministic Runner SDK and browser event observers
+<a id="adr-0007-deterministic-runner-sdk-and-browser-event-observers"></a>
+# 0007 Runner SDK Events
 
-Status: accepted for T06, 2026-11-11.
+状态：T06 已接受，日期 2026-11-11。
 
-The approved specification §10 requires dialog, new-page and download listeners, while the initial ObserverV1 schema described only network requests. T06 extends that canonical union without changing the existing network wire shape or fixtures. Network-only response/assertion/extraction references remain enforced by the compiler. Shared compiled-plan types and safe binding functions live in the browser-portable contracts package; the Node-only compiler reexports them for compatibility. The SDK has no compiler runtime dependency.
+已批准规格 §10 要求 dialog、新页面及下载监听器，而最初 ObserverV1 Schema 仅描述网络请求。T06 扩展该规范联合类型，不改变原网络传输形状或夹具。编译器继续限定响应、断言和提取引用只能指向网络观察器。共享编译计划类型及安全绑定函数位于可在浏览器使用的 contracts 包中；仅 Node 使用的编译器为兼容性重新导出它们。SDK 不依赖编译器运行时。
 
-All listeners are installed before their action. Dialog observers specify exact bound type/message and explicit accept/dismiss behavior. Only an accepted prompt permits promptText. Mismatches and unexpected dialogs are dismissed before failing so the action cannot deadlock. Wrapper dialog observers handle nested child actions without competing default dismissal handlers.
+所有监听器均在动作之前安装。dialog 观察器指定精确绑定的类型/消息，以及显式接受或关闭行为；只有接受 prompt 才允许 promptText。不匹配和意外 dialog 在失败前先关闭，避免动作死锁。包装 dialog 观察器处理嵌套子动作，不与默认关闭处理器竞争。
 
-A newPage observer listens to the action source Page's popup event. It publishes a promise for its explicit pageKey before the action and resolves it when captured, allowing later flow children to use the page before wrapper finalization. Acquisition timeout, cancellation and disposal reject pending page consumers. Step and UI/URL assertion pageKey selects that page explicitly; omission always means the original case page. The compiler enforces declaration order and duplicates: a wrapper declaration is visible to its children and subsequent caller steps, a flow-local declaration stays in that flow, and a step's own new declaration cannot be used by its action or before assertions. No global active-page switch exists.
+newPage 观察器监听动作来源 Page 的 popup 事件。在动作前为显式 pageKey 发布 promise，捕获后解析，使后续流程子步骤可在包装步骤最终完成前使用新页面。获取超时、取消和释放均拒绝尚在等待的页面消费者。步骤与 UI/URL 断言的 pageKey 显式选择该页面，省略时始终选择原用例页面。编译器检查声明顺序和重复：包装声明对子项及后续调用方步骤可见，流程局部声明仅在该流程有效；步骤自身的新声明不可用于其动作或前置断言。不存在全局活动页面切换。
 
-Download observers require trusted engine storage configuration. The SDK generates a random filename, limits bytes and elapsed acquisition time, and removes partial files on persistence errors. Browser suggested filenames remain untrusted metadata; DSL never supplies destination paths. Runtime artifact registration, approved storage roots and retention belong to T10/T20.
+下载观察器要求可信引擎存储配置。SDK 生成随机文件名，限制字节数及获取耗时，持久化出错时清理部分文件。浏览器建议文件名仅作为不可信元数据，DSL 不提供目标路径。Runtime 产物注册、批准存储根及保留期属于 T10/T20。
 
-Events are one-shot, but listeners remain active through the entire step, including assertions and network windows. A second event or mismatch fails the step; event results are rechecked before disposal. A successful capture ends its acquisition timeout, not its duplicate-detection window. Network observers independently retain their explicit FIXED/UNTIL_ACTION_SETTLED windows; FIXED expectedCount zero verifies absence without requiring a first response. Retry acceptance compares complete captured request data, not just the matching subset.
+事件只接受一次，但监听器在整个步骤期间保持活动，包括断言和网络窗口。第二个事件或不匹配使步骤失败，释放前再次检查事件结果。成功捕获只结束获取超时，不结束重复事件检测窗口。网络观察器独立保留显式 FIXED/UNTIL_ACTION_SETTLED 窗口；FIXED 的 expectedCount 为零时验证没有事件，无须等待首个响应。重试准入比较完整捕获请求数据，不只比较匹配子集。
 
-The SDK consumes the compiler's phase lists and nested wrappers. registerCase registers actual Playwright tests with retries zero and a trusted separately supplied execution context; missing authentication, fixture or evidence providers fail clearly. Fixture output is checked against its schema before vars assignment; cleanup is attempted even after partial preparation or cancellation. T07 owns actual credentials/authentication/fixture implementations; T10 owns verified execution assembly, result projection and artifact emission. Internal event evidence is mapped to existing STEP_FINISHED/ARTIFACT_CREATED contracts, rather than adding platform event types.
+SDK 消费编译器的阶段列表和嵌套包装。registerCase 注册真实 Playwright 测试，retries 为零，并使用单独提供的可信执行上下文；缺少认证、fixture 或证据提供器时明确失败。fixture 输出赋给 vars 前按 Schema 校验，即使部分准备或取消仍尝试清理。T07 提供实际凭据、认证与 fixture 实现；T10 提供经验证的执行组装、结果投影和产物发射。内部事件证据映射到既有 STEP_FINISHED/ARTIFACT_CREATED 契约，不增加平台事件类型。
 
-Tests use local HTTP targets and Chromium, including emitted TypeScript installed offline with the actual SDK/contracts JavaScript, declarations and exact third-party archives. This proves the integration on the current Linux environment, not full OS release packaging or customer-app integration.
+测试使用本地 HTTP 目标及 Chromium，包括离线安装真实 SDK/contracts JavaScript、声明和精确第三方归档后执行生成的 TypeScript。这证明当前 Linux 环境中的集成，不代表完整 OS 发行打包或客户应用接入。

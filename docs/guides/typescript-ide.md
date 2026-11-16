@@ -1,4 +1,5 @@
-# VeriQ TypeScript 与 PyCharm 配置
+<a id="veriq-typescript-与-pycharm-配置"></a>
+# TypeScript IDE
 
 ## 原因与修正
 
@@ -38,8 +39,8 @@ TypeScript 5.9 要求此选项与不输出 JavaScript 或输出时正确改写�
 ## PyCharm 使用方式
 
 1. 更新仓库并完成正常的冻结依赖安装。
-2. 在 Settings / Languages & Frameworks / TypeScript 中启用 TypeScript Language Service。
-3. TypeScript package 选择本仓库依赖中的 TypeScript 5.9.3，避免使用 IDE 内置旧版本。
+2. 在设置（Settings）→语言与框架（Languages & Frameworks）→TypeScript 中启用 TypeScript 语言服务（TypeScript Language Service）。
+3. 在 `TypeScript package`（TypeScript 包）中选择本仓库依赖中的 TypeScript 5.9.3，避免使用 IDE 内置旧版本。
    可选择 `apps/web/node_modules/typescript` 或其他已安装同版本的工作区包路径。
 4. 若界面仍缓存旧诊断，重启 TypeScript 服务或重新打开项目，使新增配置被发现。
 

@@ -1,8 +1,9 @@
-# ADR 0001: Tornado 6.6.1 baseline
+<a id="adr-0001-tornado-661-baseline"></a>
+# 0001 Tornado Security Baseline
 
-- Status: accepted by the user on 2026-11-10.
-- Decision: use exact Tornado6.6.1 with Python3.12; update lockfiles and all normative documentation.
-- Context: prior6.4.2 is affected by published advisories, including CVE-2025-47287 fixed6.5 and GHSA-pcg2-g6cj-q92c fixed6.6. The user explicitly approved upgrading to6.6.1.
-- Scope: no change to Python/SQLAlchemy/MySQL/React/Electron/Node24 architecture or full MVP scope. No repeated permission request for this decision.
-- Evidence: https://pypi.org/pypi/tornado/6.4.2/json ; https://pypi.org/pypi/tornado/6.6.1/json ; https://github.com/tornadoweb/tornado/security/advisories/GHSA-7cx3-6m66-7c5m ; https://github.com/tornadoweb/tornado/security/advisories/GHSA-pcg2-g6cj-q92c .
-- Consequences: redo dependency locking and relevant tests before T01 review. Future upgrades require normal compatibility/security assessment.
+- 状态：用户于 2026-11-10 接受。
+- 决策：Python3.12 配合精确版本 Tornado6.6.1；同步更新锁文件及全部规范性文档。
+- 背景：原 6.4.2 受已发布的安全公告影响，包括在 6.5 修复的 CVE-2025-47287，以及在 6.6 修复的 GHSA-pcg2-g6cj-q92c。用户已明确批准升级到 6.6.1。
+- 范围：不改变 Python/SQLAlchemy/MySQL/React/Electron/Node24 架构或完整 MVP 范围；这项已批准决策无需重复询问。
+- 证据：https://pypi.org/pypi/tornado/6.4.2/json ; https://pypi.org/pypi/tornado/6.6.1/json ; https://github.com/tornadoweb/tornado/security/advisories/GHSA-7cx3-6m66-7c5m ; https://github.com/tornadoweb/tornado/security/advisories/GHSA-pcg2-g6cj-q92c 。
+- 后果：在 T01 复审前重新锁定依赖并执行相关测试；未来升级仍须按正常流程评估兼容性与安全性。
