@@ -18,6 +18,8 @@ Mac Bundle ID 固定为 `io.github.baofengbaofeng.veriq`。`e0ba135` 已通过[�
 
 仓库当前已落地 `apps/srv`（Tornado 控制服务）、`apps/web`（React 管理台）、`apps/runtime`（Agent/CLI/离线执行）、`packages/{contracts,compiler,runner-sdk,ui}`；`apps/desktop` 已包含 main/preload/renderer、本地打包界面和独立 Agent 入口。首发桌面范围已加入 Mac Intel x64 与 Apple Silicon arm64，优先级高于仍需交付的 Windows/Ubuntu；Mac 原生适配与安装验收尚未完成，见 [Mac 范围与兼容性记录](docs/specs/macos-mvp-scope.md)。贡献与智能体须遵循根目录 `AGENTS.md` 中的编码规范（4 空格缩进、中文注释、英文日志等）。
 
+入口与执行文件输入生产器已完成源码审查：真实 Vite 夹具及相关测试共 55 项通过，包清单物理归属与跨平台大小写冲突回归通过。双架构 Mac 上真实项目入口的构建验收正在接入，完整 Runtime、桌面安装与 MVP 尚未完成；详见[里程碑](docs/plans/milestones.md)。
+
 ## 为什么做 VeriQ
 
 VeriQ 希望让团队把页面元素、步骤、业务断言、数据和环境组织成可审阅、可发布、可复现的测试资产。运行时冻结版本与环境快照，由固定版本的 Playwright Test 执行，并保留步骤结果、请求关联、截图与 Trace。
@@ -200,6 +202,8 @@ VeriQ is an automated smoke and regression platform for enterprise PC web system
 Server build tooling, frontend-in-wheel packaging, offline installation checks, engine candidates and separate promotion have passed independent review and scoped cancellation/promotion fixes. The pinned-browser SDK gate passed 136 tests with 91.46% line coverage; this does not close final integration gates. Default builds remain blocked by existing lint, formatting and comment-policy debt, and current candidates are explicitly UNVERIFIED. The Electron desktop GUI module has passed independent review and supports cached runs and local reports while disconnected. Native distribution remains in progress: native IPC, system vaults and explicit empty-initialization recovery have real Windows Server and Ubuntu target evidence, including protected Cookie databases and restart readback. Seven Ubuntu source-GUI cases passed. Three Windows ACL/owner tests still fail; Windows11/Ubuntu installation and complete-product acceptance remain pending; there is no formal installer yet. See [milestones](docs/plans/milestones.md) and [release tooling](docs/release.md).
 
 The repository currently includes `apps/srv` (Tornado control service), `apps/web` (React console), `apps/runtime` (Agent/CLI/offline execution), and `packages/{contracts,compiler,runner-sdk,ui}`. `apps/desktop` contains main/preload/renderer, bundled local UI and an independent Agent entry; target installers and remaining native capabilities are in progress. Contributors and coding agents must follow the coding standards in root `AGENTS.md` (4-space indentation, Chinese source comments, English logs, and related rules).
+
+The entry/execution input producer has passed source review and 55 relevant real Vite fixture tests, including physical package ownership and portable case-collision regressions. Native Intel/ARM Mac acceptance of the real project entries is next; complete Runtime, desktop installation and MVP acceptance remain open. See [milestones](docs/plans/milestones.md).
 
 ## Why VeriQ
 

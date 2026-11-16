@@ -747,11 +747,13 @@ assert report.contains_real_macos_x64_and_arm64_evidence
 
 **固定契约：** 源入口为 apps/desktop/src/agent/index.ts 与 apps/runtime/src/cli.ts，输出入口恰为 agent.js/cli.js，所有 chunk/asset 和字面导入必须完整登记。独立 MJS 配置只导入 Node 内建，使用普通 Vite 配置，不能复制 electron-vite 专属 externalizeDeps 选项后假定生效。固定复制 worker/provider/compile-entry/archive/controlled-command/controlled-child/controlled-child-protocol/controlled-child-preload.mjs；无改写、打包或脚本执行。编译器既有显式 tsx 路径保留，不能推断所有消费者都有 loader。
 
-- [ ]   1. 用真实宿主 Vite 构建两个共享工作区与 JSON Schema 的小型 TS 入口，先观察缺少生产器或错误 root/mode 的 RED；记录构建观察，不运行生成入口。
-- [ ]   2. 配置按明确 sourceRoot 构建两个 Node 入口，排除 Electron main/preload/renderer；记录实际工作区模块、manifest 与 JSON 输入，避免通过宿主 checkout 偷读未绑定源码。
-- [ ]   3. 宿主构建只写独立目录；确认真实成功与关闭后，完整扫描并通过 work.write 复制到 views/entries，固定八文件复制到 views/execution，原始源码快照写到 views 下的原路径。
-- [ ]   4. 用既有 TreeInventory/EntriesReceipt/ExecutionReceipt/BoundTree 生成 canonical 元数据并严格读取；明确去掉一次 views/ 前缀。核源码、锁、目标、实际命令证据、模式、链接禁令、完整父目录和所有 JS 资产导入，再运行消费者回调及 reader/transaction 收尾核验。
-- [ ]   5. 核验源码/锁/选项变更、缺失或额外输出、相对 chunk 丢失、Electron 导入、带隐藏导入的 JS asset、链接/路径冲突、失败构建、未知关闭与消费后变更。未知关闭不再扫描或删除构建目录，不伪造全配方/Expected 绕过局部核验。
-- [ ]   6. 新生产器与现有 graph 相关检查、类型/格式/注释及源绑定保护通过后，精确四路径提交并独立复审。之后另行接入已授权开发 CI 的双 Mac 入口构建验收；不重复已关闭的布局观测，不把源准备计为完整 Runtime。
+- [x]   1. 用真实宿主 Vite 构建两个共享工作区与 JSON Schema 的小型 TS 入口，先观察缺少生产器或错误 root/mode 的 RED；记录构建观察，不运行生成入口。
+- [x]   2. 配置按明确 sourceRoot 构建两个 Node 入口，排除 Electron main/preload/renderer；记录实际工作区模块、manifest 与 JSON 输入，避免通过宿主 checkout 偷读未绑定源码。
+- [x]   3. 宿主构建只写独立目录；确认真实成功与关闭后，完整扫描并通过 work.write 复制到 views/entries，固定八文件复制到 views/execution，原始源码快照写到 views 下的原路径。
+- [x]   4. 用既有 TreeInventory/EntriesReceipt/ExecutionReceipt/BoundTree 生成 canonical 元数据并严格读取；明确去掉一次 views/ 前缀。核源码、锁、目标、实际命令证据、模式、链接禁令、完整父目录和所有 JS 资产导入，再运行消费者回调及 reader/transaction 收尾核验。
+- [x]   5. 核验源码/锁/选项变更、缺失或额外输出、相对 chunk 丢失、Electron 导入、带隐藏导入的 JS asset、链接/路径冲突、失败构建、未知关闭与消费后变更。未知关闭不再扫描或删除构建目录，不伪造全配方/Expected 绕过局部核验。
+- [x]   6. 新生产器与现有 graph 相关检查、类型/格式/注释及源绑定保护通过后，精确四路径提交并独立复审。之后另行接入已授权开发 CI 的双 Mac 入口构建验收；不重复已关闭的布局观测，不把源准备计为完整 Runtime。
 
 **T22 资源编辑器追加（2026-11-16，北京时间）：** f03f719 完成资源页首项默认依赖与 Monaco 最新值引用，保留模型、撤销、当前回调和销毁行为。两项新真实 GUI/组件回归及未改 JSON Apply 用例通过，完整应用与新测试严格类型、独立审查及 143 项证据核验通过。三项 Hook 错误清零，旧资源页两项列表键问题保留。完整本地前端检查现为 15 errors / 32 warnings / 138 infos，无遗漏；全局规范、旧用例类型、正式发行和完整 MVP 仍开放。
+
+**T20 入口源码审查追加（2026-11-16）：** `7d61422` / `2dcb09e` 完成上述输入视图与第一轮修复。55 项真实 Vite/Graph 相关测试、完整 Runtime 类型、格式与定向注释检查通过；原独立审查员确认两项 Important 均已解决，剩余 C/I/M 为 0。原始 93 项与修复 63 项封存、702 Git 文件、28 历史封存 2,160 项及既有证据保护通过独立核验。真实最近物理 package.json 必须绑定，保留命名空间按大小写折叠拒绝；未知关闭仍不扫描或删除构建目录。下一项为同一审阅提交的双 Mac 真实项目入口构建 CI；本源码组件通过不关闭原生、五树组装、独立 Expected、依赖解析或完整 Runtime/MVP。
