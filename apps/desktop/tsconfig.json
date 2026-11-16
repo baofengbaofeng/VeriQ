@@ -1,0 +1,15 @@
+{
+    "extends": "./tsconfig.host.json",
+    "include": [
+        "src/main",
+        "src/preload",
+        "src/agent",
+        "src/shared",
+        "src/installation",
+        "tests",
+        "scripts/*.mts",
+        "electron.vite.config.ts",
+        "playwright.config.ts",
+        "electron-builder.config.d.mts"
+    ]
+}
