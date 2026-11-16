@@ -8,14 +8,15 @@ import { checked, schemas } from "./runtime-payload-receipts.ts";
 import { admitReleaseRoot, copyReleaseFile, inventoryReleaseTree, releaseDirectory, writeReleaseJson } from "./runtime-release-files.ts";
 import { observeRuntimeCommand } from "./runtime-release-builds.ts";
 import { sha } from "./runtime-payload-tree.ts";
+import { prepareRuntimeV1Dependencies, type RuntimeV1DependencyPreparation } from "./runtime-release-v1-dependencies.ts";
 
 /** 第一版材料以调用者独立提供的完整普通文件库存为准，平台原始归档的受控提取由现有来源工具完成；Windows 与 Linux 不复用 Mac 的归档名称、Chrome Framework 链接政策或 Darwin Build 收据。
  * 每棵树的根目录由调用者独占保持，任何额外文件、链接或缺失文件都会拒绝，不接受待核树自行生成的 Expected。
  */
 export type RuntimeV1Material = Readonly<{ root: string; files: readonly FileFact[] }>;
 
-/** 非 Mac 生产任务保留已有 schemaVersion1 发行合同，Node、npm、浏览器和生产依赖闭包必须来自独立库存输入；本入口真实构建入口、原生进程/helper 与版本化引擎，不把平台差异隐藏在 Mac 配方字段中。
- * 依赖布局必须已经包含平台适用的生成 Workspace JavaScript、optional、peer 与命令产物，依赖生产器自己的解析和来源证据应放在 materialEvidence 中供后续审核。
+/** 非 Mac 生产任务保留已有 schemaVersion1 发行合同，Node、npm 与浏览器来自独立库存，生产依赖可显式选择独立材料或内置真实准备阶段；本入口真实构建入口、原生进程/helper 与版本化引擎，不把平台差异隐藏在 Mac 配方字段中。
+ * 内置阶段运行原锁离线 hoisted 安装、C04 工作区 JavaScript 发射、原生目标条件闭包和真实 Node 解析，外部依赖材料则必须已包含同等生成及 optional/peer/bin 产物并另附来源证据。
  * 所有主机构建工具路径都显式给出，不下载工具、SDK、Chrome 或目标 Node，也不在安装时编译。
  */
 export type RuntimeV1ProductionJob = Readonly<{
@@ -32,7 +33,8 @@ export type RuntimeV1ProductionJob = Readonly<{
     node: RuntimeV1Material;
     npm: RuntimeV1Material;
     browser: RuntimeV1Material;
-    dependencies: RuntimeV1Material;
+    dependencies?: RuntimeV1Material;
+    dependencyPreparation?: RuntimeV1DependencyPreparation;
     materialEvidence: RuntimeV1Material;
     hostBuild: Readonly<{
         executable: string;
@@ -71,6 +73,8 @@ export async function produceRuntimeV1(
 ): Promise<{ kind: "RUNTIME_V1_CANDIDATE"; candidateDirectory: string; runtimeDirectory: string;
     manifestSha256: string; receipt: Ref; status: "UNVERIFIED" }> {
     const job = structuredClone(input);
+    if (Boolean(job.dependencies) === Boolean(job.dependencyPreparation))
+        throw new Error("RUNTIME_V1_DEPENDENCY_INPUT_EXCLUSIVE");
     if (!["linux", "win32"].includes(job.platform) || job.arch !== "x64" ||
         process.platform !== job.platform || process.arch !== job.arch ||
         !isIndependentNode24(process.versions) || process.versions.node !== job.nodeVersion)
@@ -132,11 +136,20 @@ export async function produceRuntimeV1(
         if (!ref) throw new Error("RUNTIME_EXECUTION_SOURCE_MISSING");
         await copyReleaseFile(join(job.sourceRoot, path), join(runtime, "execution"), `${name}.mjs`, ref, 0o644);
     }
-    for (const [name, material] of [["npm", job.npm], ["browser", job.browser],
-        ["node_modules", job.dependencies]] as const) {
+    for (const [name, material] of [["npm", job.npm], ["browser", job.browser]] as const) {
         await releaseDirectory(runtime, name);
         await copyMaterial(material, join(runtime, name));
     }
+    const preparedDependencies = job.dependencyPreparation ? await prepareRuntimeV1Dependencies({
+        preparation: job.dependencyPreparation, sourceRoot: job.sourceRoot, source, runtimeRoot: runtime,
+        workRoot: join(owned, "dependency-build"), evidenceRoot: evidence,
+        executable: job.hostBuild.executable, nodeIdentity: job.hostBuild.nodeIdentity,
+        nodeVersion: job.nodeVersion, timeoutMs: job.hostBuild.timeoutMs, run,
+    }) : undefined;
+    const dependencyMaterial = preparedDependencies?.material ?? job.dependencies;
+    if (!dependencyMaterial) throw new Error("RUNTIME_V1_DEPENDENCIES_MISSING");
+    await releaseDirectory(runtime, "node_modules");
+    await copyMaterial(dependencyMaterial, join(runtime, "node_modules"));
     await releaseDirectory(evidence, "materials");
     await copyMaterial(job.materialEvidence, join(evidence, "materials"));
     const suffix = job.platform === "win32" ? ".exe" : "";
@@ -198,6 +211,7 @@ export async function produceRuntimeV1(
         source: { commit: source.commit, sourceBindingSha256: job.sourceBindingSha256 },
         runtimeManifestSha256: manifestRef.sha256, entriesCommand: entry.evidence,
         nativeCommands, engineCommand: engine.evidence, materials: job.materialEvidence.files,
+        dependencyProduction: preparedDependencies?.evidence ?? null,
         status: "UNVERIFIED", pending: ["INDEPENDENT_SOURCE_AND_INPUT_REVIEW", "INSTALLED_EXECUTION", "SIGNING_AND_RELEASE_APPROVAL"],
     });
     return { kind: "RUNTIME_V1_CANDIDATE", candidateDirectory: owned, runtimeDirectory: runtime,
