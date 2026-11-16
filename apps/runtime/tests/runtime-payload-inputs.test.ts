@@ -186,14 +186,30 @@ test("every populated recipe DTO rejects required unknown and wrong-type mutatio
         }
 });
 
-/** 有界 CLI 取消载体观察归档首个真实读取块再向同一 inspect 进程发送信号，不靠 sleep 猜测启动时间；可选 stalled close 只用于观察二次信号和期限后的 INCOMPLETE，所有载体退出后由宿主关闭资源。 */
+/** 有界 CLI 取消载体观察归档首个真实读取块再向同一 inspect 进程发送信号，不靠 sleep 猜测启动时间；可选 stalled close 只用于观察二次信号和期限后的 INCOMPLETE，所有载体退出后由宿主关闭
+* 资源。 */
 async function cancellation(
     root: string,
     signal: "SIGINT" | "SIGTERM",
     closeMode: "normal" | "second" | "timeout" = "normal",
 ) {
     const hold = closeMode !== "normal";
-    const source = `process.argv.splice(1,0,'inspect');import fs from 'node:fs/promises';import{syncBuiltinESMExports}from'node:module';const alive=setInterval(()=>{},1000);const original=fs.open;fs.open=async(...args)=>{const handle=await original(...args);if(String(args[0]).endsWith('/archives/node.tar.gz')){${hold ? "handle.close=()=>{process.stderr.write('TEST_CLOSE_STARTED\\n');return new Promise(()=>{});};" : ""}const originalStream=handle.createReadStream.bind(handle);handle.createReadStream=options=>{const stream=originalStream({...options,highWaterMark:1});stream.once('data',()=>{stream._read=()=>{};process.stderr.write('TEST_READ_STARTED\\n');});return stream;};}return handle;};syncBuiltinESMExports();try{await import(${JSON.stringify(resolve(import.meta.dirname, "../scripts/inspect-macos-runtime-inputs.mjs"))});}finally{clearInterval(alive);}`;
+    const source = `process.argv.splice(1,0,'inspect');import fs from 'node:fs/promises';import{syncBuiltinESMExpor` +
+        `ts}from'node:module';const alive=setInterval(()=>{},1000);const original=fs.open;fs.open=async(...args)=>{` +
+        `const handle=await original(...args);if(String(args[0]).endsWith('/archives/node.tar.gz')){` +
+        `${
+            hold
+                ? "handle.close=()=>{process.stderr.write('TEST_C" +
+                    [
+                        "LOSE_STARTED\\n');retur" +
+                        "n new Promise(()=>{});};"] : ""}` +
+                        `const originalStream=handle.createReadStream.bind(handle);handle.createReadStream=options=` +
+                            `>{const stream=originalStream({...options,highWaterMark:1});stream.once('data',()=>{st` +
+                            `ream._read=()=>{};process.stderr.write('TEST_READ_STARTED\\n');});return stream;};}ret` +
+                            `urn handle;};syncBuiltinESMExports();try{await import(` +
+                            `${
+                                JSON.stringify(resolve(import.meta.dirname, "../scripts/inspect-macos-runtime-inputs" +
+                                    ".mjs"))});}finally{clearInterval(alive);}`;
     return await new Promise<{ code: number | null; out: string; err: string }>((done, reject) => {
         const child = spawn(
             process.execPath,
@@ -284,7 +300,8 @@ test("intake error context copies scalars while legacy constructor stays compati
     assert.ok(Object.isFrozen(error));
 });
 
-/** 内部共享准入仍每次复制 caller 字节和独立 expected 政策，parse 与 verify 不依赖可被重用的旧准入对象；只读政策不冻结调用方，TypedArray 则保留私有所有权而不假称 Object.freeze 能保护其元素写入。 */
+/** 内部共享准入仍每次复制 caller 字节和独立 expected 政策，parse 与 verify 不依赖可被重用的旧准入对象；只读政策不冻结调用方，TypedArray 则保留私有所有权而不假称 Object.freez
+* e 能保护其元素写入。 */
 test("shared consumed admission returns independent bytes and policy each call", () => {
     const f = model(),
         input = f.seal(),

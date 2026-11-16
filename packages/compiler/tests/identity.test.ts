@@ -25,16 +25,12 @@ test("fixture inputs validate binding scope before fixture outputs become variab
         fixtureVersionId: id(3),
         fixtureInput: { name: "{{vars.code}}" },
     });
-    expect(
-        validate(s).some((x) => x.code === "VARIABLE_USED_BEFORE_DEFINED"),
-    ).toBe(true);
+    expect(validate(s).some((x) => x.code === "VARIABLE_USED_BEFORE_DEFINED")).toBe(true);
     const c = s.assets[0]!;
     if (c.kind !== "CASE") throw Error();
     c.document.fixtureInput = { name: 123 };
     rehash(s);
-    expect(validate(s).some((x) => x.code === "FIXTURE_INPUT_INVALID")).toBe(
-        true,
-    );
+    expect(validate(s).some((x) => x.code === "FIXTURE_INPUT_INVALID")).toBe(true);
     c.document.fixtureInput = { name: "valid" };
     rehash(s);
     expect(validate(s)).toEqual([]);
@@ -55,14 +51,10 @@ test("source registry rejects unrelated configs and altered content hashes", () 
         },
     ];
     rehash(s);
-    expect(validate(s).some((x) => x.code === "UNRELATED_AUTH_ADAPTER")).toBe(
-        true,
-    );
+    expect(validate(s).some((x) => x.code === "UNRELATED_AUTH_ADAPTER")).toBe(true);
     s.authAdapters[0]!.contentHash = "a".repeat(64);
     rehash(s);
-    expect(validate(s).some((x) => x.code === "AUTH_ADAPTER_HASH_MISMATCH")).toBe(
-        true,
-    );
+    expect(validate(s).some((x) => x.code === "AUTH_ADAPTER_HASH_MISMATCH")).toBe(true);
 });
 function initialSource(
     inputSchema: unknown = {
@@ -101,9 +93,7 @@ test("declared initial fixture inputs compile while undeclared future outputs an
     if (c.kind !== "CASE") throw Error();
     c.document.fixtureInput = { name: "{{vars.code}}" };
     rehash(s);
-    expect(validate(s).map((i) => i.code)).toContain(
-        "VARIABLE_USED_BEFORE_DEFINED",
-    );
+    expect(validate(s).map((i) => i.code)).toContain("VARIABLE_USED_BEFORE_DEFINED");
     c.document.fixtureInput = { name: "{{vars.private}}", constant: 0 };
     rehash(s);
     expect(validate(s).map((i) => i.code)).toContain("FIXTURE_INPUT_INVALID");
@@ -140,17 +130,17 @@ test("dynamic fixture inputs preserve local refs and defer only value-dependent 
     rehash(s);
     expect(validate(s).map((i) => i.code)).toContain("FIXTURE_INPUT_INVALID");
 });
-test.each([
-    { constant: 1 },
-    { name: "{{vars.private}}", constant: 1, extra: true },
-])("dynamic fixture input still enforces unconditional keys: %j", (input) => {
-    const s = initialSource();
-    const c = s.assets[0]!;
-    if (c.kind !== "CASE") throw Error();
-    c.document.fixtureInput = input;
-    rehash(s);
-    expect(validate(s).map((i) => i.code)).toContain("FIXTURE_INPUT_INVALID");
-});
+test.each([{ constant: 1 }, { name: "{{vars.private}}", constant: 1, extra: true }])(
+    "dynamic fixture input still enforces unconditional keys: %j",
+    (input) => {
+        const s = initialSource();
+        const c = s.assets[0]!;
+        if (c.kind !== "CASE") throw Error();
+        c.document.fixtureInput = input;
+        rehash(s);
+        expect(validate(s).map((i) => i.code)).toContain("FIXTURE_INPUT_INVALID");
+    },
+);
 test("dynamic fixture schemas check known data siblings", () => {
     const s = initialSource({
         type: "object",

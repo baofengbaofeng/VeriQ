@@ -43,12 +43,10 @@ export const zh = {
     noResult: "无已记录结果",
     missing: "缺失",
     withheld: "已脱敏",
-    unavailable:
-        "凭证脱敏上下文不可用，值已隐藏。",
+    unavailable: "凭证脱敏上下文不可用，值已隐藏。",
     moreEvents: "更多事件",
     restricted: "受限原始证据",
-    rawHelp:
-        "原始证据可能含凭证，仅当前空间所有者或管理员可读取。",
+    rawHelp: "原始证据可能含凭证，仅当前空间所有者或管理员可读取。",
     traceHelp: "Trace 在本机查看",
     download: "下载",
     preview: "预览截图",

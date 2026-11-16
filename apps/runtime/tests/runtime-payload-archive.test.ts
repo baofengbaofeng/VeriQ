@@ -271,7 +271,8 @@ test("directory entries never carry an unchecked body", () =>
         ["PAYLOAD_ARCHIVE_FORMAT"],
     ));
 
-/** PAX 反例通过成熟 Header 编码器生成真实元数据帧，长度数字仍由 Pax.parse 解释而非测试预先替产品校验；这些案例专门证明未知、重复、size 覆盖与静默丢弃记录会失败，不能只靠 raw 关键字过滤假称支持完整 PAX。 */
+/** PAX 反例通过成熟 Header 编码器生成真实元数据帧，长度数字仍由 Pax.parse 解释而非测试预先替产品校验；这些案例专门证明未知、重复、size 覆盖与静默丢弃记录会失败，不能只靠 raw 关键字过滤假称支持完整
+*  PAX。 */
 for (const body of [
     "99 path=ignored\n",
     "14 unknown=x\n",
@@ -311,7 +312,8 @@ test("tar member larger than fixed limit rejects small declaration-only fixture"
         ["PAYLOAD_LIMIT"],
     ));
 
-/** 正常 PAX 和 GNU 元数据必须由成熟 Parser 应用后再核有效成员路径，不能只因严格拒绝所有 meta 就让恶意样本通过测试；单个正常场景还保留 late explicit parent 与多个有限 Framework 别名，保证推导和共享终点不是误判循环。 */
+/** 正常 PAX 和 GNU 元数据必须由成熟 Parser 应用后再核有效成员路径，不能只因严格拒绝所有 meta 就让恶意样本通过测试；单个正常场景还保留 late explicit parent 与多个有限 Framewor
+* k 别名，保证推导和共享终点不是误判循环。 */
 test("supported PAX fields GNU long paths and later explicit parent retain actual facts", async () => {
     const m = archiveModel(),
         first = m.nodeEntries[0]!;
@@ -455,7 +457,8 @@ test("logical link hops stay bounded even for a chain with an ordinary endpoint"
         ["PAYLOAD_ARCHIVE_LINK"],
     ));
 
-/** bit3 只表示 local 尺寸可能依赖 descriptor，产品仍以 central 声明和真实内容 CRC 为权威；夹具故意清零 local 副本证明不会误拒该允许标志，同时零正文显式目录也必须走正常解压长度与 CRC 检查路径，未宣称验证 descriptor 全语法。 */
+/** bit3 只表示 local 尺寸可能依赖 descriptor，产品仍以 central 声明和真实内容 CRC 为权威；夹具故意清零 local 副本证明不会误拒该允许标志，同时零正文显式目录也必须走正常解压长度与 CRC
+*  检查路径，未宣称验证 descriptor 全语法。 */
 test("ZIP allows bit3 central-authoritative entries and explicit empty directories", async () => {
     const m = archiveModel();
     m.chromeEntries.push({ path: `${m.recipe.chrome.topDirectory}/empty/`, kind: "directory" });
@@ -503,7 +506,8 @@ for (const change of ["hash", "size"] as const)
             ["PAYLOAD_TREE_MISMATCH"],
         ));
 
-/** Framework 名称属于独立布局准入政策，实际归档没有任何链接时也必须核验声明根而不能靠遍历链接触发；同一真实微型 ZIP 同时覆盖空 basename 拒绝和合法非空 basename 成功，仍从独立布局及原配方完整重绑开始。 */
+/** Framework 名称属于独立布局准入政策，实际归档没有任何链接时也必须核验声明根而不能靠遍历链接触发；同一真实微型 ZIP 同时覆盖空 basename 拒绝和合法非空 basename 成功，仍从独立布局及原配方完整重绑
+* 开始。 */
 for (const basename of [".framework", "Named.framework"])
     test(`fix1 declared Framework root ${basename} is checked without any links`, async () => {
         const value = archiveModel();
@@ -559,7 +563,8 @@ for (const basename of [".framework", "Named.framework"])
         }
     });
 
-/** 自包含回归在真正独立的 Node 子进程等待生产 tar 消费者自然结束，父级期限只把卡住分类为失败而不充当完成事件；夹具使用成熟 tar 编码器与真实摘要，每次仅拥有一个小归档并在进程已结束后删除，绝不借私有证据或伪造官方身份。 */
+/** 自包含回归在真正独立的 Node 子进程等待生产 tar 消费者自然结束，父级期限只把卡住分类为失败而不充当完成事件；夹具使用成熟 tar 编码器与真实摘要，每次仅拥有一个小归档并在进程已结束后删除，绝不借私有证据或伪造官方身
+* 份。 */
 async function naturalTarChild(
     size: number,
     scenario: "ordinary" | "low-compressible" | "cancel" | "member-error" | "zero-tail",
@@ -586,31 +591,49 @@ const emit=value=>process.stdout.write(JSON.stringify(value)+"\\n");let phase="P
 process.on("beforeExit",()=>{if(!reported){reported=true;emit({event:"BEFORE_EXIT",phase});}});
 if(!/^24\\./.test(process.versions.node))throw Error("NODE24_REQUIRED");
 let body="a".repeat(size);
-if(scenario==="low-compressible"){const chunks=[];for(let i=0,n=0;n<size;i++,n+=64)chunks.push(hash(Buffer.from("veriq-tar-boundary:"+i)));body=chunks.join("").slice(0,size);}
-const bodyBytes=Buffer.from(body),archive=tarBytes([{path:top+"/empty/",kind:"directory"},{path:top+"/payload",body},{path:top+"/after",body:"tail"}],Buffer.alloc(scenario==="zero-tail"?1031:1024));
-if(bodyBytes.length>1024**2||archive.length>512*1024||(scenario==="low-compressible"&&archive.length<=65536))throw Error("FIXTURE_BOUND");
-const input=join(root,"input"),output=join(root,"output");await mkdir(input,{mode:0o700});await mkdir(output,{mode:0o700});await writeFile(join(input,"node.tar.gz"),archive,{mode:0o600});
-const controller=new AbortController(),tx=new ArchiveTransaction(input,output,"candidate",controller.signal),ref={path:"node.tar.gz",sizeBytes:archive.length,sha256:hash(archive)};
+if(scenario==="low-compressible"){const chunks=[];for(let i=0,n=0;n<size;i++,n+=64)chunks.push(hash(Buffer.from("ver` +
+`iq-tar-boundary:"+i)));body=chunks.join("").slice(0,size);}
+const bodyBytes=Buffer.from(body),archive=tarBytes([{path:top+"/empty/",kind:"directory"},{path:top+"/payload",body}` +
+`,{path:top+"/after",body:"tail"}],Buffer.alloc(scenario==="zero-tail"?1031:1024));
+if(bodyBytes.length>1024**2||archive.length>512*1024||(scenario==="low-compressible"&&archive.length<=65536))throw E` +
+`rror("FIXTURE_BOUND");
+const input=join(root,"input"),output=join(root,"output");await mkdir(input,{mode:0o700});await mkdir(output,{mode:0` +
+`o700});await writeFile(join(input,"node.tar.gz"),archive,{mode:0o600});
+const controller=new AbortController(),tx=new ArchiveTransaction(input,output,"candidate",controller.signal),ref={pa` +
+`th:"node.tar.gz",sizeBytes:archive.length,sha256:hash(archive)};
 await tx.initialize();await tx.observeRefs([ref]);await tx.plan(archive.length+bodyBytes.length+4096,4);
-phase="SNAPSHOT";await tx.snapshot(ref,"snapshots/node.tar.gz");await tx.audit();emit({event:"SNAPSHOT_DONE",archiveBytes:archive.length,archiveSha256:ref.sha256,node:process.versions.node});
+phase="SNAPSHOT";await tx.snapshot(ref,"snapshots/node.tar.gz");await tx.audit();emit({event:"SNAPSHOT_DONE",archive` +
+`Bytes:archive.length,archiveSha256:ref.sha256,node:process.versions.node});
 const budget=new ArchiveBudget(),scan=new ArchiveScan("node",top,tx,budget);
 if(scenario==="cancel"||scenario==="member-error"){
     const actual=scan.entry.bind(scan);let injected=false;
-    scan.entry=(entry,chunks)=>actual(entry,(async function*(){for await(const chunk of chunks){if(!injected&&entry.path===top+"/payload"){injected=true;if(scenario==="cancel")controller.abort();else throw new RuntimePayloadError("PAYLOAD_IO","ENOSPC");}yield chunk;}})());
+    scan.entry=(entry,chunks)=>actual(entry,(async function*(){for await(const chunk of chunks){if(!injected&&entry.` +
+    `path===top+"/payload"){injected=true;if(scenario==="cancel")controller.abort();else throw new RuntimePayloadErro` +
+        `r("PAYLOAD_IO","ENOSPC");}yield chunk;}})());
 }
 try{
-    phase="SCAN";emit({event:"SCAN_BEGIN"});const streamBytes=await scanTar(join(tx.scratch,"snapshots/node.tar.gz"),scan);
+    phase="SCAN";emit({event:"SCAN_BEGIN"});const streamBytes=await scanTar(join(tx.scratch,"snapshots/node.tar.gz")` +
+    `,scan);
     if(scenario==="cancel"||scenario==="member-error")throw Error("EXPECTED_REJECTION");
     const member=scan.members.find(m=>m.path===top+"/payload");
-    if(scan.members.length!==3||member?.kind!=="file"||member.sizeBytes!==size||member.sha256!==hash(bodyBytes))throw Error("MEMBER_MISMATCH");
+    if(scan.members.length!==3||member?.kind!=="file"||member.sizeBytes!==size||member.sha256!==hash(bodyBytes))thro` +
+    `w Error("MEMBER_MISMATCH");
     emit({event:"SCAN_DONE",streamBytes,member});
-    phase="SECOND_SCAN";await scanTar(join(tx.scratch,"snapshots/node.tar.gz"),new ArchiveScan("node",top,tx,budget,scan));await tx.audit();
-    if(hash(await readFile(join(tx.scratch,"trees/node",top,"payload")))!==hash(bodyBytes))throw Error("SECOND_PASS_MISMATCH");
-    let allocated=0;const walk=async path=>{const info=await lstat(path,{bigint:true});allocated+=Number(info.blocks*512n);if(info.isDirectory()){const dir=await opendir(path);for await(const entry of dir)await walk(join(path,entry.name));}};await walk(root);if(allocated>2*1024**2)throw Error("ALLOCATION_BOUND");
-    phase="CLEANUP";const cleanup=await tx.cleanup();if(cleanup!=="CONFIRMED")throw Error("CLEANUP_UNCONFIRMED");phase="DONE";emit({event:"RESULT",members:scan.members.length,bodySha256:hash(bodyBytes),bodyBytes:size,archiveBytes:archive.length,allocated,cleanup});
+    phase="SECOND_SCAN";await scanTar(join(tx.scratch,"snapshots/node.tar.gz"),new ArchiveScan("node",top,tx,budget,` +
+    `scan));await tx.audit();
+    if(hash(await readFile(join(tx.scratch,"trees/node",top,"payload")))!==hash(bodyBytes))throw Error("SECOND_PASS_` +
+    `MISMATCH");
+    let allocated=0;const walk=async path=>{const info=await lstat(path,{bigint:true});allocated+=Number(info.blocks` +
+    `*512n);if(info.isDirectory()){const dir=await opendir(path);for await(const entry of dir)await walk(join(path,en` +
+        `try.name));}};await walk(root);if(allocated>2*1024**2)throw Error("ALLOCATION_BOUND");
+    phase="CLEANUP";const cleanup=await tx.cleanup();if(cleanup!=="CONFIRMED")throw Error("CLEANUP_UNCONFIRMED");pha` +
+    `se="DONE";emit({event:"RESULT",members:scan.members.length,bodySha256:hash(bodyBytes),bodyBytes:size,archiveByte` +
+        `s:archive.length,allocated,cleanup});
 }catch(error){
-    const expected=scenario==="cancel"?"PAYLOAD_CANCELLED":scenario==="member-error"?"PAYLOAD_IO":null,cleanup=await tx.cleanup();
-    if(error.code!==expected||cleanup!=="CONFIRMED"||(scenario==="member-error"&&error.causeCode!=="ENOSPC"))throw error;
+    const expected=scenario==="cancel"?"PAYLOAD_CANCELLED":scenario==="member-error"?"PAYLOAD_IO":null,cleanup=await` +
+    ` tx.cleanup();
+    if(error.code!==expected||cleanup!=="CONFIRMED"||(scenario==="member-error"&&error.causeCode!=="ENOSPC"))throw e` +
+    `rror;
     phase="REJECTED";emit({event:"EXPECTED_REJECT",code:error.code,causeCode:error.causeCode,cleanup});
 }
 `;
@@ -1322,13 +1345,17 @@ await mkdir(input, { mode: 0o700 });
 const space = await statfs(root, { bigint: true });
 assert.ok(space.bavail * space.bsize > 40n * 1024n ** 2n);
 const emit = (event, facts = {}) => console.log(JSON.stringify({ event, scenario, ...facts }));
-process.on("unhandledRejection", error => { emit("UNHANDLED_REJECTION", { message: String(error) }); process.exitCode = 91; });
+process.on("unhandledRejection", error => { emit("UNHANDLED_REJECTION", { message: String(error) }); process.exitCod` +
+`e = 91; });
 let target, expected, captured, calls = 0, opens = 0, injected = false, primary, tx;
 const controller = new AbortController();
 const originalOpen = fs.open, originalClose = fs.close, originalRead = fs.read;
-const identity = info => ({ dev: String(info.dev), ino: String(info.ino), size: String(info.size), nlink: String(info.nlink) });
-const matches = info => info.isFile() && info.dev === expected.dev && info.ino === expected.ino && info.size === expected.size && info.nlink === 1n;
-const restore = () => { fs.open = originalOpen; fs.close = originalClose; fs.read = originalRead; syncBuiltinESMExports(); };
+const identity = info => ({ dev: String(info.dev), ino: String(info.ino), size: String(info.size), nlink: String(inf` +
+`o.nlink) });
+const matches = info => info.isFile() && info.dev === expected.dev && info.ino === expected.ino && info.size === exp` +
+`ected.size && info.nlink === 1n;
+const restore = () => { fs.open = originalOpen; fs.close = originalClose; fs.read = originalRead; syncBuiltinESMExpo` +
+`rts(); };
 const install = (select, occurrence) => {
     fs.open = function(path, ...args) {
         if (!select(String(path)) || ++opens !== occurrence) return originalOpen.call(this, path, ...args);
@@ -1357,10 +1384,12 @@ const install = (select, occurrence) => {
         });
     };
     fs.read = function(fd, ...args) {
-        if (fd === captured && args[2] === 2018 && !injected && (scenario === "read-eio" || scenario === "cancel-eio")) {
+        if (fd === captured && args[2] === 2018 && !injected && (scenario === "read-eio" || scenario === "cancel-eio` +
+        `")) {
             injected = true;
             if (scenario === "cancel-eio") controller.abort();
-            else { queueMicrotask(() => args.at(-1)(Object.assign(Error("OWNED_READ_FAULT"), { code: "EIO" }))); return; }
+            else { queueMicrotask(() => args.at(-1)(Object.assign(Error("OWNED_READ_FAULT"), { code: "EIO" }))); ret` +
+            `urn; }
         }
         return originalRead.call(this, fd, ...args);
     };
@@ -1377,10 +1406,13 @@ let snapshotHash;
 
 const body = "s".repeat(2018), top = "chrome-mac-x64";
 const bytes = zipBytes([{ path: top + "/item", body }], 0);
-if (scenario === "crc-eio" || scenario === "crc-normal") bytes[30 + bytes.readUInt16LE(26) + bytes.readUInt16LE(28) + 5] ^= 1;
-if (scenario === "parser-eio" || scenario === "parser-normal") bytes.writeUInt32LE(0, bytes.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02])));
+if (scenario === "crc-eio" || scenario === "crc-normal") bytes[30 + bytes.readUInt16LE(26) + bytes.readUInt16LE(28) ` +
+`+ 5] ^= 1;
+if (scenario === "parser-eio" || scenario === "parser-normal") bytes.writeUInt32LE(0, bytes.indexOf(Buffer.from([0x5` +
+`0, 0x4b, 0x01, 0x02])));
 if (scenario === "init-eio") bytes.writeUInt32LE(0, bytes.length - 22);
-if (scenario === "unsupported-eio") { bytes.writeUInt16LE(9, 8); bytes.writeUInt16LE(9, bytes.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02])) + 10); }
+if (scenario === "unsupported-eio") { bytes.writeUInt16LE(9, 8); bytes.writeUInt16LE(9, bytes.indexOf(Buffer.from([0` +
+`x50, 0x4b, 0x01, 0x02])) + 10); }
 assert.ok(bytes.length <= 1024 ** 2);
 tx = new ArchiveTransaction(input, output, "candidate", controller.signal);
 await tx.initialize();
@@ -1408,7 +1440,9 @@ try {
 } catch (error) {
     assert.notEqual(scenario, "normal");
     if (scenario === "parser-eio") assert.ok(performance.now() - started >= 4900);
-    const code = scenario.startsWith("crc") ? "PAYLOAD_ARCHIVE_CRC" : scenario === "cancel-eio" ? "PAYLOAD_CANCELLED" : scenario === "unsupported-eio" ? "PAYLOAD_ARCHIVE_UNSUPPORTED" : scenario === "close-eio" ? "PAYLOAD_IO" : "PAYLOAD_ARCHIVE_FORMAT";
+    const code = scenario.startsWith("crc") ? "PAYLOAD_ARCHIVE_CRC" : scenario === "cancel-eio" ? "PAYLOAD_CANCELLED` +
+    `" : scenario === "unsupported-eio" ? "PAYLOAD_ARCHIVE_UNSUPPORTED" : scenario === "close-eio" ? "PAYLOAD_IO" : "` +
+        `PAYLOAD_ARCHIVE_FORMAT";
     assert.equal(error.code, code);
     assert.equal(error, primary);
     assert.equal(error.phase, scenario === "cancel-eio" ? "INPUTS" : "INTAKE");
@@ -1418,7 +1452,8 @@ try {
     const cleanup = await tx.cleanup();
     assert.equal(cleanup, scenario.endsWith("normal") ? "CONFIRMED" : "INCOMPLETE");
     if (cleanup === "INCOMPLETE") await retain();
-    emit("SETTLED", { outcome: "rejected", code: error.code, causeCode: error.causeCode, phase: error.phase, cleanup, diagnostic, samePrimary: error === primary });
+    emit("SETTLED", { outcome: "rejected", code: error.code, causeCode: error.causeCode, phase: error.phase, cleanup` +
+    `, diagnostic, samePrimary: error === primary });
 } finally { restore(); }
 assert.equal(calls, 1);
 `,

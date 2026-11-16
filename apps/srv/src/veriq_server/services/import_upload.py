@@ -2,7 +2,6 @@
 未 COMMITTED 前报告不得当作已提交证据；Workspace 与幂等键全程绑定。
 """
 
-
 from datetime import timedelta
 from hashlib import sha256
 from typing import Any
@@ -22,6 +21,7 @@ class ImportUploadService(ImportService):
     """扩展 ImportService，提供离线产物分块预订、写入与提交前校验，ImportUploadService 遵守本文件边界。
     ImportUploadService 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
     """
+
     async def reserve(self, scope: WorkspaceScope, req: dict[str, Any]) -> OfflineImportUpload:
         """按清单预订上传槽位与 PENDING publication，重复键幂等返回，ImportUploadService.reserve 遵守本文件边界。
         reserve 处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。

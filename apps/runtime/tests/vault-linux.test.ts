@@ -20,7 +20,8 @@ const linux = { skip: process.platform !== "linux" };
 const script = (body: string) => Buffer.from(`#!${process.execPath}\n${body}\n`);
 const receive = (body: string) =>
     script(
-        `let frame='';process.stdin.setEncoding('utf8');process.stdin.on('data',chunk=>{frame+=chunk;if(frame.includes('\\n')){${body}}});`,
+        `let frame='';process.stdin.setEncoding('utf8');process.stdin.on('data',chunk=>{frame+=chunk;if(frame.inclu` +
+            `des('\\n')){${body}}});`,
     );
 
 test(
@@ -60,7 +61,8 @@ test(
         const observations: VaultHelperObservation[] = [];
         const fixture = await vaultDistribution(
             receive(
-                "process.stdin.on('end',()=>process.exit(9));setTimeout(()=>process.stdout.write('V1 ready\\n',()=>process.exit(0)),60);",
+                "process.stdin.on('end',()=>process.exit(9));setTimeout(()=>process.stdout.write('V1 ready\\n',()=>p" +
+                    "rocess.exit(0)),60);",
             ),
         );
         try {
@@ -90,7 +92,11 @@ test(
         };
         const fixture = await vaultDistribution(
             receive(
-                `if(!${JSON.stringify([`V1 get ${scope.profileId} ${scope.keyVersion}\n`, `V1 get ${upper.profileId} ${upper.keyVersion}\n`])}.includes(frame))process.exit(8);process.stdout.write('V1 ok ${key.toString("base64url")}\\n',()=>process.exit(0));`,
+                `if(!${JSON.stringify([
+                    `V1 get ${scope.profileId} ${scope.keyVersion}\n`,
+                    `V1 get ${upper.profileId} ${upper.keyVersion}\n`,
+                ])}.includes(frame))process.exit(
+                            8);process.stdout.write('V1 ok ${key.toString("base64url")}\\n',()=>process.exit(0));`,
             ),
         );
         const observations: VaultHelperObservation[] = [];
@@ -130,7 +136,9 @@ test(
 test("set uses bounded stdin without secrets in argv and preserves caller key", linux, async () => {
     const fixture = await vaultDistribution(
         receive(
-            "const parts=frame.trim().split(' ');if(process.argv.length!==2||parts.length!==5||parts[1]!=='set'||Buffer.from(parts[4],'base64url').length!==32)process.exit(7);process.stdout.write('V1 ok\\n',()=>process.exit(0));",
+            "const parts=frame.trim().split(' ');if(process.argv.length!==2||parts.length!==5||parts[1]!=='set'||Buf" +
+                "fer.from(parts[4],'base64url').length!==32)process.exit(7);process.stdout.write('V1 ok\\n',()=>proc" +
+                "ess.exit(0));",
         ),
     );
     const key = randomBytes(32),
@@ -152,7 +160,9 @@ test(
     async () => {
         const fixture = await vaultDistribution(
             receive(
-                "if(['LD_PRELOAD','LD_LIBRARY_PATH','NODE_OPTIONS','PYTHONPATH','GIO_EXTRA_MODULES'].some(k=>Object.hasOwn(process.env,k))||process.env.PATH!=='/usr/bin:/bin')process.exit(7);process.stdout.write('V1 ready\\n',()=>process.exit(0));",
+                "if(['LD_PRELOAD','LD_LIBRARY_PATH','NODE_OPTIONS','PYTHONPATH','GIO_EXTRA_MODULES'].some(k=>Object." +
+                    "hasOwn(process.env,k))||process.env.PATH!=='/usr/bin:/bin')process.exit(7);process.stdout.write" +
+                    "('V1 ready\\n',()=>process.exit(0));",
             ),
         );
         const old = process.env.GIO_EXTRA_MODULES;

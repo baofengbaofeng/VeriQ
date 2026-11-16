@@ -15,7 +15,10 @@ test("guardian proves a real Chromium tree drained after its Node launcher is ki
     assert(address && typeof address !== "string");
     try {
         const id = "browser";
-        const code = `import {chromium} from '@playwright/test';const b=await chromium.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox']});const p=await b.newPage();await p.goto('http://127.0.0.1:${address.port}');console.log('ready');setInterval(()=>{},1000);`;
+        const code =
+            `import {chromium} from '@playwright/test';const b=await chromium.launch({executablePath:'/usr` +
+            `/bin/chromium',args:['--no-sandbox']});const p=await b.newPage();await p.goto('http://127.0.0` +
+            `.1:${address.port}');console.log('ready');setInterval(()=>{},1000);`;
         const worker = await supervisor.start(id, {
             executable: process.execPath,
             args: ["--input-type=module", "-e", code],

@@ -175,7 +175,8 @@ for (const args of [
         assert.match(child.stderr, /PAYLOAD_INPUT_INVALID phase=INPUTS cleanup=NOT_NEEDED/);
     });
 
-/** 请求替身只替换内部 node:https.request，并以真实 EventEmitter 与流触发有限网络拒绝路径，不创建 TCP 服务或真实请求；计划空间在此单独替换以绕开本机七十三 MiB 限制，但输出、来源读取、事务清理和正文校验仍是真实实现。 */
+/** 请求替身只替换内部 node:https.request，并以真实 EventEmitter 与流触发有限网络拒绝路径，不创建 TCP 服务或真实请求；计划空间在此单独替换以绕开本机七十三 MiB 限制，但输出、来源读取、事务
+ * 清理和正文校验仍是真实实现。 */
 test("wrong source and altered actual host facts create zero requests", async () => {
     const https = (await import("node:https")).default;
     const original = https.request;

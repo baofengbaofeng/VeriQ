@@ -76,7 +76,8 @@ test("bundled desktop opens offline with strict renderer and independent Node24"
             VERIQ_DESKTOP_ENGINE_VERSION: engine.version,
             VERIQ_DESKTOP_BROWSER: resolve(
                 root,
-                ".superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell",
+                ".superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-hea" +
+                    "dless-shell",
             ),
         },
     });
@@ -252,7 +253,8 @@ test("production candidate completes the real desktop offline workflow", async (
                 VERIQ_DESKTOP_ENGINE_VERSION: engine.version,
                 VERIQ_DESKTOP_BROWSER: resolve(
                     root,
-                    ".superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell",
+                    ".superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome" +
+                        "-headless-shell",
                 ),
             },
         });
@@ -556,7 +558,8 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
                 VERIQ_DESKTOP_ENGINE_VERSION: engine.version,
                 VERIQ_DESKTOP_BROWSER: resolve(
                     root,
-                    ".superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell",
+                    ".superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome" +
+                        "-headless-shell",
                 ),
             },
         });
@@ -838,7 +841,9 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
         await previous.evaluate(async ({ BrowserWindow }) => {
             const contents = BrowserWindow.getAllWindows()[0]!.webContents;
             const point = await contents.executeJavaScript(
-                "(() => { const r = [...document.querySelectorAll('button')].find(b => b.textContent === '退出界面').getBoundingClientRect(); return {x: Math.round(r.x+r.width/2), y: Math.round(r.y+r.height/2)}; })()",
+                "(() => { const r = [...document.querySelectorAll('button')].find(b => b.textContent === '退出界面').get" +
+                    "BoundingClientRect(); return {x: Math.round(r.x+r.width/2), y: Math.round(r.y+r.height/2)}; })(" +
+                    ")",
             );
             contents.sendInputEvent({ type: "mouseDown", button: "left", clickCount: 1, ...point });
             contents.sendInputEvent({ type: "mouseUp", button: "left", clickCount: 1, ...point });
@@ -871,7 +876,8 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
                 VERIQ_DESKTOP_ENGINE_VERSION: engine.version,
                 VERIQ_DESKTOP_BROWSER: resolve(
                     root,
-                    ".superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell",
+                    ".superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome" +
+                        "-headless-shell",
                 ),
             },
         });
@@ -998,7 +1004,8 @@ test("offline shared resource assets and single instance remain local", async ({
         VERIQ_DESKTOP_ENGINE_VERSION: engine.version,
         VERIQ_DESKTOP_BROWSER: resolve(
             root,
-            ".superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell",
+            ".superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headles" +
+                "s-shell",
         ),
     };
     const electron = await _electron.launch({
@@ -1230,7 +1237,8 @@ test("shared cloud editor publishes through the desktop host transport", async (
                 VERIQ_DESKTOP_ENGINE_VERSION: engine.version,
                 VERIQ_DESKTOP_BROWSER: resolve(
                     root,
-                    ".superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell",
+                    ".superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome" +
+                        "-headless-shell",
                 ),
             },
         });
@@ -1355,7 +1363,8 @@ test("component-only startup projection cancels its exact reservation", async ()
         chromiumSandbox: true,
         executablePath: resolve(
             root,
-            ".superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell",
+            ".superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headles" +
+                "s-shell",
         ),
         headless: true,
     });
@@ -1429,7 +1438,8 @@ test("component-only startup projection cancels its exact reservation", async ()
     }
 });
 
-/** 真实 Cookie 验收通过生产 main 的保护门闩建立持久 Session，写入公开合成值后关闭所有自有进程再独立读取 SQLite；重启同一档案必须恢复同一 Cookie，数据库空明文列和实际提供者密文均需成立，不能以 safeStorage 可用替代磁盘证据。 */
+/** 真实 Cookie 验收通过生产 main 的保护门闩建立持久 Session，写入公开合成值后关闭所有自有进程再独立读取 SQLite；重启同一档案必须恢复同一 Cookie，数据库空明文列和实际提供者密文均需成立，不能以
+ * safeStorage 可用替代磁盘证据。 */
 test("production Cookie session persists protected rows and restores after restart", async () => {
     const { DatabaseSync } = await import("node:sqlite");
     const { stat, writeFile } = await import("node:fs/promises");
@@ -1451,7 +1461,8 @@ test("production Cookie session persists protected rows and restores after resta
                 VERIQ_DESKTOP_ENGINE_VERSION: engine.version,
                 VERIQ_DESKTOP_BROWSER: resolve(
                     root,
-                    ".superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell",
+                    ".superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome" +
+                        "-headless-shell",
                 ),
             },
         });

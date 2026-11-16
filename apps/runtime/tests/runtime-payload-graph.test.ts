@@ -288,7 +288,8 @@ test("AST checks literal exports dynamic imports and ignores comment strings", a
         f.add(
             "entries",
             "chunk.js",
-            'export {value} from "./sub.js"; await import("./sub.js"); const text="import(never)"; const later=()=>import(runtimePath);\n',
+            'export {value} from "./sub.js"; await import("./sub.js"); const text="import(never)"; const later=()=>i' +
+                "mport(runtimePath);\n",
         );
         f.add("entries", "sub.js", "export const value=1;\n");
         f.receipts.entries.outputs.push(

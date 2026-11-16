@@ -51,9 +51,7 @@ class BuildOptions:
 ReleaseManifest = dict[str, Any]
 
 
-def source_binding(
-    root: Path, run_process: RunProcess = subprocess.run
-) -> dict[str, str]:
+def source_binding(root: Path, run_process: RunProcess = subprocess.run) -> dict[str, str]:
     """记录全部受版本控制的源码与新增未忽略文件的精确散列，构建结束时重新读取并比较；生成物与私有证据不进入 Git 文件集合，锁文件仍明确参与相同身份检查。
 
     字节身份比单独的 commit 更严格，能够检测脏工作区或运行期间编辑。
@@ -147,12 +145,8 @@ def build_release(options: BuildOptions) -> ReleaseManifest:
     with os.fdopen(fd, "w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         if (work / "build-unsafe.json").exists():
-            raise ValueError(
-                "Build state quarantined after unconfirmed descendant shutdown"
-            )
-        identifier = (
-            time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()) + "-" + uuid.uuid4().hex[:12]
-        )
+            raise ValueError("Build state quarantined after unconfirmed descendant shutdown")
+        identifier = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()) + "-" + uuid.uuid4().hex[:12]
         run = work / ("release-" + identifier)
         run.mkdir()
         with process_scope(run, lock.fileno()) as managed:
@@ -201,9 +195,7 @@ def build_release(options: BuildOptions) -> ReleaseManifest:
                 if interrupted is not None:
                     raise interrupted
                 if result_code:
-                    raise RuntimeError(
-                        f"Release phase failed: {name}; see {run / (name + '.log')}"
-                    )
+                    raise RuntimeError(f"Release phase failed: {name}; see {run / (name + '.log')}")
 
             if sys.version_info[:2] != (3, 12) or platform.machine() != "x86_64":
                 raise ValueError("Release requires Python 3.12 and Linux x64")
@@ -218,9 +210,7 @@ def build_release(options: BuildOptions) -> ReleaseManifest:
                 ).stdout.strip()
                 # Node 兼容条件只接受有限位数的规范稳定二十四主版本，不能把建议的大版本字符串写成实测身份；其余工具继续沿用原有版本门禁，探测成功后才形成候选构建记录。
                 compatible = (
-                    re.fullmatch(
-                        r"v24\.(?:0|[1-9][0-9]{0,8})\.(?:0|[1-9][0-9]{0,8})", actual
-                    )
+                    re.fullmatch(r"v24\.(?:0|[1-9][0-9]{0,8})\.(?:0|[1-9][0-9]{0,8})", actual)
                     is not None
                     if tool == "node"
                     else actual.startswith(expected)
@@ -228,9 +218,7 @@ def build_release(options: BuildOptions) -> ReleaseManifest:
                 if not compatible:
                     raise ValueError(f"Unsupported release tool version: {tool}")
                 tool_versions[tool] = actual
-            (run / "tool-versions.json").write_text(
-                json.dumps(tool_versions, indent=2) + "\n"
-            )
+            (run / "tool-versions.json").write_text(json.dumps(tool_versions, indent=2) + "\n")
             commit = managed.run(
                 ["git", "rev-parse", "HEAD"],
                 cwd=root,
@@ -244,9 +232,7 @@ def build_release(options: BuildOptions) -> ReleaseManifest:
                 check=True,
                 stdout=subprocess.PIPE,
             ).stdout.strip():
-                raise ValueError(
-                    "Normal release requires a clean committed source tree"
-                )
+                raise ValueError("Normal release requires a clean committed source tree")
             binding = source_binding(root, managed.run)
             (run / "source-binding.json").write_text(
                 json.dumps(binding, sort_keys=True, indent=2) + "\n"
@@ -358,9 +344,7 @@ def build_release(options: BuildOptions) -> ReleaseManifest:
                     for suite in ET.parse(run / "python-junit.xml").iter("testsuite")
                 ):
                     raise ValueError("Default release tests must not be skipped")
-                command(
-                    "contracts-tests", ["pnpm", "--filter", "@veriq/contracts", "test"]
-                )
+                command("contracts-tests", ["pnpm", "--filter", "@veriq/contracts", "test"])
                 command(
                     "compiler-tests",
                     ["pnpm", "--filter", "@veriq/compiler", "test:coverage"],
@@ -412,9 +396,7 @@ def build_release(options: BuildOptions) -> ReleaseManifest:
                     str(engine),
                 ],
             )
-            destination = (
-                root / "apps/srv/src/veriq_server/release/engine-inventory.json"
-            )
+            destination = root / "apps/srv/src/veriq_server/release/engine-inventory.json"
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(engine / "inventory.json", destination)
             wheel_output = work / "server-wheel"
@@ -469,15 +451,18 @@ def build_release(options: BuildOptions) -> ReleaseManifest:
             shutil.copy2(run / "installation/server-sbom.json", candidate / "SBOM.json")
             npm_metadata = npm_sbom(root, candidate / "frontend", managed.run)
             shutil.copytree(run / "installation", candidate / "evidence/installation")
-            for name in ("source-binding.json", "commands.json", "tool-versions.json", "examples-source-inventory.json"):
+            for name in (
+                "source-binding.json",
+                "commands.json",
+                "tool-versions.json",
+                "examples-source-inventory.json",
+            ):
                 shutil.copy2(run / name, candidate / "evidence" / name)
             shutil.copy2(
                 root / "apps/srv/src/veriq_server/static/dist/static-manifest.json",
                 candidate / "static-manifest.json",
             )
-            engine_metadata = json.loads((engine / "inventory.json").read_bytes())[
-                "engines"
-            ][0]
+            engine_metadata = json.loads((engine / "inventory.json").read_bytes())["engines"][0]
             manifest = {
                 "status": "VERIFIED",
                 "version": info["version"],
@@ -493,10 +478,7 @@ def build_release(options: BuildOptions) -> ReleaseManifest:
                 "engineInventorySha256": sha256(
                     (engine / "inventory.json").read_bytes()
                 ).hexdigest(),
-                "locks": {
-                    name: binding[name]
-                    for name in ("pnpm-lock.yaml", "apps/srv/uv.lock")
-                },
+                "locks": {name: binding[name] for name in ("pnpm-lock.yaml", "apps/srv/uv.lock")},
                 "frontendSbom": npm_metadata,
                 "sourceBindingSha256": sha256(
                     (run / "source-binding.json").read_bytes()
@@ -506,9 +488,7 @@ def build_release(options: BuildOptions) -> ReleaseManifest:
                 "wheelhouse": locked_wheels,
                 "installation": installed,
             }
-            (candidate / "release.json").write_text(
-                json.dumps(manifest, indent=2) + "\n"
-            )
+            (candidate / "release.json").write_text(json.dumps(manifest, indent=2) + "\n")
 
             def checksums() -> str:
                 """递归散列候选内全部普通文件并以相对路径记录，先生成归档内清单再增加归档本身摘要；仅排除清单自身，避免循环哈希，同时覆盖部署脚本、许可与 wheelhouse 的独立文件。

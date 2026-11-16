@@ -68,7 +68,8 @@ export const workspacesMessages: Record<string, readonly [string, string]> = {
     "Existing accounts must sign in as the invited identity. Invitations never change an existing account password.":
         [
             "已有账号必须以受邀请的身份登录。邀请不会修改已有账号的密码。",
-            "Existing accounts must sign in as the invited identity. Invitations never change an existing account password.",
+            "Existing accounts must sign in as the invited identity. Invitations never change an existing account pa" +
+                "ssword.",
         ],
     "Create a new account": ["创建新账号", "Create a new account"],
     "Accept as": ["接受身份", "Accept as"],

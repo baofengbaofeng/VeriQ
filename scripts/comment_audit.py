@@ -67,13 +67,9 @@ def audit(root: Path) -> dict[str, Any]:
         code: set[int] = set()
         if name.endswith(".py"):
             # Python 分词器依赖逐个物理行读取，StringIO 必须启用通用换行以识别合法裸回车并与 AST 行号一致；转换仅作用于分词输入，供 Node 坐标遮罩使用的原始文本仍完整保留。
-            for token in tokenize.generate_tokens(
-                io.StringIO(text, newline=None).readline
-            ):
+            for token in tokenize.generate_tokens(io.StringIO(text, newline=None).readline):
                 if token.type == tokenize.COMMENT:
-                    blocks.append(
-                        (token.start[0], token.end[0], token.string.lstrip("# "))
-                    )
+                    blocks.append((token.start[0], token.end[0], token.string.lstrip("# ")))
                 elif token.type not in {
                     tokenize.NL,
                     tokenize.NEWLINE,
@@ -164,21 +160,13 @@ def audit(root: Path) -> dict[str, Any]:
                         "reason": "Chinese comment first line must contain at least 60 characters",
                     }
                 )
-        code.intersection_update(
-            index for index, line in enumerate(lines, 1) if line.strip()
-        )
-        rows.append(
-            {"path": name, "commentLines": len(comments), "codeLines": len(code)}
-        )
+        code.intersection_update(index for index, line in enumerate(lines, 1) if line.strip())
+        rows.append({"path": name, "commentLines": len(comments), "codeLines": len(code)})
     comment_count, code_count = (
         sum(row["commentLines"] for row in rows),
         sum(row["codeLines"] for row in rows),
     )
-    ratio = (
-        comment_count / (comment_count + code_count)
-        if comment_count + code_count
-        else 0
-    )
+    ratio = comment_count / (comment_count + code_count) if comment_count + code_count else 0
     return {
         "method": "syntax-comments-v1",
         "generatedExclusions": sorted(GENERATED),
@@ -202,9 +190,7 @@ def main() -> None:
     report = audit(Path(__file__).resolve().parents[1])
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2) + "\n")
-    print(
-        f"Comment ratio: {report['ratio']:.4%}; violations: {len(report['violations'])}"
-    )
+    print(f"Comment ratio: {report['ratio']:.4%}; violations: {len(report['violations'])}")
     raise SystemExit(0 if report["passed"] else 1)
 
 

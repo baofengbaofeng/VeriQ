@@ -28,11 +28,9 @@ const fixtureAsset = () =>
         ttlSeconds: 60,
     });
 function input() {
-    const source = snapshot(
-        [{ id: "open", action: "goto", path: "/" }],
-        [fixtureAsset()],
-        { fixtureVersionId: id(3) },
-    );
+    const source = snapshot([{ id: "open", action: "goto", path: "/" }], [fixtureAsset()], {
+        fixtureVersionId: id(3),
+    });
     const execution = {
         schemaVersion: "1.0",
         workspaceId: source.workspaceId,
@@ -78,12 +76,7 @@ it("requires both fixture lifecycle operations before authentication or business
     expect(authenticated).toBe(false);
     expect(r.steps).toEqual([]);
 });
-it.each([
-    "success",
-    "prepare-failure",
-    "invalid-output",
-    "cleanup-failure",
-] as const)(
+it.each(["success", "prepare-failure", "invalid-output", "cleanup-failure"] as const)(
     "records real lifecycle boundaries and compensates %s",
     async (mode) => {
         const { source, plan, execution } = input();
@@ -110,13 +103,9 @@ it.each([
             lifecycle,
         });
         expect(cleaned).toBe(true);
-        expect(cleanupToken).toBe(
-            mode === "prepare-failure" ? undefined : "cleanup-1",
-        );
+        expect(cleanupToken).toBe(mode === "prepare-failure" ? undefined : "cleanup-1");
         expect(r.outcome).toBe(mode === "success" ? "PASSED" : "ERROR");
-        expect(r.cleanupStatus).toBe(
-            mode === "cleanup-failure" ? "FAILED" : "SUCCEEDED",
-        );
+        expect(r.cleanupStatus).toBe(mode === "cleanup-failure" ? "FAILED" : "SUCCEEDED");
         if (mode === "invalid-output") {
             expect(r.errorCode).toBe("FIXTURE_OUTPUT_INVALID");
             expect(r.steps).toEqual([]);
@@ -182,9 +171,7 @@ it("cancelled business action settles observers and still runs fixture cleanup",
                 },
             },
         });
-        await expect
-            .poll(() => emitter.listenerCount("response"))
-            .toBeGreaterThan(0);
+        await expect.poll(() => emitter.listenerCount("response")).toBeGreaterThan(0);
         controller.abort();
         const r = await running;
         expect(r.outcome).toBe("CANCELLED");
@@ -233,21 +220,18 @@ it("rejects resolved fixture input before authentication and passes explicit inp
     expect(invalid.errorCode).toBe("INITIAL_VARIABLES_INVALID");
     execution.variables = {};
     expect(
-        (await executeCase(plan, source, { page: f.page, execution, lifecycle }))
-            .errorCode,
+        (await executeCase(plan, source, { page: f.page, execution, lifecycle })).errorCode,
     ).toBe("INITIAL_VARIABLES_INVALID");
     expect(authenticated).toBe(false);
     execution.variables = { private: "A" };
     expect(
-        (await executeCase(plan, source, { page: f.page, execution, lifecycle }))
-            .errorCode,
+        (await executeCase(plan, source, { page: f.page, execution, lifecycle })).errorCode,
     ).toBe("FIXTURE_INPUT_INVALID");
     expect(authenticated).toBe(false);
     execution.variables = { private: "Ada" };
-    expect(
-        (await executeCase(plan, source, { page: f.page, execution, lifecycle }))
-            .outcome,
-    ).toBe("PASSED");
+    expect((await executeCase(plan, source, { page: f.page, execution, lifecycle })).outcome).toBe(
+        "PASSED",
+    );
 });
 it.each([false, true])(
     "core protects generic cleanup tokens before ordinary projection (invalid output: %s)",

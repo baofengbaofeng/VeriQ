@@ -49,7 +49,8 @@ test("browser capability distinguishes the installed headless shell from headed 
     const { probeBrowser } = await import("../src/agent/browser-capability.ts");
     const { resolve } = await import("node:path");
     const binary = resolve(
-        "../../.superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell",
+        "../../.superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headl" +
+            "ess-shell",
     );
     assert.equal((await probeBrowser(binary, false)).available, true);
     assert.equal((await probeBrowser(binary, true)).available, false);

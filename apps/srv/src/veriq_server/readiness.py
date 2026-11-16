@@ -46,7 +46,9 @@ def file_probe(root: str) -> bool:
         else:
             return False
         descriptor = os.open(
-            name, os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600,
+            name,
+            os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            0o600,
             dir_fd=directory,
         )
         created = True
@@ -101,15 +103,23 @@ class ReadinessMonitor:
                     await connection.execute(text("SELECT 1"))
                     result["database"] = True
                     version = str((await connection.execute(text("SELECT VERSION()"))).scalar_one())
-                    result["mysqlVersion"] = version.startswith("8.4.") and "mariadb" not in version.lower()
+                    result["mysqlVersion"] = (
+                        version.startswith("8.4.") and "mariadb" not in version.lower()
+                    )
                     heads = packaged_heads()
                     current = await connection.run_sync(
                         lambda conn: MigrationContext.configure(
                             conn, opts={"version_table": "veriq_alembic_version"}
                         ).get_current_heads()
                     )
-                    installed = (await connection.execute(select(Installation.id).where(Installation.id == 1))).first()
-                    result["schema"] = len(heads) == 1 and set(heads) == set(current) and installed is not None
+                    installed = (
+                        await connection.execute(
+                            select(Installation.id).where(Installation.id == 1)
+                        )
+                    ).first()
+                    result["schema"] = (
+                        len(heads) == 1 and set(heads) == set(current) and installed is not None
+                    )
         except (SQLAlchemyError, TimeoutError):
             pass
         return result
@@ -118,8 +128,13 @@ class ReadinessMonitor:
         if self.settings.environment == "development":
             return True
         current = load_published_site(self.settings)
-        return current is not None and self.site is not None and (
-            current.build_info == self.site.build_info and current.public_files == self.site.public_files
+        return (
+            current is not None
+            and self.site is not None
+            and (
+                current.build_info == self.site.build_info
+                and current.public_files == self.site.public_files
+            )
         )
 
     def _storage(self) -> bool:
@@ -132,19 +147,29 @@ class ReadinessMonitor:
             return False
         import boto3
         from botocore.config import Config as S3Config
+
         client = boto3.client(
-            "s3", endpoint_url=config.artifact_s3_endpoint, region_name=config.artifact_s3_region,
-            config=S3Config(connect_timeout=0.5, read_timeout=0.5, retries={"total_max_attempts": 1}),
+            "s3",
+            endpoint_url=config.artifact_s3_endpoint,
+            region_name=config.artifact_s3_region,
+            config=S3Config(
+                connect_timeout=0.5, read_timeout=0.5, retries={"total_max_attempts": 1}
+            ),
         )
         try:
             if config.readiness_s3_strategy == "head-bucket":
                 client.head_bucket(Bucket=config.artifact_s3_bucket)
                 return True
-            response = client.get_object(Bucket=config.artifact_s3_bucket, Key=config.readiness_s3_object_key)
+            response = client.get_object(
+                Bucket=config.artifact_s3_bucket, Key=config.readiness_s3_object_key
+            )
             body = response["Body"]
             try:
                 payload = body.read(config.readiness_s3_object_size + 1)
-                return len(payload) == config.readiness_s3_object_size and sha256(payload).hexdigest() == config.readiness_s3_object_sha256
+                return (
+                    len(payload) == config.readiness_s3_object_size
+                    and sha256(payload).hexdigest() == config.readiness_s3_object_sha256
+                )
             finally:
                 body.close()
         finally:
@@ -156,6 +181,7 @@ class ReadinessMonitor:
             if not previous.done():
                 return False
             previous.result()
+
         async def work() -> bool:
             try:
                 return bool(await asyncio.to_thread(function))
@@ -163,9 +189,11 @@ class ReadinessMonitor:
                 return False
             except Exception as error:
                 from botocore.exceptions import BotoCoreError, ClientError
+
                 if isinstance(error, (BotoCoreError, ClientError)):
                     return False
                 raise
+
         worker = asyncio.create_task(work())
         self._workers[name] = worker
         try:

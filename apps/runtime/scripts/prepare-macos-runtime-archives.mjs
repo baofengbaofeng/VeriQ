@@ -24,7 +24,8 @@ function flags(args) {
     if (values.size !== names.length) throw new RuntimePayloadError("PAYLOAD_INPUT_INVALID");
     return values;
 }
-/** 两个外层 JSON 复用原 reader 的 held FD、无链接祖先、四 MiB 实际长度与身份收尾策略，不另造宽松解析；expected 始终来自独立显式文件，核心 intake 随后再次同步复制字节并完成真实 b1a 准入与来源核验。 */
+/** 两个外层 JSON 复用原 reader 的 held FD、无链接祖先、四 MiB 实际长度与身份收尾策略，不另造宽松解析；expected 始终来自独立显式文件，核心 intake 随后再次同步复制字节并完成真实 b1a
+ * 准入与来源核验。 */
 async function input(path) {
     const reader = new InputReader(dirname(path), controller.signal, []);
     await reader.initialize();

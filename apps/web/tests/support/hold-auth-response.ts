@@ -1,4 +1,5 @@
-/** 真实认证响应必须在浏览器应用头部之前暂停，Playwright 的 route.fetch 会提前修改同一上下文的 Cookie；此屏障用 Node 直连同一个本机服务转发原请求，既不共享浏览器 Cookie 容器也不改写认证内容。 */
+/** 真实认证响应必须在浏览器应用头部之前暂停，Playwright 的 route.fetch 会提前修改同一上下文的 Cookie；此屏障用 Node 直连同一个本机服务转发原请求，既不共享浏览器 Cookie 容器也不改写认证
+ * 内容。 */
 import { request as httpRequest } from "node:http";
 import type { Page, Route } from "@playwright/test";
 
@@ -48,7 +49,8 @@ export async function holdAuthResponse(page: Page, pathname: string, method: str
                     incoming.on("error", reject);
                     incoming.on("end", () => {
                         const originalHeaders: Record<string, string> = {};
-                        // Playwright 用换行承载重复头部值，因此保留服务端同名头部的原始值与顺序，包含 Set-Cookie；不解压、不解析、不移除 Cookie 头，浏览器只有 fulfill 时才能看到这些字节。
+                        // Playwright 用换行承载重复头部值，因此保留服务端同名头部的原始值与顺序，包含 Set-Cookie；不解压、不解析、不移除 Cookie 头，浏览器只有 fulfill 时才能
+                        // 看到这些字节。
                         for (let index = 0; index < incoming.rawHeaders.length; index += 2) {
                             const name = incoming.rawHeaders[index]!.toLowerCase();
                             const value = incoming.rawHeaders[index + 1]!;

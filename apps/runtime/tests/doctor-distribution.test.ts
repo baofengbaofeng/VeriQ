@@ -7,7 +7,8 @@ import { diagnoseRelease } from "../src/distribution.ts";
 /** 已经核验的发行上下文用于独立打包后台的版本定位，不能绕过版本兼容条件或把控制平台离线说成可达；本例仍启动真实匹配浏览器，三种调用方式分别检查原包探测、有效发行及不支持发行。 */
 test("doctor keeps package probing and validates explicit distribution versions", async () => {
     const executablePath = resolve(
-        "../../.superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell",
+        "../../.superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headl" +
+            "ess-shell",
     );
     const baseline = await doctor({ executablePath });
     assert.equal(baseline.ok, true);
@@ -40,7 +41,8 @@ test("shared release doctor advertises the verified engine identity", async () =
         engineDirectory: resolve("../../work/t19-engine-current"),
         engineVersion: "1.0.1-t19",
         browserExecutable: resolve(
-            "../../.superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell",
+            "../../.superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-h" +
+                "eadless-shell",
         ),
     };
     const result = await diagnoseRelease(options);

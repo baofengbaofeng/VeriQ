@@ -23,17 +23,13 @@ export async function downloadBundle(
                 headers: { Authorization: `Bearer ${config.deviceToken}` },
                 credentials: "omit",
                 redirect: "error",
-                signal: AbortSignal.any([
-                    AbortSignal.timeout(60000),
-                    ...(signal ? [signal] : []),
-                ]),
+                signal: AbortSignal.any([AbortSignal.timeout(60000), ...(signal ? [signal] : [])]),
             },
         );
     if (!response.ok || !response.body) throw new Error("BUNDLE_DOWNLOAD_FAILED");
     await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
     const parent = await lstat(dirname(destination));
-    if (!parent.isDirectory() || parent.isSymbolicLink())
-        throw new Error("UNSAFE_DESTINATION");
+    if (!parent.isDirectory() || parent.isSymbolicLink()) throw new Error("UNSAFE_DESTINATION");
     const temporary = join(dirname(destination), `.${randomUUID()}.part`);
     let fd;
     try {

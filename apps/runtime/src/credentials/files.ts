@@ -6,7 +6,8 @@ import { randomUUID } from "node:crypto";
 import type { DarwinPrivateDirectory } from "../native/darwin.ts";
 
 const LIMIT = 2 * 1024 * 1024;
-/** 只有显式 Linux 服务文件模式会使用此精确双 UUID 成员，它保存在独立 restricted-keys 目录且承载未加密随机密钥；每份记录单独限制为五百一十二字节，Windows 原生保险库白名单不增加该名字，也不能借此放宽一般配置容量。 */
+/** 只有显式 Linux 服务文件模式会使用此精确双 UUID 成员，它保存在独立 restricted-keys 目录且承载未加密随机密钥；每份记录单独限制为五百一十二字节，Windows 原生保险库白名单不增加该名字，也不能借
+ * 此放宽一般配置容量。 */
 const RAW_KEY = /^raw-key-[0-9a-f-]{36}-[0-9a-f-]{36}\.json$/;
 function member(name: string) {
     if (!/^[a-z0-9][a-z0-9.-]{0,100}$/.test(name) || name.includes(".."))
@@ -57,8 +58,11 @@ export class VaultFiles {
         /** Darwin 会话从根取得真实目录描述符并仅在显式创建时 mkdir，已有目录的 owner 和模式绝不自动修复；缺少正式原生模块或安装能力时保持失败，不退回 Linux proc 或普通字符串路径访问。 */
         if (process.platform === "darwin") {
             const { darwinNative } = await import("../native/darwin.ts");
-            return new VaultFiles(directory, undefined,
-                darwinNative().openPrivateDirectory(directory, true));
+            return new VaultFiles(
+                directory,
+                undefined,
+                darwinNative().openPrivateDirectory(directory, true),
+            );
         }
         let parent = await open(parse(directory).root, constants.O_RDONLY | constants.O_DIRECTORY);
         try {

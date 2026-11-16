@@ -1,4 +1,3 @@
-
 import asyncio
 from hashlib import sha256
 from test_auth import setup, login

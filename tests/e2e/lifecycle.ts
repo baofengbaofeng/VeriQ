@@ -36,7 +36,8 @@ export async function stopFixture(child: ChildProcess): Promise<void> {
                     () =>
                         reject(
                             new Error(
-                                `FIXTURE_STOP_TIMEOUT pid=${child.pid} code=${child.exitCode} signal=${child.signalCode}`,
+                                `FIXTURE_STOP_TIMEOUT pid=${child.pid} code=${child.exitCode} signal=` +
+                                    `${child.signalCode}`,
                             ),
                         ),
                     15000,

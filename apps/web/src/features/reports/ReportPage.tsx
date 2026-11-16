@@ -691,7 +691,8 @@ function AttemptDetails({
                                                           ? "report.html"
                                                           : a.kind === "JUNIT"
                                                             ? "junit.xml"
-                                                            : `evidence-${a.id}.${a.kind === "SCREENSHOT" ? "png" : "bin"}`;
+                                                            : `evidence-${a.id}.` +
+                                                              `${a.kind === "SCREENSHOT" ? "png" : "bin"}`;
                                                 link.click();
                                                 setTimeout(() => URL.revokeObjectURL(url), 1000);
                                             })

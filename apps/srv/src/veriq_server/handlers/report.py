@@ -199,7 +199,13 @@ class ReportAPI(API):
                     self.set_header("X-Accel-Buffering", "no")
                 if events or first or latest != signature:
                     self.write(
-                        f"id: {encoded}\nevent: report\ndata: {json.dumps({'events': events, 'report': report}, separators=(',', ':'), ensure_ascii=False)}\n\n"
+                        f"id: {encoded}\nevent: report\ndata: {
+                            json.dumps(
+                                {'events': events, 'report': report},
+                                separators=(',', ':'),
+                                ensure_ascii=False,
+                            )
+                        }\n\n"
                     )
                 else:
                     self.write(": keepalive\n\n")

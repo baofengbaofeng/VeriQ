@@ -52,9 +52,9 @@ it("compiles ordered explicit page selection while rejecting use before capture 
         ),
     ).toBe(true);
     expect(
-        analyze(
-            snapshot([capture, { ...capture, id: "duplicate" }] as never),
-        ).issues.some((x) => x.code === "DUPLICATE_PAGE_KEY"),
+        analyze(snapshot([capture, { ...capture, id: "duplicate" }] as never)).issues.some(
+            (x) => x.code === "DUPLICATE_PAGE_KEY",
+        ),
     ).toBe(true);
 });
 it("rejects event observers as response/assertion and extraction sources", () => {
@@ -96,54 +96,55 @@ it("rejects event observers as response/assertion and extraction sources", () =>
             ).issues.some((x) => x.code === "UNKNOWN_OBSERVER"),
         ).toBe(true);
 });
-it("scopes flow page declarations locally while wrapper page declarations are visible to children and later caller steps", async () => {
-    const { asset, id } = await import("../../compiler/tests/helpers.js");
-    const flow = asset(3, "FLOW", {
-        schemaVersion: "1.0",
-        parameters: {},
-        steps: [
-            {
-                id: "use",
-                action: "fill",
-                target: "name",
-                value: "child",
-                pageKey: "wrapper",
-            },
-            {
-                id: "open",
-                action: "click",
-                target: "name",
-                observers: [{ id: "local", kind: "newPage", pageKey: "local" }],
-            },
-            { id: "localUse", action: "goto", path: "/", pageKey: "local" },
-        ],
-    });
-    const wrapper = {
-        id: "flow",
-        action: "callFlow",
-        versionId: id(3),
-        observers: [{ id: "wrapper", kind: "newPage", pageKey: "wrapper" }],
-    };
-    expect(
-        analyze(
-            snapshot(
-                [
-                    wrapper,
-                    { id: "use", action: "goto", path: "/", pageKey: "wrapper" },
-                ] as never,
-                [flow],
-            ),
-        ).issues,
-    ).toEqual([]);
-    expect(
-        analyze(
-            snapshot(
-                [
-                    wrapper,
-                    { id: "use", action: "goto", path: "/", pageKey: "local" },
-                ] as never,
-                [flow],
-            ),
-        ).issues.some((x) => x.code === "UNKNOWN_PAGE_KEY"),
-    ).toBe(true);
-});
+it(
+    "scopes flow page declarations locally while wrapper page declarations are visible to children and later caller s" +
+        "teps",
+    async () => {
+        const { asset, id } = await import("../../compiler/tests/helpers.js");
+        const flow = asset(3, "FLOW", {
+            schemaVersion: "1.0",
+            parameters: {},
+            steps: [
+                {
+                    id: "use",
+                    action: "fill",
+                    target: "name",
+                    value: "child",
+                    pageKey: "wrapper",
+                },
+                {
+                    id: "open",
+                    action: "click",
+                    target: "name",
+                    observers: [{ id: "local", kind: "newPage", pageKey: "local" }],
+                },
+                { id: "localUse", action: "goto", path: "/", pageKey: "local" },
+            ],
+        });
+        const wrapper = {
+            id: "flow",
+            action: "callFlow",
+            versionId: id(3),
+            observers: [{ id: "wrapper", kind: "newPage", pageKey: "wrapper" }],
+        };
+        expect(
+            analyze(
+                snapshot(
+                    [
+                        wrapper,
+                        { id: "use", action: "goto", path: "/", pageKey: "wrapper" },
+                    ] as never,
+                    [flow],
+                ),
+            ).issues,
+        ).toEqual([]);
+        expect(
+            analyze(
+                snapshot(
+                    [wrapper, { id: "use", action: "goto", path: "/", pageKey: "local" }] as never,
+                    [flow],
+                ),
+            ).issues.some((x) => x.code === "UNKNOWN_PAGE_KEY"),
+        ).toBe(true);
+    },
+);

@@ -1,4 +1,7 @@
-"""恢复验收只向由 Electron 主窗口确认且 pidfd 绑定的 UI renderer 注入一次异常终止，不停止 Agent 或业务浏览器；窗口角色由可信主进程先行验证，身份、祖先或平台能力不符均拒绝，不提供数字 PID 信号或重试回退。"""
+(
+    """恢复验收只向由 Electron 主窗口确认且 pidfd 绑定的 UI renderer 注入一次异常终止，不停止 Agent 或业务浏览器；窗口角色由可信主进程先行验证，身份、祖先或平台能力不符均拒绝，不提供数字 """
+    """PID 信号或重试回退。"""
+)
 
 import json
 import os
@@ -71,9 +74,7 @@ def inject(request: dict) -> dict:
     ):
         raise FaultRejected("RENDERER_FAULT_OWNER_MISMATCH")
     for field in ("mainStart", "rendererStart"):
-        if not isinstance(request[field], str) or not re.fullmatch(
-            r"\d{1,32}", request[field]
-        ):
+        if not isinstance(request[field], str) or not re.fullmatch(r"\d{1,32}", request[field]):
             raise FaultRejected("RENDERER_FAULT_INPUT_INVALID")
     raw_executable = request["executable"]
     if not isinstance(raw_executable, str) or not Path(raw_executable).is_absolute():
@@ -97,10 +98,7 @@ def inject(request: dict) -> dict:
         ancestors = []
         for _ in range(16):
             current = identity(cursor)
-            if (
-                current["uid"] != uid
-                or Path(f"/proc/{cursor}/exe").resolve() != executable
-            ):
+            if current["uid"] != uid or Path(f"/proc/{cursor}/exe").resolve() != executable:
                 raise FaultRejected("RENDERER_FAULT_ANCESTRY_MISMATCH")
             ancestors.append(cursor)
             if cursor == main:
@@ -143,9 +141,7 @@ if __name__ == "__main__":
         print(json.dumps(result), flush=True)
     except (FaultRejected, OSError, ValueError, TypeError) as error:
         code = (
-            str(error)
-            if isinstance(error, FaultRejected)
-            else "RENDERER_FAULT_OS_OR_INPUT_ERROR"
+            str(error) if isinstance(error, FaultRejected) else "RENDERER_FAULT_OS_OR_INPUT_ERROR"
         )
         print(json.dumps({"faultError": code}), file=sys.stderr, flush=True)
         sys.exit(1)

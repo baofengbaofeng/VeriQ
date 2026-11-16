@@ -1,4 +1,3 @@
-
 import json
 import os
 from pathlib import Path
@@ -201,9 +200,7 @@ async def test_disabled_and_exhausted_provider_do_not_affect_actual_run(site, tm
             assert stops and all(s["state"] == "STOPPED" for s in stops)
             evidence_path = Path(".superpowers/sdd/veriq-1/evidence/t13/no-model-runs.json")
             evidence_path.parent.mkdir(parents=True, exist_ok=True)
-            evidence_path.write_text(
-                json.dumps({"runs": evidence, "stops": stops}, indent=2)
-            )
+            evidence_path.write_text(json.dumps({"runs": evidence, "stops": stops}, indent=2))
             # Failure-analysis context uses ordinary sanitized report projections even for a passing Run.
             model.output = {
                 "suggestions": ["Inspect supplied assertion basis"],

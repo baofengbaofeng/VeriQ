@@ -276,7 +276,9 @@ class Artifact(Base):
 
     __tablename__ = "veriq_artifacts"
     __table_args__ = (Index("ix_veriq_artifact_retention", "workspace_id", "created_at", "sha256"),)
-    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6), server_default=text("CURRENT_TIMESTAMP(6)"))
+    created_at: Mapped[datetime] = mapped_column(
+        DATETIME(fsp=6), server_default=text("CURRENT_TIMESTAMP(6)")
+    )
     workspace_id: Mapped[str] = mapped_column(
         uuid_type, ForeignKey("veriq_workspaces.id"), primary_key=True
     )
@@ -352,13 +354,19 @@ class Job(Base):
             "kind <> 'TEST' OR subject_id = case_execution_id", name="ck_job_case_subject"
         ),
         CheckConstraint(
-            "kind <> 'CLEANUP' OR (maintenance_id IS NOT NULL AND subject_id = maintenance_id AND origin_attempt_id IS NOT NULL)",
+            (
+                "kind <> 'CLEANUP' OR (maintenance_id IS NOT NULL AND subject_id = maintenance_id AND "
+                "origin_attempt_id IS NOT NULL)"
+            ),
             name="ck_job_cleanup_subject",
         ),
         CheckConstraint("kind IN ('TEST','VALIDATE','CLEANUP')", name="ck_job_kind"),
         CheckConstraint("max_retries >= 0 AND max_retries <= 1", name="ck_job_retry_bound"),
         CheckConstraint(
-            "(kind = 'TEST' AND run_id IS NOT NULL AND case_execution_id IS NOT NULL) OR (kind <> 'TEST' AND run_id IS NULL AND case_execution_id IS NULL)",
+            (
+                "(kind = 'TEST' AND run_id IS NOT NULL AND case_execution_id IS NOT NULL) OR (kind <> 'TEST' AND "
+                "run_id IS NULL AND case_execution_id IS NULL)"
+            ),
             name="ck_job_subject",
         ),
         ForeignKeyConstraint(

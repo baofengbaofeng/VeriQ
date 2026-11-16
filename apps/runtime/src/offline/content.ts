@@ -29,9 +29,7 @@ export function validateContent(
     function read<T>(path: string, schema?: string): T {
         const raw = contents.get(path);
         if (!raw) throw new Error("BUNDLE_DEPENDENCY_MISSING");
-        const value: unknown = JSON.parse(
-            new TextDecoder("utf-8", { fatal: true }).decode(raw),
-        );
+        const value: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(raw));
         if (schema && validateSchema(schema, value).length)
             throw new Error("INVALID_BUNDLE_SCHEMA");
         return value as T;
@@ -49,29 +47,20 @@ export function validateContent(
         (dslOnly && manifest.validationStatus !== "UNVALIDATED_DEBUG")
     )
         throw new Error("INVALID_BUNDLE_MODE");
-    const resources = read<BundleResourcesV1>(
-        "resources.json",
-        "BundleResourcesV1",
-    );
-    if (
-        snapshot.assets.length > 1000 ||
-        contents.get("snapshot.json")!.length > 16 * 1024 * 1024
-    )
+    const resources = read<BundleResourcesV1>("resources.json", "BundleResourcesV1");
+    if (snapshot.assets.length > 1000 || contents.get("snapshot.json")!.length > 16 * 1024 * 1024)
         throw new Error("BUNDLE_SIZE_LIMIT");
     const assets = new Map(snapshot.assets.map((a) => [a.versionId, a]));
     if (
         assets.size !== snapshot.assets.length ||
         resources.resources.some((r) => r.workspaceId !== manifest.workspaceId) ||
         resources.versions.some((v) => v.workspaceId !== manifest.workspaceId) ||
-        new Set(resources.versions.map((v) => v.id)).size !==
-            resources.versions.length ||
-        new Set(resources.resources.map((r) => r.id)).size !==
-            resources.resources.length
+        new Set(resources.versions.map((v) => v.id)).size !== resources.versions.length ||
+        new Set(resources.resources.map((r) => r.id)).size !== resources.resources.length
     )
         throw new Error("BUNDLE_SNAPSHOT_MISMATCH");
     const environment = assets.get(selection.environmentVersionId);
-    if (environment?.kind !== "ENVIRONMENT")
-        throw new Error("BUNDLE_ENVIRONMENT_MISSING");
+    if (environment?.kind !== "ENVIRONMENT") throw new Error("BUNDLE_ENVIRONMENT_MISSING");
     // Shared compiler analysis owns schema references and public auth bindings.
     // Combined exports add the independently selected ENVIRONMENT to execution roots.
     // Draft DSL may have business/type diagnostics; only binding diagnostics block it.
@@ -122,42 +111,26 @@ export function validateContent(
             "ApprovedEngineInventoryV1",
         ).engines;
         engine = engines[0];
-        if (
-            engines.length !== 1 ||
-            engine!.engineVersion !== manifest.engineVersion
-        )
+        if (engines.length !== 1 || engine!.engineVersion !== manifest.engineVersion)
             throw new Error("BUNDLE_ENGINE_MISMATCH");
-        for (const path of [
-            "package.json",
-            "package-lock.json",
-            "dependencies.json",
-        ]) {
+        for (const path of ["package.json", "package-lock.json", "dependencies.json"]) {
             const entry = engine!.files.find((f) => f.path === path),
                 raw = contents.get("engine/" + path);
-            if (
-                !entry ||
-                !raw ||
-                raw.length !== entry.sizeBytes ||
-                hash(raw) !== entry.sha256
-            )
+            if (!entry || !raw || raw.length !== entry.sizeBytes || hash(raw) !== entry.sha256)
                 throw new Error("BUNDLE_ENGINE_MISMATCH");
         }
     }
     const rootIds = dslOnly
         ? [draft!.validationTarget!.versionId]
         : selection.suiteVersionId
-            ? [selection.suiteVersionId]
-            : selection.caseVersionIds!;
+          ? [selection.suiteVersionId]
+          : selection.caseVersionIds!;
     if (
         !rootIds?.length ||
         rootIds.some(
             (id) =>
                 assets.get(id)?.kind !==
-                (selection.suiteVersionId
-                    ? "SUITE"
-                    : dslOnly
-                        ? assets.get(id)?.kind
-                        : "CASE"),
+                (selection.suiteVersionId ? "SUITE" : dslOnly ? assets.get(id)?.kind : "CASE"),
         )
     )
         throw new Error("BUNDLE_SELECTION_MISMATCH");
@@ -165,23 +138,16 @@ export function validateContent(
     const expectedEntries = dslOnly
         ? draft!.entryCaseVersionIds
         : selection.suiteVersionId && selectedRoot?.kind === "SUITE"
-            ? [...new Set(selectedRoot.document.cases.map((row) => row.versionId))]
-            : selection.caseVersionIds!;
-    if (
-        !equal(
-            [...snapshot.entryCaseVersionIds].sort(),
-            [...expectedEntries].sort(),
-        )
-    )
+          ? [...new Set(selectedRoot.document.cases.map((row) => row.versionId))]
+          : selection.caseVersionIds!;
+    if (!equal([...snapshot.entryCaseVersionIds].sort(), [...expectedEntries].sort()))
         throw new Error("BUNDLE_SELECTION_MISMATCH");
     const visited = new Set<string>(),
         visiting = new Set<string>();
     function visit(id: string, kind?: string) {
         const asset = assets.get(id);
-        if (!asset || (kind && asset.kind !== kind))
-            throw new Error("BUNDLE_DEPENDENCY_MISSING");
-        if (visiting.has(id) || visiting.size >= 100)
-            throw new Error("BUNDLE_DEPENDENCY_CYCLE");
+        if (!asset || (kind && asset.kind !== kind)) throw new Error("BUNDLE_DEPENDENCY_MISSING");
+        if (visiting.has(id) || visiting.size >= 100) throw new Error("BUNDLE_DEPENDENCY_CYCLE");
         if (visited.has(id)) return;
         visiting.add(id);
         const doc = asset.document as unknown as Record<string, unknown>;
@@ -214,8 +180,7 @@ export function validateContent(
                 );
             }
         for (const a of assertions)
-            if (a.type === "template")
-                visit(a.versionId as string, "ASSERTION_TEMPLATE");
+            if (a.type === "template") visit(a.versionId as string, "ASSERTION_TEMPLATE");
         visiting.delete(id);
         visited.add(id);
     }
@@ -223,19 +188,13 @@ export function validateContent(
     if (visited.size !== assets.size) throw new Error("BUNDLE_EXTRA_DEPENDENCY");
     for (const asset of snapshot.assets) {
         if (
-            hash(canonicalBytes({ kind: asset.kind, document: asset.document })) !==
-                asset.sha256 ||
+            hash(canonicalBytes({ kind: asset.kind, document: asset.document })) !== asset.sha256 ||
             !equal(read(`assets/${asset.versionId}.json`), asset)
         )
             throw new Error("BUNDLE_ASSET_MISMATCH");
-        if (
-            !resources.resources.some(
-                (r) => r.id === asset.resourceId && r.kind === asset.kind,
-            )
-        )
+        if (!resources.resources.some((r) => r.id === asset.resourceId && r.kind === asset.kind))
             throw new Error("BUNDLE_RESOURCES_MISSING");
-        if (dslOnly && asset.versionId === draft!.validationTarget!.versionId)
-            continue;
+        if (dslOnly && asset.versionId === draft!.validationTarget!.versionId) continue;
         const version = resources.versions.find((v) => v.id === asset.versionId);
         if (
             !version ||
@@ -245,10 +204,7 @@ export function validateContent(
         )
             throw new Error("BUNDLE_ASSET_MISMATCH");
         const prefix = `provenance/${asset.versionId}`;
-        const source = read<AssetSnapshotV1>(
-            prefix + "/source.json",
-            "AssetSnapshotV1",
-        );
+        const source = read<AssetSnapshotV1>(prefix + "/source.json", "AssetSnapshotV1");
         const descriptor = read<CompiledAssetBundle>(
             prefix + "/descriptor.json",
             "CompiledAssetBundle",
@@ -277,8 +233,7 @@ export function validateContent(
             receipt.engineVersion !== manifest.engineVersion ||
             descriptor.sourceHash !== source.sourceHash ||
             descriptor.engineVersion !== manifest.engineVersion ||
-            hash(contents.get(prefix + "/descriptor.json")!) !==
-                receipt.compiledBundleSha256
+            hash(contents.get(prefix + "/descriptor.json")!) !== receipt.compiledBundleSha256
         )
             throw new Error("BUNDLE_PROVENANCE_MISMATCH");
         const entries = descriptor.entrypoints.map((e) => e.caseVersionId);
@@ -286,18 +241,14 @@ export function validateContent(
             new Set(entries).size !== entries.length ||
             !equal([...entries].sort(), [...source.entryCaseVersionIds].sort()) ||
             !!descriptor.validationOnly !== (entries.length === 0) ||
-            descriptor.entrypoints.some(
-                (e) => !descriptor.files.some((f) => f.path === e.path),
-            ) ||
+            descriptor.entrypoints.some((e) => !descriptor.files.some((f) => f.path === e.path)) ||
             analyze(source).issues.length ||
             source.assets.some((a) => !equal(a, assets.get(a.versionId))) ||
             (source.authAdapters ?? []).some(
                 (a) =>
                     !equal(
                         a,
-                        snapshot.authAdapters?.find(
-                            (current) => current.versionId === a.versionId,
-                        ),
+                        snapshot.authAdapters?.find((current) => current.versionId === a.versionId),
                     ),
             )
         )
@@ -321,15 +272,8 @@ export function validateContent(
             } catch {
                 throw new Error("BUNDLE_COMPILED_MISMATCH");
             }
-            for (const path of [
-                "package.json",
-                "package-lock.json",
-                "dependencies.json",
-            ])
-                if (
-                    !files[path] ||
-                    !files[path]!.equals(contents.get("engine/" + path)!)
-                )
+            for (const path of ["package.json", "package-lock.json", "dependencies.json"])
+                if (!files[path] || !files[path]!.equals(contents.get("engine/" + path)!))
                     throw new Error("BUNDLE_ENGINE_MISMATCH");
             if (!equal(read("engine/dependencies.json"), descriptor.dependencies))
                 throw new Error("BUNDLE_ENGINE_MISMATCH");
@@ -342,9 +286,7 @@ export function validateContent(
                         packageJson: files["package.json"]!,
                         packageLock: files["package-lock.json"]!,
                         files: Object.fromEntries(
-                            Object.entries(files).filter(([path]) =>
-                                path.startsWith("vendor/"),
-                            ),
+                            Object.entries(files).filter(([path]) => path.startsWith("vendor/")),
                         ),
                     },
                     manifest.engineVersion,

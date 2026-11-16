@@ -55,4 +55,6 @@ form.addEventListener("submit", async (event) => {
         button.disabled = false;
     }
 });
-refresh().catch(() => { status.textContent = "Employee query failed"; });
+refresh().catch(() => {
+    status.textContent = "Employee query failed";
+});

@@ -165,7 +165,12 @@ test("installed role binds exact verified Node identity and rejects copied capab
 
 /** Worker 的普通 Node 相对导入必须全部属于发行物理库存，逐个删除新闭包成员及其清单项后仍应拒绝；旧合成发行不能靠把必需成员标成可选继续获得执行路径能力。 */
 test("distribution requires the complete controlled command runtime closure", async () => {
-    for (const name of ["controlled-command.mjs", "controlled-child.mjs", "controlled-child-protocol.mjs", "controlled-child-preload.mjs"]) {
+    for (const name of [
+        "controlled-command.mjs",
+        "controlled-child.mjs",
+        "controlled-child-protocol.mjs",
+        "controlled-child-preload.mjs",
+    ]) {
         const { root, manifest } = await fixture();
         try {
             const path = "execution/" + name;

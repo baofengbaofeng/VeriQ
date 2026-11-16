@@ -16,7 +16,11 @@ from .snapshot_io import private_file
 
 def rotate_configuration(settings: Settings, output: Path, key_id: str) -> None:
     """只生成一份新的外置配置并保留当前及历史密钥字节，拒绝复用已有标识或覆盖正在使用的配置；操作员切换到新配置后再重封装，命令不会打印新密钥或擅自替换服务配置文件。"""
-    if not output.is_absolute() or key_id == settings.master_key_id or key_id in settings.previous_master_keys:
+    if (
+        not output.is_absolute()
+        or key_id == settings.master_key_id
+        or key_id in settings.previous_master_keys
+    ):
         raise ValueError("ROTATION_NEW_ID_AND_ABSOLUTE_OUTPUT_REQUIRED")
     values = operator_config_values(settings.model_dump())
     values["previous_master_keys"][settings.master_key_id] = settings.master_key.get_secret_value()
@@ -25,30 +29,56 @@ def rotate_configuration(settings: Settings, output: Path, key_id: str) -> None:
     private_file(output, (json.dumps(values, indent=2) + "\n").encode())
 
 
-async def rekey(db: Database, settings: Settings, *, services_stopped: bool, limit: int) -> dict[str, Any]:
+async def rekey(
+    db: Database, settings: Settings, *, services_stopped: bool, limit: int
+) -> dict[str, Any]:
     """在安装锁下按有限批次解密旧密钥版本并用当前密钥重新封装，凭据版本和供应商 key_version 原样保留；完成后统计仍引用历史密钥的行数，只有两个表都为零才能考虑移除历史密钥。"""
     if not services_stopped or not 1 <= limit <= 1000:
         raise ValueError("REKEY_QUIESCENCE_AND_BOUNDED_LIMIT_REQUIRED")
     processed = 0
     async with db.sessions.begin() as session:
         await lock_installation(session)
-        for model, purpose in ((SecretVersion, "veriq-credential-v1"), (AiProvider, "veriq-ai-provider-v1")):
+        for model, purpose in (
+            (SecretVersion, "veriq-credential-v1"),
+            (AiProvider, "veriq-ai-provider-v1"),
+        ):
             remaining = limit - processed
             if remaining == 0:
                 break
-            rows = list((await session.execute(select(model).where(
-                model.key_id != settings.master_key_id
-            ).order_by(model.id).limit(remaining).with_for_update())).scalars())
+            rows = list(
+                (
+                    await session.execute(
+                        select(model)
+                        .where(model.key_id != settings.master_key_id)
+                        .order_by(model.id)
+                        .limit(remaining)
+                        .with_for_update()
+                    )
+                ).scalars()
+            )
             ring = configured_keyring(settings, purpose=purpose)
             for row in rows:
                 reference = row.secret_ref if model is SecretVersion else row.id
                 version = row.id if model is SecretVersion else row.key_version
-                value = ring.decrypt(row.workspace_id, reference, version, EncryptedValue(row.key_id, row.nonce, row.ciphertext))
+                value = ring.decrypt(
+                    row.workspace_id,
+                    reference,
+                    version,
+                    EncryptedValue(row.key_id, row.nonce, row.ciphertext),
+                )
                 sealed = ring.encrypt(row.workspace_id, reference, version, value)
-                row.key_id, row.nonce, row.ciphertext = sealed.key_id, sealed.nonce, sealed.ciphertext
+                row.key_id, row.nonce, row.ciphertext = (
+                    sealed.key_id,
+                    sealed.nonce,
+                    sealed.ciphertext,
+                )
                 processed += 1
         await session.flush()
         pending = False
         for model in (SecretVersion, AiProvider):
-            pending |= (await session.execute(select(model.id).where(model.key_id != settings.master_key_id).limit(1))).first() is not None
+            pending |= (
+                await session.execute(
+                    select(model.id).where(model.key_id != settings.master_key_id).limit(1)
+                )
+            ).first() is not None
     return {"processedCount": processed, "hasMore": pending, "activeKeyId": settings.master_key_id}

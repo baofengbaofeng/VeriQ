@@ -35,7 +35,8 @@ test("actual Provider preserves scopes and releases the latest committed scope",
         let scope: ReturnType<typeof useWorkspace>;
         let client: ReturnType<typeof useQueryClient>;
         const events: string[] = [];
-        // biome-ignore lint/correctness/noComponentHookFactories: 此组件必须在序列化到浏览器的隔离回调中定义，该回调每项测试只执行一次，重复渲染始终复用同一函数身份，不能捕获 Node 测试进程的模块或状态。
+        // biome-ignore lint/correctness/noComponentHookFactories: 此组件必须在序列化到浏览器的隔离回调中定义，该回调每项测试只执行一次，重复渲染始终复用同一函数身份，不能捕
+        // 获 Node 测试进程的模块或状态。
         function Probe() {
             scope = useWorkspace();
             client = useQueryClient();

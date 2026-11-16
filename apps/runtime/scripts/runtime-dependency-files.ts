@@ -9,8 +9,14 @@ import { contentLimit, fail, limits, relative } from "./runtime-payload-tree.ts"
 import { RuntimePayloadError, type Ref } from "./runtime-payload-inputs.ts";
 
 /** 不支持的真实布局使用固定英文原因附在既有错误合同上，不能通过扩大成功定义掩盖 peer、条件或 bin 归属冲突；这些原因只用于定位待支持边界，不拼接安装路径、包正文或不受信任的工具诊断。 */
-export function unsupportedDependency(reason: "DEPENDENCY_SNAPSHOT_AMBIGUOUS" | "DEPENDENCY_INSTALL_SCOPE_COLLISION" |
-    "DEPENDENCY_CONDITIONAL_INSTANCE_SPLIT" | "DEPENDENCY_BIN_WINNER_ABSENT_OR_AMBIGUOUS" | "DEPENDENCY_BIN_SHIM_UNSUPPORTED") : never {
+export function unsupportedDependency(
+    reason:
+        | "DEPENDENCY_SNAPSHOT_AMBIGUOUS"
+        | "DEPENDENCY_INSTALL_SCOPE_COLLISION"
+        | "DEPENDENCY_CONDITIONAL_INSTANCE_SPLIT"
+        | "DEPENDENCY_BIN_WINNER_ABSENT_OR_AMBIGUOUS"
+        | "DEPENDENCY_BIN_SHIM_UNSUPPORTED",
+): never {
     throw new RuntimePayloadError("PAYLOAD_GRAPH_MISMATCH", reason);
 }
 
@@ -47,10 +53,14 @@ export class DependencyFiles {
                 digest.update(content);
                 yield content;
             }
-            if (count !== Number(before.size) ||
+            if (
+                count !== Number(before.size) ||
                 !same(before, await handle.stat({ bigint: true })) ||
-                !same(before, await lstat(path, { bigint: true }))) fail("PAYLOAD_SOURCE_CHANGED");
-            const value = digest.digest("hex"), previous = this.digests.get(path);
+                !same(before, await lstat(path, { bigint: true }))
+            )
+                fail("PAYLOAD_SOURCE_CHANGED");
+            const value = digest.digest("hex"),
+                previous = this.digests.get(path);
             if (previous && previous !== value) fail("PAYLOAD_SOURCE_CHANGED");
             this.digests.set(path, value);
         } finally {
@@ -69,7 +79,8 @@ export class DependencyFiles {
     async header(path: string) {
         let prefix = Buffer.alloc(0);
         for await (const chunk of this.chunks(path))
-            if (prefix.length < 256) prefix = Buffer.concat([prefix, chunk.subarray(0, 256 - prefix.length)]);
+            if (prefix.length < 256)
+                prefix = Buffer.concat([prefix, chunk.subarray(0, 256 - prefix.length)]);
         return prefix;
     }
 
@@ -91,15 +102,18 @@ export class DependencyFiles {
     async finish() {
         for (const [path, before] of this.observed) {
             if (!same(before, await lstat(path, { bigint: true }))) fail("PAYLOAD_SOURCE_CHANGED");
-            if (this.digests.has(path)) for await (const _chunk of this.chunks(path, Number(before.size))) { }
+            if (this.digests.has(path))
+                for await (const _chunk of this.chunks(path, Number(before.size))) {
+                }
         }
     }
 }
 
 /** 身份比较保留链接数和权限变化，不能仅比较内容摘要后接受已经换过 inode 的来源；该内部谓词供持有文件读取和独占目录准入共用，不参与包名或版本的逻辑去重。 */
 function same(a: BigIntStats, b: BigIntStats) {
-    return ["dev", "ino", "mode", "nlink", "size", "mtimeNs", "ctimeNs"]
-        .every((key) => a[key as keyof BigIntStats] === b[key as keyof BigIntStats]);
+    return ["dev", "ino", "mode", "nlink", "size", "mtimeNs", "ctimeNs"].every(
+        (key) => a[key as keyof BigIntStats] === b[key as keyof BigIntStats],
+    );
 }
 
 /** 独占工作根必须是绝对规范路径、真实七百权限空目录，并与源码和事务根互不包含；逐级父组件拒绝链接，避免把词法上的临时目录误当成实际位于外部状态的安装位置。 */
@@ -122,7 +136,11 @@ export async function admitDependencyBuildRoot(work: ArchiveTransaction, root: s
     }
     return async () => {
         const after = await lstat(root, { bigint: true });
-        if (identity.dev !== after.dev || identity.ino !== after.ino || identity.mode !== after.mode)
+        if (
+            identity.dev !== after.dev ||
+            identity.ino !== after.ino ||
+            identity.mode !== after.mode
+        )
             fail("PAYLOAD_SOURCE_CHANGED");
     };
 }
@@ -165,15 +183,29 @@ export async function copyDependencyView(
     if (![0o400, 0o600, 0o444, 0o644, 0o500, 0o700, 0o555, 0o755].includes(mode))
         fail("PAYLOAD_TREE_MISMATCH");
     const outputMode = mode & 0o111 ? 0o755 : 0o644;
-    const ref = await work.write(`views/${relative(destination)}`, files.chunks(source, contentLimit(destination)), expected, outputMode);
+    const ref = await work.write(
+        `views/${relative(destination)}`,
+        files.chunks(source, contentLimit(destination)),
+        expected,
+        outputMode,
+    );
     return { ...ref, path: destination, mode: outputMode };
 }
 
 /** 解析暂存树也从同一持有来源分块复制，不执行包正文、不创建工作区目录链接，也不利用缓存硬链接共享可变 inode；每个目标使用排他描述符写入，发生短写或来源变化时终止而不产生可接受解析证据。 */
-export async function copyDependencySourceFile(root: string, path: string, source: string, files: DependencyFiles) {
+export async function copyDependencySourceFile(
+    root: string,
+    path: string,
+    source: string,
+    files: DependencyFiles,
+) {
     relative(path);
     await mkdir(dirname(join(root, path)), { recursive: true, mode: 0o700 });
-    const handle = await open(join(root, path), constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+    const handle = await open(
+        join(root, path),
+        constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
+        0o600,
+    );
     try {
         for await (const chunk of files.chunks(source, contentLimit(path))) {
             let offset = 0;

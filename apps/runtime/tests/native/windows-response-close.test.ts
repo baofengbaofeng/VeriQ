@@ -51,7 +51,13 @@ test("Windows pipe close finishes when cancellation precedes response draining",
     try {
         assert.equal(Object.hasOwn(product, "releaseResponse"), false);
         await copyFile(process.execPath, role);
-        const script = `const assert=require('node:assert/strict');const native=require(${JSON.stringify(scheduled)});const server=new native.PrivatePipeServer(${JSON.stringify(path)},(frame,reply)=>{assert.equal(frame,'{}\\n');reply('{"ok":true}\\n');});let stopped=false;const stop=()=>{if(stopped)return;stopped=true;server.close();console.log('SERVER_CLOSED');process.stdin.destroy();};process.stdin.once('data',chunk=>{assert.equal(chunk.toString(),'STOP\\n');stop();});process.stdin.once('end',stop);console.log('SERVER_READY');`;
+        const script =
+            `const assert=require('node:assert/strict');const native=require(` +
+            `${JSON.stringify(scheduled)});const server=new native.PrivatePipeServer(${JSON.stringify(path)}` +
+            `,(frame,reply)=>{assert.equal(frame,'{}\\n');reply('{"ok":true}\\n');});let stopped=false;const stop=(` +
+            `)=>{if(stopped)return;stopped=true;server.close();console.log('SERVER_CLOSED');process.stdin.destroy()` +
+            `;};process.stdin.once('data',chunk=>{assert.equal(chunk.toString(),'STOP\\n');stop();});process.stdin.` +
+            `once('end',stop);console.log('SERVER_READY');`;
         const operation = promisify(execFile)(role, ["-e", script], {
             cwd: root,
             env: { SystemRoot: process.env.SystemRoot! },
@@ -86,7 +92,8 @@ test("Windows pipe close finishes when cancellation precedes response draining",
         child.stdin.write("STOP\n");
         await bounded(schedule.waitPhase(nonce, "close-missed"), 3500);
         context.diagnostic(
-            "Same response thread returned actual CancelSynchronousIo ERROR_NOT_FOUND while the client retained all response bytes unread",
+            "Same response thread returned actual CancelSynchronousIo ERROR_NOT_FOUND while the client retained all " +
+                "response bytes unread",
         );
         schedule.releaseResponse(nonce);
         const result = await bounded(operation, Math.max(1, 3500 - (performance.now() - started)));

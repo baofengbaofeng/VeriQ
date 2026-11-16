@@ -8,7 +8,16 @@ const root = resolve("../runtime");
 const files = [];
 for (const target of ["out/main", "out/execution"]) {
     await mkdir(target, { recursive: true });
-    for (const name of ["worker.mjs", "provider.mjs", "compile-entry.mjs", "archive.mjs", "controlled-command.mjs", "controlled-child.mjs", "controlled-child-protocol.mjs", "controlled-child-preload.mjs"]) {
+    for (const name of [
+        "worker.mjs",
+        "provider.mjs",
+        "compile-entry.mjs",
+        "archive.mjs",
+        "controlled-command.mjs",
+        "controlled-child.mjs",
+        "controlled-child-protocol.mjs",
+        "controlled-child-preload.mjs",
+    ]) {
         const source = resolve(root, "src/execution", name);
         await copyFile(source, resolve(target, name));
         files.push({

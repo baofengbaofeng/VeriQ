@@ -1,4 +1,5 @@
-/** Cookie 保护门闩测试使用有限的合成平台观察来检验持久 Session 创建前的拒绝行为，固定探针不携带用户凭据；真实 fuse、OS 密钥与 Cookie 数据库证据另由目标 Electron 验证，不能把这里的替身结果当作系统加密验收。 */
+/** Cookie 保护门闩测试使用有限的合成平台观察来检验持久 Session 创建前的拒绝行为，固定探针不携带用户凭据；真实 fuse、OS 密钥与 Cookie 数据库证据另由目标 Electron 验证，不能把这里的替身结果
+ * 当作系统加密验收。 */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { requireCookieProtection, type CookieSafeStorage } from "../src/main/cookie-protection.ts";
@@ -17,19 +18,28 @@ function platform(tag = "v11", backend = "gnome_libsecret") {
 }
 const enabled = async () => ({ version: "1", 1: 49 });
 
-test("Darwin without verified installed identity and unsupported platforms refuse before fuse or provider access", async () => {
-    const storage = new Proxy({} as CookieSafeStorage, {
-        get: () => assert.fail("Unexpected provider access"),
-    });
-    for (const platform of ["darwin", "freebsd"] as const) {
-        await assert.rejects(
-            requireCookieProtection(storage, platform, async () => {
-                assert.fail("Unexpected fuse access");
-            }),
-            { message: platform === "darwin" ? "COOKIE_MAC_HOST_IDENTITY_REQUIRED" : "COOKIE_PLATFORM_UNSUPPORTED" },
-        );
-    }
-});
+test(
+    "Darwin without verified installed identity and unsupp" +
+        "orted platforms refuse before fuse or provider access",
+    async () => {
+        const storage = new Proxy({} as CookieSafeStorage, {
+            get: () => assert.fail("Unexpected provider access"),
+        });
+        for (const platform of ["darwin", "freebsd"] as const) {
+            await assert.rejects(
+                requireCookieProtection(storage, platform, async () => {
+                    assert.fail("Unexpected fuse access");
+                }),
+                {
+                    message:
+                        platform === "darwin"
+                            ? "COOKIE_MAC_HOST_IDENTITY_REQUIRED"
+                            : "COOKIE_PLATFORM_UNSUPPORTED",
+                },
+            );
+        }
+    },
+);
 
 test("Linux and Windows still verify fuse before the provider", async () => {
     for (const target of ["linux", "win32"] as const) {

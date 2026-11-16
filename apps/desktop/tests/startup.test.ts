@@ -160,7 +160,9 @@ test("maintenance holds idle ownership until explicit stop and prevents a new ru
         browserExecutable: "/missing/browser",
     });
     try {
-        const receipt = await agent.dispatch({ operation: "prepareMaintenance" }) as { ready: boolean };
+        const receipt = (await agent.dispatch({ operation: "prepareMaintenance" })) as {
+            ready: boolean;
+        };
         assert.equal(receipt.ready, true);
         await assert.rejects(agent.dispatch(run), /AGENT_STOPPED/);
         assert.deepEqual(await agent.dispatch({ operation: "stop" }), { stopped: true });

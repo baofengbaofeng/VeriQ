@@ -21,22 +21,36 @@ export function requireMacDesktopIdentity(identity: unknown): void {
  * 所有命令为固定系统工具与参数数组，不把 renderer、环境或清单字段拼成 shell。
  * Windows 与 Linux 的实际发行签名验收仍在独立目标门禁登记，不通过 Mac 检查冒称其它平台已验收。
  */
-export async function verifyDesktopHost(release: DesktopRelease, resources: string): Promise<DesktopHostIdentity | undefined> {
+export async function verifyDesktopHost(
+    release: DesktopRelease,
+    resources: string,
+): Promise<DesktopHostIdentity | undefined> {
     if (release.platform !== process.platform || release.arch !== process.arch)
         throw new Error("DESKTOP_RELEASE_TARGET_MISMATCH");
     if (release.platform !== "darwin") return;
     const contents = dirname(resolve(resources));
     const application = dirname(contents);
-    if (!application.endsWith("/veriq.app") || await realpath(application) !== application ||
-        resolve(process.execPath) !== join(contents, "MacOS/veriq"))
+    if (
+        !application.endsWith("/veriq.app") ||
+        (await realpath(application)) !== application ||
+        resolve(process.execPath) !== join(contents, "MacOS/veriq")
+    )
         throw new Error("DESKTOP_APPLICATION_IDENTITY_INVALID");
     const execute = promisify(execFile);
     const options = { timeout: 10000, maxBuffer: 65536, env: agentEnvironment("") };
     const version = await execute("/usr/bin/sw_vers", ["-productVersion"], options);
-    if (!/^\d+\.\d+(?:\.\d+)?$/.test(version.stdout.trim()) || Number(version.stdout.trim().split(".")[0]) < 15)
+    if (
+        !/^\d+\.\d+(?:\.\d+)?$/.test(version.stdout.trim()) ||
+        Number(version.stdout.trim().split(".")[0]) < 15
+    )
         throw new Error("DESKTOP_MACOS15_REQUIRED");
-    const identifier = await execute("/usr/libexec/PlistBuddy", ["-c", "Print :CFBundleIdentifier", join(contents, "Info.plist")], options);
-    if (identifier.stdout.trim() !== release.appId) throw new Error("DESKTOP_APPLICATION_IDENTITY_INVALID");
+    const identifier = await execute(
+        "/usr/libexec/PlistBuddy",
+        ["-c", "Print :CFBundleIdentifier", join(contents, "Info.plist")],
+        options,
+    );
+    if (identifier.stdout.trim() !== release.appId)
+        throw new Error("DESKTOP_APPLICATION_IDENTITY_INVALID");
     const identity = (): DesktopHostIdentity => {
         const value = Object.freeze({ platform: "darwin" as const });
         identities.add(value);
@@ -44,10 +58,18 @@ export async function verifyDesktopHost(release: DesktopRelease, resources: stri
     };
     if (release.signing.mode === "DEVELOPMENT_UNSIGNED") return identity();
     await execute("/usr/bin/codesign", ["--verify", "--deep", "--strict", application], options);
-    const signature = await execute("/usr/bin/codesign", ["--display", "--verbose=4", application], options);
+    const signature = await execute(
+        "/usr/bin/codesign",
+        ["--display", "--verbose=4", application],
+        options,
+    );
     const lines = signature.stderr.split(/\r?\n/);
-    if (!lines.includes(`Identifier=${release.appId}`)) throw new Error("DESKTOP_SIGNATURE_IDENTITY_INVALID");
-    if (release.signing.mode === "NATIVE_SIGNED" && (!release.signing.identity || !lines.includes(`Authority=${release.signing.identity}`)))
+    if (!lines.includes(`Identifier=${release.appId}`))
+        throw new Error("DESKTOP_SIGNATURE_IDENTITY_INVALID");
+    if (
+        release.signing.mode === "NATIVE_SIGNED" &&
+        (!release.signing.identity || !lines.includes(`Authority=${release.signing.identity}`))
+    )
         throw new Error("DESKTOP_SIGNATURE_IDENTITY_INVALID");
     return identity();
 }

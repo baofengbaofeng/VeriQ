@@ -492,9 +492,11 @@ export async function bindPinnedPnpm({ packageRoot, ownedRoot, deadlineMs = Infi
 function sanitizeEnvironment(owned) {
     for (const key of Object.keys(process.env)) {
         if (
-            /^(NODE_OPTIONS|NODE_PATH|NODE_EXTRA_CA_CERTS|NODE_REPL_EXTERNAL_MODULE|NPM_CONFIG_|npm_config_|PNPM_|COREPACK_|BASH_ENV|ENV$)/i.test(
-                key,
-            ) ||
+            new RegExp(
+                "^(NODE_OPTIONS|NODE_PATH|NODE_EXTRA_CA_CERTS|NODE_REPL_EXTERNAL_MODULE|NPM_CONFIG_|npm_confi" +
+                    "g_|PNPM_|COREPACK_|BASH_ENV|ENV$)",
+                "i",
+            ).test(key) ||
             /(TOKEN|PASSWORD|AUTH|CREDENTIAL)/i.test(key)
         )
             delete process.env[key];
@@ -738,7 +740,9 @@ async function main() {
                             preparationScope:
                                 "All workspace production dependencies from the frozen lock; not Runtime-only",
                             requestedFilter: "@veriq/runtime...",
-                            claims: "Physical metadata only; package bodies ephemeral; dependency edges and workspace TypeScript materialization unresolved",
+                            claims:
+                                "Physical metadata only; package bodies ephemeral; dependency edges and workspac" +
+                                "e TypeScript materialization unresolved",
                         };
                         hold("binding.json", binding);
                         entry.initialFreeBytes = await freeSpace(owned);
@@ -801,7 +805,8 @@ async function main() {
                                 snapshot: hold("pnpm-package.json", packageJson),
                             },
                         };
-                        // 版本命令也可能失败，因此先把已经形成的工具绑定冻结成证据快照，保证 STARTED 与失败 journal 的来源摘要始终能在同次上传集合内复核；成功后的再次保存只确认同一对象而不改变来源身份。
+                        // 版本命令也可能失败，因此先把已经形成的工具绑定冻结成证据快照，保证 STARTED 与失败 journal 的来源摘要始终能在同次上传集合内复核；成功后的再次保存只确认同一对象而不改变来
+                        // 源身份。
                         hold("binding.json", binding);
                         const version = await command(
                             process.execPath,
@@ -1032,7 +1037,8 @@ async function main() {
         const output = await open(env.GITHUB_OUTPUT, "a");
         try {
             await output.writeFile(
-                `upload_root=${upload}\ncollection=SNAPSHOTTED\nstages=${journal.map(({ name, status }) => `${name}:${status}`).join(",")}\n`,
+                `upload_root=${upload}\ncollection=SNAPSHOTTED\nstages=` +
+                    `${journal.map(({ name, status }) => `${name}:${status}`).join(",")}\n`,
             );
         } finally {
             await output.close();

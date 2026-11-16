@@ -81,7 +81,8 @@ async function fixture(context: TestContext, run: (root: string) => Promise<void
 async function inheritedAcl(paths: string[]) {
     const { stdout } = await promisify(execFile)(
         powershell,
-        encoded(`
+        encoded(
+            `
 $ErrorActionPreference='Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 $paths = ConvertFrom-Json $env:VERIQ_OWNED_PATHS
@@ -90,14 +91,18 @@ $pipelineInputs = @(ConvertFrom-Json $env:VERIQ_OWNED_PATHS | ForEach-Object {
 })
 $records = @(foreach ($path in $paths) {
     if ($path -isnot [string]) { throw 'OWNED_ACL_PATH_NOT_STRING' }
-    $acl = if ([System.IO.Directory]::Exists($path)) { [System.IO.Directory]::GetAccessControl($path) } else { [System.IO.File]::GetAccessControl($path) }
+    $acl = if ([System.IO.Directory]::Exists($path)) { [System.IO.Directory]::GetAccessControl($path) } else { [Syst` +
+                `em.IO.File]::GetAccessControl($path) }
     $rules = @($acl.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier]) | ForEach-Object {
         @{ sid=$_.IdentityReference.Value; inherited=$_.IsInherited; allow=($_.AccessControlType -eq 'Allow') }
     })
-    @{ path=$path; inputType=$path.GetType().FullName; owner=$acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value; rules=$rules }
+    @{ path=$path; inputType=$path.GetType().FullName; owner=$acl.GetOwner([System.Security.Principal.SecurityIdenti` +
+                `fier]).Value; rules=$rules }
 })
-ConvertTo-Json -InputObject @{ inputCount=@($paths).Count; pipelineInputs=$pipelineInputs; records=$records } -Depth 5 -Compress
-`),
+ConvertTo-Json -InputObject @{ inputCount=@($paths).Count; pipelineInputs=$pipelineInputs; records=$records } -Depth` +
+                ` 5 -Compress
+`,
+        ),
         {
             env: { ...powershellEnvironment, VERIQ_OWNED_PATHS: JSON.stringify(paths) },
             timeout: 10000,
@@ -228,12 +233,15 @@ test("Windows private update preserves the old generation on a real sharing-deni
             before = await readFile(path);
         const child = spawn(
             powershell,
-            encoded(`
+            encoded(
+                `
 $ErrorActionPreference='Stop'
-$file=[System.IO.File]::Open($env:VERIQ_OWNED_FILE,[System.IO.FileMode]::Open,[System.IO.FileAccess]::Read,[System.IO.FileShare]::Read)
+$file=[System.IO.File]::Open($env:VERIQ_OWNED_FILE,[System.IO.FileMode]::Open,[System.IO.FileAccess]::Read,[System.I` +
+                    `O.FileShare]::Read)
 try { [Console]::Out.WriteLine('HELD'); [Console]::Out.Flush(); [Console]::In.ReadLine() | Out-Null }
 finally { $file.Dispose() }
-`),
+`,
+            ),
             {
                 env: { ...powershellEnvironment, VERIQ_OWNED_FILE: path },
                 stdio: ["pipe", "pipe", "pipe"],

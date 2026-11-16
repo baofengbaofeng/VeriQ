@@ -30,11 +30,7 @@ addFormats.default(ajv);
 /**
  * 公开函数 fieldMatches 按断言操作符比较期望与实际字段：类型不接受时失败：供 runAssertion 复用。
  */
-export function fieldMatches(
-    actual: Presence,
-    operator: string,
-    expected: JsonValue,
-): boolean {
+export function fieldMatches(actual: Presence, operator: string, expected: JsonValue): boolean {
     if (operator === "exists") return actual.present === expected;
     if (!actual.present) return false;
     const value = actual.value;
@@ -44,16 +40,13 @@ export function fieldMatches(
         case "notEquals":
             return !isDeepStrictEqual(value, expected);
         case "in":
-            return (
-                Array.isArray(expected) &&
-                expected.some((x) => isDeepStrictEqual(x, value))
-            );
+            return Array.isArray(expected) && expected.some((x) => isDeepStrictEqual(x, value));
         case "contains":
             return typeof value === "string" && typeof expected === "string"
                 ? value.includes(expected)
                 : Array.isArray(value) &&
-                        Array.isArray(expected) &&
-                        expected.every((e) => value.some((v) => isDeepStrictEqual(e, v)));
+                      Array.isArray(expected) &&
+                      expected.every((e) => value.some((v) => isDeepStrictEqual(e, v)));
         default:
             return false;
     }
@@ -81,8 +74,7 @@ export async function runAssertion(
             if (!page) throw new Error("UNKNOWN_PAGE_KEY");
             ctx = { ...ctx, page: await interruptible(ctx, () => page) };
         }
-        expected =
-            a.type === "responseSchema" ? a.expected : binding(a.expected, ctx);
+        expected = a.type === "responseSchema" ? a.expected : binding(a.expected, ctx);
         let pass = false;
         if (a.type === "ui" || a.type === "url") {
             actual = await interruptible(ctx, () => assertUI(a, expected, ctx));
@@ -93,30 +85,32 @@ export async function runAssertion(
             const path = binding(a.query.path, ctx);
             if (typeof path !== "string" || a.query.method !== "GET")
                 throw new Error("READ_ONLY_QUERY_REQUIRED");
-            await interruptible(ctx, () => expect
-                .poll(
-                    async () => {
-                        const x = await apiRequest(
-                            {
-                                ...ctx,
-                                deadline: Math.min(ctx.deadline ?? Infinity, deadline),
-                            },
-                            "GET",
-                            path,
-                            binding(a.query.query ?? {}, ctx) as JsonObject,
-                            undefined,
-                            undefined,
-                            timeout,
-                        );
-                        actual =
-                            x.response.bodyKind === "json"
-                                ? resolvePointer(x.response.body, a.pointer)
-                                : { present: false };
-                        return fieldMatches(actual, a.operator, expected);
-                    },
-                    { timeout, intervals: [a.intervalMs ?? 500] },
-                )
-                .toBe(true));
+            await interruptible(ctx, () =>
+                expect
+                    .poll(
+                        async () => {
+                            const x = await apiRequest(
+                                {
+                                    ...ctx,
+                                    deadline: Math.min(ctx.deadline ?? Infinity, deadline),
+                                },
+                                "GET",
+                                path,
+                                binding(a.query.query ?? {}, ctx) as JsonObject,
+                                undefined,
+                                undefined,
+                                timeout,
+                            );
+                            actual =
+                                x.response.bodyKind === "json"
+                                    ? resolvePointer(x.response.body, a.pointer)
+                                    : { present: false };
+                            return fieldMatches(actual, a.operator, expected);
+                        },
+                        { timeout, intervals: [a.intervalMs ?? 500] },
+                    )
+                    .toBe(true),
+            );
             pass = true;
         } else if (a.type === "requestCount") {
             const count = counts?.get(a.source.slice(8));
@@ -137,8 +131,7 @@ export async function runAssertion(
                 case "request":
                     actual = {
                         present: true,
-                        value:
-                            a.operator === "methodEquals" ? x.request.method : x.request.path,
+                        value: a.operator === "methodEquals" ? x.request.method : x.request.path,
                     };
                     pass = isDeepStrictEqual(actual.value, expected);
                     break;
@@ -164,9 +157,8 @@ export async function runAssertion(
         if (!pass) errorCode = "ASSERTION_FAILED";
     } catch (e) {
         if (e instanceof ExecutionCancelled) throw e;
-        errorCode = e instanceof Error && /^[A-Z_]+$/.test(e.message)
-                ? e.message
-                : "ASSERTION_FAILED";
+        errorCode =
+            e instanceof Error && /^[A-Z_]+$/.test(e.message) ? e.message : "ASSERTION_FAILED";
         if (a.type === "ui" || a.type === "url") {
             try {
                 actual = await uiActual(a, ctx);

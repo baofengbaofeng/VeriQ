@@ -104,29 +104,33 @@ test("whole credential deletion retires all purposes and exact key but preserves
         assert.equal(keys.deletes, 1);
     }));
 
-test("uncertain key retirement remains pending and explicit resume reads exact scope before any repeat mutation", async () =>
-    fixture(async (directory, profile, keys) => {
-        const [scope, key] = [...keys.values][0]!;
-        keys.uncertain = true;
-        await assert.rejects(profile.deleteCredentials(), /VAULT_MUTATION_UNCONFIRMED/);
-        assert.equal(
-            JSON.parse(await readFile(join(directory, "vault", "deletion.json"), "utf8")).state,
-            "pending",
-        );
-        await assert.rejects(
-            profile.transaction((tx) => tx.device()),
-            /VAULT_PROFILE_DELETION_REQUIRED/,
-        );
-        keys.values.delete(scope);
-        await profile.deleteCredentials();
-        assert.equal(keys.deletes, 1);
-        assert.equal(keys.writes, 1);
-        keys.values.set(scope, key);
-        keys.uncertain = false;
-        await profile.deleteCredentials();
-        assert.equal(keys.values.size, 0);
-        assert.equal(keys.deletes, 2);
-    }));
+test(
+    "uncertain key retirement remains pending and explici" +
+        "t resume reads exact scope before any repeat mutation",
+    async () =>
+        fixture(async (directory, profile, keys) => {
+            const [scope, key] = [...keys.values][0]!;
+            keys.uncertain = true;
+            await assert.rejects(profile.deleteCredentials(), /VAULT_MUTATION_UNCONFIRMED/);
+            assert.equal(
+                JSON.parse(await readFile(join(directory, "vault", "deletion.json"), "utf8")).state,
+                "pending",
+            );
+            await assert.rejects(
+                profile.transaction((tx) => tx.device()),
+                /VAULT_PROFILE_DELETION_REQUIRED/,
+            );
+            keys.values.delete(scope);
+            await profile.deleteCredentials();
+            assert.equal(keys.deletes, 1);
+            assert.equal(keys.writes, 1);
+            keys.values.set(scope, key);
+            keys.uncertain = false;
+            await profile.deleteCredentials();
+            assert.equal(keys.values.size, 0);
+            assert.equal(keys.deletes, 2);
+        }),
+);
 
 test("local retirement uncertainty retains the key and exact remaining file intentions", async () =>
     fixture(async (directory, profile, keys) => {

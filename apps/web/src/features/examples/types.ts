@@ -2,7 +2,15 @@ import type { PlatformComponents, ResourceDocumentV1 } from "@veriq/contracts";
 
 /** 示例导入只接受固定七类资产和明确的版本别名，HTTP清单由安装包提供，跨空间重写只能使用当前空间真实发布返回的UUID，不能把模板标识直接当作生产版本引用。
  */
-export const sampleOrder = ["catalog", "dataset", "fixture", "flow", "case", "suite", "environment"] as const;
+export const sampleOrder = [
+    "catalog",
+    "dataset",
+    "fixture",
+    "flow",
+    "case",
+    "suite",
+    "environment",
+] as const;
 export type SampleKey = (typeof sampleOrder)[number];
 export type Schemas = PlatformComponents["schemas"];
 
@@ -36,7 +44,10 @@ export interface ImportOptions {
 
 /** 每种业务凭据绑定固定secretRef与实际版本，allowedIdentityIds会由服务端再次核对；此类型没有明文token，允许与当前员工及空间绑定的非秘密进度一起保存用于恢复。
  */
-export interface CredentialBinding { secretRef: string; versionId: string; }
+export interface CredentialBinding {
+    secretRef: string;
+    versionId: string;
+}
 
 /** 短命导入参数中的token只用于正常凭据创建API，不写入进度、查询缓存、事件或错误；已有版本选择优先，提交后组件会清空字段，模块不提供日志或序列化整个输入的入口。
  */

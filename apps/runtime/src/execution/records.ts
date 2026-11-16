@@ -31,8 +31,11 @@ export class ProcessRecords {
             /** Darwin 使用独立原生目录拥有者保持无链接祖先链及最终私有身份，避免落入 Linux 的 proc 路径；只读打开不创建或修改历史，真实 ENOENT 继续由外层按既有缺失语义处理。 */
             if (process.platform === "darwin") {
                 const { darwinNative } = await import("../native/darwin.ts");
-                return new ProcessRecords(directory, undefined,
-                    darwinNative().openPrivateDirectory(directory, false));
+                return new ProcessRecords(
+                    directory,
+                    undefined,
+                    darwinNative().openPrivateDirectory(directory, false),
+                );
             }
             handle = await open(parse(directory).root, constants.O_RDONLY | constants.O_DIRECTORY);
             for (const part of directory
@@ -58,7 +61,9 @@ export class ProcessRecords {
     }
     private path(name: string, journalStaging = false) {
         if (
-            !/^[a-zA-Z0-9_-]{1,100}\.(?:json|process\.json|drained\.json|controlled\.json)$/.test(name) &&
+            !/^[a-zA-Z0-9_-]{1,100}\.(?:json|process\.json|drained\.json|controlled\.json)$/.test(
+                name,
+            ) &&
             !(journalStaging && stagedAttempt(name))
         )
             throw new Error("PROCESS_RECORD_NAME_INVALID");

@@ -40,7 +40,9 @@ def decode_value(value: dict[str, Any]) -> Any:
 def private_file(path: Path, payload: bytes) -> None:
     """在已经受控的私有目录内独占创建文件并同步字节，已有文件直接失败而不是截断；备份包含解密所需密钥和口令哈希，因此每份载荷都固定采用操作员独占读写权限。"""
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600), "wb") as stream:
+    with os.fdopen(
+        os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600), "wb"
+    ) as stream:
         stream.write(payload)
         stream.flush()
         os.fsync(stream.fileno())
@@ -54,7 +56,12 @@ def private_file(path: Path, payload: bytes) -> None:
 def safe_snapshot_file(root: Path, name: str) -> Path:
     """只接受清单中规范的相对 POSIX 文件路径并逐级拒绝符号链接，快照根也必须是私有真实目录；恢复前的摘要核验和随后读取共享这一入口，不允许越界载荷替换操作员配置。"""
     relative = PurePosixPath(name)
-    if not name or relative.is_absolute() or str(relative) != name or any(part in {".", ".."} for part in relative.parts):
+    if (
+        not name
+        or relative.is_absolute()
+        or str(relative) != name
+        or any(part in {".", ".."} for part in relative.parts)
+    ):
         raise ValueError("SNAPSHOT_PATH_INVALID")
     if root.is_symlink() or not root.is_dir() or root.stat().st_mode & 0o077:
         raise ValueError("SNAPSHOT_DIRECTORY_UNSAFE")
@@ -99,15 +106,20 @@ def copy_tree(source: Path, target: Path, *, existing_target: bool = False) -> N
     descriptor = os.open("/", os.O_RDONLY | os.O_DIRECTORY)
     try:
         for component in source.parts[1:]:
-            child = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor)
+            child = os.open(
+                component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor
+            )
             os.close(descriptor)
             descriptor = child
+
         def copy_directory(directory_fd: int, destination: Path, *, root: bool = False) -> None:
             destination.mkdir(mode=0o700, parents=True, exist_ok=existing_target and root)
             for name in os.listdir(directory_fd):
                 info = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
                 if stat.S_ISDIR(info.st_mode):
-                    child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory_fd)
+                    child = os.open(
+                        name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory_fd
+                    )
                     try:
                         copy_directory(child, destination / name)
                     finally:
@@ -115,7 +127,11 @@ def copy_tree(source: Path, target: Path, *, existing_target: bool = False) -> N
                 elif stat.S_ISREG(info.st_mode):
                     source_fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=directory_fd)
                     with os.fdopen(source_fd, "rb") as reader:
-                        target_fd = os.open(destination / name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+                        target_fd = os.open(
+                            destination / name,
+                            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                            0o600,
+                        )
                         with os.fdopen(target_fd, "wb") as writer:
                             before = os.fstat(reader.fileno())
                             while chunk := reader.read(1024 * 1024):
@@ -123,7 +139,11 @@ def copy_tree(source: Path, target: Path, *, existing_target: bool = False) -> N
                             writer.flush()
                             os.fsync(writer.fileno())
                             after = os.fstat(reader.fileno())
-                            if (before.st_ino, before.st_size, before.st_mtime_ns) != (after.st_ino, after.st_size, after.st_mtime_ns):
+                            if (before.st_ino, before.st_size, before.st_mtime_ns) != (
+                                after.st_ino,
+                                after.st_size,
+                                after.st_mtime_ns,
+                            ):
                                 raise ValueError("SNAPSHOT_SOURCE_CHANGED")
                 else:
                     raise ValueError("SNAPSHOT_SOURCE_UNSAFE")
@@ -132,6 +152,7 @@ def copy_tree(source: Path, target: Path, *, existing_target: bool = False) -> N
                 os.fsync(output_directory)
             finally:
                 os.close(output_directory)
+
         copy_directory(descriptor, target, root=True)
     finally:
         os.close(descriptor)

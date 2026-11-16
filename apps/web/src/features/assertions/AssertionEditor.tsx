@@ -132,7 +132,8 @@ export function AssertionEditor({
             {phase === "BEFORE" && (
                 <p data-testid={`${name}.phase`}>
                     {tx(
-                        "前置断言先于本步骤监听器安装；网络响应、计数与耗时断言应放在后置阶段。模板同样受调用阶段约束。 / BEFORE runs before step observers are armed; network assertions belong AFTER. Templates inherit the calling phase.",
+                        "前置断言先于本步骤监听器安装；网络响应、计数与耗时断言应放在后置阶段。模板同样受调用阶段约束。 / BEFORE runs before step observers are arm" +
+                            "ed; network assertions belong AFTER. Templates inherit the calling phase.",
                     )}
                 </p>
             )}
@@ -283,7 +284,8 @@ function AssertionFields({
                                           "仅显式选择；公共流程内部新页面不泄漏到调用方 / Explicit lexical page scope",
                                       )
                                     : tx(
-                                          "可填写调用方页面 key；实际调用时验证作用域，省略仍为原始页面。 / Symbolic caller page key; checked at the calling case. Omission means original page.",
+                                          "可填写调用方页面 key；实际调用时验证作用域，省略仍为原始页面。 / Symbolic caller page key; checked at " +
+                                              "the calling case. Omission means original page.",
                                       )
                             }
                         />
@@ -295,7 +297,8 @@ function AssertionFields({
                             hint={
                                 network === undefined
                                     ? tx(
-                                          "模板在调用方网络监听器作用域内解析，例如 response:save / Symbolic observer reference resolved in caller scope.",
+                                          "模板在调用方网络监听器作用域内解析，例如 response:save / Symbolic observer reference resolved" +
+                                              " in caller scope.",
                                       )
                                     : undefined
                             }

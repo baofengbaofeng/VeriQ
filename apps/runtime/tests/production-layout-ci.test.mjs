@@ -98,7 +98,8 @@ test("keeps nested duplicate instances, original manifests, ownership and comple
             inner = join(outer, "node_modules/pkg");
         await mkdir(inner, { recursive: true });
         const manifest =
-            '{\n "name":"pkg", "version":"1.0.0", "dependencies":{"x":"*"}, "custom":{"preserved":true}, "bin":{"pkg":"own.js"}\n}\n';
+            '{\n "name":"pkg", "version":"1.0.0", "dependencies":{"x":"*"}, "custom":{"preserved":true}, "bin":{"pkg' +
+            '":"own.js"}\n}\n';
         for (const location of [outer, inner]) {
             await writeFile(join(location, "package.json"), manifest);
             await writeFile(join(location, "own.js"), "export default 1;\n");
@@ -204,7 +205,9 @@ test("import is inert in an empty working directory", () =>
             args: [
                 "--input-type=module",
                 "-e",
-                `await import(${JSON.stringify(target)}); const fs = await import('node:fs/promises'); console.log(JSON.stringify(await fs.readdir('.')));`,
+                `await import(${JSON.stringify(target)}` +
+                    `); const fs = await import('node:fs/promises'); console.log(JSON.stringify(await fs.readdir('.` +
+                    `')));`,
             ],
             cwd: root,
             timeoutMs: 2000,
@@ -315,11 +318,14 @@ const inheritedPipeFixture = async (delayMs) => {
         donePath = join(root, "done.json"),
         errorPath = join(root, "error.json");
     // 三个握手标记都先完整写入同目录临时文件再 rename 发布，读取者只能见到缺失或完整 JSON；这防止 release 的创建与写入窗口被继承者误判成解析失败，同时保留真实异常文件而不把清理错误吞掉。
-    const inheritor = `
+    const inheritor =
+        `
         const fs = require("node:fs");
-        const publish = (path, value) => { fs.writeFileSync(path + ".tmp", JSON.stringify(value)); fs.renameSync(path + ".tmp", path); };
+        const publish = (path, value) => { fs.writeFileSync(path + ".tmp", JSON.stringify(value)); fs.renameSync(pat` +
+        `h + ".tmp", path); };
         process.once("uncaughtException", (error) => {
-            publish(${JSON.stringify(errorPath)}, { name: error.name, message: error.message, code: error.code ?? null });
+            publish(${JSON.stringify(errorPath)}, { name: error.name, message: error.message, code: error.code ?? nu` +
+        `ll });
             process.exit(14);
         });
         const identity = { kind: "READY", nonce: ${JSON.stringify(nonce)}, pid: process.pid, parentPid: process.ppid };
@@ -344,14 +350,17 @@ const inheritedPipeFixture = async (delayMs) => {
         publish(${JSON.stringify(readyPath)}, identity);
         process.send(identity);
     `;
-    const direct = `
+    const direct =
+        `
         const { spawn } = require("node:child_process");
         process.on("SIGTERM", () => {});
         setTimeout(() => {
-            const child = spawn(process.execPath, ["-e", ${JSON.stringify(inheritor)}], { stdio: ["ignore", "inherit", "inherit", "ipc"] });
+            const child = spawn(process.execPath, ["-e", ${JSON.stringify(inheritor)}], { stdio: ["ignore", "inherit` +
+        `", "inherit", "ipc"] });
             child.once("error", () => process.exit(11));
             child.once("message", (ready) => {
-                if (ready.kind !== "READY" || ready.nonce !== ${JSON.stringify(nonce)} || ready.pid !== child.pid || ready.parentPid !== process.pid) process.exit(12);
+                if (ready.kind !== "READY" || ready.nonce !== ${JSON.stringify(nonce)} || ready.pid !== child.pid ||` +
+        ` ready.parentPid !== process.pid) process.exit(12);
                 process.stdout.write(JSON.stringify(ready) + "\\n", () => process.exit(0));
             });
             child.unref();
@@ -465,7 +474,8 @@ const pnpmFixture = (body) =>
         await mkdir(join(packageRoot, "bin"), { recursive: true });
         await mkdir(join(packageRoot, "dist"));
         const original =
-            '{\n "name":"pnpm", "version":"11.25.0", "type":"module", "bin":{"pnpm":"bin/pnpm.mjs"}, "custom":{"retained":true}\n}\n';
+            '{\n "name":"pnpm", "version":"11.25.0", "type":"module", "bin":{"pnpm":"bin/pnpm.mjs"}, "custom":{"reta' +
+            'ined":true}\n}\n';
         await writeFile(join(packageRoot, "package.json"), original);
         await writeFile(join(packageRoot, "bin/pnpm.cjs"), "import('./pnpm.mjs');\n");
         await writeFile(join(packageRoot, "bin/pnpm.mjs"), "await import('../dist/pnpm.mjs');\n");

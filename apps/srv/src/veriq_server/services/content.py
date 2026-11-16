@@ -2,7 +2,6 @@
 create_upload 建立 AttemptUpload 与 publication；chunk 追加字节并校验偏移。
 """
 
-
 import json
 from hashlib import sha256
 from typing import Any
@@ -27,6 +26,7 @@ class ContentService:
     """编排在线证据上传会话与按 digest 下载，所有操作绑定 Attempt 租约证明，ContentService 遵守本文件 Workspace/事务边界。
     ContentService 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+
     def __init__(self, session: AsyncSession, settings: Settings):
         """注入会话与 Settings，用于租约校验与产物存储后端选择，ContentService.__init__ 遵守本文件 Workspace/事务边界。
         __init__ 实现于 apps/srv/src/veriq_server/services/content.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。

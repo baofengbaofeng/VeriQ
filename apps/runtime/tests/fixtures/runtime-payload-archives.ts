@@ -43,7 +43,8 @@ export function tarBytes(entries: readonly ArchiveFixtureEntry[], tail = Buffer.
     }
     return gzipSync(Buffer.concat([...blocks, tail]));
 }
-/** ZIP 夹具沿用仓库 Python zipfile 模式并只向解释器标准输入传递小 JSON，输出真实 stored 或 deflate 内容；Unix 类型和权限写入公开 external_attr，使产品必须真正读取链接正文与 CRC 而非信任 DTO。 */
+/** ZIP 夹具沿用仓库 Python zipfile 模式并只向解释器标准输入传递小 JSON，输出真实 stored 或 deflate 内容；Unix 类型和权限写入公开 external_attr，使产品必须真正读取链接正
+ * 文与 CRC 而非信任 DTO。 */
 export function zipBytes(entries: readonly ArchiveFixtureEntry[], compression = 8) {
     return execFileSync(
         "python3",

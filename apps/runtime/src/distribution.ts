@@ -6,7 +6,11 @@ import type { ExecutionPaths } from "./execution/paths.ts";
 import { loadRelease } from "./execution/release.ts";
 import { doctor } from "./doctor.ts";
 import { isNode24Version, isIndependentNode24 } from "./node-version.ts";
-import { verifyMacRuntimeManifestV2, type MacChromeLayout, type MacRuntimeArch } from "./distribution-manifest-v2.ts";
+import {
+    verifyMacRuntimeManifestV2,
+    type MacChromeLayout,
+    type MacRuntimeArch,
+} from "./distribution-manifest-v2.ts";
 
 /** 安装发行描述只保存经过物理库存校验后的路径和独立版本，签名来源认证由安装器负责而不是由自报清单代替；运行前仍须载入所选引擎库存并验证真实 Node 与浏览器能力。 */
 export interface RuntimeDistribution {
@@ -64,14 +68,18 @@ export async function loadMacRuntimeDistribution(
         throw new Error("RUNTIME_HOST_TARGET_MISMATCH");
     if (!/^[0-9a-f]{64}$/.test(policy.manifestSha256))
         throw new Error("RUNTIME_TRUSTED_IDENTITY_INVALID");
-    const inventory = await verifyMacRuntimeManifestV2(directory, { arch: policy.arch, layout: policy.layout });
+    const inventory = await verifyMacRuntimeManifestV2(directory, {
+        arch: policy.arch,
+        layout: policy.layout,
+    });
     const manifest = inventory.manifest;
     if (
         inventory.manifestSha256 !== policy.manifestSha256 ||
         manifest.productVersion !== policy.productVersion ||
         manifest.nodeVersion !== policy.nodeVersion ||
         manifest.engineVersion !== policy.engineVersion
-    ) throw new Error("RUNTIME_TRUSTED_IDENTITY_MISMATCH");
+    )
+        throw new Error("RUNTIME_TRUSTED_IDENTITY_MISMATCH");
     const files = new Set(manifest.files.map((file) => file.path));
     const take = (name: string) => {
         if (!files.has(name)) throw new Error("RUNTIME_MEMBER_MISSING");
@@ -104,10 +112,18 @@ export async function loadMacRuntimeDistribution(
     vaultCapabilities.set(distribution, take("native/vault/veriq_agent"));
     const role = basename(process.execPath);
     if (["veriq_agent", "veriq_cli", "veriq_runner"].includes(role)) {
-        const wanted = role === "veriq_agent" ? distribution.agentExecutable
-            : role === "veriq_cli" ? distribution.cliExecutable : distribution.execution.runnerExecutable;
-        if (resolve(process.execPath) !== wanted || !isIndependentNode24(process.versions) ||
-            process.versions.node !== manifest.nodeVersion) throw new Error("RUNTIME_ROLE_MISMATCH");
+        const wanted =
+            role === "veriq_agent"
+                ? distribution.agentExecutable
+                : role === "veriq_cli"
+                  ? distribution.cliExecutable
+                  : distribution.execution.runnerExecutable;
+        if (
+            resolve(process.execPath) !== wanted ||
+            !isIndependentNode24(process.versions) ||
+            process.versions.node !== manifest.nodeVersion
+        )
+            throw new Error("RUNTIME_ROLE_MISMATCH");
         const { bindDarwinDistribution } = await import("./native/darwin.ts");
         bindDarwinDistribution(distribution);
     }
@@ -118,18 +134,29 @@ export async function loadMacRuntimeDistribution(
 /** 安装命令行从 Runtime 之外的固定桌面发行描述读取独立 Mac 策略，不能从待核 runtime-manifest 推导链接许可或期望摘要；描述本身的来源认证仍由安装、签名和可信启动路径负责。
  * 非 Mac 保留已有第一版加载合同，缺少桌面描述的 Mac 包明确失败，不退回源码 Node、全局 Chrome 或自报清单。
  */
-export async function loadInstalledRuntimeDistribution(directory: string): Promise<RuntimeDistribution> {
+export async function loadInstalledRuntimeDistribution(
+    directory: string,
+): Promise<RuntimeDistribution> {
     if (process.platform !== "darwin") return loadRuntimeDistribution(directory);
     const parent = resolve(directory, "..");
-    if (await realpath(parent) !== parent) throw new Error("RUNTIME_LINK_FORBIDDEN");
+    if ((await realpath(parent)) !== parent) throw new Error("RUNTIME_LINK_FORBIDDEN");
     const descriptor = await member(parent, "desktop-release.json");
     const info = await lstat(descriptor, { bigint: true });
-    if (info.nlink !== 1n || info.size > 1024n * 1024n) throw new Error("RUNTIME_RELEASE_DESCRIPTOR_INVALID");
-    const handle = await open(descriptor, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    if (info.nlink !== 1n || info.size > 1024n * 1024n)
+        throw new Error("RUNTIME_RELEASE_DESCRIPTOR_INVALID");
+    const handle = await open(
+        descriptor,
+        constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+    );
     let bytes: Buffer;
     try {
         const opened = await handle.stat({ bigint: true });
-        if (!opened.isFile() || opened.dev !== info.dev || opened.ino !== info.ino || opened.size !== info.size)
+        if (
+            !opened.isFile() ||
+            opened.dev !== info.dev ||
+            opened.ino !== info.ino ||
+            opened.size !== info.size
+        )
             throw new Error("RUNTIME_RELEASE_DESCRIPTOR_CHANGED");
         const buffer = Buffer.alloc(Number(info.size) + 1);
         let position = 0;
@@ -139,11 +166,19 @@ export async function loadInstalledRuntimeDistribution(directory: string): Promi
             position += result.bytesRead;
         }
         const settled = await handle.stat({ bigint: true });
-        if (position !== Number(info.size) || settled.size !== info.size || settled.mtimeNs !== info.mtimeNs ||
-            settled.ctimeNs !== info.ctimeNs || settled.mode !== info.mode || settled.nlink !== 1n)
+        if (
+            position !== Number(info.size) ||
+            settled.size !== info.size ||
+            settled.mtimeNs !== info.mtimeNs ||
+            settled.ctimeNs !== info.ctimeNs ||
+            settled.mode !== info.mode ||
+            settled.nlink !== 1n
+        )
             throw new Error("RUNTIME_RELEASE_DESCRIPTOR_CHANGED");
         bytes = buffer.subarray(0, position);
-    } finally { await handle.close(); }
+    } finally {
+        await handle.close();
+    }
     const value = JSON.parse(bytes.toString("utf8")) as { trustedRuntime?: TrustedMacRuntime };
     if (!value?.trustedRuntime) throw new Error("RUNTIME_TRUSTED_IDENTITY_REQUIRED");
     return loadMacRuntimeDistribution(directory, value.trustedRuntime);
@@ -240,7 +275,13 @@ export async function loadRuntimeDistribution(directory: string): Promise<Runtim
     take(`engines/${manifest.engineVersion}/inventory.json`);
     take("execution/archive.mjs");
     /** Worker 用普通 Node 相对加载同一受审命令闭包，全部运行成员必须先核库存；声明文件只服务类型检查而不属于安装执行依赖，缺失任何 MJS 均不能退回源码目录。 */
-    for (const name of ["controlled-command.mjs", "controlled-child.mjs", "controlled-child-protocol.mjs", "controlled-child-preload.mjs"]) take("execution/" + name);
+    for (const name of [
+        "controlled-command.mjs",
+        "controlled-child.mjs",
+        "controlled-child-protocol.mjs",
+        "controlled-child-preload.mjs",
+    ])
+        take("execution/" + name);
     const distribution: RuntimeDistribution = {
         root,
         productVersion: manifest.productVersion,

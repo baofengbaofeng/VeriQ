@@ -11,7 +11,9 @@ beforeAll(async () => {
     await f.page.evaluate(() => {
         document.body.insertAdjacentHTML(
             "beforeend",
-            `<button data-testid="prompt" onclick="document.querySelector('[data-testid=text]').textContent=prompt('Name?')">Prompt</button><button data-testid="popup" onclick="window.open('/','_blank')">Popup</button><a data-testid="download" download="../../untrusted.txt" href="/text">Download</a>`,
+            `<button data-testid="prompt" onclick="document.querySelector('[data-testid=text]').textContent=prompt(` +
+                `'Name?')">Prompt</button><button data-testid="popup" onclick="window.open('/','_blank')">Popup</bu` +
+                `tton><a data-testid="download" download="../../untrusted.txt" href="/text">Download</a>`,
         );
     });
     f.options.catalog.elements.push(
@@ -22,8 +24,7 @@ beforeAll(async () => {
     );
 });
 afterEach(async () => {
-    for (const page of f.page.context().pages())
-        if (page !== f.page) await page.close();
+    for (const page of f.page.context().pages()) if (page !== f.page) await page.close();
     await f.page.bringToFront();
 });
 afterAll(async () => {
@@ -62,12 +63,8 @@ it("prearms and answers an expected prompt; mismatched dialog is dismissed witho
 it("fails and dismisses an unexpected dialog", async () => {
     const ctx = createStepContext(f.options);
     expect(
-        (
-            await executeStep(
-                step({ id: "prompt", action: "click", target: "prompt" }),
-                ctx,
-            )
-        ).errorCode,
+        (await executeStep(step({ id: "prompt", action: "click", target: "prompt" }), ctx))
+            .errorCode,
     ).toBe("UNEXPECTED_DIALOG");
     ctx.dispose();
 });
@@ -179,9 +176,9 @@ it("makes wrapper popup available to children and keeps omitted pageKey on the o
     const r = await executeStep(wrapper, ctx);
     expect(r.status).toBe("PASSED");
     expect(ctx.pages.has("wrapper")).toBe(true);
-    expect(
-        await (await ctx.pages.get("wrapper")!).getByTestId("name").inputValue(),
-    ).toBe("wrapper-value");
+    expect(await (await ctx.pages.get("wrapper")!).getByTestId("name").inputValue()).toBe(
+        "wrapper-value",
+    );
     expect(await ctx.page.getByTestId("name").inputValue()).toBe("");
     ctx.dispose();
 });
@@ -217,9 +214,7 @@ it("a missing wrapper popup fails waiting children at its observer deadline", as
         id: "flow",
         action: "callFlow",
         versionId: "00000000-0000-4000-8000-000000000003",
-        observers: [
-            { id: "opened", kind: "newPage", pageKey: "missing", timeoutMs: 100 },
-        ],
+        observers: [{ id: "opened", kind: "newPage", pageKey: "missing", timeoutMs: 100 }],
     });
     wrapper.children = [
         step({
@@ -252,9 +247,7 @@ it("a wrapper dialog observer handles a child action without an unexpected-dialo
             },
         ],
     });
-    wrapper.children = [
-        step({ id: "prompt", action: "click", target: "prompt" }),
-    ];
+    wrapper.children = [step({ id: "prompt", action: "click", target: "prompt" })];
     const r = await executeStep(wrapper, ctx);
     expect(r.status).toBe("PASSED");
     ctx.dispose();
@@ -385,9 +378,7 @@ it("cancels an unfinished browser download when acquisition times out and leaves
         });
     });
     await f.page.evaluate(() => {
-        document
-            .querySelector("[data-testid=download]")!
-            .setAttribute("href", "/slow-download");
+        document.querySelector("[data-testid=download]")!.setAttribute("href", "/slow-download");
     });
     try {
         const r = await executeStep(
@@ -406,9 +397,7 @@ it("cancels an unfinished browser download when acquisition times out and leaves
         expect(ctx.registry.activeCount()).toBe(0);
     } finally {
         await f.page.evaluate(() => {
-            document
-                .querySelector("[data-testid=download]")!
-                .setAttribute("href", "/text");
+            document.querySelector("[data-testid=download]")!.setAttribute("href", "/text");
         });
         ctx.dispose();
     }

@@ -1,4 +1,3 @@
-
 import asyncio
 from hashlib import sha256
 import io
@@ -79,7 +78,10 @@ async def test_actual_offline_browser_result_uploads_to_enrolled_mysql_import(
             else:
                 observed["page"] += 1
                 self.finish(
-                    "<div data-testid='text'>Visible offline business</div><a data-testid='download' download href='/download'>Download</a>"
+                    (
+                        "<div data-testid='text'>Visible offline business</div><a data-testid='download' download "
+                        "href='/download'>Download</a>"
+                    )
                 )
 
     sockets = bind_sockets(0, "127.0.0.1")

@@ -3,7 +3,6 @@
 receipt_dto 导出回执稳定字段供 API 展示。
 """
 
-
 import json
 from typing import Any
 from sqlalchemy import func, select
@@ -39,6 +38,7 @@ class PublishService(ResourceService):
     """在回执门禁通过后冻结草稿为 ResourceVersion，并维护依赖边与最新指针，PublishService 遵守本文件 Workspace/事务边界。
     PublishService 属于发布/围栏相关逻辑：未满足设备、租约或引擎清单条件时不得把排队当成已验证发布。
     """
+
     async def publish(
         self, scope: WorkspaceScope, resource_id: str, draft_revision: int, receipt_id: str
     ) -> dict[str, Any]:

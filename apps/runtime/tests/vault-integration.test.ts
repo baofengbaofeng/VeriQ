@@ -413,8 +413,13 @@ test("idle migration guard excludes concurrent reservations across connections a
         const holding = await LocalStore.open(execution);
         const competing = await LocalStore.open(execution);
         const release = holding.holdIdle();
-        const script = `import {LocalStore} from ${JSON.stringify(new URL("../src/offline/store.ts", import.meta.url).href)};
-let store;try {store=await LocalStore.open(process.argv[1]);store.reserve('11111111-1111-4111-8111-111111111111','33333333-3333-4333-8333-333333333333','22222222-2222-4222-8222-222222222222');}
+        const script =
+            `import {LocalStore} from ${JSON.stringify(
+                new URL("../src/offline/store.ts", import.meta.url)` +
+            `.href,
+            )};
+let store;try {store=await LocalStore.open(process.argv[1]);store.reserve('11111111-1111-4111-8111-111111111111','33` +
+            `333333-3333-4333-8333-333333333333','22222222-2222-4222-8222-222222222222');}
 catch(error){process.exitCode=String(error.message).includes('locked')?41:42;}finally{store?.close();}`;
         const child = () =>
             spawnSync(

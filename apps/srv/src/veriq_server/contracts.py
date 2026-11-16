@@ -120,6 +120,7 @@ def parse_contract(schema_name: str, text: str) -> Any:
     """解析 JSON 文本并校验命名契约，同时拒绝 Infinity 与 NaN 等非标准 JSON 常量，parse_contract 的失败路径返回稳定错误。
     parse_contract 实现于 apps/srv/src/veriq_server/contracts.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
+
     def reject_constant(constant: str) -> None:
         raise ValueError(f"Non-JSON constant: {constant}")
 

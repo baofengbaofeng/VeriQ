@@ -3,11 +3,7 @@
  * CloudIdentityAdapter 路径均含 workspaceId；密钥仅出现在 POST 体并立即丢弃本地副本。
  */
 
-import type {
-    PlatformComponents,
-    AuthAdapterConfigV1,
-    JsonObject,
-} from "@veriq/contracts";
+import type { PlatformComponents, AuthAdapterConfigV1, JsonObject } from "@veriq/contracts";
 import { request } from "../../api";
 type S = PlatformComponents["schemas"];
 /**
@@ -25,14 +21,8 @@ export type AdapterSummary = S["AuthAdapterDTO"];
  * 桌面可替换实现，但不得把密钥写入可序列化快照。
  */
 export interface IdentityAdapter {
-    credentials(
-        cursor?: string,
-        signal?: AbortSignal,
-    ): Promise<S["CredentialListDTO"]>;
-    adapters(
-        cursor?: string,
-        signal?: AbortSignal,
-    ): Promise<S["AuthAdapterListDTO"]>;
+    credentials(cursor?: string, signal?: AbortSignal): Promise<S["CredentialListDTO"]>;
+    adapters(cursor?: string, signal?: AbortSignal): Promise<S["AuthAdapterListDTO"]>;
     createAdapter(
         configuration: AuthAdapterConfigV1,
         signal?: AbortSignal,
@@ -45,11 +35,7 @@ export interface IdentityAdapter {
         rotate: boolean,
         signal?: AbortSignal,
     ): Promise<CredentialSummary>;
-    revokeCredential(
-        ref: string,
-        id: string,
-        signal?: AbortSignal,
-    ): Promise<CredentialSummary>;
+    revokeCredential(ref: string, id: string, signal?: AbortSignal): Promise<CredentialSummary>;
 }
 /**
  * HTTP 实现：/workspaces/{id}/credentials 与 auth-adapters；rotate 标志控制新版本。
@@ -62,27 +48,20 @@ export class CloudIdentityAdapter implements IdentityAdapter {
     }
     credentials = (cursor?: string, signal?: AbortSignal) =>
         request<S["CredentialListDTO"]>(
-            this.base("credentials") +
-                (cursor ? "?cursor=" + encodeURIComponent(cursor) : ""),
+            this.base("credentials") + (cursor ? "?cursor=" + encodeURIComponent(cursor) : ""),
             "GET",
             undefined,
             signal,
         );
     adapters = (cursor?: string, signal?: AbortSignal) =>
         request<S["AuthAdapterListDTO"]>(
-            this.base("auth-adapters") +
-                (cursor ? "?cursor=" + encodeURIComponent(cursor) : ""),
+            this.base("auth-adapters") + (cursor ? "?cursor=" + encodeURIComponent(cursor) : ""),
             "GET",
             undefined,
             signal,
         );
     createAdapter = (configuration: AuthAdapterConfigV1, signal?: AbortSignal) =>
-        request<AdapterSummary>(
-            this.base("auth-adapters"),
-            "POST",
-            { configuration },
-            signal,
-        );
+        request<AdapterSummary>(this.base("auth-adapters"), "POST", { configuration }, signal);
     revokeAdapter = (id: string, signal?: AbortSignal) =>
         request<AdapterSummary>(
             this.base(`auth-adapters/${encodeURIComponent(id)}/revoke`),
@@ -99,9 +78,7 @@ export class CloudIdentityAdapter implements IdentityAdapter {
     ) =>
         request<CredentialSummary>(
             this.base(
-                rotate
-                    ? `credentials/${encodeURIComponent(secretRef)}/versions`
-                    : "credentials",
+                rotate ? `credentials/${encodeURIComponent(secretRef)}/versions` : "credentials",
             ),
             "POST",
             { ...(rotate ? {} : { secretRef }), value, allowedIdentityIds },

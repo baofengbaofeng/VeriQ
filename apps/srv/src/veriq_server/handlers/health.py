@@ -39,7 +39,10 @@ class HealthAPI(API):
         checks = await self.application.settings["readiness_monitor"].check()
         ready = all(checks.values())
         if self.action == "public-ready":
-            self.respond({"status": "ok" if ready else "degraded", "checks": checks}, status=200 if ready else 503)
+            self.respond(
+                {"status": "ok" if ready else "degraded", "checks": checks},
+                status=200 if ready else 503,
+            )
         elif ready:
             self.respond({"ready": True})
         else:

@@ -757,9 +757,11 @@ export async function verifyReceipts(recipe: Recipe, reader: InputReader) {
     let total = 0;
     for (const f of er.files) {
         if (
-            !/^(package\.json|package-lock\.json|dependencies\.json|engine\/compiler\.tgz|vendor\/[a-zA-Z0-9_.-]+\.tgz)$/.test(
-                f.path,
-            )
+            !new RegExp(
+                "^(package\\.json|package-lock\\.json|dependencies\\.json|engine/compiler\\.tgz|vendor/[a-zA" +
+                    "-Z0-9_.-]+\\.tgz)$",
+                "",
+            ).test(f.path)
         )
             fail("PAYLOAD_ENGINE_INPUT_INVALID");
         total += f.sizeBytes;

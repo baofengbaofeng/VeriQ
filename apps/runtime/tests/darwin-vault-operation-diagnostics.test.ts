@@ -366,7 +366,8 @@ test("producer rejects helper metadata on a non-helper operation", () => {
     assert.equal(collect(summary).rejected, false);
 });
 
-/** 工作流消费者必须独立拒绝非 run 操作夹带的 helper 退出值和回复形状，即使来源类别不是 HELPER 也不能借此通过；每个负例通过真实 JSON 收集器，合法未知上下文仍须往返保留，防止只加强生产端而留下消费端证据矛盾。 */
+/** 工作流消费者必须独立拒绝非 run 操作夹带的 helper 退出值和回复形状，即使来源类别不是 HELPER 也不能借此通过；每个负例通过真实 JSON 收集器，合法未知上下文仍须往返保留，防止只加强生产端而留下消费端证据矛
+ * 盾。 */
 for (const operation of [
     "lock",
     "create",

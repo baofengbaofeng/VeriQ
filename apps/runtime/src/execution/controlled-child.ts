@@ -5,4 +5,8 @@
  */
 export { trackObservedCli } from "./controlled-child.mjs";
 /** 原有公开类型保持具名转发并统一由共享声明定义，消费者不需要更换 TypeScript 导入路径；新增取消方法属于同一返回接口，不引入第二份运行实现或分叉的选项合同。 */
-export type { ObservedCliOptions, CliExitObservation, ControlledChildResult } from "./controlled-child.mjs";
+export type {
+    ObservedCliOptions,
+    CliExitObservation,
+    ControlledChildResult,
+} from "./controlled-child.mjs";

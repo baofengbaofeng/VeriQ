@@ -2,7 +2,6 @@
 activation_provenance 固化 formalEligible；凭据投递事后吊销会追加失败原因。
 """
 
-
 import json
 from typing import Any
 from ..auth.authorization import WorkspaceScope

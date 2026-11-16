@@ -48,7 +48,8 @@ export async function doctor(
     if (platform() === "darwin" && options.runtime && options.darwinSource) {
         verifiedNativeAddon(options.runtime);
         const state = requireDarwinSource(options.darwinSource);
-        installedMac = state.browserExecutable === options.runtime.browserExecutable &&
+        installedMac =
+            state.browserExecutable === options.runtime.browserExecutable &&
             state.nodeExecutable === options.runtime.execution.runnerExecutable &&
             options.executablePath === options.runtime.browserExecutable;
     }

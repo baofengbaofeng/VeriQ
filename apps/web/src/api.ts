@@ -346,7 +346,8 @@ export async function streamRequest(path: string, data: unknown, signal: AbortSi
     return response;
 }
 
-/** HTTP200 后的真实 SSE authorization 帧仍属于最初请求，只有明确 AUTHENTICATION_REQUIRED 且所有权仍有效才失效会话；报告保留期到期是410领域终态，工作区权限变化是403，二者都不能退出正常用户。 */
+/** HTTP200 后的真实 SSE authorization 帧仍属于最初请求，只有明确 AUTHENTICATION_REQUIRED 且所有权仍有效才失效会话；报告保留期到期是410领域终态，工作区权限变化是403，二者都
+ * 不能退出正常用户。 */
 export function streamAuthorizationError(response: Response, payload: unknown): ApiError {
     const code =
         payload !== null &&

@@ -133,7 +133,11 @@ test("two OS processes compete for one durable local context", async () => {
     try {
         const initialized = await LocalStore.open(dir);
         initialized.close();
-        const script = `import {LocalStore} from './src/offline/store.ts';import {randomUUID} from 'node:crypto';const store=await LocalStore.open(process.argv[1]);try{store.reserve(randomUUID(),randomUUID(),randomUUID());console.log('ACQUIRED');}catch(e){console.log(e.message);}finally{store.close();}`;
+        const script =
+            `import {LocalStore} from './src/offline/store.ts';import {randomUUID} from 'node:crypto';co` +
+            `nst store=await LocalStore.open(process.argv[1]);try{store.reserve(randomUUID(),randomUUID(` +
+            `),randomUUID());console.log('ACQUIRED');}catch(e){console.log(e.message);}finally{store.clo` +
+            `se();}`;
         /** 两个独立子进程仍同时争抢同一自有 SQLite 档案，失败时保留有限输出与真实退出状态以定位原因；这只增加诊断，不改变竞争时序、断言、重试次数或把子进程失败当作容量已释放。 */
         const compete = () =>
             new Promise<string>((resolve, reject) => {
@@ -178,7 +182,8 @@ test("running admission commits the launch generation and rejects stale state af
     const directory = await mkdtemp(join(tmpdir(), "veriq-local-running-"));
     let store = await LocalStore.open(directory);
     try {
-        const runId = randomUUID(), attemptId = randomUUID();
+        const runId = randomUUID(),
+            attemptId = randomUUID();
         const allocated = store.reserve(randomUUID(), runId, attemptId);
         const spawning = store.spawning(runId, attemptId, allocated);
         const running = store.running(runId, attemptId, spawning);

@@ -1210,7 +1210,8 @@ async function main() {
     if (active && journal.stages[active] === "STARTED") journal.stages[active] = result.status;
     journal.finished = now();
     journal.claim =
-        "Two-tree entry input materialization only; no Runtime readiness, candidate execution, installed or MVP acceptance.";
+        "Two-tree entry input materialization only; no Runtime readiness, candidate execution, installed or MVP acce" +
+            "ptance.";
     // 失败和未知关闭都只汇总早已持有的观察与元数据，不再扫描工作或构建目录；独立保留根经完整清单读回后才公开上传路径，后续工作流只允许上传这个根，工具缓存和源码目录绝不混入制品。
     documents.push(...journalDocuments(journal));
     await sealMetadata(join(owned, "metadata"), documents);
@@ -1227,7 +1228,10 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
         if (error instanceof EntryEnvironmentError)
             console.error(`Entry environment rejection: ${error.serializedDiagnostic}`);
         console.error(
-            `Entry CI failed: ${/^[A-Z][A-Z0-9_]+$/.test(error.code ?? error.message) ? (error.code ?? error.message) : "ENTRY_FAILURE"}`,
+            `Entry CI failed: ` +
+                `${
+                    /^[A-Z][A-Z0-9_]+$/.test(error.code ?? error.message) ? (
+                        error.code ?? error.message) : "ENTRY_FAILURE"}`,
         );
         process.exitCode = 1;
     });

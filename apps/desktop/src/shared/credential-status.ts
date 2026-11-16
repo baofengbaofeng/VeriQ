@@ -9,11 +9,14 @@ export const credentialGuidance = {
     VAULT_FAILED:
         "系统凭据访问失败，请检查系统服务和账户权限。 / Check the credential service and account permissions.",
     VAULT_KEY_MISSING:
-        "档案密钥缺失。仅空初始化可以显式恢复；已激活档案不会重建密钥。 / The profile key is missing. Only empty initialization may be recovered; active profile keys are never recreated.",
+        "档案密钥缺失。仅空初始化可以显式恢复；已激活档案不会重建密钥。 / The profile key is missing. Only empty initialization may be recovered; a" +
+        "ctive profile keys are never recreated.",
     VAULT_INITIALIZATION_RECOVERY_REQUIRED:
-        "空保险库初始化尚未完成，请停止执行后使用设置中的显式恢复入口。 / Stop execution and explicitly recover pending empty initialization in Settings.",
+        "空保险库初始化尚未完成，请停止执行后使用设置中的显式恢复入口。 / Stop execution and explicitly recover pending empty initialization in Set" +
+        "tings.",
     VAULT_MUTATION_UNCONFIRMED:
-        "凭据修改结果未确认，请保留档案并检查诊断，勿重复提交业务修改。 / A credential mutation is unconfirmed. Preserve the profile and inspect diagnostics before retrying.",
+        "凭据修改结果未确认，请保留档案并检查诊断，勿重复提交业务修改。 / A credential mutation is unconfirmed. Preserve the profile and inspect di" +
+        "agnostics before retrying.",
     VAULT_PROFILE_DELETED:
         "本机凭据档案已退役，当前档案不能重新绑定或自动初始化。 / This credential profile is retired and cannot be enrolled or initialized again.",
     VAULT_PROFILE_DELETION_REQUIRED:
@@ -21,7 +24,8 @@ export const credentialGuidance = {
     VAULT_DELETION_RECOVERY_REQUIRED:
         "档案保留了未完成的退役记录，请先核验并完成原操作。 / Verify and complete the existing credential retirement before using this profile.",
     CREDENTIAL_ACCESS_FAILED:
-        "无法读取本机凭据，请检查系统服务、档案权限与恢复记录；当前状态不代表尚未绑定。 / Credentials could not be read. Check the service, profile permissions and recovery records; this does not mean the device is unenrolled.",
+        "无法读取本机凭据，请检查系统服务、档案权限与恢复记录；当前状态不代表尚未绑定。 / Credentials could not be read. Check the service, profile permiss" +
+        "ions and recovery records; this does not mean the device is unenrolled.",
 } as const;
 
 /** 公开错误码直接取自受审提示表，新增诊断必须同时提供用户能理解的处理指引；类型不允许任意后端消息进入 renderer，从而防止错误路径意外披露凭据或宿主目录。 */

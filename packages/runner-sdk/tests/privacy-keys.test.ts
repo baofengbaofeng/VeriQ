@@ -10,9 +10,7 @@ test("local secrets in dynamic JSON member names withhold the object without col
         encodeURIComponent(secret),
         Buffer.from(secret).toString("base64"),
     ]) {
-        expect(policy.redact({ [key]: "value", "[REDACTED]": "collision" })).toBe(
-            "[REDACTED]",
-        );
+        expect(policy.redact({ [key]: "value", "[REDACTED]": "collision" })).toBe("[REDACTED]");
         expect(policy.redact({ safe: { [key]: "value" } })).toEqual({
             safe: "[REDACTED]",
         });
@@ -22,8 +20,7 @@ test("local secrets in dynamic JSON member names withhold the object without col
 test("protocol identifiers and enums survive coincidental secret strings while assertion JSON is private", async () => {
     const { validateSchema } = await import("@veriq/contracts");
     const policy = new EvidencePolicy();
-    for (const value of ["sequence", "PASSED", "ASSERTION_RESULT", "read"])
-        policy.protect(value);
+    for (const value of ["sequence", "PASSED", "ASSERTION_RESULT", "read"]) policy.protect(value);
     const event = {
         schemaVersion: "1.0",
         attemptId: "00000000-0000-4000-8000-000000000001",
@@ -55,15 +52,15 @@ test("protocol identifiers and enums survive coincidental secret strings while a
     expect(validateSchema("ExecutionEventV1", projected)).toEqual([]);
 });
 
-test("real SDK HTTP assertion and event boundary withhold local credential keys without breaking wire shape", async () => {
+test("real SDK HTTP assertion and event boundary withhol" +
+    "d local credential keys without breaking wire shape", async () => {
     const { createServer } = await import("node:http");
     const { fixture } = await import("./helpers.js");
     const { snapshot, id } = await import("../../compiler/tests/helpers.js");
     const { analyze } = await import("../../compiler/src/index.js");
     const { executeCase } = await import("../src/register-case.js");
     const { EventBuffer } = await import(
-        new URL("../../../apps/runtime/src/execution/events.ts", import.meta.url)
-            .href
+        new URL("../../../apps/runtime/src/execution/events.ts", import.meta.url).href
     );
     const secret = "private local/ref version+secret",
         ref = "privateLocalRef",

@@ -567,7 +567,8 @@ public:
             }
             const auto info = metadata(next.get());
             require(S_ISDIR(info.st_mode), "directory.type");
-            /** Cookie 的应用根与固定布局中间目录可以保留 Electron 既有七百五十五模式，但必须真实 uid 拥有且没有组或其他写入、特殊位或扩展授权；更高祖先沿用 B 的无链接目录政策，最终目录另按七百严格检查。
+            /** Cookie 的应用根与固定布局中间目录可以保留 Electron 既有七百五十五模式，但必须真实 uid 拥有且没有组或其他写入、特殊位或扩展授权；更高祖先沿用 B 的无链接目录政策，最终目录另按七百严格检
+            * 查。
              * safeFrom 只由完整 Cookie 后缀解析得到，现有公开目录调用默认不增加中间目录要求。
              * 这里不创建、chmod 或清 ACL，兼容只读与可执行权限并不意味着授予其他写入者。
              */

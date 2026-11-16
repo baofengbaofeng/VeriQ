@@ -1,4 +1,3 @@
-
 from uuid import uuid4
 
 from test_auth import setup, login

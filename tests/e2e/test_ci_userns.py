@@ -25,9 +25,7 @@ class CiUsernsBoundaryTests(unittest.TestCase):
             "GITHUB_RUN_ATTEMPT": "1",
         }
         release = {"ID": "ubuntu", "VERSION_ID": "24.04"}
-        self.assertEqual(
-            ci_userns.job_identity(environment, release), "veriq-t19-99999999999999-1"
-        )
+        self.assertEqual(ci_userns.job_identity(environment, release), "veriq-t19-99999999999999-1")
         for key, value in [
             ("VERIQ_CI_RUNNER_ENVIRONMENT", "self-hosted"),
             ("GITHUB_ACTIONS", "false"),
@@ -62,9 +60,7 @@ class CiUsernsBoundaryTests(unittest.TestCase):
                     },
                     clear=True,
                 ),
-                patch.object(
-                    ci_userns, "__file__", str(root / "tests/e2e/ci_userns.py")
-                ),
+                patch.object(ci_userns, "__file__", str(root / "tests/e2e/ci_userns.py")),
                 patch.object(ci_userns, "job_identity", return_value="veriq-t19-123-1"),
                 patch.object(ci_userns.os, "geteuid", return_value=1000),
                 patch.object(ci_userns.sys, "argv", ["ci_userns.py", "prepare"]),
@@ -89,18 +85,14 @@ class CiUsernsBoundaryTests(unittest.TestCase):
             self.assertEqual(ci_userns.evidence_path(root, environment), evidence)
             for source_value in ["", "a" * 39, "A" * 40, "../candidate", "b" * 40]:
                 with self.subTest(source=source_value), self.assertRaises(ValueError):
-                    ci_userns.evidence_path(
-                        root, {**environment, "GITHUB_SHA": source_value}
-                    )
+                    ci_userns.evidence_path(root, {**environment, "GITHUB_SHA": source_value})
             for path in [
                 str(root / ".superpowers/sdd/veriq-1/evidence/t19/fix1/ci"),
                 str(evidence) + "/../" + evidence.name,
                 str(root),
             ]:
                 with self.subTest(path=path), self.assertRaises(ValueError):
-                    ci_userns.evidence_path(
-                        root, {**environment, "VERIQ_DESKTOP_EVIDENCE": path}
-                    )
+                    ci_userns.evidence_path(root, {**environment, "VERIQ_DESKTOP_EVIDENCE": path})
             evidence.rmdir()
             target = root / "outside"
             target.mkdir()
@@ -117,13 +109,9 @@ class CiUsernsBoundaryTests(unittest.TestCase):
     def test_profile_paths_and_root_owned_file_identity_fail_closed(self):
         """精确路径不能接受 AppArmor 通配、变量、引号、控制字符或父级跳转，当前普通用户创建的同名字节也不构成 root 策略所有权；测试只读取真实临时文件，不尝试改变本机文件属主来制造通过。"""
         name = "veriq-t19-99999999999999-1-electron"
-        text = ci_userns.profile_text(
-            name, "/job/node_modules/.pnpm/electron@45.3.1/dist/electron"
-        )
+        text = ci_userns.profile_text(name, "/job/node_modules/.pnpm/electron@45.3.1/dist/electron")
         self.assertIn(
-            "profile "
-            + name
-            + ' "/job/node_modules/.pnpm/electron@45.3.1/dist/electron"',
+            "profile " + name + ' "/job/node_modules/.pnpm/electron@45.3.1/dist/electron"',
             text,
         )
         self.assertEqual(text.count("userns,"), 1)
@@ -197,9 +185,7 @@ class CiUsernsBoundaryTests(unittest.TestCase):
         for fail in [False, True]:
             with (
                 self.subTest(fail=fail),
-                tempfile.TemporaryDirectory(
-                    prefix="veriq-policy-cleanup-"
-                ) as directory,
+                tempfile.TemporaryDirectory(prefix="veriq-policy-cleanup-") as directory,
             ):
                 evidence = Path(directory)
                 loaded = {f"{stem}-electron"}
@@ -209,9 +195,7 @@ class CiUsernsBoundaryTests(unittest.TestCase):
                     "stem": stem,
                     "before": baseline,
                     "parser": "/usr/sbin/apparmor_parser",
-                    "binaries": {
-                        kind: {"realpath": f"/job/{kind}"} for kind in ci_userns.KINDS
-                    },
+                    "binaries": {kind: {"realpath": f"/job/{kind}"} for kind in ci_userns.KINDS},
                 }
                 (evidence / "userns-state.json").write_text(json.dumps(state))
 
@@ -228,9 +212,7 @@ class CiUsernsBoundaryTests(unittest.TestCase):
                     commands.append(arguments)
                     name = Path(arguments[-1]).name
                     self.assertIn(name, {f"{stem}-{kind}" for kind in ci_userns.KINDS})
-                    self.assertEqual(
-                        Path(arguments[-1]).parent, Path("/etc/apparmor.d")
-                    )
+                    self.assertEqual(Path(arguments[-1]).parent, Path("/etc/apparmor.d"))
                     if arguments[2] == "/usr/sbin/apparmor_parser":
                         self.assertEqual(arguments[3:5], ["--skip-cache", "-R"])
                         if fail:
@@ -243,14 +225,10 @@ class CiUsernsBoundaryTests(unittest.TestCase):
                 with (
                     patch.object(ci_userns, "snapshot", observe),
                     patch.object(ci_userns, "invoke", command),
-                    patch.object(
-                        ci_userns, "owned_file", lambda path, _text: path.name in files
-                    ),
+                    patch.object(ci_userns, "owned_file", lambda path, _text: path.name in files),
                 ):
                     if fail:
-                        with self.assertRaisesRegex(
-                            ValueError, "CI_PROFILE_CLEANUP_FAILED"
-                        ):
+                        with self.assertRaisesRegex(ValueError, "CI_PROFILE_CLEANUP_FAILED"):
                             ci_userns.cleanup(evidence, stem)
                     else:
                         ci_userns.cleanup(evidence, stem)

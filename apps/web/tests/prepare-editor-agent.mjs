@@ -63,10 +63,7 @@ try {
     );
     const index = JSON.parse(readFileSync(join(build, "index.json"), "utf8"));
     mkdirSync(release, { recursive: true });
-    writeFileSync(
-        join(release, "inventory.json"),
-        JSON.stringify(index.inventory),
-    );
+    writeFileSync(join(release, "inventory.json"), JSON.stringify(index.inventory));
     for (const file of index.inventory.engines[0].files) {
         const target = join(release, file.path);
         mkdirSync(dirname(target), { recursive: true });

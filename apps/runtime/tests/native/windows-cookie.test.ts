@@ -1,4 +1,5 @@
-/** Windows Cookie 退役测试只访问本次临时根下合成的固定分区文件，并通过正式原生同句柄操作验证超一兆元数据删除和路径拒绝；它不读取用户浏览器数据、不放宽当前 SID 拥有者规则，也不代表 Electron 的 DPAPI 或安装验收。 */
+/** Windows Cookie 退役测试只访问本次临时根下合成的固定分区文件，并通过正式原生同句柄操作验证超一兆元数据删除和路径拒绝；它不读取用户浏览器数据、不放宽当前 SID 拥有者规则，也不代表 Electron 的 DPA
+ * PI 或安装验收。 */
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { execFile } from "node:child_process";
@@ -11,10 +12,12 @@ import { prepareCookieStorage } from "../../../desktop/src/main/cookie-migration
 
 assert.equal(process.platform, "win32");
 
-/** 失败诊断仅查询本次合成根及固定 Cookie 成员的实际 owner 和 ACE，不改变账户、令牌、DACL 或夹具创建方式；输出使用有限 UTF8 只读命令，观察本身失败也不能覆盖原断言错误，更不能把未取得的 ACL 推测成管理员政策结论。 */
+/** 失败诊断仅查询本次合成根及固定 Cookie 成员的实际 owner 和 ACE，不改变账户、令牌、DACL 或夹具创建方式；输出使用有限 UTF8 只读命令，观察本身失败也不能覆盖原断言错误，更不能把未取得的 ACL 推测成
+ * 管理员政策结论。 */
 async function observeAcl(context: TestContext, paths: string[]) {
     try {
-        const script = `
+        const script =
+            `
 $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
@@ -27,11 +30,14 @@ $records = @(for ($index = 0; $index -lt $ownedPaths.Count; $index++) {
         @{ path=$path; missing=$true }
         continue
     }
-    $acl = if ([System.IO.Directory]::Exists($path)) { [System.IO.Directory]::GetAccessControl($path) } else { [System.IO.File]::GetAccessControl($path) }
+    $acl = if ([System.IO.Directory]::Exists($path)) { [System.IO.Directory]::GetAccessControl($path) } else { [Syst` +
+            `em.IO.File]::GetAccessControl($path) }
     $rules = @($acl.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier]) | ForEach-Object {
-        @{ sid=$_.IdentityReference.Value; inherited=$_.IsInherited; type=$_.AccessControlType.ToString(); rights=$_.FileSystemRights.ToString() }
+        @{ sid=$_.IdentityReference.Value; inherited=$_.IsInherited; type=$_.AccessControlType.ToString(); rights=$_` +
+            `.FileSystemRights.ToString() }
     })
-    @{ path=$path; owner=$acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value; protected=$acl.AreAccessRulesProtected; rules=$rules }
+    @{ path=$path; owner=$acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value; protected=$acl.AreAcce` +
+            `ssRulesProtected; rules=$rules }
 })
 if ($records.Count -ne 3) { throw 'OWNED_ACL_RECORD_COUNT_INVALID' }
 ConvertTo-Json -InputObject $records -Depth 5 -Compress

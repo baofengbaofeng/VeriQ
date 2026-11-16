@@ -11,16 +11,26 @@ export function readProgress(key: string, workspaceId: string): ImportProgress |
     const value: unknown = JSON.parse(raw);
     if (!value || typeof value !== "object") return null;
     const item = value as Record<string, unknown>;
-    if (item.workspaceId !== workspaceId || typeof item.fingerprint !== "string" || item.fingerprint.length > 65536) return null;
+    if (
+        item.workspaceId !== workspaceId ||
+        typeof item.fingerprint !== "string" ||
+        item.fingerprint.length > 65536
+    )
+        return null;
     const result: ImportProgress = { fingerprint: item.fingerprint, workspaceId, versions: {} };
-    if (typeof item.adapterVersion === "string" && uuid.test(item.adapterVersion)) result.adapterVersion = item.adapterVersion;
+    if (typeof item.adapterVersion === "string" && uuid.test(item.adapterVersion))
+        result.adapterVersion = item.adapterVersion;
     if (typeof item.planId === "string" && uuid.test(item.planId)) result.planId = item.planId;
     for (const name of ["business", "fixture"] as const) {
         const candidate = item[name];
         if (candidate && typeof candidate === "object") {
             const binding = candidate as Record<string, unknown>;
-            if (typeof binding.secretRef === "string" && /^[A-Za-z_][A-Za-z0-9_-]{0,159}$/.test(binding.secretRef)
-                && typeof binding.versionId === "string" && uuid.test(binding.versionId)) {
+            if (
+                typeof binding.secretRef === "string" &&
+                /^[A-Za-z_][A-Za-z0-9_-]{0,159}$/.test(binding.secretRef) &&
+                typeof binding.versionId === "string" &&
+                uuid.test(binding.versionId)
+            ) {
                 result[name] = { secretRef: binding.secretRef, versionId: binding.versionId };
             }
         }
@@ -29,7 +39,8 @@ export function readProgress(key: string, workspaceId: string): ImportProgress |
         const versions = item.versions as Record<SampleKey, unknown>;
         for (const name of sampleOrder) {
             const candidate = versions[name];
-            if (typeof candidate === "string" && uuid.test(candidate)) result.versions[name] = candidate;
+            if (typeof candidate === "string" && uuid.test(candidate))
+                result.versions[name] = candidate;
         }
     }
     return result;
@@ -39,7 +50,8 @@ export function readProgress(key: string, workspaceId: string): ImportProgress |
  */
 export function writeProgress(key: string, progress: ImportProgress): void {
     const safe: ImportProgress = {
-        fingerprint: progress.fingerprint, workspaceId: progress.workspaceId,
+        fingerprint: progress.fingerprint,
+        workspaceId: progress.workspaceId,
         versions: { ...progress.versions },
         ...(progress.adapterVersion ? { adapterVersion: progress.adapterVersion } : {}),
         ...(progress.business ? { business: { ...progress.business } } : {}),

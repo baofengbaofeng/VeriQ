@@ -39,16 +39,12 @@ try {
     await expect(page.getByTestId("account-info")).toBeVisible();
     await page.getByRole("link", { name: "Reports", exact: true }).click();
     await page.getByLabel("语言 / Language").selectOption("en");
-    await page
-        .getByRole("button", { name: /MANAGED_CLOUD|CONNECTED_LOCAL/ })
-        .click();
+    await page.getByRole("button", { name: /MANAGED_CLOUD|CONNECTED_LOCAL/ }).click();
     await expect(page.getByTestId("report-gates")).toBeVisible();
-    await page
-        .getByRole("button", { name: "Attempt 1 · PASSED", exact: true })
-        .click();
-    await expect(
-        page.getByRole("region", { name: "Attempt details" }),
-    ).toContainText("open · goto · PASSED");
+    await page.getByRole("button", { name: "Attempt 1 · PASSED", exact: true }).click();
+    await expect(page.getByRole("region", { name: "Attempt details" })).toContainText(
+        "open · goto · PASSED",
+    );
     await expect(
         page.getByRole("heading", {
             name: "Visible (visible) · PASSED",
@@ -61,24 +57,15 @@ try {
             exact: true,
         }),
     ).toBeVisible();
-    await expect(
-        page.getByRole("columnheader", { name: "Expected", exact: true }),
-    ).toBeVisible();
-    await expect(
-        page.getByRole("columnheader", { name: "Actual", exact: true }),
-    ).toBeVisible();
-    await expect(
-        page.getByRole("region", { name: "Attempt details" }),
-    ).toContainText("[REDACTED]");
-    await expect(
-        page.getByRole("button", { name: "Download TRACE", exact: true }),
-    ).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: "Expected", exact: true })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: "Actual", exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Attempt details" })).toContainText("[REDACTED]");
+    await expect(page.getByRole("button", { name: "Download TRACE", exact: true })).toBeVisible();
     const [download] = await Promise.all([
         page.waitForEvent("download"),
         page.getByRole("button", { name: "Download TRACE", exact: true }).click(),
     ]);
-    if (await download.failure())
-        throw new Error("Actual authorized UI download failed");
+    if (await download.failure()) throw new Error("Actual authorized UI download failed");
     await page.screenshot({
         path: fileURLToPath(
             new URL(

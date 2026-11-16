@@ -20,13 +20,18 @@ function same(a: BigIntStats, b: BigIntStats): boolean {
  */
 export async function admitReleaseRoot(root: string): Promise<void> {
     if (process.platform === "win32") {
-        if (!isAbsolute(root) || root.includes("\0") || root.split(/[\\/]/).some((part) => /\.asar$/i.test(part)))
+        if (
+            !isAbsolute(root) ||
+            root.includes("\0") ||
+            root.split(/[\\/]/).some((part) => /\.asar$/i.test(part))
+        )
             throw new Error("RELEASE_ROOT_INVALID");
         let current = parse(root).root;
         for (const part of resolve(root).slice(current.length).split(/[\\/]/).filter(Boolean)) {
             current = join(current, part);
             const info = await lstat(current);
-            if (!info.isDirectory() || info.isSymbolicLink()) throw new Error("RELEASE_DIRECTORY_INVALID");
+            if (!info.isDirectory() || info.isSymbolicLink())
+                throw new Error("RELEASE_DIRECTORY_INVALID");
         }
         return;
     }
@@ -49,7 +54,8 @@ export async function releaseDirectory(root: string, name: string): Promise<void
             return null;
         });
         if (before) {
-            if (!before.isDirectory() || before.isSymbolicLink()) throw new Error("RELEASE_DIRECTORY_INVALID");
+            if (!before.isDirectory() || before.isSymbolicLink())
+                throw new Error("RELEASE_DIRECTORY_INVALID");
         } else {
             await mkdir(current, { mode: 0o755 });
             await chmod(current, 0o755);
@@ -74,14 +80,22 @@ export async function copyReleaseFile(
     const mode = requestedMode ?? (Number(before.mode & 0o111n) ? 0o755 : 0o644);
     if (![0o444, 0o644, 0o555, 0o755].includes(mode)) throw new Error("RELEASE_MODE_INVALID");
     await releaseDirectory(root, dirname(name).split("\\").join("/"));
-    const input = await open(source, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    const input = await open(
+        source,
+        constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+    );
     let output: Awaited<ReturnType<typeof open>> | undefined;
     let primary: unknown;
     const digest = createHash("sha256");
     let sizeBytes = 0;
     try {
-        if (!same(before, await input.stat({ bigint: true }))) throw new Error("RELEASE_SOURCE_CHANGED");
-        output = await open(join(root, name), constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+        if (!same(before, await input.stat({ bigint: true })))
+            throw new Error("RELEASE_SOURCE_CHANGED");
+        output = await open(
+            join(root, name),
+            constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
+            0o600,
+        );
         const buffer = Buffer.alloc(65536);
         while (true) {
             const { bytesRead } = await input.read(buffer, 0, buffer.length, sizeBytes);
@@ -98,9 +112,15 @@ export async function copyReleaseFile(
             }
         }
         const sha256 = digest.digest("hex");
-        if (sizeBytes !== Number(before.size) || (expected && (sizeBytes !== expected.sizeBytes || sha256 !== expected.sha256)))
+        if (
+            sizeBytes !== Number(before.size) ||
+            (expected && (sizeBytes !== expected.sizeBytes || sha256 !== expected.sha256))
+        )
             throw new Error("RELEASE_INPUT_MISMATCH");
-        if (!same(before, await input.stat({ bigint: true })) || !same(before, await lstat(source, { bigint: true })))
+        if (
+            !same(before, await input.stat({ bigint: true })) ||
+            !same(before, await lstat(source, { bigint: true }))
+        )
             throw new Error("RELEASE_SOURCE_CHANGED");
         await output.chmod(mode);
         await output.sync();
@@ -111,8 +131,16 @@ export async function copyReleaseFile(
     } finally {
         // 两个拥有者分别只尝试一次关闭，次要关闭错误不覆盖正文复制的首错；上层失败始终保留自有目录，因此不会在未知关闭后扫描或递归删除仍可能持有的材料。
         let closeError: unknown;
-        try { await input.close(); } catch (error) { closeError = error; }
-        try { await output?.close(); } catch (error) { closeError ??= error; }
+        try {
+            await input.close();
+        } catch (error) {
+            closeError = error;
+        }
+        try {
+            await output?.close();
+        } catch (error) {
+            closeError ??= error;
+        }
         if (!primary && closeError) throw closeError;
     }
 }
@@ -121,7 +149,11 @@ export async function copyReleaseFile(
  * 此函数只复制到第三方自有 intake 根，绝不写入仍由 entry 或 dependency producer 持有 reader 的视图。
  * 输入目录身份在枚举后复验，数量、深度和总字节沿用现有 Runtime 固定预算。
  */
-export async function mergeReleaseView(source: string, destination: string, allowLinks = false): Promise<void> {
+export async function mergeReleaseView(
+    source: string,
+    destination: string,
+    allowLinks = false,
+): Promise<void> {
     await admitReleaseRoot(source);
     await admitReleaseRoot(destination);
     let entries = 0;
@@ -132,7 +164,8 @@ export async function mergeReleaseView(source: string, destination: string, allo
         for (const name of (await readdir(full)).sort()) {
             relative(name);
             const path = prefix ? `${prefix}/${name}` : name;
-            if (++entries > limits.entries || path.split("/").length > 64) throw new Error("RELEASE_TREE_LIMIT");
+            if (++entries > limits.entries || path.split("/").length > 64)
+                throw new Error("RELEASE_TREE_LIMIT");
             const item = await lstat(join(source, path), { bigint: true });
             if (item.isDirectory()) {
                 await releaseDirectory(destination, path);
@@ -142,26 +175,39 @@ export async function mergeReleaseView(source: string, destination: string, allo
                 const target = await readlink(join(source, path));
                 relative(target, true);
                 const resolved = relativePath(source, resolve(dirname(join(source, path)), target));
-                if (resolved === ".." || resolved.startsWith("../") || resolved.startsWith("..\\")) throw new Error("RELEASE_LINK_ESCAPE");
+                if (resolved === ".." || resolved.startsWith("../") || resolved.startsWith("..\\"))
+                    throw new Error("RELEASE_LINK_ESCAPE");
                 await symlink(target, join(destination, path));
-                if (!same(item, await lstat(join(source, path), { bigint: true }))) throw new Error("RELEASE_SOURCE_CHANGED");
+                if (!same(item, await lstat(join(source, path), { bigint: true })))
+                    throw new Error("RELEASE_SOURCE_CHANGED");
             } else {
                 total += Number(item.size);
                 if (total > limits.total) throw new Error("RELEASE_TREE_LIMIT");
-                const existing = await lstat(join(destination, path)).catch((error: NodeJS.ErrnoException) => {
-                    if (error.code !== "ENOENT") throw error;
-                    return null;
-                });
+                const existing = await lstat(join(destination, path)).catch(
+                    (error: NodeJS.ErrnoException) => {
+                        if (error.code !== "ENOENT") throw error;
+                        return null;
+                    },
+                );
                 if (existing) {
-                    const a = new InputReader(source, undefined, []), b = new InputReader(destination, undefined, []);
-                    await a.initialize(); await b.initialize();
+                    const a = new InputReader(source, undefined, []),
+                        b = new InputReader(destination, undefined, []);
+                    await a.initialize();
+                    await b.initialize();
                     const bytes = await a.input(path);
-                    await b.ref({ path, sizeBytes: bytes.length, sha256: sha(bytes) }, false, limits.file, false);
-                    await a.finish(); await b.finish();
+                    await b.ref(
+                        { path, sizeBytes: bytes.length, sha256: sha(bytes) },
+                        false,
+                        limits.file,
+                        false,
+                    );
+                    await a.finish();
+                    await b.finish();
                 } else await copyReleaseFile(join(source, path), destination, path);
             }
         }
-        if (!same(before, await lstat(full, { bigint: true }))) throw new Error("RELEASE_SOURCE_CHANGED");
+        if (!same(before, await lstat(full, { bigint: true })))
+            throw new Error("RELEASE_SOURCE_CHANGED");
     };
     await walk("");
 }
@@ -175,19 +221,33 @@ export async function writeReleaseJson(root: string, name: string, value: unknow
     const bytes = canonicalBytes(value);
     if (bytes.length > limits.json) throw new Error("RELEASE_DOCUMENT_LIMIT");
     const handle = await open(join(root, name), "wx", 0o644);
-    try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); }
+    try {
+        await handle.writeFile(bytes);
+        await handle.sync();
+    } finally {
+        await handle.close();
+    }
     return { path: name, sizeBytes: bytes.length, sha256: sha(bytes) };
 }
 
 /** 有界命令日志以原始字节独立保存，不转成 Base64 填入 JSON 造成四 MiB 上限被编码膨胀击穿；返回的 Ref 与正式收据使用同一原始摘要语义，内容可能包含工具诊断因此仍位于调用者自有证据根。
  * 文件只独占创建、刷新和关闭一次，未知异常不覆盖既有日志或伪造成功的命令观察。
  */
-export async function writeReleaseBytes(root: string, name: string, bytes: Uint8Array): Promise<Ref> {
+export async function writeReleaseBytes(
+    root: string,
+    name: string,
+    bytes: Uint8Array,
+): Promise<Ref> {
     relative(name);
     if (bytes.byteLength > limits.json) throw new Error("RELEASE_DOCUMENT_LIMIT");
     await releaseDirectory(root, dirname(name).split("\\").join("/"));
     const handle = await open(join(root, name), "wx", 0o644);
-    try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); }
+    try {
+        await handle.writeFile(bytes);
+        await handle.sync();
+    } finally {
+        await handle.close();
+    }
     return { path: name, sizeBytes: bytes.byteLength, sha256: sha(bytes) };
 }
 
@@ -198,12 +258,17 @@ export async function releaseFileIdentity(path: string): Promise<Ref> {
     const before = await lstat(path, { bigint: true });
     if (!before.isFile() || before.nlink !== 1n || before.size > BigInt(limits.file))
         throw new Error("RELEASE_FILE_INVALID");
-    const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
-    const digest = createHash("sha256"), buffer = Buffer.alloc(65536);
+    const handle = await open(
+        path,
+        constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+    );
+    const digest = createHash("sha256"),
+        buffer = Buffer.alloc(65536);
     let sizeBytes = 0;
     let primary: unknown;
     try {
-        if (!same(before, await handle.stat({ bigint: true }))) throw new Error("RELEASE_SOURCE_CHANGED");
+        if (!same(before, await handle.stat({ bigint: true })))
+            throw new Error("RELEASE_SOURCE_CHANGED");
         while (true) {
             const { bytesRead } = await handle.read(buffer, 0, buffer.length, sizeBytes);
             if (!bytesRead) break;
@@ -211,51 +276,89 @@ export async function releaseFileIdentity(path: string): Promise<Ref> {
             if (sizeBytes > limits.file) throw new Error("RELEASE_FILE_LIMIT");
             digest.update(buffer.subarray(0, bytesRead));
         }
-        if (sizeBytes !== Number(before.size) || !same(before, await handle.stat({ bigint: true })) ||
-            !same(before, await lstat(path, { bigint: true }))) throw new Error("RELEASE_SOURCE_CHANGED");
+        if (
+            sizeBytes !== Number(before.size) ||
+            !same(before, await handle.stat({ bigint: true })) ||
+            !same(before, await lstat(path, { bigint: true }))
+        )
+            throw new Error("RELEASE_SOURCE_CHANGED");
         return { path, sizeBytes, sha256: digest.digest("hex") };
-    } catch (error) { primary = error; throw error; }
-    finally {
-        try { await handle.close(); } catch (error) { if (!primary) throw error; }
+    } catch (error) {
+        primary = error;
+        throw error;
+    } finally {
+        try {
+            await handle.close();
+        } catch (error) {
+            if (!primary) throw error;
+        }
     }
 }
 
 /** 新树库存枚举全部目录与普通文件并以 held reader 核原始字节，生成阶段拒绝链接和特殊类型；依赖链接由 C04 自身库存负责，这里只服务本轮正式 native、engine 与非 Mac 完整库存。
  * 总字节和成员数在遍历中递增核验，任何超限都会留下失败现场而不是输出不完整的成功清单。
  */
-export async function inventoryReleaseTree(root: string, treeKind: TreeKind): Promise<TreeInventory> {
+export async function inventoryReleaseTree(
+    root: string,
+    treeKind: TreeKind,
+): Promise<TreeInventory> {
     await admitReleaseRoot(root);
-    const directories: string[] = [], files: FileFact[] = [];
+    const directories: string[] = [],
+        files: FileFact[] = [];
     let total = 0;
     const walk = async (prefix: string): Promise<void> => {
         const directoryBefore = await lstat(join(root, prefix), { bigint: true });
         for (const name of (await readdir(join(root, prefix))).sort()) {
             relative(name);
             const path = prefix ? `${prefix}/${name}` : name;
-            if (directories.length + files.length >= limits.entries) throw new Error("RELEASE_TREE_LIMIT");
+            if (directories.length + files.length >= limits.entries)
+                throw new Error("RELEASE_TREE_LIMIT");
             const item = await lstat(join(root, path));
-            if (item.isDirectory()) { directories.push(path); await walk(path); }
-            else {
-                if (!item.isFile() || item.nlink !== 1 || item.size > limits.file) throw new Error("RELEASE_FILE_INVALID");
+            if (item.isDirectory()) {
+                directories.push(path);
+                await walk(path);
+            } else {
+                if (!item.isFile() || item.nlink !== 1 || item.size > limits.file)
+                    throw new Error("RELEASE_FILE_INVALID");
                 // 二进制也通过流式 Ref 路径核验，摘要计算单独使用 held 文件复制相同的固定块大小，避免把 Chrome 主文件或动态库整块装入内存。
-                const handle = await open(join(root, path), constants.O_RDONLY | constants.O_NOFOLLOW);
+                const handle = await open(
+                    join(root, path),
+                    constants.O_RDONLY | constants.O_NOFOLLOW,
+                );
                 const before = await handle.stat({ bigint: true });
-                const digest = createHash("sha256"), buffer = Buffer.alloc(65536);
+                const digest = createHash("sha256"),
+                    buffer = Buffer.alloc(65536);
                 let position = 0;
                 try {
                     while (true) {
                         const { bytesRead } = await handle.read(buffer, 0, buffer.length, position);
                         if (!bytesRead) break;
-                        position += bytesRead; digest.update(buffer.subarray(0, bytesRead));
+                        position += bytesRead;
+                        digest.update(buffer.subarray(0, bytesRead));
                         if (position > limits.file) throw new Error("RELEASE_FILE_LIMIT");
                     }
-                    if (!same(before, await handle.stat({ bigint: true })) || position !== item.size)
+                    if (
+                        !same(before, await handle.stat({ bigint: true })) ||
+                        position !== item.size
+                    )
                         throw new Error("RELEASE_SOURCE_CHANGED");
-                } finally { await handle.close(); }
-                const mode = process.platform === "win32" ?
-                    (/\.(?:exe|dll|node)$/i.test(path) ? 0o755 : 0o644) : item.mode & 0o7777;
-                if (![0o444, 0o644, 0o555, 0o755].includes(mode)) throw new Error("RELEASE_MODE_INVALID");
-                const fact = { path, sizeBytes: position, sha256: digest.digest("hex"), mode: mode as FileFact["mode"] };
+                } finally {
+                    await handle.close();
+                }
+                const mode =
+                    process.platform === "win32"
+                        ? /\.(?:exe|dll|node)$/i.test(path)
+                            ? 0o755
+                            : 0o644
+                        : item.mode & 0o7777;
+                if (![0o444, 0o644, 0o555, 0o755].includes(mode))
+                    throw new Error("RELEASE_MODE_INVALID");
+                const fact = {
+                    path,
+                    sizeBytes: position,
+                    sha256: digest.digest("hex"),
+                    mode: mode as FileFact["mode"],
+                };
                 if (!same(before, await lstat(join(root, path), { bigint: true })))
                     throw new Error("RELEASE_SOURCE_CHANGED");
                 total += position;
@@ -267,5 +370,12 @@ export async function inventoryReleaseTree(root: string, treeKind: TreeKind): Pr
             throw new Error("RELEASE_SOURCE_CHANGED");
     };
     await walk("");
-    return { schemaVersion: 1, kind: "PAYLOAD_INPUT_TREE", treeKind, directories, files, links: [] };
+    return {
+        schemaVersion: 1,
+        kind: "PAYLOAD_INPUT_TREE",
+        treeKind,
+        directories,
+        files,
+        links: [],
+    };
 }

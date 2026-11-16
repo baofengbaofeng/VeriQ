@@ -12,10 +12,18 @@ depends_on = None
 
 def upgrade() -> None:
     """非空时间列由 MySQL 当前事务时钟填充已有行并成为后续插入默认值，迁移之后至少经过完整保留期才允许回收旧缓存，索引把工作区与年龄及稳定摘要游标共同纳入扫描条件。"""
-    op.add_column("veriq_artifacts", sa.Column(
-        "created_at", DATETIME(fsp=6), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP(6)")
-    ))
-    op.create_index("ix_veriq_artifact_retention", "veriq_artifacts", ["workspace_id", "created_at", "sha256"])
+    op.add_column(
+        "veriq_artifacts",
+        sa.Column(
+            "created_at",
+            DATETIME(fsp=6),
+            nullable=False,
+            server_default=sa.text("CURRENT_TIMESTAMP(6)"),
+        ),
+    )
+    op.create_index(
+        "ix_veriq_artifact_retention", "veriq_artifacts", ["workspace_id", "created_at", "sha256"]
+    )
 
 
 def downgrade() -> None:

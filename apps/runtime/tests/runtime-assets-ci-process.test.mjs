@@ -82,7 +82,8 @@ test("stdout overflow stops admission at exactly the raw byte cap", async () => 
 
 test("timeout permits actual SIGTERM cleanup and preserves its diagnostic", async () => {
     const result = await run(
-        'process.on("SIGTERM",()=>{process.stderr.write("stopped");process.exit(0)});process.stdout.write("ready");setInterval(()=>{},1000);',
+        'process.on("SIGTERM",()=>{process.stderr.write("stopped");process.exit(0)});process.stdout.write("ready");s' +
+            "etInterval(()=>{},1000);",
         1000,
     );
     assert.equal(result.stdout.toString(), "ready");

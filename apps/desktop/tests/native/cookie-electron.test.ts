@@ -1,4 +1,5 @@
-/** 此跨平台测试以真实 Electron 子进程运行生产保护门闩，退出后用独立 Node24 SQLite 检查实际 Cookie 行并再启动读回；Linux 必须来自自有非空密码 Secret Service，Windows 使用真实 DPAPI，所有结果只代表该目标运行而不冒充用户登录或安装验收。 */
+/** 此跨平台测试以真实 Electron 子进程运行生产保护门闩，退出后用独立 Node24 SQLite 检查实际 Cookie 行并再启动读回；Linux 必须来自自有非空密码 Secret Service，Windows 使
+ * 用真实 DPAPI，所有结果只代表该目标运行而不冒充用户登录或安装验收。 */
 import assert from "node:assert/strict";
 import test from "node:test";
 import { execFile } from "node:child_process";

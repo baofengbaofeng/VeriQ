@@ -41,7 +41,9 @@ class BundleAPI(API):
                     return actor
 
                 result = await BundleService(session, user, self.config, reauthorize).export(
-                    WorkspaceScope(workspace_id), req, self.request.headers.get("Idempotency-Key", "")
+                    WorkspaceScope(workspace_id),
+                    req,
+                    self.request.headers.get("Idempotency-Key", ""),
                 )
         finally:
             semaphore.release()

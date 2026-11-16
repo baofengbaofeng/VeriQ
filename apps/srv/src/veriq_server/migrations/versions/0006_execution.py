@@ -360,7 +360,10 @@ def upgrade() -> None:
     op.create_check_constraint(
         "ck_job_cleanup_subject",
         "veriq_jobs",
-        "kind <> 'CLEANUP' OR (maintenance_id IS NOT NULL AND subject_id = maintenance_id AND origin_attempt_id IS NOT NULL)",
+        (
+            "kind <> 'CLEANUP' OR (maintenance_id IS NOT NULL AND subject_id = maintenance_id AND origin_attempt_id "
+            "IS NOT NULL)"
+        ),
     )
     op.create_check_constraint("ck_job_kind", "veriq_jobs", "kind IN ('TEST','VALIDATE','CLEANUP')")
     op.create_check_constraint(
@@ -369,7 +372,10 @@ def upgrade() -> None:
     op.create_check_constraint(
         "ck_job_subject",
         "veriq_jobs",
-        "(kind = 'TEST' AND run_id IS NOT NULL AND case_execution_id IS NOT NULL) OR (kind <> 'TEST' AND run_id IS NULL AND case_execution_id IS NULL)",
+        (
+            "(kind = 'TEST' AND run_id IS NOT NULL AND case_execution_id IS NOT NULL) OR (kind <> 'TEST' AND run_id "
+            "IS NULL AND case_execution_id IS NULL)"
+        ),
     )
 
 

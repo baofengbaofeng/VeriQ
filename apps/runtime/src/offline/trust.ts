@@ -3,11 +3,7 @@
  */
 
 import { createHash, createPublicKey } from "node:crypto";
-import {
-    controlOrigin,
-    RuntimeClient,
-    type DeviceConfig,
-} from "../enrollment.ts";
+import { controlOrigin, RuntimeClient, type DeviceConfig } from "../enrollment.ts";
 import { readPrivate, updatePrivate } from "./config.ts";
 /**
  * 公开类型 IssuerKey 描述签发者公钥条目：含 keyId、指纹与撤销标记：供验签路径选用（IssuerKey/INVALID_ISSUER）。
@@ -91,13 +87,11 @@ export class TrustStore {
     async issuer(id: string): Promise<IssuerTrust> {
         try {
             const cache = await readPrivate<Cache>(this.directory, "trust.json");
-            if (cache.version !== 2 || !Object.hasOwn(cache.issuers, id))
-                throw new Error();
+            if (cache.version !== 2 || !Object.hasOwn(cache.issuers, id)) throw new Error();
             const value = cache.issuers[id]!;
             const result = validateIssuer(value);
             for (const key of result.keys)
-                if (cache.revokedFingerprints.includes(key.fingerprint))
-                    key.revoked = true;
+                if (cache.revokedFingerprints.includes(key.fingerprint)) key.revoked = true;
             return result;
         } catch {
             throw new Error("ISSUER_NOT_TRUSTED");
@@ -106,31 +100,20 @@ export class TrustStore {
     /**
      * 公开方法 bind 仅在指纹匹配的未撤销密钥上建立信任：标签只作本地别名：未签名修订无权威（bind/FINGERPRINT_MISMATCH）。
      */
-    async bind(
-        value: IssuerTrust,
-        origin: string,
-        fingerprint: string,
-    ): Promise<void> {
+    async bind(value: IssuerTrust, origin: string, fingerprint: string): Promise<void> {
         const issuer = validateIssuer(value),
             server = controlOrigin(origin);
         // 仅该指纹密钥通过认证；标签只是本地别名，未签名修订/撤销/兄弟密钥无权威。
-        const key = issuer.keys.find(
-            (k) => !k.revoked && k.fingerprint === fingerprint,
-        );
+        const key = issuer.keys.find((k) => !k.revoked && k.fingerprint === fingerprint);
         if (!key) throw new Error("FINGERPRINT_MISMATCH");
-        await this.accept(
-            { issuerId: issuer.issuerId, revision: 1, keys: [key] },
-            server,
-            true,
-        );
+        await this.accept({ issuerId: issuer.issuerId, revision: 1, keys: [key] }, server, true);
     }
     /**
      * 公开方法 refresh 经已注册设备令牌从 HTTPS 控制面刷新签发者材料：拒绝非 HTTPS Origin（refresh/AUTHENTICATED_HTTPS_REQUIRED）。
      */
     async refresh(config: DeviceConfig, signal?: AbortSignal): Promise<void> {
         const server = controlOrigin(config.server);
-        if (!server.startsWith("https://"))
-            throw new Error("AUTHENTICATED_HTTPS_REQUIRED");
+        if (!server.startsWith("https://")) throw new Error("AUTHENTICATED_HTTPS_REQUIRED");
         const issuer = validateIssuer(
             await new RuntimeClient(server).request<IssuerTrust>(
                 "/internal/v1/issuer",
@@ -149,22 +132,17 @@ export class TrustStore {
                 old?.version === 2
                     ? old
                     : {
-                            version: 2,
-                            origins: {},
-                            issuers: {},
-                            authenticated: {},
-                            revokedFingerprints: Object.values(old?.issuers ?? {}).flatMap(
-                                (issuer) =>
-                                    validateIssuer(issuer)
-                                        .keys.filter((k) => k.revoked)
-                                        .map((k) => k.fingerprint),
-                            ),
-                        };
-            if (
-                cache.origins[origin] &&
-                cache.origins[origin] !== value.issuerId &&
-                !explicit
-            )
+                          version: 2,
+                          origins: {},
+                          issuers: {},
+                          authenticated: {},
+                          revokedFingerprints: Object.values(old?.issuers ?? {}).flatMap((issuer) =>
+                              validateIssuer(issuer)
+                                  .keys.filter((k) => k.revoked)
+                                  .map((k) => k.fingerprint),
+                          ),
+                      };
+            if (cache.origins[origin] && cache.origins[origin] !== value.issuerId && !explicit)
                 throw new Error("ISSUER_REBIND_REQUIRED");
             const prior = Object.hasOwn(cache.issuers, value.issuerId)
                 ? cache.issuers[value.issuerId]
@@ -182,10 +160,7 @@ export class TrustStore {
                 value = {
                     issuerId: value.issuerId,
                     revision: authenticated?.revision ?? 1,
-                    keys: [
-                        ...(prior?.keys.filter((k) => k.keyId !== key.keyId) ?? []),
-                        key,
-                    ],
+                    keys: [...(prior?.keys.filter((k) => k.keyId !== key.keyId) ?? []), key],
                 };
             } else {
                 if (authenticated && value.revision < authenticated.revision)
@@ -198,23 +173,13 @@ export class TrustStore {
                     throw new Error("ISSUER_REPLACEMENT");
                 for (const key of prior?.keys ?? []) {
                     const next = value.keys.find((k) => k.keyId === key.keyId);
-                    if (
-                        !next ||
-                        next.publicKey !== key.publicKey ||
-                        (key.revoked && !next.revoked)
-                    )
+                    if (!next || next.publicKey !== key.publicKey || (key.revoked && !next.revoked))
                         throw new Error("ISSUER_REPLACEMENT");
                 }
                 for (const key of value.keys) {
-                    if (
-                        !key.revoked &&
-                        cache.revokedFingerprints.includes(key.fingerprint)
-                    )
+                    if (!key.revoked && cache.revokedFingerprints.includes(key.fingerprint))
                         throw new Error("ISSUER_KEY_REVOKED");
-                    if (
-                        key.revoked &&
-                        !cache.revokedFingerprints.includes(key.fingerprint)
-                    )
+                    if (key.revoked && !cache.revokedFingerprints.includes(key.fingerprint))
                         cache.revokedFingerprints.push(key.fingerprint);
                 }
                 Object.defineProperty(cache.authenticated, value.issuerId, {

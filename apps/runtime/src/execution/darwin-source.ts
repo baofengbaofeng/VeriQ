@@ -17,7 +17,8 @@ export interface DarwinSourceCapability {
     readonly [brand]: true;
 }
 
-/** 受信源码宿主只提供已经 B 核验的临时根，浏览器固定取当前锁定 Playwright 的公共 executablePath；测试可以缩短单次停止期限但不能超过正式三十秒，业务 Job、DSL 和 renderer 不参与构造这个非序列化能力。 */
+/** 受信源码宿主只提供已经 B 核验的临时根，浏览器固定取当前锁定 Playwright 的公共 executablePath；测试可以缩短单次停止期限但不能超过正式三十秒，业务 Job、DSL 和 renderer 不参与构造这
+ * 个非序列化能力。 */
 export interface DarwinSourceOptions {
     temporaryDirectory: string;
     stopTimeoutMs?: number;
@@ -27,7 +28,12 @@ export interface DarwinSourceOptions {
 export interface DarwinLaunchContext {
     readonly commandBinding: Readonly<ObserverBinding>;
     readonly cliBinding: Readonly<ObserverBinding>;
-    readonly controlled: Readonly<{ commandBinding: Readonly<ObserverBinding>; cliBinding: Readonly<ObserverBinding>; commandJournalFd: 5; cliJournalFd: 4 }>;
+    readonly controlled: Readonly<{
+        commandBinding: Readonly<ObserverBinding>;
+        cliBinding: Readonly<ObserverBinding>;
+        commandJournalFd: 5;
+        cliJournalFd: 4;
+    }>;
     readonly wsEndpoint?: string;
     publish(name: "invocation.json" | "playwright.config.mjs", bytes: Buffer): void;
 }
@@ -54,20 +60,38 @@ export interface DarwinSourceState {
 const capabilities = new WeakMap<object, DarwinSourceState>();
 const installedCapabilities = new WeakSet<object>();
 
-/** 工厂在真实 Darwin 当前进程上先核独立稳定 Node24，再通过原 B loader 与私有临时目录完成实际子对象探针；浏览器仅检查固定公共库存路径可执行，不在能力签发期间提前派生 Chrome 或把探针结果提升成完整产品 ready。 */
-export async function createDarwinSource(options: DarwinSourceOptions): Promise<DarwinSourceCapability> {
-    if (process.platform !== "darwin" || !isIndependentNode24(process.versions)) throw new Error("DARWIN_SOURCE_NODE24_REQUIRED");
+/** 工厂在真实 Darwin 当前进程上先核独立稳定 Node24，再通过原 B loader 与私有临时目录完成实际子对象探针；浏览器仅检查固定公共库存路径可执行，不在能力签发期间提前派生 Chrome 或把探针结果提升成完整产
+ * 品 ready。 */
+export async function createDarwinSource(
+    options: DarwinSourceOptions,
+): Promise<DarwinSourceCapability> {
+    if (process.platform !== "darwin" || !isIndependentNode24(process.versions))
+        throw new Error("DARWIN_SOURCE_NODE24_REQUIRED");
     const stopTimeoutMs = options.stopTimeoutMs ?? 30000;
-    if (!Number.isSafeInteger(stopTimeoutMs) || stopTimeoutMs < 100 || stopTimeoutMs > 30000) throw new Error("DARWIN_SOURCE_DEADLINE_INVALID");
+    if (!Number.isSafeInteger(stopTimeoutMs) || stopTimeoutMs < 100 || stopTimeoutMs > 30000)
+        throw new Error("DARWIN_SOURCE_DEADLINE_INVALID");
     const native = darwinNative();
     const directory = native.openPrivateDirectory(options.temporaryDirectory, false);
     directory.close();
     const browserExecutable = chromium.executablePath();
     await access(browserExecutable, constants.X_OK);
-    const probe = await runControlledChildCapability({ nodeExecutable: process.execPath, temporaryDirectory: options.temporaryDirectory });
-    if (!probe.supported || probe.nodeVersion !== process.version) throw new Error("DARWIN_SOURCE_OBSERVER_UNSUPPORTED");
+    const probe = await runControlledChildCapability({
+        nodeExecutable: process.execPath,
+        temporaryDirectory: options.temporaryDirectory,
+    });
+    if (!probe.supported || probe.nodeVersion !== process.version)
+        throw new Error("DARWIN_SOURCE_OBSERVER_UNSUPPORTED");
     const capability = Object.freeze({}) as DarwinSourceCapability;
-    capabilities.set(capability, Object.freeze({ native, browserExecutable, temporaryDirectory: options.temporaryDirectory, stopTimeoutMs, nodeExecutable: process.execPath }));
+    capabilities.set(
+        capability,
+        Object.freeze({
+            native,
+            browserExecutable,
+            temporaryDirectory: options.temporaryDirectory,
+            stopTimeoutMs,
+            nodeExecutable: process.execPath,
+        }),
+    );
     return capability;
 }
 
@@ -80,7 +104,10 @@ export async function createDarwinDistribution(
     options: DarwinSourceOptions,
 ): Promise<DarwinSourceCapability> {
     const temporaryDirectory = options.temporaryDirectory;
-    if (process.platform !== "darwin" || (!process.versions.electron && !isIndependentNode24(process.versions)))
+    if (
+        process.platform !== "darwin" ||
+        (!process.versions.electron && !isIndependentNode24(process.versions))
+    )
         throw new Error("DARWIN_INSTALLED_HOST_REQUIRED");
     verifiedNativeAddon(distribution);
     bindDarwinDistribution(distribution);
@@ -91,14 +118,24 @@ export async function createDarwinDistribution(
     native.openPrivateDirectory(temporaryDirectory, false).close();
     const nodeExecutable = distribution.execution.runnerExecutable;
     await access(distribution.browserExecutable, constants.X_OK);
-    const probe = await runControlledChildCapability({ nodeExecutable,
+    const probe = await runControlledChildCapability({
+        nodeExecutable,
         temporaryDirectory,
-        preloadPath: join(distribution.root, "execution/controlled-child-preload.mjs") });
+        preloadPath: join(distribution.root, "execution/controlled-child-preload.mjs"),
+    });
     if (!probe.supported || probe.nodeVersion !== `v${distribution.nodeVersion}`)
         throw new Error("DARWIN_INSTALLED_OBSERVER_UNSUPPORTED");
     const capability = Object.freeze({}) as DarwinSourceCapability;
-    capabilities.set(capability, Object.freeze({ native, browserExecutable: distribution.browserExecutable,
-        temporaryDirectory, stopTimeoutMs, nodeExecutable }));
+    capabilities.set(
+        capability,
+        Object.freeze({
+            native,
+            browserExecutable: distribution.browserExecutable,
+            temporaryDirectory,
+            stopTimeoutMs,
+            nodeExecutable,
+        }),
+    );
     installedCapabilities.add(capability);
     return capability;
 }
@@ -106,8 +143,12 @@ export async function createDarwinDistribution(
 /** 能力消费只接受同一模块实例签发并仍由私有 WeakMap 识别的原对象，不能信任外形、符号字段、冻结状态或支持布尔值；返回的借用状态用于实际所有者构造，业务配置与恢复历史都不得通过该接口补造能力。 */
 export function requireDarwinSource(value: unknown): DarwinSourceState {
     const state = value && typeof value === "object" ? capabilities.get(value) : undefined;
-    if (!state || process.platform !== "darwin" ||
-        (!isIndependentNode24(process.versions) && !(process.versions.electron && installedCapabilities.has(value as object))))
+    if (
+        !state ||
+        process.platform !== "darwin" ||
+        (!isIndependentNode24(process.versions) &&
+            !(process.versions.electron && installedCapabilities.has(value as object)))
+    )
         throw new Error("DARWIN_SOURCE_CAPABILITY_REQUIRED");
     return state;
 }

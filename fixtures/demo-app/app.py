@@ -267,7 +267,8 @@ class Handler(RequestHandler):
             ):
                 raise HTTPError(400)
             expected = f"{data['workspaceId']}:{data['caseExecutionId']}:{data.get('attemptNo')}"
-            if data["idempotencyKey"] != expected or type(data.get("attemptNo")) is not int or data.get("attemptNo") not in (1, 2):
+            if data["idempotencyKey"] != expected or type(data.get("attemptNo")) is not int or data.get(
+                "attemptNo") not in (1, 2):
                 raise HTTPError(400)
             if path == "/prepare":
                 if (

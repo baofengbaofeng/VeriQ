@@ -10,9 +10,9 @@ test("fixed auth configurations accept supported handlers and reject uploaded co
             identityPointer: "/id",
         }),
     ).toEqual([]);
-    expect(
-        validateSchema("AuthAdapterConfigV1", { kind: "SCRIPT", source: "eval()" }),
-    ).not.toEqual([]);
+    expect(validateSchema("AuthAdapterConfigV1", { kind: "SCRIPT", source: "eval()" })).not.toEqual(
+        [],
+    );
 });
 test("source identity binds optional registry configurations", () => {
     const original = source.snapshot as never;
@@ -68,14 +68,11 @@ test("evidence manifests require an explicit sensitivity classification", () => 
 });
 test("registry source projection matches Python with mixed-case UUID lexical ordering", async () => {
     const { createHash } = await import("node:crypto");
-    const vector = (
-        await import("../fixtures/identity-source.json", { with: { type: "json" } })
-    ).default;
-    expect(
-        createHash("sha256")
-            .update(assetSourceBytes(vector.snapshot))
-            .digest("hex"),
-    ).toBe(vector.sha256);
+    const vector = (await import("../fixtures/identity-source.json", { with: { type: "json" } }))
+        .default;
+    expect(createHash("sha256").update(assetSourceBytes(vector.snapshot)).digest("hex")).toBe(
+        vector.sha256,
+    );
 });
 test("initial variable declarations expose only own correctly typed frozen values", async () => {
     const { resolveInitialVariables } = await import("../src/index.js");
@@ -89,9 +86,9 @@ test("initial variable declarations expose only own correctly typed frozen value
     expect(() => resolveInitialVariables({ name: "string" }, {})).toThrow(
         "INITIAL_VARIABLES_INVALID",
     );
-    expect(() =>
-        resolveInitialVariables({ name: "string" }, { name: 42 }),
-    ).toThrow("INITIAL_VARIABLES_INVALID");
+    expect(() => resolveInitialVariables({ name: "string" }, { name: 42 })).toThrow(
+        "INITIAL_VARIABLES_INVALID",
+    );
     expect(() =>
         resolveInitialVariables({ name: "string" }, Object.create({ name: "Ada" })),
     ).toThrow("INITIAL_VARIABLES_INVALID");

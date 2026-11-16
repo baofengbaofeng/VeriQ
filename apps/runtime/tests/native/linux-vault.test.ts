@@ -233,7 +233,9 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
         const configuration = join(root, "bus.conf");
         await writeFile(
             configuration,
-            `<busconfig><type>session</type><listen>unix:tmpdir=${env.XDG_RUNTIME_DIR}</listen><auth>EXTERNAL</auth><policy context="default"><allow send_destination="*"/><allow own="*"/><allow eavesdrop="true"/></policy></busconfig>`,
+            `<busconfig><type>session</type><listen>unix:tmpdir=${env.XDG_RUNTIME_DIR}` +
+                `</listen><auth>EXTERNAL</auth><policy context="default"><allow send_destination="*"/><allow own="*` +
+                `"/><allow eavesdrop="true"/></policy></busconfig>`,
             { mode: 0o600 },
         );
         bus = await start("/usr/bin/dbus-daemon", [
@@ -459,7 +461,9 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
             "duplicate exact matches are refused without selecting or deleting either item",
             async () => {
                 const duplicate = { profileId: randomUUID(), keyVersion: randomUUID() };
-                const frame = `V1 duplicate ${duplicate.profileId} ${duplicate.keyVersion} ${randomBytes(32).toString("base64url")}\n`;
+                const frame =
+                    `V1 duplicate ${duplicate.profileId} ${duplicate.keyVersion} ` +
+                    `${randomBytes(32).toString("base64url")}\n`;
                 assert.equal(await direct(driver, frame), "V1 ok\n");
                 assert.equal(await direct(driver, frame), "V1 ok\n");
                 assert.equal((await backend.get(duplicate, signal())).status, "failed");
@@ -541,7 +545,10 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
             const program = join(root, "parent.mjs");
             await writeFile(
                 program,
-                `import {spawn} from 'node:child_process';const child=spawn(${JSON.stringify(join(fixture.root, "native/vault/veriq_agent"))},[],{stdio:['pipe','ignore','ignore']});child.stdin.write('V1 probe\\n');process.stdout.write(String(child.pid)+'\\n');setInterval(()=>{},1000);`,
+                `import {spawn} from 'node:child_process';const child=spawn(` +
+                    `${JSON.stringify(join(fixture.root, "native/vault/veriq_agent"))}` +
+                    `,[],{stdio:['pipe','ignore','ignore']});child.stdin.write('V1 probe\\n');process.stdout.write(` +
+                    `String(child.pid)+'\\n');setInterval(()=>{},1000);`,
                 { mode: 0o600 },
             );
             let parent: VerifiedOwned | undefined;

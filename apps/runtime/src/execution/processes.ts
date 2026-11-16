@@ -138,7 +138,11 @@ export class ProcessSupervisor {
     /**
      * 公开方法 start 先选择平台实现并写入进程日志，再拉起受信任的原生守护等待 READY 与 worker 身份校验通过；未支持的平台和重复 Attempt 都在业务执行前失败，不能绕过平台所有权协议。
      */
-    async start(id: string, command: Command, controlledLaunch?: DarwinControlledLaunch): Promise<OwnedProcess> {
+    async start(
+        id: string,
+        command: Command,
+        controlledLaunch?: DarwinControlledLaunch,
+    ): Promise<OwnedProcess> {
         if (this.windows) return this.windows.start(id, command);
         if (this.darwin) return this.darwin.start(id, command, controlledLaunch);
         if (process.platform !== "linux") throw new Error("UNSUPPORTED_PROCESS_PLATFORM");
@@ -339,12 +343,21 @@ export class ProcessSupervisor {
      * 公开方法 active 返回当前仍登记为存活的 Attempt 标识列表：供恢复扫描与容量核算使用（active）（active）。
      */
     active() {
-        return this.windows ? this.windows.active() : this.darwin ? this.darwin.active() : [...this.live.keys()];
+        return this.windows
+            ? this.windows.active()
+            : this.darwin
+              ? this.darwin.active()
+              : [...this.live.keys()];
     }
     /**
-     * 公开方法 terminateAttempt 按实际平台停止拥有的对象并等待证明，Darwin 可接收当前 Node performance.now 毫秒绝对期限且首次调用粘滞；Linux/Windows 保留原排空行为并忽略该可选参数，缺少实际证明时继续隔离容量。
+     * 公开方法 terminateAttempt 按实际平台停止拥有的对象并等待证明，Darwin 可接收当前 Node performance.now 毫秒绝对期限且首次调用粘滞；Linux/Windows 保留原排空行为并忽略该
+     * 可选参数，缺少实际证明时继续隔离容量。
      */
-    terminateAttempt(id: string, reason: string, deadlineMonotonicMs?: number): Promise<StopReceipt> {
+    terminateAttempt(
+        id: string,
+        reason: string,
+        deadlineMonotonicMs?: number,
+    ): Promise<StopReceipt> {
         if (this.windows) return this.windows.terminateAttempt(id, reason);
         if (this.darwin) return this.darwin.terminateAttempt(id, reason, deadlineMonotonicMs);
         const existing = this.stopping.get(id);

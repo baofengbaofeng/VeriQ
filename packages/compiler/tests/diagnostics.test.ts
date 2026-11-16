@@ -10,10 +10,9 @@ it("retains actual analyzer code and source pointer without echoing source value
     const actual = issues.find((issue) => issue.code === "UNKNOWN_ELEMENT")!;
     expect(actual).toBeDefined();
     const project = compiler.safeDiagnostics;
-    expect(
-        project,
-        "compiler needs a structured safe diagnostic projection",
-    ).toBeTypeOf("function");
+    expect(project, "compiler needs a structured safe diagnostic projection").toBeTypeOf(
+        "function",
+    );
     const projected = project!(issues);
     expect(projected).toContainEqual({
         code: actual.code,
@@ -21,9 +20,7 @@ it("retains actual analyzer code and source pointer without echoing source value
         pathStatus: "EXACT",
         message: "Element is not declared in the pinned catalog.",
     });
-    expect(JSON.stringify(projected)).not.toContain(
-        "synthetic-private-credential",
-    );
+    expect(JSON.stringify(projected)).not.toContain("synthetic-private-credential");
 });
 
 it("bounds diagnostic count and omits unsafe dynamic paths instead of inventing locations", () => {

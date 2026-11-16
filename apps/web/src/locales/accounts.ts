@@ -51,11 +51,12 @@ export const accountsMessages: Record<string, readonly [string, string]> = {
     "Creating administrator…": ["正在创建管理员…", "Creating administrator…"],
     "Create administrator": ["创建管理员", "Create administrator"],
     "Reset your password": ["重置密码", "Reset your password"],
-    "Ask your system administrator for a short-lived reset link. If email delivery is available, reset instructions will be sent to eligible accounts.":
-        [
-            "请向系统管理员申请短时有效的重置链接。如果邮件服务可用，符合条件的账号将收到重置说明。",
-            "Ask your system administrator for a short-lived reset link. If email delivery is available, reset instructions will be sent to eligible accounts.",
-        ],
+    ["Ask your system administrator for a short-lived reset link. If email delivery is available, reset instructi" +
+    "ons will be sent to eligible accounts."]: [
+        "请向系统管理员申请短时有效的重置链接。如果邮件服务可用，符合条件的账号将收到重置说明。",
+        "Ask your system administrator for a short-lived reset link. If email delivery is available, reset instr" +
+            "uctions will be sent to eligible accounts.",
+    ],
     "Requesting…": ["正在申请…", "Requesting…"],
     "Request password reset": ["申请重置密码", "Request password reset"],
     "Back to sign in": ["返回登录", "Back to sign in"],

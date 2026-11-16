@@ -171,7 +171,9 @@ class ReportService:
             ).scalars()
         )
         attempts = [a for a in await self.attempts(scope, run_id) if isinstance(a, Attempt)]
-        if any(case.provenance.get("metadataExpiredAt") for case in cases) or any(attempt.facts.get("metadataExpiredAt") for attempt in attempts):
+        if any(case.provenance.get("metadataExpiredAt") for case in cases) or any(
+            attempt.facts.get("metadataExpiredAt") for attempt in attempts
+        ):
             raise Problem(410, "REPORT_EXPIRED", "Report metadata retention has expired")
         if len(cases) > 1000 or len(attempts) > 2000:
             raise Problem(409, "REPORT_LIMIT", "Run exceeds the admitted report bound")
@@ -679,7 +681,9 @@ class ReportService:
                 )
             ).scalars()
         )
-        if any(case.provenance.get("metadataExpiredAt") for case in cases) or any(attempt.facts.get("metadataExpiredAt") for attempt in attempts):
+        if any(case.provenance.get("metadataExpiredAt") for case in cases) or any(
+            attempt.facts.get("metadataExpiredAt") for attempt in attempts
+        ):
             raise Problem(410, "REPORT_EXPIRED", "Report metadata retention has expired")
         blocked = {"passed": False, "reasons": ["OFFLINE_IMPORT", "RESULT_AUTHENTICITY_UNVERIFIED"]}
         projected = []

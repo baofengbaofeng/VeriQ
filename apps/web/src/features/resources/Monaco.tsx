@@ -90,7 +90,8 @@ export function Monaco({
         <div>
             <p id={helpId}>
                 {tx(
-                    "Use Ctrl+M (Control+Shift+M on macOS) to switch between editing with Tab and moving keyboard focus.",
+                    "Use Ctrl+M (Control+Shift+M on macOS) to switch between editing with Tab and moving keyboard fo" +
+                        "cus.",
                 )}
             </p>
             <button

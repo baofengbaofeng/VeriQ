@@ -36,8 +36,10 @@ static void diagnostic(const char *proof_path) {
     if (snprintf(path, sizeof(path), "%s.error", proof_path) >= (int)sizeof(path)) return;
     int fd = open(path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
     if (fd < 0) return;
-    int length = snprintf(record, sizeof(record), "{\"failureCode\":\"%s\",\"errno\":%d,\"pid\":%ld,\"observedUid\":%ld}\n", failure_code, failure_errno, failure_pid, failure_uid);
-    if (length > 0 && length < (int)sizeof(record)) { ssize_t written = write(fd, record, (size_t)length); if (written == length) { int synced = fsync(fd); (void)synced; } }
+    int length = snprintf(record, sizeof(record), "{\"failureCode\":\"%s\",\"errno\":%d,\"pid\":%ld,\"observedUid\":%ld"
+        "}\n", failure_code, failure_errno, failure_pid, failure_uid);
+    if (length > 0 && length < (int)sizeof(record)) { ssize_t written = write(fd, record, (size_t)length); if (
+        written == length) { int synced = fsync(fd); (void)synced; } }
     close(fd);
 }
 static void request_stop(int signal_number) { (void)signal_number; stop_requested = 1; }
@@ -121,7 +123,8 @@ static bool proof(const char *path, const char *nonce, uid_t uid, pid_t worker,
     if (fd < 0) return false;
     char record[1024];
     int size = snprintf(record, sizeof(record),
-        "{\"version\":1,\"state\":\"DRAINED\",\"nonce\":\"%s\",\"uid\":%lu,\"guardianPid\":%ld,\"guardianStartTime\":\"%llu\",\"workerPid\":%ld,\"workerStartTime\":\"%llu\"}\n",
+        "{\"version\":1,\"state\":\"DRAINED\",\"nonce\":\"%s\",\"uid\":%lu,\"guardianPid\":%ld,\"guardianStartTime\":\""
+            "%llu\",\"workerPid\":%ld,\"workerStartTime\":\"%llu\"}\n",
         nonce, (unsigned long)uid, (long)getpid(), guardian_start, (long)worker, worker_start);
     bool ok = size > 0 && size < (int)sizeof(record) && write(fd, record, (size_t)size) == size && fsync(fd) == 0;
     if (close(fd)) ok = false;
@@ -140,7 +143,8 @@ int main(int argc, char **argv) {
     if (*end || grace < 0 || grace > 30000) return 125;
     uid_t uid = getuid();
     unsigned long long guardian_start, worker_start;
-    if (prctl(PR_SET_NAME, "veriq_runner") || prctl(PR_SET_CHILD_SUBREAPER, 1) || !identity(getpid(), uid, &guardian_start)) return 125;
+    if (prctl(PR_SET_NAME, "veriq_runner") || prctl(PR_SET_CHILD_SUBREAPER, 1) || !identity(getpid(), uid,
+        &guardian_start)) return 125;
     struct sigaction action = {.sa_handler = request_stop};
     sigemptyset(&action.sa_mask);
     sigaction(SIGTERM, &action, NULL); sigaction(SIGINT, &action, NULL); sigaction(SIGUSR1, &action, NULL);
@@ -192,7 +196,8 @@ int main(int argc, char **argv) {
         while ((reaped = waitpid(-1, &status, WNOHANG)) > 0) {
             if (reaped == worker && !root_exited) {
                 root_exited = true; stop_requested = 1;
-                if (WIFEXITED(status)) dprintf(4, "{\"type\":\"EXIT\",\"code\":%d,\"signal\":null}\n", WEXITSTATUS(status));
+                if (WIFEXITED(status)) dprintf(4, "{\"type\":\"EXIT\",\"cod"
+                    "e\":%d,\"signal\":null}\n", WEXITSTATUS(status));
                 else dprintf(4, "{\"type\":\"EXIT\",\"code\":null,\"signal\":%d}\n", WTERMSIG(status));
             }
         }
@@ -203,7 +208,8 @@ int main(int argc, char **argv) {
             if (stop_at < 0) stop_at = milliseconds();
             if (no_children) {
                 if (!trusted) diagnostic(proof_path);
-                bool drained = trusted && root_exited && gate_closed && proof(proof_path, nonce, uid, worker, guardian_start, worker_start);
+                bool drained = trusted && root_exited && gate_closed && proof(proof_path, nonce, uid, worker,
+                    guardian_start, worker_start);
                 return drained ? 0 : 125;
             }
             int signal_number = milliseconds() - stop_at < grace ? SIGTERM : SIGKILL;

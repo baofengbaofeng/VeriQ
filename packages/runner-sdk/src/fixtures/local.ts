@@ -18,11 +18,7 @@ export class LocalCredentialProvider implements CredentialProvider {
         }
     }
     private key(reference: Reference): string {
-        return JSON.stringify([
-            reference.workspaceId,
-            reference.secretRef,
-            reference.versionId,
-        ]);
+        return JSON.stringify([reference.workspaceId, reference.secretRef, reference.versionId]);
     }
     /**
      * 公开方法 resolve 按钉选引用解析本机密钥：忽略 signal 以外的旁路缓存：缺失即失败（resolve/CANCELLED）。

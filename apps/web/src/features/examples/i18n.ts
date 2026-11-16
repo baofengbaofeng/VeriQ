@@ -80,7 +80,8 @@ const en = {
     retry: "Reload",
     close: "Close",
     summary:
-        "Create editable drafts, wait for real Runtime compilation, publish, and create an execution plan. No Run is triggered automatically.",
+        "Create editable drafts, wait for real Runtime compilation, publish, and create an execution plan. No Run is" +
+        " triggered automatically.",
     workspace: "Current Workspace",
     workspaceKey: "New Workspace key",
     workspaceName: "New Workspace name",
@@ -106,17 +107,20 @@ const en = {
     businessToken: "New business token",
     fixtureToken: "New fixture token",
     tokenHelp:
-        "Only required when creating credentials. Cleared after submission and never saved in browser storage. Select existing versions from authorized metadata.",
+        "Only required when creating credentials. Cleared after submission and never saved in browser storage. Selec" +
+        "t existing versions from authorized metadata.",
     runtime: "Actual execution Runtime",
     selectRuntime: "Select an authorized online device",
     runtimeHelp:
-        "Requires MANAGED trust, online capability, and separate Workspace credential delivery. This wizard does not approve devices.",
+        "Requires MANAGED trust, online capability, and separate Workspace credential delivery. This wizard does not" +
+        " approve devices.",
     timeout: "Seconds to wait for each actual validation",
     start: "Start or resume import",
     stop: "Stop local import",
     clear: "Clear local resume marker",
     stopped:
-        "Local import stopped. Accepted remote jobs may continue. Resume reads actual state and does not delete drafts.",
+        "Local import stopped. Accepted remote jobs may continue. Resume reads actual state and does not delete draf" +
+        "ts.",
     finished: "Sample versions published and plan created. No Run has been triggered.",
     plan: "View execution plans",
     progress: "Actual import progress",
@@ -129,14 +133,16 @@ const en = {
     reloadMetadata: "Reload device and credential metadata",
     metadata: "Device and credential metadata",
     resetHelp:
-        "Clears only local resume metadata. It does not delete server resources or revoke credentials. Use a separate Workspace when changing configuration.",
+        "Clears only local resume metadata. It does not delete server resources or revoke credentials. Use a separat" +
+        "e Workspace when changing configuration.",
     errors: {
         TARGET_ORIGIN_INVALID:
             "Use an HTTPS origin without path or credentials; HTTP is limited to loopback.",
         SAMPLE_PACKAGE_INVALID: "Installed sample manifest or DSL is invalid.",
         SELECTION_INVALID: "Select an actual Workspace and Runtime.",
         IMPORT_OPTIONS_CHANGED:
-            "Resume options or credential selections changed. Restore the original options or use a separate Workspace.",
+            "Resume options or credential selections changed. Restore the original options or use a separate Workspa" +
+            "ce.",
         ADAPTER_INVALID: "Selected authentication adapter is unavailable or is not HTTP Bearer.",
         CREDENTIAL_SELECTION_INVALID:
             "Selected credential was revoked, has another reference, or does not allow the identity.",
@@ -153,9 +159,11 @@ const en = {
             "Provide valid role, identities, references, build, and validation timeout.",
         WORKSPACE_REQUIRED: "Select or create a Workspace first.",
         STORAGE_UNAVAILABLE:
-            "Resume metadata could not be saved. This page can resume in memory; after refresh, reload actual server objects.",
+            "Resume metadata could not be saved. This page can resume in memory; after refresh, reload actual server" +
+            " objects.",
         UNKNOWN:
-            "Request failed. Check network, permissions, and platform diagnostics; do not repeat unknown business writes.",
+            "Request failed. Check network, permissions, and platform diagnostics; do not repeat unknown business wr" +
+            "ites.",
     },
 };
 appI18n.addResourceBundle("zh", "examples", zh, true, true);

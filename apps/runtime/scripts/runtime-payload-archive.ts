@@ -197,7 +197,8 @@ export type ArchiveMember =
     | Readonly<{ path: string; kind: "file"; sizeBytes: number; sha256: string; mode: number }>
     | Readonly<{ path: string; kind: "directory"; mode: number }>
     | Readonly<{ path: string; kind: "link"; target: string; mode: number }>;
-/** intake 回执明确区分 gzip 完整流 CRC 与 ZIP 各成员 CRC，只声明公开 API 能证明的 local header 和 data 范围；展开字节含逻辑目标，streamBytes 在 tar 表示真实解压流而 ZIP 表示完整原快照长度。 */
+/** intake 回执明确区分 gzip 完整流 CRC 与 ZIP 各成员 CRC，只声明公开 API 能证明的 local header 和 data 范围；展开字节含逻辑目标，streamBytes 在 tar 表示真实解压
+ * 流而 ZIP 表示完整原快照长度。 */
 export type IntakeReceipt = Readonly<{
     schemaVersion: 1;
     kind: "RUNTIME_ARCHIVE_INTAKE";

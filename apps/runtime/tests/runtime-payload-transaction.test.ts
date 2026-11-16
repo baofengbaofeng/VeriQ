@@ -292,7 +292,8 @@ test("shared member link and body limits accumulate across archive admissions", 
         );
 });
 
-/** prepare 通过真实 Node 子进程消费独立文件并输出完整结果，不执行夹具归档里的任何成员；严格 flags 与成功 JSON 分别观察 stdout、stderr 和退出码，所有输入在本测试临时根内，子进程只运行本仓库构建工具代码。 */
+/** prepare 通过真实 Node 子进程消费独立文件并输出完整结果，不执行夹具归档里的任何成员；严格 flags 与成功 JSON 分别观察 stdout、stderr 和退出码，所有输入在本测试临时根内，子进程只运行本仓库
+* 构建工具代码。 */
 test("prepare CLI consumes exactly five explicit flags and rejects malformed arguments", async () => {
     const output = await mkdtemp(join(tmpdir(), "veriq-prepare-cli-"));
     try {
@@ -350,8 +351,10 @@ test("prepare CLI consumes exactly five explicit flags and rejects malformed arg
             const wrapper = `import {ArchiveTransaction} from './scripts/runtime-payload-transaction.ts';
 import {rename,writeFile} from 'node:fs/promises';
 const cleanup=ArchiveTransaction.prototype.cleanup;
-ArchiveTransaction.prototype.cleanup=async function(){if(this.committed){await rename(this.lockPath,this.lockPath+'.preserved');await writeFile(this.lockPath,'outside sentinel')}return cleanup.call(this)};
-process.argv=['node','prepare',...JSON.parse(process.env.VERIQ_TEST_FLAGS)];await import('./scripts/prepare-macos-runtime-archives.mjs');`;
+ArchiveTransaction.prototype.cleanup=async function(){if(this.committed){await rename(this.lockPath,this.lockPath+'.` +
+`preserved');await writeFile(this.lockPath,'outside sentinel')}return cleanup.call(this)};
+process.argv=['node','prepare',...JSON.parse(process.env.VERIQ_TEST_FLAGS)];await import('./scripts/prepare-macos-ru` +
+`ntime-archives.mjs');`;
             const warningChild = spawn(
                 process.execPath,
                 ["--import", "tsx", "--input-type=module", "-e", wrapper],
@@ -406,9 +409,14 @@ for (const scenario of ["SIGINT", "SIGTERM", "second", "deadline"] as const)
                 const script = `import {ArchiveTransaction} from './scripts/runtime-payload-transaction.ts';
 const keepalive=()=>{};process.on('message',keepalive);
 const original=ArchiveTransaction.prototype.snapshot;
-ArchiveTransaction.prototype.snapshot=async function(...args){process.on('SIGINT',()=>process.send('first'));process.send('ready');await new Promise(resolve=>{${scenario === "SIGINT" || scenario === "SIGTERM" ? "this.signal.addEventListener('abort',resolve,{once:true})" : "process.on('message',()=>{})"}});return original.apply(this,args)};
+ArchiveTransaction.prototype.snapshot=async function(...args){process.on('SIGINT',()=>process.send('first'));process` +
+`.send('ready');await new Promise(resolve=>{` +
+    `${
+    scenario === "SIGINT" || scenario === "SIGTERM" ? "this.signal.addEventListener" +
+        "('abort',resolve,{once:true})" : "process.on('message',()=>{})"}});return original.apply(this,args)};
 process.argv=['node','prepare',...JSON.parse(process.env.VERIQ_TEST_FLAGS)];
-await import('./scripts/prepare-macos-runtime-archives.mjs');process.removeListener('message',keepalive);process.disconnect();`;
+await import('./scripts/prepare-macos-runtime-archives.mjs');process.removeListener('message',keepalive);process.dis` +
+`connect();`;
                 const child = spawn(
                     process.execPath,
                     ["--import", "tsx", "--input-type=module", "-e", script],
@@ -436,7 +444,8 @@ await import('./scripts/prepare-macos-runtime-archives.mjs');process.removeListe
                     assert.match(
                         stderr,
                         new RegExp(
-                            `PAYLOAD_CANCELLED phase=INTAKE cleanup=${scenario === "second" || scenario === "deadline" ? "INCOMPLETE" : "CONFIRMED"}`,
+                            `PAYLOAD_CANCELLED phase=INTAKE cleanup=` +
+                                `${scenario === "second" || scenario === "deadline" ? "INCOMPLETE" : "CONFIRMED"}`,
                         ),
                     );
                     if (scenario === "SIGINT" || scenario === "SIGTERM")
@@ -457,7 +466,8 @@ await import('./scripts/prepare-macos-runtime-archives.mjs');process.removeListe
         }
     });
 
-/** 关闭故障在真实 held FD 完成系统关闭后注入不可确认结果，产品仍必须保守保留 scratch 与锁而非假报清理成功；测试补丁只影响当前快照的第二个关闭调用，避免把前置 b1a reader 或测试 finally 本身变成故障来源。 */
+/** 关闭故障在真实 held FD 完成系统关闭后注入不可确认结果，产品仍必须保守保留 scratch 与锁而非假报清理成功；测试补丁只影响当前快照的第二个关闭调用，避免把前置 b1a reader 或测试 finally 本身变
+* 成故障来源。 */
 test("snapshot reader close failure retains owned artifact with incomplete cleanup", async (t) => {
     const output = await mkdtemp(join(tmpdir(), "veriq-close-failure-"));
     const probe = await open(join(output, "probe"), "wx", 0o600),
@@ -512,7 +522,8 @@ test("snapshot reader close failure retains owned artifact with incomplete clean
     }
 });
 
-/** 回执四 MiB 上限必须在扫描实际成员时消费，不能先提取数千文件再序列化出巨大 JSON 才拒绝；内部 collector 用真实空正文和合法长路径触发累计限制，不创建大型归档、正文或磁盘资源，路径与成员数仍严格低于各自独立上限。 */
+/** 回执四 MiB 上限必须在扫描实际成员时消费，不能先提取数千文件再序列化出巨大 JSON 才拒绝；内部 collector 用真实空正文和合法长路径触发累计限制，不创建大型归档、正文或磁盘资源，路径与成员数仍严格低于各自独立上
+* 限。 */
 test("receipt member accumulation remains bounded before any extraction writes", async () => {
     const tx = new ArchiveTransaction("/unused-input", "/unused-output", "candidate"),
         scan = new ArchiveScan("node", "top", tx, new ArchiveBudget());
@@ -613,13 +624,15 @@ test("committed result remains successful when only replaced lock cleanup is inc
     }
 });
 
-/** 提取故障只在实际树输出期间替换真实 FileHandle.write，避免快照复制先失败而漏过 tar 与 ZIP 适配器错误分支；次要 close 故障在完成真实关闭后注入不确认结果，首个磁盘错误及受控 errno 必须保留，外部旧候选和源归档始终不变。 */
+/** 提取故障只在实际树输出期间替换真实 FileHandle.write，避免快照复制先失败而漏过 tar 与 ZIP 适配器错误分支；次要 close 故障在完成真实关闭后注入不确认结果，首个磁盘错误及受控 errno 必须保留
+* ，外部旧候选和源归档始终不变。 */
 for (const [kind, code] of [
     ["node", "ENOSPC"],
     ["chrome", "EDQUOT"],
 ] as const)
     for (const uncertainClose of [false, true])
-        test(`fix1 actual ${kind} extraction ${code} retains first cause with close uncertainty ${uncertainClose}`, async (t) => {
+        test(`fix1 actual ${kind} extraction ${code} retains first cause with close uncertainty ${uncertainClose}`,
+            async (t) => {
             const output = await mkdtemp(join(tmpdir(), "veriq-extraction-fault-"));
             const probe = await open(join(output, "probe"), "wx", 0o600),
                 prototype = Object.getPrototypeOf(probe) as FileHandle;
@@ -705,13 +718,15 @@ for (const [kind, code] of [
             }
         });
 
-/** 目录错误回归只在真实 intake 的新 Node 顶层目录句柄上注入 chmod 或 sync 磁盘故障，close 始终先真实完成再按场景报告 EIO；外部旧目录和原归档保持不变，测试不模拟永久内核 writer 或实际写满文件系统。 */
+/** 目录错误回归只在真实 intake 的新 Node 顶层目录句柄上注入 chmod 或 sync 磁盘故障，close 始终先真实完成再按场景报告 EIO；外部旧目录和原归档保持不变，测试不模拟永久内核 writer 或实际写
+* 满文件系统。 */
 for (const [operation, cause] of [
     ["chmod", "ENOSPC"],
     ["sync", "EDQUOT"],
 ] as const)
     for (const uncertainClose of [false, true])
-        test(`R1 intake directory ${operation} preserves ${cause} with uncertain close ${uncertainClose}`, async (t) => {
+        test(`R1 intake directory ${operation} preserves ${cause} with uncertain close ${uncertainClose}`, async (
+            t) => {
             const output = await mkdtemp(join(tmpdir(), "veriq-directory-intake-"));
             const probe = await open(join(output, "probe"), "wx", 0o600),
                 prototype = Object.getPrototypeOf(probe) as FileHandle;
@@ -798,7 +813,8 @@ for (const [operation, cause] of [
             }
         });
 
-/** 没有 chmod 或 sync 首错时，唯一关闭异常仍必须抛出并记录 INCOMPLETE，不能因为新增首错保护而吞掉真实收尾问题；两个 profile 都在初始化完成后写微型真实目录，先真实关闭句柄再注入 EIO，仅清理本场景独占根。 */
+/** 没有 chmod 或 sync 首错时，唯一关闭异常仍必须抛出并记录 INCOMPLETE，不能因为新增首错保护而吞掉真实收尾问题；两个 profile 都在初始化完成后写微型真实目录，先真实关闭句柄再注入 EIO，仅清理本场
+* 景独占根。 */
 for (const profile of ["intake", "runtime"] as const)
     test(`R1 directory close-only ${profile} remains observable and incomplete`, async (t) => {
         const output = await mkdtemp(join(tmpdir(), "veriq-directory-close-only-"));

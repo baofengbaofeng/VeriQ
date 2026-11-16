@@ -23,7 +23,11 @@ import { openTrace } from "./trace.ts";
 import { Command } from "commander";
 import pino from "pino";
 import { join, dirname, basename } from "node:path";
-import { loadInstalledRuntimeDistribution, assertRuntimeRole, diagnoseRelease } from "./distribution.ts";
+import {
+    loadInstalledRuntimeDistribution,
+    assertRuntimeRole,
+    diagnoseRelease,
+} from "./distribution.ts";
 import { spawn } from "node:child_process";
 import { DeviceSession } from "./agent/credentials.ts";
 import { AgentClient } from "./agent/transport.ts";
@@ -106,7 +110,8 @@ program.hook("preAction", async () => {
             acknowledgeUnencryptedStorage: true,
         });
         process.stderr.write(
-            "Credential mode: restricted-file; no encryption at rest. Configured service UID and private mounted volume verified.\n",
+            "Credential mode: restricted-file; no encryption at rest. Configured service UID and private mounted vol" +
+                "ume verified.\n",
         );
     } else {
         if (
@@ -139,7 +144,10 @@ async function installedDistribution() {
 /** Mac 已安装命令只在严格库存加载后创建同一档案下的受控私有探针目录，固定发行 Runner Node 与观察器实际自检成功才向运行和离线恢复交付能力；开发入口不因本辅助函数获得安装路径或平台后备。
  * 能力保存在当前进程内，不能通过参数 JSON、业务包或档案字段恢复，失败不会开启普通子进程路径。
  */
-async function installedDarwinExecution(installed: RuntimeDistribution | undefined, profile: string) {
+async function installedDarwinExecution(
+    installed: RuntimeDistribution | undefined,
+    profile: string,
+) {
     if (!installed || process.platform !== "darwin") return {};
     const temporaryDirectory = join(profile, "darwin-control");
     darwinNative().openPrivateDirectory(temporaryDirectory, true).close();
@@ -161,7 +169,7 @@ async function nativeDoctor(options: { server?: string; browserExecutable?: stri
         ...installed,
         ...(options.server ? { server: options.server } : {}),
         runtime: installed,
-        ...await installedDarwinExecution(installed, store().directory),
+        ...(await installedDarwinExecution(installed, store().directory)),
         signal: controller.signal,
     });
 }
@@ -237,7 +245,8 @@ common(
         controller.signal,
     );
     process.stdout.write(
-        `Open ${enrollment.verificationUrl}\nApproval code: ${enrollment.userCode}\nConfirm the device, Workspace and sharing scope.\n`,
+        `Open ${enrollment.verificationUrl}\nApproval code: ${enrollment.userCode}` +
+            `\nConfirm the device, Workspace and sharing scope.\n`,
     );
     while (Date.now() < Date.parse(enrollment.expiresAt)) {
         await delay(Math.max(5, enrollment.intervalSeconds) * 1000, undefined, {
@@ -318,7 +327,8 @@ program
             await s.remove();
             await new SecretStore(s.directory, entryCredentials).clear();
             process.stdout.write(
-                "Local device credential removed. Remote revocation was not attempted. The server credential may still be valid; revoke the device in the Web console or wait for expiry.\n",
+                "Local device credential removed. Remote revocation was not attempted. The server credential may sti" +
+                    "ll be valid; revoke the device in the Web console or wait for expiry.\n",
             );
             return;
         }
@@ -342,7 +352,8 @@ program
         await new SecretStore(s.directory, entryCredentials).clear();
         process.stdout.write(
             alreadyRejected
-                ? "Server already rejected this device credential; local credential removed. You can enroll again. Revoke the device in the Web console if you also need to prevent future reuse.\n"
+                ? "Server already rejected this device credential; local credential removed. You can enroll again. R" +
+                      "evoke the device in the Web console if you also need to prevent future reuse.\n"
                 : "Device credential revoked and local configuration removed.\n",
         );
     });
@@ -385,7 +396,11 @@ runtime
     .option("--once", "Process at most one claim, then stop")
     .action(async (options: { releaseDir: string; browserExecutable: string; once?: boolean }) => {
         const installed = await installedDistribution();
-        if (process.platform !== "linux" && process.platform !== "win32" && !(process.platform === "darwin" && installed))
+        if (
+            process.platform !== "linux" &&
+            process.platform !== "win32" &&
+            !(process.platform === "darwin" && installed)
+        )
             throw new Error("UNSUPPORTED_PROCESS_PLATFORM");
         if (installed && entryRole !== "veriq_agent") {
             await startInstalledAgent(installed);
@@ -409,7 +424,7 @@ runtime
             browserExecutable,
             signal: controller.signal,
             ...(installed ? { runtime: installed } : {}),
-            ...await installedDarwinExecution(installed, store().directory),
+            ...(await installedDarwinExecution(installed, store().directory)),
         });
         if (!diagnostics.ok || !diagnostics.capabilities) throw new Error("DOCTOR_FAILED");
         process.title = "veriq_agent";
@@ -421,11 +436,16 @@ runtime
         const root = join(profile.directory, "agent");
         let close: (() => Promise<void>) | undefined;
         try {
-            /** Windows 在线控制通道和首次认领之前实际打开私有 SQLite 并核验旧日志，原生模块或 ACL 失败不能被 doctor 的浏览器结果掩盖；预备会话完整关闭之后才进入 Agent 控制与认领流程，不输出尚未拥有的在线就绪状态。 */
+            /** Windows 在线控制通道和首次认领之前实际打开私有 SQLite 并核验旧日志，原生模块或 ACL 失败不能被 doctor 的浏览器结果掩盖；预备会话完整关闭之后才进入 Agent 控制与认领流程
+             * ，不输出尚未拥有的在线就绪状态。 */
             if (process.platform === "win32") {
                 const journal = await WindowsAttemptJournal.open(root);
-                try { await journal.requireNoLegacy(); journal.records(); }
-                finally { journal.close(); }
+                try {
+                    await journal.requireNoLegacy();
+                    journal.records();
+                } finally {
+                    journal.close();
+                }
             }
             close = await serveAgentControl(root, () => controller.abort());
             const transport = new AgentClient(session);
@@ -441,7 +461,7 @@ runtime
                 releaseDirectory,
                 browserExecutable,
                 ...(installed ? { execution: installed.execution } : {}),
-                ...await installedDarwinExecution(installed, profile.directory),
+                ...(await installedDarwinExecution(installed, profile.directory)),
             });
             await claimLoop({
                 client: transport,
@@ -485,7 +505,8 @@ bundle
             ...options,
         });
         process.stdout.write(
-            `Verified ${result.manifest.bundleId}; revocation UNKNOWN; mode ${result.debug ? "DEBUG" : "VALIDATED"}; local results are not formal proof.\n`,
+            `Verified ${result.manifest.bundleId}; revocation UNKNOWN; mode ${result.debug ? "DEBUG" : "VALIDATED"}` +
+                `; local results are not formal proof.\n`,
         );
     });
 const trust = program.command("trust").description("Issuer roots persist across logout");
@@ -530,7 +551,8 @@ secret
             throw new Error("CREDENTIAL_PROFILE_DELETE_CONFIRMATION_REQUIRED");
         await store().deleteCredentials();
         process.stdout.write(
-            "Local credential profile retired; trust/history retained. Server device revocation is separate. Use a new profile directory for future credentials.\n",
+            "Local credential profile retired; trust/history retained. Server device revocation is separate. Use a n" +
+                "ew profile directory for future credentials.\n",
         );
     });
 secret
@@ -547,12 +569,14 @@ secret
 secret
     .command("migrate")
     .description(
-        "Explicitly migrate stopped local credentials using the selected mode; verify readback before retiring legacy files",
+        "Explicitly migrate stopped local credentials using the selected mode; verify readback before retiring legac" +
+            "y files",
     )
     .action(async () => {
         await store().migrateCredentials();
         process.stdout.write(
-            `Local credentials migrated and verified; credential mode: ${program.opts<{ credentialMode: string }>().credentialMode}.\n`,
+            `Local credentials migrated and verified; credential mode: ` +
+                `${program.opts<{ credentialMode: string }>().credentialMode}.\n`,
         );
     });
 for (const name of ["set", "remove"]) {
@@ -586,7 +610,8 @@ for (const name of ["set", "remove"]) {
     );
 }
 const localRoot = () => join(store().directory, "offline");
-/** 本机维护由操作者显式调用并选定 Workspace，默认期限保持报告九十天、缓存及成功证据十四天和失败证据三十天；帮助与输出只包含英文有限参数及计数，真实所有权、上传和停止边界由共享 helper 持续核验，不影响云端会话或离线执行语义。 */
+/** 本机维护由操作者显式调用并选定 Workspace，默认期限保持报告九十天、缓存及成功证据十四天和失败证据三十天；帮助与输出只包含英文有限参数及计数，真实所有权、上传和停止边界由共享 helper 持续核验，不影响云端会话或离
+ * 线执行语义。 */
 program
     .command("prune")
     .description("Retire expired uploaded local reports and unreferenced verified bundle cache")
@@ -596,13 +621,26 @@ program
     .option("--raw-success-days <days>", "Successful raw evidence retention days (1..3650)", "14")
     .option("--raw-failure-days <days>", "Failure raw evidence retention days (1..3650)", "30")
     .option("--batch-size <count>", "Maximum report and bundle candidates (1..100)", "50")
-    .action(async (options: { workspace: string; metadataDays: string; bundleDays: string; rawSuccessDays: string; rawFailureDays: string; batchSize: string }) => {
-        const result = await pruneLocalProfile(store().directory, {
-            workspaceId: options.workspace, metadataDays: Number(options.metadataDays), bundleDays: Number(options.bundleDays),
-            rawSuccessDays: Number(options.rawSuccessDays), rawFailureDays: Number(options.rawFailureDays), batchSize: Number(options.batchSize),
-        });
-        process.stdout.write(JSON.stringify(result) + "\n");
-    });
+    .action(
+        async (options: {
+            workspace: string;
+            metadataDays: string;
+            bundleDays: string;
+            rawSuccessDays: string;
+            rawFailureDays: string;
+            batchSize: string;
+        }) => {
+            const result = await pruneLocalProfile(store().directory, {
+                workspaceId: options.workspace,
+                metadataDays: Number(options.metadataDays),
+                bundleDays: Number(options.bundleDays),
+                rawSuccessDays: Number(options.rawSuccessDays),
+                rawFailureDays: Number(options.rawFailureDays),
+                batchSize: Number(options.batchSize),
+            });
+            process.stdout.write(JSON.stringify(result) + "\n");
+        },
+    );
 program
     .command("run")
     .description("Execute a signed installed bundle without the control service")
@@ -656,7 +694,7 @@ program
                     releaseDirectory,
                     browserExecutable,
                     ...(installed ? { execution: installed.execution } : {}),
-                    ...await installedDarwinExecution(installed, profile),
+                    ...(await installedDarwinExecution(installed, profile)),
                     deviceId: identity.id,
                     debug: !!options.debug,
                     retry: !!options.retry,
@@ -720,10 +758,12 @@ results
     .action(async () => {
         const installed = await installedDistribution();
         process.stdout.write(
-            JSON.stringify((await recoverOffline(localRoot(), {
-                ...(installed ? { execution: installed.execution } : {}),
-                ...await installedDarwinExecution(installed, store().directory),
-            })) ?? { active: false }) + "\n",
+            JSON.stringify(
+                (await recoverOffline(localRoot(), {
+                    ...(installed ? { execution: installed.execution } : {}),
+                    ...(await installedDarwinExecution(installed, store().directory)),
+                })) ?? { active: false },
+            ) + "\n",
         );
     });
 results

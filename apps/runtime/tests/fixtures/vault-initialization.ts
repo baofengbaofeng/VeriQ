@@ -7,7 +7,8 @@ import { CredentialProfile, type CredentialOptions } from "../../src/credentials
 import { VaultFiles } from "../../src/credentials/files.ts";
 import { SecretStore } from "../../src/credentials/store.ts";
 
-/** 调用者必须提供目标测试已经核验的正式 helper 后端，夹具只准备确实没有业务数据的初始化边界而不替代系统调用；返回值限于非秘密验证事实，任何恢复、读取或清理失败都会使原目标用例失败，不能把 fixture 构造当作 OS 验收结果。 */
+/** 调用者必须提供目标测试已经核验的正式 helper 后端，夹具只准备确实没有业务数据的初始化边界而不替代系统调用；返回值限于非秘密验证事实，任何恢复、读取或清理失败都会使原目标用例失败，不能把 fixture 构造当作 OS
+ * 验收结果。 */
 export async function verifyEmptyInitialization(directory: string, options: CredentialOptions) {
     const material = randomBytes(32);
     const pending = {

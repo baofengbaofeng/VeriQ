@@ -11,7 +11,7 @@ import { join, resolve } from "node:path";
  */
 export async function desktopInventory(directory) {
     const root = resolve(directory);
-    if (await realpath(root) !== root) throw new Error("DESKTOP_GUI_PATH_INVALID");
+    if ((await realpath(root)) !== root) throw new Error("DESKTOP_GUI_PATH_INVALID");
     /** 名称注册同时包含目录和文件，大小写冲突在任何目标上采用同一保守判断；扫描预算按实际遇到的成员累计，不能通过一棵空目录树或隐藏层级绕过资源数量限制。
      * root 必须先是规范物理路径，不接受链接目录作为可信构建根。
      * 文件结果保持确定排序，外部审核者可以精确绑定相同序列化字节。
@@ -36,7 +36,8 @@ export async function desktopInventory(directory) {
             if (before.isSymbolicLink()) throw new Error("DESKTOP_GUI_LINK_FORBIDDEN");
             if (before.isDirectory()) await walk(absolute, path + "/");
             else {
-                if (!before.isFile() || before.nlink !== 1) throw new Error("DESKTOP_GUI_TYPE_INVALID");
+                if (!before.isFile() || before.nlink !== 1)
+                    throw new Error("DESKTOP_GUI_TYPE_INVALID");
                 total += before.size;
                 if (total > 1024 * 1024 * 1024) throw new Error("DESKTOP_GUI_LIMIT");
                 /** 文件按流读取并比较读取前后设备、inode、大小与时间，发现变化立即拒绝而不输出混合快照；单硬链接限制防止开发包缓存与输出共享同一个可修改物理成员，复制后的目标还会由打包入口复验。
@@ -48,7 +49,13 @@ export async function desktopInventory(directory) {
                 const hash = createHash("sha256");
                 for await (const bytes of createReadStream(absolute)) hash.update(bytes);
                 const after = await lstat(absolute);
-                if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs)
+                if (
+                    before.dev !== after.dev ||
+                    before.ino !== after.ino ||
+                    before.size !== after.size ||
+                    before.mtimeMs !== after.mtimeMs ||
+                    before.ctimeMs !== after.ctimeMs
+                )
                     throw new Error("DESKTOP_GUI_CHANGED");
                 files.push({ path, sizeBytes: before.size, sha256: hash.digest("hex") });
             }
@@ -61,8 +68,17 @@ export async function desktopInventory(directory) {
      * 内容摘要由标准 SHA256 提供，独立期望负责授权它而不是让扫描器自批准。
      * 结果不带 ready、签名或支持状态，安装验收仍是后续独立工作。
      */
-    for (const required of ["main/index.js", "main/agent.js", "main/cli.js", "preload/index.cjs", "renderer/index.html", "LICENSE", "THIRD_PARTY_NOTICES.md"])
-        if (!files.some((file) => file.path === required)) throw new Error("DESKTOP_GUI_ENTRY_MISSING");
+    for (const required of [
+        "main/index.js",
+        "main/agent.js",
+        "main/cli.js",
+        "preload/index.cjs",
+        "renderer/index.html",
+        "LICENSE",
+        "THIRD_PARTY_NOTICES.md",
+    ])
+        if (!files.some((file) => file.path === required))
+            throw new Error("DESKTOP_GUI_ENTRY_MISSING");
     const bytes = Buffer.from(JSON.stringify({ schemaVersion: 1, files }) + "\n");
     return { bytes, sha256: createHash("sha256").update(bytes).digest("hex"), files };
 }

@@ -82,15 +82,21 @@ function unique<T>(values: readonly T[], key: (v: T) => string) {
     }
     return seen;
 }
-/** 包级依赖边可以由真实 Node 成功解析的公开子路径证明归属，但其包 alias 必须逐组件完全一致；@scope/name 的边不能被 @scope/name-other 或父路径混淆，入口和执行源码的字面 specifier 仍在各自根绑定分支逐字核验。
+/** 包级依赖边可以由真实 Node 成功解析的公开子路径证明归属，但其包 alias 必须逐组件完全一致；@scope/name 的边不能被 @scope/name-other 或父路径混淆，入口和执行源码的字面 specifier 仍
+ * 在各自根绑定分支逐字核验。
  * 本函数只核静态声明关联，exports 是否允许和解析是否真实成功仍由持有结果文件的 Node 生产器提供证据，不能据此猜测不存在的根入口。
  */
 function edgeWitness(specifier: string, alias: string): boolean {
     if (specifier === alias) return true;
     const parts = specifier.split("/");
     const count = specifier.startsWith("@") ? 2 : 1;
-    return parts.length > count && parts.slice(0, count).join("/") === alias &&
-        parts.slice(count).every((part) => !!part && part !== "." && part !== ".." && !/[\\:%?#]/.test(part));
+    return (
+        parts.length > count &&
+        parts.slice(0, count).join("/") === alias &&
+        parts
+            .slice(count)
+            .every((part) => !!part && part !== "." && part !== ".." && !/[\\:%?#]/.test(part))
+    );
 }
 /** 图结构闭包在读取包正文前先验证所有端点、absence 语义与工具目标，npm pending 图也必须满足这些有界声明规则；执行 Node resolve 及归档内真实 npm 文件的检查并不发生在此处。 */
 async function graphReferences(
@@ -206,8 +212,11 @@ async function graphReferences(
             fail("PAYLOAD_GRAPH_MISMATCH");
     const publicAlias = (owner: PackageInstance, name: string): string | null => {
         const install = owner.root.lastIndexOf("node_modules/");
-        return install >= 0 ? `${owner.root.slice(0, install)}node_modules/.bin/${name}`
-            : npm && owner.root === "npm" ? `npm/.bin/${name}` : null;
+        return install >= 0
+            ? `${owner.root.slice(0, install)}node_modules/.bin/${name}`
+            : npm && owner.root === "npm"
+              ? `npm/.bin/${name}`
+              : null;
     };
     for (const b of graph.bins) {
         const p = byId.get(b.owner);
@@ -219,16 +228,23 @@ async function graphReferences(
         )
             fail("PAYLOAD_BIN_UNSUPPORTED");
         const alias = publicAlias(p, b.name);
-        const privateAlias = alias ? `${posix.dirname(alias)}/.veriq/${sha(Buffer.from(p.id))}/${b.name}` : null;
+        const privateAlias = alias
+            ? `${posix.dirname(alias)}/.veriq/${sha(Buffer.from(p.id))}/${b.name}`
+            : null;
         const siblings = graph.bins.filter((candidate) => {
             const owner = byId.get(candidate.owner);
             return owner && publicAlias(owner, candidate.name) === alias;
         });
-        // 同层同名命令必须保留实际公开 alias 的唯一拥有者，其他声明只能进入由完整 owner.id 摘要派生的保留命名空间；私有 alias 不获得公开命令胜者身份，任意目录、截断摘要或独占命令的伪私有 alias 均拒绝。
-        if (!alias || (b.aliasPath !== alias && (siblings.length < 2 || b.aliasPath !== privateAlias)) ||
+        // 同层同名命令必须保留实际公开 alias 的唯一拥有者，其他声明只能进入由完整 owner.id 摘要派生的保留命名空间；私有 alias 不获得公开命令胜者身份，任意目录、截断摘要或独占命令的伪私有 alias 均拒
+        // 绝。
+        if (
+            !alias ||
+            (b.aliasPath !== alias && (siblings.length < 2 || b.aliasPath !== privateAlias)) ||
             (b.sourceAlias !== null && b.sourceAlias !== b.aliasPath) ||
             siblings.filter((candidate) => candidate.aliasPath === alias).length !== 1 ||
-            (siblings.length > 1 && siblings.find((candidate) => candidate.aliasPath === alias)?.sourceAlias !== alias))
+            (siblings.length > 1 &&
+                siblings.find((candidate) => candidate.aliasPath === alias)?.sourceAlias !== alias)
+        )
             fail("PAYLOAD_BIN_UNSUPPORTED");
         if (b.launcher === "node") {
             if (b.inspection !== null) fail("PAYLOAD_BIN_UNSUPPORTED");
@@ -260,7 +276,8 @@ async function graphReferences(
     }
 }
 
-/** package.json 的依赖字段保持 npm 原始文本，optionalDependencies 覆盖同名普通依赖，peerMeta 决定可空 peer；读取真实正文后逐条覆盖声明，不能让外部 graph 自己证明没有漏边。 */
+/** package.json 的依赖字段保持 npm 原始文本，optionalDependencies 覆盖同名普通依赖，peerMeta 决定可空 peer；读取真实正文后逐条覆盖声明，不能让外部 graph 自己证明没有漏边
+ * 。 */
 function declarations(pkg: Record<string, unknown>) {
     const read = (key: string) => {
         const value = pkg[key];
@@ -309,7 +326,8 @@ function declarations(pkg: Record<string, unknown>) {
     }
     return output;
 }
-/** 自有树摘要使用合同规定的 JCS 文件事实，路径改为包内相对并按 ASCII 排序，剔除嵌套 node_modules 与 generated bin；真实 package 正文的 name/version 和精确摘要也必须同时匹配实例声明。 */
+/** 自有树摘要使用合同规定的 JCS 文件事实，路径改为包内相对并按 ASCII 排序，剔除嵌套 node_modules 与 generated bin；真实 package 正文的 name/version 和精确摘要也必须同
+ * 时匹配实例声明。 */
 export async function verifyPackageContents(
     graph: DependencyGraph,
     inventory: TreeInventory,
@@ -427,9 +445,13 @@ export async function verifyPackageContents(
             const end = content.indexOf(10),
                 line = content.subarray(0, end < 0 ? content.length : end).toString(),
                 nodeHeader = line === "#!/usr/bin/env node" || line === "#!/usr/bin/node";
-            // 已有 JS 扩展名规则继续成立，无扩展名命令只接受 held 原字节中的两种精确 Node 首行；其他扩展名、带参数的 env、shell 和二进制均不能借 launcher 声明取得 Node 执行身份，也不改变真实包路径。
-            if (!/\.(?:mjs|cjs|js)$/.test(b.targetPath) &&
-                (posix.extname(b.targetPath) !== "" || !nodeHeader)) fail("PAYLOAD_BIN_UNSUPPORTED");
+            // 已有 JS 扩展名规则继续成立，无扩展名命令只接受 held 原字节中的两种精确 Node 首行；其他扩展名、带参数的 env、shell 和二进制均不能借 launcher 声明取得 Node 执行身份，也不
+            // 改变真实包路径。
+            if (
+                !/\.(?:mjs|cjs|js)$/.test(b.targetPath) &&
+                (posix.extname(b.targetPath) !== "" || !nodeHeader)
+            )
+                fail("PAYLOAD_BIN_UNSUPPORTED");
             if (content.subarray(0, 2).toString() === "#!") {
                 if (!nodeHeader) fail("PAYLOAD_BIN_UNSUPPORTED");
             }

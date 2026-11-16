@@ -137,9 +137,7 @@ test("auth uses verified ordinary identity and scopes bearer to exact API origin
         await f.page.goto(origin);
         await f.page.goto(f.origin);
         await f.page.goto(origin + "/redirect");
-        expect(seen.every((v) => v === "Bearer synthetic-bearer-secret")).toBe(
-            true,
-        );
+        expect(seen.every((v) => v === "Bearer synthetic-bearer-secret")).toBe(true);
         expect(sdk.businessHeaders(f.page.context(), f.origin)).toEqual({});
         expect(f.requests.every((r) => r.authorization === undefined)).toBe(true);
         const { apiRequest } = await import("../src/http.js");
@@ -162,8 +160,7 @@ test("auth uses verified ordinary identity and scopes bearer to exact API origin
 });
 test("sample backend isolates Attempts, cleans UI resources and rejects a concurrent late commit", async () => {
     const { startDemo } = await import("../../../fixtures/test-support/demo.mjs");
-    const { prepareFixture, cleanupFixture } =
-        await import("../src/fixtures/client.js");
+    const { prepareFixture, cleanupFixture } = await import("../src/fixtures/client.js");
     const { authenticateBusiness } = await import("../src/fixtures/auth.js");
     const demo = await startDemo();
     const e = execution(demo.origin);
@@ -174,8 +171,7 @@ test("sample backend isolates Attempts, cleans UI resources and rejects a concur
         fixtureInput: { name: "Ada" },
         credentials: {
             resolve: async (ref: { secretRef: string }) => ({
-                token:
-                    ref.secretRef === "fixture" ? demo.fixtureToken : demo.businessToken,
+                token: ref.secretRef === "fixture" ? demo.fixtureToken : demo.businessToken,
             }),
         },
     };
@@ -201,10 +197,7 @@ test("sample backend isolates Attempts, cleans UI resources and rejects a concur
         await f.page.goto(demo.origin + `/?namespace=${first.namespace}`);
         await f.page.getByTestId("name").fill("UI-created");
         await f.page.getByTestId("save").click();
-        await f.page
-            .getByTestId("result")
-            .getByText("CREATED", { exact: true })
-            .waitFor();
+        await f.page.getByTestId("result").getByText("CREATED", { exact: true }).waitFor();
         const listed = await f.page.request.get(
             demo.origin + `/employees?namespace=${first.namespace}`,
             { headers: { authorization: `Bearer ${demo.businessToken}` } },
@@ -251,8 +244,7 @@ test("sample backend isolates Attempts, cleans UI resources and rejects a concur
 });
 test("session business login transfers only verified cookies and fixture session stays isolated", async () => {
     const { startDemo } = await import("../../../fixtures/test-support/demo.mjs");
-    const { authenticateBusiness, authenticatedRequest } =
-        await import("../src/fixtures/auth.js");
+    const { authenticateBusiness, authenticatedRequest } = await import("../src/fixtures/auth.js");
     const demo = await startDemo();
     const page = await f.page.context().browser()!.newPage();
     try {
@@ -271,10 +263,7 @@ test("session business login transfers only verified cookies and fixture session
             signal: new AbortController().signal,
             credentials: {
                 resolve: async (ref: { secretRef: string }) => ({
-                    token:
-                        ref.secretRef === "fixture"
-                            ? demo.fixtureToken
-                            : demo.businessToken,
+                    token: ref.secretRef === "fixture" ? demo.fixtureToken : demo.businessToken,
                 }),
             },
         };
@@ -288,9 +277,7 @@ test("session business login transfers only verified cookies and fixture session
         await fixtureAuth.dispose();
         const auth = await authenticateBusiness(context);
         expect(auth.identityId).toBe("editor");
-        expect(
-            (await (await page.request.get(demo.origin + "/me")).json()).id,
-        ).toBe("editor");
+        expect((await (await page.request.get(demo.origin + "/me")).json()).id).toBe("editor");
         await auth.dispose();
         expect(await page.context().cookies()).toEqual([]);
     } finally {
@@ -323,8 +310,7 @@ test("personal local credential provider requires an exact local version mapping
 });
 test("partial preparation and a SIGKILL worker leave precisely reclaimable fixture ownership", async () => {
     const { startDemo } = await import("../../../fixtures/test-support/demo.mjs");
-    const { prepareFixture, cleanupFixture } =
-        await import("../src/fixtures/client.js");
+    const { prepareFixture, cleanupFixture } = await import("../src/fixtures/client.js");
     const { spawn } = await import("node:child_process");
     const demo = await startDemo();
     const e = execution(demo.origin);
@@ -340,12 +326,12 @@ test("partial preparation and a SIGKILL worker leave precisely reclaimable fixtu
             ...definition,
             outputSchema: { type: "object", required: ["missing"] },
         };
-        await expect(
-            prepareFixture({ fixture: incompatible, context }),
-        ).rejects.toThrow("FIXTURE_OUTPUT_INVALID");
-        expect(
-            await cleanupFixture({ fixture: incompatible, context }),
-        ).toMatchObject({ status: "CLEANED" });
+        await expect(prepareFixture({ fixture: incompatible, context })).rejects.toThrow(
+            "FIXTURE_OUTPUT_INVALID",
+        );
+        expect(await cleanupFixture({ fixture: incompatible, context })).toMatchObject({
+            status: "CLEANED",
+        });
         const body = {
             workspaceId: e.workspaceId,
             caseExecutionId: e.caseExecutionId,
@@ -360,7 +346,9 @@ test("partial preparation and a SIGKILL worker leave precisely reclaimable fixtu
             [
                 "--input-type=module",
                 "-e",
-                "const response=await fetch(process.env.TARGET,{method:'POST',headers:{authorization:'Bearer '+process.env.FIXTURE_TOKEN,'content-type':'application/json'},body:process.env.PREPARE_BODY});if(!response.ok)process.exit(2);console.log('PREPARED');process.stdin.resume();",
+                "const response=await fetch(process.env.TARGET,{method:'POST',headers:{authorization:'Bearer '+proce" +
+                    "ss.env.FIXTURE_TOKEN,'content-type':'application/json'},body:process.env.PREPARE_BODY});if(!res" +
+                    "ponse.ok)process.exit(2);console.log('PREPARED');process.stdin.resume();",
             ],
             {
                 env: {
@@ -406,8 +394,7 @@ test("built-in lifecycle compensates after cancellation closes the business brow
     const { startDemo } = await import("../../../fixtures/test-support/demo.mjs");
     const { createHttpLifecycle } = await import("../src/fixtures/client.js");
     const { executeCase } = await import("../src/register-case.js");
-    const { snapshot, asset, rehash } =
-        await import("../../compiler/tests/helpers.js");
+    const { snapshot, asset, rehash } = await import("../../compiler/tests/helpers.js");
     const { analyze } = await import("../../compiler/src/index.js");
     const demo = await startDemo(),
         page = await f.page.context().browser()!.newPage();
@@ -464,10 +451,7 @@ test("built-in lifecycle compensates after cancellation closes the business brow
             lifecycle: createHttpLifecycle(),
             credentials: {
                 resolve: async (ref) => ({
-                    token:
-                        ref.secretRef === "fixture"
-                            ? demo.fixtureToken
-                            : demo.businessToken,
+                    token: ref.secretRef === "fixture" ? demo.fixtureToken : demo.businessToken,
                 }),
             },
             signal: controller.signal,
@@ -522,9 +506,7 @@ test("fixture transport failures never expose protected headers in thrown errors
         }
         expect(error).toBeInstanceOf(Error);
         expect((error as Error).message).toBe("FIXTURE_REQUEST_FAILED");
-        expect(String((error as Error).stack)).not.toContain(
-            "synthetic-transport-secret",
-        );
+        expect(String((error as Error).stack)).not.toContain("synthetic-transport-secret");
     } finally {
         target.closeAllConnections();
         await new Promise<void>((r) => target.close(() => r()));

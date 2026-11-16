@@ -17,7 +17,9 @@ class OperationsAPI(API):
             async with asyncio.timeout(10):
                 async with self.db.sessions() as session:
                     user, _ = await self.identity(session)
-                    await WorkspaceRepository(session, WorkspaceScope(workspace_id)).authorize(user, Permission.MANAGE_WORKSPACE)
+                    await WorkspaceRepository(session, WorkspaceScope(workspace_id)).authorize(
+                        user, Permission.MANAGE_WORKSPACE
+                    )
                     result = await workspace_metrics(session, workspace_id)
         except TimeoutError:
             raise Problem(503, "METRICS_UNAVAILABLE", "Metrics query timed out") from None

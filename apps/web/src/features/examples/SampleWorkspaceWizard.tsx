@@ -531,7 +531,10 @@ function SampleWorkspaceWizardSession({
                 <p role="status">
                     {t("finished")}{" "}
                     <Link
-                        to={`/execution-plans?workspaceId=${encodeURIComponent(currentWorkspace)}&planId=${encodeURIComponent(completedPlan)}`}
+                        to={
+                            `/execution-plans?workspaceId=${encodeURIComponent(currentWorkspace)}&planId=` +
+                            `${encodeURIComponent(completedPlan)}`
+                        }
                     >
                         {t("plan")}
                     </Link>

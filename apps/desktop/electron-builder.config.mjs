@@ -9,10 +9,18 @@ const deploy = fileURLToPath(new URL("../../deploy/desktop/", import.meta.url));
  * 签名身份来自操作者显式输入，未选择的模式不会被本机偶然存在的证书自动提升。
  * 不生成自动更新源，也不启用自动发布；后续正式发行仍须全部质量与目标安装验收。
  */
-export function desktopBuilderConfiguration({ appDirectory, runtimeDirectory, releaseFile, outputDirectory, release, signing }) {
+export function desktopBuilderConfiguration({
+    appDirectory,
+    runtimeDirectory,
+    releaseFile,
+    outputDirectory,
+    release,
+    signing,
+}) {
     const signed = signing.mode === "NATIVE_SIGNED";
     return {
-        /** 固定 Bundle ID、用户产品名与真实小写角色文件名分别表达不同身份，安装器不得随版本或架构改变它们；可执行名也决定 Mac 的技术目录 veriq.app，Finder 显示名称另外由 Info.plist 保留 VeriQ。
+        /** 固定 Bundle ID、用户产品名与真实小写角色文件名分别表达不同身份，安装器不得随版本或架构改变它们；可执行名也决定 Mac 的技术目录 veriq.app，Finder 显示名称另外由 Info.plist 保
+         * 留 VeriQ。
          * artifactName 包含目标 OS 与架构，避免两种 Mac 产物互相覆盖。
          * 版本由受核暂存 package.json 提供，不使用构建机 Electron 或 Node 版本。
          * 资源目录全部是本次调用明确传入的绝对路径。
@@ -34,7 +42,8 @@ export function desktopBuilderConfiguration({ appDirectory, runtimeDirectory, re
             { from: runtimeDirectory, to: "runtime", filter: ["**/*"] },
             { from: releaseFile, to: "desktop-release.json" },
         ],
-        /** 固定 Electron 工具版本并显式配置生产 Cookie 加密与宿主注入 fuse，独立业务 Node 不受这些 GUI 二进制开关影响；修改仅发生于 builder 的新副本，不能原位污染共享 pnpm 下载缓存。
+        /** 固定 Electron 工具版本并显式配置生产 Cookie 加密与宿主注入 fuse，独立业务 Node 不受这些 GUI 二进制开关影响；修改仅发生于 builder 的新副本，不能原位污染共享 pnpm 下载缓
+         * 存。
          * runAsNode 关闭后 GUI 壳不能替代 Node24 后台角色。
          * NODE_OPTIONS 和命令行 inspector 无法为安装 GUI 注入额外代码。
          * OnlyLoadAppFromAsar 固定宿主应用入口，不接受旁边的 loose app 覆盖。
@@ -54,7 +63,8 @@ export function desktopBuilderConfiguration({ appDirectory, runtimeDirectory, re
         },
         asar: true,
         asarUnpack: ["**/*.node"],
-        /** 依赖已由 Runtime 生产器固定并经完整库存核验，builder 不能另行安装或按 Electron 宿主重编目标原生模块；关闭默认 package.json 清理还保留原始包元数据，便于后续将加载路径与原库存逐项比较。
+        /** 依赖已由 Runtime 生产器固定并经完整库存核验，builder 不能另行安装或按 Electron 宿主重编目标原生模块；关闭默认 package.json 清理还保留原始包元数据，便于后续将加载路径与原库存逐
+         * 项比较。
          * beforeBuild 的 false 只跳过 builder 依赖安装，不跳过外层任何库存或发布门禁。
          * npmRebuild 与 nodeGypRebuild 都关闭，安装包不要求用户机器有编译器。
          * 不启用差量自动更新，首版更新始终由用户明确发起。
@@ -117,7 +127,14 @@ export function desktopBuilderConfiguration({ appDirectory, runtimeDirectory, re
         win: {
             target: [{ target: "nsis", arch: ["x64"] }],
             signAndEditExecutable: signed,
-            ...(signed ? { signtoolOptions: { certificateSubjectName: signing.identity, publisherName: signing.identity } } : {}),
+            ...(signed
+                ? {
+                      signtoolOptions: {
+                          certificateSubjectName: signing.identity,
+                          publisherName: signing.identity,
+                      },
+                  }
+                : {}),
         },
         nsis: {
             oneClick: false,
@@ -146,7 +163,21 @@ export function desktopBuilderConfiguration({ appDirectory, runtimeDirectory, re
         deb: {
             beforeInstall: resolve(deploy, "linux/before-install.sh"),
             beforeRemove: resolve(deploy, "linux/before-remove.sh"),
-            depends: ["libgtk-3-0", "libnss3", "libsecret-1-0", "libgbm1", "libasound2t64", "libxss1", "libxtst6", "libatspi2.0-0", "libdrm2", "libxkbcommon0", "libx11-xcb1", "libxdamage1", "libxrandr2"],
+            depends: [
+                "libgtk-3-0",
+                "libnss3",
+                "libsecret-1-0",
+                "libgbm1",
+                "libasound2t64",
+                "libxss1",
+                "libxtst6",
+                "libatspi2.0-0",
+                "libdrm2",
+                "libxkbcommon0",
+                "libx11-xcb1",
+                "libxdamage1",
+                "libxrandr2",
+            ],
         },
     };
 }

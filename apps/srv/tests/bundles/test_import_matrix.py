@@ -1,4 +1,3 @@
-
 import pytest
 from veriq_server.contracts import canonical_bytes
 from veriq_server.service import Problem

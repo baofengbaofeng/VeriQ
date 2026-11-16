@@ -1,4 +1,5 @@
-/** Darwin 私有文件适配只从普通开发 Node 的固定产物或严格 Mac 库存授予的安装路径装载本架构模块，正式角色没有库存能力时仍失败关闭；模块不搜索全局路径、不回退 Windows addon，也不自行授权执行或 doctor。
+/** Darwin 私有文件适配只从普通开发 Node 的固定产物或严格 Mac 库存授予的安装路径装载本架构模块，正式角色没有库存能力时仍失败关闭；模块不搜索全局路径、不回退 Windows addon，也不自行授权执行或 doctor
+ * 。
  * 所有 API 都同步完成有限原生操作，业务用途白名单和更小读取额度保留在调用者。
  * File 对象拥有 fd 生命周期，整数借用不能用于构造新的授权对象。
  */
@@ -46,14 +47,24 @@ export interface DarwinPrivateDirectory {
  */
 export interface DarwinNative {
     openPrivateDirectory(path: string, create: boolean): DarwinPrivateDirectory;
-    /** Cookie 元数据入口只接受 Partitions/veriq-host 及其 Network 子目录的四个精确成员，六十四兆额度不扩大普通读取；退休后刷新或关闭失败保留 COMMIT_UNCONFIRMED，返回缺失不证明先前持久提交或物理擦除。
+    /** Cookie 元数据入口只接受 Partitions/veriq-host 及其 Network 子目录的四个精确成员，六十四兆额度不扩大普通读取；退休后刷新或关闭失败保留 COMMIT_UNCONFIRMED，返回缺失不证
+     * 明先前持久提交或物理擦除。
      * false 仅检查实际元数据，true 退休已验证成员，两者都不读取正文或交付原始描述符。
      */
     privateCookieFile(path: string, retire: boolean): boolean;
-    /** 报告退休只核验并删除固定 offline/work/Attempt/evidence 下同一普通文件，大小与 SHA256 在原生流式核对；缓存库存退休先隔离专用 UUID 命名空间后才改变只读属性，未知成员或关闭失败保持错误，不扩大凭据读取能力。 */
-    retirePrivateEvidence(path: string, file: { path: string; sizeBytes: number; sha256: string }): void;
+    /** 报告退休只核验并删除固定 offline/work/Attempt/evidence 下同一普通文件，大小与 SHA256 在原生流式核对；缓存库存退休先隔离专用 UUID 命名空间后才改变只读属性，未知成员或关闭失败
+     * 保持错误，不扩大凭据读取能力。 */
+    retirePrivateEvidence(
+        path: string,
+        file: { path: string; sizeBytes: number; sha256: string },
+    ): void;
     /** 有限库存必须由宿主信任校验产生且本机 SQLite 已提交退休意图，原生只允许 bundles/UUID 到对应退休名的隔离与清单成员删除；单次最大四千零九十八文件及一百二十八 MiB，不能删除引擎、凭据或未知源目录。 */
-    retirePrivateInventory(directory: string, original: string, retiring: string, files: { path: string; sizeBytes: number; sha256: string }[]): void;
+    retirePrivateInventory(
+        directory: string,
+        original: string,
+        retiring: string,
+        files: { path: string; sizeBytes: number; sha256: string }[],
+    ): void;
 }
 let loaded: DarwinNative | undefined;
 let installedPath: string | undefined;
@@ -81,7 +92,9 @@ export function darwinNative(): DarwinNative {
     if (!installedPath && basename(process.execPath) !== "node")
         throw new Error("DARWIN_NATIVE_DISTRIBUTION_REQUIRED");
     if (!loaded) {
-        const path = installedPath ?? fileURLToPath(new URL("../../build/darwin/veriq_private_files.node", import.meta.url));
+        const path =
+            installedPath ??
+            fileURLToPath(new URL("../../build/darwin/veriq_private_files.node", import.meta.url));
         loaded = createRequire(import.meta.url)(path) as DarwinNative;
         loadedPath = path;
     }

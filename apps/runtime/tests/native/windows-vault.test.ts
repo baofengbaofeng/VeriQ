@@ -1,4 +1,5 @@
-/** Windows Credential Manager 测试仅操作随机测试档案的当前用户通用凭据，通过真实库存 helper 和公开生产消费者执行；不会枚举用户真实保险库、修改登录策略或令牌，也不把构建服务器结果称为 Windows11 桌面安装验收。 */
+/** Windows Credential Manager 测试仅操作随机测试档案的当前用户通用凭据，通过真实库存 helper 和公开生产消费者执行；不会枚举用户真实保险库、修改登录策略或令牌，也不把构建服务器结果称为 Windo
+ * ws11 桌面安装验收。 */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
@@ -269,7 +270,11 @@ test("Windows helper exits when its actual owning parent dies with control open"
         await readFile(new URL("../../build/native-tests/veriq_vault_wait.exe", import.meta.url)),
     );
     const executable = join(own.distribution.root, "native/vault/veriq_agent.exe");
-    const script = `import {spawn} from 'node:child_process';const child=spawn(process.argv[1],[],{stdio:['pipe','pipe','pipe'],windowsHide:true});child.stdin.write('V1 probe\\n');let output='';child.stdout.on('data',part=>{output+=part;if(output==='V1 test-ready\\n')process.stdout.write(JSON.stringify({pid:child.pid})+'\\n');});child.once('error',()=>{process.exitCode=2;});`;
+    const script =
+        `import {spawn} from 'node:child_process';const child=spawn(process.argv[1],[],{stdio:['pipe','p` +
+        `ipe','pipe'],windowsHide:true});child.stdin.write('V1 probe\\n');let output='';child.stdout.on(` +
+        `'data',part=>{output+=part;if(output==='V1 test-ready\\n')process.stdout.write(JSON.stringify({` +
+        `pid:child.pid})+'\\n');});child.once('error',()=>{process.exitCode=2;});`;
     const parent = spawn(process.execPath, ["--input-type=module", "-e", script, executable], {
         stdio: ["pipe", "pipe", "pipe"],
         windowsHide: true,
@@ -317,7 +322,8 @@ test("Windows helper exits when its actual owning parent dies with control open"
                 "-NoProfile",
                 "-NonInteractive",
                 "-Command",
-                `$ErrorActionPreference='Stop'; [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); Get-Process -Id ${pid} | Select-Object Id,ProcessName,Path | ConvertTo-Json -Compress`,
+                `$ErrorActionPreference='Stop'; [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)` +
+                    `; Get-Process -Id ${pid} | Select-Object Id,ProcessName,Path | ConvertTo-Json -Compress`,
             ],
             { timeout: 10000, maxBuffer: 4096, windowsHide: true },
         );
@@ -357,7 +363,8 @@ test("Windows helper exits when its actual owning parent dies with control open"
     }
 });
 
-/** 当前用户真实 Credential Manager 中的随机旧版本必须确实缺失，才能通过显式空初始化恢复建立新版本并使用生产消费者；该测试只记录范围内的验证结果，清理精确旧新目标，严格 owner 与已有真实停止断言均保持不变。 */
+/** 当前用户真实 Credential Manager 中的随机旧版本必须确实缺失，才能通过显式空初始化恢复建立新版本并使用生产消费者；该测试只记录范围内的验证结果，清理精确旧新目标，严格 owner 与已有真实停止断言均保持不变
+ * 。 */
 test("real Windows vault recovers an explicitly abandoned empty initialization", async () =>
     fixture(async (root, _backend, distribution) => {
         const { verifyEmptyInitialization } = await import("../fixtures/vault-initialization.ts");

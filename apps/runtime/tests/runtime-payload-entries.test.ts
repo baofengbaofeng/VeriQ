@@ -95,7 +95,10 @@ async function fixture(
         config,
         emitAsset
             ? configBytes.replace("export default {", "const fixtureConfig = {") +
-                  '\nfixtureConfig.plugins.unshift({name:"fixture-json-asset", async generateBundle(){this.emitFile({type:"asset",fileName:"assets/schema.json",source:await(await import("node:fs/promises")).readFile(resolve(sourceRoot,"packages/contracts/schemas/test.json"))});}});\nexport default fixtureConfig;\n'
+                  '\nfixtureConfig.plugins.unshift({name:"fixture-json-asset", async generateBundle(){this.emitFile(' +
+                  '{type:"asset",fileName:"assets/schema.json",source:await(await import("node:fs/promises")).re' +
+                  'adFile(resolve(sourceRoot,"packages/contracts/schemas/test.json"))});}});\nexport default fix' +
+                  "tureConfig;\n"
             : configBytes,
     );
     await put("pnpm-lock.yaml", "lockfileVersion: '9.0'\n");
@@ -124,7 +127,8 @@ async function fixture(
     );
     await put(
         "packages/contracts/src/index.ts",
-        'import schema from "../schemas/test.json"; import { suffix } from "./transitive.js"; export function shared(value: string) { return schema.title + value + suffix; }',
+        'import schema from "../schemas/test.json"; import { suffix } from "./transitive.js"; export function shared' +
+            "(value: string) { return schema.title + value + suffix; }",
     );
     await put(
         "packages/contracts/src/transitive.ts",
@@ -134,7 +138,8 @@ async function fixture(
     await put(
         "apps/desktop/src/agent/index.ts",
         entry ||
-            'import { shared } from "@veriq/contracts"; import external from "fixture-external"; console.log(shared("agent"), external);',
+            'import { shared } from "@veriq/contracts"; import external from "fixture-external"; console.log(shared(' +
+                '"agent"), external);',
     );
     await put(
         "apps/runtime/src/cli.ts",

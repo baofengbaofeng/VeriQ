@@ -210,7 +210,8 @@ struct RawAccess {
             list(entry.subject, raw.TypedSubject);
             safe(raw.Authorization.NumberOfAuthTags <= 64);
             safe(raw.Authorization.NumberOfAuthTags == 0 || raw.Authorization.AuthTags);
-            allocation(raw.Authorization.AuthTags, raw.Authorization.NumberOfAuthTags * sizeof(CSSM_ACL_AUTHORIZATION_TAG));
+            allocation(raw.Authorization.AuthTags, raw.Authorization.NumberOfAuthTags * sizeof(
+                CSSM_ACL_AUTHORIZATION_TAG));
             for (uint32 right = 0; right < raw.Authorization.NumberOfAuthTags; ++right)
                 entry.rights.push_back(raw.Authorization.AuthTags[right]);
             std::sort(entry.rights.begin(), entry.rights.end());
@@ -228,7 +229,8 @@ struct RawAccess {
     RawAccess(const RawAccess &) = delete;
     RawAccess &operator=(const RawAccess &) = delete;
     /** 只有完整有界导出构造成功后才执行逐块释放，台账已排除了重复指针因此不需要重新递归原始结构；逆序释放保证内层字节和节点先于外层数组回收，完全不使用 CFRelease 或 C++ delete 释放这些块。 */
-    ~RawAccess() { for (auto iterator = allocations.rbegin(); iterator != allocations.rend(); ++iterator) free(iterator->pointer); }
+    ~RawAccess() { for (auto iterator = allocations.rbegin(); iterator != allocations.rend(); ++iterator) free(
+        iterator->pointer); }
 };
 
 /** 标准模板中的秘密权限与元数据权限分别分类，任何空授权、通配授权或未识别授权都必须拒绝；完整秘密主体需要精确匹配模板，而仅含平台元数据的条目不因其空应用列表被错误认作任意应用可读取秘密。 */
@@ -270,23 +272,27 @@ inline Bytes accessSnapshot(SecAccessRef access) {
     }
     std::sort(entries.begin(), entries.end());
     number(result, entries.size());
-    for (const auto &entry : entries) { number(result, entry.size()); result.insert(result.end(), entry.begin(), entry.end()); }
+    for (const auto &entry : entries) { number(result, entry.size()); result.insert(result.end(), entry.begin(),
+        entry.end()); }
     return result;
 }
 
 /** 高层授权枚举先确认每个条目的公开权利类型，底层再核对完整主体避免 CopyData 仅返回路径的问题；所有者与额外改变权限的条目同样不能放宽，验证只读且从不修复或归一化持久条目。 */
 inline bool verifiedAccess(SecAccessRef candidate, SecAccessRef expected) {
     Owned<CFArrayRef> list;
-    if (SecAccessCopyACLList(candidate, &list.value) != errSecSuccess || !list.value || CFGetTypeID(list.value) != CFArrayGetTypeID() || CFArrayGetCount(list.value) > 64) return false;
+    if (SecAccessCopyACLList(candidate, &list.value) != errSecSuccess || !list.value || CFGetTypeID(
+        list.value) != CFArrayGetTypeID() || CFArrayGetCount(list.value) > 64) return false;
     for (CFIndex index = 0; index < CFArrayGetCount(list.value); ++index) {
         auto acl = static_cast<SecACLRef>(const_cast<void *>(CFArrayGetValueAtIndex(list.value, index)));
         if (!acl || CFGetTypeID(acl) != SecACLGetTypeID()) return false;
         Owned<CFArrayRef> rights(SecACLCopyAuthorizations(acl));
-        if (!rights.value || CFGetTypeID(rights.value) != CFArrayGetTypeID() || CFArrayGetCount(rights.value) == 0 || CFArrayGetCount(rights.value) > 64) return false;
+        if (!rights.value || CFGetTypeID(rights.value) != CFArrayGetTypeID() || CFArrayGetCount(rights.value) == 0
+            || CFArrayGetCount(rights.value) > 64) return false;
         bool trustedRequired = false;
         for (CFIndex right = 0; right < CFArrayGetCount(rights.value); ++right) {
             CFTypeRef value = CFArrayGetValueAtIndex(rights.value, right);
-            if (!value || CFGetTypeID(value) != CFStringGetTypeID() || CFEqual(value, kSecACLAuthorizationAny)) return false;
+            if (!value || CFGetTypeID(value) != CFStringGetTypeID() || CFEqual(value,
+                kSecACLAuthorizationAny)) return false;
             for (CFStringRef secret : {kSecACLAuthorizationDecrypt, kSecACLAuthorizationSign, kSecACLAuthorizationMAC,
                 kSecACLAuthorizationDerive, kSecACLAuthorizationExportClear, kSecACLAuthorizationExportWrapped})
                 if (CFEqual(value, secret)) trustedRequired = true;
@@ -295,7 +301,8 @@ inline bool verifiedAccess(SecAccessRef candidate, SecAccessRef expected) {
         Owned<CFStringRef> description;
         SecKeychainPromptSelector prompt = 0;
         if (SecACLCopyContents(acl, &applications.value, &description.value, &prompt) != errSecSuccess) return false;
-        if (applications.value && (CFGetTypeID(applications.value) != CFArrayGetTypeID() || CFArrayGetCount(applications.value) > 64)) return false;
+        if (applications.value && (CFGetTypeID(applications.value) != CFArrayGetTypeID() || CFArrayGetCount(
+            applications.value) > 64)) return false;
         if (trustedRequired) {
             if (!applications.value || CFArrayGetCount(applications.value) != 1) return false;
             CFTypeRef principal = CFArrayGetValueAtIndex(applications.value, 0);
@@ -313,8 +320,10 @@ inline bool verifiedAccess(SecAccessRef candidate, SecAccessRef expected) {
             else if (!metadataRight(right)) return false;
         }
         if (sensitive) {
-            if (std::none_of(wanted.values.begin(), wanted.values.end(), [&](const auto &value) { return equivalent(entry, value); })) return false;
-            if (std::find(entry.rights.begin(), entry.rights.end(), CSSM_ACL_AUTHORIZATION_DECRYPT) != entry.rights.end()) decrypt = true;
+            if (std::none_of(wanted.values.begin(), wanted.values.end(), [&](const auto &value) { return equivalent(
+                entry, value); })) return false;
+            if (std::find(entry.rights.begin(), entry.rights.end(), CSSM_ACL_AUTHORIZATION_DECRYPT) != entry.rights.end(
+                )) decrypt = true;
         } else {
             if (entry.delegate != CSSM_FALSE || entry.validity != Bytes(16, 0)) return false;
         }

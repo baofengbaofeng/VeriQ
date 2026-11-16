@@ -11,7 +11,9 @@ import { trackFixture, stopFixture } from "../../../tests/e2e/lifecycle.ts";
 test("fixture teardown awaits graceful drain and stdio close before releasing the next owner", async () => {
     const root = await mkdtemp("/tmp/veriq-fixture-lock-");
     const lock = join(root, "database.lock");
-    const program = `process.on('SIGTERM',()=>console.log('DRAINING')); process.on('message',()=>{process.disconnect();}); console.log('READY');`;
+    const program =
+        `process.on('SIGTERM',()=>console.log('DRAINING')); process.on('message',()=>{process.disconnec` +
+        `t();}); console.log('READY');`;
     const child = trackFixture(
         spawn("flock", ["-n", "-F", lock, process.execPath, "-e", program], {
             stdio: ["ignore", "pipe", "pipe", "ipc"],

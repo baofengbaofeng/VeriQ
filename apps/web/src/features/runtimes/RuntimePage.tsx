@@ -112,7 +112,8 @@ function RuntimeWorkspace({ workspace }: { workspace: Workspace }) {
                     <h2>{tx("Approve a device")}</h2>
                     <p>
                         {tx(
-                            "Run VeriQ login on your device, then enter its approval code. Confirm that you recognize the device before approving.",
+                            "Run VeriQ login on your device, then enter its approval code. Confirm that you recogniz" +
+                                "e the device before approving.",
                         )}
                     </p>
                     <form
@@ -373,7 +374,8 @@ function RuntimeCard({
                 {tx("Worker is ")}
                 {runtime.status === "REVOKED" ? tx("revoked") : tx("offline")}
                 {tx(
-                    ". Execution history becomes available after runs exist; current trust does not rewrite past results.",
+                    ". Execution history becomes available after runs exist; current trust does not rewrite past res" +
+                        "ults.",
                 )}
             </p>
             {runtime.canManage && writable && runtime.status !== "REVOKED" && (
@@ -490,7 +492,8 @@ function RuntimeCard({
                         <h4>{tx("Workspace credential delivery")}</h4>
                         <p>
                             {tx(
-                                "Workspace owners and administrators may approve delivery after hardware trust is managed. Updating hardware trust clears this approval.",
+                                "Workspace owners and administrators may approve delivery after hardware trust is ma" +
+                                    "naged. Updating hardware trust clears this approval.",
                             )}
                         </p>
                         <label>
@@ -533,7 +536,8 @@ function ServiceAccounts({ workspace }: { workspace: Workspace }) {
             <h2>{tx("Deployment service accounts")}</h2>
             <p>
                 {tx(
-                    "Use a one-time registration token with VeriQ enroll-service. Registration does not grant managed trust.",
+                    "Use a one-time registration token with VeriQ enroll-service. Registration does not grant manage" +
+                        "d trust.",
                 )}
             </p>
             {!workspace.archived && (

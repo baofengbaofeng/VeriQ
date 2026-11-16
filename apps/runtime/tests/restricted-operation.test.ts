@@ -12,33 +12,37 @@ function deferred() {
     return { promise, release };
 }
 
-test("post-mutation operation and cleanup errors remain unconfirmed while preflight failures remain failed", async () => {
-    const signal = new AbortController().signal;
-    assert.deepEqual(
-        await observeRestrictedOperation("owned-close", signal, async (_signal, mark) => {
-            mark();
-            try {
-                return { status: "ok" };
-            } finally {
-                throw new Error("INJECTED_CLOSE_AFTER_COMMIT");
-            }
-        }),
-        { status: "mutation-unconfirmed" },
-    );
-    assert.deepEqual(
-        await observeRestrictedOperation("owned-release", signal, async (_signal, mark) => {
-            mark();
-            throw new Error("INJECTED_RELEASE_AFTER_COMMIT");
-        }),
-        { status: "mutation-unconfirmed" },
-    );
-    assert.deepEqual(
-        await observeRestrictedOperation("owned-preflight", signal, async () => {
-            throw new Error("INJECTED_PREFLIGHT_ERROR");
-        }),
-        { status: "failed" },
-    );
-});
+test(
+    "post-mutation operation and cleanup errors remain " +
+        "unconfirmed while preflight failures remain failed",
+    async () => {
+        const signal = new AbortController().signal;
+        assert.deepEqual(
+            await observeRestrictedOperation("owned-close", signal, async (_signal, mark) => {
+                mark();
+                try {
+                    return { status: "ok" };
+                } finally {
+                    throw new Error("INJECTED_CLOSE_AFTER_COMMIT");
+                }
+            }),
+            { status: "mutation-unconfirmed" },
+        );
+        assert.deepEqual(
+            await observeRestrictedOperation("owned-release", signal, async (_signal, mark) => {
+                mark();
+                throw new Error("INJECTED_RELEASE_AFTER_COMMIT");
+            }),
+            { status: "mutation-unconfirmed" },
+        );
+        assert.deepEqual(
+            await observeRestrictedOperation("owned-preflight", signal, async () => {
+                throw new Error("INJECTED_PREFLIGHT_ERROR");
+            }),
+            { status: "failed" },
+        );
+    },
+);
 
 test("aborted mutation retains its shared fence until the real cleanup promise settles", async () => {
     const held = deferred(),

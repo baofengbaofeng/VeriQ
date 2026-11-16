@@ -1,13 +1,6 @@
 import { createRequire } from "node:module";
 import { createHash } from "node:crypto";
-import {
-    cpSync,
-    mkdirSync,
-    readFileSync,
-    writeFileSync,
-    readdirSync,
-    realpathSync,
-} from "node:fs";
+import { cpSync, mkdirSync, readFileSync, writeFileSync, readdirSync, realpathSync } from "node:fs";
 import { dirname, join, resolve, relative } from "node:path";
 import { execFileSync } from "node:child_process";
 import ts from "typescript";
@@ -21,14 +14,11 @@ export function actualDistribution(root: string): EngineDistribution {
             e.isDirectory()
                 ? sources(join(path, e.name))
                 : e.name.endsWith(".ts")
-                    ? [join(path, e.name)]
-                    : [],
+                  ? [join(path, e.name)]
+                  : [],
         );
     const program = ts.createProgram(
-        [
-            ...sources(join(packages, "runner-sdk/src")),
-            ...sources(join(packages, "contracts/src")),
-        ],
+        [...sources(join(packages, "runner-sdk/src")), ...sources(join(packages, "contracts/src"))],
         {
             target: ts.ScriptTarget.ES2023,
             module: ts.ModuleKind.NodeNext,
@@ -53,28 +43,24 @@ export function actualDistribution(root: string): EngineDistribution {
             }),
         );
     program.emit();
-    const collected = new Map<
-        string,
-        { dir: string; pkg: Record<string, unknown> }
-    >();
+    const collected = new Map<string, { dir: string; pkg: Record<string, unknown> }>();
     function collect(name: string, from: string) {
         if (collected.has(name)) return;
         const local =
             name === "@veriq/runner-sdk"
                 ? "runner-sdk"
                 : name === "@veriq/contracts"
-                    ? "contracts"
-                    : undefined;
+                  ? "contracts"
+                  : undefined;
         let dir: string;
         if (local) {
             dir = join(built, local);
-            const pkg = JSON.parse(
-                readFileSync(join(packages, local, "package.json"), "utf8"),
-            );
+            const pkg = JSON.parse(readFileSync(join(packages, local, "package.json"), "utf8"));
             const dependencies = Object.fromEntries(
-                Object.entries(pkg.dependencies as Record<string, string>).map(
-                    ([k, v]) => [k, v.startsWith("workspace:") ? "0.1.0" : v],
-                ),
+                Object.entries(pkg.dependencies as Record<string, string>).map(([k, v]) => [
+                    k,
+                    v.startsWith("workspace:") ? "0.1.0" : v,
+                ]),
             );
             writeFileSync(
                 join(dir, "package.json"),
@@ -97,9 +83,10 @@ export function actualDistribution(root: string): EngineDistribution {
             dir = dirname(lookup.resolve(name + "/package.json"));
         }
         dir = realpathSync(dir);
-        const pkg = JSON.parse(
-            readFileSync(join(dir, "package.json"), "utf8"),
-        ) as Record<string, unknown>;
+        const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as Record<
+            string,
+            unknown
+        >;
         collected.set(name, { dir, pkg });
         for (const dep of Object.keys(pkg.dependencies ?? {}))
             collect(dep, local ? join(packages, local) : dir);
@@ -124,8 +111,7 @@ export function actualDistribution(root: string): EngineDistribution {
         mkdirSync(dirname(archive), { recursive: true });
         execFileSync("tar", ["-czf", archive, "-C", work, "package"]);
         const bytes = readFileSync(archive),
-            integrity =
-                "sha512-" + createHash("sha512").update(bytes).digest("base64");
+            integrity = "sha512-" + createHash("sha512").update(bytes).digest("base64");
         files[filename] = bytes;
         inventory.push({ name, version: pkg.version as string, integrity });
         dependencies[name] = "file:" + filename;

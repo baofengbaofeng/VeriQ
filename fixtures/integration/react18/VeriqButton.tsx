@@ -17,7 +17,8 @@ const styles = cva("rounded px-3 py-2 focus-visible:outline disabled:opacity-50"
  */
 export type VeriqButtonProps = ComponentPropsWithoutRef<"button"> & VariantProps<typeof styles>;
 
-/** 此按钮把 ref、事件以及所有标准 data 与 aria 属性交给最终交互 DOM，允许 Radix Trigger 或 Close 通过 asChild 合并行为；调用方无需使用 force click 或测试专属旁路才能激活正常业务交互。
+/** 此按钮把 ref、事件以及所有标准 data 与 aria 属性交给最终交互 DOM，允许 Radix Trigger 或 Close 通过 asChild 合并行为；调用方无需使用 force click 或测试专属旁路才能激活正
+ * 常业务交互。
  * 展示参数先消费，避免 intent 作为无意义 HTML 属性落在元素上。
  * 属性透传保持 React 事件合并链，弹层仍使用正常键盘和焦点逻辑。
  * children 仅由 React 渲染，组件不把普通文字交给 HTML 解析器。

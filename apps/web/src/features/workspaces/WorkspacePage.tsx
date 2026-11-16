@@ -317,7 +317,8 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                     <h3>{tx("Invite a member")}</h3>
                     <p>
                         {tx(
-                            "Links expire after seven days and can be used once. Existing accounts sign in with their own credentials.",
+                            "Links expire after seven days and can be used once. Existing accounts sign in with thei" +
+                                "r own credentials.",
                         )}
                     </p>
                     <form
@@ -572,7 +573,8 @@ export function AcceptInvitation() {
                 <>
                     <p>
                         {tx(
-                            "Existing accounts must sign in as the invited identity. Invitations never change an existing account password.",
+                            "Existing accounts must sign in as the invited identity. Invitations never change an exi" +
+                                "sting account password.",
                         )}
                     </p>
                     <label className="check">

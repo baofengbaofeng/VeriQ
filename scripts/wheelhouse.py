@@ -1,9 +1,12 @@
-"""离线 wheelhouse 生成器使用 uv 已解析的冻结生产需求与锁文件中的真实下载地址，不自行推导依赖关系；只选择适合 Python3.12 Linux x64 且不高于 Ubuntu24.04 glibc 基线的二进制 wheel。
+(
+    """离线 wheelhouse 生成器使用 uv 已解析的冻结生产需求与锁文件中的真实下载地址，不自行推导依赖关系；只选择适合 Python3.12 Linux x64 且不高于 Ubuntu24.04 glibc """
+    """基线的二进制 wheel。
 
 每个下载必须匹配 uv.lock 的 SHA256，不能回退源码编译。
 实际 Ubuntu 与容器启动验收仍由对应环境执行。
 在 Debian 上制作兼容候选不等于已经验证目标操作系统。
 """
+)
 
 from hashlib import sha256
 from typing import Any

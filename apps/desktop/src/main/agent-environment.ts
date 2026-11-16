@@ -5,10 +5,40 @@
  * 返回新对象而不改写主进程环境，退出窗口不会影响其它应用或系统登录设置。
  */
 export function agentEnvironment(proxy: string): NodeJS.ProcessEnv {
-    const allowed = ["HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "TMPDIR", "TEMP", "TMP", "DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "XDG_RUNTIME_DIR", "XDG_CURRENT_DESKTOP", "DBUS_SESSION_BUS_ADDRESS", "SystemRoot", "WINDIR", "USERPROFILE", "LOCALAPPDATA", "APPDATA", "ProgramData"];
+    const allowed = [
+        "HOME",
+        "USER",
+        "LOGNAME",
+        "LANG",
+        "LC_ALL",
+        "TMPDIR",
+        "TEMP",
+        "TMP",
+        "DISPLAY",
+        "WAYLAND_DISPLAY",
+        "XAUTHORITY",
+        "XDG_RUNTIME_DIR",
+        "XDG_CURRENT_DESKTOP",
+        "DBUS_SESSION_BUS_ADDRESS",
+        "SystemRoot",
+        "WINDIR",
+        "USERPROFILE",
+        "LOCALAPPDATA",
+        "APPDATA",
+        "ProgramData",
+    ];
     const environment: NodeJS.ProcessEnv = {};
-    for (const name of allowed) if (process.env[name] !== undefined) environment[name] = process.env[name];
-    environment.PATH = process.platform === "win32" ? `${process.env.SystemRoot ?? "C:\\Windows"}\\System32` : "/usr/bin:/bin:/usr/sbin:/sbin";
-    if (proxy) Object.assign(environment, { HTTPS_PROXY: proxy, HTTP_PROXY: proxy, NODE_USE_ENV_PROXY: "1" });
+    for (const name of allowed)
+        if (process.env[name] !== undefined) environment[name] = process.env[name];
+    environment.PATH =
+        process.platform === "win32"
+            ? `${process.env.SystemRoot ?? "C:\\Windows"}\\System32`
+            : "/usr/bin:/bin:/usr/sbin:/sbin";
+    if (proxy)
+        Object.assign(environment, {
+            HTTPS_PROXY: proxy,
+            HTTP_PROXY: proxy,
+            NODE_USE_ENV_PROXY: "1",
+        });
     return environment;
 }

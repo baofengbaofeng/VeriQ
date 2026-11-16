@@ -2,7 +2,6 @@
 safe_path 防止路径穿越；publish 在签发后落 Bundle 元数据，replay 重放同一 Idempotency-Key。
 """
 
-
 import asyncio
 import io
 import json
@@ -67,6 +66,7 @@ class BundleService:
     """编排导出预订、准备、组装与发布，全程绑定 Workspace 与幂等键，BundleService 遵守本文件边界，失败返回稳定 Problem。
     BundleService 实现于 apps/srv/src/veriq_server/services/bundle.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
+
     def __init__(
         self,
         session: AsyncSession,
@@ -127,7 +127,10 @@ class BundleService:
                         raise Problem(
                             409,
                             "BUNDLE_EXPORT_" + existing.state,
-                            "Export cannot be automatically repeated; use a new key only after reconciling the prior request",
+                            (
+                                "Export cannot be automatically repeated; use a new key only after reconciling the "
+                                "prior request"
+                            ),
                         )
                     result = await self.replay(scope, existing)
                     await self.session.commit()
@@ -234,6 +237,7 @@ class BundleService:
         if row.contains_draft:
             await WorkspaceRepository(self.session, scope).authorize(self.actor, Permission.EDIT)
         from ..db import Artifact
+
         archive = await self.session.get(Artifact, (scope.workspace_id, row.archive_hash))
         if archive and archive.expired_at:
             raise Problem(410, "BUNDLE_EXPIRED", "Bundle archive retention has expired")

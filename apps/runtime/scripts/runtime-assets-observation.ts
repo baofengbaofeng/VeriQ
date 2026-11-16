@@ -99,7 +99,8 @@ export type Hop = Readonly<{
     location: string | null;
     contentLength: number | null;
 }>;
-/** 获取事实中的 body 引用始终以获取 artifact 根解释，即使记录随后复制到 observer 目录也不更改历史语境；真实快照对应关系由 observation.archives 的固定 node、chrome 顺序另行明确记录。 */
+/** 获取事实中的 body 引用始终以获取 artifact 根解释，即使记录随后复制到 observer 目录也不更改历史语境；真实快照对应关系由 observation.archives 的固定 node、chrome 顺序另
+ * 行明确记录。 */
 export type FetchFact = Readonly<{ requestedUrl: string; hops: readonly Hop[]; body: Ref }>;
 /** 获取证据永久保留未审来源和未验签标签，Node 仅与固定 HTTPS 文本及原摘要匹配，Chrome 仅记录真实正文摘要；成功下载和流校验都不能把这些有限观察自动晋升成发布、布局或 Runtime 授信。 */
 export type FetchEvidence = Readonly<{
@@ -168,7 +169,8 @@ export type ArchiveObservation = Readonly<{
     zipLocalDataRanges: "CHECKED" | "NOT_APPLICABLE";
     modeEvidence: Ref | null;
 }>;
-/** Chrome 布局只列出实际观察到的 bundle、可执行文件、Framework 根和链接候选，缺少对象或出现外链仍可形成完整待审事实；这些候选不会进入 D3a 授信或生成独立 Expected，后续人工布局及链接审核仍不可省略。 */
+/** Chrome 布局只列出实际观察到的 bundle、可执行文件、Framework 根和链接候选，缺少对象或出现外链仍可形成完整待审事实；这些候选不会进入 D3a 授信或生成独立 Expected，后续人工布局及链接审核仍不可
+ * 省略。 */
 export type LayoutObservation = Readonly<{
     bundlePath: string;
     executablePath: string;
@@ -435,7 +437,9 @@ export function assetUrls(arch: Arch) {
     return freeze({
         node: `https://nodejs.org/dist/v24.22.1/node-v24.22.1-darwin-${arch}.tar.gz`,
         chrome: `https://cdn.playwright.dev/builds/cft/158.0.8127.18/mac-${arch}/chrome-mac-${arch}.zip`,
-        chromeRedirect: `https://storage.googleapis.com/chrome-for-testing-public/158.0.8127.18/mac-${arch}/chrome-mac-${arch}.zip`,
+        chromeRedirect:
+            `https://storage.googleapis.com/chrome-for-testing-public/158.0.8127.18/mac-${arch}` +
+            `/chrome-mac-${arch}.zip`,
     });
 }
 /** 获取记录的跳转图、固定长度及 body 引用都逐字段核验，原 checksum 文本必须匹配冻结原字节；复制后的历史 body 仍保留获取根语境，观察使用两份快照另行绑定而不会按这些 Ref 再打开错误位置。 */
@@ -553,7 +557,8 @@ export async function writeAssetJson(
     if (bytes.length > limits.json) tx.fail("PAYLOAD_LIMIT");
     return tx.write(path, assetBytes(bytes));
 }
-/** ZIP 第二遍只走公开 lazyEntries metadata 不再解压，先核快照 held FD 摘要再逐项对照原扫描成员；所有等待都监听取消与关闭，未确认句柄关闭会标记事务保留，原模式从不采用已有扫描器的权限 fallback。 */
+/** ZIP 第二遍只走公开 lazyEntries metadata 不再解压，先核快照 held FD 摘要再逐项对照原扫描成员；所有等待都监听取消与关闭，未确认句柄关闭会标记事务保留，原模式从不采用已有扫描器的权限 fallb
+ * ack。 */
 async function zipModes(
     tx: ArchiveTransaction,
     snapshot: Ref,

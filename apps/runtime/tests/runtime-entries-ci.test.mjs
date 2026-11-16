@@ -59,7 +59,9 @@ test("inert import starts no command and creates no file", async () =>
             args: [
                 "--input-type=module",
                 "-e",
-                `await import(${JSON.stringify(pathToFileURL(join(process.cwd(), ".github/scripts/runtime-entries.mjs")).href)})`,
+                `await import(${JSON.stringify(
+                    pathToFileURL(join(process.cwd(), ".github/scripts/runtime-entries.mjs")).href,
+                )})`,
             ],
             cwd: root,
             timeoutMs: 5000,

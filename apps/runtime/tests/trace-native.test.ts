@@ -15,7 +15,8 @@ test(
             controller = new AbortController();
         const browser = await chromium.launch({
             executablePath: resolve(
-                "../../.superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell",
+                "../../.superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chro" +
+                    "me-headless-shell",
             ),
             headless: true,
         });
