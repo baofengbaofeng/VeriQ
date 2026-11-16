@@ -11,6 +11,7 @@ import {
     decode,
     fail,
     freeze,
+    io,
     limits,
     paths,
     relative,
@@ -193,8 +194,8 @@ function sourcePolicy(
     let bytes = 0;
     for (const ref of source.files) {
         if (
-            ["entries", "execution", "input-evidence"].some(
-                (root) => ref.path === root || ref.path.startsWith(root + "/"),
+            ["entries", "execution", "input-evidence"].includes(
+                ref.path.split("/")[0]!.toLowerCase(),
             )
         )
             fail("PAYLOAD_PATH");
@@ -444,7 +445,7 @@ async function hostTools(
     };
 }
 
-/** 工作区归属从真实已解析模块向上寻找已绑定清单，名称和版本从原始清单读出而非由目录名猜测；所有物理模块必须在 SourceBinding 中，JSON 与转译前 TypeScript 同样记录，未绑定宿主回退不会成为有效嵌入结果。 */
+/** 工作区归属从真实已解析模块寻找最近物理清单并要求同路径的绑定引用，不能从绑定列表挑更远诱饵；名称和版本只从该清单原始字节读出，所有模块仍须属于受控来源，JSON 与转译前 TypeScript 同样记录。 */
 async function embedded(
     source: SourceBindingV1,
     reader: InputReader,
@@ -457,9 +458,30 @@ async function embedded(
             fail("PAYLOAD_RECEIPT_MISMATCH");
         await reader.ref(refs.get(path)!, false, contentLimit(path), false);
         let manifest: Ref | undefined;
-        for (let parent = dirname(path); parent !== "."; parent = dirname(parent)) {
-            manifest = refs.get(`${parent}/package.json`);
-            if (manifest) break;
+        // 清单存在性由真实来源目录决定，存在但未绑定的最近清单必须立即拒绝而不能回退；上面的模块读取已观察所有父目录，后来增删更近清单也会在这些目录的身份收尾被发现，避免只核被选清单的字节。
+        for (let parent = dirname(path); ; parent = dirname(parent)) {
+            const candidate = parent === "." ? "package.json" : `${parent}/package.json`;
+            let present = false;
+            try {
+                await lstat(join(reader.root, candidate));
+                present = true;
+            } catch (error) {
+                if (
+                    !(
+                        error &&
+                        typeof error === "object" &&
+                        "code" in error &&
+                        error.code === "ENOENT"
+                    )
+                )
+                    io(error);
+            }
+            if (present) {
+                manifest = refs.get(candidate);
+                if (!manifest) fail("PAYLOAD_RECEIPT_MISMATCH");
+                break;
+            }
+            if (parent === ".") break;
         }
         if (!manifest) fail("PAYLOAD_RECEIPT_MISMATCH");
         const pkg = decode(await reader.ref(manifest, true, limits.package, false)) as {

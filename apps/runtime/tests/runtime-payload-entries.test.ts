@@ -596,6 +596,110 @@ test("resolved workspace source absent from SourceBinding is rejected", async ()
         assert.equal(built, true);
     }));
 
+/** 实际工作区的最近物理清单即使未列入绑定仍参与真实 Vite 导出解析，不能让更远的绑定诱饵取代其名称与版本；两个诱饵分别验证静默丢弃归属和错误归属都在真实成功构建后被拒绝。 */
+for (const name of ["fixture-decoy", "@veriq/decoy"])
+    test(`actual nearest workspace manifest rejects farther bound decoy ${name}`, async () =>
+        fixture(async ({ options, work, sourceRoot, put }) => {
+            const path = "packages/package.json",
+                bytes = Buffer.from(JSON.stringify({ name, version: "9.9.9", type: "module" }));
+            await put(path, bytes);
+            assert((await lstat(join(sourceRoot, "packages/contracts/package.json"))).isFile());
+            const source = {
+                    ...options.source,
+                    files: [
+                        ...options.source.files.filter(
+                            (ref) => ref.path !== "packages/contracts/package.json",
+                        ),
+                        { path, sizeBytes: bytes.length, sha256: sha(bytes) },
+                    ],
+                },
+                sourceBindingSha256 = sha(canonicalBytes(source)),
+                original = options.hostBuild.run;
+            let built = false,
+                consumed = false;
+            const modified = {
+                ...options,
+                source,
+                entries: { ...options.entries, sourceBindingSha256 },
+                execution: { ...options.execution, sourceBindingSha256 },
+                hostBuild: {
+                    ...options.hostBuild,
+                    run: async (invocation: Parameters<typeof original>[0]) => {
+                        const result = await original(invocation);
+                        assert.equal(result.admitted, true);
+                        assert.equal(result.closeConfirmed, true);
+                        assert.equal(result.exit, 0);
+                        built = true;
+                        return result;
+                    },
+                },
+            };
+            await assert.rejects(
+                withEntryInputViews(work, modified, async () => {
+                    consumed = true;
+                }),
+                (error: unknown) =>
+                    !!error &&
+                    typeof error === "object" &&
+                    "code" in error &&
+                    error.code === "PAYLOAD_RECEIPT_MISMATCH",
+            );
+            assert.equal(built, true);
+            assert.equal(consumed, false);
+        }));
+
+/** 固定视图命名空间在大小写敏感宿主上也必须按可移植规则预留，大小写成对用例保持真实来源文件和正确构建绑定；拒绝必须发生在宿主动作与消费之前，不能靠后续构建错误碰巧满足断言。 */
+for (const prefix of [
+    "entries",
+    "Entries",
+    "execution",
+    "ExEcUtIoN",
+    "input-evidence",
+    "INPUT-EVIDENCE",
+])
+    test(`reserved view namespace rejects before host action: ${prefix}`, async () =>
+        fixture(async ({ options, work, put }) => {
+            const path = `${prefix}/extra.ts`,
+                bytes = Buffer.from("export const reserved = true;");
+            await put(path, bytes);
+            const source = {
+                    ...options.source,
+                    files: [
+                        ...options.source.files,
+                        { path, sizeBytes: bytes.length, sha256: sha(bytes) },
+                    ],
+                },
+                sourceBindingSha256 = sha(canonicalBytes(source)),
+                original = options.hostBuild.run;
+            let admitted = false,
+                consumed = false;
+            const modified = {
+                ...options,
+                source,
+                entries: { ...options.entries, sourceBindingSha256 },
+                execution: { ...options.execution, sourceBindingSha256 },
+                hostBuild: {
+                    ...options.hostBuild,
+                    run: async (invocation: Parameters<typeof original>[0]) => {
+                        admitted = true;
+                        return original(invocation);
+                    },
+                },
+            };
+            await assert.rejects(
+                withEntryInputViews(work, modified, async () => {
+                    consumed = true;
+                }),
+                (error: unknown) =>
+                    !!error &&
+                    typeof error === "object" &&
+                    "code" in error &&
+                    error.code === "PAYLOAD_PATH",
+            );
+            assert.equal(admitted, false);
+            assert.equal(consumed, false);
+        }));
+
 /** 构建目录准入与宿主动作分离，已有内容或覆盖源码和事务的根都应在真实命令开始之前拒绝；测试保留空动作计数，避免把后续构建失败错误计作所有权验证已经生效。 */
 for (const invalid of ["nonempty", "source", "work"])
     test(`build root ownership rejects ${invalid}`, async () =>
