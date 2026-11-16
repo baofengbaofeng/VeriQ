@@ -3,6 +3,7 @@
  * 全部走 api.login/initialize/reset*；成功后 refresh 或导航到 /login。
  */
 
+import { tx, useAppLocale } from "../locale";
 import { useState, useContext, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
@@ -13,11 +14,12 @@ import { Notice, Field, useAction, values, Panel } from "../ui";
  * 已登录用户由路由层 Navigate 到 /account，本组件不重复判断。
  */
 export function SignIn() {
+    useAppLocale();
     const a = useAction(),
         auth = useContext(Auth);
     return (
-        <Panel title="Sign in to VeriQ">
-            <p>Access your account and workspaces.</p>
+        <Panel title={tx("Sign in to VeriQ")}>
+            <p>{tx("Access your account and workspaces.")}</p>
             <form
                 onSubmit={(e) => {
                     const v = values(e);
@@ -27,14 +29,14 @@ export function SignIn() {
                     });
                 }}
             >
-                <Field name="email" label="Email" type="email" />
-                <Field name="password" label="Password" type="password" />
+                <Field name="email" label={tx("Email")} type="email" />
+                <Field name="password" label={tx("Password")} type="password" />
                 <button type="submit" data-testid="login-submit" disabled={a.busy}>
-                    {a.busy ? "Signing in…" : "Sign in"}
+                    {a.busy ? tx("Signing in…") : tx("Sign in")}
                 </button>
             </form>
             <Notice error={a.error} />
-            <Link to="/reset">Forgot password?</Link>
+            <Link to="/reset">{tx("Forgot password?")}</Link>
         </Panel>
     );
 }
@@ -43,14 +45,16 @@ export function SignIn() {
  * 仅在 setup.initialized=false 时由路由展示；密码最少 12 字符。
  */
 export function Setup() {
+    useAppLocale();
     const a = useAction(),
         nav = useNavigate(),
         auth = useContext(Auth);
     return (
-        <Panel title="Set up VeriQ">
+        <Panel title={tx("Set up VeriQ")}>
             <p>
-                Create the first system administrator using the installation secret from your
-                operator.
+                {tx(
+                    "Create the first system administrator using the installation secret from your operator.",
+                )}
             </p>
             <form
                 onSubmit={(e) => {
@@ -67,17 +71,21 @@ export function Setup() {
                     });
                 }}
             >
-                <Field name="installationSecret" label="Installation secret" type="password" />
-                <Field name="email" label="Administrator email" type="email" />
-                <Field name="displayName" label="Display name" />
+                <Field
+                    name="installationSecret"
+                    label={tx("Installation secret")}
+                    type="password"
+                />
+                <Field name="email" label={tx("Administrator email")} type="email" />
+                <Field name="displayName" label={tx("Display name")} />
                 <Field
                     name="password"
-                    label="Password (at least 12 characters)"
+                    label={tx("Password (at least 12 characters)")}
                     type="password"
                     minLength={12}
                 />
                 <button type="submit" data-testid="setup-submit" disabled={a.busy}>
-                    {a.busy ? "Creating administrator…" : "Create administrator"}
+                    {a.busy ? tx("Creating administrator…") : tx("Create administrator")}
                 </button>
             </form>
             <Notice error={a.error} />
@@ -89,12 +97,14 @@ export function Setup() {
  * 实际重置链接由管理员签发或邮件投递，本页不展示令牌。
  */
 export function ResetRequest() {
+    useAppLocale();
     const a = useAction();
     return (
-        <Panel title="Reset your password">
+        <Panel title={tx("Reset your password")}>
             <p>
-                Ask your system administrator for a short-lived reset link. If email delivery is
-                available, reset instructions will be sent to eligible accounts.
+                {tx(
+                    "Ask your system administrator for a short-lived reset link. If email delivery is available, reset instructions will be sent to eligible accounts.",
+                )}
             </p>
             <form
                 onSubmit={(e) => {
@@ -107,13 +117,13 @@ export function ResetRequest() {
                     });
                 }}
             >
-                <Field name="email" label="Email" type="email" />
+                <Field name="email" label={tx("Email")} type="email" />
                 <button type="submit" data-testid="reset-request-submit" disabled={a.busy}>
-                    {a.busy ? "Requesting…" : "Request password reset"}
+                    {a.busy ? tx("Requesting…") : tx("Request password reset")}
                 </button>
             </form>
             <Notice error={a.error} message={a.message} />
-            <Link to="/login">Back to sign in</Link>
+            <Link to="/login">{tx("Back to sign in")}</Link>
         </Panel>
     );
 }
@@ -122,6 +132,7 @@ export function ResetRequest() {
  * 缺少 token 时仅告警；成功后 refresh 会话以便进入账户。
  */
 export function ResetConfirm() {
+    useAppLocale();
     const auth = useContext(Auth);
     const [token] = useState(() => new URLSearchParams(location.hash.slice(1)).get("token") ?? "");
     const a = useAction();
@@ -129,10 +140,12 @@ export function ResetConfirm() {
         history.replaceState(null, "", location.pathname);
     }, []);
     return (
-        <Panel title="Choose a new password">
+        <Panel title={tx("Choose a new password")}>
             {!token ? (
                 <p role="alert">
-                    This reset link is missing its token. Ask your administrator for a new link.
+                    {tx(
+                        "This reset link is missing its token. Ask your administrator for a new link.",
+                    )}
                 </p>
             ) : (
                 <form
@@ -149,7 +162,7 @@ export function ResetConfirm() {
                 >
                     <Field
                         name="newPassword"
-                        label="New password (at least 12 characters)"
+                        label={tx("New password (at least 12 characters)")}
                         type="password"
                         minLength={12}
                     />
@@ -158,12 +171,12 @@ export function ResetConfirm() {
                         data-testid="reset-confirm-submit"
                         disabled={a.busy || !!a.message}
                     >
-                        {a.busy ? "Updating…" : "Update password"}
+                        {a.busy ? tx("Updating…") : tx("Update password")}
                     </button>
                 </form>
             )}
             <Notice error={a.error} message={a.message} />
-            <Link to="/login">Sign in</Link>
+            <Link to="/login">{tx("Sign in")}</Link>
         </Panel>
     );
 }

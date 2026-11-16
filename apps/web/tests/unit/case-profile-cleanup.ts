@@ -16,12 +16,15 @@ test("body and cleanup preserve exact outcomes including thrown undefined", asyn
                 let failed = false;
                 let result: unknown;
                 try {
-                    await withCleanup(async () => {
-                        if (bodyFailed) throw bodyError;
-                    }, async () => {
-                        cleaned += 1;
-                        if (cleanupFailed) throw cleanupError;
-                    });
+                    await withCleanup(
+                        async () => {
+                            if (bodyFailed) throw bodyError;
+                        },
+                        async () => {
+                            cleaned += 1;
+                            if (cleanupFailed) throw cleanupError;
+                        },
+                    );
                 } catch (error) {
                     failed = true;
                     result = error;
@@ -39,7 +42,12 @@ test("body and cleanup preserve exact outcomes including thrown undefined", asyn
     }
     let failed = false;
     try {
-        await withCleanup(async () => {}, async () => { throw undefined; });
+        await withCleanup(
+            async () => {},
+            async () => {
+                throw undefined;
+            },
+        );
     } catch (error) {
         failed = true;
         assert.equal(error, undefined);
@@ -51,7 +59,14 @@ test("body and cleanup preserve exact outcomes including thrown undefined", asyn
 test("profile cleanup retains uncertain journals and failed evidence writes", async () => {
     const root = await mkdtemp(join(tmpdir(), "veriq-web-cleanup-"));
     try {
-        for (const scenario of ["absent", "not-directory", "malformed", "running", "write-failed", "stopped"]) {
+        for (const scenario of [
+            "absent",
+            "not-directory",
+            "malformed",
+            "running",
+            "write-failed",
+            "stopped",
+        ]) {
             const profile = join(root, scenario);
             const processes = join(profile, "agent/processes");
             const evidence = join(root, scenario + ".json");
@@ -59,13 +74,18 @@ test("profile cleanup retains uncertain journals and failed evidence writes", as
             if (scenario === "not-directory") await writeFile(processes, "blocked");
             else if (scenario !== "absent") {
                 await mkdir(processes);
-                await writeFile(join(processes, "one.process.json"), scenario === "malformed" ? "{" : JSON.stringify({
-                    attemptId: "11111111-1111-4111-8111-111111111111",
-                    state: scenario === "running" ? "RUNNING" : "STOPPED",
-                    pid: 123,
-                    guardianPid: 456,
-                    nonce: "must-not-be-copied",
-                }));
+                await writeFile(
+                    join(processes, "one.process.json"),
+                    scenario === "malformed"
+                        ? "{"
+                        : JSON.stringify({
+                              attemptId: "11111111-1111-4111-8111-111111111111",
+                              state: scenario === "running" ? "RUNNING" : "STOPPED",
+                              pid: 123,
+                              guardianPid: 456,
+                              nonce: "must-not-be-copied",
+                          }),
+                );
             }
             if (["absent", "stopped"].includes(scenario)) {
                 await cleanupCaseProfile(profile, evidence);
@@ -74,7 +94,12 @@ test("profile cleanup retains uncertain journals and failed evidence writes", as
                 assert.equal(summary.includes("must-not-be-copied"), false);
                 assert.equal(JSON.parse(summary).length, scenario === "absent" ? 0 : 1);
             } else {
-                await assert.rejects(cleanupCaseProfile(profile, scenario === "write-failed" ? join(root, "missing/summary.json") : evidence));
+                await assert.rejects(
+                    cleanupCaseProfile(
+                        profile,
+                        scenario === "write-failed" ? join(root, "missing/summary.json") : evidence,
+                    ),
+                );
                 assert.equal((await stat(profile)).isDirectory(), true);
             }
         }

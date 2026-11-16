@@ -3,13 +3,14 @@
  * 每个需空间作用域的路由用 user.id 作 Provider key，身份切换即清空查询与订阅。
  */
 
+import { tx, useAppLocale } from "./locale";
 import { ExecutionPlansPage } from "./features/runs/ExecutionPlansPage";
 import { BundlePage } from "./features/bundles/BundlePage";
 import { AiPage } from "./features/ai/AiPage";
 import { ReportPage } from "./features/reports/ReportPage";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Link, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Link, NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { api, ApiError, type User } from "./api";
 import { Auth } from "./auth-context";
 import { Panel } from "./ui";
@@ -21,8 +22,10 @@ import { WorkspacePage, AcceptInvitation } from "./features/workspaces/Workspace
 import { RuntimePage } from "./features/runtimes/RuntimePage";
 import { ResourcePage } from "./features/resources/ResourcePage";
 import { EnvironmentPage } from "./features/environments/EnvironmentPage";
+import { AccessibilityNavigation, AppLocaleProvider, LanguageControl } from "./locale-ui";
 import "./style.css";
 function App() {
+    useAppLocale();
     const [user, setUser] = useState<User | null>(null),
         [ready, setReady] = useState(false),
         [initialized, setInitialized] = useState(false),
@@ -102,47 +105,57 @@ function App() {
     }, [readIdentity]);
     if (failure)
         return (
-            <Panel title="VeriQ unavailable">
-                <p role="alert">{failure}</p>
-                <button type="button" onClick={() => void load()}>
-                    Retry
-                </button>
-            </Panel>
+            <main id="main-content" tabIndex={-1}>
+                <LanguageControl />
+                <Panel title={tx("VeriQ unavailable")}>
+                    <p role="alert">{tx(failure)}</p>
+                    <button type="button" onClick={() => void load()}>
+                        {tx("Retry")}
+                    </button>
+                </Panel>
+            </main>
         );
-    if (!ready) return <p role="status">Loading VeriQ…</p>;
+    if (!ready)
+        return (
+            <main id="main-content" tabIndex={-1}>
+                <LanguageControl />
+                <p role="status">{tx("Loading VeriQ…")}</p>
+            </main>
+        );
     return (
         <Auth.Provider value={{ user, refresh, setupComplete: () => setInitialized(true) }}>
             <header>
                 <Link to="/account" className="brand">
                     VeriQ
                 </Link>
-                <nav>
+                <nav aria-label={tx("Main navigation")}>
                     {user ? (
                         <>
-                            <Link to="/account">Account</Link>
-                            <Link to="/workspaces">Workspaces</Link>
-                            <Link to="/runtimes">Runtimes</Link>
-                            <Link to="/reports">Reports</Link>
-                            <Link to="/execution-plans">执行计划 / Plans</Link>
-                            <Link to="/bundles">Bundles</Link>
-                            <Link to="/ai">AI</Link>
-                            <Link to="/resources">资源 / Resources</Link>
-                            <Link to="/environments">环境 / Environments</Link>
-                            {user.systemAdmin && <Link to="/admin/users">Users</Link>}
+                            <NavLink to="/account">{tx("Account")}</NavLink>
+                            <NavLink to="/workspaces">{tx("Workspaces")}</NavLink>
+                            <NavLink to="/runtimes">{tx("Runtimes")}</NavLink>
+                            <NavLink to="/reports">{tx("Reports")}</NavLink>
+                            <NavLink to="/execution-plans">{tx("执行计划 / Plans")}</NavLink>
+                            <NavLink to="/bundles">{tx("Bundles")}</NavLink>
+                            <NavLink to="/ai">AI</NavLink>
+                            <NavLink to="/resources">{tx("资源 / Resources")}</NavLink>
+                            <NavLink to="/environments">{tx("环境 / Environments")}</NavLink>
+                            {user.systemAdmin && <NavLink to="/admin/users">{tx("Users")}</NavLink>}
                             <button
                                 type="button"
                                 data-testid="logout"
                                 onClick={() => void logout()}
                             >
-                                Sign out
+                                {tx("Sign out")}
                             </button>
                         </>
                     ) : (
-                        <Link to="/login">Sign in</Link>
+                        <NavLink to="/login">{tx("Sign in")}</NavLink>
                     )}
                 </nav>
+                <LanguageControl />
             </header>
-            <main>
+            <main id="main-content" tabIndex={-1}>
                 <Routes>
                     <Route path="/setup" element={<Setup />} />
                     <Route
@@ -235,8 +248,8 @@ function App() {
                     <Route
                         path="*"
                         element={
-                            <Panel title="Page not found">
-                                <Link to="/">Return to VeriQ</Link>
+                            <Panel title={tx("Page not found")}>
+                                <Link to="/">{tx("Return to VeriQ")}</Link>
                             </Panel>
                         }
                     />
@@ -246,7 +259,10 @@ function App() {
     );
 }
 createRoot(document.getElementById("root")!).render(
-    <BrowserRouter>
-        <App />
-    </BrowserRouter>,
+    <AppLocaleProvider>
+        <BrowserRouter>
+            <AccessibilityNavigation />
+            <App />
+        </BrowserRouter>
+    </AppLocaleProvider>,
 );

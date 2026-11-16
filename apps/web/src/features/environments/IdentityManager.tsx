@@ -3,6 +3,7 @@
  * 接收已授权 host transport；secret 值不进入 React Query 或文档 state。
  */
 
+import { tx, useAppLocale } from "../../locale";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
@@ -38,6 +39,7 @@ export function IdentityManager({
     workspaceId: string;
     signal?: AbortSignal;
 }) {
+    useAppLocale();
     const credential = useForm<CredentialForm>({
         defaultValues: {
             secretRef: "",
@@ -111,15 +113,15 @@ export function IdentityManager({
         authKind = auth.watch("kind");
     return (
         <section data-testid="identity-manager">
-            <h2>环境身份与凭证 / Environment identities and credentials</h2>
+            <h2>{tx("环境身份与凭证 / Environment identities and credentials")}</h2>
             <p>
-                创建新的固定版本；原文不会回显。修改环境引用后需重新校验发布 / Create immutable
-                versions; values are never returned. Republish environments after changing
-                references.
+                {tx(
+                    "创建新的固定版本；原文不会回显。修改环境引用后需重新校验发布 / Create immutable versions; values are never returned. Republish environments after changing references.",
+                )}
             </p>
             {error && <ErrorState error={error} />}
             {success && <p role="status">{success}</p>}
-            <Section title="认证适配器 / Authentication adapters">
+            <Section title={tx("认证适配器 / Authentication adapters")}>
                 <form
                     className="vq-create"
                     onSubmit={auth.handleSubmit((data) =>
@@ -145,21 +147,21 @@ export function IdentityManager({
                     )}
                 >
                     <label>
-                        类型 / Type
+                        {tx("类型 / Type")}
                         <select {...auth.register("kind")}>
                             <option>HTTP_BEARER</option>
                             <option>HTTP_SESSION</option>
                         </select>
                     </label>
                     <label>
-                        身份路径 / Identity path
+                        {tx("身份路径 / Identity path")}
                         <input
                             data-testid="adapter-identity-path"
                             {...auth.register("identityPath", { required: true })}
                         />
                     </label>
                     <label>
-                        身份 Pointer / Identity pointer
+                        {tx("身份 Pointer / Identity pointer")}
                         <input
                             data-testid="adapter-identity-pointer"
                             {...auth.register("identityPointer", { required: true })}
@@ -167,15 +169,15 @@ export function IdentityManager({
                     </label>
                     {authKind === "HTTP_SESSION" && (
                         <label>
-                            登录路径 / Login path
+                            {tx("登录路径 / Login path")}
                             <input {...auth.register("loginPath", { required: true })} />
                         </label>
                     )}
                     <Button type="submit" data-testid="adapter-create" disabled={busy}>
-                        创建适配器版本 / Create adapter version
+                        {tx("创建适配器版本 / Create adapter version")}
                     </Button>
                 </form>
-                {adapters.isPending && <p role="status">正在加载 / Loading…</p>}
+                {adapters.isPending && <p role="status">{tx("正在加载 / Loading…")}</p>}
                 {adapters.error && (
                     <ErrorState error={adapters.error} retry={() => void adapters.refetch()} />
                 )}
@@ -203,21 +205,21 @@ export function IdentityManager({
                                         })
                                     }
                                 >
-                                    撤销 / Revoke
+                                    {tx("撤销 / Revoke")}
                                 </Button>
                             </article>
                         ))}
                 </div>
                 {adapters.isSuccess && !adapters.data.pages.some((p) => p.items.length) && (
-                    <p>尚无适配器 / No adapters.</p>
+                    <p>{tx("尚无适配器 / No adapters.")}</p>
                 )}
                 {adapters.hasNextPage && (
                     <Button onClick={() => void adapters.fetchNextPage()}>
-                        更多适配器 / More adapters
+                        {tx("更多适配器 / More adapters")}
                     </Button>
                 )}
             </Section>
-            <Section title="凭证固定版本 / Credential versions">
+            <Section title={tx("凭证固定版本 / Credential versions")}>
                 <form
                     className="vq-create"
                     autoComplete="off"
@@ -254,14 +256,14 @@ export function IdentityManager({
                     )}
                 >
                     <label>
-                        创建或轮换 / Operation
+                        {tx("创建或轮换 / Operation")}
                         <select data-testid="credential-mode" {...credential.register("mode")}>
-                            <option value="create">创建引用 / Create reference</option>
-                            <option value="rotate">新版本 / New version</option>
+                            <option value="create">{tx("创建引用 / Create reference")}</option>
+                            <option value="rotate">{tx("新版本 / New version")}</option>
                         </select>
                     </label>
                     <label>
-                        引用 key / Secret ref
+                        {tx("引用 key / Secret ref")}
                         <input
                             data-testid="credential-ref"
                             required
@@ -272,7 +274,7 @@ export function IdentityManager({
                         />
                     </label>
                     <label>
-                        允许身份（每行一个）/ Allowed identities
+                        {tx("允许身份（每行一个）/ Allowed identities")}
                         <textarea
                             data-testid="credential-identities"
                             required
@@ -280,7 +282,7 @@ export function IdentityManager({
                         />
                     </label>
                     <label>
-                        凭证类型 / Credential type
+                        {tx("凭证类型 / Credential type")}
                         <select
                             {...credential.register("kind")}
                             onChange={(e) => {
@@ -294,7 +296,7 @@ export function IdentityManager({
                     </label>
                     {kind === "HTTP_BEARER" ? (
                         <label>
-                            Bearer token
+                            {tx("Bearer token")}
                             <input
                                 data-testid="credential-token"
                                 type="password"
@@ -307,7 +309,7 @@ export function IdentityManager({
                     ) : (
                         <>
                             <label>
-                                用户名 / Username
+                                {tx("用户名 / Username")}
                                 <input
                                     autoComplete="off"
                                     {...credential.register("username", {
@@ -316,7 +318,7 @@ export function IdentityManager({
                                 />
                             </label>
                             <label>
-                                密码 / Password
+                                {tx("密码 / Password")}
                                 <input
                                     type="password"
                                     autoComplete="new-password"
@@ -328,10 +330,10 @@ export function IdentityManager({
                         </>
                     )}
                     <Button type="submit" data-testid="credential-create" disabled={busy}>
-                        保存凭证新版本 / Save credential version
+                        {tx("保存凭证新版本 / Save credential version")}
                     </Button>
                 </form>
-                {credentials.isPending && <p role="status">正在加载 / Loading…</p>}
+                {credentials.isPending && <p role="status">{tx("正在加载 / Loading…")}</p>}
                 {credentials.error && (
                     <ErrorState
                         error={credentials.error}
@@ -347,7 +349,10 @@ export function IdentityManager({
                                     {c.secretRef} · {c.versionId} ·{" "}
                                     {c.revoked ? "REVOKED" : "ACTIVE"}
                                 </p>
-                                <p>允许身份 / Allowed: {c.allowedIdentityIds.join(", ")}</p>
+                                <p>
+                                    {tx("允许身份 / Allowed: ")}
+                                    {c.allowedIdentityIds.join(", ")}
+                                </p>
                                 <Button
                                     tone="danger"
                                     disabled={busy || c.revoked}
@@ -363,17 +368,17 @@ export function IdentityManager({
                                         })
                                     }
                                 >
-                                    撤销 / Revoke
+                                    {tx("撤销 / Revoke")}
                                 </Button>
                             </article>
                         ))}
                 </div>
                 {credentials.isSuccess && !credentials.data.pages.some((p) => p.items.length) && (
-                    <p>尚无凭证 / No credentials.</p>
+                    <p>{tx("尚无凭证 / No credentials.")}</p>
                 )}
                 {credentials.hasNextPage && (
                     <Button onClick={() => void credentials.fetchNextPage()}>
-                        更多凭证 / More credentials
+                        {tx("更多凭证 / More credentials")}
                     </Button>
                 )}
             </Section>

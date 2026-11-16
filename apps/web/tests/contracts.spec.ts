@@ -1,22 +1,16 @@
 import { fileURLToPath } from "node:url";
 import { test, expect } from "@playwright/test";
 
-test("shared canonical source bytes run in a real browser without Node APIs", async ({
-    page,
-}) => {
+test("shared canonical source bytes run in a real browser without Node APIs", async ({ page }) => {
     // A static same-origin document isolates this contract test from app startup
     // and Vite's client reload while dynamic dependencies are first optimized.
     await page.goto(
         "/@fs" +
-            fileURLToPath(
-                new URL("../../../packages/contracts/package.json", import.meta.url),
-            ),
+            fileURLToPath(new URL("../../../packages/contracts/package.json", import.meta.url)),
     );
     const modulePath =
         "/@fs" +
-        fileURLToPath(
-            new URL("../../../packages/contracts/src/index.ts", import.meta.url),
-        );
+        fileURLToPath(new URL("../../../packages/contracts/src/index.ts", import.meta.url));
     const result = await page.evaluate(async (modulePath) => {
         // Vite serves the workspace package as browser ESM; no crypto/Buffer polyfill.
         const contracts = await import(/* @vite-ignore */ modulePath);

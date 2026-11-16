@@ -122,7 +122,7 @@ test("resources retain manual workspace and unsaved values across list refresh",
     };
     await page.route(path, barrier);
     try {
-        await page.getByRole("link", { name: "资源 / Resources", exact: true }).click();
+        await page.getByRole("link", { name: "Resources", exact: true }).click();
         await backendCompleted;
         await selector.selectOption(beta);
         await expect(page.getByTestId("resource-empty")).toBeVisible();

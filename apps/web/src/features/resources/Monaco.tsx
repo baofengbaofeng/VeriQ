@@ -3,7 +3,8 @@
  * 不在此执行代码；大文件由调用方限制，避免阻塞 UI 线程。
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
+import { tx, useAppLocale } from "../../locale";
 /** Monaco 的精简编辑器入口不会提前登记所有功能服务，语言模式的异步加载却可能随后启用这些功能；首次创建编辑器前导入官方注册集合，防止离线分包顺序产生未知服务错误。 */
 import "monaco-editor/features/register.all";
 import * as monaco from "monaco-editor/editor";
@@ -41,6 +42,11 @@ export function Monaco({
     label?: string;
     testId?: string;
 }) {
+    useAppLocale();
+    const helpId = useId();
+    const localizedLabel = tx(label);
+    const labelRef = useRef(localizedLabel);
+    labelRef.current = localizedLabel;
     const host = useRef<HTMLDivElement>(null),
         instance = useRef<monaco.editor.IStandaloneCodeEditor>(),
         change = useRef(onChange),
@@ -56,7 +62,7 @@ export function Monaco({
             automaticLayout: true,
             minimap: { enabled: false },
             scrollBeyondLastLine: false,
-            ariaLabel: label,
+            ariaLabel: labelRef.current,
             fontSize: 13,
             tabSize: 2,
             wordWrap: "on",
@@ -72,18 +78,44 @@ export function Monaco({
             instance.current = undefined;
         };
     }, [language, readOnly, label]);
+    // 界面语言只更新编辑器已有的可访问名称，不能重建模型、清空撤销栈或改变用户选区；调用方显式修改 label、只读或代码语言时仍保留原有完整生命周期行为。
+    useEffect(() => {
+        instance.current?.updateOptions({ ariaLabel: localizedLabel });
+    }, [localizedLabel]);
     useEffect(() => {
         if (instance.current && instance.current.getValue() !== value)
             instance.current.setValue(value);
     }, [value]);
-    return <div className="vq-monaco" ref={host} data-testid={testId} />;
+    return (
+        <div>
+            <p id={helpId}>
+                {tx(
+                    "Use Ctrl+M (Control+Shift+M on macOS) to switch between editing with Tab and moving keyboard focus.",
+                )}
+            </p>
+            <button
+                type="button"
+                onClick={() =>
+                    instance.current?.trigger("keyboard", "editor.action.toggleTabFocusMode", null)
+                }
+            >
+                {tx("Toggle Tab key navigation")}
+            </button>
+            <div className="vq-monaco" ref={host} data-testid={testId} aria-describedby={helpId} />
+        </div>
+    );
 }
 /**
  * 并排展示 original/modified 文本差异，用于版本内容对比，二者皆只读。左右滚动默认联动；左右窗格皆只读并且默认保持滚动位置联动。
  * 不发起网络；字符串已由适配器加载。
  */
 export function MonacoDiff({ original, modified }: { original: string; modified: string }) {
+    useAppLocale();
+    const localizedLabel = tx("Version difference");
+    const labelRef = useRef(localizedLabel);
+    labelRef.current = localizedLabel;
     const host = useRef<HTMLDivElement>(null);
+    const instance = useRef<monaco.editor.IStandaloneDiffEditor>();
     useEffect(() => {
         const left = monaco.editor.createModel(original, "json"),
             right = monaco.editor.createModel(modified, "json");
@@ -92,15 +124,20 @@ export function MonacoDiff({ original, modified }: { original: string; modified:
             automaticLayout: true,
             renderSideBySide: false,
             minimap: { enabled: false },
-            ariaLabel: "Version difference",
+            ariaLabel: labelRef.current,
             originalEditable: false,
         });
+        instance.current = editor;
         editor.setModel({ original: left, modified: right });
         return () => {
             editor.dispose();
             left.dispose();
             right.dispose();
+            instance.current = undefined;
         };
     }, [original, modified]);
+    useEffect(() => {
+        instance.current?.updateOptions({ ariaLabel: localizedLabel });
+    }, [localizedLabel]);
     return <div className="vq-monaco" data-testid="resource-diff" ref={host} />;
 }

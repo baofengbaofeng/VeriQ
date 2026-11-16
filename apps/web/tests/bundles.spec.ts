@@ -43,9 +43,7 @@ test("real Agent publications export through keyboard GUI and verify offline wit
     }
     async function publishVersion(resource: { id: string }) {
         const path = base + `/resources/${resource.id}`,
-            preview = (
-                await (await page.request.get(path + "/validation-preview")).json()
-            ).data;
+            preview = (await (await page.request.get(path + "/validation-preview")).json()).data;
         const queued = await page.request.post(path + "/validate", {
             headers: scope.headers,
             data: { revision: preview.revision, sourceHash: preview.sourceHash },
@@ -53,9 +51,7 @@ test("real Agent publications export through keyboard GUI and verify offline wit
         expect(queued.status()).toBe(202);
         const job = (await queued.json()).data;
         await compiler.compile();
-        const receiptResponse = await page.request.get(
-            base + `/jobs/${job.id}/validation-receipt`,
-        );
+        const receiptResponse = await page.request.get(base + `/jobs/${job.id}/validation-receipt`);
         expect(receiptResponse.status(), await receiptResponse.text()).toBe(200);
         const receipt = (await receiptResponse.json()).data;
         const published = await page.request.post(path + "/publish", {
@@ -148,8 +144,7 @@ test("real Agent publications export through keyboard GUI and verify offline wit
         );
         for (const resource of [testcase.resource, env.resource]) {
             const path = base + `/resources/${resource.id}`;
-            const draft = (await (await page.request.get(path + "/draft")).json())
-                .data;
+            const draft = (await (await page.request.get(path + "/draft")).json()).data;
             expect(
                 (
                     await page.request.put(path + "/draft", {
@@ -163,13 +158,9 @@ test("real Agent publications export through keyboard GUI and verify offline wit
         }
         await page.getByRole("link", { name: "Bundles", exact: true }).click();
         await page.getByLabel("Bundle Workspace").selectOption(scope.workspaceId);
-        await page
-            .getByTestId("bundle-resource")
-            .selectOption(testcase.resource.id);
+        await page.getByTestId("bundle-resource").selectOption(testcase.resource.id);
         await expect(
-            page
-                .getByTestId("bundle-version")
-                .locator(`option[value="${testcase.version.id}"]`),
+            page.getByTestId("bundle-version").locator(`option[value="${testcase.version.id}"]`),
         ).toHaveCount(0);
         const casePage = page.waitForResponse((r) =>
             r.url().includes(`/resources/${testcase.resource.id}/versions?cursor=`),
@@ -177,9 +168,7 @@ test("real Agent publications export through keyboard GUI and verify offline wit
         await page.getByTestId("bundle-more-versions").click();
         expect((await casePage).status()).toBe(200);
         await expect(
-            page
-                .getByTestId("bundle-version")
-                .locator(`option[value="${testcase.version.id}"]`),
+            page.getByTestId("bundle-version").locator(`option[value="${testcase.version.id}"]`),
         ).toContainText("v31");
         await page.getByTestId("bundle-version").selectOption(testcase.version.id);
         await page.getByTestId("bundle-add-case").click();
@@ -203,9 +192,7 @@ test("real Agent publications export through keyboard GUI and verify offline wit
                 .getByTestId("bundle-environment-version")
                 .locator(`option[value="${env.version.id}"]`),
         ).toContainText("v31");
-        await page
-            .getByTestId("bundle-environment-version")
-            .selectOption(env.version.id);
+        await page.getByTestId("bundle-environment-version").selectOption(env.version.id);
         const exported = page.waitForResponse(
             (r) => r.url().endsWith("/bundles") && r.request().method() === "POST",
         );
@@ -253,14 +240,7 @@ test("real Agent publications export through keyboard GUI and verify offline wit
         );
         const verified = await command(
             "pnpm",
-            [
-                ...cli,
-                "bundle",
-                "verify",
-                archive,
-                "--destination",
-                join(temp, "verified"),
-            ],
+            [...cli, "bundle", "verify", archive, "--destination", join(temp, "verified")],
             { cwd },
         );
         expect(verified.stdout).toContain("revocation UNKNOWN");
@@ -281,21 +261,12 @@ test("real Agent publications export through keyboard GUI and verify offline wit
             { cwd },
         );
         expect(inspected.stdout).toContain("Verified local resource adapter");
-        const snapshot = JSON.parse(
-            await readFile(join(temp, "verified/snapshot.json"), "utf8"),
-        );
+        const snapshot = JSON.parse(await readFile(join(temp, "verified/snapshot.json"), "utf8"));
         expect(snapshot.entryCaseVersionIds.sort()).toEqual(
             [testcase.version.id, second.version.id].sort(),
         );
-        expect(
-            snapshot.assets.map((a: { versionId: string }) => a.versionId).sort(),
-        ).toEqual(
-            [
-                testcase.version.id,
-                second.version.id,
-                env.version.id,
-                catalog.version.id,
-            ].sort(),
+        expect(snapshot.assets.map((a: { versionId: string }) => a.versionId).sort()).toEqual(
+            [testcase.version.id, second.version.id, env.version.id, catalog.version.id].sort(),
         );
         const source = await readFile(
             join(
@@ -313,9 +284,7 @@ test("real Agent publications export through keyboard GUI and verify offline wit
         });
         expect(another.status()).toBe(201);
         await page.reload();
-        await page
-            .getByLabel("Bundle Workspace")
-            .selectOption((await another.json()).data.id);
+        await page.getByLabel("Bundle Workspace").selectOption((await another.json()).data.id);
         await expect(page.getByTestId("bundle-item")).toHaveCount(0);
         await expect(page.getByTestId("bundle-export")).toBeDisabled();
     } finally {

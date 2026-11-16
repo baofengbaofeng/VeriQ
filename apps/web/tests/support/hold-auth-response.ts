@@ -18,8 +18,12 @@ export async function holdAuthResponse(page: Page, pathname: string, method: str
         heldResolve = resolve;
         heldReject = reject;
     });
-    const gate = new Promise<void>((resolve) => { releaseGate = resolve; });
-    const done = new Promise<void>((resolve) => { complete = resolve; });
+    const gate = new Promise<void>((resolve) => {
+        releaseGate = resolve;
+    });
+    const done = new Promise<void>((resolve) => {
+        complete = resolve;
+    });
     const matches = (url: URL) => url.origin === origin && url.pathname === pathname;
     const handler = async (route: Route) => {
         if (captured || route.request().method() !== method) return route.continue();
@@ -34,7 +38,9 @@ export async function holdAuthResponse(page: Page, pathname: string, method: str
                     incoming.on("data", (chunk: Buffer) => {
                         size += chunk.length;
                         if (size > 1024 * 1024) {
-                            incoming.destroy(new Error("Authentication barrier body exceeds limit"));
+                            incoming.destroy(
+                                new Error("Authentication barrier body exceeds limit"),
+                            );
                             return;
                         }
                         chunks.push(chunk);
@@ -46,8 +52,10 @@ export async function holdAuthResponse(page: Page, pathname: string, method: str
                         for (let index = 0; index < incoming.rawHeaders.length; index += 2) {
                             const name = incoming.rawHeaders[index]!.toLowerCase();
                             const value = incoming.rawHeaders[index + 1]!;
-                            originalHeaders[name] = originalHeaders[name] === undefined
-                                ? value : originalHeaders[name] + "\n" + value;
+                            originalHeaders[name] =
+                                originalHeaders[name] === undefined
+                                    ? value
+                                    : originalHeaders[name] + "\n" + value;
                         }
                         if (incoming.statusCode === undefined) {
                             reject(new Error("Authentication barrier received no HTTP status"));
@@ -60,7 +68,9 @@ export async function holdAuthResponse(page: Page, pathname: string, method: str
                         });
                     });
                 });
-                upstream.setTimeout(10_000, () => upstream.destroy(new Error("Authentication barrier upstream timed out")));
+                upstream.setTimeout(10_000, () =>
+                    upstream.destroy(new Error("Authentication barrier upstream timed out")),
+                );
                 upstream.on("error", reject);
                 upstream.end(outgoing.postDataBuffer() ?? undefined);
             });

@@ -123,19 +123,16 @@ test("plans create, revision conflict, trigger and scoped token lifecycle throug
         await page
             .getByLabel("ENVIRONMENT version", { exact: true })
             .selectOption(environment.version.id);
-        await page
-            .getByRole("group", { name: "执行设备 / Runtimes" })
-            .getByRole("checkbox")
-            .check();
+        await page.getByRole("group", { name: "Runtimes" }).getByRole("checkbox").check();
         const saved = page.waitForResponse(
             (r) => r.url().endsWith("/execution-plans") && r.request().method() === "POST",
         );
-        await page.getByRole("button", { name: "保存计划 / Save plan", exact: true }).click();
+        await page.getByRole("button", { name: "Save plan", exact: true }).click();
         const saveResponse = await saved;
         expect(saveResponse.status(), await saveResponse.text()).toBe(201);
         const plan = (await saveResponse.json()).data;
         const row = page.getByRole("region", { name: "Scheduled GUI smoke", exact: true });
-        await row.getByRole("button", { name: "编辑 / Edit", exact: true }).click();
+        await row.getByRole("button", { name: "Edit", exact: true }).click();
         const { id, workspaceId, archived, ...body } = plan;
         const concurrent = await page.request.put(base + "/execution-plans/" + id, {
             headers: scope.headers,
@@ -143,7 +140,7 @@ test("plans create, revision conflict, trigger and scoped token lifecycle throug
         });
         expect(concurrent.status()).toBe(200);
         await page.getByLabel("Plan name", { exact: true }).fill("Unsaved local update");
-        await page.getByRole("button", { name: "保存计划 / Save plan", exact: true }).click();
+        await page.getByRole("button", { name: "Save plan", exact: true }).click();
         await expect(page.getByRole("alert")).toContainText("revision");
         await expect(page.getByLabel("Plan name", { exact: true })).toHaveValue(
             "Unsaved local update",
@@ -152,31 +149,29 @@ test("plans create, revision conflict, trigger and scoped token lifecycle throug
         await page.getByLabel("Plan Workspace", { exact: true }).selectOption(scope.workspaceId);
         await page
             .getByRole("region", { name: "Concurrent update", exact: true })
-            .getByRole("button", { name: "触发 / Trigger", exact: true })
+            .getByRole("button", { name: "Trigger", exact: true })
             .click();
         await expect(page.getByRole("region", { name: "Trigger status" })).toContainText(
             "ENQUEUED",
         );
         await page.getByLabel("Service account name", { exact: true }).fill("GUI scheduler");
-        await page.getByRole("button", { name: "创建账号 / Create account", exact: true }).click();
+        await page.getByRole("button", { name: "Create account", exact: true }).click();
         await page
-            .getByRole("group", { name: "授权计划 / Allowed plans" })
+            .getByRole("group", { name: "Allowed plans" })
             .getByRole("checkbox", { name: "Concurrent update" })
             .check();
-        await page.getByRole("button", { name: "签发令牌 / Issue token", exact: true }).click();
+        await page.getByRole("button", { name: "Issue token", exact: true }).click();
         const oneTime = page.getByRole("region", { name: "One-time token" });
         await expect(oneTime).toBeVisible();
         const issuedSecret = await oneTime.locator("output").innerText();
         expect(issuedSecret.length).toBeGreaterThan(40);
-        await oneTime
-            .getByRole("button", { name: "关闭令牌 / Dismiss token", exact: true })
-            .click();
+        await oneTime.getByRole("button", { name: "Dismiss token", exact: true }).click();
         await expect(page.getByText(issuedSecret, { exact: true })).toHaveCount(0);
         const tokens = page
             .getByRole("region", { name: "Service accounts", exact: true })
             .locator("article");
         await expect(tokens).toContainText("EXECUTION");
-        await tokens.getByRole("button", { name: "吊销 / Revoke", exact: true }).click();
+        await tokens.getByRole("button", { name: "Revoke", exact: true }).click();
         await expect(tokens).toContainText("revoked");
         await page.screenshot({
             path: "../../.superpowers/sdd/veriq-1/evidence/t16/browser-plan.png",

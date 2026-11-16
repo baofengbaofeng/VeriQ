@@ -75,6 +75,7 @@ export interface HostTransport {
     binary(path: string, signal?: AbortSignal): Promise<Response>;
 }
 let hostTransport: HostTransport | undefined;
+const streamOwners = new WeakMap<Response, { owner: number; signal: AbortSignal }>();
 /** 共享视图的宿主传输只允许初始化一次，桌面构建入口在挂载 React 之前安装适配器；普通 Web 入口不会调用此函数，因此现有同源会话和 CSRF 处理保持不变。 */
 export function installHostTransport(transport: HostTransport): void {
     if (hostTransport) throw new Error("HOST_TRANSPORT_ALREADY_INSTALLED");
@@ -154,7 +155,8 @@ export async function request<T>(
         const body = await response.json();
         active?.throwIfAborted();
         if (response.status === 401) expireSession(owner, body.code, active);
-        if (!response.ok) throw new ApiError(body.code, body.message, response.status, body.requestId);
+        if (!response.ok)
+            throw new ApiError(body.code, body.message, response.status, body.requestId);
         if (ownsSession(owner, active) && typeof body.data?.csrfToken === "string")
             csrfToken = body.data.csrfToken;
         if (path === "/auth/logout" && changesCookie && ownsSession(owner, active))
@@ -339,6 +341,28 @@ export async function streamRequest(path: string, data: unknown, signal: AbortSi
         if (response.status === 401) expireSession(owner, body.code, signal);
         throw new ApiError(body.code, body.message, response.status, body.requestId);
     }
-    signal?.throwIfAborted();
+    signal.throwIfAborted();
+    streamOwners.set(response, { owner, signal });
     return response;
+}
+
+/** HTTP200 后的真实 SSE authorization 帧仍属于最初请求，只有明确 AUTHENTICATION_REQUIRED 且所有权仍有效才失效会话；报告保留期到期是410领域终态，工作区权限变化是403，二者都不能退出正常用户。 */
+export function streamAuthorizationError(response: Response, payload: unknown): ApiError {
+    const code =
+        payload !== null &&
+        typeof payload === "object" &&
+        "code" in payload &&
+        typeof payload.code === "string"
+            ? payload.code
+            : "REPORT_ACCESS_CHANGED";
+    const owner = streamOwners.get(response);
+    if (code === "AUTHENTICATION_REQUIRED" && owner) expireSession(owner.owner, code, owner.signal);
+    const status = code === "REPORT_EXPIRED" ? 410 : code === "AUTHENTICATION_REQUIRED" ? 401 : 403;
+    const message =
+        code === "REPORT_EXPIRED"
+            ? "Report has expired."
+            : code === "AUTHENTICATION_REQUIRED"
+              ? "Please sign in"
+              : "Report access changed. Reload after signing in or confirming Workspace access.";
+    return new ApiError(code, message, status, response.headers.get("X-Request-ID") ?? "");
 }

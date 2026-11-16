@@ -109,7 +109,7 @@ test("real UI config, paid-call preview, review, genuine compiler, cancel and sc
         catalogId = (await compiler.publish()).id;
         await page.getByRole("link", { name: "AI", exact: true }).click();
         await page.getByTestId("ai-workspace").selectOption(scope.workspaceId);
-        await page.getByLabel("语言 / Language").selectOption("en");
+        await page.getByTestId("app-language").selectOption("en");
         await page.getByTestId("ai-name").fill("Local HTTP protocol emulator");
         await page.getByTestId("ai-baseURL").fill("http://127.0.0.1:18890/v1");
         await page.getByTestId("ai-model").fill("emulator");
@@ -240,7 +240,7 @@ test("fix1 existing CASE review increments only its draft and rejects a stale re
         expect(configured.status(), await configured.text()).toBe(201);
         await page.getByRole("link", { name: "AI", exact: true }).click();
         await page.getByTestId("ai-workspace").selectOption(scope.workspaceId);
-        await page.getByLabel("语言 / Language").selectOption("en");
+        await page.getByTestId("app-language").selectOption("en");
         await page.getByTestId("ai-resource").fill(resourceId);
         await page
             .getByTestId("ai-prompt")
@@ -428,7 +428,7 @@ test("AI request inputs invalidate reviewed context and preserve manual scope", 
     expect(providers?.map((p) => p.id)).toEqual(providerRows.map((p) => p.id));
     const selected = aiEffectItem(providerRows, 1);
     await page.getByTestId("ai-provider").selectOption(selected.id);
-    await page.getByLabel("语言 / Language").selectOption("en");
+    await page.getByTestId("app-language").selectOption("en");
     await expect(page.getByTestId("ai-budget")).toContainText(
         `Available: ${selected.monthlyBudgetUsd}`,
     );
@@ -441,7 +441,7 @@ test("AI request inputs invalidate reviewed context and preserve manual scope", 
     expect((await refreshed).status()).toBe(200);
     await expect(page.getByTestId("ai-provider")).toHaveValue(selected.id);
     await expect(page.getByTestId("ai-workspace")).toHaveValue(manualWorkspace);
-    await page.getByRole("link", { name: "资源 / Resources", exact: true }).click();
+    await page.getByRole("link", { name: "Resources", exact: true }).click();
     await expect(page.getByTestId("resource-workspace")).toHaveValue(manualWorkspace);
     await page.getByRole("link", { name: "AI", exact: true }).click();
     await expect(page.getByTestId("ai-workspace")).toHaveValue(manualWorkspace);
@@ -560,7 +560,7 @@ test("AI generation completion stays in its owning workspace", async ({ page }) 
     await page.getByRole("link", { name: "AI", exact: true }).click();
     await page.getByTestId("ai-workspace").selectOption(scope.alpha);
     await expect(page.getByTestId("ai-provider")).toHaveValue(provider.id);
-    await page.getByLabel("语言 / Language").selectOption("en");
+    await page.getByTestId("app-language").selectOption("en");
     await page.getByTestId("ai-purpose").selectOption("BOUNDARY_SUGGESTION");
     await page.getByTestId("ai-prompt").fill("REQ-ALPHA: delayed Alpha requirement.");
     await page.getByTestId("ai-preview").click();

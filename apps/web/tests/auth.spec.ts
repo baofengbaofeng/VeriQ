@@ -577,8 +577,11 @@ test("real setup, login, account, administration and one-time reset", async ({
         newerLoginEvents.push({ event: "real-sessions401-opened-signin-old-logout-still-held" });
         await page.getByTestId("email").fill("browser-user@example.com");
         await page.getByTestId("password").fill("Final password 123!");
-        const cancelledLogout = page.waitForEvent("requestfailed", (request) =>
-            request.method() === "POST" && new URL(request.url()).pathname === "/api/v1/auth/logout",
+        const cancelledLogout = page.waitForEvent(
+            "requestfailed",
+            (request) =>
+                request.method() === "POST" &&
+                new URL(request.url()).pathname === "/api/v1/auth/logout",
         );
         const genuineLogin = page.waitForResponse(
             (response) =>
@@ -595,7 +598,9 @@ test("real setup, login, account, administration and one-time reset", async ({
         const cancelled = await cancelledLogout;
         expect(cancelled.failure()?.errorText).toMatch(/ABORTED|CANCELLED/i);
         await oldLogoutResponse.release();
-        newerLoginEvents.push({ event: "old-logout-cancelled-before-new-login-held-response-settled" });
+        newerLoginEvents.push({
+            event: "old-logout-cancelled-before-new-login-held-response-settled",
+        });
         const currentSession = await page.evaluate(async () => {
             const path = "/src/api.ts";
             const { api } = await import(/* @vite-ignore */ path);
@@ -606,18 +611,22 @@ test("real setup, login, account, administration and one-time reset", async ({
         await page.getByRole("link", { name: "Workspaces", exact: true }).click();
         await page.getByTestId("workspace-key").fill(`session-owner-${randomUUID()}`);
         await page.getByTestId("workspace-name").fill("Session owner write");
-        const creation = page.waitForResponse((response) =>
-            response.request().method() === "POST" && new URL(response.url()).pathname === "/api/v1/workspaces",
+        const creation = page.waitForResponse(
+            (response) =>
+                response.request().method() === "POST" &&
+                new URL(response.url()).pathname === "/api/v1/workspaces",
         );
         await page.getByTestId("workspace-create").click();
         const created = await creation;
         expect(created.status()).toBe(201);
         expect((await created.json()).data.role).toBe("OWNER");
-        expect(await page.evaluate(async () => {
-            const path = "/src/api.ts";
-            const { api } = await import(/* @vite-ignore */ path);
-            return (await api.session()).user.email;
-        })).toBe("browser-user@example.com");
+        expect(
+            await page.evaluate(async () => {
+                const path = "/src/api.ts";
+                const { api } = await import(/* @vite-ignore */ path);
+                return (await api.session()).user.email;
+            }),
+        ).toBe("browser-user@example.com");
     } finally {
         await oldRead.forward();
         await oldLogoutResponse.release();

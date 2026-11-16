@@ -3,6 +3,7 @@
  * CASE/FLOW 委托 CaseEditor；断言模板等走专用字段，不在此执行编译。
  */
 
+import { tx, useAppLocale } from "../../locale";
 import type {
     ResourceDocumentV1,
     ResourceKind,
@@ -141,6 +142,7 @@ export function ResourceForms({
     kind: ResourceKind;
     versions: VersionOption[];
 }) {
+    useAppLocale();
     if (kind === "CASE" || kind === "FLOW")
         return <CaseEditor versions={versions} flow={kind === "FLOW"} />;
     if (kind === "ENVIRONMENT") return <EnvironmentFields />;
@@ -149,11 +151,11 @@ export function ResourceForms({
             <>
                 <TypeMap
                     name="content.document.parameters"
-                    label="模板参数类型 / Template parameter types"
+                    label={tx("模板参数类型 / Template parameter types")}
                 />
                 <AssertionEditor
                     name="content.document.assertions"
-                    title="断言 / Assertions"
+                    title={tx("断言 / Assertions")}
                     scope="ASSERTION_TEMPLATE"
                     phase="TEMPLATE"
                     versions={versions}
@@ -164,7 +166,7 @@ export function ResourceForms({
         return (
             <List
                 name="content.document.elements"
-                title="页面元素 / Elements"
+                title={tx("页面元素 / Elements")}
                 initial={() => ({
                     key: "element_" + crypto.randomUUID().slice(0, 8),
                     locator: { by: "testId", value: "" },
@@ -176,10 +178,10 @@ export function ResourceForms({
     if (kind === "DATASET")
         return (
             <>
-                <TypeMap name="content.document.columns" label="数据列类型 / Column types" />
+                <TypeMap name="content.document.columns" label={tx("数据列类型 / Column types")} />
                 <List
                     name="content.document.rows"
-                    title="数据行 / Dataset rows"
+                    title={tx("数据行 / Dataset rows")}
                     initial={() => ({
                         key: "row_" + crypto.randomUUID().slice(0, 8),
                         values: {},
@@ -187,7 +189,7 @@ export function ResourceForms({
                 >
                     {(path) => (
                         <>
-                            <Field name={`${path}.key`} label="数据行 key / Row key" />
+                            <Field name={`${path}.key`} label={tx("数据行 key / Row key")} />
                             <DatasetValues path={`${path}.values`} />
                         </>
                     )}
@@ -198,28 +200,28 @@ export function ResourceForms({
         return (
             <List
                 name="content.document.cases"
-                title="套件用例 / Suite cases"
+                title={tx("套件用例 / Suite cases")}
                 initial={() => ({ versionId: "", browsers: ["chromium"] })}
             >
                 {(path) => (
                     <>
                         <VersionField
                             name={`${path}.versionId`}
-                            label="用例固定版本 / Case version"
+                            label={tx("用例固定版本 / Case version")}
                             kind="CASE"
                             versions={versions}
                         />
                         <VersionField
                             name={`${path}.datasetVersionId`}
-                            label="数据集固定版本 / Dataset version"
+                            label={tx("数据集固定版本 / Dataset version")}
                             kind="DATASET"
                             versions={versions}
                             optional
                         />
-                        <StringList name={`${path}.roleKeys`} label="角色 / Roles" />
+                        <StringList name={`${path}.roleKeys`} label={tx("角色 / Roles")} />
                         <StringList
                             name={`${path}.browsers`}
-                            label="浏览器 / Browsers"
+                            label={tx("浏览器 / Browsers")}
                             choices={["chromium", "firefox", "webkit"]}
                         />
                     </>
@@ -228,33 +230,43 @@ export function ResourceForms({
         );
     return (
         <>
-            <Field name="content.document.prepare.path" label="准备 POST 路径 / Prepare path" />
-            <Field name="content.document.query.path" label="只读查询 GET 路径 / Query path" />
+            <Field
+                name="content.document.prepare.path"
+                label={tx("准备 POST 路径 / Prepare path")}
+            />
+            <Field
+                name="content.document.query.path"
+                label={tx("只读查询 GET 路径 / Query path")}
+            />
             <Field
                 name="content.document.cleanup.method"
-                label="清理方法 / Cleanup method"
+                label={tx("清理方法 / Cleanup method")}
                 options={["POST", "DELETE"]}
             />
-            <Field name="content.document.cleanup.path" label="清理路径 / Cleanup path" />
-            <Field name="content.document.ttlSeconds" label="TTL 秒 / TTL seconds" number />
-            <SchemaFields path="content.document.inputSchema" label="输入 Schema / Input schema" />
+            <Field name="content.document.cleanup.path" label={tx("清理路径 / Cleanup path")} />
+            <Field name="content.document.ttlSeconds" label={tx("TTL 秒 / TTL seconds")} number />
+            <SchemaFields
+                path="content.document.inputSchema"
+                label={tx("输入 Schema / Input schema")}
+            />
             <SchemaFields
                 path="content.document.outputSchema"
-                label="输出 Schema / Output schema"
+                label={tx("输出 Schema / Output schema")}
             />
         </>
     );
 }
 function ElementFields({ path }: { path: string }) {
+    useAppLocale();
     const element = useValue<CatalogElementV1>(path),
         set = useSet();
     return (
         <>
-            <Field name={`${path}.key`} label="元素 key / Element key" />
-            <Field name={`${path}.scope`} label="父作用域 key / Parent scope" optional />
-            <Field name={`${path}.recordKey`} label="记录 key / Record key" optional />
+            <Field name={`${path}.key`} label={tx("元素 key / Element key")} />
+            <Field name={`${path}.scope`} label={tx("父作用域 key / Parent scope")} optional />
+            <Field name={`${path}.recordKey`} label={tx("记录 key / Record key")} optional />
             <label>
-                定位方式 / Locator
+                {tx("定位方式 / Locator")}
                 <select
                     data-testid={`${path}.locator.by`}
                     value={element?.locator.by ?? "testId"}
@@ -276,10 +288,10 @@ function ElementFields({ path }: { path: string }) {
                     <Field name={`${path}.locator.role`} label="ARIA role" />
                     <Field
                         name={`${path}.locator.name`}
-                        label="可访问名称 / Accessible name"
+                        label={tx("可访问名称 / Accessible name")}
                         optional
                     />
-                    <Field name={`${path}.locator.exact`} label="精确匹配 / Exact" check />
+                    <Field name={`${path}.locator.exact`} label={tx("精确匹配 / Exact")} check />
                 </>
             ) : (
                 <Field name={`${path}.locator.value`} label="testId" />
@@ -288,6 +300,7 @@ function ElementFields({ path }: { path: string }) {
     );
 }
 function DatasetValues({ path }: { path: string }) {
+    useAppLocale();
     const columns = useValue<Record<string, string>>("content.document.columns") ?? {},
         value = useValue<Record<string, JsonValue>>(path) ?? {},
         set = useSet();
@@ -325,7 +338,7 @@ function DatasetValues({ path }: { path: string }) {
                                     )
                                 }
                             >
-                                设为缺失 / Mark missing
+                                {tx("设为缺失 / Mark missing")}
                             </Button>
                         </>
                     ) : (
@@ -333,7 +346,8 @@ function DatasetValues({ path }: { path: string }) {
                             tone="secondary"
                             onClick={() => set(path, { ...value, [key]: initial(type) })}
                         >
-                            设置值 / Set {key}
+                            {tx("设置值 / Set ")}
+                            {key}
                         </Button>
                     )}
                 </Section>
@@ -341,7 +355,7 @@ function DatasetValues({ path }: { path: string }) {
             {Object.keys(value)
                 .filter((k) => !Object.hasOwn(columns, k))
                 .map((k) => (
-                    <Section title={`未声明列 / Undeclared: ${k}`} key={k}>
+                    <Section title={tx("未声明列 / Undeclared: {{value0}}", { value0: k })} key={k}>
                         <JsonValueControl
                             value={value[k]!}
                             label={k}
@@ -358,7 +372,7 @@ function DatasetValues({ path }: { path: string }) {
                                 )
                             }
                         >
-                            删除 / Remove
+                            {tx("删除 / Remove")}
                         </Button>
                     </Section>
                 ))}
@@ -366,6 +380,7 @@ function DatasetValues({ path }: { path: string }) {
     );
 }
 function SchemaFields({ path, label }: { path: string; label: string }) {
+    useAppLocale();
     const schema = useValue<Record<string, JsonValue>>(path) ?? {},
         set = useSet();
     const properties =
@@ -389,21 +404,24 @@ function SchemaFields({ path, label }: { path: string; label: string }) {
         <Section title={label}>
             <Field
                 name={`${path}.type`}
-                label="根类型 / Root type"
+                label={tx("根类型 / Root type")}
                 options={["object", "array", "string", "number", "integer", "boolean", "null"]}
                 optional
             />
             <Field
                 name={`${path}.additionalProperties`}
-                label="允许附加字段 / Allow extra properties"
+                label={tx("允许附加字段 / Allow extra properties")}
                 check
             />
             {Object.entries(properties).map(([key, def]) => (
                 <div className="vq-item" key={key}>
                     <label>
-                        字段名 / Property
+                        {tx("字段名 / Property")}
                         <input
-                            aria-label={`${label} property ${key}`}
+                            aria-label={tx("{{value0}} property {{value1}}", {
+                                value0: label,
+                                value1: key,
+                            })}
                             defaultValue={key}
                             onBlur={(e) => {
                                 const next = e.target.value;
@@ -427,7 +445,10 @@ function SchemaFields({ path, label }: { path: string; label: string }) {
                         />
                     </label>
                     <select
-                        aria-label={`${label}.${key} type`}
+                        aria-label={tx("{{value0}}.{{value1}} type", {
+                            value0: label,
+                            value1: key,
+                        })}
                         value={
                             def !== null &&
                             typeof def === "object" &&
@@ -460,7 +481,7 @@ function SchemaFields({ path, label }: { path: string; label: string }) {
                         )}
                     </select>
                     <label className="vq-check">
-                        必需 / Required
+                        {tx("必需 / Required")}
                         <input
                             type="checkbox"
                             checked={required.includes(key)}
@@ -486,15 +507,15 @@ function SchemaFields({ path, label }: { path: string; label: string }) {
                             })
                         }
                     >
-                        删除 / Remove
+                        {tx("删除 / Remove")}
                     </Button>
                 </div>
             ))}
             <Button tone="secondary" onClick={add}>
-                添加 Schema 字段 / Add schema property
+                {tx("添加 Schema 字段 / Add schema property")}
             </Button>
             <details>
-                <summary>完整 Schema 高级字段 / Complete schema fields</summary>
+                <summary>{tx("完整 Schema 高级字段 / Complete schema fields")}</summary>
                 <JsonField name={path} label={label} />
             </details>
         </Section>

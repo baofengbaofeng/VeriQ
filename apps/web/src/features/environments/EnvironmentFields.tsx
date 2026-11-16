@@ -3,6 +3,7 @@
  * 与 IdentityManager 配合；secretRef 仅引用凭证元数据。
  */
 
+import { tx, useAppLocale } from "../../locale";
 import { Field, List, StringList, useValue, useSet } from "../resources/fields";
 import { Button } from "@veriq/ui";
 /**
@@ -10,22 +11,27 @@ import { Button } from "@veriq/ui";
  * role=true 时额外要求 roleKey；注释提示禁止保存明文。
  */
 export function IdentityFields({ path, role = false }: { path: string; role?: boolean }) {
+    useAppLocale();
     return (
         <>
-            {role && <Field name={`${path}.roleKey`} label="业务角色 key / Role key" />}
+            {role && <Field name={`${path}.roleKey`} label={tx("业务角色 key / Role key")} />}
             <Field
                 name={`${path}.authAdapterVersionId`}
-                label="认证适配器固定版本 / Auth adapter version UUID"
+                label={tx("认证适配器固定版本 / Auth adapter version UUID")}
             />
-            <Field name={`${path}.secretRef`} label="凭证引用 / Secret reference" />
-            <Field name={`${path}.secretVersionId`} label="凭证固定版本 / Secret version UUID" />
+            <Field name={`${path}.secretRef`} label={tx("凭证引用 / Secret reference")} />
+            <Field
+                name={`${path}.secretVersionId`}
+                label={tx("凭证固定版本 / Secret version UUID")}
+            />
             <StringList
                 name={`${path}.allowedIdentityIds`}
-                label="允许身份 ID / Allowed identity IDs"
+                label={tx("允许身份 ID / Allowed identity IDs")}
             />
             <small>
-                只保存固定版本引用，不包含密码或会话 / Version references only, no credentials or
-                sessions.
+                {tx(
+                    "只保存固定版本引用，不包含密码或会话 / Version references only, no credentials or sessions.",
+                )}
             </small>
         </>
     );
@@ -35,19 +41,27 @@ export function IdentityFields({ path, role = false }: { path: string; role?: bo
  * 读写仅经 useValue/useSet；保存由资源编辑器工具栏触发。
  */
 export function EnvironmentFields() {
+    useAppLocale();
     const fixture = useValue<unknown>("content.document.fixtureIdentity"),
         set = useSet();
     return (
         <>
-            <Field name="content.document.baseURL" label="前端 URL / Frontend URL" />
-            <Field name="content.document.apiBaseURL" label="API URL" />
-            <Field name="content.document.locale" label="语言 / Locale" />
-            <Field name="content.document.timezone" label="时区 / Timezone" />
-            <Field name="content.document.buildSha" label="应用构建 SHA / Build SHA" optional />
-            <StringList name="content.document.allowedOrigins" label="允许来源 / Allowed origins" />
+            <Field name="content.document.baseURL" label={tx("前端 URL / Frontend URL")} />
+            <Field name="content.document.apiBaseURL" label={tx("API URL")} />
+            <Field name="content.document.locale" label={tx("语言 / Locale")} />
+            <Field name="content.document.timezone" label={tx("时区 / Timezone")} />
+            <Field
+                name="content.document.buildSha"
+                label={tx("应用构建 SHA / Build SHA")}
+                optional
+            />
+            <StringList
+                name="content.document.allowedOrigins"
+                label={tx("允许来源 / Allowed origins")}
+            />
             <List
                 name="content.document.roles"
-                title="业务角色身份 / Business role identities"
+                title={tx("业务角色身份 / Business role identities")}
                 initial={() => ({
                     roleKey: "reader",
                     authAdapterVersionId: "",
@@ -60,7 +74,7 @@ export function EnvironmentFields() {
             </List>
             {fixture ? (
                 <>
-                    <Field name="content.document.fixtureBaseURL" label="Fixture URL" />
+                    <Field name="content.document.fixtureBaseURL" label={tx("Fixture URL")} />
                     <IdentityFields path="content.document.fixtureIdentity" />
                     <Button
                         tone="danger"
@@ -69,7 +83,7 @@ export function EnvironmentFields() {
                             set("content.document.fixtureBaseURL", undefined);
                         }}
                     >
-                        移除 Fixture 身份 / Remove fixture identity
+                        {tx("移除 Fixture 身份 / Remove fixture identity")}
                     </Button>
                 </>
             ) : (
@@ -85,7 +99,7 @@ export function EnvironmentFields() {
                         set("content.document.fixtureBaseURL", "http://localhost:3000");
                     }}
                 >
-                    添加独立 Fixture 身份 / Add fixture identity
+                    {tx("添加独立 Fixture 身份 / Add fixture identity")}
                 </Button>
             )}
         </>

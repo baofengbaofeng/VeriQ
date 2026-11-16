@@ -3,6 +3,7 @@
  * CloudReportAdapter(selected)；订阅随 Workspace signal abort。
  */
 
+import { tx, useAppLocale } from "../../locale";
 import {
     useCallback,
     useContext,
@@ -40,6 +41,7 @@ const object = (value: unknown): Record<string, unknown> =>
  * 不缓存所选 runId 跨空间，防止串读其他空间报告。
  */
 export function ReportPage() {
+    useAppLocale();
     const t = useLabels(),
         { user } = useContext(Auth),
         { selected, select, signal } = useWorkspace();
@@ -69,19 +71,10 @@ export function ReportPage() {
     return (
         <Panel title={t("reports")}>
             <label>
-                语言 / Language
-                <select
-                    value={reportI18n.language}
-                    onChange={(e) => void reportI18n.changeLanguage(e.target.value)}
-                >
-                    <option value="zh">中文</option>
-                    <option value="en">English</option>
-                </select>
-            </label>
-            <label>
                 {t("workspace")}
                 <select
-                    aria-label="Report Workspace"
+                    aria-label={tx("Report Workspace")}
+                    data-testid="report-workspace"
                     value={selected}
                     onChange={(e) => select(e.target.value)}
                 >
@@ -94,7 +87,7 @@ export function ReportPage() {
             </label>
             {workspaces.isPending && <p role="status">{t("loading")}</p>}
             {workspaces.isSuccess && !items.length && (
-                <p>请先创建或加入工作区 / Create or join a Workspace first.</p>
+                <p>{tx("请先创建或加入工作区 / Create or join a Workspace first.")}</p>
             )}
             {workspaces.error && (
                 <div>
@@ -110,7 +103,7 @@ export function ReportPage() {
                     disabled={workspaces.isFetchingNextPage}
                     onClick={() => void workspaces.fetchNextPage()}
                 >
-                    更多空间 / More Workspaces
+                    {tx("更多空间 / More Workspaces")}
                 </button>
             )}
             {workspace && (
@@ -140,6 +133,7 @@ export function ReportWorkspaceView({
     signal?: AbortSignal;
     rawEvidenceAllowed?: boolean;
 }) {
+    useAppLocale();
     const t = useLabels(),
         [selected, setSelected] = useState(initialRunId);
     const runs = useInfiniteQuery({
@@ -172,7 +166,7 @@ export function ReportWorkspaceView({
                     <li key={run.id}>
                         <button type="button" onClick={() => setSelected(run.id)}>
                             {new Date(run.createdAt).toLocaleString()} · {run.source} · {run.state}{" "}
-                            · {run.outcome ?? "Pending"}
+                            · {run.outcome ?? tx("Pending")}
                         </button>
                     </li>
                 ))}
@@ -203,7 +197,7 @@ export function ReportWorkspaceView({
                 <ul>
                     {audit.data?.items.map((item) => (
                         <li key={item.id}>
-                            {item.createdAt} · {item.action} · {item.actorId ?? "Service"} ·{" "}
+                            {item.createdAt} · {item.action} · {item.actorId ?? tx("Service")} ·{" "}
                             {item.targetId}
                         </li>
                     ))}
@@ -227,6 +221,7 @@ export function ReportView({
     signal?: AbortSignal;
     rawEvidenceAllowed?: boolean;
 }) {
+    useAppLocale();
     const t = useLabels(),
         [report, setReport] = useState<RunReport>(),
         [error, setError] = useState(""),
@@ -256,7 +251,7 @@ export function ReportView({
             <>
                 {subscription}
                 <div>
-                    <p role={error ? "alert" : "status"}>{error || t("loading")}</p>
+                    <p role={error ? "alert" : "status"}>{error ? tx(error) : t("loading")}</p>
                     {error && (
                         <button type="button" onClick={retry}>
                             {t("retry")}
@@ -268,13 +263,14 @@ export function ReportView({
     return (
         <>
             {subscription}
-            <section aria-label="Run report">
+            <section aria-label={tx("Run report")}>
                 <h2>
                     {report.run.outcome ?? report.run.state} · {report.run.source}
                 </h2>
                 <p data-testid="report-gates">
-                    {t("gateAt")}: <strong>{report.gateAtExecution.passed ? "PASS" : "BLOCKED"}</strong>{" "}
-                    · {t("gateNow")}: <strong>{report.gateNow.passed ? "PASS" : "BLOCKED"}</strong>
+                    {t("gateAt")}:{" "}
+                    <strong>{report.gateAtExecution.passed ? "PASS" : "BLOCKED"}</strong> ·{" "}
+                    {t("gateNow")}: <strong>{report.gateNow.passed ? "PASS" : "BLOCKED"}</strong>
                 </p>
                 {!report.gateNow.passed && <p>{report.gateNow.reasons.join(", ")}</p>}
                 <p>
@@ -299,7 +295,10 @@ export function ReportView({
                 )}
                 <details>
                     <summary>{t("technical")}</summary>
-                    <p>Run {runId}</p>
+                    <p>
+                        {tx("Run ")}
+                        {runId}
+                    </p>
                     <pre>{JSON.stringify(report.run, null, 2)}</pre>
                 </details>
                 {attemptId && (
@@ -332,6 +331,7 @@ function ReportSubscription({
     setError: Dispatch<SetStateAction<string>>;
     setGeneration: Dispatch<SetStateAction<number>>;
 }) {
+    useAppLocale();
     // 初始快照与流共享同一个取消边界，流失败仍撤销同代快照请求；稳定的 React setter 不会因父组件正常渲染而更换，卸载清理时机沿用原有订阅效果。
     useEffect(() => {
         const lifetime = new AbortController();
@@ -342,7 +342,7 @@ function ReportSubscription({
                 if (!active.aborted) setReport(r);
             })
             .catch((e) => {
-                if (!active.aborted) setError(String(e));
+                if (!active.aborted) setError(e instanceof Error ? e.message : String(e));
             });
         void adapter
             .subscribe(
@@ -357,7 +357,7 @@ function ReportSubscription({
             )
             .catch((e) => {
                 if (!active.aborted) {
-                    setError(String(e));
+                    setError(e instanceof Error ? e.message : String(e));
                     setReport(undefined);
                     lifetime.abort();
                 }
@@ -378,6 +378,7 @@ function CaseCard({
     runId: string;
     choose: (id: string) => void;
 }) {
+    useAppLocale();
     const t = useLabels();
     const first = value.attempts[0]?.id;
     const metadata = useQuery({
@@ -432,7 +433,8 @@ function CaseCard({
                     <details>
                         <summary>{t("technical")}</summary>
                         <p>
-                            {a.createdAt} · Runtime {a.runtimeId}
+                            {a.createdAt} {tx(" · Runtime ")}
+                            {a.runtimeId}
                         </p>
                         <pre>
                             {JSON.stringify(
@@ -467,6 +469,7 @@ function AttemptDetails({
     signal?: AbortSignal;
     rawEvidenceAllowed: boolean;
 }) {
+    useAppLocale();
     const t = useLabels(),
         [events, setEvents] = useState<ReportEvent[]>([]),
         [more, setMore] = useState(false),
@@ -507,15 +510,15 @@ function AttemptDetails({
             cursor.current = Math.max(cursor.current, page.nextSequence);
             setMore(page.hasMore);
         } catch (e) {
-            if (!active.aborted) setError(String(e));
+            if (!active.aborted) setError(e instanceof Error ? e.message : String(e));
         }
     }, [adapter, attemptId, active]);
     const display = metadata.data?.display;
     return (
-        <section aria-label="Attempt details">
+        <section aria-label={tx("Attempt details")}>
             <HistoryPageLoader key={generation} load={load} />
             <h3>{t("steps")}</h3>
-            {error && <p role="alert">{error}</p>}
+            {error && <p role="alert">{tx(error)}</p>}
             {metadata.error && <p role="alert">{metadata.error.message}</p>}
             {!display && (
                 <p>
@@ -591,7 +594,7 @@ function AttemptDetails({
                                                                     : t("noResult")}
                                                             </pre>
                                                             {shown(actual.value).includes(
-                                                                "[REDACTED]",
+                                                                tx("[REDACTED]"),
                                                             ) && <small>{t("withheld")}</small>}
                                                         </td>
                                                     </tr>
@@ -657,7 +660,8 @@ function AttemptDetails({
             <ul>
                 {artifacts.data?.items.map((a) => (
                     <li key={a.id}>
-                        {a.kind} · {a.sizeBytes} bytes · {a.state} · {t("restricted")}{" "}
+                        {a.kind} · {a.sizeBytes} {tx(" bytes · ")}
+                        {a.state} · {t("restricted")}{" "}
                         {a.state === "AVAILABLE" && rawEvidenceAllowed && (
                             <>
                                 <button
@@ -666,7 +670,11 @@ function AttemptDetails({
                                         if (adapter.nativeArtifact) {
                                             void adapter
                                                 .nativeArtifact(attemptId, a.id, "save", active)
-                                                .catch((e) => setError(String(e)));
+                                                .catch((e) =>
+                                                    setError(
+                                                        e instanceof Error ? e.message : String(e),
+                                                    ),
+                                                );
                                             return;
                                         }
                                         void adapter
@@ -688,7 +696,10 @@ function AttemptDetails({
                                                 setTimeout(() => URL.revokeObjectURL(url), 1000);
                                             })
                                             .catch((e) => {
-                                                if (!active.aborted) setError(String(e));
+                                                if (!active.aborted)
+                                                    setError(
+                                                        e instanceof Error ? e.message : String(e),
+                                                    );
                                             });
                                     }}
                                 >
@@ -700,10 +711,14 @@ function AttemptDetails({
                                         onClick={() =>
                                             void adapter
                                                 .nativeArtifact?.(attemptId, a.id, "trace", active)
-                                                .catch((e) => setError(String(e)))
+                                                .catch((e) =>
+                                                    setError(
+                                                        e instanceof Error ? e.message : String(e),
+                                                    ),
+                                                )
                                         }
                                     >
-                                        打开 Trace / Open Trace
+                                        {tx("打开 Trace / Open Trace")}
                                     </button>
                                 )}
                                 {a.kind === "SCREENSHOT" && (
@@ -718,7 +733,13 @@ function AttemptDetails({
                                                         "preview",
                                                         active,
                                                     )
-                                                    .catch((e) => setError(String(e)));
+                                                    .catch((e) =>
+                                                        setError(
+                                                            e instanceof Error
+                                                                ? e.message
+                                                                : String(e),
+                                                        ),
+                                                    );
                                                 return;
                                             }
                                             void adapter
@@ -734,7 +755,12 @@ function AttemptDetails({
                                                         );
                                                 })
                                                 .catch((e) => {
-                                                    if (!active.aborted) setError(String(e));
+                                                    if (!active.aborted)
+                                                        setError(
+                                                            e instanceof Error
+                                                                ? e.message
+                                                                : String(e),
+                                                        );
                                                 });
                                         }}
                                     >
@@ -758,6 +784,7 @@ function AttemptDetails({
 }
 
 function HistoryPageLoader({ load }: { load: () => Promise<void> }) {
+    useAppLocale();
     // 每次服务端报告代次提交仅挂载一个无界面加载器，累计事件仍属于 AttemptDetails；证据查询完成或历史状态变化不会重挂载它，手动 More 也只调用同一加载函数一次。
     useEffect(() => {
         void load();

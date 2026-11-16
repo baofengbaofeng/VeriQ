@@ -18,19 +18,31 @@
 
 未做全十四模块的交互验收或全仓注释整改，不能把本次有限源码修复称为“所有 UX 已完成”。没有新增依赖、锁文件、共享契约或后端修改，没有安装、启动引擎、执行真实凭据操作或修改历史 SDD 证据。
 
-## 明确剩余源码工作（不是仅待验证）
+## SOURCE_DELIVERY：C01b 共享双语、键盘与示例入口
 
-- 全站中英文案尚未统一：`apps/web/src/main.tsx` 没有全局语言控件，导航文案为英文或固定双语；`pages/auth.tsx`、`pages/account.tsx`、`pages/users.tsx`、`features/runtimes/RuntimePage.tsx`、`features/workspaces/WorkspacePage.tsx` 和 `features/runs/ExecutionPlansPage.tsx` 未使用 `useTranslation`，仍有硬编码英文或固定双语。`features/resources/i18n.ts` 的 editorI18n 已供报告命名空间复用，`features/ai/i18n.ts` 另有 AI 实例，但这不是覆盖所有路由的共享应用语言状态。后续源码任务应在这些明确路径完成默认中文及英文资源，不能把它们只登记为执行任务。
-- 原有资源表单可见 label 与 hint 仍有大量固定双语文案，本批只修真实 label/control 关联，没有完成所有字段的可切换语言词条；后续应继续使用实际控件与契约，不能用翻译外壳替换业务页面。
-- 全十四模块的键盘路径、加载/空态/错误/权限状态尚未完成逐屏需求映射。本批补全报告工作区状态及真实重试按钮；未据有限源码读取认定其他屏幕均完整，也没有虚构尚未确认的键盘缺陷。后续源码接手者需把实际发现的缺失状态当实现工作处理。
-- 运维到期后的 `410 REPORT_EXPIRED`、`BUNDLE_EXPIRED`、`AI_GENERATION_EXPIRED` 继续走原有 `ApiError` 和领域错误 UI，不参与401全局会话失效。是否需要更具体的恢复入口及对应可切换语言文案，应随真实页面到期流程落实；当前没有将410转成假空列表或假成功。
+C01b 已继续实现原先识别的全局语言源码缺口；此状态替换原“全站语言仅待后续编码”的登记，不能因此推断浏览器验收通过。
+
+| 功能 | 实际交付源码 | 独立验证状态 |
+| --- | --- | --- |
+| 共享语言状态 | `src/locale.ts`、`src/locales/preference.ts` 和按账号、工作区、Runtime、计划、编辑器、共同操作拆分的词条；只接受持久化 `zh`/`en`，无有效偏好时跟随浏览器中文或英文回退，存储不可写时保留内存体验 | 未执行；须覆盖 en-US、zh-CN、无效偏好、禁用存储、刷新和跨窗口 storage 事件 |
+| 实例生命周期 | `useAppLocale` 按挂载引用计数安装及释放 editorI18n、aiI18n 与 appI18n 桥接；同值检查和反馈锁避免循环，各实例保留独立命名空间；初始化也共享偏好，示例 namespace 继续使用其嵌套错误词条 | 未执行；须覆盖单独嵌入、卸载/重挂载、严格效果重放，以及从三个实例分别改语言；不能只观察全局 select |
+| 实际页面翻译 | main 导航、初始化/登录/重置、账号/用户、工作区/成员/邀请、Runtime/服务账号、计划/令牌及资源、环境、断言、离线包、报告的实际 React 标签、动作、提示、状态与可访问名称接入词条；保留 data-testid、技术枚举、业务名称、JSON 与请求值 | 未执行；既有英文浏览器用例选择器与固定双语预期已按英文展示更新，未运行任何一项；未知服务端领域消息及技术细节继续原样展示 |
+| 控件与焦点 | `src/locale-ui.tsx` 提供共享 Provider 和唯一全局语言控件、跳至主内容链接；main 使用主地标、活动导航与路径变化后的标题焦点，查询及语言变化不移动焦点；本地确认框通过共享 Radix 可选 cancelLabel/confirmLabel 接口提供翻译，保留焦点圈定和 Escape 行为 | 未执行；共享包接口由协调者提交 `2bdb181`，此处未修改共享目录；须真实键盘/读屏、1280宽布局和对话框测试 |
+| 编辑器状态 | 资源表头随实际翻译函数更新但保持 memoize；Monaco 的业务 label/代码语言/只读生命周期保持原契约，应用语言仅 updateOptions 更新可访问名称，不重建模型；有可键盘到达的 Tab 导航切换命令及真实 Windows/Linux、macOS 快捷键说明；数组保留原先键盘上/下移并增加独立名称及中文/英文拖动说明 | 未执行；必须确认未提交字段、原始行 key、光标、模型、撤销栈和报告订阅跨语言保持；不能用设置文本或模型来制造保留结果 |
+| 示例向导真实入口 | `WorkspacePage` 的实际按钮挂载 C06b `SampleWorkspaceWizard`，使用已有导出 `request<T>` 的 Cookie/CSRF/epoch 传输，不添加 fetch 旁路；仅可管理且未归档当前空间作为导入目标，否则先显式创建新空间，关闭恢复触发器焦点；成功链接携带真实 workspaceId/planId，计划页以真实空间权限和计划详情接口展示目标，不自动触发或编辑 | 未执行；完整真实包读取、权限、秘密不落盘、受管理编译/发布、恢复、取消和计划目标流程仍需 V06/V01 联合验收 |
+| 保留期与 SSE | HTTP410 仍为普通领域失败；已开始的 SSE authorization 帧由原 Response 的弱引用所有权判断，REPORT_EXPIRED 返回 ApiError410，空间拒绝为403，只有明确且仍拥有当前请求的 AUTHENTICATION_REQUIRED 帧可触发全局会话失效 | 未执行；已补单位源码覆盖域到期、旧帧和当前认证帧，但不代表真实流、Cookie 或服务端保留期验证 |
+| 真实状态收尾 | 计划工作区、资源/版本选择及服务账号/令牌补齐实际加载与空态；保留原查询错误和权限拒绝。来源未知或到期的资源不变成假空列表，也没有占位导入成功或合成 Run | 未执行；完整十四模块逐屏需求映射及所有角色状态仍须独立验收 |
+
+新增回归源码 `apps/web/tests/locale.spec.ts` 使用真实安装/登录、实际资源控件和真实翻译实例，覆盖英文/中文浏览器、无效偏好、持久化、未提交输入节点、桥接、跳转链接及路由焦点。源码用现有 Prettier `format` API 写回四空格格式，属于源码编辑；**没有执行 prettier --check、lint、类型检查、测试、构建、浏览器、CI 或独立复审**，不能把格式写回当成通过记录。
+
+明确范围边界：这里完成的是 VeriQ 自有页面和编辑器可访问控件的共享语言接入。`src/features/resources/Monaco.tsx` 使用官方 Monaco 固定版本；其内建命令菜单、查找小部件和第三方辅助服务有在模块注册时缓存的独立 NLS 文案，并非 appI18n 词条。完整即时切换这些第三方内部文案尚未实现；不能用 DOM 替换或重建用户模型冒充完成。后续若要求这些内部菜单也立即双语，需单独实现受支持的 Monaco NLS 装载/切换方案并保留当前模型生命周期。本批没有声称所有第三方界面或 F01–F14 的完整 UX 已通过。
 
 ## 环境、入口与命令
 
 | 检查 | 前置与待执行命令（仓库根目录） | 预期及当前结果 |
 | --- | --- | --- |
 | 应用类型 | 固定 Node24、pnpm11.25、已冻结安装依赖；`apps/web/node_modules/.bin/tsc --noEmit -p apps/web/tsconfig.json`；桌面复用另执行 `pnpm --filter @veriq/web build:desktop:types` | 应用及宿主复用完整类型通过；**未执行** |
-| 完整测试文件类型 | `apps/web/node_modules/.bin/tsc --noEmit --target es2022 --module esnext --moduleResolution bundler --lib es2022,dom,dom.iterable --strict --skipLibCheck apps/web/tests/case-publish.spec.ts apps/web/tests/reports.spec.ts apps/web/tests/auth.spec.ts apps/web/tests/unit/api-session-ownership.ts apps/web/tests/unit/case-profile-cleanup.ts` | 整文件而非截取用例；历史 tuple TS2322 必须消除，保留全部新旧诊断；**未执行** |
+| 完整测试文件类型 | `apps/web/node_modules/.bin/tsc --noEmit --target es2022 --module esnext --moduleResolution bundler --lib es2022,dom,dom.iterable --strict --skipLibCheck apps/web/tests/case-publish.spec.ts apps/web/tests/reports.spec.ts apps/web/tests/auth.spec.ts apps/web/tests/unit/api-session-ownership.ts apps/web/tests/unit/case-profile-cleanup.ts apps/web/tests/locale.spec.ts` | 整文件而非截取用例；历史 tuple TS2322 必须消除，保留全部新旧诊断；**未执行** |
 | 完整 Web lint/格式 | `pnpm --filter @veriq/web check`；若前置 tsc 失败仍单独执行并记录 `pnpm exec biome lint apps/web/src apps/web/tests apps/web/vite.config.ts apps/web/playwright.config.ts` 与 `pnpm exec prettier --check apps/web/src apps/web/tests apps/web/vite.config.ts apps/web/playwright.config.ts`，确保没有被前序 && 短路隐藏的诊断 | 新文件、所有原有文件、warnings/infos 均须保留，不能只报告 scoped lint；**未执行**，格式和现有规范债务未获通过 |
 | 传输/清理单元 | 使用已声明且已安装的 tsx；`node --import tsx --test apps/web/tests/unit/api-session-ownership.ts apps/web/tests/unit/case-profile-cleanup.ts` | 原始错误身份、双错 cause、取消顺序、旧代次不污染当前；仅受控传输/FS，不是 Cookie 或 Agent 真实性证明；**未执行** |
 | 工作区/资源有限真实 GUI | 固定 Python3.12/uv、MySQL8.4 独立 `veriq_test` 数据库、5173/8888 空闲、已安装真实 Chromium；先核对现有 `.superpowers/sdd/veriq-1/evidence/t22/identity-effects/private-playwright.config.mts` 的绝对路径/launcher/测试库重置边界并复制为本轮私有配置，不改历史文件；使用 `apps/web/node_modules/.bin/playwright test --config <本轮私有配置> reports.spec.ts`，再对 `case-publish.spec.ts --grep 'primitive rows'`，另分别选择既有八类资源及 JSON Apply 场景 | 只跑真实已有 API 和 UI；不得误用默认 prepare-editor-agent 自动安装/构建或启动无资格引擎；新增用例尚未执行，测试资源与端口需独立拥有 |
@@ -39,6 +51,16 @@
 | 最终集成 | 正常生产静态构建→wheel 由 V08 接手；全十四模块、1280 宽布局、中英文、键盘、角色、跨空间、并发/故障和整分支独立复审由 V10 接手 | C01 不替代这些门禁；**未执行** |
 
 有限 UI 场景之外的既有测试不能自动计入通过；每个实际选择的场景和过滤条件都须记录。原始完整 CASE 类型历史命令另见 `.superpowers/sdd/veriq-1/evidence/t22/identity-effects/test-types-initial/command.json`；其历史 exit2 不代表新源码结果。
+
+## C01b 双语与键盘接续验收（必需）
+
+- 同一已冻结环境中执行 `apps/web/node_modules/.bin/playwright test --config <本轮私有配置> locale.spec.ts`；此文件只使用真实安装、登录和草稿 API，不需要伪造编译回执。先检查测试库独占，测试不能与首次安装用例共享已经变化的安装状态假设。
+- 英文浏览器无偏好首屏英文，中文浏览器无偏好首屏中文；支持值刷新后保持，无效存储不参与命名空间解析；存储被拒绝仍能切换，跨窗口只接收有效值。桌面单独嵌入共享视图也需测试，不能仅测 Web 根 Provider。
+- 在登录、账号改密、管理员筛选、Runtime 登记码、工作区邀请、计划版本/变量/秘密令牌、八类资源表单和 Monaco 未提交 JSON 中分别切语言；字段节点、dirty 值、光标、撤销栈、请求所有权和一次性令牌应保持，不多发业务或 AI 请求、不重挂载 Workspace/订阅。
+- 分别调用真实 editorI18n、aiI18n、appI18n 的语言入口，检查导航、页面、示例 namespace、独立实例与刷新偏好一致；卸载后监听释放，旧组件不能反向覆盖当前语言。
+- 仅使用键盘完成跳转链接、导航、语言 select、表单、原生 details、Radix 确认与取消、数组上/下移、拖动取消、Monaco Tab 导航及焦点退出。macOS 的 Monaco 切换为 Control+Shift+M，Windows/Linux 为 Ctrl+M；同时验证可见按钮调用同一官方命令。
+- 路径改变聚焦新页面标题或加载中的主内容，语言和查询参数变化不抢焦点；关闭示例向导返回真实触发器，成功链接打开真实授权工作区和计划。深链接不可见/无权限/已归档/晚于首屏的数据必须真实报错或只读，不自动覆盖现有表单。
+- 完整 V01 lint、应用和桌面声明、所有相关测试文件严格类型及 V09 规范仍未运行。词条文件是展示数据，不能由“增加了翻译”推断全仓注释覆盖率或第三方 NLS 已达标。
 
 ## 真正 populated 报告验收（必需）
 

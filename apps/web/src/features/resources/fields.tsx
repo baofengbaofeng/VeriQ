@@ -3,6 +3,7 @@
  * Apply/save 边界再跑 ResourceDocumentV1 校验；递归 JSON 叶不用裸 textarea 执行。
  */
 
+import { tx, useAppLocale } from "../../locale";
 import { useId, useState, type ReactNode } from "react";
 import {
     Controller,
@@ -94,6 +95,7 @@ export function Field({
     password?: boolean;
     showUnlistedValue?: boolean;
 }) {
+    useAppLocale();
     const { control } = useFormContext<EditorValues>();
     const id = useId();
     return (
@@ -134,8 +136,8 @@ export function Field({
                                 field.value &&
                                 !options.includes(field.value) && (
                                     <option value={field.value} disabled>
-                                        {field.value} · 未在当前作用域声明 / Not declared in this
-                                        scope
+                                        {field.value}{" "}
+                                        {tx(" · 未在当前作用域声明 / Not declared in this scope")}
                                     </option>
                                 )}
                             {options.map((o) => (
@@ -204,6 +206,7 @@ export function VersionField({
     versions: VersionOption[];
     optional?: boolean;
 }) {
+    useAppLocale();
     const { control } = useFormContext<EditorValues>();
     const id = useId();
     return (
@@ -224,12 +227,12 @@ export function VersionField({
                             field.onChange(optional && !e.target.value ? undefined : e.target.value)
                         }
                     >
-                        <option value="">选择固定版本 / Select pinned version</option>
+                        <option value="">{tx("选择固定版本 / Select pinned version")}</option>
                         {typeof field.value === "string" &&
                             field.value &&
                             !versions.some((v) => v.id === field.value) && (
                                 <option value={field.value}>
-                                    {field.value} (未加载 / unavailable)
+                                    {field.value} {tx(" (未加载 / unavailable)")}
                                 </option>
                             )}
                         {versions
@@ -246,6 +249,7 @@ export function VersionField({
     );
 }
 function DragRow({ id, children }: { id: string; children: ReactNode }) {
+    useAppLocale();
     const drag = useDraggable({ id }),
         drop = useDroppable({ id });
     return (
@@ -255,7 +259,7 @@ function DragRow({ id, children }: { id: string; children: ReactNode }) {
                 ref={drag.setNodeRef}
                 {...drag.attributes}
                 {...drag.listeners}
-                aria-label="拖动排序 / Drag to reorder"
+                aria-label={tx("拖动排序 / Drag to reorder")}
                 style={
                     drag.transform
                         ? {
@@ -280,6 +284,7 @@ export function List(props: {
     initial: () => unknown;
     children: (path: string, index: number) => ReactNode;
 }) {
+    useAppLocale();
     const value = useValue<unknown>(props.name),
         set = useSet(),
         { t } = useTranslation(undefined, useEditorTranslationOptions);
@@ -308,6 +313,7 @@ function FieldArrayList({
     initial: () => unknown;
     children: (path: string, index: number) => ReactNode;
 }) {
+    useAppLocale();
     const { control } = useFormContext<EditorValues>(),
         { t } = useTranslation(undefined, useEditorTranslationOptions);
     const array = useFieldArray({
@@ -321,8 +327,33 @@ function FieldArrayList({
     );
     return (
         <Section title={title} testId={name}>
+            <p>{tx("Use Move up and Move down to reorder rows with the keyboard.")}</p>
             <DndContext
                 sensors={sensors}
+                accessibility={{
+                    screenReaderInstructions: {
+                        draggable: tx(
+                            "Press Space to pick up a row, arrow keys to move, Space to drop, or Escape to cancel.",
+                        ),
+                    },
+                    announcements: {
+                        onDragStart: ({ active }) =>
+                            tx("Moving row {{position}}", {
+                                position:
+                                    array.fields.findIndex((row) => row._formId === active.id) + 1,
+                            }),
+                        onDragOver: ({ over }) =>
+                            over
+                                ? tx("Over row {{position}}", {
+                                      position:
+                                          array.fields.findIndex((row) => row._formId === over.id) +
+                                          1,
+                                  })
+                                : tx("Outside the list"),
+                        onDragEnd: () => tx("Reordering finished"),
+                        onDragCancel: () => tx("Reordering cancelled"),
+                    },
+                }}
                 onDragEnd={({ active, over }) => {
                     if (!over || over.id === active.id) return;
                     const from = array.fields.findIndex((x) => x._formId === active.id),
@@ -337,6 +368,7 @@ function FieldArrayList({
                             <Button
                                 tone="secondary"
                                 disabled={!index}
+                                aria-label={tx("Move row {{position}} up", { position: index + 1 })}
                                 onClick={() => array.move(index, index - 1)}
                             >
                                 {t("up")}
@@ -344,6 +376,9 @@ function FieldArrayList({
                             <Button
                                 tone="secondary"
                                 disabled={index === array.fields.length - 1}
+                                aria-label={tx("Move row {{position}} down", {
+                                    position: index + 1,
+                                })}
                                 onClick={() => array.move(index, index + 1)}
                             >
                                 {t("down")}
@@ -400,6 +435,7 @@ export function JsonValueControl({
     allowBinding?: boolean;
     bindings?: string[];
 }) {
+    useAppLocale();
     const [key, setKey] = useState("");
     const type = value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
     const objectValue =
@@ -407,9 +443,9 @@ export function JsonValueControl({
     return (
         <div className="vq-value">
             <label>
-                {label} · 类型 / Type
+                {label} {tx(" · 类型 / Type")}
                 <select
-                    aria-label={`${label} 类型 / Type`}
+                    aria-label={tx("{{value0}} 类型 / Type", { value0: label })}
                     value={type}
                     onChange={(e) => onChange(defaultValue(e.target.value))}
                 >
@@ -430,18 +466,22 @@ export function JsonValueControl({
                     />
                     {allowBinding && (
                         <small>
-                            支持完整占位符并保留类型 / Whole placeholders retain value types.
+                            {tx(
+                                "支持完整占位符并保留类型 / Whole placeholders retain value types.",
+                            )}
                         </small>
                     )}
                     {allowBinding && bindings && (
                         <select
-                            aria-label={`${label} 插入绑定 / Insert binding`}
+                            aria-label={tx("{{value0}} 插入绑定 / Insert binding", {
+                                value0: label,
+                            })}
                             value=""
                             onChange={(e) => {
                                 if (e.target.value) onChange(e.target.value);
                             }}
                         >
-                            <option value="">选择绑定 / Select binding</option>
+                            <option value="">{tx("选择绑定 / Select binding")}</option>
                             {bindings.map((binding) => (
                                 <option key={binding} value={binding}>
                                     {binding}
@@ -505,15 +545,16 @@ export function JsonValueControl({
                                     )
                                 }
                             >
-                                删除 / Remove {k}
+                                {tx("删除 / Remove ")}
+                                {k}
                             </Button>
                         </div>
                     ))}
                     <div className="vq-actions">
                         <label>
-                            字段名 / Field name
+                            {tx("字段名 / Field name")}
                             <input
-                                aria-label={`${label} 字段名 / Field name`}
+                                aria-label={tx("{{value0}} 字段名 / Field name", { value0: label })}
                                 value={key}
                                 onChange={(e) => setKey(e.target.value)}
                             />
@@ -530,7 +571,7 @@ export function JsonValueControl({
                                 setKey("");
                             }}
                         >
-                            添加字段 / Add field
+                            {tx("添加字段 / Add field")}
                         </Button>
                     </div>
                 </>
@@ -551,6 +592,7 @@ function JsonArrayControl({
     allowBinding: boolean;
     bindings?: string[];
 }) {
+    useAppLocale();
     const rows = usePrimitiveRows(value.length);
     // 数组子组件随类型分支创建与销毁，父数组删除行时也按其私有 key 保留存活子树；索引只决定当前业务写入位置，不能成为任何一层数组的 React 身份。
     return (
@@ -563,7 +605,9 @@ function JsonArrayControl({
                         allowBinding={allowBinding}
                         bindings={bindings}
                         onChange={(next) =>
-                            onChange(value.map((entry, position) => position === index ? next : entry))
+                            onChange(
+                                value.map((entry, position) => (position === index ? next : entry)),
+                            )
                         }
                     />
                     <Button
@@ -573,7 +617,8 @@ function JsonArrayControl({
                             onChange(value.filter((_, position) => position !== index));
                         }}
                     >
-                        删除 / Remove {index}
+                        {tx("删除 / Remove ")}
+                        {index}
                     </Button>
                 </div>
             ))}
@@ -584,7 +629,7 @@ function JsonArrayControl({
                     onChange([...value, ""]);
                 }}
             >
-                添加值 / Add value
+                {tx("添加值 / Add value")}
             </Button>
         </>
     );
@@ -604,6 +649,7 @@ export function JsonField({
     allowBinding?: boolean;
     bindings?: string[];
 }) {
+    useAppLocale();
     const { control } = useFormContext<EditorValues>();
     return (
         <Controller
@@ -634,6 +680,7 @@ export function StringList({
     label: string;
     choices?: string[];
 }) {
+    useAppLocale();
     const value = useValue<string[] | undefined>(name) ?? [],
         set = useSet();
     return (
@@ -664,6 +711,7 @@ export function StringList({
     );
 }
 function FreeStringRows({ name, label, value }: { name: string; label: string; value: string[] }) {
+    useAppLocale();
     const rows = usePrimitiveRows(value.length),
         set = useSet();
     // 每行仍有独立可访问名称，而 fieldset 的 legend 命名整个字符串集合；行标记与文本分离，重复或空值不会合并，删除前面的行也不会重建仍在输入的后续节点。
@@ -675,17 +723,25 @@ function FreeStringRows({ name, label, value }: { name: string; label: string; v
                         aria-label={`${label} ${index + 1}`}
                         value={entry}
                         onChange={(e) =>
-                            set(name, value.map((item, position) => position === index ? e.target.value : item))
+                            set(
+                                name,
+                                value.map((item, position) =>
+                                    position === index ? e.target.value : item,
+                                ),
+                            )
                         }
                     />
                     <Button
                         tone="danger"
                         onClick={() => {
                             rows.remove(index);
-                            set(name, value.filter((_, position) => position !== index));
+                            set(
+                                name,
+                                value.filter((_, position) => position !== index),
+                            );
                         }}
                     >
-                        删除 / Remove
+                        {tx("删除 / Remove")}
                     </Button>
                 </div>
             ))}
@@ -697,7 +753,8 @@ function FreeStringRows({ name, label, value }: { name: string; label: string; v
                     set(name, [...value, ""]);
                 }}
             >
-                添加 / Add {label}
+                {tx("添加 / Add ")}
+                {label}
             </Button>
         </>
     );
@@ -707,6 +764,7 @@ function FreeStringRows({ name, label, value }: { name: string; label: string; v
  * 键名冲突时覆盖；不调用 Workspace API。
  */
 export function TypeMap({ name, label }: { name: string; label: string }) {
+    useAppLocale();
     const value = useValue<Record<string, string> | undefined>(name) ?? {},
         set = useSet(),
         [key, keySet] = useState("");
@@ -733,13 +791,13 @@ export function TypeMap({ name, label }: { name: string; label: string }) {
                             )
                         }
                     >
-                        删除 / Remove
+                        {tx("删除 / Remove")}
                     </Button>
                 </div>
             ))}
             <div className="vq-actions">
                 <label>
-                    名称 / Name
+                    {tx("名称 / Name")}
                     <input
                         data-testid={`${name}.key`}
                         value={key}
@@ -755,7 +813,8 @@ export function TypeMap({ name, label }: { name: string; label: string }) {
                         keySet("");
                     }}
                 >
-                    添加 / Add {label}
+                    {tx("添加 / Add ")}
+                    {label}
                 </Button>
             </div>
         </Section>

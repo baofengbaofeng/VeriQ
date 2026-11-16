@@ -3,6 +3,7 @@
  * flow=true 时编辑参数声明而非 caseKey；版本引用保持固定 UUID。
  */
 
+import { tx, useAppLocale } from "../../locale";
 import type { StepV1, ObserverV1 } from "@veriq/contracts";
 import {
     Field,
@@ -67,6 +68,7 @@ export function CaseEditor({
     versions: VersionOption[];
     flow?: boolean;
 }) {
+    useAppLocale();
     const steps = useValue<StepV1[]>("content.document.steps") ?? [];
     const initialVariables =
         useValue<Record<string, string> | undefined>("content.document.initialVariables") ?? {};
@@ -83,65 +85,67 @@ export function CaseEditor({
             {flow ? (
                 <TypeMap
                     name="content.document.parameters"
-                    label="流程参数声明 / Flow parameters"
+                    label={tx("流程参数声明 / Flow parameters")}
                 />
             ) : (
                 <>
-                    <Field name="content.document.caseKey" label="用例 key / Case key" />
-                    <Field name="content.document.title" label="标题 / Title" />
+                    <Field name="content.document.caseKey" label={tx("用例 key / Case key")} />
+                    <Field name="content.document.title" label={tx("标题 / Title")} />
                     <Field
                         name="content.document.kind"
-                        label="读写类型 / Case kind"
+                        label={tx("读写类型 / Case kind")}
                         options={["READ", "WRITE"]}
                     />
-                    <Field name="content.document.roleKey" label="业务角色 / Business role" />
+                    <Field name="content.document.roleKey" label={tx("业务角色 / Business role")} />
                     <VersionField
                         name="content.document.catalogVersionId"
-                        label="元素目录版本 / Catalog version"
+                        label={tx("元素目录版本 / Catalog version")}
                         kind="ELEMENT_CATALOG"
                         versions={versions}
                     />
                     <VersionField
                         name="content.document.fixtureVersionId"
-                        label="Fixture 版本 / Fixture version"
+                        label={tx("Fixture 版本 / Fixture version")}
                         kind="FIXTURE"
                         versions={versions}
                         optional
                     />
                     <VersionField
                         name="content.document.datasetVersionId"
-                        label="数据集版本 / Dataset version"
+                        label={tx("数据集版本 / Dataset version")}
                         kind="DATASET"
                         versions={versions}
                         optional
                     />
                     <Field
                         name="content.document.persistenceCheckpointStepId"
-                        label="持久化检查点 / Persistence checkpoint"
+                        label={tx("持久化检查点 / Persistence checkpoint")}
                         options={steps.map((s) => s.id)}
                         optional
                     />
                     <TypeMap
                         name="content.document.initialVariables"
-                        label="初始变量类型声明 / Initial variable declarations"
+                        label={tx("初始变量类型声明 / Initial variable declarations")}
                     />
                     <small>
-                        这里只声明类型；实际值在执行时冻结，不写入生成源码 / Types only; values
-                        belong to execution snapshots.
+                        {tx(
+                            "这里只声明类型；实际值在执行时冻结，不写入生成源码 / Types only; values belong to execution snapshots.",
+                        )}
                     </small>
                     <small>
-                        准备前只能引用所选数据集和已声明初始变量，不包含未来 Fixture 输出或提取值 /
-                        Before prepare: selected data columns and declared initial variables only.
+                        {tx(
+                            "准备前只能引用所选数据集和已声明初始变量，不包含未来 Fixture 输出或提取值 / Before prepare: selected data columns and declared initial variables only.",
+                        )}
                     </small>
                     <JsonField
                         name="content.document.fixtureInput"
-                        label="Fixture 输入绑定 / Fixture input bindings"
+                        label={tx("Fixture 输入绑定 / Fixture input bindings")}
                         bindings={fixtureBindings}
                         allowBinding
                     />
                 </>
             )}
-            <List name="content.document.steps" title="步骤 / Steps" initial={newStep}>
+            <List name="content.document.steps" title={tx("步骤 / Steps")} initial={newStep}>
                 {(path, index) => (
                     <StepFields
                         path={path}
@@ -165,6 +169,7 @@ function StepFields({
     preceding: StepV1[];
     scope: "CASE" | "FLOW";
 }) {
+    useAppLocale();
     const step = useValue<StepV1>(path),
         set = useSet();
     if (!step) return null;
@@ -182,9 +187,9 @@ function StepFields({
     ];
     return (
         <>
-            <Field name={`${path}.id`} label="步骤 ID / Step ID" />
+            <Field name={`${path}.id`} label={tx("步骤 ID / Step ID")} />
             <label>
-                动作 / Action
+                {tx("动作 / Action")}
                 <select
                     data-testid={`${path}.action`}
                     value={step.action}
@@ -217,82 +222,94 @@ function StepFields({
                     ))}
                 </select>
             </label>
-            <Field name={`${path}.critical`} label="关键步骤 / Critical" check />
-            <Field name={`${path}.timeoutMs`} label="超时 ms / Timeout" optional number />
+            <Field name={`${path}.critical`} label={tx("关键步骤 / Critical")} check />
+            <Field name={`${path}.timeoutMs`} label={tx("超时 ms / Timeout")} optional number />
             <Field
                 name={`${path}.failurePolicy`}
-                label="失败策略 / Failure policy"
+                label={tx("失败策略 / Failure policy")}
                 options={["STOP_CASE", "CONTINUE"]}
                 optional
             />
             <Field
                 name={`${path}.pageKey`}
-                label="动作页面 / Action page"
+                label={tx("动作页面 / Action page")}
                 options={scope === "CASE" ? inheritedPages : undefined}
                 showUnlistedValue={scope === "CASE"}
                 optional
                 hint={
                     scope === "FLOW"
-                        ? "可填写调用方或流程内先前捕获的页面 key；实际调用时检查词法作用域。流程内部页面不会泄漏给调用方。 / Caller or preceding flow page key; resolved in the calling case. Flow-local pages do not escape."
-                        : "省略=原始页面；本步骤捕获的新页面只供之后的断言和步骤使用 / Omitted means original page; new pages become available after capture."
+                        ? tx(
+                              "可填写调用方或流程内先前捕获的页面 key；实际调用时检查词法作用域。流程内部页面不会泄漏给调用方。 / Caller or preceding flow page key; resolved in the calling case. Flow-local pages do not escape.",
+                          )
+                        : tx(
+                              "省略=原始页面；本步骤捕获的新页面只供之后的断言和步骤使用 / Omitted means original page; new pages become available after capture.",
+                          )
                 }
             />
             {["goto", "apiRequest"].includes(step.action) && (
-                <Field name={`${path}.path`} label="相对路径 / Origin-relative path" />
+                <Field name={`${path}.path`} label={tx("相对路径 / Origin-relative path")} />
             )}
             {["click", "check", "uncheck", "fill", "press", "selectOption", "upload"].includes(
                 step.action,
-            ) && <Field name={`${path}.target`} label="元素 key / Target" />}
+            ) && <Field name={`${path}.target`} label={tx("元素 key / Target")} />}
             {["fill", "press"].includes(step.action) && (
-                <Field name={`${path}.value`} label="值 / Value (bindings allowed)" />
+                <Field name={`${path}.value`} label={tx("值 / Value (bindings allowed)")} />
             )}
             {step.action === "selectOption" && (
                 <JsonField
                     name={`${path}.value`}
-                    label="选项 / String or string array"
+                    label={tx("选项 / String or string array")}
                     allowBinding
                 />
             )}
             {step.action === "upload" && (
                 <StringList
                     name={`${path}.value`}
-                    label="包内相对文件路径 / Bundle relative files"
+                    label={tx("包内相对文件路径 / Bundle relative files")}
                 />
             )}
             {step.action === "apiRequest" && (
                 <>
-                    <Field name={`${path}.method`} label="HTTP 方法 / Method" options={methods} />
+                    <Field
+                        name={`${path}.method`}
+                        label={tx("HTTP 方法 / Method")}
+                        options={methods}
+                    />
                     <JsonField
                         name={`${path}.query`}
-                        label="请求查询 / Request query"
+                        label={tx("请求查询 / Request query")}
                         allowBinding
                     />
                     <JsonField
                         name={`${path}.headers`}
-                        label="请求头 / Request headers"
+                        label={tx("请求头 / Request headers")}
                         allowBinding
                     />
-                    <JsonField name={`${path}.body`} label="请求体 / Request body" allowBinding />
+                    <JsonField
+                        name={`${path}.body`}
+                        label={tx("请求体 / Request body")}
+                        allowBinding
+                    />
                 </>
             )}
             {step.action === "callFlow" && (
                 <>
                     <VersionField
                         name={`${path}.versionId`}
-                        label="固定流程版本 / Pinned flow"
+                        label={tx("固定流程版本 / Pinned flow")}
                         kind="FLOW"
                         versions={versions}
                     />
                     <JsonField
                         name={`${path}.parameters`}
-                        label="流程实参 / Flow bindings"
+                        label={tx("流程实参 / Flow bindings")}
                         allowBinding
                     />
                 </>
             )}
             <AssertionEditor
                 name={`${path}.beforeAssertions`}
-                title="前置断言 / Before assertions"
+                title={tx("前置断言 / Before assertions")}
                 phase="BEFORE"
                 scope={scope}
                 network={[]}
@@ -301,7 +318,7 @@ function StepFields({
             />
             <List
                 name={`${path}.observers`}
-                title="监听器 / Observers"
+                title={tx("监听器 / Observers")}
                 initial={() => ({
                     id: "observer_" + crypto.randomUUID().slice(0, 8),
                     method: "GET",
@@ -312,7 +329,7 @@ function StepFields({
             </List>
             <List
                 name={`${path}.extract`}
-                title="变量提取 / Extractions"
+                title={tx("变量提取 / Extractions")}
                 initial={() => ({
                     source: `response:${network[0] ?? "observer"}`,
                     pointer: "",
@@ -325,23 +342,23 @@ function StepFields({
                     <>
                         <Field
                             name={`${extract}.source`}
-                            label="网络来源 / Network source"
+                            label={tx("网络来源 / Network source")}
                             options={network.flatMap((id) => [`request:${id}`, `response:${id}`])}
                         />
                         <Field name={`${extract}.pointer`} label="JSON Pointer" />
-                        <Field name={`${extract}.to`} label="变量名 / Variable name" />
+                        <Field name={`${extract}.to`} label={tx("变量名 / Variable name")} />
                         <Field
                             name={`${extract}.valueType`}
-                            label="变量类型 / Variable type"
+                            label={tx("变量类型 / Variable type")}
                             options={types}
                         />
-                        <Field name={`${extract}.required`} label="必需 / Required" check />
+                        <Field name={`${extract}.required`} label={tx("必需 / Required")} check />
                     </>
                 )}
             </List>
             <AssertionEditor
                 name={`${path}.afterAssertions`}
-                title="后置断言 / After assertions"
+                title={tx("后置断言 / After assertions")}
                 phase="AFTER"
                 scope={scope}
                 network={network}
@@ -352,6 +369,7 @@ function StepFields({
     );
 }
 function ObserverFields({ path }: { path: string }) {
+    useAppLocale();
     const o = useValue<ObserverV1>(path),
         set = useSet();
     const window = useValue<{ mode: string } | undefined>(`${path}.window`);
@@ -360,9 +378,9 @@ function ObserverFields({ path }: { path: string }) {
     const dialog = kind === "dialog" ? (o as { dialogType: string; handling: string }) : undefined;
     return (
         <>
-            <Field name={`${path}.id`} label="监听器 ID / Observer ID" />
+            <Field name={`${path}.id`} label={tx("监听器 ID / Observer ID")} />
             <label>
-                监听类型 / Observer kind
+                {tx("监听类型 / Observer kind")}
                 <select
                     data-testid={`${path}.kind`}
                     value={kind}
@@ -389,29 +407,33 @@ function ObserverFields({ path }: { path: string }) {
                     ))}
                 </select>
             </label>
-            <Field name={`${path}.timeoutMs`} label="超时 ms / Timeout" optional number />
+            <Field name={`${path}.timeoutMs`} label={tx("超时 ms / Timeout")} optional number />
             {kind === "network" && (
                 <>
-                    <Field name={`${path}.method`} label="HTTP 方法 / Method" options={methods} />
-                    <Field name={`${path}.path`} label="精确相对路径 / Exact path" />
+                    <Field
+                        name={`${path}.method`}
+                        label={tx("HTTP 方法 / Method")}
+                        options={methods}
+                    />
+                    <Field name={`${path}.path`} label={tx("精确相对路径 / Exact path")} />
                     <JsonField
                         name={`${path}.queryMatch`}
-                        label="查询匹配 / Query match"
+                        label={tx("查询匹配 / Query match")}
                         allowBinding
                     />
                     <JsonField
                         name={`${path}.bodyMatch`}
-                        label="请求体匹配 / Body match"
+                        label={tx("请求体匹配 / Body match")}
                         allowBinding
                     />
                     <Field
                         name={`${path}.retryPolicy`}
-                        label="重试策略 / Retry policy"
+                        label={tx("重试策略 / Retry policy")}
                         options={["FORBID", "ALLOW_MATCHING_RETRIES"]}
                         optional
                     />
                     <label>
-                        观测窗口 / Window
+                        {tx("观测窗口 / Window")}
                         <select
                             data-testid={`${path}.window.mode`}
                             value={window?.mode ?? ""}
@@ -428,7 +450,7 @@ function ObserverFields({ path }: { path: string }) {
                                     set(`${path}.expectedCount`, undefined);
                             }}
                         >
-                            <option value="">默认 / Default</option>
+                            <option value="">{tx("默认 / Default")}</option>
                             <option>UNTIL_ACTION_SETTLED</option>
                             <option>FIXED</option>
                         </select>
@@ -437,12 +459,12 @@ function ObserverFields({ path }: { path: string }) {
                         <>
                             <Field
                                 name={`${path}.window.durationMs`}
-                                label="窗口时长 ms / Duration"
+                                label={tx("窗口时长 ms / Duration")}
                                 number
                             />
                             <Field
                                 name={`${path}.expectedCount`}
-                                label="精确次数 / Exact count"
+                                label={tx("精确次数 / Exact count")}
                                 optional
                                 number
                             />
@@ -451,7 +473,7 @@ function ObserverFields({ path }: { path: string }) {
                         window?.mode === "UNTIL_ACTION_SETTLED" && (
                             <Field
                                 name={`${path}.window.quietMs`}
-                                label="静默时长 ms / Quiet time"
+                                label={tx("静默时长 ms / Quiet time")}
                                 number
                                 optional
                             />
@@ -462,7 +484,7 @@ function ObserverFields({ path }: { path: string }) {
             {kind === "dialog" && (
                 <>
                     <label>
-                        对话框类型 / Dialog type
+                        {tx("对话框类型 / Dialog type")}
                         <select
                             data-testid={`${path}.dialogType`}
                             value={dialog!.dialogType}
@@ -477,9 +499,9 @@ function ObserverFields({ path }: { path: string }) {
                             ))}
                         </select>
                     </label>
-                    <Field name={`${path}.message`} label="精确消息 / Exact message" />
+                    <Field name={`${path}.message`} label={tx("精确消息 / Exact message")} />
                     <label>
-                        处理方式 / Handling
+                        {tx("处理方式 / Handling")}
                         <select
                             data-testid={`${path}.handling`}
                             value={dialog!.handling}
@@ -496,29 +518,35 @@ function ObserverFields({ path }: { path: string }) {
                     {dialog!.dialogType === "prompt" && dialog!.handling === "accept" && (
                         <Field
                             name={`${path}.promptText`}
-                            label="Prompt 输入 / Prompt text"
+                            label={tx("Prompt 输入 / Prompt text")}
                             optional
                         />
                     )}
                     <small>
-                        仅接受的 prompt 可填写 promptText / Prompt input only when accepting a
-                        prompt.
+                        {tx(
+                            "仅接受的 prompt 可填写 promptText / Prompt input only when accepting a prompt.",
+                        )}
                     </small>
                 </>
             )}
             {kind === "newPage" && (
                 <>
-                    <Field name={`${path}.pageKey`} label="捕获页面 key / Captured page key" />
+                    <Field
+                        name={`${path}.pageKey`}
+                        label={tx("捕获页面 key / Captured page key")}
+                    />
                     <small>
-                        显式词法作用域，无全局活动页切换 / Explicit lexical scope, no implicit
-                        active page.
+                        {tx(
+                            "显式词法作用域，无全局活动页切换 / Explicit lexical scope, no implicit active page.",
+                        )}
                     </small>
                 </>
             )}
             {kind === "download" && (
                 <small>
-                    下载路径由 Runtime 安全分配，此处不能指定路径 / Runtime owns safe download
-                    destinations.
+                    {tx(
+                        "下载路径由 Runtime 安全分配，此处不能指定路径 / Runtime owns safe download destinations.",
+                    )}
                 </small>
             )}
         </>

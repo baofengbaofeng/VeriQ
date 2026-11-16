@@ -14,12 +14,12 @@ export function Notice({ error, message }: { error?: string; message?: string })
         <>
             {error && (
                 <p role="alert" data-testid="error">
-                    {error}
+                    {tx(error)}
                 </p>
             )}
             {message && (
                 <p role="status" data-testid="success">
-                    {message}
+                    {tx(message)}
                 </p>
             )}
         </>
@@ -116,7 +116,7 @@ export function values(e: FormEvent<HTMLFormElement>) {
 export function Panel({ title, children }: { title: string; children: ReactNode }) {
     return (
         <section className="panel">
-            <h1>{title}</h1>
+            <h1 tabIndex={-1}>{tx(title)}</h1>
             {children}
         </section>
     );

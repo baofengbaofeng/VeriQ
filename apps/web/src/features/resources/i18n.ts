@@ -5,9 +5,14 @@
 
 import i18next, { type i18n } from "i18next";
 import { initReactI18next } from "react-i18next";
+import { initialLanguage } from "../../locales/preference";
 const zh = {
-    resources: "资源 / Resources",
-    environments: "环境 / Environments",
+    resources: "资源",
+    columnKey: "标识",
+    columnName: "名称",
+    columnKind: "类型",
+    columnStatus: "状态",
+    environments: "环境",
     save: "保存草稿",
     validate: "编译校验",
     publish: "发布版本",
@@ -39,10 +44,14 @@ const zh = {
     reload: "重新加载远端草稿",
     keep: "保留本地并采用远端修订号",
     dirty: "草稿有未保存更改。保存后才能编译校验或发布。",
-    language: "语言 / Language",
+    language: "语言",
 };
 const en: typeof zh = {
     resources: "Resources",
+    columnKey: "Key",
+    columnName: "Name",
+    columnKind: "Kind",
+    columnStatus: "Status",
     environments: "Environments",
     save: "Save draft",
     validate: "Compile and validate",
@@ -80,13 +89,13 @@ const en: typeof zh = {
     language: "Language",
 };
 /**
- * 已初始化的共享编辑器 i18n，默认中文，interpolation.escapeValue=false 以允许内嵌标记。
+ * 已初始化的共享编辑器 i18n，默认跟随已校验偏好或浏览器语言，interpolation.escapeValue=false 以允许内嵌标记。
  * ResourcePage 与 EnvironmentPage 均注入此实例。
  */
 export const editorI18n: i18n = i18next.createInstance();
 void editorI18n.use(initReactI18next).init({
     resources: { zh: { translation: zh }, en: { translation: en } },
-    lng: "zh",
+    lng: initialLanguage(),
     fallbackLng: "en",
     interpolation: { escapeValue: false },
     initImmediate: false,

@@ -1,6 +1,7 @@
 /** 执行计划页面在当前员工和空间的生命周期内管理已发布资产选择及受限自动化身份，切换身份或空间时卸载全部表单和一次性令牌，查询缓存只保存无秘密的计划与令牌元数据。 */
+import { tx, useAppLocale } from "../../locale";
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PlatformComponents } from "@veriq/contracts";
 import { Auth } from "../../auth-context";
@@ -15,6 +16,7 @@ type Page<T> = { items: T[]; nextCursor: string | null };
 
 /** 空间选择器只显示当前账户可见的真实空间并支持游标续页，页面内容以用户与空间共同作为键重新挂载，因此旧请求的表单结果和一次性令牌不会在切换后出现在另一个授权范围。 */
 export function ExecutionPlansPage() {
+    useAppLocale();
     const { user } = useContext(Auth),
         { selected, select } = useWorkspace();
     const spaces = useInfiniteQuery({
@@ -24,20 +26,41 @@ export function ExecutionPlansPage() {
         getNextPageParam: (p) => p.nextCursor ?? undefined,
         enabled: !!user,
     });
-    const items = spaces.data?.pages.flatMap((p) => p.items) ?? [];
+    const [parameters] = useSearchParams();
+    const workspaceParameter = parameters.get("workspaceId") ?? "";
+    const requestedWorkspace =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(workspaceParameter)
+            ? workspaceParameter
+            : "";
+    const requestedPlan = parameters.get("planId") ?? "";
+    const target = useQuery({
+        queryKey: ["plan-workspace-target", user?.id, requestedWorkspace],
+        queryFn: ({ signal }) => api.workspace(requestedWorkspace, signal),
+        enabled: !!user && !!requestedWorkspace,
+    });
+    const listed = spaces.data?.pages.flatMap((p) => p.items) ?? [];
+    const items =
+        target.data && !listed.some((item) => item.id === target.data.id)
+            ? [...listed, target.data]
+            : listed;
+    const availableRequestedId = target.data?.id;
+    useEffect(() => {
+        if (availableRequestedId) select(availableRequestedId);
+    }, [availableRequestedId, select]);
+    // 示例向导链接的空间先经真实权限接口确认，加载完成后只选择一次；手动切换和语言变更仍保留当前选择，后续列表分页不覆盖编辑中的计划，旧空间请求继续由 Provider 取消。
     // 计划页只为尚未选择空间的入口补齐首项，后续分页或权限刷新不会覆盖手动选择；因此同空间的计划名称、固定版本及冲突输入仍由现有用户与空间键保留。
     const firstWorkspaceId = items[0]?.id;
     useEffect(() => {
-        if (!selected && firstWorkspaceId) select(firstWorkspaceId);
-    }, [firstWorkspaceId, selected, select]);
+        if (!selected && !availableRequestedId && firstWorkspaceId) select(firstWorkspaceId);
+    }, [firstWorkspaceId, selected, select, availableRequestedId]);
     if (!user) return <Navigate to="/login" />;
     const workspace = items.find((w) => w.id === selected);
     return (
-        <Panel title="执行计划 / Execution plans">
+        <Panel title={tx("执行计划 / Execution plans")}>
             <label>
-                空间 / Workspace
+                {tx("空间 / Workspace")}
                 <select
-                    aria-label="Plan Workspace"
+                    aria-label={tx("Plan Workspace")}
                     value={selected}
                     onChange={(e) => select(e.target.value)}
                 >
@@ -48,13 +71,31 @@ export function ExecutionPlansPage() {
                     ))}
                 </select>
             </label>
-            {spaces.error && <p role="alert">{spaces.error.message}</p>}
+            {(spaces.isPending || target.isFetching) && (
+                <p role="status">{tx("Loading Workspaces…")}</p>
+            )}
+            {spaces.isSuccess && !items.length && <p>{tx("No Workspaces yet.")}</p>}
+            {target.error && <p role="alert">{target.error.message}</p>}
+            {spaces.error && (
+                <div>
+                    <p role="alert">{spaces.error.message}</p>
+                    <button type="button" onClick={() => void spaces.refetch()}>
+                        {tx("Retry Workspaces")}
+                    </button>
+                </div>
+            )}
             {spaces.hasNextPage && (
                 <button type="button" onClick={() => void spaces.fetchNextPage()}>
-                    更多空间 / More Workspaces
+                    {tx("更多空间 / More Workspaces")}
                 </button>
             )}
-            {workspace && <PlanWorkspace key={user.id + selected} workspace={workspace} />}
+            {workspace && (
+                <PlanWorkspace
+                    key={user.id + selected}
+                    workspace={workspace}
+                    requestedPlanId={selected === requestedWorkspace ? requestedPlan : ""}
+                />
+            )}
         </Panel>
     );
 }
@@ -73,6 +114,7 @@ function VersionSelector({
     onChange: (value: string) => void;
     signal: AbortSignal;
 }) {
+    useAppLocale();
     const adapter = useMemo(() => new CloudResourceAdapter(workspace), [workspace]);
     const [resource, setResource] = useState("");
     const resources = useInfiniteQuery({
@@ -93,18 +135,26 @@ function VersionSelector({
     const listed = versions.data?.pages.flatMap((p) => p.items) ?? [];
     return (
         <fieldset>
-            <legend>{kind === "SUITE" ? "套件 / Suite" : "环境 / Environment"}</legend>
+            <legend>{kind === "SUITE" ? tx("套件 / Suite") : tx("环境 / Environment")}</legend>
+            {resources.isPending && <p role="status">{tx("Loading resources…")}</p>}
+            {resources.isSuccess && !resources.data.pages.some((page) => page.items.length) && (
+                <p>{tx("No resources available.")}</p>
+            )}
+            {resource && versions.isPending && <p role="status">{tx("Loading versions…")}</p>}
+            {resource && versions.isSuccess && !listed.length && (
+                <p>{tx("No published versions available.")}</p>
+            )}
             <label>
-                资源 / Resource
+                {tx("资源 / Resource")}
                 <select
-                    aria-label={kind + " resource"}
+                    aria-label={tx("{{kind}} resource", { kind })}
                     value={resource}
                     onChange={(e) => {
                         setResource(e.target.value);
                         onChange("");
                     }}
                 >
-                    <option value="">选择资源 / Select resource</option>
+                    <option value="">{tx("选择资源 / Select resource")}</option>
                     {resources.data?.pages
                         .flatMap((p) => p.items)
                         .filter((r) => r.status !== "ARCHIVED")
@@ -117,18 +167,18 @@ function VersionSelector({
             </label>
             {resources.hasNextPage && (
                 <button type="button" onClick={() => void resources.fetchNextPage()}>
-                    更多资源 / More resources
+                    {tx("更多资源 / More resources")}
                 </button>
             )}
             <label>
-                版本 / Version
+                {tx("版本 / Version")}
                 <select
                     required
-                    aria-label={kind + " version"}
+                    aria-label={tx("{{kind}} version", { kind })}
                     value={value}
                     onChange={(e) => onChange(e.target.value)}
                 >
-                    <option value="">选择已发布版本 / Select published version</option>
+                    <option value="">{tx("选择已发布版本 / Select published version")}</option>
                     {value && !listed.some((v) => v.id === value) && (
                         <option value={value}>{value}</option>
                     )}
@@ -141,7 +191,7 @@ function VersionSelector({
             </label>
             {versions.hasNextPage && (
                 <button type="button" onClick={() => void versions.fetchNextPage()}>
-                    更多版本 / More versions
+                    {tx("更多版本 / More versions")}
                 </button>
             )}
             {(resources.error || versions.error) && (
@@ -152,7 +202,14 @@ function VersionSelector({
 }
 
 /** 计划管理表单只发送明确选择，运行触发保留一次操作的幂等键供网络重试；服务端冲突会原样显示并保留用户输入，查询和轮询在页面卸载时取消，旧空间结果不会更新新空间的状态。 */
-function PlanWorkspace({ workspace }: { workspace: Workspace }) {
+function PlanWorkspace({
+    workspace,
+    requestedPlanId,
+}: {
+    workspace: Workspace;
+    requestedPlanId: string;
+}) {
+    useAppLocale();
     const base = `/workspaces/${workspace.id}`,
         cache = useQueryClient();
     const controller = useMemo(() => new AbortController(), []);
@@ -207,7 +264,22 @@ function PlanWorkspace({ workspace }: { workspace: Workspace }) {
         enabled: !!receipt,
         refetchInterval: (query) => (query.state.data?.state === "FINISHED" ? false : 2000),
     });
-    const rows = plans.data?.pages.flatMap((p) => p.items) ?? [];
+    const requested = useQuery({
+        queryKey: ["workspace", workspace.id, "requested-plan", requestedPlanId],
+        queryFn: ({ signal: querySignal }) =>
+            request<Plan>(
+                base + "/execution-plans/" + encodeURIComponent(requestedPlanId),
+                "GET",
+                undefined,
+                AbortSignal.any([signal, querySignal]),
+            ),
+        enabled: !!requestedPlanId,
+    });
+    const listedRows = plans.data?.pages.flatMap((p) => p.items) ?? [];
+    const rows =
+        requested.data && !listedRows.some((plan) => plan.id === requested.data.id)
+            ? [requested.data, ...listedRows]
+            : listedRows;
     const act = async (work: () => Promise<void>) => {
         setBusy(true);
         setError("");
@@ -235,9 +307,9 @@ function PlanWorkspace({ workspace }: { workspace: Workspace }) {
     };
     return (
         <>
-            <p>计划只保存执行选择；定时由外部调度器调用 HTTP。 / Scheduling is external.</p>
+            <p>{tx("计划只保存执行选择；定时由外部调度器调用 HTTP。 / Scheduling is external.")}</p>
             <Link to="/runtimes">
-                设备登记、共享与凭证投递 / Runtime enrollment and permissions
+                {tx("设备登记、共享与凭证投递 / Runtime enrollment and permissions")}
             </Link>
             {(error || plans.error || runtimes.error || status.error) && (
                 <p role="alert">
@@ -247,17 +319,28 @@ function PlanWorkspace({ workspace }: { workspace: Workspace }) {
                         status.error?.message}
                 </p>
             )}
-            {plans.isPending && <p role="status">加载计划 / Loading plans…</p>}
+            {plans.isPending && <p role="status">{tx("加载计划 / Loading plans…")}</p>}
+            {requestedPlanId && requested.isPending && (
+                <p role="status">{tx("加载计划 / Loading plans…")}</p>
+            )}
+            {requested.error && <p role="alert">{requested.error.message}</p>}
+            {plans.isSuccess && !rows.length && !requested.isFetching && (
+                <p>{tx("No execution plans yet.")}</p>
+            )}
+            {!canEdit && (
+                <p>{tx("Your role or the archived Workspace allows read-only plan access.")}</p>
+            )}
             {rows.map((p) => (
                 <section key={p.id} aria-label={p.name}>
                     <h2>{p.name}</h2>
                     <p>
-                        {p.overlapPolicy} · revision {p.revision} {p.archived && "归档 / Archived"}
+                        {p.overlapPolicy} {tx(" · revision ")}
+                        {p.revision} {p.archived && tx("归档 / Archived")}
                     </p>
                     {canEdit && !p.archived && (
                         <>
                             <button type="button" disabled={busy} onClick={() => edit(p)}>
-                                编辑 / Edit
+                                {tx("编辑 / Edit")}
                             </button>
                             <button
                                 type="button"
@@ -274,7 +357,7 @@ function PlanWorkspace({ workspace }: { workspace: Workspace }) {
                                     })
                                 }
                             >
-                                归档 / Archive
+                                {tx("归档 / Archive")}
                             </button>
                         </>
                     )}
@@ -303,24 +386,24 @@ function PlanWorkspace({ workspace }: { workspace: Workspace }) {
                                 })
                             }
                         >
-                            触发 / Trigger
+                            {tx("触发 / Trigger")}
                         </button>
                     )}
                 </section>
             ))}
             {plans.hasNextPage && (
                 <button type="button" onClick={() => void plans.fetchNextPage()}>
-                    更多计划 / More plans
+                    {tx("更多计划 / More plans")}
                 </button>
             )}
             {receipt && (
-                <section aria-label="Trigger status">
+                <section aria-label={tx("Trigger status")}>
                     <p>
                         {receipt.decision} · {status.data?.state} · {status.data?.outcome} ·{" "}
                         {status.data?.reasonCode}
                     </p>
                     <Link to={`/reports?runId=${receipt.runId}&workspaceId=${workspace.id}`}>
-                        运行报告 / Run report
+                        {tx("运行报告 / Run report")}
                     </Link>
                     {canExecute && status.data?.state !== "FINISHED" && (
                         <button
@@ -338,14 +421,14 @@ function PlanWorkspace({ workspace }: { workspace: Workspace }) {
                                 })
                             }
                         >
-                            取消运行 / Cancel Run
+                            {tx("取消运行 / Cancel Run")}
                         </button>
                     )}
                 </section>
             )}
             {canEdit && (
                 <form
-                    aria-label="Execution plan form"
+                    aria-label={tx("Execution plan form")}
                     onSubmit={(e) => {
                         e.preventDefault();
                         void act(async () => {
@@ -375,11 +458,11 @@ function PlanWorkspace({ workspace }: { workspace: Workspace }) {
                         });
                     }}
                 >
-                    <h2>{editing ? "编辑计划 / Edit plan" : "创建计划 / Create plan"}</h2>
+                    <h2>{editing ? tx("编辑计划 / Edit plan") : tx("创建计划 / Create plan")}</h2>
                     <label>
-                        名称 / Name
+                        {tx("名称 / Name")}
                         <input
-                            aria-label="Plan name"
+                            aria-label={tx("Plan name")}
                             required
                             maxLength={160}
                             value={name}
@@ -401,24 +484,24 @@ function PlanWorkspace({ workspace }: { workspace: Workspace }) {
                         signal={signal}
                     />
                     <label>
-                        角色（逗号分隔） / Role keys
+                        {tx("角色（逗号分隔） / Role keys")}
                         <input
-                            aria-label="Plan roles"
+                            aria-label={tx("Plan roles")}
                             required
                             value={roles}
                             onChange={(e) => setRoles(e.target.value)}
                         />
                     </label>
                     <label>
-                        初始变量 / Initial variables
+                        {tx("初始变量 / Initial variables")}
                         <textarea
-                            aria-label="Plan variables"
+                            aria-label={tx("Plan variables")}
                             value={variables}
                             onChange={(e) => setVariables(e.target.value)}
                         />
                     </label>
                     <fieldset>
-                        <legend>浏览器 / Browsers</legend>
+                        <legend>{tx("浏览器 / Browsers")}</legend>
                         {["chromium", "firefox", "webkit"].map((b) => (
                             <label key={b}>
                                 <input
@@ -437,7 +520,7 @@ function PlanWorkspace({ workspace }: { workspace: Workspace }) {
                         ))}
                     </fieldset>
                     <fieldset>
-                        <legend>执行设备 / Runtimes</legend>
+                        <legend>{tx("执行设备 / Runtimes")}</legend>
                         {runtimes.data?.pages
                             .flatMap((p) => p.items)
                             .map((r) => (
@@ -477,14 +560,14 @@ function PlanWorkspace({ workspace }: { workspace: Workspace }) {
                             ))}
                         {runtimes.hasNextPage && (
                             <button type="button" onClick={() => void runtimes.fetchNextPage()}>
-                                更多设备 / More Runtimes
+                                {tx("更多设备 / More Runtimes")}
                             </button>
                         )}
                     </fieldset>
                     <label>
-                        重叠策略 / Overlap
+                        {tx("重叠策略 / Overlap")}
                         <select
-                            aria-label="Overlap policy"
+                            aria-label={tx("Overlap policy")}
                             value={policy}
                             onChange={(e) => setPolicy(e.target.value as Write["overlapPolicy"])}
                         >
@@ -494,7 +577,7 @@ function PlanWorkspace({ workspace }: { workspace: Workspace }) {
                         </select>
                     </label>
                     <label>
-                        整用例重试 / Case retries
+                        {tx("整用例重试 / Case retries")}
                         <select
                             value={retries}
                             onChange={(e) => setRetries(Number(e.target.value))}
@@ -509,11 +592,11 @@ function PlanWorkspace({ workspace }: { workspace: Workspace }) {
                             busy || !suite || !environment || !runtimeIds.length || !browsers.length
                         }
                     >
-                        保存计划 / Save plan
+                        {tx("保存计划 / Save plan")}
                     </button>
                     {editing && (
                         <button type="button" onClick={() => edit(null)}>
-                            新建 / New plan
+                            {tx("新建 / New plan")}
                         </button>
                     )}
                 </form>
@@ -539,6 +622,7 @@ function ServiceAccounts({
     plans: Plan[];
     signal: AbortSignal;
 }) {
+    useAppLocale();
     const base = `/workspaces/${workspace}/service-accounts`,
         cache = useQueryClient();
     const [account, setAccount] = useState(""),
@@ -601,8 +685,18 @@ function ServiceAccounts({
                   "lifecycle/expire",
               ];
     return (
-        <section aria-label="Service accounts">
-            <h2>服务账号与受限令牌 / Service accounts</h2>
+        <section aria-label={tx("Service accounts")}>
+            <h2>{tx("服务账号与受限令牌 / Service accounts")}</h2>
+            {accounts.isPending && <p role="status">{tx("Loading service accounts…")}</p>}
+            {accounts.isSuccess && !accounts.data.pages.some((page) => page.items.length) && (
+                <p>{tx("No service accounts yet.")}</p>
+            )}
+            {account && tokens.isPending && <p role="status">{tx("Loading tokens…")}</p>}
+            {account &&
+                tokens.isSuccess &&
+                !tokens.data.pages.some((page) => page.items.length) && (
+                    <p>{tx("No tokens issued for this account.")}</p>
+                )}
             {(error || accounts.error || tokens.error) && (
                 <p role="alert">{error || accounts.error?.message || tokens.error?.message}</p>
             )}
@@ -627,9 +721,9 @@ function ServiceAccounts({
                 }}
             >
                 <label>
-                    账号名称 / Account name
+                    {tx("账号名称 / Account name")}
                     <input
-                        aria-label="Service account name"
+                        aria-label={tx("Service account name")}
                         required
                         maxLength={160}
                         value={name}
@@ -637,31 +731,31 @@ function ServiceAccounts({
                     />
                 </label>
                 <button type="submit" disabled={busy}>
-                    创建账号 / Create account
+                    {tx("创建账号 / Create account")}
                 </button>
             </form>
             <select
                 disabled={busy}
-                aria-label="Service account"
+                aria-label={tx("Service account")}
                 value={account}
                 onChange={(e) => {
                     setAccount(e.target.value);
                     setSecret("");
                 }}
             >
-                <option value="">选择账号 / Select account</option>
+                <option value="">{tx("选择账号 / Select account")}</option>
                 {accounts.data?.pages
                     .flatMap((p) => p.items)
                     .map((a) => (
                         <option key={a.id} value={a.id} disabled={a.disabled}>
                             {a.name}
-                            {a.disabled ? " (disabled)" : ""}
+                            {a.disabled ? tx(" (disabled)") : ""}
                         </option>
                     ))}
             </select>
             {accounts.hasNextPage && (
                 <button type="button" onClick={() => void accounts.fetchNextPage()}>
-                    更多账号 / More accounts
+                    {tx("更多账号 / More accounts")}
                 </button>
             )}
             {account && (
@@ -682,7 +776,7 @@ function ServiceAccounts({
                             })
                         }
                     >
-                        禁用账号 / Disable account
+                        {tx("禁用账号 / Disable account")}
                     </button>
                     <form
                         onSubmit={(e) => {
@@ -706,9 +800,9 @@ function ServiceAccounts({
                         }}
                     >
                         <label>
-                            用途 / Purpose
+                            {tx("用途 / Purpose")}
                             <select
-                                aria-label="Token purpose"
+                                aria-label={tx("Token purpose")}
                                 value={purpose}
                                 onChange={(e) => {
                                     setPurpose(e.target.value);
@@ -723,12 +817,12 @@ function ServiceAccounts({
                         </label>
                         <p>
                             {purpose === "RUNTIME_ENROLLMENT"
-                                ? "10 分钟内一次登记 / One enrollment within 10 minutes"
-                                : "有效期 24 小时，可立即吊销 / Expires in 24 hours; revocable"}
+                                ? tx("10 分钟内一次登记 / One enrollment within 10 minutes")
+                                : tx("有效期 24 小时，可立即吊销 / Expires in 24 hours; revocable")}
                         </p>
                         {purpose !== "RUNTIME_ENROLLMENT" && (
                             <fieldset>
-                                <legend>操作 / Operations</legend>
+                                <legend>{tx("操作 / Operations")}</legend>
                                 {choices.map((operation) => (
                                     <label key={operation}>
                                         <input
@@ -749,7 +843,7 @@ function ServiceAccounts({
                         )}
                         {purpose === "EXECUTION" && (
                             <fieldset>
-                                <legend>授权计划 / Allowed plans</legend>
+                                <legend>{tx("授权计划 / Allowed plans")}</legend>
                                 {plans.map((p) => (
                                     <label key={p.id}>
                                         <input
@@ -767,8 +861,9 @@ function ServiceAccounts({
                                     </label>
                                 ))}
                                 <p>
-                                    服务仅能使用自己拥有或所有者共享到空间的设备。 / Service-owned
-                                    or explicitly Workspace-shared Runtimes only.
+                                    {tx(
+                                        "服务仅能使用自己拥有或所有者共享到空间的设备。 / Service-owned or explicitly Workspace-shared Runtimes only.",
+                                    )}
                                 </p>
                             </fieldset>
                         )}
@@ -780,17 +875,19 @@ function ServiceAccounts({
                                 (purpose === "EXECUTION" && !planIds.length)
                             }
                         >
-                            签发令牌 / Issue token
+                            {tx("签发令牌 / Issue token")}
                         </button>
                     </form>
                     {secret && (
-                        <section aria-label="One-time token">
+                        <section aria-label={tx("One-time token")}>
                             <p>
-                                仅显示一次，请保存到 CI 秘密变量。 / Shown once; save in CI secrets.
+                                {tx(
+                                    "仅显示一次，请保存到 CI 秘密变量。 / Shown once; save in CI secrets.",
+                                )}
                             </p>
                             <output>{secret}</output>
                             <button type="button" onClick={() => setSecret("")}>
-                                关闭令牌 / Dismiss token
+                                {tx("关闭令牌 / Dismiss token")}
                             </button>
                         </section>
                     )}
@@ -801,8 +898,8 @@ function ServiceAccounts({
                                 <p>
                                     {t.id} · {t.purpose} · {t.expiresAt} · {t.operations.join(", ")}{" "}
                                     · {t.planIds.join(", ")}
-                                    {t.revoked && " · revoked"}
-                                    {t.consumed && " · consumed"}
+                                    {t.revoked && tx(" · revoked")}
+                                    {t.consumed && tx(" · consumed")}
                                 </p>
                                 {!t.revoked && (
                                     <button
@@ -825,14 +922,14 @@ function ServiceAccounts({
                                             })
                                         }
                                     >
-                                        吊销 / Revoke
+                                        {tx("吊销 / Revoke")}
                                     </button>
                                 )}
                             </article>
                         ))}
                     {tokens.hasNextPage && (
                         <button type="button" onClick={() => void tokens.fetchNextPage()}>
-                            更多令牌 / More tokens
+                            {tx("更多令牌 / More tokens")}
                         </button>
                     )}
                 </>
