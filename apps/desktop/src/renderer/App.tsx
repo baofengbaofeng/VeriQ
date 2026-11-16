@@ -1141,6 +1141,11 @@ export function App() {
                                         {JSON.stringify(diagnostics, null, 2)}
                                     </pre>
                                 )}
+                                <button type="button" onClick={() => void action(() => bridge.installUpdate())}>
+                                    准备已验证升级或回滚 / Prepare verified update
+                                </button>
+                                <p>更新前请停止在线领取与执行；隔离或未知进程必须先恢复。卸载默认保留本机配置、凭据与历史。</p>
+                                {state?.diagnostics && <pre>{JSON.stringify(state.diagnostics, null, 2)}</pre>}
                                 <p>
                                     VeriQ {state?.version} · Node24 Agent{" "}
                                     {agent?.node ?? "unavailable"} ·{" "}

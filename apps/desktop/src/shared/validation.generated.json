@@ -78,7 +78,15 @@
         },
         "ValueType": {
             "type": "string",
-            "enum": ["string", "number", "integer", "boolean", "object", "array", "null"]
+            "enum": [
+                "string",
+                "number",
+                "integer",
+                "boolean",
+                "object",
+                "array",
+                "null"
+            ]
         },
         "ParameterTypes": {
             "type": "object",
@@ -127,11 +135,23 @@
         },
         "HttpMethod": {
             "type": "string",
-            "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
+            "enum": [
+                "GET",
+                "POST",
+                "PUT",
+                "PATCH",
+                "DELETE",
+                "HEAD",
+                "OPTIONS"
+            ]
         },
         "Browser": {
             "type": "string",
-            "enum": ["chromium", "firefox", "webkit"]
+            "enum": [
+                "chromium",
+                "firefox",
+                "webkit"
+            ]
         },
         "ResourceKind": {
             "type": "string",
@@ -148,23 +168,52 @@
         },
         "Outcome": {
             "type": "string",
-            "enum": ["PASSED", "FAILED", "ERROR", "UNSTABLE", "CANCELLED", "INCOMPLETE", "SKIPPED"]
+            "enum": [
+                "PASSED",
+                "FAILED",
+                "ERROR",
+                "UNSTABLE",
+                "CANCELLED",
+                "INCOMPLETE",
+                "SKIPPED"
+            ]
         },
         "AttemptOutcome": {
             "type": "string",
-            "enum": ["PASSED", "FAILED", "ERROR", "CANCELLED", "INCOMPLETE", "SKIPPED"]
+            "enum": [
+                "PASSED",
+                "FAILED",
+                "ERROR",
+                "CANCELLED",
+                "INCOMPLETE",
+                "SKIPPED"
+            ]
         },
         "CleanupStatus": {
             "type": "string",
-            "enum": ["NOT_REQUIRED", "PENDING", "SUCCEEDED", "FAILED", "UNKNOWN"]
+            "enum": [
+                "NOT_REQUIRED",
+                "PENDING",
+                "SUCCEEDED",
+                "FAILED",
+                "UNKNOWN"
+            ]
         },
         "TrustStatus": {
             "type": "string",
-            "enum": ["MANAGED", "USER_REGISTERED", "REVOKED"]
+            "enum": [
+                "MANAGED",
+                "USER_REGISTERED",
+                "REVOKED"
+            ]
         },
         "RunSource": {
             "type": "string",
-            "enum": ["MANAGED_CLOUD", "CONNECTED_LOCAL", "OFFLINE_IMPORT"]
+            "enum": [
+                "MANAGED_CLOUD",
+                "CONNECTED_LOCAL",
+                "OFFLINE_IMPORT"
+            ]
         },
         "FilePath": {
             "type": "string",
@@ -185,7 +234,11 @@
                     "maximum": 9007199254740991
                 }
             },
-            "required": ["path", "sha256", "sizeBytes"],
+            "required": [
+                "path",
+                "sha256",
+                "sizeBytes"
+            ],
             "additionalProperties": false
         },
         "DependencyVersion": {
@@ -203,7 +256,11 @@
                     "minLength": 1
                 }
             },
-            "required": ["name", "version", "integrity"],
+            "required": [
+                "name",
+                "version",
+                "integrity"
+            ],
             "additionalProperties": false
         },
         "ObserverWindow": {
@@ -220,7 +277,9 @@
                             "maximum": 30000
                         }
                     },
-                    "required": ["mode"],
+                    "required": [
+                        "mode"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -233,7 +292,10 @@
                             "$ref": "#/$defs/Timeout"
                         }
                     },
-                    "required": ["mode", "durationMs"],
+                    "required": [
+                        "mode",
+                        "durationMs"
+                    ],
                     "additionalProperties": false
                 }
             ]
@@ -273,7 +335,13 @@
                     "type": "boolean"
                 }
             },
-            "required": ["source", "pointer", "to", "valueType", "required"],
+            "required": [
+                "source",
+                "pointer",
+                "to",
+                "valueType",
+                "required"
+            ],
             "additionalProperties": false
         },
         "AssertionV1": {
@@ -286,7 +354,11 @@
                         },
                         "severity": {
                             "type": "string",
-                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                            "enum": [
+                                "BLOCK",
+                                "CONTINUE_FAIL",
+                                "WARN"
+                            ]
                         },
                         "expectedSource": {
                             "type": "string",
@@ -303,7 +375,13 @@
                         },
                         "operator": {
                             "type": "string",
-                            "enum": ["visible", "enabled", "checked", "attached", "editable"]
+                            "enum": [
+                                "visible",
+                                "enabled",
+                                "checked",
+                                "attached",
+                                "editable"
+                            ]
                         },
                         "expected": {
                             "type": "boolean"
@@ -331,7 +409,11 @@
                         },
                         "severity": {
                             "type": "string",
-                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                            "enum": [
+                                "BLOCK",
+                                "CONTINUE_FAIL",
+                                "WARN"
+                            ]
                         },
                         "expectedSource": {
                             "type": "string",
@@ -348,7 +430,11 @@
                         },
                         "operator": {
                             "type": "string",
-                            "enum": ["textEquals", "textContains", "valueEquals"]
+                            "enum": [
+                                "textEquals",
+                                "textContains",
+                                "valueEquals"
+                            ]
                         },
                         "expected": {
                             "$ref": "#/$defs/SafeString"
@@ -376,7 +462,11 @@
                         },
                         "severity": {
                             "type": "string",
-                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                            "enum": [
+                                "BLOCK",
+                                "CONTINUE_FAIL",
+                                "WARN"
+                            ]
                         },
                         "expectedSource": {
                             "type": "string",
@@ -422,7 +512,11 @@
                         },
                         "severity": {
                             "type": "string",
-                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                            "enum": [
+                                "BLOCK",
+                                "CONTINUE_FAIL",
+                                "WARN"
+                            ]
                         },
                         "expectedSource": {
                             "type": "string",
@@ -439,7 +533,10 @@
                         },
                         "operator": {
                             "type": "string",
-                            "enum": ["equals", "contains"]
+                            "enum": [
+                                "equals",
+                                "contains"
+                            ]
                         },
                         "expected": {
                             "$ref": "#/$defs/SafeString"
@@ -467,7 +564,11 @@
                         },
                         "severity": {
                             "type": "string",
-                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                            "enum": [
+                                "BLOCK",
+                                "CONTINUE_FAIL",
+                                "WARN"
+                            ]
                         },
                         "expectedSource": {
                             "type": "string",
@@ -510,7 +611,11 @@
                         },
                         "severity": {
                             "type": "string",
-                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                            "enum": [
+                                "BLOCK",
+                                "CONTINUE_FAIL",
+                                "WARN"
+                            ]
                         },
                         "expectedSource": {
                             "type": "string",
@@ -551,7 +656,11 @@
                         },
                         "severity": {
                             "type": "string",
-                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                            "enum": [
+                                "BLOCK",
+                                "CONTINUE_FAIL",
+                                "WARN"
+                            ]
                         },
                         "expectedSource": {
                             "type": "string",
@@ -592,7 +701,11 @@
                         },
                         "severity": {
                             "type": "string",
-                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                            "enum": [
+                                "BLOCK",
+                                "CONTINUE_FAIL",
+                                "WARN"
+                            ]
                         },
                         "expectedSource": {
                             "type": "string",
@@ -633,7 +746,11 @@
                         },
                         "severity": {
                             "type": "string",
-                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                            "enum": [
+                                "BLOCK",
+                                "CONTINUE_FAIL",
+                                "WARN"
+                            ]
                         },
                         "expectedSource": {
                             "type": "string",
@@ -676,7 +793,11 @@
                         },
                         "severity": {
                             "type": "string",
-                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                            "enum": [
+                                "BLOCK",
+                                "CONTINUE_FAIL",
+                                "WARN"
+                            ]
                         },
                         "expectedSource": {
                             "type": "string",
@@ -719,7 +840,11 @@
                         },
                         "severity": {
                             "type": "string",
-                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                            "enum": [
+                                "BLOCK",
+                                "CONTINUE_FAIL",
+                                "WARN"
+                            ]
                         },
                         "expectedSource": {
                             "type": "string",
@@ -744,7 +869,10 @@
                                     "$ref": "#/$defs/BindingJsonObject"
                                 }
                             },
-                            "required": ["method", "path"],
+                            "required": [
+                                "method",
+                                "path"
+                            ],
                             "additionalProperties": false
                         },
                         "pointer": {
@@ -782,7 +910,11 @@
                         },
                         "severity": {
                             "type": "string",
-                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                            "enum": [
+                                "BLOCK",
+                                "CONTINUE_FAIL",
+                                "WARN"
+                            ]
                         },
                         "expectedSource": {
                             "type": "string",
@@ -801,7 +933,13 @@
                             "$ref": "#/$defs/BindingJsonObject"
                         }
                     },
-                    "required": ["id", "type", "severity", "expectedSource", "versionId"],
+                    "required": [
+                        "id",
+                        "type",
+                        "severity",
+                        "expectedSource",
+                        "versionId"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -812,7 +950,11 @@
                         },
                         "severity": {
                             "type": "string",
-                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                            "enum": [
+                                "BLOCK",
+                                "CONTINUE_FAIL",
+                                "WARN"
+                            ]
                         },
                         "expectedSource": {
                             "type": "string",
@@ -832,7 +974,10 @@
                         },
                         "operator": {
                             "type": "string",
-                            "enum": ["equals", "notEquals"]
+                            "enum": [
+                                "equals",
+                                "notEquals"
+                            ]
                         },
                         "expected": {
                             "$ref": "#/$defs/BindingJsonValue"
@@ -858,7 +1003,11 @@
                         },
                         "severity": {
                             "type": "string",
-                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                            "enum": [
+                                "BLOCK",
+                                "CONTINUE_FAIL",
+                                "WARN"
+                            ]
                         },
                         "expectedSource": {
                             "type": "string",
@@ -913,7 +1062,11 @@
                         },
                         "severity": {
                             "type": "string",
-                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                            "enum": [
+                                "BLOCK",
+                                "CONTINUE_FAIL",
+                                "WARN"
+                            ]
                         },
                         "expectedSource": {
                             "type": "string",
@@ -962,7 +1115,11 @@
                         },
                         "severity": {
                             "type": "string",
-                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                            "enum": [
+                                "BLOCK",
+                                "CONTINUE_FAIL",
+                                "WARN"
+                            ]
                         },
                         "expectedSource": {
                             "type": "string",
@@ -1007,7 +1164,11 @@
                         },
                         "severity": {
                             "type": "string",
-                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                            "enum": [
+                                "BLOCK",
+                                "CONTINUE_FAIL",
+                                "WARN"
+                            ]
                         },
                         "expectedSource": {
                             "type": "string",
@@ -1027,7 +1188,10 @@
                         },
                         "operator": {
                             "type": "string",
-                            "enum": ["equals", "notEquals"]
+                            "enum": [
+                                "equals",
+                                "notEquals"
+                            ]
                         },
                         "expected": {
                             "$ref": "#/$defs/BindingJsonValue"
@@ -1053,7 +1217,11 @@
                         },
                         "severity": {
                             "type": "string",
-                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                            "enum": [
+                                "BLOCK",
+                                "CONTINUE_FAIL",
+                                "WARN"
+                            ]
                         },
                         "expectedSource": {
                             "type": "string",
@@ -1108,7 +1276,11 @@
                         },
                         "severity": {
                             "type": "string",
-                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                            "enum": [
+                                "BLOCK",
+                                "CONTINUE_FAIL",
+                                "WARN"
+                            ]
                         },
                         "expectedSource": {
                             "type": "string",
@@ -1157,7 +1329,11 @@
                         },
                         "severity": {
                             "type": "string",
-                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                            "enum": [
+                                "BLOCK",
+                                "CONTINUE_FAIL",
+                                "WARN"
+                            ]
                         },
                         "expectedSource": {
                             "type": "string",
@@ -1240,7 +1416,10 @@
                         },
                         "failurePolicy": {
                             "type": "string",
-                            "enum": ["STOP_CASE", "CONTINUE"]
+                            "enum": [
+                                "STOP_CASE",
+                                "CONTINUE"
+                            ]
                         },
                         "action": {
                             "const": "goto"
@@ -1252,7 +1431,11 @@
                             "$ref": "#/$defs/Key"
                         }
                     },
-                    "required": ["id", "action", "path"],
+                    "required": [
+                        "id",
+                        "action",
+                        "path"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -1297,7 +1480,10 @@
                         },
                         "failurePolicy": {
                             "type": "string",
-                            "enum": ["STOP_CASE", "CONTINUE"]
+                            "enum": [
+                                "STOP_CASE",
+                                "CONTINUE"
+                            ]
                         },
                         "action": {
                             "const": "click"
@@ -1309,7 +1495,11 @@
                             "$ref": "#/$defs/Key"
                         }
                     },
-                    "required": ["id", "action", "target"],
+                    "required": [
+                        "id",
+                        "action",
+                        "target"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -1354,7 +1544,10 @@
                         },
                         "failurePolicy": {
                             "type": "string",
-                            "enum": ["STOP_CASE", "CONTINUE"]
+                            "enum": [
+                                "STOP_CASE",
+                                "CONTINUE"
+                            ]
                         },
                         "action": {
                             "const": "check"
@@ -1366,7 +1559,11 @@
                             "$ref": "#/$defs/Key"
                         }
                     },
-                    "required": ["id", "action", "target"],
+                    "required": [
+                        "id",
+                        "action",
+                        "target"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -1411,7 +1608,10 @@
                         },
                         "failurePolicy": {
                             "type": "string",
-                            "enum": ["STOP_CASE", "CONTINUE"]
+                            "enum": [
+                                "STOP_CASE",
+                                "CONTINUE"
+                            ]
                         },
                         "action": {
                             "const": "uncheck"
@@ -1423,7 +1623,11 @@
                             "$ref": "#/$defs/Key"
                         }
                     },
-                    "required": ["id", "action", "target"],
+                    "required": [
+                        "id",
+                        "action",
+                        "target"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -1468,7 +1672,10 @@
                         },
                         "failurePolicy": {
                             "type": "string",
-                            "enum": ["STOP_CASE", "CONTINUE"]
+                            "enum": [
+                                "STOP_CASE",
+                                "CONTINUE"
+                            ]
                         },
                         "action": {
                             "const": "fill"
@@ -1483,7 +1690,12 @@
                             "$ref": "#/$defs/Key"
                         }
                     },
-                    "required": ["id", "action", "target", "value"],
+                    "required": [
+                        "id",
+                        "action",
+                        "target",
+                        "value"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -1528,7 +1740,10 @@
                         },
                         "failurePolicy": {
                             "type": "string",
-                            "enum": ["STOP_CASE", "CONTINUE"]
+                            "enum": [
+                                "STOP_CASE",
+                                "CONTINUE"
+                            ]
                         },
                         "action": {
                             "const": "press"
@@ -1545,7 +1760,12 @@
                             "$ref": "#/$defs/Key"
                         }
                     },
-                    "required": ["id", "action", "target", "value"],
+                    "required": [
+                        "id",
+                        "action",
+                        "target",
+                        "value"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -1590,7 +1810,10 @@
                         },
                         "failurePolicy": {
                             "type": "string",
-                            "enum": ["STOP_CASE", "CONTINUE"]
+                            "enum": [
+                                "STOP_CASE",
+                                "CONTINUE"
+                            ]
                         },
                         "action": {
                             "const": "selectOption"
@@ -1616,7 +1839,12 @@
                             "$ref": "#/$defs/Key"
                         }
                     },
-                    "required": ["id", "action", "target", "value"],
+                    "required": [
+                        "id",
+                        "action",
+                        "target",
+                        "value"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -1661,7 +1889,10 @@
                         },
                         "failurePolicy": {
                             "type": "string",
-                            "enum": ["STOP_CASE", "CONTINUE"]
+                            "enum": [
+                                "STOP_CASE",
+                                "CONTINUE"
+                            ]
                         },
                         "action": {
                             "const": "upload"
@@ -1680,7 +1911,12 @@
                             "$ref": "#/$defs/Key"
                         }
                     },
-                    "required": ["id", "action", "target", "value"],
+                    "required": [
+                        "id",
+                        "action",
+                        "target",
+                        "value"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -1725,7 +1961,10 @@
                         },
                         "failurePolicy": {
                             "type": "string",
-                            "enum": ["STOP_CASE", "CONTINUE"]
+                            "enum": [
+                                "STOP_CASE",
+                                "CONTINUE"
+                            ]
                         },
                         "action": {
                             "const": "reload"
@@ -1734,7 +1973,10 @@
                             "$ref": "#/$defs/Key"
                         }
                     },
-                    "required": ["id", "action"],
+                    "required": [
+                        "id",
+                        "action"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -1779,7 +2021,10 @@
                         },
                         "failurePolicy": {
                             "type": "string",
-                            "enum": ["STOP_CASE", "CONTINUE"]
+                            "enum": [
+                                "STOP_CASE",
+                                "CONTINUE"
+                            ]
                         },
                         "action": {
                             "const": "apiRequest"
@@ -1806,7 +2051,12 @@
                             "$ref": "#/$defs/Key"
                         }
                     },
-                    "required": ["id", "action", "method", "path"],
+                    "required": [
+                        "id",
+                        "action",
+                        "method",
+                        "path"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -1851,7 +2101,10 @@
                         },
                         "failurePolicy": {
                             "type": "string",
-                            "enum": ["STOP_CASE", "CONTINUE"]
+                            "enum": [
+                                "STOP_CASE",
+                                "CONTINUE"
+                            ]
                         },
                         "action": {
                             "const": "callFlow"
@@ -1866,7 +2119,11 @@
                             "$ref": "#/$defs/Key"
                         }
                     },
-                    "required": ["id", "action", "versionId"],
+                    "required": [
+                        "id",
+                        "action",
+                        "versionId"
+                    ],
                     "additionalProperties": false
                 }
             ]
@@ -1886,7 +2143,10 @@
                 },
                 "kind": {
                     "type": "string",
-                    "enum": ["READ", "WRITE"]
+                    "enum": [
+                        "READ",
+                        "WRITE"
+                    ]
                 },
                 "roleKey": {
                     "$ref": "#/$defs/Key"
@@ -1929,7 +2189,9 @@
             ],
             "additionalProperties": false,
             "dependentRequired": {
-                "fixtureInput": ["fixtureVersionId"]
+                "fixtureInput": [
+                    "fixtureVersionId"
+                ]
             }
         },
         "LocatorV1": {
@@ -1944,7 +2206,10 @@
                             "$ref": "#/$defs/Key"
                         }
                     },
-                    "required": ["by", "value"],
+                    "required": [
+                        "by",
+                        "value"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -1964,7 +2229,10 @@
                             "type": "boolean"
                         }
                     },
-                    "required": ["by", "role"],
+                    "required": [
+                        "by",
+                        "role"
+                    ],
                     "additionalProperties": false
                 }
             ]
@@ -1985,7 +2253,10 @@
                     "$ref": "#/$defs/SafeString"
                 }
             },
-            "required": ["key", "locator"],
+            "required": [
+                "key",
+                "locator"
+            ],
             "additionalProperties": false
         },
         "ElementCatalogV1": {
@@ -2002,7 +2273,10 @@
                     "minItems": 1
                 }
             },
-            "required": ["schemaVersion", "elements"],
+            "required": [
+                "schemaVersion",
+                "elements"
+            ],
             "additionalProperties": false
         },
         "AssertionTemplateV1": {
@@ -2022,7 +2296,10 @@
                     "minItems": 1
                 }
             },
-            "required": ["schemaVersion", "assertions"],
+            "required": [
+                "schemaVersion",
+                "assertions"
+            ],
             "additionalProperties": false
         },
         "DataRowV1": {
@@ -2035,7 +2312,10 @@
                     "$ref": "#/$defs/JsonObject"
                 }
             },
-            "required": ["key", "values"],
+            "required": [
+                "key",
+                "values"
+            ],
             "additionalProperties": false
         },
         "DatasetV1": {
@@ -2055,7 +2335,11 @@
                     "minItems": 1
                 }
             },
-            "required": ["schemaVersion", "columns", "rows"],
+            "required": [
+                "schemaVersion",
+                "columns",
+                "rows"
+            ],
             "additionalProperties": false
         },
         "FlowV1": {
@@ -2076,7 +2360,10 @@
                     "maxItems": 500
                 }
             },
-            "required": ["schemaVersion", "steps"],
+            "required": [
+                "schemaVersion",
+                "steps"
+            ],
             "additionalProperties": false
         },
         "FixtureEndpointV1": {
@@ -2084,13 +2371,19 @@
             "properties": {
                 "method": {
                     "type": "string",
-                    "enum": ["POST", "DELETE"]
+                    "enum": [
+                        "POST",
+                        "DELETE"
+                    ]
                 },
                 "path": {
                     "$ref": "#/$defs/Path"
                 }
             },
-            "required": ["method", "path"],
+            "required": [
+                "method",
+                "path"
+            ],
             "additionalProperties": false
         },
         "FixtureV1": {
@@ -2109,7 +2402,10 @@
                             "$ref": "#/$defs/Path"
                         }
                     },
-                    "required": ["method", "path"],
+                    "required": [
+                        "method",
+                        "path"
+                    ],
                     "additionalProperties": false
                 },
                 "query": {
@@ -2122,7 +2418,10 @@
                             "$ref": "#/$defs/Path"
                         }
                     },
-                    "required": ["method", "path"],
+                    "required": [
+                        "method",
+                        "path"
+                    ],
                     "additionalProperties": false
                 },
                 "cleanup": {
@@ -2183,13 +2482,18 @@
                                 "minItems": 1
                             }
                         },
-                        "required": ["versionId"],
+                        "required": [
+                            "versionId"
+                        ],
                         "additionalProperties": false
                     },
                     "minItems": 1
                 }
             },
-            "required": ["schemaVersion", "cases"],
+            "required": [
+                "schemaVersion",
+                "cases"
+            ],
             "additionalProperties": false
         },
         "EnvironmentRoleV1": {
@@ -2216,7 +2520,12 @@
                     "minItems": 0
                 }
             },
-            "required": ["roleKey", "authAdapterVersionId", "secretRef", "secretVersionId"],
+            "required": [
+                "roleKey",
+                "authAdapterVersionId",
+                "secretRef",
+                "secretVersionId"
+            ],
             "additionalProperties": false
         },
         "EnvironmentV1": {
@@ -2275,8 +2584,12 @@
             ],
             "additionalProperties": false,
             "dependentRequired": {
-                "fixtureIdentity": ["fixtureBaseURL"],
-                "fixtureBaseURL": ["fixtureIdentity"]
+                "fixtureIdentity": [
+                    "fixtureBaseURL"
+                ],
+                "fixtureBaseURL": [
+                    "fixtureIdentity"
+                ]
             }
         },
         "ResourceDocumentV1": {
@@ -2291,7 +2604,10 @@
                             "$ref": "#/$defs/CaseDslV1"
                         }
                     },
-                    "required": ["kind", "document"],
+                    "required": [
+                        "kind",
+                        "document"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -2304,7 +2620,10 @@
                             "$ref": "#/$defs/ElementCatalogV1"
                         }
                     },
-                    "required": ["kind", "document"],
+                    "required": [
+                        "kind",
+                        "document"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -2317,7 +2636,10 @@
                             "$ref": "#/$defs/AssertionTemplateV1"
                         }
                     },
-                    "required": ["kind", "document"],
+                    "required": [
+                        "kind",
+                        "document"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -2330,7 +2652,10 @@
                             "$ref": "#/$defs/DatasetV1"
                         }
                     },
-                    "required": ["kind", "document"],
+                    "required": [
+                        "kind",
+                        "document"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -2343,7 +2668,10 @@
                             "$ref": "#/$defs/FlowV1"
                         }
                     },
-                    "required": ["kind", "document"],
+                    "required": [
+                        "kind",
+                        "document"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -2356,7 +2684,10 @@
                             "$ref": "#/$defs/FixtureV1"
                         }
                     },
-                    "required": ["kind", "document"],
+                    "required": [
+                        "kind",
+                        "document"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -2369,7 +2700,10 @@
                             "$ref": "#/$defs/SuiteV1"
                         }
                     },
-                    "required": ["kind", "document"],
+                    "required": [
+                        "kind",
+                        "document"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -2382,7 +2716,10 @@
                             "$ref": "#/$defs/EnvironmentV1"
                         }
                     },
-                    "required": ["kind", "document"],
+                    "required": [
+                        "kind",
+                        "document"
+                    ],
                     "additionalProperties": false
                 }
             ]
@@ -2408,7 +2745,13 @@
                             "$ref": "#/$defs/CaseDslV1"
                         }
                     },
-                    "required": ["resourceId", "versionId", "kind", "sha256", "document"],
+                    "required": [
+                        "resourceId",
+                        "versionId",
+                        "kind",
+                        "sha256",
+                        "document"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -2430,7 +2773,13 @@
                             "$ref": "#/$defs/ElementCatalogV1"
                         }
                     },
-                    "required": ["resourceId", "versionId", "kind", "sha256", "document"],
+                    "required": [
+                        "resourceId",
+                        "versionId",
+                        "kind",
+                        "sha256",
+                        "document"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -2452,7 +2801,13 @@
                             "$ref": "#/$defs/AssertionTemplateV1"
                         }
                     },
-                    "required": ["resourceId", "versionId", "kind", "sha256", "document"],
+                    "required": [
+                        "resourceId",
+                        "versionId",
+                        "kind",
+                        "sha256",
+                        "document"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -2474,7 +2829,13 @@
                             "$ref": "#/$defs/DatasetV1"
                         }
                     },
-                    "required": ["resourceId", "versionId", "kind", "sha256", "document"],
+                    "required": [
+                        "resourceId",
+                        "versionId",
+                        "kind",
+                        "sha256",
+                        "document"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -2496,7 +2857,13 @@
                             "$ref": "#/$defs/FlowV1"
                         }
                     },
-                    "required": ["resourceId", "versionId", "kind", "sha256", "document"],
+                    "required": [
+                        "resourceId",
+                        "versionId",
+                        "kind",
+                        "sha256",
+                        "document"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -2518,7 +2885,13 @@
                             "$ref": "#/$defs/FixtureV1"
                         }
                     },
-                    "required": ["resourceId", "versionId", "kind", "sha256", "document"],
+                    "required": [
+                        "resourceId",
+                        "versionId",
+                        "kind",
+                        "sha256",
+                        "document"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -2540,7 +2913,13 @@
                             "$ref": "#/$defs/SuiteV1"
                         }
                     },
-                    "required": ["resourceId", "versionId", "kind", "sha256", "document"],
+                    "required": [
+                        "resourceId",
+                        "versionId",
+                        "kind",
+                        "sha256",
+                        "document"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -2562,7 +2941,13 @@
                             "$ref": "#/$defs/EnvironmentV1"
                         }
                     },
-                    "required": ["resourceId", "versionId", "kind", "sha256", "document"],
+                    "required": [
+                        "resourceId",
+                        "versionId",
+                        "kind",
+                        "sha256",
+                        "document"
+                    ],
                     "additionalProperties": false
                 }
             ]
@@ -2619,7 +3004,9 @@
             "allOf": [
                 {
                     "if": {
-                        "required": ["validationTarget"],
+                        "required": [
+                            "validationTarget"
+                        ],
                         "properties": {
                             "validationTarget": {}
                         }
@@ -2686,7 +3073,10 @@
                                 "$ref": "#/$defs/Id"
                             }
                         },
-                        "required": ["secretRef", "versionId"],
+                        "required": [
+                            "secretRef",
+                            "versionId"
+                        ],
                         "additionalProperties": false
                     },
                     "minItems": 0
@@ -2798,7 +3188,9 @@
                                 "const": true
                             }
                         },
-                        "required": ["validationOnly"]
+                        "required": [
+                            "validationOnly"
+                        ]
                     },
                     "then": {
                         "properties": {
@@ -2827,11 +3219,18 @@
                 },
                 "os": {
                     "type": "string",
-                    "enum": ["linux", "win32", "darwin"]
+                    "enum": [
+                        "linux",
+                        "win32",
+                        "darwin"
+                    ]
                 },
                 "arch": {
                     "type": "string",
-                    "enum": ["x64", "arm64"]
+                    "enum": [
+                        "x64",
+                        "arm64"
+                    ]
                 },
                 "browsers": {
                     "type": "array",
@@ -2844,12 +3243,21 @@
                     "type": "array",
                     "items": {
                         "type": "string",
-                        "enum": ["TEST", "VALIDATE", "CLEANUP"]
+                        "enum": [
+                            "TEST",
+                            "VALIDATE",
+                            "CLEANUP"
+                        ]
                     },
                     "minItems": 1
                 }
             },
-            "required": ["engineVersion", "os", "arch", "browsers"],
+            "required": [
+                "engineVersion",
+                "os",
+                "arch",
+                "browsers"
+            ],
             "additionalProperties": false,
             "description": "VeriQ Runtime能力合同仅允许linux/x64、win32/x64、darwin/x64及darwin/arm64；Mac目标最低系统为macOS15，但合同接受不代表设备通过原生执行、进程监督、凭据或安装验收。",
             "oneOf": [
@@ -2862,7 +3270,10 @@
                             "const": "x64"
                         }
                     },
-                    "required": ["os", "arch"]
+                    "required": [
+                        "os",
+                        "arch"
+                    ]
                 },
                 {
                     "properties": {
@@ -2873,7 +3284,10 @@
                             "const": "x64"
                         }
                     },
-                    "required": ["os", "arch"]
+                    "required": [
+                        "os",
+                        "arch"
+                    ]
                 },
                 {
                     "properties": {
@@ -2884,7 +3298,10 @@
                             "const": "x64"
                         }
                     },
-                    "required": ["os", "arch"]
+                    "required": [
+                        "os",
+                        "arch"
+                    ]
                 },
                 {
                     "properties": {
@@ -2895,7 +3312,10 @@
                             "const": "arm64"
                         }
                     },
-                    "required": ["os", "arch"]
+                    "required": [
+                        "os",
+                        "arch"
+                    ]
                 }
             ]
         },
@@ -2917,7 +3337,12 @@
                     "$ref": "#/$defs/RuntimeCapabilitiesV1"
                 }
             },
-            "required": ["runnerId", "clientRequestId", "availableSlots", "capabilities"],
+            "required": [
+                "runnerId",
+                "clientRequestId",
+                "availableSlots",
+                "capabilities"
+            ],
             "additionalProperties": false
         },
         "ClaimDTO": {
@@ -2928,7 +3353,11 @@
                 },
                 "jobKind": {
                     "type": "string",
-                    "enum": ["TEST", "VALIDATE", "CLEANUP"]
+                    "enum": [
+                        "TEST",
+                        "VALIDATE",
+                        "CLEANUP"
+                    ]
                 },
                 "attemptId": {
                     "$ref": "#/$defs/Id"
@@ -3172,7 +3601,10 @@
                                     "$ref": "#/$defs/Sha256"
                                 }
                             },
-                            "required": ["engineVersion", "sourceHash"],
+                            "required": [
+                                "engineVersion",
+                                "sourceHash"
+                            ],
                             "additionalProperties": false
                         }
                     },
@@ -3227,7 +3659,9 @@
                                     ]
                                 }
                             },
-                            "required": ["phase"],
+                            "required": [
+                                "phase"
+                            ],
                             "additionalProperties": false
                         }
                     },
@@ -3445,7 +3879,10 @@
                                     "$ref": "#/$defs/ValueType"
                                 }
                             },
-                            "required": ["name", "valueType"],
+                            "required": [
+                                "name",
+                                "valueType"
+                            ],
                             "additionalProperties": false
                         }
                     },
@@ -3491,13 +3928,21 @@
                             "properties": {
                                 "level": {
                                     "type": "string",
-                                    "enum": ["DEBUG", "INFO", "WARN", "ERROR"]
+                                    "enum": [
+                                        "DEBUG",
+                                        "INFO",
+                                        "WARN",
+                                        "ERROR"
+                                    ]
                                 },
                                 "message": {
                                     "$ref": "#/$defs/DiagnosticText"
                                 }
                             },
-                            "required": ["level", "message"],
+                            "required": [
+                                "level",
+                                "message"
+                            ],
                             "additionalProperties": false
                         }
                     },
@@ -3547,7 +3992,9 @@
                                     "$ref": "#/$defs/Key"
                                 }
                             },
-                            "required": ["cleanupStatus"],
+                            "required": [
+                                "cleanupStatus"
+                            ],
                             "additionalProperties": false
                         }
                     },
@@ -3610,7 +4057,11 @@
                                     ]
                                 }
                             },
-                            "required": ["artifactId", "file", "kind"],
+                            "required": [
+                                "artifactId",
+                                "file",
+                                "kind"
+                            ],
                             "additionalProperties": false
                         }
                     },
@@ -3660,7 +4111,10 @@
                                     "$ref": "#/$defs/CleanupStatus"
                                 }
                             },
-                            "required": ["outcome", "cleanupStatus"],
+                            "required": [
+                                "outcome",
+                                "cleanupStatus"
+                            ],
                             "additionalProperties": false
                         }
                     },
@@ -3711,7 +4165,10 @@
                 },
                 "validationStatus": {
                     "type": "string",
-                    "enum": ["VALIDATED", "UNVALIDATED_DEBUG"]
+                    "enum": [
+                        "VALIDATED",
+                        "UNVALIDATED_DEBUG"
+                    ]
                 },
                 "files": {
                     "type": "array",
@@ -3786,10 +4243,17 @@
                     "type": "boolean"
                 },
                 "retrySafety": {
-                    "enum": ["READ_ONLY_OBSERVED", "WRITE_POSSIBLE", "UNKNOWN"]
+                    "enum": [
+                        "READ_ONLY_OBSERVED",
+                        "WRITE_POSSIBLE",
+                        "UNKNOWN"
+                    ]
                 },
                 "sourceKind": {
-                    "enum": ["PUBLISHED", "DRAFT_DEBUG"]
+                    "enum": [
+                        "PUBLISHED",
+                        "DRAFT_DEBUG"
+                    ]
                 },
                 "variantKey": {
                     "$ref": "#/$defs/Sha256"
@@ -3813,14 +4277,22 @@
                                 "maxLength": 500
                             },
                             "pathStatus": {
-                                "enum": ["EXACT", "REDACTED"]
+                                "enum": [
+                                    "EXACT",
+                                    "REDACTED"
+                                ]
                             },
                             "message": {
                                 "type": "string",
                                 "maxLength": 1000
                             }
                         },
-                        "required": ["code", "path", "pathStatus", "message"],
+                        "required": [
+                            "code",
+                            "path",
+                            "pathStatus",
+                            "message"
+                        ],
                         "additionalProperties": false
                     }
                 },
@@ -3869,7 +4341,11 @@
                 },
                 "revocationStatus": {
                     "type": "string",
-                    "enum": ["CURRENT", "UNKNOWN", "REVOKED"]
+                    "enum": [
+                        "CURRENT",
+                        "UNKNOWN",
+                        "REVOKED"
+                    ]
                 },
                 "manifestSha256": {
                     "$ref": "#/$defs/Sha256"
@@ -3925,14 +4401,21 @@
                 },
                 "code": {
                     "type": "string",
-                    "enum": ["SCHEMA_VIOLATION", "INVALID_JSON"]
+                    "enum": [
+                        "SCHEMA_VIOLATION",
+                        "INVALID_JSON"
+                    ]
                 },
                 "message": {
                     "type": "string",
                     "minLength": 1
                 }
             },
-            "required": ["path", "code", "message"],
+            "required": [
+                "path",
+                "code",
+                "message"
+            ],
             "additionalProperties": false
         },
         "HeartbeatRequest": {
@@ -3952,7 +4435,13 @@
                     "properties": {
                         "phase": {
                             "type": "string",
-                            "enum": ["LEASED", "PREPARING", "RUNNING", "CLEANING", "FINALIZING"]
+                            "enum": [
+                                "LEASED",
+                                "PREPARING",
+                                "RUNNING",
+                                "CLEANING",
+                                "FINALIZING"
+                            ]
                         },
                         "stepId": {
                             "$ref": "#/$defs/Key"
@@ -3963,11 +4452,17 @@
                             "maximum": 500
                         }
                     },
-                    "required": ["phase"],
+                    "required": [
+                        "phase"
+                    ],
                     "additionalProperties": false
                 }
             },
-            "required": ["leaseToken", "fencingToken", "progress"],
+            "required": [
+                "leaseToken",
+                "fencingToken",
+                "progress"
+            ],
             "additionalProperties": false
         },
         "HeartbeatDTO": {
@@ -3988,7 +4483,12 @@
                     "maximum": 60000
                 }
             },
-            "required": ["leaseExpiresAt", "cancelRequested", "serverTime", "leaseDurationMs"],
+            "required": [
+                "leaseExpiresAt",
+                "cancelRequested",
+                "serverTime",
+                "leaseDurationMs"
+            ],
             "additionalProperties": false
         },
         "EventBatchRequest": {
@@ -4011,7 +4511,11 @@
                     "minItems": 1
                 }
             },
-            "required": ["leaseToken", "fencingToken", "events"],
+            "required": [
+                "leaseToken",
+                "fencingToken",
+                "events"
+            ],
             "additionalProperties": false
         },
         "EventBatchDTO": {
@@ -4023,7 +4527,9 @@
                     "maximum": 9007199254740991
                 }
             },
-            "required": ["acceptedThrough"],
+            "required": [
+                "acceptedThrough"
+            ],
             "additionalProperties": false
         },
         "FinishRequest": {
@@ -4040,7 +4546,11 @@
                 },
                 "kind": {
                     "type": "string",
-                    "enum": ["TEST", "VALIDATE", "CLEANUP"]
+                    "enum": [
+                        "TEST",
+                        "VALIDATE",
+                        "CLEANUP"
+                    ]
                 },
                 "outcome": {
                     "$ref": "#/$defs/AttemptOutcome"
@@ -4084,7 +4594,12 @@
                     "$ref": "#/$defs/Sha256"
                 }
             },
-            "required": ["attemptId", "accepted", "outcome", "manifestSha256"],
+            "required": [
+                "attemptId",
+                "accepted",
+                "outcome",
+                "manifestSha256"
+            ],
             "additionalProperties": false
         },
         "DurationMs": {
@@ -4101,7 +4616,9 @@
                             "const": false
                         }
                     },
-                    "required": ["present"],
+                    "required": [
+                        "present"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -4114,7 +4631,10 @@
                             "$ref": "#/$defs/JsonValue"
                         }
                     },
-                    "required": ["present", "value"],
+                    "required": [
+                        "present",
+                        "value"
+                    ],
                     "additionalProperties": false
                 }
             ]
@@ -4124,7 +4644,13 @@
             "properties": {
                 "status": {
                     "type": "string",
-                    "enum": ["PASSED", "FAILED", "ERROR", "SKIPPED", "CANCELLED"]
+                    "enum": [
+                        "PASSED",
+                        "FAILED",
+                        "ERROR",
+                        "SKIPPED",
+                        "CANCELLED"
+                    ]
                 },
                 "durationMs": {
                     "$ref": "#/$defs/DurationMs"
@@ -4142,7 +4668,10 @@
                     "$ref": "#/$defs/Key"
                 }
             },
-            "required": ["status", "durationMs"],
+            "required": [
+                "status",
+                "durationMs"
+            ],
             "additionalProperties": false
         },
         "AssertionResultPayloadV1": {
@@ -4150,11 +4679,20 @@
             "properties": {
                 "status": {
                     "type": "string",
-                    "enum": ["PASSED", "FAILED", "WARN", "SKIPPED"]
+                    "enum": [
+                        "PASSED",
+                        "FAILED",
+                        "WARN",
+                        "SKIPPED"
+                    ]
                 },
                 "severity": {
                     "type": "string",
-                    "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                    "enum": [
+                        "BLOCK",
+                        "CONTINUE_FAIL",
+                        "WARN"
+                    ]
                 },
                 "expectedSource": {
                     "type": "string",
@@ -4202,7 +4740,10 @@
                 },
                 "windowMode": {
                     "type": "string",
-                    "enum": ["FIXED", "UNTIL_ACTION_SETTLED"]
+                    "enum": [
+                        "FIXED",
+                        "UNTIL_ACTION_SETTLED"
+                    ]
                 },
                 "durationMs": {
                     "$ref": "#/$defs/DurationMs"
@@ -4231,7 +4772,11 @@
                                 "maximum": 599
                             }
                         },
-                        "required": ["requestId", "method", "path"],
+                        "required": [
+                            "requestId",
+                            "method",
+                            "path"
+                        ],
                         "additionalProperties": false
                     }
                 }
@@ -4315,7 +4860,11 @@
                     "maximum": 9007199254740991
                 }
             },
-            "required": ["resourceId", "versionId", "revision"],
+            "required": [
+                "resourceId",
+                "versionId",
+                "revision"
+            ],
             "additionalProperties": false
         },
         "CaseEntrypointV1": {
@@ -4328,7 +4877,10 @@
                     "$ref": "#/$defs/FilePath"
                 }
             },
-            "required": ["caseVersionId", "path"],
+            "required": [
+                "caseVersionId",
+                "path"
+            ],
             "additionalProperties": false
         },
         "NetworkObserverV1": {
@@ -4362,10 +4914,17 @@
                 },
                 "retryPolicy": {
                     "type": "string",
-                    "enum": ["FORBID", "ALLOW_MATCHING_RETRIES"]
+                    "enum": [
+                        "FORBID",
+                        "ALLOW_MATCHING_RETRIES"
+                    ]
                 }
             },
-            "required": ["id", "method", "path"],
+            "required": [
+                "id",
+                "method",
+                "path"
+            ],
             "additionalProperties": false,
             "allOf": [
                 {
@@ -4375,10 +4934,14 @@
                                 "type": "integer"
                             }
                         },
-                        "required": ["expectedCount"]
+                        "required": [
+                            "expectedCount"
+                        ]
                     },
                     "then": {
-                        "required": ["window"],
+                        "required": [
+                            "window"
+                        ],
                         "properties": {
                             "window": {
                                 "type": "object",
@@ -4387,7 +4950,9 @@
                                         "const": "FIXED"
                                     }
                                 },
-                                "required": ["mode"]
+                                "required": [
+                                    "mode"
+                                ]
                             }
                         }
                     }
@@ -4407,24 +4972,40 @@
                     "const": "dialog"
                 },
                 "dialogType": {
-                    "enum": ["alert", "beforeunload", "confirm", "prompt"]
+                    "enum": [
+                        "alert",
+                        "beforeunload",
+                        "confirm",
+                        "prompt"
+                    ]
                 },
                 "message": {
                     "$ref": "#/$defs/SafeString"
                 },
                 "handling": {
-                    "enum": ["accept", "dismiss"]
+                    "enum": [
+                        "accept",
+                        "dismiss"
+                    ]
                 },
                 "promptText": {
                     "$ref": "#/$defs/SafeString"
                 }
             },
-            "required": ["id", "kind", "dialogType", "message", "handling"],
+            "required": [
+                "id",
+                "kind",
+                "dialogType",
+                "message",
+                "handling"
+            ],
             "additionalProperties": false,
             "allOf": [
                 {
                     "if": {
-                        "required": ["promptText"],
+                        "required": [
+                            "promptText"
+                        ],
                         "properties": {
                             "promptText": {
                                 "$ref": "#/$defs/SafeString"
@@ -4440,7 +5021,10 @@
                                 "const": "accept"
                             }
                         },
-                        "required": ["dialogType", "handling"]
+                        "required": [
+                            "dialogType",
+                            "handling"
+                        ]
                     }
                 }
             ]
@@ -4461,7 +5045,11 @@
                     "$ref": "#/$defs/Key"
                 }
             },
-            "required": ["id", "kind", "pageKey"],
+            "required": [
+                "id",
+                "kind",
+                "pageKey"
+            ],
             "additionalProperties": false
         },
         "DownloadObserverV1": {
@@ -4477,7 +5065,10 @@
                     "const": "download"
                 }
             },
-            "required": ["id", "kind"],
+            "required": [
+                "id",
+                "kind"
+            ],
             "additionalProperties": false
         },
         "AuthAdapterConfigV1": {
@@ -4496,7 +5087,11 @@
                             "pattern": "^(?:/(?:[^~/]|~[01])*)*$"
                         }
                     },
-                    "required": ["kind", "identityPath", "identityPointer"],
+                    "required": [
+                        "kind",
+                        "identityPath",
+                        "identityPointer"
+                    ],
                     "additionalProperties": false
                 },
                 {
@@ -4516,7 +5111,12 @@
                             "pattern": "^(?:/(?:[^~/]|~[01])*)*$"
                         }
                     },
-                    "required": ["kind", "loginPath", "identityPath", "identityPointer"],
+                    "required": [
+                        "kind",
+                        "loginPath",
+                        "identityPath",
+                        "identityPointer"
+                    ],
                     "additionalProperties": false
                 }
             ]
@@ -4537,7 +5137,12 @@
                     "$ref": "#/$defs/AuthAdapterConfigV1"
                 }
             },
-            "required": ["workspaceId", "versionId", "contentHash", "configuration"],
+            "required": [
+                "workspaceId",
+                "versionId",
+                "contentHash",
+                "configuration"
+            ],
             "additionalProperties": false
         },
         "FixtureIdentityV1": {
@@ -4561,12 +5166,19 @@
                     "minItems": 0
                 }
             },
-            "required": ["authAdapterVersionId", "secretRef", "secretVersionId"],
+            "required": [
+                "authAdapterVersionId",
+                "secretRef",
+                "secretVersionId"
+            ],
             "additionalProperties": false
         },
         "ArtifactSensitivity": {
             "type": "string",
-            "enum": ["REDACTED", "CREDENTIAL_RESTRICTED"]
+            "enum": [
+                "REDACTED",
+                "CREDENTIAL_RESTRICTED"
+            ]
         },
         "EvidenceFileEntryV1": {
             "type": "object",
@@ -4586,7 +5198,12 @@
                     "$ref": "#/$defs/ArtifactSensitivity"
                 }
             },
-            "required": ["path", "sha256", "sizeBytes", "sensitivity"],
+            "required": [
+                "path",
+                "sha256",
+                "sizeBytes",
+                "sensitivity"
+            ],
             "additionalProperties": false
         },
         "RuntimeDTO": {
@@ -4604,14 +5221,22 @@
                 },
                 "location": {
                     "type": "string",
-                    "enum": ["MANAGED_CLOUD", "CONNECTED_LOCAL"]
+                    "enum": [
+                        "MANAGED_CLOUD",
+                        "CONNECTED_LOCAL"
+                    ]
                 },
                 "trustStatus": {
                     "$ref": "#/$defs/TrustStatus"
                 },
                 "status": {
                     "type": "string",
-                    "enum": ["PENDING", "ONLINE", "OFFLINE", "REVOKED"]
+                    "enum": [
+                        "PENDING",
+                        "ONLINE",
+                        "OFFLINE",
+                        "REVOKED"
+                    ]
                 },
                 "capabilities": {
                     "$ref": "#/$defs/RuntimeCapabilitiesV1"
@@ -4623,7 +5248,10 @@
                     "$ref": "#/$defs/Id"
                 },
                 "ownerType": {
-                    "enum": ["USER", "SERVICE_ACCOUNT"]
+                    "enum": [
+                        "USER",
+                        "SERVICE_ACCOUNT"
+                    ]
                 },
                 "capabilitiesSource": {
                     "const": "DEVICE_REPORTED"
@@ -4710,7 +5338,11 @@
                     "$ref": "#/$defs/RuntimeCapabilitiesV1"
                 }
             },
-            "required": ["id", "name", "capabilities"],
+            "required": [
+                "id",
+                "name",
+                "capabilities"
+            ],
             "additionalProperties": false
         },
         "DeviceCredentialsDTO": {
@@ -4748,7 +5380,12 @@
                                 "$ref": "#/$defs/Sha256"
                             }
                         },
-                        "required": ["keyId", "algorithm", "publicKey", "fingerprint"],
+                        "required": [
+                            "keyId",
+                            "algorithm",
+                            "publicKey",
+                            "fingerprint"
+                        ],
                         "additionalProperties": false
                     }
                 },
@@ -4756,11 +5393,20 @@
                     "$ref": "#/$defs/Id"
                 }
             },
-            "required": ["runnerId", "workspaceId", "deviceToken", "expiresAt"],
+            "required": [
+                "runnerId",
+                "workspaceId",
+                "deviceToken",
+                "expiresAt"
+            ],
             "additionalProperties": false,
             "dependentRequired": {
-                "issuerId": ["trustedKeys"],
-                "trustedKeys": ["issuerId"]
+                "issuerId": [
+                    "trustedKeys"
+                ],
+                "trustedKeys": [
+                    "issuerId"
+                ]
             }
         },
         "LeaseProofRequest": {
@@ -4777,7 +5423,10 @@
                     "maximum": 9007199254740991
                 }
             },
-            "required": ["leaseToken", "fencingToken"],
+            "required": [
+                "leaseToken",
+                "fencingToken"
+            ],
             "additionalProperties": false
         },
         "ExpectedPlansV1": {
@@ -4814,7 +5463,11 @@
                                             "$ref": "#/$defs/Key"
                                         },
                                         "failurePolicy": {
-                                            "enum": ["STOP", "CONTINUE", "BLOCK"]
+                                            "enum": [
+                                                "STOP",
+                                                "CONTINUE",
+                                                "BLOCK"
+                                            ]
                                         },
                                         "assertions": {
                                             "type": "array",
@@ -4825,7 +5478,11 @@
                                                         "$ref": "#/$defs/Key"
                                                     },
                                                     "severity": {
-                                                        "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                                                        "enum": [
+                                                            "BLOCK",
+                                                            "CONTINUE_FAIL",
+                                                            "WARN"
+                                                        ]
                                                     },
                                                     "stage": {
                                                         "enum": [
@@ -4836,7 +5493,11 @@
                                                         ]
                                                     }
                                                 },
-                                                "required": ["id", "severity", "stage"],
+                                                "required": [
+                                                    "id",
+                                                    "severity",
+                                                    "stage"
+                                                ],
                                                 "additionalProperties": false
                                             },
                                             "maxItems": 5000
@@ -4863,7 +5524,10 @@
                             "requiredEvidenceKinds": {
                                 "type": "array",
                                 "items": {
-                                    "enum": ["TRACE", "SCREENSHOT"]
+                                    "enum": [
+                                        "TRACE",
+                                        "SCREENSHOT"
+                                    ]
                                 },
                                 "minItems": 1,
                                 "uniqueItems": true
@@ -4873,13 +5537,20 @@
                                 "description": "Compiler-derived known write potential. Missing legacy metadata is UNKNOWN for retry safety."
                             }
                         },
-                        "required": ["caseVersionId", "steps", "requiredEvidenceKinds"],
+                        "required": [
+                            "caseVersionId",
+                            "steps",
+                            "requiredEvidenceKinds"
+                        ],
                         "additionalProperties": false
                     },
                     "maxItems": 1000
                 }
             },
-            "required": ["schemaVersion", "cases"],
+            "required": [
+                "schemaVersion",
+                "cases"
+            ],
             "additionalProperties": false
         },
         "ApprovedEngineInventoryV1": {
@@ -4929,7 +5600,10 @@
                     "maxItems": 100
                 }
             },
-            "required": ["schemaVersion", "engines"],
+            "required": [
+                "schemaVersion",
+                "engines"
+            ],
             "additionalProperties": false
         },
         "TestCompletionManifestV1": {
@@ -4978,7 +5652,11 @@
                 },
                 "retrySafety": {
                     "type": "string",
-                    "enum": ["READ_ONLY_OBSERVED", "WRITE_POSSIBLE", "UNKNOWN"],
+                    "enum": [
+                        "READ_ONLY_OBSERVED",
+                        "WRITE_POSSIBLE",
+                        "UNKNOWN"
+                    ],
                     "description": "Actual business request observation through Context closure. Missing means UNKNOWN; not sufficient without approved expected metadata."
                 },
                 "processStopScope": {
@@ -5232,7 +5910,10 @@
                 {
                     "type": "object",
                     "additionalProperties": false,
-                    "required": ["clientRequestId", "replacementToken"],
+                    "required": [
+                        "clientRequestId",
+                        "replacementToken"
+                    ],
                     "properties": {
                         "clientRequestId": {
                             "$ref": "#/$defs/Id"
@@ -5259,14 +5940,22 @@
                     "maxLength": 512
                 },
                 "pathStatus": {
-                    "enum": ["EXACT", "REDACTED"]
+                    "enum": [
+                        "EXACT",
+                        "REDACTED"
+                    ]
                 },
                 "message": {
                     "type": "string",
                     "maxLength": 200
                 }
             },
-            "required": ["code", "path", "pathStatus", "message"],
+            "required": [
+                "code",
+                "path",
+                "pathStatus",
+                "message"
+            ],
             "additionalProperties": false
         },
         "ReportDisplayV1": {
@@ -5338,7 +6027,11 @@
                                                         "type": "string"
                                                     },
                                                     "severity": {
-                                                        "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                                                        "enum": [
+                                                            "BLOCK",
+                                                            "CONTINUE_FAIL",
+                                                            "WARN"
+                                                        ]
                                                     }
                                                 },
                                                 "required": [
@@ -5371,7 +6064,10 @@
                                                         "type": "string"
                                                     }
                                                 },
-                                                "required": ["id", "kind"],
+                                                "required": [
+                                                    "id",
+                                                    "kind"
+                                                ],
                                                 "additionalProperties": false
                                             },
                                             "maxItems": 1000
@@ -5391,13 +6087,21 @@
                                 "maxItems": 500
                             }
                         },
-                        "required": ["caseVersionId", "caseKey", "title", "steps"],
+                        "required": [
+                            "caseVersionId",
+                            "caseKey",
+                            "title",
+                            "steps"
+                        ],
                         "additionalProperties": false
                     },
                     "maxItems": 1000
                 }
             },
-            "required": ["schemaVersion", "cases"],
+            "required": [
+                "schemaVersion",
+                "cases"
+            ],
             "additionalProperties": false
         },
         "ResourceDTO": {
@@ -5424,13 +6128,24 @@
                 },
                 "status": {
                     "type": "string",
-                    "enum": ["DRAFT", "PUBLISHED", "ARCHIVED"]
+                    "enum": [
+                        "DRAFT",
+                        "PUBLISHED",
+                        "ARCHIVED"
+                    ]
                 },
                 "latestVersionId": {
                     "$ref": "#/$defs/Id"
                 }
             },
-            "required": ["id", "workspaceId", "kind", "key", "name", "status"],
+            "required": [
+                "id",
+                "workspaceId",
+                "kind",
+                "key",
+                "name",
+                "status"
+            ],
             "additionalProperties": false
         },
         "ResourceVersionDTO": {
@@ -5495,7 +6210,13 @@
                     "type": "boolean"
                 }
             },
-            "required": ["keyId", "algorithm", "publicKey", "fingerprint", "revoked"],
+            "required": [
+                "keyId",
+                "algorithm",
+                "publicKey",
+                "fingerprint",
+                "revoked"
+            ],
             "additionalProperties": false
         },
         "IssuerTrustV1": {
@@ -5518,7 +6239,11 @@
                     "maxItems": 100
                 }
             },
-            "required": ["issuerId", "revision", "keys"],
+            "required": [
+                "issuerId",
+                "revision",
+                "keys"
+            ],
             "additionalProperties": false
         },
         "BundleResourcesV1": {
@@ -5539,7 +6264,10 @@
                     "maxItems": 1000
                 }
             },
-            "required": ["resources", "versions"],
+            "required": [
+                "resources",
+                "versions"
+            ],
             "additionalProperties": false
         },
         "BundleSelectionV1": {
@@ -5562,29 +6290,41 @@
                 },
                 "validationStatus": {
                     "type": "string",
-                    "enum": ["VALIDATED", "UNVALIDATED_DEBUG"]
+                    "enum": [
+                        "VALIDATED",
+                        "UNVALIDATED_DEBUG"
+                    ]
                 },
                 "draftValidationJobId": {
                     "$ref": "#/$defs/Id"
                 }
             },
-            "required": ["environmentVersionId", "validationStatus"],
+            "required": [
+                "environmentVersionId",
+                "validationStatus"
+            ],
             "additionalProperties": false,
             "oneOf": [
                 {
-                    "required": ["caseVersionIds"],
+                    "required": [
+                        "caseVersionIds"
+                    ],
                     "properties": {
                         "caseVersionIds": {}
                     }
                 },
                 {
-                    "required": ["suiteVersionId"],
+                    "required": [
+                        "suiteVersionId"
+                    ],
                     "properties": {
                         "suiteVersionId": {}
                     }
                 },
                 {
-                    "required": ["draftValidationJobId"],
+                    "required": [
+                        "draftValidationJobId"
+                    ],
                     "properties": {
                         "draftValidationJobId": {}
                     }
@@ -5593,7 +6333,9 @@
             "allOf": [
                 {
                     "if": {
-                        "required": ["draftValidationJobId"],
+                        "required": [
+                            "draftValidationJobId"
+                        ],
                         "properties": {
                             "draftValidationJobId": {}
                         }
@@ -5641,7 +6383,12 @@
                     "$ref": "#/$defs/Id"
                 }
             },
-            "required": ["path", "sha256", "sizeBytes", "sensitivity"],
+            "required": [
+                "path",
+                "sha256",
+                "sizeBytes",
+                "sensitivity"
+            ],
             "additionalProperties": false
         },
         "OfflineExecutionChoicesV1": {
@@ -5657,12 +6404,18 @@
                     "uniqueItems": true
                 }
             },
-            "required": ["browsers"],
+            "required": [
+                "browsers"
+            ],
             "additionalProperties": false
         },
         "ProcessStopScope": {
             "type": "string",
-            "enum": ["FULL_DESCENDANT_TREE", "CONTROLLED_WORKER_BROWSER", "NO_PROCESS_SPAWNED"]
+            "enum": [
+                "FULL_DESCENDANT_TREE",
+                "CONTROLLED_WORKER_BROWSER",
+                "NO_PROCESS_SPAWNED"
+            ]
         },
         "api_Id": {
             "$ref": "#/$defs/Id"
@@ -5894,7 +6647,12 @@
                     "minLength": 1
                 }
             },
-            "required": ["code", "message", "details", "requestId"],
+            "required": [
+                "code",
+                "message",
+                "details",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_Empty": {
@@ -5921,7 +6679,12 @@
                     "type": "boolean"
                 }
             },
-            "required": ["id", "email", "displayName", "disabled"],
+            "required": [
+                "id",
+                "email",
+                "displayName",
+                "disabled"
+            ],
             "additionalProperties": false
         },
         "api_LoginRequest": {
@@ -5938,7 +6701,10 @@
                     "maxLength": 1024
                 }
             },
-            "required": ["email", "password"],
+            "required": [
+                "email",
+                "password"
+            ],
             "additionalProperties": false
         },
         "api_SessionDTO": {
@@ -5955,7 +6721,11 @@
                     "$ref": "#/$defs/api_Timestamp"
                 }
             },
-            "required": ["user", "csrfToken", "expiresAt"],
+            "required": [
+                "user",
+                "csrfToken",
+                "expiresAt"
+            ],
             "additionalProperties": false
         },
         "api_EmailRequest": {
@@ -5967,7 +6737,9 @@
                     "maxLength": 254
                 }
             },
-            "required": ["email"],
+            "required": [
+                "email"
+            ],
             "additionalProperties": false
         },
         "api_ResetPasswordRequest": {
@@ -5984,7 +6756,10 @@
                     "maxLength": 1024
                 }
             },
-            "required": ["token", "newPassword"],
+            "required": [
+                "token",
+                "newPassword"
+            ],
             "additionalProperties": false
         },
         "api_InvitationAcceptRequest": {
@@ -6006,7 +6781,9 @@
                     "maxLength": 160
                 }
             },
-            "required": ["token"],
+            "required": [
+                "token"
+            ],
             "additionalProperties": false,
             "description": "Existing accounts require the matching authenticated session and token only; credentials cannot be replaced. New accounts require password and displayName, creating an ordinary user without a session."
         },
@@ -6026,13 +6803,25 @@
                 },
                 "role": {
                     "type": "string",
-                    "enum": ["OWNER", "ADMIN", "EDITOR", "EXECUTOR", "VIEWER"]
+                    "enum": [
+                        "OWNER",
+                        "ADMIN",
+                        "EDITOR",
+                        "EXECUTOR",
+                        "VIEWER"
+                    ]
                 },
                 "archived": {
                     "type": "boolean"
                 }
             },
-            "required": ["id", "key", "name", "role", "archived"],
+            "required": [
+                "id",
+                "key",
+                "name",
+                "role",
+                "archived"
+            ],
             "additionalProperties": false
         },
         "api_WorkspaceWrite": {
@@ -6047,7 +6836,10 @@
                     "maxLength": 160
                 }
             },
-            "required": ["key", "name"],
+            "required": [
+                "key",
+                "name"
+            ],
             "additionalProperties": false
         },
         "api_WorkspaceRename": {
@@ -6059,7 +6851,9 @@
                     "maxLength": 160
                 }
             },
-            "required": ["name"],
+            "required": [
+                "name"
+            ],
             "additionalProperties": false
         },
         "api_MemberDTO": {
@@ -6070,11 +6864,20 @@
                 },
                 "role": {
                     "type": "string",
-                    "enum": ["OWNER", "ADMIN", "EDITOR", "EXECUTOR", "VIEWER"]
+                    "enum": [
+                        "OWNER",
+                        "ADMIN",
+                        "EDITOR",
+                        "EXECUTOR",
+                        "VIEWER"
+                    ]
                 },
                 "status": {
                     "type": "string",
-                    "enum": ["ACTIVE", "DISABLED"]
+                    "enum": [
+                        "ACTIVE",
+                        "DISABLED"
+                    ]
                 },
                 "email": {
                     "type": "string",
@@ -6090,7 +6893,14 @@
                     "type": "boolean"
                 }
             },
-            "required": ["userId", "role", "status", "email", "displayName", "userDisabled"],
+            "required": [
+                "userId",
+                "role",
+                "status",
+                "email",
+                "displayName",
+                "userDisabled"
+            ],
             "additionalProperties": false
         },
         "api_MemberWrite": {
@@ -6098,14 +6908,26 @@
             "properties": {
                 "role": {
                     "type": "string",
-                    "enum": ["OWNER", "ADMIN", "EDITOR", "EXECUTOR", "VIEWER"]
+                    "enum": [
+                        "OWNER",
+                        "ADMIN",
+                        "EDITOR",
+                        "EXECUTOR",
+                        "VIEWER"
+                    ]
                 },
                 "status": {
                     "type": "string",
-                    "enum": ["ACTIVE", "DISABLED"]
+                    "enum": [
+                        "ACTIVE",
+                        "DISABLED"
+                    ]
                 }
             },
-            "required": ["role", "status"],
+            "required": [
+                "role",
+                "status"
+            ],
             "additionalProperties": false
         },
         "api_InviteRequest": {
@@ -6118,14 +6940,22 @@
                 },
                 "role": {
                     "type": "string",
-                    "enum": ["ADMIN", "EDITOR", "EXECUTOR", "VIEWER"]
+                    "enum": [
+                        "ADMIN",
+                        "EDITOR",
+                        "EXECUTOR",
+                        "VIEWER"
+                    ]
                 },
                 "sendEmail": {
                     "type": "boolean",
                     "default": false
                 }
             },
-            "required": ["email", "role"],
+            "required": [
+                "email",
+                "role"
+            ],
             "additionalProperties": false
         },
         "api_InviteDTO": {
@@ -6142,10 +6972,19 @@
                 },
                 "delivery": {
                     "type": "string",
-                    "enum": ["NOT_REQUESTED", "SENT", "FAILED"]
+                    "enum": [
+                        "NOT_REQUESTED",
+                        "SENT",
+                        "FAILED"
+                    ]
                 }
             },
-            "required": ["id", "expiresAt", "invitationUrl", "delivery"],
+            "required": [
+                "id",
+                "expiresAt",
+                "invitationUrl",
+                "delivery"
+            ],
             "additionalProperties": false
         },
         "api_ResourceDTO": {
@@ -6171,7 +7010,12 @@
                     "$ref": "#/$defs/api_ResourceDocumentV1"
                 }
             },
-            "required": ["kind", "key", "name", "content"],
+            "required": [
+                "kind",
+                "key",
+                "name",
+                "content"
+            ],
             "additionalProperties": false
         },
         "api_ResourceUpdate": {
@@ -6186,7 +7030,9 @@
                     "type": "boolean"
                 }
             },
-            "required": ["name"],
+            "required": [
+                "name"
+            ],
             "additionalProperties": false
         },
         "api_DraftDTO": {
@@ -6210,7 +7056,13 @@
                     "$ref": "#/$defs/api_Sha256"
                 }
             },
-            "required": ["resourceId", "revision", "content", "updatedAt", "documentHash"],
+            "required": [
+                "resourceId",
+                "revision",
+                "content",
+                "updatedAt",
+                "documentHash"
+            ],
             "additionalProperties": false
         },
         "api_DraftWrite": {
@@ -6225,7 +7077,10 @@
                     "$ref": "#/$defs/api_ResourceDocumentV1"
                 }
             },
-            "required": ["revision", "content"],
+            "required": [
+                "revision",
+                "content"
+            ],
             "additionalProperties": false
         },
         "api_ValidationRequest": {
@@ -6240,7 +7095,10 @@
                     "$ref": "#/$defs/api_Sha256"
                 }
             },
-            "required": ["revision", "sourceHash"],
+            "required": [
+                "revision",
+                "sourceHash"
+            ],
             "additionalProperties": false
         },
         "api_ValidationReceiptDTO": {
@@ -6314,7 +7172,10 @@
                     "$ref": "#/$defs/api_Id"
                 }
             },
-            "required": ["revision", "validationReceiptId"],
+            "required": [
+                "revision",
+                "validationReceiptId"
+            ],
             "additionalProperties": false
         },
         "api_ResourceVersionDTO": {
@@ -6333,13 +7194,19 @@
                 },
                 "location": {
                     "type": "string",
-                    "enum": ["CONNECTED_LOCAL"]
+                    "enum": [
+                        "CONNECTED_LOCAL"
+                    ]
                 },
                 "capabilities": {
                     "$ref": "#/$defs/api_RuntimeCapabilitiesV1"
                 }
             },
-            "required": ["name", "location", "capabilities"],
+            "required": [
+                "name",
+                "location",
+                "capabilities"
+            ],
             "additionalProperties": false
         },
         "api_EnrollmentDTO": {
@@ -6367,7 +7234,12 @@
                     "pattern": "^[A-Z2-7]{12}$"
                 }
             },
-            "required": ["workspaceId", "private", "sharedWithUserIds", "userCode"],
+            "required": [
+                "workspaceId",
+                "private",
+                "sharedWithUserIds",
+                "userCode"
+            ],
             "additionalProperties": false
         },
         "api_EnrollmentPoll": {
@@ -6379,7 +7251,9 @@
                     "maxLength": 128
                 }
             },
-            "required": ["deviceCode"],
+            "required": [
+                "deviceCode"
+            ],
             "additionalProperties": false
         },
         "api_DeviceCredentialsDTO": {
@@ -6403,7 +7277,11 @@
                     "type": "boolean"
                 }
             },
-            "required": ["workspaceId", "userIds", "sharedWithWorkspace"],
+            "required": [
+                "workspaceId",
+                "userIds",
+                "sharedWithWorkspace"
+            ],
             "additionalProperties": false
         },
         "api_RuntimeTrustWrite": {
@@ -6411,13 +7289,19 @@
             "properties": {
                 "trustStatus": {
                     "type": "string",
-                    "enum": ["MANAGED", "USER_REGISTERED"]
+                    "enum": [
+                        "MANAGED",
+                        "USER_REGISTERED"
+                    ]
                 },
                 "allowCredentialDelivery": {
                     "type": "boolean"
                 }
             },
-            "required": ["trustStatus", "allowCredentialDelivery"],
+            "required": [
+                "trustStatus",
+                "allowCredentialDelivery"
+            ],
             "additionalProperties": false
         },
         "api_ExecutionPlanWrite": {
@@ -6454,7 +7338,11 @@
                 },
                 "overlapPolicy": {
                     "type": "string",
-                    "enum": ["QUEUE", "SKIP", "REJECT"]
+                    "enum": [
+                        "QUEUE",
+                        "SKIP",
+                        "REJECT"
+                    ]
                 },
                 "maxCaseRetries": {
                     "type": "integer",
@@ -6528,7 +7416,11 @@
                 },
                 "overlapPolicy": {
                     "type": "string",
-                    "enum": ["QUEUE", "SKIP", "REJECT"]
+                    "enum": [
+                        "QUEUE",
+                        "SKIP",
+                        "REJECT"
+                    ]
                 },
                 "maxCaseRetries": {
                     "type": "integer",
@@ -6635,7 +7527,10 @@
                     "$ref": "#/$defs/api_JsonObject"
                 },
                 "executionLocation": {
-                    "enum": ["MANAGED_CLOUD", "CONNECTED_LOCAL"]
+                    "enum": [
+                        "MANAGED_CLOUD",
+                        "CONNECTED_LOCAL"
+                    ]
                 },
                 "maxRetries": {
                     "type": "integer",
@@ -6646,7 +7541,12 @@
                     "$ref": "#/$defs/api_Id"
                 }
             },
-            "required": ["environmentVersionId", "roleKeys", "browsers", "runtimeIds"],
+            "required": [
+                "environmentVersionId",
+                "roleKeys",
+                "browsers",
+                "runtimeIds"
+            ],
             "additionalProperties": false
         },
         "api_RunDTO": {
@@ -6663,7 +7563,12 @@
                 },
                 "state": {
                     "type": "string",
-                    "enum": ["QUEUED", "RUNNING", "CANCEL_REQUESTED", "FINISHED"]
+                    "enum": [
+                        "QUEUED",
+                        "RUNNING",
+                        "CANCEL_REQUESTED",
+                        "FINISHED"
+                    ]
                 },
                 "outcome": {
                     "$ref": "#/$defs/api_Outcome"
@@ -6681,13 +7586,25 @@
                     "type": "boolean"
                 },
                 "triggerKind": {
-                    "enum": ["MANUAL", "DEBUG", "HTTP_TRIGGER", "OFFLINE_IMPORT"]
+                    "enum": [
+                        "MANUAL",
+                        "DEBUG",
+                        "HTTP_TRIGGER",
+                        "OFFLINE_IMPORT"
+                    ]
                 },
                 "reasonCode": {
                     "type": "string"
                 }
             },
-            "required": ["id", "workspaceId", "source", "state", "snapshotHash", "createdAt"],
+            "required": [
+                "id",
+                "workspaceId",
+                "source",
+                "state",
+                "snapshotHash",
+                "createdAt"
+            ],
             "additionalProperties": false
         },
         "api_JobDTO": {
@@ -6701,11 +7618,21 @@
                 },
                 "kind": {
                     "type": "string",
-                    "enum": ["TEST", "VALIDATE", "CLEANUP"]
+                    "enum": [
+                        "TEST",
+                        "VALIDATE",
+                        "CLEANUP"
+                    ]
                 },
                 "state": {
                     "type": "string",
-                    "enum": ["QUEUED", "LEASED", "RUNNING", "CANCEL_REQUESTED", "FINISHED"]
+                    "enum": [
+                        "QUEUED",
+                        "LEASED",
+                        "RUNNING",
+                        "CANCEL_REQUESTED",
+                        "FINISHED"
+                    ]
                 },
                 "waitReason": {
                     "type": "string",
@@ -6736,7 +7663,12 @@
                     }
                 }
             },
-            "required": ["id", "workspaceId", "kind", "state"],
+            "required": [
+                "id",
+                "workspaceId",
+                "kind",
+                "state"
+            ],
             "additionalProperties": false
         },
         "api_ArtifactDTO": {
@@ -6813,7 +7745,10 @@
                 },
                 "validationStatus": {
                     "type": "string",
-                    "enum": ["VALIDATED", "UNVALIDATED_DEBUG"]
+                    "enum": [
+                        "VALIDATED",
+                        "UNVALIDATED_DEBUG"
+                    ]
                 },
                 "createdAt": {
                     "$ref": "#/$defs/api_Timestamp"
@@ -6851,7 +7786,14 @@
                     "const": false
                 }
             },
-            "required": ["id", "runId", "localRunId", "duplicate", "source", "officialGatePassed"],
+            "required": [
+                "id",
+                "runId",
+                "localRunId",
+                "duplicate",
+                "source",
+                "officialGatePassed"
+            ],
             "additionalProperties": false
         },
         "api_ProviderWrite": {
@@ -6863,7 +7805,10 @@
                     "maxLength": 160
                 },
                 "adapter": {
-                    "enum": ["OPENAI_COMPATIBLE", "ANTHROPIC"]
+                    "enum": [
+                        "OPENAI_COMPATIBLE",
+                        "ANTHROPIC"
+                    ]
                 },
                 "baseURL": {
                     "type": "string",
@@ -6933,7 +7878,10 @@
                     "maxLength": 160
                 },
                 "adapter": {
-                    "enum": ["OPENAI_COMPATIBLE", "ANTHROPIC"]
+                    "enum": [
+                        "OPENAI_COMPATIBLE",
+                        "ANTHROPIC"
+                    ]
                 },
                 "baseURL": {
                     "type": "string",
@@ -7016,7 +7964,11 @@
                     "$ref": "#/$defs/api_Id"
                 },
                 "purpose": {
-                    "enum": ["CASE_DRAFT", "BOUNDARY_SUGGESTION", "FAILURE_ANALYSIS"]
+                    "enum": [
+                        "CASE_DRAFT",
+                        "BOUNDARY_SUGGESTION",
+                        "FAILURE_ANALYSIS"
+                    ]
                 },
                 "resourceId": {
                     "$ref": "#/$defs/api_Id"
@@ -7048,7 +8000,12 @@
                     "pattern": "^[a-f0-9]{64}$"
                 }
             },
-            "required": ["requestId", "providerId", "purpose", "prompt"],
+            "required": [
+                "requestId",
+                "providerId",
+                "purpose",
+                "prompt"
+            ],
             "additionalProperties": false
         },
         "api_GenerationDTO": {
@@ -7067,7 +8024,14 @@
                     "$ref": "#/$defs/api_Timestamp"
                 },
                 "status": {
-                    "enum": ["RUNNING", "SUCCEEDED", "FAILED", "REVIEWED", "REJECTED", "CANCELLED"]
+                    "enum": [
+                        "RUNNING",
+                        "SUCCEEDED",
+                        "FAILED",
+                        "REVIEWED",
+                        "REJECTED",
+                        "CANCELLED"
+                    ]
                 },
                 "purpose": {
                     "enum": [
@@ -7101,7 +8065,10 @@
                     "maximum": 5
                 },
                 "costState": {
-                    "enum": ["ESTIMATED", "UNKNOWN"]
+                    "enum": [
+                        "ESTIMATED",
+                        "UNKNOWN"
+                    ]
                 },
                 "errorCode": {
                     "type": "string",
@@ -7157,7 +8124,10 @@
             "type": "object",
             "properties": {
                 "decision": {
-                    "enum": ["ACCEPT_DRAFT", "REJECT"]
+                    "enum": [
+                        "ACCEPT_DRAFT",
+                        "REJECT"
+                    ]
                 },
                 "key": {
                     "$ref": "#/$defs/api_Key"
@@ -7173,7 +8143,9 @@
                     "maximum": 9007199254740991
                 }
             },
-            "required": ["decision"],
+            "required": [
+                "decision"
+            ],
             "additionalProperties": false
         },
         "api_ConnectionTestDTO": {
@@ -7191,7 +8163,9 @@
                     "minLength": 1
                 }
             },
-            "required": ["ok"],
+            "required": [
+                "ok"
+            ],
             "additionalProperties": false
         },
         "api_MaintenanceRequest": {
@@ -7210,7 +8184,9 @@
                     "maxLength": 240
                 }
             },
-            "required": ["limit"],
+            "required": [
+                "limit"
+            ],
             "additionalProperties": false
         },
         "api_MaintenanceDTO": {
@@ -7221,7 +8197,11 @@
                 },
                 "status": {
                     "type": "string",
-                    "enum": ["QUEUED", "RUNNING", "FINISHED"]
+                    "enum": [
+                        "QUEUED",
+                        "RUNNING",
+                        "FINISHED"
+                    ]
                 },
                 "processedCount": {
                     "type": "integer",
@@ -7235,7 +8215,12 @@
                     "maxLength": 240
                 }
             },
-            "required": ["id", "status", "processedCount", "hasMore"],
+            "required": [
+                "id",
+                "status",
+                "processedCount",
+                "hasMore"
+            ],
             "additionalProperties": false
         },
         "api_SecretWrite": {
@@ -7270,7 +8255,11 @@
                     }
                 }
             },
-            "required": ["key", "value", "allowedRoleKeys"],
+            "required": [
+                "key",
+                "value",
+                "allowedRoleKeys"
+            ],
             "additionalProperties": false
         },
         "api_SecretDTO": {
@@ -7287,13 +8276,22 @@
                 },
                 "status": {
                     "type": "string",
-                    "enum": ["ACTIVE", "REVOKED"]
+                    "enum": [
+                        "ACTIVE",
+                        "REVOKED"
+                    ]
                 },
                 "createdAt": {
                     "$ref": "#/$defs/api_Timestamp"
                 }
             },
-            "required": ["id", "key", "versionId", "status", "createdAt"],
+            "required": [
+                "id",
+                "key",
+                "versionId",
+                "status",
+                "createdAt"
+            ],
             "additionalProperties": false
         },
         "api_AuditDTO": {
@@ -7322,7 +8320,13 @@
                     "$ref": "#/$defs/api_JsonObject"
                 }
             },
-            "required": ["id", "actorId", "action", "timestamp", "details"],
+            "required": [
+                "id",
+                "actorId",
+                "action",
+                "timestamp",
+                "details"
+            ],
             "additionalProperties": false
         },
         "api_HealthDTO": {
@@ -7330,7 +8334,10 @@
             "properties": {
                 "status": {
                     "type": "string",
-                    "enum": ["ok", "degraded"]
+                    "enum": [
+                        "ok",
+                        "degraded"
+                    ]
                 },
                 "checks": {
                     "type": "object",
@@ -7339,7 +8346,10 @@
                     }
                 }
             },
-            "required": ["status", "checks"],
+            "required": [
+                "status",
+                "checks"
+            ],
             "additionalProperties": false
         },
         "api_BuildInfoDTO": {
@@ -7361,7 +8371,12 @@
                     "$ref": "#/$defs/api_Sha256"
                 }
             },
-            "required": ["version", "commit", "buildId", "staticManifestHash"],
+            "required": [
+                "version",
+                "commit",
+                "buildId",
+                "staticManifestHash"
+            ],
             "additionalProperties": false
         },
         "api_ReconcileRequest": {
@@ -7385,7 +8400,12 @@
                     "$ref": "#/$defs/api_ProcessStopScope"
                 }
             },
-            "required": ["fencingToken", "processStopped", "cleanupStatus", "stoppedAt"],
+            "required": [
+                "fencingToken",
+                "processStopped",
+                "cleanupStatus",
+                "stoppedAt"
+            ],
             "additionalProperties": false
         },
         "api_ReconcileDTO": {
@@ -7401,7 +8421,11 @@
                     "$ref": "#/$defs/api_Id"
                 }
             },
-            "required": ["attemptId", "capacityReleased", "auditId"],
+            "required": [
+                "attemptId",
+                "capacityReleased",
+                "auditId"
+            ],
             "additionalProperties": false
         },
         "api_CredentialResolveRequest": {
@@ -7415,7 +8439,10 @@
                     "format": "uuid"
                 }
             },
-            "required": ["secretRef", "versionId"],
+            "required": [
+                "secretRef",
+                "versionId"
+            ],
             "additionalProperties": false
         },
         "api_CredentialResolveDTO": {
@@ -7431,7 +8458,11 @@
                     "$ref": "#/$defs/api_JsonObject"
                 }
             },
-            "required": ["secretRef", "versionId", "value"],
+            "required": [
+                "secretRef",
+                "versionId",
+                "value"
+            ],
             "additionalProperties": false
         },
         "api_ArtifactUploadRequest": {
@@ -7507,7 +8538,12 @@
                     "$ref": "#/$defs/api_Timestamp"
                 }
             },
-            "required": ["artifactId", "uploadUrl", "method", "expiresAt"],
+            "required": [
+                "artifactId",
+                "uploadUrl",
+                "method",
+                "expiresAt"
+            ],
             "additionalProperties": false
         },
         "api_ArtifactCommitRequest": {
@@ -7526,7 +8562,11 @@
                     "$ref": "#/$defs/api_Sha256"
                 }
             },
-            "required": ["leaseToken", "fencingToken", "sha256"],
+            "required": [
+                "leaseToken",
+                "fencingToken",
+                "sha256"
+            ],
             "additionalProperties": false
         },
         "api_CancelRequest": {
@@ -7537,7 +8577,9 @@
                     "minLength": 1
                 }
             },
-            "required": ["reason"],
+            "required": [
+                "reason"
+            ],
             "additionalProperties": false
         },
         "api_ReportDTO": {
@@ -7587,7 +8629,13 @@
                     "additionalProperties": false
                 }
             },
-            "required": ["run", "cases", "gateAtExecution", "gateNow", "statistics"],
+            "required": [
+                "run",
+                "cases",
+                "gateAtExecution",
+                "gateNow",
+                "statistics"
+            ],
             "additionalProperties": false
         },
         "api_ServiceAccountWrite": {
@@ -7601,7 +8649,11 @@
                     "type": "array",
                     "items": {
                         "type": "string",
-                        "enum": ["RUN_TRIGGER", "MAINTENANCE", "READ_REPORTS"]
+                        "enum": [
+                            "RUN_TRIGGER",
+                            "MAINTENANCE",
+                            "READ_REPORTS"
+                        ]
                     }
                 },
                 "planIds": {
@@ -7611,7 +8663,11 @@
                     }
                 }
             },
-            "required": ["name", "scopes", "planIds"],
+            "required": [
+                "name",
+                "scopes",
+                "planIds"
+            ],
             "additionalProperties": false
         },
         "api_ServiceAccountDTO": {
@@ -7632,7 +8688,12 @@
                     "type": "boolean"
                 }
             },
-            "required": ["id", "workspaceId", "name", "disabled"],
+            "required": [
+                "id",
+                "workspaceId",
+                "name",
+                "disabled"
+            ],
             "additionalProperties": false
         },
         "api_ServiceTokenDTO": {
@@ -7645,13 +8706,22 @@
                     "type": "string"
                 },
                 "purpose": {
-                    "enum": ["RUNTIME_ENROLLMENT", "MAINTENANCE", "EXECUTION"]
+                    "enum": [
+                        "RUNTIME_ENROLLMENT",
+                        "MAINTENANCE",
+                        "EXECUTION"
+                    ]
                 },
                 "expiresAt": {
                     "$ref": "#/$defs/api_Timestamp"
                 }
             },
-            "required": ["id", "token", "purpose", "expiresAt"],
+            "required": [
+                "id",
+                "token",
+                "purpose",
+                "expiresAt"
+            ],
             "additionalProperties": false
         },
         "api_HealthDTOEnvelope": {
@@ -7665,7 +8735,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_BuildInfoDTOEnvelope": {
@@ -7679,7 +8752,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_SessionDTOEnvelope": {
@@ -7693,7 +8769,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_EmptyEnvelope": {
@@ -7707,7 +8786,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_UserDTOEnvelope": {
@@ -7721,7 +8803,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_WorkspaceDTOPageEnvelope": {
@@ -7737,10 +8822,16 @@
                             }
                         },
                         "nextCursor": {
-                            "type": ["string", "null"]
+                            "type": [
+                                "string",
+                                "null"
+                            ]
                         }
                     },
-                    "required": ["items", "nextCursor"],
+                    "required": [
+                        "items",
+                        "nextCursor"
+                    ],
                     "additionalProperties": false
                 },
                 "requestId": {
@@ -7748,7 +8839,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_WorkspaceDTOEnvelope": {
@@ -7762,7 +8856,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_MemberDTOPageEnvelope": {
@@ -7778,10 +8875,16 @@
                             }
                         },
                         "nextCursor": {
-                            "type": ["string", "null"]
+                            "type": [
+                                "string",
+                                "null"
+                            ]
                         }
                     },
-                    "required": ["items", "nextCursor"],
+                    "required": [
+                        "items",
+                        "nextCursor"
+                    ],
                     "additionalProperties": false
                 },
                 "requestId": {
@@ -7789,7 +8892,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_MemberDTOEnvelope": {
@@ -7803,7 +8909,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_InviteDTOEnvelope": {
@@ -7817,7 +8926,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ResourceDTOPageEnvelope": {
@@ -7833,10 +8945,16 @@
                             }
                         },
                         "nextCursor": {
-                            "type": ["string", "null"]
+                            "type": [
+                                "string",
+                                "null"
+                            ]
                         }
                     },
-                    "required": ["items", "nextCursor"],
+                    "required": [
+                        "items",
+                        "nextCursor"
+                    ],
                     "additionalProperties": false
                 },
                 "requestId": {
@@ -7844,7 +8962,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ResourceDTOEnvelope": {
@@ -7858,7 +8979,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_DraftDTOEnvelope": {
@@ -7872,7 +8996,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_JobDTOEnvelope": {
@@ -7886,7 +9013,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ResourceVersionDTOEnvelope": {
@@ -7900,7 +9030,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ResourceVersionDTOPageEnvelope": {
@@ -7916,10 +9049,16 @@
                             }
                         },
                         "nextCursor": {
-                            "type": ["string", "null"]
+                            "type": [
+                                "string",
+                                "null"
+                            ]
                         }
                     },
-                    "required": ["items", "nextCursor"],
+                    "required": [
+                        "items",
+                        "nextCursor"
+                    ],
                     "additionalProperties": false
                 },
                 "requestId": {
@@ -7927,7 +9066,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ExecutionPlanDTOPageEnvelope": {
@@ -7943,10 +9085,16 @@
                             }
                         },
                         "nextCursor": {
-                            "type": ["string", "null"]
+                            "type": [
+                                "string",
+                                "null"
+                            ]
                         }
                     },
-                    "required": ["items", "nextCursor"],
+                    "required": [
+                        "items",
+                        "nextCursor"
+                    ],
                     "additionalProperties": false
                 },
                 "requestId": {
@@ -7954,7 +9102,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ExecutionPlanDTOEnvelope": {
@@ -7968,7 +9119,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ProviderDTOPageEnvelope": {
@@ -7984,10 +9138,16 @@
                             }
                         },
                         "nextCursor": {
-                            "type": ["string", "null"]
+                            "type": [
+                                "string",
+                                "null"
+                            ]
                         }
                     },
-                    "required": ["items", "nextCursor"],
+                    "required": [
+                        "items",
+                        "nextCursor"
+                    ],
                     "additionalProperties": false
                 },
                 "requestId": {
@@ -7995,7 +9155,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ProviderDTOEnvelope": {
@@ -8009,7 +9172,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ServiceAccountDTOPageEnvelope": {
@@ -8025,10 +9191,16 @@
                             }
                         },
                         "nextCursor": {
-                            "type": ["string", "null"]
+                            "type": [
+                                "string",
+                                "null"
+                            ]
                         }
                     },
-                    "required": ["items", "nextCursor"],
+                    "required": [
+                        "items",
+                        "nextCursor"
+                    ],
                     "additionalProperties": false
                 },
                 "requestId": {
@@ -8036,7 +9208,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ServiceAccountDTOEnvelope": {
@@ -8049,7 +9224,10 @@
                     "$ref": "#/$defs/api_Id"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_RunDTOEnvelope": {
@@ -8063,7 +9241,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_RunDTOPageEnvelope": {
@@ -8079,10 +9260,16 @@
                             }
                         },
                         "nextCursor": {
-                            "type": ["string", "null"]
+                            "type": [
+                                "string",
+                                "null"
+                            ]
                         }
                     },
-                    "required": ["items", "nextCursor"],
+                    "required": [
+                        "items",
+                        "nextCursor"
+                    ],
                     "additionalProperties": false
                 },
                 "requestId": {
@@ -8090,7 +9277,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ReportDTOEnvelope": {
@@ -8104,7 +9294,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_JobDTOPageEnvelope": {
@@ -8120,10 +9313,16 @@
                             }
                         },
                         "nextCursor": {
-                            "type": ["string", "null"]
+                            "type": [
+                                "string",
+                                "null"
+                            ]
                         }
                     },
-                    "required": ["items", "nextCursor"],
+                    "required": [
+                        "items",
+                        "nextCursor"
+                    ],
                     "additionalProperties": false
                 },
                 "requestId": {
@@ -8131,7 +9330,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ArtifactDTOEnvelope": {
@@ -8145,7 +9347,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_RuntimeDTOPageEnvelope": {
@@ -8161,10 +9366,16 @@
                             }
                         },
                         "nextCursor": {
-                            "type": ["string", "null"]
+                            "type": [
+                                "string",
+                                "null"
+                            ]
                         }
                     },
-                    "required": ["items", "nextCursor"],
+                    "required": [
+                        "items",
+                        "nextCursor"
+                    ],
                     "additionalProperties": false
                 },
                 "requestId": {
@@ -8172,7 +9383,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_RuntimeDTOEnvelope": {
@@ -8186,7 +9400,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_EnrollmentDTOEnvelope": {
@@ -8200,7 +9417,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_DeviceCredentialsDTOEnvelope": {
@@ -8214,7 +9434,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_BundleDTOEnvelope": {
@@ -8228,7 +9451,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_BundleDTOPageEnvelope": {
@@ -8244,10 +9470,16 @@
                             }
                         },
                         "nextCursor": {
-                            "type": ["string", "null"]
+                            "type": [
+                                "string",
+                                "null"
+                            ]
                         }
                     },
-                    "required": ["items", "nextCursor"],
+                    "required": [
+                        "items",
+                        "nextCursor"
+                    ],
                     "additionalProperties": false
                 },
                 "requestId": {
@@ -8255,7 +9487,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_BundleManifestV1Envelope": {
@@ -8269,7 +9504,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ImportDTOEnvelope": {
@@ -8283,7 +9521,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ConnectionTestDTOEnvelope": {
@@ -8297,7 +9538,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_GenerationDTOEnvelope": {
@@ -8311,7 +9555,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_GenerationDTOPageEnvelope": {
@@ -8327,10 +9574,16 @@
                             }
                         },
                         "nextCursor": {
-                            "type": ["string", "null"]
+                            "type": [
+                                "string",
+                                "null"
+                            ]
                         }
                     },
-                    "required": ["items", "nextCursor"],
+                    "required": [
+                        "items",
+                        "nextCursor"
+                    ],
                     "additionalProperties": false
                 },
                 "requestId": {
@@ -8338,7 +9591,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_SecretDTOEnvelope": {
@@ -8352,7 +9608,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_SecretDTOPageEnvelope": {
@@ -8368,10 +9627,16 @@
                             }
                         },
                         "nextCursor": {
-                            "type": ["string", "null"]
+                            "type": [
+                                "string",
+                                "null"
+                            ]
                         }
                     },
-                    "required": ["items", "nextCursor"],
+                    "required": [
+                        "items",
+                        "nextCursor"
+                    ],
                     "additionalProperties": false
                 },
                 "requestId": {
@@ -8379,7 +9644,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_AuditDTOPageEnvelope": {
@@ -8395,10 +9663,16 @@
                             }
                         },
                         "nextCursor": {
-                            "type": ["string", "null"]
+                            "type": [
+                                "string",
+                                "null"
+                            ]
                         }
                     },
-                    "required": ["items", "nextCursor"],
+                    "required": [
+                        "items",
+                        "nextCursor"
+                    ],
                     "additionalProperties": false
                 },
                 "requestId": {
@@ -8406,7 +9680,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ServiceTokenDTOEnvelope": {
@@ -8419,7 +9696,10 @@
                     "$ref": "#/$defs/api_Id"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_MaintenanceDTOEnvelope": {
@@ -8433,7 +9713,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ClaimDTOEnvelope": {
@@ -8447,7 +9730,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_HeartbeatDTOEnvelope": {
@@ -8461,7 +9747,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_EventBatchDTOEnvelope": {
@@ -8475,7 +9764,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_FinishDTOEnvelope": {
@@ -8489,7 +9781,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ReconcileDTOEnvelope": {
@@ -8503,7 +9798,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_CredentialResolveDTOEnvelope": {
@@ -8517,7 +9815,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ArtifactUploadDTOEnvelope": {
@@ -8531,7 +9832,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_Timestamp": {
@@ -8548,7 +9852,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_SetupRequest": {
@@ -8575,7 +9882,12 @@
                     "maxLength": 1024
                 }
             },
-            "required": ["installationSecret", "email", "displayName", "password"],
+            "required": [
+                "installationSecret",
+                "email",
+                "displayName",
+                "password"
+            ],
             "additionalProperties": false
         },
         "api_SetupDTO": {
@@ -8589,7 +9901,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["initialized", "csrfToken"],
+            "required": [
+                "initialized",
+                "csrfToken"
+            ],
             "additionalProperties": false
         },
         "api_AdminUserDTO": {
@@ -8613,7 +9928,13 @@
                     "type": "boolean"
                 }
             },
-            "required": ["id", "email", "displayName", "disabled", "systemAdmin"],
+            "required": [
+                "id",
+                "email",
+                "displayName",
+                "disabled",
+                "systemAdmin"
+            ],
             "additionalProperties": false
         },
         "api_CreateUserRequest": {
@@ -8638,7 +9959,12 @@
                     "type": "boolean"
                 }
             },
-            "required": ["email", "displayName", "password", "systemAdmin"],
+            "required": [
+                "email",
+                "displayName",
+                "password",
+                "systemAdmin"
+            ],
             "additionalProperties": false
         },
         "api_UpdateUserRequest": {
@@ -8669,7 +9995,10 @@
                     "maxLength": 1024
                 }
             },
-            "required": ["currentPassword", "newPassword"],
+            "required": [
+                "currentPassword",
+                "newPassword"
+            ],
             "additionalProperties": false
         },
         "api_ResetLinkDTO": {
@@ -8683,7 +10012,10 @@
                     "$ref": "#/$defs/api_Timestamp"
                 }
             },
-            "required": ["url", "expiresAt"],
+            "required": [
+                "url",
+                "expiresAt"
+            ],
             "additionalProperties": false
         },
         "api_AccountSessionDTO": {
@@ -8702,7 +10034,12 @@
                     "type": "boolean"
                 }
             },
-            "required": ["id", "createdAt", "expiresAt", "current"],
+            "required": [
+                "id",
+                "createdAt",
+                "expiresAt",
+                "current"
+            ],
             "additionalProperties": false
         },
         "api_AdminUsersDTO": {
@@ -8715,10 +10052,16 @@
                     }
                 },
                 "nextCursor": {
-                    "type": ["string", "null"]
+                    "type": [
+                        "string",
+                        "null"
+                    ]
                 }
             },
-            "required": ["items", "nextCursor"],
+            "required": [
+                "items",
+                "nextCursor"
+            ],
             "additionalProperties": false
         },
         "api_AccountSessionsDTO": {
@@ -8731,10 +10074,16 @@
                     }
                 },
                 "nextCursor": {
-                    "type": ["string", "null"]
+                    "type": [
+                        "string",
+                        "null"
+                    ]
                 }
             },
-            "required": ["items", "nextCursor"],
+            "required": [
+                "items",
+                "nextCursor"
+            ],
             "additionalProperties": false
         },
         "api_SetupDTOEnvelope": {
@@ -8747,7 +10096,10 @@
                     "type": "string"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_AdminUserDTOEnvelope": {
@@ -8760,7 +10112,10 @@
                     "type": "string"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_AdminUsersDTOEnvelope": {
@@ -8773,7 +10128,10 @@
                     "type": "string"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ResetLinkDTOEnvelope": {
@@ -8786,7 +10144,10 @@
                     "type": "string"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_AccountSessionsDTOEnvelope": {
@@ -8799,7 +10160,10 @@
                     "type": "string"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_LivenessDTO": {
@@ -8809,7 +10173,9 @@
                     "type": "boolean"
                 }
             },
-            "required": ["alive"],
+            "required": [
+                "alive"
+            ],
             "additionalProperties": false
         },
         "api_LivenessDTOEnvelope": {
@@ -8822,7 +10188,10 @@
                     "type": "string"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ReadinessDTO": {
@@ -8832,7 +10201,9 @@
                     "type": "boolean"
                 }
             },
-            "required": ["ready"],
+            "required": [
+                "ready"
+            ],
             "additionalProperties": false
         },
         "api_ReadinessDTOEnvelope": {
@@ -8845,7 +10216,10 @@
                     "type": "string"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_InvitationSummaryDTO": {
@@ -8860,17 +10234,33 @@
                 },
                 "role": {
                     "type": "string",
-                    "enum": ["ADMIN", "EDITOR", "EXECUTOR", "VIEWER"]
+                    "enum": [
+                        "ADMIN",
+                        "EDITOR",
+                        "EXECUTOR",
+                        "VIEWER"
+                    ]
                 },
                 "expiresAt": {
                     "$ref": "#/$defs/api_Timestamp"
                 },
                 "status": {
                     "type": "string",
-                    "enum": ["PENDING", "ACCEPTED", "REVOKED", "EXPIRED"]
+                    "enum": [
+                        "PENDING",
+                        "ACCEPTED",
+                        "REVOKED",
+                        "EXPIRED"
+                    ]
                 }
             },
-            "required": ["id", "email", "role", "expiresAt", "status"],
+            "required": [
+                "id",
+                "email",
+                "role",
+                "expiresAt",
+                "status"
+            ],
             "additionalProperties": false
         },
         "api_InvitationSummaryDTOPageEnvelope": {
@@ -8886,10 +10276,16 @@
                             }
                         },
                         "nextCursor": {
-                            "type": ["string", "null"]
+                            "type": [
+                                "string",
+                                "null"
+                            ]
                         }
                     },
-                    "required": ["items", "nextCursor"],
+                    "required": [
+                        "items",
+                        "nextCursor"
+                    ],
                     "additionalProperties": false
                 },
                 "requestId": {
@@ -8897,7 +10293,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ValidationPreviewDTO": {
@@ -8944,7 +10343,10 @@
                     "minLength": 1
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_CredentialRotate": {
@@ -8964,7 +10366,10 @@
                     "uniqueItems": true
                 }
             },
-            "required": ["value", "allowedIdentityIds"],
+            "required": [
+                "value",
+                "allowedIdentityIds"
+            ],
             "additionalProperties": false
         },
         "api_CredentialCreate": {
@@ -8988,7 +10393,11 @@
                     "pattern": "^[A-Za-z_][A-Za-z0-9_-]{0,159}$"
                 }
             },
-            "required": ["secretRef", "value", "allowedIdentityIds"],
+            "required": [
+                "secretRef",
+                "value",
+                "allowedIdentityIds"
+            ],
             "additionalProperties": false
         },
         "api_EmptyObject": {
@@ -9025,7 +10434,13 @@
                     "format": "date-time"
                 }
             },
-            "required": ["secretRef", "versionId", "revoked", "allowedIdentityIds", "createdAt"],
+            "required": [
+                "secretRef",
+                "versionId",
+                "revoked",
+                "allowedIdentityIds",
+                "createdAt"
+            ],
             "additionalProperties": false
         },
         "api_CredentialListDTO": {
@@ -9038,10 +10453,16 @@
                     }
                 },
                 "nextCursor": {
-                    "type": ["string", "null"]
+                    "type": [
+                        "string",
+                        "null"
+                    ]
                 }
             },
-            "required": ["items", "nextCursor"],
+            "required": [
+                "items",
+                "nextCursor"
+            ],
             "additionalProperties": false
         },
         "api_CredentialDTOEnvelope": {
@@ -9054,7 +10475,10 @@
                     "type": "string"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_CredentialListDTOEnvelope": {
@@ -9067,7 +10491,10 @@
                     "type": "string"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_AuthAdapterCreate": {
@@ -9077,7 +10504,9 @@
                     "$ref": "#/$defs/AuthAdapterConfigV1"
                 }
             },
-            "required": ["configuration"],
+            "required": [
+                "configuration"
+            ],
             "additionalProperties": false
         },
         "api_AuthAdapterDTO": {
@@ -9099,7 +10528,13 @@
                     "type": "boolean"
                 }
             },
-            "required": ["workspaceId", "versionId", "contentHash", "configuration", "revoked"],
+            "required": [
+                "workspaceId",
+                "versionId",
+                "contentHash",
+                "configuration",
+                "revoked"
+            ],
             "additionalProperties": false
         },
         "api_AuthAdapterListDTO": {
@@ -9112,10 +10547,16 @@
                     }
                 },
                 "nextCursor": {
-                    "type": ["string", "null"]
+                    "type": [
+                        "string",
+                        "null"
+                    ]
                 }
             },
-            "required": ["items", "nextCursor"],
+            "required": [
+                "items",
+                "nextCursor"
+            ],
             "additionalProperties": false
         },
         "api_AuthAdapterDTOEnvelope": {
@@ -9128,7 +10569,10 @@
                     "type": "string"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_AuthAdapterListDTOEnvelope": {
@@ -9141,7 +10585,10 @@
                     "type": "string"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_EnrollmentInspect": {
@@ -9152,7 +10599,9 @@
                     "pattern": "^[A-Z2-7]{12}$"
                 }
             },
-            "required": ["userCode"],
+            "required": [
+                "userCode"
+            ],
             "additionalProperties": false
         },
         "api_EnrollmentPreview": {
@@ -9168,7 +10617,10 @@
                     "$ref": "#/$defs/api_Id"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ServiceAccountCreate": {
@@ -9180,14 +10632,20 @@
                     "maxLength": 160
                 }
             },
-            "required": ["name"],
+            "required": [
+                "name"
+            ],
             "additionalProperties": false
         },
         "api_ServiceTokenIssue": {
             "type": "object",
             "properties": {
                 "purpose": {
-                    "enum": ["RUNTIME_ENROLLMENT", "MAINTENANCE", "EXECUTION"]
+                    "enum": [
+                        "RUNTIME_ENROLLMENT",
+                        "MAINTENANCE",
+                        "EXECUTION"
+                    ]
                 },
                 "operations": {
                     "type": "array",
@@ -9197,13 +10655,14 @@
                             "fixture-cleanups/reconcile",
                             "capacity/reconcile",
                             "artifacts/expire",
+                            "lifecycle/expire",
                             "trigger",
                             "read",
                             "cancel"
                         ]
                     },
                     "minItems": 1,
-                    "maxItems": 4,
+                    "maxItems": 5,
                     "uniqueItems": true
                 },
                 "planIds": {
@@ -9216,7 +10675,9 @@
                     "uniqueItems": true
                 }
             },
-            "required": ["purpose"],
+            "required": [
+                "purpose"
+            ],
             "additionalProperties": false,
             "allOf": [
                 {
@@ -9228,7 +10689,9 @@
                         }
                     },
                     "then": {
-                        "required": ["operations"],
+                        "required": [
+                            "operations"
+                        ],
                         "properties": {
                             "operations": {
                                 "items": {
@@ -9236,7 +10699,8 @@
                                         "expired-leases/reap",
                                         "fixture-cleanups/reconcile",
                                         "capacity/reconcile",
-                                        "artifacts/expire"
+                                        "artifacts/expire",
+                                        "lifecycle/expire"
                                     ]
                                 },
                                 "type": "array"
@@ -9269,11 +10733,18 @@
                         }
                     },
                     "then": {
-                        "required": ["operations", "planIds"],
+                        "required": [
+                            "operations",
+                            "planIds"
+                        ],
                         "properties": {
                             "operations": {
                                 "items": {
-                                    "enum": ["trigger", "read", "cancel"]
+                                    "enum": [
+                                        "trigger",
+                                        "read",
+                                        "cancel"
+                                    ]
                                 },
                                 "maxItems": 3,
                                 "type": "array"
@@ -9298,7 +10769,11 @@
                     "type": "boolean"
                 }
             },
-            "required": ["name", "capabilities", "sharedWithWorkspace"],
+            "required": [
+                "name",
+                "capabilities",
+                "sharedWithWorkspace"
+            ],
             "additionalProperties": false
         },
         "api_RuntimeCredentialDeliveryWrite": {
@@ -9308,7 +10783,9 @@
                     "type": "boolean"
                 }
             },
-            "required": ["allowCredentialDelivery"],
+            "required": [
+                "allowCredentialDelivery"
+            ],
             "additionalProperties": false
         },
         "api_LeaseProofRequest": {
@@ -9328,7 +10805,11 @@
                     "minimum": 1
                 }
             },
-            "required": ["attemptId", "activated", "fencingToken"],
+            "required": [
+                "attemptId",
+                "activated",
+                "fencingToken"
+            ],
             "additionalProperties": false
         },
         "api_ActivationDTOEnvelope": {
@@ -9341,7 +10822,10 @@
                     "type": "string"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_AdminReconcileRequest": {
@@ -9356,7 +10840,10 @@
                     "maxLength": 1000
                 }
             },
-            "required": ["processStopped", "reason"],
+            "required": [
+                "processStopped",
+                "reason"
+            ],
             "additionalProperties": false
         },
         "api_UploadChunkDTO": {
@@ -9374,7 +10861,11 @@
                     "type": "boolean"
                 }
             },
-            "required": ["artifactId", "receivedBytes", "complete"],
+            "required": [
+                "artifactId",
+                "receivedBytes",
+                "complete"
+            ],
             "additionalProperties": false
         },
         "api_UploadChunkDTOEnvelope": {
@@ -9387,7 +10878,10 @@
                     "type": "string"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_CompletionManifestV1": {
@@ -9409,7 +10903,10 @@
                     }
                 }
             },
-            "required": ["descriptorSha256", "files"],
+            "required": [
+                "descriptorSha256",
+                "files"
+            ],
             "additionalProperties": false
         },
         "api_CompiledSourceDTOEnvelope": {
@@ -9422,7 +10919,10 @@
                     "type": "string"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_CompilerDiagnosticV1": {
@@ -9437,14 +10937,22 @@
                     "maxLength": 512
                 },
                 "pathStatus": {
-                    "enum": ["EXACT", "REDACTED"]
+                    "enum": [
+                        "EXACT",
+                        "REDACTED"
+                    ]
                 },
                 "message": {
                     "type": "string",
                     "maxLength": 200
                 }
             },
-            "required": ["code", "path", "pathStatus", "message"],
+            "required": [
+                "code",
+                "path",
+                "pathStatus",
+                "message"
+            ],
             "additionalProperties": false
         },
         "api_GateDTO": {
@@ -9460,7 +10968,10 @@
                     }
                 }
             },
-            "required": ["passed", "reasons"],
+            "required": [
+                "passed",
+                "reasons"
+            ],
             "additionalProperties": false
         },
         "api_ReportAttemptDTO": {
@@ -9486,7 +10997,10 @@
                     "type": "string"
                 },
                 "outcome": {
-                    "type": ["string", "null"]
+                    "type": [
+                        "string",
+                        "null"
+                    ]
                 },
                 "facts": {
                     "type": "object",
@@ -9498,7 +11012,10 @@
                     "type": "string"
                 },
                 "activatedAt": {
-                    "type": ["string", "null"]
+                    "type": [
+                        "string",
+                        "null"
+                    ]
                 },
                 "lastSequence": {
                     "type": "integer"
@@ -9524,10 +11041,17 @@
                                 "type": "string"
                             },
                             "outcome": {
-                                "type": ["string", "null"]
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
                             }
                         },
-                        "required": ["id", "state", "outcome"],
+                        "required": [
+                            "id",
+                            "state",
+                            "outcome"
+                        ],
                         "additionalProperties": false
                     }
                 },
@@ -9569,7 +11093,10 @@
                     "type": "string"
                 },
                 "outcome": {
-                    "type": ["string", "null"]
+                    "type": [
+                        "string",
+                        "null"
+                    ]
                 },
                 "provenance": {
                     "type": "object",
@@ -9584,7 +11111,14 @@
                     }
                 }
             },
-            "required": ["id", "caseVersionId", "state", "outcome", "provenance", "attempts"],
+            "required": [
+                "id",
+                "caseVersionId",
+                "state",
+                "outcome",
+                "provenance",
+                "attempts"
+            ],
             "additionalProperties": false
         },
         "api_RunReportDTO": {
@@ -9634,7 +11168,13 @@
                     "additionalProperties": false
                 }
             },
-            "required": ["run", "cases", "gateAtExecution", "gateNow", "statistics"],
+            "required": [
+                "run",
+                "cases",
+                "gateAtExecution",
+                "gateNow",
+                "statistics"
+            ],
             "additionalProperties": false
         },
         "api_ReportStreamRequest": {
@@ -9706,7 +11246,11 @@
                     "type": "boolean"
                 }
             },
-            "required": ["items", "nextSequence", "hasMore"],
+            "required": [
+                "items",
+                "nextSequence",
+                "hasMore"
+            ],
             "additionalProperties": false
         },
         "api_ReportArtifactDTO": {
@@ -9731,10 +11275,21 @@
                     "const": "CREDENTIAL_RESTRICTED"
                 },
                 "state": {
-                    "enum": ["AVAILABLE", "EXPIRED"]
+                    "enum": [
+                        "AVAILABLE",
+                        "EXPIRED"
+                    ]
                 }
             },
-            "required": ["id", "attemptId", "sha256", "sizeBytes", "kind", "sensitivity", "state"],
+            "required": [
+                "id",
+                "attemptId",
+                "sha256",
+                "sizeBytes",
+                "kind",
+                "sensitivity",
+                "state"
+            ],
             "additionalProperties": false
         },
         "api_ReportArtifactsDTO": {
@@ -9747,7 +11302,9 @@
                     }
                 }
             },
-            "required": ["items"],
+            "required": [
+                "items"
+            ],
             "additionalProperties": false
         },
         "api_ReportAuditDTO": {
@@ -9762,10 +11319,16 @@
                                 "$ref": "#/$defs/api_Id"
                             },
                             "actorId": {
-                                "type": ["string", "null"]
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
                             },
                             "targetId": {
-                                "type": ["string", "null"]
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
                             },
                             "action": {
                                 "type": "string"
@@ -9774,15 +11337,27 @@
                                 "type": "string"
                             }
                         },
-                        "required": ["id", "actorId", "targetId", "action", "createdAt"],
+                        "required": [
+                            "id",
+                            "actorId",
+                            "targetId",
+                            "action",
+                            "createdAt"
+                        ],
                         "additionalProperties": false
                     }
                 },
                 "nextCursor": {
-                    "type": ["string", "null"]
+                    "type": [
+                        "string",
+                        "null"
+                    ]
                 }
             },
-            "required": ["items", "nextCursor"],
+            "required": [
+                "items",
+                "nextCursor"
+            ],
             "additionalProperties": false
         },
         "api_RunReportDTOEnvelope": {
@@ -9795,7 +11370,10 @@
                     "type": "string"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ReportHistoryDTOEnvelope": {
@@ -9808,7 +11386,10 @@
                     "type": "string"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ReportArtifactsDTOEnvelope": {
@@ -9821,7 +11402,10 @@
                     "type": "string"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ReportAuditDTOEnvelope": {
@@ -9834,7 +11418,10 @@
                     "type": "string"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ReportCaseDisplayDTO": {
@@ -9898,7 +11485,11 @@
                                             "type": "string"
                                         },
                                         "severity": {
-                                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                                            "enum": [
+                                                "BLOCK",
+                                                "CONTINUE_FAIL",
+                                                "WARN"
+                                            ]
                                         }
                                     },
                                     "required": [
@@ -9931,7 +11522,10 @@
                                             "type": "string"
                                         }
                                     },
-                                    "required": ["id", "kind"],
+                                    "required": [
+                                        "id",
+                                        "kind"
+                                    ],
                                     "additionalProperties": false
                                 },
                                 "maxItems": 1000
@@ -9951,7 +11545,12 @@
                     "maxItems": 500
                 }
             },
-            "required": ["caseVersionId", "caseKey", "title", "steps"],
+            "required": [
+                "caseVersionId",
+                "caseKey",
+                "title",
+                "steps"
+            ],
             "additionalProperties": false
         },
         "api_ReportDisplayDTO": {
@@ -9968,7 +11567,11 @@
                     ]
                 },
                 "metadataStatus": {
-                    "enum": ["AVAILABLE", "ABSENT", "REDACTED"]
+                    "enum": [
+                        "AVAILABLE",
+                        "ABSENT",
+                        "REDACTED"
+                    ]
                 },
                 "environment": {
                     "type": "object",
@@ -9977,7 +11580,11 @@
                     }
                 }
             },
-            "required": ["display", "metadataStatus", "environment"],
+            "required": [
+                "display",
+                "metadataStatus",
+                "environment"
+            ],
             "additionalProperties": false
         },
         "api_ReportDisplayDTOEnvelope": {
@@ -9990,7 +11597,10 @@
                     "type": "string"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_AiBudgetDTO": {
@@ -10020,7 +11630,13 @@
                     "const": "CONFIGURED_ESTIMATE"
                 }
             },
-            "required": ["month", "estimatedUsedUsd", "heldUsd", "availableUsd", "pricingBasis"],
+            "required": [
+                "month",
+                "estimatedUsedUsd",
+                "heldUsd",
+                "availableUsd",
+                "pricingBasis"
+            ],
             "additionalProperties": false
         },
         "api_AiContextDTO": {
@@ -10049,7 +11665,13 @@
                     }
                 }
             },
-            "required": ["context", "contextHash", "inputTokenBound", "reservedUsd", "provenance"],
+            "required": [
+                "context",
+                "contextHash",
+                "inputTokenBound",
+                "reservedUsd",
+                "provenance"
+            ],
             "additionalProperties": false
         },
         "api_AiConnectionRequest": {
@@ -10059,7 +11681,9 @@
                     "$ref": "#/$defs/api_Id"
                 }
             },
-            "required": ["requestId"],
+            "required": [
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_AiContextDTOEnvelope": {
@@ -10072,7 +11696,10 @@
                     "$ref": "#/$defs/api_Id"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_IssuerTrustV1": {
@@ -10088,7 +11715,10 @@
                     "type": "string"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_OfflineArtifactV1": {
@@ -10110,7 +11740,12 @@
                     "$ref": "#/$defs/api_OfflineArtifactV1"
                 }
             },
-            "required": ["bundleId", "localRunId", "attemptId", "file"],
+            "required": [
+                "bundleId",
+                "localRunId",
+                "attemptId",
+                "file"
+            ],
             "additionalProperties": false
         },
         "api_OfflineUploadDTO": {
@@ -10123,7 +11758,10 @@
                     "type": "string"
                 }
             },
-            "required": ["id", "uploadUrl"],
+            "required": [
+                "id",
+                "uploadUrl"
+            ],
             "additionalProperties": false
         },
         "api_OfflineChunkDTO": {
@@ -10141,7 +11779,11 @@
                     "type": "boolean"
                 }
             },
-            "required": ["id", "receivedBytes", "complete"],
+            "required": [
+                "id",
+                "receivedBytes",
+                "complete"
+            ],
             "additionalProperties": false
         },
         "api_OfflineUploadDTOEnvelope": {
@@ -10154,7 +11796,10 @@
                     "$ref": "#/$defs/api_Id"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_OfflineChunkDTOEnvelope": {
@@ -10167,7 +11812,10 @@
                     "$ref": "#/$defs/api_Id"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ExecutionPlanArchive": {
@@ -10179,14 +11827,20 @@
                     "maximum": 2147483646
                 }
             },
-            "required": ["revision"],
+            "required": [
+                "revision"
+            ],
             "additionalProperties": false
         },
         "api_TriggerReceipt": {
             "type": "object",
             "properties": {
                 "decision": {
-                    "enum": ["ENQUEUED", "REUSED", "SKIPPED"]
+                    "enum": [
+                        "ENQUEUED",
+                        "REUSED",
+                        "SKIPPED"
+                    ]
                 },
                 "runId": {
                     "$ref": "#/$defs/api_Id"
@@ -10197,7 +11851,11 @@
                     "maxLength": 256
                 }
             },
-            "required": ["decision", "runId", "statusUrl"],
+            "required": [
+                "decision",
+                "runId",
+                "statusUrl"
+            ],
             "additionalProperties": false
         },
         "api_TriggerReceiptEnvelope": {
@@ -10210,7 +11868,10 @@
                     "$ref": "#/$defs/api_Id"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_CIReport": {
@@ -10232,10 +11893,17 @@
                                 "$ref": "#/$defs/api_Id"
                             },
                             "state": {
-                                "enum": ["QUEUED", "RUNNING", "FINISHED"]
+                                "enum": [
+                                    "QUEUED",
+                                    "RUNNING",
+                                    "FINISHED"
+                                ]
                             },
                             "outcome": {
-                                "type": ["string", "null"],
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
                                 "enum": [
                                     "PASSED",
                                     "FAILED",
@@ -10248,7 +11916,11 @@
                                 ]
                             }
                         },
-                        "required": ["id", "state", "outcome"],
+                        "required": [
+                            "id",
+                            "state",
+                            "outcome"
+                        ],
                         "additionalProperties": false
                     }
                 },
@@ -10281,7 +11953,12 @@
                     "additionalProperties": false
                 }
             },
-            "required": ["run", "gatePassed", "cases", "statistics"],
+            "required": [
+                "run",
+                "gatePassed",
+                "cases",
+                "statistics"
+            ],
             "additionalProperties": false
         },
         "api_CIReportEnvelope": {
@@ -10294,7 +11971,10 @@
                     "$ref": "#/$defs/api_Id"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ServiceTokenMetadata": {
@@ -10304,7 +11984,11 @@
                     "$ref": "#/$defs/api_Id"
                 },
                 "purpose": {
-                    "enum": ["RUNTIME_ENROLLMENT", "MAINTENANCE", "EXECUTION"]
+                    "enum": [
+                        "RUNTIME_ENROLLMENT",
+                        "MAINTENANCE",
+                        "EXECUTION"
+                    ]
                 },
                 "operations": {
                     "type": "array",
@@ -10356,10 +12040,16 @@
                     }
                 },
                 "nextCursor": {
-                    "type": ["string", "null"]
+                    "type": [
+                        "string",
+                        "null"
+                    ]
                 }
             },
-            "required": ["items", "nextCursor"],
+            "required": [
+                "items",
+                "nextCursor"
+            ],
             "additionalProperties": false
         },
         "api_ServiceTokenPageEnvelope": {
@@ -10372,11 +12062,191 @@
                     "$ref": "#/$defs/api_Id"
                 }
             },
-            "required": ["data", "requestId"],
+            "required": [
+                "data",
+                "requestId"
+            ],
             "additionalProperties": false
         },
         "api_ProcessStopScope": {
             "$ref": "#/$defs/ProcessStopScope"
+        },
+        "api_OperationsMetricsDTO": {
+            "type": "object",
+            "properties": {
+                "workspaceId": {
+                    "$ref": "#/$defs/api_Id"
+                },
+                "observedAt": {
+                    "$ref": "#/$defs/api_Timestamp"
+                },
+                "queue": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "minimum": 0
+                    }
+                },
+                "capacity": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "minimum": 0
+                    }
+                },
+                "leases": {
+                    "type": "object",
+                    "properties": {
+                        "active": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "expired": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    },
+                    "required": [
+                        "active",
+                        "expired"
+                    ],
+                    "additionalProperties": false
+                },
+                "heartbeat": {
+                    "type": "object",
+                    "properties": {
+                        "devices": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "stale": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    },
+                    "required": [
+                        "devices",
+                        "stale"
+                    ],
+                    "additionalProperties": false
+                },
+                "events": {
+                    "type": "object",
+                    "properties": {
+                        "persisted": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "accepted": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "backlog": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    },
+                    "required": [
+                        "persisted",
+                        "accepted",
+                        "backlog"
+                    ],
+                    "additionalProperties": false
+                },
+                "cleanup": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "minimum": 0
+                    }
+                },
+                "storage": {
+                    "type": "object",
+                    "properties": {
+                        "objects": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "bytes": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "pendingDeletions": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "pendingPublications": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "incompleteUploads": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    },
+                    "required": [
+                        "objects",
+                        "bytes",
+                        "pendingDeletions",
+                        "pendingPublications",
+                        "incompleteUploads"
+                    ],
+                    "additionalProperties": false
+                },
+                "modelCost": {
+                    "type": "object",
+                    "properties": {
+                        "recordedMicros": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "reservedMicros": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "unknown": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    },
+                    "required": [
+                        "recordedMicros",
+                        "reservedMicros",
+                        "unknown"
+                    ],
+                    "additionalProperties": false
+                }
+            },
+            "required": [
+                "workspaceId",
+                "observedAt",
+                "queue",
+                "capacity",
+                "leases",
+                "heartbeat",
+                "events",
+                "cleanup",
+                "storage",
+                "modelCost"
+            ],
+            "additionalProperties": false
+        },
+        "api_OperationsMetricsDTOEnvelope": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/$defs/api_OperationsMetricsDTO"
+                },
+                "requestId": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            },
+            "required": [
+                "data",
+                "requestId"
+            ],
+            "additionalProperties": false
         }
     }
 }

@@ -11,6 +11,19 @@ export interface DesktopState {
     agent?: AgentState;
     tray: boolean;
     version: string;
+    diagnostics?: {
+        electron?: string;
+        uiNode: string;
+        uiChromium?: string;
+        platform: string;
+        arch: string;
+        engineVersion?: string;
+        nodeVersion?: string;
+        productVersion?: string;
+        candidate?: string;
+        sourceCommit?: string;
+        signingMode?: string;
+    };
 }
 /** 后台状态是持久执行信息的无密钥投影，上传失败保留错误和 PENDING 状态以支持显式重试；进程版本与 pid 用于诊断独立运行，不给 renderer 发送操作系统控制能力。 */
 export interface AgentState {
@@ -122,4 +135,6 @@ export interface DesktopBridge {
     lifecycle(action: "hide" | "quit" | "stop"): Promise<void>;
     /** 请求操作系统打开当前可信档案目录供用户自行查看，路径由宿主配置决定且不接受页面参数；这不是通用文件浏览器接口，页面不能借此读取文件内容或指定可执行程序。 */
     directory(): Promise<void>;
+    /** 人工升级入口只打开宿主文件选择器并核验签名清单与原生安装器，页面不能选择可执行路径或跳过空闲门禁；成功后退出 UI 并展示暂存安装文件，用户数据与旧版恢复材料保持外置保留。 */
+    installUpdate(): Promise<void>;
 }

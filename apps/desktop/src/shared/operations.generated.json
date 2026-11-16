@@ -53,7 +53,9 @@
     "getWorkspace": {
         "path": "/api/v1/workspaces/{workspaceId}",
         "method": "GET",
-        "ids": ["workspaceId"],
+        "ids": [
+            "workspaceId"
+        ],
         "queries": {},
         "request": null,
         "idempotency": false,
@@ -62,7 +64,9 @@
     "listResources": {
         "path": "/api/v1/workspaces/{workspaceId}/resources",
         "method": "GET",
-        "ids": ["workspaceId"],
+        "ids": [
+            "workspaceId"
+        ],
         "queries": {
             "cursor": {
                 "type": "string"
@@ -77,7 +81,11 @@
                 "$ref": "#/components/schemas/ResourceKind"
             },
             "status": {
-                "enum": ["DRAFT", "PUBLISHED", "ARCHIVED"]
+                "enum": [
+                    "DRAFT",
+                    "PUBLISHED",
+                    "ARCHIVED"
+                ]
             }
         },
         "request": null,
@@ -87,7 +95,9 @@
     "createResource": {
         "path": "/api/v1/workspaces/{workspaceId}/resources",
         "method": "POST",
-        "ids": ["workspaceId"],
+        "ids": [
+            "workspaceId"
+        ],
         "queries": {},
         "request": "ResourceCreate",
         "idempotency": false,
@@ -96,7 +106,10 @@
     "getResource": {
         "path": "/api/v1/workspaces/{workspaceId}/resources/{resourceId}",
         "method": "GET",
-        "ids": ["workspaceId", "resourceId"],
+        "ids": [
+            "workspaceId",
+            "resourceId"
+        ],
         "queries": {},
         "request": null,
         "idempotency": false,
@@ -105,7 +118,10 @@
     "updateResource": {
         "path": "/api/v1/workspaces/{workspaceId}/resources/{resourceId}",
         "method": "PATCH",
-        "ids": ["workspaceId", "resourceId"],
+        "ids": [
+            "workspaceId",
+            "resourceId"
+        ],
         "queries": {},
         "request": "ResourceUpdate",
         "idempotency": false,
@@ -114,7 +130,10 @@
     "getDraft": {
         "path": "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/draft",
         "method": "GET",
-        "ids": ["workspaceId", "resourceId"],
+        "ids": [
+            "workspaceId",
+            "resourceId"
+        ],
         "queries": {},
         "request": null,
         "idempotency": false,
@@ -123,7 +142,10 @@
     "updateDraft": {
         "path": "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/draft",
         "method": "PUT",
-        "ids": ["workspaceId", "resourceId"],
+        "ids": [
+            "workspaceId",
+            "resourceId"
+        ],
         "queries": {},
         "request": "DraftWrite",
         "idempotency": false,
@@ -132,7 +154,10 @@
     "validateResource": {
         "path": "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/validate",
         "method": "POST",
-        "ids": ["workspaceId", "resourceId"],
+        "ids": [
+            "workspaceId",
+            "resourceId"
+        ],
         "queries": {},
         "request": "ValidationRequest",
         "idempotency": false,
@@ -141,7 +166,10 @@
     "publishResource": {
         "path": "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/publish",
         "method": "POST",
-        "ids": ["workspaceId", "resourceId"],
+        "ids": [
+            "workspaceId",
+            "resourceId"
+        ],
         "queries": {},
         "request": "PublishRequest",
         "idempotency": false,
@@ -150,7 +178,10 @@
     "listVersions": {
         "path": "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/versions",
         "method": "GET",
-        "ids": ["workspaceId", "resourceId"],
+        "ids": [
+            "workspaceId",
+            "resourceId"
+        ],
         "queries": {
             "cursor": {
                 "type": "string"
@@ -169,7 +200,11 @@
     "getVersion": {
         "path": "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/versions/{versionId}",
         "method": "GET",
-        "ids": ["workspaceId", "resourceId", "versionId"],
+        "ids": [
+            "workspaceId",
+            "resourceId",
+            "versionId"
+        ],
         "queries": {},
         "request": null,
         "idempotency": false,
@@ -178,7 +213,10 @@
     "listDependents": {
         "path": "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/dependents",
         "method": "GET",
-        "ids": ["workspaceId", "resourceId"],
+        "ids": [
+            "workspaceId",
+            "resourceId"
+        ],
         "queries": {
             "cursor": {
                 "type": "string"
@@ -197,7 +235,9 @@
     "listProviders": {
         "path": "/api/v1/workspaces/{workspaceId}/ai/providers",
         "method": "GET",
-        "ids": ["workspaceId"],
+        "ids": [
+            "workspaceId"
+        ],
         "queries": {
             "cursor": {
                 "type": "string"
@@ -216,7 +256,9 @@
     "createProvider": {
         "path": "/api/v1/workspaces/{workspaceId}/ai/providers",
         "method": "POST",
-        "ids": ["workspaceId"],
+        "ids": [
+            "workspaceId"
+        ],
         "queries": {},
         "request": "ProviderWrite",
         "idempotency": false,
@@ -225,7 +267,10 @@
     "getProvider": {
         "path": "/api/v1/workspaces/{workspaceId}/ai/providers/{providerId}",
         "method": "GET",
-        "ids": ["workspaceId", "providerId"],
+        "ids": [
+            "workspaceId",
+            "providerId"
+        ],
         "queries": {},
         "request": null,
         "idempotency": false,
@@ -234,7 +279,10 @@
     "updateProvider": {
         "path": "/api/v1/workspaces/{workspaceId}/ai/providers/{providerId}",
         "method": "PUT",
-        "ids": ["workspaceId", "providerId"],
+        "ids": [
+            "workspaceId",
+            "providerId"
+        ],
         "queries": {},
         "request": "ProviderWrite",
         "idempotency": false,
@@ -243,7 +291,10 @@
     "deleteProvider": {
         "path": "/api/v1/workspaces/{workspaceId}/ai/providers/{providerId}",
         "method": "DELETE",
-        "ids": ["workspaceId", "providerId"],
+        "ids": [
+            "workspaceId",
+            "providerId"
+        ],
         "queries": {},
         "request": null,
         "idempotency": false,
@@ -252,7 +303,9 @@
     "listRuns": {
         "path": "/api/v1/workspaces/{workspaceId}/runs",
         "method": "GET",
-        "ids": ["workspaceId"],
+        "ids": [
+            "workspaceId"
+        ],
         "queries": {
             "cursor": {
                 "type": "string"
@@ -271,7 +324,9 @@
     "createRun": {
         "path": "/api/v1/workspaces/{workspaceId}/runs",
         "method": "POST",
-        "ids": ["workspaceId"],
+        "ids": [
+            "workspaceId"
+        ],
         "queries": {},
         "request": "RunCreate",
         "idempotency": true,
@@ -280,7 +335,10 @@
     "getRun": {
         "path": "/api/v1/workspaces/{workspaceId}/runs/{runId}",
         "method": "GET",
-        "ids": ["workspaceId", "runId"],
+        "ids": [
+            "workspaceId",
+            "runId"
+        ],
         "queries": {},
         "request": null,
         "idempotency": false,
@@ -289,7 +347,10 @@
     "cancelRun": {
         "path": "/api/v1/workspaces/{workspaceId}/runs/{runId}/cancel",
         "method": "POST",
-        "ids": ["workspaceId", "runId"],
+        "ids": [
+            "workspaceId",
+            "runId"
+        ],
         "queries": {},
         "request": "CancelRequest",
         "idempotency": false,
@@ -298,7 +359,10 @@
     "rerun": {
         "path": "/api/v1/workspaces/{workspaceId}/runs/{runId}/rerun",
         "method": "POST",
-        "ids": ["workspaceId", "runId"],
+        "ids": [
+            "workspaceId",
+            "runId"
+        ],
         "queries": {},
         "request": "TriggerRequest",
         "idempotency": true,
@@ -307,7 +371,10 @@
     "getRunReport": {
         "path": "/api/v1/workspaces/{workspaceId}/runs/{runId}/report",
         "method": "GET",
-        "ids": ["workspaceId", "runId"],
+        "ids": [
+            "workspaceId",
+            "runId"
+        ],
         "queries": {},
         "request": null,
         "idempotency": false,
@@ -316,7 +383,10 @@
     "getJob": {
         "path": "/api/v1/workspaces/{workspaceId}/jobs/{jobId}",
         "method": "GET",
-        "ids": ["workspaceId", "jobId"],
+        "ids": [
+            "workspaceId",
+            "jobId"
+        ],
         "queries": {},
         "request": null,
         "idempotency": false,
@@ -325,7 +395,9 @@
     "listRuntimes": {
         "path": "/api/v1/workspaces/{workspaceId}/runtimes",
         "method": "GET",
-        "ids": ["workspaceId"],
+        "ids": [
+            "workspaceId"
+        ],
         "queries": {
             "cursor": {
                 "type": "string"
@@ -344,7 +416,10 @@
     "getRuntime": {
         "path": "/api/v1/workspaces/{workspaceId}/runtimes/{runtimeId}",
         "method": "GET",
-        "ids": ["workspaceId", "runtimeId"],
+        "ids": [
+            "workspaceId",
+            "runtimeId"
+        ],
         "queries": {},
         "request": null,
         "idempotency": false,
@@ -353,7 +428,10 @@
     "updateRuntimeGrants": {
         "path": "/api/v1/workspaces/{workspaceId}/runtimes/{runtimeId}/grants",
         "method": "PUT",
-        "ids": ["workspaceId", "runtimeId"],
+        "ids": [
+            "workspaceId",
+            "runtimeId"
+        ],
         "queries": {},
         "request": "RuntimeGrantWrite",
         "idempotency": false,
@@ -362,7 +440,10 @@
     "updateRuntimeTrust": {
         "path": "/api/v1/workspaces/{workspaceId}/runtimes/{runtimeId}/trust",
         "method": "PUT",
-        "ids": ["workspaceId", "runtimeId"],
+        "ids": [
+            "workspaceId",
+            "runtimeId"
+        ],
         "queries": {},
         "request": "RuntimeTrustWrite",
         "idempotency": false,
@@ -371,7 +452,10 @@
     "revokeRuntime": {
         "path": "/api/v1/workspaces/{workspaceId}/runtimes/{runtimeId}/revoke",
         "method": "POST",
-        "ids": ["workspaceId", "runtimeId"],
+        "ids": [
+            "workspaceId",
+            "runtimeId"
+        ],
         "queries": {},
         "request": null,
         "idempotency": false,
@@ -380,7 +464,9 @@
     "approveEnrollment": {
         "path": "/api/v1/runtime-enrollments/{enrollmentId}/approve",
         "method": "POST",
-        "ids": ["enrollmentId"],
+        "ids": [
+            "enrollmentId"
+        ],
         "queries": {},
         "request": "EnrollmentApprove",
         "idempotency": false,
@@ -389,7 +475,9 @@
     "createBundle": {
         "path": "/api/v1/workspaces/{workspaceId}/bundles",
         "method": "POST",
-        "ids": ["workspaceId"],
+        "ids": [
+            "workspaceId"
+        ],
         "queries": {},
         "request": "BundleCreate",
         "idempotency": true,
@@ -398,7 +486,9 @@
     "listBundles": {
         "path": "/api/v1/workspaces/{workspaceId}/bundles",
         "method": "GET",
-        "ids": ["workspaceId"],
+        "ids": [
+            "workspaceId"
+        ],
         "queries": {
             "cursor": {
                 "type": "string"
@@ -417,7 +507,10 @@
     "getBundle": {
         "path": "/api/v1/workspaces/{workspaceId}/bundles/{bundleId}",
         "method": "GET",
-        "ids": ["workspaceId", "bundleId"],
+        "ids": [
+            "workspaceId",
+            "bundleId"
+        ],
         "queries": {},
         "request": null,
         "idempotency": false,
@@ -426,7 +519,10 @@
     "getBundleManifest": {
         "path": "/api/v1/workspaces/{workspaceId}/bundles/{bundleId}/manifest",
         "method": "GET",
-        "ids": ["workspaceId", "bundleId"],
+        "ids": [
+            "workspaceId",
+            "bundleId"
+        ],
         "queries": {},
         "request": null,
         "idempotency": false,
@@ -435,7 +531,10 @@
     "testProvider": {
         "path": "/api/v1/workspaces/{workspaceId}/ai/providers/{providerId}/connection-tests",
         "method": "POST",
-        "ids": ["workspaceId", "providerId"],
+        "ids": [
+            "workspaceId",
+            "providerId"
+        ],
         "queries": {},
         "request": "AiConnectionRequest",
         "idempotency": false,
@@ -444,7 +543,9 @@
     "generateDraft": {
         "path": "/api/v1/workspaces/{workspaceId}/ai/generations",
         "method": "POST",
-        "ids": ["workspaceId"],
+        "ids": [
+            "workspaceId"
+        ],
         "queries": {},
         "request": "GenerationRequest",
         "idempotency": false,
@@ -453,7 +554,9 @@
     "listGenerations": {
         "path": "/api/v1/workspaces/{workspaceId}/ai/generations",
         "method": "GET",
-        "ids": ["workspaceId"],
+        "ids": [
+            "workspaceId"
+        ],
         "queries": {
             "cursor": {
                 "type": "string"
@@ -472,7 +575,10 @@
     "getGeneration": {
         "path": "/api/v1/workspaces/{workspaceId}/ai/generations/{generationId}",
         "method": "GET",
-        "ids": ["workspaceId", "generationId"],
+        "ids": [
+            "workspaceId",
+            "generationId"
+        ],
         "queries": {},
         "request": null,
         "idempotency": false,
@@ -481,7 +587,10 @@
     "reviewGeneration": {
         "path": "/api/v1/workspaces/{workspaceId}/ai/generations/{generationId}/review",
         "method": "POST",
-        "ids": ["workspaceId", "generationId"],
+        "ids": [
+            "workspaceId",
+            "generationId"
+        ],
         "queries": {},
         "request": "GenerationReview",
         "idempotency": false,
@@ -490,7 +599,9 @@
     "getWorkspaceAudit": {
         "path": "/api/v1/workspaces/{workspaceId}/audit",
         "method": "GET",
-        "ids": ["workspaceId"],
+        "ids": [
+            "workspaceId"
+        ],
         "queries": {
             "after": {
                 "$ref": "#/components/schemas/Id"
@@ -503,7 +614,10 @@
     "getValidationReceipt": {
         "path": "/api/v1/workspaces/{workspaceId}/jobs/{jobId}/validation-receipt",
         "method": "GET",
-        "ids": ["workspaceId", "jobId"],
+        "ids": [
+            "workspaceId",
+            "jobId"
+        ],
         "queries": {},
         "request": null,
         "idempotency": false,
@@ -530,7 +644,10 @@
     "previewResourceValidation": {
         "path": "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/validation-preview",
         "method": "GET",
-        "ids": ["workspaceId", "resourceId"],
+        "ids": [
+            "workspaceId",
+            "resourceId"
+        ],
         "queries": {},
         "request": null,
         "idempotency": false,
@@ -539,7 +656,9 @@
     "listCredentials": {
         "path": "/api/v1/workspaces/{workspaceId}/credentials",
         "method": "GET",
-        "ids": ["workspaceId"],
+        "ids": [
+            "workspaceId"
+        ],
         "queries": {
             "limit": {
                 "type": "integer",
@@ -557,7 +676,9 @@
     "createCredential": {
         "path": "/api/v1/workspaces/{workspaceId}/credentials",
         "method": "POST",
-        "ids": ["workspaceId"],
+        "ids": [
+            "workspaceId"
+        ],
         "queries": {},
         "request": "CredentialCreate",
         "idempotency": false,
@@ -566,7 +687,10 @@
     "rotateCredential": {
         "path": "/api/v1/workspaces/{workspaceId}/credentials/{secretRef}/versions",
         "method": "POST",
-        "ids": ["workspaceId", "secretRef"],
+        "ids": [
+            "workspaceId",
+            "secretRef"
+        ],
         "queries": {},
         "request": "CredentialRotate",
         "idempotency": false,
@@ -575,7 +699,11 @@
     "revokeCredential": {
         "path": "/api/v1/workspaces/{workspaceId}/credentials/{secretRef}/versions/{versionId}/revoke",
         "method": "POST",
-        "ids": ["workspaceId", "secretRef", "versionId"],
+        "ids": [
+            "workspaceId",
+            "secretRef",
+            "versionId"
+        ],
         "queries": {},
         "request": "EmptyObject",
         "idempotency": false,
@@ -584,7 +712,9 @@
     "listAuthAdapters": {
         "path": "/api/v1/workspaces/{workspaceId}/auth-adapters",
         "method": "GET",
-        "ids": ["workspaceId"],
+        "ids": [
+            "workspaceId"
+        ],
         "queries": {
             "limit": {
                 "type": "integer",
@@ -602,7 +732,9 @@
     "createAuthAdapter": {
         "path": "/api/v1/workspaces/{workspaceId}/auth-adapters",
         "method": "POST",
-        "ids": ["workspaceId"],
+        "ids": [
+            "workspaceId"
+        ],
         "queries": {},
         "request": "AuthAdapterCreate",
         "idempotency": false,
@@ -611,7 +743,10 @@
     "revokeAuthAdapter": {
         "path": "/api/v1/workspaces/{workspaceId}/auth-adapters/{versionId}/revoke",
         "method": "POST",
-        "ids": ["workspaceId", "versionId"],
+        "ids": [
+            "workspaceId",
+            "versionId"
+        ],
         "queries": {},
         "request": "EmptyObject",
         "idempotency": false,
@@ -629,7 +764,10 @@
     "updateRuntimeCredentialDelivery": {
         "path": "/api/v1/workspaces/{workspaceId}/runtimes/{runtimeId}/credential-delivery",
         "method": "PUT",
-        "ids": ["workspaceId", "runtimeId"],
+        "ids": [
+            "workspaceId",
+            "runtimeId"
+        ],
         "queries": {},
         "request": "RuntimeCredentialDeliveryWrite",
         "idempotency": false,
@@ -638,7 +776,11 @@
     "getPublishedCompiledSource": {
         "path": "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/versions/{versionId}/compiled-source",
         "method": "GET",
-        "ids": ["workspaceId", "resourceId", "versionId"],
+        "ids": [
+            "workspaceId",
+            "resourceId",
+            "versionId"
+        ],
         "queries": {
             "path": {
                 "type": "string"
@@ -651,7 +793,10 @@
     "streamRunReport": {
         "path": "/api/v1/workspaces/{workspaceId}/runs/{runId}/events/stream",
         "method": "POST",
-        "ids": ["workspaceId", "runId"],
+        "ids": [
+            "workspaceId",
+            "runId"
+        ],
         "queries": {},
         "request": "ReportStreamRequest",
         "idempotency": false,
@@ -660,7 +805,10 @@
     "getAttemptHistory": {
         "path": "/api/v1/workspaces/{workspaceId}/attempts/{attemptId}/history",
         "method": "GET",
-        "ids": ["workspaceId", "attemptId"],
+        "ids": [
+            "workspaceId",
+            "attemptId"
+        ],
         "queries": {
             "after": {
                 "type": "integer",
@@ -675,7 +823,10 @@
     "getAttemptArtifacts": {
         "path": "/api/v1/workspaces/{workspaceId}/attempts/{attemptId}/artifacts",
         "method": "GET",
-        "ids": ["workspaceId", "attemptId"],
+        "ids": [
+            "workspaceId",
+            "attemptId"
+        ],
         "queries": {},
         "request": null,
         "idempotency": false,
@@ -684,7 +835,11 @@
     "downloadAttemptArtifact": {
         "path": "/api/v1/workspaces/{workspaceId}/attempts/{attemptId}/artifacts/{artifactId}",
         "method": "GET",
-        "ids": ["workspaceId", "attemptId", "artifactId"],
+        "ids": [
+            "workspaceId",
+            "attemptId",
+            "artifactId"
+        ],
         "queries": {},
         "request": null,
         "idempotency": false,
@@ -693,7 +848,11 @@
     "getReportDisplay": {
         "path": "/api/v1/workspaces/{workspaceId}/runs/{runId}/attempts/{attemptId}/display",
         "method": "GET",
-        "ids": ["workspaceId", "runId", "attemptId"],
+        "ids": [
+            "workspaceId",
+            "runId",
+            "attemptId"
+        ],
         "queries": {},
         "request": null,
         "idempotency": false,
@@ -702,7 +861,9 @@
     "previewAiContext": {
         "path": "/api/v1/workspaces/{workspaceId}/ai/context",
         "method": "POST",
-        "ids": ["workspaceId"],
+        "ids": [
+            "workspaceId"
+        ],
         "queries": {},
         "request": "GenerationRequest",
         "idempotency": false,
@@ -711,7 +872,10 @@
     "cancelGeneration": {
         "path": "/api/v1/workspaces/{workspaceId}/ai/generations/{generationId}/cancel",
         "method": "POST",
-        "ids": ["workspaceId", "generationId"],
+        "ids": [
+            "workspaceId",
+            "generationId"
+        ],
         "queries": {},
         "request": null,
         "idempotency": false,

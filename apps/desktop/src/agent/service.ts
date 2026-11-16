@@ -23,7 +23,11 @@ import {
     updatePrivate,
     privateDirectory,
 } from "../../../runtime/src/offline/config.ts";
-import { diagnoseRelease, loadRuntimeDistribution } from "../../../runtime/src/distribution.ts";
+import { diagnoseRelease } from "../../../runtime/src/distribution.ts";
+import { loadDesktopRuntime } from "../installation/release";
+import { createDarwinDistribution, type DarwinSourceCapability } from "../../../runtime/src/execution/darwin-source.ts";
+import type { RuntimeDistribution } from "../../../runtime/src/distribution.ts";
+import { holdMaintenance } from "./maintenance";
 import { openTrace } from "../../../runtime/src/trace.ts";
 import { DeviceSession } from "../../../runtime/src/agent/credentials.ts";
 import { AgentClient } from "../../../runtime/src/agent/transport.ts";
@@ -91,6 +95,7 @@ export class DesktopAgent {
         | undefined;
     private interruptions = 0;
     private stopped = false;
+    private maintenanceRelease: (() => Promise<void>) | undefined;
     private viewers = new Map<
         string,
         { controller: AbortController; done: Promise<void>; expiry: ReturnType<typeof setTimeout> }
@@ -309,6 +314,7 @@ export class DesktopAgent {
             onlineStop: [],
             clearBundle: ["bundleId"],
             stop: [],
+            prepareMaintenance: [],
             recover: [],
             migrateCredentials: [],
             recoverCredentialInitialization: [],
@@ -319,6 +325,7 @@ export class DesktopAgent {
             return this.interrupt(operation, message);
         if (this.stopped && operation !== "status") throw new Error("AGENT_STOPPED");
         const guarded = [
+            "prepareMaintenance",
             "run",
             "onlineStart",
             "select",
@@ -375,6 +382,20 @@ export class DesktopAgent {
         await privateDirectory(this.root);
         startup?.signal.throwIfAborted();
         if (operation === "status") return this.state();
+        /** 维护准备复用同一个可中断预留而不是另设异步门闩，停止请求因此必须等本次持久锁取得或失败后才退出；查看器、在线执行与未知记录仍分别拒绝，准备取消会释放实际取得的空闲资源而不伪造 ready 回执。 */
+        if (operation === "prepareMaintenance") {
+            if (this.viewers.size) throw new Error("DESKTOP_UPDATE_BUSY");
+            const release = await holdMaintenance(this.root);
+            try {
+                startup?.signal.throwIfAborted();
+                this.maintenanceRelease = release;
+                this.stopped = true;
+                return { ready: true, node: process.versions.node, pid: process.pid };
+            } catch (error) {
+                await release();
+                throw error;
+            }
+        }
         if (operation === "recoverCredentialInitialization") {
             await this.device.recoverCredentialInitialization();
             return { recovered: true, credentialMode: "os-vault" };
@@ -624,8 +645,9 @@ export class DesktopAgent {
             );
             startup?.signal.throwIfAborted();
             const installed = this.config.distributionRoot
-                ? await loadRuntimeDistribution(this.config.distributionRoot)
+                ? await loadDesktopRuntime(this.config.distributionRoot)
                 : undefined;
+            const darwinSource = await this.darwinExecution(installed);
             startup?.signal.throwIfAborted();
             this.runController = startup ?? new AbortController();
             this.lastError = undefined;
@@ -633,6 +655,7 @@ export class DesktopAgent {
                 { directory },
                 {
                     ...(installed ? { execution: installed.execution } : {}),
+                    ...(darwinSource ? { darwinSource } : {}),
                     root: this.executionRoot,
                     trust: this.trust,
                     secrets: this.secrets,
@@ -728,7 +751,12 @@ export class DesktopAgent {
         }
         if (operation === "recover") {
             if (this.run || this.online) throw new Error("AGENT_BUSY");
-            return { receipt: (await recoverOffline(this.executionRoot)) ?? null };
+            const installed = this.config.distributionRoot ? await loadDesktopRuntime(this.config.distributionRoot) : undefined;
+            const darwinSource = await this.darwinExecution(installed);
+            return { receipt: (await recoverOffline(this.executionRoot, {
+                ...(installed ? { execution: installed.execution } : {}),
+                ...(darwinSource ? { darwinSource } : {}),
+            })) ?? null };
         }
         throw new Error("AGENT_OPERATION_DENIED");
     }
@@ -810,6 +838,9 @@ export class DesktopAgent {
                 this.online,
                 ...[...this.viewers.values()].map((viewer) => viewer.done),
             ]);
+            /** 人工升级取得的持续空闲事务只在本次后台明确停止时释放，释放异常必须让停止失败而不能交出伪造回执；随后入口关闭 broker 并释放桌面所有权，安装器另行检查真实角色是否全部退出。 */
+            await this.maintenanceRelease?.();
+            this.maintenanceRelease = undefined;
             return { stopped: true };
         } finally {
             this.interruptions--;
@@ -833,9 +864,12 @@ export class DesktopAgent {
      */
     private async diagnose(network: boolean) {
         const installed = this.config.distributionRoot
-            ? await loadRuntimeDistribution(this.config.distributionRoot)
+            ? await loadDesktopRuntime(this.config.distributionRoot)
             : undefined;
+        const darwinSource = await this.darwinExecution(installed);
         return diagnoseRelease({
+            ...(installed ? { runtime: installed } : {}),
+            ...(darwinSource ? { darwinSource } : {}),
             engineDirectory: installed?.engineDirectory ?? this.config.engineDirectory,
             engineVersion: installed?.engineVersion ?? this.config.engineVersion ?? "1.0.0",
             browserExecutable: installed?.browserExecutable ?? this.config.browserExecutable,
@@ -843,12 +877,22 @@ export class DesktopAgent {
         });
     }
 
+    /** 已安装 Darwin 执行必须先从原始库存能力取得独立 Runner 探针与私有控制目录，不能用 Electron 内置 Node 或源码 Chrome 替代；能力只在本次进程内传给既有执行器，签名业务包和 renderer 都无法构造或覆盖它。 */
+    private async darwinExecution(installed: RuntimeDistribution | undefined): Promise<DarwinSourceCapability | undefined> {
+        if (process.platform !== "darwin") return undefined;
+        if (!installed) throw new Error("DARWIN_NATIVE_DISTRIBUTION_REQUIRED");
+        const temporaryDirectory = join(this.root, "darwin-control");
+        await privateDirectory(temporaryDirectory);
+        return createDarwinDistribution(installed, { temporaryDirectory });
+    }
+
     /** 在线领取使用已绑定设备的真实会话和现有执行监管器，启动准备期间仍受同一个控制器约束；查询设备状态失败或取消会关闭该会话，只有检查成功后才把 claimLoop 登记为活动任务。 */
     private async startOnline(controller: AbortController) {
         if (this.online || this.run) throw new Error("AGENT_BUSY");
         const installed = this.config.distributionRoot
-            ? await loadRuntimeDistribution(this.config.distributionRoot)
+            ? await loadDesktopRuntime(this.config.distributionRoot)
             : undefined;
+        const darwinSource = await this.darwinExecution(installed);
         const diagnostics = await this.diagnose(false);
         controller.signal.throwIfAborted();
         if (!diagnostics.ok || !diagnostics.capabilities) {
@@ -873,6 +917,7 @@ export class DesktopAgent {
         }
         const supervisor = new ExecutionSupervisor({
             ...(installed ? { execution: installed.execution } : {}),
+            ...(darwinSource ? { darwinSource } : {}),
             root,
             client,
             releaseDirectory: this.config.engineDirectory,

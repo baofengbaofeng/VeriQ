@@ -17,6 +17,7 @@ const bridge: DesktopBridge = {
     streamClose: (id) => ipcRenderer.invoke("veriq:desktop", "streamClose", { id }),
     artifact: (input) => ipcRenderer.invoke("veriq:desktop", "artifact", input),
     lifecycle: (action) => ipcRenderer.invoke("veriq:desktop", "lifecycle", { action }),
+    installUpdate: () => ipcRenderer.invoke("veriq:desktop", "installUpdate"),
     directory: () => ipcRenderer.invoke("veriq:desktop", "directory"),
 };
 contextBridge.exposeInMainWorld("veriq", Object.freeze(bridge));
