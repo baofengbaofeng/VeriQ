@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
+import { localRetentionDefaults } from "../src/shared/retention-policy.ts";
 import { DesktopAgent } from "../src/agent/service.ts";
 
 const uuid = "11111111-1111-4111-8111-111111111111";
@@ -59,6 +60,7 @@ test("pending startup rejects competing mutations and releases after failure", a
             { operation: "select", workspaceId: uuid },
             { operation: "onlineStart" },
             { operation: "prepareMaintenance" },
+            { operation: "pruneCache", workspaceId: uuid, ...localRetentionDefaults },
         ])
             await assert.rejects(fixture.agent.dispatch(command), /AGENT_BUSY/);
         const status = (await fixture.agent.dispatch({ operation: "status" })) as {

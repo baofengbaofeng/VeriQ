@@ -10,10 +10,12 @@
 | 独立输入 | 外部 expected、候选/来源/回执/GUI/Runtime 精确绑定，Mac 原有限链接验证器，复制后/afterPack/afterSign 复验 | 没有批准 expected，不从扫描结果自动批准，不输出 ready |
 | 本地 UI 与角色布局 | 原 electron-vite/stage-runtime 复用，GUI ASAR，物理 Node24/Agent/Runner/Chrome/引擎在 Runtime 外置资源，fuse 明确配置 | 真实 bundle AST 外部依赖、加载解析和安装后 hash 仍需验证；不能沿用旧产物结论 |
 | Mac 宿主 | Bundle ID、macOS15、宿主架构、安装路径和显式签名模式先核验；main 直接绑定已核 Darwin NAPI | 真机两架构签名/加载、Cookie/控制台/默认 Keychain 尚未验收；独立文件 Keychain helper 未替换 |
-| 生命周期 | Mac tray/menu/Dock、Windows/KDE tray、Linux 最小化回退、系统菜单、登录项、退出 UI/停止 Agent 分离、版本诊断 | 真实桌面环境、系统会话、崩溃重连和进程名仍须逐目标观察 |
+| 生命周期 | Mac tray/menu/Dock、Windows/KDE tray、Linux 最小化回退、系统菜单、登录项、退出 UI/停止 Agent 分离、版本诊断与有限双语错误指引 | 真实桌面环境、系统会话、崩溃重连和进程名仍须逐目标观察 |
+| C03b 本机清理 GUI | 设置面板→有限 pruneCache IPC→原生策略确认→Agent 当前Workspace/活动/读取门闩→真实 C07 pruneLocalProfile；原始 desktopOwner 复用、验签后 touchCache、批次结果表 | 源码接线已完成；实际持久性/退休/缓存验收见 [V11](V11-local-durability.md)，本轮未执行 |
+| C03b 语言桥接 | renderer AppLocaleProvider 及共享 appI18n/setAppLanguage，资源/报告/AI命名空间同步；main只用无React/DOM错误投影 | 语言切换、偏好、草稿/焦点及监听释放须真实GUI验收，双语原生文案不依赖DOM翻译 |
 | 手动升级/回滚 | Ed25519 清单验签、安装器完整性与原生签名、私有暂存、持续空闲门禁、真实停止后人工安装 | 仅相同引擎与数据格式2；跨引擎迁移/数据格式迁移被明确拒绝，需未来独立设计实现，不作为本入口已支持 |
 | 安装/卸载 | 活动角色及不确定查询拒绝、无强杀、保留外置 profile、Ubuntu 固定路径 AppArmor | 真实安装器阶段与多个 OS 会话竞争验证未执行；用户绕过 GUI 直接安装仍受系统签名和原生进程拒绝门禁 |
-| 测试源码 | `installation.test.ts` 合成签名/目标/回滚/库存拒绝，Cookie 无宿主能力拒绝断言更新 | 全部未执行，不把合成密码算法用例计为原生系统验收 |
+| 测试源码 | `installation.test.ts` 合成签名/目标/回滚/库存拒绝，Cookie 无宿主能力拒绝断言，`retention-policy.test.ts` 策略/结果/错误投影，以及 startup 清理互斥回归源码 | 全部未执行，不把合成协议或密码算法用例计为原生系统验收 |
 
 ## 精确入口和接口
 
@@ -81,8 +83,23 @@
 
 后续独立复审须覆盖所有新增生产路径、签名输入和失败恢复。通过适用项前不得标记桌面 ready、四目标已支持或完整 MVP 完成。
 
-## 协调者串行提交前的未完成接线
+## C03b：剩余源码接线已完成，验证独立登记
 
-- C05 已同意提供**封库存之前**的显式原生签名生产选项；C03 消费接口、`signIgnore` 和复制后/签名后复验已实现。生产选项的精确 CLI/API 及其操作说明仍待 C05 返回后补录，目前不能把文档中的前置签名材料当成该生产选项已经接通的证明。
-- C07 本地保留期维护 helper 正在实现；当前 GUI 只有已有按已登记 `bundleId` 的明确确认 `clearBundle`。新的全量有界保留期清理 GUI 操作尚未接线，需待 helper 实际 API 与 `desktopOwner` 原始能力复用接口落地后补实现，不把 CLI 后台维护冒称成 GUI 已完成。
-- 此处仅完成 C03 核心源码交接，协调者要求先停止写入并串行提交，后续接线作为明确的拥有路径跟进；全部测试/构建/安装/签名/复审仍未执行。
+| 接线 | 实际源码和合同 | 本轮执行情况 |
+| --- | --- | --- |
+| 本机清理 | `src/renderer/RetentionPanel.tsx` 调用有限 `LocalRetentionCommand`；main在确认前严格解析所有字段并显示Workspace/策略；Agent只用固定root及当前selectedWorkspace，拒绝新字段/跨空间/活动准备/执行/在线/查看器/资源读取 | 仅源码；未执行 |
+| 真实维护器 | 已读取并调用实际存在的 `apps/runtime/src/offline/retention.ts::pruneLocalProfile(profileRoot,{workspaceId,metadataDays,bundleDays,rawSuccessDays,rawFailureDays,batchSize,desktopOwner?})`，结果严格投影为五计数和hasMore | 无不存在的导入、替代删除器或硬编码成功；未调用真实维护 |
+| 所有权/计龄 | 构造器保留现有CredentialOptions的真实desktopOwner并原样传入helper，避免重复锁；`selected()`成功重新验签后才调用实际 `LocalStore.touchCache(workspaceId,bundleId)` | 函数均已实际落地，调用未执行 |
+| 并发与结果 | 同步GUI请求门闩、现有Agent mutation reservation、资源读取计数；维护时status返回有限busy避免同步SQLite写连接争用；显示真实计数并由用户明确再发一批，成功后清除本机过期选择和查询缓存 | 关闭UI/stop/IPC超时不伪称原生删除已回滚；部分结果和刷新失败分开提示 |
+| 共享语言 | renderer根挂AppLocaleProvider；本地语言控件调用setAppLanguage并订阅appI18n，移除原来分别改变editor/AI的第二套状态。local状态/错误提供双语意义；main的共享错误函数无React/Electron/DOM依赖 | 未重建表单或Workspace作用域；真实语言/焦点验收未执行 |
+| 实际nativeSigning链 | `job.nativeSigning={identity,entitlements?:SourceBindingRef,timestamp?:'secure'|'none'}` → `node --import tsx scripts/build_runtime.mts mac-inputs --job /ABS/mac-job.json` → 签后独立Expected审核 → `mac-stage` → 独立desktop expected → installer | [精确说明](../../../deploy/desktop/README.md#mac-原生签名材料的实际生产入口)已补；unsigned默认、原Node/Chrome不重签、Runtime signIgnore及postpack验证不变；未签名/构建 |
+
+C03b没有剩余待接线的上述功能钩子。跨引擎与数据库格式迁移仍按首版安全边界拒绝，不因本轮接线扩大范围。所有原生签名、Keychain/Cookie、Windows私有SQLite持久性、清理故障恢复与实际GUI验收仍未运行；没有通过结论。
+
+### C03b 后续独立验收
+
+- 与 [V11本机持久性及保留期](V11-local-durability.md) 一起验证：已有真实Agent锁的GUI清理不重复加锁；CLI仍获取自身所有权；错能力、跨档案和跨Workspace拒绝；清理与读取、准备/执行/在线/查看器、stop及UI崩溃并发，保留未知和未上传材料。
+- 新旧缓存分别观察：旧索引第一次只开始计龄，成功验签访问刷新SQLite时间，失败验签不能刷新。实际批量计数、hasMore、raw退休/metadata墓碑、引用保护和崩溃重做必须对应真实文件与数据库，不以GUI文案替代事实。
+- 原生确认取消应不调用helper；清理开始后关窗/换tab/超时不能假称回滚。后台清理期间status应立即返回忙碌提示而不新开SQLite写连接阻塞；成功结果与随后的刷新失败分开显示。
+- 按中英文切换本地与嵌入的资源、报告、Bundle、AI页面，重新打开窗口读取同一偏好，保留草稿/Workspace/请求scope/焦点；组件卸载后无语言监听泄漏，main不得引入浏览器翻译实例。
+- 运行新增策略/结果投影测试和startup互斥回归源码；再在四个原生目标进行GUI清理、语言、签名前后库存与实际安装验收。所有命令、环境、提交与真实失败另行记录，本轮均未执行。

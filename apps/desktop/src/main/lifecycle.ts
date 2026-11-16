@@ -1,3 +1,4 @@
+import { desktopErrorMessage } from "../shared/desktop-errors";
 import { app, dialog, Menu, nativeImage, Tray, type MenuItemConstructorOptions } from "electron";
 
 /** 生命周期菜单使用 Electron 系统 API 为 Dock、菜单栏与支持的托盘提供同一组明确动作，退出 UI 和停止后台分别调用宿主已有确认流程；不把窗口关闭或开机启动设置暗中转成取消测试、执行命令或注册系统服务。
@@ -62,5 +63,5 @@ export function installLifecycleMenu(actions: {
 export function reportLifecycleError(error: unknown): void {
     const code = error instanceof Error && /^[A-Z0-9_]{1,100}$/.test(error.message) ? error.message : "DESKTOP_LIFECYCLE_FAILED";
     console.error("VeriQ desktop lifecycle failed:", code);
-    dialog.showErrorBox("VeriQ", code);
+    dialog.showErrorBox("VeriQ", desktopErrorMessage(code, app.getLocale().toLowerCase().startsWith("zh") ? "zh" : "en"));
 }

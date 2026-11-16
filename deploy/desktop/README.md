@@ -84,3 +84,42 @@ pnpm --filter @veriq/desktop package:sign-update \
 App 的关闭按钮首次提示后收起到托盘/菜单栏，缺少 Linux 托盘时最小化；Dock 或第二实例恢复原窗口。退出 UI 不停止 Agent，停止 Agent 需要另一原生确认。Mac/Windows 安装版通过系统登录项 API 显式开关启动 GUI，Linux 不伪称支持这个 API。版本诊断分开显示 GUI/Electron/内嵌 Node/Chromium 与独立 Node、产品、引擎、候选及签名模式。
 
 独立验收清单见 [V03](../../docs/validation/tasks/V03-desktop.md)。
+
+## Mac 原生签名材料的实际生产入口
+
+C05 已实现 `scripts/build_runtime.mts mac-inputs` 的 `MacRuntimeProductionJob.nativeSigning`。它是现有五树真实生产任务的可选字段，不是 desktop installer 在打包后重写 Runtime 的开关：
+
+| 字段 | 实际要求 |
+| --- | --- |
+| `nativeSigning.identity` | 操作者已有的 `Developer ID Application: …` 身份，必须显式提供；不申请、导入或自动选择证书 |
+| `nativeSigning.entitlements` | 可选 `{path,sizeBytes,sha256}`，必须逐字对应原 `SourceBindingV1` 中的真实源码 Ref，不能临时塞入未绑定文件 |
+| `nativeSigning.timestamp` | `secure` 或 `none`；省略采用受保护时间戳，只有明确选择 `none` 才关闭 |
+
+操作者把这些字段加到已有真实 Mac 生产 job，冻结与原 job 一致的全部来源/工具/Node/Chrome/锁材料，在对应原生 Mac 架构上运行：
+
+```sh
+node --import tsx scripts/build_runtime.mts mac-inputs --job /ABS/REVIEWED/mac-job.json
+```
+
+生产者只对本次新构建的 `veriq_private_files.node` 和独立 Keychain helper 执行固定 `/usr/bin/codesign` 的受限签名，再实际 `--verify --strict` 与 `--display`；固定 signer 的真实可执行摘要在命令前后核对并保留有界 `commandEvidence`。原 Node、角色 Node 原始字节与 Chrome 归档不重签。签名发生在 native receipt/库存最终摘要固定**之前**，不改变 helper 业务协议或生成发布通过结论；不设置 `nativeSigning` 时继续是默认未签名静态材料。
+
+`mac-inputs` 输出仍为 `AWAITING_INDEPENDENT_EXPECTED`。独立审核者必须审阅签名后的五树、命令证据、来源与原始 recipe 字节，再外部提供真实 Expected，不能重用签名前的摘要，也不能由生产器自动批准。然后消费原 stage 合同：
+
+```sh
+node --import tsx scripts/build_runtime.mts mac-stage \
+    --recipe /ABS/PRODUCED/recipe.json \
+    --expected /ABS/INDEPENDENT/expected.json \
+    --input-root /ABS/PRODUCED/input-root \
+    --output-parent /ABS/CANDIDATES \
+    --candidate REVIEWED-CANDIDATE
+```
+
+最终 `runtime/` 与 `payload-receipt.json` 再由**另一份外部 desktop expected**绑定，才进入上文 `package:installer --signing NATIVE_SIGNED --identity … --installer-identity …`。Runtime 的 `signIgnore`、`afterPack`、`afterSign` 原清单复验保持不变。此说明记录已实现的源码操作链，本轮没有运行任何签名、构建、证书或钥匙串操作。
+
+## 桌面清理和共享语言
+
+设置中的“本机保留期清理”无需终端，只发送当前本机 Workspace UUID 与保留天数和批量预算。天数限定1–3650，批量1–100；main 在原生确认中显示实际工作区和策略，Agent 再核对当前选择、活动准备/执行/在线领取/查看器/缓存读取与持久停止历史。后台复用自身真实 `desktopOwner` 能力，不重复获取自己持有的 profile 锁。旧缓存首次观察才开始计龄，成功重验的实际资源访问刷新 SQLite 访问时间；不靠目录 mtime 判定到期。
+
+清理结果是一个有界批次的真实计数，仍有候选时由用户明确再次发起；不能按计时器自动循环。原始证据退休、报告元数据保留、未回传保护与缓存引用判断由 C07 的实际维护器执行。关闭页面、退出窗口、取消确认和网络/IPC 超时具有不同含义；清理开始后没有伪造的撤销按钮，界面会提示超时或关闭并不能证明回滚。
+
+renderer 使用 `AppLocaleProvider` 和 `appI18n/setAppLanguage` 连接 Web 的应用、资源/报告与 AI 命名空间，语言偏好遵循同一受限持久化约定，监听随组件卸载清理。切换语言不重置 Workspace、草稿或请求 scope。main 仅使用无 React/DOM 的有限错误指引，原生菜单和确认保留可理解的中英双语；未知异常不在产品提示中回显宿主路径或堆栈。

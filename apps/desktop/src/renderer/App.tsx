@@ -5,13 +5,15 @@ import {
     ReportWorkspaceView,
     BundleWorkspaceView,
     AiWorkspaceView,
-    editorI18n,
-    aiI18n,
+    appI18n,
+    setAppLanguage,
     type ResourceAdapter,
     type Workspace,
 } from "@veriq/web/desktop";
 import type { PlatformComponents } from "@veriq/contracts";
 import type { DesktopState } from "../shared/bridge";
+import { RetentionPanel } from "./RetentionPanel";
+import { desktopErrorMessage, desktopStateLabel } from "../shared/desktop-errors";
 import { credentialGuidance } from "../shared/credential-status";
 import { cloudAdapters, localResources, DesktopLocalReports } from "./adapters";
 
@@ -77,7 +79,7 @@ const labels = {
 
 /** 桌面工作台把平台会话与本机后台明确区分，联网编辑复用共享视图，断网缓存继续使用验签后的只读适配器；状态轮询仅读取后台事实，窗口关闭和页面切换都不会改变执行归属。 */
 export function App() {
-    const [language, setLanguage] = useState<"zh" | "en">("zh"),
+    const [language, setLanguage] = useState<"zh" | "en">(appI18n.language.startsWith("zh") ? "zh" : "en"),
         t = labels[language];
     const [tab, setTab] = useState<Tab>("overview"),
         [state, setState] = useState<DesktopState>();
@@ -167,11 +169,13 @@ export function App() {
         },
         [scope, queries],
     );
+    /** 本地窗口只订阅共享应用实例，不再同时维护第二套编辑器和 AI 语言切换逻辑；Provider 负责各命名空间及偏好桥接，卸载时这里移除自己的监听，不重建表单、Workspace 或报告请求作用域。 */
     useEffect(() => {
-        void editorI18n.changeLanguage(language);
-        void aiI18n.changeLanguage(language);
-        document.documentElement.lang = language === "zh" ? "zh-CN" : "en";
-    }, [language]);
+        const changed = (next: string) => setLanguage(next.startsWith("zh") ? "zh" : "en");
+        appI18n.on("languageChanged", changed);
+        changed(appI18n.language);
+        return () => { appI18n.off("languageChanged", changed); };
+    }, []);
 
     /** 从后台列出的缓存包选择其所属工作区，再获取验签资源投影与固定凭证引用供离线查看；此处不根据用户输入路径读取文件，失败会交由动作包装器显示而不会构造空成功快照。 */
     async function chooseLocal(id: string) {
@@ -236,13 +240,17 @@ export function App() {
                 </nav>
                 <div className="sidebar-status">
                     <span className={agent ? "status-dot ready" : "status-dot"} />
-                    {agent ? `Agent · Node ${agent.node}` : "Agent unavailable"}
+                    {agent ? `Agent · Node ${agent.node}` : state?.agentIssue === "LOCAL_CACHE_MAINTENANCE_BUSY" ? "后台维护中 / Agent maintenance" : "后台不可用 / Agent unavailable"}
                     <small>
-                        {agent?.active
-                            ? "执行中 / Running"
-                            : agent?.online
-                              ? "在线领取 / Online worker"
-                              : "就绪 / Idle"}
+                        {!agent
+                            ? "状态未确认 / Status unconfirmed"
+                            : agent.preparing
+                              ? "准备中 / Preparing"
+                              : agent.active
+                                ? desktopStateLabel(agent.active.state)
+                                : agent.online
+                                  ? "在线领取 / Online worker"
+                                  : "就绪 / Idle"}
                     </small>
                 </div>
                 <button type="button" onClick={() => void action(() => bridge.lifecycle("hide"))}>
@@ -263,7 +271,7 @@ export function App() {
                         <select
                             aria-label="语言 / Language"
                             value={language}
-                            onChange={(event) => setLanguage(event.target.value as "zh" | "en")}
+                            onChange={(event) => setAppLanguage(event.target.value)}
                         >
                             <option value="zh">简体中文</option>
                             <option value="en">English</option>
@@ -282,7 +290,7 @@ export function App() {
                     {error && (
                         <div role="alert" className="error">
                             <strong>{t.error}</strong>
-                            <p>{error}</p>
+                            <p>{desktopErrorMessage(error, language)}</p>
                             <button type="button" onClick={() => setError("")}>
                                 关闭 / Dismiss
                             </button>
@@ -294,10 +302,11 @@ export function App() {
                         </p>
                     )}
                     {!state && <p>{t.loading}</p>}
+                    {state?.agentIssue && <p role="status" className="notice">{desktopErrorMessage(state.agentIssue, language)}</p>}
                     {(tab === "overview" || tab === "settings") && (
                         <section className="panel">
                             <h2>控制平台 / Control platform</h2>
-                            <p>普通账户用于编辑和查看资源；设备绑定单独授权后台下载与回传。</p>
+                            <p>普通账户用于编辑和查看资源；设备绑定单独授权后台下载与回传。 / User accounts edit and view resources; device enrollment separately authorizes Agent downloads and uploads.</p>
                             <form
                                 onSubmit={(event) => {
                                     event.preventDefault();
@@ -407,7 +416,7 @@ export function App() {
                                 <h2>设备与独立后台 / Device & Agent</h2>
                                 <p>
                                     {agent?.device
-                                        ? `设备 ${agent.device.id} · Workspace ${agent.device.workspaceId}`
+                                        ? `设备 / Device ${agent.device.id} · Workspace ${agent.device.workspaceId}`
                                         : agent?.credentialError
                                           ? "设备凭据暂不可读。 / Device credentials are not readable."
                                           : "尚未绑定设备。 / Device is not enrolled."}
@@ -574,10 +583,10 @@ export function App() {
                                     </button>
                                 </div>
                                 <p className="muted">
-                                    关闭窗口与退出界面不会中止后台。
+                                    关闭窗口与退出界面不会中止后台。 / Closing or quitting the UI keeps Agent running.
                                     {state?.tray
-                                        ? "托盘可重新打开窗口。"
-                                        : "本桌面未确认托盘可用，关闭时最小化；再次启动可恢复窗口。"}{" "}
+                                        ? "托盘可重新打开窗口。 / Reopen the window from the tray."
+                                        : "本桌面未确认托盘可用，关闭时最小化；再次启动可恢复窗口。 / Tray support is unconfirmed. Closing minimizes the window; reopening VeriQ restores it."}{" "}
                                     / UI close does not stop Agent.
                                 </p>
                             </section>
@@ -627,7 +636,7 @@ export function App() {
                             <section className="panel">
                                 <h2>{t.cache}</h2>
                                 <p>
-                                    断网时仍可读取与运行。离线权限撤销状态未知，结果不等同正式门禁通过。
+                                    断网时仍可读取与运行。离线权限撤销状态未知，结果不等同正式门禁通过。 / Cached resources remain usable offline. Revocation status is unknown offline; local results do not prove official release gates passed.
                                     / Cached snapshots stay usable offline; revocation is unknown.
                                 </p>
                                 <div className="toolbar">
@@ -925,10 +934,10 @@ export function App() {
                                                         {item.id}
                                                     </button>
                                                     <span>
-                                                        {item.state} · {item.uploadState}
+                                                        {desktopStateLabel(item.state)} · {desktopStateLabel(item.uploadState)}
                                                     </span>
                                                     {item.uploadError && (
-                                                        <strong>{item.uploadError}</strong>
+                                                        <strong>{desktopErrorMessage(item.uploadError, language)}</strong>
                                                     )}
                                                     <button
                                                         type="button"
@@ -1103,7 +1112,7 @@ export function App() {
                                     </button>
                                 </div>
                                 <p>
-                                    停止本机执行和在线领取后，可显式迁移旧凭据。迁移会核验系统保险库和加密数据，再移除旧明文文件。
+                                    停止本机执行和在线领取后，可显式迁移旧凭据。迁移会核验系统保险库和加密数据，再移除旧明文文件。 / Stop execution and online polling before explicitly migrating legacy credentials. Migration verifies the system vault and encrypted data before removing legacy plaintext.
                                 </p>
                                 <button
                                     type="button"
@@ -1120,7 +1129,7 @@ export function App() {
                                     迁移本机凭据 / Migrate local credentials
                                 </button>
                                 <p>
-                                    初始化中断且尚无凭据时，可明确恢复空保险库。已激活档案缺钥不会被替换；请先停止执行与在线领取。
+                                    初始化中断且尚无凭据时，可明确恢复空保险库。已激活档案缺钥不会被替换；请先停止执行与在线领取。 / An interrupted empty initialization can be explicitly recovered. Missing keys in active profiles are not replaced. Stop execution and online polling first.
                                 </p>
                                 <button
                                     type="button"
@@ -1141,10 +1150,18 @@ export function App() {
                                         {JSON.stringify(diagnostics, null, 2)}
                                     </pre>
                                 )}
+                                <RetentionPanel workspaceId={agent?.workspaceId} unavailable={!!(busy || agent?.active || agent?.preparing || agent?.online)} onCompleted={async () => {
+                                    setBundle("");
+                                    setResources(undefined);
+                                    setPins(undefined);
+                                    setRun("");
+                                    queries.clear();
+                                    await refresh();
+                                }} />
                                 <button type="button" onClick={() => void action(() => bridge.installUpdate())}>
                                     准备已验证升级或回滚 / Prepare verified update
                                 </button>
-                                <p>更新前请停止在线领取与执行；隔离或未知进程必须先恢复。卸载默认保留本机配置、凭据与历史。</p>
+                                <p>更新前请停止在线领取与执行；隔离或未知进程必须先恢复。卸载默认保留本机配置、凭据与历史。 / Stop online polling and execution before updates; recover unknown or quarantined processes first. Uninstall keeps local settings, credentials and history.</p>
                                 {state?.diagnostics && <pre>{JSON.stringify(state.diagnostics, null, 2)}</pre>}
                                 <p>
                                     VeriQ {state?.version} · Node24 Agent{" "}

@@ -15,6 +15,8 @@ import { TrustStore, type IssuerTrust } from "../../../runtime/src/offline/trust
 import { downloadBundle } from "../../../runtime/src/offline/download.ts";
 import { verifyBundle, reverifyInstalled } from "../../../runtime/src/offline/verify.ts";
 import { runOffline, recoverOffline } from "../../../runtime/src/offline/run.ts";
+import { pruneLocalProfile } from "../../../runtime/src/offline/retention.ts";
+import { parseLocalRetentionCommand } from "../shared/retention-policy";
 import { LocalStore } from "../../../runtime/src/offline/store.ts";
 import { LocalReports } from "../../../runtime/src/offline/reports.ts";
 import { uploadOffline } from "../../../runtime/src/offline/upload.ts";
@@ -81,6 +83,8 @@ export class DesktopAgent {
     private readonly trust: TrustStore;
     private readonly secrets: SecretStore;
     private readonly executionRoot: string;
+    private readonly desktopOwner: CredentialOptions["desktopOwner"];
+    private resourceReads = 0;
     private pendingEnrollment: S["EnrollmentDTO"] | undefined;
     private run: Promise<unknown> | undefined;
     private runController: AbortController | undefined;
@@ -128,6 +132,7 @@ export class DesktopAgent {
         this.browserCapability = probeBrowser(config.browserExecutable, false);
         this.device = new DeviceStore(root, credentials);
         this.credentialProfile = credentials !== undefined;
+        this.desktopOwner = credentials?.desktopOwner;
         this.trust = new TrustStore(root);
         this.secrets = new SecretStore(root, credentials);
         this.executionRoot = join(root, "offline");
@@ -162,17 +167,27 @@ export class DesktopAgent {
      * 离线签名有效不表示知道实时撤销状态，报告仍保留原有未知撤销语义。
      */
     private async selected(bundleId: string) {
-        const item = (await this.catalog()).find(
-            (bundle) => bundle.id === bundleId && bundle.workspaceId === this.selectedWorkspace,
-        );
-        if (!item) throw new Error("BUNDLE_WORKSPACE_MISMATCH");
-        const directory = join(this.root, "bundles", item.id);
-        const checked = await reverifyInstalled(directory, {
-            trust: this.trust,
-            workspaceId: item.workspaceId,
-            debug: item.debug,
-        });
-        return { item, directory, checked };
+        if (this.transition?.operation === "pruneCache") throw new Error("LOCAL_CACHE_MAINTENANCE_BUSY");
+        this.resourceReads++;
+        try {
+            const item = (await this.catalog()).find(
+                (bundle) => bundle.id === bundleId && bundle.workspaceId === this.selectedWorkspace,
+            );
+            if (!item) throw new Error("BUNDLE_WORKSPACE_MISMATCH");
+            const directory = join(this.root, "bundles", item.id);
+            const checked = await reverifyInstalled(directory, {
+                trust: this.trust,
+                workspaceId: item.workspaceId,
+                debug: item.debug,
+            });
+            /** 只有实际通过签名及库存重验的资源访问才刷新 SQLite 生命周期，不能根据 renderer 选择或磁盘 mtime 让旧缓存获得伪造年龄；读计数覆盖此事务，清理门闩不会在验签读取与访问登记之间删除同一资源。 */
+            const store = await LocalStore.open(this.executionRoot);
+            try { store.touchCache(item.workspaceId, item.id); }
+            finally { store.close(); }
+            return { item, directory, checked };
+        } finally {
+            this.resourceReads--;
+        }
     }
 
     /** 设备登记中的控制 Origin 与 Workspace 是下载和回传的认证目的地，必须与后台启动配置和当前本机选择同时一致；签名资源中的业务 URL 或员工刚登录的平台会话不能改变设备令牌的发送范围。
@@ -313,6 +328,7 @@ export class DesktopAgent {
             onlineStart: [],
             onlineStop: [],
             clearBundle: ["bundleId"],
+            pruneCache: ["workspaceId", "metadataDays", "bundleDays", "rawSuccessDays", "rawFailureDays", "batchSize"],
             stop: [],
             prepareMaintenance: [],
             recover: [],
@@ -321,10 +337,14 @@ export class DesktopAgent {
         };
         if (!Object.hasOwn(permitted, operation)) throw new Error("AGENT_OPERATION_DENIED");
         object(message, ["operation", ...permitted[operation]!]);
+        /** 清理事务拥有 SQLite 写锁时状态接口不得新开同步写连接阻塞整个 Agent 事件循环，直接返回有限忙碌分类供宿主呈现；这不是空历史或后台已经退出，窗口重开后也不会因此取消原来的持久维护。 */
+        if (operation === "status" && this.transition?.operation === "pruneCache")
+            throw new Error("LOCAL_CACHE_MAINTENANCE_BUSY");
         if (operation === "stop" || operation === "cancel" || operation === "onlineStop")
             return this.interrupt(operation, message);
         if (this.stopped && operation !== "status") throw new Error("AGENT_STOPPED");
         const guarded = [
+            "pruneCache",
             "prepareMaintenance",
             "run",
             "onlineStart",
@@ -382,9 +402,25 @@ export class DesktopAgent {
         await privateDirectory(this.root);
         startup?.signal.throwIfAborted();
         if (operation === "status") return this.state();
+        /** GUI 保留期维护只消费共享解析器核过的有限策略并绑定当前本机工作区，原始 desktopOwner 能力由构造器保留而不经过 renderer 序列化；活动执行由既有预留门闩排除，查看器和正在读取的缓存也必须先结束。
+         * 真实 helper 自己核验在线与离线停止历史、合作锁和 SQLite 事务。
+         * profileRoot 只能是当前 Agent 的固定 root，不能使用页面字段改换档案。
+         * 清理开始后 stop 会等待同一预留结束，不以 AbortSignal 伪造文件操作回滚。
+         * 返回的是实际持久维护计数，不自动循环处理下一批或把 retained 解释为全部清空。
+         */
+        if (operation === "pruneCache") {
+            const { operation: _operation, ...policy } = parseLocalRetentionCommand(message);
+            if (!this.selectedWorkspace || policy.workspaceId !== this.selectedWorkspace)
+                throw new Error("LOCAL_RETENTION_WORKSPACE_MISMATCH");
+            if (this.viewers.size || this.resourceReads) throw new Error("LOCAL_CACHE_MAINTENANCE_BUSY");
+            return pruneLocalProfile(this.root, {
+                ...policy,
+                ...(this.desktopOwner ? { desktopOwner: this.desktopOwner } : {}),
+            });
+        }
         /** 维护准备复用同一个可中断预留而不是另设异步门闩，停止请求因此必须等本次持久锁取得或失败后才退出；查看器、在线执行与未知记录仍分别拒绝，准备取消会释放实际取得的空闲资源而不伪造 ready 回执。 */
         if (operation === "prepareMaintenance") {
-            if (this.viewers.size) throw new Error("DESKTOP_UPDATE_BUSY");
+            if (this.viewers.size || this.resourceReads) throw new Error("DESKTOP_UPDATE_BUSY");
             const release = await holdMaintenance(this.root);
             try {
                 startup?.signal.throwIfAborted();

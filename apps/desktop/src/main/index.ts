@@ -34,6 +34,7 @@ import { openNativeTrace } from "./trace-window";
 import { openNativeImage } from "./image-window";
 import { withArtifactExport } from "./artifact-export";
 import { bundledAssetPath } from "./asset-path";
+import { parseLocalRetentionCommand } from "../shared/retention-policy";
 import { routingOverride } from "../shared/routing";
 import { assertAgentReconfigurationAllowed } from "../shared/credential-status";
 import type { CloudOperation } from "../shared/operations.generated";
@@ -196,13 +197,16 @@ async function ensureAgent(): Promise<void> {
  */
 async function state(): Promise<DesktopState> {
     let agent: DesktopState["agent"];
+    let agentIssue: string | undefined;
     try {
         agent = (await client.call({ operation: "status" })) as DesktopState["agent"];
-    } catch {
+    } catch (error) {
         agent = undefined;
+        agentIssue = error instanceof Error && /^[A-Z][A-Z0-9_]{1,100}$/.test(error.message) ? error.message : "AGENT_UNAVAILABLE";
     }
     return {
         origin,
+        ...(agentIssue ? { agentIssue } : {}),
         ...(host.user ? { user: host.user } : {}),
         ...(host.workspace ? { workspace: host.workspace } : {}),
         ...(agent ? { agent } : {}),
@@ -348,6 +352,7 @@ async function local(input: unknown) {
         "migrateCredentials",
         "recoverCredentialInitialization",
         "clearBundle",
+        "pruneCache",
         "recover",
     ];
     if (typeof command.operation !== "string" || !allowed.includes(command.operation))
@@ -359,6 +364,12 @@ async function local(input: unknown) {
         ))
     )
         throw new Error("USER_CANCELLED");
+    /** 保留期清理在确认前展示本次实际工作区和全部有限预算，拒绝 renderer 路径或隐藏字段；用户取消不会发送后台清理，确认之后仍必须由 Agent 核对当前空间、独占空闲和持久停止历史，不能把对话框当成文件授权。 */
+    if (command.operation === "pruneCache") {
+        const policy = parseLocalRetentionCommand(command);
+        if (!(await confirm(`清理工作区 ${policy.workspaceId} 的过期本机材料？成功/失败原始证据 ${policy.rawSuccessDays}/${policy.rawFailureDays} 天，元数据 ${policy.metadataDays} 天，未访问包 ${policy.bundleDays} 天，每批 ${policy.batchSize}。未回传、活动和未知占用保留。关闭界面不保证撤销。 / Retire expired local data? Successful/failed raw evidence ${policy.rawSuccessDays}/${policy.rawFailureDays} days, metadata ${policy.metadataDays} days, unused packages ${policy.bundleDays} days, batch ${policy.batchSize}. Pending uploads and unconfirmed ownership remain protected. Closing UI does not guarantee cancellation.`)))
+            throw new Error("USER_CANCELLED");
+    }
     if (command.operation === "run" && command.overrides !== undefined) {
         command.overrides = routingOverride(command.overrides);
         if (

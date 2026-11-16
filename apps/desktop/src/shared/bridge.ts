@@ -9,6 +9,7 @@ export interface DesktopState {
     user?: { user: S["UserDTO"]; expiresAt: string };
     workspace?: S["WorkspaceDTO"];
     agent?: AgentState;
+    agentIssue?: string;
     tray: boolean;
     version: string;
     diagnostics?: {
@@ -55,6 +56,7 @@ export interface AgentState {
 }
 /** 本机操作集合逐项枚举业务参数，包、Run 与制品只能通过标识引用；任意 URL、文件路径、请求头和进程参数不在协议内，秘密只能按已验签的凭证引用写入而不能读回。 */
 export type LocalOperation =
+    | import("./retention-policy").LocalRetentionCommand
     | {
           operation:
               | "status"
