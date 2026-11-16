@@ -2,11 +2,13 @@
 import type { RuntimeDistribution } from "../distribution.ts";
 import { LinuxVaultBackend } from "./linux.ts";
 import { WindowsVaultBackend } from "./windows.ts";
+import { DarwinVaultBackend } from "./darwin.ts";
 import type { CredentialOptions } from "./profile.ts";
 
 /** 安装宿主构造凭据上下文时直接验证对应平台的有限执行能力，调用者随后把同一上下文交给设备与业务消费者；未支持的平台返回固定错误，不能在这里搜索全局二进制、开发输出或退回明文配置。 */
 export function installedCredentials(distribution: RuntimeDistribution): CredentialOptions {
     if (process.platform === "linux") return { backend: new LinuxVaultBackend(distribution) };
     if (process.platform === "win32") return { backend: new WindowsVaultBackend(distribution) };
+    if (process.platform === "darwin") return { backend: new DarwinVaultBackend(distribution) };
     throw new Error("VAULT_PLATFORM_UNAVAILABLE");
 }

@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
-import { lstat, readFile, readdir, realpath } from "node:fs/promises";
+import { createReadStream, constants } from "node:fs";
+import { lstat, readFile, readdir, realpath, open } from "node:fs/promises";
 import { join, resolve, basename } from "node:path";
 import type { ExecutionPaths } from "./execution/paths.ts";
 import { loadRelease } from "./execution/release.ts";
 import { doctor } from "./doctor.ts";
 import { isNode24Version, isIndependentNode24 } from "./node-version.ts";
+import { verifyMacRuntimeManifestV2, type MacChromeLayout, type MacRuntimeArch } from "./distribution-manifest-v2.ts";
 
 /** 安装发行描述只保存经过物理库存校验后的路径和独立版本，签名来源认证由安装器负责而不是由自报清单代替；运行前仍须载入所选引擎库存并验证真实 Node 与浏览器能力。 */
 export interface RuntimeDistribution {
@@ -36,6 +37,116 @@ export function verifiedNativeAddon(distribution: RuntimeDistribution): string {
     const path = nativeCapabilities.get(distribution);
     if (!path) throw new Error("RUNTIME_NATIVE_CAPABILITY_UNVERIFIED");
     return path;
+}
+
+/** Mac 安装入口必须由宿主提供独立取得的完整身份与链接布局，不能从待核清单自行推导期望值；摘要只绑定库存字节，安装器仍需在调用前完成发行来源、签名和目标架构的授权。
+ * 本类型不包含可跳过核验的选项，也不允许依赖 Electron 自带 Node 推断执行引擎版本。
+ */
+export type TrustedMacRuntime = Readonly<{
+    arch: MacRuntimeArch;
+    layout: MacChromeLayout;
+    manifestSha256: string;
+    productVersion: string;
+    nodeVersion: string;
+    engineVersion: string;
+}>;
+
+/** Mac 正式路径复用第二版库存对 Framework 有限链接的完整核验，再严格匹配宿主交付的独立身份；只有原始返回对象持有原生与保险库能力，字段副本和静态观察结果不能用来装载 addon。
+ * 普通独立角色必须同时匹配真实执行路径及精确 Node 版本，Electron 主进程则在自己的签名和身份核验后显式绑定原生能力。
+ * guardian 字段沿用执行路径合同，但 Darwin 停止实现使用受控进程证据而不启动 Linux guardian。
+ */
+export async function loadMacRuntimeDistribution(
+    directory: string,
+    trusted: TrustedMacRuntime,
+): Promise<RuntimeDistribution> {
+    const policy = structuredClone(trusted);
+    if (process.platform !== "darwin" || process.arch !== policy.arch)
+        throw new Error("RUNTIME_HOST_TARGET_MISMATCH");
+    if (!/^[0-9a-f]{64}$/.test(policy.manifestSha256))
+        throw new Error("RUNTIME_TRUSTED_IDENTITY_INVALID");
+    const inventory = await verifyMacRuntimeManifestV2(directory, { arch: policy.arch, layout: policy.layout });
+    const manifest = inventory.manifest;
+    if (
+        inventory.manifestSha256 !== policy.manifestSha256 ||
+        manifest.productVersion !== policy.productVersion ||
+        manifest.nodeVersion !== policy.nodeVersion ||
+        manifest.engineVersion !== policy.engineVersion
+    ) throw new Error("RUNTIME_TRUSTED_IDENTITY_MISMATCH");
+    const files = new Set(manifest.files.map((file) => file.path));
+    const take = (name: string) => {
+        if (!files.has(name)) throw new Error("RUNTIME_MEMBER_MISSING");
+        return join(inventory.root, name);
+    };
+    take(`engines/${manifest.engineVersion}/inventory.json`);
+    const distribution: RuntimeDistribution = {
+        root: inventory.root,
+        productVersion: manifest.productVersion,
+        nodeVersion: manifest.nodeVersion,
+        engineVersion: manifest.engineVersion,
+        engineDirectory: join(inventory.root, "engines", manifest.engineVersion),
+        browserExecutable: take(manifest.browser.executablePath),
+        agentExecutable: take("roles/agent/veriq_agent"),
+        cliExecutable: take("roles/cli/veriq_cli"),
+        agentEntry: take("entry/agent.js"),
+        cliEntry: take("entry/cli.js"),
+        execution: {
+            runnerExecutable: take("roles/runner/veriq_runner"),
+            guardianExecutable: take("roles/runner/veriq_runner"),
+            npmCli: take("npm/bin/npm-cli.js"),
+            tsx: take("node_modules/tsx/dist/loader.mjs"),
+            workerEntry: take("execution/worker.mjs"),
+            providerEntry: take("execution/provider.mjs"),
+            compileEntry: take("execution/compile-entry.mjs"),
+        },
+    };
+    nodeIdentities.set(distribution, manifest.nodeVersion);
+    nativeCapabilities.set(distribution, take("native/veriq_private_files.node"));
+    vaultCapabilities.set(distribution, take("native/vault/veriq_agent"));
+    const role = basename(process.execPath);
+    if (["veriq_agent", "veriq_cli", "veriq_runner"].includes(role)) {
+        const wanted = role === "veriq_agent" ? distribution.agentExecutable
+            : role === "veriq_cli" ? distribution.cliExecutable : distribution.execution.runnerExecutable;
+        if (resolve(process.execPath) !== wanted || !isIndependentNode24(process.versions) ||
+            process.versions.node !== manifest.nodeVersion) throw new Error("RUNTIME_ROLE_MISMATCH");
+        const { bindDarwinDistribution } = await import("./native/darwin.ts");
+        bindDarwinDistribution(distribution);
+    }
+    Object.freeze(distribution.execution);
+    return Object.freeze(distribution);
+}
+
+/** 安装命令行从 Runtime 之外的固定桌面发行描述读取独立 Mac 策略，不能从待核 runtime-manifest 推导链接许可或期望摘要；描述本身的来源认证仍由安装、签名和可信启动路径负责。
+ * 非 Mac 保留已有第一版加载合同，缺少桌面描述的 Mac 包明确失败，不退回源码 Node、全局 Chrome 或自报清单。
+ */
+export async function loadInstalledRuntimeDistribution(directory: string): Promise<RuntimeDistribution> {
+    if (process.platform !== "darwin") return loadRuntimeDistribution(directory);
+    const parent = resolve(directory, "..");
+    if (await realpath(parent) !== parent) throw new Error("RUNTIME_LINK_FORBIDDEN");
+    const descriptor = await member(parent, "desktop-release.json");
+    const info = await lstat(descriptor, { bigint: true });
+    if (info.nlink !== 1n || info.size > 1024n * 1024n) throw new Error("RUNTIME_RELEASE_DESCRIPTOR_INVALID");
+    const handle = await open(descriptor, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    let bytes: Buffer;
+    try {
+        const opened = await handle.stat({ bigint: true });
+        if (!opened.isFile() || opened.dev !== info.dev || opened.ino !== info.ino || opened.size !== info.size)
+            throw new Error("RUNTIME_RELEASE_DESCRIPTOR_CHANGED");
+        const buffer = Buffer.alloc(Number(info.size) + 1);
+        let position = 0;
+        while (position < buffer.length) {
+            const result = await handle.read(buffer, position, buffer.length - position, position);
+            if (!result.bytesRead) break;
+            position += result.bytesRead;
+        }
+        const settled = await handle.stat({ bigint: true });
+        if (position !== Number(info.size) || settled.size !== info.size || settled.mtimeNs !== info.mtimeNs ||
+            settled.ctimeNs !== info.ctimeNs || settled.mode !== info.mode || settled.nlink !== 1n)
+            throw new Error("RUNTIME_RELEASE_DESCRIPTOR_CHANGED");
+        bytes = buffer.subarray(0, position);
+    } finally { await handle.close(); }
+    const value = JSON.parse(bytes.toString("utf8")) as { trustedRuntime?: TrustedMacRuntime };
+    if (!value?.trustedRuntime) throw new Error("RUNTIME_TRUSTED_IDENTITY_REQUIRED");
+    return loadMacRuntimeDistribution(directory, value.trustedRuntime);
 }
 
 /** 清单内所有成员必须是可移植的普通相对路径，不能引用父目录、盘符或 NTFS 备用数据流；这条检查在任何宿主上使用同一规则，避免 Linux 生产器认可 Windows 会另行解释的路径。 */
@@ -193,6 +304,11 @@ export async function diagnoseRelease(options: {
     browserExecutable: string;
     server?: string;
     signal?: AbortSignal;
+    /** Mac 发行诊断必须显式借用原始库存对象和真实观察器能力，不能通过版本文本推断可执行平台；该上下文只改变已核安装路径的自检分支，来源批准及签名安装仍由外层发行任务负责。
+     * 其它平台保留既有行为，未提供上下文的 Darwin 仍按旧路径失败关闭。
+     */
+    runtime?: RuntimeDistribution;
+    darwinSource?: import("./execution/darwin-source.ts").DarwinSourceCapability;
 }) {
     const release = await loadRelease(options.engineDirectory, options.engineVersion);
     const result = await doctor({
@@ -201,6 +317,8 @@ export async function diagnoseRelease(options: {
         ...(options.signal ? { signal: options.signal } : {}),
         distribution: release.entry,
         expectedBrowserVersion: "158.0.8127.18",
+        ...(options.runtime ? { runtime: options.runtime } : {}),
+        ...(options.darwinSource ? { darwinSource: options.darwinSource } : {}),
     });
     result.checks.push({
         name: "Production engine inventory",

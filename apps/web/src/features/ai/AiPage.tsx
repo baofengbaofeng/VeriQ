@@ -3,6 +3,7 @@
  * CloudAiAdapter(selected)；无模型凭证时测试用例仍可加载本页静态结构。
  */
 
+import { tx, useAppLocale } from "../../locale";
 import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
@@ -43,6 +44,7 @@ const defaults: S["ProviderWrite"] = {
  * 未登录重定向；自身不缓存 generation 表单以免切换空间泄漏。
  */
 export function AiPage() {
+    useAppLocale();
     const t = useLabels(),
         { user } = useContext(Auth),
         { selected, select, signal } = useWorkspace();
@@ -65,17 +67,7 @@ export function AiPage() {
     return (
         <Panel title={t("title")}>
             <label>
-                语言 / Language
-                <select
-                    value={aiI18n.language}
-                    onChange={(e) => void aiI18n.changeLanguage(e.target.value)}
-                >
-                    <option value="zh">中文</option>
-                    <option value="en">English</option>
-                </select>
-            </label>
-            <label>
-                Workspace
+                {tx("Workspace")}
                 <select
                     data-testid="ai-workspace"
                     value={selected}
@@ -139,6 +131,7 @@ export function AiWorkspaceView({
     resources: ResourceAdapter;
     signal?: AbortSignal;
 }) {
+    useAppLocale();
     const t = useLabels();
     const [controller] = useState(() => new AbortController());
     const signal = useMemo(
@@ -342,7 +335,7 @@ export function AiWorkspaceView({
                         </label>
                     ))}
                     <label>
-                        Adapter
+                        {tx("Adapter")}
                         <select
                             data-testid="ai-adapter"
                             value={form.adapter}
@@ -589,7 +582,8 @@ export function AiWorkspaceView({
                     <pre>{json(preview.context)}</pre>
                     <pre>{json(preview.provenance)}</pre>
                     <p>
-                        {preview.inputTokenBound} tokens · USD {preview.reservedUsd}
+                        {preview.inputTokenBound} {tx(" tokens · USD ")}
+                        {preview.reservedUsd}
                     </p>
                     <button
                         type="button"
@@ -645,7 +639,7 @@ export function AiWorkspaceView({
                                 {g.purpose} · {g.status} · {g.createdAt}
                             </button>{" "}
                             {g.costState === "UNKNOWN" ? t("unknown") : "USD " + g.costUsd} (
-                            {g.inputTokens ?? "?"} / {g.outputTokens ?? "?"} tokens){" "}
+                            {g.inputTokens ?? "?"} / {g.outputTokens ?? "?"} {tx(" tokens)")}{" "}
                             {g.status === "RUNNING" && edit && (
                                 <button
                                     type="button"

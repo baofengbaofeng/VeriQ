@@ -233,6 +233,10 @@ class BundleService:
             raise Problem(404, "BUNDLE_NOT_FOUND", "Bundle not found")
         if row.contains_draft:
             await WorkspaceRepository(self.session, scope).authorize(self.actor, Permission.EDIT)
+        from ..db import Artifact
+        archive = await self.session.get(Artifact, (scope.workspace_id, row.archive_hash))
+        if archive and archive.expired_at:
+            raise Problem(410, "BUNDLE_EXPIRED", "Bundle archive retention has expired")
         return row
 
     async def prepare(self, scope: WorkspaceScope, req: dict[str, Any]) -> dict[str, Any]:

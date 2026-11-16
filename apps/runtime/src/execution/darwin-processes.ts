@@ -80,7 +80,7 @@ export class DarwinProcesses {
         if (!this.source) throw new Error("UNSUPPORTED_PROCESS_PLATFORM");
         if (!launch || !["TEST", "VALIDATE", "CLEANUP"].includes(launch.kind) || !Number.isSafeInteger(launch.ownerGeneration) || launch.ownerGeneration < 1 || typeof launch.prepare !== "function") throw new Error("DARWIN_CONTROLLED_LAUNCH_REQUIRED");
         if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(id)) throw new Error("INVALID_ATTEMPT_ID");
-        if (command.executable !== process.execPath || !Array.isArray(command.args) || command.args.some((arg) => typeof arg !== "string")) throw new Error("DARWIN_SOURCE_COMMAND_REJECTED");
+        if (command.executable !== this.source!.nodeExecutable || !Array.isArray(command.args) || command.args.some((arg) => typeof arg !== "string")) throw new Error("DARWIN_SOURCE_COMMAND_REJECTED");
         if (launch.headless !== undefined && typeof launch.headless !== "boolean") throw new Error("INVALID_BROWSER_MODE");
         if (launch.downloadsPath !== undefined && (typeof launch.downloadsPath !== "string" || Buffer.byteLength(launch.downloadsPath) > 4096 || launch.downloadsPath !== join(command.cwd, "downloads"))) throw new Error("DARWIN_DOWNLOAD_DIRECTORY_INVALID");
         if (this.attempts.has(id)) throw new Error("PROCESS_ALREADY_RUNNING");

@@ -93,6 +93,7 @@ jobs:
 | `fixture-cleanups/reconcile` | 有能力 Runtime 执行清理补偿 / enqueue authorized Runtime cleanup |
 | `capacity/reconcile` | 有停止证据的容量核对 / reconcile safely released capacity |
 | `artifacts/expire` | 到期原始证据与物理删除围栏 / retention and fenced deletion |
+| `lifecycle/expire` | 完成记录的保留期压缩，保留活动引用和最小幂等/围栏信息 / completed-record retention with active-reference and tombstone barriers |
 
 ```sh
 curl --fail-with-body --request POST \

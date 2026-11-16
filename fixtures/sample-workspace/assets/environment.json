@@ -1,0 +1,34 @@
+{
+    "kind": "ENVIRONMENT",
+    "document": {
+        "schemaVersion": "1.0",
+        "baseURL": "http://127.0.0.1:8090",
+        "apiBaseURL": "http://127.0.0.1:8090",
+        "fixtureBaseURL": "http://127.0.0.1:8090",
+        "allowedOrigins": [
+            "http://127.0.0.1:8090"
+        ],
+        "locale": "en-US",
+        "timezone": "UTC",
+        "buildSha": "development",
+        "roles": [
+            {
+                "roleKey": "editor",
+                "authAdapterVersionId": "00000008-0008-4008-8008-000000000008",
+                "secretRef": "demo_business",
+                "secretVersionId": "00000009-0009-4009-8009-000000000009",
+                "allowedIdentityIds": [
+                    "editor"
+                ]
+            }
+        ],
+        "fixtureIdentity": {
+            "authAdapterVersionId": "00000008-0008-4008-8008-000000000008",
+            "secretRef": "demo_fixture",
+            "secretVersionId": "00000010-0010-4010-8010-000000000010",
+            "allowedIdentityIds": [
+                "fixture-service"
+            ]
+        }
+    }
+}

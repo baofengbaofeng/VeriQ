@@ -3,6 +3,7 @@
  * CloudResourceAdapter(selected)；桌面可注入 LocalResourceAdapter。
  */
 
+import { tx, useAppLocale } from "../../locale";
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,7 +11,8 @@ import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { useReactTable, getCoreRowModel, flexRender, type ColumnDef } from "@tanstack/react-table";
 import { useTranslation } from "react-i18next";
 import { validateSchema, type ResourceDocumentV1, type ResourceKind } from "@veriq/contracts";
-import { Button, ConfirmDialog, Section } from "@veriq/ui";
+import { Button, Section } from "@veriq/ui";
+import { ConfirmDialog } from "../../locale-ui";
 import { api, ApiError, type Workspace } from "../../api";
 import { Auth } from "../../auth-context";
 import { Panel } from "../../ui";
@@ -26,7 +28,7 @@ import {
 } from "./adapters";
 import { ResourceForms, newDocument, resourceKinds } from "./ResourceForms";
 import { Monaco, MonacoDiff } from "./Monaco";
-import { editorI18n, useEditorTranslationOptions } from "./i18n";
+import { useEditorTranslationOptions } from "./i18n";
 import type { EditorValues, VersionOption } from "./fields";
 import "./resources.css";
 const clean = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
@@ -77,6 +79,7 @@ export function ResourcePage({
     initialKind?: ResourceKind;
     extra?: (workspace: Workspace) => React.ReactNode;
 }) {
+    useAppLocale();
     const { user } = useContext(Auth),
         { selected, select } = useWorkspace(),
         { t } = useTranslation(undefined, useEditorTranslationOptions);
@@ -98,19 +101,9 @@ export function ResourcePage({
     return (
         <Panel title={t(initialKind === "ENVIRONMENT" ? "environments" : "resources")}>
             <div className="vq-actions">
-                <label>
-                    {t("language")}
-                    <select
-                        value={editorI18n.language}
-                        onChange={(e) => void editorI18n.changeLanguage(e.target.value)}
-                    >
-                        <option value="zh">中文</option>
-                        <option value="en">English</option>
-                    </select>
-                </label>
                 {!!items.length && (
                     <label>
-                        Workspace
+                        {tx("Workspace")}
                         <select
                             data-testid="resource-workspace"
                             value={selected}
@@ -119,7 +112,7 @@ export function ResourcePage({
                             {items.map((w) => (
                                 <option key={w.id} value={w.id}>
                                     {w.name}
-                                    {w.archived ? " (Archived)" : ""}
+                                    {w.archived ? tx(" (Archived)") : ""}
                                 </option>
                             ))}
                         </select>
@@ -131,11 +124,11 @@ export function ResourcePage({
                 <ErrorState error={workspaces.error} retry={() => void workspaces.refetch()} />
             )}
             {workspaces.isSuccess && !items.length && (
-                <p>请先创建或加入空间 / Create or join a Workspace first.</p>
+                <p>{tx("请先创建或加入空间 / Create or join a Workspace first.")}</p>
             )}
             {workspaces.hasNextPage && (
                 <Button onClick={() => void workspaces.fetchNextPage()}>
-                    更多空间 / More Workspaces
+                    {tx("更多空间 / More Workspaces")}
                 </Button>
             )}
             {workspace && (
@@ -158,6 +151,7 @@ function CloudWorkspace({
     initialKind?: ResourceKind;
     extra?: (workspace: Workspace) => React.ReactNode;
 }) {
+    useAppLocale();
     const adapter = useMemo(() => new CloudResourceAdapter(workspace.id), [workspace.id]),
         { signal } = useWorkspace();
     return (
@@ -187,6 +181,7 @@ export function ResourceWorkspaceView({
     signal?: AbortSignal;
     initialKind?: ResourceKind;
 }) {
+    useAppLocale();
     const signal = useLifetime(parent),
         client = useQueryClient(),
         { t } = useTranslation(undefined, useEditorTranslationOptions);
@@ -214,7 +209,7 @@ export function ResourceWorkspaceView({
     const columns = useMemo<ColumnDef<Resource>[]>(
         () => [
             {
-                header: "Key",
+                header: t("columnKey"),
                 accessorKey: "key",
                 cell: (info) => (
                     <Button
@@ -226,11 +221,11 @@ export function ResourceWorkspaceView({
                     </Button>
                 ),
             },
-            { header: "名称 / Name", accessorKey: "name" },
-            { header: "Kind", accessorKey: "kind" },
-            { header: "状态 / Status", accessorKey: "status" },
+            { header: t("columnName"), accessorKey: "name" },
+            { header: t("columnKind"), accessorKey: "kind" },
+            { header: t("columnStatus"), accessorKey: "status" },
         ],
-        [],
+        [t],
     );
     const table = useReactTable({
         data: items,
@@ -239,15 +234,15 @@ export function ResourceWorkspaceView({
     });
     return (
         <div className="vq-resources">
-            <Section title="资源列表 / Resource library">
+            <Section title={tx("资源列表 / Resource library")}>
                 <label>
-                    筛选类型 / Filter kind
+                    {tx("筛选类型 / Filter kind")}
                     <select
                         data-testid="resource-filter"
                         value={kind}
                         onChange={(e) => setKind(e.target.value as ResourceKind | "")}
                     >
-                        <option value="">全部 / All</option>
+                        <option value="">{tx("全部 / All")}</option>
                         {resourceKinds.map((k) => (
                             <option key={k}>{k}</option>
                         ))}
@@ -299,7 +294,7 @@ export function ResourceWorkspaceView({
                         disabled={resources.isFetchingNextPage}
                         onClick={() => void resources.fetchNextPage()}
                     >
-                        更多资源 / More resources
+                        {tx("更多资源 / More resources")}
                     </Button>
                 )}
             </Section>
@@ -337,7 +332,7 @@ export function ResourceWorkspaceView({
                         }}
                     >
                         <label>
-                            类型 / Kind
+                            {tx("类型 / Kind")}
                             <select
                                 data-testid="resource-kind"
                                 value={createKind}
@@ -349,7 +344,7 @@ export function ResourceWorkspaceView({
                             </select>
                         </label>
                         <label>
-                            Key
+                            {tx("Key")}
                             <input
                                 data-testid="resource-key"
                                 required
@@ -359,7 +354,7 @@ export function ResourceWorkspaceView({
                             />
                         </label>
                         <label>
-                            名称 / Name
+                            {tx("名称 / Name")}
                             <input
                                 data-testid="resource-name"
                                 required
@@ -400,13 +395,14 @@ function DraftLoader(props: {
     refresh: () => Promise<unknown>;
     onResource: (r: Resource) => void;
 }) {
+    useAppLocale();
     const signal = useLifetime(props.signal),
         draft = useQuery({
             queryKey: ["workspace", props.workspace.id, "draft", props.resource.id],
             queryFn: ({ signal: querySignal }) =>
                 props.adapter.draft(props.resource.id, AbortSignal.any([signal, querySignal])),
         });
-    if (draft.isPending) return <p role="status">正在加载草稿 / Loading draft…</p>;
+    if (draft.isPending) return <p role="status">{tx("正在加载草稿 / Loading draft…")}</p>;
     if (draft.error) return <ErrorState error={draft.error} retry={() => void draft.refetch()} />;
     return <ResourceEditorView {...props} signal={signal} initial={draft.data} />;
 }
@@ -431,6 +427,7 @@ export function ResourceEditorView({
     refresh: () => Promise<unknown>;
     onResource: (r: Resource) => void;
 }) {
+    useAppLocale();
     const signal = useLifetime(parent),
         { t } = useTranslation(undefined, useEditorTranslationOptions);
     const form = useForm<EditorValues>({
@@ -442,6 +439,7 @@ export function ResourceEditorView({
         serialized = pretty(content);
     const [saved, setSaved] = useState(initial),
         [mode, setMode] = useState<"form" | "json">("form"),
+        [formLifetime, setFormLifetime] = useState(0),
         [buffer, setBuffer] = useState(pretty(initial.content)),
         [jsonBaseline, setJsonBaseline] = useState(pretty(initial.content)),
         [error, setError] = useState<Error | null>(null),
@@ -483,7 +481,11 @@ export function ResourceEditorView({
         receipt && validation && candidateIsCurrent && receiptMatchesCandidate(receipt, validation)
             ? receipt
             : null;
-    const issues = validateSchema(schemas[resource.kind], content.document);
+    // clean 每次渲染都会复制文档，因此用实际序列化内容作为校验输入边界；无关状态改变不重建诊断快照，重复诊断的展示身份也不会随一次普通渲染而变化。
+    const issues = useMemo(() => {
+        const document = JSON.parse(serialized) as ResourceDocumentV1;
+        return validateSchema(schemas[resource.kind], document.document);
+    }, [resource.kind, serialized]);
     const allVersions = useQuery({
         queryKey: ["workspace", workspace.id, "reference-versions"],
         queryFn: async ({ signal: querySignal }) => {
@@ -596,6 +598,7 @@ export function ResourceEditorView({
     const restore = (remote: Draft) => {
         invalidateValidation();
         form.reset({ content: clean(remote.content) });
+        setFormLifetime((previous) => previous + 1);
         setSaved(remote);
         setBuffer(pretty(remote.content));
         setJsonBaseline(pretty(remote.content));
@@ -614,7 +617,7 @@ export function ResourceEditorView({
             {!writable && <p>{t("readonly")}</p>}
             {status && (
                 <p role="status" data-testid="resource-status">
-                    {status}
+                    {tx(status)}
                 </p>
             )}
             {error && <ErrorState error={error} />}
@@ -628,8 +631,8 @@ export function ResourceEditorView({
             )}
             {issues.length > 0 && (
                 <ul role="alert" data-testid="case.validation-errors">
-                    {issues.map((issue, index) => (
-                        <li key={index}>
+                    {diagnosticRows(issues).map(({ issue, key }) => (
+                        <li key={key}>
                             {issue.path || "/"} · {issue.code}: {issue.message}
                         </li>
                     ))}
@@ -643,7 +646,11 @@ export function ResourceEditorView({
                         trigger={t("reload")}
                         onConfirm={() => restore(conflict)}
                     >
-                        <p>远端内容将替换本地草稿 / Replace local content with the remote draft.</p>
+                        <p>
+                            {tx(
+                                "远端内容将替换本地草稿 / Replace local content with the remote draft.",
+                            )}
+                        </p>
                     </ConfirmDialog>
                     <Button
                         data-testid="resource-rebase"
@@ -679,7 +686,11 @@ export function ResourceEditorView({
             <FormProvider {...form}>
                 <fieldset className="vq-editor-fields" disabled={!writable || busy}>
                     {mode === "form" ? (
-                        <ResourceForms kind={resource.kind} versions={allVersions.data ?? []} />
+                        <ResourceForms
+                            key={formLifetime}
+                            kind={resource.kind}
+                            versions={allVersions.data ?? []}
+                        />
                     ) : (
                         <>
                             <Monaco
@@ -709,6 +720,7 @@ export function ResourceEditorView({
                                                 throw new Error("RESOURCE_KIND_IMMUTABLE");
                                             invalidateValidation();
                                             form.reset({ content: next as ResourceDocumentV1 });
+                                            setFormLifetime((previous) => previous + 1);
                                             setJsonBaseline(buffer);
                                             setError(null);
                                         } catch (e) {
@@ -832,9 +844,9 @@ export function ResourceEditorView({
                     v{published.versionNo} · {published.id} · {published.sha256}
                 </p>
             )}
-            <Section title="资源设置 / Resource settings">
+            <Section title={tx("资源设置 / Resource settings")}>
                 <label>
-                    名称 / Name
+                    {tx("名称 / Name")}
                     <input
                         value={rename}
                         disabled={!writable}
@@ -856,7 +868,7 @@ export function ResourceEditorView({
                         })
                     }
                 >
-                    更新名称 / Rename
+                    {tx("更新名称 / Rename")}
                 </Button>
                 {!adapter.readOnly && editableRole(workspace, resource.kind) && (
                     <ConfirmDialog
@@ -878,7 +890,7 @@ export function ResourceEditorView({
                             })
                         }
                     >
-                        <p>版本及 key 会保留 / Immutable versions and keys are retained.</p>
+                        <p>{tx("版本及 key 会保留 / Immutable versions and keys are retained.")}</p>
                     </ConfirmDialog>
                 )}
             </Section>
@@ -900,20 +912,21 @@ export function ResourceEditorView({
     );
 }
 function ValidationState({ job, receipt }: { job: Job; receipt: Receipt | null }) {
+    useAppLocale();
     return (
         <section data-testid="case.validation-state">
             <p>
                 {job.state} · {job.outcome ?? ""} · {job.waitReason ?? ""} · {job.errorCode ?? ""}
             </p>
             {job.diagnostics?.length ? (
-                <ul aria-label="Compiler diagnostics">
-                    {job.diagnostics.map((issue, index) => (
-                        <li key={index}>
+                <ul aria-label={tx("Compiler diagnostics")}>
+                    {diagnosticRows(job.diagnostics).map(({ issue, key }) => (
+                        <li key={key}>
                             <code>{issue.code}</code>{" "}
                             {issue.pathStatus === "EXACT" ? (
                                 <code>{issue.path || "/"}</code>
                             ) : (
-                                "Source path withheld"
+                                tx("Source path withheld")
                             )}
                             : {issue.message}
                         </li>
@@ -921,10 +934,10 @@ function ValidationState({ job, receipt }: { job: Job; receipt: Receipt | null }
                 </ul>
             ) : null}
             {job.state !== "FINISHED" && (
-                <p>需要在线受管理的 Runtime / Requires an available managed Runtime.</p>
+                <p>{tx("需要在线受管理的 Runtime / Requires an available managed Runtime.")}</p>
             )}
             {job.state === "FINISHED" && !receipt && (
-                <p>尚无成功校验回执 / No successful validation receipt.</p>
+                <p>{tx("尚无成功校验回执 / No successful validation receipt.")}</p>
             )}
             {receipt && (
                 <p data-testid="case.validation-receipt">
@@ -947,6 +960,7 @@ function VersionHistory({
     signal: AbortSignal;
     content: ResourceDocumentV1;
 }) {
+    useAppLocale();
     const { t } = useTranslation(undefined, useEditorTranslationOptions),
         [versionId, setVersionId] = useState(resource.latestVersionId ?? ""),
         [other, setOther] = useState("draft"),
@@ -985,12 +999,12 @@ function VersionHistory({
                     <ErrorState error={versions.error} retry={() => void versions.refetch()} />
                 )}
                 {!items.length && versions.isSuccess && (
-                    <p>尚无发布版本 / No published versions.</p>
+                    <p>{tx("尚无发布版本 / No published versions.")}</p>
                 )}
                 {!!items.length && (
                     <>
                         <label>
-                            基础版本 / Base version
+                            {tx("基础版本 / Base version")}
                             <select
                                 data-testid="resource-version"
                                 value={versionId}
@@ -999,7 +1013,7 @@ function VersionHistory({
                                     setPath("");
                                 }}
                             >
-                                <option value="">选择 / Select</option>
+                                <option value="">{tx("选择 / Select")}</option>
                                 {items.map((v) => (
                                     <option value={v.id} key={v.id}>
                                         v{v.versionNo} · {v.sha256}
@@ -1008,13 +1022,13 @@ function VersionHistory({
                             </select>
                         </label>
                         <label>
-                            比较版本 / Compare with
+                            {tx("比较版本 / Compare with")}
                             <select
                                 data-testid="resource-compare"
                                 value={other}
                                 onChange={(e) => setOther(e.target.value)}
                             >
-                                <option value="draft">当前草稿 / Current draft</option>
+                                <option value="draft">{tx("当前草稿 / Current draft")}</option>
                                 {items.map((v) => (
                                     <option value={v.id} key={v.id}>
                                         v{v.versionNo}
@@ -1032,7 +1046,7 @@ function VersionHistory({
                 )}
                 {versions.hasNextPage && (
                     <Button onClick={() => void versions.fetchNextPage()}>
-                        更多版本 / More versions
+                        {tx("更多版本 / More versions")}
                     </Button>
                 )}
             </Section>
@@ -1044,15 +1058,18 @@ function VersionHistory({
                 )}
                 {files.data && (
                     <>
-                        <p>descriptor SHA-256: {files.data.descriptorSha256}</p>
+                        <p>
+                            {tx("descriptor SHA-256: ")}
+                            {files.data.descriptorSha256}
+                        </p>
                         <label>
-                            保留文件 / Retained file
+                            {tx("保留文件 / Retained file")}
                             <select
                                 data-testid="case.generated-file"
                                 value={path}
                                 onChange={(e) => setPath(e.target.value)}
                             >
-                                <option value="">选择 / Select</option>
+                                <option value="">{tx("选择 / Select")}</option>
                                 {files.data.files.map((f) => (
                                     <option key={f.path} value={f.path}>
                                         {f.path} · {f.sha256}
@@ -1069,7 +1086,8 @@ function VersionHistory({
                 {source.data !== undefined && file && (
                     <>
                         <p>
-                            {file.sizeBytes} bytes · SHA-256: {file.sha256}
+                            {file.sizeBytes} {tx(" bytes · SHA-256: ")}
+                            {file.sha256}
                         </p>
                         <Monaco
                             value={source.data}
@@ -1095,6 +1113,7 @@ function Impact({
     workspaceId: string;
     signal: AbortSignal;
 }) {
+    useAppLocale();
     const dependents = useInfiniteQuery({
         queryKey: ["workspace", workspaceId, "dependents", resource.id],
         queryFn: ({ pageParam, signal: qs }) =>
@@ -1104,13 +1123,13 @@ function Impact({
     });
     const items = dependents.data?.pages.flatMap((p) => p.items) ?? [];
     return (
-        <Section title="引用影响 / Reference impact" testId="resource-impact">
-            {dependents.isPending && <p role="status">正在加载 / Loading…</p>}
+        <Section title={tx("引用影响 / Reference impact")} testId="resource-impact">
+            {dependents.isPending && <p role="status">{tx("正在加载 / Loading…")}</p>}
             {dependents.error && (
                 <ErrorState error={dependents.error} retry={() => void dependents.refetch()} />
             )}
             {dependents.isSuccess && !items.length && (
-                <p>没有已发布资源引用此资源 / No published dependents.</p>
+                <p>{tx("没有已发布资源引用此资源 / No published dependents.")}</p>
             )}
             <ul>
                 {items.map((r) => (
@@ -1121,7 +1140,7 @@ function Impact({
             </ul>
             {dependents.hasNextPage && (
                 <Button onClick={() => void dependents.fetchNextPage()}>
-                    更多引用 / More dependents
+                    {tx("更多引用 / More dependents")}
                 </Button>
             )}
         </Section>
@@ -1132,16 +1151,32 @@ function Impact({
  * retry 由调用方绑定 refetch；本组件不直接触碰 adapter。
  */
 export function ErrorState({ error, retry }: { error: Error; retry?: () => void }) {
+    useAppLocale();
     return (
         <div role="alert" data-testid="resource-error">
             {error instanceof ApiError
-                ? `${error.code} · ${error.message} · Request ${error.requestId}`
-                : error.message}
+                ? tx("{{value0}} · {{value1}} · Request {{value2}}", {
+                      value0: error.code,
+                      value1: tx(error.message),
+                      value2: error.requestId,
+                  })
+                : tx(error.message)}
             {retry && (
                 <Button tone="secondary" onClick={retry}>
-                    重试 / Retry
+                    {tx("重试 / Retry")}
                 </Button>
             )}
         </div>
     );
+}
+
+function diagnosticRows<T extends { code: string; path?: string; message: string }>(issues: T[]) {
+    // 只读诊断没有可编辑行状态，路径、代码、消息及完整快照项组成语义身份，同一诊断重复出现时再附出现次数；这种 key 保留顺序和重复项，也无需伪造后端诊断 ID。
+    const occurrences = new Map<string, number>();
+    return issues.map((issue) => {
+        const semantic = JSON.stringify(issue);
+        const occurrence = occurrences.get(semantic) ?? 0;
+        occurrences.set(semantic, occurrence + 1);
+        return { issue, key: JSON.stringify([semantic, occurrence]) };
+    });
 }

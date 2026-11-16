@@ -96,16 +96,16 @@ class DirectoryChain {
     std::vector<Handle> directories;
 public:
     /** 创建模式只给缺失目录安装当前 SID 可继承的保护 DACL，已有目录权限绝不自动修复；遍历中的公共系统祖先可以存在，但调用方选定的最终配置目录仍必须独立通过严格私有 ACL 校验。 */
-    DirectoryChain(const FilePath& path, size_t count, bool create = false, ACCESS_MASK finalAccess = 0) {
+    DirectoryChain(const FilePath& path, size_t count, bool create = false, ACCESS_MASK finalAccess = 0, bool sharedDelete = false) {
         Handle volume(CreateFileW(path.root.c_str(), READ_CONTROL | FILE_READ_ATTRIBUTES | FILE_TRAVERSE | SYNCHRONIZE | (count == 0 ? finalAccess : 0),
-            FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr));
+            FILE_SHARE_READ | FILE_SHARE_WRITE | (sharedDelete ? FILE_SHARE_DELETE : 0), nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr));
         requireWin32(volume.valid(), "NATIVE_PATH_UNAVAILABLE");
         require(plainFile(volume.value) & FILE_ATTRIBUTE_DIRECTORY, "NATIVE_DIRECTORY_REQUIRED");
         directories.push_back(std::move(volume));
         for (size_t index = 0; index < count; ++index) {
             PrivateSecurity security(false, true);
             auto next = relativeFile(handle(), path.parts[index], READ_CONTROL | FILE_READ_ATTRIBUTES | FILE_TRAVERSE | (index + 1 == count ? finalAccess : 0),
-                create ? FILE_OPEN_IF : FILE_OPEN, FILE_DIRECTORY_FILE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                create ? FILE_OPEN_IF : FILE_OPEN, FILE_DIRECTORY_FILE, FILE_SHARE_READ | FILE_SHARE_WRITE | (sharedDelete ? FILE_SHARE_DELETE : 0),
                 create ? security.attributes.lpSecurityDescriptor : nullptr);
             require(plainFile(next.value) & FILE_ATTRIBUTE_DIRECTORY, "NATIVE_DIRECTORY_REQUIRED");
             directories.push_back(std::move(next));
@@ -114,6 +114,17 @@ public:
     }
     /** 返回值只供本编译单元内部的相对文件操作使用，链对象保留实际句柄所有权直到操作完成；JavaScript 层只能选择有限文件操作，不能取得该句柄或把它用于其它任意系统调用。 */
     HANDLE handle() const { return directories.back().value; }
+    /** 长期 SQLite 会话需要在数据库关闭后显式释放整条祖先链，所有句柄先撤销再逐个关闭并保留首个错误；原有短生命周期调用仍由析构兜底，这个入口不增加目录刷新或持久化成功声明。 */
+    void close() {
+        DWORD failure = ERROR_SUCCESS;
+        for (auto item = directories.rbegin(); item != directories.rend(); ++item) {
+            const HANDLE handle = std::exchange(item->value, INVALID_HANDLE_VALUE);
+            if (handle != INVALID_HANDLE_VALUE && handle != nullptr && !CloseHandle(handle) && failure == ERROR_SUCCESS)
+                failure = GetLastError();
+        }
+        directories.clear();
+        if (failure != ERROR_SUCCESS) throw NativeFailure("NATIVE_SQLITE_CLOSE_UNCONFIRMED", failure);
+    }
     /** 从最终父目录向上寻找最近的受保护私有锚点，中间每个继承目录仍必须只有当前 SID；公共系统祖先位于锚点之外可以存在，但不能用一个未验证父目录替继承对象授予权限。 */
     void verifyPrivateDirectory() const {
         for (size_t index = directories.size(); index > 0; --index) {

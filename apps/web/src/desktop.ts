@@ -21,3 +21,7 @@ export { CloudAiAdapter } from "./features/ai/adapters";
 export { editorI18n } from "./features/resources/i18n";
 export { aiI18n } from "./features/ai/i18n";
 import "./style.css";
+
+/** 桌面可把共享语言 Provider 与原生语言控件放进自身窗口壳，继续使用同一持久化偏好和受控实例桥接；此导出不引入 BrowserRouter，也不会要求宿主加载远程 Web 页面。 */
+export { AppLocaleProvider, LanguageControl } from "./locale-ui";
+export { appI18n, setAppLanguage } from "./locale";

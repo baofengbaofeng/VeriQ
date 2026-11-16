@@ -8,6 +8,7 @@ export default defineConfig({
         build: {
             externalizeDeps: {
                 exclude: [
+                    "@electron/fuses",
                     "@veriq/contracts",
                     "@veriq/compiler",
                     "@veriq/runner-sdk",

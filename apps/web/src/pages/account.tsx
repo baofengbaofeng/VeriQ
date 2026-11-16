@@ -3,6 +3,7 @@
  * 调用 api.account/sessions/password/revokeOwn；未登录重定向 /login。
  */
 
+import { tx, useAppLocale } from "../locale";
 import { useState, useContext, useEffect, useLayoutEffect, useCallback, useRef } from "react";
 import { Navigate } from "react-router-dom";
 import { api, type AccountSessions } from "../api";
@@ -13,6 +14,7 @@ import { Notice, Field, useAction, values, Panel } from "../ui";
  * 不涉及 Workspace 资源；会话吊销后通过 refresh 同步 Auth。
  */
 export function Account() {
+    useAppLocale();
     const { user, refresh } = useContext(Auth),
         a = useAction();
     const [sessions, setSessions] = useState<AccountSessions | null>(null);
@@ -61,16 +63,16 @@ export function Account() {
         await refresh();
     };
     return (
-        <Panel title="Your account">
+        <Panel title={tx("Your account")}>
             <dl data-testid="account-info">
-                <dt>Display name</dt>
+                <dt>{tx("Display name")}</dt>
                 <dd>{user.displayName}</dd>
-                <dt>Email</dt>
+                <dt>{tx("Email")}</dt>
                 <dd>{user.email}</dd>
-                <dt>Permission</dt>
-                <dd>{user.systemAdmin ? "System administrator" : "User"}</dd>
+                <dt>{tx("Permission")}</dt>
+                <dd>{user.systemAdmin ? tx("System administrator") : tx("User")}</dd>
             </dl>
-            <h2>Change password</h2>
+            <h2>{tx("Change password")}</h2>
             <form
                 onSubmit={(e) => {
                     const v = values(e);
@@ -83,20 +85,20 @@ export function Account() {
                     });
                 }}
             >
-                <Field name="currentPassword" label="Current password" type="password" />
+                <Field name="currentPassword" label={tx("Current password")} type="password" />
                 <Field
                     name="newPassword"
-                    label="New password (at least 12 characters)"
+                    label={tx("New password (at least 12 characters)")}
                     type="password"
                     minLength={12}
                 />
                 <button type="submit" data-testid="change-password" disabled={a.busy}>
-                    Change password and sign out
+                    {tx("Change password and sign out")}
                 </button>
             </form>
-            <h2>Active sessions</h2>
+            <h2>{tx("Active sessions")}</h2>
             <label>
-                Sessions per page
+                {tx("Sessions per page")}
                 <select
                     data-testid="sessions-limit"
                     value={limit}
@@ -113,26 +115,26 @@ export function Account() {
             {!sessions ? (
                 a.error ? (
                     <div>
-                        <p>Sessions could not be loaded.</p>
+                        <p>{tx("Sessions could not be loaded.")}</p>
                         <button
                             type="button"
                             onClick={() => void a.run(() => loadSessions())}
                             disabled={a.busy}
                         >
-                            Retry sessions
+                            {tx("Retry sessions")}
                         </button>
                     </div>
                 ) : (
-                    <p role="status">Loading sessions…</p>
+                    <p role="status">{tx("Loading sessions…")}</p>
                 )
             ) : sessions.items.length === 0 ? (
-                <p>No active sessions.</p>
+                <p>{tx("No active sessions.")}</p>
             ) : (
                 <ul data-testid="sessions">
                     {sessions.items.map((s) => (
                         <li key={s.id}>
-                            {s.current ? "This session" : "Other session"} · Expires{" "}
-                            {new Date(s.expiresAt).toLocaleString()}
+                            {s.current ? tx("This session") : tx("Other session")}{" "}
+                            {tx(" · Expires")} {new Date(s.expiresAt).toLocaleString()}
                         </li>
                     ))}
                 </ul>
@@ -144,7 +146,7 @@ export function Account() {
                     disabled={a.busy}
                     onClick={() => void a.run(() => loadSessions(sessions.nextCursor!))}
                 >
-                    {a.busy ? "Loading sessions…" : "Load more sessions"}
+                    {a.busy ? tx("Loading sessions…") : tx("Load more sessions")}
                 </button>
             )}
             <button
@@ -158,7 +160,7 @@ export function Account() {
                     })
                 }
             >
-                Revoke all sessions and sign out
+                {tx("Revoke all sessions and sign out")}
             </button>
             <Notice error={a.error} />
         </Panel>

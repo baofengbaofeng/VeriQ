@@ -1,10 +1,11 @@
 /**
  * AI 页独立 i18next 实例（命名空间 ai），中英词条覆盖 Provider、预算与生成诊断文案。fallbackLng 为 en。
- * 默认 lng=zh；与资源编辑器的 editorI18n 分离以免键冲突。
+ * 初始语言跟随已校验偏好或浏览器语言；与资源编辑器的 editorI18n 分离以免键冲突。
  */
 
 import i18next, { type i18n } from "i18next";
 import { initReactI18next } from "react-i18next";
+import { initialLanguage } from "../../locales/preference";
 const en = {
     title: "AI assistance",
     empty: "No providers configured. Add your own provider to generate drafts.",
@@ -137,8 +138,9 @@ const zh: typeof en = {
 export const aiI18n: i18n = i18next.createInstance();
 void aiI18n.use(initReactI18next).init({
     resources: { en: { ai: en }, zh: { ai: zh } },
-    lng: "zh",
+    lng: initialLanguage(),
     fallbackLng: "en",
+    initImmediate: false,
     ns: ["ai"],
     defaultNS: "ai",
     interpolation: { escapeValue: false },

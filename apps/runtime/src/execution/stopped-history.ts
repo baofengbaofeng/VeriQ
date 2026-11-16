@@ -5,6 +5,7 @@ import { isPreSpawnState } from "./pre-spawn.ts";
 import { ProcessRecords } from "./records.ts";
 import { ProcessSupervisor } from "./processes.ts";
 import { matchesControlledClaim } from "./darwin-proof.ts";
+import type { WindowsAttemptJournal } from "./windows-journal.ts";
 
 /** 可选回执只作为已保存的客户端事实接受严格结构校验，不能取代下方实际进程成员与内核证明；旧回执不补范围，未派生范围只能配对白名单状态，平台不适用的受控声明也不会变成迁移授权。 */
 function validStop(value: unknown, id: string, state: string): boolean {
@@ -42,17 +43,15 @@ function validStop(value: unknown, id: string, state: string): boolean {
 /** 此守卫由持有桌面与在线 Agent 排他所有权的调用者执行，最多检查四千零九十六次 Attempt 及各自两份进程证明；超过边界明确要求恢复处理，绝不删除历史、推断 PID 消失等于排空或对未知进程发送信号。 */
 export async function requireStoppedHistory(root: string): Promise<void> {
     let attempts: ProcessRecords | undefined, records: ProcessRecords | undefined;
+    let windowsJournal: WindowsAttemptJournal | undefined;
     try {
         attempts = await ProcessRecords.open(join(root, "attempts"));
         records = await ProcessRecords.open(join(root, "processes"));
         const attemptNames = (await attempts?.names(4096)) ?? [];
         const processNames = new Set((await records?.names(8192)) ?? []);
         const processes = new ProcessSupervisor(join(root, "processes"));
-        for (const name of attemptNames) {
-            if (!/^[a-zA-Z0-9_-]{1,100}\.json$/.test(name))
-                throw new Error("INVALID_ATTEMPT_HISTORY");
-            const id = name.slice(0, -5);
-            const record = (await attempts!.read(name, 65536)) as Record<string, unknown>;
+        const requireAttempt = async (id: string, value: unknown): Promise<void> => {
+            const record = value as Record<string, unknown>;
             if (
                 !record ||
                 typeof record !== "object" ||
@@ -91,15 +90,34 @@ export async function requireStoppedHistory(root: string): Promise<void> {
                         throw new Error("UNPROVED_PROCESS_HISTORY");
                 }
             }
+        };
+        if (process.platform === "win32") {
+            // Windows 旧 JSON 从未取得新 SQLite 提交权威，因此即使内容声称 ALLOCATED 或已有停止回执也不能借迁移守卫补造可信历史；任何 legacy、staging 或孤立进程成员保持恢复拒绝，不自动导入或删除。
+            if (attemptNames.length) throw new Error("WINDOWS_LEGACY_JOURNAL_RECOVERY_REQUIRED");
+            const { WindowsAttemptJournal } = await import("./windows-journal.ts");
+            windowsJournal = await WindowsAttemptJournal.openExisting(root);
+            if (windowsJournal) {
+                await windowsJournal.requireNoLegacy();
+                for (const record of windowsJournal.records())
+                    await requireAttempt(record.claim.attemptId, record);
+            }
+        } else {
+            // Linux 与 Darwin 继续只读核原有 JSON 与同一 Attempt 的真实进程证明，不迁移到 Windows 数据库、不改旧来源或扩大停止范围；公共核验函数只复用原有 Claim、工作路径、状态和已确认排空条件。
+            for (const name of attemptNames) {
+                if (!/^[a-zA-Z0-9_-]{1,100}\.json$/.test(name))
+                    throw new Error("INVALID_ATTEMPT_HISTORY");
+                await requireAttempt(name.slice(0, -5), await attempts!.read(name, 65536));
+            }
         }
         if (processNames.size) throw new Error("ORPHAN_PROCESS_HISTORY");
     } catch {
         throw new Error("VAULT_RUNTIME_RECOVERY_REQUIRED");
     } finally {
         try {
-            await records?.close();
+            windowsJournal?.close();
         } finally {
-            await attempts?.close();
+            try { await records?.close(); }
+            finally { await attempts?.close(); }
         }
     }
 }

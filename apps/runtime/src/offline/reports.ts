@@ -32,7 +32,7 @@ export class LocalReports {
     async snapshot(workspaceId: string, runId: string): Promise<LocalReportSnapshot> {
         const store = await LocalStore.open(this.root);
         try {
-            const result = store.result(workspaceId, runId), state = store.history(workspaceId, 1000).find(row => row.id === runId)?.state;
+            const result = store.result(workspaceId, runId), rawRetired = store.rawRetired(workspaceId, runId), state = store.history(workspaceId, 1000).find(row => row.id === runId)?.state;
             const report: S['RunReportDTO'] = { run: { id: runId, workspaceId, source: 'OFFLINE_IMPORT', state: state === 'RUNNING' ? 'RUNNING' : 'FINISHED', outcome: result.outcome, snapshotHash: result.manifestSha256, createdAt: result.startedAt, triggerKind: 'OFFLINE_IMPORT', gateAtExecution: false, gateNow: false }, cases: [], gateAtExecution: blocked, gateNow: blocked, statistics: { caseCount: 0, firstPassCount: 0, retryPassCount: 0, infrastructureErrorCount: 0 } };
             const snapshot: LocalReportSnapshot = { workspaceId, reports: [report], history: {}, displays: {}, artifacts: {} };
             for (const attempt of result.attempts) {
@@ -47,7 +47,7 @@ export class LocalReports {
                 /** 报告只投影持久 Attempt 已声明的实际范围，缺字段仍然是历史未声明；范围不会改变业务结果、清理状态或离线门禁，也不会因 processStopped 默认值而推导出 Mac 或全后代保证。 */
                 item.attempts.push({ id: attempt.attemptId, attemptNo: attempt.attemptNo, runtimeId: null, phase: state === 'RUNNING' ? 'RUNNING' : 'FINISHED', outcome: attempt.outcome, facts: { outcome: attempt.outcome, cleanup: attempt.cleanupStatus, processStopped: attempt.processStopped ?? false, ...(attempt.processStopScope !== undefined ? { processStopScope: attempt.processStopScope } : {}), ...(attempt.failureCode ? { errorCode: attempt.failureCode } : {}), ...(attempt.diagnostics ? { diagnostics: attempt.diagnostics as unknown as JsonValue } : {}) }, createdAt: result.startedAt, activatedAt: null, finishedAt: state === 'RUNNING' ? null : result.finishedAt, lastSequence: events.length, provenance: { source: 'OFFLINE_IMPORT', deviceId: result.deviceId, trustStatus: result.trustStatus, dirty: result.dirty, revocationStatus: result.revocationStatus }, gateAtExecution: blocked, gateNow: blocked, compensations: [] });
                 snapshot.history[attempt.attemptId] = events.map(e => ({ ...e, payload: e.payload as unknown as JsonValue, valuesAvailable: true }));
-                snapshot.artifacts[attempt.attemptId] = attempt.artifacts.filter(f => f.artifactId && f.kind).map(f => ({ id: f.artifactId!, attemptId: attempt.attemptId, sha256: f.sha256, sizeBytes: f.sizeBytes, kind: f.kind!, sensitivity: 'CREDENTIAL_RESTRICTED', state: 'AVAILABLE' }));
+                snapshot.artifacts[attempt.attemptId] = attempt.artifacts.filter(f => f.artifactId && f.kind).map(f => ({ id: f.artifactId!, attemptId: attempt.attemptId, sha256: f.sha256, sizeBytes: f.sizeBytes, kind: f.kind!, sensitivity: 'CREDENTIAL_RESTRICTED', state: rawRetired || store.artifactRetired(workspaceId, runId, attempt.attemptId, f) ? 'EXPIRED' : 'AVAILABLE' }));
                 const environment = Object.fromEntries(Object.entries(result.actualEnvironment).filter(([k, v]) => ['baseURL', 'apiBaseURL', 'locale', 'timezone'].includes(k) && typeof v === 'string')) as Record<string, string>;
                 let display: S['ReportDisplayDTO'] = { display: null, metadataStatus: 'ABSENT', environment };
                 try {
@@ -82,6 +82,8 @@ export class LocalReports {
         let result: OfflineResultV1;
         try {
             result = store.result(workspaceId, runId);
+            const selected = result.attempts.find(attempt => attempt.attemptId === attemptId)?.artifacts.find(file => file.artifactId === artifactId);
+            if (store.rawRetired(workspaceId, runId) || (selected && store.artifactRetired(workspaceId, runId, attemptId, selected))) throw new Error('LOCAL_ARTIFACT_EXPIRED');
         }
         finally {
             store.close();

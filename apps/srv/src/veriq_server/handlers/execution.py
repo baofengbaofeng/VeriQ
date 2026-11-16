@@ -160,6 +160,7 @@ class ExecutionAPI(DeviceAPI):
             "fixture-cleanups/reconcile",
             "capacity/reconcile",
             "artifacts/expire",
+            "lifecycle/expire",
             "reconcile",
         }:
             data = self.body(

@@ -45,9 +45,12 @@
     "license": "AGPL-3.0-only",
     "main": "out/main/index.js",
     "scripts": {
-        "build": "pnpm --filter @veriq/web build:desktop && pnpm --filter @veriq/runtime build:launcher && electron-vite build && node scripts/stage-runtime.mjs",
-        "check": "pnpm --filter @veriq/web build:desktop:types && tsc -p tsconfig.host.json && tsc -p tsconfig.renderer.json",
+        "build": "pnpm --filter @veriq/web build:desktop && node scripts/prepare-launcher.mjs && electron-vite build && node scripts/stage-runtime.mjs",
+        "check": "pnpm --filter @veriq/web build:desktop:types && tsc -p tsconfig.host.json && tsc -p tsconfig.renderer.json && tsc -p tsconfig.packaging.json",
         "test:unit": "node --import tsx --test tests/*.test.ts",
-        "test:e2e": "playwright test --config playwright.config.ts"
+        "test:e2e": "playwright test --config playwright.config.ts",
+        "package:installer": "node --import tsx scripts/package-desktop.mts",
+        "build:gui": "pnpm --filter @veriq/web build:desktop && electron-vite build && node scripts/stage-runtime.mjs --gui-only",
+        "package:sign-update": "node --import tsx scripts/sign-update.mts"
     }
 }

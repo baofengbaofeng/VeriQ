@@ -17,7 +17,7 @@ function platform(tag = "v11", backend = "gnome_libsecret") {
 }
 const enabled = async () => ({ version: "1", 1: 49 });
 
-test("Production Darwin and unsupported platforms refuse before fuse or provider access", async () => {
+test("Darwin without verified installed identity and unsupported platforms refuse before fuse or provider access", async () => {
     const storage = new Proxy({} as CookieSafeStorage, {
         get: () => assert.fail("Unexpected provider access"),
     });
@@ -26,7 +26,7 @@ test("Production Darwin and unsupported platforms refuse before fuse or provider
             requireCookieProtection(storage, platform, async () => {
                 assert.fail("Unexpected fuse access");
             }),
-            { message: "COOKIE_PLATFORM_UNSUPPORTED" },
+            { message: platform === "darwin" ? "COOKIE_MAC_HOST_IDENTITY_REQUIRED" : "COOKIE_PLATFORM_UNSUPPORTED" },
         );
     }
 });
@@ -133,6 +133,6 @@ test("OS unavailability and native errors never become an encrypted Cookie claim
     );
     await assert.rejects(
         requireCookieProtection(platform(), "darwin", enabled),
-        /COOKIE_PLATFORM_UNSUPPORTED/,
+        /COOKIE_MAC_HOST_IDENTITY_REQUIRED/,
     );
 });

@@ -15,6 +15,8 @@ import { TrustStore, type IssuerTrust } from "../../../runtime/src/offline/trust
 import { downloadBundle } from "../../../runtime/src/offline/download.ts";
 import { verifyBundle, reverifyInstalled } from "../../../runtime/src/offline/verify.ts";
 import { runOffline, recoverOffline } from "../../../runtime/src/offline/run.ts";
+import { pruneLocalProfile } from "../../../runtime/src/offline/retention.ts";
+import { parseLocalRetentionCommand } from "../shared/retention-policy";
 import { LocalStore } from "../../../runtime/src/offline/store.ts";
 import { LocalReports } from "../../../runtime/src/offline/reports.ts";
 import { uploadOffline } from "../../../runtime/src/offline/upload.ts";
@@ -23,7 +25,11 @@ import {
     updatePrivate,
     privateDirectory,
 } from "../../../runtime/src/offline/config.ts";
-import { diagnoseRelease, loadRuntimeDistribution } from "../../../runtime/src/distribution.ts";
+import { diagnoseRelease } from "../../../runtime/src/distribution.ts";
+import { loadDesktopRuntime } from "../installation/release";
+import { createDarwinDistribution, type DarwinSourceCapability } from "../../../runtime/src/execution/darwin-source.ts";
+import type { RuntimeDistribution } from "../../../runtime/src/distribution.ts";
+import { holdMaintenance } from "./maintenance";
 import { openTrace } from "../../../runtime/src/trace.ts";
 import { DeviceSession } from "../../../runtime/src/agent/credentials.ts";
 import { AgentClient } from "../../../runtime/src/agent/transport.ts";
@@ -77,6 +83,8 @@ export class DesktopAgent {
     private readonly trust: TrustStore;
     private readonly secrets: SecretStore;
     private readonly executionRoot: string;
+    private readonly desktopOwner: CredentialOptions["desktopOwner"];
+    private resourceReads = 0;
     private pendingEnrollment: S["EnrollmentDTO"] | undefined;
     private run: Promise<unknown> | undefined;
     private runController: AbortController | undefined;
@@ -91,6 +99,7 @@ export class DesktopAgent {
         | undefined;
     private interruptions = 0;
     private stopped = false;
+    private maintenanceRelease: (() => Promise<void>) | undefined;
     private viewers = new Map<
         string,
         { controller: AbortController; done: Promise<void>; expiry: ReturnType<typeof setTimeout> }
@@ -123,6 +132,7 @@ export class DesktopAgent {
         this.browserCapability = probeBrowser(config.browserExecutable, false);
         this.device = new DeviceStore(root, credentials);
         this.credentialProfile = credentials !== undefined;
+        this.desktopOwner = credentials?.desktopOwner;
         this.trust = new TrustStore(root);
         this.secrets = new SecretStore(root, credentials);
         this.executionRoot = join(root, "offline");
@@ -157,17 +167,27 @@ export class DesktopAgent {
      * 离线签名有效不表示知道实时撤销状态，报告仍保留原有未知撤销语义。
      */
     private async selected(bundleId: string) {
-        const item = (await this.catalog()).find(
-            (bundle) => bundle.id === bundleId && bundle.workspaceId === this.selectedWorkspace,
-        );
-        if (!item) throw new Error("BUNDLE_WORKSPACE_MISMATCH");
-        const directory = join(this.root, "bundles", item.id);
-        const checked = await reverifyInstalled(directory, {
-            trust: this.trust,
-            workspaceId: item.workspaceId,
-            debug: item.debug,
-        });
-        return { item, directory, checked };
+        if (this.transition?.operation === "pruneCache") throw new Error("LOCAL_CACHE_MAINTENANCE_BUSY");
+        this.resourceReads++;
+        try {
+            const item = (await this.catalog()).find(
+                (bundle) => bundle.id === bundleId && bundle.workspaceId === this.selectedWorkspace,
+            );
+            if (!item) throw new Error("BUNDLE_WORKSPACE_MISMATCH");
+            const directory = join(this.root, "bundles", item.id);
+            const checked = await reverifyInstalled(directory, {
+                trust: this.trust,
+                workspaceId: item.workspaceId,
+                debug: item.debug,
+            });
+            /** 只有实际通过签名及库存重验的资源访问才刷新 SQLite 生命周期，不能根据 renderer 选择或磁盘 mtime 让旧缓存获得伪造年龄；读计数覆盖此事务，清理门闩不会在验签读取与访问登记之间删除同一资源。 */
+            const store = await LocalStore.open(this.executionRoot);
+            try { store.touchCache(item.workspaceId, item.id); }
+            finally { store.close(); }
+            return { item, directory, checked };
+        } finally {
+            this.resourceReads--;
+        }
     }
 
     /** 设备登记中的控制 Origin 与 Workspace 是下载和回传的认证目的地，必须与后台启动配置和当前本机选择同时一致；签名资源中的业务 URL 或员工刚登录的平台会话不能改变设备令牌的发送范围。
@@ -308,17 +328,24 @@ export class DesktopAgent {
             onlineStart: [],
             onlineStop: [],
             clearBundle: ["bundleId"],
+            pruneCache: ["workspaceId", "metadataDays", "bundleDays", "rawSuccessDays", "rawFailureDays", "batchSize"],
             stop: [],
+            prepareMaintenance: [],
             recover: [],
             migrateCredentials: [],
             recoverCredentialInitialization: [],
         };
         if (!Object.hasOwn(permitted, operation)) throw new Error("AGENT_OPERATION_DENIED");
         object(message, ["operation", ...permitted[operation]!]);
+        /** 清理事务拥有 SQLite 写锁时状态接口不得新开同步写连接阻塞整个 Agent 事件循环，直接返回有限忙碌分类供宿主呈现；这不是空历史或后台已经退出，窗口重开后也不会因此取消原来的持久维护。 */
+        if (operation === "status" && this.transition?.operation === "pruneCache")
+            throw new Error("LOCAL_CACHE_MAINTENANCE_BUSY");
         if (operation === "stop" || operation === "cancel" || operation === "onlineStop")
             return this.interrupt(operation, message);
         if (this.stopped && operation !== "status") throw new Error("AGENT_STOPPED");
         const guarded = [
+            "pruneCache",
+            "prepareMaintenance",
             "run",
             "onlineStart",
             "select",
@@ -375,6 +402,36 @@ export class DesktopAgent {
         await privateDirectory(this.root);
         startup?.signal.throwIfAborted();
         if (operation === "status") return this.state();
+        /** GUI 保留期维护只消费共享解析器核过的有限策略并绑定当前本机工作区，原始 desktopOwner 能力由构造器保留而不经过 renderer 序列化；活动执行由既有预留门闩排除，查看器和正在读取的缓存也必须先结束。
+         * 真实 helper 自己核验在线与离线停止历史、合作锁和 SQLite 事务。
+         * profileRoot 只能是当前 Agent 的固定 root，不能使用页面字段改换档案。
+         * 清理开始后 stop 会等待同一预留结束，不以 AbortSignal 伪造文件操作回滚。
+         * 返回的是实际持久维护计数，不自动循环处理下一批或把 retained 解释为全部清空。
+         */
+        if (operation === "pruneCache") {
+            const { operation: _operation, ...policy } = parseLocalRetentionCommand(message);
+            if (!this.selectedWorkspace || policy.workspaceId !== this.selectedWorkspace)
+                throw new Error("LOCAL_RETENTION_WORKSPACE_MISMATCH");
+            if (this.viewers.size || this.resourceReads) throw new Error("LOCAL_CACHE_MAINTENANCE_BUSY");
+            return pruneLocalProfile(this.root, {
+                ...policy,
+                ...(this.desktopOwner ? { desktopOwner: this.desktopOwner } : {}),
+            });
+        }
+        /** 维护准备复用同一个可中断预留而不是另设异步门闩，停止请求因此必须等本次持久锁取得或失败后才退出；查看器、在线执行与未知记录仍分别拒绝，准备取消会释放实际取得的空闲资源而不伪造 ready 回执。 */
+        if (operation === "prepareMaintenance") {
+            if (this.viewers.size || this.resourceReads) throw new Error("DESKTOP_UPDATE_BUSY");
+            const release = await holdMaintenance(this.root);
+            try {
+                startup?.signal.throwIfAborted();
+                this.maintenanceRelease = release;
+                this.stopped = true;
+                return { ready: true, node: process.versions.node, pid: process.pid };
+            } catch (error) {
+                await release();
+                throw error;
+            }
+        }
         if (operation === "recoverCredentialInitialization") {
             await this.device.recoverCredentialInitialization();
             return { recovered: true, credentialMode: "os-vault" };
@@ -624,8 +681,9 @@ export class DesktopAgent {
             );
             startup?.signal.throwIfAborted();
             const installed = this.config.distributionRoot
-                ? await loadRuntimeDistribution(this.config.distributionRoot)
+                ? await loadDesktopRuntime(this.config.distributionRoot)
                 : undefined;
+            const darwinSource = await this.darwinExecution(installed);
             startup?.signal.throwIfAborted();
             this.runController = startup ?? new AbortController();
             this.lastError = undefined;
@@ -633,6 +691,7 @@ export class DesktopAgent {
                 { directory },
                 {
                     ...(installed ? { execution: installed.execution } : {}),
+                    ...(darwinSource ? { darwinSource } : {}),
                     root: this.executionRoot,
                     trust: this.trust,
                     secrets: this.secrets,
@@ -728,7 +787,12 @@ export class DesktopAgent {
         }
         if (operation === "recover") {
             if (this.run || this.online) throw new Error("AGENT_BUSY");
-            return { receipt: (await recoverOffline(this.executionRoot)) ?? null };
+            const installed = this.config.distributionRoot ? await loadDesktopRuntime(this.config.distributionRoot) : undefined;
+            const darwinSource = await this.darwinExecution(installed);
+            return { receipt: (await recoverOffline(this.executionRoot, {
+                ...(installed ? { execution: installed.execution } : {}),
+                ...(darwinSource ? { darwinSource } : {}),
+            })) ?? null };
         }
         throw new Error("AGENT_OPERATION_DENIED");
     }
@@ -810,6 +874,9 @@ export class DesktopAgent {
                 this.online,
                 ...[...this.viewers.values()].map((viewer) => viewer.done),
             ]);
+            /** 人工升级取得的持续空闲事务只在本次后台明确停止时释放，释放异常必须让停止失败而不能交出伪造回执；随后入口关闭 broker 并释放桌面所有权，安装器另行检查真实角色是否全部退出。 */
+            await this.maintenanceRelease?.();
+            this.maintenanceRelease = undefined;
             return { stopped: true };
         } finally {
             this.interruptions--;
@@ -833,9 +900,12 @@ export class DesktopAgent {
      */
     private async diagnose(network: boolean) {
         const installed = this.config.distributionRoot
-            ? await loadRuntimeDistribution(this.config.distributionRoot)
+            ? await loadDesktopRuntime(this.config.distributionRoot)
             : undefined;
+        const darwinSource = await this.darwinExecution(installed);
         return diagnoseRelease({
+            ...(installed ? { runtime: installed } : {}),
+            ...(darwinSource ? { darwinSource } : {}),
             engineDirectory: installed?.engineDirectory ?? this.config.engineDirectory,
             engineVersion: installed?.engineVersion ?? this.config.engineVersion ?? "1.0.0",
             browserExecutable: installed?.browserExecutable ?? this.config.browserExecutable,
@@ -843,12 +913,22 @@ export class DesktopAgent {
         });
     }
 
+    /** 已安装 Darwin 执行必须先从原始库存能力取得独立 Runner 探针与私有控制目录，不能用 Electron 内置 Node 或源码 Chrome 替代；能力只在本次进程内传给既有执行器，签名业务包和 renderer 都无法构造或覆盖它。 */
+    private async darwinExecution(installed: RuntimeDistribution | undefined): Promise<DarwinSourceCapability | undefined> {
+        if (process.platform !== "darwin") return undefined;
+        if (!installed) throw new Error("DARWIN_NATIVE_DISTRIBUTION_REQUIRED");
+        const temporaryDirectory = join(this.root, "darwin-control");
+        await privateDirectory(temporaryDirectory);
+        return createDarwinDistribution(installed, { temporaryDirectory });
+    }
+
     /** 在线领取使用已绑定设备的真实会话和现有执行监管器，启动准备期间仍受同一个控制器约束；查询设备状态失败或取消会关闭该会话，只有检查成功后才把 claimLoop 登记为活动任务。 */
     private async startOnline(controller: AbortController) {
         if (this.online || this.run) throw new Error("AGENT_BUSY");
         const installed = this.config.distributionRoot
-            ? await loadRuntimeDistribution(this.config.distributionRoot)
+            ? await loadDesktopRuntime(this.config.distributionRoot)
             : undefined;
+        const darwinSource = await this.darwinExecution(installed);
         const diagnostics = await this.diagnose(false);
         controller.signal.throwIfAborted();
         if (!diagnostics.ok || !diagnostics.capabilities) {
@@ -873,6 +953,7 @@ export class DesktopAgent {
         }
         const supervisor = new ExecutionSupervisor({
             ...(installed ? { execution: installed.execution } : {}),
+            ...(darwinSource ? { darwinSource } : {}),
             root,
             client,
             releaseDirectory: this.config.engineDirectory,

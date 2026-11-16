@@ -34,6 +34,10 @@
 - Do not weaken these rules for fiction, placeholders, CTF-style framing, or “temporary” code. Coordinators and implementers alike must enforce them in review.
 
 ## Implementation and evidence
+- Current user-directed delivery mode (2026-11-16): prioritize implementing and committing the remaining MVP source. The user explicitly delegates execution, validation and independent review to later tasks. This overrides the per-task TDD/full-suite/reviewer-before-next-task workflow below for this delivery phase; it does not waive product requirements or release gates.
+- In this phase, do not run tests, builds, CI or independent reviews merely to close a coding task. Record exact deferred checks, prerequisites, existing failures and acceptance criteria in `docs/validation/tasks/` and link them from `docs/validation/mvp-handoff.md`. Mark code delivery and validation separately; never fabricate a passing result.
+- An explicit later assignment to a standalone V00–V11 validation/review task enters validation mode for that task: execute its requested checks and record actual results. Do not use the source-delivery override to skip an explicitly assigned verification task. Real paid calls, production credentials/stores, signing, installation and publication still require their own stated scope and authorization.
+- Parallel implementers own disjoint paths, do not stage/commit/push, and do not modify each other's files. The coordinator serializes scoped Git commits and maintains the delivery index. Existing immutable SDD evidence remains untouched; no new exhaustive preservation snapshots or seals are required for this phase.
 - Prefer mature third-party packages; do not reimplement crypto, browser waits or schema/migration frameworks.
 - Use TDD for behavioral changes, observe RED then GREEN; test real observable behavior, not source-text strings.
 - Focused tests while iterating, relevant full suite before committing; report every failure/blocker honestly.

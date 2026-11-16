@@ -243,7 +243,7 @@ Idempotency-Key: <本次外部触发唯一键>
 
 TriggerReceipt包含decision(ENQUEUED/REUSED/SKIPPED)、runId、statusUrl。SKIP创建FINISHED/SKIPPED的轻量Run并返回200及OVERLAP_SKIPPED原因，不创建执行Job；REJECT返回409；QUEUE受容量约束，超出待处理上限返回429。相同键重试始终指向同一记录，不把跳过当通过。
 
-外部维护接口：POST /internal/v1/maintenance/expired-leases/reap、fixture-cleanups/reconcile、artifacts/expire。受限身份、有界批次、幂等、返回处理数与hasMore，部署包附外部调度配置示例和健康监控。需要业务内网的清理生成maintenance_job，由有能力Runtime领取。没有内部业务Cron，但不能删除租约和清理机制。Agent轮询、心跳不是Cron。
+外部维护接口：POST /internal/v1/maintenance/expired-leases/reap、fixture-cleanups/reconcile、artifacts/expire、capacity/reconcile、lifecycle/expire。受限身份、有界批次、幂等、返回处理数与hasMore，部署包附外部调度配置示例和健康监控。需要业务内网的清理生成maintenance_job，由有能力Runtime领取。没有内部业务Cron，但不能删除租约和清理机制。Agent轮询、心跳不是Cron。
 
 ## 13. Runtime分发、命名与设备授权
 

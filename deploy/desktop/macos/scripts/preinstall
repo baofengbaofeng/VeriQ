@@ -1,0 +1,16 @@
+#!/bin/sh
+# 安装和回滚必须由用户先停止业务、后台与桌面界面，包管理器只拒绝仍运行的产品进程而绝不按同名强杀；未知进程和隔离状态继续由产品恢复流程处理，外置档案不会在安装脚本中删除。
+set -eu
+for veriq_name in veriq veriq_agent veriq_runner veriq_cli; do
+    if /usr/bin/pgrep -x "$veriq_name" >/dev/null 2>&1; then
+        echo "VeriQ installation blocked: stop all VeriQ processes before replacing the application." >&2
+        exit 1
+    else
+        veriq_status=$?
+        if [ "$veriq_status" -ne 1 ]; then
+            echo "VeriQ process status is unconfirmed; package operation refused." >&2
+            exit 1
+        fi
+    fi
+done
+exit 0

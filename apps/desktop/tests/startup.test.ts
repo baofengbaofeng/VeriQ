@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
+import { localRetentionDefaults } from "../src/shared/retention-policy.ts";
 import { DesktopAgent } from "../src/agent/service.ts";
 
 const uuid = "11111111-1111-4111-8111-111111111111";
@@ -58,6 +59,8 @@ test("pending startup rejects competing mutations and releases after failure", a
             run,
             { operation: "select", workspaceId: uuid },
             { operation: "onlineStart" },
+            { operation: "prepareMaintenance" },
+            { operation: "pruneCache", workspaceId: uuid, ...localRetentionDefaults },
         ])
             await assert.rejects(fixture.agent.dispatch(command), /AGENT_BUSY/);
         const status = (await fixture.agent.dispatch({ operation: "status" })) as {
@@ -145,5 +148,24 @@ test("stop drains the reserved startup and prevents later work", async () => {
         await assert.rejects(fixture.agent.dispatch(run), /AGENT_STOPPED/);
     } finally {
         await fixture.dispose();
+    }
+});
+
+/** 人工升级准备在真实临时档案取得合作锁与 SQLite 空闲事务之后才返回，准备完成立即封住后续执行并等待显式停止释放；测试不运行安装器或伪造进程排空记录，空历史只证明这个新建测试档案没有旧执行。 */
+test("maintenance holds idle ownership until explicit stop and prevents a new run", async () => {
+    const root = await mkdtemp("/tmp/veriq-maintenance-");
+    const agent = new DesktopAgent(root, {
+        origin: "http://127.0.0.1:8888",
+        engineDirectory: "/missing/engine",
+        browserExecutable: "/missing/browser",
+    });
+    try {
+        const receipt = await agent.dispatch({ operation: "prepareMaintenance" }) as { ready: boolean };
+        assert.equal(receipt.ready, true);
+        await assert.rejects(agent.dispatch(run), /AGENT_STOPPED/);
+        assert.deepEqual(await agent.dispatch({ operation: "stop" }), { stopped: true });
+    } finally {
+        await agent.dispatch({ operation: "stop" });
+        await rm(root, { recursive: true, force: true });
     }
 });

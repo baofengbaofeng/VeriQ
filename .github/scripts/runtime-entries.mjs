@@ -420,6 +420,15 @@ export function qualifyTypeScriptConfigs(root, refs, ts) {
     return { reads: [...reads.values()].sort((a, b) => a.path.localeCompare(b.path)) };
 }
 
+// 此私有错误只承载由两个固定门禁构造的有限诊断，仍保留原有 ENTRY_ENVIRONMENT 消息与失败退出；序列化在构造时固定且不接受底层错误正文，CLI 只渲染这个类，避免任意异常伪造同名属性泄漏输入值。
+class EntryEnvironmentError extends Error {
+    constructor(diagnostic) {
+        super("ENTRY_ENVIRONMENT");
+        Object.defineProperty(this, "diagnostic", { value: Object.freeze(diagnostic) });
+        Object.defineProperty(this, "serializedDiagnostic", { value: JSON.stringify(diagnostic) });
+    }
+}
+
 /** 正式进程只接收工作流显式传入的最小环境，启动 Node 与注册 tsx 之前已由 env 清空继承值；这里再次验证键集合与生产模式，不打印环境值、凭据或配置正文，失败不会通过修改当前进程全局环境来补救。 */
 export function checkCleanEnvironment(env) {
     const allowed = new Set([
@@ -449,17 +458,52 @@ export function checkCleanEnvironment(env) {
         "npm_config_cache",
         "npm_config_registry",
     ]);
-    if (
-        Object.keys(env).some((key) => !allowed.has(key)) ||
-        env.NODE_ENV !== "production" ||
-        env.NODE_DISABLE_COMPILE_CACHE !== "1"
-    )
-        fail("ENTRY_ENVIRONMENT");
+    const unexpected = Object.keys(env)
+            .filter((key) => !allowed.has(key))
+            .sort(),
+        productionModeMatch = env.NODE_ENV === "production",
+        compileCacheDisabled = env.NODE_DISABLE_COMPILE_CACHE === "1";
+    if (unexpected.length || !productionModeMatch || !compileCacheDisabled) {
+        // 键名仅截取排序后的前十六项，合法 ASCII 环境名最长九十六字符，空白、换行或非 ASCII 一律替换固定占位；加上固定字段后序列化小于四 KiB，实际环境值从未进入诊断对象。
+        const names = unexpected
+            .slice(0, 16)
+            .map((key) =>
+                /^[A-Za-z_][A-Za-z0-9_]*$/.test(key)
+                    ? key.slice(0, 96)
+                    : "INVALID_ENVIRONMENT_NAME",
+            )
+            .sort();
+        throw new EntryEnvironmentError({
+            phase: "INITIAL",
+            unexpectedNamePresent: unexpected.length > 0,
+            productionModeMatch,
+            compileCacheDisabled,
+            unexpectedNameCount: unexpected.length,
+            unexpectedNames: Object.freeze(names),
+        });
+    }
     return {
         allowedNames: Object.keys(env).sort(),
         nodeEnv: "production",
         inheritedInjection: false,
     };
+}
+
+/** 后置环境检查保留原主函数的九项固定路径与下载标志比较，并在同一创建目录之后的位置调用；独立导出仅为逐项验证真实拒绝边界，不接受调用者提供期望映射，也不修改现有环境、命令顺序或允许集合。 */
+export function checkOwnedEnvironment(env, owned) {
+    for (const [key, expected] of Object.entries({
+        TMPDIR: join(owned, "tmp"),
+        TSX_TMPDIR: join(owned, "tmp"),
+        XDG_CACHE_HOME: join(owned, "toolcache"),
+        npm_config_userconfig: join(owned, "user.npmrc"),
+        npm_config_globalconfig: join(owned, "global.npmrc"),
+        npm_config_cache: join(owned, "npm-cache"),
+        npm_config_registry: "https://registry.npmjs.org/",
+        ELECTRON_SKIP_BINARY_DOWNLOAD: "1",
+        PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1",
+    }))
+        if (env[key] !== expected)
+            throw new EntryEnvironmentError({ phase: "OWNED_PATHS", invariant: key });
 }
 
 // 工具不属于来源树，允许 pnpm 安装的真实链接与工具执行权限，但固定真实路径并流式读取有界文件；只保留身份、模式、链接数和摘要，不把本机可执行内容或整份依赖包上传为所谓载荷证据。
@@ -855,18 +899,7 @@ async function main() {
         await mkdir(join(owned, name), { mode: 0o700 });
     for (const name of ["user.npmrc", "global.npmrc"])
         await writeFile(join(owned, name), "", { flag: "wx", mode: 0o600 });
-    for (const [key, expected] of Object.entries({
-        TMPDIR: join(owned, "tmp"),
-        TSX_TMPDIR: join(owned, "tmp"),
-        XDG_CACHE_HOME: join(owned, "toolcache"),
-        npm_config_userconfig: join(owned, "user.npmrc"),
-        npm_config_globalconfig: join(owned, "global.npmrc"),
-        npm_config_cache: join(owned, "npm-cache"),
-        npm_config_registry: "https://registry.npmjs.org/",
-        ELECTRON_SKIP_BINARY_DOWNLOAD: "1",
-        PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1",
-    }))
-        if (env[key] !== expected) fail("ENTRY_ENVIRONMENT");
+    checkOwnedEnvironment(env, owned);
     const documents = [],
         heldPaths = new Set(),
         retain = (ref, bytes) => {
@@ -1191,6 +1224,8 @@ async function main() {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
     main().catch((error) => {
+        if (error instanceof EntryEnvironmentError)
+            console.error(`Entry environment rejection: ${error.serializedDiagnostic}`);
         console.error(
             `Entry CI failed: ${/^[A-Z][A-Z0-9_]+$/.test(error.code ?? error.message) ? (error.code ?? error.message) : "ENTRY_FAILURE"}`,
         );

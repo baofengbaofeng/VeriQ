@@ -8,6 +8,7 @@ import { randomUUID } from "node:crypto";
 import { runOffline, recoverOffline } from "./offline/run.ts";
 import { LocalStore } from "./offline/store.ts";
 import { LocalReports } from "./offline/reports.ts";
+import { pruneLocalProfile } from "./offline/retention.ts";
 import { uploadOffline } from "./offline/upload.ts";
 import { updatePrivate, readPrivate } from "./offline/config.ts";
 import { TrustStore, type IssuerTrust } from "./offline/trust.ts";
@@ -22,17 +23,21 @@ import { openTrace } from "./trace.ts";
 import { Command } from "commander";
 import pino from "pino";
 import { join, dirname, basename } from "node:path";
-import { loadRuntimeDistribution, assertRuntimeRole, diagnoseRelease } from "./distribution.ts";
+import { loadInstalledRuntimeDistribution, assertRuntimeRole, diagnoseRelease } from "./distribution.ts";
 import { spawn } from "node:child_process";
 import { DeviceSession } from "./agent/credentials.ts";
 import { AgentClient } from "./agent/transport.ts";
 import { claimLoop } from "./agent/claim-loop.ts";
 import { agentControl, serveAgentControl } from "./agent/control.ts";
 import { ExecutionSupervisor } from "./execution/supervisor.ts";
+import { WindowsAttemptJournal } from "./execution/windows-journal.ts";
 import { hostname } from "node:os";
 import { setTimeout as delay } from "node:timers/promises";
 import { DeviceStore, RuntimeClient, RuntimeError } from "./enrollment.ts";
 import { doctor } from "./doctor.ts";
+import { createDarwinDistribution } from "./execution/darwin-source.ts";
+import { darwinNative } from "./native/darwin.ts";
+import type { RuntimeDistribution } from "./distribution.ts";
 
 const logger = pino(
     {
@@ -46,7 +51,7 @@ const logger = pino(
 );
 const entryRole = basename(process.execPath).replace(/\.exe$/i, "");
 const entryDistribution = ["veriq_cli", "veriq_agent"].includes(entryRole)
-    ? await loadRuntimeDistribution(dirname(dirname(dirname(process.execPath))))
+    ? await loadInstalledRuntimeDistribution(dirname(dirname(dirname(process.execPath))))
     : undefined;
 if (entryDistribution)
     assertRuntimeRole(entryDistribution, entryRole === "veriq_agent" ? "agent" : "cli");
@@ -126,9 +131,19 @@ async function installedDistribution() {
             ? dirname(dirname(dirname(process.execPath)))
             : undefined);
     if (!root) return;
-    const installed = await loadRuntimeDistribution(root);
+    const installed = await loadInstalledRuntimeDistribution(root);
     assertRuntimeRole(installed, role === "veriq_agent" ? "agent" : "cli");
     return installed;
+}
+
+/** Mac 已安装命令只在严格库存加载后创建同一档案下的受控私有探针目录，固定发行 Runner Node 与观察器实际自检成功才向运行和离线恢复交付能力；开发入口不因本辅助函数获得安装路径或平台后备。
+ * 能力保存在当前进程内，不能通过参数 JSON、业务包或档案字段恢复，失败不会开启普通子进程路径。
+ */
+async function installedDarwinExecution(installed: RuntimeDistribution | undefined, profile: string) {
+    if (!installed || process.platform !== "darwin") return {};
+    const temporaryDirectory = join(profile, "darwin-control");
+    darwinNative().openPrivateDirectory(temporaryDirectory, true).close();
+    return { darwinSource: await createDarwinDistribution(installed, { temporaryDirectory }) };
 }
 
 /** 注册与诊断共享完整发行核验，安装模式只允许清单中钉选的浏览器与引擎；调用者可选择控制 Origin 而不能通过 CLI 参数替换安装执行代码，避免登记出实际无法执行的组件版本。 */
@@ -145,6 +160,8 @@ async function nativeDoctor(options: { server?: string; browserExecutable?: stri
     return diagnoseRelease({
         ...installed,
         ...(options.server ? { server: options.server } : {}),
+        runtime: installed,
+        ...await installedDarwinExecution(installed, store().directory),
         signal: controller.signal,
     });
 }
@@ -360,15 +377,16 @@ program
         );
         process.stdout.write(`${info.name}: ${info.status}; current trust ${info.trustStatus}\n`);
     });
-const runtime = program.command("runtime").description("Run and control the online Linux Agent");
+const runtime = program.command("runtime").description("Run and control the online Agent");
 runtime
     .command("start")
     .option("--release-dir <path>", "Operator-approved fixed engine release directory")
     .option("--browser-executable <path>", "Pinned Playwright browser executable")
     .option("--once", "Process at most one claim, then stop")
     .action(async (options: { releaseDir: string; browserExecutable: string; once?: boolean }) => {
-        if (process.platform !== "linux") throw new Error("UNSUPPORTED_PROCESS_PLATFORM");
         const installed = await installedDistribution();
+        if (process.platform !== "linux" && process.platform !== "win32" && !(process.platform === "darwin" && installed))
+            throw new Error("UNSUPPORTED_PROCESS_PLATFORM");
         if (installed && entryRole !== "veriq_agent") {
             await startInstalledAgent(installed);
             return;
@@ -390,6 +408,8 @@ runtime
             engineVersion: installed?.engineVersion ?? "1.0.0",
             browserExecutable,
             signal: controller.signal,
+            ...(installed ? { runtime: installed } : {}),
+            ...await installedDarwinExecution(installed, store().directory),
         });
         if (!diagnostics.ok || !diagnostics.capabilities) throw new Error("DOCTOR_FAILED");
         process.title = "veriq_agent";
@@ -401,6 +421,12 @@ runtime
         const root = join(profile.directory, "agent");
         let close: (() => Promise<void>) | undefined;
         try {
+            /** Windows 在线控制通道和首次认领之前实际打开私有 SQLite 并核验旧日志，原生模块或 ACL 失败不能被 doctor 的浏览器结果掩盖；预备会话完整关闭之后才进入 Agent 控制与认领流程，不输出尚未拥有的在线就绪状态。 */
+            if (process.platform === "win32") {
+                const journal = await WindowsAttemptJournal.open(root);
+                try { await journal.requireNoLegacy(); journal.records(); }
+                finally { journal.close(); }
+            }
             close = await serveAgentControl(root, () => controller.abort());
             const transport = new AgentClient(session);
             const info =
@@ -415,6 +441,7 @@ runtime
                 releaseDirectory,
                 browserExecutable,
                 ...(installed ? { execution: installed.execution } : {}),
+                ...await installedDarwinExecution(installed, profile.directory),
             });
             await claimLoop({
                 client: transport,
@@ -559,6 +586,23 @@ for (const name of ["set", "remove"]) {
     );
 }
 const localRoot = () => join(store().directory, "offline");
+/** 本机维护由操作者显式调用并选定 Workspace，默认期限保持报告九十天、缓存及成功证据十四天和失败证据三十天；帮助与输出只包含英文有限参数及计数，真实所有权、上传和停止边界由共享 helper 持续核验，不影响云端会话或离线执行语义。 */
+program
+    .command("prune")
+    .description("Retire expired uploaded local reports and unreferenced verified bundle cache")
+    .requiredOption("--workspace <id>", "Workspace UUID")
+    .option("--metadata-days <days>", "Metadata retention days (1..3650)", "90")
+    .option("--bundle-days <days>", "Unused bundle retention days (1..3650)", "14")
+    .option("--raw-success-days <days>", "Successful raw evidence retention days (1..3650)", "14")
+    .option("--raw-failure-days <days>", "Failure raw evidence retention days (1..3650)", "30")
+    .option("--batch-size <count>", "Maximum report and bundle candidates (1..100)", "50")
+    .action(async (options: { workspace: string; metadataDays: string; bundleDays: string; rawSuccessDays: string; rawFailureDays: string; batchSize: string }) => {
+        const result = await pruneLocalProfile(store().directory, {
+            workspaceId: options.workspace, metadataDays: Number(options.metadataDays), bundleDays: Number(options.bundleDays),
+            rawSuccessDays: Number(options.rawSuccessDays), rawFailureDays: Number(options.rawFailureDays), batchSize: Number(options.batchSize),
+        });
+        process.stdout.write(JSON.stringify(result) + "\n");
+    });
 program
     .command("run")
     .description("Execute a signed installed bundle without the control service")
@@ -612,6 +656,7 @@ program
                     releaseDirectory,
                     browserExecutable,
                     ...(installed ? { execution: installed.execution } : {}),
+                    ...await installedDarwinExecution(installed, profile),
                     deviceId: identity.id,
                     debug: !!options.debug,
                     retry: !!options.retry,
@@ -673,8 +718,12 @@ results
     .command("recover")
     .description("Reconcile an interrupted local host using native physical stop proof")
     .action(async () => {
+        const installed = await installedDistribution();
         process.stdout.write(
-            JSON.stringify((await recoverOffline(localRoot())) ?? { active: false }) + "\n",
+            JSON.stringify((await recoverOffline(localRoot(), {
+                ...(installed ? { execution: installed.execution } : {}),
+                ...await installedDarwinExecution(installed, store().directory),
+            })) ?? { active: false }) + "\n",
         );
     });
 results

@@ -28,6 +28,11 @@ export interface WindowsNative {
         workerStartTime: string,
     ): void;
     privatePath(path: string, createDirectory: boolean): void;
+    /** SQLite 仅允许在线认领日志和离线本机报告两个固定用途，真实祖先链不共享删除并保持至数据库显式关闭之后；validate 检查本体与三类辅助文件的当前 SID、无重解析和单链接身份，不提供普通配置读写或目录刷新承诺。 */
+    openPrivateSqliteDirectory(directory: string, filename: "veriq-online.sqlite" | "veriq.sqlite", create?: boolean): {
+        validate(): void;
+        close(): void;
+    };
     writePrivate(path: string, content: string): void;
     /** 私有读取在原生层持有同一文件句柄完成 ACL、重解析与大小检查后才返回有限字节，调用者不会先检查字符串路径再通过另一个文件描述符读取，因此配置内容不能被中间路径替换转移。 */
     readPrivateFile(path: string, limit: number): Buffer;
@@ -43,6 +48,10 @@ export interface WindowsNative {
     removePrivate(path: string): void;
     /** Cookie 检查或退役仅处理固定 VeriQ 分区数据库及其日志，严格验证父链与同一真实句柄后返回存在事实；六十四兆元数据上限不扩张配置或保险库读取容量，删除成功也不表示物理擦除。 */
     privateCookieFile(path: string, retire: boolean): boolean;
+    /** 报告退休只核验并删除固定 offline/work/Attempt/evidence 或精确报告显示文件下同一普通文件，大小与 SHA256 在原生流式核对；缓存库存退休先隔离专用 UUID 命名空间后才改变只读属性，未知成员或关闭失败保持错误，不扩大凭据读取能力。 */
+    retirePrivateEvidence(path: string, file: { path: string; sizeBytes: number; sha256: string }): void;
+    /** 有限库存必须由宿主信任校验产生且本机 SQLite 已提交退休意图，原生只允许 bundles/UUID 到对应退休名的隔离与清单成员删除；单次最大四千零九十八文件及一百二十八 MiB，不能删除引擎、凭据或未知源目录。 */
+    retirePrivateInventory(directory: string, original: string, retiring: string, files: { path: string; sizeBytes: number; sha256: string }[]): void;
     /** 保险库专用入口只接受固定 vault 目录下的清单、日志及随机记录名称，容量限定为两兆字节以容纳认证信封；一般私有配置仍保持原额度，三个操作继续使用原生同句柄拥有者与父链校验。 */
     readVaultFile(path: string): Buffer;
     /** 保险库替换限定固定目录成员与两兆字节正文，沿用同父目录和源文件句柄完成刷新与原子发布；提交后错误继续表示结果不确定，调用方必须读取恢复日志而不能重放业务更新或退回普通路径写入。 */

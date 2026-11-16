@@ -5,7 +5,7 @@
 
 import type { PlatformComponents } from "@veriq/contracts";
 import { EventSourceParserStream } from "eventsource-parser/stream";
-import { request, streamRequest, binaryRequest } from "../../api";
+import { request, streamRequest, streamAuthorizationError, binaryRequest } from "../../api";
 type S = PlatformComponents["schemas"];
 /**
  * RunReportDTO：某次 Run 的汇总门禁、用例结果与当前 Attempt 指针，供报告头与列表共用。门禁字段区分执行时与当前。
@@ -129,9 +129,7 @@ export class CloudReportAdapter implements ReportAdapter {
                     const { done, value } = await reader.read();
                     if (done) break;
                     if (value.event === "authorization")
-                        throw new Error(
-                            "Report access changed. Reload after signing in or confirming Workspace access.",
-                        );
+                        throw streamAuthorizationError(response, JSON.parse(value.data));
                     if (value.event === "report") {
                         const update = JSON.parse(value.data) as { report: RunReport };
                         receive(update.report);

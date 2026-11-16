@@ -14,14 +14,14 @@ import os
 from pathlib import Path
 import secrets
 import signal
+import sys
 
 from pydantic import ValidationError
 from tornado.httpserver import HTTPServer
 
 from .app import make_app
 from .handlers.base import MAX_HTTP_BODY_BYTES
-from .db import Database, Installation
-from sqlalchemy import text
+from .db import Database
 from .migrate import migrate
 from .service import Problem, digest, initialize, lock_installation
 from .settings import Settings, load_settings, resolve_settings_values, operator_config_values
@@ -121,14 +121,37 @@ async def run(args: argparse.Namespace) -> None:
         await migrate(settings)
         print("VeriQ database migration complete.")
         return
+    if args.command == "rotate-master-key":
+        from .rekey import rotate_configuration
+        rotate_configuration(settings, args.output, args.new_key_id)
+        print("VeriQ key rotation configuration created. Keep previous keys and switch configuration before rekeying.")
+        return
     db = Database(settings)
     try:
-        if args.command == "doctor":
-            async with db.sessions() as session:
-                version = str((await session.execute(text("SELECT VERSION()"))).scalar())
-                if not version.startswith("8.4.") or await session.get(Installation, 1) is None:
-                    raise ValueError("Database/schema is not supported")
-            print("VeriQ configuration, MySQL version and installation schema are ready.")
+        if args.command == "backup":
+            from .recovery import backup
+            receipt = await backup(db, settings, args.destination, services_stopped=args.services_stopped, configuration_path=args.config)
+            print(json.dumps({"manifestSha256": receipt}))
+        elif args.command == "restore":
+            from .recovery import restore
+            await restore(db, settings, args.source, expected_digest=args.expected_manifest_sha256,
+                          services_stopped=args.services_stopped, allow_restore=args.allow_restore,
+                          confirm_empty_target=args.confirm_empty_target, allow_s3_inventory=args.allow_s3_inventory, configuration_path=args.config)
+            print("VeriQ backup restored. Run doctor and readiness checks before enabling writers.")
+        elif args.command == "rekey":
+            from .rekey import rekey
+            print(json.dumps(await rekey(db, settings, services_stopped=args.services_stopped, limit=args.limit)))
+        elif args.command == "doctor":
+            from .handlers.static import load_published_site
+            from .readiness import ReadinessMonitor
+            monitor = ReadinessMonitor(settings, db, load_published_site(settings))
+            try:
+                checks = await monitor.check()
+                if not all(checks.values()):
+                    raise ValueError("Critical dependencies are unavailable")
+            finally:
+                await monitor.close()
+            print("VeriQ database, schema, static package and configured storage checks are ready.")
         elif args.command == "create-admin":
             secret_path = args.config.with_suffix(".installation-secret")
             password = getpass.getpass("Administrator password (12+ characters): ")
@@ -150,16 +173,21 @@ async def run(args: argparse.Namespace) -> None:
             logging.basicConfig(level=logging.INFO, format="%(message)s")
             application = make_app(settings, db)
             server = HTTPServer(application, max_body_size=MAX_HTTP_BODY_BYTES)
-            server.listen(settings.port, address=settings.host)
-            stop = asyncio.Event()
-            loop = asyncio.get_running_loop()
-            for sig in (signal.SIGINT, signal.SIGTERM):
-                loop.add_signal_handler(sig, stop.set)
-            print(f"VeriQ listening on port {settings.port}")
-            await stop.wait()
-            server.stop()
-            await server.close_all_connections()
-            await application.settings["reset_dispatcher"].close()
+            try:
+                server.listen(settings.port, address=settings.host)
+                stop = asyncio.Event()
+                loop = asyncio.get_running_loop()
+                for sig in (signal.SIGINT, signal.SIGTERM):
+                    loop.add_signal_handler(sig, stop.set)
+                print(f"VeriQ listening on port {settings.port}")
+                await stop.wait()
+            finally:
+                server.stop()
+                await server.close_all_connections()
+                try:
+                    await application.settings["reset_dispatcher"].close()
+                finally:
+                    await application.settings["readiness_monitor"].close()
     finally:
         await db.close()
 
@@ -168,7 +196,7 @@ def main() -> None:
     """解析 veriq_server 子命令并运行异步入口；敏感校验失败时只打印固定短错误信息不回显输入，main 的失败路径返回稳定错误。
     main 实现于 apps/srv/src/veriq_server/cli.py：请按该符号的输入校验、错误码与调用方契约阅读，勿假设通用成功默认值。
     """
-    parser = argparse.ArgumentParser(prog="veriq_server", description="VeriQ control service")
+    parser = argparse.ArgumentParser(prog="veriq", description="VeriQ control service")
     parser.add_argument("--config", type=Path, default=Path("veriq.json"))
     parser.add_argument("--public-url")
     parser.add_argument("--host")
@@ -183,10 +211,30 @@ def main() -> None:
     sub.add_parser("migrate")
     sub.add_parser("serve")
     sub.add_parser("doctor")
+    backup_parser = sub.add_parser("backup", help="Consistent offline database/artifact/key snapshot; requires MySQL global read lock privilege")
+    backup_parser.add_argument("--destination", type=Path, required=True)
+    backup_parser.add_argument("--services-stopped", action="store_true")
+    restore_parser = sub.add_parser("restore", help="Restore into an empty migrated target of the exact installed version")
+    restore_parser.add_argument("--source", type=Path, required=True)
+    restore_parser.add_argument("--expected-manifest-sha256", required=True)
+    restore_parser.add_argument("--services-stopped", action="store_true")
+    restore_parser.add_argument("--allow-restore", action="store_true")
+    restore_parser.add_argument("--confirm-empty-target", action="store_true")
+    restore_parser.add_argument("--allow-s3-inventory", action="store_true")
+    rotation = sub.add_parser("rotate-master-key", help="Create a new private configuration retaining all previous master keys")
+    rotation.add_argument("--new-key-id", required=True)
+    rotation.add_argument("--output", type=Path, required=True)
+    rekey_parser = sub.add_parser("rekey", help="Rewrap a bounded batch without changing credential version identities")
+    rekey_parser.add_argument("--services-stopped", action="store_true")
+    rekey_parser.add_argument("--limit", type=int, default=100)
     admin = sub.add_parser("create-admin")
     admin.add_argument("--email", required=True)
     admin.add_argument("--display-name", required=True)
     try:
+        if sys.platform.startswith("linux"):
+            import ctypes
+            if ctypes.CDLL(None, use_errno=True).prctl(15, b"veriq", 0, 0, 0) != 0:
+                raise OSError("VeriQ process identity could not be set")
         asyncio.run(run(parser.parse_args()))
     except (ValidationError, ValueError, Problem, OSError):
         # 校验错误可能含输入值：绝不 stringify 后回显给终端。

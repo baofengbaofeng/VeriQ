@@ -1,0 +1,17 @@
+{
+    "kind": "FLOW",
+    "document": {
+        "schemaVersion": "1.0",
+        "parameters": {
+            "name": "string"
+        },
+        "steps": [
+            {
+                "id": "enter-name",
+                "action": "fill",
+                "target": "employee.form.name",
+                "value": "{{data.name}}"
+            }
+        ]
+    }
+}

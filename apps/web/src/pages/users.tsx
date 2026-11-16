@@ -3,6 +3,7 @@
  * 非 systemAdmin 显示受限面板；数据全部来自 /admin/users*。
  */
 
+import { tx, useAppLocale } from "../locale";
 import { useState, useContext, useEffect, useLayoutEffect, useCallback, useRef } from "react";
 import { Navigate } from "react-router-dom";
 import { api, type User, type ResetLink, type UserListQuery } from "../api";
@@ -13,6 +14,7 @@ import { Notice, Field, useAction, values, Panel } from "../ui";
  * 重置链接仅短暂展示在本页，刷新后需重新签发。
  */
 export function AdminUsers() {
+    useAppLocale();
     const { user, refresh } = useContext(Auth),
         a = useAction();
     const [users, setUsers] = useState<User[] | null>(null),
@@ -62,14 +64,14 @@ export function AdminUsers() {
     if (!user) return <Navigate to="/login" />;
     if (!user.systemAdmin)
         return (
-            <Panel title="Access restricted">
-                <p role="alert">System administrator permission is required.</p>
+            <Panel title={tx("Access restricted")}>
+                <p role="alert">{tx("System administrator permission is required.")}</p>
             </Panel>
         );
     return (
-        <Panel title="Users">
-            <p>Create accounts, manage access and issue one-time password reset links.</p>
-            <h2>Create user</h2>
+        <Panel title={tx("Users")}>
+            <p>{tx("Create accounts, manage access and issue one-time password reset links.")}</p>
+            <h2>{tx("Create user")}</h2>
             <form
                 onSubmit={(e) => {
                     const form = e.currentTarget,
@@ -87,32 +89,33 @@ export function AdminUsers() {
                     });
                 }}
             >
-                <Field name="email" label="Email" type="email" />
-                <Field name="displayName" label="Display name" />
+                <Field name="email" label={tx("Email")} type="email" />
+                <Field name="displayName" label={tx("Display name")} />
                 <Field
                     name="password"
-                    label="Initial password (at least 12 characters)"
+                    label={tx("Initial password (at least 12 characters)")}
                     type="password"
                     minLength={12}
                 />
                 <label className="check">
                     <input type="checkbox" name="systemAdmin" data-testid="systemAdmin" />
-                    System administrator
+                    {tx("System administrator")}
                 </label>
                 <button type="submit" data-testid="create-user" disabled={a.busy}>
-                    {a.busy ? "Working…" : "Create user"}
+                    {a.busy ? tx("Working…") : tx("Create user")}
                 </button>
             </form>
             <Notice error={a.error} message={a.message} />
             {link && (
                 <aside data-testid="reset-link">
-                    <h2>One-time reset link</h2>
+                    <h2>{tx("One-time reset link")}</h2>
                     <p>
-                        Expires {new Date(link.expiresAt).toLocaleString()}. Share privately with
-                        this user.
+                        {tx("Expires ")}
+                        {new Date(link.expiresAt).toLocaleString()}
+                        {tx(". Share privately with this user.")}
                     </p>
                     <input
-                        aria-label="Reset link"
+                        aria-label={tx("Reset link")}
                         data-testid="reset-url"
                         readOnly
                         value={link.url}
@@ -126,14 +129,14 @@ export function AdminUsers() {
                             })
                         }
                     >
-                        Copy link
+                        {tx("Copy link")}
                     </button>
                     <button type="button" onClick={() => setLink(null)}>
-                        Dismiss
+                        {tx("Dismiss")}
                     </button>
                 </aside>
             )}
-            <h2>All users</h2>
+            <h2>{tx("All users")}</h2>
             <form
                 data-testid="users-filters"
                 onSubmit={(event) => {
@@ -148,27 +151,27 @@ export function AdminUsers() {
                 }}
             >
                 <label>
-                    Search email or display name
+                    {tx("Search email or display name")}
                     <input name="q" data-testid="users-search" type="search" maxLength={254} />
                 </label>
                 <label>
-                    Account status
+                    {tx("Account status")}
                     <select name="disabled" data-testid="users-disabled">
-                        <option value="">All statuses</option>
-                        <option value="false">Enabled</option>
-                        <option value="true">Disabled</option>
+                        <option value="">{tx("All statuses")}</option>
+                        <option value="false">{tx("Enabled")}</option>
+                        <option value="true">{tx("Disabled")}</option>
                     </select>
                 </label>
                 <label>
-                    Permission
+                    {tx("Permission")}
                     <select name="systemAdmin" data-testid="users-admin">
-                        <option value="">All users</option>
-                        <option value="true">System administrators</option>
-                        <option value="false">Users without system administration</option>
+                        <option value="">{tx("All users")}</option>
+                        <option value="true">{tx("System administrators")}</option>
+                        <option value="false">{tx("Users without system administration")}</option>
                     </select>
                 </label>
                 <label>
-                    Users per page
+                    {tx("Users per page")}
                     <select name="limit" defaultValue="25" data-testid="users-limit">
                         {[1, 10, 25, 50, 100].map((value) => (
                             <option key={value} value={value}>
@@ -178,34 +181,34 @@ export function AdminUsers() {
                     </select>
                 </label>
                 <button type="submit" data-testid="users-filter-submit" disabled={a.busy}>
-                    Apply filters
+                    {tx("Apply filters")}
                 </button>
             </form>
             {users === null ? (
                 a.error ? (
                     <div>
-                        <p>Users could not be loaded.</p>
+                        <p>{tx("Users could not be loaded.")}</p>
                         <button
                             type="button"
                             onClick={() => void a.run(() => load())}
                             disabled={a.busy}
                         >
-                            Retry users
+                            {tx("Retry users")}
                         </button>
                     </div>
                 ) : (
-                    <p role="status">Loading users…</p>
+                    <p role="status">{tx("Loading users…")}</p>
                 )
             ) : users.length === 0 ? (
-                <p>No users found.</p>
+                <p>{tx("No users found.")}</p>
             ) : (
                 <div className="table-scroll">
                     <table data-testid="users">
                         <thead>
                             <tr>
-                                <th>User</th>
-                                <th>Access</th>
-                                <th>Actions</th>
+                                <th>{tx("User")}</th>
+                                <th>{tx("Access")}</th>
+                                <th>{tx("Actions")}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -217,10 +220,10 @@ export function AdminUsers() {
                                     </td>
                                     <td>
                                         {u.disabled
-                                            ? "Disabled"
+                                            ? tx("Disabled")
                                             : u.systemAdmin
-                                              ? "System administrator"
-                                              : "User"}
+                                              ? tx("System administrator")
+                                              : tx("User")}
                                     </td>
                                     <td>
                                         <button
@@ -239,7 +242,7 @@ export function AdminUsers() {
                                                 })
                                             }
                                         >
-                                            {u.disabled ? "Enable" : "Disable"}
+                                            {u.disabled ? tx("Enable") : tx("Disable")}
                                         </button>
                                         <button
                                             type="button"
@@ -250,7 +253,7 @@ export function AdminUsers() {
                                                 })
                                             }
                                         >
-                                            Reset link
+                                            {tx("Reset link")}
                                         </button>
                                         <button
                                             type="button"
@@ -263,7 +266,7 @@ export function AdminUsers() {
                                                 })
                                             }
                                         >
-                                            Revoke sessions
+                                            {tx("Revoke sessions")}
                                         </button>
                                         <button
                                             type="button"
@@ -281,7 +284,7 @@ export function AdminUsers() {
                                                 })
                                             }
                                         >
-                                            {u.systemAdmin ? "Remove admin" : "Make admin"}
+                                            {u.systemAdmin ? tx("Remove admin") : tx("Make admin")}
                                         </button>
                                     </td>
                                 </tr>
@@ -297,7 +300,7 @@ export function AdminUsers() {
                     disabled={a.busy}
                     onClick={() => void a.run(() => load(nextCursor))}
                 >
-                    {a.busy ? "Loading users…" : "Load more users"}
+                    {a.busy ? tx("Loading users…") : tx("Load more users")}
                 </button>
             )}
         </Panel>

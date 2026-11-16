@@ -6392,7 +6392,7 @@
             }
           },
           "410": {
-            "description": "Error",
+            "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6519,6 +6519,16 @@
           },
           "429": {
             "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Report metadata has expired under retention; existing employee/service-plan authorization still applies.",
             "content": {
               "application/json": {
                 "schema": {
@@ -8042,6 +8052,16 @@
                 }
               }
             }
+          },
+          "410": {
+            "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -8290,6 +8310,16 @@
                 }
               }
             }
+          },
+          "410": {
+            "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
           }
         }
       }
@@ -8397,6 +8427,16 @@
           },
           "429": {
             "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
             "content": {
               "application/json": {
                 "schema": {
@@ -8519,6 +8559,16 @@
                 }
               }
             }
+          },
+          "410": {
+            "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
           }
         }
       }
@@ -8629,6 +8679,16 @@
           },
           "429": {
             "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "The referenced signed bundle import authority has expired.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9162,6 +9222,16 @@
                 }
               }
             }
+          },
+          "410": {
+            "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
           }
         }
       }
@@ -9279,6 +9349,16 @@
           },
           "413": {
             "description": "Current authorization, bounded input, conflict or budget error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15587,7 +15667,7 @@
             }
           },
           "410": {
-            "description": "Error",
+            "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15707,7 +15787,7 @@
             }
           },
           "410": {
-            "description": "Error",
+            "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15807,7 +15887,7 @@
             }
           },
           "410": {
-            "description": "Error",
+            "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16023,7 +16103,7 @@
             }
           },
           "410": {
-            "description": "Error",
+            "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16291,6 +16371,16 @@
                 }
               }
             }
+          },
+          "410": {
+            "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
           }
         }
       }
@@ -16502,6 +16592,16 @@
                 }
               }
             }
+          },
+          "410": {
+            "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
           }
         }
       }
@@ -16611,6 +16711,16 @@
           },
           "429": {
             "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "The referenced signed bundle import authority has expired.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16967,8 +17077,311 @@
                 }
               }
             }
+          },
+          "410": {
+            "description": "Report metadata has expired under retention; existing employee/service-plan authorization still applies.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
           }
         }
+      }
+    },
+    "/internal/v1/maintenance/lifecycle/expire": {
+      "post": {
+        "operationId": "maintenanceExpireLifecycle",
+        "tags": [
+          "maintenance"
+        ],
+        "security": [
+          {
+            "ServiceToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "description": "Scoped to authenticated Workspace and operation. Same key/different payload returns 409."
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceDTOEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MaintenanceRequest"
+              }
+            }
+          }
+        },
+        "description": "Expire bounded completed lifecycle records under current Workspace service-token authorization and active-reference barriers. No internal scheduler."
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/operations/metrics": {
+      "get": {
+        "operationId": "getWorkspaceOperationsMetrics",
+        "tags": [
+          "operations"
+        ],
+        "security": [
+          {
+            "WebSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Workspace operational metrics.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationsMetricsDTOEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A bounded dependency observation timed out or is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "description": "Current OWNER or ADMIN employee session is required; data is scoped to the selected Workspace. Dependency timeouts return 503."
+      }
+    },
+    "/api/v1/examples/sample-workspace": {
+      "get": {
+        "operationId": "getSampleWorkspacePackage",
+        "tags": [
+          "examples"
+        ],
+        "security": [
+          {
+            "WebSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "400": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Stable JSON error; code is a machine-readable domain code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Bundled sample manifest, resources and source hashes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SampleWorkspacePackageDTOEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Bundled example assets are missing or inconsistent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "description": "Authenticated employee read of the bundled synthetic sample resource package. Contains no live credentials or server configuration."
       }
     }
   },
@@ -21234,13 +21647,14 @@
                 "fixture-cleanups/reconcile",
                 "capacity/reconcile",
                 "artifacts/expire",
+                "lifecycle/expire",
                 "trigger",
                 "read",
                 "cancel"
               ]
             },
             "minItems": 1,
-            "maxItems": 4,
+            "maxItems": 5,
             "uniqueItems": true
           },
           "planIds": {
@@ -21277,7 +21691,8 @@
                       "expired-leases/reap",
                       "fixture-cleanups/reconcile",
                       "capacity/reconcile",
-                      "artifacts/expire"
+                      "artifacts/expire",
+                      "lifecycle/expire"
                     ]
                   },
                   "type": "array"
@@ -22647,6 +23062,234 @@
       },
       "ProcessStopScope": {
         "$ref": "../schemas/platform-v1.schema.json#/$defs/ProcessStopScope"
+      },
+      "OperationsMetricsDTO": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "observedAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "queue": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "capacity": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "leases": {
+            "type": "object",
+            "properties": {
+              "active": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "expired": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "active",
+              "expired"
+            ],
+            "additionalProperties": false
+          },
+          "heartbeat": {
+            "type": "object",
+            "properties": {
+              "devices": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "stale": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "devices",
+              "stale"
+            ],
+            "additionalProperties": false
+          },
+          "events": {
+            "type": "object",
+            "properties": {
+              "persisted": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "accepted": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "backlog": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "persisted",
+              "accepted",
+              "backlog"
+            ],
+            "additionalProperties": false
+          },
+          "cleanup": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "storage": {
+            "type": "object",
+            "properties": {
+              "objects": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "pendingDeletions": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "pendingPublications": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "incompleteUploads": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "objects",
+              "bytes",
+              "pendingDeletions",
+              "pendingPublications",
+              "incompleteUploads"
+            ],
+            "additionalProperties": false
+          },
+          "modelCost": {
+            "type": "object",
+            "properties": {
+              "recordedMicros": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "reservedMicros": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "unknown": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "recordedMicros",
+              "reservedMicros",
+              "unknown"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "workspaceId",
+          "observedAt",
+          "queue",
+          "capacity",
+          "leases",
+          "heartbeat",
+          "events",
+          "cleanup",
+          "storage",
+          "modelCost"
+        ],
+        "additionalProperties": false
+      },
+      "OperationsMetricsDTOEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/OperationsMetricsDTO"
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "data",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "SampleWorkspacePackageDTO": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "string",
+            "enum": [
+              "1.0"
+            ]
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/JsonValue"
+          },
+          "assets": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            }
+          },
+          "sourceInventory": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "manifest",
+          "assets",
+          "sourceInventory"
+        ],
+        "additionalProperties": false
+      },
+      "SampleWorkspacePackageDTOEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SampleWorkspacePackageDTO"
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "data",
+          "requestId"
+        ],
+        "additionalProperties": false
       }
     }
   }

@@ -4,11 +4,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, type Page } from "@playwright/test";
-import type {
-    PlatformComponents,
-    ResourceDocumentV1,
-    ResourceKind,
-} from "@veriq/contracts";
+import type { PlatformComponents, ResourceDocumentV1, ResourceKind } from "@veriq/contracts";
 type S = PlatformComponents["schemas"];
 const origin = "http://127.0.0.1:5173";
 export type EditorScope = {
@@ -16,18 +12,13 @@ export type EditorScope = {
     key: string;
     headers: Record<string, string>;
 };
-export async function editorScope(
-    page: Page,
-    key: string,
-): Promise<EditorScope> {
+export async function editorScope(page: Page, key: string): Promise<EditorScope> {
     await page.goto("/login");
     await page.getByTestId("email").fill("browser-admin@example.com");
     await page.getByTestId("password").fill("Browser password 123!");
     await page.getByTestId("login-submit").click();
     await expect(page.getByTestId("account-info")).toBeVisible();
-    const session = (
-        await (await page.request.get("/api/v1/auth/session")).json()
-    ).data;
+    const session = (await (await page.request.get("/api/v1/auth/session")).json()).data;
     const headers = { Origin: origin, "X-CSRF-Token": session.csrfToken };
     const response = await page.request.post("/api/v1/workspaces", {
         headers,
@@ -68,7 +59,7 @@ export async function saveDraft(page: Page): Promise<S["DraftDTO"]> {
     await page.getByTestId("resource-save").click();
     const saved = await response;
     expect(saved.status(), await saved.text()).toBe(200);
-    await expect(page.getByTestId("resource-status")).toContainText("已保存");
+    await expect(page.getByTestId("resource-status")).toContainText("Saved");
     return (await saved.json()).data;
 }
 export async function replaceEditorJson(page: Page, text: string) {
@@ -97,9 +88,7 @@ export async function replaceEditorJson(page: Page, text: string) {
             }),
         )
         .toBe(true);
-    await page
-        .context()
-        .grantPermissions(["clipboard-read", "clipboard-write"], { origin });
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin });
     await page.evaluate((value) => navigator.clipboard.writeText(value), text);
     await page.keyboard.press("Control+V");
 }
@@ -146,10 +135,10 @@ export async function managedCompiler(page: Page, scope: EditorScope, evidenceTa
     });
     expect(accountResponse.status(), await accountResponse.text()).toBe(201);
     const account = (await accountResponse.json()).data;
-    const tokenResponse = await page.request.post(
-        base + `/service-accounts/${account.id}/tokens`,
-        { headers: scope.headers, data: { purpose: "RUNTIME_ENROLLMENT" } },
-    );
+    const tokenResponse = await page.request.post(base + `/service-accounts/${account.id}/tokens`, {
+        headers: scope.headers,
+        data: { purpose: "RUNTIME_ENROLLMENT" },
+    });
     expect(tokenResponse.status()).toBe(201);
     const token = (await tokenResponse.json()).data.token;
     const enrolled = await command(
@@ -166,9 +155,7 @@ export async function managedCompiler(page: Page, scope: EditorScope, evidenceTa
         token,
     );
     expect(enrolled.code, enrolled.output).toBe(0);
-    const device = JSON.parse(
-        await readFile(join(profile, "device.json"), "utf8"),
-    );
+    const device = JSON.parse(await readFile(join(profile, "device.json"), "utf8"));
     expect(
         (
             await page.request.put(base + `/runtimes/${device.runnerId}/trust`, {
@@ -182,9 +169,7 @@ export async function managedCompiler(page: Page, scope: EditorScope, evidenceTa
             "runtime",
             "start",
             "--release-dir",
-            fileURLToPath(
-                new URL("../../../.superpowers/cache/t11/release/", import.meta.url),
-            ),
+            fileURLToPath(new URL("../../../.superpowers/cache/t11/release/", import.meta.url)),
             "--browser-executable",
             "/usr/bin/chromium",
             "--once",
@@ -198,9 +183,7 @@ export async function managedCompiler(page: Page, scope: EditorScope, evidenceTa
         await expect(page.getByTestId("case.validation-receipt")).toBeVisible({
             timeout: 20_000,
         });
-        const status = (
-            await (await page.request.get(base + `/jobs/${job.id}`)).json()
-        ).data;
+        const status = (await (await page.request.get(base + `/jobs/${job.id}`)).json()).data;
         expect(status.outcome).toBe("PASSED");
         const response = page.waitForResponse(
             (r) => r.url().endsWith("/publish") && r.request().method() === "POST",
@@ -219,9 +202,7 @@ export async function managedCompiler(page: Page, scope: EditorScope, evidenceTa
             if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
         }
         const stops = [];
-        for (const name of entries.filter((name) =>
-            name.endsWith(".process.json"),
-        )) {
+        for (const name of entries.filter((name) => name.endsWith(".process.json"))) {
             const journal = JSON.parse(
                 await readFile(join(profile, "agent/processes", name), "utf8"),
             );

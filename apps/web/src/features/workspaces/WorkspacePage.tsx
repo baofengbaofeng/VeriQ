@@ -3,13 +3,15 @@
  * 列表走 api.workspaces；成员与邀请均嵌套在选定 workspaceId 下。
  */
 
-import { useContext, useEffect, useState } from "react";
+import { tx, useAppLocale } from "../../locale";
+import { useContext, useEffect, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError, type Member, type Workspace } from "../../api";
 import { Auth } from "../../auth-context";
 import { Field, Notice, Panel, useAction, values } from "../../ui";
 import { useWorkspace } from "./WorkspaceContext";
+import { SampleWorkspaceWizard } from "../examples/SampleWorkspaceWizard";
 
 const roles = ["OWNER", "ADMIN", "EDITOR", "EXECUTOR", "VIEWER"] as const;
 const message = (error: Error | null) =>
@@ -24,10 +26,16 @@ const message = (error: Error | null) =>
  * 选择变更经 useWorkspace.select，确保下游 Runtime/Resource 页看到同一作用域。
  */
 export function WorkspacePage() {
+    useAppLocale();
     const { user } = useContext(Auth),
         { selected, select, signal } = useWorkspace(),
         client = useQueryClient(),
         a = useAction();
+    const [sampleOpen, setSampleOpen] = useState(false);
+    const sampleTrigger = useRef<HTMLButtonElement>(null);
+    useEffect(() => {
+        if (sampleOpen) document.getElementById("sample-wizard-title")?.focus();
+    }, [sampleOpen]);
     const workspaces = useInfiniteQuery({
         queryKey: ["workspaces", user?.id],
         queryFn: ({ pageParam, signal }) => api.workspaces(pageParam, signal),
@@ -43,36 +51,38 @@ export function WorkspacePage() {
     }, [firstWorkspaceId, selected, select]);
     if (!user) return <Navigate to="/login" />;
     return (
-        <Panel title="Workspaces">
-            <p>One project is one Workspace. Membership controls access to its resources.</p>
-            {workspaces.isPending && <p role="status">Loading Workspaces…</p>}
+        <Panel title={tx("Workspaces")}>
+            <p>
+                {tx("One project is one Workspace. Membership controls access to its resources.")}
+            </p>
+            {workspaces.isPending && <p role="status">{tx("Loading Workspaces…")}</p>}
             {workspaces.error && (
                 <>
                     <Notice error={message(workspaces.error)} />
                     <button type="button" onClick={() => void workspaces.refetch()}>
-                        Retry Workspaces
+                        {tx("Retry Workspaces")}
                     </button>
                 </>
             )}
-            {workspaces.isSuccess && !items.length && <p>No Workspaces yet.</p>}
+            {workspaces.isSuccess && !items.length && <p>{tx("No Workspaces yet.")}</p>}
             {!!items.length && (
                 <label>
-                    Current Workspace
+                    {tx("Current Workspace")}
                     <select
                         data-testid="workspace-selector"
                         value={selected}
                         onChange={(e) => select(e.target.value)}
                     >
                         <option value="" disabled>
-                            Select Workspace
+                            {tx("Select Workspace")}
                         </option>
                         {selected && !items.some((ws) => ws.id === selected) && (
-                            <option value={selected}>Selected Workspace</option>
+                            <option value={selected}>{tx("Selected Workspace")}</option>
                         )}
                         {items.map((ws) => (
                             <option key={ws.id} value={ws.id}>
                                 {ws.name}
-                                {ws.archived ? " (Archived)" : ""}
+                                {ws.archived ? tx(" (Archived)") : ""}
                             </option>
                         ))}
                     </select>
@@ -85,10 +95,44 @@ export function WorkspacePage() {
                     disabled={workspaces.isFetchingNextPage}
                     onClick={() => void workspaces.fetchNextPage()}
                 >
-                    Load more Workspaces
+                    {tx("Load more Workspaces")}
                 </button>
             )}
-            <h2>Create Workspace</h2>
+            <button
+                type="button"
+                ref={sampleTrigger}
+                data-testid="sample-workspace-open"
+                aria-expanded={sampleOpen}
+                aria-controls="sample-workspace-panel"
+                onClick={() => setSampleOpen((open) => !open)}
+            >
+                {tx("Import sample workspace")}
+            </button>
+            {sampleOpen && (
+                <div id="sample-workspace-panel">
+                    <SampleWorkspaceWizard
+                        workspaceId={
+                            items.some(
+                                (item) =>
+                                    item.id === selected &&
+                                    !item.archived &&
+                                    ["OWNER", "ADMIN"].includes(item.role),
+                            )
+                                ? selected
+                                : undefined
+                        }
+                        onWorkspaceCreated={(id) => {
+                            select(id);
+                            void client.invalidateQueries({ queryKey: ["workspaces", user.id] });
+                        }}
+                        onClose={() => {
+                            setSampleOpen(false);
+                            sampleTrigger.current?.focus();
+                        }}
+                    />
+                </div>
+            )}
+            <h2>{tx("Create Workspace")}</h2>
             <form
                 onSubmit={(e) => {
                     const v = values(e);
@@ -104,7 +148,7 @@ export function WorkspacePage() {
                 }}
             >
                 <label>
-                    Key
+                    {tx("Key")}
                     <input
                         data-testid="workspace-key"
                         name="key"
@@ -114,11 +158,11 @@ export function WorkspacePage() {
                     />
                 </label>
                 <label>
-                    Name
+                    {tx("Name")}
                     <input data-testid="workspace-name" name="name" required maxLength={160} />
                 </label>
                 <button type="submit" data-testid="workspace-create" disabled={a.busy}>
-                    Create Workspace
+                    {tx("Create Workspace")}
                 </button>
             </form>
             <Notice error={a.error} />
@@ -130,6 +174,7 @@ export function WorkspacePage() {
 }
 
 function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
+    useAppLocale();
     const client = useQueryClient(),
         a = useAction(),
         { signal } = useWorkspace();
@@ -158,13 +203,13 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
         await client.invalidateQueries({ queryKey: key });
         await client.invalidateQueries({ queryKey: ["workspaces", identity] });
     };
-    if (detail.isPending) return <p role="status">Loading Workspace…</p>;
+    if (detail.isPending) return <p role="status">{tx("Loading Workspace…")}</p>;
     if (detail.error)
         return (
             <>
                 <Notice error={message(detail.error)} />
                 <button type="button" onClick={() => void detail.refetch()}>
-                    Retry Workspace
+                    {tx("Retry Workspace")}
                 </button>
             </>
         );
@@ -173,7 +218,7 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
         <article data-testid="workspace-detail">
             <h2>{ws.name}</h2>
             <p>
-                {ws.key} · {ws.role} · {ws.archived ? "Archived" : "Active"}
+                {ws.key} · {ws.role} · {ws.archived ? tx("Archived") : tx("Active")}
             </p>
             <button
                 type="button"
@@ -181,7 +226,7 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                 onClick={() => void a.run(refresh)}
                 disabled={a.busy}
             >
-                Refresh Workspace
+                {tx("Refresh Workspace")}
             </button>
             {canManage && (
                 <form
@@ -195,7 +240,7 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                     }}
                 >
                     <label>
-                        Name
+                        {tx("Name")}
                         <input
                             name="name"
                             data-testid="workspace-rename-name"
@@ -205,7 +250,7 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                         />
                     </label>
                     <button type="submit" data-testid="workspace-rename" disabled={a.busy}>
-                        Rename Workspace
+                        {tx("Rename Workspace")}
                     </button>
                 </form>
             )}
@@ -221,28 +266,28 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                         })
                     }
                 >
-                    Archive Workspace
+                    {tx("Archive Workspace")}
                 </button>
             )}
             {!canManage && (
                 <p data-testid="workspace-permission">
                     {ws.archived
-                        ? "Archived Workspaces are read-only."
-                        : "Your role cannot manage this Workspace or its members."}
+                        ? tx("Archived Workspaces are read-only.")
+                        : tx("Your role cannot manage this Workspace or its members.")}
                 </p>
             )}
-            <h3>Members</h3>
-            {members.isPending && <p role="status">Loading members…</p>}
+            <h3>{tx("Members")}</h3>
+            {members.isPending && <p role="status">{tx("Loading members…")}</p>}
             {members.error && (
                 <>
                     <Notice error={message(members.error)} />
                     <button type="button" onClick={() => void members.refetch()}>
-                        Retry members
+                        {tx("Retry members")}
                     </button>
                 </>
             )}
             {members.isSuccess && !members.data.pages.some((page) => page.items.length) && (
-                <p>No members found.</p>
+                <p>{tx("No members found.")}</p>
             )}
             <ul data-testid="workspace-members">
                 {members.data?.pages
@@ -264,15 +309,16 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                     disabled={members.isFetchingNextPage}
                     onClick={() => void members.fetchNextPage()}
                 >
-                    Load more members
+                    {tx("Load more members")}
                 </button>
             )}
             {canManage && (
                 <>
-                    <h3>Invite a member</h3>
+                    <h3>{tx("Invite a member")}</h3>
                     <p>
-                        Links expire after seven days and can be used once. Existing accounts sign
-                        in with their own credentials.
+                        {tx(
+                            "Links expire after seven days and can be used once. Existing accounts sign in with their own credentials.",
+                        )}
                     </p>
                     <form
                         onSubmit={(e) => {
@@ -300,7 +346,7 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                         }}
                     >
                         <label>
-                            Email
+                            {tx("Email")}
                             <input
                                 name="email"
                                 type="email"
@@ -310,7 +356,7 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                             />
                         </label>
                         <label>
-                            Role
+                            {tx("Role")}
                             <select name="role" data-testid="invite-role" defaultValue="VIEWER">
                                 {roles
                                     .filter((role) => role !== "OWNER")
@@ -325,15 +371,15 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                                 name="sendEmail"
                                 data-testid="invite-email-send"
                             />
-                            Send by configured SMTP
+                            {tx("Send by configured SMTP")}
                         </label>
                         <button type="submit" data-testid="invite-create" disabled={a.busy}>
-                            Create invitation
+                            {tx("Create invitation")}
                         </button>
                     </form>
                     {link && (
                         <label>
-                            Copy invitation link
+                            {tx("Copy invitation link")}
                             <input
                                 data-testid="invitation-url"
                                 readOnly
@@ -342,25 +388,26 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                             />
                         </label>
                     )}
-                    <h3>Invitations</h3>
-                    {invites.isPending && <p role="status">Loading invitations…</p>}
+                    <h3>{tx("Invitations")}</h3>
+                    {invites.isPending && <p role="status">{tx("Loading invitations…")}</p>}
                     {invites.error && (
                         <>
                             <Notice error={message(invites.error)} />
                             <button type="button" onClick={() => void invites.refetch()}>
-                                Retry invitations
+                                {tx("Retry invitations")}
                             </button>
                         </>
                     )}
                     {invites.isSuccess && !invites.data.pages.some((page) => page.items.length) && (
-                        <p>No invitations yet.</p>
+                        <p>{tx("No invitations yet.")}</p>
                     )}
                     <ul>
                         {invites.data?.pages
                             .flatMap((page) => page.items)
                             .map((invite) => (
                                 <li key={invite.id} data-testid={`invitation-${invite.email}`}>
-                                    {invite.email} · {invite.role} · {invite.status} · Expires{" "}
+                                    {invite.email} · {invite.role} · {invite.status}{" "}
+                                    {tx(" · Expires")}{" "}
                                     {new Date(invite.expiresAt).toLocaleString(undefined, {
                                         timeZone: "Asia/Shanghai",
                                     })}{" "}
@@ -381,7 +428,7 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                                                 })
                                             }
                                         >
-                                            Revoke invitation
+                                            {tx("Revoke invitation")}
                                         </button>
                                     )}
                                 </li>
@@ -394,7 +441,7 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                             disabled={invites.isFetchingNextPage}
                             onClick={() => void invites.fetchNextPage()}
                         >
-                            Load more invitations
+                            {tx("Load more invitations")}
                         </button>
                     )}
                 </>
@@ -415,6 +462,7 @@ function MemberRow({
     manageable: boolean;
     refresh: () => Promise<void>;
 }) {
+    useAppLocale();
     const { signal } = useWorkspace(),
         a = useAction(),
         [role, setRole] = useState(member.role),
@@ -428,12 +476,12 @@ function MemberRow({
         <li data-testid={`member-${member.email}`}>
             <p>
                 {member.displayName} · {member.email} · {member.role} · {member.status}
-                {member.userDisabled ? " · Account disabled" : ""}
+                {member.userDisabled ? tx(" · Account disabled") : ""}
             </p>
             {editable && (
                 <>
                     <label>
-                        Role
+                        {tx("Role")}
                         <select
                             data-testid="member-role"
                             value={role}
@@ -447,7 +495,7 @@ function MemberRow({
                         </select>
                     </label>
                     <label>
-                        Membership
+                        {tx("Membership")}
                         <select
                             data-testid="member-status"
                             value={status}
@@ -473,7 +521,7 @@ function MemberRow({
                             })
                         }
                     >
-                        Save member
+                        {tx("Save member")}
                     </button>
                     <button
                         type="button"
@@ -485,7 +533,7 @@ function MemberRow({
                             })
                         }
                     >
-                        Remove member
+                        {tx("Remove member")}
                     </button>
                 </>
             )}
@@ -499,6 +547,7 @@ function MemberRow({
  * 不依赖 WorkspaceProvider 的 selected；接受后用户才获得该空间成员资格。
  */
 export function AcceptInvitation() {
+    useAppLocale();
     const { user, refresh } = useContext(Auth),
         a = useAction();
     const [token] = useState(() => {
@@ -509,21 +558,22 @@ export function AcceptInvitation() {
     const [newAccount, setNewAccount] = useState(false),
         [accepted, setAccepted] = useState(false);
     return (
-        <Panel title="Accept Workspace invitation">
+        <Panel title={tx("Accept Workspace invitation")}>
             {!token ? (
                 <Notice error="Invitation link is missing its token. Ask for a new link." />
             ) : accepted ? (
                 <p role="status">
-                    Invitation accepted.{" "}
+                    {tx("Invitation accepted.")}{" "}
                     {user
-                        ? "Open Workspaces to view your membership."
-                        : "Sign in with your account to open the Workspace."}
+                        ? tx("Open Workspaces to view your membership.")
+                        : tx("Sign in with your account to open the Workspace.")}
                 </p>
             ) : (
                 <>
                     <p>
-                        Existing accounts must sign in as the invited identity. Invitations never
-                        change an existing account password.
+                        {tx(
+                            "Existing accounts must sign in as the invited identity. Invitations never change an existing account password.",
+                        )}
                     </p>
                     <label className="check">
                         <input
@@ -532,7 +582,7 @@ export function AcceptInvitation() {
                             checked={newAccount}
                             onChange={(e) => setNewAccount(e.target.checked)}
                         />
-                        Create a new account
+                        {tx("Create a new account")}
                     </label>
                     <form
                         onSubmit={(e) => {
@@ -557,28 +607,36 @@ export function AcceptInvitation() {
                     >
                         {newAccount ? (
                             <>
-                                <Field name="displayName" label="Display name" />
+                                <Field name="displayName" label={tx("Display name")} />
                                 <Field
                                     name="password"
-                                    label="New password (at least 12 characters)"
+                                    label={tx("New password (at least 12 characters)")}
                                     type="password"
                                     minLength={12}
                                 />
                             </>
                         ) : user ? (
-                            <p>Accept as {user.email}. Sign out first to use another account.</p>
+                            <p>
+                                {tx("Accept as ")}
+                                {user.email}
+                                {tx(". Sign out first to use another account.")}
+                            </p>
                         ) : (
                             <>
-                                <Field name="email" label="Invited account email" type="email" />
+                                <Field
+                                    name="email"
+                                    label={tx("Invited account email")}
+                                    type="email"
+                                />
                                 <Field
                                     name="password"
-                                    label="Current account password"
+                                    label={tx("Current account password")}
                                     type="password"
                                 />
                             </>
                         )}
                         <button type="submit" data-testid="invite-accept" disabled={a.busy}>
-                            Accept invitation
+                            {tx("Accept invitation")}
                         </button>
                     </form>
                 </>

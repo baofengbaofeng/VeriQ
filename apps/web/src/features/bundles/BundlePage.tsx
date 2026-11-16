@@ -3,6 +3,7 @@
  * 使用 CloudBundleAdapter(selected)；未登录 Navigate 到 /login。
  */
 
+import { tx, useAppLocale } from "../../locale";
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useInfiniteQuery } from "@tanstack/react-query";
@@ -17,6 +18,7 @@ import { CloudBundleAdapter, type BundleAdapter } from "./adapters";
  * 自身不持有导出表单状态，避免与空间切换竞态。
  */
 export function BundlePage() {
+    useAppLocale();
     const { user } = useContext(Auth),
         { selected, select, signal } = useWorkspace();
     const workspaces = useInfiniteQuery({
@@ -36,11 +38,11 @@ export function BundlePage() {
     if (!user) return <Navigate to="/login" />;
     const workspace = items.find((w) => w.id === selected);
     return (
-        <Panel title="离线包 / Offline bundles">
+        <Panel title={tx("离线包 / Offline bundles")}>
             <label>
-                空间 / Workspace
+                {tx("空间 / Workspace")}
                 <select
-                    aria-label="Bundle Workspace"
+                    aria-label={tx("Bundle Workspace")}
                     value={selected}
                     onChange={(e) => select(e.target.value)}
                 >
@@ -54,7 +56,7 @@ export function BundlePage() {
             {workspaces.error && <p role="alert">{workspaces.error.message}</p>}
             {workspaces.hasNextPage && (
                 <button type="button" onClick={() => void workspaces.fetchNextPage()}>
-                    更多空间 / More Workspaces
+                    {tx("更多空间 / More Workspaces")}
                 </button>
             )}
             {workspace && (
@@ -87,6 +89,7 @@ export function BundleWorkspaceView({
     canDownload: boolean;
     canEdit: boolean;
 }) {
+    useAppLocale();
     const resources = useMemo(() => new CloudResourceAdapter(workspaceId), [workspaceId]);
     const [kind, setKind] = useState<"CASE" | "SUITE" | "DRAFT">("CASE"),
         [resource, setResource] = useState(""),
@@ -213,16 +216,16 @@ export function BundleWorkspaceView({
     return (
         <section data-testid="bundle-workspace">
             <p>
-                签名用于来源与完整性校验。本地运行使用本机凭证，离线撤销状态未知。 / Signatures
-                verify source and integrity. Local runs use local credentials; offline revocation
-                status is unknown.
+                {tx(
+                    "签名用于来源与完整性校验。本地运行使用本机凭证，离线撤销状态未知。 / Signatures verify source and integrity. Local runs use local credentials; offline revocation status is unknown.",
+                )}
             </p>
             {!canDownload ? (
-                <p role="status">需要下载权限 / Download permission required</p>
+                <p role="status">{tx("需要下载权限 / Download permission required")}</p>
             ) : (
                 <>
                     <label>
-                        选择类型 / Selection
+                        {tx("选择类型 / Selection")}
                         <select
                             data-testid="bundle-kind"
                             value={kind}
@@ -232,13 +235,15 @@ export function BundleWorkspaceView({
                                 setVersion("");
                             }}
                         >
-                            <option value="CASE">用例 / Case</option>
-                            <option value="SUITE">套件 / Suite</option>
-                            {canEdit && <option value="DRAFT">草稿调试 / Draft DEBUG</option>}
+                            <option value="CASE">{tx("用例 / Case")}</option>
+                            <option value="SUITE">{tx("套件 / Suite")}</option>
+                            {canEdit && (
+                                <option value="DRAFT">{tx("草稿调试 / Draft DEBUG")}</option>
+                            )}
                         </select>
                     </label>
                     <label>
-                        资源 / Resource
+                        {tx("资源 / Resource")}
                         <select
                             data-testid="bundle-resource"
                             value={resource}
@@ -247,7 +252,7 @@ export function BundleWorkspaceView({
                                 setVersion("");
                             }}
                         >
-                            <option value="">请选择 / Select</option>
+                            <option value="">{tx("请选择 / Select")}</option>
                             {resourceOptions(
                                 items.filter((r) =>
                                     kind === "DRAFT"
@@ -259,7 +264,7 @@ export function BundleWorkspaceView({
                     </label>
                     {kind !== "DRAFT" && (
                         <label>
-                            不可变版本 / Published version
+                            {tx("不可变版本 / Published version")}
                             <select
                                 data-testid="bundle-version"
                                 multiple={kind === "CASE"}
@@ -277,7 +282,7 @@ export function BundleWorkspaceView({
                                     )
                                 }
                             >
-                                <option value="">请选择 / Select</option>
+                                <option value="">{tx("请选择 / Select")}</option>
                                 {versionOptions(versions.data?.pages.flatMap((p) => p.items) ?? [])}
                             </select>
                         </label>
@@ -289,7 +294,7 @@ export function BundleWorkspaceView({
                             disabled={versions.isFetchingNextPage}
                             onClick={() => void versions.fetchNextPage()}
                         >
-                            更多版本 / More versions
+                            {tx("更多版本 / More versions")}
                         </button>
                     )}
                     {kind === "CASE" && (
@@ -322,16 +327,19 @@ export function BundleWorkspaceView({
                                     setVersion("");
                                 }}
                             >
-                                添加用例 / Add case versions
+                                {tx("添加用例 / Add case versions")}
                             </button>
-                            <ul aria-label="Selected case versions">
+                            <ul aria-label={tx("Selected case versions")}>
                                 {basket.map((item) => (
                                     <li key={item.version.id} data-testid="bundle-selected-case">
                                         {item.resource.name} · v{item.version.versionNo} ·{" "}
                                         {item.version.id}
                                         <button
                                             type="button"
-                                            aria-label={`Remove ${item.resource.name} v${item.version.versionNo}`}
+                                            aria-label={tx("Remove {{value0}} v{{value1}}", {
+                                                value0: item.resource.name,
+                                                value1: item.version.versionNo,
+                                            })}
                                             onClick={() =>
                                                 setBasket((current) =>
                                                     current.filter(
@@ -340,7 +348,7 @@ export function BundleWorkspaceView({
                                                 )
                                             }
                                         >
-                                            移除 / Remove
+                                            {tx("移除 / Remove")}
                                         </button>
                                     </li>
                                 ))}
@@ -348,7 +356,7 @@ export function BundleWorkspaceView({
                         </>
                     )}
                     <label>
-                        环境 / Environment
+                        {tx("环境 / Environment")}
                         <select
                             data-testid="bundle-environment"
                             value={environment}
@@ -357,18 +365,18 @@ export function BundleWorkspaceView({
                                 setEnvironmentVersion("");
                             }}
                         >
-                            <option value="">请选择 / Select</option>
+                            <option value="">{tx("请选择 / Select")}</option>
                             {resourceOptions(items.filter((r) => r.kind === "ENVIRONMENT"))}
                         </select>
                     </label>
                     <label>
-                        环境版本 / Environment version
+                        {tx("环境版本 / Environment version")}
                         <select
                             data-testid="bundle-environment-version"
                             value={environmentVersion}
                             onChange={(e) => setEnvironmentVersion(e.target.value)}
                         >
-                            <option value="">请选择 / Select</option>
+                            <option value="">{tx("请选择 / Select")}</option>
                             {versionOptions(environments.data?.pages.flatMap((p) => p.items) ?? [])}
                         </select>
                     </label>
@@ -379,13 +387,14 @@ export function BundleWorkspaceView({
                             disabled={environments.isFetchingNextPage}
                             onClick={() => void environments.fetchNextPage()}
                         >
-                            更多环境版本 / More environment versions
+                            {tx("更多环境版本 / More environment versions")}
                         </button>
                     )}
                     {kind === "DRAFT" && (
                         <p>
-                            未验证 DSL 快照；本地必须先编译，不用于正式门禁。 / Unvalidated DSL
-                            snapshot; local compilation required, excluded from formal gates.
+                            {tx(
+                                "未验证 DSL 快照；本地必须先编译，不用于正式门禁。 / Unvalidated DSL snapshot; local compilation required, excluded from formal gates.",
+                            )}
                         </p>
                     )}
                     <button
@@ -400,14 +409,14 @@ export function BundleWorkspaceView({
                         }
                         onClick={() => void exportBundle()}
                     >
-                        导出签名包 / Export signed bundle
+                        {tx("导出签名包 / Export signed bundle")}
                     </button>
                     {list.hasNextPage && (
                         <button type="button" onClick={() => void list.fetchNextPage()}>
-                            更多资源 / More resources
+                            {tx("更多资源 / More resources")}
                         </button>
                     )}
-                    <h2>已导出 / Exports</h2>
+                    <h2>{tx("已导出 / Exports")}</h2>
                     {(bundles.data?.pages.flatMap((p) => p.items) ?? []).map((b) => (
                         <article key={b.id} data-testid="bundle-item">
                             <p>
@@ -419,16 +428,16 @@ export function BundleWorkspaceView({
                                 data-testid="bundle-download"
                                 onClick={() => void download(b.id)}
                             >
-                                下载 / Download
+                                {tx("下载 / Download")}
                             </button>
                         </article>
                     ))}
                     {bundles.data && !bundles.data.pages.some((p) => p.items.length) && (
-                        <p>暂无离线包 / No bundles</p>
+                        <p>{tx("暂无离线包 / No bundles")}</p>
                     )}
                     {bundles.hasNextPage && (
                         <button type="button" onClick={() => void bundles.fetchNextPage()}>
-                            更多离线包 / More bundles
+                            {tx("更多离线包 / More bundles")}
                         </button>
                     )}
                 </>
@@ -442,7 +451,7 @@ export function BundleWorkspaceView({
                         bundles.error?.message}
                 </p>
             )}
-            {busy && <p role="status">处理中 / Working…</p>}
+            {busy && <p role="status">{tx("处理中 / Working…")}</p>}
             {status && <p role="status">{status}</p>}
         </section>
     );

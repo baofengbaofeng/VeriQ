@@ -25,18 +25,14 @@ test("real Workspace selection, invitation acceptance and member permissions", a
         ).toBe(201);
     }
     await page.goto("/login");
-    await expect(
-        page.getByRole("heading", { name: "Sign in to VeriQ" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
     await page.getByTestId("email").fill("browser-admin@example.com");
     await page.getByTestId("password").fill("Browser password 123!");
     await page.getByTestId("login-submit").click();
     await expect(page.getByTestId("account-info")).toBeVisible();
     // Keep unrelated state present: this test's empty state belongs to a new actor,
     // independently of other feature suites that already created Workspaces.
-    const setupSession = (
-        await (await page.request.get("/api/v1/auth/session")).json()
-    ).data;
+    const setupSession = (await (await page.request.get("/api/v1/auth/session")).json()).data;
     const setupHeaders = {
         Origin: "http://127.0.0.1:5173",
         "X-CSRF-Token": setupSession.csrfToken,
@@ -64,34 +60,22 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     await page.getByTestId("email").fill("workspace-operator@example.com");
     await page.getByTestId("password").fill("Workspace operator password 123!");
     await page.getByTestId("login-submit").click();
-    await expect(page.getByTestId("account-info")).toContainText(
-        "Workspace test operator",
-    );
-    expect(
-        (await page.request.get("/api/v1/workspaces/" + unrelatedId)).status(),
-    ).toBe(403);
+    await expect(page.getByTestId("account-info")).toContainText("Workspace test operator");
+    expect((await page.request.get("/api/v1/workspaces/" + unrelatedId)).status()).toBe(403);
     await page.getByRole("link", { name: "Workspaces", exact: true }).click();
-    await expect(
-        page.getByText("No Workspaces yet.", { exact: true }),
-    ).toBeVisible();
+    await expect(page.getByText("No Workspaces yet.", { exact: true })).toBeVisible();
     await page.getByTestId("workspace-key").fill("browser-alpha");
     await page.getByTestId("workspace-name").fill("Browser Alpha");
     await page.getByTestId("workspace-create").click();
-    await expect(page.getByTestId("workspace-detail")).toContainText(
-        "Browser Alpha",
-    );
+    await expect(page.getByTestId("workspace-detail")).toContainText("Browser Alpha");
     const alpha = await page.getByTestId("workspace-selector").inputValue();
     await page.getByTestId("workspace-key").fill("browser-beta");
     await page.getByTestId("workspace-name").fill("Browser Beta");
     await page.getByTestId("workspace-create").click();
-    await expect(page.getByTestId("workspace-detail")).toContainText(
-        "Browser Beta",
-    );
+    await expect(page.getByTestId("workspace-detail")).toContainText("Browser Beta");
     const beta = await page.getByTestId("workspace-selector").inputValue();
     await page.getByTestId("workspace-selector").selectOption(alpha);
-    await expect(page.getByTestId("workspace-detail")).toContainText(
-        "Browser Alpha",
-    );
+    await expect(page.getByTestId("workspace-detail")).toContainText("Browser Alpha");
     await page.getByTestId("invite-email").fill("workspace-viewer@example.com");
     await page.getByTestId("invite-role").selectOption("VIEWER");
     await page.getByTestId("invite-create").click();
@@ -109,17 +93,13 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     await viewer.getByTestId("invite-accept").click();
     await expect(viewer.getByRole("status")).toContainText("Invitation accepted");
     await viewer.goto("/login");
-    await expect(
-        viewer.getByRole("heading", { name: "Sign in to VeriQ" }),
-    ).toBeVisible();
+    await expect(viewer.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
     await viewer.getByTestId("email").fill("workspace-viewer@example.com");
     await viewer.getByTestId("password").fill("Viewer password 123!");
     await viewer.getByTestId("login-submit").click();
     await expect(viewer.getByTestId("account-info")).toBeVisible();
     await viewer.getByRole("link", { name: "Workspaces", exact: true }).click();
-    await expect(viewer.getByTestId("workspace-detail")).toContainText(
-        "Browser Alpha",
-    );
+    await expect(viewer.getByTestId("workspace-detail")).toContainText("Browser Alpha");
     await expect(viewer.getByTestId("workspace-detail")).toContainText("VIEWER");
     await expect(viewer.getByTestId("invite-create")).toHaveCount(0);
     await expect(viewer.getByTestId("workspace-rename")).toHaveCount(0);
@@ -154,8 +134,7 @@ test("real Workspace selection, invitation acceptance and member permissions", a
         await response.dispose();
     });
     const abortedOld = page.waitForEvent("requestfailed", {
-        predicate: (request) =>
-            request.url().endsWith(`/workspaces/${alpha}/members`),
+        predicate: (request) => request.url().endsWith(`/workspaces/${alpha}/members`),
     });
     await page.getByTestId("workspace-refresh").click();
     await oldReceived;
@@ -163,13 +142,10 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     expect((await abortedOld).failure()?.errorText).toContain("ERR_ABORTED");
     releaseOld();
     await page.unroute(oldPath);
-    await expect(page.getByTestId("workspace-detail")).toContainText(
-        "Browser Beta",
-    );
+    await expect(page.getByTestId("workspace-detail")).toContainText("Browser Beta");
     await expect(member).toHaveCount(0);
     // Existing accounts sign in inline; the token stays in component memory.
-    const csrf = (await (await page.request.get("/api/v1/auth/session")).json())
-        .data.csrfToken;
+    const csrf = (await (await page.request.get("/api/v1/auth/session")).json()).data.csrfToken;
     expect(
         (
             await page.request.post("/api/v1/admin/users", {
@@ -185,9 +161,7 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     ).toBe(201);
     await page.getByTestId("invite-email").fill("existing-workspace@example.com");
     await page.getByTestId("invite-create").click();
-    const existingInvitation = await page
-        .getByTestId("invitation-url")
-        .inputValue();
+    const existingInvitation = await page.getByTestId("invitation-url").inputValue();
     const existingContext = await browser.newContext();
     const existingPage = await existingContext.newPage();
     await existingPage.goto(existingInvitation);
@@ -195,14 +169,10 @@ test("real Workspace selection, invitation acceptance and member permissions", a
         existingPage.getByRole("heading", { name: "Accept Workspace invitation" }),
     ).toBeVisible();
     expect(new URL(existingPage.url()).hash).toBe("");
-    await existingPage
-        .getByTestId("email")
-        .fill("existing-workspace@example.com");
+    await existingPage.getByTestId("email").fill("existing-workspace@example.com");
     await existingPage.getByTestId("password").fill("Existing password 123!");
     await existingPage.getByTestId("invite-accept").click();
-    await expect(existingPage.getByRole("status")).toContainText(
-        "Invitation accepted",
-    );
+    await expect(existingPage.getByRole("status")).toContainText("Invitation accepted");
     await existingContext.close();
     await page.getByTestId("workspace-archive").click();
     await expect(page.getByTestId("workspace-detail")).toContainText("Archived");
@@ -212,23 +182,15 @@ test("real Workspace selection, invitation acceptance and member permissions", a
         fullPage: true,
     });
     await page.getByTestId("logout").click();
-    await expect(
-        page.getByRole("heading", { name: "Sign in to VeriQ" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
     await page.getByTestId("email").fill("workspace-viewer@example.com");
     await page.getByTestId("password").fill("Viewer password 123!");
     await page.getByTestId("login-submit").click();
-    await expect(page.getByTestId("account-info")).toContainText(
-        "Workspace Viewer",
-    );
+    await expect(page.getByTestId("account-info")).toContainText("Workspace Viewer");
     await page.getByRole("link", { name: "Workspaces", exact: true }).click();
-    await expect(page.getByTestId("workspace-detail")).toContainText(
-        "Browser Alpha",
-    );
+    await expect(page.getByTestId("workspace-detail")).toContainText("Browser Alpha");
     await expect(
-        page
-            .getByTestId("workspace-selector")
-            .getByRole("option", { name: /Browser Beta/ }),
+        page.getByTestId("workspace-selector").getByRole("option", { name: /Browser Beta/ }),
     ).toHaveCount(0);
     await viewerContext.close();
 });

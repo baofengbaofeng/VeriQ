@@ -171,6 +171,8 @@ class ReportService:
             ).scalars()
         )
         attempts = [a for a in await self.attempts(scope, run_id) if isinstance(a, Attempt)]
+        if any(case.provenance.get("metadataExpiredAt") for case in cases) or any(attempt.facts.get("metadataExpiredAt") for attempt in attempts):
+            raise Problem(410, "REPORT_EXPIRED", "Report metadata retention has expired")
         if len(cases) > 1000 or len(attempts) > 2000:
             raise Problem(409, "REPORT_LIMIT", "Run exceeds the admitted report bound")
         jobs = list(
@@ -287,6 +289,8 @@ class ReportService:
         attempt = await self.session.get(Attempt, attempt_id)
         if not attempt or attempt.workspace_id != scope.workspace_id:
             raise Problem(404, "ATTEMPT_NOT_FOUND", "Attempt not found")
+        if attempt.facts.get("metadataExpiredAt"):
+            raise Problem(410, "REPORT_EXPIRED", "Report metadata retention has expired")
         return attempt
 
     async def secrets(self, attempt: Attempt) -> tuple[set[str], bool]:
@@ -352,6 +356,8 @@ class ReportService:
         offline = await self.session.get(OfflineAttempt, attempt_id)
         if offline and offline.workspace_id == scope.workspace_id:
             await WorkspaceRepository(self.session, scope).authorize(self.employee())
+            if offline.facts.get("metadataExpiredAt"):
+                raise Problem(410, "REPORT_EXPIRED", "Report metadata retention has expired")
             rows = offline.document["events"][after : after + limit + 1]
             offline_items: list[dict[str, Any]] = []
             total = 0
@@ -451,6 +457,8 @@ class ReportService:
         offline = await self.session.get(OfflineAttempt, attempt_id)
         if offline and offline.workspace_id == scope.workspace_id:
             await WorkspaceRepository(self.session, scope).authorize(self.employee())
+            if offline.facts.get("metadataExpiredAt"):
+                raise Problem(410, "REPORT_EXPIRED", "Report metadata retention has expired")
             imported = await self.session.get(OfflineImport, offline.import_id)
             assert imported is not None
             offline_rows = (
@@ -553,6 +561,8 @@ class ReportService:
             imported = await self.session.get(OfflineImport, offline.import_id)
             if not imported or imported.run_id != run_id:
                 raise Problem(404, "ATTEMPT_NOT_FOUND", "Attempt not found in Run")
+            if offline.facts.get("metadataExpiredAt"):
+                raise Problem(410, "REPORT_EXPIRED", "Report metadata retention has expired")
             environment = imported.declared["actualEnvironment"]
             return {
                 "display": None,
@@ -669,6 +679,8 @@ class ReportService:
                 )
             ).scalars()
         )
+        if any(case.provenance.get("metadataExpiredAt") for case in cases) or any(attempt.facts.get("metadataExpiredAt") for attempt in attempts):
+            raise Problem(410, "REPORT_EXPIRED", "Report metadata retention has expired")
         blocked = {"passed": False, "reasons": ["OFFLINE_IMPORT", "RESULT_AUTHENTICITY_UNVERIFIED"]}
         projected = []
         for case in cases:
