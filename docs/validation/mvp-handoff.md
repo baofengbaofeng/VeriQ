@@ -14,6 +14,7 @@
 
 | ID | 任务 | 当前状态 | 详细交接 |
 | --- | --- | --- | --- |
+| V00 | 公共契约、新维护操作、运维指标与派生类型 | 仅源码生成，未执行验证 | [契约](tasks/V00-contracts.md) |
 | V01 | Web 类型、lint、真实 GUI、作用域和会话传输 | 未执行本轮代码验证 | [Web](tasks/V01-web.md) |
 | V02 | MySQL、部署、readiness、指标、保留期与恢复 | 未执行本轮代码验证 | [运维](tasks/V02-operations.md) |
 | V03 | macOS 15+ Intel / ARM、Windows 11 x64、Ubuntu 24.04 x64 桌面安装 | 未执行；Mac 两架构最高优先级 | [桌面](tasks/V03-desktop.md) |
