@@ -1,44 +1,44 @@
-# TS/JS Style Guide
+# TypeScript and JavaScript coding standard
 
-## Introduction
+## 引言
 
-### Terminology notes
+### 术语说明
 
-This Style Guide uses RFC 2119 terminology when using the phrases must, must not, should, should not, and may. The terms prefer and avoid correspond to should and should not, respectively. Imperative and declarative statements are prescriptive and correspond to must.
+本风格指南在使用 must、must not、should、should not 和 may 时采用 RFC 2119 的术语。prefer 和 avoid 分别对应 should 和 should not。祈使句和陈述句是规定性的，对应 must。
 
-### Guide notes
+### 指南说明
 
-All examples given are non-normative and serve only to illustrate the normative language of the style guide. That is, while the examples are in Google Style, they may not illustrate the only stylish way to represent the code. Optional formatting choices made in examples must not be enforced as rules.
-
-
-## VeriQ formatting rules
-
-These rules are normative and override the Google wording where they differ.
-
-- Indent blocks with 4 spaces. Never use a tab. Nested blocks add 4 spaces. A continuation may align with the opening delimiter, or use a hanging indent of 4 spaces from the start of the statement.
-- Code lines are at most 120 characters, matching Prettier `printWidth` 120.
-- Ordinary string literals use double quotes, matching Prettier `singleQuote: false`. See the string-literal section.
-- Comments and JSDoc are written in Chinese. The first line of a comment block has at least 40 characters. Each comment line has at most 80 characters; wrap the rest.
-- The product name VeriQ and technical identifiers may stay as written inside a Chinese comment.
+所给示例都不是规范性的，只用来说明风格指南的规范性文字。也就是说，虽然示例采用 Google 风格，它们未必展示了表示这段代码的唯一得体方式。示例中的可选格式选择不得被当作规则强制执行。
 
 
-## Source file basics
+## VeriQ 格式规则
 
-### File encoding: UTF-8
+这些规则是规范性的，与 Google 原文不一致时以这里为准。
 
-Source files are encoded in UTF-8.
+- 块使用 4 个空格缩进。禁止使用 Tab。嵌套块每层增加 4 个空格。续行可以与开分隔符对齐，或相对语句起点悬挂缩进 4 个空格。
+- 代码行最多 120 个字符，与 Prettier 的 `printWidth` 120 一致。
+- 普通字符串字面量使用双引号，与 Prettier 的 `singleQuote: false` 一致。见字符串字面量一节。
+- 注释和 JSDoc 使用中文。注释块的第一行至少 40 个字符。每一行注释最多 80 个字符，超出部分换行。
+- 产品名 VeriQ 和技术标识可以在中文注释里保持原文。
 
-#### Whitespace characters
 
-Aside from the line terminator sequence, the ASCII horizontal space character (0x20) is the only whitespace character that appears anywhere in a source file. This implies that all other whitespace characters in string literals are escaped.
+## 源文件基础
 
-#### Special escape sequences
+### 文件编码：UTF-8
 
-For any character that has a special escape sequence (`\'`, `\"`, `\\ `, `\b`, `\f`, `\n`, `\r`, `\t`, `\v`), that sequence is used rather than the corresponding numeric escape (e.g `\x0a`, `\u000a`, or `\u{a}`). Legacy octal escapes are never used.
+源文件使用 UTF-8 编码。
 
-#### Non-ASCII characters
+#### 空白字符
 
-For the remaining non-ASCII characters, use the actual Unicode character (e.g. `∞`). For non-printable characters, the equivalent hex or Unicode escapes (e.g. `\u221e`) can be used along with an explanatory comment.
+除行终止序列外，ASCII 水平空格字符（0x20）是源文件中唯一出现的空白字符。这意味着字符串字面量中的所有其他空白字符都要转义。
+
+#### 特殊转义序列
+
+对任何有特殊转义序列的字符（`\'`、`\"`、`\\ `、`\b`、`\f`、`\n`、`\r`、`\t`、`\v`），使用该序列，而不是对应的数字转义（例如 `\x0a`、`\u000a` 或 `\u{a}`）。绝不使用旧式八进制转义。
+
+#### 非 ASCII 字符
+
+对其余非 ASCII 字符，使用实际的 Unicode 字符（例如 `∞`）。对不可打印字符，可以使用等价的十六进制或 Unicode 转义（例如 `\u221e`），并附上说明性注释。
 
 ```
 // 直接写出微秒符号 μs，读者不用对照转义表，这种可打印字符不必再额外加注释，本例就是这样。
@@ -58,26 +58,26 @@ const output = "\ufeff" + content;
 
 ```
 
-## Source file structure
+## 源文件结构
 
-Files consist of the following, in order:
+文件按下列顺序组成：
 
-1. Copyright information, if present
-2. JSDoc with `@fileoverview` and/or other file-level JSDoc tags if present.
-3. Imports, if present
-4. The file’s implementation
+1. 版权信息，如果有
+2. 带 `@fileoverview` 和/或其他文件级 JSDoc 标签的 JSDoc，如果有
+3. 导入，如果有
+4. 文件的实现
 
-Exactly one blank line separates each section that is present.
+每个存在的节之间恰好空一行。
 
-### Copyright information
+### 版权信息
 
-If license or copyright information is necessary in a file, add it in a JSDoc at the top of the file.
+如果文件需要许可证或版权信息，把它加在文件顶部的 JSDoc 里。
 
 ### `@fileoverview` JSDoc
 
-A file may have a top-level `@fileoverview` JSDoc. If present, it may provide a description of the file’s content, its uses, or information about its dependencies. Wrapped lines are not indented.
+文件可以有顶层的 `@fileoverview` JSDoc。如果有，它可以描述文件内容、用途，或关于其依赖的信息。换行后的行不要缩进。
 
-Example:
+示例：
 
 ```
 /**
@@ -88,16 +88,16 @@ Example:
 
 ```
 
-### Imports
+### 导入
 
-There are four variants of import statements in ES6 and TypeScript:
+ES6 和 TypeScript 中有四种导入语句：
 
-| Import type | Example | Use for |
+| 导入类型 | 示例 | 用于 |
 | --- | --- | --- |
-| module 1 | `import * as foo from '...';` | TypeScript imports |
-| named 2 | `import {SomeThing} from '...';` | TypeScript imports |
-| default | `import SomeThing from '...';` | Only for other external code that requires them |
-| side-effect | `import '...';` | Only to import libraries for their side-effects on load (such as custom elements) |
+| 模块 1 | `import * as foo from "...";` | TypeScript 导入 |
+| 具名 2 | `import {SomeThing} from "...";` | TypeScript 导入 |
+| 默认 | `import SomeThing from "...";` | 仅用于其他要求默认导入的外部代码 |
+| 副作用 | `import "...";` | 仅用于导入加载时产生副作用的库（例如自定义元素） |
 
 ```
 // 正例在命名空间导入和具名导入之间按使用频率选择，而不是两种写法混在同一段依赖里。
@@ -113,13 +113,13 @@ import "@polymer/paper-button";
 
 ```
 
-#### Import paths
+#### 导入路径
 
-TypeScript code must use paths to import other TypeScript code. Paths may be relative, i.e. starting with `.` or `..`, or rooted at the base directory, e.g. `root/path/to/file`.
+TypeScript 代码必须使用路径来导入其他 TypeScript 代码。路径可以是相对的，即以 `.` 或 `..` 开头，也可以根植于基目录，例如 `root/path/to/file`。
 
-Code should use relative imports (`./foo`) rather than absolute imports `path/to/foo` when referring to files within the same (logical) project as this allows to move the project around without introducing changes in these imports.
+引用同一（逻辑）项目内的文件时，代码应使用相对导入（`./foo`），而不是绝对导入 `path/to/foo`，因为这样移动项目时不必改这些导入。
 
-Consider limiting the number of parent steps (`../../../`) as those can make module and path structures hard to understand.
+考虑限制父级步数（`../../../`），因为它们会让模块和路径结构难以理解。
 
 ```
 import {Symbol1} from "path/from/root";
@@ -128,13 +128,13 @@ import {Symbol3} from "./sibling";
 
 ```
 
-#### Namespace versus named imports
+#### 命名空间导入与具名导入
 
-Both namespace and named imports can be used.
+命名空间导入和具名导入都可以使用。
 
-Prefer named imports for symbols used frequently in a file or for symbols that have clear names, for example Jasmine’s `describe` and `it`. Named imports can be aliased to clearer names as needed with `as`.
+对文件中频繁使用的符号，或名字清楚的符号，优先使用具名导入，例如 Jasmine 的 `describe` 和 `it`。需要时可以用 `as` 把具名导入改成更清楚的名字。
 
-Prefer namespace imports when using many different symbols from large APIs. A namespace import, despite using the `*` character, is not comparable to a “wildcard” import as seen in other languages. Instead, namespace imports give a name to all the exports of a module, and each exported symbol from the module becomes a property on the module name. Namespace imports can aid readability for exported symbols that have common names like `Model` or `Controller` without the need to declare aliases.
+从大型 API 使用许多不同符号时，优先使用命名空间导入。命名空间导入虽然使用 `*` 字符，但并不能与其他语言中的“通配”导入相比。命名空间导入给模块的全部导出起一个名字，模块的每个导出符号都成为该模块名上的一个属性。对 `Model` 或 `Controller` 这类常见名字的导出符号，命名空间导入可以提高可读性，而不必声明别名。
 
 ```
 // 反例把同一模块的符号逐个改名，导入行被别名撑得很长，模块名本身就可以充当命名空间。
@@ -179,11 +179,11 @@ describe("foo", () => {
 
 ```
 
-##### Special case: Apps JSPB protos
+##### 特例：Apps JSPB proto
 
-Apps JSPB protos must use named imports, even when it leads to long import lines.
+Apps JSPB proto 必须使用具名导入，即使这会导致很长的导入行。
 
-This rule exists to aid in build performance and dead code elimination since often `.proto` files contain many `message` s that are not all needed together. By leveraging destructured imports the build system can create finer grained dependencies on Apps JSPB messages while preserving the ergonomics of path based imports.
+这条规则是为了帮助构建性能和死代码消除，因为 `.proto` 文件常常包含许多并不一起需要的 `message`。利用解构导入，构建系统可以在保持基于路径的导入手感的同时，对 Apps JSPB 消息建立更细粒度的依赖。
 
 ```
 // 从 proto 文件只导入这次用到的消息，构建才能按消息裁剪，而不是把整份 proto 拉进来。
@@ -193,19 +193,19 @@ function copyFooBar(foo: Foo, bar: Bar) {...}
 
 ```
 
-#### Renaming imports
+#### 重命名导入
 
-Code should fix name collisions by using a namespace import or renaming the exports themselves. Code may rename imports (`import {SomeThing as SomeOtherThing}`) if needed.
+代码应通过命名空间导入或重命名导出本身来解决名字冲突。需要时可以重命名导入（`import {SomeThing as SomeOtherThing}`）。
 
-Three examples where renaming can be helpful:
+重命名有帮助的三个例子：
 
-1. If it’s necessary to avoid collisions with other imported symbols.
-2. If the imported symbol name is generated.
-3. If importing symbols whose names are unclear by themselves, renaming can improve code clarity. For example, when using RxJS the `from` function might be more readable when renamed to `observableFrom`.
+1. 必须避免与其他导入符号冲突时。
+2. 导入的符号名是生成的。
+3. 如果导入的符号本身名字不清楚，重命名可以提高代码清晰度。例如使用 RxJS 时，把 `from` 函数重命名为 `observableFrom` 可能更可读。
 
-### Exports
+### 导出
 
-Use named exports in all code:
+所有代码都使用具名导出：
 
 ```
 // 模块使用具名导出，导入方必须写出同一个名字，重命名不会悄悄指向另一份实现，本例就是这样。
@@ -213,7 +213,7 @@ export class Foo { ... }
 
 ```
 
-Do not use default exports. This ensures that all imports follow a uniform pattern.
+不要使用默认导出。这样可以确保所有导入遵循同一种模式。
 
 ```
 // 不要使用默认导出。默认导出名由导入方随意起，重构时无法靠名字找到全部调用点，本例就是这样。
@@ -222,9 +222,9 @@ export default class Foo { ... }
 
 ```
 
-Why?
+为什么？
 
-Default exports provide no canonical name, which makes central maintenance difficult with relatively little benefit to code owners, including potentially decreased readability:
+默认导出不提供规范名字，这使集中维护变得困难，而对代码所有者的好处相对很少，还可能降低可读性：
 
 ```
 import Foo from "./bar";  // 默认导出允许导入方自选本地名，两个不同的名字可以指向同一个模块里的同一个类，本例就是这样。
@@ -232,7 +232,7 @@ import Bar from "./bar";  // 另一个导入方把同一默认导出叫成别的
 
 ```
 
-Named exports have the benefit of erroring when import statements try to import something that hasn’t been declared. In `foo.ts`:
+具名导出的好处是：导入语句试图导入尚未声明的东西时会报错。在 `foo.ts` 中：
 
 ```
 const foo = "blah";
@@ -240,23 +240,23 @@ export default foo;
 
 ```
 
-And in `bar.ts`:
+而在 `bar.ts` 中：
 
 ```
 import {fizz} from "./foo";
 
 ```
 
-Results in `error TS2614: Module '"./foo"' has no exported member 'fizz'.` While `bar.ts`:
+得到 `error TS2614: Module "./foo" has no exported member 'fizz'.` 而 `bar.ts`：
 
 ```
 import fizz from "./foo";
 
 ```
 
-Results in `fizz === foo`, which is probably unexpected and difficult to debug.
+得到 `fizz === foo`，这可能出人意料，也难以调试。
 
-Additionally, default exports encourage people to put everything into one big object to namespace it all together:
+此外，默认导出鼓励人们把一切放进一个大对象里，以便一起做命名空间：
 
 ```
 export default class Foo {
@@ -267,9 +267,9 @@ export default class Foo {
 
 ```
 
-With the above pattern, we have file scope, which can be used as a namespace. We also have a perhaps needless second scope (the class `Foo`) that can be ambiguously used as both a type and a value in other files.
+按上面的模式，我们有文件作用域，它可以用作命名空间。我们还有一个也许不必要的第二作用域（类 `Foo`），它在其他文件里可以含糊地既当作类型又当作值。
 
-Instead, prefer use of file scope for namespacing, as well as named exports:
+应优先用文件作用域做命名空间，并使用具名导出：
 
 ```
 export const SOME_CONSTANT = ...
@@ -280,13 +280,13 @@ export class Foo {
 
 ```
 
-#### Export visibility
+#### 导出可见性
 
-TypeScript does not support restricting the visibility for exported symbols. Only export symbols that are used outside of the module. Generally minimize the exported API surface of modules.
+TypeScript 不支持限制已导出符号的可见性。只导出模块外部会使用的符号。一般应尽量缩小模块导出的 API 表面。
 
-#### Mutable exports
+#### 可变导出
 
-Regardless of technical support, mutable exports can create hard to understand and debug code, in particular with re-exports across multiple modules. One way to paraphrase this style point is that `export let` is not allowed.
+无论技术上是否支持，可变导出都会制造难以理解和调试的代码，尤其是跨多个模块再导出时。可以把这条风格要点转述为：不允许 `export let`。
 
 ```
 export let foo = 3;
@@ -298,7 +298,7 @@ window.setTimeout(() => {
 
 ```
 
-If one needs to support externally accessible and mutable bindings, they should instead use explicit getter functions.
+如果需要支持外部可访问且可变的绑定，应改用显式的读取函数。
 
 ```
 let foo = 3;
@@ -311,7 +311,7 @@ export function getFoo() { return foo; };
 
 ```
 
-For the common pattern of conditionally exporting either of two values, first do the conditional check, then the export. Make sure that all exports are final after the module’s body has executed.
+对有条件地导出两个值之一这种常见模式，先做条件判断，再导出。确保模块主体执行完毕后，所有导出都是最终的。
 
 ```
 function pickApi() {
@@ -322,9 +322,9 @@ export const SomeApi = pickApi();
 
 ```
 
-#### Container classes
+#### 容器类
 
-Do not create container classes with static methods or properties for the sake of namespacing.
+不要为了做命名空间而创建带静态方法或静态属性的容器类。
 
 ```
 export class Container {
@@ -334,7 +334,7 @@ export class Container {
 
 ```
 
-Instead, export individual constants and functions:
+应导出单独的常量和函数：
 
 ```
 export const FOO = 1;
@@ -342,11 +342,11 @@ export function bar() { return 1; }
 
 ```
 
-### Import and export type
+### 导入类型与导出类型
 
-#### Import type
+#### 导入类型
 
-You may use `import type {...}` when you use the imported symbol only as a type. Use regular imports for values:
+当导入的符号只当作类型使用时，可以使用 `import type {...}`。值使用普通导入：
 
 ```
 import type {Foo} from "./foo";
@@ -356,51 +356,51 @@ import {type Foo, Bar} from "./foo";
 
 ```
 
-The TypeScript compiler automatically handles the distinction and does not insert runtime loads for type references. So why annotate type imports?
+TypeScript 编译器会自动处理这种区分，不会为类型引用插入运行时加载。那么为什么还要标注类型导入？
 
-The TypeScript compiler can run in 2 modes:
+TypeScript 编译器可以在两种模式下运行：
 
-- In development mode, we typically want quick iteration loops. The compiler transpiles to JavaScript without full type information. This is much faster, but requires `import type` in certain cases.
-- In production mode, we want correctness. The compiler type checks everything and ensures `import type` is used correctly.
+- 在开发模式中，我们通常想要快速的迭代循环。编译器在没有完整类型信息的情况下转译成 JavaScript。这快得多，但在某些情况下需要 `import type`。
+- 在生产模式中，我们想要正确性。编译器检查一切，并确保 `import type` 被正确使用。
 
-Note: If you need to force a runtime load for side effects, use `import '...';`. See the imports.
+注意：如果需要强制为副作用做运行时加载，使用 `import "...";`。见导入一节。
 
-#### Export type
+#### 导出类型
 
-Use `export type` when re-exporting a type, e.g.:
+再导出类型时使用 `export type`，例如：
 
 ```
 export type {AnInterface} from "./foo";
 
 ```
 
-`export type` is useful to allow type re-exports in file-by-file transpilation. See `isolatedModules` docs.
+`export type` 有助于在逐文件转译中再导出类型。见 `isolatedModules` 文档。
 
-`export type` might also seem useful to avoid ever exporting a value symbol for an API. However it does not give guarantees, either: downstream code might still import an API through a different path. A better way to split & guarantee type vs value usages of an API is to actually split the symbols into e.g. `UserService` and `AjaxUserService`. This is less error prone and also better communicates intent.
+`export type` 看起来也可以用来避免为某个 API 导出值符号。但它同样不提供保证：下游代码仍可能通过另一条路径导入该 API。把 API 的类型用法和值用法拆开并加以保证的更好办法，是真的把符号拆成例如 `UserService` 和 `AjaxUserService`。这样更不容易出错，也更好地表达意图。
 
-#### Dynamic `import()` type
+#### 动态 `import()` 类型
 
-Do not use the `import()` function inside type annotations.
+不要在类型注解里使用 `import()` 函数。
 
 ```
 let f: import("./foo").Foo;
 
 ```
 
-If you need to ensure that the import is always elided from the generated JavaScript, use `import type` instead.
+如果需要确保该导入始终从生成的 JavaScript 中被删掉，改用 `import type`。
 
 ```
 import type {Foo} from "./foo";
 
 ```
 
-#### Use modules not namespaces
+#### 使用模块，不要使用命名空间
 
-TypeScript supports two methods to organize code: namespaces and modules, but namespaces are disallowed. That is, your code must refer to code in other files using imports and exports of the form `import {foo} from 'bar';`
+TypeScript 支持两种组织代码的方法：命名空间和模块，但不允许使用命名空间。也就是说，代码必须用 `import {foo} from "bar";` 这种形式的导入和导出来引用其他文件中的代码。
 
-Your code must not use the `namespace Foo { ... }` construct. `namespace` s may only be used when required to interface with external, third party code. To semantically namespace your code, use separate files.
+代码不得使用 `namespace Foo { ... }` 构造。只有在必须与外部第三方代码对接时才可以使用 `namespace`。要用语义上的命名空间组织代码，使用单独的文件。
 
-Code must not use `require` (as in `import x = require('...');`) for imports. Use ES6 module syntax.
+代码不得使用 `require`（如 `import x = require("...");`）来导入。使用 ES6 模块语法。
 
 ```
 // 不要再用 namespace 声明。它不是 ES 模块，导入关系和树摇都比模块导入更差。
@@ -416,19 +416,19 @@ import x = require("mydep");
 
 ```
 
-> NB: TypeScript `namespace` s used to be called internal modules and used to use the `module` keyword in the form `module Foo { ... }`. Don’t use that either. Always use ES6 imports.
+> 注意：TypeScript 的 `namespace` 以前称为内部模块，并使用 `module Foo { ... }` 这种形式的 `module` 关键字。那也不要使用。始终使用 ES6 导入。
 
-## Language features
+## 语言特性
 
-This section delineates which features may or may not be used, and any additional constraints on their use.
+本节说明哪些特性可以使用、哪些不可以使用，以及对它们的使用还有哪些额外约束。
 
-Language features which are not discussed in this style guide may be used with no recommendations of their usage.
+本风格指南没有讨论的语言特性可以使用，对其用法不作推荐。
 
-### Local variable declarations
+### 局部变量声明
 
-#### Use const and let
+#### 使用 const 和 let
 
-Always use `const` or `let` to declare variables. Use `const` by default, unless a variable needs to be reassigned. Never use `var`.
+始终用 `const` 或 `let` 声明变量。默认使用 `const`，除非变量需要被重新赋值。绝不要使用 `var`。
 
 ```
 const foo = otherValue;  // foo 在初始化之后不再赋值，所以用 const，读者可以把它当成这份模块里的稳定绑定。
@@ -436,24 +436,24 @@ let bar = someValue;  // bar 后面还会被重新赋值，必须用 let，不�
 
 ```
 
-`const` and `let` are block scoped, like variables in most other languages. `var` in JavaScript is function scoped, which can cause difficult to understand bugs. Don’t use it.
+`const` 和 `let` 是块作用域的，和大多数其他语言中的变量一样。JavaScript 中的 `var` 是函数作用域的，会造成难以理解的缺陷。不要使用它。
 
 ```
 var foo = someValue;  // 不要用 var。它是函数作用域，会在块外仍然可见，这种提升经常引入难以定位的赋值错误。
 
 ```
 
-Variables must not be used before their declaration.
+变量不得在声明之前使用。
 
-#### One variable per declaration
+#### 每个声明一个变量
 
-Every local variable declaration declares only one variable: declarations such as `let a = 1, b = 2;` are not used.
+每条局部变量声明只声明一个变量：不使用 `let a = 1, b = 2;` 这种声明。
 
-### Array literals
+### 数组字面量
 
-#### Do not use the `Array` constructor
+#### 不要使用 `Array` 构造函数
 
-Do not use the `Array()` constructor, with or without `new`. It has confusing and contradictory usage:
+不要使用 `Array()` 构造函数，无论有没有 `new`。它的用法令人困惑且自相矛盾：
 
 ```
 const a = new Array(2);  // 用数组构造函数只传入长度时，得到的是空槽，不是两个已经放好的元素，遍历结果会不同。
@@ -461,7 +461,7 @@ const b = new Array(2, 3);  // 传入两个数字时，数组构造函数把它�
 
 ```
 
-Instead, always use bracket notation to initialize arrays, or `from` to initialize an `Array` with a certain size:
+应始终用方括号记法初始化数组，或用 `from` 初始化特定大小的 `Array`：
 
 ```
 const a = [2];
@@ -476,13 +476,13 @@ Array.from<number>({length: 5}).fill(0);
 
 ```
 
-#### Do not define properties on arrays
+#### 不要在数组上定义属性
 
-Do not define or use non-numeric properties on an array (other than `length`). Use a `Map` (or `Object`) instead.
+不要在数组上定义或使用非数字属性（`length` 除外）。改用 `Map`（或 `Object`）。
 
-#### Array destructuring
+#### 数组解构
 
-Array literals may be used on the left-hand side of an assignment to perform destructuring (such as when unpacking multiple values from a single array or iterable). A final “rest” element may be included (with no space between the `...` and the variable name). Elements should be omitted if they are unused.
+赋值左侧可以使用数组字面量来做解构（例如从一个数组或可迭代对象中拆出多个值）。可以包含最后一个“剩余”元素（`...` 与变量名之间没有空格）。未使用的元素应当省略。
 
 ```
 const [a, b, c, ...rest] = generateResults();
@@ -490,33 +490,33 @@ let [, b,, d] = someArray;
 
 ```
 
-Destructuring may also be used for function parameters. Always specify `[]` as the default value if a destructured array parameter is optional, and provide default values on the left hand side:
+解构也可以用于函数参数。如果解构的数组参数是可选的，始终把 `[]` 指定为默认值，并在左侧提供默认值：
 
 ```
 function destructured([a = 4, b = 2] = []) { … }
 
 ```
 
-Disallowed:
+不允许：
 
 ```
 function badDestructuring([a, b] = [4, 2]) { … }
 
 ```
 
-Tip: For (un)packing multiple values into a function’s parameter or return, prefer object destructuring to array destructuring when possible, as it allows naming the individual elements and specifying a different type for each.
+提示：把多个值装进或拆出函数的参数或返回值时，尽可能优先使用对象解构而不是数组解构，因为它允许给各个元素命名，并为每个元素指定不同的类型。
 
-### Object literals
+### 对象字面量
 
-#### Do not use the `Object` constructor
+#### 不要使用 `Object` 构造函数
 
-The `Object` constructor is disallowed. Use an object literal (`{}` or `{a: 0, b: 1, c: 2}`) instead.
+不允许使用 `Object` 构造函数。改用对象字面量（`{}` 或 `{a: 0, b: 1, c: 2}`）。
 
-#### Iterating objects
+#### 迭代对象
 
-Iterating objects with `for (... in ...)` is error prone. It will include enumerable properties from the prototype chain.
+用 `for (... in ...)` 迭代对象容易出错。它会包含原型链上的可枚举属性。
 
-Do not use unfiltered `for (... in ...)` statements:
+不要使用未过滤的 `for (... in ...)` 语句：
 
 ```
 for (const x in someObj) {
@@ -525,7 +525,7 @@ for (const x in someObj) {
 
 ```
 
-Either filter values explicitly with an `if` statement, or use `for (... of Object.keys(...))`.
+要么用 `if` 语句显式过滤值，要么使用 `for (... of Object.keys(...))`。
 
 ```
 for (const x in someObj) {
@@ -543,9 +543,9 @@ for (const [key, value] of Object.entries(someObj)) {
 
 ```
 
-#### Using spread syntax
+#### 使用展开语法
 
-Using spread syntax `{...bar}` is a convenient shorthand for creating a shallow copy of an object. When using spread syntax in object initialization, later values replace earlier values at the same key.
+使用展开语法 `{...bar}` 是创建对象浅拷贝的方便简写。在对象初始化中使用展开语法时，同一键上后面的值会替换前面的值。
 
 ```
 const foo = {
@@ -567,7 +567,7 @@ foo3.num === 1;
 
 ```
 
-Avoid spreading objects that have prototypes other than the Object prototype (e.g. class definitions, class instances, functions) as the behavior is unintuitive (only enumerable non-prototype properties are shallow-copied).
+避免展开原型不是 Object 原型的对象（例如类定义、类实例、函数），因为行为不直观（只浅拷贝可枚举的、非原型属性）。
 
 ```
 // 把数组展开进对象会得到下标键，结果没有 length，之后不能再把它当成数组来用。
@@ -582,17 +582,17 @@ const extended = {...options, baz: 3};
 
 ```
 
-#### Computed property names
+#### 计算属性名
 
-Computed property names (e.g. `{['key' + foo()]: 42}`) are allowed, and are considered dict-style (quoted) keys (i.e., must not be mixed with non-quoted keys) unless the computed property is a symbol (e.g. `[Symbol.iterator]`).
+允许计算属性名（例如 `{["key" + foo()]: 42}`），它们被视为字典式（加引号的）键（也就是不得与不加引号的键混用），除非计算属性是符号（例如 `[Symbol.iterator]`）。
 
-#### Object destructuring
+#### 对象解构
 
-Object destructuring patterns may be used on the left-hand side of an assignment to perform destructuring and unpack multiple values from a single object.
+赋值左侧可以使用对象解构模式来做解构，从一个对象中拆出多个值。
 
-Destructured objects may also be used as function parameters, but should be kept as simple as possible: a single level of unquoted shorthand properties. Deeper levels of nesting and computed properties may not be used in parameter destructuring. Specify any default values in the left-hand-side of the destructured parameter (`{str = 'some default'} = {}`, rather than `{str} = {str: 'some default'}`), and if a destructured object is itself optional, it must default to `{}`.
+解构的对象也可以用作函数参数，但应尽量保持简单：只有一层不加引号的简写属性。参数解构中不得使用更深的嵌套和计算属性。在解构参数的左侧指定任何默认值（`{str = "some default"} = {}`，而不是 `{str} = {str: "some default"}`）；如果解构的对象本身是可选的，它必须默认为 `{}`。
 
-Example:
+示例：
 
 ```
 interface Options {
@@ -607,7 +607,7 @@ function destructured({num, str = "default"}: Options = {}) {}
 
 ```
 
-Disallowed:
+不允许：
 
 ```
 function nestedTooDeeply({x: {num, str}}: {x: Options}) {}
@@ -615,11 +615,11 @@ function nontrivialDefault({num, str}: Options = {num: 42, str: "default"}) {}
 
 ```
 
-### Classes
+### 类
 
-#### Class declarations
+#### 类声明
 
-Class declarations must not be terminated with semicolons:
+类声明不得以分号结尾：
 
 ```
 class Foo {
@@ -633,7 +633,7 @@ class Foo {
 
 ```
 
-In contrast, statements that contain class expressions must be terminated with a semicolon:
+相反，包含类表达式的语句必须以分号结尾：
 
 ```
 export const Baz = class extends Bar {
@@ -653,7 +653,7 @@ exports const Baz = class extends Bar {
 
 ```
 
-It is neither encouraged nor discouraged to have blank lines separating class declaration braces from other class content:
+类声明的花括号与其他类内容之间是否用空行隔开，既不鼓励也不反对：
 
 ```
 // 类体大括号内侧不留空行是允许的，成员可以紧跟在括号后面，不必为了透气再插空行，本例就是这样。
@@ -674,11 +674,11 @@ class Foo {
 
 ```
 
-#### Don’t create member variables only used in constructors
+#### 不要创建只在构造函数中使用的成员变量
 
-If a variable is only used in the constructor, then it can be migrated to be a variable scoped to the constructor body, which will make your class more stateless and easier to reason about for future devs.
+如果一个变量只在构造函数中使用，就可以把它改成构造函数体作用域内的变量，这会让类更无状态，也让后来的开发者更容易推理。
 
-Some classes have methods that are only called in the constructor and that update bits of class state that are only used during class construction. For the same reasons as above, these bits of class state should also be migrated to be constructor-local variables.
+有些类有只在构造函数中调用的方法，它们更新的那部分类状态也只在类构造期间使用。出于与上面相同的原因，这些类状态也应改成构造函数的局部变量。
 
 ```
 class MyClass {
@@ -722,9 +722,9 @@ class MyClass {
 
 ```
 
-#### Class method declarations
+#### 类方法声明
 
-Class method declarations must not use a semicolon to separate individual method declarations:
+类方法声明不得用分号分隔各个方法声明：
 
 ```
 class Foo {
@@ -744,7 +744,7 @@ class Foo {
 
 ```
 
-Method declarations should be separated from surrounding code by a single blank line:
+方法声明应与周围代码用一个空行隔开：
 
 ```
 class Foo {
@@ -771,23 +771,23 @@ class Foo {
 
 ```
 
-##### Overriding toString
+##### 覆盖 toString
 
-The `toString` method may be overridden, but must always succeed and never have visible side effects.
+可以覆盖 `toString` 方法，但它必须始终成功，并且不得有可见的副作用。
 
-Tip: Beware, in particular, of calling other methods from toString, since exceptional conditions could lead to infinite loops.
+提示：尤其要小心从 toString 调用其他方法，因为异常情况可能导致无限循环。
 
-#### Static methods
+#### 静态方法
 
-##### Avoid private static methods
+##### 避免私有静态方法
 
-Where it does not interfere with readability, prefer module-local functions over private static methods.
+在不影响可读性的地方，优先使用模块局部函数，而不是私有静态方法。
 
-##### Do not rely on dynamic dispatch
+##### 不要依赖动态分派
 
-Code should not rely on dynamic dispatch of static methods. Static methods should only be called on the base class itself (which defines it directly). Static methods should not be called on variables containing a dynamic instance that may be either the constructor or a subclass constructor (and must be defined with `@nocollapse` if this is done), and must not be called directly on a subclass that doesn’t define the method itself.
+代码不应依赖静态方法的动态分派。静态方法只应在定义它的基类本身上调用。不应在可能是构造函数或子类构造函数的动态实例变量上调用静态方法（如果这样做，必须用 `@nocollapse` 定义），也不得直接在自己没有定义该方法的子类上调用。
 
-Disallowed:
+不允许：
 
 ```
 // 下面的例子都基于这个基类。基类自己这样写是可以的，问题出在后面通过子类去调用，本例就是这样。
@@ -818,11 +818,11 @@ MyClass.staticField = 1;
 
 ```
 
-##### Avoid static `this` references
+##### 避免静态的 `this` 引用
 
-Code must not use `this` in a static context.
+代码不得在静态上下文中使用 `this`。
 
-JavaScript allows accessing static fields through `this`. Different from other languages, static fields are also inherited.
+JavaScript 允许通过 `this` 访问静态字段。与其他语言不同，静态字段也会被继承。
 
 ```
 class ShoeStore {
@@ -841,15 +841,15 @@ class EmptyShoeStore extends ShoeStore {
 
 ```
 
-Why?
+为什么？
 
-This code is generally surprising: authors might not expect that static fields can be accessed through the this pointer, and might be surprised to find that they can be overridden - this feature is not commonly used.
+这段代码通常令人意外：作者可能没想到可以通过 this 指针访问静态字段，也可能惊讶地发现它们可以被覆盖——这个特性并不常用。
 
-This code also encourages an anti-pattern of having substantial static state, which causes problems with testability.
+这段代码还鼓励大量静态状态这种反模式，会给可测试性带来问题。
 
-#### Constructors
+#### 构造函数
 
-Constructor calls must use parentheses, even when no arguments are passed:
+构造函数调用必须使用圆括号，即使不传递参数：
 
 ```
 const x = new Foo;
@@ -861,7 +861,7 @@ const x = new Foo();
 
 ```
 
-Omitting parentheses can lead to subtle mistakes. These two lines are not equivalent:
+省略圆括号会导致细微错误。下面两行并不等价：
 
 ```
 new Foo().Bar();
@@ -869,7 +869,7 @@ new Foo.Bar();
 
 ```
 
-It is unnecessary to provide an empty constructor or one that simply delegates into its parent class because ES2015 provides a default class constructor if one is not specified. However constructors with parameter properties, visibility modifiers or parameter decorators should not be omitted even if the body of the constructor is empty.
+不必提供空构造函数，或只是委托给父类的构造函数，因为如果没有指定，ES2015 会提供默认类构造函数。不过，带参数属性、可见性修饰符或参数装饰器的构造函数即使函数体为空也不应省略。
 
 ```
 class UnnecessaryConstructor {
@@ -905,7 +905,7 @@ class NoInstantiation {
 
 ```
 
-The constructor should be separated from surrounding code both above and below by a single blank line:
+构造函数上下都应与周围代码用一个空行隔开：
 
 ```
 class Foo {
@@ -931,11 +931,11 @@ class Foo {
 
 ```
 
-#### Class members
+#### 类成员
 
-##### No #private fields
+##### 不要使用 #private 字段
 
-Do not use private fields (also known as private identifiers):
+不要使用私有字段（也称为私有标识符）：
 
 ```
 class Clazz {
@@ -944,7 +944,7 @@ class Clazz {
 
 ```
 
-Instead, use TypeScript’s visibility annotations:
+应使用 TypeScript 的可见性注解：
 
 ```
 class Clazz {
@@ -953,15 +953,15 @@ class Clazz {
 
 ```
 
-Private identifiers cause substantial emit size and performance regressions when down-leveled by TypeScript, and are unsupported before ES2015. They can only be downleveled to ES2015, not lower. At the same time, they do not offer substantial benefits when static type checking is used to enforce visibility.
+私有标识符在被 TypeScript 降级时会造成明显的输出体积和性能回退，并且在 ES2015 之前不受支持。它们只能降级到 ES2015，不能更低。同时，当用静态类型检查来强制可见性时，它们并没有实质性好处。
 
-##### Use readonly
+##### 使用 readonly
 
-Mark properties that are never reassigned outside of the constructor with the `readonly` modifier (these need not be deeply immutable).
+对构造函数之外不再重新赋值的属性，用 `readonly` 修饰符标记（它们不必是深度不可变的）。
 
-##### Parameter properties
+##### 参数属性
 
-Rather than plumbing an obvious initializer through to a class member, use a TypeScript parameter property.
+不要把一个显而易见的初始化值再接到类成员上，使用 TypeScript 参数属性。
 
 ```
 class Foo {
@@ -981,11 +981,11 @@ class Foo {
 
 ```
 
-If the parameter property needs documentation, use an `@param` JSDoc tag.
+如果参数属性需要文档，使用 `@param` JSDoc 标签。
 
-##### Field initializers
+##### 字段初始化器
 
-If initializing a class member does not rely on a constructor parameter or a parameter property, initialize it where it’s declared. This sometimes lets you drop the constructor entirely.
+如果初始化类成员不依赖构造函数参数或参数属性，就在声明它的地方初始化。这有时让你可以完全去掉构造函数。
 
 ```
 class Foo {
@@ -1005,7 +1005,7 @@ class Foo {
 
 ```
 
-It is possible to reference parameter properties from field initializers due to the way TypeScript transpiles this pattern to JavaScript. This transpilation is changing to match JavaScript language semantics, and referencing a parameter property from a field initializer will become a TypeScript compiler error, so this pattern should be avoided.
+由于 TypeScript 把这种模式转译成 JavaScript 的方式，可以从字段初始化器引用参数属性。这种转译正在改变以匹配 JavaScript 语言语义，从字段初始化器引用参数属性将成为 TypeScript 编译器错误，因此应避免这种模式。
 
 ```
 class Foo {
@@ -1030,27 +1030,27 @@ class Foo {
 
 ```
 
-Tip: Properties should never be added to or removed from an instance after the constructor is finished, since it significantly hinders VMs’ ability to optimize classes’ “shape”. Optional fields that may be filled in later should be explicitly initialized to `undefined` to prevent later shape changes.
+提示：构造函数结束后，绝不要再向实例添加或移除属性，因为这会严重妨碍虚拟机优化类的“形状”。以后可能填上的可选字段应显式初始化为 `undefined`，以防止以后的形状变化。
 
-##### Properties used outside of class lexical scope
+##### 在类词法作用域之外使用的属性
 
-Properties used from outside the lexical scope of their containing class, must not use `private` visibility, as they are used outside of the lexical scope of their containing class.
+从其包含类的词法作用域之外使用的属性，不得使用 `private` 可见性，因为它们用在包含类的词法作用域之外。
 
-Exception: Angular component properties used only from a template are allowed to use `private` visibility.
+例外：只从模板使用的 Angular 组件属性允许使用 `private` 可见性。
 
-Use either `protected` or `public` as appropriate to the property in question.
+对该属性使用合适的 `protected` 或 `public`。
 
-TypeScript code must not use `obj['foo']` to bypass the visibility of a property.
+TypeScript 代码不得使用 `obj["foo"]` 来绕过属性的可见性。
 
-Why?
+为什么？
 
-When a property is `private`, you are declaring to both automated systems and humans that the property accesses are scoped to the methods of the declaring class, and they will rely on that. For example, a check for unused code will flag a private property that appears to be unused, even if some other file manages to bypass the visibility restriction.
+当属性是 `private` 时，你是在向自动化系统和人声明：对该属性的访问限定在声明类的方法里，它们会依赖这一点。例如，未使用代码检查会把看起来未使用的私有属性标出来，即使另一个文件设法绕过了可见性限制。
 
-Though it might appear that `obj['foo']` can bypass visibility in the TypeScript compiler, this pattern can be broken by rearranging the build rules, and also violates optimization compatibility.
+虽然看起来 `obj["foo"]` 可以在 TypeScript 编译器里绕过可见性，这种模式会因调整构建规则而失效，也违反优化兼容性。
 
-##### Getters and setters
+##### 读取器与设置器
 
-Getters and setters, also known as accessors, for class members may be used. The getter method must be a pure function (i.e., result is consistent and has no side effects: getters must not change observable state). They are also useful as a means of restricting the visibility of internal or verbose implementation details (shown below).
+可以使用类成员的读取器和设置器，也称为访问器。读取器方法必须是纯函数（也就是结果一致且没有副作用：读取器不得改变可观察状态）。它们也有助于限制内部或冗长实现细节的可见性（如下所示）。
 
 ```
 class Foo {
@@ -1077,7 +1077,7 @@ class Foo {
 
 ```
 
-If an accessor is used to hide a class property, the hidden property may be prefixed or suffixed with any whole word, like `internal` or `wrapped`. When using these private properties, access the value through the accessor whenever possible. At least one accessor for a property must be non-trivial: do not define “pass-through” accessors only for the purpose of hiding a property. Instead, make the property public (or consider making it `readonly` rather than just defining a getter with no setter).
+如果用访问器隐藏类属性，被隐藏的属性可以用任意完整单词作前缀或后缀，例如 `internal` 或 `wrapped`。使用这些私有属性时，尽可能通过访问器取值。一个属性至少要有一个并非平凡的访问器：不要只为了隐藏属性而定义“直通”访问器。应把属性公开（或考虑把它做成 `readonly`，而不是只定义没有设置器的读取器）。
 
 ```
 class Foo {
@@ -1108,21 +1108,21 @@ class Bar {
 
 ```
 
-Getters and setters must not be defined using `Object.defineProperty`, since this interferes with property renaming.
+不得用 `Object.defineProperty` 定义读取器和设置器，因为这会干扰属性重命名。
 
-##### Computed properties
+##### 计算属性
 
-Computed properties may only be used in classes when the property is a symbol. Dict-style properties (that is, quoted or computed non-symbol keys) are not allowed. A `[Symbol.iterator]` method should be defined for any classes that are logically iterable. Beyond this, `Symbol` should be used sparingly.
+只有当属性是符号时，类中才可以使用计算属性。不允许字典式属性（也就是加引号的或计算的非符号键）。对逻辑上可迭代的任何类，都应定义 `[Symbol.iterator]` 方法。除此之外，应少用 `Symbol`。
 
-Tip: be careful of using any other built-in symbols (e.g. `Symbol.isConcatSpreadable`) as they are not polyfilled by the compiler and will therefore not work in older browsers.
+提示：小心使用任何其他内置符号（例如 `Symbol.isConcatSpreadable`），因为编译器不会给它们做 polyfill，因此在较旧的浏览器中不会工作。
 
-#### Visibility
+#### 可见性
 
-Restricting visibility of properties, methods, and entire types helps with keeping code decoupled.
+限制属性、方法和整个类型的可见性有助于保持代码解耦。
 
-- Limit symbol visibility as much as possible.
-- Consider converting private methods to non-exported functions within the same file but outside of any class, and moving private properties into a separate, non-exported class.
-- TypeScript symbols are public by default. Never use the `public` modifier except when declaring non-readonly public parameter properties (in constructors).
+- 尽可能限制符号可见性。
+- 考虑把私有方法转换成同一文件中、任何类之外的非导出函数，并把私有属性移到单独的、非导出的类里。
+- TypeScript 符号默认是公开的。除了声明非只读的公开参数属性（在构造函数中）之外，绝不要使用 `public` 修饰符。
 
 ```
 class Foo {
@@ -1144,31 +1144,31 @@ class Foo {
 
 ```
 
-#### Disallowed class patterns
+#### 不允许的类模式
 
-##### Do not manipulate `prototype` s directly
+##### 不要直接操作 `prototype`
 
-The `class` keyword allows clearer and more readable class definitions than defining `prototype` properties. Ordinary implementation code has no business manipulating these objects. Mixins and modifying the prototypes of built-in objects are explicitly forbidden.
+`class` 关键字提供的类定义比定义 `prototype` 属性更清楚、更可读。普通实现代码没有理由操作这些对象。明确禁止混入以及修改内置对象的原型。
 
-Exception: Framework code (such as Polymer, or Angular) may need to use `prototype` s, and should not resort to even-worse workarounds to avoid doing so.
+例外：框架代码（例如 Polymer 或 Angular）可能需要使用 `prototype`，不应为了避免这样做而采取更糟的变通办法。
 
-### Functions
+### 函数
 
-#### Terminology
+#### 术语
 
-There are many different types of functions, with subtle distinctions between them. This guide uses the following terminology, which aligns with MDN:
+函数有许多不同类型，它们之间有细微差别。本指南使用下列术语，与 MDN 一致：
 
-- “function declaration”: a declaration (i.e. not an expression) using the `function` keyword
-- “function expression”: an expression, typically used in an assignment or passed as a parameter, using the `function` keyword
-- “arrow function”: an expression using the `=>` syntax
-- “block body”: right hand side of an arrow function with braces
-- “concise body”: right hand side of an arrow function without braces
+- “函数声明”：使用 `function` 关键字的声明（也就是不是表达式）
+- “函数表达式”：使用 `function` 关键字的表达式，通常用于赋值或作为参数传递
+- “箭头函数”：使用 `=>` 语法的表达式
+- “块体”：带花括号的箭头函数右侧
+- “简洁体”：不带花括号的箭头函数右侧
 
-Methods and classes/constructors are not covered in this section.
+本节不讨论方法和类/构造函数。
 
-#### Prefer function declarations for named functions
+#### 具名函数优先使用函数声明
 
-Prefer function declarations over arrow functions or function expressions when defining named functions.
+定义具名函数时，优先使用函数声明，而不是箭头函数或函数表达式。
 
 ```
 function foo() {
@@ -1182,7 +1182,7 @@ const foo = () => 42;
 
 ```
 
-Arrow functions may be used, for example, when an explicit type annotation is required.
+例如当需要显式类型注解时，可以使用箭头函数。
 
 ```
 interface SearchFunction {
@@ -1193,13 +1193,13 @@ const fooSearch: SearchFunction = (source, subString) => { ... };
 
 ```
 
-#### Nested functions
+#### 嵌套函数
 
-Functions nested within other methods or functions may use function declarations or arrow functions, as appropriate. In method bodies in particular, arrow functions are preferred because they have access to the outer `this`.
+嵌套在其他方法或函数中的函数可以视情况使用函数声明或箭头函数。特别是在方法体里，优先使用箭头函数，因为它们可以访问外层的 `this`。
 
-#### Do not use function expressions
+#### 不要使用函数表达式
 
-Do not use function expressions. Use arrow functions instead.
+不要使用函数表达式。改用箭头函数。
 
 ```
 bar(() => { this.doSomething(); })
@@ -1211,11 +1211,11 @@ bar(function() { ... })
 
 ```
 
-Exception: Function expressions may be used only if code has to dynamically rebind `this` (but this is discouraged), or for generator functions (which do not have an arrow syntax).
+例外：只有当代码必须动态重新绑定 `this`（但不鼓励这样做），或用于没有箭头语法的生成器函数时，才可以使用函数表达式。
 
-#### Arrow function bodies
+#### 箭头函数体
 
-Use arrow functions with concise bodies (i.e. expressions) or block bodies as appropriate.
+视情况使用带简洁体（即表达式）或块体的箭头函数。
 
 ```
 // 文件顶层的具名函数用函数声明，不要写成赋给变量的函数表达式，调用点才能按名字提升。
@@ -1241,7 +1241,7 @@ function someFunction() {
 
 ```
 
-Only use a concise body if the return value of the function is actually used. The block body makes sure the return type is `void` then and prevents potential side effects.
+只有当函数的返回值真的被使用时，才使用简洁体。块体此时确保返回类型是 `void`，并防止潜在的副作用。
 
 ```
 // 反例把返回值用不到的调用写成表达式体，调用方会意外拿到 console.log 的返回值。
@@ -1268,11 +1268,11 @@ myPromise.then((v) => void console.log(v));
 
 ```
 
-Tip: The `void` operator can be used to ensure an arrow function with an expression body returns `undefined` when the result is unused.
+提示：当结果未被使用时，可以用 `void` 运算符确保带表达式体的箭头函数返回 `undefined`。
 
-#### Rebinding `this`
+#### 重新绑定 `this`
 
-Function expressions and function declarations must not use `this` unless they specifically exist to rebind the `this` pointer. Rebinding `this` can in most cases be avoided by using arrow functions or explicit parameters.
+函数表达式和函数声明不得使用 `this`，除非它们专门用来重新绑定 `this` 指针。多数情况下可以用箭头函数或显式参数避免重新绑定 `this`。
 
 ```
 function clickHandler() {
@@ -1293,13 +1293,13 @@ document.body.onclick = setTextFn.bind(null, document.body);
 
 ```
 
-Prefer arrow functions over other approaches to binding `this`, such as `f.bind(this)`, `goog.bind(f, this)`, or `const self = this`.
+优先使用箭头函数，而不是其他绑定 `this` 的办法，例如 `f.bind(this)`、`goog.bind(f, this)` 或 `const self = this`。
 
-#### Prefer passing arrow functions as callbacks
+#### 优先把箭头函数作为回调传递
 
-Callbacks can be invoked with unexpected arguments that can pass a type check but still result in logical errors.
+回调可能被用出人意料的参数调用，这些参数能通过类型检查，但仍造成逻辑错误。
 
-Avoid passing a named callback to a higher-order function, unless you are sure of the stability of both functions’ call signatures. Beware, in particular, of less-commonly-used optional parameters.
+除非你确信两个函数的调用签名都稳定，否则避免把具名回调传给高阶函数。尤其要小心较少使用的可选参数。
 
 ```
 // 反例把函数直接交给 map，数组下标会填进可选的 decimals 参数，格式化结果因此被截断。
@@ -1308,7 +1308,7 @@ const strs = [1.23, 4.56, 7.89].map(googFormat.numericValueToString);
 
 ```
 
-Instead, prefer passing an arrow-function that explicitly forwards parameters to the named callback.
+应优先传递一个显式把参数转发给具名回调的箭头函数。
 
 ```
 // 正例用箭头函数只把数值传进格式化函数，数组下标不会再占据那个可选的小数位参数，本例就是这样。
@@ -1324,15 +1324,15 @@ const days = ["tuesday", undefined, "juice", "wednesday"].filter(dayFilter);
 
 ```
 
-#### Arrow functions as properties
+#### 作为属性的箭头函数
 
-Classes usually should not contain properties initialized to arrow functions. Arrow function properties require the calling function to understand that the callee’s `this` is already bound, which increases confusion about what `this` is, and call sites and references using such handlers look broken (i.e. require non-local knowledge to determine that they are correct). Code should always use arrow functions to call instance methods (`const handler = (x) => { this.listener(x); };`), and should not obtain or pass references to instance methods (
+类通常不应包含初始化为箭头函数的属性。箭头函数属性要求调用函数理解被调用者的 `this` 已经绑定，这增加了 `this` 是什么的困惑，而且使用这类处理函数的调用点和引用看起来是坏的（也就是需要非局部知识才能判断它们是对的）。代码应始终用箭头函数调用实例方法（`const handler = (x) => { this.listener(x); };`），不应取得或传递实例方法的引用（
 
 `const handler = this.listener; handler(x);`
 
-).
+）。
 
-> Note: in some specific situations, e.g. when binding functions in a template, arrow functions as properties are useful and create much more readable code. Use judgement with this rule. Also, see the `Event Handlers` section below.
+> 注意：在某些特定情况，例如在模板里绑定函数时，作为属性的箭头函数很有用，也能写出可读得多的代码。对本规则运用判断。另见下面的 `Event Handlers` 一节。
 
 ```
 class DelayHandler {
@@ -1377,9 +1377,9 @@ class DelayHandler {
 
 ```
 
-#### Event handlers
+#### 事件处理函数
 
-Event handlers may use arrow functions when there is no need to uninstall the handler (for example, if the event is emitted by the class itself). If the handler requires uninstallation, arrow function properties are the right approach, because they automatically capture `this` and provide a stable reference to uninstall.
+不需要卸载处理函数时（例如事件由类自己发出），事件处理函数可以使用箭头函数。如果处理函数需要卸载，属性箭头函数是正确做法，因为它们自动捕获 `this`，并提供用于卸载的稳定引用。
 
 ```
 // 事件处理函数可以是调用点的箭头函数，也可以是为了稍后移除而保存下来的属性箭头，本例就是这样。
@@ -1404,7 +1404,7 @@ class Component {
 
 ```
 
-Do not use `bind` in the expression that installs an event handler, because it creates a temporary reference that can’t be uninstalled.
+不要在安装事件处理函数的表达式里使用 `bind`，因为它会创建一个无法卸载的临时引用。
 
 ```
 // 每次 bind 都产生一个新函数，添加监听时的那个引用没有被保存，之后无法按同一个引用移除。
@@ -1424,9 +1424,9 @@ class Component {
 
 ```
 
-#### Parameter initializers
+#### 参数初始化器
 
-Optional function parameters may be given a default initializer to use when the argument is omitted. Initializers must not have any observable side effects. Initializers should be kept as simple as possible.
+可选函数参数可以给出默认初始化器，在省略参数时使用。初始化器不得有任何可观察的副作用。初始化器应尽量保持简单。
 
 ```
 function process(name: string, extraContext: string[] = []) {}
@@ -1447,38 +1447,38 @@ class Foo {
 
 ```
 
-Use default parameters sparingly. Prefer destructuring to create readable APIs when there are more than a small handful of optional parameters that do not have a natural order.
+少用默认参数。当有不止一小撮没有自然顺序的可选参数时，优先用解构来创建可读的 API。
 
-#### Prefer rest and spread when appropriate
+#### 适当时优先使用剩余参数和展开
 
-Use a rest parameter instead of accessing `arguments`. Never name a local variable or parameter `arguments`, which confusingly shadows the built-in name.
+使用剩余参数，不要访问 `arguments`。绝不要把局部变量或参数命名为 `arguments`，那会令人困惑地遮蔽内置名字。
 
 ```
 function variadic(array: string[], ...numbers: number[]) {}
 
 ```
 
-Use function spread syntax instead of `Function.prototype.apply`.
+使用函数展开语法，不要使用 `Function.prototype.apply`。
 
-#### Formatting functions
+#### 函数的格式
 
-Blank lines at the start or end of the function body are not allowed.
+不允许在函数体的开头或结尾留空行。
 
-A single blank line may be used within function bodies sparingly to create logical groupings of statements.
+函数体内可以少量使用一个空行，来形成语句的逻辑分组。
 
-Generators should attach the `*` to the `function` and `yield` keywords, as in `function* foo()` and `yield* iter`, rather than 
+生成器应把 `*` 贴在 `function` 和 `yield` 关键字上，如 `function* foo()` 和 `yield* iter`，而不是
 
 `function *foo()`
 
- or 
+或
 
 `yield *iter`
 
-.
+。
 
-Parentheses around the left-hand side of a single-argument arrow function are recommended but not required.
+单参数箭头函数左侧的圆括号是推荐的，但不是必须的。
 
-Do not put a space after the `...` in rest or spread syntax.
+剩余参数或展开语法中的 `...` 后面不要加空格。
 
 ```
 function myFunction(...elements: number[]) {}
@@ -1486,47 +1486,47 @@ myFunction(...array, ...iterable, ...generator());
 
 ```
 
-#### Function Length
+#### 函数长度
 
-Write small and focused functions and class methods.
+编写小而专注的函数和类方法。
 
-Even though no hard limit is placed on function and method length, if it exceeds about 40 lines, think about whether it can be broken up without harming the structure of the program.
+虽然不对函数和方法长度设置硬性限制，如果超过大约 40 行，想一想能否在不损害程序结构的情况下把它拆开。
 
-This is not an exact science, but here are some examples of signs that your method might be too complex:
+这不是精确科学，但下面是方法可能过于复杂的一些迹象：
 
-- It has several levels of nesting.
-- It consists of several separate blocks of code, that each require a comment to explain what it does.
-- It has to handle different types of exceptions in different places.
-- It can’t all fit on your screen at once.
+- 它有好几层嵌套。
+- 它由几块各自需要注释来说明做什么的代码组成。
+- 它必须在不同地方处理不同类型的异常。
+- 它不能一次全部放进屏幕。
 
-If working with such a function proves to be difficult, you find that errors are hard to debug, or you want to use a piece of it in several different contexts, consider breaking up the function into smaller and more manageable pieces. Note that there is nothing wrong with a private helper method or class that is used only once; these can be a useful tool for making code more readable.
+如果使用这样的函数证明很困难，你发现错误难以调试，或者想在几个不同上下文中使用其中一段，考虑把函数拆成更小、更好管理的片段。注意，只使用一次的私有辅助方法或类并没有什么不对；它们可以是让代码更可读的有用工具。
 
 ### this
 
-Only use `this` in class constructors and methods, functions that have an explicit `this` type declared (e.g. `function func(this: ThisType, ...)`), or in arrow functions defined in a scope where `this` may be used.
+只在类构造函数和方法、声明了显式 `this` 类型的函数（例如 `function func(this: ThisType, ...)`），或定义在可以使用 `this` 的作用域中的箭头函数里使用 `this`。
 
-Never use `this` to refer to the global object, the context of an `eval`, the target of an event, or unnecessarily `call()` ed or `apply()` ed functions.
+绝不要用 `this` 指代全局对象、`eval` 的上下文、事件的目标，或不必要地被 `call()` 或 `apply()` 的函数。
 
 ```
 this.alert("Hello");
 
 ```
 
-### Primitive literals
+### 原始字面量
 
-#### String literals
+#### 字符串字面量
 
-##### Use double quotes
+##### 使用双引号
 
-Ordinary string literals are delimited with double quotes (`"`), matching Prettier with `singleQuote` set to false and `printWidth` set to 120.
+普通字符串字面量用双引号（`"`）界定，与 Prettier 的 `singleQuote` 设为 false、`printWidth` 设为 120 一致。
 
-Exception: if a string contains a double-quote character, it may be delimited with single quotes to avoid escaping that quote.
+例外：如果字符串包含双引号字符，可以用单引号界定，以避免转义该引号。
 
-##### No line continuations
+##### 不要续行
 
-Do not use line continuations (that is, ending a line inside a string literal with a backslash) in either ordinary or template string literals. Even though ES5 allows this, it can lead to tricky errors if any trailing whitespace comes after the slash, and is less obvious to readers.
+不要在普通字符串字面量或模板字符串字面量中使用续行（也就是在字符串字面量内部用反斜杠结束一行）。虽然 ES5 允许这样做，如果斜杠后面有任何尾随空白，就会导致棘手的错误，对读者也不那么明显。
 
-Disallowed:
+不允许：
 
 ```
 const LONG_STRING = "This is a very very very very very very very long string. \
@@ -1535,7 +1535,7 @@ const LONG_STRING = "This is a very very very very very very very long string. \
 
 ```
 
-Instead, write
+应写成
 
 ```
 const LONG_STRING = "This is a very very very very very very long string. " +
@@ -1546,13 +1546,13 @@ const SINGLE_STRING =
 
 ```
 
-##### Template literals
+##### 模板字面量
 
-Use template literals (delimited with backticks) over complex string concatenation, particularly if multiple string literals are involved. Template literals may span multiple lines.
+当涉及多个字符串字面量时，优先使用模板字面量（用反引号界定），而不是复杂的字符串拼接。模板字面量可以跨越多行。
 
-If a template literal spans multiple lines, it does not need to follow the indentation of the enclosing block, though it may if the added whitespace does not matter.
+如果模板字面量跨越多行，它不必遵循外围块的缩进，不过如果多出来的空白无关紧要，也可以遵循。
 
-Example:
+示例：
 
 ```
 function arithmetic(a: number, b: number) {
@@ -1565,13 +1565,13 @@ ${a} / ${b} = ${a / b}`;
 
 ```
 
-#### Number literals
+#### 数字字面量
 
-Numbers may be specified in decimal, hex, octal, or binary. Use exactly `0x`, `0o`, and `0b` prefixes, with lowercase letters, for hex, octal, and binary, respectively. Never include a leading zero unless it is immediately followed by `x`, `o`, or `b`.
+数字可以用十进制、十六进制、八进制或二进制指定。十六进制、八进制和二进制分别精确使用 `0x`、`0o` 和 `0b` 前缀，字母小写。除非紧跟着 `x`、`o` 或 `b`，否则绝不包含前导零。
 
-#### Type coercion
+#### 类型强制转换
 
-TypeScript code may use the `String()` and `Boolean()` (note: no `new`!) functions, string template literals, or `!!` to coerce types.
+TypeScript 代码可以使用 `String()` 和 `Boolean()`（注意：不要 `new`！）函数、字符串模板字面量或 `!!` 来强制转换类型。
 
 ```
 const bool = Boolean(0);
@@ -1581,7 +1581,7 @@ const str2 = `result: ${bool2}`;
 
 ```
 
-Values of enum types (including unions of enum types and other types) must not be converted to booleans with `Boolean()` or `!!`, and must instead be compared explicitly with comparison operators.
+枚举类型的值（包括枚举类型与其他类型的联合）不得用 `Boolean()` 或 `!!` 转换成布尔值，必须改用比较运算符显式比较。
 
 ```
 enum SupportLevel {
@@ -1613,19 +1613,19 @@ enabled = maybeLevel !== undefined && maybeLevel !== SupportLevel.NONE;
 
 ```
 
-Why?
+为什么？
 
-For most purposes, it doesn’t matter what number or string value an enum name is mapped to at runtime, because values of enum types are referred to by name in source code. Consequently, engineers are accustomed to not thinking about this, and so situations where it does matter are undesirable because they will be surprising. Such is the case with conversion of enums to booleans; in particular, by default, the first declared enum value is falsy (because it is 0) while the others are truthy, which is likely to be unexpected. Readers of code that uses an enum value may not even know whether it’s the first declared value or not.
+对大多数目的而言，枚举名在运行时映射到什么数字或字符串值并不重要，因为源代码中通过名字引用枚举类型的值。因此工程师习惯于不去想这件事，于是它确实重要的情况是不受欢迎的，因为会令人意外。把枚举转换成布尔值就是这种情况；特别是，默认情况下第一个声明的枚举值为假（因为它是 0），其余为真，这很可能出人意料。使用枚举值的代码的读者甚至可能不知道它是不是第一个声明的值。
 
-Using string concatenation to cast to string is discouraged, as we check that operands to the plus operator are of matching types.
+不鼓励用字符串拼接转换成字符串，因为我们检查加号运算符的操作数类型是否匹配。
 
-##### Coercing to numbers
+##### 强制转换成数字
 
-Number parsing can fail in a wide variety of ways, with many surprising corner cases, and the different methods to parse numbers each have different and sometimes inconsistent behavior (e.g. whitespace, empty strings, scientific notation, overflow to infinity, radix prefixes, etc). Further, parsing at the wrong layer can often be a code smell. Code must check the output of any numeric coercion and explicitly handle any possible non-throwing failure cases (e.g. handling any `NaN` results).
+数字解析可能以多种多样的方式失败，有许多令人意外的边角情况，而不同的数字解析方法各自有不同、有时还不一致的行为（例如空白、空字符串、科学计数法、溢出到无穷、进制前缀等）。此外，在错误的层次解析常常是代码异味。代码必须检查任何数值强制转换的输出，并显式处理任何可能的、不抛异常的失败情况（例如处理任何 `NaN` 结果）。
 
-Code must not use unary plus (e.g. `+str`) or `parseFloat` to coerce strings to numbers. The former is too easy to miss in a code review, and the latter silently ignores trailing garbage in the input string. In both cases, prefer `Number` instead.
+代码不得使用一元加号（例如 `+str`）或 `parseFloat` 把字符串强制转换成数字。前者在代码评审中太容易漏掉，后者会静默忽略输入字符串末尾的垃圾。两种情况下都优先使用 `Number`。
 
-Code must not use `parseInt` unless a non-decimal radix is required. In this case, the input string must be checked for validity (i.e. all characters are valid digits) before parsing to ensure trailing garbage is not silently ignored. The output must also be checked against `NaN`.
+除非需要非十进制基数，否则代码不得使用 `parseInt`。此时必须在解析前检查输入字符串是否有效（也就是所有字符都是有效数字），以确保末尾垃圾不会被静默忽略。输出也必须对照 `NaN` 检查。
 
 ```
 const x = +y;
@@ -1639,9 +1639,9 @@ if (!isFinite(x)) throw new Error(...);
 
 ```
 
-##### Implicit coercion
+##### 隐式强制转换
 
-Do not use explicit boolean coercions in conditional clauses that have implicit boolean coercion (specifically, the conditions in `if`, `for`, and `while` statements).
+不要在已有隐式布尔强制转换的条件子句中使用显式布尔强制转换（具体是 `if`、`for` 和 `while` 语句中的条件）。
 
 ```
 const foo: MyInterface|null = ...;
@@ -1657,7 +1657,7 @@ while (foo) {...}
 
 ```
 
-As with explicit conversions, values of enum types (including unions of enum types and other types) must not be implicitly coerced to booleans, and must instead be compared explicitly with comparison operators.
+与显式转换一样，枚举类型的值（包括枚举类型与其他类型的联合）不得被隐式强制转换成布尔值，必须改用比较运算符显式比较。
 
 ```
 enum SupportLevel {
@@ -1689,7 +1689,7 @@ if (maybeLevel !== undefined && maybeLevel !== SupportLevel.NONE) {...}
 
 ```
 
-Other types of values may be either implicitly coerced to booleans or compared explicitly with comparison operators:
+其他类型的值既可以隐式强制转换成布尔值，也可以用比较运算符显式比较：
 
 ```
 // 长度需要和零比较时可以写成大于零，读者不用记住空数组在布尔上下文里算真还是算假。
@@ -1699,11 +1699,11 @@ if (arr.length) {...}
 
 ```
 
-### Control structures
+### 控制结构
 
-#### Control flow statements and blocks
+#### 控制流语句与块
 
-Control flow statements (`if`, `else`, `for`, `do`, `while`, etc) always use braced blocks for the containing code, even if the body contains only a single statement. The first statement of a non-empty block must begin on its own line.
+控制流语句（`if`、`else`、`for`、`do`、`while` 等）始终为所含代码使用花括号块，即使主体只有一条语句。非空块的第一条语句必须从自己的一行开始。
 
 ```
 for (let i = 0; i < x; i++) {
@@ -1724,16 +1724,16 @@ for (let i = 0; i < x; i++) doSomethingWith(i);
 
 ```
 
-Exception: `if` statements fitting on one line may elide the block.
+例外：能放在一行的 `if` 语句可以省略块。
 
 ```
 if (x) x.doFoo();
 
 ```
 
-##### Assignment in control statements
+##### 控制语句中的赋值
 
-Prefer to avoid assignment of variables inside control statements. Assignment can be easily mistaken for equality checks inside control statements.
+优先避免在控制语句内部给变量赋值。控制语句里的赋值很容易被看成相等比较。
 
 ```
 if (x = someFunction()) {
@@ -1750,7 +1750,7 @@ if (x) {
 
 ```
 
-In cases where assignment inside the control statement is preferred, enclose the assignment in additional parenthesis to indicate it is intentional.
+在确实优先在控制语句内部赋值的情况下，把赋值放进额外的圆括号，以表明这是有意的。
 
 ```
 while ((x = someFunction())) {
@@ -1759,9 +1759,9 @@ while ((x = someFunction())) {
 
 ```
 
-##### Iterating containers
+##### 迭代容器
 
-Prefer `for (... of someArr)` to iterate over arrays. `Array.prototype.forEach` and vanilla `for` loops are also allowed:
+优先用 `for (... of someArr)` 迭代数组。也允许 `Array.prototype.forEach` 和普通 `for` 循环：
 
 ```
 for (const x of someArr) {
@@ -1779,7 +1779,7 @@ for (const [i, x] of someArr.entries()) {
 
 ```
 
-`for`-`in` loops may only be used on dict-style objects (see below for more info). Do not use `for (... in ...)` to iterate over arrays as it will counterintuitively give the array’s indices (as strings!), not values:
+`for`-`in` 循环只可用于字典式对象（更多信息见下文）。不要用 `for (... in ...)` 迭代数组，因为它会反直觉地给出数组的下标（而且是字符串！），不是值：
 
 ```
 for (const x in someArray) {
@@ -1788,7 +1788,7 @@ for (const x in someArray) {
 
 ```
 
-`Object.prototype.hasOwnProperty` should be used in `for`-`in` loops to exclude unwanted prototype properties. Prefer `for`-`of` with `Object.keys`, `Object.values`, or `Object.entries` over `for`-`in` when possible.
+`for`-`in` 循环中应使用 `Object.prototype.hasOwnProperty` 来排除不想要的原型属性。尽可能优先使用带 `Object.keys`、`Object.values` 或 `Object.entries` 的 `for`-`of`，而不是 `for`-`in`。
 
 ```
 for (const key in obj) {
@@ -1807,23 +1807,23 @@ for (const [key, value] of Object.entries(obj)) {
 
 ```
 
-#### Grouping parentheses
+#### 分组括号
 
-Optional grouping parentheses are omitted only when the author and reviewer agree that there is no reasonable chance that the code will be misinterpreted without them, nor would they have made the code easier to read. It is not reasonable to assume that every reader has the entire operator precedence table memorized.
+只有当作者和评审者都认为，不加这些括号代码也不会被误读，而且加上括号也不会让代码更好读时，才省略可选的分组括号。不能合理地假定每个读者都背得出整张运算符优先级表。
 
-Do not use unnecessary parentheses around the entire expression following `delete`, `typeof`, `void`, `return`, `throw`, `case`, `in`, `of`, or `yield`.
+不要在 `delete`、`typeof`、`void`、`return`、`throw`、`case`、`in`、`of` 或 `yield` 后面的整个表达式外再加不必要的括号。
 
-#### Exception handling
+#### 异常处理
 
-Exceptions are an important part of the language and should be used whenever exceptional cases occur.
+异常是语言的重要部分，出现异常情况时就应该使用。
 
-Custom exceptions provide a great way to convey additional error information from functions. They should be defined and used wherever the native `Error` type is insufficient.
+自定义异常是从函数传出额外错误信息的好办法。在原生 `Error` 类型不够用的地方，就应该定义并使用它们。
 
-Prefer throwing exceptions over ad-hoc error-handling approaches (such as passing an error container reference type, or returning an object with an error property).
+优先抛出异常，而不是临时的错误处理办法（例如传入一个错误容器引用类型，或返回一个带 error 属性的对象）。
 
-##### Instantiate errors using `new`
+##### 用 `new` 实例化错误
 
-Always use `new Error()` when instantiating exceptions, instead of just calling `Error()`. Both forms create a new `Error` instance, but using `new` is more consistent with how other objects are instantiated.
+实例化异常时始终使用 `new Error()`，而不是直接调用 `Error()`。两种形式都会创建新的 `Error` 实例，但使用 `new` 与实例化其他对象的方式更一致。
 
 ```
 throw new Error("Foo is not a valid bar.");
@@ -1835,9 +1835,9 @@ throw Error("Foo is not a valid bar.");
 
 ```
 
-##### Only throw errors
+##### 只抛出错误
 
-Although JavaScript allows throwing arbitrary values, stack traces are only populated if the thrown value is an `Error`. Do not throw primitives (including strings, numbers, null or undefined) or objects that are not instances of `Error` or a subclass. This restriction also extends to all APIs that may throw their arguments, including `Promise.reject` or `AbortSignal`’s various `abort` methods.
+虽然 JavaScript 允许抛出任意值，但只有抛出的值是 `Error` 时才会填充栈追踪。不要抛出原始值（包括字符串、数字、null 或 undefined），也不要抛出不是 `Error` 或其子类实例的对象。这条限制也适用于所有可能抛出其参数的 API，包括 `Promise.reject`，以及 `AbortSignal` 的各种 `abort` 方法。
 
 ```
 // 反例抛出字符串，调用栈上没有 Error 对象，捕获方无法记录这段代码的抛出位置。
@@ -1852,7 +1852,7 @@ AbortSignal.abort("my other custom abort error");
 
 ```
 
-Instead, only throw (subclasses of) `Error`:
+应当只抛出 `Error`（或其子类）：
 
 ```
 // 只抛出 Error。捕获方可以读取 message 和栈，字符串做不到这两件事。
@@ -1873,11 +1873,11 @@ AbortSignal.abort(new Error("my other custom abort error"));
 
 ```
 
-Note: Calling `AbortController#abort` or `AbortSignal.abort` with no arguments is valid because a new “AbortError” `DOMException` will be created by default and assigned as the `AbortSignal#reason` (see MDN).
+注意：不带参数调用 `AbortController#abort` 或 `AbortSignal.abort` 是合法的，因为默认会创建一个新的 “AbortError” `DOMException`，并赋给 `AbortSignal#reason`（见 MDN）。
 
-##### Catching and rethrowing
+##### 捕获并重新抛出
 
-When catching errors, code should assume that all thrown errors are instances of `Error`.
+捕获错误时，代码应假定所有抛出的错误都是 `Error` 的实例。
 
 ```
 function assertIsError(e: unknown): asserts e is Error {
@@ -1896,7 +1896,7 @@ try {
 
 ```
 
-Exception handlers must not defensively handle non-`Error` types unless the called API is conclusively known to throw non-`Error` s in violation of the above rule. In that case, a comment should be included to specifically identify where the non-`Error` s originate.
+除非能够确凿地知道被调用的 API 违反上面的规则、会抛出非 `Error`，否则异常处理程序不得防御性地处理非 `Error` 类型。在那种情况下，应当加一条注释，具体指出这些非 `Error` 从哪里来。
 
 ```
 try {
@@ -1908,11 +1908,11 @@ try {
 
 ```
 
-Avoid overly defensive programming. Repeating the same defenses against a problem that will not exist in most code leads to boiler-plate code that is not useful.
+避免过度防御性编程。对大多数代码里不会出现的问题反复做同样的防御，只会得到没有用处的样板代码。
 
-##### Empty catch blocks
+##### 空的 catch 块
 
-It is very rarely correct to do nothing in response to a caught exception. When it truly is appropriate to take no action whatsoever in a catch block, the reason this is justified is explained in a comment.
+对捕获到的异常什么都不做，极少是正确的。当 catch 块里确实完全不采取任何行动是合适的时候，用注释说明为什么这样是合理的。
 
 ```
     try {
@@ -1924,7 +1924,7 @@ It is very rarely correct to do nothing in response to a caught exception. When 
 
 ```
 
-Disallowed:
+不允许：
 
 ```
     try {
@@ -1935,11 +1935,11 @@ Disallowed:
 
 ```
 
-Tip: Unlike in some other languages, patterns like the above simply don’t work since this will catch the error thrown by `fail`. Use `assertThrows()` instead.
+提示：与某些其他语言不同，上面这种模式根本不会奏效，因为它会捕获 `fail` 抛出的错误。改用 `assertThrows()`。
 
-##### ErrorOptions cause must be an Error object
+##### ErrorOptions 的 cause 必须是 Error 对象
 
-When passing an argument for the ErrorOptions parameter, the `cause` property must be initialized with a subtype of error. This effectively creates a chain of error objects with useful stack traces.
+为 ErrorOptions 参数传参时，`cause` 属性必须用 error 的子类型初始化。这实际上会建立一条带有有用栈追踪的错误对象链。
 
 ```
 try {
@@ -1960,7 +1960,7 @@ if (status !== success) {
 
 ```
 
-If the `cause` initializer refers to the catch clause variable of type unknown, it’s ok to omit a type check, since our codebase assumes you cannot throw anything other than an `Error` object.
+如果 `cause` 的初始化器引用的是类型为 unknown 的 catch 子句变量，可以省略类型检查，因为本代码库假定你不能抛出 `Error` 对象以外的东西。
 
 ```
 try {
@@ -1972,7 +1972,7 @@ try {
 
 ```
 
-In TypeScript, type `Error` happens to be assignable to `ErrorOptions`. Thus it is possible to pass an error object accidentally as the ErrorOptions parameter, which is very likely a bug in the code.
+在 TypeScript 里，类型 `Error` 恰好可以赋给 `ErrorOptions`。因此有可能不小心把一个错误对象当成 ErrorOptions 参数传进去，这很可能是代码里的缺陷。
 
 ```
 try {
@@ -1985,9 +1985,9 @@ try {
 
 ```
 
-#### Switch statements
+#### switch 语句
 
-All `switch` statements must contain a `default` statement group, even if it contains no code. The `default` statement group must be last.
+所有 `switch` 语句都必须包含一个 `default` 语句组，即使它里面没有代码。`default` 语句组必须放在最后。
 
 ```
 switch (x) {
@@ -2000,7 +2000,7 @@ switch (x) {
 
 ```
 
-Within a switch block, each statement group either terminates abruptly with a `break`, a `return` statement, or by throwing an exception. Non-empty statement groups (`case ...`) must not fall through (enforced by the compiler):
+在 switch 块内，每个语句组要么用 `break`、`return` 语句突然终止，要么抛出异常。非空语句组（`case ...`）不得贯穿（由编译器强制）：
 
 ```
 switch (x) {
@@ -2013,7 +2013,7 @@ switch (x) {
 
 ```
 
-Empty statement groups are allowed to fall through:
+空语句组允许贯穿：
 
 ```
 switch (x) {
@@ -2026,9 +2026,9 @@ switch (x) {
 
 ```
 
-#### Equality checks
+#### 相等检查
 
-Always use triple equals (`===`) and not equals (`!==`). The double equality operators cause error prone type coercions that are hard to understand and slower to implement for JavaScript Virtual Machines. See also the JavaScript equality table.
+始终使用三等号（`===`）和不等号（`!==`）。双等号运算符会做容易出错的类型强制转换，既难理解，对 JavaScript 虚拟机来说实现起来也更慢。另见 JavaScript 相等表。
 
 ```
 if (foo == "bar" || baz != bam) {
@@ -2044,7 +2044,7 @@ if (foo === "bar" || baz !== bam) {
 
 ```
 
-Exception: Comparisons to the literal `null` value may use the `==` and `!=` operators to cover both `null` and `undefined` values.
+例外：与字面量 `null` 比较时，可以使用 `==` 和 `!=` 运算符，以便同时覆盖 `null` 和 `undefined`。
 
 ```
 if (foo == null) {
@@ -2053,13 +2053,13 @@ if (foo == null) {
 
 ```
 
-#### Type and non-nullability assertions
+#### 类型断言与不可空性断言
 
-Type assertions (`x as SomeType`) and non-nullability assertions (`y!`) are unsafe. Both only silence the TypeScript compiler, but do not insert any runtime checks to match these assertions, so they can cause your program to crash at runtime.
+类型断言（`x as SomeType`）和不可空性断言（`y!`）是不安全的。二者都只是让 TypeScript 编译器安静下来，并不会插入与这些断言相符的运行时检查，因此可能让程序在运行时崩溃。
 
-Because of this, you should not use type and non-nullability assertions without an obvious or explicit reason for doing so.
+因此，如果没有明显或明确的理由，就不要使用类型断言和不可空性断言。
 
-Instead of the following:
+不要写成下面这样：
 
 ```
 (x as Foo).foo();
@@ -2068,7 +2068,7 @@ y!.bar();
 
 ```
 
-When you want to assert a type or non-nullability the best answer is to explicitly write a runtime check that performs that check.
+当你想断言类型或不可空性时，最好的办法是显式写一段执行该检查的运行时检查。
 
 ```
 // 下面的示例假定 Foo 是一个类，instanceof 才能用来收窄 x 的类型。
@@ -2082,7 +2082,7 @@ if (y) {
 
 ```
 
-Sometimes due to some local property of your code you can be sure that the assertion form is safe. In those situations, you should add clarification to explain why you are ok with the unsafe behavior:
+有时由于代码的某个局部性质，你可以确定断言形式是安全的。在这些情况下，你应当加上说明，解释为什么你可以接受这种不安全的行为：
 
 ```
 // 这里把 x 断言成 Foo。断言会绕过检查，所以前面的理由必须写清楚，不能只留下省略号。
@@ -2093,11 +2093,11 @@ y!.bar();
 
 ```
 
-If the reasoning behind a type or non-nullability assertion is obvious, the comments may not be necessary. For example, generated proto code is always nullable, but perhaps it is well-known in the context of the code that certain fields are always provided by the backend. Use your judgement.
+如果类型断言或不可空性断言背后的理由很明显，注释可能就不必要。例如，生成的 proto 代码总是可空的，但在这段代码的上下文里，某些字段总是由后端提供，这也许是众所周知的。请自行判断。
 
-##### Type assertion syntax
+##### 类型断言语法
 
-Type assertions must use the `as` syntax (as opposed to the angle brackets syntax). This enforces parentheses around the assertion when accessing a member.
+类型断言必须使用 `as` 语法（而不是尖括号语法）。这样在访问成员时会强制给断言加上括号。
 
 ```
 const x = (<Foo>z).length;
@@ -2111,11 +2111,11 @@ const x = (z as Foo).length;
 
 ```
 
-##### Double assertions
+##### 双重断言
 
-From the TypeScript handbook, TypeScript only allows type assertions which convert to a more specific or less specific version of a type. Adding a type assertion (`x as Foo`) which does not meet this criteria will give the error: “Conversion of type ‘X’ to type ‘Y’ may be a mistake because neither type sufficiently overlaps with the other.”
+根据 TypeScript 手册，TypeScript 只允许转换成某个类型更具体或更不具体版本的类型断言。加上一条不符合该标准的类型断言（`x as Foo`）会得到错误：“Conversion of type ‘X’ to type ‘Y’ may be a mistake because neither type sufficiently overlaps with the other.”
 
-If you are sure an assertion is safe, you can perform a double assertion. This involves casting through `unknown` since it is less specific than all types.
+如果你确定断言是安全的，可以做双重断言。这需要经由 `unknown` 做转换，因为它比所有类型都更不具体。
 
 ```
 // 双重断言会绕过中间类型的检查，更要写明 x 为什么在这里可以当成 Foo，而不是别的类型。
@@ -2123,11 +2123,11 @@ If you are sure an assertion is safe, you can perform a double assertion. This i
 
 ```
 
-Use `unknown` (instead of `any` or `{}`) as the intermediate type.
+用 `unknown`（而不是 `any` 或 `{}`）作为中间类型。
 
-##### Type assertions and object literals
+##### 类型断言与对象字面量
 
-Use type annotations (`: Foo`) instead of type assertions (`as Foo`) to specify the type of an object literal. This allows detecting refactoring bugs when the fields of an interface change over time.
+用类型注解（`: Foo`）而不是类型断言（`as Foo`）来指定对象字面量的类型。这样当接口的字段随时间变化时，可以查出重构缺陷。
 
 ```
 interface Foo {
@@ -2169,9 +2169,9 @@ function func(): Foo {
 
 ```
 
-#### Keep try blocks focused
+#### 让 try 块保持聚焦
 
-Limit the amount of code inside a try block, if this can be done without hurting readability.
+在不损害可读性的前提下，限制 try 块里的代码量。
 
 ```
 try {
@@ -2194,24 +2194,24 @@ use(result);
 
 ```
 
-Moving the non-throwable lines out of the try/catch block helps the reader learn which method throws exceptions. Some inline calls that do not throw exceptions could stay inside because they might not be worth the extra complication of a temporary variable.
+把不会抛出的行移出 try/catch 块，有助于读者弄清哪个方法会抛异常。一些不会抛异常的内联调用可以留在里面，因为为它们再引入临时变量也许不值得增加那点复杂度。
 
-Exception: There may be performance issues if try blocks are inside a loop. Widening try blocks to cover a whole loop is ok.
+例外：如果 try 块在循环内部，可能有性能问题。把 try 块加宽到覆盖整个循环是可以的。
 
-### Decorators
+### 装饰器
 
-Decorators are syntax with an `@` prefix, like `@MyDecorator`.
+装饰器是带 `@` 前缀的语法，例如 `@MyDecorator`。
 
-Do not define new decorators. Only use the decorators defined by frameworks:
+不要定义新的装饰器。只使用框架定义的装饰器：
 
-- Angular (e.g. `@Component`, `@NgModule`, etc.)
-- Polymer (e.g. `@property`)
+- Angular（例如 `@Component`、`@NgModule` 等）
+- Polymer（例如 `@property`）
 
-Why?
+为什么？
 
-We generally want to avoid decorators, because they were an experimental feature that have since diverged from the TC39 proposal and have known bugs that won’t be fixed.
+我们通常希望避免装饰器，因为它们曾经是实验性特性，此后已经与 TC39 提案分叉，并且有已知的、不会被修复的缺陷。
 
-When using decorators, the decorator must immediately precede the symbol it decorates, with no empty lines between:
+使用装饰器时，装饰器必须紧挨在它所装饰的符号前面，中间不能有空行：
 
 ```
 /** 文档注释要写在装饰器前面，这样编辑器在装饰器元数据旁边也能显示这段说明，本例就是这样。 */
@@ -2225,11 +2225,11 @@ class MyComp {
 
 ```
 
-### Disallowed features
+### 不允许的特性
 
-#### Wrapper objects for primitive types
+#### 原始类型的包装对象
 
-TypeScript code must not instantiate the wrapper classes for the primitive types `String`, `Boolean`, and `Number`. Wrapper classes have surprising behavior, such as `new Boolean(false)` evaluating to `true`.
+TypeScript 代码不得实例化原始类型 `String`、`Boolean` 和 `Number` 的包装类。包装类有令人意外的行为，例如 `new Boolean(false)` 的求值结果为 `true`。
 
 ```
 const s = new String("hello");
@@ -2238,21 +2238,21 @@ const n = new Number(5);
 
 ```
 
-The wrappers may be called as functions for coercing (which is preferred over using `+` or concatenating the empty string) or creating symbols. See type coercion for more information.
+可以把包装类当作函数调用来做强制转换（这比使用 `+` 或拼接空字符串更好），或用来创建符号。更多信息见类型强制转换。
 
-#### Automatic Semicolon Insertion
+#### 自动分号插入
 
-Do not rely on Automatic Semicolon Insertion (ASI). Explicitly end all statements using a semicolon. This prevents bugs due to incorrect semicolon insertions.
+不要依赖自动分号插入（ASI）。用分号显式结束所有语句。这可以防止因错误插入分号而产生的缺陷。
 
-#### Const enums
+#### const 枚举
 
-Code must not use `const enum`; use plain `enum` instead.
+代码不得使用 `const enum`；改用普通的 `enum`。
 
-TypeScript enums already cannot be mutated; `const enum` is a separate language feature related to optimization that makes the enum invisible to JavaScript users of the module.
+TypeScript 的枚举本来就不能被修改；`const enum` 是与优化有关的另一项语言特性，它会让该枚举对模块的 JavaScript 使用者不可见。
 
-#### Debugger statements
+#### debugger 语句
 
-Debugger statements must not be included in production code.
+生产代码中不得包含 debugger 语句。
 
 ```
 function debugMe() {
@@ -2263,68 +2263,68 @@ function debugMe() {
 
 #### `with`
 
-Do not use the `with` keyword. It makes your code harder to understand and has been banned in strict mode since ES5.
+不要使用 `with` 关键字。它让代码更难理解，并且自 ES5 起已在严格模式中被禁止。
 
-#### Dynamic code evaluation
+#### 动态代码求值
 
-Do not use `eval` or the `Function(...string)` constructor (except for code loaders). These features are potentially dangerous and simply do not work in environments using strict Content Security Policies.
+不要使用 `eval` 或 `Function(...string)` 构造函数（代码加载器除外）。这些特性有潜在危险，而且在使用严格内容安全策略的环境里根本不能工作。
 
-#### Non-standard features
+#### 非标准特性
 
-Do not use non-standard ECMAScript or Web Platform features.
+不要使用非标准的 ECMAScript 或 Web 平台特性。
 
-This includes:
+这包括：
 
-- Old features that have been marked deprecated or removed entirely from ECMAScript / the Web Platform (see MDN)
-- New ECMAScript features that are not yet standardized 
+- 已被标记为弃用或已从 ECMAScript / Web 平台完全移除的旧特性（见 MDN）
+- 尚未标准化的新 ECMAScript 特性
 
-- Avoid using features that are in current TC39 working draft or currently in the proposal process
-- Use only ECMAScript features defined in the current ECMA-262 specification
-- Proposed but not-yet-complete web standards: 
+- 避免使用当前 TC39 工作草案中的特性，或目前仍在提案过程中的特性
+- 只使用当前 ECMA-262 规范中定义的 ECMAScript 特性
+- 已提案但尚未完成的 Web 标准：
 
-- WHATWG proposals that have not completed the proposal process.
-- Non-standard language “extensions” (such as those provided by some external transpilers)
+- 尚未完成提案过程的 WHATWG 提案。
+- 非标准的语言“扩展”（例如某些外部转译器提供的扩展）
 
-Projects targeting specific JavaScript runtimes, such as latest-Chrome-only, Chrome extensions, Node.JS, Electron, can obviously use those APIs. Use caution when considering an API surface that is proprietary and only implemented in some browsers; consider whether there is a common library that can abstract this API surface away for you.
+针对特定 JavaScript 运行时的项目，例如仅最新 Chrome、Chrome 扩展、Node.JS、Electron，显然可以使用那些 API。在考虑专有且只在部分浏览器中实现的 API 表面时要谨慎；考虑是否有一个公共库能为你把这个 API 表面抽象掉。
 
-#### Modifying built-in objects
+#### 修改内置对象
 
-Never modify built-in types, either by adding methods to their constructors or to their prototypes. Avoid depending on libraries that do this.
+绝不要修改内置类型，无论是往它们的构造函数上添加方法，还是往它们的原型上添加方法。避免依赖会这样做的库。
 
-Do not add symbols to the global object unless absolutely necessary (e.g. required by a third-party API).
+除非绝对必要（例如第三方 API 要求），不要往全局对象上添加符号。
 
-## Naming
+## 命名
 
-### Identifiers
+### 标识符
 
-Identifiers must use only ASCII letters, digits, underscores (for constants and structured test method names), and (rarely) the ‘$’ sign.
+标识符只能使用 ASCII 字母、数字、下划线（用于常量和结构化的测试方法名），以及（很少）‘$’ 符号。
 
-#### Naming style
+#### 命名风格
 
-TypeScript expresses information in types, so names should not be decorated with information that is included in the type. (See also Testing Blog for more about what not to include.)
+TypeScript 用类型表达信息，因此名字不应再装饰上类型里已经包含的信息。（关于不该包含什么，另见 Testing Blog。）
 
-Some concrete examples of this rule:
+这条规则的一些具体例子：
 
-- Do not use trailing or leading underscores for private properties or methods.
-- Do not use the `opt_` prefix for optional parameters. 
+- 不要为私有属性或方法使用前导或尾随下划线。
+- 不要为可选参数使用 `opt_` 前缀。
 
-- For accessors, see accessor rules below.
-- Do not mark interfaces specially (
+- 关于访问器，见下面的访问器规则。
+- 不要给接口做特殊标记（
 
 `IMyInterface`
 
- or 
+或
 
 `MyFooInterface`
 
-) unless it’s idiomatic in its environment. When introducing an interface for a class, give it a name that expresses why the interface exists in the first place (e.g. `class TodoItem` and `interface TodoItemStorage` if the interface expresses the format used for storage/serialization in JSON).
-- Suffixing `Observable` s with `$` is a common external convention and can help resolve confusion regarding observable values vs concrete values. Judgement on whether this is a useful convention is left up to individual teams, but should be consistent within projects.
+），除非这在它所处的环境里是惯用做法。为类引入接口时，给它一个能表达该接口当初为何存在的名字（例如，如果接口表达的是 JSON 存储/序列化所用的格式，就用 `class TodoItem` 和 `interface TodoItemStorage`）。
+- 给 `Observable` 加上 `$` 后缀是一种常见的外部约定，有助于消除可观察值与具体值之间的混淆。这种约定是否有用，留给各个团队判断，但在项目内部应当一致。
 
-#### Descriptive names
+#### 描述性名字
 
-Names must be descriptive and clear to a new reader. Do not use abbreviations that are ambiguous or unfamiliar to readers outside your project, and do not abbreviate by deleting letters within a word.
+名字必须对新读者具有描述性并且清楚。不要使用对项目外读者含糊或陌生的缩写，也不要通过删掉单词内部的字母来缩写。
 
-- Exception: Variables that are in scope for 10 lines or fewer, including arguments that are not part of an exported API, may use short (e.g. single letter) variable names.
+- 例外：作用域不超过 10 行的变量，包括不属于导出 API 的参数，可以使用短名字（例如单个字母）。
 
 ```
 // 正例的名字按完整单词拼写，常见缩写只保留读者不用查表就能懂的那几个，其余单词写全。
@@ -2348,40 +2348,40 @@ customerID  // customerID 把标识写成了两个大写字母，驼峰里的缩
 
 ```
 
-#### Camel case
+#### 驼峰命名
 
-Treat abbreviations like acronyms in names as whole words, i.e. use `loadHttpUrl`, not 
+把名字里的缩写当作完整单词来处理，也就是使用 `loadHttpUrl`，而不是
 
 `loadHTTPURL`
 
-, unless required by a platform name (e.g. `XMLHttpRequest`).
+，除非平台名要求这样做（例如 `XMLHttpRequest`）。
 
-#### Dollar sign
+#### 美元符号
 
-Identifiers should not generally use `$`, except when required by naming conventions for third party frameworks. See above for more on using `$` with `Observable` values.
+标识符一般不应使用 `$`，除非第三方框架的命名约定要求这样做。关于对 `Observable` 值使用 `$`，见上文。
 
-### Rules by identifier type
+### 按标识符类型划分的规则
 
-Most identifier names should follow the casing in the table below, based on the identifier’s type.
+大多数标识符名字应按下表中的大小写，依据标识符的类型来命名。
 
-| Style | Category |
+| 风格 | 类别 |
 | --- | --- |
-| `UpperCamelCase` | class / interface / type / enum / decorator / type parameters / component functions in TSX / JSXElement type parameter |
-| `lowerCamelCase` | variable / parameter / function / method / property / module alias |
-| `CONSTANT_CASE` | global constant values, including enum values. See Constants below. |
-| `#ident` | private identifiers are never used. |
+| `UpperCamelCase` | 类 / 接口 / 类型 / 枚举 / 装饰器 / 类型参数 / TSX 中的组件函数 / JSXElement 类型参数 |
+| `lowerCamelCase` | 变量 / 参数 / 函数 / 方法 / 属性 / 模块别名 |
+| `CONSTANT_CASE` | 全局常量值，包括枚举值。见下面的常量。 |
+| `#ident` | 私有标识符从不使用。 |
 
-#### Type parameters
+#### 类型参数
 
-Type parameters, like in `Array<T>`, may use a single upper case character (`T`) or `UpperCamelCase`.
+类型参数，例如 `Array<T>` 中的类型参数，可以使用单个大写字符（`T`），也可以使用 `UpperCamelCase`。
 
-#### Test names
+#### 测试名
 
-Test method names inxUnit-style test frameworks may be structured with `_` separators, e.g. `testX_whenY_doesZ()`.
+xUnit 风格测试框架中的测试方法名可以用 `_` 分隔来组织，例如 `testX_whenY_doesZ()`。
 
-#### Underscore (`_`) prefix/suffix
+#### 下划线（`_`）前缀/后缀
 
-An underscore prefix indicates a syntactically-required identifier will not be used. It is encouraged to provide a meaningful name after the underscore, but a standalone `_` is allowed.
+下划线前缀表示一个语法上必需的标识符不会被使用。鼓励在下划线后面提供一个有意义的名字，但单独一个 `_` 也是允许的。
 
 ```
 (_projectId, api) => of(!params.disabledApis.includes(api));
@@ -2396,9 +2396,9 @@ using _cleanupFoo = foo();
 
 ```
 
-Do not use this style for trailing unused parameters, those should be omitted.
+不要对尾部未使用的参数使用这种风格，那些参数应当省略。
 
-Trailing unused parameters are allowed on methods that are specifically intended to be overridden.
+专门打算被覆盖的方法上，允许保留尾部未使用的参数。
 
 ```
 [].filter((element, _index) => !element.hasSomeProperty());
@@ -2410,32 +2410,33 @@ Trailing unused parameters are allowed on methods that are specifically intended
 
 ```
 
-Identifiers must not use `_` as a suffix.
+标识符不得使用 `_` 作为后缀。
 
-> Tip: If you only need some of the elements from an array (or TypeScript tuple), you can insert extra commas in a destructuring statement to ignore in-between elements:
-> 
+> 提示：如果只需要数组（或 TypeScript 元组）中的部分元素，可以在解构语句里插入额外的逗号，以忽略中间的元素：
+>
 > ```
-> const [a, , b] = [1, 5, 10]; // a <- 1, b <- 10
-> 
+> // 解构时用空位跳过中间元素，a 得到 1，b 得到 10，被跳过的值不要再命名了。
+> const [a, , b] = [1, 5, 10];
+>
 > ```
 
-#### Imports
+#### 导入
 
-Module namespace imports are `lowerCamelCase` while files are `snake_case`, which means that imports correctly will not match in casing style, such as
+模块命名空间导入使用 `lowerCamelCase`，而文件使用 `snake_case`，这意味着正确的导入在大小写风格上不会匹配，例如
 
 ```
 import * as fooBar from "./foo_bar";
 
 ```
 
-Some libraries might commonly use a namespace import prefix that violates this naming scheme, but overbearingly common open source use makes the violating style more readable. The only libraries that currently fall under this exception are:
+有些库常用的命名空间导入前缀会违反这套命名方案，但过于普遍的开源用法使这种违规风格更好读。目前属于这一例外的库只有：
 
-- jquery, using the `$` prefix
-- threejs, using the `THREE` prefix
+- jquery，使用 `$` 前缀
+- threejs，使用 `THREE` 前缀
 
-#### Constants
+#### 常量
 
-Immutable: `CONSTANT_CASE` indicates that a value is intended to not be changed, and may be used for values that can technically be modified (i.e. values that are not deeply frozen) to indicate to users that they must not be modified.
+不可变：`CONSTANT_CASE` 表示一个值意图不被更改，也可以用于技术上仍能被修改的值（也就是没有被深度冻结的值），以告诉使用者不得修改它们。
 
 ```
 const UNIT_SUFFIXES = {
@@ -2446,7 +2447,7 @@ const UNIT_SUFFIXES = {
 
 ```
 
-A constant can also be a `static readonly` property of a class.
+常量也可以是类的 `static readonly` 属性。
 
 ```
 class Foo {
@@ -2459,15 +2460,15 @@ class Foo {
 
 ```
 
-Global: Only symbols declared on the module level, static fields of module level classes, and values of module level enums, may use `CONST_CASE`. If a value can be instantiated more than once over the lifetime of the program (e.g. a local variable declared within a function, or a static field on a class nested in a function) then it must use `lowerCamelCase`. Local-scope aliases are excepted and should use the format of the existing identifier.
+全局：只有在模块级声明的符号、模块级类的静态字段，以及模块级枚举的值，才可以使用 `CONST_CASE`。如果一个值在程序生命周期内可以被实例化不止一次（例如函数内声明的局部变量，或嵌套在函数里的类上的静态字段），它就必须使用 `lowerCamelCase`。局部作用域别名是例外，应当使用现有标识符的格式。
 
-If a value is an arrow function that implements an interface, then it may be declared `lowerCamelCase`.
+如果一个值是实现某个接口的箭头函数，则可以声明为 `lowerCamelCase`。
 
-#### Aliases
+#### 别名
 
-When creating a local-scope alias of an existing symbol, use the format of the existing identifier. The local alias must match the existing naming and format of the source. For variables use `const` for your local aliases, and for class fields use the `readonly` attribute.
+为现有符号创建局部作用域别名时，使用现有标识符的格式。局部别名必须与来源的现有命名和格式一致。变量的局部别名使用 `const`，类字段使用 `readonly` 属性。
 
-> Note: If you’re creating an alias just to expose it to a template in your framework of choice, remember to also apply the proper access modifiers.
+> 注意：如果你创建别名只是为了把它暴露给你所选用框架的模板，记得同时加上合适的访问修饰符。
 
 ```
 const {BrewStateEnum} = SomeType;
@@ -2480,9 +2481,9 @@ class Teapot {
 
 ```
 
-#### Overridden and implemented members
+#### 被覆盖和被实现的成员
 
-Properties and methods that override, implement, or narrow a base class or interface member, or appear in a contextually typed object literal, must match the existing declaration’s name and casing to compile. Casing rules therefore apply only at a member’s original declaration, which must follow them unless an external contract requires otherwise. Consider fixing the original declaration’s name if possible.
+覆盖、实现或收窄基类或接口成员的属性和方法，或出现在按上下文确定类型的对象字面量中的属性和方法，必须与现有声明的名字和大小写一致才能编译。因此大小写规则只适用于成员的原始声明，原始声明必须遵守这些规则，除非外部契约另有要求。如果可能，考虑修正原始声明的名字。
 
 ```
 interface ServerResponse {
@@ -2507,18 +2508,18 @@ interface ErrorResponse extends ServerResponse {
 
 ```
 
-## Type system
+## 类型系统
 
-### Type inference
+### 类型推断
 
-Code may rely on type inference as implemented by the TypeScript compiler for all type expressions (variables, fields, return types, etc).
+对所有类型表达式（变量、字段、返回类型等），代码可以依赖 TypeScript 编译器所实现的类型推断。
 
 ```
 const x = 15;  // 局部变量的类型可以从 15 推断出来，不必在左侧再写一遍 number，注解在这里是重复的。
 
 ```
 
-Leave out type annotations when types are trivially inferred: unexported variables or parameters initialized to a `string`, `number`, or `boolean` literal. Type annotations are not considered trivial on exported symbols where required to be compatible with `isolatedDeclarations`.
+当类型可以平凡地推断出来时，省去类型注解：未导出的变量或参数，如果初始化为 `string`、`number` 或 `boolean` 字面量。对导出的符号，为了与 `isolatedDeclarations` 兼容而必须写出的类型注解，不视为平凡。
 
 ```
 let count: number = 0;  // 反例在能推断出 number 的局部变量上又写了类型，这种重复注解应删掉，推断结果已经够用。
@@ -2536,7 +2537,7 @@ export const PATH: string = `/users/${id}`;
 
 ```
 
-Also leave out explicit generic types where they are redundant with the type annotation.
+当显式泛型类型与类型注解重复时，也省去它们。
 
 ```
 // 反例在变量和构造函数上各写了一次 string，构造函数的类型参数已经够用，左侧不必再写。
@@ -2551,7 +2552,7 @@ export const y: Set<string> = new Set();
 
 ```
 
-For more complex expressions, type annotations can help with readability of the program:
+对更复杂的表达式，类型注解有助于程序的可读性：
 
 ```
 // 这条远程调用经过 transform 之后，不看实现就说不出 value 的类型，应在左侧写上类型。
@@ -2565,28 +2566,28 @@ const value: string[] = await rpc.getSomeValue().transform();
 
 ```
 
-Whether an annotation is required is decided by the code reviewer.
+是否需要注解，由代码评审者决定。
 
-#### Return types
+#### 返回类型
 
-Whether to include return type annotations for functions and methods is up to the code author. Reviewers may ask for annotations to clarify complex return types that are hard to understand. Projects may have a local policy to always require return types, but this is not a general TypeScript style requirement.
+函数和方法是否包含返回类型注解，由代码作者决定。评审者可以要求加上注解，以说清难以理解的复杂返回类型。项目可以有本地策略，始终要求返回类型，但这不是一般的 TypeScript 风格要求。
 
-There are two benefits to explicitly typing out the implicit return values of functions and methods:
+显式写出函数和方法的隐式返回值有两个好处：
 
-- More precise documentation to benefit readers of the code.
-- Surface potential type errors faster in the future if there are code changes that change the return type of the function.
+- 为代码读者提供更精确的文档。
+- 如果以后的代码改动改变了函数的返回类型，可以更快暴露潜在的类型错误。
 
-### Undefined and null
+### undefined 与 null
 
-TypeScript supports `undefined` and `null` types. Nullable types can be constructed as a union type (`string|null`); similarly with `undefined`. There is no special syntax for unions of `undefined` and `null`.
+TypeScript 支持 `undefined` 和 `null` 类型。可空类型可以构造成联合类型（`string|null`）；`undefined` 也类似。`undefined` 与 `null` 的联合没有特殊语法。
 
-TypeScript code can use either `undefined` or `null` to denote absence of a value, there is no general guidance to prefer one over the other. Many JavaScript APIs use `undefined` (e.g. `Map.get`), while many DOM and Google APIs use `null` (e.g. `Element.getAttribute`), so the appropriate absent value depends on the context.
+TypeScript 代码可以用 `undefined` 或 `null` 表示值的缺失，没有一般性指导说要优先哪一个。许多 JavaScript API 使用 `undefined`（例如 `Map.get`），而许多 DOM 和 Google API 使用 `null`（例如 `Element.getAttribute`），因此合适的缺失值取决于上下文。
 
-#### Nullable/undefined type aliases
+#### 可空/undefined 类型别名
 
-Type aliases must not include `|null` or `|undefined` in a union type. Nullable aliases typically indicate that null values are being passed around through too many layers of an application, and this clouds the source of the original issue that resulted in `null`. They also make it unclear when specific values on a class or interface might be absent.
+类型别名不得在联合类型中包含 `|null` 或 `|undefined`。可空别名通常表明 null 值正在穿过应用的太多层，这会模糊导致 `null` 的原始问题的来源。它们也会让人不清楚类或接口上的特定值何时可能缺失。
 
-Instead, code must only add `|null` or `|undefined` when the alias is actually used. Code should deal with null values close to where they arise, using the below techniques.
+代码只应在别名真正被使用时才加上 `|null` 或 `|undefined`。代码应当在 null 值产生的附近处理它们，使用下面的技术。
 
 ```
 // 反例把 undefined 放进响应类型，每个调用点都要处理缺失，即使这个方法其实总会返回咖啡。
@@ -2608,11 +2609,11 @@ class CoffeeService {
 
 ```
 
-### Use structural types
+### 使用结构类型
 
-TypeScript’s type system is structural, not nominal. That is, a value matches a type if it has at least all the properties the type requires and the properties’ types match, recursively.
+TypeScript 的类型系统是结构化的，不是名义化的。也就是说，如果一个值至少拥有类型所要求的全部属性，并且这些属性的类型递归地匹配，该值就匹配该类型。
 
-When providing a structural-based implementation, explicitly include the type at the declaration of the symbol (this allows more precise type checking and error reporting).
+在提供基于结构的实现时，在符号的声明处显式写上类型（这样可以做更精确的类型检查和错误报告）。
 
 ```
 const foo: Foo = {
@@ -2630,7 +2631,7 @@ const badFoo = {
 
 ```
 
-Use interfaces to define structural types, not classes
+用接口而不是类来定义结构类型
 
 ```
 interface Foo {
@@ -2658,9 +2659,9 @@ const foo: Foo = {
 
 ```
 
-The “badFoo” object above relies on type inference. Additional fields could be added to “badFoo” and the type is inferred based on the object itself.
+上面的 “badFoo” 对象依赖类型推断。可以给 “badFoo” 增加额外字段，类型会根据对象本身来推断。
 
-When passing a “badFoo” to a function that takes a “Foo”, the error will be at the function call site, rather than at the object declaration site. This is also useful when changing the surface of an interface across broad codebases.
+把 “badFoo” 传给接受 “Foo” 的函数时，错误会出现在函数调用点，而不是对象声明点。在大范围代码库中改变接口表面时，这一点也有用。
 
 ```
 interface Animal {
@@ -2693,11 +2694,11 @@ makeSound(horse);
 
 ```
 
-### Prefer interfaces over type literal aliases
+### 对象类型优先使用接口，而不是类型字面量别名
 
-TypeScript supports type aliases for naming a type expression. This can be used to name primitives, unions, tuples, and any other types.
+TypeScript 支持用类型别名给类型表达式命名。这可以用来给原始类型、联合、元组和任何其他类型命名。
 
-However, when declaring types for objects, use interfaces instead of a type alias for the object literal expression.
+但是，在为对象声明类型时，使用接口，而不是对象字面量表达式的类型别名。
 
 ```
 interface User {
@@ -2715,19 +2716,19 @@ type User = {
 
 ```
 
-Why?
+为什么？
 
-These forms are nearly equivalent, so under the principle of just choosing one out of two forms to prevent variation, we should choose one. Additionally, there are also interesting technical reasons to prefer interface. That page quotes the TypeScript team lead: “Honestly, my take is that it should really just be interfaces for anything that they can model. There is no benefit to type aliases when there are so many issues around display/perf.”
+这两种形式几乎等价，因此按照从两种形式里只选一种以避免差异的原则，我们应当选一种。此外，还有技术上的理由让人优先使用接口。那一页引用了 TypeScript 团队负责人的话：“老实说，凡是接口能够建模的东西，真的就应该只用接口。当显示和性能方面有这么多问题时，类型别名并没有好处。”
 
-### `Array<T>` Type
+### `Array<T>` 类型
 
-For simple types (containing just alphanumeric characters and dot), use the syntax sugar for arrays, `T[]` or `readonly T[]`, rather than the longer form `Array<T>` or `ReadonlyArray<T>`.
+对简单类型（只包含字母数字字符和点），使用数组的语法糖 `T[]` 或 `readonly T[]`，而不是更长的形式 `Array<T>` 或 `ReadonlyArray<T>`。
 
-For multi-dimensional non-`readonly` arrays of simple types, use the syntax sugar form (`T[][]`, `T[][][]`, and so on) rather than the longer form.
+对简单类型的多维非 `readonly` 数组，使用语法糖形式（`T[][]`、`T[][][]`，以此类推），而不是更长的形式。
 
-For anything more complex, use the longer form `Array<T>`.
+对任何更复杂的类型，使用更长的形式 `Array<T>`。
 
-These rules apply at each level of nesting, i.e. a simple `T[]` nested in a more complex type would still be spelled as `T[]`, using the syntax sugar.
+这些规则适用于每一层嵌套，也就是说，嵌在更复杂类型里的简单 `T[]` 仍然写成 `T[]`，使用语法糖。
 
 ```
 let a: string[];
@@ -2757,9 +2758,9 @@ let j: (readonly string[])[];
 
 ```
 
-### Indexable types / index signatures (`{[key: string]: T}`)
+### 可索引类型 / 索引签名（`{[key: string]: T}`）
 
-In JavaScript, it’s common to use an object as an associative array (aka “map”, “hash”, or “dict”). Such objects can be typed using an index signature (`[k: string]: T`) in TypeScript:
+在 JavaScript 里，把对象当作关联数组（也就是 “map”、“hash” 或 “dict”）很常见。这类对象在 TypeScript 里可以用索引签名（`[k: string]: T`）来标注类型：
 
 ```
 const fileSizes: {[fileName: string]: number} = {};
@@ -2767,7 +2768,7 @@ fileSizes["readme.txt"] = 541;
 
 ```
 
-In TypeScript, provide a meaningful label for the key. (The label only exists for documentation; it’s unused otherwise.)
+在 TypeScript 里，为键提供一个有意义的标签。（该标签只为文档而存在；除此之外不被使用。）
 
 ```
 const users: {[key: string]: number} = ...;
@@ -2779,28 +2780,28 @@ const users: {[userName: string]: number} = ...;
 
 ```
 
-> Rather than using one of these, consider using the ES6 `Map` and `Set` types instead. JavaScript objects have surprising undesirable behaviors and the ES6 types more explicitly convey your intent. Also, `Map` s can be keyed by—and `Set` s can contain—types other than `string`.
+> 与其使用其中某一种，不如考虑改用 ES6 的 `Map` 和 `Set` 类型。JavaScript 对象有令人意外的不良行为，而 ES6 类型更明确地传达你的意图。此外，`Map` 的键以及 `Set` 的元素可以是 `string` 以外的类型。
 
-TypeScript’s built-in `Record<Keys, ValueType>` type allows constructing types with a defined set of keys. This is distinct from associative arrays in that the keys are statically known. See advice on that below.
+TypeScript 内置的 `Record<Keys, ValueType>` 类型允许构造具有一组已定义键的类型。这与关联数组不同，因为这些键是静态已知的。见下面关于这一点的建议。
 
-### Mapped and conditional types
+### 映射类型与条件类型
 
-TypeScript’s mapped types and conditional types allow specifying new types based on other types. TypeScript’s standard library includes several type operators based on these (`Record`, `Partial`, `Readonly` etc).
+TypeScript 的映射类型和条件类型允许基于其他类型指定新类型。TypeScript 标准库包含若干基于这些特性的类型操作符（`Record`、`Partial`、`Readonly` 等）。
 
-These type system features allow succinctly specifying types and constructing powerful yet type safe abstractions. They come with a number of drawbacks though:
+这些类型系统特性允许简洁地指定类型，并构造强大且类型安全的抽象。不过它们也有若干缺点：
 
-- Compared to explicitly specifying properties and type relations (e.g. using interfaces and extension, see below for an example), type operators require the reader to mentally evaluate the type expression. This can make programs substantially harder to read, in particular combined with type inference and expressions crossing file boundaries.
-- Mapped & conditional types’ evaluation model, in particular when combined with type inference, is underspecified, not always well understood, and often subject to change in TypeScript compiler versions. Code can “accidentally” compile or seem to give the right results. This increases future support cost of code using type operators.
-- Mapped & conditional types are most powerful when deriving types from complex and/or inferred types. On the flip side, this is also when they are most prone to create hard to understand and maintain programs.
-- Some language tooling does not work well with these type system features. E.g. your IDE’s find references (and thus rename property refactoring) will not find properties in a `Pick<T, Keys>` type, and Code Search won’t hyperlink them. *
+- 与显式指定属性和类型关系（例如使用接口和扩展，例子见下）相比，类型操作符要求读者在头脑中求值类型表达式。这会让程序明显更难读，尤其是再结合类型推断和跨文件边界的表达式时。
+- 映射类型与条件类型的求值模型，尤其是与类型推断结合时，规范不足，并不总是被很好地理解，而且经常随 TypeScript 编译器版本变化。代码可能“偶然”编译通过，或看起来给出了正确结果。这增加了使用类型操作符的代码未来的维护成本。
+- 映射类型与条件类型在从复杂类型和/或推断类型派生类型时最强大。反过来说，这也是它们最容易造出难以理解和维护的程序的时候。
+- 有些语言工具不能很好地配合这些类型系统特性。例如，IDE 的查找引用（从而属性重命名重构）不会找到 `Pick<T, Keys>` 类型中的属性，Code Search 也不会给它们加超链接。 *
 
-The style recommendation is:
+风格建议是：
 
-- Always use the simplest type construct that can possibly express your code.
-- A little bit of repetition or verbosity is often much cheaper than the long term cost of complex type expressions.
-- Mapped & conditional types may be used, subject to these considerations.
+- 始终使用能够表达你的代码的最简单类型构造。
+- 一点点重复或冗长，往往比复杂类型表达式的长期成本便宜得多。
+- 在考虑上述因素的前提下，可以使用映射类型与条件类型。
 
-For example, TypeScript’s built-in `Pick<T, Keys>` type allows creating a new type by subsetting another type `T`, but simple interface extension can often be easier to understand.
+例如，TypeScript 内置的 `Pick<T, Keys>` 类型允许通过取另一个类型 `T` 的子集来创建新类型，但简单的接口扩展往往更容易理解。
 
 ```
 interface User {
@@ -2814,7 +2815,7 @@ type FoodPreferences = Pick<User, "favoriteIcecream"|"favoriteChocolate">;
 
 ```
 
-This is equivalent to spelling out the properties on `FoodPreferences`:
+这等价于把属性逐个写在 `FoodPreferences` 上：
 
 ```
 interface FoodPreferences {
@@ -2824,7 +2825,7 @@ interface FoodPreferences {
 
 ```
 
-To reduce duplication, `User` could extend `FoodPreferences`, or (possibly better) nest a field for food preferences:
+为了减少重复，可以让 `User` 扩展 `FoodPreferences`，或者（也许更好）嵌套一个表示食物偏好的字段：
 
 ```
 // 这里的 FoodPreferences 与上面选出的两种食物字段相同，示例不再把字段重复写一遍。
@@ -2836,21 +2837,21 @@ interface User extends FoodPreferences {
 
 ```
 
-Using interfaces here makes the grouping of properties explicit, improves IDE support, allows better optimization, and arguably makes the code easier to understand.
+这里使用接口让属性的分组变得明确，改善 IDE 支持，允许更好的优化，并且可以说让代码更容易理解。
 
-### `any` Type
+### `any` 类型
 
-TypeScript’s `any` type is a super and subtype of all other types, and allows dereferencing all properties. As such, `any` is dangerous - it can mask severe programming errors, and its use undermines the value of having static types in the first place.
+TypeScript 的 `any` 类型是所有其他类型的超类型和子类型，并允许解引用所有属性。因此 `any` 是危险的：它可以掩盖严重的编程错误，而使用它会削弱当初拥有静态类型的价值。
 
-Consider not to use `any`. In circumstances where you want to use `any`, consider one of:
+考虑不要使用 `any`。在你想使用 `any` 的情况下，考虑下列之一：
 
-- Provide a more specific type
-- Use `unknown`
-- Suppress the lint warning and document why
+- 提供一个更具体的类型
+- 使用 `unknown`
+- 抑制静态检查警告并记录原因
 
-#### Providing a more specific type
+#### 提供更具体的类型
 
-Use interfaces , an inline object type, or a type alias:
+使用接口、内联对象类型或类型别名：
 
 ```
 // 服务端 JSON 用声明合并的接口描述，后来加上的字段可以补在另一个同名声明里。
@@ -2875,9 +2876,9 @@ function nicestElement<T>(items: T[]): T {
 
 ```
 
-#### Using `unknown` over `any`
+#### 用 `unknown` 代替 `any`
 
-The `any` type allows assignment into any other type and dereferencing any property off it. Often this behaviour is not necessary or desirable, and code just needs to express that a type is unknown. Use the built-in type `unknown` in that situation — it expresses the concept and is much safer as it does not allow dereferencing arbitrary properties.
+`any` 类型允许赋给任何其他类型，并允许从它解引用任何属性。这种行为常常并不必要或不可取，代码只需要表达某个类型是未知的。在这种情况下使用内置类型 `unknown`：它表达了这个概念，而且安全得多，因为它不允许解引用任意属性。
 
 ```
 // unknown 可以接住任何值，包括 null 和 undefined，但在收窄或断言之前不能读取它的属性。
@@ -2892,11 +2893,11 @@ danger.whoops();  // 通过 any 读取 whoops 不会做任何检查，拼写错�
 
 ```
 
-To safely use `unknown` values, narrow the type using a type guard
+要安全地使用 `unknown` 值，用类型守卫收窄类型
 
-#### Suppressing `any` lint warnings
+#### 抑制 `any` 的静态检查警告
 
-Sometimes using `any` is legitimate, for example in tests to construct a mock object. In such cases, add a comment that suppresses the lint warning, and document why it is legitimate.
+有时使用 `any` 是正当的，例如在测试里构造模拟对象。在这种情况下，加上一条抑制静态检查警告的注释，并记录为什么这是正当的。
 
 ```
 // 这个测试只需要 BookService 的一部分。缺方法时测试会明显失败，所以这里有意做成不安全的部分替身。
@@ -2909,9 +2910,9 @@ const component = new MyComponent(mockBookService, null as any);
 
 ```
 
-### `{}` Type
+### `{}` 类型
 
-The `{}` type, also known as an empty interface type, represents an interface with no properties. An empty interface type has no specified properties and therefore any non-nullish value is assignable to it.
+`{}` 类型，也称为空接口类型，表示一个没有属性的接口。空接口类型没有指定的属性，因此任何非空值都可以赋给它。
 
 ```
 let player: {};
@@ -2934,15 +2935,15 @@ takeAnything({ a: 1, b: 2 });
 
 ```
 
-Google3 code should not use `{}` for most use cases. `{}` represents any non-nullish primitive or object type, which is rarely appropriate. Prefer one of the following more-descriptive types:
+Google3 代码在大多数用例中不应使用 `{}`。`{}` 表示任何非空的原始类型或对象类型，这很少是合适的。优先使用下列更有描述性的类型之一：
 
-- `unknown` can hold any value, including `null` or `undefined`, and is generally more appropriate for opaque values.
-- `Record<string, T>` is better for dictionary-like objects, and provides better type safety by being explicit about the type `T` of contained values (which may itself be `unknown`).
-- `object` excludes primitives as well, leaving only non-nullish functions and objects, but without any other assumptions about what properties may be available.
+- `unknown` 可以容纳任何值，包括 `null` 或 `undefined`，对不透明值通常更合适。
+- `Record<string, T>` 更适合类似字典的对象，并且通过显式写出所含值的类型 `T`（它本身可以是 `unknown`）提供更好的类型安全。
+- `object` 还会排除原始类型，只留下非空的函数和对象，但不对可能有哪些属性做任何其他假设。
 
-### Tuple types
+### 元组类型
 
-If you are tempted to create a Pair type, instead use a tuple type:
+如果你想创建一个 Pair 类型，改用元组类型：
 
 ```
 interface Pair {
@@ -2967,9 +2968,9 @@ const [leftHalf, rightHalf] = splitInHalf("my string");
 
 ```
 
-However, often it’s clearer to provide meaningful names for the properties.
+不过，给属性提供有意义的名字往往更清楚。
 
-If declaring an `interface` is too heavyweight, you can use an inline object literal type:
+如果声明一个 `interface` 太重，可以使用内联对象字面量类型：
 
 ```
 function splitHostPort(address: string): {host: string, port: number} {
@@ -2985,66 +2986,66 @@ const {host, port} = splitHostPort(userAddress);
 
 ```
 
-### Wrapper types
+### 包装类型
 
-There are a few types related to JavaScript primitives that should not ever be used:
+有几种与 JavaScript 原始类型相关的类型绝不应使用：
 
-- `String`, `Boolean`, and `Number` have slightly different meaning from the corresponding primitive types `string`, `boolean`, and `number`. Always use the lowercase version.
-- `Object` has similarities to both `{}` and `object`, but is slightly looser. Use `{}` for a type that include everything except `null` and `undefined`, or lowercase `object` to further exclude the other primitive types (the three mentioned above, plus `symbol` and `bigint`).
+- `String`、`Boolean` 和 `Number` 与对应的原始类型 `string`、`boolean` 和 `number` 含义略有不同。始终使用小写版本。
+- `Object` 与 `{}` 和 `object` 都有相似之处，但稍微更宽松。用 `{}` 表示除 `null` 和 `undefined` 以外的一切，或用小写 `object` 进一步排除其他原始类型（上面提到的三种，再加上 `symbol` 和 `bigint`）。
 
-Further, never invoke the wrapper types as constructors (with `new`).
+此外，绝不要把包装类型当作构造函数调用（使用 `new`）。
 
-### Return type only generics
+### 只有返回类型的泛型
 
-Avoid creating APIs that have return type only generics. When working with existing APIs that have return type only generics always explicitly specify the generics.
+避免创建只有返回类型泛型的 API。在使用已有的、只有返回类型泛型的 API 时，始终显式指定泛型。
 
-## Toolchain requirements
+## 工具链要求
 
-Google style requires using a number of tools in specific ways, outlined here.
+Google 风格要求以特定方式使用若干工具，如下所述。
 
-### TypeScript compiler
+### TypeScript 编译器
 
-All TypeScript files must pass type checking using the standard tool chain.
+所有 TypeScript 文件都必须使用标准工具链通过类型检查。
 
 #### @ts-ignore
 
-Do not use `@ts-ignore` nor the variants `@ts-expect-error` or `@ts-nocheck`.
+不要使用 `@ts-ignore`，也不要使用变体 `@ts-expect-error` 或 `@ts-nocheck`。
 
-Why?
+为什么？
 
-They superficially seem to be an easy way to “fix” a compiler error, but in practice, a specific compiler error is often caused by a larger problem that can be fixed more directly.
+它们表面上似乎是“修复”编译器错误的简单办法，但实际上，某个具体的编译器错误往往是由一个可以更直接修复的更大问题引起的。
 
-For example, if you are using `@ts-ignore` to suppress a type error, then it’s hard to predict what types the surrounding code will end up seeing. For many type errors, the advice in how to best use `any` is useful.
+例如，如果你用 `@ts-ignore` 抑制类型错误，就很难预测周围代码最终会看到什么类型。对许多类型错误，关于如何最好地使用 `any` 的建议是有用的。
 
-You may use `@ts-expect-error` in unit tests, though you generally should not. `@ts-expect-error` suppresses all errors. It’s easy to accidentally over-match and suppress more serious errors. Consider one of:
+你可以在单元测试中使用 `@ts-expect-error`，不过通常不应该。`@ts-expect-error` 会抑制所有错误。很容易意外匹配过多，从而抑制更严重的错误。考虑下列之一：
 
-- When testing APIs that need to deal with unchecked values at runtime, add casts to the expected type or to `any` and add an explanatory comment. This limits error suppression to a single expression.
-- Suppress the lint warning and document why, similar to suppressing `any` lint warnings.
+- 在测试那些需要在运行时处理未检查值的 API 时，转换成期望的类型或 `any`，并加上解释性注释。这把错误抑制限制在单个表达式上。
+- 抑制静态检查警告并记录原因，类似于抑制 `any` 的静态检查警告。
 
-### Conformance
+### 一致性检查
 
-Google TypeScript includes several conformance frameworks, tsetse and tsec.
+Google TypeScript 包含若干一致性框架，tsetse 和 tsec。
 
-These rules are commonly used to enforce critical restrictions (such as defining globals, which could break the codebase) and security patterns (such as using `eval` or assigning to `innerHTML`), or more loosely to improve code quality.
+这些规则通常用于强制关键限制（例如定义全局变量，那可能破坏代码库）和安全模式（例如使用 `eval` 或赋值给 `innerHTML`），或者更宽松地用于提高代码质量。
 
-Google-style TypeScript must abide by any applicable global or framework-local conformance rules.
+Google 风格的 TypeScript 必须遵守任何适用的全局或框架本地一致性规则。
 
-## Comments and documentation
+## 注释与文档
 
-#### JSDoc versus comments
+#### JSDoc 与注释
 
-There are two types of comments, JSDoc (`/** ... */`) and non-JSDoc ordinary comments (`// ...` or `/* ... */`).
+有两类注释：JSDoc（`/** ... */`）和非 JSDoc 的普通注释（`// ...` 或 `/* ... */`）。
 
-- Use `/** JSDoc */` comments for documentation, i.e. comments a user of the code should read.
-- Use `// line comments` for implementation comments, i.e. comments that only concern the implementation of the code itself.
-- Write every comment in Chinese. The product name VeriQ and technical identifiers may stay as written.
-- The first line of a comment block has at least 40 characters of comment text. Each comment line has at most 80 characters; wrap the rest.
+- 用 `/** JSDoc */` 注释做文档，也就是代码使用者应当阅读的注释。
+- 用 `//` 行注释做实现注释，也就是只关心代码本身实现的注释。
+- 每条注释都用中文书写。产品名 VeriQ 和技术标识可以保持原文。
+- 注释块的第一行至少有 40 个字符的注释文字。每一行注释最多 80 个字符；超出部分换行。
 
-JSDoc comments are understood by tools (such as editors and documentation generators), while ordinary comments are only for other humans.
+JSDoc 注释可以被工具理解（例如编辑器和文档生成器），而普通注释只给其他人看。
 
-#### Multi-line comments
+#### 多行注释
 
-Multi-line comments are indented at the same level as the surrounding code. They must use multiple single-line comments (`//`-style), not block comment style (`/* */`).
+多行注释与周围代码缩进在同一层级。它们必须使用多条单行注释（`//` 风格），而不是块注释风格（`/* */`）。
 
 ```
 // 多行实现注释用连续的双斜线，每行单独成注释，不要改成会把说明包成一块的块注释，本例就是这样。
@@ -3058,11 +3059,11 @@ Multi-line comments are indented at the same level as the surrounding code. They
 
 ```
 
-Comments are not enclosed in boxes drawn with asterisks or other characters.
+注释不用星号或其他字符画成的方框围起来。
 
-### JSDoc general form
+### JSDoc 的一般形式
 
-The basic formatting of JSDoc comments is as seen in this example:
+JSDoc 注释的基本格式如本例所示：
 
 ```
 /**
@@ -3073,7 +3074,7 @@ function doSomething(arg: number) { … }
 
 ```
 
-or in this single-line example:
+或如这个单行例子：
 
 ```
 /** 这个函数按参数完成一次转换，文档要说明转换结果交给谁，而不是只把函数名再说一遍。 */
@@ -3081,15 +3082,15 @@ function doSomething(arg: number) { … }
 
 ```
 
-If a single-line comment overflows into multiple lines, it must use the multi-line style with `/**` and `*/` on their own lines.
+如果单行注释溢出到多行，它必须使用多行风格，把 `/**` 和 `*/` 各自放在单独的行上。
 
-Many tools extract metadata from JSDoc comments to perform code validation and optimization. As such, these comments must be well-formed.
+许多工具从 JSDoc 注释中提取元数据，以做代码验证和优化。因此这些注释必须格式正确。
 
 ### Markdown
 
-JSDoc is written in Markdown, though it may include HTML when necessary.
+JSDoc 用 Markdown 书写，必要时也可以包含 HTML。
 
-This means that tooling parsing JSDoc will ignore plain text formatting, so if you did this:
+这意味着解析 JSDoc 的工具会忽略纯文本格式，所以如果你这样写：
 
 ```
 /**
@@ -3101,14 +3102,14 @@ This means that tooling parsing JSDoc will ignore plain text formatting, so if y
 
 ```
 
-it will be rendered like this:
+它会被渲染成这样：
 
 ```
 Computes weight based on three factors: items sent items received last timestamp
 
 ```
 
-Instead, write a Markdown list:
+应当改写成 Markdown 列表：
 
 ```
 /**
@@ -3121,9 +3122,9 @@ Instead, write a Markdown list:
 
 ```
 
-### JSDoc tags
+### JSDoc 标签
 
-Google style allows a subset of JSDoc tags. Most tags must occupy their own line, with the tag at the beginning of the line.
+Google 风格允许 JSDoc 标签的一个子集。大多数标签必须独占一行，标签位于行首。
 
 ```
 /**
@@ -3144,9 +3145,9 @@ function add(left: number, right: number) { ... }
 
 ```
 
-### Line wrapping
+### 换行
 
-Line-wrapped block tags are indented four spaces. Wrapped description text may be lined up with the description on previous lines, but this horizontal alignment is discouraged.
+换行后的块标签缩进四个空格。换行后的描述文字可以与前面几行的描述对齐，但不鼓励这种水平对齐。
 
 ```
 /**
@@ -3160,29 +3161,29 @@ exports.method = function(foo) {
 
 ```
 
-Do not indent when wrapping a `@desc` or `@fileoverview` description.
+换行 `@desc` 或 `@fileoverview` 描述时不要缩进。
 
-### Document all top-level exports of modules
+### 为模块的所有顶层导出写文档
 
-Use `/** JSDoc */` comments to communicate information to the users of your code. Avoid merely restating the property or parameter name. You should also document all properties and methods (exported/public or not) whose purpose is not immediately obvious from their name, as judged by your reviewer.
+用 `/** JSDoc */` 注释向代码使用者传达信息。避免仅仅复述属性或参数的名字。你还应当为所有目的不能从其名字立即看出来的属性和方法（无论是否导出/公开）写文档，是否立即明显由评审者判断。
 
-Exception: Symbols that are only exported to be consumed by tooling, such as @NgModule classes, do not require comments.
+例外：只为了被工具消费而导出的符号，例如 @NgModule 类，不需要注释。
 
-### Class comments
+### 类注释
 
-JSDoc comments for classes should provide the reader with enough information to know how and when to use the class, as well as any additional considerations necessary to correctly use the class. Textual descriptions may be omitted on the constructor.
+类的 JSDoc 注释应当为读者提供足够的信息，让他们知道如何以及何时使用该类，以及正确使用该类所需的任何额外考虑。构造函数上可以省略文字描述。
 
-### Method and function comments
+### 方法和函数注释
 
-Method, parameter, and return descriptions may be omitted if they are obvious from the rest of the method’s JSDoc or from the method name and type signature.
+如果方法描述、参数和返回值从该方法其余的 JSDoc，或从方法名和类型签名就能看出来，就可以省略。
 
-Method descriptions are written in Chinese. The first line of the comment block has at least 40 characters, and each comment line has at most 80 characters. Describe what the method does; do not copy an English “This method …” prefix.
+方法描述使用中文。注释块的第一行至少 40 个字符，每一行注释最多 80 个字符。描述方法做什么；不要照抄英文的 “This method …” 前缀。
 
-### Parameter property comments
+### 参数属性注释
 
-A parameter property is a constructor parameter that is prefixed by one of the modifiers `private`, `protected`, `public`, or `readonly`. A parameter property declares both a parameter and an instance property, and implicitly assigns into it. For example, `constructor(private readonly foo: Foo)`, declares that the constructor takes a parameter `foo`, but also declares a private readonly property `foo`, and assigns the parameter into that property before executing the remainder of the constructor.
+参数属性是带有修饰符 `private`、`protected`、`public` 或 `readonly` 之一作为前缀的构造函数参数。参数属性同时声明一个参数和一个实例属性，并隐式地把参数赋给该属性。例如 `constructor(private readonly foo: Foo)` 声明构造函数接受参数 `foo`，同时也声明一个私有只读属性 `foo`，并在执行构造函数其余部分之前把该参数赋给该属性。
 
-To document these fields, use JSDoc’s `@param` annotation. Editors display the description on constructor calls and property accesses.
+要为这些字段写文档，使用 JSDoc 的 `@param` 注解。编辑器会在构造函数调用和属性访问上显示这段描述。
 
 ```
 /** 这个类演示参数属性的文档写在构造函数的参数标签上，而不是写在类体里的字段旁边，本例就是这样。 */
@@ -3212,21 +3213,21 @@ class OrdinaryClass {
 
 ```
 
-### JSDoc type annotations
+### JSDoc 类型注解
 
-JSDoc type annotations are redundant in TypeScript source code. Do not declare types in `@param` or `@return` blocks, do not write `@implements`, `@enum`, `@private`, `@override` etc. on code that uses the `implements`, `enum`, `private`, `override` etc. keywords.
+JSDoc 类型注解在 TypeScript 源码中是多余的。不要在 `@param` 或 `@return` 块里声明类型，不要在已经使用 `implements`、`enum`、`private`、`override` 等关键字的代码上再写 `@implements`、`@enum`、`@private`、`@override` 等。
 
-### Make comments that actually add information
+### 让注释真正增加信息
 
-For non-exported symbols, sometimes the name and type of the function or parameter is enough. Code will usually benefit from more documentation than just variable names though!
+对未导出的符号，函数或参数的名字和类型有时就够了。不过代码通常会从比变量名更多的文档中受益！
 
-- Avoid comments that just restate the parameter name and type, e.g.
+- 避免只是复述参数名和类型的注释，例如
 
 ```
 /** 反例只是把参数名 fooBarService 再说成 Foo 应用的 Bar 服务，没有增加调用方还不知道的信息。 */
 
 ```
-- Because of this rule, `@param` and `@return` lines are only required when they add information, and may otherwise be omitted.
+- 由于这条规则，`@param` 和 `@return` 行只在它们增加信息时才需要，否则可以省略。
 
 ```
 /**
@@ -3239,13 +3240,13 @@ brew(amountLitres: number, logger: Logger) {
 
 ```
 
-#### Comments when calling a function
+#### 调用函数时的注释
 
-“Parameter name” comments should be used whenever the method name and parameter value do not sufficiently convey the meaning of the parameter.
+每当方法名和参数值不足以传达参数含义时，就应当使用“参数名”注释。
 
-Before adding these comments, consider refactoring the method to instead accept an interface and destructure it to greatly improve call-site readability.
+在添加这些注释之前，考虑把方法重构为改为接受一个接口并解构它，以大幅改善调用点的可读性。
 
-“Parameter name” comments go before the parameter value, and include the parameter name and a `=` suffix:
+“参数名”注释放在参数值之前，并包含参数名和 `=` 后缀：
 
 ```
 // 调用点在值前面或值后面重复参数名，因为只看 true 和字符串看不出它们对应 shouldRender 还是 name。
@@ -3253,7 +3254,7 @@ someFunction(obviousParam, /* shouldRender= */ true, /* name= */ "hello");
 
 ```
 
-Existing code may use a legacy parameter name comment style, which places these comments ~after~ the parameter value and omits the `=`. Continuing to use this style within the file for consistency is acceptable.
+现有代码可能使用一种遗留的参数名注释风格，把这些注释放在参数值之后，并省略 `=`。为了一致，在同一文件内继续使用这种风格是可以接受的。
 
 ```
 // 调用点在值前面或值后面重复参数名，因为只看 true 和字符串看不出它们对应 shouldRender 还是 name。
@@ -3261,11 +3262,11 @@ someFunction(obviousParam, true /* shouldRender */, "hello" /* name */);
 
 ```
 
-### Place documentation prior to decorators
+### 把文档放在装饰器之前
 
-When a class, method, or property have both decorators like `@Component` and JsDoc, please make sure to write the JsDoc before the decorator.
+当类、方法或属性同时有 `@Component` 这样的装饰器和 JsDoc 时，请确保把 JsDoc 写在装饰器之前。
 
-- Do not write JsDoc between the Decorator and the decorated statement.
+- 不要把 JsDoc 写在装饰器和被装饰语句之间。
 
 ```
 @Component({
@@ -3276,7 +3277,7 @@ When a class, method, or property have both decorators like `@Component` and JsD
 export class FooComponent {}
 
 ```
-- Write the JsDoc block before the Decorator.
+- 把 JsDoc 块写在装饰器之前。
 
 ```
 /** 这个组件把模板里的 bar 渲染出来，文档要放在装饰器之前，编辑器才能在选择器旁显示说明。 */
@@ -3288,62 +3289,62 @@ export class FooComponent {}
 
 ```
 
-## Policies
+## 策略
 
-### Consistency
+### 一致性
 
-For any style question that isn’t settled definitively by this specification, do what the other code in the same file is already doing (“be consistent”). If that doesn’t resolve the question, consider emulating the other files in the same directory.
+对本规范没有明确解决的任何风格问题，按同一文件中其他代码已经在做的方式去做（“保持一致”）。如果这样仍不能解决问题，考虑仿照同一目录中的其他文件。
 
-Brand new files must use Google Style, regardless of the style choices of other files in the same package. When adding new code to a file that is not in Google Style, reformatting the existing code first is recommended, subject to the advice below. If this reformatting is not done, then new code should be as consistent as possible with existing code in the same file, but must not violate the style guide.
+全新文件必须使用 Google 风格，无论同一包中其他文件做了什么风格选择。往一个不是 Google 风格的文件里添加新代码时，建议先按下面的建议重新格式化现有代码。如果不做这种重新格式化，新代码应尽可能与同一文件中的现有代码保持一致，但不得违反风格指南。
 
-#### Reformatting existing code
+#### 重新格式化现有代码
 
-You will occasionally encounter files in the codebase that are not in proper Google Style. These may have come from an acquisition, or may have been written before Google Style took a position on some issue, or may be in non-Google Style for any other reason.
+你偶尔会在代码库中遇到不符合规范 Google 风格的文件。它们可能来自一次收购，可能写于 Google 风格对某个问题表态之前，也可能因为任何其他原因而不是 Google 风格。
 
-When updating the style of existing code, follow these guidelines.
+更新现有代码的风格时，遵循这些指导。
 
-1. It is not required to change all existing code to meet current style guidelines. Reformatting existing code is a trade-off between code churn and consistency. Style rules evolve over time and these kinds of tweaks to maintain compliance would create unnecessary churn. However, if significant changes are being made to a file it is expected that the file will be in Google Style.
-2. Be careful not to allow opportunistic style fixes to muddle the focus of a CL. If you find yourself making a lot of style changes that aren’t critical to the central focus of a CL, promote those changes to a separate CL.
+1. 并不要求把所有现有代码都改成符合当前风格指南。重新格式化现有代码是代码扰动与一致性之间的权衡。风格规则会随时间演变，为了保持合规而做这类微调会造成不必要的扰动。不过，如果对一个文件做了重大修改，就期望该文件符合 Google 风格。
+2. 小心不要让顺手的风格修复搅乱一次变更的焦点。如果你发现自己做了大量对变更的中心焦点并不关键的风格修改，把那些修改提升到单独的变更里。
 
-### Deprecation
+### 弃用
 
-Mark deprecated methods, classes or interfaces with an `@deprecated` JSDoc annotation. A deprecation comment must include simple, clear directions for people to fix their call sites.
+用 `@deprecated` JSDoc 注解标记已弃用的方法、类或接口。弃用注释必须包含简单、清楚的说明，告诉人们如何修复他们的调用点。
 
-### Generated code: mostly exempt
+### 生成的代码：大体豁免
 
-Source code generated by the build process is not required to be in Google Style. However, any generated identifiers that will be referenced from hand-written source code must follow the naming requirements. As a special exception, such identifiers are allowed to contain underscores, which may help to avoid conflicts with hand-written identifiers.
+构建过程生成的源代码不要求符合 Google 风格。不过，任何会从手写源代码引用的生成标识符都必须遵守命名要求。作为特殊例外，这类标识符允许包含下划线，这有助于避免与手写标识符冲突。
 
-#### Style guide goals
+#### 风格指南的目标
 
-In general, engineers usually know best about what’s needed in their code, so if there are multiple options and the choice is situation dependent, we should let decisions be made locally. So the default answer should be “leave it out”.
+一般而言，工程师通常最清楚自己的代码需要什么，因此如果有多个选项且选择取决于具体情况，我们就应当让决定在本地做出。所以默认答案应当是“把它省掉”。
 
-The following points are the exceptions, which are the reasons we have some global rules. Evaluate your style guide proposal against the following:
+下列几点是例外，也是我们制定一些全局规则的原因。用下面这些标准评估你的风格指南提案：
 
-1. Code should avoid patterns that are known to cause problems, especially for users new to the language.
-2. Code across projects should be consistent across irrelevant variations.
+1. 代码应避免已知会导致问题的模式，尤其是对刚接触这门语言的用户。
+2. 各项目的代码应当在无关紧要的差异上保持一致。
 
-When there are two options that are equivalent in a superficial way, we should consider choosing one just so we don’t divergently evolve for no reason and avoid pointless debates in code reviews.
+当有两个在表面上等价的选项时，我们应当考虑只选一个，这样我们就不会无缘无故地分叉演化，也能避免代码评审中毫无意义的争论。
 
-Examples:
+例子：
 
-- The capitalization style of names.
-- `x as T` syntax vs the equivalent ` x` syntax (disallowed).
-- `Array<[number, number]>` vs `[number, number][]`.
-3. Code should be maintainable in the long term.
+- 名字的大小写风格。
+- `x as T` 语法与等价的 ` x` 语法（不允许）。
+- `Array<[number, number]>` 与 `[number, number][]`。
+3. 代码应当能够长期维护。
 
-Code usually lives longer than the original author works on it, and the TypeScript team must keep all of Google working into the future.
+代码的寿命通常比原作者在它上面工作的时间更长，而 TypeScript 团队必须让整个 Google 在未来继续工作。
 
-Examples:
+例子：
 
-- We use software to automate changes to code, so code is autoformatted so it’s easy for software to meet whitespace rules.
-- We require a single set of compiler flags, so a given TS library can be written assuming a specific set of flags, and users can always safely use a shared library.
-- Code must import the libraries it uses (“strict deps”) so that a refactor in a dependency doesn’t change the dependencies of its users.
-- We ask users to write tests. Without tests we cannot have confidence that changes that we make to the language, don’t break users.
-4. Code reviewers should be focused on improving the quality of the code, not enforcing arbitrary rules.
+- 我们用软件自动修改代码，因此代码是自动格式化的，以便软件容易满足空白规则。
+- 我们要求一套统一的编译器标志，这样给定的 TS 库可以假定一组特定的标志来编写，使用者始终可以安全地使用共享库。
+- 代码必须导入它使用的库（“严格依赖”），这样依赖项中的重构就不会改变其使用者的依赖。
+- 我们要求使用者编写测试。没有测试，我们就无法确信我们对语言所做的修改不会破坏使用者。
+4. 代码评审者应当专注于提高代码质量，而不是强制执行任意规则。
 
-If it’s possible to implement your rule as an automated check that is often a good sign. This also supports principle 3.
+如果有可能把你的规则实现成自动检查，这通常是一个好迹象。这也支持第 3 条原则。
 
-If it really just doesn’t matter that much – if it’s an obscure corner of the language or if it avoids a bug that is unlikely to occur – it’s probably worth leaving out.
+如果它其实没那么重要——如果它是语言的一个冷僻角落，或者它避免的是一个不太可能发生的缺陷——那大概值得省掉。
 
-1. Namespace imports are often called ‘module imports’ ↩
-2. named imports are sometimes called ‘destructuring imports’ because they use similar syntax to destructuring assignments. ↩
+1. 命名空间导入常被称为“模块导入”。 ↩
+2. 具名导入有时被称为“解构导入”，因为它们使用与解构赋值相似的语法。 ↩
