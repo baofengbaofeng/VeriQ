@@ -12,6 +12,8 @@ import { controlOrigin } from "./enrollment.ts";
 import type { Capabilities } from "./enrollment.ts";
 import { isIndependentNode24 } from "./node-version.ts";
 import type { EngineRelease } from "./execution/release.ts";
+import { verifiedNativeAddon, type RuntimeDistribution } from "./distribution.ts";
+import { requireDarwinSource, type DarwinSourceCapability } from "./execution/darwin-source.ts";
 
 /**
  * 公开接口 DoctorResult 保存逐项检查的 name/ok/detail 与可选 capabilities：ok 只表示探测通过而非授权（DoctorResult）。
@@ -34,14 +36,28 @@ export async function doctor(
         expectedBrowserVersion?: string;
         /** 发行上下文只接受调用方已经整体核验库存后提取的组件版本，避免打包后源码包不可解析造成误报；此字段本身不是签名或哈希证明，未提供时仍使用原有包解析路径及兼容版本检查。 */
         distribution?: Pick<EngineRelease["entry"], "compilerVersion" | "runnerSdkVersion">;
+        /** Mac 自检只有在完整独立库存授予原生能力且固定发行 Node 的真实观察器探针成功后才开放平台分支；普通 engine 版本字段、手工对象和源码 token 都不能单独改变既有 OS 拒绝行为。
+         * 此能力不表示已安装签名、Cookie 或生产钥匙串验收，返回能力仍需要真实浏览器与后续全部检查通过。
+         */
+        runtime?: RuntimeDistribution;
+        darwinSource?: DarwinSourceCapability;
     } = {},
 ): Promise<DoctorResult> {
     const checks: DoctorResult["checks"] = [];
+    let installedMac = false;
+    if (platform() === "darwin" && options.runtime && options.darwinSource) {
+        verifiedNativeAddon(options.runtime);
+        const state = requireDarwinSource(options.darwinSource);
+        installedMac = state.browserExecutable === options.runtime.browserExecutable &&
+            state.nodeExecutable === options.runtime.execution.runnerExecutable &&
+            options.executablePath === options.runtime.browserExecutable;
+    }
     const check = (name: string, ok: boolean, detail: string) => checks.push({ name, ok, detail });
     check("Node", isIndependentNode24(process.versions), process.versions.node);
     check(
         "OS / architecture",
-        ["linux", "win32"].includes(platform()) && arch() === "x64",
+        (["linux", "win32"].includes(platform()) && arch() === "x64") ||
+            (installedMac && ["x64", "arm64"].includes(arch())),
         `${platform()} / ${arch()}`,
     );
     const require = createRequire(import.meta.url);

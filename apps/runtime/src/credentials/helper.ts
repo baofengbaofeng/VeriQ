@@ -32,18 +32,19 @@ function environment(): NodeJS.ProcessEnv {
             throw new Error("VAULT_SYSTEM_ENVIRONMENT_INVALID");
         return { SystemRoot: systemRoot, WINDIR: systemRoot };
     }
-    const env: NodeJS.ProcessEnv = { PATH: "/usr/bin:/bin", GIO_USE_VFS: "local" };
-    for (const name of [
+    const env: NodeJS.ProcessEnv = { PATH: "/usr/bin:/bin", ...(process.platform === "linux" ? { GIO_USE_VFS: "local" } : {}) };
+    const names = [
         "HOME",
         "USER",
         "LOGNAME",
         "LANG",
         "LC_ALL",
-        "DBUS_SESSION_BUS_ADDRESS",
+        ...(process.platform === "linux" ? ["DBUS_SESSION_BUS_ADDRESS",
         "XDG_RUNTIME_DIR",
         "XDG_DATA_HOME",
-        "XDG_CONFIG_HOME",
-    ]) {
+        "XDG_CONFIG_HOME"] : []),
+    ];
+    for (const name of names) {
         const value = process.env[name];
         if (value !== undefined && value.length <= 4096 && !value.includes("\0")) env[name] = value;
     }
@@ -93,7 +94,7 @@ export class VaultHelperBackend implements VaultKeyBackend {
             observe?: (value: VaultHelperObservation) => void;
         } = {},
     ) {
-        if (!["linux", "win32"].includes(process.platform))
+        if (!["linux", "win32", "darwin"].includes(process.platform))
             throw new Error("VAULT_PLATFORM_UNSUPPORTED");
         this.executable = verifiedVaultHelper(distribution);
         this.timeoutMs = options.timeoutMs ?? 5000;

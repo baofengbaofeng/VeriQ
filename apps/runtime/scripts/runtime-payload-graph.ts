@@ -82,6 +82,16 @@ function unique<T>(values: readonly T[], key: (v: T) => string) {
     }
     return seen;
 }
+/** 包级依赖边可以由真实 Node 成功解析的公开子路径证明归属，但其包 alias 必须逐组件完全一致；@scope/name 的边不能被 @scope/name-other 或父路径混淆，入口和执行源码的字面 specifier 仍在各自根绑定分支逐字核验。
+ * 本函数只核静态声明关联，exports 是否允许和解析是否真实成功仍由持有结果文件的 Node 生产器提供证据，不能据此猜测不存在的根入口。
+ */
+function edgeWitness(specifier: string, alias: string): boolean {
+    if (specifier === alias) return true;
+    const parts = specifier.split("/");
+    const count = specifier.startsWith("@") ? 2 : 1;
+    return parts.length > count && parts.slice(0, count).join("/") === alias &&
+        parts.slice(count).every((part) => !!part && part !== "." && part !== ".." && !/[\\:%?#]/.test(part));
+}
 /** 图结构闭包在读取包正文前先验证所有端点、absence 语义与工具目标，npm pending 图也必须满足这些有界声明规则；执行 Node resolve 及归档内真实 npm 文件的检查并不发生在此处。 */
 async function graphReferences(
     graph: DependencyGraph,
@@ -160,7 +170,7 @@ async function graphReferences(
             if (
                 owner(graph, r.consumer)?.id !== r.from ||
                 !graph.edges.some(
-                    (e) => e.from === r.from && e.alias === r.specifier && e.to === r.to,
+                    (e) => e.from === r.from && edgeWitness(r.specifier, e.alias) && e.to === r.to,
                 )
             )
                 fail("PAYLOAD_GRAPH_MISMATCH");
@@ -183,7 +193,7 @@ async function graphReferences(
         if (
             e.to !== null &&
             !proof.resolutions.some(
-                (r) => r.from === e.from && r.specifier === e.alias && r.to === e.to,
+                (r) => r.from === e.from && edgeWitness(r.specifier, e.alias) && r.to === e.to,
             )
         )
             fail("PAYLOAD_GRAPH_MISMATCH");
@@ -194,6 +204,11 @@ async function graphReferences(
             )
         )
             fail("PAYLOAD_GRAPH_MISMATCH");
+    const publicAlias = (owner: PackageInstance, name: string): string | null => {
+        const install = owner.root.lastIndexOf("node_modules/");
+        return install >= 0 ? `${owner.root.slice(0, install)}node_modules/.bin/${name}`
+            : npm && owner.root === "npm" ? `npm/.bin/${name}` : null;
+    };
     for (const b of graph.bins) {
         const p = byId.get(b.owner);
         if (
@@ -203,14 +218,17 @@ async function graphReferences(
             b.name.toLowerCase() === "node"
         )
             fail("PAYLOAD_BIN_UNSUPPORTED");
-        const install = p.root.lastIndexOf("node_modules/");
-        const alias =
-            install >= 0
-                ? `${p.root.slice(0, install)}node_modules/.bin/${b.name}`
-                : npm && p.root === "npm"
-                  ? `npm/.bin/${b.name}`
-                  : null;
-        if (b.aliasPath !== alias || (b.sourceAlias !== null && b.sourceAlias !== b.aliasPath))
+        const alias = publicAlias(p, b.name);
+        const privateAlias = alias ? `${posix.dirname(alias)}/.veriq/${sha(Buffer.from(p.id))}/${b.name}` : null;
+        const siblings = graph.bins.filter((candidate) => {
+            const owner = byId.get(candidate.owner);
+            return owner && publicAlias(owner, candidate.name) === alias;
+        });
+        // 同层同名命令必须保留实际公开 alias 的唯一拥有者，其他声明只能进入由完整 owner.id 摘要派生的保留命名空间；私有 alias 不获得公开命令胜者身份，任意目录、截断摘要或独占命令的伪私有 alias 均拒绝。
+        if (!alias || (b.aliasPath !== alias && (siblings.length < 2 || b.aliasPath !== privateAlias)) ||
+            (b.sourceAlias !== null && b.sourceAlias !== b.aliasPath) ||
+            siblings.filter((candidate) => candidate.aliasPath === alias).length !== 1 ||
+            (siblings.length > 1 && siblings.find((candidate) => candidate.aliasPath === alias)?.sourceAlias !== alias))
             fail("PAYLOAD_BIN_UNSUPPORTED");
         if (b.launcher === "node") {
             if (b.inspection !== null) fail("PAYLOAD_BIN_UNSUPPORTED");
@@ -405,13 +423,15 @@ export async function verifyPackageContents(
         )
             fail("PAYLOAD_BIN_UNSUPPORTED");
         if (b.launcher === "node") {
-            if (!/\.(?:mjs|cjs|js)$/.test(b.targetPath)) fail("PAYLOAD_BIN_UNSUPPORTED");
             const content = await reader.header(tree, fact);
+            const end = content.indexOf(10),
+                line = content.subarray(0, end < 0 ? content.length : end).toString(),
+                nodeHeader = line === "#!/usr/bin/env node" || line === "#!/usr/bin/node";
+            // 已有 JS 扩展名规则继续成立，无扩展名命令只接受 held 原字节中的两种精确 Node 首行；其他扩展名、带参数的 env、shell 和二进制均不能借 launcher 声明取得 Node 执行身份，也不改变真实包路径。
+            if (!/\.(?:mjs|cjs|js)$/.test(b.targetPath) &&
+                (posix.extname(b.targetPath) !== "" || !nodeHeader)) fail("PAYLOAD_BIN_UNSUPPORTED");
             if (content.subarray(0, 2).toString() === "#!") {
-                const end = content.indexOf(10),
-                    line = content.subarray(0, end < 0 ? content.length : end).toString();
-                if (line !== "#!/usr/bin/env node" && line !== "#!/usr/bin/node")
-                    fail("PAYLOAD_BIN_UNSUPPORTED");
+                if (!nodeHeader) fail("PAYLOAD_BIN_UNSUPPORTED");
             }
         }
     }

@@ -11,6 +11,8 @@ export interface ControlledChildCapabilityOptions {
     nodeExecutable: string;
     temporaryDirectory: string;
     timeoutMs?: number;
+    /** 安装路径由完整库存核验后的可信工厂提供，源码宿主仍使用模块相邻的固定 preload；此选项只定位同一观察器源码，不允许通过业务输入替换观察协议或关闭探针失败门禁。 */
+    preloadPath?: string;
 }
 
 /** 支持结果只说明本次具体 Node 实际通过公开通道、fork 继承与同步退出闸门探针，不是 macOS 真机认证或停止证明；失败只报告固定英文原因而不转储原始错误和执行环境。 */
@@ -22,7 +24,7 @@ export type ControlledChildCapability =
 export async function runControlledChildCapability(options: ControlledChildCapabilityOptions): Promise<ControlledChildCapability> {
     if (process.platform === "win32" || typeof process.getuid !== "function") return { supported: false, reason: "UNIX_FD_UNSUPPORTED" };
     const root = mkdtempSync(join(options.temporaryDirectory, "veriq-child-capability-"));
-    const preload = fileURLToPath(new URL("./controlled-child-preload.mjs", import.meta.url));
+    const preload = options.preloadPath ?? fileURLToPath(new URL("./controlled-child-preload.mjs", import.meta.url));
     const binding: ObserverBinding = {
         version: 1, attemptId: randomUUID(), commandSlot: randomUUID(), ownerGeneration: 1, nonce: randomBytes(32).toString("hex"),
     };

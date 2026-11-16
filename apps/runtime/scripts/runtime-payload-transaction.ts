@@ -23,6 +23,8 @@ import {
     type Phase,
     type Ref,
     type NodeReceipt,
+    type Bin,
+    type LinkFact,
 } from "./runtime-payload-inputs.ts";
 import { InputReader, limits, relative, sha } from "./runtime-payload-tree.ts";
 import type { ArchiveMember } from "./runtime-payload-archive.ts";
@@ -537,6 +539,24 @@ export class ArchiveTransaction {
             const actual = this.outputs.get(`views/${bin.targetPath}`);
             if (!actual || actual.sha256 !== terminal.sha256) this.fail("PAYLOAD_SOURCE_CHANGED");
             await this.trackedLink(`views/${bin.aliasPath}`, target);
+        }
+    }
+    /** 依赖 producer 只能重建已有 bin 计划精确声明的原始别名链接，目标必须是同一事务已写入并匹配摘要的普通成员；不能用本入口为包目录、任意源码或未纳入图的路径建立一般链接能力。
+     * 公开赢家和保留私有命名空间的合法性仍由完整 graph 核验，事务这里只负责精确目标与受控视图所有权。
+     */
+    async createDependencyInputLinks(bins: readonly Bin[], links: readonly LinkFact[]) {
+        if (this.profile !== "work") this.fail("PAYLOAD_PATH");
+        if (links.length > limits.links || new Set(links.map((link) => link.path)).size !== links.length)
+            this.fail("PAYLOAD_BIN_UNSUPPORTED");
+        for (const link of links) {
+            const matches = bins.filter((bin) => bin.sourceAlias === link.path && bin.aliasPath === link.path);
+            if (matches.length !== 1) this.fail("PAYLOAD_BIN_UNSUPPORTED");
+            const bin = matches[0]!;
+            relative(link.path); relative(link.target, true);
+            if (posix.normalize(posix.join(posix.dirname(link.path), link.target)) !== bin.targetPath ||
+                this.outputs.get(`views/dependencies/${bin.targetPath}`)?.sha256 !== bin.targetSha256)
+                this.fail("PAYLOAD_BIN_UNSUPPORTED");
+            await this.trackedLink(`views/dependencies/${link.path}`, link.target);
         }
     }
     /** 有限消费者完成各自政策检查之后才进入同一个私有链接写入点，逐级父目录必须为本事务已登记的真实目录；链接与文件目录集合互斥，原始目标在 audit 中逐字读回而不会被当作目录递归跟随。 */

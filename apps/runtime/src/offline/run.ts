@@ -768,7 +768,11 @@ export async function runOffline(
 /**
  * 公开函数 recoverOffline 由原生宿主显式触发恢复或取消：对未知进程隔离容量：绝不自动释放未排空进程（recoverOffline/LOCAL_OWNERSHIP_CHANGED）。
  */
-export async function recoverOffline(root: string): Promise<StopReceipt | undefined> {
+export async function recoverOffline(root: string, options?: {
+    execution?: ExecutionPaths;
+    darwinSource?: DarwinSourceCapability;
+}): Promise<StopReceipt | undefined> {
+    if (options?.darwinSource !== undefined) requireDarwinSource(options.darwinSource);
     const store = await LocalStore.open(root);
     try {
         let owner: Ownership | undefined;
@@ -779,7 +783,8 @@ export async function recoverOffline(root: string): Promise<StopReceipt | undefi
         }
         if (!owner) throw new Error("LOCAL_OWNERSHIP_CHANGED");
         const stop = store.unspawnedStop(owner)
-            ?? await new ProcessSupervisor(join(root, "processes")).terminateAttempt(
+            ?? await new ProcessSupervisor(join(root, "processes"), 500, options?.execution?.guardianExecutable,
+                options?.darwinSource).terminateAttempt(
                 owner.attemptId, "LOCAL_RECOVERY");
         owner = store.stopped(owner.runId, stop, owner);
         const result = store.result(owner.workspaceId, owner.runId);
