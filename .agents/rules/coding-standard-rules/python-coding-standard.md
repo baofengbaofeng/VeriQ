@@ -1,46 +1,46 @@
-# Google Python Style Guide
+# Python coding standard
 
-VeriQ adaptations below are normative and override the Google wording where they differ.
+下面的 VeriQ 改编是规范性的，与 Google 原文不一致时以这里为准。
 
-- Indent code blocks with 4 spaces. Never use a tab. Docstring hanging indents are 4 spaces. A sample that still shows a 2-space hanging indent is a negative example only.
-- A code line is at most 120 characters, apart from the exceptions in the line-length section.
-- Comments, including docstrings and inline notes, are written in Chinese. The product name VeriQ and technical identifiers may stay as written.
-- The first line of a comment block contains at least 40 characters of comment text. Say what this code is doing; do not pad with a slogan.
-- Each comment line is at most 80 characters. Wrap the rest. A machine directive (`pylint:`, `pyrefly:`, `# type:`) or an unsplittable URL may keep its own line when splitting it would change the syntax.
+- 代码块使用 4 个空格缩进。禁止使用 Tab。文档字符串的悬挂缩进是 4 个空格。示例里若仍出现 2 个空格的悬挂缩进，那只是反例。
+- 代码行最多 120 个字符，行宽一节列出的例外除外。
+- 注释，包括文档字符串和行内说明，使用中文。产品名 VeriQ 和技术标识可以保持原文。
+- 注释块的第一行至少包含 40 个字符的注释文字。说明这段代码在做什么，不要用口号凑长度。
+- 每一行注释最多 80 个字符，超出部分换行。机器指令（`pylint:`、`pyrefly:`、`# type:`）或无法拆开的 URL 可以单独占一行，因为拆开会改变语法。
 
 
 
-## 1 Background
+## 1 背景
 
-Python is the main dynamic language used at Google. This style guide is a list of dos and don’ts for Python programs.
+Python 是 Google 使用的主要动态语言。本风格指南列出 Python 程序应当遵守和应当避免的做法。
 
-To help you format code correctly, we’ve created a settings file for Vim. For Emacs, the default settings should be fine.
+为了帮助正确排版代码，我们准备了 Vim 的设置文件。Emacs 使用默认设置即可。
 
-Many teams use the Black or Pyink auto-formatter to avoid arguing over formatting.
+许多团队使用 Black 或 Pyink 自动格式化，以免在格式上争论。
 
-## 2 Python Language Rules
+## 2 Python 语言规则
 
-### 2.1 Lint
+### 2.1 静态检查
 
-Run `pylint` over your code using this pylintrc.
+用这份 pylintrc 对代码运行 `pylint`。
 
-#### 2.1.1 Definition
+#### 2.1.1 定义
 
-`pylint` is a tool for finding bugs and style problems in Python source code. It finds problems that are typically caught by a compiler for less dynamic languages like C and C++. Because of the dynamic nature of Python, some warnings may be incorrect; however, spurious warnings should be fairly infrequent.
+`pylint` 用来发现 Python 源代码中的缺陷和风格问题。它能找出在 C、C++ 这类静态程度更高的语言里通常由编译器捕获的问题。由于 Python 是动态的，有些警告可能不正确；不过误报应当相当少见。
 
-#### 2.1.2 Pros
+#### 2.1.2 优点
 
-Catches easy-to-miss errors like typos, using-vars-before-assignment, etc.
+能抓住容易漏掉的错误，例如拼写错误、使用尚未赋值的变量等。
 
-#### 2.1.3 Cons
+#### 2.1.3 缺点
 
-`pylint` isn’t perfect. To take advantage of it, sometimes we’ll need to write around it, suppress its warnings or fix it.
+`pylint` 并不完美。要用好它，有时需要绕开它、抑制警告，或者修正工具本身。
 
-#### 2.1.4 Decision
+#### 2.1.4 决定
 
-Make sure you run `pylint` on your code.
+务必对自己的代码运行 `pylint`。
 
-Suppress warnings if they are inappropriate so that other issues are not hidden. To suppress warnings, you can set a line-level comment:
+不恰当的警告应当抑制，以免其他问题被淹没。抑制警告时可以写行级注释：
 
 ```
 # WSGI 要求方法名保持 do_PUT 这种协议拼写，因此只在这一行关掉 invalid-name，不把方法改成蛇形。
@@ -49,29 +49,29 @@ def do_PUT(self):  # pylint: disable=invalid-name
 
 ```
 
-`pylint` warnings are each identified by symbolic name (`empty-docstring`) Google-specific warnings start with `g-`.
+`pylint` 的每条警告都有符号名（`empty-docstring`）。Google 专用警告以 `g-` 开头。
 
-If the reason for the suppression is not clear from the symbolic name, add an explanation.
+如果符号名本身看不出抑制原因，就补上说明。
 
-Suppressing in this way has the advantage that we can easily search for suppressions and revisit them.
+这种抑制方式便于搜索，也便于以后回来复查。
 
-You can get a list of `pylint` warnings by doing:
+可以用下面的命令列出 `pylint` 警告：
 
 ```
 pylint --list-msgs
 
 ```
 
-To get more information on a particular message, use:
+要查看某一条消息的详细说明，使用：
 
 ```
 pylint --help-msg=invalid-name
 
 ```
 
-Prefer `pylint: disable` to the deprecated older form `pylint: disable-msg`.
+优先使用 `pylint: disable`，不要再用已经废弃的 `pylint: disable-msg`。
 
-Unused argument warnings can be suppressed by deleting the variables at the beginning of the function. Always include a Chinese comment explaining why you are deleting it. The first line of that comment block has at least 40 characters. “Unused.” is not sufficient. For example:
+未使用参数的警告可以在函数开头删掉这些变量来抑制。必须用中文注释说明为什么删除。该注释块的第一行至少 40 个字符。“Unused.” 不够。例如：
 
 ```
 def viking_cafe_order(spam: str, beans: str, eggs: str | None = None) -> str:
@@ -80,38 +80,38 @@ def viking_cafe_order(spam: str, beans: str, eggs: str | None = None) -> str:
 
 ```
 
-Other common forms of suppressing this warning include using ‘`_`’ as the identifier for the unused argument or prefixing the argument name with ‘`unused_`’, or assigning them to ‘`_`’. These forms are allowed but no longer encouraged. These break callers that pass arguments by name and do not enforce that the arguments are actually unused.
+抑制这条警告的其他常见写法包括：把未使用参数的标识写成 ‘`_`’，给参数名加上 ‘`unused_`’ 前缀，或者把它们赋给 ‘`_`’。这些写法允许，但不再鼓励。它们会破坏按名字传参的调用方，也不能强制这些参数真的未被使用。
 
-### 2.2 Imports
+### 2.2 导入
 
-Use `import` statements for packages and modules only, not for individual types, classes, or functions.
+`import` 语句只用于导入包和模块，不用于导入单个类型、类或函数。
 
-#### 2.2.1 Definition
+#### 2.2.1 定义
 
-Reusability mechanism for sharing code from one module to another.
+把一个模块里的代码共享给另一个模块的复用机制。
 
-#### 2.2.2 Pros
+#### 2.2.2 优点
 
-The namespace management convention is simple. The source of each identifier is indicated in a consistent way; `x.Obj` says that object `Obj` is defined in module `x`.
+命名空间约定简单。每个标识的来源都以同一种方式标明；`x.Obj` 表示对象 `Obj` 定义在模块 `x` 里。
 
-#### 2.2.3 Cons
+#### 2.2.3 缺点
 
-Module names can still collide. Some module names are inconveniently long.
+模块名仍然可能冲突。有些模块名长得不方便。
 
-#### 2.2.4 Decision
+#### 2.2.4 决定
 
-- Use `import x` for importing packages and modules.
-- Use `from x import y` where `x` is the package prefix and `y` is the module name with no prefix.
-- Use `from x import y as z` in any of the following circumstances: 
+- 导入包和模块时使用 `import x`。
+- 使用 `from x import y`，其中 `x` 是包前缀，`y` 是不带前缀的模块名。
+- 在下列任一情况下使用 `from x import y as z`：
 
-- Two modules named `y` are to be imported.
-- `y` conflicts with a top-level name defined in the current module.
-- `y` conflicts with a common parameter name that is part of the public API (e.g., `features`).
-- `y` is an inconveniently long name.
-- `y` is too generic in the context of your code (e.g., `from storage.file_system import options as fs_options`).
-- Use `import y as z` only when `z` is a standard abbreviation (e.g., `import numpy as np`).
+- 要导入两个都叫 `y` 的模块。
+- `y` 与当前模块里定义的顶层名字冲突。
+- `y` 与公共 API 里的常见参数名冲突（例如 `features`）。
+- `y` 这个名字长得不方便。
+- 在这段代码的上下文里 `y` 太笼统（例如 `from storage.file_system import options as fs_options`）。
+- 只有当 `z` 是标准缩写时才使用 `import y as z`（例如 `import numpy as np`）。
 
-For example the module `sound.effects.echo` may be imported as follows:
+例如模块 `sound.effects.echo` 可以这样导入：
 
 ```
 from sound.effects import echo
@@ -120,33 +120,33 @@ echo.EchoFilter(input, output, delay=0.7, atten=4)
 
 ```
 
-Do not use relative names in imports. Even if the module is in the same package, use the full package name. This helps prevent unintentionally importing a package twice.
+导入时不要使用相对名字。即使模块在同一个包里，也使用完整包名。这样可以避免无意中把同一个包导入两次。
 
-##### 2.2.4.1 Exemptions
+##### 2.2.4.1 例外
 
-Symbols from the following modules, used to support static analysis and type checking, are exempt from this rule:
+下列模块里用于支持静态分析和类型检查的符号不受本条规则约束：
 
-- `typing` module
-- `collections.abc` module
-- `typing_extensions` module
+- `typing` 模块
+- `collections.abc` 模块
+- `typing_extensions` 模块
 
-### 2.3 Packages
+### 2.3 包
 
-Import each module using the full pathname location of the module.
+按模块的完整路径位置导入每个模块。
 
-#### 2.3.1 Pros
+#### 2.3.1 优点
 
-Avoids conflicts in module names or incorrect imports due to the module search path not being what the author expected. Makes it easier to find modules.
+避免模块名冲突，也避免因为模块搜索路径和作者预期不同而导错。模块也更容易找到。
 
-#### 2.3.2 Cons
+#### 2.3.2 缺点
 
-Makes it harder to deploy code because you have to replicate the package hierarchy. Not really a problem with modern deployment mechanisms.
+部署时必须复制包的层次结构，因此更麻烦。对现代部署机制来说，这其实不算问题。
 
-#### 2.3.3 Decision
+#### 2.3.3 决定
 
-All new code should import each module by its full package name.
+所有新代码都应按完整包名导入每个模块。
 
-Imports should be as follows:
+导入应写成这样：
 
 ```
 Yes:
@@ -168,7 +168,7 @@ Yes:
 
 ```
 
-(assume this file lives in `doctor/who/` where `jodie.py` also exists)
+（假定本文件位于 `doctor/who/`，同目录还有 `jodie.py`）
 
 ```
 No:
@@ -177,30 +177,30 @@ No:
 
 ```
 
-The directory the main binary is located in should not be assumed to be in `sys.path` despite that happening in some environments. This being the case, code should assume that `import jodie` refers to a third-party or top-level package named `jodie`, not a local `jodie.py`.
+不要假定主程序所在目录位于 `sys.path` 中，尽管有些环境确实如此。因此代码应假定 `import jodie` 指向名为 `jodie` 的第三方或顶层包，而不是本地的 `jodie.py`。
 
-### 2.4 Exceptions
+### 2.4 异常
 
-Exceptions are allowed but must be used carefully.
+允许使用异常，但必须谨慎。
 
-#### 2.4.1 Definition
+#### 2.4.1 定义
 
-Exceptions are a means of breaking out of normal control flow to handle errors or other exceptional conditions.
+异常用于跳出正常控制流，以便处理错误或其他异常情况。
 
-#### 2.4.2 Pros
+#### 2.4.2 优点
 
-The control flow of normal operation code is not cluttered by error-handling code. It also allows the control flow to skip multiple frames when a certain condition occurs, e.g., returning from N nested functions in one step instead of having to plumb error codes through.
+正常操作的控制流不会被错误处理代码搅乱。它也允许在某个条件出现时一次跳过多层栈帧，例如从 N 层嵌套函数一步返回，而不必把错误码逐层传上去。
 
-#### 2.4.3 Cons
+#### 2.4.3 缺点
 
-May cause the control flow to be confusing. Easy to miss error cases when making library calls.
+可能让控制流变得难懂。调用库时容易漏掉错误情况。
 
-#### 2.4.4 Decision
+#### 2.4.4 决定
 
-Exceptions must follow certain conditions:
+异常必须满足下列条件：
 
-- Make use of built-in exception classes when it makes sense. For example, raise a `ValueError` to indicate a programming mistake like a violated precondition, such as may happen when validating function arguments.
-- Do not use `assert` statements in place of conditionals or validating preconditions. They must not be critical to the application logic. A litmus test would be that the `assert` could be removed without breaking the code. `assert` conditionals are not guaranteed to be evaluated. For pytest based tests, `assert` is okay and expected to verify expectations. For example:
+- 合适时使用内置异常类。例如用 `ValueError` 表示编程错误，比如违反了前置条件，验证函数参数时就可能发生这种情况。
+- 不要用 `assert` 代替条件判断或前置条件校验。它们不得成为应用逻辑的关键部分。检验标准是：删掉 `assert` 之后代码仍然成立。`assert` 中的条件不保证会被求值。基于 pytest 的测试里，用 `assert` 核对预期是可以的，也是预期做法。例如：
 
 ```
 Yes:
@@ -246,80 +246,80 @@ No:
         return port
 
 ```
-- Libraries or packages may define their own exceptions. When doing so they must inherit from an existing exception class. Exception names should end in `Error` and should not introduce repetition (`foo.FooError`).
-- Never use catch-all `except:` statements, or catch `Exception` or `StandardError`, unless you are
+- 库或包可以定义自己的异常。此时必须继承已有的异常类。异常名应以 `Error` 结尾，并且不要重复（`foo.FooError`）。
+- 绝不要使用笼统的 `except:`，也不要捕获 `Exception` 或 `StandardError`，除非你是在
 
-- re-raising the exception, or
-- creating an isolation point in the program where exceptions are not propagated but are recorded and suppressed instead, such as protecting a thread from crashing by guarding its outermost block.
+- 重新抛出该异常，或者
+- 在程序里建立隔离点：异常不继续传播，而是被记录并抑制，例如在线程最外层拦住异常，避免线程崩溃。
 
-Python is very tolerant in this regard and `except:` will really catch everything including misspelled names, sys.exit() calls, Ctrl+C interrupts, unittest failures and all kinds of other exceptions that you simply don’t want to catch.
-- Minimize the amount of code in a `try`/`except` block. The larger the body of the `try`, the more likely that an exception will be raised by a line of code that you didn’t expect to raise an exception. In those cases, the `try`/`except` block hides a real error.
-- Use the `finally` clause to execute code whether or not an exception is raised in the `try` block. This is often useful for cleanup, i.e., closing a file.
+Python 在这方面非常宽松，`except:` 真的会抓住一切，包括拼错的名字、`sys.exit()` 调用、Ctrl+C 中断、单元测试失败，以及各种你根本不想捕获的异常。
+- 尽量减少 `try`/`except` 块里的代码。`try` 的主体越大，就越可能有一行你没料到会抛异常的代码抛出异常。那时 `try`/`except` 会把真正的错误藏起来。
+- 用 `finally` 子句执行无论 `try` 块是否抛出异常都要运行的代码。这常用于清理，例如关闭文件。
 
-### 2.5 Mutable Global State
+### 2.5 可变全局状态
 
-Avoid mutable global state.
+避免可变的全局状态。
 
-#### 2.5.1 Definition
+#### 2.5.1 定义
 
-Module-level values or class attributes that can get mutated during program execution.
+程序执行期间可能被修改的模块级值或类属性。
 
-#### 2.5.2 Pros
+#### 2.5.2 优点
 
-Occasionally useful.
+偶尔有用。
 
-#### 2.5.3 Cons
+#### 2.5.3 缺点
 
-- Breaks encapsulation: Such design can make it hard to achieve valid objectives. For example, if global state is used to manage a database connection, then connecting to two different databases at the same time (such as for computing differences during a migration) becomes difficult. Similar problems easily arise with global registries.
-- Has the potential to change module behavior during the import, because assignments to global variables are done when the module is first imported.
+- 破坏封装：这种设计会让正当目标难以实现。例如若用全局状态管理数据库连接，就很难同时连接两个不同的数据库（比如迁移时计算差异）。全局注册表也容易出现类似问题。
+- 可能在导入期间改变模块行为，因为对全局变量的赋值发生在模块第一次被导入时。
 
-#### 2.5.4 Decision
+#### 2.5.4 决定
 
-Avoid mutable global state.
+避免可变的全局状态。
 
-In those rare cases where using global state is warranted, mutable global entities should be declared at the module level or as a class attribute and made internal by prepending an `_` to the name. If necessary, external access to mutable global state must be done through public functions or class methods. See Naming below. Please explain the design reasons why mutable global state is being used in a comment or a doc linked to from a comment.
+在确实有理由使用全局状态的少数情况下，可变全局实体应声明在模块级或作为类属性，并在名字前加 `_` 使其成为内部名字。如果外部必须访问可变全局状态，应通过公开函数或类方法。见下面的命名一节。请在注释里，或在注释所链到的文档里，说明为什么使用可变全局状态。
 
-Module-level constants are permitted and encouraged. For example: `_MAX_HOLY_HANDGRENADE_COUNT = 3` for an internal use constant or `SIR_LANCELOTS_FAVORITE_COLOR = "blue"` for a public API constant. Constants must be named using all caps with underscores. See Naming below.
+允许并鼓励模块级常量。例如内部常量 `_MAX_HOLY_HANDGRENADE_COUNT = 3`，或公共 API 常量 `SIR_LANCELOTS_FAVORITE_COLOR = "blue"`。常量必须使用全大写加下划线的名字。见下面的命名一节。
 
-### 2.6 Nested/Local/Inner Classes and Functions
+### 2.6 嵌套、局部与内部的类和函数
 
-Nested local functions or classes are fine when used to close over a local variable. Inner classes are fine.
+嵌套的局部函数或类在需要闭合局部变量时可以使用。内部类也可以。
 
-#### 2.6.1 Definition
+#### 2.6.1 定义
 
-A class can be defined inside of a method, function, or class. A function can be defined inside a method or function. Nested functions have read-only access to variables defined in enclosing scopes.
+类可以定义在方法、函数或类里面。函数可以定义在方法或函数里面。嵌套函数对外围作用域里定义的变量只有只读访问。
 
-#### 2.6.2 Pros
+#### 2.6.2 优点
 
-Allows definition of utility classes and functions that are only used inside of a very limited scope. Very ADT-y. Commonly used for implementing decorators.
+可以定义只在很窄范围内使用的工具类和工具函数。很像抽象数据类型。实现装饰器时常用。
 
-#### 2.6.3 Cons
+#### 2.6.3 缺点
 
-Nested functions and classes cannot be directly tested. Nesting can make the outer function longer and less readable.
+嵌套的函数和类不能直接测试。嵌套会让外层函数更长、更难读。
 
-#### 2.6.4 Decision
+#### 2.6.4 决定
 
-They are fine with some caveats. Avoid nested functions or classes except when closing over a local value other than `self` or `cls`. Do not nest a function just to hide it from users of a module. Instead, prefix its name with an _ at the module level so that it can still be accessed by tests.
+可以使用，但有一些限制。除了闭合 `self` 或 `cls` 以外的局部值，避免嵌套函数或类。不要只为了对模块使用者隐藏某个函数而把它嵌进去。应在模块级给它的名字加上 `_` 前缀，这样测试仍然可以访问它。
 
-### 2.7 Comprehensions & Generator Expressions
+### 2.7 推导式与生成器表达式
 
-Okay to use for simple cases.
+简单情况可以使用。
 
-#### 2.7.1 Definition
+#### 2.7.1 定义
 
-List, Dict, and Set comprehensions as well as generator expressions provide a concise and efficient way to create container types and iterators without resorting to the use of traditional loops, `map()`, `filter()`, or `lambda`.
+列表、字典和集合推导式以及生成器表达式，提供了一种简洁高效的方式来创建容器类型和迭代器，而不必使用传统循环、`map()`、`filter()` 或 `lambda`。
 
-#### 2.7.2 Pros
+#### 2.7.2 优点
 
-Simple comprehensions can be clearer and simpler than other dict, list, or set creation techniques. Generator expressions can be very efficient, since they avoid the creation of a list entirely.
+简单推导式可以比其他创建字典、列表或集合的手法更清楚、更简单。生成器表达式可以非常高效，因为它们完全不创建列表。
 
-#### 2.7.3 Cons
+#### 2.7.3 缺点
 
-Complicated comprehensions or generator expressions can be hard to read.
+复杂的推导式或生成器表达式很难读。
 
-#### 2.7.4 Decision
+#### 2.7.4 决定
 
-Comprehensions are allowed, however multiple `for` clauses or filter expressions are not permitted. Optimize for readability, not conciseness.
+允许使用推导式，但不允许多个 `for` 子句或过滤表达式。优先考虑可读性，而不是简短。
 
 ```
 Yes:
@@ -370,25 +370,25 @@ No:
 
 ```
 
-### 2.8 Default Iterators and Operators
+### 2.8 默认迭代器与运算符
 
-Use default iterators and operators for types that support them, like lists, dictionaries, and files.
+对支持它们的类型使用默认迭代器和运算符，例如列表、字典和文件。
 
-#### 2.8.1 Definition
+#### 2.8.1 定义
 
-Container types, like dictionaries and lists, define default iterators and membership test operators (“in” and “not in”).
+字典和列表这类容器类型定义了默认迭代器，以及成员测试运算符（“in” 和 “not in”）。
 
-#### 2.8.2 Pros
+#### 2.8.2 优点
 
-The default iterators and operators are simple and efficient. They express the operation directly, without extra method calls. A function that uses default operators is generic. It can be used with any type that supports the operation.
+默认迭代器和运算符简单、高效。它们直接表达操作，不需要额外的方法调用。使用默认运算符的函数是通用的，可以用于任何支持该操作的类型。
 
-#### 2.8.3 Cons
+#### 2.8.3 缺点
 
-You can’t tell the type of objects by reading the method names (unless the variable has type annotations). This is also an advantage.
+单看方法名无法判断对象的类型（除非变量带有类型注解）。这也是一个优点。
 
-#### 2.8.4 Decision
+#### 2.8.4 决定
 
-Use default iterators and operators for types that support them, like lists, dictionaries, and files. The built-in types define iterator methods, too. Prefer these methods to methods that return lists, except that you should not mutate a container while iterating over it.
+对支持它们的类型使用默认迭代器和运算符，例如列表、字典和文件。内置类型也定义了迭代器方法。优先使用这些方法，而不是返回列表的方法，但迭代容器时不要修改它。
 
 ```
 Yes:  for key in adict: ...
@@ -404,71 +404,71 @@ No:   for key in adict.keys(): ...
 
 ```
 
-### 2.9 Generators
+### 2.9 生成器
 
-Use generators as needed.
+需要时使用生成器。
 
-#### 2.9.1 Definition
+#### 2.9.1 定义
 
-A generator function returns an iterator that yields a value each time it executes a yield statement. After it yields a value, the runtime state of the generator function is suspended until the next value is needed.
+生成器函数返回一个迭代器，每次执行 yield 语句时产生一个值。产生一个值之后，生成器函数的运行时状态会挂起，直到需要下一个值。
 
-#### 2.9.2 Pros
+#### 2.9.2 优点
 
-Simpler code, because the state of local variables and control flow are preserved for each call. A generator uses less memory than a function that creates an entire list of values at once.
+代码更简单，因为每次调用都会保留局部变量和控制流的状态。生成器比一次创建整份值列表的函数占用更少内存。
 
-#### 2.9.3 Cons
+#### 2.9.3 缺点
 
-Local variables in the generator will not be garbage collected until the generator is either consumed to exhaustion or itself garbage collected.
+生成器里的局部变量要等到生成器被消耗完，或者生成器本身被垃圾回收，才会被回收。
 
-#### 2.9.4 Decision
+#### 2.9.4 决定
 
-Fine. Use “Yields:” rather than “Returns:” in the docstring for generator functions.
+可以使用。生成器函数的文档字符串里用 “Yields:”，不要用 “Returns:”。
 
-If the generator manages an expensive resource, make sure to force the clean up.
+如果生成器管理昂贵资源，务必强制清理。
 
-A good way to do the clean up is by wrapping the generator with a context manager PEP-0533.
+一种好的清理方式是用上下文管理器包住生成器，见 PEP-0533。
 
-### 2.10 Lambda Functions
+### 2.10 Lambda 函数
 
-Okay for one-liners. Prefer generator expressions over `map()` or `filter()` with a `lambda`.
+单行可以使用。优先使用生成器表达式，而不是带 `lambda` 的 `map()` 或 `filter()`。
 
-#### 2.10.1 Definition
+#### 2.10.1 定义
 
-Lambdas define anonymous functions in an expression, as opposed to a statement.
+Lambda 在表达式里定义匿名函数，而不是在语句里定义。
 
-#### 2.10.2 Pros
+#### 2.10.2 优点
 
-Convenient.
+方便。
 
-#### 2.10.3 Cons
+#### 2.10.3 缺点
 
-Harder to read and debug than local functions. The lack of names means stack traces are more difficult to understand. Expressiveness is limited because the function may only contain an expression.
+比局部函数更难读、更难调试。没有名字会让栈追踪更难理解。表达能力有限，因为函数体只能是一个表达式。
 
-#### 2.10.4 Decision
+#### 2.10.4 决定
 
-Lambdas are allowed. If the code inside the lambda function spans multiple lines or is longer than 60-80 chars, it might be better to define it as a regular nested function.
+允许使用 lambda。如果 lambda 函数里的代码跨越多行，或长于 60 到 80 个字符，最好把它定义成普通的嵌套函数。
 
-For common operations like multiplication, use the functions from the `operator` module instead of lambda functions. For example, prefer `operator.mul` to `lambda x, y: x * y`.
+对乘法这类常见运算，使用 `operator` 模块里的函数，不要用 lambda。例如优先使用 `operator.mul`，而不是 `lambda x, y: x * y`。
 
-### 2.11 Conditional Expressions
+### 2.11 条件表达式
 
-Okay for simple cases.
+简单情况可以使用。
 
-#### 2.11.1 Definition
+#### 2.11.1 定义
 
-Conditional expressions (sometimes called a “ternary operator”) are mechanisms that provide a shorter syntax for if statements. For example: `x = 1 if cond else 2`.
+条件表达式（有时称为“三元运算符”）为 if 语句提供更短的语法。例如：`x = 1 if cond else 2`。
 
-#### 2.11.2 Pros
+#### 2.11.2 优点
 
-Shorter and more convenient than an if statement.
+比 if 语句更短、更方便。
 
-#### 2.11.3 Cons
+#### 2.11.3 缺点
 
-May be harder to read than an if statement. The condition may be difficult to locate if the expression is long.
+可能比 if 语句更难读。表达式很长时，条件可能不容易找到。
 
-#### 2.11.4 Decision
+#### 2.11.4 决定
 
-Okay to use for simple cases. Each portion must fit on one line: true-expression, if-expression, else-expression. Use a complete if statement when things get more complicated.
+简单情况可以使用。每一部分都必须放在一行里：真值表达式、if 表达式、else 表达式。事情变复杂时，使用完整的 if 语句。
 
 ```
 Yes:
@@ -493,27 +493,27 @@ No:
 
 ```
 
-### 2.12 Default Argument Values
+### 2.12 默认参数值
 
-Okay in most cases.
+多数情况可以使用。
 
-#### 2.12.1 Definition
+#### 2.12.1 定义
 
-You can specify values for variables at the end of a function’s parameter list, e.g., `def foo(a, b=0):`. If `foo` is called with only one argument, `b` is set to 0. If it is called with two arguments, `b` has the value of the second argument.
+可以在函数参数列表末尾为变量指定值，例如 `def foo(a, b=0):`。如果调用 `foo` 时只传一个参数，`b` 被设为 0。如果传两个参数，`b` 取第二个参数的值。
 
-#### 2.12.2 Pros
+#### 2.12.2 优点
 
-Often you have a function that uses lots of default values, but on rare occasions you want to override the defaults. Default argument values provide an easy way to do this, without having to define lots of functions for the rare exceptions. As Python does not support overloaded methods/functions, default arguments are an easy way of “faking” the overloading behavior.
+常常有一个函数使用很多默认值，但偶尔想覆盖这些默认值。默认参数值提供了一种简便做法，不必为这些罕见例外再定义许多函数。Python 不支持重载方法或函数，默认参数是“仿造”重载行为的简便方式。
 
-#### 2.12.3 Cons
+#### 2.12.3 缺点
 
-Default arguments are evaluated once at module load time. This may cause problems if the argument is a mutable object such as a list or a dictionary. If the function modifies the object (e.g., by appending an item to a list), the default value is modified.
+默认参数在模块加载时只求值一次。如果参数是列表或字典这类可变对象，可能出问题。如果函数修改了该对象（例如往列表里追加一项），默认值也会被改掉。
 
-#### 2.12.4 Decision
+#### 2.12.4 决定
 
-Okay to use with the following caveat:
+可以使用，但有下列限制：
 
-Do not use mutable objects as default values in the function or method definition.
+不要在函数或方法定义里把可变对象用作默认值。
 
 ```
 Yes: def foo(a, b=None):
@@ -544,60 +544,60 @@ No:  def foo(a, b: Mapping = {}):
 
 ```
 
-### 2.13 Properties
+### 2.13 属性
 
-Properties may be used to control getting or setting attributes that require trivial computations or logic. Property implementations must match the general expectations of regular attribute access: that they are cheap, straightforward, and unsurprising.
+属性可以用来控制那些只需少量计算或逻辑的读取和设置。属性的实现必须符合普通属性访问的一般预期：便宜、直接、不出人意料。
 
-#### 2.13.1 Definition
+#### 2.13.1 定义
 
-A way to wrap method calls for getting and setting an attribute as a standard attribute access.
+把获取和设置属性的方法调用包装成标准属性访问的方式。
 
-#### 2.13.2 Pros
+#### 2.13.2 优点
 
-- Allows for an attribute access and assignment API rather than getter and setter method calls.
-- Can be used to make an attribute read-only.
-- Allows calculations to be lazy.
-- Provides a way to maintain the public interface of a class when the internals evolve independently of class users.
+- 提供属性访问和赋值的 API，而不是读取器和设置器方法调用。
+- 可以用来把属性做成只读。
+- 允许把计算推迟到使用时。
+- 当内部实现独立于类的使用者演进时，可以维持类的公共接口。
 
-#### 2.13.3 Cons
+#### 2.13.3 缺点
 
-- Can hide side-effects much like operator overloading.
-- Can be confusing for subclasses.
+- 可能像运算符重载一样藏起副作用。
+- 可能让子类感到困惑。
 
-#### 2.13.4 Decision
+#### 2.13.4 决定
 
-Properties are allowed, but, like operator overloading, should only be used when necessary and match the expectations of typical attribute access; follow the getters and setters rules otherwise.
+允许使用属性，但和运算符重载一样，只在必要时使用，并且要符合典型属性访问的预期；否则遵循读取器与设置器的规则。
 
-For example, using a property to simply both get and set an internal attribute isn’t allowed: there is no computation occurring, so the property is unnecessary (make the attribute public instead). In comparison, using a property to control attribute access or to calculate a trivially derived value is allowed: the logic is simple and unsurprising.
+例如，不允许用属性仅仅同时读取和设置一个内部属性：这里没有计算，属性是多余的（应把该属性公开）。相比之下，允许用属性控制属性访问，或计算一个轻易就能得出的派生值：逻辑简单，也不出人意料。
 
-Properties should be created with the `@property` decorator. Manually implementing a property descriptor is considered a power feature.
+属性应使用 `@property` 装饰器创建。手工实现属性描述符被视为高级特性。
 
-Inheritance with properties can be non-obvious. Do not use properties to implement computations a subclass may ever want to override and extend.
+属性与继承的关系可能并不明显。不要用属性实现子类将来可能想覆盖并扩展的计算。
 
-### 2.14 True/False Evaluations
+### 2.14 真与假的求值
 
-Use the “implicit” false if at all possible (with a few caveats).
+尽可能使用“隐式”假（有几条例外）。
 
-#### 2.14.1 Definition
+#### 2.14.1 定义
 
-Python evaluates certain values as `False` when in a boolean context. A quick “rule of thumb” is that all “empty” values are considered false, so `0, None, [], {}, ''` all evaluate as false in a boolean context.
+在布尔上下文中，Python 会把某些值求值为 `False`。一条快速的经验是：所有“空”值都被视为假，因此 `0, None, [], {}, ''` 在布尔上下文中都为假。
 
-#### 2.14.2 Pros
+#### 2.14.2 优点
 
-Conditions using Python booleans are easier to read and less error-prone. In most cases, they’re also faster.
+使用 Python 布尔值的条件更容易读，也不容易出错。多数情况下也更快。
 
-#### 2.14.3 Cons
+#### 2.14.3 缺点
 
-May look strange to C/C++ developers.
+对 C/C++ 开发者来说可能显得奇怪。
 
-#### 2.14.4 Decision
+#### 2.14.4 决定
 
-Use the “implicit” false if possible, e.g., `if foo:` rather than `if foo != []:`. There are a few caveats that you should keep in mind though:
+尽可能使用“隐式”假，例如用 `if foo:`，而不是 `if foo != []:`。不过要记住几条例外：
 
-- Always use `if foo is None:` (or `is not None`) to check for a `None` value. E.g., when testing whether a variable or argument that defaults to `None` was set to some other value. The other value might be a value that’s false in a boolean context!
-- Never compare a boolean variable to `False` using `==`. Use `if not x:` instead. If you need to distinguish `False` from `None` then chain the expressions, such as `if not x and x is not None:`.
-- For sequences (strings, lists, tuples), use the fact that empty sequences are false, so `if seq:` and `if not seq:` are preferable to `if len(seq):` and `if not len(seq):` respectively.
-- When handling integers, implicit false may involve more risk than benefit (i.e., accidentally handling `None` as 0). You may compare a value which is known to be an integer (and is not the result of `len()`) against the integer 0.
+- 检查 `None` 时始终使用 `if foo is None:`（或 `is not None`）。例如测试一个默认值为 `None` 的变量或参数是否被设成了别的值。那个别的值在布尔上下文里也可能为假！
+- 绝不要用 `==` 把布尔变量和 `False` 比较。改用 `if not x:`。如果需要区分 `False` 和 `None`，把表达式串起来，例如 `if not x and x is not None:`。
+- 对序列（字符串、列表、元组），利用空序列为假这一事实，因此 `if seq:` 和 `if not seq:` 分别优于 `if len(seq):` 和 `if not len(seq):`。
+- 处理整数时，隐式假的风险可能大于收益（例如不小心把 `None` 当成 0）。可以把已知是整数、且不是 `len()` 结果的值与整数 0 比较。
 
 ```
 Yes: if not users:
@@ -623,18 +623,18 @@ No:  if len(users) == 0:
          x = x or []
 
 ```
-- Note that `'0'` (i.e., `0` as string) evaluates to true.
-- Note that Numpy arrays may raise an exception in an implicit boolean context. Prefer the `.size` attribute when testing emptiness of a `np.array` (e.g. `if not users.size`).
+- 注意 `'0'`（也就是字符串形式的 `0`）求值为真。
+- 注意 Numpy 数组在隐式布尔上下文中可能抛出异常。测试 `np.array` 是否为空时，优先使用 `.size` 属性（例如 `if not users.size`）。
 
-### 2.16 Lexical Scoping
+### 2.16 词法作用域
 
-Okay to use.
+可以使用。
 
-#### 2.16.1 Definition
+#### 2.16.1 定义
 
-A nested Python function can refer to variables defined in enclosing functions, but cannot assign to them. Variable bindings are resolved using lexical scoping, that is, based on the static program text. Any assignment to a name in a block will cause Python to treat all references to that name as a local variable, even if the use precedes the assignment. If a global declaration occurs, the name is treated as a global variable.
+嵌套的 Python 函数可以引用外层函数里定义的变量，但不能给它们赋值。变量绑定按词法作用域解析，也就是依据静态程序文本。块里对某个名字的任何赋值都会让 Python 把对该名字的所有引用都当成局部变量，即使使用出现在赋值之前。如果出现 global 声明，该名字被视为全局变量。
 
-An example of the use of this feature is:
+这个特性的用例如下：
 
 ```
 def get_adder(summand1: float) -> Callable[[float], float]:
@@ -647,13 +647,13 @@ def get_adder(summand1: float) -> Callable[[float], float]:
 
 ```
 
-#### 2.16.2 Pros
+#### 2.16.2 优点
 
-Often results in clearer, more elegant code. Especially comforting to experienced Lisp and Scheme (and Haskell and ML and …) programmers.
+常常得到更清楚、更优雅的代码。对有经验的 Lisp 和 Scheme（以及 Haskell 和 ML 等）程序员尤其熟悉。
 
-#### 2.16.3 Cons
+#### 2.16.3 缺点
 
-Can lead to confusing bugs, such as this example based on PEP-0227:
+可能导致令人困惑的缺陷，例如这个基于 PEP-0227 的例子：
 
 ```
 i = 4
@@ -667,19 +667,19 @@ def foo(x: Iterable[int]):
 
 ```
 
-So `foo([1, 2, 3])` will print `1 2 3 3`, not `1 2 3 4`.
+因此 `foo([1, 2, 3])` 会打印 `1 2 3 3`，而不是 `1 2 3 4`。
 
-#### 2.16.4 Decision
+#### 2.16.4 决定
 
-Okay to use.
+可以使用。
 
-### 2.17 Function and Method Decorators
+### 2.17 函数与方法装饰器
 
-Use decorators judiciously when there is a clear advantage. Avoid `staticmethod` and limit use of `classmethod`.
+有明显好处时审慎使用装饰器。避免 `staticmethod`，并限制 `classmethod` 的使用。
 
-#### 2.17.1 Definition
+#### 2.17.1 定义
 
-Decorators for Functions and Methods (a.k.a “the `@` notation”). One common decorator is `@property`, used for converting ordinary methods into dynamically computed attributes. However, the decorator syntax allows for user-defined decorators as well. Specifically, for some function `my_decorator`, this:
+函数与方法的装饰器（也就是 “`@` 记号”）。一个常见装饰器是 `@property`，用于把普通方法转换成动态计算的属性。装饰器语法也允许用户自定义装饰器。具体来说，对某个函数 `my_decorator`，下面这样：
 
 ```
 class C:
@@ -689,7 +689,7 @@ class C:
 
 ```
 
-is equivalent to:
+等价于：
 
 ```
 class C:
@@ -699,147 +699,147 @@ class C:
 
 ```
 
-#### 2.17.2 Pros
+#### 2.17.2 优点
 
-Elegantly specifies some transformation on a method; the transformation might eliminate some repetitive code, enforce invariants, etc.
+优雅地标明对方法的某种变换；这种变换可以去掉一些重复代码、维持不变量等。
 
-#### 2.17.3 Cons
+#### 2.17.3 缺点
 
-Decorators can perform arbitrary operations on a function’s arguments or return values, resulting in surprising implicit behavior. Additionally, decorators execute at object definition time. For module-level objects (classes, module functions, …) this happens at import time. Failures in decorator code are pretty much impossible to recover from.
+装饰器可以对函数的参数或返回值做任意操作，从而产生令人意外的隐式行为。此外，装饰器在对象定义时执行。对模块级对象（类、模块函数等）来说，这发生在导入时。装饰器代码里的失败几乎无法恢复。
 
-#### 2.17.4 Decision
+#### 2.17.4 决定
 
-Use decorators judiciously when there is a clear advantage. Decorators should follow the same import and naming guidelines as functions. A decorator docstring should clearly state that the function is a decorator. Write unit tests for decorators.
+有明显好处时审慎使用装饰器。装饰器应遵循与函数相同的导入和命名准则。装饰器的文档字符串应明确说明该函数是装饰器。为装饰器编写单元测试。
 
-Avoid external dependencies in the decorator itself (e.g. don’t rely on files, sockets, database connections, etc.), since they might not be available when the decorator runs (at import time, perhaps from `pydoc` or other tools). A decorator that is called with valid parameters should (as much as possible) be guaranteed to succeed in all cases.
+装饰器自身应避免外部依赖（例如不要依赖文件、套接字、数据库连接等），因为装饰器运行时这些东西可能还不可用（可能在导入时，也许来自 `pydoc` 或其他工具）。用有效参数调用的装饰器应当（尽可能）在所有情况下都保证成功。
 
-Decorators are a special case of “top-level code” - see main for more discussion.
+装饰器是“顶层代码”的一种特殊情况，更多讨论见 main。
 
-Never use `staticmethod` unless forced to in order to integrate with an API defined in an existing library. Write a module-level function instead.
+除非为了接入现有库所定义的 API 而被迫使用，否则绝不要使用 `staticmethod`。应改写模块级函数。
 
-Use `classmethod` only when writing a named constructor, or a class-specific routine that modifies necessary global state such as a process-wide cache.
+只有在编写具名构造器，或编写会修改必要全局状态（例如进程范围的缓存）的类专用例程时，才使用 `classmethod`。
 
-### 2.18 Threading
+### 2.18 线程
 
-Do not rely on the atomicity of built-in types.
+不要依赖内置类型的原子性。
 
-While Python’s built-in data types such as dictionaries appear to have atomic operations, there are corner cases where they aren’t atomic (e.g. if `__hash__` or `__eq__` are implemented as Python methods) and their atomicity should not be relied upon. Neither should you rely on atomic variable assignment (since this in turn depends on dictionaries).
+虽然 Python 的字典等内置数据类型看起来具有原子操作，但仍有并不原子的边角情况（例如 `__hash__` 或 `__eq__` 用 Python 方法实现时），不应依赖它们的原子性。也不应依赖变量赋值的原子性（因为这又依赖于字典）。
 
-Use the `queue` module’s `Queue` data type as the preferred way to communicate data between threads. Otherwise, use the `threading` module and its locking primitives. Prefer condition variables and `threading.Condition` instead of using lower-level locks.
+线程之间传递数据时，优先使用 `queue` 模块的 `Queue` 数据类型。否则使用 `threading` 模块及其锁原语。优先使用条件变量和 `threading.Condition`，而不是更底层的锁。
 
-### 2.19 Power Features
+### 2.19 高级特性
 
-Avoid these features.
+避免这些特性。
 
-#### 2.19.1 Definition
+#### 2.19.1 定义
 
-Python is an extremely flexible language and gives you many fancy features such as custom metaclasses, access to bytecode, on-the-fly compilation, dynamic inheritance, object reparenting, import hacks, reflection (e.g. some uses of `getattr()`), modification of system internals, `__del__` methods implementing customized cleanup, etc.
+Python 极其灵活，提供许多花哨特性，例如自定义元类、访问字节码、即时编译、动态继承、对象重新指定父类、导入技巧、反射（例如 `getattr()` 的某些用法）、修改系统内部、用 `__del__` 方法实现定制清理等。
 
-#### 2.19.2 Pros
+#### 2.19.2 优点
 
-These are powerful language features. They can make your code more compact.
+这些是强大的语言特性。它们可以让代码更紧凑。
 
-#### 2.19.3 Cons
+#### 2.19.3 缺点
 
-It’s very tempting to use these “cool” features when they’re not absolutely necessary. It’s harder to read, understand, and debug code that’s using unusual features underneath. It doesn’t seem that way at first (to the original author), but when revisiting the code, it tends to be more difficult than code that is longer but is straightforward.
+在并非绝对必要的时候使用这些“酷”特性很有诱惑力。底层使用不寻常特性的代码更难读、更难理解和调试。起初（对原作者来说）似乎并非如此，但回看代码时，它往往比更长但直白的代码更难。
 
-#### 2.19.4 Decision
+#### 2.19.4 决定
 
-Avoid these features in your code.
+在代码里避免这些特性。
 
-Standard library modules and classes that internally use these features are okay to use (for example, `abc.ABCMeta`, `dataclasses`, and `enum`).
+标准库里内部使用这些特性的模块和类可以使用（例如 `abc.ABCMeta`、`dataclasses` 和 `enum`）。
 
-### 2.20 Modern Python: from __future__ imports
+### 2.20 现代 Python：from __future__ 导入
 
-New language version semantic changes may be gated behind a special future import to enable them on a per-file basis within earlier runtimes.
+新语言版本的语义变化可能被放在特殊的 future 导入后面，以便在更早的运行时里按文件启用。
 
-#### 2.20.1 Definition
+#### 2.20.1 定义
 
-Being able to turn on some of the more modern features via `from __future__ import` statements allows early use of features from expected future Python versions.
+通过 `from __future__ import` 语句打开一些更现代的特性，可以提前使用预期未来 Python 版本中的特性。
 
-#### 2.20.2 Pros
+#### 2.20.2 优点
 
-This has proven to make runtime version upgrades smoother as changes can be made on a per-file basis while declaring compatibility and preventing regressions within those files. Modern code is more maintainable as it is less likely to accumulate technical debt that will be problematic during future runtime upgrades.
+这已被证明能让运行时版本升级更平滑，因为可以按文件作出改动，同时声明兼容性，并防止这些文件里出现回退。现代代码更易维护，因为它更不容易积累会在未来运行时升级中造成问题的技术债。
 
-#### 2.20.3 Cons
+#### 2.20.3 缺点
 
-Such code may not work on very old interpreter versions prior to the introduction of the needed future statement. The need for this is more common in projects supporting an extremely wide variety of environments.
+这类代码可能无法在引入所需 future 语句之前的非常老的解释器版本上运行。支持极其多样环境的项目更常有这种需要。
 
-#### 2.20.4 Decision
+#### 2.20.4 决定
 
-##### from __future__ imports
+##### from __future__ 导入
 
-Use of `from __future__ import` statements is encouraged. It allows a given source file to start using more modern Python syntax features today. Once you no longer need to run on a version where the features are hidden behind a `__future__` import, feel free to remove those lines.
+鼓励使用 `from __future__ import` 语句。它让给定源文件从今天起就能使用更现代的 Python 语法特性。一旦不再需要在这些特性仍被 `__future__` 导入藏起来的版本上运行，就可以去掉那些行。
 
-In code that may execute on versions as old as 3.5 rather than >= 3.7, import:
+在可能运行于旧至 3.5、而不是 >= 3.7 的代码里，导入：
 
 ```
 from __future__ import generator_stop
 
 ```
 
-For more information read the Python future statement definitions documentation.
+更多信息请阅读 Python future 语句定义文档。
 
-Please don’t remove these imports until you are confident the code is only ever used in a sufficiently modern environment. Even if you do not currently use the feature a specific future import enables in your code today, keeping it in place in the file prevents later modifications of the code from inadvertently depending on the older behavior.
+在确信代码只会在足够现代的环境里使用之前，请不要去掉这些导入。即使你今天的代码还没用到某个 future 导入所启用的特性，把它留在文件里也可以防止以后修改代码时无意依赖旧行为。
 
-Use other `from __future__` import statements as you see fit.
+其他 `from __future__` 导入语句可按需要使用。
 
-### 2.21 Type Annotated Code
+### 2.21 带类型注解的代码
 
-You can annotate Python code with type hints. Type-check the code at build time with a type checking tool like pyrefly. In most cases, when feasible, type annotations are in source files. For third-party or extension modules, annotations can be in stub `.pyi` files.
+可以用类型提示给 Python 代码加注解。构建时用 pyrefly 这类类型检查工具检查代码。多数情况下，可行时应把类型注解写在源文件里。对第三方或扩展模块，注解可以放在存根 `.pyi` 文件里。
 
-#### 2.21.1 Definition
+#### 2.21.1 定义
 
-Type annotations (or “type hints”) are for function or method arguments and return values:
+类型注解（或“类型提示”）用于函数或方法的参数和返回值：
 
 ```
 def func(a: int) -> list[int]:
 
 ```
 
-You can also declare the type of a variable using similar syntax:
+也可以用类似语法声明变量的类型：
 
 ```
 a: SomeType = some_func()
 
 ```
 
-#### 2.21.2 Pros
+#### 2.21.2 优点
 
-Type annotations improve the readability and maintainability of your code. The type checker will convert many runtime errors to build-time errors, and reduce your ability to use Power Features.
+类型注解提高代码的可读性和可维护性。类型检查器会把许多运行时错误变成构建时错误，并降低使用高级特性的能力。
 
-#### 2.21.3 Cons
+#### 2.21.3 缺点
 
-You will have to keep the type declarations up to date. You might see type errors that you think are valid code. Use of a type checker may reduce your ability to use Power Features.
+必须让类型声明保持最新。你可能看到一些自己认为代码有效的类型错误。使用类型检查器可能降低使用高级特性的能力。
 
-#### 2.21.4 Decision
+#### 2.21.4 决定
 
-You are strongly encouraged to enable Python type analysis when updating code. When adding or modifying public APIs, include type annotations and enable type-checking in the build system. As static analysis is relatively new to Python, we acknowledge that undesired side-effects (such as wrongly inferred types) may prevent adoption by some projects. In those situations, authors are encouraged to add a comment with a TODO or link to a bug describing the issue(s) currently preventing type annotation adoption in the BUILD file or in the code itself as appropriate.
+强烈鼓励在更新代码时启用 Python 类型分析。添加或修改公共 API 时，加上类型注解，并在构建系统里启用类型检查。由于静态分析对 Python 来说相对较新，我们承认不受欢迎的副作用（例如错误推断的类型）可能让一些项目不愿采用。在那些情况下，鼓励作者加上带 TODO 的注释，或链接到描述当前阻碍采用类型注解的问题的缺陷，视情况写在 BUILD 文件或代码本身里。
 
-## 3 Python Style Rules
+## 3 Python 风格规则
 
-### 3.1 Semicolons
+### 3.1 分号
 
-Do not terminate your lines with semicolons, and do not use semicolons to put two statements on the same line.
+不要用分号结束一行，也不要用分号把两条语句放在同一行。
 
-### 3.2 Line length
+### 3.2 行宽
 
-Maximum code line length is 120 characters.
+代码行最长 120 个字符。
 
-Comment lines are at most 80 characters; wrap comment prose past that. The first line of a comment block has at least 40 characters of Chinese comment text.
+注释行最多 80 个字符；注释正文超出后换行。注释块的第一行至少有 40 个字符的中文注释文字。
 
-Explicit exceptions to the 120-character code-line limit:
+120 个字符代码行宽的明确例外：
 
-- Long import statements.
-- Long string module-level constants not containing whitespace that would be inconvenient to split across lines, such as URLs or pathnames.
-- An unsplittable URL or a machine directive in a comment (`# pylint: disable=invalid-name`, `# pyrefly: ignore[...]`, `# type:`) may exceed 80 characters when breaking the line would change the syntax. The Chinese prose around that directive still wraps at 80.
+- 很长的导入语句。
+- 不含空白、拆开会不方便的长字符串模块级常量，例如 URL 或路径名。
+- 注释里无法拆开的 URL 或机器指令（`# pylint: disable=invalid-name`、`# pyrefly: ignore[...]`、`# type:`）在拆行会改变语法时可以超过 80 个字符。该指令周围的中文正文仍然按 80 个字符换行。
 
 
-Do not use a backslash for explicit line continuation.
+不要用反斜杠做显式续行。
 
-Instead, make use of Python’s implicit line joining inside parentheses, brackets and braces. If necessary, you can add an extra pair of parentheses around an expression.
+应利用 Python 在圆括号、方括号和花括号内的隐式续行。必要时可以在表达式外再加一对圆括号。
 
-Note that this rule doesn’t prohibit backslash-escaped newlines within strings (see below).
+本规则并不禁止字符串内部用反斜杠转义的换行（见下文）。
 
 ```
 Yes: foo_bar(self, width, height, color='black', design=None, x='foo',
@@ -879,7 +879,7 @@ No:  if width == 0 and height == 0 and \
 
 ```
 
-When a literal string won’t fit on a single line, use parentheses for implicit line joining.
+字面字符串一行放不下时，用圆括号做隐式续行。
 
 ```
 x = ('This will build a very long long '
@@ -887,7 +887,7 @@ x = ('This will build a very long long '
 
 ```
 
-Prefer to break lines at the highest possible syntactic level. If you must break a line twice, break it at the same syntactic level both times.
+优先在尽可能高的语法层次断行。如果必须断两次，两次都在同一语法层次断开。
 
 ```
 Yes: bridgekeeper.answer(
@@ -918,7 +918,7 @@ No: bridgekeeper.answer(name="Arthur", quest=questlib.find(
 
 ```
 
-Within comments, put long URLs on their own line if necessary.
+在注释里，必要时把长 URL 单独放在一行。
 
 ```
 Yes:  # 字段的完整说明放在下一行的链接里，链接本身不要从中间折断，否则读者无法直接打开。
@@ -935,17 +935,17 @@ No:  # 字段的完整说明放在下一行的链接里，链接本身不要从�
 
 ```
 
-Make note of the indentation of the elements in the line continuation examples above; see the indentation section for explanation.
+注意上面续行示例中各元素的缩进；解释见缩进一节。
 
-The docstring summary is written in Chinese. That first line contains at least 40 characters and at most 80 characters.
+文档字符串的摘要使用中文。第一行至少 40 个字符、至多 80 个字符。
 
-In all other cases where a code line exceeds 120 characters, and the formatter does not bring the line under the limit, the line may exceed this maximum. Authors should still break the line by the rules above when that is sensible.
+在其他情况下，如果代码行超过 120 个字符，且格式化工具不能把它压到限制以内，该行可以超过这个上限。作者在合理时仍应按上面的规则断行。
 
-### 3.3 Parentheses
+### 3.3 圆括号
 
-Use parentheses sparingly.
+少用圆括号。
 
-It is fine, though not required, to use parentheses around tuples. Do not use them in return statements or conditional statements unless using parentheses for implied line continuation or to indicate a tuple.
+元组外面可以使用圆括号，但不是必须。除非为了隐式续行或为了标明元组，否则不要在 return 语句或条件语句里使用它们。
 
 ```
 Yes: if foo:
@@ -974,11 +974,11 @@ No:  if (x):
 
 ```
 
-### 3.4 Indentation
+### 3.4 缩进
 
-Indent your code blocks with 4 spaces.
+代码块使用 4 个空格缩进。
 
-Never use tabs. Implied line continuation should align wrapped elements vertically (see line length examples), or use a hanging 4-space indent. Closing (round, square or curly) brackets can be placed at the end of the expression, or on separate lines, but then should be indented the same as the line with the corresponding opening bracket.
+禁止使用 Tab。隐式续行应把换行后的元素垂直对齐（见行宽示例），或使用 4 个空格的悬挂缩进。闭合的圆括号、方括号或花括号可以放在表达式末尾，也可以单独成行，但那时应与对应开括号所在行缩进相同。
 
 ```
 Yes:  # 续行与开括号之后的第一个参数对齐，读者能看出这些参数属于同一次函数调用，本例就是这样。
@@ -1042,9 +1042,9 @@ No:  # 反例在第一行已经放了参数，续行却又改成悬挂缩进，�
 
 ```
 
-#### 3.4.1 Trailing commas in sequences of items?
+#### 3.4.1 项目序列中的尾随逗号？
 
-Trailing commas in sequences of items are recommended only when the closing container token `]`, `)`, or `}` does not appear on the same line as the final element, as well as for tuples with a single element. The presence of a trailing comma is also used as a hint to our Python code auto-formatter Black or Pyink to direct it to auto-format the container of items to one item per line when the `,` after the final element is present.
+只有当闭合容器记号 `]`、`)` 或 `}` 与最后一项不在同一行时，才建议在项目序列中使用尾随逗号；单元素元组也使用尾随逗号。尾随逗号的存在也会提示 Python 代码自动格式化工具 Black 或 Pyink：当最后一项后面有 `,` 时，把该容器格式化成每项一行。
 
 ```
 Yes:   golomb3 = [0, 1, 3]
@@ -1066,17 +1066,17 @@ No:    golomb4 = [
 
 ```
 
-### 3.5 Blank Lines
+### 3.5 空行
 
-Two blank lines between top-level definitions, be they function or class definitions. One blank line between method definitions and between the docstring of a `class` and the first method. No blank line following a `def` line. Use single blank lines as you judge appropriate within functions or methods.
+顶层定义之间空两行，无论是函数定义还是类定义。方法定义之间空一行，`class` 的文档字符串与第一个方法之间也空一行。`def` 行后面不要空行。函数或方法内部按你认为合适的方式使用单行空行。
 
-Blank lines need not be anchored to the definition. For example, related comments immediately preceding function, class, and method definitions can make sense. Consider if your comment might be more useful as part of the docstring.
+空行不必紧贴定义。例如，紧挨在函数、类和方法定义之前的相关注释可以是合理的。考虑这段注释放进文档字符串是否更有用。
 
-### 3.6 Whitespace
+### 3.6 空白
 
-Follow standard typographic rules for the use of spaces around punctuation.
+标点周围的空格遵循标准排版规则。
 
-No whitespace inside parentheses, brackets or braces.
+圆括号、方括号或花括号内部不要有空白。
 
 ```
 Yes: spam(ham[1], {'eggs': 2}, [])
@@ -1088,7 +1088,7 @@ No:  spam( ham[ 1 ], { 'eggs': 2 }, [ ] )
 
 ```
 
-No whitespace before a comma, semicolon, or colon. Do use whitespace after a comma, semicolon, or colon, except at the end of the line.
+逗号、分号或冒号之前不要有空白。逗号、分号或冒号之后要有空白，行尾除外。
 
 ```
 Yes: if x == 4:
@@ -1104,7 +1104,7 @@ No:  if x == 4 :
 
 ```
 
-No whitespace before the open paren/bracket that starts an argument list, indexing or slicing.
+开始参数列表、索引或切片的开括号之前不要有空白。
 
 ```
 Yes: spam(1)
@@ -1126,9 +1126,9 @@ No:  dict ['key'] = list [index]
 
 ```
 
-No trailing whitespace.
+不要有行尾空白。
 
-Surround binary operators with a single space on either side for assignment (`=`), comparisons (`==, <, >, !=, <>, <=, >=, in, not in, is, is not`), and Booleans (`and, or, not`). Use your better judgment for the insertion of spaces around arithmetic operators (`+`, `-`, `*`, `/`, `//`, `%`, `**`, `@`).
+二元运算符两侧各留一个空格，用于赋值（`=`）、比较（`==, <, >, !=, <>, <=, >=, in, not in, is, is not`）和布尔运算（`and, or, not`）。算术运算符（`+`、`-`、`*`、`/`、`//`、`%`、`**`、`@`）周围是否插入空格，按你的判断决定。
 
 ```
 Yes: x == 1
@@ -1140,7 +1140,7 @@ No:  x<1
 
 ```
 
-Never use spaces around `=` when passing keyword arguments or defining a default parameter value, with one exception: when a type annotation is present, do use spaces around the `=` for the default parameter value.
+传递关键字参数或定义默认参数值时，绝不要在 `=` 周围加空格，但有一个例外：存在类型注解时，默认参数值的 `=` 周围要加空格。
 
 ```
 Yes: def complex(real, imag=0.0): return Magic(r=real, i=imag)
@@ -1154,7 +1154,7 @@ No:  def complex(real, imag: float=0.0): return Magic(r = real, i = imag)
 
 ```
 
-Don’t use spaces to vertically align tokens on consecutive lines, since it becomes a maintenance burden (applies to `:`, `#`, `=`, etc.):
+不要用空格把连续行上的记号垂直对齐，因为这会成为维护负担（适用于 `:`、`#`、`=` 等）：
 
 ```
 Yes:
@@ -1180,25 +1180,25 @@ No:
 
 ```
 
-### 3.7 Shebang Line
+### 3.7 Shebang 行
 
-Most `.py` files do not need to start with a `#!` line. Start the main file of a program with `#!/usr/bin/env python3` (to support virtualenvs) or `#!/usr/bin/python3` per PEP-394.
+大多数 `.py` 文件不需要以 `#!` 行开头。程序的主文件以 `#!/usr/bin/env python3`（以支持虚拟环境）或按 PEP-394 以 `#!/usr/bin/python3` 开头。
 
-This line is used by the kernel to find the Python interpreter, but is ignored by Python when importing modules. It is only necessary on a file intended to be executed directly.
+内核用这一行寻找 Python 解释器，但 Python 在导入模块时会忽略它。只有打算直接执行的文件才需要它。
 
-### 3.8 Comments and Docstrings
+### 3.8 注释与文档字符串
 
-Be sure to use the right style for module, function, method docstrings and inline comments.
+务必为模块、函数、方法的文档字符串和行内注释使用正确的风格。
 
-#### 3.8.1 Docstrings
+#### 3.8.1 文档字符串
 
-Python uses docstrings to document code. A docstring is a string that is the first statement in a package, module, class or function. These strings can be extracted automatically through the `__doc__` member of the object and are used by `pydoc`. (Try running `pydoc` on your module to see how it looks.) Always use the three-double-quote `"""` format for docstrings (per PEP 257). A docstring summary is written in Chinese, as one physical line of at least 40 and at most 80 characters, and ends with `。`, `？`, or `！`. When writing more (encouraged), this must be followed by a blank line, followed by the rest of the docstring starting at the same cursor position as the first quote of the first line. There are more formatting guidelines for docstrings below.
+Python 用文档字符串记录代码。文档字符串是包、模块、类或函数中的第一条语句。这些字符串可以通过对象的 `__doc__` 成员自动提取，并供 `pydoc` 使用。（试着对自己的模块运行 `pydoc`，看看效果。）文档字符串始终使用三个双引号 `"""` 的格式（依据 PEP 257）。文档字符串摘要使用中文，作为一行物理行，至少 40 个字符、至多 80 个字符，并以 `。`、`？` 或 `！` 结尾。再写更多内容时（鼓励这样做），后面必须空一行，然后文档字符串的其余部分从第一行第一个引号所在的同一列开始。下面还有更多文档字符串格式准则。
 
-#### 3.8.2 Modules
+#### 3.8.2 模块
 
-Every file should contain license boilerplate. Choose the appropriate boilerplate for the license used by the project (for example, Apache 2.0, BSD, LGPL, GPL).
+每个文件都应包含许可证样板。为项目所用的许可证选择合适的样板（例如 Apache 2.0、BSD、LGPL、GPL）。
 
-Files should start with a docstring describing the contents and usage of the module.
+文件应以描述模块内容和用法的文档字符串开头。
 
 ```
 """用中文说明这个模块提供什么能力，以及调用方应该从哪里进入，不要只重复文件名，本例就是这样。
@@ -1211,11 +1211,11 @@ Files should start with a docstring describing the contents and usage of the mod
 
 ```
 
-##### 3.8.2.1 Test modules
+##### 3.8.2.1 测试模块
 
-Test modules do not require module level docstrings. Class docstrings are not required on subclasses of `unittest.TestCase` and method docstrings are not required on `test_` methods in subclasses of `unittest.TestCase`. A docstring that only repeats class or method name should be omitted.
+测试模块不需要模块级文档字符串。`unittest.TestCase` 的子类不需要类文档字符串，`unittest.TestCase` 子类中的 `test_` 方法不需要方法文档字符串。只重复类名或方法名的文档字符串应当省略。
 
-Docstrings should be included when they provide additional information, for example, providing specifics on how the test should be run or explaining an unusual setup pattern or external dependency.
+当文档字符串提供额外信息时应当写上，例如说明测试应如何运行，或解释不寻常的准备方式或外部依赖。
 
 ```
 """这个测试把黄金文件当作期望输出，失败时要对照那些文件，而不是只看断言文本，本例就是这样。
@@ -1225,7 +1225,7 @@ Docstrings should be included when they provide additional information, for exam
 
 ```
 
-Docstrings that do not provide any new information should not be used.
+不提供任何新信息的文档字符串不应当使用。
 
 ```
 """反例只重复了模块名 foo.bar，没有说明断言在保护哪一种行为，这种文档字符串应当删掉。
@@ -1233,7 +1233,7 @@ Docstrings that do not provide any new information should not be used.
 
 ```
 
-or
+或
 
 ```
     def test_foo_is_barred(self):
@@ -1242,28 +1242,28 @@ or
 
 ```
 
-#### 3.8.3 Functions and Methods
+#### 3.8.3 函数与方法
 
-In this section, “function” means a method, function, generator, or property.
+在本节中，“函数”指方法、函数、生成器或属性。
 
-A docstring is mandatory for every function that has one or more of the following properties:
+具有下列任一性质的每个函数都必须有文档字符串：
 
-- being part of the public API
-- nontrivial size
-- non-obvious logic
+- 属于公共 API
+- 规模不小
+- 逻辑并不显而易见
 
-A docstring should give enough information to write a call to the function without reading the function’s code. The docstring should describe the function’s calling syntax and its semantics, but generally not its implementation details, unless those details are relevant to how the function is to be used. For example, a function that mutates one of its arguments as a side effect should note that in its docstring. Otherwise, subtle but important details of a function’s implementation that are not relevant to the caller are better expressed as comments alongside the code than within the function’s docstring.
+文档字符串应提供足够信息，使读者不必阅读函数代码就能写出调用。它应描述函数的调用语法和语义，但一般不描述实现细节，除非这些细节与函数如何被使用有关。例如，函数若把修改某个参数作为副作用，应在文档字符串里注明。否则，与调用方无关的、细微但重要的实现细节，最好写成代码旁边的注释，而不是写进函数的文档字符串。
 
-The docstring may be descriptive-style (`"""按调用方给出的键从 Bigtable 读取对应的数据行，调用方不必关心底层如何分片。"""`) or imperative-style (`"""请按调用方给出的键从 Bigtable 读取对应数据行，不要把分片细节泄漏给调用方。"""`), but the style should be consistent within a file. The docstring for a `@property` data descriptor should use the same style as an attribute (`"""这是当前已经打开的 Bigtable 表路径，调用方只能拿它去拼接后续读写请求。"""`), not a returns-phrase.
+文档字符串可以是描述式（`"""按调用方给出的键从 Bigtable 读取对应的数据行，调用方不必关心底层如何分片。"""`）或祈使式（`"""请按调用方给出的键从 Bigtable 读取对应数据行，不要把分片细节泄漏给调用方。"""`），但同一文件内风格应一致。`@property` 数据描述符的文档字符串应与属性使用同一风格（`"""这是当前已经打开的 Bigtable 表路径，调用方只能拿它去拼接后续读写请求。"""`），而不是“返回……”这种说法。
 
-Certain aspects of a function should be documented in special sections, listed below. Each section begins with a heading line, which ends with a colon. All sections other than the heading should maintain a hanging indent of four spaces. These sections can be omitted in cases where the function’s name and signature are informative enough that it can be aptly described using a one-line docstring.
+函数的某些方面应记录在下面列出的专门小节里。每一节以冒号结尾的标题行开始。除标题以外的所有内容应保持四个空格的悬挂缩进。如果函数的名字和签名已经足够说明，可以用一行文档字符串描述，这些小节可以省略。
 
 Args:
-: List each parameter by name. A description should follow the name, and be separated by a colon followed by either a space or newline. If the description is too long to fit on a single 80-character comment line, use a hanging indent of 4 spaces more than the parameter name. The description is written in Chinese. The description should include required type(s) if the code does not contain a corresponding type annotation. If a function accepts `*foo` (variable length argument lists) and/or `**bar` (arbitrary keyword arguments), they should be listed as `*foo` and `**bar`.
-Returns: (or Yields: for generators)
-: Describe the semantics of the return value, including any type information that the type annotation does not provide. If the function only returns None, this section is not required. It may also be omitted if the docstring starts with “Return”, “Returns”, “Yield”, or “Yields” (e.g. `"""Returns row from Bigtable as a tuple of strings."""`) and the opening sentence is sufficient to describe the return value. Do not imitate older ‘NumPy style’ (example), which frequently documented a tuple return value as if it were multiple return values with individual names (never mentioning the tuple). Instead, describe such a return value as: “Returns: A tuple (mat_a, mat_b), where mat_a is …, and …”. The auxiliary names in the docstring need not necessarily correspond to any internal names used in the function body (as those are not part of the API). If the function uses `yield` (is a generator), the `Yields:` section should document the object returned by `next()`, instead of the generator object itself that the call evaluates to.
+: 按名字列出每个参数。说明应跟在名字后面，用冒号分隔，冒号后是空格或换行。如果说明太长，放不进一行 80 个字符的注释，就使用比参数名多 4 个空格的悬挂缩进。说明使用中文。如果代码里没有对应的类型注解，说明应包含所需类型。如果函数接受 `*foo`（可变长度参数列表）和/或 `**bar`（任意关键字参数），它们应列为 `*foo` 和 `**bar`。
+Returns:（生成器则用 Yields:）
+: 描述返回值的语义，包括类型注解没有提供的类型信息。如果函数只返回 None，不需要这一节。如果文档字符串以 “Return”、“Returns”、“Yield” 或 “Yields” 开头（例如 `"""Returns row from Bigtable as a tuple of strings."""`），并且开头一句足以描述返回值，也可以省略。不要模仿较旧的 “NumPy 风格”（示例），那种风格常常把元组返回值写成多个各自有名字的返回值（从不提及元组）。应把这种返回值描述为：“Returns: A tuple (mat_a, mat_b), where mat_a is …, and …”。文档字符串里的辅助名字不必对应函数体里使用的任何内部名字（那些不属于 API）。如果函数使用 `yield`（是生成器），`Yields:` 一节应记录 `next()` 返回的对象，而不是调用所求值得到的生成器对象本身。
 Raises:
-: List all exceptions that are relevant to the interface followed by a description. Use a similar exception name + colon + space or newline and hanging indent style as described in Args:. You should not document exceptions that get raised if the API specified in the docstring is violated (because this would paradoxically make behavior under violation of the API part of the API).
+: 列出与接口相关的全部异常，并附上说明。使用与 Args: 中所述类似的“异常名 + 冒号 + 空格或换行以及悬挂缩进”风格。不应记录在违反文档字符串所规定的 API 时才会抛出的异常（因为那会自相矛盾地把违反 API 时的行为变成 API 的一部分）。
 
 ```
 def fetch_smalltable_rows(
@@ -1288,7 +1288,7 @@ def fetch_smalltable_rows(
 
 ```
 
-Similarly, this variation on `Args:` with a line break is also allowed:
+同样，`Args:` 的这种换行变体也是允许的：
 
 ```
 def fetch_smalltable_rows(
@@ -1316,7 +1316,7 @@ def fetch_smalltable_rows(
 
 ```
 
-A decorated function’s docstring must specify the function’s behavior after the decorator has been applied to it, as that is the behavior its callers will observe.
+被装饰函数的文档字符串必须说明装饰器作用之后的函数行为，因为那才是调用方会观察到的行为。
 
 ```
 @contextlib.contextmanager
@@ -1338,9 +1338,9 @@ def read_from_remote_filesystem(url: str) -> Iterator[RemoteFile]:
 
 ```
 
-##### 3.8.3.1 Overridden Methods
+##### 3.8.3.1 被覆盖的方法
 
-A method that overrides a method from a base class does not need a docstring if it is explicitly decorated with `@override`, unless the overriding method’s behavior materially refines the base method’s contract, or details need to be provided (e.g., documenting additional side effects), in which case a docstring with at least those differences is required on the overriding method.
+覆盖基类方法的方法，如果明确标了 `@override`，就不需要文档字符串，除非覆盖方法的行为实质收紧了基类契约，或需要提供细节（例如记录额外副作用）。那时，覆盖方法上必须有至少说明这些差异的文档字符串。
 
 ```
 from typing import override
@@ -1373,9 +1373,9 @@ class Child(Parent):
 
 ```
 
-#### 3.8.4 Classes
+#### 3.8.4 类
 
-Classes should have a docstring below the class definition describing the class. Public attributes, excluding properties, should be documented here in an `Attributes` section and follow the same formatting as a function’s `Args` section.
+类应在类定义下方有描述该类的文档字符串。除属性以外的公共属性应记录在这里的 `Attributes` 一节，并遵循与函数 `Args` 一节相同的格式。
 
 ```
 class SampleClass:
@@ -1404,7 +1404,7 @@ class SampleClass:
 
 ```
 
-All class docstrings should start with a one-line summary that describes what the class instance represents. This implies that subclasses of `Exception` should also describe what the exception represents, and not the context in which it might occur. The class docstring should not repeat unnecessary information, such as that the class is a class.
+所有类文档字符串都应以一行摘要开始，说明类实例代表什么。这意味着 `Exception` 的子类也应描述该异常代表什么，而不是它可能在何种上下文中出现。类文档字符串不应重复不必要的信息，例如这个类是一个类。
 
 ```
 # 正例把对象含义或具体类型参数写出来，读者不用从类名或 Any 里猜测调用方得到什么。
@@ -1430,11 +1430,11 @@ class OutOfCheeseError(Exception):
 
 ```
 
-If a class is decorated, its docstrings must specify the behavior of the class after the decorator has been applied.
+如果类被装饰，其文档字符串必须说明装饰器作用之后的类行为。
 
-#### 3.8.5 Block and Inline Comments
+#### 3.8.5 块注释与行内注释
 
-The final place to have comments is in tricky parts of the code. If you’re going to have to explain it at the next code review, you should comment it now. Complicated operations get a few lines of comments before the operations commence. Non-obvious ones get comments at the end of the line.
+注释的最后一处是代码里棘手的部分。如果下次代码评审你得解释它，现在就应该写注释。复杂操作在操作开始前用几行注释。不明显的地方在行尾写注释。
 
 ```
 # 用加权字典估计 i 在数组中的位置：先按最大值和长度外推，再二分找到精确下标，本例就是这样。
@@ -1443,26 +1443,26 @@ if i & (i-1) == 0:  # 当 i 为 0 或 2 的幂时这个位运算为真，只看�
 
 ```
 
-To improve legibility, these comments should start at least 2 spaces away from the code with the comment character `#`, followed by at least one space before the text of the comment itself.
+为了便于阅读，这些注释应离代码至少 2 个空格，以注释字符 `#` 开始，然后在注释文字之前至少再留一个空格。
 
-On the other hand, never describe the code. Assume the person reading the code knows Python (though not what you’re trying to do) better than you do.
+另一方面，绝不要复述代码。假定读代码的人比你更懂 Python（尽管不知道你想做什么）。
 
 ```
 # 反例只是把循环再说一遍：走到 b 里的 i 时检查下一项是不是 i+1，没有说明为什么要这样配对。
 
 ```
 
-#### 3.8.6 Punctuation, Spelling, and Grammar
+#### 3.8.6 标点、拼写与语法
 
-Pay attention to punctuation, spelling, and grammar; it is easier to read well-written comments than badly written ones.
+注意标点、拼写和语法；写得好的注释比写得差的更容易读。
 
-Comments should be as readable as narrative text, with proper capitalization and punctuation. In many cases, complete sentences are more readable than sentence fragments. Shorter comments, such as comments at the end of a line of code, can sometimes be less formal, but you should be consistent with your style.
+注释应像叙述文字一样可读，使用恰当的大小写和标点。许多情况下，完整句子比句子片段更可读。更短的注释，例如代码行末尾的注释，有时可以不那么正式，但风格应保持一致。
 
-Although it can be frustrating to have a code reviewer point out that you are using a comma when you should be using a semicolon, it is very important that source code maintain a high level of clarity and readability. Proper punctuation, spelling, and grammar help with that goal.
+代码评审者指出你该用分号的地方用了逗号，可能让人懊恼，但源代码保持高度清晰和可读非常重要。恰当的标点、拼写和语法有助于这个目标。
 
-### 3.10 Strings
+### 3.10 字符串
 
-Use an f-string, the `%` operator, or the `format` method for formatting strings, even when the parameters are all strings. Use your best judgment to decide between string formatting options. A single join with `+` is okay but do not format with `+`.
+即使参数全都是字符串，也使用 f-string、`%` 运算符或 `format` 方法来格式化字符串。在字符串格式化方式之间按你的最佳判断选择。单次用 `+` 连接是可以的，但不要用 `+` 做格式化。
 
 ```
 Yes: x = f'name: {name}; score: {n}'
@@ -1481,7 +1481,7 @@ No: x = first + ', ' + second
 
 ```
 
-Avoid using the `+` and `+=` operators to accumulate a string within a loop. In some conditions, accumulating a string with addition can lead to quadratic rather than linear running time. Although common accumulations of this sort may be optimized on CPython, that is an implementation detail. The conditions under which an optimization applies are not easy to predict and may change. Instead, add each substring to a list and `''.join` the list after the loop terminates, or write each substring to an `io.StringIO` buffer. These techniques consistently have amortized-linear run-time complexity.
+避免在循环里用 `+` 和 `+=` 运算符累积字符串。在某些条件下，用加法累积字符串会导致平方而不是线性的运行时间。虽然 CPython 上这类常见累积可能被优化，那只是实现细节。优化在何种条件下生效不容易预测，也可能改变。应把每个子串加入列表，循环结束后对列表做 `''.join`，或者把每个子串写入 `io.StringIO` 缓冲区。这些手法的摊销运行时间复杂度始终是线性的。
 
 ```
 Yes: items = ['<table>']
@@ -1500,7 +1500,7 @@ No: employee_table = '<table>'
 
 ```
 
-Be consistent with your choice of string quote character within a file. Pick `'` or `"` and stick with it. It is okay to use the other quote character on a string to avoid the need to backslash-escape quote characters within the string.
+在一个文件内，字符串引号字符的选择要一致。选定 `'` 或 `"` 并坚持使用。为了避免反斜杠转义字符串内部的引号字符，可以在某个字符串上使用另一种引号。
 
 ```
 Yes:
@@ -1518,9 +1518,9 @@ No:
 
 ```
 
-Prefer `"""` for multi-line strings rather than `'''`. Projects may choose to use `'''` for all non-docstring multi-line strings if and only if they also use `'` for regular strings. Docstrings must use `"""` regardless.
+多行字符串优先使用 `"""`，而不是 `'''`。项目可以选择对所有非文档字符串的多行字符串使用 `'''`，当且仅当普通字符串也使用 `'`。文档字符串无论如何都必须使用 `"""`。
 
-Multi-line strings do not flow with the indentation of the rest of the program. If you need to avoid embedding extra space in the string, use either concatenated single-line strings or a multi-line string with `textwrap.dedent()` to remove the initial space on each line:
+多行字符串不随程序其余部分的缩进流动。如果需要避免把额外空格嵌进字符串，使用拼接的单行字符串，或使用带 `textwrap.dedent()` 的多行字符串来去掉每行开头的空格：
 
 ```
     No:
@@ -1561,11 +1561,11 @@ Don't do this.
 
 ```
 
-Note that using a backslash here does not violate the prohibition against explicit line continuation; in this case, the backslash is escaping a newline in a string literal.
+注意，这里使用反斜杠并不违反禁止显式续行的规定；此时反斜杠是在转义字符串字面量中的换行。
 
-#### 3.10.1 Logging
+#### 3.10.1 日志
 
-For logging functions that expect a pattern-string (with %-placeholders) as their first argument: Always call them with a string literal (not an f-string!) as their first argument with pattern-parameters as subsequent arguments. Some logging implementations collect the unexpanded pattern-string as a queryable field. It also prevents spending time rendering a message that no logger is configured to output.
+对于把带 %-占位符的模式字符串作为第一个参数的日志函数：始终用字符串字面量（不是 f-string！）作为第一个参数来调用它们，模式参数作为后续参数。有些日志实现会把未展开的模式字符串收集为可查询字段。这也避免了在没有任何日志器配置为输出该消息时仍花时间渲染它。
 
 ```
     Yes:
@@ -1602,13 +1602,13 @@ For logging functions that expect a pattern-string (with %-placeholders) as thei
 
 ```
 
-#### 3.10.2 Error Messages
+#### 3.10.2 错误消息
 
-Error messages (such as: message strings on exceptions like `ValueError`, or messages shown to the user) should follow three guidelines:
+错误消息（例如 `ValueError` 这类异常上的消息字符串，或展示给用户的消息）应遵循三条准则：
 
-1. The message needs to precisely match the actual error condition.
-2. Interpolated pieces need to always be clearly identifiable as such.
-3. They should allow simple automated processing (e.g. grepping).
+1. 消息必须精确匹配实际的错误条件。
+2. 插值片段必须始终能被清楚地认出是插值。
+3. 它们应允许简单的自动处理（例如用 grep 检索）。
 
 ```
     Yes:
@@ -1642,24 +1642,24 @@ Error messages (such as: message strings on exceptions like `ValueError`, or mes
 
 ```
 
-### 3.11 Files, Sockets, and similar Stateful Resources
+### 3.11 文件、套接字及类似的有状态资源
 
-Explicitly close files and sockets when done with them. This rule naturally extends to closeable resources that internally use sockets, such as database connections, and also other resources that need to be closed down in a similar fashion. To name only a few examples, this also includes mmap mappings, h5py File objects, and matplotlib.pyplot figure windows.
+用完文件和套接字后明确关闭它们。这条规则自然延伸到内部使用套接字的可关闭资源，例如数据库连接，以及其他需要以类似方式关闭的资源。仅举几例，这也包括 mmap 映射、h5py 的 File 对象，以及 matplotlib.pyplot 的图形窗口。
 
-Leaving files, sockets or other such stateful objects open unnecessarily has many downsides:
+不必要地让文件、套接字或其他这类有状态对象保持打开有许多坏处：
 
-- They may consume limited system resources, such as file descriptors. Code that deals with many such objects may exhaust those resources unnecessarily if they’re not returned to the system promptly after use.
-- Holding files open may prevent other actions such as moving or deleting them, or unmounting a filesystem.
-- Files and sockets that are shared throughout a program may inadvertently be read from or written to after logically being closed. If they are actually closed, attempts to read or write from them will raise exceptions, making the problem known sooner.
+- 它们可能消耗有限的系统资源，例如文件描述符。处理大量这类对象的代码，如果使用后不及时归还给系统，可能不必要地耗尽这些资源。
+- 保持文件打开可能阻止其他操作，例如移动或删除它们，或卸载文件系统。
+- 在程序各处共享的文件和套接字，可能在逻辑上已经关闭之后仍被无意读取或写入。如果它们真的被关闭，再读或写就会抛出异常，从而更早暴露问题。
 
-Furthermore, while files and sockets (and some similarly behaving resources) are automatically closed when the object is destructed, coupling the lifetime of the object to the state of the resource is poor practice:
+此外，虽然文件和套接字（以及一些行为类似的资源）在对象被析构时会自动关闭，把对象的生存期和资源状态绑在一起是不好的做法：
 
-- There are no guarantees as to when the runtime will actually invoke the `__del__` method. Different Python implementations use different memory management techniques, such as delayed garbage collection, which may increase the object’s lifetime arbitrarily and indefinitely.
-- Unexpected references to the file, e.g. in globals or exception tracebacks, may keep it around longer than intended.
+- 运行时何时真正调用 `__del__` 方法没有保证。不同的 Python 实现使用不同的内存管理技术，例如延迟垃圾回收，可能任意地、无限地延长对象的生存期。
+- 对文件的意外引用，例如在全局变量或异常回溯里，可能让它比预期留得更久。
 
-Relying on finalizers to do automatic cleanup that has observable side effects has been rediscovered over and over again to lead to major problems, across many decades and multiple languages (see e.g. this article for Java).
+依赖终结器做具有可观察副作用的自动清理，在几十年里、在多种语言中被反复发现会导致重大问题（例如参见这篇关于 Java 的文章）。
 
-The preferred way to manage files and similar resources is using the `with` statement:
+管理文件和类似资源的首选方式是使用 `with` 语句：
 
 ```
 with open("hello.txt") as hello_file:
@@ -1668,7 +1668,7 @@ with open("hello.txt") as hello_file:
 
 ```
 
-For file-like objects that do not support the `with` statement, use `contextlib.closing()`:
+对不支持 `with` 语句的类文件对象，使用 `contextlib.closing()`：
 
 ```
 import contextlib
@@ -1679,42 +1679,42 @@ with contextlib.closing(urllib.urlopen("http://www.python.org/")) as front_page:
 
 ```
 
-In rare cases where context-based resource management is infeasible, code documentation must explain clearly how resource lifetime is managed.
+在基于上下文的资源管理不可行的少数情况下，代码文档必须清楚说明资源生存期如何管理。
 
-### 3.12 TODO Comments
+### 3.12 TODO 注释
 
-Use `TODO` comments for code that is temporary, a short-term solution, or good-enough but not perfect.
+对临时的、短期的，或够用但并不完美的代码，使用 `TODO` 注释。
 
-A `TODO` comment begins with the word `TODO` in all caps, and a parenthesized link to a resource that contains the context, ideally a bug reference. A bug reference is preferable because bugs are tracked and have follow-up comments. Follow this piece of context with a colon and an explanatory string.
+`TODO` 注释以全大写的单词 `TODO` 开始，并在括号里放一个包含上下文的资源链接，最好是缺陷引用。缺陷引用更好，因为缺陷被跟踪，并且有后续评论。在这段上下文之后跟一个冒号和说明字符串。
 
-The purpose is to have a consistent `TODO` format that can be searched to find out how to get more details.
+目的是有一种一致的 `TODO` 格式，可以搜索到如何获得更多细节。
 
 ```
 # TODO(example.com/12345): 调查这条路径上的 cpufreq 调节是否真能降低功耗，结论出来前不要把实验代码留在热路径。
 
 ```
 
-Old style, formerly recommended, but discouraged for use in new code:
+旧风格，以前推荐，但新代码不鼓励使用：
 
 ```
 # TODO: example.com/12345 - 反例把链接和说明拆开了，TODO 应把缺陷链接放在括号里再写要调查的 cpufreq 问题。
 
 ```
 
-Avoid adding TODOs that refer to an individual or team as the context:
+避免添加把个人或团队当作上下文的 TODO：
 
 ```
 # TODO(username): 先补上缺陷编号，再用星号表示这里的重复次数，不要让后人猜这个 TODO 归谁跟踪。
 
 ```
 
-If your `TODO` is of the form “At a future date do something” make sure that you either include a very specific date (“Fix by November 2009”) or a very specific event (“Remove this code when all clients can handle XML responses.”) that future code maintainers will comprehend. Issues are ideal for tracking this.
+如果你的 `TODO` 属于“在将来某个日期做某事”这种形式，务必要么包含非常具体的日期（“Fix by November 2009”），要么包含未来的代码维护者能理解的非常具体的事件（“Remove this code when all clients can handle XML responses.”）。用问题单跟踪这件事最理想。
 
-### 3.13 Imports formatting
+### 3.13 导入的格式
 
-Imports should be on separate lines; there are exceptions for `typing` and `collections.abc` imports.
+导入应各占一行；`typing` 和 `collections.abc` 的导入是例外。
 
-E.g.:
+例如：
 
 ```
 Yes: from collections.abc import Mapping, Sequence
@@ -1729,44 +1729,44 @@ No:  import os, sys
 
 ```
 
-Imports are always put at the top of the file, just after any module comments and docstrings and before module globals and constants. Imports should be grouped from most generic to least generic:
+导入始终放在文件顶部，紧接在任何模块注释和文档字符串之后、模块全局变量和常量之前。导入应按从最通用到最不通用分组：
 
-1. Python future import statements. For example:
+1. Python future 导入语句。例如：
 
 ```
 from __future__ import annotations
 
 ```
 
-See above for more information about those.
-2. Python standard library imports. For example:
+关于这些的更多信息见上文。
+2. Python 标准库导入。例如：
 
 ```
 import sys
 
 ```
-3. third-party module or package imports. For example:
+3. 第三方模块或包导入。例如：
 
 ```
 import tensorflow as tf
 
 ```
-4. Code repository sub-package imports. For example:
+4. 代码仓库子包导入。例如：
 
 ```
 from otherproject.ai import mind
 
 ```
-5. Deprecated: application-specific imports that are part of the same top-level sub-package as this file. For example:
+5. 已废弃：与本文件属于同一个顶层子包的应用程序专用导入。例如：
 
 ```
 from myproject.backend.hgwells import time_machine
 
 ```
 
-You may find older Google Python Style code doing this, but it is no longer required. New code is encouraged not to bother with this. Simply treat application-specific sub-package imports the same as other sub-package imports.
+你可能看到较旧的 Google Python 风格代码这样做，但现在不再要求。鼓励新代码不必再费这个心。只需把应用程序专用的子包导入和其他子包导入同样对待。
 
-Within each grouping, imports should be sorted lexicographically, ignoring case, according to each module’s full package path (the `path` in `from path import ...`). Code may optionally place a blank line between import sections.
+在每个分组内，导入应按每个模块的完整包路径（`from path import ...` 中的 `path`）忽略大小写进行字典序排序。代码可以可选地在导入各节之间放一个空行。
 
 ```
 import collections
@@ -1793,11 +1793,11 @@ from otherproject.ai import soul
 
 ```
 
-### 3.14 Statements
+### 3.14 语句
 
-Generally only one statement per line.
+一般每行只有一条语句。
 
-However, you may put the result of a test on the same line as the test only if the entire statement fits on one line. In particular, you can never do so with `try`/`except` since the `try` and `except` can’t both fit on the same line, and you can only do so with an `if` if there is no `else`.
+不过，只有当整条语句能放在一行时，才可以把测试的结果和测试放在同一行。特别是，`try`/`except` 绝不能这样做，因为 `try` 和 `except` 不能同时放在同一行；只有在没有 `else` 时，`if` 才可以这样做。
 
 ```
 Yes:
@@ -1821,97 +1821,97 @@ No:
 
 ```
 
-### 3.15 Getters and Setters
+### 3.15 读取器与设置器
 
-Getter and setter functions (also called accessors and mutators) should be used when they provide a meaningful role or behavior for getting or setting a variable’s value.
+当读取器函数和设置器函数（也称为访问器和修改器）为获取或设置变量的值提供有意义的角色或行为时，才应使用它们。
 
-In particular, they should be used when getting or setting the variable is complex or the cost is significant, either currently or in a reasonable future.
+特别是，当获取或设置该变量很复杂，或者代价很大（无论是现在还是在合理的将来）时，应当使用它们。
 
-If, for example, a pair of getters/setters simply read and write an internal attribute, the internal attribute should be made public instead. By comparison, if setting a variable means some state is invalidated or rebuilt, it should be a setter function. The function invocation hints that a potentially non-trivial operation is occurring. Alternatively, properties may be an option when simple logic is needed, or refactoring to no longer need getters and setters.
+例如，如果一对读取器/设置器只是读写一个内部属性，就应把该内部属性公开。相比之下，如果设置一个变量意味着某些状态失效或需要重建，它就应当是设置器函数。函数调用暗示正在发生可能并不平凡的操作。当只需要简单逻辑时，属性也可以是一种选择，或者重构到不再需要读取器和设置器。
 
-Getters and setters should follow the Naming guidelines, such as `get_foo()` and `set_foo()`.
+读取器和设置器应遵循命名准则，例如 `get_foo()` 和 `set_foo()`。
 
-If the past behavior allowed access through a property, do not bind the new getter/setter functions to the property. Any code still attempting to access the variable by the old method should break visibly so they are made aware of the change in complexity.
+如果过去的行为允许通过属性访问，不要把新的读取器/设置器函数绑定到该属性上。任何仍试图用旧方式访问该变量的代码都应当明显地失败，从而让它们意识到复杂度已经改变。
 
-### 3.16 Naming
+### 3.16 命名
 
-`module_name`, `package_name`, `ClassName`, `method_name`, `ExceptionName`, `function_name`, `GLOBAL_CONSTANT_NAME`, `global_var_name`, `instance_var_name`, `function_parameter_name`, `local_var_name`, `query_proper_noun_for_thing`, `send_acronym_via_https`.
+`module_name`、`package_name`、`ClassName`、`method_name`、`ExceptionName`、`function_name`、`GLOBAL_CONSTANT_NAME`、`global_var_name`、`instance_var_name`、`function_parameter_name`、`local_var_name`、`query_proper_noun_for_thing`、`send_acronym_via_https`。
 
-Names should be descriptive. This includes functions, classes, variables, attributes, files and any other type of named entities.
+名字应当具有描述性。这包括函数、类、变量、属性、文件以及任何其他类型的具名实体。
 
-Avoid abbreviation. In particular, do not use abbreviations that are ambiguous or unfamiliar to readers outside your project, and do not abbreviate by deleting letters within a word.
+避免缩写。特别是，不要使用对项目外读者含糊或陌生的缩写，也不要通过删掉单词内部的字母来缩写。
 
-Always use a `.py` filename extension. Never use dashes.
+始终使用 `.py` 文件扩展名。绝不要使用连字符。
 
-#### 3.16.1 Names to Avoid
+#### 3.16.1 应当避免的名字
 
-- single character names, except for specifically allowed cases:
+- 单字符名字，除了明确允许的情况：
 
-- counters or iterators (e.g. `i`, `j`, `k`, `v`, et al.)
-- `e` as an exception identifier in `try/except` statements.
-- `f` as a file handle in `with` statements
-- private type variables with no constraints (e.g. `_T = TypeVar("_T")`, `_P = ParamSpec("_P")`)
-- names that match established notation in a reference paper or algorithm (see Mathematical Notation)
+- 计数器或迭代器（例如 `i`、`j`、`k`、`v` 等）
+- `try/except` 语句中作为异常标识的 `e`
+- `with` 语句中作为文件句柄的 `f`
+- 没有约束的私有类型变量（例如 `_T = TypeVar("_T")`、`_P = ParamSpec("_P")`）
+- 与参考文献或算法中既定记法一致的名字（见数学记法）
 
-Please be mindful not to abuse single-character naming. Generally speaking, descriptiveness should be proportional to the name’s scope of visibility. For example, `i` might be a fine name for 5-line code block but within multiple nested scopes, it is likely too vague.
-- dashes (`-`) in any package/module name
-- `__double_leading_and_trailing_underscore__` names (reserved by Python)
-- offensive terms
-- names that needlessly include the type of the variable (for example: `id_to_name_dict`)
+请注意不要滥用单字符命名。一般而言，描述性应与名字可见范围成比例。例如，`i` 对 5 行代码块可能是好名字，但在多层嵌套作用域里，它很可能太含糊。
+- 任何包名或模块名中的连字符（`-`）
+- `__double_leading_and_trailing_underscore__` 这种名字（由 Python 保留）
+- 冒犯性词语
+- 不必要地包含变量类型的名字（例如 `id_to_name_dict`）
 
-#### 3.16.2 Naming Conventions
+#### 3.16.2 命名约定
 
-- In general, follow PEP 8 naming conventions.
-- “Internal” means internal to a module, or protected or private within a class.
-- Prepending a single underscore (`_`) has some support for protecting module variables and functions (linters will flag protected member access). Note that it is okay for unit tests to access protected constants from the modules under test.
-- Prepending a double underscore (`__` aka “dunder”) to an instance variable or method effectively makes the variable or method private to its class (using name mangling); we discourage its use as it impacts readability and testability, and isn’t really private. Prefer a single underscore.
-- Place related classes and top-level functions together in a module. Unlike Java, there is no need to limit yourself to one class per module.
-- Use CapWords for class names, but lower_with_under.py for module names. Although there are some old modules named CapWords.py, this is now discouraged because it’s confusing when the module happens to be named after a class. (“wait – did I write `import StringIO` or `from StringIO import StringIO`?”)
+- 一般遵循 PEP 8 的命名约定。
+- “内部”指模块内部，或类中受保护或私有。
+- 前置单个下划线（`_`）对保护模块变量和函数有一定支持（静态检查器会标记对受保护成员的访问）。注意，单元测试访问被测模块的受保护常量是可以的。
+- 给实例变量或方法前置双下划线（`__`，也称 “dunder”）实际上会通过名字改写使该变量或方法对其类私有；我们不鼓励这种用法，因为它影响可读性和可测试性，而且并非真的私有。优先使用单个下划线。
+- 把相关的类和顶层函数放在同一个模块里。与 Java 不同，不必把自己限制为每个模块一个类。
+- 类名使用 CapWords，模块名使用 lower_with_under.py。虽然有一些旧模块名叫 CapWords.py，现在不鼓励这样做，因为当模块碰巧以某个类命名时会令人困惑。（“等等，我写的是 `import StringIO` 还是 `from StringIO import StringIO`？”）
 
-- Note that PEP 8 says: “When using acronyms in CapWords, capitalize all the letters of the acronym. Thus HTTPServerError is better than HttpServerError.”
-- New unit test files follow PEP 8 compliant lower_with_under method names, for example, `test_<method_under_test>_ `. For consistency(*) with legacy modules that follow CapWords function names, underscores may appear in method names starting with `test` to separate logical components of the name. One possible pattern is `test _ `.
+- 注意 PEP 8 说：“在 CapWords 中使用首字母缩写时，缩写的所有字母都大写。因此 HTTPServerError 优于 HttpServerError。”
+- 新的单元测试文件遵循符合 PEP 8 的 lower_with_under 方法名，例如 `test_<method_under_test>_ `。为了与遵循 CapWords 函数名的旧模块保持一致（*），以 `test` 开头的方法名中可以出现下划线，用来分隔名字的逻辑成分。一种可能的模式是 `test _ `。
 
-##### 3.16.2.1 Exemptions
+##### 3.16.2.1 例外
 
-The following exemptions apply to the general naming conventions above:
+下列例外适用于上面的一般命名约定：
 
-- When Python code is tightly coupled with an external or non-Python codebase, such as foreign function interfaces (FFIs) to C++, consistency with the other codebase may warrant following a different convention (Consistency).
+- 当 Python 代码与外部或非 Python 代码库紧密耦合时，例如到 C++ 的外部函数接口（FFI），与另一代码库保持一致可能有理由遵循不同的约定（一致性）。
 
-#### 3.16.3 File Naming
+#### 3.16.3 文件命名
 
-Python filenames must have a `.py` extension and must not contain dashes (`-`). This allows them to be imported and unittested. If you want an executable to be accessible without the extension, use a symbolic link or a simple bash wrapper containing `exec "$0.py" "$@"`.
+Python 文件名必须有 `.py` 扩展名，并且不得包含连字符（`-`）。这样它们才能被导入和做单元测试。如果希望可执行文件不带扩展名也能访问，使用符号链接，或一个包含 `exec "$0.py" "$@"` 的简单 bash 包装。
 
-#### 3.16.4 Guidelines derived from Guido’s Recommendations
+#### 3.16.4 源自 Guido 建议的准则
 
-| Type | Public | Internal |
+| 类型 | 公开 | 内部 |
 | --- | --- | --- |
-| Packages | `lower_with_under` | |
-| Modules | `lower_with_under` | `_lower_with_under` |
-| Classes | `CapWords` | `_CapWords` |
-| Exceptions | `CapWords` | |
-| Functions | `lower_with_under()` | `_lower_with_under()` |
-| Global/Class Constants | `CAPS_WITH_UNDER` | `_CAPS_WITH_UNDER` |
-| Global/Class Variables | `lower_with_under` | `_lower_with_under` |
-| Instance Variables | `lower_with_under` | `_lower_with_under` (protected) |
-| Method Names | `lower_with_under()` | `_lower_with_under()` (protected) |
-| Function/Method Parameters | `lower_with_under` | |
-| Local Variables | `lower_with_under` | |
+| 包 | `lower_with_under` | |
+| 模块 | `lower_with_under` | `_lower_with_under` |
+| 类 | `CapWords` | `_CapWords` |
+| 异常 | `CapWords` | |
+| 函数 | `lower_with_under()` | `_lower_with_under()` |
+| 全局/类常量 | `CAPS_WITH_UNDER` | `_CAPS_WITH_UNDER` |
+| 全局/类变量 | `lower_with_under` | `_lower_with_under` |
+| 实例变量 | `lower_with_under` | `_lower_with_under`（受保护） |
+| 方法名 | `lower_with_under()` | `_lower_with_under()`（受保护） |
+| 函数/方法参数 | `lower_with_under` | |
+| 局部变量 | `lower_with_under` | |
 
-#### 3.16.5 Mathematical Notation
+#### 3.16.5 数学记法
 
-For mathematically-heavy code, short variable names that would otherwise violate the style guide are preferred when they match established notation in a reference paper or algorithm.
+对数学含量很高的代码，如果短变量名与参考文献或算法中的既定记法一致，即使它们否则会违反风格指南，也优先使用。
 
-When using names based on established notation:
+使用基于既定记法的名字时：
 
-1. Cite the source of all naming conventions, preferably with a hyperlink to academic resource itself, in a comment or docstring. If the source is not accessible, clearly document the naming conventions.
-2. Prefer PEP 8-compliant `descriptive_names` for public APIs, which are much more likely to be encountered out of context.
-3. Use a narrowly-scoped `pylint: disable=invalid-name` directive to silence warnings. For just a few variables, use the directive as an endline comment for each one; for more, apply the directive at the beginning of a block.
+1. 在注释或文档字符串里引用所有命名约定的来源，最好用超链接指向学术资料本身。如果来源无法访问，清楚记录这些命名约定。
+2. 对公共 API 优先使用符合 PEP 8 的 `descriptive_names`，它们更可能在脱离上下文时被遇到。
+3. 使用范围很窄的 `pylint: disable=invalid-name` 指令来消除警告。只有几个变量时，把指令作为每一处的行尾注释；更多时，在块的开头应用该指令。
 
-### 3.17 Main
+### 3.17 主函数
 
-In Python, `pydoc` as well as unit tests require modules to be importable. If a file is meant to be used as an executable, its main functionality should be in a `main()` function, and your code should always check `if __name__ == '__main__'` before executing your main program, so that it is not executed when the module is imported.
+在 Python 中，`pydoc` 以及单元测试都要求模块可以被导入。如果文件打算作为可执行文件使用，其主要功能应放在 `main()` 函数里，并且代码在执行主程序之前应始终检查 `if __name__ == '__main__'`，这样模块被导入时就不会执行它。
 
-When using absl, use `app.run`:
+使用 absl 时，使用 `app.run`：
 
 ```
 from absl import app
@@ -1926,7 +1926,7 @@ if __name__ == '__main__':
 
 ```
 
-Otherwise, use:
+否则使用：
 
 ```
 def main():
@@ -1937,24 +1937,24 @@ if __name__ == '__main__':
 
 ```
 
-All code at the top level will be executed when the module is imported. Be careful not to call functions, create objects, or perform other operations that should not be executed when the file is being `pydoc` ed.
+顶层的所有代码都会在模块被导入时执行。小心不要调用函数、创建对象，或执行在文件被 `pydoc` 时不应当执行的其他操作。
 
-### 3.18 Function length
+### 3.18 函数长度
 
-Prefer small and focused functions.
+优先使用小而专注的函数。
 
-We recognize that long functions are sometimes appropriate, so no hard limit is placed on function length. If a function exceeds about 40 lines, think about whether it can be broken up without harming the structure of the program.
+我们承认长函数有时是合适的，因此不对函数长度设置硬性限制。如果函数超过大约 40 行，想一想能否在不损害程序结构的情况下把它拆开。
 
-Even if your long function works perfectly now, someone modifying it in a few months may add new behavior. This could result in bugs that are hard to find. Keeping your functions short and simple makes it easier for other people to read and modify your code.
+即使你的长函数现在工作得很好，几个月后修改它的人可能加入新行为。这可能导致难以发现的缺陷。保持函数短小简单，能让其他人更容易阅读和修改你的代码。
 
-You could find long and complicated functions when working with some code. Do not be intimidated by modifying existing code: if working with such a function proves to be difficult, you find that errors are hard to debug, or you want to use a piece of it in several different contexts, consider breaking up the function into smaller and more manageable pieces.
+处理某些代码时，你可能会遇到又长又复杂的函数。不要被修改现有代码吓住：如果使用这样的函数证明很困难，你发现错误难以调试，或者想在几个不同上下文中使用其中一段，考虑把函数拆成更小、更好管理的片段。
 
-### 3.19 Type Annotations
+### 3.19 类型注解
 
-#### 3.19.1 General Rules
+#### 3.19.1 一般规则
 
-- Familiarize yourself with type hints.
-- Annotating `self` or `cls` is generally not necessary. `Self` can be used if it is necessary for proper type information, e.g.
+- 熟悉类型提示。
+- 一般不必给 `self` 或 `cls` 加注解。如果正确的类型信息需要它，可以使用 `Self`，例如
 
 ```
 from typing import Self
@@ -1968,21 +1968,21 @@ class BaseClass:
         ...
 
 ```
-- Similarly, don’t feel compelled to annotate the return value of `__init__` (where `None` is the only valid option).
-- If any other variable or a returned type should not be expressed, use `Any`.
-- You are not required to annotate all the functions in a module.
+- 同样，不必勉强给 `__init__` 的返回值加注解（那里 `None` 是唯一有效选择）。
+- 如果任何其他变量或返回类型不应当被表达，使用 `Any`。
+- 不要求给模块里的所有函数加注解。
 
-- At least annotate your public APIs.
-- Use judgment to get to a good balance between safety and clarity on the one hand, and flexibility on the other.
-- Annotate code that is prone to type-related errors (previous bugs or complexity).
-- Annotate code that is hard to understand.
-- Annotate code as it becomes stable from a types perspective. In many cases, you can annotate all the functions in mature code without losing too much flexibility.
+- 至少给公共 API 加注解。
+- 用判断在一边的安全与清晰、另一边的灵活之间取得良好平衡。
+- 给容易出现类型相关错误的代码加注解（以前的缺陷或复杂性）。
+- 给难以理解的代码加注解。
+- 当代码从类型角度看变得稳定时给它加注解。许多情况下，可以给成熟代码中的所有函数加注解，而不损失太多灵活性。
 
-#### 3.19.2 Line Breaking
+#### 3.19.2 断行
 
-Try to follow the existing indentation rules.
+尽量遵循现有的缩进规则。
 
-After annotating, many function signatures will become “one parameter per line”. To ensure the return type is also given its own line, a comma can be placed after the last parameter.
+加注解之后，许多函数签名会变成“每个参数一行”。为了确保返回类型也独占一行，可以在最后一个参数后面放一个逗号。
 
 ```
 def my_method(
@@ -1995,7 +1995,7 @@ def my_method(
 
 ```
 
-Always prefer breaking between variables, and not, for example, between variable names and type annotations. However, if everything fits on the same line, go for it.
+始终优先在变量之间断开，而不是例如在变量名和类型注解之间断开。不过，如果所有内容都能放在同一行，就放在同一行。
 
 ```
 def my_method(self, first_var: int) -> int:
@@ -2003,7 +2003,7 @@ def my_method(self, first_var: int) -> int:
 
 ```
 
-If the combination of the function name, the last parameter, and the return type is too long, indent by 4 in a new line. When using line breaks, prefer putting each parameter and the return type on their own lines and aligning the closing parenthesis with the `def`:
+如果函数名、最后一个参数和返回类型合在一起太长，在新行上缩进 4 个空格。使用断行时，优先把每个参数和返回类型各自放在一行，并使闭括号与 `def` 对齐：
 
 ```
 Yes:
@@ -2015,7 +2015,7 @@ def my_method(
 
 ```
 
-Optionally, the return type may be put on the same line as the last parameter:
+可选地，返回类型可以和最后一个参数放在同一行：
 
 ```
 Okay:
@@ -2027,7 +2027,7 @@ def my_method(
 
 ```
 
-`pylint` allows you to move the closing parenthesis to a new line and align with the opening one, but this is less readable.
+`pylint` 允许把闭括号移到新行并与开括号对齐，但这更难读。
 
 ```
 No:
@@ -2038,7 +2038,7 @@ def my_method(self,
 
 ```
 
-As in the examples above, prefer not to break types. However, sometimes they are too long to be on a single line (try to keep sub-types unbroken).
+如上面的示例，优先不要把类型断开。不过有时它们太长，放不进一行（尽量保持子类型不断开）。
 
 ```
 def my_method(
@@ -2052,7 +2052,7 @@ def my_method(
 
 ```
 
-If a single name and type is too long, consider using an alias for the type. The last resort is to break after the colon and indent by 4.
+如果单个名字和类型太长，考虑为该类型使用别名。最后的办法是在冒号后断开并缩进 4 个空格。
 
 ```
 Yes:
@@ -2074,9 +2074,9 @@ def my_function(
 
 ```
 
-#### 3.19.3 Forward Declarations
+#### 3.19.3 前向声明
 
-If you need to use a class name (from the same module) that is not yet defined – for example, if you need the class name inside the declaration of that class, or if you use a class that is defined later in the code – either use `from __future__ import annotations` or use a string for the class name.
+如果需要使用（同一模块中）尚未定义的类名——例如需要在该类的声明内部使用类名，或使用在代码后面才定义的类——要么使用 `from __future__ import annotations`，要么用字符串表示类名。
 
 ```
 Yes:
@@ -2100,9 +2100,9 @@ class OtherClass:
 
 ```
 
-#### 3.19.4 Default Values
+#### 3.19.4 默认值
 
-As per PEP-008, use spaces around the `=` only for arguments that have both a type annotation and a default value.
+依据 PEP-008，只有对同时具有类型注解和默认值的参数，才在 `=` 周围使用空格。
 
 ```
 Yes:
@@ -2120,9 +2120,9 @@ def func(a:int=0) -> int:
 
 #### 3.19.5 NoneType
 
-In the Python type system, `NoneType` is a “first class” type, and for typing purposes, `None` is an alias for `NoneType`. If an argument can be `None`, it has to be declared! You can use `|` union type expressions (recommended in new Python 3.10+ code), or the older `Optional` and `Union` syntaxes.
+在 Python 类型系统中，`NoneType` 是“一等”类型，就类型标注而言，`None` 是 `NoneType` 的别名。如果参数可以是 `None`，就必须声明！可以使用 `|` 联合类型表达式（在新的 Python 3.10+ 代码中推荐），或较旧的 `Optional` 和 `Union` 语法。
 
-Use explicit `X | None` instead of implicit. Earlier versions of type checkers allowed `a: str = None` to be interpreted as `a: str | None = None`, but that is no longer the preferred behavior.
+使用显式的 `X | None`，不要使用隐式写法。较早版本的类型检查器允许把 `a: str = None` 解释为 `a: str | None = None`，但这不再是首选行为。
 
 ```
 Yes:
@@ -2142,13 +2142,13 @@ def implicit_optional(a: str = None) -> str:
 
 ```
 
-#### 3.19.6 Type Aliases
+#### 3.19.6 类型别名
 
-You can declare aliases of complex types.
+可以声明复杂类型的别名。
 
-- The name of an alias should be CapWorded. If the alias is used only in this module, it should be _Private.
-- The alias should be type-annotated as `typing.TypeAlias`, to distinguish it from a non-type global variable.
-- Do not use type aliases as a substitute for the `from module import symbol` idiom, which is not allowed.
+- 别名的名字应使用 CapWord。如果别名只在本模块使用，它应当是 _Private。
+- 别名应类型注解为 `typing.TypeAlias`，以便与非类型的全局变量区分。
+- 不要用类型别名代替不允许使用的 `from module import symbol` 惯用法。
 
 ```
 Yes:
@@ -2173,11 +2173,11 @@ _ShortName: TypeAlias = other_module.SignificantlyInconvenientlyLongName
 
 ```
 
-#### 3.19.7 Ignoring Types
+#### 3.19.7 忽略类型
 
-You can disable type checking on a line with the special comment `# type: ignore`.
+可以用特殊注释 `# type: ignore` 关闭一行上的类型检查。
 
-`pyrefly` has a disable option for specific errors (similar to lint):
+`pyrefly` 有针对特定错误的关闭选项（与静态检查类似）：
 
 ```
 # 这一行的属性访问是类型检查器的误报，只抑制 attribute-error，不要把整段函数的检查都关掉。
@@ -2185,17 +2185,17 @@ You can disable type checking on a line with the special comment `# type: ignore
 
 ```
 
-#### 3.19.8 Typing Variables
+#### 3.19.8 给变量标注类型
 
-Annotated Assignments
-: If an internal variable has a type that is hard or impossible to infer, specify its type with an annotated assignment - use a colon and type between the variable name and value (the same as is done with function arguments that have a default value): 
+带注解的赋值
+: 如果内部变量的类型很难或不可能推断，用带注解的赋值标明它的类型——在变量名和值之间使用冒号和类型（与带默认值的函数参数相同）：
 
 ```
 a: Foo = SomeUndecoratedFunction()
 
 ```
-Type Comments
-: Though you may see them remaining in the codebase (they were necessary before Python 3.6), do not add any more uses of a `# type: ` comment on the end of the line: 
+类型注释
+: 虽然你可能看到它们仍留在代码库里（Python 3.6 之前它们是必要的），不要再新增行尾的 `# type: ` 注释：
 
 ```
 # 这是旧式行尾类型注释，只保留给对照，新代码应把 Foo 写在变量注解里，不要再新增这种写法。
@@ -2203,9 +2203,9 @@ a = SomeUndecoratedFunction()  # type: Foo
 
 ```
 
-#### 3.19.9 Tuples vs Lists
+#### 3.19.9 元组与列表
 
-Typed lists can only contain objects of a single type. Typed tuples can either have a single repeated type or a set number of elements with different types. The latter is commonly used as the return type from a function.
+带类型的列表只能包含单一类型的对象。带类型的元组既可以有单一重复类型，也可以有固定数量、类型各不相同的元素。后者常用作函数的返回类型。
 
 ```
 a: list[int] = [1, 2, 3]
@@ -2214,9 +2214,9 @@ c: tuple[int, str, float] = (1, "2", 3.5)
 
 ```
 
-#### 3.19.10 Type variables
+#### 3.19.10 类型变量
 
-The Python type system has generics. A type variable, such as `TypeVar` and `ParamSpec`, is a common way to use them.
+Python 类型系统有泛型。类型变量，例如 `TypeVar` 和 `ParamSpec`，是使用它们的常见方式。
 
 ```
 from collections.abc import Callable
@@ -2235,7 +2235,7 @@ def print_when_called(f: Callable[_P, _T]) -> Callable[_P, _T]:
 
 ```
 
-A `TypeVar` can be constrained:
+`TypeVar` 可以被约束：
 
 ```
 AddableType = TypeVar("AddableType", int, float, str)
@@ -2244,7 +2244,7 @@ def add(a: AddableType, b: AddableType) -> AddableType:
 
 ```
 
-A common predefined type variable in the `typing` module is `AnyStr`. Use it for multiple annotations that can be `bytes` or `str` and must all be the same type.
+`typing` 模块中一个常见的预定义类型变量是 `AnyStr`。对多个可以是 `bytes` 或 `str`、并且必须全部是同一类型的注解，使用它。
 
 ```
 from typing import AnyStr
@@ -2255,10 +2255,10 @@ def check_length(x: AnyStr) -> AnyStr:
 
 ```
 
-A type variable must have a descriptive name, unless it meets all of the following criteria:
+类型变量必须有描述性的名字，除非它满足下列全部条件：
 
-- not externally visible
-- not constrained
+- 外部不可见
+- 没有被约束
 
 ```
 Yes:
@@ -2278,11 +2278,11 @@ No:
 
 ```
 
-#### 3.19.11 String types
+#### 3.19.11 字符串类型
 
-> Do not use `typing.Text` in new code. It’s only for Python 2/3 compatibility.
+> 不要在新代码中使用 `typing.Text`。它只用于 Python 2/3 兼容。
 
-Use `str` for string/text data. For code that deals with binary data, use `bytes`.
+字符串/文本数据使用 `str`。处理二进制数据的代码使用 `bytes`。
 
 ```
 def deals_with_text_data(x: str) -> str:
@@ -2292,11 +2292,11 @@ def deals_with_binary_data(x: bytes) -> bytes:
 
 ```
 
-If all the string types of a function are always the same, for example if the return type is the same as the argument type in the code above, use AnyStr.
+如果函数的所有字符串类型始终相同，例如上面代码中返回类型与参数类型相同，使用 AnyStr。
 
-#### 3.19.12 Imports For Typing
+#### 3.19.12 为类型标注而导入
 
-For symbols (including types, functions, and constants) from the `typing` or `collections.abc` modules used to support static analysis and type checking, always import the symbol itself. This keeps common annotations more concise and matches typing practices used around the world. You are explicitly allowed to import multiple specific symbols on one line from the `typing` and `collections.abc` modules. For example:
+对来自 `typing` 或 `collections.abc` 模块、用于支持静态分析和类型检查的符号（包括类型、函数和常量），始终导入符号本身。这让常见注解更简洁，也符合世界各地的类型标注实践。明确允许从 `typing` 和 `collections.abc` 模块在一行上导入多个具体符号。例如：
 
 ```
 from collections.abc import Mapping, Sequence
@@ -2304,14 +2304,14 @@ from typing import Any, Generic, cast, TYPE_CHECKING
 
 ```
 
-Given that this way of importing adds items to the local namespace, names in `typing` or `collections.abc` should be treated similarly to keywords, and not be defined in your Python code, typed or not. If there is a collision between a type and an existing name in a module, import it using `import x as y`.
+由于这种导入方式会把名字加进局部命名空间，`typing` 或 `collections.abc` 中的名字应类似关键字对待，不要在你的 Python 代码里定义它们，无论是否带类型。如果类型与模块中已有名字冲突，使用 `import x as y` 导入它。
 
 ```
 from typing import Any as AnyType
 
 ```
 
-When annotating function signatures, prefer abstract container types like `collections.abc.Sequence` over concrete types like `list`. If you need to use a concrete type (for example, a `tuple` of typed elements), prefer built-in types like `tuple` over the parametric type aliases from the `typing` module (e.g., `typing.Tuple`).
+给函数签名加注解时，优先使用 `collections.abc.Sequence` 这类抽象容器类型，而不是 `list` 这类具体类型。如果需要使用具体类型（例如带类型元素的 `tuple`），优先使用 `tuple` 这类内置类型，而不是 `typing` 模块中的参数化类型别名（例如 `typing.Tuple`）。
 
 ```
 from typing import List, Tuple
@@ -2331,17 +2331,17 @@ def transform_coordinates(original: Sequence[tuple[float, float]]) ->
 
 ```
 
-#### 3.19.13 Conditional Imports
+#### 3.19.13 条件导入
 
-Use conditional imports only in exceptional cases where the additional imports needed for type checking must be avoided at runtime. This pattern is discouraged; alternatives such as refactoring the code to allow top-level imports should be preferred.
+只在例外情况下使用条件导入：类型检查所需的额外导入必须在运行时避免。不鼓励这种模式；应优先采用其他办法，例如重构代码以允许顶层导入。
 
-Imports that are needed only for type annotations can be placed within an `if TYPE_CHECKING:` block.
+只为类型注解所需的导入可以放在 `if TYPE_CHECKING:` 块里。
 
-- Conditionally imported types need to be referenced as strings, to be forward compatible with Python 3.6 where the annotation expressions are actually evaluated.
-- Only entities that are used solely for typing should be defined here; this includes aliases. Otherwise it will be a runtime error, as the module will not be imported at runtime.
-- The block should be right after all the normal imports.
-- There should be no empty lines in the typing imports list.
-- Sort this list as if it were a regular imports list.
+- 条件导入的类型需要以字符串引用，以便与 Python 3.6 向前兼容，在那里注解表达式确实会被求值。
+- 这里只应定义仅用于类型标注的实体；这包括别名。否则会成为运行时错误，因为该模块在运行时不会被导入。
+- 该块应紧接在所有普通导入之后。
+- 类型导入列表中不应有空行。
+- 把这个列表当作普通导入列表来排序。
 
 ```
 import typing
@@ -2351,11 +2351,11 @@ def f(x: "sketch.Sketch"): ...
 
 ```
 
-#### 3.19.14 Circular Dependencies
+#### 3.19.14 循环依赖
 
-Circular dependencies that are caused by typing are code smells. Such code is a good candidate for refactoring. Although technically it is possible to keep circular dependencies, various build systems will not let you do so because each module has to depend on the other.
+由类型标注引起的循环依赖是代码异味。这类代码很适合重构。虽然技术上可以保留循环依赖，各种构建系统不会允许这样做，因为每个模块都必须依赖另一个。
 
-Replace modules that create circular dependency imports with `Any`. Set an alias with a meaningful name, and use the real type name from this module (any attribute of `Any` is `Any`). Alias definitions should be separated from the last import by one line.
+用 `Any` 替换那些造成循环依赖导入的模块。用有意义的名字设置别名，并使用本模块中的真实类型名（`Any` 的任何属性都是 `Any`）。别名定义应与最后一条导入空开一行。
 
 ```
 from typing import Any
@@ -2368,9 +2368,9 @@ def my_method(self, var: "some_mod.SomeType") -> None:
 
 ```
 
-#### 3.19.15 Generics
+#### 3.19.15 泛型
 
-When annotating, prefer to specify type parameters for generic types in a parameter list; otherwise, the generics’ parameters will be assumed to be `Any`.
+加注解时，优先在参数列表中为泛型类型指定类型参数；否则泛型的参数会被假定为 `Any`。
 
 ```
 # 正例把对象含义或具体类型参数写出来，读者不用从类名或 Any 里猜测调用方得到什么。
@@ -2386,7 +2386,7 @@ def get_names(employee_ids: Sequence) -> Mapping:
 
 ```
 
-If the best type parameter for a generic is `Any`, make it explicit, but remember that in many cases `TypeVar` might be more appropriate:
+如果泛型的最佳类型参数是 `Any`，就把它写明确，但记住许多情况下 `TypeVar` 可能更合适：
 
 ```
 # 反例没有把对象含义或类型参数写清楚，读者只能看到名字，或者看到退回 Any 的签名。
@@ -2405,12 +2405,12 @@ def get_names(employee_ids: Sequence[_T]) -> Mapping[_T, str]:
 
 ```
 
-## 4 Parting Words
+## 4 结束语
 
-BE CONSISTENT.
+保持一致。
 
-If you’re editing code, take a few minutes to look at the code around you and determine its style. If they use `_idx` suffixes in index variable names, you should too. If their comments have little boxes of hash marks around them, make your comments have little boxes of hash marks around them too.
+如果你在修改代码，花几分钟看看周围的代码并确定它的风格。如果他们在索引变量名上使用 `_idx` 后缀，你也应当这样做。如果他们的注释周围有井号组成的小方框，你的注释也应当有井号组成的小方框。
 
-The point of having style guidelines is to have a common vocabulary of coding so people can concentrate on what you’re saying rather than on how you’re saying it. We present global style rules here so people know the vocabulary, but local style is also important. If code you add to a file looks drastically different from the existing code around it, it throws readers out of their rhythm when they go to read it.
+风格指南的意义是拥有一套共同的编码词汇，使人们能把注意力放在你说什么上，而不是你怎么说。我们在这里给出全局风格规则，让人们知道这套词汇，但局部风格也很重要。如果你加进文件的代码与周围已有代码看起来截然不同，读者读到它时会被打乱节奏。
 
-However, there are limits to consistency. It applies more heavily locally and on choices unspecified by the global style. Consistency should not generally be used as a justification to do things in an old style without considering the benefits of the new style, or the tendency of the codebase to converge on newer styles over time.
+不过一致性有限度。它在局部、以及在全局风格未规定的选择上适用更重。一致性一般不应当被用作理由，去用旧风格做事，而不考虑新风格的好处，或代码库随时间趋向更新风格的倾向。
