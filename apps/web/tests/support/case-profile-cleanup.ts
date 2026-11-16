@@ -9,10 +9,7 @@ import { join } from "node:path";
  * JavaScript 允许直接抛出 undefined，因此错误存在性由独立布尔字段表达；正文和清理都失败时保留两项原始对象及主因，单项
  * 失败则原样抛出，绝不在 finally 中改变控制流。
  */
-export async function withCleanup(
-    body: () => Promise<void>,
-    cleanup: () => Promise<void>,
-): Promise<void> {
+export async function withCleanup(body: () => Promise<void>, cleanup: () => Promise<void>): Promise<void> {
     let bodyFailed = false;
     let bodyError: unknown;
     let cleanupFailed = false;
@@ -32,11 +29,9 @@ export async function withCleanup(
         cleanupError = error;
     }
     if (bodyFailed && cleanupFailed)
-        throw new AggregateError(
-            [bodyError, cleanupError],
-            "Test body and profile cleanup failed",
-            { cause: bodyError },
-        );
+        throw new AggregateError([bodyError, cleanupError], "Test body and profile cleanup failed", {
+            cause: bodyError,
+        });
     if (bodyFailed) throw bodyError;
     if (cleanupFailed) throw cleanupError;
 }
@@ -53,8 +48,7 @@ export async function cleanupCaseProfile(profile: string, evidencePath: string):
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
         entries = [];
     }
-    const stops: { attemptId: string; state: string; workerPid?: number; guardianPid?: number }[] =
-        [];
+    const stops: { attemptId: string; state: string; workerPid?: number; guardianPid?: number }[] = [];
     for (const name of entries.filter((entry) => entry.endsWith(".process.json"))) {
         const source = await readFile(join(profile, "agent/processes", name), "utf8");
         let journal: unknown;
@@ -63,9 +57,7 @@ export async function cleanupCaseProfile(profile: string, evidencePath: string):
         } catch {
             // JSON.parse 的默认错误可能引用原文，不能把恢复文件中的敏感字段写入测试日志；这里仅给出私有目录位置，原始文
             // 件留在该目录供获授权的操作者核对。
-            throw new Error(
-                "Invalid Agent process journal; private profile retained at " + profile,
-            );
+            throw new Error("Invalid Agent process journal; private profile retained at " + profile);
         }
         if (
             journal === null ||
@@ -83,9 +75,7 @@ export async function cleanupCaseProfile(profile: string, evidencePath: string):
         stops.push({
             attemptId: journal.attemptId,
             state: journal.state,
-            ...("pid" in journal &&
-            typeof journal.pid === "number" &&
-            Number.isSafeInteger(journal.pid)
+            ...("pid" in journal && typeof journal.pid === "number" && Number.isSafeInteger(journal.pid)
                 ? { workerPid: journal.pid }
                 : {}),
             ...("guardianPid" in journal &&

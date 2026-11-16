@@ -31,11 +31,7 @@ export function nativeCloudReports(
     reports.subscribe = (runId, receive, signal) =>
         subscribe(runId, (report) => receive(remember(report, runId)), signal);
     return Object.assign(reports, {
-        nativeArtifact: async (
-            attemptId: string,
-            artifactId: string,
-            action: "save" | "trace" | "preview",
-        ) => {
+        nativeArtifact: async (attemptId: string, artifactId: string, action: "save" | "trace" | "preview") => {
             const runId = runs.get(attemptId);
             if (!runId) throw new Error("REPORT_CONTEXT_MISSING");
             await artifact({ local: false, runId, attemptId, artifactId, action });

@@ -1,14 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import fs, {
-    closeSync,
-    fstatSync,
-    mkdtempSync,
-    openSync,
-    readFileSync,
-    rmSync,
-    writeFileSync,
-} from "node:fs";
+import fs, { closeSync, fstatSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire, syncBuiltinESMExports } from "node:module";
 import { createServer, type Socket } from "node:net";
 import { tmpdir } from "node:os";
@@ -52,10 +44,7 @@ async function fixture(
         if (error.code === "ERR_MODULE_NOT_FOUND") return {};
         throw error;
     });
-    assert.ok(
-        "createControlledCommandOwner" in module,
-        "direct command ownership must be implemented",
-    );
+    assert.ok("createControlledCommandOwner" in module, "direct command ownership must be implemented");
     const root = mkdtempSync(join(tmpdir(), "veriq-c2a2-"));
     const commandFd = openSync(join(root, "commands"), "wx+", 0o600);
     const cliFd = openSync(join(root, "cli"), "wx+", 0o600);
@@ -83,11 +72,7 @@ async function fixture(
         });
     } finally {
         for (const command of held) {
-            if (
-                command.child.pid &&
-                command.child.exitCode === null &&
-                command.child.signalCode === null
-            )
+            if (command.child.pid && command.child.exitCode === null && command.child.signalCode === null)
                 command.child.kill("SIGKILL");
             if (command.child.pid) await command.exited;
         }
@@ -143,10 +128,7 @@ test("durable intent precedes body and fixed completed prefix seals with real ex
                 [2, 1],
             ],
         );
-        assert.equal(
-            validateJournal(readFileSync(join(root, "commands")), commandBinding).objects.length,
-            2,
-        );
+        assert.equal(validateJournal(readFileSync(join(root, "commands")), commandBinding).objects.length, 2);
         assert.doesNotThrow(() => fstatSync(commandFd));
         assert.throws(() => start("cli", ""), /CONTROLLED_COMMAND_ADMISSION_CLOSED/);
     });
@@ -321,10 +303,7 @@ test("role order, kind limits, pending object and owner faults fail closed", asy
  */
 test("direct roles cannot inherit observer marker or either private journal", async () => {
     await fixture(async ({ owner, start, commandFd, cliFd }) => {
-        const identities = [fstatSync(commandFd), fstatSync(cliFd)].map((s) => [
-            String(s.dev),
-            String(s.ino),
-        ]);
+        const identities = [fstatSync(commandFd), fstatSync(cliFd)].map((s) => [String(s.dev), String(s.ino)]);
         const inspect =
             `import {fstatSync} from 'node:fs'; if(process.env.VERIQ_CHILD_OBSERVER)process.exit(42); c` +
             `onst ids=${JSON.stringify(identities)}` +
@@ -361,14 +340,7 @@ test("partial write completes while zero progress and fsync failure remain stick
                         offset: number,
                         length: number,
                         position: number,
-                    ) =>
-                        originalWrite(
-                            fd,
-                            buffer,
-                            offset,
-                            Math.min(3, length),
-                            position,
-                        )) as typeof fs.writeSync;
+                    ) => originalWrite(fd, buffer, offset, Math.min(3, length), position)) as typeof fs.writeSync;
                 if (mode === "zero") fs.writeSync = (() => 0) as typeof fs.writeSync;
                 if (mode === "fsync")
                     fs.fsyncSync = () => {
@@ -443,8 +415,7 @@ test("CLI missing seal, signal and late cancellation cannot become management su
             await start("npm", "").result;
             await start("compiler", "").result;
             const cli = start("cli", source);
-            if (source.includes("130"))
-                cli.child.prependOnceListener("exit", () => owner.requestStop(commandBinding));
+            if (source.includes("130")) cli.child.prependOnceListener("exit", () => owner.requestStop(commandBinding));
             await assert.rejects(cli.result, /CONTROLLED_COMMAND/);
             await cli.exited;
             assert.throws(() => owner.seal(), /CONTROLLED_COMMAND/);
@@ -457,9 +428,7 @@ test("CLI missing seal, signal and late cancellation cannot become management su
  * 而不伪造文件状态或复制协议解析规则。
  */
 test("configuration rejects reused files and mismatched generation before READY", async () => {
-    const { createControlledCommandOwner } = await import(
-        "../src/execution/controlled-command.mjs"
-    );
+    const { createControlledCommandOwner } = await import("../src/execution/controlled-command.mjs");
     const root = mkdtempSync(join(tmpdir(), "veriq-command-binding-"));
     const commandFd = openSync(join(root, "commands"), "wx+", 0o600);
     const cliFd = openSync(join(root, "cli"), "wx+", 0o600);
@@ -506,10 +475,7 @@ test("owner CLI preserves ordinary fork IPC without lending either journal", asy
     await fixture(async ({ owner, start, root, commandFd, cliFd }) => {
         await start("npm", "").result;
         await start("compiler", "").result;
-        const identities = [fstatSync(commandFd), fstatSync(cliFd)].map((s) => [
-            String(s.dev),
-            String(s.ino),
-        ]);
+        const identities = [fstatSync(commandFd), fstatSync(cliFd)].map((s) => [String(s.dev), String(s.ino)]);
         writeFileSync(
             join(root, "fork.mjs"),
             `import {fstatSync} from 'node:fs'; let inherited=false;

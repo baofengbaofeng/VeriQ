@@ -64,8 +64,7 @@ export async function vaultDistribution(helper?: Uint8Array) {
             root,
             distribution: await loadRuntimeDistribution(root),
             cleanup: () => rm(root, { recursive: true, force: true }),
-            manifest: async () =>
-                JSON.parse(await readFile(join(root, "runtime-manifest.json"), "utf8")),
+            manifest: async () => JSON.parse(await readFile(join(root, "runtime-manifest.json"), "utf8")),
         };
     } catch (error) {
         await rm(root, { recursive: true, force: true });

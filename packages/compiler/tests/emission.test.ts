@@ -14,7 +14,7 @@ import { snapshot, asset, catalog, rehash, hash, id } from "./helpers.js";
 const bytes = (s: string) => new TextEncoder().encode(s);
 // Isolated fixture distribution: a real archive payload is supplied by packing tests below;
 // these byte-integrity tests make no claim to provide or execute the future production SDK.
-export function distribution(): EngineDistribution {
+function distribution(): EngineDistribution {
     const archive = bytes("isolated dependency byte fixture");
     const integrity = "sha512-" + createHash("sha512").update(archive).digest("base64");
     return {
@@ -52,7 +52,7 @@ export function distribution(): EngineDistribution {
         ),
     };
 }
-export function execution(): ExecutionSnapshotV1 {
+function execution(): ExecutionSnapshotV1 {
     return {
         schemaVersion: "1.0",
         workspaceId: id(99),
@@ -110,9 +110,7 @@ it("emits deterministic exact bytes and strict wire descriptor", () => {
     const second = compileFiles(snapshot(), distribution());
     expect(second).toEqual(first);
     expect(validateSchema("CompiledAssetBundle", first.bundle)).toEqual([]);
-    expect(first.bundle.entrypoints).toEqual([
-        { caseVersionId: id(1), path: `cases/${id(1)}.test.ts` },
-    ]);
+    expect(first.bundle.entrypoints).toEqual([{ caseVersionId: id(1), path: `cases/${id(1)}.test.ts` }]);
     for (const file of first.bundle.files) {
         expect(hash(first.files[file.path]!)).toBe(file.sha256);
         expect(first.files[file.path]!.byteLength).toBe(file.sizeBytes);
@@ -138,18 +136,16 @@ it("retains source context as a verified file for cold assembly", () => {
 it("rejects file tampering before execution assembly", () => {
     const result = compileFiles(snapshot(), distribution());
     result.files["source/asset-snapshot.json"] = bytes("{}");
-    expect(() => assembleExecution(result.bundle, execution(), result.files)).toThrow(
-        "FILE_HASH_MISMATCH",
-    );
+    expect(() => assembleExecution(result.bundle, execution(), result.files)).toThrow("FILE_HASH_MISMATCH");
 });
 it("rejects unknown selected case and workspace mismatch", () => {
     const r = compileFiles(snapshot(), distribution());
-    expect(() =>
-        assembleExecution(r.bundle, { ...execution(), caseVersionId: id(55) }, r.files),
-    ).toThrow("UNKNOWN_SELECTED_CASE");
-    expect(() =>
-        assembleExecution(r.bundle, { ...execution(), workspaceId: id(55) }, r.files),
-    ).toThrow("WORKSPACE_MISMATCH");
+    expect(() => assembleExecution(r.bundle, { ...execution(), caseVersionId: id(55) }, r.files)).toThrow(
+        "UNKNOWN_SELECTED_CASE",
+    );
+    expect(() => assembleExecution(r.bundle, { ...execution(), workspaceId: id(55) }, r.files)).toThrow(
+        "WORKSPACE_MISMATCH",
+    );
 });
 it("rejects duplicate entry mapping and missing entry files", () => {
     const r = compileFiles(snapshot(), distribution());
@@ -204,9 +200,9 @@ it("detects missing distribution files and inconsistent lock inventory", () => {
     expect(() => compileFiles(snapshot(), e)).toThrow("LOCK_DEPENDENCY_MISMATCH");
 });
 it("rejects wrong SDK version and package hooks", () => {
-    expect(() =>
-        compileFiles(snapshot(), { ...distribution(), runnerSdkVersion: "0.2.0" }),
-    ).toThrow("SDK_VERSION_MISMATCH");
+    expect(() => compileFiles(snapshot(), { ...distribution(), runnerSdkVersion: "0.2.0" })).toThrow(
+        "SDK_VERSION_MISMATCH",
+    );
     const d = distribution();
     const pkg = JSON.parse(new TextDecoder().decode(d.packageJson));
     pkg.scripts = { postinstall: "echo unsafe" };
@@ -215,9 +211,9 @@ it("rejects wrong SDK version and package hooks", () => {
 });
 it("rejects source mismatch and requires files on descriptor-only assembly", () => {
     const r = compileFiles(snapshot(), distribution());
-    expect(() =>
-        assembleExecution(r.bundle, { ...execution(), assetSourceHash: "f".repeat(64) }, r.files),
-    ).toThrow("SOURCE_HASH_MISMATCH");
+    expect(() => assembleExecution(r.bundle, { ...execution(), assetSourceHash: "f".repeat(64) }, r.files)).toThrow(
+        "SOURCE_HASH_MISMATCH",
+    );
     expect(() => assembleExecution(r.bundle, execution())).toThrow("BUNDLE_FILES_REQUIRED");
 });
 it("rejects unknown environment roles and mismatched secret references", () => {
@@ -225,9 +221,9 @@ it("rejects unknown environment roles and mismatched secret references", () => {
     const e = execution();
     e.environment.roles[0].roleKey = "other";
     expect(() => assembleExecution(r.bundle, e, r.files)).toThrow("UNKNOWN_ROLE");
-    expect(() =>
-        assembleExecution(r.bundle, { ...execution(), secretVersions: [] }, r.files),
-    ).toThrow("SECRET_VERSION_MISMATCH");
+    expect(() => assembleExecution(r.bundle, { ...execution(), secretVersions: [] }, r.files)).toThrow(
+        "SECRET_VERSION_MISMATCH",
+    );
 });
 it("retains source bytes across removal of CASE validation metadata", () => {
     const s = snapshot();
@@ -307,9 +303,7 @@ it("emits a canonical-schema-valid source sidecar for every asset kind", () => {
         };
         if (kind === "ENVIRONMENT") s.authAdapters = execution().authAdapters!;
         const result = compileFiles(rehash(s), distribution());
-        const context = JSON.parse(
-            new TextDecoder().decode(result.files["source/asset-snapshot.json"]),
-        );
+        const context = JSON.parse(new TextDecoder().decode(result.files["source/asset-snapshot.json"]));
         expect(validateSchema("AssetSnapshotV1", context), kind).toEqual([]);
     }
     for (const kind of ["CASE", "SUITE"]) {
@@ -336,9 +330,7 @@ it("emits a canonical-schema-valid source sidecar for every asset kind", () => {
         ).toEqual([]);
         const e = execution();
         e.assetSourceHash = s.sourceHash;
-        expect(assembleExecution(r.bundle, e, r.files).entrypoint).toBe(
-            r.bundle.entrypoints[0]!.path,
-        );
+        expect(assembleExecution(r.bundle, e, r.files).entrypoint).toBe(r.bundle.entrypoints[0]!.path);
     }
 });
 it("rejects ambiguous matching suite roots after removal of validation metadata", () => {
@@ -360,9 +352,9 @@ it("rejects a lockfile whose transitive dependencies are missing", () => {
 });
 it("rechecks descriptor SDK/inventory against retained package bytes", () => {
     const r = compileFiles(snapshot(), distribution());
-    expect(() =>
-        assembleExecution({ ...r.bundle, runnerSdkVersion: "0.2.0" }, execution(), r.files),
-    ).toThrow("SDK_VERSION_MISMATCH");
+    expect(() => assembleExecution({ ...r.bundle, runnerSdkVersion: "0.2.0" }, execution(), r.files)).toThrow(
+        "SDK_VERSION_MISMATCH",
+    );
 });
 it("rejects unauthorized execution origins and duplicate secret bindings", () => {
     const r = compileFiles(snapshot(), distribution());
@@ -647,8 +639,7 @@ it("I2 emits the locator-dependent assertion in the post-extraction plan", () =>
         ts.ScriptTarget.ES2023,
         true,
     );
-    const registration = file.statements.find(ts.isExpressionStatement)!
-        .expression as ts.CallExpression;
+    const registration = file.statements.find(ts.isExpressionStatement)!.expression as ts.CallExpression;
     const jsonCall = registration.arguments[0] as ts.CallExpression;
     const plan = JSON.parse((jsonCall.arguments[0] as ts.StringLiteral).text);
     expect(plan.steps[0].responseAssertions).toEqual([]);
@@ -670,9 +661,7 @@ it("requires exact frozen adapter configuration and assigned secrets", () => {
             versionId: id(24),
             configuration: config,
             contentHash: hash(
-                new TextEncoder().encode(
-                    '{"identityPath":"/me","identityPointer":"/id","kind":"HTTP_BEARER"}',
-                ),
+                new TextEncoder().encode('{"identityPath":"/me","identityPointer":"/id","kind":"HTTP_BEARER"}'),
             ),
         },
     ];
@@ -695,6 +684,7 @@ it("cold assembly validates declared initial values and complete fixture schemas
             },
             required: ["name", "constant"],
             if: { properties: { name: { const: "Ada" } } },
+            // biome-ignore lint/suspicious/noThenProperty: 此处 then 为 JSON Schema 条件关键字，非 Promise thenable
             then: { properties: { constant: { const: 1 } } },
             else: { properties: { constant: { const: 2 } } },
         },
@@ -739,9 +729,7 @@ it("emits hash-listed expected plan from the same expanded compiler analysis", (
     expect(plans.cases[0].caseVersionId).toBe(id(1));
     expect(plans.cases[0].steps.length).toBeGreaterThan(0);
     expect(plans.cases[0].steps[0].id).toBeTruthy();
-    expect(result.bundle.files.find((f) => f.path === "metadata/expected-plans.json")?.sha256).toBe(
-        hash(metadata),
-    );
+    expect(result.bundle.files.find((f) => f.path === "metadata/expected-plans.json")?.sha256).toBe(hash(metadata));
 });
 
 it("marks deferred request-count assertions FINALIZE in expected execution metadata", () => {
@@ -776,9 +764,7 @@ it("marks deferred request-count assertions FINALIZE in expected execution metad
     const count = compiled.responseAssertions.find((a) => a.assertion.type === "requestCount")!;
     const visible = compiled.responseAssertions.find((a) => a.assertion.type === "ui")!;
     const result = compileFiles(source, distribution());
-    const plans = JSON.parse(
-        new TextDecoder().decode(result.files["metadata/expected-plans.json"]!),
-    );
+    const plans = JSON.parse(new TextDecoder().decode(result.files["metadata/expected-plans.json"]!));
     expect(plans.cases[0].steps[0].assertions).toContainEqual({
         id: count.assertion.id,
         severity: "BLOCK",
@@ -798,9 +784,7 @@ it("derives retry write potential from compiled source rather than a claimed run
             snapshot([{ id: "request", action: "apiRequest", method, path: "/record" }]),
             distribution(),
         );
-        const plan = JSON.parse(
-            new TextDecoder().decode(result.files["metadata/expected-plans.json"]!),
-        ).cases[0];
+        const plan = JSON.parse(new TextDecoder().decode(result.files["metadata/expected-plans.json"]!)).cases[0];
         expect(plan.hasPotentialWrites).toBe(method === "POST");
     }
 });
@@ -836,9 +820,7 @@ it("emits descriptor-pinned human report labels from the actual expanded analysi
         operator: "textContains",
         expectedSource: "REQ-visible",
     });
-    expect(output.bundle.files.find((f) => f.path === "metadata/report-display.json")?.sha256).toBe(
-        hash(bytes!),
-    );
+    expect(output.bundle.files.find((f) => f.path === "metadata/report-display.json")?.sha256).toBe(hash(bytes!));
     expect(validateSchema("ReportDisplayV1", display)).toEqual([]);
 });
 

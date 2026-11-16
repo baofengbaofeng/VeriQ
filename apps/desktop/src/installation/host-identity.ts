@@ -47,18 +47,14 @@ export async function verifyDesktopHost(
     const execute = promisify(execFile);
     const options = { timeout: 10000, maxBuffer: 65536, env: agentEnvironment("") };
     const version = await execute("/usr/bin/sw_vers", ["-productVersion"], options);
-    if (
-        !/^\d+\.\d+(?:\.\d+)?$/.test(version.stdout.trim()) ||
-        Number(version.stdout.trim().split(".")[0]) < 15
-    )
+    if (!/^\d+\.\d+(?:\.\d+)?$/.test(version.stdout.trim()) || Number(version.stdout.trim().split(".")[0]) < 15)
         throw new Error("DESKTOP_MACOS15_REQUIRED");
     const identifier = await execute(
         "/usr/libexec/PlistBuddy",
         ["-c", "Print :CFBundleIdentifier", join(contents, "Info.plist")],
         options,
     );
-    if (identifier.stdout.trim() !== release.appId)
-        throw new Error("DESKTOP_APPLICATION_IDENTITY_INVALID");
+    if (identifier.stdout.trim() !== release.appId) throw new Error("DESKTOP_APPLICATION_IDENTITY_INVALID");
     const identity = (): DesktopHostIdentity => {
         const value = Object.freeze({ platform: "darwin" as const });
         identities.add(value);
@@ -66,14 +62,9 @@ export async function verifyDesktopHost(
     };
     if (release.signing.mode === "DEVELOPMENT_UNSIGNED") return identity();
     await execute("/usr/bin/codesign", ["--verify", "--deep", "--strict", application], options);
-    const signature = await execute(
-        "/usr/bin/codesign",
-        ["--display", "--verbose=4", application],
-        options,
-    );
+    const signature = await execute("/usr/bin/codesign", ["--display", "--verbose=4", application], options);
     const lines = signature.stderr.split(/\r?\n/);
-    if (!lines.includes(`Identifier=${release.appId}`))
-        throw new Error("DESKTOP_SIGNATURE_IDENTITY_INVALID");
+    if (!lines.includes(`Identifier=${release.appId}`)) throw new Error("DESKTOP_SIGNATURE_IDENTITY_INVALID");
     if (
         release.signing.mode === "NATIVE_SIGNED" &&
         (!release.signing.identity || !lines.includes(`Authority=${release.signing.identity}`))

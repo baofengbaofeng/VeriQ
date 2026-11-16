@@ -41,32 +41,27 @@ export async function probeCookieProvider(storage: CookieSafeStorage, platform: 
     try {
         return await Promise.race([
             (async () => {
-                if (!(await storage.isAsyncEncryptionAvailable()))
-                    throw new Error("COOKIE_OS_PROTECTION_UNAVAILABLE");
+                if (!(await storage.isAsyncEncryptionAvailable())) throw new Error("COOKIE_OS_PROTECTION_UNAVAILABLE");
                 let backend: string;
                 if (platform === "linux") {
                     const readBackend = storage.getSelectedStorageBackend;
-                    if (typeof readBackend !== "function")
-                        throw new Error("COOKIE_OS_PROTECTION_UNAVAILABLE");
+                    if (typeof readBackend !== "function") throw new Error("COOKIE_OS_PROTECTION_UNAVAILABLE");
                     backend = readBackend.call(storage);
-                    if (typeof backend !== "string")
-                        throw new Error("COOKIE_OS_PROTECTION_UNAVAILABLE");
+                    if (typeof backend !== "string") throw new Error("COOKIE_OS_PROTECTION_UNAVAILABLE");
                 } else {
                     backend = platform === "darwin" ? "keychain" : "dpapi";
                 }
                 if (backend === "basic_text") throw required;
                 const probe = "VeriQ public Cookie protection probe 45.3.1";
                 const encoded = await storage.encryptStringAsync(probe);
-                if (!Buffer.isBuffer(encoded) || encoded.length < 16 || encoded.length > 1024)
-                    throw required;
+                if (!Buffer.isBuffer(encoded) || encoded.length < 16 || encoded.length > 1024) throw required;
                 /**
                  * 相同 v10 字节在 Mac、Windows 与 Linux 的含义不同，必须按显式平台策略核验；使用 UTF8 解码避免 ASCII
                  * 高位屏蔽把错误前缀折叠成合法标签，可用性本身不构成保护证据
                  * 。
                  */
                 const provider = encoded.subarray(0, 3).toString("utf8");
-                if (!(platform === "linux" ? ["v11", "v12"] : ["v10"]).includes(provider))
-                    throw required;
+                if (!(platform === "linux" ? ["v11", "v12"] : ["v10"]).includes(provider)) throw required;
                 const decoded = await storage.decryptStringAsync(encoded);
                 if (decoded.result !== probe || decoded.shouldReEncrypt !== false) throw required;
                 return { platform, backend, provider, encrypted: true as const };
@@ -76,10 +71,7 @@ export async function probeCookieProvider(storage: CookieSafeStorage, platform: 
              * 不保证立即撤销已缓存密钥，后续不得据此改用同步接口或宣称实时撤销。
              */
             new Promise<never>((_resolve, reject) => {
-                timer = setTimeout(
-                    () => reject(new Error("COOKIE_OS_PROTECTION_UNAVAILABLE")),
-                    5000,
-                );
+                timer = setTimeout(() => reject(new Error("COOKIE_OS_PROTECTION_UNAVAILABLE")), 5000);
             }),
         ]);
     } catch (error) {

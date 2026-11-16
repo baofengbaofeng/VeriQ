@@ -88,9 +88,7 @@ function inspect(pid: number): Proc | undefined {
 }
 const launcher = fileURLToPath(
     new URL(
-        process.platform === "win32"
-            ? "../../build/Release/veriq_guardian.exe"
-            : "../../build/veriq_runner",
+        process.platform === "win32" ? "../../build/Release/veriq_guardian.exe" : "../../build/veriq_runner",
         import.meta.url,
     ),
 );
@@ -112,10 +110,8 @@ export class ProcessSupervisor {
         private launcherPath = launcher,
         darwinSource?: DarwinSourceCapability,
     ) {
-        if (process.platform === "win32")
-            this.windows = new WindowsProcesses(directory, launcherPath);
-        if (process.platform === "darwin")
-            this.darwin = new DarwinProcesses(directory, darwinSource);
+        if (process.platform === "win32") this.windows = new WindowsProcesses(directory, launcherPath);
+        if (process.platform === "darwin") this.darwin = new DarwinProcesses(directory, darwinSource);
     }
     private path(id: string) {
         if (!/^[a-zA-Z0-9_-]{1,100}$/.test(id)) throw new Error("INVALID_ATTEMPT_ID");
@@ -147,11 +143,7 @@ export class ProcessSupervisor {
      * 公开方法 start 先选择平台实现并写入进程日志，再拉起受信任的原生守护等待 READY 与 worker 身份校验通过；
      * 未支持的平台和重复 Attempt 都在业务执行前失败，不能绕过平台所有权协议。
      */
-    async start(
-        id: string,
-        command: Command,
-        controlledLaunch?: DarwinControlledLaunch,
-    ): Promise<OwnedProcess> {
+    async start(id: string, command: Command, controlledLaunch?: DarwinControlledLaunch): Promise<OwnedProcess> {
         if (this.windows) return this.windows.start(id, command);
         if (this.darwin) return this.darwin.start(id, command, controlledLaunch);
         if (process.platform !== "linux") throw new Error("UNSUPPORTED_PROCESS_PLATFORM");
@@ -178,13 +170,7 @@ export class ProcessSupervisor {
         await this.save(journal);
         const child = spawn(
             this.launcherPath,
-            [
-                this.proofPath(id),
-                journal.nonce,
-                String(this.graceMs),
-                command.executable,
-                ...command.args,
-            ],
+            [this.proofPath(id), journal.nonce, String(this.graceMs), command.executable, ...command.args],
             {
                 cwd: command.cwd,
                 detached: true,
@@ -239,11 +225,9 @@ export class ProcessSupervisor {
             failed = reject;
         });
         let exited!: (value: { code: number | null; signal: NodeJS.Signals | null }) => void;
-        const workerExit = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
-            (resolve) => {
-                exited = resolve;
-            },
-        );
+        const workerExit = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
+            exited = resolve;
+        });
         let statusBuffer = "",
             statusBytes = 0,
             sawReady = false,
@@ -325,8 +309,7 @@ export class ProcessSupervisor {
                 exited: workerExit,
                 firstLine: () => line,
                 send: (message) => {
-                    if (child.connected)
-                        child.send(message as import("node:child_process").Serializable);
+                    if (child.connected) child.send(message as import("node:child_process").Serializable);
                 },
             };
             this.live.set(id, owned);
@@ -355,22 +338,14 @@ export class ProcessSupervisor {
      * 公开方法 active 返回当前仍登记为存活的 Attempt 标识列表：供恢复扫描与容量核算使用（active）（active）。
      */
     active() {
-        return this.windows
-            ? this.windows.active()
-            : this.darwin
-              ? this.darwin.active()
-              : [...this.live.keys()];
+        return this.windows ? this.windows.active() : this.darwin ? this.darwin.active() : [...this.live.keys()];
     }
     /**
      * 公开方法 terminateAttempt 按实际平台停止拥有的对象并等待证明，Darwin 可接收当前 Node performance.now
      * 毫秒绝对期限且首次调用粘滞；Linux/Windows 保留原排空行为并忽略该
      * 可选参数，缺少实际证明时继续隔离容量。
      */
-    terminateAttempt(
-        id: string,
-        reason: string,
-        deadlineMonotonicMs?: number,
-    ): Promise<StopReceipt> {
+    terminateAttempt(id: string, reason: string, deadlineMonotonicMs?: number): Promise<StopReceipt> {
         if (this.windows) return this.windows.terminateAttempt(id, reason);
         if (this.darwin) return this.darwin.terminateAttempt(id, reason, deadlineMonotonicMs);
         const existing = this.stopping.get(id);
@@ -421,10 +396,7 @@ export class ProcessSupervisor {
         try {
             records = await ProcessRecords.open(this.directory);
             if (!records) return false;
-            const proof = (await records.read(`${journal.attemptId}.drained.json`, 2048)) as Record<
-                string,
-                unknown
-            >;
+            const proof = (await records.read(`${journal.attemptId}.drained.json`, 2048)) as Record<string, unknown>;
             return (
                 proof.version === 1 &&
                 proof.state === "DRAINED" &&
@@ -444,11 +416,7 @@ export class ProcessSupervisor {
     private async provedStopped(journal: Journal): Promise<boolean> {
         if (!(await this.hasProof(journal))) return false;
         const guardian = inspect(journal.guardianPid!);
-        return (
-            !guardian ||
-            guardian.startTime !== journal.guardianStartTime ||
-            ["Z", "X"].includes(guardian.state)
-        );
+        return !guardian || guardian.startTime !== journal.guardianStartTime || ["Z", "X"].includes(guardian.state);
     }
     private releaseHandles(id: string) {
         const owned = this.live.get(id);
@@ -538,8 +506,7 @@ export class ProcessSupervisor {
                 }
                 const current = inspect(guardian.pid);
                 if (!current || ["Z", "X"].includes(current.state)) break;
-                if (current.uid !== journal.uid || current.startTime !== journal.guardianStartTime)
-                    break;
+                if (current.uid !== journal.uid || current.startTime !== journal.guardianStartTime) break;
                 await delay(20);
             }
             if (await this.provedStopped(journal)) {

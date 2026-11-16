@@ -33,9 +33,7 @@ declare global {
     }
 }
 
-test("resources retain manual workspace and unsaved values across list refresh", async ({
-    page,
-}) => {
+test("resources retain manual workspace and unsaved values across list refresh", async ({ page }) => {
     const origin = "http://127.0.0.1:5173";
     const setup = (await (await page.request.get("/api/v1/setup")).json()).data;
     if (!setup.initialized)
@@ -74,10 +72,7 @@ test("resources retain manual workspace and unsaved values across list refresh",
     );
     const queried: string[] = [];
     page.on("request", (request) => {
-        if (
-            request.method() === "GET" &&
-            /\/workspaces\/[^/]+\/resources$/.test(new URL(request.url()).pathname)
-        )
+        if (request.method() === "GET" && /\/workspaces\/[^/]+\/resources$/.test(new URL(request.url()).pathname))
             queried.push(request.url());
     });
     await page.goto("/resources");
@@ -85,17 +80,13 @@ test("resources retain manual workspace and unsaved values across list refresh",
     const selector = page.getByTestId("resource-workspace");
     await expect(selector).toHaveValue(first);
     await expect(page.getByTestId("resource-empty")).toBeVisible();
-    expect(
-        queried.some((url) => new URL(url).pathname === `/api/v1/workspaces/${first}/resources`),
-    ).toBe(true);
+    expect(queried.some((url) => new URL(url).pathname === `/api/v1/workspaces/${first}/resources`)).toBe(true);
 
     /**
      * 先离开资源入口取得已完成的真实列表，再在回到入口时暂缓交付下一次服务器响应；用户在响应抵达之前选择 Beta，释放后
      * 验证表单与选中空间都未被默认值重置。
      */
-    const staged = page.waitForResponse(
-        (response) => response.request().method() === "GET" && response.url() === path,
-    );
+    const staged = page.waitForResponse((response) => response.request().method() === "GET" && response.url() === path);
     await page.getByRole("link", { name: "Workspaces", exact: true }).click();
     await (await staged).finished();
     const renamed = await page.request.patch(`/api/v1/workspaces/${beta}`, {
@@ -117,8 +108,7 @@ test("resources retain manual workspace and unsaved values across list refresh",
     });
     let held = false;
     const barrier = async (route: import("@playwright/test").Route) => {
-        if (held || route.request().method() !== "GET" || route.request().url() !== path)
-            return route.continue();
+        if (held || route.request().method() !== "GET" || route.request().url() !== path) return route.continue();
         held = true;
         let response: import("@playwright/test").APIResponse | undefined;
         try {
@@ -147,16 +137,12 @@ test("resources retain manual workspace and unsaved values across list refresh",
         release();
         await finished;
         await (await refreshed).finished();
-        await expect(selector.locator(`option[value="${beta}"]`)).toHaveText(
-            "Resource Beta refreshed",
-        );
+        await expect(selector.locator(`option[value="${beta}"]`)).toHaveText("Resource Beta refreshed");
         await expect(selector).toHaveValue(beta);
         await expect(page.getByTestId("resource-kind")).toHaveValue("DATASET");
         await expect(page.getByTestId("resource-key")).toHaveValue("unsaved_beta");
         await expect(page.getByTestId("resource-name")).toHaveValue("Unsaved Beta resource");
-        expect(
-            queried.some((url) => new URL(url).pathname === `/api/v1/workspaces/${beta}/resources`),
-        ).toBe(true);
+        expect(queried.some((url) => new URL(url).pathname === `/api/v1/workspaces/${beta}/resources`)).toBe(true);
         await selector.selectOption(alpha);
         await expect(page.getByTestId("resource-key")).toHaveValue("");
         await expect(page.getByTestId("resource-name")).toHaveValue("");
@@ -192,8 +178,7 @@ test("actual Monaco preserves controlled edits and model lifetime", async ({ pag
         if (!reactPath || !monacoPath) throw new Error("Missing browser editor modules");
         const load = (path: string) => import(/* @vite-ignore */ path);
         const React = (await load(reactPath)).default;
-        const { createRoot } = (await load(reactPath.replace("/react.js", "/react-dom_client.js")))
-            .default;
+        const { createRoot } = (await load(reactPath.replace("/react.js", "/react-dom_client.js"))).default;
         const { flushSync } = (await load(reactPath.replace("/react.js", "/react-dom.js"))).default;
         const { Monaco } = await load("/src/features/resources/Monaco.tsx");
         const monaco = (await load(monacoPath)) as typeof import("monaco-editor/editor");
@@ -239,9 +224,7 @@ test("actual Monaco preserves controlled edits and model lifetime", async ({ pag
         };
         mount();
         const current = () => {
-            const actual = monaco.editor
-                .getEditors()
-                .find((item) => host.contains(item.getDomNode()));
+            const actual = monaco.editor.getEditors().find((item) => host.contains(item.getDomNode()));
             const model = actual?.getModel();
             if (!actual || !model) throw new Error("Missing actual owned Monaco editor");
             return { editor: actual, model };
@@ -288,9 +271,7 @@ test("actual Monaco preserves controlled edits and model lifetime", async ({ pag
         .click({ position: { x: 30, y: 10 } });
     await input.press("Control+End");
     await input.pressSequentially(" beta");
-    await expect
-        .poll(() => page.evaluate(() => window.resourceEditor.model.getValue()))
-        .toBe("alpha beta");
+    await expect.poll(() => page.evaluate(() => window.resourceEditor.model.getValue())).toBe("alpha beta");
     /**
      * 使用编辑器公开的撤销边界固定已经通过真实键盘输入形成的早期状态，避免假设浏览器逐键事件如何合并；后续撤销必须返回
      * 这个已观察到的内容，而不能手动设置模型来制造成功。
@@ -320,9 +301,7 @@ test("actual Monaco preserves controlled edits and model lifetime", async ({ pag
             value: "alpha beta gamma",
         });
     await input.press("Control+z");
-    await expect
-        .poll(() => page.evaluate(() => window.resourceEditor.model.getValue()))
-        .toBe("alpha beta");
+    await expect.poll(() => page.evaluate(() => window.resourceEditor.model.getValue())).toBe("alpha beta");
     expect(
         await page.evaluate(() => {
             const probe = window.resourceEditor;
@@ -333,15 +312,12 @@ test("actual Monaco preserves controlled edits and model lifetime", async ({ pag
             };
         }),
     ).toEqual({ oldDisposed: true, models: 1 });
-    await expect(
-        page.getByRole("textbox", { name: "Recreated source", exact: true }),
-    ).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Recreated source", exact: true })).toBeVisible();
     await expect(page.getByTestId("monaco")).toContainText("latest controlled replacement");
     const previousEvents = await page.evaluate(() => {
         const probe = window.resourceEditor;
         probe.unmount();
-        if (probe.models() !== probe.baselineModels)
-            throw new Error("Owned model survived unmount");
+        if (probe.models() !== probe.baselineModels) throw new Error("Owned model survived unmount");
         return probe.events.filter((event) => event.generation !== 3).length;
     });
     await expect(page.getByTestId("component-editor-host")).toHaveCount(0);
@@ -360,18 +336,12 @@ test("actual Monaco preserves controlled edits and model lifetime", async ({ pag
             value: "remounted fresh",
         });
     expect(
-        await page.evaluate(
-            () => window.resourceEditor.events.filter((event) => event.generation !== 3).length,
-        ),
+        await page.evaluate(() => window.resourceEditor.events.filter((event) => event.generation !== 3).length),
     ).toBe(previousEvents);
     await page.evaluate(() => {
         const probe = window.resourceEditor;
         probe.unmount();
-        if (
-            !probe.model.isDisposed() ||
-            probe.editor.getModel() !== null ||
-            probe.models() !== probe.baselineModels
-        )
+        if (!probe.model.isDisposed() || probe.editor.getModel() !== null || probe.models() !== probe.baselineModels)
             throw new Error("Remounted editor survived unmount");
     });
     await expect(page.getByTestId("component-editor-host")).toHaveCount(0);

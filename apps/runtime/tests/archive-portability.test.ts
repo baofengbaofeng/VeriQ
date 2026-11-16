@@ -10,9 +10,7 @@ import { create } from "tar";
  * 中文与空格路径则必须保留原始内容而不依赖宿主 tar 程序。
  */
 test("portable engine archive is deterministic and extracts actual files", async () => {
-    const { archive, extractCompiler } = await import(
-        new URL("../src/execution/archive.mjs", import.meta.url).href
-    );
+    const { archive, extractCompiler } = await import(new URL("../src/execution/archive.mjs", import.meta.url).href);
     const root = await mkdtemp(join(tmpdir(), "veriq-archive-"));
     try {
         const source = join(root, "input"),
@@ -23,15 +21,9 @@ test("portable engine archive is deterministic and extracts actual files", async
         await archive(source, ["src"], join(root, "nested/first.tgz"));
         await utimes(join(source, "src/测试 file.ts"), new Date(), new Date());
         await archive(source, ["src"], join(root, "second.tgz"));
-        assert.deepEqual(
-            await readFile(join(root, "nested/first.tgz")),
-            await readFile(join(root, "second.tgz")),
-        );
+        assert.deepEqual(await readFile(join(root, "nested/first.tgz")), await readFile(join(root, "second.tgz")));
         await extractCompiler(join(root, "nested/first.tgz"), output);
-        assert.equal(
-            await readFile(join(output, "src/测试 file.ts"), "utf8"),
-            "export const value = 7;\n",
-        );
+        assert.equal(await readFile(join(output, "src/测试 file.ts"), "utf8"), "export const value = 7;\n");
     } finally {
         await rm(root, { recursive: true, force: true });
     }
@@ -42,22 +34,14 @@ test("portable engine archive is deterministic and extracts actual files", async
  * 链接归档，避免用模拟对象绕过解析器行为。
  */
 test("compiler extraction rejects links before writing any member", async () => {
-    const { extractCompiler } = await import(
-        new URL("../src/execution/archive.mjs", import.meta.url).href
-    );
+    const { extractCompiler } = await import(new URL("../src/execution/archive.mjs", import.meta.url).href);
     const root = await mkdtemp(join(tmpdir(), "veriq-archive-link-"));
     try {
         await mkdir(join(root, "output"));
         await writeFile(join(root, "ordinary"), "must not extract");
         await symlink("ordinary", join(root, "linked"));
-        await create({ cwd: root, file: join(root, "bad.tgz"), gzip: true }, [
-            "ordinary",
-            "linked",
-        ]);
-        await assert.rejects(
-            extractCompiler(join(root, "bad.tgz"), join(root, "output")),
-            /UNSAFE_ENGINE_ARCHIVE/,
-        );
+        await create({ cwd: root, file: join(root, "bad.tgz"), gzip: true }, ["ordinary", "linked"]);
+        await assert.rejects(extractCompiler(join(root, "bad.tgz"), join(root, "output")), /UNSAFE_ENGINE_ARCHIVE/);
         await assert.rejects(readFile(join(root, "output/ordinary")), { code: "ENOENT" });
     } finally {
         await rm(root, { recursive: true, force: true });

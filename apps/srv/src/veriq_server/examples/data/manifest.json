@@ -12,13 +12,5 @@
         "business": "00000009-0009-4009-8009-000000000009",
         "fixture-secret": "00000010-0010-4010-8010-000000000010"
     },
-    "order": [
-        "catalog",
-        "dataset",
-        "fixture",
-        "flow",
-        "case",
-        "suite",
-        "environment"
-    ]
+    "order": ["catalog", "dataset", "fixture", "flow", "case", "suite", "environment"]
 }

@@ -24,15 +24,11 @@ type Observation = {
  * 进程目录可能在窗口枚举后正常消失，因此读取某一已观察 PID 的字段只把内核报告的消失当作候选失效；权限错误和其它 I/O
  * 失败继续抛出，避免在取证循环中把真正的宿主问题静默重试。
  */
-async function processField(
-    pid: number,
-    field: "stat" | "environ" | "cmdline",
-): Promise<string | undefined> {
+async function processField(pid: number, field: "stat" | "environ" | "cmdline"): Promise<string | undefined> {
     try {
         return await readFile(`/proc/${pid}/${field}`, "utf8");
     } catch (error) {
-        if (["ENOENT", "ESRCH"].includes((error as NodeJS.ErrnoException).code ?? ""))
-            return undefined;
+        if (["ENOENT", "ESRCH"].includes((error as NodeJS.ErrnoException).code ?? "")) return undefined;
         throw error;
     }
 }
@@ -86,8 +82,7 @@ export async function observeHeadedRun(
                 for (const windowId of x11WindowIds(tree)) {
                     let pid: number;
                     try {
-                        const property = (await command("xprop", ["-id", windowId, "_NET_WM_PID"]))
-                            .stdout;
+                        const property = (await command("xprop", ["-id", windowId, "_NET_WM_PID"])).stdout;
                         pid = Number(property.match(/=\s*(\d+)/)?.[1]);
                         if (!Number.isSafeInteger(pid) || pid <= 1) continue;
                         if ((await readlink(`/proc/${pid}/exe`)) !== binary) continue;
@@ -120,19 +115,16 @@ export async function observeHeadedRun(
                     if (rawEnvironment === undefined || rawCommand === undefined) return false;
                     const environment = rawEnvironment.split("\0");
                     const arguments_ = rawCommand.split("\0").filter(Boolean);
-                    expect(arguments_.some((argument) => argument.startsWith("--headless"))).toBe(
-                        false,
-                    );
+                    expect(arguments_.some((argument) => argument.startsWith("--headless"))).toBe(false);
                     expect(environment).toContain(`DISPLAY=${process.env.DISPLAY}`);
-                    if (process.env.XAUTHORITY)
-                        expect(environment).toContain(`XAUTHORITY=${process.env.XAUTHORITY}`);
+                    if (process.env.XAUTHORITY) expect(environment).toContain(`XAUTHORITY=${process.env.XAUTHORITY}`);
                     const config = await readFile(
                         join(profile, "offline", "work", owned.attemptId, "playwright.config.mjs"),
                         "utf8",
                     );
-                    const actual = JSON.parse(
-                        config.slice("export default ".length, config.lastIndexOf(";")),
-                    ) as { use: { headless: boolean; launchOptions: { executablePath: string } } };
+                    const actual = JSON.parse(config.slice("export default ".length, config.lastIndexOf(";"))) as {
+                        use: { headless: boolean; launchOptions: { executablePath: string } };
+                    };
                     expect(actual.use.headless).toBe(false);
                     expect(await realpath(actual.use.launchOptions.executablePath)).toBe(binary);
                     observation = {
@@ -157,15 +149,8 @@ export async function observeHeadedRun(
         )
         .toBe(true);
     if (!observation) throw new Error("HEADED_WINDOW_MISSING");
-    await command("import", [
-        "-window",
-        observation.windowId,
-        join(evidence, "headed-visible.png"),
-    ]);
-    await writeFile(
-        join(evidence, "headed-observation.json"),
-        JSON.stringify(observation, null, 4) + "\n",
-    );
+    await command("import", ["-window", observation.windowId, join(evidence, "headed-visible.png")]);
+    await writeFile(join(evidence, "headed-observation.json"), JSON.stringify(observation, null, 4) + "\n");
     return observation;
 }
 
@@ -181,16 +166,11 @@ export async function assertHeadedStopped(
 ) {
     expect(processStopped).toBe(true);
     const journal = JSON.parse(
-        await readFile(
-            join(profile, "offline", "processes", `${observation.attemptId}.process.json`),
-            "utf8",
-        ),
+        await readFile(join(profile, "offline", "processes", `${observation.attemptId}.process.json`), "utf8"),
     ) as { state: string };
     expect(journal.state).toBe("STOPPED");
     await expect
-        .poll(async () =>
-            (await command("xwininfo", ["-root", "-tree"])).stdout.includes(observation.windowId),
-        )
+        .poll(async () => (await command("xwininfo", ["-root", "-tree"])).stdout.includes(observation.windowId))
         .toBe(false);
     for (const pid of [observation.pid, observation.workerPid, observation.guardianPid]) {
         await expect

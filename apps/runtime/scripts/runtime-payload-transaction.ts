@@ -57,9 +57,7 @@ export class ArchiveTransaction {
     private readonly directoryModes = new Map<string, number>();
     private readonly outputModes = new Map<string, number>();
     private readonly links = new Map<string, string>();
-    private runtimePolicy:
-        | { arch: MacRuntimeArch; layout: MacChromeLayout; manifestSha256: string }
-        | undefined;
+    private runtimePolicy: { arch: MacRuntimeArch; layout: MacChromeLayout; manifestSha256: string } | undefined;
     private finalInventory: MacRuntimeStaticInventory | undefined;
     private remaining = 0;
     private sinceCheck = 0;
@@ -92,11 +90,7 @@ export class ArchiveTransaction {
      * 所有事务拒绝统一携带实际阶段和最终候选路径，不拼接压缩库消息或原始输入正文；cleanup 只由已执行且确认的资源关闭及
      * 归属检查产生，默认尚未清理时不能预先声称删除已成功完成。
      */
-    fail(
-        code: PayloadErrorCode,
-        cleanup: Cleanup = "NOT_NEEDED",
-        causeCode: string | null = null,
-    ): never {
+    fail(code: PayloadErrorCode, cleanup: Cleanup = "NOT_NEEDED", causeCode: string | null = null): never {
         throw new RuntimePayloadError(code, causeCode, cleanup, {
             phase: this.phase,
             candidateDirectory: this.directory,
@@ -110,10 +104,7 @@ export class ArchiveTransaction {
     async initialize() {
         this.check();
         relative(this.candidateName);
-        if (
-            !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(this.candidateName) ||
-            this.candidateName.includes("/")
-        )
+        if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(this.candidateName) || this.candidateName.includes("/"))
             this.fail("PAYLOAD_PATH");
         for (const root of [this.inputRoot, this.outputParent]) {
             const reader = new InputReader(root, this.signal, []);
@@ -180,12 +171,7 @@ export class ArchiveTransaction {
      * 每个新条目及八 MiB 数据写入后再次查询，实际 ENOSPC 与配额错误仍会失败关闭。
      */
     async plan(bytes: number, entries: number) {
-        if (
-            !Number.isSafeInteger(bytes) ||
-            bytes < 0 ||
-            !Number.isSafeInteger(entries) ||
-            entries < 0
-        )
+        if (!Number.isSafeInteger(bytes) || bytes < 0 || !Number.isSafeInteger(entries) || entries < 0)
             this.fail("PAYLOAD_LIMIT");
         this.remaining = bytes + entries * 4096 + limits.json + 16384;
         await this.checkSpace();
@@ -215,14 +201,12 @@ export class ArchiveTransaction {
         this.check();
         await this.checkSpace();
         await mkdir(join(this.scratch, path), { mode });
-        const directory = await open(
-            join(this.scratch, path),
-            constants.O_RDONLY | constants.O_NOFOLLOW,
-        );
+        const directory = await open(join(this.scratch, path), constants.O_RDONLY | constants.O_NOFOLLOW);
         // 目录权限或刷新失败必须作为第一错误继续向真实 intake 与 stage 边界传播，关闭只是独立收尾事实；即使真实 close
         // 后又报告异常，也只记录清理不确定，不能把原 ENOSPC 或 EDQUOT 换成后来的
         // EIO。
         let failed = false;
+        let closeError: unknown;
         try {
             await directory.chmod(mode);
             await directory.sync();
@@ -234,9 +218,10 @@ export class ArchiveTransaction {
                 await directory.close();
             } catch (error) {
                 this.noteCloseFailure();
-                if (!failed) throw error;
+                if (!failed) closeError = error;
             }
         }
+        if (closeError !== undefined) throw closeError;
         this.check();
         this.directories.add(path);
         this.directoryModes.set(path, mode);
@@ -246,31 +231,24 @@ export class ArchiveTransaction {
      * 流写入只接受内部扫描器确认的相对路径，使用独占六百权限普通文件并分块写到完整长度；关闭确认前保留 writer 计数，任
      * 何 sync 或 close 失败都会阻止安全清理声明，绝不把仍可能写入的目录递归删除。
      */
-    async write(
-        path: string,
-        chunks: AsyncIterable<Uint8Array>,
-        expected?: Ref,
-        requestedMode?: number,
-    ) {
+    async write(path: string, chunks: AsyncIterable<Uint8Array>, expected?: Ref, requestedMode?: number) {
         let handle: FileHandle | undefined;
         const digest = createHash("sha256");
         let size = 0,
             primary: unknown;
+        let closeError: unknown;
+        let result: Ref;
         try {
             this.validatePath(path);
             const mode =
                 requestedMode ??
-                (this.publicPath(path) ||
-                (this.profile === "work" && path.startsWith("projection-evidence/"))
+                (this.publicPath(path) || (this.profile === "work" && path.startsWith("projection-evidence/"))
                     ? 0o644
                     : 0o600);
             if (
                 this.publicPath(path)
                     ? ![0o444, 0o644, 0o555, 0o755].includes(mode)
-                    : mode !==
-                      (this.profile === "work" && path.startsWith("projection-evidence/")
-                          ? 0o644
-                          : 0o600)
+                    : mode !== (this.profile === "work" && path.startsWith("projection-evidence/") ? 0o644 : 0o600)
             )
                 this.fail("PAYLOAD_PATH");
             await this.mkdir(dirname(path) === "." ? "" : dirname(path));
@@ -300,10 +278,7 @@ export class ArchiveTransaction {
                 }
             }
             const actual = { path, sizeBytes: size, sha256: digest.digest("hex") };
-            if (
-                expected &&
-                (actual.sizeBytes !== expected.sizeBytes || actual.sha256 !== expected.sha256)
-            )
+            if (expected && (actual.sizeBytes !== expected.sizeBytes || actual.sha256 !== expected.sha256))
                 this.fail("PAYLOAD_SOURCE_CHANGED");
             await handle.chmod(mode);
             await handle.sync();
@@ -311,7 +286,7 @@ export class ArchiveTransaction {
             this.outputs.set(path, actual);
             this.outputModes.set(path, mode);
             this.remaining = Math.max(0, this.remaining - 4096);
-            return actual;
+            result = actual;
         } catch (error) {
             primary = error;
             const known = controlledIoFailure(error);
@@ -324,10 +299,12 @@ export class ArchiveTransaction {
                     this.writers--;
                 } catch (error) {
                     this.closureUnconfirmed = true;
-                    if (!primary) throw error;
+                    if (!primary) closeError = error;
                 }
             }
         }
+        if (closeError !== undefined) throw closeError;
+        return result;
     }
     /**
      * I 的来源观察在初次 b1a 成功后独立建立，保存实际消费文件与五树成员及全部父目录身份；它不继承 b1a 私有早期观察，也
@@ -354,8 +331,7 @@ export class ArchiveTransaction {
                 parent = dirname(parent);
             }
         }
-        if (!Number.isSafeInteger(observationBound) || names.size > observationBound)
-            this.fail("PAYLOAD_LIMIT");
+        if (!Number.isSafeInteger(observationBound) || names.size > observationBound) this.fail("PAYLOAD_LIMIT");
         await this.registerSources(names);
     }
     /**
@@ -386,15 +362,12 @@ export class ArchiveTransaction {
             if (sizeBytes > limits.file) this.fail("PAYLOAD_LIMIT");
             return { path, sizeBytes, sha256 };
         });
-        if (new Set(copied.map((r) => r.path)).size !== copied.length)
-            this.fail("PAYLOAD_COLLISION");
-        if (copied.reduce((n, r) => n + r.sizeBytes, 0) > 4 * 1024 ** 3 + limits.evidence)
-            this.fail("PAYLOAD_LIMIT");
+        if (new Set(copied.map((r) => r.path)).size !== copied.length) this.fail("PAYLOAD_COLLISION");
+        if (copied.reduce((n, r) => n + r.sizeBytes, 0) > 4 * 1024 ** 3 + limits.evidence) this.fail("PAYLOAD_LIMIT");
         const names = new Set([""]);
         for (const ref of copied) {
             names.add(ref.path);
-            for (let parent = dirname(ref.path); parent !== "."; parent = dirname(parent))
-                names.add(parent);
+            for (let parent = dirname(ref.path); parent !== "."; parent = dirname(parent)) names.add(parent);
         }
         await this.registerSources(names, new Map(copied.map((r) => [r.path, r])));
     }
@@ -430,10 +403,7 @@ export class ArchiveTransaction {
                         ![0o400, 0o600, 0o444, 0o644].includes(Number(info.mode & 0o7777n))
                     )
                         this.fail("PAYLOAD_PATH");
-                } else if (
-                    !info.isDirectory() ||
-                    ![0o700, 0o755, 0o555].includes(Number(info.mode & 0o7777n))
-                )
+                } else if (!info.isDirectory() || ![0o700, 0o755, 0o555].includes(Number(info.mode & 0o7777n)))
                     this.fail("PAYLOAD_PATH");
             }
             const prior = this.observations.get(full);
@@ -468,18 +438,11 @@ export class ArchiveTransaction {
         this.check();
         const path = join(this.inputRoot, ref.path),
             before = this.observations.get(path);
-        if (
-            !before ||
-            !before.isFile() ||
-            before.nlink !== 1n ||
-            before.size !== BigInt(ref.sizeBytes)
-        )
+        if (!before || !before.isFile() || before.nlink !== 1n || before.size !== BigInt(ref.sizeBytes))
             this.fail("PAYLOAD_SOURCE_CHANGED");
-        const handle = await open(
-            path,
-            constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-        );
+        const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
         let primary: unknown;
+        let closeError: unknown;
         try {
             if (
                 !sameIdentity(before, await handle.stat({ bigint: true })) ||
@@ -514,9 +477,10 @@ export class ArchiveTransaction {
                 await handle.close();
             } catch (error) {
                 this.noteCloseFailure();
-                if (!primary) throw error;
+                if (!primary) closeError = error;
             }
         }
+        if (closeError !== undefined) throw closeError;
     }
     /**
      * 次要关闭失败必须进入事务的可观察清理状态，不能被首个路径或内容错误覆盖成虚假成功；扫描器保留原始正式错误，同时用
@@ -612,24 +576,17 @@ export class ArchiveTransaction {
      */
     async createDependencyInputLinks(bins: readonly Bin[], links: readonly LinkFact[]) {
         if (this.profile !== "work") this.fail("PAYLOAD_PATH");
-        if (
-            links.length > limits.links ||
-            new Set(links.map((link) => link.path)).size !== links.length
-        )
+        if (links.length > limits.links || new Set(links.map((link) => link.path)).size !== links.length)
             this.fail("PAYLOAD_BIN_UNSUPPORTED");
         for (const link of links) {
-            const matches = bins.filter(
-                (bin) => bin.sourceAlias === link.path && bin.aliasPath === link.path,
-            );
+            const matches = bins.filter((bin) => bin.sourceAlias === link.path && bin.aliasPath === link.path);
             if (matches.length !== 1) this.fail("PAYLOAD_BIN_UNSUPPORTED");
             const bin = matches[0]!;
             relative(link.path);
             relative(link.target, true);
             if (
-                posix.normalize(posix.join(posix.dirname(link.path), link.target)) !==
-                    bin.targetPath ||
-                this.outputs.get(`views/dependencies/${bin.targetPath}`)?.sha256 !==
-                    bin.targetSha256
+                posix.normalize(posix.join(posix.dirname(link.path), link.target)) !== bin.targetPath ||
+                this.outputs.get(`views/dependencies/${bin.targetPath}`)?.sha256 !== bin.targetSha256
             )
                 this.fail("PAYLOAD_BIN_UNSUPPORTED");
             await this.trackedLink(`views/dependencies/${link.path}`, link.target);
@@ -660,11 +617,7 @@ export class ArchiveTransaction {
      * 提交后取消影响，无法确认内容时保留发布事实并返回提交不确定错误。
      */
     async audit(root = this.scratch) {
-        const expected = new Set([
-            ...this.directories,
-            ...this.outputs.keys(),
-            ...this.links.keys(),
-        ]);
+        const expected = new Set([...this.directories, ...this.outputs.keys(), ...this.links.keys()]);
         const walk = async (path: string): Promise<void> => {
             this.check();
             const full = join(root, path),
@@ -675,10 +628,7 @@ export class ArchiveTransaction {
                 if (!before.isSymbolicLink() || (await readlink(full)) !== this.links.get(path))
                     this.fail("PAYLOAD_SOURCE_CHANGED");
             } else if (this.directories.has(path)) {
-                if (
-                    !before.isDirectory() ||
-                    Number(before.mode & 0o7777n) !== this.directoryModes.get(path)
-                )
+                if (!before.isDirectory() || Number(before.mode & 0o7777n) !== this.directoryModes.get(path))
                     this.fail("PAYLOAD_SOURCE_CHANGED");
                 for (const name of await readdir(full)) await walk(path ? `${path}/${name}` : name);
             } else {
@@ -689,13 +639,10 @@ export class ArchiveTransaction {
                     Number(before.mode & 0o7777n) !== this.outputModes.get(path)
                 )
                     this.fail("PAYLOAD_SOURCE_CHANGED");
-                const handle = await open(
-                    full,
-                    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-                );
+                const handle = await open(full, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+                let closeError: unknown;
                 try {
-                    if (!sameIdentity(before, await handle.stat({ bigint: true })))
-                        this.fail("PAYLOAD_SOURCE_CHANGED");
+                    if (!sameIdentity(before, await handle.stat({ bigint: true }))) this.fail("PAYLOAD_SOURCE_CHANGED");
                     const hash = createHash("sha256");
                     let size = 0;
                     for await (const chunk of handle.createReadStream({
@@ -719,9 +666,10 @@ export class ArchiveTransaction {
                         await handle.close();
                     } catch (error) {
                         this.noteCloseFailure();
-                        throw error;
+                        closeError = error;
                     }
                 }
+                if (closeError !== undefined) throw closeError;
             }
         };
         await walk("");
@@ -736,10 +684,8 @@ export class ArchiveTransaction {
         this.phase = "PUBLISH";
         await this.audit();
         for (const path of [...this.directories].sort((a, b) => b.length - a.length)) {
-            const handle = await open(
-                join(this.scratch, path),
-                constants.O_RDONLY | constants.O_NOFOLLOW,
-            );
+            const handle = await open(join(this.scratch, path), constants.O_RDONLY | constants.O_NOFOLLOW);
+            let closeError: unknown;
             try {
                 await handle.sync();
             } finally {
@@ -747,9 +693,10 @@ export class ArchiveTransaction {
                     await handle.close();
                 } catch (error) {
                     this.noteCloseFailure();
-                    throw error;
+                    closeError = error;
                 }
             }
+            if (closeError !== undefined) throw closeError;
             this.check();
         }
         await this.owned();
@@ -768,10 +715,10 @@ export class ArchiveTransaction {
                 this.fail("PAYLOAD_COMMIT_UNCONFIRMED", "INCOMPLETE");
             await this.audit(this.directory);
             if (this.runtimePolicy) {
-                const inventory = await verifyMacRuntimeManifestV2(
-                    join(this.directory, "runtime"),
-                    { arch: this.runtimePolicy.arch, layout: this.runtimePolicy.layout },
-                );
+                const inventory = await verifyMacRuntimeManifestV2(join(this.directory, "runtime"), {
+                    arch: this.runtimePolicy.arch,
+                    layout: this.runtimePolicy.layout,
+                });
                 if (inventory.manifestSha256 !== this.runtimePolicy.manifestSha256)
                     this.fail("PAYLOAD_COMMIT_UNCONFIRMED", "INCOMPLETE");
                 this.finalInventory = inventory;
@@ -813,17 +760,11 @@ export class ArchiveTransaction {
      * 尚有 writer 时拒绝删除，成功提交后只收尾锁而永远保留最终内容。
      */
     private async owned() {
-        if (
-            !this.parentIdentity ||
-            !sameNode(this.parentIdentity, await lstat(this.outputParent, { bigint: true }))
-        )
+        if (!this.parentIdentity || !sameNode(this.parentIdentity, await lstat(this.outputParent, { bigint: true })))
             this.fail("PAYLOAD_SOURCE_CHANGED", "INCOMPLETE");
         if (
             this.rootIdentity &&
-            !sameNode(
-                this.rootIdentity,
-                await lstat(this.committed ? this.directory : this.scratch, { bigint: true }),
-            )
+            !sameNode(this.rootIdentity, await lstat(this.committed ? this.directory : this.scratch, { bigint: true }))
         )
             this.fail("PAYLOAD_SOURCE_CHANGED", "INCOMPLETE");
         if (this.lockIdentity) {
@@ -888,13 +829,7 @@ export class ArchiveTransaction {
  * 写或权限改变在重新 hash 相同内容后被当作从未变化。
  */
 function sameNode(a: BigIntStats, b: BigIntStats) {
-    return (
-        a.dev === b.dev &&
-        a.ino === b.ino &&
-        a.mode === b.mode &&
-        a.uid === b.uid &&
-        a.gid === b.gid
-    );
+    return a.dev === b.dev && a.ino === b.ino && a.mode === b.mode && a.uid === b.uid && a.gid === b.gid;
 }
 /**
  * 完整来源比较额外保留链接数、长度与纳秒修改状态，读取不会改变参与比较的 atime；这些字段形成有界观察证据，不提供敌对同
@@ -902,11 +837,7 @@ function sameNode(a: BigIntStats, b: BigIntStats) {
  */
 function sameIdentity(a: BigIntStats, b: BigIntStats) {
     return (
-        sameNode(a, b) &&
-        a.nlink === b.nlink &&
-        a.size === b.size &&
-        a.mtimeNs === b.mtimeNs &&
-        a.ctimeNs === b.ctimeNs
+        sameNode(a, b) && a.nlink === b.nlink && a.size === b.size && a.mtimeNs === b.mtimeNs && a.ctimeNs === b.ctimeNs
     );
 }
 /**
@@ -914,17 +845,13 @@ function sameIdentity(a: BigIntStats, b: BigIntStats) {
  * 统把不受信任归档路径及输入正文拼入英文诊断。
  */
 export function errno(error: unknown): string | null {
-    return error && typeof error === "object" && "code" in error && typeof error.code === "string"
-        ? error.code
-        : null;
+    return error && typeof error === "object" && "code" in error && typeof error.code === "string" ? error.code : null;
 }
 /**
  * 受控文件系统错误在真实写入边界先分类，避免经过压缩适配器后被误当格式错误；仅固定 errno 白名单可产生 IO 或空间不足，压
  * 缩库与未知错误返回空值保留原解释路径，首个分类与次要关闭不确认分别记录。
  */
-export function controlledIoFailure(
-    error: unknown,
-): Readonly<{ code: PayloadErrorCode; causeCode: string }> | null {
+export function controlledIoFailure(error: unknown): Readonly<{ code: PayloadErrorCode; causeCode: string }> | null {
     const code = errno(error);
     if (
         !code ||
@@ -954,10 +881,7 @@ export function controlledIoFailure(
  * 同名字 JSON 或用户可写标记解释为清理其它目录的权限。
  */
 async function readSmall(path: string) {
-    const handle = await open(
-        path,
-        constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-    );
+    const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
     try {
         if ((await handle.stat()).size > 128) throw new Error("LOCK_INVALID");
         return await handle.readFile();

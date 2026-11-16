@@ -20,9 +20,7 @@ const schedule = require("../../build/native-tests/veriq_test_schedule.node") as
     waitPhase(nonce: string, phase: "response-ready" | "close-missed"): Promise<void>;
     releaseResponse(nonce: string): void;
 };
-const scheduled = fileURLToPath(
-    new URL("../../build/native-tests/veriq_response_scheduled.node", import.meta.url),
-);
+const scheduled = fileURLToPath(new URL("../../build/native-tests/veriq_response_scheduled.node", import.meta.url));
 const product = require("../../build/Release/veriq_native.node") as Record<string, unknown>;
 
 /**
@@ -84,13 +82,9 @@ test("Windows pipe close finishes when cancellation precedes response draining",
             let output = "";
             child!.stdout!.on("data", (chunk: Buffer) => {
                 output += chunk.toString("utf8");
-                if (output.includes("SERVER_READY\n") || output.includes("SERVER_READY\r\n"))
-                    resolve();
+                if (output.includes("SERVER_READY\n") || output.includes("SERVER_READY\r\n")) resolve();
             });
-            void operation.then(
-                () => reject(new Error("NATIVE_TEST_HOST_ENDED_BEFORE_READY")),
-                reject,
-            );
+            void operation.then(() => reject(new Error("NATIVE_TEST_HOST_ENDED_BEFORE_READY")), reject);
         });
         await bounded(ready);
         fd = openSync(path, "r+");
@@ -107,9 +101,7 @@ test("Windows pipe close finishes when cancellation precedes response draining",
         schedule.releaseResponse(nonce);
         const result = await bounded(operation, Math.max(1, 3500 - (performance.now() - started)));
         const elapsedMs = performance.now() - started;
-        context.diagnostic(
-            `First response close result: ${JSON.stringify({ elapsedMs, ...result })}`,
-        );
+        context.diagnostic(`First response close result: ${JSON.stringify({ elapsedMs, ...result })}`);
         assert(elapsedMs < 3500, "Pipe close exceeded the existing total stop budget");
         assert.deepEqual(result.stdout.trim().split(/\r?\n/), ["SERVER_READY", "SERVER_CLOSED"]);
         assert.equal(result.stderr, "");

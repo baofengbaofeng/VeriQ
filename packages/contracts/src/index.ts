@@ -30,8 +30,7 @@ function portableJson(value: unknown, ancestors = new Set<object>()): boolean {
     ancestors.add(value);
     try {
         if (Object.getOwnPropertySymbols(value).length) return false;
-        if (Array.isArray(value))
-            return Array.from(value).every((item) => portableJson(item, ancestors));
+        if (Array.isArray(value)) return Array.from(value).every((item) => portableJson(item, ancestors));
         return Object.values(value).every((item) => portableJson(item, ancestors));
     } finally {
         ancestors.delete(value);
@@ -43,12 +42,9 @@ function portableJson(value: unknown, ancestors = new Set<object>()): boolean {
  * 名对值做严格校验：无强制、无默认、无删字段：也不做语义引用解析。
  */
 export function validateSchema(schemaName: string, value: unknown): ValidationIssue[] {
-    if (!Object.hasOwn(schema.$defs, schemaName))
-        throw new Error(`Unknown contract schema: ${schemaName}`);
+    if (!Object.hasOwn(schema.$defs, schemaName)) throw new Error(`Unknown contract schema: ${schemaName}`);
     if (!portableJson(value))
-        return [
-            { path: "", code: "INVALID_JSON", message: "Expected finite, portable JSON values" },
-        ];
+        return [{ path: "", code: "INVALID_JSON", message: "Expected finite, portable JSON values" }];
     const validate = schemaValidator(schemaName);
     if (validate(value)) return [];
     return (validate.errors ?? []).map((error) => ({

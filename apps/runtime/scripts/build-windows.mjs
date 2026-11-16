@@ -11,42 +11,26 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 if (process.platform !== "win32") throw new Error("WINDOWS_NATIVE_BUILD_REQUIRED");
-if (
-    process.argv.length > 4 ||
-    (process.argv[3] !== undefined && process.argv[3] !== "--test-schedules")
-)
+if (process.argv.length > 4 || (process.argv[3] !== undefined && process.argv[3] !== "--test-schedules"))
     throw new Error("NATIVE_BUILD_ARGUMENTS_INVALID");
 const testSchedules = process.argv[3] === "--test-schedules";
 const root = new URL("../", import.meta.url);
-const options = [
-    "rebuild",
-    "--msvs_version=2022",
-    "--directory",
-    fileURLToPath(new URL("native/", root)),
-];
+const options = ["rebuild", "--msvs_version=2022", "--directory", fileURLToPath(new URL("native/", root))];
 if (process.argv[2]) options.push(`--devdir=${process.argv[2]}`);
 /**
  * 正式构建显式关闭调度及故障测试目标，只有命令行专用参数可编译独立测试二进制；该开关不启用生产 guardian 或 addon 的故障
  * 调用和导出，也不会读取全局环境变量来赋予运行时调度能力。
  */
 options.push("--", `-Dveriq_native_tests=${testSchedules ? 1 : 0}`);
-execFileSync(
-    process.execPath,
-    [fileURLToPath(new URL("node_modules/node-gyp/bin/node-gyp.js", root)), ...options],
-    { stdio: "inherit" },
-);
+execFileSync(process.execPath, [fileURLToPath(new URL("node_modules/node-gyp/bin/node-gyp.js", root)), ...options], {
+    stdio: "inherit",
+});
 await mkdir(new URL("build/Release/", root), { recursive: true });
 for (const name of ["veriq_native.node", "veriq_guardian.exe"]) {
-    await copyFile(
-        new URL(`native/build/Release/${name}`, root),
-        new URL(`build/Release/${name}`, root),
-    );
+    await copyFile(new URL(`native/build/Release/${name}`, root), new URL(`build/Release/${name}`, root));
 }
 await mkdir(new URL("build/vault/", root), { recursive: true });
-await copyFile(
-    new URL("native/build/Release/veriq_vault.exe", root),
-    new URL("build/vault/veriq_agent.exe", root),
-);
+await copyFile(new URL("native/build/Release/veriq_vault.exe", root), new URL("build/vault/veriq_agent.exe", root));
 if (testSchedules) {
     await mkdir(new URL("build/native-tests/", root), { recursive: true });
     for (const name of [
@@ -56,10 +40,7 @@ if (testSchedules) {
         "veriq_response_scheduled.node",
         "veriq_vault_wait.exe",
     ]) {
-        await copyFile(
-            new URL(`native/build/Release/${name}`, root),
-            new URL(`build/native-tests/${name}`, root),
-        );
+        await copyFile(new URL(`native/build/Release/${name}`, root), new URL(`build/native-tests/${name}`, root));
     }
 }
 
@@ -85,13 +66,9 @@ if (process.env.VERIQ_NATIVE_EVIDENCE) {
         ],
         { encoding: "utf8", timeout: 10000, maxBuffer: 65536 },
     ).trim();
-    if (!installation || /[\r\n]/.test(installation))
-        throw new Error("NATIVE_IMPORT_TOOL_UNAVAILABLE");
+    if (!installation || /[\r\n]/.test(installation)) throw new Error("NATIVE_IMPORT_TOOL_UNAVAILABLE");
     const toolVersion = (
-        await readFile(
-            join(installation, "VC/Auxiliary/Build/Microsoft.VCToolsVersion.default.txt"),
-            "utf8",
-        )
+        await readFile(join(installation, "VC/Auxiliary/Build/Microsoft.VCToolsVersion.default.txt"), "utf8")
     ).trim();
     if (!/^\d+\.\d+\.\d+$/.test(toolVersion)) throw new Error("NATIVE_IMPORT_TOOL_UNAVAILABLE");
     const dumpbin = join(installation, "VC/Tools/MSVC", toolVersion, "bin/Hostx64/x64/dumpbin.exe");
@@ -124,22 +101,13 @@ if (process.env.VERIQ_NATIVE_EVIDENCE) {
          */
         const observedVersion = imports
             .split(/\r?\n/)
-            .find((line) =>
-                /^Microsoft \(R\) COFF\/PE Dumper Version [0-9]+(?:\.[0-9]+)+\b/.test(line),
-            );
+            .find((line) => /^Microsoft \(R\) COFF\/PE Dumper Version [0-9]+(?:\.[0-9]+)+\b/.test(line));
         if (!observedVersion || (version !== undefined && version !== observedVersion))
             throw new Error("NATIVE_IMPORT_TOOL_VERSION_UNAVAILABLE");
         version = observedVersion;
         const required =
             name === "veriq_vault.exe"
-                ? [
-                      "CredReadW",
-                      "CredWriteW",
-                      "CredDeleteW",
-                      "CredFree",
-                      "CryptBinaryToStringA",
-                      "CryptStringToBinaryA",
-                  ]
+                ? ["CredReadW", "CredWriteW", "CredDeleteW", "CredFree", "CryptBinaryToStringA", "CryptStringToBinaryA"]
                 : ["NtCreateFile", "NtSetInformationFile", "RtlNtStatusToDosError"];
         const matched =
             required.every((symbol) => new RegExp(`\\b${symbol}\\b`).test(imports)) &&
@@ -150,9 +118,7 @@ if (process.env.VERIQ_NATIVE_EVIDENCE) {
     }
     await writeFile(
         join(evidence, "native-imports.json"),
-        JSON.stringify({ dumpbin, version, toolSha256: await hash(dumpbin), targets }, null, 4) +
-            "\n",
+        JSON.stringify({ dumpbin, version, toolSha256: await hash(dumpbin), targets }, null, 4) + "\n",
     );
-    if (targets.some((target) => !target.matched))
-        throw new Error("NATIVE_PRIVATE_IMPORTS_MISSING");
+    if (targets.some((target) => !target.matched)) throw new Error("NATIVE_PRIVATE_IMPORTS_MISSING");
 }

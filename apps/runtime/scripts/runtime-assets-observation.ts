@@ -1,9 +1,4 @@
-import {
-    RuntimePayloadError,
-    type Arch,
-    type Ref,
-    type Cleanup,
-} from "./runtime-payload-inputs.ts";
+import { RuntimePayloadError, type Arch, type Ref, type Cleanup } from "./runtime-payload-inputs.ts";
 import { canonicalBytes } from "@veriq/contracts";
 import { createHash } from "node:crypto";
 import { constants, open as openFd } from "node:fs";
@@ -11,15 +6,7 @@ import { open } from "node:fs/promises";
 import { dirname, basename, join, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fromFdPromise, type Entry, type ZipFile } from "yauzl";
-import {
-    InputReader,
-    decode,
-    fail,
-    freeze,
-    relative,
-    sha,
-    limits,
-} from "./runtime-payload-tree.ts";
+import { InputReader, decode, fail, freeze, relative, sha, limits } from "./runtime-payload-tree.ts";
 import { ArchiveTransaction, controlledIoFailure } from "./runtime-payload-transaction.ts";
 import {
     ArchiveScan,
@@ -308,8 +295,7 @@ function equal(a: unknown, b: unknown) {
  * held FD 与流长度重新证明，声明校验并不代替实际内容核验。
  */
 function integer(value: unknown): number {
-    if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0)
-        fail("PAYLOAD_INPUT_INVALID");
+    if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) fail("PAYLOAD_INPUT_INVALID");
     return value;
 }
 /**
@@ -317,12 +303,7 @@ function integer(value: unknown): number {
  * 路径、文件身份及压缩语法仍分别交给现有成熟逻辑。
  */
 function pattern(value: unknown, regex: RegExp): string {
-    if (
-        typeof value !== "string" ||
-        value.length > 1024 ||
-        !regex.test(value) ||
-        /[\r\n]/.test(value)
-    )
+    if (typeof value !== "string" || value.length > 1024 || !regex.test(value) || /[\r\n]/.test(value))
         fail("PAYLOAD_INPUT_INVALID");
     return value;
 }
@@ -445,11 +426,7 @@ export function assetArch(value: unknown): Arch {
  * 元数据读取使用现有支持六百权限的 held FD input，再独立比较原字节摘要和长度，不能调用较窄权限的 ref；reader 被拥有者一
  * 直保留到最终身份复验，初次观察不会被后来一次成功读取覆盖。
  */
-export async function readAssetMetadata(
-    reader: InputReader,
-    ref: Ref,
-    maximum: number,
-): Promise<Buffer> {
+export async function readAssetMetadata(reader: InputReader, ref: Ref, maximum: number): Promise<Buffer> {
     if (ref.sizeBytes > maximum) fail("PAYLOAD_LIMIT");
     const bytes = await reader.input(ref.path);
     if (bytes.length > maximum) fail("PAYLOAD_LIMIT");
@@ -488,10 +465,7 @@ export async function bindAssetSources(
     if (r.commit !== source.commit || r.arch !== arch) fail("PAYLOAD_RECEIPT_MISMATCH");
     if (!Array.isArray(r.files) || r.files.length !== 19) fail("PAYLOAD_RECEIPT_MISMATCH");
     const refs = r.files.map(assetRef);
-    if (
-        new Set(refs.map((f) => f.path)).size !== 19 ||
-        ASSET_SOURCES.some((s) => !refs.some((f) => f.path === s.path))
-    )
+    if (new Set(refs.map((f) => f.path)).size !== 19 || ASSET_SOURCES.some((s) => !refs.some((f) => f.path === s.path)))
         fail("PAYLOAD_RECEIPT_MISMATCH");
     const hosts: { reader: InputReader; ref: Ref }[] = [];
     for (const host of ASSET_SOURCES) {
@@ -551,20 +525,11 @@ function parseFetch(bytes: Uint8Array, input: AssetsObservationInput): FetchEvid
     equal(r.chromeCheck, "BODY_HASH_OBSERVED_ONLY");
     equal(r.publisherSignature, "NOT_VERIFIED");
     const urls = assetUrls(input.arch);
-    const check = (
-        value: unknown,
-        url: string,
-        expected: Ref,
-        redirect: string | null,
-    ): FetchFact => {
+    const check = (value: unknown, url: string, expected: Ref, redirect: string | null): FetchFact => {
         const f = object(value, ["requestedUrl", "hops", "body"]);
         equal(f.requestedUrl, url);
         const body = assetRef(f.body);
-        if (
-            body.path !== expected.path ||
-            body.sizeBytes !== expected.sizeBytes ||
-            body.sha256 !== expected.sha256
-        )
+        if (body.path !== expected.path || body.sizeBytes !== expected.sizeBytes || body.sha256 !== expected.sha256)
             fail("PAYLOAD_ARCHIVE_HASH");
         if (!Array.isArray(f.hops) || !f.hops.length || f.hops.length > (redirect ? 2 : 1))
             fail("PAYLOAD_INPUT_INVALID");
@@ -579,8 +544,7 @@ function parseFetch(bytes: Uint8Array, input: AssetsObservationInput): FetchEvid
                 equal(h.location, null);
                 equal(h.contentLength, body.sizeBytes);
             } else {
-                if (![301, 302, 303, 307, 308].includes(Number(h.status)))
-                    fail("PAYLOAD_INPUT_INVALID");
+                if (![301, 302, 303, 307, 308].includes(Number(h.status))) fail("PAYLOAD_INPUT_INVALID");
                 equal(h.location, redirect);
             }
             return {
@@ -615,10 +579,7 @@ function parseFetch(bytes: Uint8Array, input: AssetsObservationInput): FetchEvid
  * 本或新摘要，HTTPS 文本一致也不被解释为 GPG 或发布者签名已验证。
  */
 export function checkNodeChecksum(bytes: Uint8Array) {
-    if (
-        bytes.length !== OFFICIAL_ASSETS.checksum.sizeBytes ||
-        sha(bytes) !== OFFICIAL_ASSETS.checksum.sha256
-    )
+    if (bytes.length !== OFFICIAL_ASSETS.checksum.sizeBytes || sha(bytes) !== OFFICIAL_ASSETS.checksum.sha256)
         fail("PAYLOAD_ARCHIVE_HASH");
     let text: string;
     try {
@@ -644,11 +605,7 @@ export async function* assetBytes(bytes: Uint8Array): AsyncGenerator<Uint8Array>
  * 规范文档在交给事务之前检查四 MiB 实际字节上限，所有成员与模式证据仍由原扫描预算逐条计费；返回 Ref 绑定真实写入字节而
  * 非对象重编码猜测，发布后可独立重新读取并计算完整摘要。
  */
-export async function writeAssetJson(
-    tx: ArchiveTransaction,
-    path: string,
-    value: unknown,
-): Promise<Ref> {
+export async function writeAssetJson(tx: ArchiveTransaction, path: string, value: unknown): Promise<Ref> {
     const bytes = canonicalBytes(value);
     if (bytes.length > limits.json) tx.fail("PAYLOAD_LIMIT");
     return tx.write(path, assetBytes(bytes));
@@ -672,6 +629,8 @@ async function zipModes(
         primary: unknown,
         fd: number | undefined;
     let handleClosed = false;
+    let closeError: unknown;
+    let result: RawZipMode[];
     const abort = () => closure?.request();
     try {
         const hash = createHash("sha256");
@@ -685,8 +644,7 @@ async function zipModes(
             if (size > snapshot.sizeBytes) tx.fail("PAYLOAD_SOURCE_CHANGED");
             hash.update(chunk);
         }
-        if (size !== snapshot.sizeBytes || hash.digest("hex") !== snapshot.sha256)
-            tx.fail("PAYLOAD_SOURCE_CHANGED");
+        if (size !== snapshot.sizeBytes || hash.digest("hex") !== snapshot.sha256) tx.fail("PAYLOAD_SOURCE_CHANGED");
         await handle.close();
         handleClosed = true;
         fd = await new Promise<number>((resolve, reject) =>
@@ -736,11 +694,7 @@ async function zipModes(
                             ),
                         );
                     };
-                zip!
-                    .once("entry", entry)
-                    .once("end", end)
-                    .once("error", error)
-                    .once("close", close);
+                zip!.once("entry", entry).once("end", end).once("error", error).once("close", close);
                 zip!.readEntry();
             });
             if (!next) break;
@@ -769,7 +723,7 @@ async function zipModes(
             });
         }
         if (closure.failure() || modes.length !== members.length) tx.fail("PAYLOAD_ARCHIVE_FORMAT");
-        return modes.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+        result = modes.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
     } catch (error) {
         primary = error;
         if (error instanceof RuntimePayloadError) throw error;
@@ -782,9 +736,11 @@ async function zipModes(
             if (fd !== undefined) await closeUntransferredZipFd(fd, tx);
         } catch (error) {
             tx.noteCloseFailure();
-            if (!primary) throw error;
+            if (!primary) closeError = error;
         }
     }
+    if (closeError !== undefined) throw closeError;
+    return result;
 }
 /**
  * 顶层观察实际调用此扫描段，内部测试只提供已经由真实事务写入并核摘要的微型 owned 快照；一次共享空预算扫描原成员，不提取
@@ -857,9 +813,7 @@ export async function scanObservedSnapshots(
         )
         .map(([p]) => p)
         .sort();
-    const links = chrome.members.filter(
-        (m): m is Extract<ArchiveMember, { kind: "link" }> => m.kind === "link",
-    );
+    const links = chrome.members.filter((m): m is Extract<ArchiveMember, { kind: "link" }> => m.kind === "link");
     return freeze({
         archives: archives as [ArchiveObservation, ArchiveObservation],
         chromeLayout: {
@@ -891,12 +845,10 @@ export async function assetFailure(tx: ArchiveTransaction, error: unknown): Prom
     if (error instanceof RuntimePayloadError)
         throw transferArchiveRejection(
             error,
-            new RuntimePayloadError(
-                error.code,
-                error.causeCode,
-                cleanup === "NOT_NEEDED" ? error.cleanup : cleanup,
-                { phase: tx.phase, candidateDirectory: tx.directory },
-            ),
+            new RuntimePayloadError(error.code, error.causeCode, cleanup === "NOT_NEEDED" ? error.cleanup : cleanup, {
+                phase: tx.phase,
+                candidateDirectory: tx.directory,
+            }),
         );
     tx.fail(known?.code ?? "PAYLOAD_IO", cleanup, known?.causeCode ?? null);
 }
@@ -917,21 +869,12 @@ export async function observeMacRuntimeAssets(
     try {
         await reader.initialize();
         const source = await bindAssetSources(reader, input.source, input.arch);
-        const fetch = parseFetch(
-            await readAssetMetadata(reader, input.fetchEvidence, limits.json),
-            input,
-        );
+        const fetch = parseFetch(await readAssetMetadata(reader, input.fetchEvidence, limits.json), input);
         const checksum = fetch.nodeChecksumText.body;
         checkNodeChecksum(await readAssetMetadata(reader, checksum, 65536));
         await tx.initialize();
         tx.phase = "INTAKE";
-        const refs = [
-            input.node,
-            input.chrome,
-            input.source.evidence,
-            input.fetchEvidence,
-            checksum,
-        ];
+        const refs = [input.node, input.chrome, input.source.evidence, input.fetchEvidence, checksum];
         await tx.observeRefs(refs);
         await reader.finish();
         await tx.plan(refs.reduce((n, r) => n + r.sizeBytes, 0) + 12 * 1024 ** 2, 12);

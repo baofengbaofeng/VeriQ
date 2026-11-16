@@ -18,17 +18,9 @@ import { syncBuiltinESMExports } from "node:module";
 import { ProcessSupervisor, type OwnedProcess } from "../../src/execution/processes.ts";
 import { ProcessRecords } from "../../src/execution/records.ts";
 import { requireStoppedHistory } from "../../src/execution/stopped-history.ts";
-import {
-    darwinNative,
-    type DarwinPrivateDirectory,
-    type DarwinPrivateFile,
-} from "../../src/native/darwin.ts";
+import { darwinNative, type DarwinPrivateDirectory, type DarwinPrivateFile } from "../../src/native/darwin.ts";
 
-assert.equal(
-    process.platform,
-    "darwin",
-    "This suite requires actual macOS; Linux is not substitute evidence",
-);
+assert.equal(process.platform, "darwin", "This suite requires actual macOS; Linux is not substitute evidence");
 const worker = fileURLToPath(new URL("../fixtures/darwin-controlled-worker.mjs", import.meta.url));
 
 /**
@@ -74,10 +66,7 @@ async function fixture(
         if (error.code === "ERR_MODULE_NOT_FOUND") return {};
         throw error;
     });
-    assert.ok(
-        "createDarwinSource" in source,
-        "actual Darwin source ownership capability must be implemented",
-    );
+    assert.ok("createDarwinSource" in source, "actual Darwin source ownership capability must be implemented");
     const root = await mkdtemp(join(await realpath(tmpdir()), "veriq-c2b1-"));
     const work = join(root, "work");
     await mkdir(work, { mode: 0o700 });
@@ -106,12 +95,7 @@ async function fixture(
         assert.equal(options?.host, "127.0.0.1");
         assert.equal(options?.port, 0);
         assert.ok(!options?.args?.includes("--no-sandbox"));
-        for (const key of [
-            "NODE_OPTIONS",
-            "DEBUG",
-            "DYLD_INSERT_LIBRARIES",
-            "VERIQ_AGENT_TEST_SECRET",
-        ])
+        for (const key of ["NODE_OPTIONS", "DEBUG", "DYLD_INSERT_LIBRARIES", "VERIQ_AGENT_TEST_SECRET"])
             assert.equal(options?.env?.[key], undefined);
         assert.deepEqual(Object.keys(options!.env!).sort(), ["HOME", "LANG", "PATH", "TMPDIR"]);
         assert.ok(options!.env!.HOME!.startsWith(root + "/"));
@@ -227,10 +211,7 @@ for (const scenario of ["normal", "business-failure"])
                 }),
                 /UNSUPPORTED/,
             );
-            const forbidden = [
-                servers[0]!.wsEndpoint(),
-                new URL(servers[0]!.wsEndpoint()).pathname,
-            ];
+            const forbidden = [servers[0]!.wsEndpoint(), new URL(servers[0]!.wsEndpoint()).pathname];
             for (const file of [
                 join(root, "processes", `${id}.process.json`),
                 join(root, "processes", `${id}.controlled.json`),
@@ -258,13 +239,9 @@ for (const kind of ["VALIDATE", "CLEANUP"] as const)
             await owned.exited;
             assert.equal((await processes.terminateAttempt(id, "COMPLETED")).processStopped, true);
             assert.equal(servers.length, 0);
+            assert.equal((await readFile(join(root, "controlled-journals", id, "cli.jsonl"))).length, 0);
             assert.equal(
-                (await readFile(join(root, "controlled-journals", id, "cli.jsonl"))).length,
-                0,
-            );
-            assert.equal(
-                JSON.parse(await readFile(join(root, "processes", `${id}.controlled.json`), "utf8"))
-                    .chrome,
+                JSON.parse(await readFile(join(root, "processes", `${id}.controlled.json`), "utf8")).chrome,
                 null,
             );
             await assert.rejects(launch("normal", kind), /ALREADY|EXISTS/);
@@ -330,21 +307,14 @@ test("bound cancellation before business START seals empty prefix and actually e
         assert.throws(() => owned.send({ type: "START" }), /STOPPING/);
         assert.equal((await stopped).processStopped, true);
         assert.equal((await owned.exited).code, 130);
-        const value = JSON.parse(
-            await readFile(join(root, "processes", `${id}.controlled.json`), "utf8"),
-        );
+        const value = JSON.parse(await readFile(join(root, "processes", `${id}.controlled.json`), "utf8"));
         assert.equal(value.journals.commands.count, 0);
         assert.equal(value.journals.cli.bytes, 0);
         const trace = (await readFile(join(root, "work", "gate.jsonl"), "utf8"))
             .trim()
             .split("\n")
             .map((line) => JSON.parse(line).type);
-        assert.deepEqual(trace, [
-            "CANCEL_INSTALLED",
-            "ACK_SENT",
-            "START_RECEIVED",
-            "GATE_RELEASED",
-        ]);
+        assert.deepEqual(trace, ["CANCEL_INSTALLED", "ACK_SENT", "START_RECEIVED", "GATE_RELEASED"]);
     }));
 
 /**
@@ -356,10 +326,7 @@ for (const scenario of ["missing-ack", "stale-ack"])
     test(`${scenario} keeps the actual pre-START gate closed`, async () =>
         fixture(async ({ root, processes, id, launch }) => {
             const owned = await launch(scenario, "VALIDATE");
-            assert.equal(
-                (await processes.terminateAttempt(id, "CANCELLED_BEFORE_START")).processStopped,
-                false,
-            );
+            assert.equal((await processes.terminateAttempt(id, "CANCELLED_BEFORE_START")).processStopped, false);
             await owned.exited;
             const trace = (await readFile(join(root, "work", "gate.jsonl"), "utf8"))
                 .trim()
@@ -368,10 +335,7 @@ for (const scenario of ["missing-ack", "stale-ack"])
             assert.ok(trace.includes("CANCEL_INSTALLED"));
             assert.ok(!trace.includes("START_RECEIVED"));
             assert.ok(!trace.includes("GATE_RELEASED"));
-            const commands = await readFile(
-                join(root, "controlled-journals", id, "command.jsonl"),
-                "utf8",
-            );
+            const commands = await readFile(join(root, "controlled-journals", id, "command.jsonl"), "utf8");
             assert.ok(!commands.includes('"type":"INTENT"'));
             assert.ok(!commands.includes('"type":"SEAL"'));
         }, 1500));
@@ -428,10 +392,7 @@ test("unsealed outer exit retains the original CLI File while an inherited write
                 assert.deepEqual(await ready, { type: "WRITER_READY" });
                 outer.child.kill("SIGTERM");
                 await outer.exited;
-                assert.equal(
-                    (await processes.terminateAttempt(id, "OUTER_LOST")).processStopped,
-                    false,
-                );
+                assert.equal((await processes.terminateAttempt(id, "OUTER_LOST")).processStopped, false);
                 const appended = new Promise<unknown>((resolve) => writer.once("message", resolve));
                 writer.send({ type: "APPEND" });
                 assert.deepEqual(await appended, { type: "APPENDED" });
@@ -444,9 +405,9 @@ test("unsealed outer exit retains the original CLI File while an inherited write
                 assert.equal(original.read(1048576).toString(), "live-writer\n");
                 assert.equal(await processes.confirmStopped(id), false);
                 assert.ok(
-                    (
-                        await readFile(join(root, "controlled-journals", id, "cli.jsonl"), "utf8")
-                    ).includes("live-writer"),
+                    (await readFile(join(root, "controlled-journals", id, "cli.jsonl"), "utf8")).includes(
+                        "live-writer",
+                    ),
                 );
             } finally {
                 if (writer.exitCode === null && writer.signalCode === null) writer.kill("SIGKILL");
@@ -470,10 +431,7 @@ for (const scenario of ["missing-seal", "cli-fault", "outer-signal"])
             owned.send({ type: "START" });
             await owned.exited;
             assert.equal((await processes.terminateAttempt(id, "FAULT")).processStopped, false);
-            assert.equal(
-                await new ProcessSupervisor(join(root, "processes")).confirmStopped(id),
-                false,
-            );
+            assert.equal(await new ProcessSupervisor(join(root, "processes")).confirmStopped(id), false);
         }));
 
 test("missing or stale actual Worker READY cannot register or publish proof", async () => {
@@ -481,10 +439,7 @@ test("missing or stale actual Worker READY cannot register or publish proof", as
         await fixture(async ({ root, processes, id, launch }) => {
             await assert.rejects(launch(scenario, "VALIDATE"), /READY|PROTOCOL|TIMEOUT/);
             assert.equal((await processes.terminateAttempt(id, "FAULT")).processStopped, false);
-            assert.equal(
-                await new ProcessSupervisor(join(root, "processes")).confirmStopped(id),
-                false,
-            );
+            assert.equal(await new ProcessSupervisor(join(root, "processes")).confirmStopped(id), false);
         }, 1500);
 });
 
@@ -538,10 +493,7 @@ test("unexpected actual Chrome exit and preparation failure stay quarantined", a
             }),
             /START_FAILED/,
         );
-        assert.equal(
-            (await processes.terminateAttempt(id, "PREPARE_FAILED")).processStopped,
-            false,
-        );
+        assert.equal((await processes.terminateAttempt(id, "PREPARE_FAILED")).processStopped, false);
     });
 });
 
@@ -579,10 +531,7 @@ test("proof publication uncertainty leaves restart history unconfirmed", async (
     native.openPrivateDirectory = (path, create) => {
         const directory = open(path, create);
         if (path.endsWith("/processes") && create) {
-            const descriptor = Object.getOwnPropertyDescriptor(
-                Object.getPrototypeOf(directory),
-                "replace",
-            );
+            const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(directory), "replace");
             console.log(
                 JSON.stringify({
                     boundary: "native-directory-replace-attributes",
@@ -610,25 +559,16 @@ test("proof publication uncertainty leaves restart history unconfirmed", async (
             owned.send({ type: "START" });
             await owned.exited;
             assert.equal((await processes.terminateAttempt(id, "COMPLETED")).processStopped, false);
+            assert.equal(publications, 1, "fault must occur after actual controlled proof publication");
             assert.equal(
-                publications,
-                1,
-                "fault must occur after actual controlled proof publication",
-            );
-            assert.equal(
-                JSON.parse(await readFile(join(root, "processes", `${id}.controlled.json`), "utf8"))
-                    .state,
+                JSON.parse(await readFile(join(root, "processes", `${id}.controlled.json`), "utf8")).state,
                 "CONTROLLED_STOPPED",
             );
             assert.equal(
-                JSON.parse(await readFile(join(root, "processes", `${id}.process.json`), "utf8"))
-                    .state,
+                JSON.parse(await readFile(join(root, "processes", `${id}.process.json`), "utf8")).state,
                 "RUNNING",
             );
-            assert.equal(
-                await new ProcessSupervisor(join(root, "processes")).confirmStopped(id),
-                false,
-            );
+            assert.equal(await new ProcessSupervisor(join(root, "processes")).confirmStopped(id), false);
         });
     } finally {
         native.openPrivateDirectory = open;

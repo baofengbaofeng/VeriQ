@@ -8,15 +8,13 @@ import { doctor } from "../src/doctor.ts";
  * 且请求已取消，因此 Node 通过也不能错误申报整体可执行能力或浏览器就绪。
  */
 test("doctor accepts stable Node24 and keeps browser readiness independent", async () => {
-    const cases = JSON.parse(
-        await readFile(new URL("./fixtures/node24-versions.json", import.meta.url), "utf8"),
-    ) as { version: string; supported: boolean }[];
+    const cases = JSON.parse(await readFile(new URL("./fixtures/node24-versions.json", import.meta.url), "utf8")) as {
+        version: string;
+        supported: boolean;
+    }[];
     const original = Object.getOwnPropertyDescriptor(process.versions, "node")!;
     try {
-        for (const { version, supported } of [
-            ...cases,
-            { version: "24.20.0\n", supported: false },
-        ]) {
+        for (const { version, supported } of [...cases, { version: "24.20.0\n", supported: false }]) {
             Object.defineProperty(process.versions, "node", { ...original, value: version });
             const result = await doctor({
                 executablePath: "/absent/veriq-browser",
@@ -50,10 +48,7 @@ test("doctor refuses the Electron UI runtime as an independent executor", async 
             signal: AbortSignal.abort(),
         });
         assert.equal(result.checks.find((item) => item.name === "Node")?.ok, false);
-        assert.equal(
-            result.checks.find((item) => item.name === "Node")?.detail,
-            process.versions.node,
-        );
+        assert.equal(result.checks.find((item) => item.name === "Node")?.detail, process.versions.node);
     } finally {
         if (original) Object.defineProperty(process.versions, "electron", original);
         else Reflect.deleteProperty(process.versions, "electron");

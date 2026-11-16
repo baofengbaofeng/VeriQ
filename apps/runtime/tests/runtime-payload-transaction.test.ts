@@ -36,8 +36,7 @@ for (const name of ["candidate", ".veriq-candidate.lock"])
                         outputParent: output,
                         candidateName: "candidate",
                     }),
-                    (e: unknown) =>
-                        e instanceof RuntimePayloadError && e.code === "PAYLOAD_DESTINATION_EXISTS",
+                    (e: unknown) => e instanceof RuntimePayloadError && e.code === "PAYLOAD_DESTINATION_EXISTS",
                 );
                 assert.equal(await readFile(join(output, name), "utf8"), "outside sentinel");
                 assert.deepEqual(await readdir(output), [name]);
@@ -83,8 +82,7 @@ test("pre-aborted signal and unsafe candidate never publish", async () => {
                         candidateName,
                     }),
                     (e: unknown) =>
-                        e instanceof RuntimePayloadError &&
-                        ["PAYLOAD_PATH", "PAYLOAD_LIMIT"].includes(e.code),
+                        e instanceof RuntimePayloadError && ["PAYLOAD_PATH", "PAYLOAD_LIMIT"].includes(e.code),
                 );
             assert.deepEqual(await readdir(output), []);
         }, archiveModel());
@@ -135,13 +133,9 @@ for (const scenario of [
             originalSnapshot = ArchiveTransaction.prototype.snapshot,
             originalWrite = ArchiveTransaction.prototype.write;
         if (scenario === "disk")
-            t.mock.method(
-                ArchiveTransaction.prototype,
-                "checkSpace",
-                async function (this: ArchiveTransaction) {
-                    this.fail("PAYLOAD_DISK_INSUFFICIENT");
-                },
-            );
+            t.mock.method(ArchiveTransaction.prototype, "checkSpace", async function (this: ArchiveTransaction) {
+                this.fail("PAYLOAD_DISK_INSUFFICIENT");
+            });
         if (scenario === "copy")
             t.mock.method(
                 ArchiveTransaction.prototype,
@@ -162,14 +156,10 @@ for (const scenario of [
                 },
             );
         if (scenario === "before-publish")
-            t.mock.method(
-                ArchiveTransaction.prototype,
-                "publish",
-                async function (this: ArchiveTransaction) {
-                    controller.abort();
-                    return originalPublish.call(this);
-                },
-            );
+            t.mock.method(ArchiveTransaction.prototype, "publish", async function (this: ArchiveTransaction) {
+                controller.abort();
+                return originalPublish.call(this);
+            });
         if (scenario === "after-commit" || scenario === "final-audit")
             t.mock.method(
                 ArchiveTransaction.prototype,
@@ -183,21 +173,17 @@ for (const scenario of [
                 },
             );
         if (scenario === "lock-replaced" || scenario === "root-replaced")
-            t.mock.method(
-                ArchiveTransaction.prototype,
-                "publish",
-                async function (this: ArchiveTransaction) {
-                    if (scenario === "lock-replaced") {
-                        await rename(this.lockPath, join(output, "owned-lock-preserved"));
-                        await writeFile(this.lockPath, "outside sentinel");
-                    } else {
-                        await rename(this.scratch, join(output, "owned-root-preserved"));
-                        await mkdir(this.scratch, { mode: 0o700 });
-                        await writeFile(join(this.scratch, "sentinel"), "outside sentinel");
-                    }
-                    this.fail("PAYLOAD_CANCELLED");
-                },
-            );
+            t.mock.method(ArchiveTransaction.prototype, "publish", async function (this: ArchiveTransaction) {
+                if (scenario === "lock-replaced") {
+                    await rename(this.lockPath, join(output, "owned-lock-preserved"));
+                    await writeFile(this.lockPath, "outside sentinel");
+                } else {
+                    await rename(this.scratch, join(output, "owned-root-preserved"));
+                    await mkdir(this.scratch, { mode: 0o700 });
+                    await writeFile(join(this.scratch, "sentinel"), "outside sentinel");
+                }
+                this.fail("PAYLOAD_CANCELLED");
+            });
         if (scenario === "source-replaced")
             t.mock.method(
                 ArchiveTransaction.prototype,
@@ -243,21 +229,14 @@ for (const scenario of [
                                 ? e.cleanup === "INCOMPLETE"
                                 : e.cleanup === "CONFIRMED"),
                     );
-                    if (scenario === "final-audit")
-                        assert.ok((await readdir(output)).includes("candidate"));
+                    if (scenario === "final-audit") assert.ok((await readdir(output)).includes("candidate"));
                     else if (scenario === "lock-replaced")
-                        assert.equal(
-                            await readFile(join(output, ".veriq-candidate.lock"), "utf8"),
-                            "outside sentinel",
-                        );
+                        assert.equal(await readFile(join(output, ".veriq-candidate.lock"), "utf8"), "outside sentinel");
                     else if (scenario === "root-replaced") {
                         const scratch = (await readdir(output)).find(
                             (p) => p.startsWith(".veriq-candidate-") && !p.endsWith(".lock"),
                         )!;
-                        assert.equal(
-                            await readFile(join(output, scratch, "sentinel"), "utf8"),
-                            "outside sentinel",
-                        );
+                        assert.equal(await readFile(join(output, scratch, "sentinel"), "utf8"), "outside sentinel");
                     } else assert.deepEqual(await readdir(output), []);
                 }
             }, archiveModel());
@@ -342,10 +321,7 @@ test("prepare CLI consumes exactly five explicit flags and rejects malformed arg
                 const result = await invoke(args);
                 assert.equal(result.code, 1);
                 assert.equal(result.stdout, "");
-                assert.match(
-                    result.stderr,
-                    /^PAYLOAD_INPUT_INVALID phase=INPUTS cleanup=NOT_NEEDED\n$/,
-                );
+                assert.match(result.stderr, /^PAYLOAD_INPUT_INVALID phase=INPUTS cleanup=NOT_NEEDED\n$/);
             }
             const result = await invoke(flags);
             assert.equal(result.code, 0);
@@ -354,21 +330,18 @@ test("prepare CLI consumes exactly five explicit flags and rejects malformed arg
             assert.equal(report.committed, true);
             assert.equal(report.directory, join(output, "candidate"));
             const warningFlags = [...flags.slice(0, -1), "warning"];
-            const wrapper = `import {ArchiveTransaction} from './scripts/runtime-payload-transaction.ts';
+            const wrapper =
+                `import {ArchiveTransaction} from './scripts/runtime-payload-transaction.ts';
 import {rename,writeFile} from 'node:fs/promises';
 const cleanup=ArchiveTransaction.prototype.cleanup;
 ArchiveTransaction.prototype.cleanup=async function(){if(this.committed){await rename(this.lockPath,this.lockPath+'.` +
-`preserved');await writeFile(this.lockPath,'outside sentinel')}return cleanup.call(this)};
+                `preserved');await writeFile(this.lockPath,'outside sentinel')}return cleanup.call(this)};
 process.argv=['node','prepare',...JSON.parse(process.env.VERIQ_TEST_FLAGS)];await import('./scripts/prepare-macos-ru` +
-`ntime-archives.mjs');`;
-            const warningChild = spawn(
-                process.execPath,
-                ["--import", "tsx", "--input-type=module", "-e", wrapper],
-                {
-                    env: { ...process.env, VERIQ_TEST_FLAGS: JSON.stringify(warningFlags) },
-                    stdio: ["ignore", "pipe", "pipe"],
-                },
-            );
+                `ntime-archives.mjs');`;
+            const warningChild = spawn(process.execPath, ["--import", "tsx", "--input-type=module", "-e", wrapper], {
+                env: { ...process.env, VERIQ_TEST_FLAGS: JSON.stringify(warningFlags) },
+                stdio: ["ignore", "pipe", "pipe"],
+            });
             let warningOut = "",
                 warningErr = "";
             warningChild.stdout.on("data", (v) => (warningOut += v));
@@ -376,14 +349,8 @@ process.argv=['node','prepare',...JSON.parse(process.env.VERIQ_TEST_FLAGS)];awai
             const [warningCode] = await once(warningChild, "close");
             assert.equal(warningCode, 0);
             assert.equal(JSON.parse(warningOut).cleanup, "INCOMPLETE");
-            assert.equal(
-                warningErr,
-                "PAYLOAD_CLEANUP_INCOMPLETE phase=PUBLISH cleanup=INCOMPLETE\n",
-            );
-            assert.equal(
-                await readFile(join(output, ".veriq-warning.lock"), "utf8"),
-                "outside sentinel",
-            );
+            assert.equal(warningErr, "PAYLOAD_CLEANUP_INCOMPLETE phase=PUBLISH cleanup=INCOMPLETE\n");
+            assert.equal(await readFile(join(output, ".veriq-warning.lock"), "utf8"), "outside sentinel");
         }, archiveModel());
     } finally {
         await rm(output, { recursive: true, force: true });
@@ -415,25 +382,24 @@ for (const scenario of ["SIGINT", "SIGTERM", "second", "deadline"] as const)
                     "--candidate",
                     "candidate",
                 ];
-                const script = `import {ArchiveTransaction} from './scripts/runtime-payload-transaction.ts';
+                const script =
+                    `import {ArchiveTransaction} from './scripts/runtime-payload-transaction.ts';
 const keepalive=()=>{};process.on('message',keepalive);
 const original=ArchiveTransaction.prototype.snapshot;
 ArchiveTransaction.prototype.snapshot=async function(...args){process.on('SIGINT',()=>process.send('first'));process` +
-`.send('ready');await new Promise(resolve=>{` +
-    `${
-    scenario === "SIGINT" || scenario === "SIGTERM" ? "this.signal.addEventListener" +
-        "('abort',resolve,{once:true})" : "process.on('message',()=>{})"}});return original.apply(this,args)};
+                    `.send('ready');await new Promise(resolve=>{` +
+                    `${
+                        scenario === "SIGINT" || scenario === "SIGTERM"
+                            ? "this.signal.addEventListener" + "('abort',resolve,{once:true})"
+                            : "process.on('message',()=>{})"
+                    }});return original.apply(this,args)};
 process.argv=['node','prepare',...JSON.parse(process.env.VERIQ_TEST_FLAGS)];
 await import('./scripts/prepare-macos-runtime-archives.mjs');process.removeListener('message',keepalive);process.dis` +
-`connect();`;
-                const child = spawn(
-                    process.execPath,
-                    ["--import", "tsx", "--input-type=module", "-e", script],
-                    {
-                        env: { ...process.env, VERIQ_TEST_FLAGS: JSON.stringify(flags) },
-                        stdio: ["ignore", "pipe", "pipe", "ipc"],
-                    },
-                );
+                    `connect();`;
+                const child = spawn(process.execPath, ["--import", "tsx", "--input-type=module", "-e", script], {
+                    env: { ...process.env, VERIQ_TEST_FLAGS: JSON.stringify(flags) },
+                    stdio: ["ignore", "pipe", "pipe", "ipc"],
+                });
                 let stdout = "",
                     stderr = "";
                 child.stdout!.on("data", (v) => (stdout += v));
@@ -457,14 +423,8 @@ await import('./scripts/prepare-macos-runtime-archives.mjs');process.removeListe
                                 `${scenario === "second" || scenario === "deadline" ? "INCOMPLETE" : "CONFIRMED"}`,
                         ),
                     );
-                    if (scenario === "SIGINT" || scenario === "SIGTERM")
-                        assert.deepEqual(await readdir(output), []);
-                    else
-                        assert.ok(
-                            (await readdir(output)).some((name) =>
-                                name.startsWith(".veriq-candidate-"),
-                            ),
-                        );
+                    if (scenario === "SIGINT" || scenario === "SIGTERM") assert.deepEqual(await readdir(output), []);
+                    else assert.ok((await readdir(output)).some((name) => name.startsWith(".veriq-candidate-")));
                 } finally {
                     if (child.exitCode === null) child.kill("SIGKILL");
                     await closed;
@@ -521,9 +481,7 @@ test("snapshot reader close failure retains owned artifact with incomplete clean
                     candidateName: "candidate",
                 }),
                 (e: unknown) =>
-                    e instanceof RuntimePayloadError &&
-                    e.code === "PAYLOAD_IO" &&
-                    e.cleanup === "INCOMPLETE",
+                    e instanceof RuntimePayloadError && e.code === "PAYLOAD_IO" && e.cleanup === "INCOMPLETE",
             );
             assert.ok((await readdir(output)).includes(".veriq-candidate.lock"));
             assert.ok(!(await readdir(output)).includes("candidate"));
@@ -571,8 +529,7 @@ test("actual statfs plan rejects unavailable declared writes without allocating 
             try {
                 await assert.rejects(
                     tx.plan(16 * 1024 ** 3, 0),
-                    (e: unknown) =>
-                        e instanceof RuntimePayloadError && e.code === "PAYLOAD_DISK_INSUFFICIENT",
+                    (e: unknown) => e instanceof RuntimePayloadError && e.code === "PAYLOAD_DISK_INSUFFICIENT",
                 );
             } finally {
                 assert.equal(await tx.cleanup(), "CONFIRMED");
@@ -607,17 +564,13 @@ test("both archive collectors consume the same actual content and inferred-path 
 test("committed result remains successful when only replaced lock cleanup is incomplete", async (t) => {
     const output = await mkdtemp(join(tmpdir(), "veriq-commit-cleanup-")),
         cleanup = ArchiveTransaction.prototype.cleanup;
-    t.mock.method(
-        ArchiveTransaction.prototype,
-        "cleanup",
-        async function (this: ArchiveTransaction) {
-            if (this.committed) {
-                await rename(this.lockPath, join(output, "owned-lock"));
-                await writeFile(this.lockPath, "outside sentinel");
-            }
-            return cleanup.call(this);
-        },
-    );
+    t.mock.method(ArchiveTransaction.prototype, "cleanup", async function (this: ArchiveTransaction) {
+        if (this.committed) {
+            await rename(this.lockPath, join(output, "owned-lock"));
+            await writeFile(this.lockPath, "outside sentinel");
+        }
+        return cleanup.call(this);
+    });
     try {
         await fixture(async (f) => {
             const result = await intakeRuntimeArchives(await f.save(), f.expected, {
@@ -627,14 +580,8 @@ test("committed result remains successful when only replaced lock cleanup is inc
             });
             assert.equal(result.committed, true);
             assert.equal(result.cleanup, "INCOMPLETE");
-            assert.equal(
-                await readFile(join(output, ".veriq-candidate.lock"), "utf8"),
-                "outside sentinel",
-            );
-            assert.equal(
-                (await readFile(join(result.directory, "archive-intake.json"))).length > 0,
-                true,
-            );
+            assert.equal(await readFile(join(output, ".veriq-candidate.lock"), "utf8"), "outside sentinel");
+            assert.equal((await readFile(join(result.directory, "archive-intake.json"))).length > 0, true);
         }, archiveModel());
     } finally {
         t.mock.restoreAll();
@@ -651,9 +598,10 @@ for (const [kind, code] of [
     ["node", "ENOSPC"],
     ["chrome", "EDQUOT"],
 ] as const)
-    for (const uncertainClose of [false, true])
-        test(`fix1 actual ${kind} extraction ${code} retains first cause with close uncertainty ${uncertainClose}`,
-            async (t) => {
+    for (const uncertainClose of [false, true]) {
+        const name =
+            `fix1 actual ${kind} extraction ${code} retains first cause with close ` + `uncertainty ${uncertainClose}`;
+        test(name, async (t) => {
             const output = await mkdtemp(join(tmpdir(), "veriq-extraction-fault-"));
             const probe = await open(join(output, "probe"), "wx", 0o600),
                 prototype = Object.getPrototypeOf(probe) as FileHandle;
@@ -672,25 +620,20 @@ for (const [kind, code] of [
                     chunks: AsyncIterable<Uint8Array>,
                     expected?: Ref,
                 ) {
-                    if (!path.startsWith(`trees/${kind}/`))
-                        return write.call(this, path, chunks, expected);
-                    const injected = t.mock.method(
-                        prototype,
-                        "write",
-                        async function (this: FileHandle) {
-                            faults++;
-                            if (uncertainClose) {
-                                const close = this.close;
-                                t.mock.method(this, "close", async () => {
-                                    await close.call(this);
-                                    throw Object.assign(new Error("SYNTHETIC_CLOSE_DETAIL"), {
-                                        code: "EIO",
-                                    });
+                    if (!path.startsWith(`trees/${kind}/`)) return write.call(this, path, chunks, expected);
+                    const injected = t.mock.method(prototype, "write", async function (this: FileHandle) {
+                        faults++;
+                        if (uncertainClose) {
+                            const close = this.close;
+                            t.mock.method(this, "close", async () => {
+                                await close.call(this);
+                                throw Object.assign(new Error("SYNTHETIC_CLOSE_DETAIL"), {
+                                    code: "EIO",
                                 });
-                            }
-                            throw Object.assign(new Error("SYNTHETIC_WRITE_DETAIL"), { code });
-                        },
-                    );
+                            });
+                        }
+                        throw Object.assign(new Error("SYNTHETIC_WRITE_DETAIL"), { code });
+                    });
                     try {
                         return await write.call(this, path, chunks, expected);
                     } finally {
@@ -719,10 +662,7 @@ for (const [kind, code] of [
                         },
                     );
                     assert.equal(faults, 1);
-                    assert.equal(
-                        await readFile(join(output, "old/sentinel"), "utf8"),
-                        "outside sentinel",
-                    );
+                    assert.equal(await readFile(join(output, "old/sentinel"), "utf8"), "outside sentinel");
                     for (const archive of ["node", "chrome"] as const)
                         assert.equal(
                             hash(await readFile(join(f.root, f.recipe[archive].file.path))),
@@ -738,6 +678,7 @@ for (const [kind, code] of [
                 await rm(output, { recursive: true, force: true });
             }
         });
+    }
 
 /**
  * 目录错误回归只在真实 intake 的新 Node 顶层目录句柄上注入 chmod 或 sync 磁盘故障，close 始终先真实完成再按场景报告
@@ -748,9 +689,9 @@ for (const [operation, cause] of [
     ["chmod", "ENOSPC"],
     ["sync", "EDQUOT"],
 ] as const)
-    for (const uncertainClose of [false, true])
-        test(`R1 intake directory ${operation} preserves ${cause} with uncertain close ${uncertainClose}`, async (
-            t) => {
+    for (const uncertainClose of [false, true]) {
+        const name = `R1 intake directory ${operation} preserves ${cause} with uncertain close ${uncertainClose}`;
+        test(name, async (t) => {
             const output = await mkdtemp(join(tmpdir(), "veriq-directory-intake-"));
             const probe = await open(join(output, "probe"), "wx", 0o600),
                 prototype = Object.getPrototypeOf(probe) as FileHandle;
@@ -767,28 +708,23 @@ for (const [operation, cause] of [
                 ArchiveTransaction.prototype,
                 "mkdir",
                 async function (this: ArchiveTransaction, path: string) {
-                    if (this.profile !== "intake" || path !== target || faulted)
-                        return mkdirOwned.call(this, path);
-                    const injected = t.mock.method(
-                        prototype,
-                        operation,
-                        async function (this: FileHandle) {
-                            assert.equal((await this.stat()).isDirectory(), true);
-                            faulted = true;
-                            const close = this.close;
-                            t.mock.method(this, "close", async () => {
-                                await close.call(this);
-                                realClosed++;
-                                if (uncertainClose)
-                                    throw Object.assign(new Error("secondary directory close"), {
-                                        code: "EIO",
-                                    });
-                            });
-                            throw Object.assign(new Error("primary directory operation"), {
-                                code: cause,
-                            });
-                        },
-                    );
+                    if (this.profile !== "intake" || path !== target || faulted) return mkdirOwned.call(this, path);
+                    const injected = t.mock.method(prototype, operation, async function (this: FileHandle) {
+                        assert.equal((await this.stat()).isDirectory(), true);
+                        faulted = true;
+                        const close = this.close;
+                        t.mock.method(this, "close", async () => {
+                            await close.call(this);
+                            realClosed++;
+                            if (uncertainClose)
+                                throw Object.assign(new Error("secondary directory close"), {
+                                    code: "EIO",
+                                });
+                        });
+                        throw Object.assign(new Error("primary directory operation"), {
+                            code: cause,
+                        });
+                    });
                     try {
                         return await mkdirOwned.call(this, path);
                     } finally {
@@ -809,18 +745,12 @@ for (const [operation, cause] of [
                             assert.equal(error.code, "PAYLOAD_DISK_INSUFFICIENT");
                             assert.equal(error.causeCode, cause);
                             assert.equal(error.phase, "INTAKE");
-                            assert.equal(
-                                error.cleanup,
-                                uncertainClose ? "INCOMPLETE" : "CONFIRMED",
-                            );
+                            assert.equal(error.cleanup, uncertainClose ? "INCOMPLETE" : "CONFIRMED");
                             return true;
                         },
                     );
                     assert.equal(realClosed, 1);
-                    assert.equal(
-                        await readFile(join(output, "old/sentinel"), "utf8"),
-                        "outside sentinel",
-                    );
+                    assert.equal(await readFile(join(output, "old/sentinel"), "utf8"), "outside sentinel");
                     for (const kind of ["node", "chrome"] as const)
                         assert.equal(
                             hash(await readFile(join(f.root, f.recipe[kind].file.path))),
@@ -836,6 +766,7 @@ for (const [operation, cause] of [
                 await rm(output, { recursive: true, force: true });
             }
         });
+    }
 
 /**
  * 没有 chmod 或 sync 首错时，唯一关闭异常仍必须抛出并记录 INCOMPLETE，不能因为新增首错保护而吞掉真实收尾问题；两个
@@ -866,10 +797,9 @@ for (const profile of ["intake", "runtime"] as const)
                             throw Object.assign(new Error("only directory close"), { code: "EIO" });
                         });
                     });
-                    await assert.rejects(
-                        tx.mkdir(profile === "runtime" ? "runtime/probe" : "trees/node/probe"),
-                        { code: "EIO" },
-                    );
+                    await assert.rejects(tx.mkdir(profile === "runtime" ? "runtime/probe" : "trees/node/probe"), {
+                        code: "EIO",
+                    });
                     assert.equal(realClosed, 1);
                 } finally {
                     t.mock.restoreAll();
@@ -897,9 +827,7 @@ test("observeRefs accepts private source and snapshots original bytes", async ()
     const tx = new ArchiveTransaction(input, output, "refs");
     try {
         await tx.initialize();
-        await tx.observeRefs([
-            { path: "source.json", sizeBytes: content.length, sha256: hash(content) },
-        ]);
+        await tx.observeRefs([{ path: "source.json", sizeBytes: content.length, sha256: hash(content) }]);
         await tx.snapshot(
             { path: "source.json", sizeBytes: content.length, sha256: hash(content) },
             "evidence/source.json",
@@ -942,10 +870,7 @@ for (const scenario of [
         await writeFile(join(input, "nested/file"), bytes, { mode: 0o600 });
         const { chmod, link, symlink } = await import("node:fs/promises");
         if (["400", "444", "644", "mode"].includes(scenario))
-            await chmod(
-                join(input, "nested/file"),
-                scenario === "mode" ? 0o755 : parseInt(scenario, 8),
-            );
+            await chmod(join(input, "nested/file"), scenario === "mode" ? 0o755 : parseInt(scenario, 8));
         if (scenario === "hardlink") await link(join(input, "nested/file"), join(input, "other"));
         if (scenario === "symlink") {
             await unlink(join(input, "nested/file"));
@@ -959,14 +884,9 @@ for (const scenario of [
             if (scenario === "hash") ref.sha256 = "0".repeat(64);
             let refs: readonly Ref[] = [ref];
             if (scenario === "duplicate") refs = [ref, ref];
-            if (scenario === "count")
-                refs = Array.from({ length: 9 }, (_, i) => ({ ...ref, path: `file${i}` }));
+            if (scenario === "count") refs = Array.from({ length: 9 }, (_, i) => ({ ...ref, path: `file${i}` }));
             if (scenario === "unknown") refs = [{ ...ref, extra: true } as Ref];
-            if (
-                ["mode", "hardlink", "symlink", "size", "duplicate", "count", "unknown"].includes(
-                    scenario,
-                )
-            )
+            if (["mode", "hardlink", "symlink", "size", "duplicate", "count", "unknown"].includes(scenario))
                 await assert.rejects(tx.observeRefs(refs));
             else {
                 await tx.observeRefs(refs);

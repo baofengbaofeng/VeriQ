@@ -19,8 +19,7 @@ async function currentFuses(): Promise<Record<string | number, unknown>> {
         throw new Error("COOKIE_RUNTIME_UNVERIFIED");
     const executable = process.platform === "linux" ? "/proc/self/exe" : process.execPath;
     const info = await stat(executable);
-    if (!info.isFile() || info.size < 1 || info.size > 536870912)
-        throw new Error("COOKIE_RUNTIME_UNVERIFIED");
+    if (!info.isFile() || info.size < 1 || info.size > 536870912) throw new Error("COOKIE_RUNTIME_UNVERIFIED");
     return getCurrentFuseWire(executable);
 }
 

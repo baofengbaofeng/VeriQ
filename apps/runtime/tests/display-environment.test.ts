@@ -33,10 +33,7 @@ test("supervised visible worker receives only trusted display connection fields"
             authority: "/tmp/veriq-display-authority",
             secret: null,
         });
-        assert.equal(
-            (await processes.terminateAttempt("display-probe", "TEST_FINISHED")).processStopped,
-            true,
-        );
+        assert.equal((await processes.terminateAttempt("display-probe", "TEST_FINISHED")).processStopped, true);
     } finally {
         await processes.terminateAttempt("display-probe", "TEST_FINALLY");
         await rm(root, { recursive: true, force: true });

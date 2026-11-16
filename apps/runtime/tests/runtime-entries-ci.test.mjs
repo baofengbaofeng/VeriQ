@@ -1,17 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import {
-    chmod,
-    link,
-    lstat,
-    mkdir,
-    mkdtemp,
-    readFile,
-    readdir,
-    rm,
-    symlink,
-    writeFile,
-} from "node:fs/promises";
+import { chmod, link, lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
@@ -96,9 +85,7 @@ test("Git selection includes every regular source and only the three named execu
     const raw = Buffer.from(
         gitRecord("100644", "package.json") +
             gitRecord("100644", "apps/a.ts") +
-            ["build.sh", "deploy/install.sh", "deploy/start.sh"]
-                .map((p) => gitRecord("100755", p))
-                .join(""),
+            ["build.sh", "deploy/install.sh", "deploy/start.sh"].map((p) => gitRecord("100755", p)).join(""),
     );
     const result = selectGitInventory(raw);
     assert.deepEqual(
@@ -184,10 +171,7 @@ test("metadata rejects mismatched held bytes duplicate Refs and oversized JSON b
     fixture(async (root) => {
         const bytes = Buffer.from("{}"),
             ref = reference("input-evidence/source.json", bytes);
-        await assert.rejects(
-            sealMetadata(join(root, "bad"), [{ ref, bytes: Buffer.from("[]") }]),
-            /ENTRY_METADATA/,
-        );
+        await assert.rejects(sealMetadata(join(root, "bad"), [{ ref, bytes: Buffer.from("[]") }]), /ENTRY_METADATA/);
         await assert.rejects(
             sealMetadata(join(root, "duplicate"), [
                 { ref, bytes },
@@ -332,9 +316,7 @@ test("successful real direct child settles before final verification and owned c
 // 算法或生产器夹具，也不把这些 Linux 控制器断言作为 Mac 构建证据。
 test("real TypeScript config tooling rejects unbound or external extends", async () =>
     fixture(async (root) => {
-        const { qualifyTypeScriptConfigs } = await import(
-            "../../../.github/scripts/runtime-entries.mjs"
-        );
+        const { qualifyTypeScriptConfigs } = await import("../../../.github/scripts/runtime-entries.mjs");
         const ts = (await import("../node_modules/typescript/lib/typescript.js")).default;
         const base = Buffer.from('{"compilerOptions":{"strict":true}}'),
             config = Buffer.from('{"extends":"./base.json","files":[]}');
@@ -346,10 +328,7 @@ test("real TypeScript config tooling rejects unbound or external extends", async
         assert.throws(() => qualifyTypeScriptConfigs(root, refs.slice(1), ts), /ENTRY_CONFIG/);
         const external = Buffer.from('{"extends":"/etc/hosts","files":[]}');
         await writeFile(join(root, "tsconfig.json"), external);
-        assert.throws(
-            () => qualifyTypeScriptConfigs(root, [reference("tsconfig.json", external)], ts),
-            /ENTRY_CONFIG/,
-        );
+        assert.throws(() => qualifyTypeScriptConfigs(root, [reference("tsconfig.json", external)], ts), /ENTRY_CONFIG/);
     }));
 
 test("clean launch rejects ambient injection and pins production mode before loader registration", async () => {
@@ -444,17 +423,14 @@ test("initial environment diagnostic separates unknown names and both fixed flag
             return error;
         }
     };
-    assert.deepEqual(
-        reject({ ...valid, VITE_SECRET: "SYNTHETIC_VALUE_MUST_NOT_APPEAR" }).diagnostic,
-        {
-            phase: "INITIAL",
-            unexpectedNamePresent: true,
-            productionModeMatch: true,
-            compileCacheDisabled: true,
-            unexpectedNameCount: 1,
-            unexpectedNames: ["VITE_SECRET"],
-        },
-    );
+    assert.deepEqual(reject({ ...valid, VITE_SECRET: "SYNTHETIC_VALUE_MUST_NOT_APPEAR" }).diagnostic, {
+        phase: "INITIAL",
+        unexpectedNamePresent: true,
+        productionModeMatch: true,
+        compileCacheDisabled: true,
+        unexpectedNameCount: 1,
+        unexpectedNames: ["VITE_SECRET"],
+    });
     for (const [key, value, productionModeMatch, compileCacheDisabled] of [
         ["NODE_ENV", "development", false, true],
         ["NODE_ENV", undefined, false, true],
@@ -503,9 +479,7 @@ test("environment diagnostic sanitizes empty malicious and overlong key names wi
             const serialized = JSON.stringify(value);
             assert.ok(Buffer.byteLength(serialized) <= 4096);
             assert.ok(!serialized.includes(sentinel));
-            assert.ok(
-                value.unexpectedNames.every((name) => /^[A-Za-z_][A-Za-z0-9_]{0,95}$/.test(name)),
-            );
+            assert.ok(value.unexpectedNames.every((name) => /^[A-Za-z_][A-Za-z0-9_]{0,95}$/.test(name)));
             return true;
         },
     );
@@ -536,9 +510,7 @@ test("environment diagnostic limits output to sixteen sorted names and four KiB"
                     .map((key) => key.slice(0, 96)),
             );
             assert.ok(Buffer.byteLength(JSON.stringify(error.diagnostic)) <= 4096);
-            assert.ok(
-                !JSON.stringify(error.diagnostic).includes("SYNTHETIC_VALUE_MUST_NOT_APPEAR"),
-            );
+            assert.ok(!JSON.stringify(error.diagnostic).includes("SYNTHETIC_VALUE_MUST_NOT_APPEAR"));
             return true;
         },
     );
@@ -604,9 +576,7 @@ test("actual CLI environment diagnostic preserves exit one and never prints the 
         assert.ok(Buffer.byteLength(output) <= 4096);
         assert.ok(!output.includes(sentinel));
         assert.match(output, /Entry CI failed: ENTRY_ENVIRONMENT/);
-        const line = output
-            .split("\n")
-            .find((value) => value.startsWith("Entry environment rejection: "));
+        const line = output.split("\n").find((value) => value.startsWith("Entry environment rejection: "));
         assert.ok(line);
         const diagnostic = JSON.parse(line.slice("Entry environment rejection: ".length));
         assert.equal(diagnostic.phase, "INITIAL");

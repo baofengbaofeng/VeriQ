@@ -28,10 +28,7 @@ if (root) {
         for (const version of (await adapter.versions(resource.id)).items) {
             const files = await adapter.sourceFiles(resource.id, version.id);
             for (const file of files.files)
-                assert.equal(
-                    typeof (await adapter.source(resource.id, version.id, file)),
-                    "string",
-                );
+                assert.equal(typeof (await adapter.source(resource.id, version.id, file)), "string");
         }
     }
 }

@@ -43,11 +43,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ProcessRecords } from "../../src/execution/records.ts";
 import { VaultFiles } from "../../src/credentials/files.ts";
-import {
-    darwinNative,
-    type DarwinNative,
-    type DarwinPrivateDirectory,
-} from "../../src/native/darwin.ts";
+import { darwinNative, type DarwinNative, type DarwinPrivateDirectory } from "../../src/native/darwin.ts";
 
 /**
  * macOS 的临时目录可能经由系统别名暴露，因此先解析宿主临时根再创建本次唯一七百权限目录；清理只接触 mkdtemp 返回的测试目
@@ -155,11 +151,7 @@ function failure(code: string, phase?: string): (error: unknown) => boolean {
  * Linux 调用此函数，因此缺少 Darwin Mach-O 不会被记成产品 RED。
  */
 async function faultFixture(
-    run: (
-        directory: string,
-        session: DarwinPrivateDirectory,
-        native: FaultNative,
-    ) => Promise<void> | void,
+    run: (directory: string, session: DarwinPrivateDirectory, native: FaultNative) => Promise<void> | void,
 ): Promise<void> {
     const native = createRequire(import.meta.url)(
         "../../build/native-tests/veriq_private_files_fault.node",
@@ -192,20 +184,11 @@ test("native members reject links, hardlinks, directories and FIFOs", mac, async
         await symlink("source", join(directory, "symbolic"));
         assert.throws(() => session.read("symbolic", 64));
         await link(join(directory, "source"), join(directory, "hard"));
-        assert.throws(
-            () => session.read("source", 64),
-            failure("DARWIN_PRIVATE_INVALID", "file.private"),
-        );
+        assert.throws(() => session.read("source", 64), failure("DARWIN_PRIVATE_INVALID", "file.private"));
         await mkdir(join(directory, "directory"), { mode: 0o700 });
-        assert.throws(
-            () => session.read("directory", 64),
-            failure("DARWIN_PRIVATE_INVALID", "file.private"),
-        );
+        assert.throws(() => session.read("directory", 64), failure("DARWIN_PRIVATE_INVALID", "file.private"));
         execFileSync("mkfifo", [join(directory, "fifo")]);
-        assert.throws(
-            () => session.read("fifo", 64),
-            failure("DARWIN_PRIVATE_INVALID", "file.private"),
-        );
+        assert.throws(() => session.read("fifo", 64), failure("DARWIN_PRIVATE_INVALID", "file.private"));
         assert.throws(() => session.entries(8192));
     }),
 );
@@ -255,46 +238,19 @@ test("native directory traversal rejects links and never repairs read-only paths
  * 安全转换这些值。有效成员在所有参数错误之后才创建，说明错误没有静默关闭当前目录。
  * 公开导出比较不检查源码文本，而是观察实际加载的二进制对象。
  */
-test(
-    "native component and numeric limits are finite and production exports stay narrow",
-    mac,
-    async () =>
-        nativeFixture((directory, session) => {
-            assert.deepEqual(Object.keys(darwinNative()), [
-                "openPrivateDirectory",
-                "privateCookieFile",
-            ]);
-            for (const name of [
-                "",
-                ".",
-                "..",
-                "a/b",
-                "a\\b",
-                "a\0b",
-                "x".repeat(256),
-                "é".repeat(128),
-            ])
-                assert.throws(
-                    () => session.read(name, 64),
-                    failure("DARWIN_PRIVATE_INVALID", "name"),
-                );
-            assert.throws(
-                () => session.read("\ud800", 64),
-                failure("DARWIN_PRIVATE_INVALID", "argument.unicode"),
-            );
-            for (const limit of [-1, 0.5, NaN, Infinity, 8193, Number.MAX_SAFE_INTEGER])
-                assert.throws(
-                    () => session.entries(limit),
-                    failure("DARWIN_PRIVATE_INVALID", "argument.limit"),
-                );
-            for (const limit of [0, -1, 0.5, NaN, Infinity, bytesLimit + 1])
-                assert.throws(
-                    () => session.read("valid", limit),
-                    failure("DARWIN_PRIVATE_INVALID", "argument.limit"),
-                );
-            writeFileSync(join(directory, "valid"), "ok", { mode: 0o600 });
-            assert.equal(session.read("valid", 2).toString(), "ok");
-        }),
+test("native component and numeric limits are finite and production exports stay narrow", mac, async () =>
+    nativeFixture((directory, session) => {
+        assert.deepEqual(Object.keys(darwinNative()), ["openPrivateDirectory", "privateCookieFile"]);
+        for (const name of ["", ".", "..", "a/b", "a\\b", "a\0b", "x".repeat(256), "é".repeat(128)])
+            assert.throws(() => session.read(name, 64), failure("DARWIN_PRIVATE_INVALID", "name"));
+        assert.throws(() => session.read("\ud800", 64), failure("DARWIN_PRIVATE_INVALID", "argument.unicode"));
+        for (const limit of [-1, 0.5, NaN, Infinity, 8193, Number.MAX_SAFE_INTEGER])
+            assert.throws(() => session.entries(limit), failure("DARWIN_PRIVATE_INVALID", "argument.limit"));
+        for (const limit of [0, -1, 0.5, NaN, Infinity, bytesLimit + 1])
+            assert.throws(() => session.read("valid", limit), failure("DARWIN_PRIVATE_INVALID", "argument.limit"));
+        writeFileSync(join(directory, "valid"), "ok", { mode: 0o600 });
+        assert.equal(session.read("valid", 2).toString(), "ok");
+    }),
 );
 
 /**
@@ -306,32 +262,29 @@ test(
  * 发布真正发生的位置。remove 之后比较完整 moved 名字集合，
  * 不只依赖读取缺失错误。other 的同名正文贯穿所有操作保持 substitute，证明锚点没有漂移。
  */
-test(
-    "held directory operations survive parent rename and old-path link substitution",
-    mac,
-    async () =>
-        fixture(async (directory) => {
-            const anchor = join(directory, "anchor"),
-                moved = join(directory, "moved"),
-                other = join(directory, "other");
-            await mkdir(anchor, { mode: 0o700 });
-            await mkdir(other, { mode: 0o700 });
-            await writeFile(join(anchor, "value"), "original", { mode: 0o600 });
-            await writeFile(join(other, "value"), "substitute", { mode: 0o600 });
-            const session = darwinNative().openPrivateDirectory(anchor, false);
-            try {
-                await rename(anchor, moved);
-                await symlink(other, anchor);
-                assert.equal(session.read("value", 64).toString(), "original");
-                session.replace("value", `.${randomUUID()}.tmp`, Buffer.from("updated"), 64);
-                assert.equal(await readFile(join(moved, "value"), "utf8"), "updated");
-                session.remove("value", 64);
-                assert.deepEqual(await readdir(moved), []);
-                assert.equal(await readFile(join(other, "value"), "utf8"), "substitute");
-            } finally {
-                session.close();
-            }
-        }),
+test("held directory operations survive parent rename and old-path link substitution", mac, async () =>
+    fixture(async (directory) => {
+        const anchor = join(directory, "anchor"),
+            moved = join(directory, "moved"),
+            other = join(directory, "other");
+        await mkdir(anchor, { mode: 0o700 });
+        await mkdir(other, { mode: 0o700 });
+        await writeFile(join(anchor, "value"), "original", { mode: 0o600 });
+        await writeFile(join(other, "value"), "substitute", { mode: 0o600 });
+        const session = darwinNative().openPrivateDirectory(anchor, false);
+        try {
+            await rename(anchor, moved);
+            await symlink(other, anchor);
+            assert.equal(session.read("value", 64).toString(), "original");
+            session.replace("value", `.${randomUUID()}.tmp`, Buffer.from("updated"), 64);
+            assert.equal(await readFile(join(moved, "value"), "utf8"), "updated");
+            session.remove("value", 64);
+            assert.deepEqual(await readdir(moved), []);
+            assert.equal(await readFile(join(other, "value"), "utf8"), "substitute");
+        } finally {
+            session.close();
+        }
+    }),
 );
 
 /**
@@ -348,8 +301,7 @@ test(
  */
 test("bounded enumeration observes limit plus one and uses independent cursors", mac, async () =>
     nativeFixture(async (directory, session) => {
-        for (const name of ["a", "b", "c"])
-            await writeFile(join(directory, name), name, { mode: 0o600 });
+        for (const name of ["a", "b", "c"]) await writeFile(join(directory, name), name, { mode: 0o600 });
         assert.deepEqual(session.entries(0), { names: [], overflow: true });
         assert.equal(session.entries(2).overflow, true);
         assert.deepEqual(session.entries(3).names.sort(), ["a", "b", "c"]);
@@ -377,52 +329,43 @@ test("bounded enumeration observes limit plus one and uses independent cursors",
  * 父层再次按物理文件读取正文，和 File.read 的定位结果交叉核对。
  * finally 在任一子进程断言失败时仍明确关闭拥有者。
  */
-test(
-    "exclusive regular FD reaches only explicitly mapped CLI and remains parent-owned",
-    mac,
-    async () =>
-        nativeFixture((directory, session) => {
-            const file = session.createExclusive("cli.log");
-            try {
-                const info = fstatSync(file.fd);
-                assert.equal(info.isFile(), true);
-                assert.equal(info.mode & 0o777, 0o600);
-                assert.equal(info.uid, process.getuid!());
-                assert.equal(info.nlink, 1);
-                assert.throws(
-                    () => session.createExclusive("cli.log"),
-                    failure("DARWIN_PRIVATE_IO", "create.open"),
-                );
-                const child = spawnSync(
-                    process.execPath,
-                    [
-                        "-e",
-                        'const fs=require("node:fs");fs.writeSync(4,"public-cli-log");fs.fsyncSync(4);',
-                    ],
-                    {
-                        stdio: ["ignore", "pipe", "pipe", "ignore", file.fd],
-                        encoding: "utf8",
-                    },
-                );
-                assert.equal(child.status, 0, child.stderr);
-                assert.equal(file.read(1024 * 1024).toString(), "public-cli-log");
-                const identity = JSON.stringify({ dev: info.dev, ino: info.ino, fd: file.fd });
-                const unrelated = spawnSync(
-                    process.execPath,
-                    [
-                        "-e",
-                        'const fs=require("node:fs"),v=JSON.parse(process.argv[1]);try{const s=fs.fstatSync(v.fd);pr' +
-                            'ocess.exit(s.dev===v.dev&&s.ino===v.ino?1:0);}catch(e){if(e.code!=="EBADF")throw e;}',
-                        identity,
-                    ],
-                    { encoding: "utf8" },
-                );
-                assert.equal(unrelated.status, 0, unrelated.stderr);
-                assert.equal(readFileSync(join(directory, "cli.log"), "utf8"), "public-cli-log");
-            } finally {
-                file.close();
-            }
-        }),
+test("exclusive regular FD reaches only explicitly mapped CLI and remains parent-owned", mac, async () =>
+    nativeFixture((directory, session) => {
+        const file = session.createExclusive("cli.log");
+        try {
+            const info = fstatSync(file.fd);
+            assert.equal(info.isFile(), true);
+            assert.equal(info.mode & 0o777, 0o600);
+            assert.equal(info.uid, process.getuid!());
+            assert.equal(info.nlink, 1);
+            assert.throws(() => session.createExclusive("cli.log"), failure("DARWIN_PRIVATE_IO", "create.open"));
+            const child = spawnSync(
+                process.execPath,
+                ["-e", 'const fs=require("node:fs");fs.writeSync(4,"public-cli-log");fs.fsyncSync(4);'],
+                {
+                    stdio: ["ignore", "pipe", "pipe", "ignore", file.fd],
+                    encoding: "utf8",
+                },
+            );
+            assert.equal(child.status, 0, child.stderr);
+            assert.equal(file.read(1024 * 1024).toString(), "public-cli-log");
+            const identity = JSON.stringify({ dev: info.dev, ino: info.ino, fd: file.fd });
+            const unrelated = spawnSync(
+                process.execPath,
+                [
+                    "-e",
+                    'const fs=require("node:fs"),v=JSON.parse(process.argv[1]);try{const s=fs.fstatSync(v.fd);pr' +
+                        'ocess.exit(s.dev===v.dev&&s.ino===v.ino?1:0);}catch(e){if(e.code!=="EBADF")throw e;}',
+                    identity,
+                ],
+                { encoding: "utf8" },
+            );
+            assert.equal(unrelated.status, 0, unrelated.stderr);
+            assert.equal(readFileSync(join(directory, "cli.log"), "utf8"), "public-cli-log");
+        } finally {
+            file.close();
+        }
+    }),
 );
 
 /**
@@ -438,28 +381,22 @@ test(
  * 两个文件最终都在同一个唯一 fixture 内，改名不扩大清理范围。
  * File.close 无论中途哪个断言失败都会执行，避免泄漏借用的原数字。
  */
-test(
-    "a delivered file survives directory close and keeps its inode after name replacement",
-    mac,
-    async () =>
-        nativeFixture((directory, session) => {
-            const name = "x".repeat(255),
-                file = session.createExclusive(name);
-            try {
-                renameSync(join(directory, name), join(directory, "saved-original"));
-                writeFileSync(join(directory, name), "substitute", { mode: 0o600 });
-                session.close();
-                writeSync(file.fd, "retained");
-                assert.equal(file.read(64).toString(), "retained");
-                assert.equal(readFileSync(join(directory, name), "utf8"), "substitute");
-                assert.throws(
-                    () => session.read(name, 64),
-                    failure("DARWIN_PRIVATE_INVALID", "descriptor.closed"),
-                );
-            } finally {
-                file.close();
-            }
-        }),
+test("a delivered file survives directory close and keeps its inode after name replacement", mac, async () =>
+    nativeFixture((directory, session) => {
+        const name = "x".repeat(255),
+            file = session.createExclusive(name);
+        try {
+            renameSync(join(directory, name), join(directory, "saved-original"));
+            writeFileSync(join(directory, name), "substitute", { mode: 0o600 });
+            session.close();
+            writeSync(file.fd, "retained");
+            assert.equal(file.read(64).toString(), "retained");
+            assert.equal(readFileSync(join(directory, name), "utf8"), "substitute");
+            assert.throws(() => session.read(name, 64), failure("DARWIN_PRIVATE_INVALID", "descriptor.closed"));
+        } finally {
+            file.close();
+        }
+    }),
 );
 
 /**
@@ -474,27 +411,24 @@ test(
  * 新文件大小十字节只来自仍打开的替代描述符写入。
  * Node closeSync 仅关闭它自己创建的新拥有者，不借用原对象完成清理。
  */
-test(
-    "close revokes ownership before errors and repeated close preserves a reused descriptor",
-    mac,
-    async () =>
-        faultFixture((directory, session, native) => {
-            const file = session.createExclusive("first");
-            const original = file.fd;
-            native.setFault("close", "error", 1);
-            assert.throws(() => file.close(), failure("DARWIN_PRIVATE_IO", "close"));
-            assert.throws(() => file.fd, failure("DARWIN_PRIVATE_INVALID", "descriptor.closed"));
-            const replacement = openSync(join(directory, "reused"), "wx+", 0o600);
-            try {
-                assert.equal(replacement, original);
-                file.close();
-                writeSync(replacement, "still-open");
-                assert.equal(fstatSync(replacement).size, 10);
-            } finally {
-                closeSync(replacement);
-                file.close();
-            }
-        }),
+test("close revokes ownership before errors and repeated close preserves a reused descriptor", mac, async () =>
+    faultFixture((directory, session, native) => {
+        const file = session.createExclusive("first");
+        const original = file.fd;
+        native.setFault("close", "error", 1);
+        assert.throws(() => file.close(), failure("DARWIN_PRIVATE_IO", "close"));
+        assert.throws(() => file.fd, failure("DARWIN_PRIVATE_INVALID", "descriptor.closed"));
+        const replacement = openSync(join(directory, "reused"), "wx+", 0o600);
+        try {
+            assert.equal(replacement, original);
+            file.close();
+            writeSync(replacement, "still-open");
+            assert.equal(fstatSync(replacement).size, 10);
+        } finally {
+            closeSync(replacement);
+            file.close();
+        }
+    }),
 );
 
 /**
@@ -511,36 +445,33 @@ test(
  * 孤立 controlled-stop 名字明确不在 B 的历史白名单中。
  * 临时残缺 JSON 仍保留原字节，成功识别 interrupted 不代表解析或授权它。
  */
-test(
-    "formal Records preserves staging limits, strict parsing and unknown-history rejection",
-    mac,
-    async () =>
-        fixture(async (directory) => {
-            const id = "a".repeat(100),
-                staging = `${id}.json.${randomUUID()}`;
-            await writeFile(join(directory, staging), '{"state":', { mode: 0o600 });
-            await writeFile(join(directory, "normal.json"), '{"state":"ALLOCATED"}', {
+test("formal Records preserves staging limits, strict parsing and unknown-history rejection", mac, async () =>
+    fixture(async (directory) => {
+        const id = "a".repeat(100),
+            staging = `${id}.json.${randomUUID()}`;
+        await writeFile(join(directory, staging), '{"state":', { mode: 0o600 });
+        await writeFile(join(directory, "normal.json"), '{"state":"ALLOCATED"}', {
+            mode: 0o600,
+        });
+        const records = await ProcessRecords.open(directory);
+        assert.ok(records);
+        try {
+            await assert.rejects(records.names(2), /PROCESS_RECORD_NAME_INVALID/);
+            await assert.rejects(records.journalNames(1), /PROCESS_RECORD_LIMIT_OR_TYPE/);
+            const observed = await records.journalNames(2);
+            assert.deepEqual(observed.names, ["normal.json"]);
+            assert.deepEqual([...observed.interrupted], [id]);
+            await writeFile(join(directory, "bad.json"), Buffer.from([0xff]), { mode: 0o600 });
+            await assert.rejects(records.read("bad.json", 65536));
+            await writeFile(join(directory, "unknown.controlled-stop.json"), "{}", {
                 mode: 0o600,
             });
-            const records = await ProcessRecords.open(directory);
-            assert.ok(records);
-            try {
-                await assert.rejects(records.names(2), /PROCESS_RECORD_NAME_INVALID/);
-                await assert.rejects(records.journalNames(1), /PROCESS_RECORD_LIMIT_OR_TYPE/);
-                const observed = await records.journalNames(2);
-                assert.deepEqual(observed.names, ["normal.json"]);
-                assert.deepEqual([...observed.interrupted], [id]);
-                await writeFile(join(directory, "bad.json"), Buffer.from([0xff]), { mode: 0o600 });
-                await assert.rejects(records.read("bad.json", 65536));
-                await writeFile(join(directory, "unknown.controlled-stop.json"), "{}", {
-                    mode: 0o600,
-                });
-                await assert.rejects(records.names(8192), /PROCESS_RECORD_NAME_INVALID/);
-                assert.equal(await readFile(join(directory, staging), "utf8"), '{"state":');
-            } finally {
-                await records.close();
-            }
-        }),
+            await assert.rejects(records.names(8192), /PROCESS_RECORD_NAME_INVALID/);
+            assert.equal(await readFile(join(directory, staging), "utf8"), '{"state":');
+        } finally {
+            await records.close();
+        }
+    }),
 );
 
 /**
@@ -556,56 +487,36 @@ test(
  * 已写大成员再用65536已有额度替换时必须拒绝，不能顺手修复越界旧文件。
  * unknown 临时成员只影响 containsOnly，未放进保险库正式用途白名单。
  */
-test(
-    "formal Vault preserves layered limits and native replacement separates existing limit",
-    mac,
-    async () =>
-        nativeFixture(async (directory, session) => {
-            const files = await VaultFiles.acquire(directory);
-            try {
-                for (const [name, size] of [
-                    ["device.json", 65537],
-                    ["local-secrets.json", 1024 * 1024 + 1],
-                    ["profile.json", bytesLimit + 1],
-                ] as const) {
-                    await writeFile(join(directory, name), Buffer.alloc(size, 65), { mode: 0o600 });
-                    await assert.rejects(
-                        files.read(name),
-                        failure("DARWIN_PRIVATE_INVALID", "file.private"),
-                    );
-                    await rm(join(directory, name));
-                }
-                await assert.rejects(
-                    files.write("profile.json", "a".repeat(bytesLimit + 1)),
-                    /VAULT_ENVELOPE_LIMIT/,
-                );
-                assert.equal(await files.read("profile.json"), undefined);
-                await files.remove("profile.json");
-                await writeFile(join(directory, "device.json"), "small", { mode: 0o600 });
-                session.replace(
-                    "device.json",
-                    `.${randomUUID()}.tmp`,
-                    Buffer.alloc(bytesLimit, 66),
-                    512,
-                );
-                assert.equal(session.read("device.json", bytesLimit).length, bytesLimit);
-                assert.throws(
-                    () =>
-                        session.replace(
-                            "device.json",
-                            `.${randomUUID()}.tmp`,
-                            Buffer.from("new"),
-                            65536,
-                        ),
-                    failure("DARWIN_PRIVATE_INVALID", "file.private"),
-                );
-                await rm(join(directory, "device.json"));
-                await writeFile(join(directory, ".old.tmp"), "public", { mode: 0o600 });
-                assert.equal(await files.containsOnly(["profile.json"]), false);
-            } finally {
-                await files.close();
+test("formal Vault preserves layered limits and native replacement separates existing limit", mac, async () =>
+    nativeFixture(async (directory, session) => {
+        const files = await VaultFiles.acquire(directory);
+        try {
+            for (const [name, size] of [
+                ["device.json", 65537],
+                ["local-secrets.json", 1024 * 1024 + 1],
+                ["profile.json", bytesLimit + 1],
+            ] as const) {
+                await writeFile(join(directory, name), Buffer.alloc(size, 65), { mode: 0o600 });
+                await assert.rejects(files.read(name), failure("DARWIN_PRIVATE_INVALID", "file.private"));
+                await rm(join(directory, name));
             }
-        }),
+            await assert.rejects(files.write("profile.json", "a".repeat(bytesLimit + 1)), /VAULT_ENVELOPE_LIMIT/);
+            assert.equal(await files.read("profile.json"), undefined);
+            await files.remove("profile.json");
+            await writeFile(join(directory, "device.json"), "small", { mode: 0o600 });
+            session.replace("device.json", `.${randomUUID()}.tmp`, Buffer.alloc(bytesLimit, 66), 512);
+            assert.equal(session.read("device.json", bytesLimit).length, bytesLimit);
+            assert.throws(
+                () => session.replace("device.json", `.${randomUUID()}.tmp`, Buffer.from("new"), 65536),
+                failure("DARWIN_PRIVATE_INVALID", "file.private"),
+            );
+            await rm(join(directory, "device.json"));
+            await writeFile(join(directory, ".old.tmp"), "public", { mode: 0o600 });
+            assert.equal(await files.containsOnly(["profile.json"]), false);
+        } finally {
+            await files.close();
+        }
+    }),
 );
 
 /**
@@ -620,49 +531,41 @@ test(
  * 恢复后再次原生读取完整正文，证明特权 fixture 已回到可检查状态。
  * 没有创建账号、修改全局策略或为测试更改任何系统目录的拥有者。
  */
-test(
-    "read-only rejection preserves bytes and modes and rejects a real wrong-owner member",
-    mac,
-    async () =>
-        nativeFixture(async (directory, session) => {
-            const path = join(directory, "owned-wrong-uid.json");
-            await writeFile(path, "public-owner-fixture", { mode: 0o600 });
-            await chmod(path, 0o644);
-            const before = {
+test("read-only rejection preserves bytes and modes and rejects a real wrong-owner member", mac, async () =>
+    nativeFixture(async (directory, session) => {
+        const path = join(directory, "owned-wrong-uid.json");
+        await writeFile(path, "public-owner-fixture", { mode: 0o600 });
+        await chmod(path, 0o644);
+        const before = {
+            bytes: await readFile(path),
+            mode: (await stat(path)).mode,
+            names: await readdir(directory),
+        };
+        assert.throws(
+            () => session.read("owned-wrong-uid.json", 64),
+            failure("DARWIN_PRIVATE_INVALID", "file.private"),
+        );
+        assert.deepEqual(
+            {
                 bytes: await readFile(path),
                 mode: (await stat(path)).mode,
                 names: await readdir(directory),
-            };
+            },
+            before,
+        );
+        await chmod(path, 0o600);
+        assert.notEqual(process.getuid!(), 0);
+        execFileSync("sudo", ["-n", "chown", "0", path]);
+        try {
             assert.throws(
                 () => session.read("owned-wrong-uid.json", 64),
-                failure("DARWIN_PRIVATE_INVALID", "file.private"),
+                (error: unknown) => error instanceof Error && (error as NodeJS.ErrnoException).code !== "ENOENT",
             );
-            assert.deepEqual(
-                {
-                    bytes: await readFile(path),
-                    mode: (await stat(path)).mode,
-                    names: await readdir(directory),
-                },
-                before,
-            );
-            await chmod(path, 0o600);
-            assert.notEqual(process.getuid!(), 0);
-            execFileSync("sudo", ["-n", "chown", "0", path]);
-            try {
-                assert.throws(
-                    () => session.read("owned-wrong-uid.json", 64),
-                    (error: unknown) =>
-                        error instanceof Error &&
-                        (error as NodeJS.ErrnoException).code !== "ENOENT",
-                );
-            } finally {
-                execFileSync("sudo", ["-n", "chown", String(process.getuid!()), path]);
-            }
-            assert.equal(
-                session.read("owned-wrong-uid.json", 64).toString(),
-                "public-owner-fixture",
-            );
-        }),
+        } finally {
+            execFileSync("sudo", ["-n", "chown", String(process.getuid!()), path]);
+        }
+        assert.equal(session.read("owned-wrong-uid.json", 64).toString(), "public-owner-fixture");
+    }),
 );
 
 /**
@@ -750,10 +653,7 @@ for (const phase of ["create.file-sync", "create.directory-sync"]) {
         faultFixture((directory, session, native) => {
             writeFileSync(join(directory, "existing"), "old", { mode: 0o600 });
             native.setFault(phase, "error", 1);
-            assert.throws(
-                () => session.createExclusive("new-log"),
-                failure("DARWIN_PRIVATE_IO", phase),
-            );
+            assert.throws(() => session.createExclusive("new-log"), failure("DARWIN_PRIVATE_IO", phase));
             assert.deepEqual(session.entries(1).names, ["existing"]);
             assert.equal(session.read("existing", 64).toString(), "old");
         }),
@@ -773,36 +673,30 @@ for (const phase of ["create.file-sync", "create.directory-sync"]) {
  * 零读与零写在不同阶段拒绝，不能用同一泛化错误掩盖部分返回。
  * 最终名字集合只有 value，失败没有留下无主临时成员。
  */
-test(
-    "short I/O and bounded EINTR preserve complete bytes and reject zero progress",
-    mac,
-    async () =>
-        faultFixture((directory, session, native) => {
-            for (const action of ["short", "eintr"]) {
-                native.setFault("replace.write", action, 1);
-                session.replace("value", `.${randomUUID()}.tmp`, Buffer.from("complete"), 64);
-                native.setFault("read", action, 1);
-                assert.equal(session.read("value", 64).toString(), "complete");
-            }
-            native.setFault("replace.write", "eintr", 64);
-            assert.throws(
-                () => session.replace("value", `.${randomUUID()}.tmp`, Buffer.from("new"), 64),
-                failure("DARWIN_PRIVATE_IO", "replace.write"),
-            );
-            native.setFault("replace.write", "zero", 1);
-            assert.throws(
-                () => session.replace("value", `.${randomUUID()}.tmp`, Buffer.from("new"), 64),
-                failure("DARWIN_PRIVATE_INVALID", "replace.write-zero"),
-            );
-            native.setFault("read", "zero", 1);
-            assert.throws(
-                () => session.read("value", 64),
-                failure("DARWIN_PRIVATE_INVALID", "read.short"),
-            );
-            native.resetFaults();
-            assert.equal(readFileSync(join(directory, "value"), "utf8"), "complete");
-            assert.deepEqual(session.entries(1).names, ["value"]);
-        }),
+test("short I/O and bounded EINTR preserve complete bytes and reject zero progress", mac, async () =>
+    faultFixture((directory, session, native) => {
+        for (const action of ["short", "eintr"]) {
+            native.setFault("replace.write", action, 1);
+            session.replace("value", `.${randomUUID()}.tmp`, Buffer.from("complete"), 64);
+            native.setFault("read", action, 1);
+            assert.equal(session.read("value", 64).toString(), "complete");
+        }
+        native.setFault("replace.write", "eintr", 64);
+        assert.throws(
+            () => session.replace("value", `.${randomUUID()}.tmp`, Buffer.from("new"), 64),
+            failure("DARWIN_PRIVATE_IO", "replace.write"),
+        );
+        native.setFault("replace.write", "zero", 1);
+        assert.throws(
+            () => session.replace("value", `.${randomUUID()}.tmp`, Buffer.from("new"), 64),
+            failure("DARWIN_PRIVATE_INVALID", "replace.write-zero"),
+        );
+        native.setFault("read", "zero", 1);
+        assert.throws(() => session.read("value", 64), failure("DARWIN_PRIVATE_INVALID", "read.short"));
+        native.resetFaults();
+        assert.equal(readFileSync(join(directory, "value"), "utf8"), "complete");
+        assert.deepEqual(session.entries(1).names, ["value"]);
+    }),
 );
 
 /**
@@ -817,46 +711,39 @@ test(
  * 替换名字后只有 original 或明确 read.changed 合法，substitute 永远不合法。
  * 读完后追加覆盖尾字节检查，不能只核读取开始时的长度。
  */
-test(
-    "reads reject real growth, truncation and overwrite and retain the opened inode",
-    mac,
-    async () =>
-        faultFixture((directory, session, native) => {
-            const path = join(directory, "value");
-            for (const change of [
-                () => appendFileSync(path, "+"),
-                () => truncateSync(path, 1),
-                () => writeFileSync(path, "changed!"),
-            ]) {
-                writeFileSync(path, "original", { mode: 0o600 });
-                native.setHook("read.after-stat", change);
-                assert.throws(
-                    () => session.read("value", 64),
-                    (error: unknown) =>
-                        error instanceof Error &&
-                        (error as NodeJS.ErrnoException).code === "DARWIN_PRIVATE_INVALID",
-                );
-            }
-            writeFileSync(path, "original");
-            native.setHook("read.after-stat", () => {
-                renameSync(path, join(directory, "saved"));
-                writeFileSync(path, "substitute", { mode: 0o600 });
-            });
-            let result: string | undefined;
-            try {
-                result = session.read("value", 64).toString();
-            } catch (error) {
-                assert.equal(failure("DARWIN_PRIVATE_INVALID", "read.changed")(error), true);
-            }
-            if (result !== undefined) assert.equal(result, "original");
-            assert.equal(readFileSync(path, "utf8"), "substitute");
-            writeFileSync(path, "original");
-            native.setHook("read.after-bytes", () => appendFileSync(path, "+"));
+test("reads reject real growth, truncation and overwrite and retain the opened inode", mac, async () =>
+    faultFixture((directory, session, native) => {
+        const path = join(directory, "value");
+        for (const change of [
+            () => appendFileSync(path, "+"),
+            () => truncateSync(path, 1),
+            () => writeFileSync(path, "changed!"),
+        ]) {
+            writeFileSync(path, "original", { mode: 0o600 });
+            native.setHook("read.after-stat", change);
             assert.throws(
                 () => session.read("value", 64),
-                failure("DARWIN_PRIVATE_INVALID", "read.changed"),
+                (error: unknown) =>
+                    error instanceof Error && (error as NodeJS.ErrnoException).code === "DARWIN_PRIVATE_INVALID",
             );
-        }),
+        }
+        writeFileSync(path, "original");
+        native.setHook("read.after-stat", () => {
+            renameSync(path, join(directory, "saved"));
+            writeFileSync(path, "substitute", { mode: 0o600 });
+        });
+        let result: string | undefined;
+        try {
+            result = session.read("value", 64).toString();
+        } catch (error) {
+            assert.equal(failure("DARWIN_PRIVATE_INVALID", "read.changed")(error), true);
+        }
+        if (result !== undefined) assert.equal(result, "original");
+        assert.equal(readFileSync(path, "utf8"), "substitute");
+        writeFileSync(path, "original");
+        native.setHook("read.after-bytes", () => appendFileSync(path, "+"));
+        assert.throws(() => session.read("value", 64), failure("DARWIN_PRIVATE_INVALID", "read.changed"));
+    }),
 );
 
 /**
@@ -871,26 +758,23 @@ test(
  * temporary 真实路径中的 foreign 字节必须在清理后仍可读取。
  * 最终由 fixture 清理两份公开对象，正式失败清理没有越权移除任何一份。
  */
-test(
-    "failed replacement cleanup never deletes a foreign temporary-name replacement",
-    mac,
-    async () =>
-        faultFixture((directory, session, native) => {
-            const temporary = `.${randomUUID()}.tmp`;
-            writeFileSync(join(directory, "value"), "old", { mode: 0o600 });
-            native.setHook("replace.file-sync", () => {
-                renameSync(join(directory, temporary), join(directory, "owned-saved"));
-                writeFileSync(join(directory, temporary), "foreign", { mode: 0o600 });
-            });
-            native.setFault("replace.file-sync", "error", 1);
-            assert.throws(
-                () => session.replace("value", temporary, Buffer.from("new"), 64),
-                failure("DARWIN_PRIVATE_IO", "replace.file-sync"),
-            );
-            assert.equal(readFileSync(join(directory, temporary), "utf8"), "foreign");
-            assert.equal(readFileSync(join(directory, "value"), "utf8"), "old");
-            assert.equal(readFileSync(join(directory, "owned-saved"), "utf8"), "new");
-        }),
+test("failed replacement cleanup never deletes a foreign temporary-name replacement", mac, async () =>
+    faultFixture((directory, session, native) => {
+        const temporary = `.${randomUUID()}.tmp`;
+        writeFileSync(join(directory, "value"), "old", { mode: 0o600 });
+        native.setHook("replace.file-sync", () => {
+            renameSync(join(directory, temporary), join(directory, "owned-saved"));
+            writeFileSync(join(directory, temporary), "foreign", { mode: 0o600 });
+        });
+        native.setFault("replace.file-sync", "error", 1);
+        assert.throws(
+            () => session.replace("value", temporary, Buffer.from("new"), 64),
+            failure("DARWIN_PRIVATE_IO", "replace.file-sync"),
+        );
+        assert.equal(readFileSync(join(directory, temporary), "utf8"), "foreign");
+        assert.equal(readFileSync(join(directory, "value"), "utf8"), "old");
+        assert.equal(readFileSync(join(directory, "owned-saved"), "utf8"), "new");
+    }),
 );
 
 /**
@@ -924,10 +808,7 @@ function aclSnapshot(path: string): string {
  * 清理仅在断言全部结束后 finally 执行，不是正式消费路径的一部分。
  * 测试目录的祖先没有被修改，用户 home 和系统 tmp ACL 保持。
  */
-for (const entry of [
-    "everyone allow search",
-    "everyone allow read,file_inherit,directory_inherit,only_inherit",
-]) {
+for (const entry of ["everyone allow search", "everyone allow read,file_inherit,directory_inherit,only_inherit"]) {
     test(`private directory rejects extended grants unchanged: ${entry}`, mac, async () =>
         fixture(async (directory) => {
             acl(directory, entry);
@@ -938,10 +819,7 @@ for (const entry of [
                     () => darwinNative().openPrivateDirectory(directory, false),
                     failure("DARWIN_PRIVATE_INVALID", "acl.allow"),
                 );
-                await assert.rejects(
-                    ProcessRecords.open(directory),
-                    failure("DARWIN_PRIVATE_INVALID", "acl.allow"),
-                );
+                await assert.rejects(ProcessRecords.open(directory), failure("DARWIN_PRIVATE_INVALID", "acl.allow"));
                 assert.equal(aclSnapshot(directory), before);
             } finally {
                 acl(directory);
@@ -958,50 +836,44 @@ for (const entry of [
  * directory 会话在添加成员 ACL 之前已打开，成员读取仍必须每次独立核验。
  * 最终清理先移除当前测试文件的 ACL，避免 deny 或继承状态污染外层 rm。
  */
-test(
-    "private member grants including owner ALLOW fail unchanged through native and Vault",
-    mac,
-    async () =>
-        nativeFixture(async (directory, session) => {
-            const path = join(directory, "profile.json"),
-                owner = execFileSync("id", ["-un"], { encoding: "utf8" }).trim();
-            await writeFile(path, "public-acl", { mode: 0o600 });
-            const files = await VaultFiles.acquire(directory);
-            try {
-                for (const entry of ["everyone allow read", `user:${owner} allow read`]) {
-                    acl(path, entry);
-                    try {
-                        assert.equal((await stat(path)).mode & 0o777, 0o600);
-                        const before = {
+test("private member grants including owner ALLOW fail unchanged through native and Vault", mac, async () =>
+    nativeFixture(async (directory, session) => {
+        const path = join(directory, "profile.json"),
+            owner = execFileSync("id", ["-un"], { encoding: "utf8" }).trim();
+        await writeFile(path, "public-acl", { mode: 0o600 });
+        const files = await VaultFiles.acquire(directory);
+        try {
+            for (const entry of ["everyone allow read", `user:${owner} allow read`]) {
+                acl(path, entry);
+                try {
+                    assert.equal((await stat(path)).mode & 0o777, 0o600);
+                    const before = {
+                        bytes: await readFile(path),
+                        mode: (await stat(path)).mode,
+                        acl: aclSnapshot(path),
+                    };
+                    assert.throws(
+                        () => session.read("profile.json", 64),
+                        failure("DARWIN_PRIVATE_INVALID", "acl.allow"),
+                    );
+                    await assert.rejects(files.read("profile.json"), failure("DARWIN_PRIVATE_INVALID", "acl.allow"));
+                    assert.deepEqual(
+                        {
                             bytes: await readFile(path),
                             mode: (await stat(path)).mode,
                             acl: aclSnapshot(path),
-                        };
-                        assert.throws(
-                            () => session.read("profile.json", 64),
-                            failure("DARWIN_PRIVATE_INVALID", "acl.allow"),
-                        );
-                        await assert.rejects(
-                            files.read("profile.json"),
-                            failure("DARWIN_PRIVATE_INVALID", "acl.allow"),
-                        );
-                        assert.deepEqual(
-                            {
-                                bytes: await readFile(path),
-                                mode: (await stat(path)).mode,
-                                acl: aclSnapshot(path),
-                            },
-                            before,
-                        );
-                    } finally {
-                        acl(path);
-                    }
+                        },
+                        before,
+                    );
+                } finally {
+                    acl(path);
                 }
-            } finally {
-                await files.close();
-                acl(path);
             }
-        }),
+        } finally {
+            await files.close();
+            acl(path);
+        }
+    }),
 );
 
 /**
@@ -1061,13 +933,7 @@ test("newly inherited ALLOW on a temporary file fails before any secret write", 
                 }),
             );
             assert.throws(
-                () =>
-                    session.replace(
-                        "value",
-                        `.${randomUUID()}.tmp`,
-                        Buffer.from("public-new-secret"),
-                        64,
-                    ),
+                () => session.replace("value", `.${randomUUID()}.tmp`, Buffer.from("public-new-secret"), 64),
                 failure("DARWIN_PRIVATE_INVALID", "acl.allow"),
             );
             assert.equal(observed, true);
@@ -1125,22 +991,15 @@ for (const [action, accepted] of [
     ["acl-denied", false],
     ["acl-unknown", false],
 ] as const) {
-    test(
-        `ACL property representation stays separate from file existence: ${action}`,
-        mac,
-        async () =>
-            faultFixture((directory, session, native) => {
-                writeFileSync(join(directory, "value"), "public", { mode: 0o600 });
-                native.setFault("acl.get", action, 1);
-                if (accepted) assert.equal(session.read("value", 64).toString(), "public");
-                else
-                    assert.throws(
-                        () => session.read("value", 64),
-                        failure("DARWIN_PRIVATE_ACL", "acl.get"),
-                    );
-                native.resetFaults();
-                assert.equal(session.read("value", 64).toString(), "public");
-            }),
+    test(`ACL property representation stays separate from file existence: ${action}`, mac, async () =>
+        faultFixture((directory, session, native) => {
+            writeFileSync(join(directory, "value"), "public", { mode: 0o600 });
+            native.setFault("acl.get", action, 1);
+            if (accepted) assert.equal(session.read("value", 64).toString(), "public");
+            else assert.throws(() => session.read("value", 64), failure("DARWIN_PRIVATE_ACL", "acl.get"));
+            native.resetFaults();
+            assert.equal(session.read("value", 64).toString(), "public");
+        }),
     );
 }
 
@@ -1161,52 +1020,41 @@ for (const [action, accepted] of [
  * 本地 Linux 的显式 skip 不作为上述任一加载顺序通过的证据。
  */
 for (const order of ["prod-first", "fault-first"]) {
-    test(
-        `production and fault module activation stays isolated in a fresh process: ${order}`,
-        mac,
-        () => {
-            const script = [
-                'import assert from "node:assert/strict";import {createRequire} from "node:module";import {mkdtempSy' +
-                    'nc,realpathSync,rmSync} from "node:fs";import {join} from "node:path";import {tmpdir} from "nod' +
-                    'e:os";import {randomUUID} from "node:crypto";',
-                "const require=createRequire(import.meta.url),[order,production,faultPath]=process.argv.slice(1),loa" +
-                    "ded={};",
-                'for(const key of order==="prod-first"?["prod","fault"]:["fault","prod"])loaded[key]=require(key==="' +
-                    'prod"?production:faultPath);',
-                'const directory=mkdtempSync(join(realpathSync(tmpdir()),"veriq-module-isolation-")),prod=loaded.pro' +
-                    "d.openPrivateDirectory(directory,false),fault=loaded.fault.openPrivateDirectory(directory,false" +
-                    ");",
-                "try{",
-                '    loaded.fault.setFault("replace.write","error",1);prod.replace("production",`.${randomUUID()}.tm' +
-                    'p`,Buffer.from("public"),64);assert.equal(prod.read("production",64).toString(),"public");',
-                '    assert.throws(()=>fault.replace("fault",`.${randomUUID()}.tmp`,Buffer.from("public"),64),error=' +
-                    '>error.code==="DARWIN_PRIVATE_IO"&&error.phase==="replace.write");assert.deepEqual(Object.keys(' +
-                    'loaded.prod),["openPrivateDirectory","privateCookieFile"]);',
-                "}finally{loaded.fault.resetFaults();fault.close();prod.close();rmSync(directory,{recursive:true,for" +
-                    "ce:true});}",
-            ].join("\n");
-            const child = spawnSync(
-                process.execPath,
-                [
-                    "--input-type=module",
-                    "-e",
-                    script,
-                    order,
-                    fileURLToPath(
-                        new URL("../../build/darwin/veriq_private_files.node", import.meta.url),
-                    ),
-                    fileURLToPath(
-                        new URL(
-                            "../../build/native-tests/veriq_private_files_fault.node",
-                            import.meta.url,
-                        ),
-                    ),
-                ],
-                { encoding: "utf8" },
-            );
-            assert.equal(child.status, 0, child.stderr);
-        },
-    );
+    test(`production and fault module activation stays isolated in a fresh process: ${order}`, mac, () => {
+        const script = [
+            'import assert from "node:assert/strict";import {createRequire} from "node:module";import {mkdtempSy' +
+                'nc,realpathSync,rmSync} from "node:fs";import {join} from "node:path";import {tmpdir} from "nod' +
+                'e:os";import {randomUUID} from "node:crypto";',
+            "const require=createRequire(import.meta.url),[order,production,faultPath]=process.argv.slice(1),loa" +
+                "ded={};",
+            'for(const key of order==="prod-first"?["prod","fault"]:["fault","prod"])loaded[key]=require(key==="' +
+                'prod"?production:faultPath);',
+            'const directory=mkdtempSync(join(realpathSync(tmpdir()),"veriq-module-isolation-")),prod=loaded.pro' +
+                "d.openPrivateDirectory(directory,false),fault=loaded.fault.openPrivateDirectory(directory,false" +
+                ");",
+            "try{",
+            '    loaded.fault.setFault("replace.write","error",1);prod.replace("production",`.${randomUUID()}.tm' +
+                'p`,Buffer.from("public"),64);assert.equal(prod.read("production",64).toString(),"public");',
+            '    assert.throws(()=>fault.replace("fault",`.${randomUUID()}.tmp`,Buffer.from("public"),64),error=' +
+                '>error.code==="DARWIN_PRIVATE_IO"&&error.phase==="replace.write");assert.deepEqual(Object.keys(' +
+                'loaded.prod),["openPrivateDirectory","privateCookieFile"]);',
+            "}finally{loaded.fault.resetFaults();fault.close();prod.close();rmSync(directory,{recursive:true,for" +
+                "ce:true});}",
+        ].join("\n");
+        const child = spawnSync(
+            process.execPath,
+            [
+                "--input-type=module",
+                "-e",
+                script,
+                order,
+                fileURLToPath(new URL("../../build/darwin/veriq_private_files.node", import.meta.url)),
+                fileURLToPath(new URL("../../build/native-tests/veriq_private_files_fault.node", import.meta.url)),
+            ],
+            { encoding: "utf8" },
+        );
+        assert.equal(child.status, 0, child.stderr);
+    });
 }
 
 /**
@@ -1232,8 +1080,7 @@ function assertCapturedClosed(value: CapturedDescriptor | undefined): void {
     assert.ok(value, "Native descriptor must be captured before token handoff");
     assert.throws(
         () => fstatSync(value.fd),
-        (error: unknown) =>
-            error instanceof Error && (error as NodeJS.ErrnoException).code === "EBADF",
+        (error: unknown) => error instanceof Error && (error as NodeJS.ErrnoException).code === "EBADF",
     );
 }
 
@@ -1250,8 +1097,7 @@ function cleanupCaptured(value: CapturedDescriptor | undefined): void {
         const info = fstatSync(value.fd);
         if (info.dev === value.dev && info.ino === value.ino) closeSync(value.fd);
     } catch (error) {
-        if (!(error instanceof Error) || (error as NodeJS.ErrnoException).code !== "EBADF")
-            throw error;
+        if (!(error instanceof Error) || (error as NodeJS.ErrnoException).code !== "EBADF") throw error;
     }
 }
 
@@ -1262,11 +1108,7 @@ function cleanupCaptured(value: CapturedDescriptor | undefined): void {
  * 己打开的数字，包含提前失败或意外异常。交付对象在复用检查期间仍强引用存活，不能靠 GC
  * 恰好没有运行来掩盖主动重复关闭。File 与 Directory 两条构造路径都执行同一单拥有者生命周期断言。
  */
-function assertOneOwnerAfterClose(
-    directory: string,
-    captured: CapturedDescriptor,
-    close: () => void,
-): void {
+function assertOneOwnerAfterClose(directory: string, captured: CapturedDescriptor, close: () => void): void {
     const replacements: CapturedDescriptor[] = [];
     try {
         for (let index = 0; index < 32; index++) {
@@ -1304,40 +1146,37 @@ function assertOneOwnerAfterClose(
  * 正常样本使用另一个成员名，避免 O_EXCL 重名掩盖修正后的交付行为。
  * finally 的匹配关闭只在所有关闭断言之后执行，不能改变被记录的失败结论。
  */
-test(
-    "File token prehandoff failure closes its real descriptor and keeps one normal owner",
-    mac,
-    async () =>
-        faultFixture((directory, session, native) => {
-            let captured: CapturedDescriptor | undefined;
-            native.setHook("acl.get", (fd) => {
-                const info = fstatSync(fd);
-                captured = { fd, dev: info.dev, ino: info.ino };
-            });
-            native.setFault("token.file-before-external", "error", 1);
+test("File token prehandoff failure closes its real descriptor and keeps one normal owner", mac, async () =>
+    faultFixture((directory, session, native) => {
+        let captured: CapturedDescriptor | undefined;
+        native.setHook("acl.get", (fd) => {
+            const info = fstatSync(fd);
+            captured = { fd, dev: info.dev, ino: info.ino };
+        });
+        native.setFault("token.file-before-external", "error", 1);
+        try {
+            assert.throws(
+                () => session.createExclusive("token-failure"),
+                failure("DARWIN_PRIVATE_IO", "token.file-before-external"),
+            );
+            assertCapturedClosed(captured);
+            native.resetFaults();
+            const normal = session.createExclusive("normal-owner");
+            const info = fstatSync(normal.fd),
+                owned = { fd: normal.fd, dev: info.dev, ino: info.ino };
             try {
-                assert.throws(
-                    () => session.createExclusive("token-failure"),
-                    failure("DARWIN_PRIVATE_IO", "token.file-before-external"),
-                );
-                assertCapturedClosed(captured);
-                native.resetFaults();
-                const normal = session.createExclusive("normal-owner");
-                const info = fstatSync(normal.fd),
-                    owned = { fd: normal.fd, dev: info.dev, ino: info.ino };
-                try {
-                    assert.equal(info.isFile(), true);
-                    normal.close();
-                    assertCapturedClosed(owned);
-                    assertOneOwnerAfterClose(directory, owned, () => normal.close());
-                } finally {
-                    normal.close();
-                }
+                assert.equal(info.isFile(), true);
+                normal.close();
+                assertCapturedClosed(owned);
+                assertOneOwnerAfterClose(directory, owned, () => normal.close());
             } finally {
-                native.resetFaults();
-                cleanupCaptured(captured);
+                normal.close();
             }
-        }),
+        } finally {
+            native.resetFaults();
+            cleanupCaptured(captured);
+        }
+    }),
 );
 
 /**
@@ -1353,47 +1192,44 @@ test(
  * 捕获是存在目录的实际 inode 身份，真实 ENOENT 不可能满足这个准备条件。
  * 正式导出和上一轮加载隔离断言全部保持，两个新增样本只扩充交接失败覆盖。
  */
-test(
-    "Directory token prehandoff failure closes its real descriptor and keeps one normal owner",
-    mac,
-    async () =>
-        fixture(async (directory) => {
-            const native = createRequire(import.meta.url)(
-                "../../build/native-tests/veriq_private_files_fault.node",
-            ) as FaultNative;
-            let captured: CapturedDescriptor | undefined;
+test("Directory token prehandoff failure closes its real descriptor and keeps one normal owner", mac, async () =>
+    fixture(async (directory) => {
+        const native = createRequire(import.meta.url)(
+            "../../build/native-tests/veriq_private_files_fault.node",
+        ) as FaultNative;
+        let captured: CapturedDescriptor | undefined;
+        native.setHook("acl.get", (fd) => {
+            const info = fstatSync(fd);
+            captured = { fd, dev: info.dev, ino: info.ino };
+        });
+        native.setFault("token.directory-before-external", "error", 1);
+        try {
+            assert.throws(
+                () => native.openPrivateDirectory(directory, false),
+                failure("DARWIN_PRIVATE_IO", "token.directory-before-external"),
+            );
+            assertCapturedClosed(captured);
+            native.resetFaults();
+            let owned: CapturedDescriptor | undefined;
             native.setHook("acl.get", (fd) => {
                 const info = fstatSync(fd);
-                captured = { fd, dev: info.dev, ino: info.ino };
+                owned = { fd, dev: info.dev, ino: info.ino };
             });
-            native.setFault("token.directory-before-external", "error", 1);
+            const normal = native.openPrivateDirectory(directory, false);
             try {
-                assert.throws(
-                    () => native.openPrivateDirectory(directory, false),
-                    failure("DARWIN_PRIVATE_IO", "token.directory-before-external"),
-                );
-                assertCapturedClosed(captured);
-                native.resetFaults();
-                let owned: CapturedDescriptor | undefined;
-                native.setHook("acl.get", (fd) => {
-                    const info = fstatSync(fd);
-                    owned = { fd, dev: info.dev, ino: info.ino };
-                });
-                const normal = native.openPrivateDirectory(directory, false);
-                try {
-                    assert.ok(owned);
-                    assert.equal(fstatSync(owned.fd).isDirectory(), true);
-                    normal.close();
-                    assertCapturedClosed(owned);
-                    assertOneOwnerAfterClose(directory, owned, () => normal.close());
-                } finally {
-                    normal.close();
-                }
+                assert.ok(owned);
+                assert.equal(fstatSync(owned.fd).isDirectory(), true);
+                normal.close();
+                assertCapturedClosed(owned);
+                assertOneOwnerAfterClose(directory, owned, () => normal.close());
             } finally {
-                native.resetFaults();
-                cleanupCaptured(captured);
+                normal.close();
             }
-        }),
+        } finally {
+            native.resetFaults();
+            cleanupCaptured(captured);
+        }
+    }),
 );
 
 /**
@@ -1454,29 +1290,26 @@ async function cookieFixture(
  */
 for (const network of [false, true]) {
     for (const name of ["Cookies", "Cookies-wal", "Cookies-shm", "Cookies-journal"]) {
-        test(
-            `cookie metadata and retirement stay finite: ${network ? "Network/" : ""}${name}`,
-            mac,
-            async () =>
-                cookieFixture(network, async (_root, directory, native) => {
-                    const path = join(directory, name),
-                        unrelated = join(directory, "unrelated");
-                    await writeFile(path, "public-cookie-fixture", { mode: 0o600 });
-                    await writeFile(unrelated, "public-unrelated", { mode: 0o600 });
-                    const before = await stat(path);
-                    assert.equal(native.privateCookieFile(path, false), true);
-                    assert.equal(readFileSync(path, "utf8"), "public-cookie-fixture");
-                    const after = await stat(path);
-                    assert.equal(after.ino, before.ino);
-                    assert.equal(after.mode, before.mode);
-                    assert.equal(after.mtimeMs, before.mtimeMs);
-                    assert.equal(after.ctimeMs, before.ctimeMs);
-                    assert.equal(native.privateCookieFile(path, true), true);
-                    await assert.rejects(stat(path), failure("ENOENT"));
-                    assert.equal(native.privateCookieFile(path, false), false);
-                    assert.equal(native.privateCookieFile(path, true), false);
-                    assert.equal(readFileSync(unrelated, "utf8"), "public-unrelated");
-                }),
+        test(`cookie metadata and retirement stay finite: ${network ? "Network/" : ""}${name}`, mac, async () =>
+            cookieFixture(network, async (_root, directory, native) => {
+                const path = join(directory, name),
+                    unrelated = join(directory, "unrelated");
+                await writeFile(path, "public-cookie-fixture", { mode: 0o600 });
+                await writeFile(unrelated, "public-unrelated", { mode: 0o600 });
+                const before = await stat(path);
+                assert.equal(native.privateCookieFile(path, false), true);
+                assert.equal(readFileSync(path, "utf8"), "public-cookie-fixture");
+                const after = await stat(path);
+                assert.equal(after.ino, before.ino);
+                assert.equal(after.mode, before.mode);
+                assert.equal(after.mtimeMs, before.mtimeMs);
+                assert.equal(after.ctimeMs, before.ctimeMs);
+                assert.equal(native.privateCookieFile(path, true), true);
+                await assert.rejects(stat(path), failure("ENOENT"));
+                assert.equal(native.privateCookieFile(path, false), false);
+                assert.equal(native.privateCookieFile(path, true), false);
+                assert.equal(readFileSync(unrelated, "utf8"), "public-unrelated");
+            }),
         );
     }
 }
@@ -1487,48 +1320,45 @@ for (const network of [false, true]) {
  * truncate 创建公开空洞，不下载或分配六十四兆正文，也不读取 Cookie 内容。
  * 零长度、两兆加一和六十四兆整分别检验有效边界，六十四兆加一必须关闭失败。
  */
-test(
-    "cookie metadata has a separate 64 MiB ceiling without enlarging general file operations",
-    mac,
-    async () =>
-        cookieFixture(true, async (_root, directory, native) => {
-            const path = join(directory, "Cookies"),
-                session = native.openPrivateDirectory(directory, false);
-            try {
-                for (const size of [0, bytesLimit + 1, 64 * 1024 * 1024]) {
-                    writeFileSync(path, "", { mode: 0o600 });
-                    truncateSync(path, size);
-                    assert.equal(native.privateCookieFile(path, false), true);
-                    if (size > bytesLimit) {
-                        assert.throws(
-                            () => session.read("Cookies", bytesLimit),
-                            failure("DARWIN_PRIVATE_INVALID", "file.private"),
-                        );
-                        assert.throws(
-                            () => session.remove("Cookies", bytesLimit),
-                            failure("DARWIN_PRIVATE_INVALID", "file.private"),
-                        );
-                        assert.throws(
-                            () => session.remove("Cookies", size),
-                            failure("DARWIN_PRIVATE_INVALID", "argument.limit"),
-                        );
-                    }
-                    assert.equal(native.privateCookieFile(path, true), true);
-                }
+test("cookie metadata has a separate 64 MiB ceiling without enlarging general file operations", mac, async () =>
+    cookieFixture(true, async (_root, directory, native) => {
+        const path = join(directory, "Cookies"),
+            session = native.openPrivateDirectory(directory, false);
+        try {
+            for (const size of [0, bytesLimit + 1, 64 * 1024 * 1024]) {
                 writeFileSync(path, "", { mode: 0o600 });
-                truncateSync(path, 64 * 1024 * 1024 + 1);
-                const before = await stat(path);
-                for (const retire of [false, true])
+                truncateSync(path, size);
+                assert.equal(native.privateCookieFile(path, false), true);
+                if (size > bytesLimit) {
                     assert.throws(
-                        () => native.privateCookieFile(path, retire),
+                        () => session.read("Cookies", bytesLimit),
                         failure("DARWIN_PRIVATE_INVALID", "file.private"),
                     );
-                assert.equal((await stat(path)).ino, before.ino);
-                assert.equal((await stat(path)).size, before.size);
-            } finally {
-                session.close();
+                    assert.throws(
+                        () => session.remove("Cookies", bytesLimit),
+                        failure("DARWIN_PRIVATE_INVALID", "file.private"),
+                    );
+                    assert.throws(
+                        () => session.remove("Cookies", size),
+                        failure("DARWIN_PRIVATE_INVALID", "argument.limit"),
+                    );
+                }
+                assert.equal(native.privateCookieFile(path, true), true);
             }
-        }),
+            writeFileSync(path, "", { mode: 0o600 });
+            truncateSync(path, 64 * 1024 * 1024 + 1);
+            const before = await stat(path);
+            for (const retire of [false, true])
+                assert.throws(
+                    () => native.privateCookieFile(path, retire),
+                    failure("DARWIN_PRIVATE_INVALID", "file.private"),
+                );
+            assert.equal((await stat(path)).ino, before.ino);
+            assert.equal((await stat(path)).size, before.size);
+        } finally {
+            session.close();
+        }
+    }),
 );
 
 /**
@@ -1537,40 +1367,33 @@ test(
  * 所有反例使用当前唯一临时根，双斜杠和点段保持原始文本，不让 join 预先规范化。
  * 不能把任意私有目录下同名 Cookies、未知成员或大小写近似名字升级为专用能力。
  */
-test(
-    "cookie paths validate the complete raw finite namespace before treating absence as idempotent",
-    mac,
-    async () =>
-        fixture(async (root) => {
-            const native = darwinNative(),
-                allowed = `${root}/Partitions/veriq-host/Network/Cookies`;
+test("cookie paths validate the complete raw finite namespace before treating absence as idempotent", mac, async () =>
+    fixture(async (root) => {
+        const native = darwinNative(),
+            allowed = `${root}/Partitions/veriq-host/Network/Cookies`;
+        for (const retire of [false, true]) assert.equal(native.privateCookieFile(allowed, retire), false);
+        const invalid = [
+            "",
+            "Cookies",
+            `${root}/Cookies`,
+            `${root}/Other/veriq-host/Cookies`,
+            `${root}/Partitions/other/Cookies`,
+            `${root}/Partitions/veriq-host/cookies`,
+            `${root}/Partitions/veriq-host/Cookies-extra`,
+            `${allowed}/`,
+            `${allowed}\0suffix`,
+            `${root}/missing/../Partitions/veriq-host/Cookies`,
+            `${root}/./Partitions/veriq-host/Cookies`,
+            `${root}//Partitions/veriq-host/Cookies`,
+            `${root}/Partitions/veriq-host/network/Cookies`,
+            `${root}/Partitions/veriq-host/Network/Other/Cookies`,
+            `${root}/${"x".repeat(256)}/Partitions/veriq-host/Cookies`,
+            `${root}/${"x/".repeat(2048)}Partitions/veriq-host/Cookies`,
+        ];
+        for (const path of invalid)
             for (const retire of [false, true])
-                assert.equal(native.privateCookieFile(allowed, retire), false);
-            const invalid = [
-                "",
-                "Cookies",
-                `${root}/Cookies`,
-                `${root}/Other/veriq-host/Cookies`,
-                `${root}/Partitions/other/Cookies`,
-                `${root}/Partitions/veriq-host/cookies`,
-                `${root}/Partitions/veriq-host/Cookies-extra`,
-                `${allowed}/`,
-                `${allowed}\0suffix`,
-                `${root}/missing/../Partitions/veriq-host/Cookies`,
-                `${root}/./Partitions/veriq-host/Cookies`,
-                `${root}//Partitions/veriq-host/Cookies`,
-                `${root}/Partitions/veriq-host/network/Cookies`,
-                `${root}/Partitions/veriq-host/Network/Other/Cookies`,
-                `${root}/${"x".repeat(256)}/Partitions/veriq-host/Cookies`,
-                `${root}/${"x/".repeat(2048)}Partitions/veriq-host/Cookies`,
-            ];
-            for (const path of invalid)
-                for (const retire of [false, true])
-                    assert.throws(
-                        () => native.privateCookieFile(path, retire),
-                        failure("DARWIN_PRIVATE_INVALID"),
-                    );
-        }),
+                assert.throws(() => native.privateCookieFile(path, retire), failure("DARWIN_PRIVATE_INVALID"));
+    }),
 );
 
 /**
@@ -1579,32 +1402,29 @@ test(
  * 这里绕过 TypeScript 仅为了调用真实 Node-API 的运行时边界，产品类型本身仍保持严格签名。
  * 每次拒绝后都核对真实合成成员尚存，不能只接受任意异常而忽略副作用。
  */
-test(
-    "cookie arguments reject coercion, missing flags, NUL and invalid Unicode without changing files",
-    mac,
-    async () =>
-        cookieFixture(false, async (_root, directory, native) => {
-            const path = join(directory, "Cookies"),
-                call = native.privateCookieFile as (...args: unknown[]) => unknown;
-            await writeFile(path, "public-arguments", { mode: 0o600 });
-            for (const args of [
-                [],
-                [path],
-                [path, false, false],
-                [path, 0],
-                [path, "true"],
-                [path, undefined],
-                [path, null],
-                [path, {}],
-                [null, false],
-                [23, false],
-                [{}, true],
-                ["\ud800", false],
-            ]) {
-                assert.throws(() => call(...args), failure("DARWIN_PRIVATE_INVALID"));
-                assert.equal(readFileSync(path, "utf8"), "public-arguments");
-            }
-        }),
+test("cookie arguments reject coercion, missing flags, NUL and invalid Unicode without changing files", mac, async () =>
+    cookieFixture(false, async (_root, directory, native) => {
+        const path = join(directory, "Cookies"),
+            call = native.privateCookieFile as (...args: unknown[]) => unknown;
+        await writeFile(path, "public-arguments", { mode: 0o600 });
+        for (const args of [
+            [],
+            [path],
+            [path, false, false],
+            [path, 0],
+            [path, "true"],
+            [path, undefined],
+            [path, null],
+            [path, {}],
+            [null, false],
+            [23, false],
+            [{}, true],
+            ["\ud800", false],
+        ]) {
+            assert.throws(() => call(...args), failure("DARWIN_PRIVATE_INVALID"));
+            assert.equal(readFileSync(path, "utf8"), "public-arguments");
+        }
+    }),
 );
 
 /**
@@ -1614,66 +1434,58 @@ test(
  * 之前失败。
  * 所有异常对象按项清理，源普通文件的公开字节独立核验，没有权限修复或账户变更。
  */
-test(
-    "cookie metadata rejects real unsafe file types, links and wide modes without retiring them",
-    mac,
-    async () =>
-        cookieFixture(false, async (root, directory, native) => {
-            const path = join(directory, "Cookies"),
-                source = join(root, "source");
-            await writeFile(source, "public-source", { mode: 0o600 });
-            const reject = () => {
-                for (const retire of [false, true])
-                    assert.throws(
-                        () => native.privateCookieFile(path, retire),
-                        (error: unknown) =>
-                            error instanceof Error &&
-                            [
-                                "DARWIN_PRIVATE_INVALID",
-                                "DARWIN_PRIVATE_IO",
-                                "DARWIN_PRIVATE_ACL",
-                            ].includes((error as NodeJS.ErrnoException).code ?? ""),
-                    );
-            };
-            await symlink(source, path);
-            reject();
-            await rm(path);
-            await link(source, path);
-            reject();
-            await rm(path);
-            await mkdir(path, { mode: 0o700 });
-            reject();
-            await rm(path, { recursive: true });
-            execFileSync("mkfifo", ["-m", "600", path]);
-            reject();
-            await rm(path);
-            const socketRoot = await mkdtemp(join(await realpath("/tmp"), "veriq-cookie-socket-"));
-            const socketPath = join(socketRoot, "s"),
-                server = createServer();
-            try {
-                assert.ok(
-                    Buffer.byteLength(socketPath) < 104,
-                    "Socket fixture bind path must fit sockaddr_un",
+test("cookie metadata rejects real unsafe file types, links and wide modes without retiring them", mac, async () =>
+    cookieFixture(false, async (root, directory, native) => {
+        const path = join(directory, "Cookies"),
+            source = join(root, "source");
+        await writeFile(source, "public-source", { mode: 0o600 });
+        const reject = () => {
+            for (const retire of [false, true])
+                assert.throws(
+                    () => native.privateCookieFile(path, retire),
+                    (error: unknown) =>
+                        error instanceof Error &&
+                        ["DARWIN_PRIVATE_INVALID", "DARWIN_PRIVATE_IO", "DARWIN_PRIVATE_ACL"].includes(
+                            (error as NodeJS.ErrnoException).code ?? "",
+                        ),
                 );
-                await new Promise<void>((resolve, reject) => {
-                    server.once("error", reject);
-                    server.listen(socketPath, resolve);
-                });
-                await rename(socketPath, path);
-                reject();
-            } finally {
-                if (server.listening)
-                    await new Promise<void>((resolve, reject) =>
-                        server.close((error) => (error ? reject(error) : resolve())),
-                    );
-                await rm(path, { force: true });
-                await rm(socketRoot, { recursive: true, force: true });
-            }
-            await writeFile(path, "public-mode", { mode: 0o644 });
+        };
+        await symlink(source, path);
+        reject();
+        await rm(path);
+        await link(source, path);
+        reject();
+        await rm(path);
+        await mkdir(path, { mode: 0o700 });
+        reject();
+        await rm(path, { recursive: true });
+        execFileSync("mkfifo", ["-m", "600", path]);
+        reject();
+        await rm(path);
+        const socketRoot = await mkdtemp(join(await realpath("/tmp"), "veriq-cookie-socket-"));
+        const socketPath = join(socketRoot, "s"),
+            server = createServer();
+        try {
+            assert.ok(Buffer.byteLength(socketPath) < 104, "Socket fixture bind path must fit sockaddr_un");
+            await new Promise<void>((resolve, reject) => {
+                server.once("error", reject);
+                server.listen(socketPath, resolve);
+            });
+            await rename(socketPath, path);
             reject();
-            assert.equal((await stat(path)).mode & 0o777, 0o644);
-            assert.equal(readFileSync(source, "utf8"), "public-source");
-        }),
+        } finally {
+            if (server.listening)
+                await new Promise<void>((resolve, reject) =>
+                    server.close((error) => (error ? reject(error) : resolve())),
+                );
+            await rm(path, { force: true });
+            await rm(socketRoot, { recursive: true, force: true });
+        }
+        await writeFile(path, "public-mode", { mode: 0o644 });
+        reject();
+        assert.equal((await stat(path)).mode & 0o777, 0o644);
+        assert.equal(readFileSync(source, "utf8"), "public-source");
+    }),
 );
 
 /**
@@ -1711,10 +1523,7 @@ test(
             }
             await chmod(directory, 0o755);
             try {
-                assert.throws(
-                    () => native.privateCookieFile(path, false),
-                    failure("DARWIN_PRIVATE_INVALID"),
-                );
+                assert.throws(() => native.privateCookieFile(path, false), failure("DARWIN_PRIVATE_INVALID"));
             } finally {
                 await chmod(directory, 0o700);
             }
@@ -1725,17 +1534,12 @@ test(
                     () => native.privateCookieFile(path, retire),
                     (error: unknown) =>
                         error instanceof Error &&
-                        [
-                            "DARWIN_PRIVATE_INVALID",
-                            "DARWIN_PRIVATE_IO",
-                            "DARWIN_PRIVATE_ACL",
-                        ].includes((error as NodeJS.ErrnoException).code ?? ""),
+                        ["DARWIN_PRIVATE_INVALID", "DARWIN_PRIVATE_IO", "DARWIN_PRIVATE_ACL"].includes(
+                            (error as NodeJS.ErrnoException).code ?? "",
+                        ),
                 );
             assert.equal(
-                readFileSync(
-                    join(root, "saved-partitions", "veriq-host", "Network", "Cookies"),
-                    "utf8",
-                ),
+                readFileSync(join(root, "saved-partitions", "veriq-host", "Network", "Cookies"), "utf8"),
                 "public-parent",
             );
         }),
@@ -1747,59 +1551,52 @@ test(
  * 逐个目录授权覆盖只检查最终存储目录而遗漏中间布局的错误。
  * ACL 故障使用独立模块原有调度接口，不新增生产导出或模拟文件元数据。
  */
-test(
-    "cookie ACL grants and failed ACL inspection remain errors rather than absence",
-    mac,
-    async () => {
-        const native = createRequire(import.meta.url)(
-            "../../build/native-tests/veriq_private_files_fault.node",
-        ) as FaultNative;
-        try {
-            await cookieFixture(
-                true,
-                async (root, directory) => {
-                    const path = join(directory, "Cookies");
-                    await writeFile(path, "public-acl-cookie", { mode: 0o600 });
-                    for (const target of [
-                        root,
-                        join(root, "Partitions"),
-                        join(root, "Partitions", "veriq-host"),
-                        directory,
-                        path,
-                    ]) {
-                        acl(target, "everyone allow read");
-                        try {
-                            const before = aclSnapshot(target);
-                            for (const retire of [false, true])
-                                assert.throws(
-                                    () => native.privateCookieFile(path, retire),
-                                    failure("DARWIN_PRIVATE_INVALID", "acl.allow"),
-                                );
-                            assert.equal(aclSnapshot(target), before);
-                            assert.equal(readFileSync(path, "utf8"), "public-acl-cookie");
-                        } finally {
-                            acl(target);
-                        }
+test("cookie ACL grants and failed ACL inspection remain errors rather than absence", mac, async () => {
+    const native = createRequire(import.meta.url)(
+        "../../build/native-tests/veriq_private_files_fault.node",
+    ) as FaultNative;
+    try {
+        await cookieFixture(
+            true,
+            async (root, directory) => {
+                const path = join(directory, "Cookies");
+                await writeFile(path, "public-acl-cookie", { mode: 0o600 });
+                for (const target of [
+                    root,
+                    join(root, "Partitions"),
+                    join(root, "Partitions", "veriq-host"),
+                    directory,
+                    path,
+                ]) {
+                    acl(target, "everyone allow read");
+                    try {
+                        const before = aclSnapshot(target);
+                        for (const retire of [false, true])
+                            assert.throws(
+                                () => native.privateCookieFile(path, retire),
+                                failure("DARWIN_PRIVATE_INVALID", "acl.allow"),
+                            );
+                        assert.equal(aclSnapshot(target), before);
+                        assert.equal(readFileSync(path, "utf8"), "public-acl-cookie");
+                    } finally {
+                        acl(target);
                     }
-                    for (const action of ["error", "acl-denied", "acl-unknown"]) {
-                        native.setFault("acl.get", action, 1);
-                        assert.throws(
-                            () => native.privateCookieFile(path, false),
-                            failure(
-                                action === "error" ? "DARWIN_PRIVATE_IO" : "DARWIN_PRIVATE_ACL",
-                                "acl.get",
-                            ),
-                        );
-                        native.resetFaults();
-                    }
-                },
-                native,
-            );
-        } finally {
-            native.resetFaults();
-        }
-    },
-);
+                }
+                for (const action of ["error", "acl-denied", "acl-unknown"]) {
+                    native.setFault("acl.get", action, 1);
+                    assert.throws(
+                        () => native.privateCookieFile(path, false),
+                        failure(action === "error" ? "DARWIN_PRIVATE_IO" : "DARWIN_PRIVATE_ACL", "acl.get"),
+                    );
+                    native.resetFaults();
+                }
+            },
+            native,
+        );
+    } finally {
+        native.resetFaults();
+    }
+});
 
 /**
  * 已验证成员在观察点遭到真实换名、改模式或增长后必须拒绝检查与退役，文件身份和授权需要在观察之后从原 fd 再核，不能先核
@@ -1808,53 +1605,41 @@ test(
  * 替换样本核对新旧两个对象都保留，防止误删陌生对象后只报告失败。
  */
 for (const change of ["replace", "mode", "grow"]) {
-    test(
-        `cookie rechecks opened identity and metadata after actual mutation: ${change}`,
-        mac,
-        async () => {
-            const native = createRequire(import.meta.url)(
-                "../../build/native-tests/veriq_private_files_fault.node",
-            ) as FaultNative;
-            try {
-                await cookieFixture(
-                    false,
-                    async (_root, directory) => {
-                        const path = join(directory, "Cookies"),
-                            saved = join(directory, "saved");
-                        for (const retire of [false, true]) {
-                            writeFileSync(path, "public-old", { mode: 0o600 });
-                            native.setHook("cookie.checked", () => {
-                                if (change === "replace") {
-                                    renameSync(path, saved);
-                                    writeFileSync(path, "public-new", { mode: 0o600 });
-                                } else if (change === "mode")
-                                    execFileSync("/bin/chmod", ["644", path]);
-                                else truncateSync(path, 64 * 1024 * 1024 + 1);
-                            });
-                            assert.throws(
-                                () => native.privateCookieFile(path, retire),
-                                failure("DARWIN_PRIVATE_INVALID"),
-                            );
+    test(`cookie rechecks opened identity and metadata after actual mutation: ${change}`, mac, async () => {
+        const native = createRequire(import.meta.url)(
+            "../../build/native-tests/veriq_private_files_fault.node",
+        ) as FaultNative;
+        try {
+            await cookieFixture(
+                false,
+                async (_root, directory) => {
+                    const path = join(directory, "Cookies"),
+                        saved = join(directory, "saved");
+                    for (const retire of [false, true]) {
+                        writeFileSync(path, "public-old", { mode: 0o600 });
+                        native.setHook("cookie.checked", () => {
                             if (change === "replace") {
-                                assert.equal(readFileSync(saved, "utf8"), "public-old");
-                                assert.equal(readFileSync(path, "utf8"), "public-new");
-                                await rm(saved);
-                            } else
-                                assert.equal(
-                                    (await stat(path)).size,
-                                    change === "grow" ? 64 * 1024 * 1024 + 1 : 10,
-                                );
-                            await rm(path);
-                            native.resetFaults();
-                        }
-                    },
-                    native,
-                );
-            } finally {
-                native.resetFaults();
-            }
-        },
-    );
+                                renameSync(path, saved);
+                                writeFileSync(path, "public-new", { mode: 0o600 });
+                            } else if (change === "mode") execFileSync("/bin/chmod", ["644", path]);
+                            else truncateSync(path, 64 * 1024 * 1024 + 1);
+                        });
+                        assert.throws(() => native.privateCookieFile(path, retire), failure("DARWIN_PRIVATE_INVALID"));
+                        if (change === "replace") {
+                            assert.equal(readFileSync(saved, "utf8"), "public-old");
+                            assert.equal(readFileSync(path, "utf8"), "public-new");
+                            await rm(saved);
+                        } else assert.equal((await stat(path)).size, change === "grow" ? 64 * 1024 * 1024 + 1 : 10);
+                        await rm(path);
+                        native.resetFaults();
+                    }
+                },
+                native,
+            );
+        } finally {
+            native.resetFaults();
+        }
+    });
 }
 
 /**
@@ -1865,67 +1650,56 @@ for (const change of ["replace", "mode", "grow"]) {
  */
 for (const phase of ["cookie.checked", "cookie.unlink"]) {
     for (const change of ["mode", "acl"]) {
-        test(
-            `cookie rechecks held directory policy after ${phase} mutation: ${change}`,
-            mac,
-            async () => {
-                const native = createRequire(import.meta.url)(
-                    "../../build/native-tests/veriq_private_files_fault.node",
-                ) as FaultNative;
-                try {
-                    await cookieFixture(
-                        true,
-                        async (root, directory) => {
-                            const path = join(directory, "Cookies");
-                            for (const target of [
-                                root,
-                                join(root, "Partitions"),
-                                join(root, "Partitions", "veriq-host"),
-                                directory,
-                            ]) {
-                                for (const retire of phase === "cookie.checked"
-                                    ? [false, true]
-                                    : [true]) {
-                                    await writeFile(path, "public-directory-mutation", {
-                                        mode: 0o600,
-                                    });
-                                    const original = (await stat(target)).mode & 0o7777;
-                                    let expectedAcl: string | undefined;
-                                    native.setHook(phase, () => {
-                                        if (change === "mode")
-                                            execFileSync("/bin/chmod", ["777", target]);
-                                        else {
-                                            acl(target, "everyone allow search");
-                                            expectedAcl = aclSnapshot(target);
-                                        }
-                                    });
-                                    try {
-                                        assert.throws(
-                                            () => native.privateCookieFile(path, retire),
-                                            failure("DARWIN_PRIVATE_INVALID"),
-                                        );
-                                        assert.equal(
-                                            readFileSync(path, "utf8"),
-                                            "public-directory-mutation",
-                                        );
-                                        if (change === "mode")
-                                            assert.equal((await stat(target)).mode & 0o7777, 0o777);
-                                        else assert.equal(aclSnapshot(target), expectedAcl);
-                                    } finally {
-                                        native.resetFaults();
-                                        if (change === "acl") acl(target);
-                                        await chmod(target, original);
+        test(`cookie rechecks held directory policy after ${phase} mutation: ${change}`, mac, async () => {
+            const native = createRequire(import.meta.url)(
+                "../../build/native-tests/veriq_private_files_fault.node",
+            ) as FaultNative;
+            try {
+                await cookieFixture(
+                    true,
+                    async (root, directory) => {
+                        const path = join(directory, "Cookies");
+                        for (const target of [
+                            root,
+                            join(root, "Partitions"),
+                            join(root, "Partitions", "veriq-host"),
+                            directory,
+                        ]) {
+                            for (const retire of phase === "cookie.checked" ? [false, true] : [true]) {
+                                await writeFile(path, "public-directory-mutation", {
+                                    mode: 0o600,
+                                });
+                                const original = (await stat(target)).mode & 0o7777;
+                                let expectedAcl: string | undefined;
+                                native.setHook(phase, () => {
+                                    if (change === "mode") execFileSync("/bin/chmod", ["777", target]);
+                                    else {
+                                        acl(target, "everyone allow search");
+                                        expectedAcl = aclSnapshot(target);
                                     }
+                                });
+                                try {
+                                    assert.throws(
+                                        () => native.privateCookieFile(path, retire),
+                                        failure("DARWIN_PRIVATE_INVALID"),
+                                    );
+                                    assert.equal(readFileSync(path, "utf8"), "public-directory-mutation");
+                                    if (change === "mode") assert.equal((await stat(target)).mode & 0o7777, 0o777);
+                                    else assert.equal(aclSnapshot(target), expectedAcl);
+                                } finally {
+                                    native.resetFaults();
+                                    if (change === "acl") acl(target);
+                                    await chmod(target, original);
                                 }
                             }
-                        },
-                        native,
-                    );
-                } finally {
-                    native.resetFaults();
-                }
-            },
-        );
+                        }
+                    },
+                    native,
+                );
+            } finally {
+                native.resetFaults();
+            }
+        });
     }
 }
 
@@ -1984,38 +1758,31 @@ for (const [phase, removed] of [
  * 这个测试专门覆盖最后一次身份检查与故障调度的相对顺序，不保证阻止任意同 UID 并发写者。
  * 同一故障模块的原有 hook 即可制造实际目录变化，无需改动正式或测试导出。
  */
-test(
-    "cookie retirement rechecks the name after the final pre-unlink observation",
-    mac,
-    async () => {
-        const native = createRequire(import.meta.url)(
-            "../../build/native-tests/veriq_private_files_fault.node",
-        ) as FaultNative;
-        try {
-            await cookieFixture(
-                false,
-                async (_root, directory) => {
-                    const path = join(directory, "Cookies"),
-                        saved = join(directory, "saved");
-                    await writeFile(path, "public-old", { mode: 0o600 });
-                    native.setHook("cookie.unlink", () => {
-                        renameSync(path, saved);
-                        writeFileSync(path, "public-new", { mode: 0o600 });
-                    });
-                    assert.throws(
-                        () => native.privateCookieFile(path, true),
-                        failure("DARWIN_PRIVATE_INVALID"),
-                    );
-                    assert.equal(readFileSync(saved, "utf8"), "public-old");
-                    assert.equal(readFileSync(path, "utf8"), "public-new");
-                },
-                native,
-            );
-        } finally {
-            native.resetFaults();
-        }
-    },
-);
+test("cookie retirement rechecks the name after the final pre-unlink observation", mac, async () => {
+    const native = createRequire(import.meta.url)(
+        "../../build/native-tests/veriq_private_files_fault.node",
+    ) as FaultNative;
+    try {
+        await cookieFixture(
+            false,
+            async (_root, directory) => {
+                const path = join(directory, "Cookies"),
+                    saved = join(directory, "saved");
+                await writeFile(path, "public-old", { mode: 0o600 });
+                native.setHook("cookie.unlink", () => {
+                    renameSync(path, saved);
+                    writeFileSync(path, "public-new", { mode: 0o600 });
+                });
+                assert.throws(() => native.privateCookieFile(path, true), failure("DARWIN_PRIVATE_INVALID"));
+                assert.equal(readFileSync(saved, "utf8"), "public-old");
+                assert.equal(readFileSync(path, "utf8"), "public-new");
+            },
+            native,
+        );
+    } finally {
+        native.resetFaults();
+    }
+});
 
 /**
  * Cookie 成员必须属于调用者真实 UID，既有 B 测试采用的自有临时文件 chown 夹具在此检验相同限制，权限拒绝也不能被转换成
@@ -2054,62 +1821,52 @@ test("cookie wrong-owner metadata is an error and never an absent or retired fil
  * 文件关闭在真实 close 后注入失败，目录关闭同样撤销原数字，故障后不允许重试关闭后来复用的数字。
  * 捕获对象只用于检查与失败清理，正式接口仍不交付任何目录或成员 fd。
  */
-test(
-    "cookie metadata and retirement close owned descriptors on success and failure",
-    mac,
-    async () => {
-        const native = createRequire(import.meta.url)(
-            "../../build/native-tests/veriq_private_files_fault.node",
-        ) as FaultNative;
-        try {
-            await cookieFixture(
-                false,
-                async (_root, directory) => {
-                    const path = join(directory, "Cookies");
-                    for (const [retire, phase] of [
-                        [false, ""],
-                        [true, ""],
-                        [false, "cookie.checked"],
-                        [false, "cookie.close"],
-                        [true, "cookie.close"],
-                        [false, "cookie.directory-close"],
-                        [true, "cookie.directory-close"],
-                    ] as const) {
-                        writeFileSync(path, "public-close", { mode: 0o600 });
-                        let captured: CapturedDescriptor | undefined;
-                        const hook =
-                            phase === "cookie.directory-close"
-                                ? "cookie.directory"
-                                : "cookie.checked";
-                        native.setHook(hook, (fd) => {
-                            const info = fstatSync(fd);
-                            captured = { fd, dev: info.dev, ino: info.ino };
-                        });
-                        if (phase) native.setFault(phase, "error", 1);
-                        try {
-                            if (phase)
-                                assert.throws(
-                                    () => native.privateCookieFile(path, retire),
-                                    failure(
-                                        retire ? "COMMIT_UNCONFIRMED" : "DARWIN_PRIVATE_IO",
-                                        phase,
-                                    ),
-                                );
-                            else assert.equal(native.privateCookieFile(path, retire), true);
-                            assertCapturedClosed(captured);
-                        } finally {
-                            native.resetFaults();
-                            cleanupCaptured(captured);
-                        }
+test("cookie metadata and retirement close owned descriptors on success and failure", mac, async () => {
+    const native = createRequire(import.meta.url)(
+        "../../build/native-tests/veriq_private_files_fault.node",
+    ) as FaultNative;
+    try {
+        await cookieFixture(
+            false,
+            async (_root, directory) => {
+                const path = join(directory, "Cookies");
+                for (const [retire, phase] of [
+                    [false, ""],
+                    [true, ""],
+                    [false, "cookie.checked"],
+                    [false, "cookie.close"],
+                    [true, "cookie.close"],
+                    [false, "cookie.directory-close"],
+                    [true, "cookie.directory-close"],
+                ] as const) {
+                    writeFileSync(path, "public-close", { mode: 0o600 });
+                    let captured: CapturedDescriptor | undefined;
+                    const hook = phase === "cookie.directory-close" ? "cookie.directory" : "cookie.checked";
+                    native.setHook(hook, (fd) => {
+                        const info = fstatSync(fd);
+                        captured = { fd, dev: info.dev, ino: info.ino };
+                    });
+                    if (phase) native.setFault(phase, "error", 1);
+                    try {
+                        if (phase)
+                            assert.throws(
+                                () => native.privateCookieFile(path, retire),
+                                failure(retire ? "COMMIT_UNCONFIRMED" : "DARWIN_PRIVATE_IO", phase),
+                            );
+                        else assert.equal(native.privateCookieFile(path, retire), true);
+                        assertCapturedClosed(captured);
+                    } finally {
+                        native.resetFaults();
+                        cleanupCaptured(captured);
                     }
-                },
-                native,
-            );
-        } finally {
-            native.resetFaults();
-        }
-    },
-);
+                }
+            },
+            native,
+        );
+    } finally {
+        native.resetFaults();
+    }
+});
 
 /**
  * 部分存在的 Cookie 布局必须在原目录拥有者仍活着时明确关闭后才能返回缺失，真实 Network 子目录缺少时既检查无故障 false
@@ -2133,8 +1890,7 @@ for (const phase of ["cookie.directory-close", "cookie.parent-close"]) {
                         async (_root, directory) => {
                             await rm(directory, { recursive: true });
                             const path = join(directory, "Cookies");
-                            const calls: Array<{ owned: CapturedDescriptor[]; closed: number[] }> =
-                                [];
+                            const calls: Array<{ owned: CapturedDescriptor[]; closed: number[] }> = [];
                             const observe = () => {
                                 const call = {
                                     owned: [] as CapturedDescriptor[],
@@ -2181,15 +1937,11 @@ for (const phase of ["cookie.directory-close", "cookie.parent-close"]) {
                                 assert.equal(fault.owned.length, 3);
                                 for (const owned of fault.owned) assertCapturedClosed(owned);
                                 for (const call of calls)
-                                    assert.deepEqual(
-                                        call.closed,
-                                        call.owned.map((owned) => owned.fd).reverse(),
-                                    );
+                                    assert.deepEqual(call.closed, call.owned.map((owned) => owned.fd).reverse());
                                 assert.deepEqual(await readdir(join(directory, "..")), []);
                             } finally {
                                 native.resetFaults();
-                                for (const call of calls)
-                                    for (const owned of call.owned) cleanupCaptured(owned);
+                                for (const call of calls) for (const owned of call.owned) cleanupCaptured(owned);
                             }
                         },
                         native,

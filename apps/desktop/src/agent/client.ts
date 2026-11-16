@@ -30,14 +30,8 @@ export class DesktopAgentClient {
      * 者传入 socket 路径或认证 nonce。
      */
     async call(input: unknown): Promise<unknown> {
-        const descriptor = await readPrivate<{ socket: string; nonce: string }>(
-            this.root,
-            "desktop-agent.json",
-        );
-        if (
-            descriptor.socket !== join(this.root, "desktop-agent.sock") ||
-            !/^[0-9a-f]{64}$/.test(descriptor.nonce)
-        )
+        const descriptor = await readPrivate<{ socket: string; nonce: string }>(this.root, "desktop-agent.json");
+        if (descriptor.socket !== join(this.root, "desktop-agent.sock") || !/^[0-9a-f]{64}$/.test(descriptor.nonce))
             throw new Error("AGENT_DESCRIPTOR_INVALID");
         const outgoing = JSON.stringify({
             type: "desktop",
@@ -77,9 +71,7 @@ export class DesktopAgentClient {
                 completed = true;
                 socket.destroy();
                 try {
-                    const incoming = new TextDecoder("utf-8", { fatal: true }).decode(
-                        Buffer.concat(chunks, bytes),
-                    );
+                    const incoming = new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks, bytes));
                     const envelope = JSON.parse(incoming);
                     if (!envelope.ok || !envelope.value?.ok)
                         throw new Error(envelope.value?.error ?? "AGENT_REQUEST_FAILED");

@@ -29,8 +29,7 @@ export const localRetentionDefaults = Object.freeze({
  * 区仍须由后台与当前真实选择逐字匹配，合法 UUID 不构成跨空间授权。
  */
 export function parseLocalRetentionCommand(input: unknown): LocalRetentionCommand {
-    if (!input || typeof input !== "object" || Array.isArray(input))
-        throw new Error("LOCAL_RETENTION_INPUT_INVALID");
+    if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("LOCAL_RETENTION_INPUT_INVALID");
     const value = input as Record<string, unknown>;
     const keys = ["operation", "workspaceId", ...Object.keys(localRetentionDefaults)];
     if (
@@ -80,16 +79,9 @@ export interface LocalRetentionOutcome {
  * 示必须保留不确定性，不能向用户承诺原生操作已经撤销。
  */
 export function parseLocalRetentionOutcome(input: unknown): LocalRetentionOutcome {
-    if (!input || typeof input !== "object" || Array.isArray(input))
-        throw new Error("LOCAL_RETENTION_RESULT_INVALID");
+    if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("LOCAL_RETENTION_RESULT_INVALID");
     const value = input as Record<string, unknown>;
-    const counters = [
-        "examinedRuns",
-        "rawRetiredRuns",
-        "metadataRetiredRuns",
-        "bundlesRetired",
-        "retained",
-    ];
+    const counters = ["examinedRuns", "rawRetiredRuns", "metadataRetiredRuns", "bundlesRetired", "retained"];
     if (
         Object.keys(value).length !== counters.length + 1 ||
         Object.keys(value).some((key) => ![...counters, "hasMore"].includes(key)) ||

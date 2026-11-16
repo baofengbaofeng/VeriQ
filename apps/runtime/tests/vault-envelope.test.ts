@@ -6,12 +6,7 @@ import assert from "node:assert/strict";
 import { createCipheriv, randomBytes } from "node:crypto";
 import { test } from "node:test";
 import { canonicalBytes, type JsonValue } from "@veriq/contracts";
-import {
-    openEnvelope,
-    sealEnvelope,
-    VaultError,
-    type EnvelopeBinding,
-} from "../src/credentials/envelope.ts";
+import { openEnvelope, sealEnvelope, VaultError, type EnvelopeBinding } from "../src/credentials/envelope.ts";
 
 const profileId = "11111111-1111-4111-8111-111111111111";
 const keyVersion = "22222222-2222-4222-8222-222222222222";
@@ -41,14 +36,7 @@ function failure(operation: () => unknown, code?: string) {
 }
 
 test("real AES-GCM round trips JSON values without returning key or plaintext", () => {
-    const values: JsonValue[] = [
-        null,
-        true,
-        123.5,
-        "中文😀",
-        [1, false],
-        { secret, nested: [null] },
-    ];
+    const values: JsonValue[] = [null, true, 123.5, "中文😀", [1, false], { secret, nested: [null] }];
     for (const value of values) {
         const wire = sealEnvelope(value, binding, key);
         assert.deepEqual(openEnvelope(wire, binding, key), value);
@@ -74,10 +62,7 @@ test("exact one MiB UTF8 JSON payload survives envelope overhead; excess is reje
     assert(Buffer.byteLength(wire) <= 2 * 1024 * 1024);
     assert.equal(openEnvelope(wire, binding, key), value);
     failure(() => sealEnvelope(value + "x", binding, key), "VAULT_PAYLOAD_LIMIT");
-    failure(
-        () => openEnvelope(" ".repeat(2 * 1024 * 1024 + 1), binding, key),
-        "VAULT_ENVELOPE_LIMIT",
-    );
+    failure(() => openEnvelope(" ".repeat(2 * 1024 * 1024 + 1), binding, key), "VAULT_ENVELOPE_LIMIT");
 });
 
 test("device and rotation bind the complete principal, generation and request identity", () => {
@@ -104,10 +89,7 @@ test("device and rotation bind the complete principal, generation and request id
             failure(() => openEnvelope(wire, changed, key), "VAULT_BINDING_MISMATCH");
         }
     }
-    failure(
-        () => openEnvelope(sealEnvelope(secret, device, key), rotation, key),
-        "VAULT_BINDING_MISMATCH",
-    );
+    failure(() => openEnvelope(sealEnvelope(secret, device, key), rotation, key), "VAULT_BINDING_MISMATCH");
 });
 
 test("every business identity component and key version is supplied independently by caller", () => {
@@ -124,10 +106,7 @@ test("every business identity component and key version is supplied independentl
         })),
     ];
     for (const changed of alternatives) {
-        failure(
-            () => openEnvelope(wire, changed as EnvelopeBinding, key),
-            "VAULT_BINDING_MISMATCH",
-        );
+        failure(() => openEnvelope(wire, changed as EnvelopeBinding, key), "VAULT_BINDING_MISMATCH");
         const rewritten = JSON.parse(wire);
         rewritten.binding = changed;
         failure(
@@ -165,18 +144,12 @@ test("ciphertext, IV, tag and authenticated metadata modifications cannot decryp
         const bytes = Buffer.from(envelope[field], "base64url");
         bytes[0] = bytes[0]! ^ 1;
         envelope[field] = bytes.toString("base64url");
-        failure(
-            () => openEnvelope(JSON.stringify(envelope), binding, key),
-            "VAULT_AUTHENTICATION_FAILED",
-        );
+        failure(() => openEnvelope(JSON.stringify(envelope), binding, key), "VAULT_AUTHENTICATION_FAILED");
     }
     const envelope = JSON.parse(wire);
     envelope.binding.profileId = otherId;
     const changed = { ...binding, profileId: otherId };
-    failure(
-        () => openEnvelope(JSON.stringify(envelope), changed, key),
-        "VAULT_AUTHENTICATION_FAILED",
-    );
+    failure(() => openEnvelope(JSON.stringify(envelope), changed, key), "VAULT_AUTHENTICATION_FAILED");
     failure(() => openEnvelope(wire, binding, randomBytes(32)), "VAULT_AUTHENTICATION_FAILED");
 });
 
@@ -189,10 +162,7 @@ test("unknown format, algorithm, fields, malformed JSON and oversized envelopes 
         { ...original, ciphertext: 1 },
         { ...original, binding: { ...original.binding, extra: true } },
     ])
-        failure(
-            () => openEnvelope(JSON.stringify(mutation), binding, key),
-            "VAULT_INVALID_ENVELOPE",
-        );
+        failure(() => openEnvelope(JSON.stringify(mutation), binding, key), "VAULT_INVALID_ENVELOPE");
     for (const wire of ["{", "null", "[]", "true"])
         failure(() => openEnvelope(wire, binding, key), "VAULT_INVALID_ENVELOPE");
 });
@@ -253,8 +223,5 @@ test("invalid keys, bindings and nonportable JSON produce only stable safe error
         { ...binding, purpose: "latest" },
         { ...binding, reference: { ...binding.reference, versionId: "latest" } },
     ])
-        failure(
-            () => sealEnvelope(secret, context as EnvelopeBinding, key),
-            "VAULT_INVALID_BINDING",
-        );
+        failure(() => sealEnvelope(secret, context as EnvelopeBinding, key), "VAULT_INVALID_BINDING");
 });

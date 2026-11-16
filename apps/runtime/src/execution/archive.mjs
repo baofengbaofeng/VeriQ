@@ -10,6 +10,7 @@ function member(entry) {
     const name = entry.path.replace(/\/$/, "");
     if (
         !name ||
+        // biome-ignore lint/suspicious/noControlCharactersInRegex: 有意拒绝路径控制字符与 DEL，属安全校验而非误写
         /[\\:\x00-\x1f]/.test(name) ||
         name.split("/").some((part) => !part || part === "." || part === "..") ||
         !["File", "Directory"].includes(entry.type)
@@ -65,12 +66,10 @@ export async function archive(directory, members, destination) {
     const paths = [];
     async function visit(name) {
         const info = await lstat(join(directory, name));
-        if (info.isSymbolicLink() || (!info.isDirectory() && !info.isFile()))
-            throw new Error("UNSAFE_ENGINE_ARCHIVE");
+        if (info.isSymbolicLink() || (!info.isDirectory() && !info.isFile())) throw new Error("UNSAFE_ENGINE_ARCHIVE");
         paths.push(name);
         if (info.isDirectory())
-            for (const child of (await readdir(join(directory, name))).sort())
-                await visit(name + "/" + child);
+            for (const child of (await readdir(join(directory, name))).sort()) await visit(name + "/" + child);
     }
     for (const name of [...members].sort()) await visit(name);
     await mkdir(dirname(destination), { recursive: true });

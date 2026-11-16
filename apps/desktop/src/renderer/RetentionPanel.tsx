@@ -82,9 +82,7 @@ export function RetentionPanel({
             }
         } catch (failure) {
             if (mounted.current) {
-                setError(
-                    `${desktopErrorMessage(failure, "zh")} / ${desktopErrorMessage(failure, "en")}`,
-                );
+                setError(`${desktopErrorMessage(failure, "zh")} / ${desktopErrorMessage(failure, "en")}`);
             }
         } finally {
             running.current = false;
@@ -104,13 +102,13 @@ export function RetentionPanel({
         <section className="panel" aria-busy={pending}>
             <h2>本机保留期清理 / Local retention cleanup</h2>
             <p>
-                仅清理当前本机工作区的过期材料。未回传结果、活动执行和未知或隔离进程会保留。 / Only
-                expired data in the current local workspace is eligible. Pending uploads, active
-                work and unknown or quarantined ownership remain protected.
+                仅清理当前本机工作区的过期材料。未回传结果、活动执行和未知或隔离进程会保留。 / Only expired data in the
+                current local workspace is eligible. Pending uploads, active work and unknown or quarantined ownership
+                remain protected.
             </p>
             <p>
-                旧缓存首次观察后开始计龄；访问已验签资源会刷新访问时间。 / Legacy cache starts aging
-                when first observed; verified package access refreshes its age.
+                旧缓存首次观察后开始计龄；访问已验签资源会刷新访问时间。 / Legacy cache starts aging when first
+                observed; verified package access refreshes its age.
             </p>
             <form
                 className="form-grid"
@@ -134,10 +132,7 @@ export function RetentionPanel({
                                 onChange={(event) =>
                                     setPolicy((current) => ({
                                         ...current,
-                                        [name]:
-                                            event.target.value === ""
-                                                ? Number.NaN
-                                                : Number(event.target.value),
+                                        [name]: event.target.value === "" ? Number.NaN : Number(event.target.value),
                                     }))
                                 }
                             />
@@ -149,14 +144,14 @@ export function RetentionPanel({
             {!workspaceId && <p>请先选择本机工作区。 / Choose a local workspace first.</p>}
             {unavailable && (
                 <p>
-                    请先停止执行、在线领取与查看器，再重试。 / Stop execution, online polling and
-                    viewers before retrying.
+                    请先停止执行、在线领取与查看器，再重试。 / Stop execution, online polling and viewers before
+                    retrying.
                 </p>
             )}
             {pending && (
                 <p role="status">
-                    正在等待原生确认或清理；关闭此页不会撤销已开始的操作。 / Awaiting native
-                    confirmation or cleanup; closing this page does not undo a started operation.
+                    正在等待原生确认或清理；关闭此页不会撤销已开始的操作。 / Awaiting native confirmation or cleanup;
+                    closing this page does not undo a started operation.
                 </p>
             )}
             {error && <p role="alert">{error}</p>}

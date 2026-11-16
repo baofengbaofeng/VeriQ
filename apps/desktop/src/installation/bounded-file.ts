@@ -15,17 +15,9 @@ export async function readBoundedRegularFile(path: string, limit: number): Promi
         throw new Error("DESKTOP_INPUT_LIMIT_INVALID");
     if ((await realpath(path)) !== resolve(path)) throw new Error("DESKTOP_INPUT_LINK_FORBIDDEN");
     const observed = await lstat(path);
-    if (
-        !observed.isFile() ||
-        observed.isSymbolicLink() ||
-        observed.nlink !== 1 ||
-        observed.size > limit
-    )
+    if (!observed.isFile() || observed.isSymbolicLink() || observed.nlink !== 1 || observed.size > limit)
         throw new Error("DESKTOP_INPUT_FILE_INVALID");
-    const handle = await open(
-        path,
-        constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-    );
+    const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
     try {
         const before = await handle.stat();
         if (

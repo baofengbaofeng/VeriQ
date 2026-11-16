@@ -78,10 +78,7 @@ export class AttemptBroker {
         private receive: (message: Record<string, unknown>) => Promise<unknown>,
         private readonly socketTimeoutMs = 15000,
     ) {
-        if (
-            process.platform === "darwin" &&
-            (path.includes("\0") || Buffer.byteLength(path, "utf8") >= 104)
-        )
+        if (process.platform === "darwin" && (path.includes("\0") || Buffer.byteLength(path, "utf8") >= 104))
             throw new Error("IPC_PATH_INVALID");
         this.path =
             process.platform === "win32"
@@ -90,11 +87,7 @@ export class AttemptBroker {
                       .update(windowsNative().sid + "\0" + resolve(path).toLowerCase())
                       .digest("hex")
                 : path;
-        if (
-            !Number.isSafeInteger(socketTimeoutMs) ||
-            socketTimeoutMs < 1 ||
-            socketTimeoutMs > 60000
-        )
+        if (!Number.isSafeInteger(socketTimeoutMs) || socketTimeoutMs < 1 || socketTimeoutMs > 60000)
             throw new Error("IPC_TIMEOUT_INVALID");
     }
     /**
@@ -108,36 +101,29 @@ export class AttemptBroker {
          * 的套接字路径。
          */
         if (process.platform === "win32") {
-            this.nativeServer = new (windowsNative().PrivatePipeServer)(
-                this.path,
-                (frame, reply) => {
-                    void (async () => {
-                        let response: string;
-                        try {
-                            const message = JSON.parse(frame) as Record<string, unknown>;
-                            if (message.nonce !== this.nonce) throw new Error("IPC_UNAUTHORIZED");
-                            response =
-                                JSON.stringify({ ok: true, value: await this.receive(message) }) +
-                                "\n";
-                        } catch {
-                            response =
-                                JSON.stringify({ ok: false, error: "ATTEMPT_IPC_FAILED" }) + "\n";
-                        }
-                        try {
-                            reply(response);
-                        } catch {
-                            /*
-                             * 原生端已经关闭或响应超过固定字节预算时必须结束当前请求，不能在异步回调外抛出未处理异常，
-                             * 也不能重新连接后把同一业务命令重复发送给不同的监听实例。
-                             */
-                        }
-                    })();
-                },
-            );
+            this.nativeServer = new (windowsNative().PrivatePipeServer)(this.path, (frame, reply) => {
+                void (async () => {
+                    let response: string;
+                    try {
+                        const message = JSON.parse(frame) as Record<string, unknown>;
+                        if (message.nonce !== this.nonce) throw new Error("IPC_UNAUTHORIZED");
+                        response = JSON.stringify({ ok: true, value: await this.receive(message) }) + "\n";
+                    } catch {
+                        response = JSON.stringify({ ok: false, error: "ATTEMPT_IPC_FAILED" }) + "\n";
+                    }
+                    try {
+                        reply(response);
+                    } catch {
+                        /*
+                         * 原生端已经关闭或响应超过固定字节预算时必须结束当前请求，不能在异步回调外抛出未处理异常，
+                         * 也不能重新连接后把同一业务命令重复发送给不同的监听实例。
+                         */
+                    }
+                })();
+            });
             return;
         }
-        if (process.platform === "darwin")
-            this.parent = darwinNative().openPrivateDirectory(dirname(this.path), false);
+        if (process.platform === "darwin") this.parent = darwinNative().openPrivateDirectory(dirname(this.path), false);
         this.server = createServer((socket) => {
             this.sockets.add(socket);
             socket.on("close", () => this.sockets.delete(socket));
@@ -170,9 +156,7 @@ export class AttemptBroker {
                         const value = await this.receive(message);
                         socket.end(JSON.stringify({ ok: true, value }) + "\n");
                     } catch {
-                        socket.end(
-                            JSON.stringify({ ok: false, error: "ATTEMPT_IPC_FAILED" }) + "\n",
-                        );
+                        socket.end(JSON.stringify({ ok: false, error: "ATTEMPT_IPC_FAILED" }) + "\n");
                     }
                 })();
             });
@@ -185,11 +169,7 @@ export class AttemptBroker {
         await chmod(this.path, 0o600);
         if (this.parent) {
             const socket = await lstat(this.path);
-            if (
-                !socket.isSocket() ||
-                (socket.mode & 0o777) !== 0o600 ||
-                socket.uid !== process.getuid!()
-            )
+            if (!socket.isSocket() || (socket.mode & 0o777) !== 0o600 || socket.uid !== process.getuid!())
                 throw new Error("IPC_SOCKET_UNSAFE");
             this.socketIdentity = { dev: socket.dev, ino: socket.ino };
         }

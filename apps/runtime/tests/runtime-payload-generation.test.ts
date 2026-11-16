@@ -23,9 +23,7 @@ test("fixed twenty actual generator sources match original input copies", async 
 // 写回仓库，证明来源核验不能只相信配方中相互一致的摘要声明。
 test("forged source copies and synchronized bindings cannot impersonate actual generator code", async () => {
     const value = await stageModel();
-    const source = value.sourceBinding.files.find((file) =>
-        file.path.endsWith("runtime-payload-bins.ts"),
-    )!;
+    const source = value.sourceBinding.files.find((file) => file.path.endsWith("runtime-payload-bins.ts"))!;
     Object.assign(source, value.put(source.path, Buffer.from("export const forged = true;\n")));
     await fixture(async (f) => {
         const report = await verifyRuntimePayloadInputs(await f.save(), f.expected, {
@@ -69,8 +67,7 @@ test("generator finish rejects changed host bytes without writing real repositor
         "input",
         async function (this: InstanceType<typeof InputReader>, path: string) {
             const content = await input.call(this, path);
-            if (path === "runtime-payload-bins.ts" && ++reads === 2)
-                return Buffer.concat([content, Buffer.from("\n")]);
+            if (path === "runtime-payload-bins.ts" && ++reads === 2) return Buffer.concat([content, Buffer.from("\n")]);
             return content;
         },
     );

@@ -7,9 +7,7 @@ import { join, dirname } from "node:path";
 import { createHash } from "node:crypto";
 import * as compiler from "./engine/compiler/src/index.ts";
 import { canonicalBytes } from "@veriq/contracts";
-const invocation = JSON.parse(
-    await readFile(new URL("./invocation.json", import.meta.url), "utf8"),
-);
+const invocation = JSON.parse(await readFile(new URL("./invocation.json", import.meta.url), "utf8"));
 const root = invocation.work;
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const release = JSON.parse(await readFile(join(root, "release.json"), "utf8"));
@@ -52,11 +50,9 @@ else
             if (hash(canonicalBytes(supplied)) !== hash(canonicalBytes(output.bundle)))
                 throw new Error("COMPILED_PROVENANCE_MISMATCH");
             const files = {};
-            for (const entry of supplied.files)
-                files[entry.path] = await readFile(join(root, entry.path));
+            for (const entry of supplied.files) files[entry.path] = await readFile(join(root, entry.path));
             for (const [path, bytes] of Object.entries(output.files))
-                if (hash(bytes) !== hash(files[path]))
-                    throw new Error("COMPILED_PROVENANCE_MISMATCH");
+                if (hash(bytes) !== hash(files[path])) throw new Error("COMPILED_PROVENANCE_MISMATCH");
             compiler.assembleExecution(
                 supplied,
                 JSON.parse(await readFile(join(root, "execution.json"), "utf8")),

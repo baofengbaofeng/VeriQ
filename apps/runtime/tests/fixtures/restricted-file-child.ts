@@ -6,18 +6,7 @@
 import assert from "node:assert/strict";
 import { constants } from "node:fs";
 import { isIndependentNode24 } from "../../src/node-version.ts";
-import {
-    chmod,
-    lstat,
-    readFile,
-    readdir,
-    readlink,
-    realpath,
-    rename,
-    symlink,
-    unlink,
-    open,
-} from "node:fs/promises";
+import { chmod, lstat, readFile, readdir, readlink, realpath, rename, symlink, unlink, open } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir, userInfo } from "node:os";
@@ -63,10 +52,7 @@ const ancestorDirectoryFd: Record<string, unknown> = {
     openedByEgid: process.getegid!(),
     closed: false,
 };
-const ancestorHandle = await open(
-    fixtureAncestor,
-    constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
-);
+const ancestorHandle = await open(fixtureAncestor, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
 try {
     const observed = await ancestorHandle.stat();
     assert(observed.isDirectory());
@@ -161,10 +147,7 @@ if (phase === "closure") {
         const url = import.meta.resolve(name),
             path = await realpath(fileURLToPath(url)),
             member = relative(codeRoot, path);
-        assert(
-            !isAbsolute(member) && member !== ".." && !member.startsWith("../"),
-            "FIXTURE_PUBLIC_ENTRY_OUTSIDE",
-        );
+        assert(!isAbsolute(member) && member !== ".." && !member.startsWith("../"), "FIXTURE_PUBLIC_ENTRY_OUTSIDE");
         await import(name);
         loadedPackages.push({ name, path });
     }
@@ -182,14 +165,8 @@ if (phase === "closure") {
     await updatePrivate(directory, "public-marker.json", () => ({ retained: true }));
     facts.threePurposesCreated = true;
 } else if (phase === "restart") {
-    assert.equal(
-        await new SecretStore(directory, options).resolve(ref),
-        "synthetic-owned-restricted-value",
-    );
-    assert.equal(
-        (await new DeviceStore(directory, options).load()).deviceToken,
-        device.deviceToken,
-    );
+    assert.equal(await new SecretStore(directory, options).resolve(ref), "synthetic-owned-restricted-value");
+    assert.equal((await new DeviceStore(directory, options).load()).deviceToken, device.deviceToken);
     assert.equal(
         (await profile.transaction((tx) => tx.rotation()))?.replacementToken,
         "synthetic-owned-restricted-replacement",
@@ -242,15 +219,8 @@ if (phase === "closure") {
     } finally {
         left.fill(0);
         right.fill(0);
-        assert(
-            ["ok", "missing"].includes(
-                (await backend.delete(concurrentScope, AbortSignal.timeout(5000))).status,
-            ),
-        );
-        assert.equal(
-            (await backend.get(concurrentScope, AbortSignal.timeout(5000))).status,
-            "missing",
-        );
+        assert(["ok", "missing"].includes((await backend.delete(concurrentScope, AbortSignal.timeout(5000))).status));
+        assert.equal((await backend.get(concurrentScope, AbortSignal.timeout(5000))).status, "missing");
     }
     /**
      * 这里注入发生在真实文件发布及真实 unlink 已完成后的返回错误，验证生产后端不会把清理异常误报成未修改；故障是明确的
@@ -270,8 +240,7 @@ if (phase === "closure") {
             }
         };
         assert.equal(
-            (await backend.set(uncertainScope, uncertainMaterial, AbortSignal.timeout(5000)))
-                .status,
+            (await backend.set(uncertainScope, uncertainMaterial, AbortSignal.timeout(5000))).status,
             "mutation-unconfirmed",
         );
         VaultFiles.prototype.close = originalClose;
@@ -286,27 +255,16 @@ if (phase === "closure") {
         }
         VaultFiles.prototype.remove = async function (member) {
             await originalRemove.call(this, member);
-            if (this.directory === join(directory, "restricted-keys"))
-                throw new Error("INJECTED_POST_UNLINK_RETURN");
+            if (this.directory === join(directory, "restricted-keys")) throw new Error("INJECTED_POST_UNLINK_RETURN");
         };
-        assert.equal(
-            (await backend.delete(uncertainScope, AbortSignal.timeout(5000))).status,
-            "mutation-unconfirmed",
-        );
+        assert.equal((await backend.delete(uncertainScope, AbortSignal.timeout(5000))).status, "mutation-unconfirmed");
         VaultFiles.prototype.remove = originalRemove;
-        assert.equal(
-            (await backend.get(uncertainScope, AbortSignal.timeout(5000))).status,
-            "missing",
-        );
+        assert.equal((await backend.get(uncertainScope, AbortSignal.timeout(5000))).status, "missing");
     } finally {
         VaultFiles.prototype.close = originalClose;
         VaultFiles.prototype.remove = originalRemove;
         uncertainMaterial.fill(0);
-        assert(
-            ["ok", "missing"].includes(
-                (await backend.delete(uncertainScope, AbortSignal.timeout(5000))).status,
-            ),
-        );
+        assert(["ok", "missing"].includes((await backend.delete(uncertainScope, AbortSignal.timeout(5000))).status));
     }
     Object.assign(facts, {
         threePurposesReadAfterRestart: true,
@@ -323,10 +281,7 @@ if (phase === "closure") {
     await assert.rejects(new DeviceStore(directory, options).load(), /VAULT_PROFILE_DELETED/);
     assert.deepEqual(await readdir(join(directory, "restricted-keys")), []);
     assert.deepEqual(await readdir(join(directory, "vault")), ["deletion.json"]);
-    assert.equal(
-        JSON.parse(await readFile(join(directory, "public-marker.json"), "utf8")).retained,
-        true,
-    );
+    assert.equal(JSON.parse(await readFile(join(directory, "public-marker.json"), "utf8")).retained, true);
     Object.assign(facts, {
         exactKeysRemoved: true,
         tombstoneRetained: true,

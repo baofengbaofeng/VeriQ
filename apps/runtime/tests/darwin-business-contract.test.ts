@@ -4,16 +4,7 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-    mkdtemp,
-    rm,
-    realpath,
-    mkdir,
-    writeFile,
-    copyFile,
-    unlink,
-    symlink,
-} from "node:fs/promises";
+import { mkdtemp, rm, realpath, mkdir, writeFile, copyFile, unlink, symlink } from "node:fs/promises";
 import { writeFileSync, renameSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
@@ -21,10 +12,7 @@ import { join } from "node:path";
 import { ExecutionSupervisor, type SupervisorOptions } from "../src/execution/supervisor.ts";
 import { ProcessSupervisor } from "../src/execution/processes.ts";
 import { runOffline, type OfflineConfig } from "../src/offline/run.ts";
-import {
-    requireDarwinSource,
-    type DarwinSourceCapability,
-} from "../src/execution/darwin-source.ts";
+import { requireDarwinSource, type DarwinSourceCapability } from "../src/execution/darwin-source.ts";
 import { updatePrivate, readPrivate } from "../src/offline/config.ts";
 import { leaseDeadline } from "../src/lease.ts";
 import { businessLeaseWindow } from "./fixtures/business-engine.ts";
@@ -100,11 +88,7 @@ test(
                 cwd: root,
             });
             await child.firstLine();
-            const stop = await processes.terminateAttempt(
-                "legacy-deadline",
-                "TEST_STOP",
-                Number.NaN,
-            );
+            const stop = await processes.terminateAttempt("legacy-deadline", "TEST_STOP", Number.NaN);
             assert.equal(stop.processStopped, true);
             assert.equal(stop.processStopScope, "FULL_DESCENDANT_TREE");
             await child.exited;
@@ -149,8 +133,7 @@ for (const scenario of ["fulfilled", "rejected", "cancelled", "ready"] as const)
                 "Business diagnostics need an immediate run completion/rejection observer",
             );
             watch = factory(running, controller.signal);
-            const readiness =
-                scenario === "ready" ? Promise.resolve() : new Promise<void>(() => {});
+            const readiness = scenario === "ready" ? Promise.resolve() : new Promise<void>(() => {});
             const observed = watch!.waitFor(readiness, "BARRIER");
             if (scenario === "fulfilled") {
                 finish(7);
@@ -172,9 +155,7 @@ for (const scenario of ["fulfilled", "rejected", "cancelled", "ready"] as const)
         } finally {
             finish(7);
             watch?.close();
-            await new Promise<void>((resolve, fail) =>
-                server.close((error) => (error ? fail(error) : resolve())),
-            );
+            await new Promise<void>((resolve, fail) => server.close((error) => (error ? fail(error) : resolve())));
         }
         assert.equal(server.listening, false);
         assert.equal(EventEmitter.getEventListeners(controller.signal, "abort").length, before);
@@ -189,13 +170,8 @@ test("business report roles distinguish actual report entry from referenced view
     const helper = await import("./fixtures/business-engine.ts");
     const classify = Reflect.get(helper, "businessArtifactRole");
     assert.equal(typeof classify, "function");
-    for (const path of ["html/index.html", "report.html"])
-        assert.equal(classify(path), "MAIN_HTML");
-    for (const path of [
-        "html/trace/index.html",
-        "html/trace/snapshot.html",
-        "html/data/attachment.html",
-    ])
+    for (const path of ["html/index.html", "report.html"]) assert.equal(classify(path), "MAIN_HTML");
+    for (const path of ["html/trace/index.html", "html/trace/snapshot.html", "html/data/attachment.html"])
         assert.equal(classify(path), "DATA");
     assert.equal(classify("playwright.json"), "JSON");
     assert.equal(classify("case/trace.zip"), "TRACE");
@@ -222,11 +198,7 @@ test(
             await writeFile(config, source, { mode: 0o600 });
             const canonical = await realpath(config),
                 hash = createHash("sha1").update(canonical).digest("hex").slice(0, 10);
-            const cache = join(
-                tmp,
-                `playwright-transform-cache-${process.geteuid?.()}`,
-                hash.slice(0, 2),
-            );
+            const cache = join(tmp, `playwright-transform-cache-${process.geteuid?.()}`, hash.slice(0, 2));
             await mkdir(cache, { recursive: true, mode: 0o700 });
             const stem = `${hash}_abcdef0_playwrightconfig`,
                 js = join(cache, stem + ".js"),
@@ -248,8 +220,7 @@ test(
             const seen: string[] = [];
             const inspect = async (bytes: Buffer, name: string) => {
                 seen.push(name);
-                if (bytes.includes(marker) || reference(bytes))
-                    throw new Error("PRIVATE_ENDPOINT_DISCLOSURE");
+                if (bytes.includes(marker) || reference(bytes)) throw new Error("PRIVATE_ENDPOINT_DISCLOSURE");
             };
             const walk = () =>
                 visitBusinessArtifacts(tmp, work, inspect, (inventory) => {
@@ -265,9 +236,7 @@ test(
             assert.ok(Buffer.byteLength(source + code + mapping) < 16 * 1024);
             const alias = join(root, "work-alias");
             await symlink(work, alias);
-            await visitBusinessArtifacts(tmp, alias, inspect, (inventory) =>
-                assert.equal(inventory.files, 2),
-            );
+            await visitBusinessArtifacts(tmp, alias, inspect, (inventory) => assert.equal(inventory.files, 2));
             await assert.rejects(
                 visitBusinessArtifacts(tmp, work, inspect, () => {
                     const replacement = join(cache, "replacement.js");
@@ -291,11 +260,7 @@ test(
                 await assert.rejects(walk(), /PRIVATE_ENDPOINT_DISCLOSURE/);
                 await unlink(copy);
             }
-            const disguised = join(
-                data,
-                `playwright-transform-cache-${process.geteuid?.()}`,
-                hash.slice(0, 2),
-            );
+            const disguised = join(data, `playwright-transform-cache-${process.geteuid?.()}`, hash.slice(0, 2));
             await mkdir(disguised, { recursive: true, mode: 0o700 });
             await copyFile(map, join(disguised, stem + ".map"));
             await assert.rejects(walk(), /PRIVATE_ENDPOINT_DISCLOSURE/);
@@ -320,12 +285,7 @@ test(
             await assert.rejects(walk(), /PRIVATE_ENDPOINT_DISCLOSURE/);
             assert.ok(seen.some((path) => path.endsWith("/trace.zip")));
             await unlink(join(cache, "trace.zip"));
-            for (const value of [
-                js,
-                stem + ".map",
-                encodeURIComponent(map),
-                Buffer.from(js).toString("base64"),
-            ]) {
+            for (const value of [js, stem + ".map", encodeURIComponent(map), Buffer.from(js).toString("base64")]) {
                 await writeFile(join(data, "reference.txt"), value);
                 await assert.rejects(walk(), /PRIVATE_ENDPOINT_DISCLOSURE/);
             }

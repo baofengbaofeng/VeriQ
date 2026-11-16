@@ -61,11 +61,9 @@ it("supports fixture output declarations and nested property types", () =>
 it("rejects invalid fixture JSON Schema using Ajv", () =>
     expect(
         codes(
-            snapshot(
-                undefined,
-                [fixture({ type: "object", properties: { x: { type: "nonsense" } } })],
-                { fixtureVersionId: id(3) },
-            ),
+            snapshot(undefined, [fixture({ type: "object", properties: { x: { type: "nonsense" } } })], {
+                fixtureVersionId: id(3),
+            }),
         ),
     ).toContain("INVALID_JSON_SCHEMA"));
 it("rejects remote schema references without fetching them", () =>
@@ -190,10 +188,7 @@ it("accepts five flow levels and rejects six", () => {
     expect(codes(build(6))).toContain("FLOW_DEPTH_LIMIT");
 });
 it("bounds expanded steps at 500", () => {
-    const leaves = Array.from(
-        { length: 250 },
-        (_, i) => ({ id: "s" + i, action: "reload" }) as StepV1,
-    );
+    const leaves = Array.from({ length: 250 }, (_, i) => ({ id: "s" + i, action: "reload" }) as StepV1);
     expect(
         codes(
             snapshot(
@@ -239,9 +234,9 @@ it("expands pinned templates and detects cycles", () => {
         assertions: [call],
         parameters: { code: "integer" },
     });
-    expect(
-        codes(snapshot([{ id: "save", action: "reload", afterAssertions: [call] }], [cycle])),
-    ).toContain("TEMPLATE_CYCLE");
+    expect(codes(snapshot([{ id: "save", action: "reload", afterAssertions: [call] }], [cycle]))).toContain(
+        "TEMPLATE_CYCLE",
+    );
 });
 it("requires business assertions, rejects WARN downgrade, and validates later persistence", () => {
     const steps: StepV1[] = [
@@ -299,9 +294,7 @@ it("checks catalog scope cycles and binding uses", () => {
             },
         ],
     });
-    expect(codes(rehash(s))).toEqual(
-        expect.arrayContaining(["CATALOG_SCOPE_CYCLE", "VARIABLE_USED_BEFORE_DEFINED"]),
-    );
+    expect(codes(rehash(s))).toEqual(expect.arrayContaining(["CATALOG_SCOPE_CYCLE", "VARIABLE_USED_BEFORE_DEFINED"]));
 });
 it("validates standalone environment origins and repeated roles without resolving credentials", () => {
     const s = snapshot();
@@ -369,9 +362,7 @@ it("checks unsafe interpolation and missing pointers without prototype access", 
     expect(resolvePointer([1], "/01")).toEqual({ present: false });
     expect(() => resolvePointer({}, "/~2")).toThrow("INVALID_POINTER");
     expect(resolveBinding("x{{data.n}}", { data: { n: 4 }, vars: {} })).toBe("x4");
-    expect(() => resolveBinding("x{{data.n}}", { data: { n: [] }, vars: {} })).toThrow(
-        "BINDING_TYPE_MISMATCH",
-    );
+    expect(() => resolveBinding("x{{data.n}}", { data: { n: [] }, vars: {} })).toThrow("BINDING_TYPE_MISMATCH");
 });
 it("rejects nested bindings beneath an optional fixture object", () =>
     expect(
@@ -836,10 +827,7 @@ it("rejects standalone flow use before a local extraction while allowing declare
     expect(codes(rehash(s))).toContain("VARIABLE_USED_BEFORE_DEFINED");
 });
 
-function suiteRoot(
-    s: AssetSnapshotV1,
-    variants: { versionId: string; datasetVersionId?: string }[],
-): AssetSnapshotV1 {
+function suiteRoot(s: AssetSnapshotV1, variants: { versionId: string; datasetVersionId?: string }[]): AssetSnapshotV1 {
     const root = asset(80, "SUITE", { schemaVersion: "1.0", cases: variants });
     s.assets.push(root);
     s.validationTarget = {
@@ -876,11 +864,9 @@ it("I1 validates every effective dataset variant, independently of variant order
         [4, 3],
     ]) {
         const s = suiteRoot(
-            snapshot(
-                [fillName],
-                [namedDataset(3, "string", ["A"]), namedDataset(4, "integer", [42])],
-                { datasetVersionId: id(3) },
-            ),
+            snapshot([fillName], [namedDataset(3, "string", ["A"]), namedDataset(4, "integer", [42])], {
+                datasetVersionId: id(3),
+            }),
             datasetIds.map((n) => ({ versionId: id(1), datasetVersionId: id(n) })),
         );
         expect(codes(s)).toContain("BINDING_TYPE_MISMATCH");

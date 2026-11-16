@@ -47,8 +47,7 @@ export function dependencyDeclarations(manifest: Record<string, unknown>): Closu
     const read = (key: string) => {
         if (manifest[key] === undefined) return {} as Record<string, string>;
         const value = manifest[key];
-        if (!value || typeof value !== "object" || Array.isArray(value))
-            fail("PAYLOAD_GRAPH_MISMATCH");
+        if (!value || typeof value !== "object" || Array.isArray(value)) fail("PAYLOAD_GRAPH_MISMATCH");
         for (const [alias, requested] of Object.entries(value)) {
             relative(alias);
             if (
@@ -87,10 +86,7 @@ export function dependencyDeclarations(manifest: Record<string, unknown>): Closu
                 alias,
                 requested,
                 kind:
-                    entry &&
-                    typeof entry === "object" &&
-                    "optional" in entry &&
-                    entry.optional === true
+                    entry && typeof entry === "object" && "optional" in entry && entry.optional === true
                         ? ("optional-peer" as const)
                         : ("peer" as const),
             };
@@ -124,15 +120,10 @@ export function lockSections(bytes: Buffer) {
                 : raw.startsWith("'")
                   ? raw.slice(1, -1).replaceAll("''", "'")
                   : raw;
-            if (
-                typeof key !== "string" ||
-                Buffer.byteLength(key) > 2048 ||
-                sections.get(section)!.has(key)
-            )
+            if (typeof key !== "string" || Buffer.byteLength(key) > 2048 || sections.get(section)!.has(key))
                 fail("PAYLOAD_GRAPH_MISMATCH");
             sections.get(section)!.set(key, "");
-        } else if (key)
-            sections.get(section)!.set(key, sections.get(section)!.get(key)! + line + "\n");
+        } else if (key) sections.get(section)!.set(key, sections.get(section)!.get(key)! + line + "\n");
     }
     if (!sections.has("packages") || !sections.has("snapshots")) fail("PAYLOAD_GRAPH_MISMATCH");
     return { text, packages: sections.get("packages")!, snapshots: sections.get("snapshots")! };
@@ -143,12 +134,7 @@ export function lockSections(bytes: Buffer) {
  * 的范围、别名或新平台元数据形式保持失败，optional peer 则由真实查找缺失单独证
  * 明。
  */
-export function targetExcluded(
-    lock: ReturnType<typeof lockSections>,
-    alias: string,
-    requested: string,
-    arch: string,
-) {
+export function targetExcluded(lock: ReturnType<typeof lockSections>, alias: string, requested: string, arch: string) {
     const key = `${alias}@${requested}`,
         body = lock.packages.get(key);
     if (!body) fail("PAYLOAD_GRAPH_MISMATCH");
@@ -160,19 +146,15 @@ export function targetExcluded(
                 .split(",")
                 .map((item) => item.trim().replace(/^['"]|['"]$/g, ""))
                 .filter(Boolean);
-            if (fields[name]!.some((item) => !/^!?[a-z0-9_-]+$/i.test(item)))
-                fail("PAYLOAD_GRAPH_MISMATCH");
+            if (fields[name]!.some((item) => !/^!?[a-z0-9_-]+$/i.test(item))) fail("PAYLOAD_GRAPH_MISMATCH");
         } else if (new RegExp(`^ {8}${name}:`, "m").test(body)) fail("PAYLOAD_GRAPH_MISMATCH");
     }
     const excluded = (values: string[] | undefined, target: string) =>
         values &&
         (values.includes("!any") ||
             values.includes(`!${target}`) ||
-            (values.some((item) => !item.startsWith("!")) &&
-                !values.includes("any") &&
-                !values.includes(target)));
-    if (!excluded(fields.os, "darwin") && !excluded(fields.cpu, arch))
-        fail("PAYLOAD_GRAPH_MISMATCH");
+            (values.some((item) => !item.startsWith("!")) && !values.includes("any") && !values.includes(target)));
+    if (!excluded(fields.os, "darwin") && !excluded(fields.cpu, arch)) fail("PAYLOAD_GRAPH_MISMATCH");
     return { lockKey: key, rawPackageMetadata: body, target: { platform: "darwin", arch }, fields };
 }
 
@@ -183,8 +165,7 @@ export function targetExcluded(
 function outputRoot(physical: string, generated: GeneratedWorkspacePackage | null) {
     if (generated) return `node_modules/${generated.name}`;
     if (physical.startsWith("node_modules/")) return physical;
-    if (physical.startsWith("apps/runtime/node_modules/"))
-        return physical.slice("apps/runtime/".length);
+    if (physical.startsWith("apps/runtime/node_modules/")) return physical.slice("apps/runtime/".length);
     for (const name of ["contracts", "runner-sdk"])
         if (physical.startsWith(`packages/${name}/node_modules/`))
             return `node_modules/@veriq/${name}/${physical.slice(`packages/${name}/`.length)}`;
@@ -209,9 +190,7 @@ export async function collectRuntimeDependencyClosure(
 ) {
     const { installation, records, generated, files, lock, arch } = options;
     const observed = new Map(
-        records
-            .filter((record) => record.kind === "package")
-            .map((record) => [record.path, record]),
+        records.filter((record) => record.kind === "package").map((record) => [record.path, record]),
     );
     const packages: ClosurePackage[] = [],
         byPhysical = new Map<string, ClosurePackage>(),
@@ -222,7 +201,7 @@ export async function collectRuntimeDependencyClosure(
         for (const base of lookup) {
             const candidate = join(base, alias);
             if (!candidate.startsWith(installation + "/")) continue;
-            let info;
+            let info: import("node:fs").Stats;
             try {
                 info = await lstat(candidate);
             } catch (error) {
@@ -233,10 +212,7 @@ export async function collectRuntimeDependencyClosure(
                     continue;
                 throw error;
             }
-            const physical = relativePath(installation, await realpath(candidate)).replaceAll(
-                "\\",
-                "/",
-            );
+            const physical = relativePath(installation, await realpath(candidate)).replaceAll("\\", "/");
             relative(physical);
             const workspace = generated.find((item) => item.sourceRoot === physical) ?? null;
             if (
@@ -260,8 +236,7 @@ export async function collectRuntimeDependencyClosure(
                 fail("PAYLOAD_GRAPH_MISMATCH");
             const root = outputRoot(physical, workspace),
                 collision = byOutput.get(root);
-            if (collision && collision !== physical)
-                unsupportedDependency("DEPENDENCY_INSTALL_SCOPE_COLLISION");
+            if (collision && collision !== physical) unsupportedDependency("DEPENDENCY_INSTALL_SCOPE_COLLISION");
             byOutput.set(root, physical);
             let snapshot: string;
             if (workspace) {
@@ -280,24 +255,17 @@ export async function collectRuntimeDependencyClosure(
                     );
                     for (const peer of peers) {
                         const paths =
-                            createRequire(
-                                join(installation, physical, "package.json"),
-                            ).resolve.paths(peer.alias) ?? [];
+                            createRequire(join(installation, physical, "package.json")).resolve.paths(peer.alias) ?? [];
                         let peerVersion: string | null = null;
                         for (const peerBase of paths) {
                             if (!peerBase.startsWith(installation + "/")) continue;
                             try {
                                 const resolvedPeer = await realpath(join(peerBase, peer.alias));
-                                if (!resolvedPeer.startsWith(installation + "/"))
-                                    fail("PAYLOAD_PATH");
+                                if (!resolvedPeer.startsWith(installation + "/")) fail("PAYLOAD_PATH");
                                 const body = decode(
-                                    await files.read(
-                                        join(resolvedPeer, "package.json"),
-                                        limits.package,
-                                    ),
+                                    await files.read(join(resolvedPeer, "package.json"), limits.package),
                                 ) as Record<string, unknown>;
-                                peerVersion =
-                                    typeof body.version === "string" ? body.version : null;
+                                peerVersion = typeof body.version === "string" ? body.version : null;
                                 break;
                             } catch (error) {
                                 if (

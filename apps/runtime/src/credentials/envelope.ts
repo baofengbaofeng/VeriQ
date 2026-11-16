@@ -62,10 +62,7 @@ function record(value: unknown): value is Record<string, unknown> {
 }
 
 function exact(value: Record<string, unknown>, names: string[]) {
-    return (
-        Object.keys(value).length === names.length &&
-        names.every((name) => Object.hasOwn(value, name))
-    );
+    return Object.keys(value).length === names.length && names.every((name) => Object.hasOwn(value, name));
 }
 
 function identifier(value: unknown) {
@@ -118,8 +115,7 @@ function checkedBinding(value: unknown): EnvelopeBinding {
                 url.password ||
                 !(
                     url.protocol === "https:" ||
-                    (url.protocol === "http:" &&
-                        ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname))
+                    (url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname))
                 )
             )
                 throw new Error();
@@ -186,8 +182,7 @@ export function sealEnvelope(value: JsonValue, expected: EnvelopeBinding, key: B
  * 密文大小另由调用方在进入解密之前执行统一上限检查。
  */
 function decode(value: unknown, length?: number): Buffer {
-    if (typeof value !== "string" || !/^[A-Za-z0-9_-]+$/.test(value))
-        throw new VaultError("VAULT_INVALID_ENVELOPE");
+    if (typeof value !== "string" || !/^[A-Za-z0-9_-]+$/.test(value)) throw new VaultError("VAULT_INVALID_ENVELOPE");
     const bytes = Buffer.from(value, "base64url");
     if (bytes.toString("base64url") !== value || (length !== undefined && bytes.length !== length))
         throw new VaultError("VAULT_INVALID_ENVELOPE");
@@ -235,9 +230,7 @@ export function openEnvelope(wire: string, expected: EnvelopeBinding, key: Buffe
         throw new VaultError("VAULT_AUTHENTICATION_FAILED");
     }
     try {
-        const value: unknown = JSON.parse(
-            new TextDecoder("utf-8", { fatal: true }).decode(plaintext),
-        );
+        const value: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(plaintext));
         payload(value);
         return value as JsonValue;
     } catch {

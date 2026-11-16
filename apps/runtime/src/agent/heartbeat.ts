@@ -22,11 +22,7 @@ export class Heartbeat {
         received: number,
         private stop: (reason: string) => void,
     ) {
-        this.deadline = leaseDeadline(
-            { ...claim, leaseExpiresAt: claim.expiresAt },
-            sent,
-            received,
-        );
+        this.deadline = leaseDeadline({ ...claim, leaseExpiresAt: claim.expiresAt }, sent, received);
     }
     /**
      * 公开方法 start 武装本地租约看门狗并调度首次心跳，截止到达即调用构造时注入的 stop 回调（start）（start）。
@@ -37,10 +33,7 @@ export class Heartbeat {
     }
     private arm() {
         clearTimeout(this.watch);
-        this.watch = setTimeout(
-            () => this.stop("LEASE_LOST"),
-            Math.max(0, this.deadline - performance.now()),
-        );
+        this.watch = setTimeout(() => this.stop("LEASE_LOST"), Math.max(0, this.deadline - performance.now()));
     }
     private async beat() {
         if (this.done) return;
@@ -63,10 +56,7 @@ export class Heartbeat {
             }
             this.deadline = leaseDeadline(grant, sent, performance.now());
             this.arm();
-            this.timer = setTimeout(
-                () => void this.beat(),
-                Math.max(0, 10000 - (performance.now() - sent)),
-            );
+            this.timer = setTimeout(() => void this.beat(), Math.max(0, 10000 - (performance.now() - sent)));
         } catch {
             if (!this.done) this.stop("CONTROL_CONNECTION_LOST");
         }

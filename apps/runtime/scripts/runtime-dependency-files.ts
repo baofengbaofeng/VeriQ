@@ -97,8 +97,7 @@ export class DependencyFiles {
     async header(path: string) {
         let prefix = Buffer.alloc(0);
         for await (const chunk of this.chunks(path))
-            if (prefix.length < 256)
-                prefix = Buffer.concat([prefix, chunk.subarray(0, 256 - prefix.length)]);
+            if (prefix.length < 256) prefix = Buffer.concat([prefix, chunk.subarray(0, 256 - prefix.length)]);
         return prefix;
     }
 
@@ -153,8 +152,7 @@ function same(a: BigIntStats, b: BigIntStats) {
 export async function admitDependencyBuildRoot(work: ArchiveTransaction, root: string) {
     if (!isAbsolute(root) || resolve(root) !== root) fail("PAYLOAD_PATH");
     for (const other of [work.inputRoot, work.outputParent])
-        if (root === other || root.startsWith(other + "/") || other.startsWith(root + "/"))
-            fail("PAYLOAD_PATH");
+        if (root === other || root.startsWith(other + "/") || other.startsWith(root + "/")) fail("PAYLOAD_PATH");
     for (let current = root; ; current = dirname(current)) {
         if (!(await lstat(current)).isDirectory()) fail("PAYLOAD_PATH");
         if (current === dirname(current)) break;
@@ -169,11 +167,7 @@ export async function admitDependencyBuildRoot(work: ArchiveTransaction, root: s
     }
     return async () => {
         const after = await lstat(root, { bigint: true });
-        if (
-            identity.dev !== after.dev ||
-            identity.ino !== after.ino ||
-            identity.mode !== after.mode
-        )
+        if (identity.dev !== after.dev || identity.ino !== after.ino || identity.mode !== after.mode)
             fail("PAYLOAD_SOURCE_CHANGED");
     };
 }
@@ -225,8 +219,7 @@ export async function copyDependencyView(
 ) {
     const mode = Number((await lstat(source)).mode & 0o7777);
     if (expected?.mode !== undefined && expected.mode !== mode) fail("PAYLOAD_SOURCE_CHANGED");
-    if (![0o400, 0o600, 0o444, 0o644, 0o500, 0o700, 0o555, 0o755].includes(mode))
-        fail("PAYLOAD_TREE_MISMATCH");
+    if (![0o400, 0o600, 0o444, 0o644, 0o500, 0o700, 0o555, 0o755].includes(mode)) fail("PAYLOAD_TREE_MISMATCH");
     const outputMode = mode & 0o111 ? 0o755 : 0o644;
     const ref = await work.write(
         `views/${relative(destination)}`,
@@ -241,12 +234,7 @@ export async function copyDependencyView(
  * 解析暂存树也从同一持有来源分块复制，不执行包正文、不创建工作区目录链接，也不利用缓存硬链接共享可变 inode；每个目标使
  * 用排他描述符写入，发生短写或来源变化时终止而不产生可接受解析证据。
  */
-export async function copyDependencySourceFile(
-    root: string,
-    path: string,
-    source: string,
-    files: DependencyFiles,
-) {
+export async function copyDependencySourceFile(root: string, path: string, source: string, files: DependencyFiles) {
     relative(path);
     await mkdir(dirname(join(root, path)), { recursive: true, mode: 0o700 });
     const handle = await open(

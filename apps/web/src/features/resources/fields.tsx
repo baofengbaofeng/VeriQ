@@ -124,11 +124,7 @@ export function Field({
                             name={field.name}
                             onBlur={field.onBlur}
                             value={typeof field.value === "string" ? field.value : ""}
-                            onChange={(e) =>
-                                field.onChange(
-                                    optional && !e.target.value ? undefined : e.target.value,
-                                )
-                            }
+                            onChange={(e) => field.onChange(optional && !e.target.value ? undefined : e.target.value)}
                             data-testid={testId ?? name}
                         >
                             {optional && <option value="">—</option>}
@@ -137,8 +133,7 @@ export function Field({
                                 field.value &&
                                 !options.includes(field.value) && (
                                     <option value={field.value} disabled>
-                                        {field.value}{" "}
-                                        {tx(" · 未在当前作用域声明 / Not declared in this scope")}
+                                        {field.value} {tx(" · 未在当前作用域声明 / Not declared in this scope")}
                                     </option>
                                 )}
                             {options.map((o) => (
@@ -155,9 +150,7 @@ export function Field({
                             onBlur={field.onBlur}
                             type={password ? "password" : number ? "number" : "text"}
                             value={
-                                typeof field.value === "string" || typeof field.value === "number"
-                                    ? field.value
-                                    : ""
+                                typeof field.value === "string" || typeof field.value === "number" ? field.value : ""
                             }
                             onChange={(e) =>
                                 field.onChange(
@@ -225,9 +218,7 @@ export function VersionField({
                         value={typeof field.value === "string" ? field.value : ""}
                         onBlur={field.onBlur}
                         ref={field.ref}
-                        onChange={(e) =>
-                            field.onChange(optional && !e.target.value ? undefined : e.target.value)
-                        }
+                        onChange={(e) => field.onChange(optional && !e.target.value ? undefined : e.target.value)}
                     >
                         <option value="">{tx("选择固定版本 / Select pinned version")}</option>
                         {typeof field.value === "string" &&
@@ -342,15 +333,12 @@ function FieldArrayList({
                     announcements: {
                         onDragStart: ({ active }) =>
                             tx("Moving row {{position}}", {
-                                position:
-                                    array.fields.findIndex((row) => row._formId === active.id) + 1,
+                                position: array.fields.findIndex((row) => row._formId === active.id) + 1,
                             }),
                         onDragOver: ({ over }) =>
                             over
                                 ? tx("Over row {{position}}", {
-                                      position:
-                                          array.fields.findIndex((row) => row._formId === over.id) +
-                                          1,
+                                      position: array.fields.findIndex((row) => row._formId === over.id) + 1,
                                   })
                                 : tx("Outside the list"),
                         onDragEnd: () => tx("Reordering finished"),
@@ -398,11 +386,7 @@ function FieldArrayList({
                     </DragRow>
                 ))}
             </DndContext>
-            <Button
-                tone="secondary"
-                data-testid={`${name}.add`}
-                onClick={() => array.append(initial() as never)}
-            >
+            <Button tone="secondary" data-testid={`${name}.add`} onClick={() => array.append(initial() as never)}>
                 {t("add")} {title}
             </Button>
         </Section>
@@ -441,8 +425,7 @@ export function JsonValueControl({
     useAppLocale();
     const [key, setKey] = useState("");
     const type = value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
-    const objectValue =
-        value !== null && typeof value === "object" && !Array.isArray(value) ? value : {};
+    const objectValue = value !== null && typeof value === "object" && !Array.isArray(value) ? value : {};
     return (
         <div className="vq-value">
             <label>
@@ -462,17 +445,9 @@ export function JsonValueControl({
             {type === "string" && (
                 <label>
                     {label}
-                    <input
-                        aria-label={label}
-                        value={value as string}
-                        onChange={(e) => onChange(e.target.value)}
-                    />
+                    <input aria-label={label} value={value as string} onChange={(e) => onChange(e.target.value)} />
                     {allowBinding && (
-                        <small>
-                            {tx(
-                                "支持完整占位符并保留类型 / Whole placeholders retain value types.",
-                            )}
-                        </small>
+                        <small>{tx("支持完整占位符并保留类型 / Whole placeholders retain value types.")}</small>
                     )}
                     {allowBinding && bindings && (
                         <select
@@ -540,11 +515,7 @@ export function JsonValueControl({
                                 tone="danger"
                                 onClick={() =>
                                     onChange(
-                                        Object.fromEntries(
-                                            Object.entries(objectValue).filter(
-                                                ([name]) => name !== k,
-                                            ),
-                                        ),
+                                        Object.fromEntries(Object.entries(objectValue).filter(([name]) => name !== k)),
                                     )
                                 }
                             >
@@ -609,9 +580,7 @@ function JsonArrayControl({
                         allowBinding={allowBinding}
                         bindings={bindings}
                         onChange={(next) =>
-                            onChange(
-                                value.map((entry, position) => (position === index ? next : entry)),
-                            )
+                            onChange(value.map((entry, position) => (position === index ? next : entry)))
                         }
                     />
                     <Button
@@ -676,15 +645,7 @@ export function JsonField({
  * 完全由调用方自行约束。
  * 空串是否允许由业务 Schema 决定，控件原样保留输入，不自动 trim、去重或包装成带 UI 标记的对象。
  */
-export function StringList({
-    name,
-    label,
-    choices,
-}: {
-    name: string;
-    label: string;
-    choices?: string[];
-}) {
+export function StringList({ name, label, choices }: { name: string; label: string; choices?: string[] }) {
     useAppLocale();
     const value = useValue<string[] | undefined>(name) ?? [],
         set = useSet();
@@ -700,9 +661,7 @@ export function StringList({
                             onChange={(e) =>
                                 set(
                                     name,
-                                    e.target.checked
-                                        ? [...value, choice]
-                                        : value.filter((entry) => entry !== choice),
+                                    e.target.checked ? [...value, choice] : value.filter((entry) => entry !== choice),
                                 )
                             }
                         />
@@ -731,9 +690,7 @@ function FreeStringRows({ name, label, value }: { name: string; label: string; v
                         onChange={(e) =>
                             set(
                                 name,
-                                value.map((item, position) =>
-                                    position === index ? e.target.value : item,
-                                ),
+                                value.map((item, position) => (position === index ? e.target.value : item)),
                             )
                         }
                     />
@@ -790,12 +747,7 @@ export function TypeMap({ name, label }: { name: string; label: string }) {
                     </select>
                     <Button
                         tone="danger"
-                        onClick={() =>
-                            set(
-                                name,
-                                Object.fromEntries(Object.entries(value).filter(([n]) => n !== k)),
-                            )
-                        }
+                        onClick={() => set(name, Object.fromEntries(Object.entries(value).filter(([n]) => n !== k)))}
                     >
                         {tx("删除 / Remove")}
                     </Button>
@@ -804,11 +756,7 @@ export function TypeMap({ name, label }: { name: string; label: string }) {
             <div className="vq-actions">
                 <label>
                     {tx("名称 / Name")}
-                    <input
-                        data-testid={`${name}.key`}
-                        value={key}
-                        onChange={(e) => keySet(e.target.value)}
-                    />
+                    <input data-testid={`${name}.key`} value={key} onChange={(e) => keySet(e.target.value)} />
                 </label>
                 <Button
                     tone="secondary"

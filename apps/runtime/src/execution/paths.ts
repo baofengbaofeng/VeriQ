@@ -25,10 +25,7 @@ export function developmentExecutionPaths(): ExecutionPaths {
         runnerExecutable: process.execPath,
         guardianExecutable: fileURLToPath(new URL("../../build/veriq_runner", import.meta.url)),
         npmCli: realpathSync(
-            join(
-                dirname(process.execPath),
-                process.platform === "win32" ? "node_modules/npm/bin/npm-cli.js" : "npm",
-            ),
+            join(dirname(process.execPath), process.platform === "win32" ? "node_modules/npm/bin/npm-cli.js" : "npm"),
         ),
         tsx: fileURLToPath(import.meta.resolve("tsx")),
         workerEntry: fileURLToPath(new URL("worker.mjs", import.meta.url)),

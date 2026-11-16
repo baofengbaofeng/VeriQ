@@ -9,11 +9,7 @@ export const a = (patch: Record<string, unknown>): AssertionV1 =>
         expectedSource: "REQ-1",
         ...patch,
     }) as AssertionV1;
-export const step = (
-    s: StepV1,
-    assertions: AssertionV1[] = [],
-    after: AssertionV1[] = [],
-): CompiledStep => ({
+export const step = (s: StepV1, assertions: AssertionV1[] = [], after: AssertionV1[] = []): CompiledStep => ({
     step: {
         ...s,
         ...(s.action === "apiRequest"
@@ -126,9 +122,7 @@ export async function fixture() {
     const browser = await chromium.launch({
         // 测试默认交由已锁定 Playwright 选择匹配浏览器，仅当操作员明确指定路径时覆盖；系统安装的 Chromium
         // 不能成为未记录的正式门禁输入。
-        ...(process.env.VERIQ_TEST_CHROMIUM
-            ? { executablePath: process.env.VERIQ_TEST_CHROMIUM }
-            : {}),
+        ...(process.env.VERIQ_TEST_CHROMIUM ? { executablePath: process.env.VERIQ_TEST_CHROMIUM } : {}),
         args: ["--no-sandbox"],
         env: {
             ...process.env,
@@ -161,20 +155,12 @@ export async function fixture() {
             },
             catalog: {
                 schemaVersion: "1.0" as const,
-                elements: [
-                    "name",
-                    "check",
-                    "select",
-                    "upload",
-                    "save",
-                    "disabled",
-                    "text",
-                    "duplicate",
-                    "row",
-                ].map((key) => ({
-                    key,
-                    locator: { by: "testId" as const, value: key },
-                })) as [CatalogElementV1, ...CatalogElementV1[]],
+                elements: ["name", "check", "select", "upload", "save", "disabled", "text", "duplicate", "row"].map(
+                    (key) => ({
+                        key,
+                        locator: { by: "testId" as const, value: key },
+                    }),
+                ) as [CatalogElementV1, ...CatalogElementV1[]],
             },
             data: { name: "attempt-1" },
             vars: {},

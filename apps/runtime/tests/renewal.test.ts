@@ -50,11 +50,7 @@ test("lost renewal response recovers exact private candidate and atomically pres
             deviceToken: "o".repeat(43),
             expiresAt: "2026-12-01T00:00:00Z",
         });
-        assert.equal(
-            typeof store.renew,
-            "function",
-            "renewal must be recoverable across a lost HTTP reply",
-        );
+        assert.equal(typeof store.renew, "function", "renewal must be recoverable across a lost HTTP reply");
         await assert.rejects(store.renew(new RuntimeClient(origin)), /NETWORK_UNAVAILABLE/);
         assert.equal((await store.load()).deviceToken, "o".repeat(43));
         assert.equal((await stat(join(directory, "rotation.json"))).mode & 0o777, 0o600);
@@ -101,8 +97,7 @@ test("local logout removes a pending candidate and cannot resurrect it over a ne
 });
 
 test(
-    "an active Agent blocks concurrent profile ownersh" +
-        "ip and local logout without breaking renewal locks",
+    "an active Agent blocks concurrent profile ownersh" + "ip and local logout without breaking renewal locks",
     async () => {
         const { DeviceSession } = await import("../src/agent/credentials.ts");
         const directory = await mkdtemp(join(tmpdir(), "veriq-t10-owner-"));
@@ -178,10 +173,7 @@ test(
                 mode: 0o600,
             });
             // No server is listening: committed local recovery must not attempt another rotation.
-            assert.equal(
-                (await store.renew(new RuntimeClient(previous.server))).deviceToken,
-                pending.replacementToken,
-            );
+            assert.equal((await store.renew(new RuntimeClient(previous.server))).deviceToken, pending.replacementToken);
             assert.equal(await store.hasPendingRotation(), false);
             await store.remove();
             const next = {
@@ -193,10 +185,7 @@ test(
             await writeFile(join(directory, "rotation.json"), JSON.stringify(pending), {
                 mode: 0o600,
             });
-            await assert.rejects(
-                store.renew(new RuntimeClient(previous.server)),
-                /DEVICE_PRINCIPAL_CHANGED/,
-            );
+            await assert.rejects(store.renew(new RuntimeClient(previous.server)), /DEVICE_PRINCIPAL_CHANGED/);
             assert.deepEqual(await store.load(), next);
             await store.remove();
             assert.equal(await store.hasPendingRotation(), false);

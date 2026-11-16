@@ -13,8 +13,7 @@ async function identity(pid: number) {
         const fields = raw.slice(raw.lastIndexOf(")") + 2).split(" ");
         return { uid: (await stat(`/proc/${pid}`)).uid, state: fields[0], start: fields[19] };
     } catch (error) {
-        if (["ENOENT", "ESRCH"].includes((error as NodeJS.ErrnoException).code ?? ""))
-            return undefined;
+        if (["ENOENT", "ESRCH"].includes((error as NodeJS.ErrnoException).code ?? "")) return undefined;
         throw error;
     }
 }

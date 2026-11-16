@@ -23,12 +23,7 @@ const bridge = window.veriq;
  * 共享 Cloud 适配器的相对路径只在 renderer 内转换成既定操作名称和结构参数，IPC 消息不携带路径或请求头；此匹配只负责兼
  * 容旧视图，宿主会重新独立检查全部授权与输入。
  */
-function operation(
-    path: string,
-    method: string,
-    data?: unknown,
-    headers?: Record<string, string>,
-): CloudOperation {
+function operation(path: string, method: string, data?: unknown, headers?: Record<string, string>): CloudOperation {
     const url = new URL("/api/v1" + path, "https://veriq.invalid");
     for (const [name, rule] of Object.entries(catalog)) {
         if (rule.method !== method) continue;
@@ -39,19 +34,13 @@ function operation(
         });
         const match = new RegExp("^" + pattern + "$").exec(url.pathname);
         if (!match) continue;
-        const params = Object.fromEntries(
-            names.map((name, index) => [name, decodeURIComponent(match[index + 1]!)]),
-        );
+        const params = Object.fromEntries(names.map((name, index) => [name, decodeURIComponent(match[index + 1]!)]));
         const query = Object.fromEntries(
             [...url.searchParams].map(([key, value]) => {
                 const schema = (rule.queries as Record<string, { type?: string }>)[key];
                 return [
                     key,
-                    schema?.type === "integer"
-                        ? Number(value)
-                        : schema?.type === "boolean"
-                          ? value === "true"
-                          : value,
+                    schema?.type === "integer" ? Number(value) : schema?.type === "boolean" ? value === "true" : value,
                 ];
             }),
         );
@@ -125,9 +114,7 @@ export function installDesktopTransport(): void {
 export function cloudAdapters(workspaceId: string, debug: boolean) {
     const resources = new CloudResourceAdapter(workspaceId);
     const reports = new CloudReportAdapter(workspaceId);
-    const reportAdapter = nativeCloudReports(workspaceId, reports, (input) =>
-        bridge.artifact(input),
-    );
+    const reportAdapter = nativeCloudReports(workspaceId, reports, (input) => bridge.artifact(input));
     const bundles = Object.assign(new CloudBundleAdapter(workspaceId), {
         install: async (bundleId: string) => {
             await bridge.local({ operation: "download", bundleId, debug });
@@ -177,8 +164,7 @@ export class DesktopLocalReports implements ReportAdapter {
         const value = (await bridge.local({ operation: "report", runId })) as LocalReportSnapshot;
         if (value.workspaceId !== this.workspaceId) throw new Error("WORKSPACE_SCOPE_MISMATCH");
         for (const report of value.reports)
-            for (const item of report.cases)
-                for (const attempt of item.attempts) this.attempts.set(attempt.id, runId);
+            for (const item of report.cases) for (const attempt of item.attempts) this.attempts.set(attempt.id, runId);
         return new LocalReportAdapter(value);
     }
     private run(attemptId: string) {
@@ -206,8 +192,7 @@ export class DesktopLocalReports implements ReportAdapter {
      * 为共享报告视图提供指定 Run 与 Attempt 的已持久化显示数据，先重新加载所属快照再使用既有适配器检查关联；页面不能通
      * 过单独的 Attempt 标识绕开父级 Run 的上下文。
      */
-    display = async (runId: string, attemptId: string) =>
-        (await this.snapshot(runId)).display(runId, attemptId);
+    display = async (runId: string, attemptId: string) => (await this.snapshot(runId)).display(runId, attemptId);
     /**
      * 增量历史读取只接受此前已在报告中登记的 Attempt，并把 after 序号交给共享适配器处理；未知 Attempt 直接失败，不通过
      * 全盘搜索其它工作区来猜测其所属执行记录。
@@ -218,8 +203,7 @@ export class DesktopLocalReports implements ReportAdapter {
      * 制品描述先通过已加载报告中的 Attempt 归属寻找 Run，再从新快照取得相应列表；描述用于页面展示和选择，不能被
      * renderer 当作本机文件路径或可直接下载的原始字节。
      */
-    artifacts = async (attemptId: string) =>
-        (await this.snapshot(this.run(attemptId))).artifacts(attemptId);
+    artifacts = async (attemptId: string) => (await this.snapshot(this.run(attemptId))).artifacts(attemptId);
     /**
      * 共享 Web 的 Blob 下载接口在本地适配器中明确拒绝，原始证据必须经过 main 的确认和原生查看保存流程；调用方不能因为
      * 报告描述可见就绕过主机授权获取文件内容。
@@ -236,21 +220,13 @@ export class DesktopLocalReports implements ReportAdapter {
      * 原生证据动作携带固定的 local 标记及已登记的 Run 关联交给宿主，保存、Trace 和截图是有限动作集合；调用方不能加入路
      * 径或自定义程序，也不能改变已有 Attempt 的归属。
      */
-    nativeArtifact = async (
-        attemptId: string,
-        artifactId: string,
-        action: "save" | "trace" | "preview",
-    ) =>
+    nativeArtifact = async (attemptId: string, artifactId: string, action: "save" | "trace" | "preview") =>
         bridge.artifact({ local: true, runId: this.run(attemptId), attemptId, artifactId, action });
     /**
      * 离线订阅按一秒间隔重新读取真实报告并在终结或取消时停止，定时器只是读取节奏而非业务完成信号；AbortSignal 在等待和
      * 读取之后都检查，切换视图不会继续投递旧报告。
      */
-    subscribe = async (
-        runId: string,
-        receive: (report: S["RunReportDTO"]) => void,
-        signal: AbortSignal,
-    ) => {
+    subscribe = async (runId: string, receive: (report: S["RunReportDTO"]) => void, signal: AbortSignal) => {
         while (!signal.aborted) {
             const report = await this.report(runId);
             signal.throwIfAborted();

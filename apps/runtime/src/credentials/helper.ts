@@ -4,12 +4,7 @@
  */
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { verifiedVaultHelper, type RuntimeDistribution } from "../distribution.ts";
-import type {
-    VaultKeyBackend,
-    VaultKeyScope,
-    VaultMutationResult,
-    VaultBackendFailure,
-} from "./backend.ts";
+import type { VaultKeyBackend, VaultKeyScope, VaultMutationResult, VaultBackendFailure } from "./backend.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ownedHelpers = new Map<string, { child?: ReturnType<typeof spawn> }>();
@@ -82,15 +77,13 @@ function response(bytes: Buffer, operation: Operation): Result | undefined {
     if (/^V1 (missing|locked|unavailable|failed)\n$/.test(text))
         return { status: text.slice(3, -1) as VaultBackendFailure["status"] };
     if (operation === "probe" && text === "V1 ready\n") return { status: "ready" };
-    if ((operation === "set" || operation === "delete") && text === "V1 ok\n")
-        return { status: "ok" };
+    if ((operation === "set" || operation === "delete") && text === "V1 ok\n") return { status: "ok" };
     if ((operation === "set" || operation === "delete") && text === "V1 mutation-unconfirmed\n")
         return { status: "mutation-unconfirmed" };
     if (operation === "get" && /^V1 ok [A-Za-z0-9_-]{43}\n$/.test(text)) {
         const encoded = text.slice(6, -1),
             key = Buffer.from(encoded, "base64url");
-        if (key.length === 32 && key.toString("base64url") === encoded)
-            return { status: "ok", key };
+        if (key.length === 32 && key.toString("base64url") === encoded) return { status: "ok", key };
     }
 }
 
@@ -108,8 +101,7 @@ export class VaultHelperBackend implements VaultKeyBackend {
             observe?: (value: VaultHelperObservation) => void;
         } = {},
     ) {
-        if (!["linux", "win32", "darwin"].includes(process.platform))
-            throw new Error("VAULT_PLATFORM_UNSUPPORTED");
+        if (!["linux", "win32", "darwin"].includes(process.platform)) throw new Error("VAULT_PLATFORM_UNSUPPORTED");
         this.executable = verifiedVaultHelper(distribution);
         this.timeoutMs = options.timeoutMs ?? 5000;
         if (!Number.isInteger(this.timeoutMs) || this.timeoutMs < 50 || this.timeoutMs > 5000)
@@ -122,24 +114,15 @@ export class VaultHelperBackend implements VaultKeyBackend {
      */
     async get(scope: VaultKeyScope, signal: AbortSignal): Promise<ReadResult> {
         if (!validScope(scope)) return { status: "failed" };
-        return (await this.run(
-            "get",
-            `V1 get ${scope.profileId} ${scope.keyVersion}\n`,
-            signal,
-        )) as ReadResult;
+        return (await this.run("get", `V1 get ${scope.profileId} ${scope.keyVersion}\n`, signal)) as ReadResult;
     }
 
     /**
      * 写入只传递三十二字节随机材料且不修改调用方缓冲区，已使用版本的冲突由辅助程序明确拒绝；请求发出后的异常退出或取消
      * 必须保留提交不确定状态，而非自动重试或假定旧值已经恢复。
      */
-    async set(
-        scope: VaultKeyScope,
-        key: Buffer,
-        signal: AbortSignal,
-    ): Promise<VaultMutationResult> {
-        if (!validScope(scope) || !Buffer.isBuffer(key) || key.length !== 32)
-            return { status: "failed" };
+    async set(scope: VaultKeyScope, key: Buffer, signal: AbortSignal): Promise<VaultMutationResult> {
+        if (!validScope(scope) || !Buffer.isBuffer(key) || key.length !== 32) return { status: "failed" };
         return (await this.run(
             "set",
             `V1 set ${scope.profileId} ${scope.keyVersion} ${key.toString("base64url")}\n`,
@@ -205,10 +188,7 @@ export class VaultHelperBackend implements VaultKeyBackend {
                 stderrBytes = 0;
             let stopTimer: NodeJS.Timeout | undefined;
             const uncertain = (): Result => ({
-                status:
-                    sent && (operation === "set" || operation === "delete")
-                        ? "mutation-unconfirmed"
-                        : "failed",
+                status: sent && (operation === "set" || operation === "delete") ? "mutation-unconfirmed" : "failed",
             });
             const done = (result: Result) => {
                 if (finished) return;
@@ -278,10 +258,7 @@ export class VaultHelperBackend implements VaultKeyBackend {
                  * 只有实际退出或明确未创建进程才释放共享所有权，超时返回仍保留句柄与阻断状态；迟到的退出事实可以解除阻
                  * 断，但不会重跑已返回不确定结果的修改操作或触发替代子进程。
                  */
-                if (
-                    (exitConfirmed || child.pid === undefined) &&
-                    ownedHelpers.get(this.executable) === ownership
-                )
+                if ((exitConfirmed || child.pid === undefined) && ownedHelpers.get(this.executable) === ownership)
                     ownedHelpers.delete(this.executable);
                 if (finished) {
                     try {

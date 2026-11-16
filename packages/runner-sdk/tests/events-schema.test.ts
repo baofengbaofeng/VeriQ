@@ -13,9 +13,7 @@ it.each([
     },
     { id: "popup", kind: "newPage", pageKey: "detail" },
     { id: "download", kind: "download" },
-])("accepts canonical event $kind", (value) =>
-    expect(validateSchema("ObserverV1", value)).toEqual([]),
-);
+])("accepts canonical event $kind", (value) => expect(validateSchema("ObserverV1", value)).toEqual([]));
 it.each([
     {
         id: "dialog",
@@ -34,9 +32,7 @@ it.each([
         promptText: "bad",
     },
     { id: "download", kind: "download", path: "../../escape" },
-])("rejects incoherent event $kind", (value) =>
-    expect(validateSchema("ObserverV1", value).length).toBeGreaterThan(0),
-);
+])("rejects incoherent event $kind", (value) => expect(validateSchema("ObserverV1", value).length).toBeGreaterThan(0));
 it("compiles ordered explicit page selection while rejecting use before capture and duplicate keys", () => {
     const capture = {
         id: "popup",
@@ -46,11 +42,7 @@ it("compiles ordered explicit page selection while rejecting use before capture 
     };
     const use = { id: "use", action: "goto", path: "/", pageKey: "detail" };
     expect(analyze(snapshot([capture, use] as never)).issues).toEqual([]);
-    expect(
-        analyze(snapshot([use, capture] as never)).issues.some(
-            (x) => x.code === "UNKNOWN_PAGE_KEY",
-        ),
-    ).toBe(true);
+    expect(analyze(snapshot([use, capture] as never)).issues.some((x) => x.code === "UNKNOWN_PAGE_KEY")).toBe(true);
     expect(
         analyze(snapshot([capture, { ...capture, id: "duplicate" }] as never)).issues.some(
             (x) => x.code === "DUPLICATE_PAGE_KEY",
@@ -128,22 +120,12 @@ it(
             observers: [{ id: "wrapper", kind: "newPage", pageKey: "wrapper" }],
         };
         expect(
-            analyze(
-                snapshot(
-                    [
-                        wrapper,
-                        { id: "use", action: "goto", path: "/", pageKey: "wrapper" },
-                    ] as never,
-                    [flow],
-                ),
-            ).issues,
+            analyze(snapshot([wrapper, { id: "use", action: "goto", path: "/", pageKey: "wrapper" }] as never, [flow]))
+                .issues,
         ).toEqual([]);
         expect(
             analyze(
-                snapshot(
-                    [wrapper, { id: "use", action: "goto", path: "/", pageKey: "local" }] as never,
-                    [flow],
-                ),
+                snapshot([wrapper, { id: "use", action: "goto", path: "/", pageKey: "local" }] as never, [flow]),
             ).issues.some((x) => x.code === "UNKNOWN_PAGE_KEY"),
         ).toBe(true);
     },

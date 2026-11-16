@@ -23,9 +23,7 @@ test.beforeAll(async ({ request }) => {
     }
 });
 
-test("AI configuration is a real workspace page and explains no-provider execution", async ({
-    page,
-}) => {
+test("AI configuration is a real workspace page and explains no-provider execution", async ({ page }) => {
     await editorScope(page, "ai-browser");
     await page.getByRole("link", { name: "AI", exact: true }).click();
     await expect(page.getByTestId("ai-empty")).toBeVisible();
@@ -98,9 +96,7 @@ test.afterAll(async () => {
     await new Promise<void>((resolve, reject) => model.close((e) => (e ? reject(e) : resolve())));
 });
 
-test("real UI config, paid-call preview, review, genuine compiler, cancel and scoped history", async ({
-    page,
-}) => {
+test("real UI config, paid-call preview, review, genuine compiler, cancel and scoped history", async ({ page }) => {
     test.setTimeout(180000);
     const scope = await editorScope(page, "ai-full");
     const compiler = await managedCompiler(page, scope);
@@ -133,9 +129,7 @@ test("real UI config, paid-call preview, review, genuine compiler, cancel and sc
         await page.getByTestId("ai-generate").click();
         await expect(page.getByTestId("ai-review")).toContainText("SUCCEEDED");
         await expect(page.getByTestId("ai-output")).toContainText("Requirement-backed draft");
-        const caseList = await page.request.get(
-            "/api/v1/workspaces/" + scope.workspaceId + "/resources?kind=CASE",
-        );
+        const caseList = await page.request.get("/api/v1/workspaces/" + scope.workspaceId + "/resources?kind=CASE");
         expect((await caseList.json()).data.items).toHaveLength(0);
         await expect(page.getByTestId("ai-accept")).toBeDisabled();
         await page.getByTestId("ai-resource-name").fill("Reviewed AI case");
@@ -188,9 +182,7 @@ test("real UI config, paid-call preview, review, genuine compiler, cancel and sc
     }
 });
 
-test("fix1 existing CASE review increments only its draft and rejects a stale revision", async ({
-    page,
-}) => {
+test("fix1 existing CASE review increments only its draft and rejects a stale revision", async ({ page }) => {
     test.setTimeout(120000);
     const scope = await editorScope(page, "ai-existing-fix1");
     const compiler = await managedCompiler(page, scope);
@@ -258,9 +250,7 @@ test("fix1 existing CASE review increments only its draft and rejects a stale re
         await generate();
         // 现有 CASE 的人工接受只依赖当前草稿修订号，因此这里保持新资源名称与键字段为空，以真实验证更新既有草稿的分支而
         // 不意外创建第二份资源或绕过并发修订检查。
-        const acceptance = page.waitForResponse(
-            (r) => r.url().endsWith("/review") && r.request().method() === "POST",
-        );
+        const acceptance = page.waitForResponse((r) => r.url().endsWith("/review") && r.request().method() === "POST");
         await page.getByTestId("ai-accept").click();
         const accepted = await acceptance;
         expect(accepted.status(), await accepted.text()).toBe(200);
@@ -269,9 +259,7 @@ test("fix1 existing CASE review increments only its draft and rejects a stale re
             revision: 1,
         });
         await expect(page.getByTestId("ai-review")).toContainText("REVIEWED");
-        let draft = (
-            await (await page.request.get(base + "/resources/" + resourceId + "/draft")).json()
-        ).data;
+        let draft = (await (await page.request.get(base + "/resources/" + resourceId + "/draft")).json()).data;
         expect(draft.revision).toBe(2);
         expect(draft.content.document.title).toBe("Requirement-backed draft");
         expect(
@@ -294,9 +282,7 @@ test("fix1 existing CASE review increments only its draft and rejects a stale re
             data: { revision: 2, content: concurrent },
         });
         expect(updated.status(), await updated.text()).toBe(200);
-        const stale = page.waitForResponse(
-            (r) => r.url().endsWith("/review") && r.request().method() === "POST",
-        );
+        const stale = page.waitForResponse((r) => r.url().endsWith("/review") && r.request().method() === "POST");
         await page.getByTestId("ai-accept").click();
         const rejected = await stale;
         expect(rejected.status(), await rejected.text()).toBe(409);
@@ -305,9 +291,7 @@ test("fix1 existing CASE review increments only its draft and rejects a stale re
             decision: "ACCEPT_DRAFT",
             revision: 2,
         });
-        draft = (
-            await (await page.request.get(base + "/resources/" + resourceId + "/draft")).json()
-        ).data;
+        draft = (await (await page.request.get(base + "/resources/" + resourceId + "/draft")).json()).data;
         expect(draft.revision).toBe(3);
         expect(draft.content.document.title).toBe("Concurrent human revision");
         expect(
@@ -358,12 +342,7 @@ async function aiEffectScope(page: Page) {
  * 每个测试 Provider 都经过真实权限、密钥加密与预算验证，唯一允许的模型目标是文件级 HTTP 夹具；不同预算使断言能够识别实
  * 际被选中的 Provider 状态而非浏览器默认选项。
  */
-async function aiEffectProvider(
-    page: Page,
-    headers: Record<string, string>,
-    workspaceId: string,
-    budget: number,
-) {
+async function aiEffectProvider(page: Page, headers: Record<string, string>, workspaceId: string, budget: number) {
     const response = await page.request.post(`/api/v1/workspaces/${workspaceId}/ai/providers`, {
         headers,
         data: {
@@ -406,9 +385,7 @@ function aiEffectLists(page: Page, workspaceId: string) {
     );
 }
 
-test("AI request inputs invalidate reviewed context and preserve manual scope", async ({
-    page,
-}) => {
+test("AI request inputs invalidate reviewed context and preserve manual scope", async ({ page }) => {
     test.setTimeout(120000);
     const scope = await aiEffectScope(page);
     for (const id of [scope.alpha, scope.beta]) {
@@ -425,30 +402,21 @@ test("AI request inputs invalidate reviewed context and preserve manual scope", 
     await expect(page.getByTestId("ai-workspace")).toHaveValue(firstWorkspaceId);
     await expect(page.getByTestId("ai-provider")).toHaveValue(aiEffectItem(firstProviders).id);
     await expect(page.getByTestId("ai-budget")).toBeVisible();
-    const firstProvider = aiEffectItem(
-        firstProviders,
-    ) as PlatformComponents["schemas"]["ProviderDTO"];
-    await expect(page.getByTestId("ai-budget")).toContainText(
-        String(firstProvider.monthlyBudgetUsd),
-    );
+    const firstProvider = aiEffectItem(firstProviders) as PlatformComponents["schemas"]["ProviderDTO"];
+    await expect(page.getByTestId("ai-budget")).toContainText(String(firstProvider.monthlyBudgetUsd));
     const manualWorkspace = aiEffectItem(listed.filter((w) => w.id !== firstWorkspaceId)).id;
     const switched = aiEffectLists(page, manualWorkspace);
     await page.getByTestId("ai-workspace").selectOption(manualWorkspace);
     const [providers] = await switched;
-    const providerRows = (
-        await (await page.request.get(`/api/v1/workspaces/${manualWorkspace}/ai/providers`)).json()
-    ).data.items as PlatformComponents["schemas"]["ProviderDTO"][];
+    const providerRows = (await (await page.request.get(`/api/v1/workspaces/${manualWorkspace}/ai/providers`)).json())
+        .data.items as PlatformComponents["schemas"]["ProviderDTO"][];
     expect(providers?.map((p) => p.id)).toEqual(providerRows.map((p) => p.id));
     const selected = aiEffectItem(providerRows, 1);
     await page.getByTestId("ai-provider").selectOption(selected.id);
     await page.getByTestId("app-language").selectOption("en");
-    await expect(page.getByTestId("ai-budget")).toContainText(
-        `Available: ${selected.monthlyBudgetUsd}`,
-    );
+    await expect(page.getByTestId("ai-budget")).toContainText(`Available: ${selected.monthlyBudgetUsd}`);
     const refreshed = page.waitForResponse(
-        (r) =>
-            r.url().endsWith(`/workspaces/${manualWorkspace}/ai/providers`) &&
-            r.request().method() === "GET",
+        (r) => r.url().endsWith(`/workspaces/${manualWorkspace}/ai/providers`) && r.request().method() === "GET",
     );
     await page.getByTestId("ai-refresh").click();
     expect((await refreshed).status()).toBe(200);
@@ -463,8 +431,7 @@ test("AI request inputs invalidate reviewed context and preserve manual scope", 
     const priorCalls = calls;
     let generationPosts = 0;
     page.on("request", (request) => {
-        if (request.method() === "POST" && request.url().endsWith("/ai/generations"))
-            generationPosts++;
+        if (request.method() === "POST" && request.url().endsWith("/ai/generations")) generationPosts++;
     });
     const preview = async () => {
         const response = page.waitForResponse(
@@ -521,9 +488,7 @@ test("AI request inputs invalidate reviewed context and preserve manual scope", 
         await invalidated();
         await preview();
     }
-    await expect(page.getByTestId("ai-name")).toHaveValue(
-        "Unsaved provider editor survives request edits",
-    );
+    await expect(page.getByTestId("ai-name")).toHaveValue("Unsaved provider editor survives request edits");
     await page.getByTestId("ai-purpose").selectOption("BOUNDARY_SUGGESTION");
     await page.getByTestId("ai-prompt").fill("REQ-EFFECTS: current reviewed boundary requirement.");
     await page.getByTestId("ai-data").fill('{"scenario":"current-reviewed"}');
@@ -548,21 +513,15 @@ test("AI request inputs invalidate reviewed context and preserve manual scope", 
     expect(calls).toBe(priorCalls + 1);
     expect(modelContexts.at(-1)).toEqual(reviewed.dto.context);
     await expect(page.getByTestId("ai-review")).toContainText("SUCCEEDED");
-    await expect(page.getByTestId("ai-output")).toContainText(
-        "An empty password should be rejected.",
-    );
+    await expect(page.getByTestId("ai-output")).toContainText("An empty password should be rejected.");
     await expect(page.getByTestId("ai-history")).toContainText("BOUNDARY_SUGGESTION · SUCCEEDED");
     await expect(page.getByTestId("ai-context")).toBeVisible();
     await expect(page.getByTestId("ai-generate")).toBeDisabled();
-    await page
-        .getByTestId("ai-prompt")
-        .fill("REQ-EFFECTS: later invalidation retains completed output.");
+    await page.getByTestId("ai-prompt").fill("REQ-EFFECTS: later invalidation retains completed output.");
     await expect(page.getByTestId("ai-context")).toHaveCount(0);
     await expect(page.getByTestId("ai-review")).toContainText("SUCCEEDED");
     await expect(page.getByTestId("ai-history")).toContainText("BOUNDARY_SUGGESTION · SUCCEEDED");
-    await expect(page.getByTestId("ai-name")).toHaveValue(
-        "Unsaved provider editor survives request edits",
-    );
+    await expect(page.getByTestId("ai-name")).toHaveValue("Unsaved provider editor survives request edits");
     expect(calls).toBe(priorCalls + 1);
     expect(generationPosts).toBe(1);
 });
@@ -592,16 +551,11 @@ test("AI generation completion stays in its owning workspace", async ({ page }) 
         release?.();
         hold = false;
         const alphaHistory = async () => {
-            const response = await page.request.get(
-                `/api/v1/workspaces/${scope.alpha}/ai/generations`,
-            );
+            const response = await page.request.get(`/api/v1/workspaces/${scope.alpha}/ai/generations`);
             expect(response.status()).toBe(200);
-            return (await response.json()).data
-                .items as PlatformComponents["schemas"]["GenerationDTO"][];
+            return (await response.json()).data.items as PlatformComponents["schemas"]["GenerationDTO"][];
         };
-        await expect
-            .poll(async () => (await alphaHistory()).map((g) => g.status))
-            .toEqual(["SUCCEEDED"]);
+        await expect.poll(async () => (await alphaHistory()).map((g) => g.status)).toEqual(["SUCCEEDED"]);
         const [completed] = await alphaHistory();
         const detail = await page.request.get(
             `/api/v1/workspaces/${scope.alpha}/ai/generations/${aiEffectItem([completed]).id}`,

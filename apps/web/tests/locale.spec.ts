@@ -25,14 +25,10 @@ async function installed(page: Page): Promise<void> {
     expect(created.status()).toBe(201);
 }
 
-test("global locale preserves unsent login fields and persists a supported preference", async ({
-    page,
-}) => {
+test("global locale preserves unsent login fields and persists a supported preference", async ({ page }) => {
     await installed(page);
     await page.goto("/login");
-    await expect(
-        page.getByRole("heading", { name: "Sign in to VeriQ", exact: true }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in to VeriQ", exact: true })).toBeVisible();
     const email = page.getByTestId("email");
     const password = page.getByTestId("password");
     await email.fill("unsubmitted@example.com");
@@ -49,14 +45,10 @@ test("global locale preserves unsent login fields and persists a supported prefe
     await expect(page.getByRole("heading", { name: "登录 VeriQ", exact: true })).toBeVisible();
     await page.getByTestId("app-language").selectOption("en");
     await page.getByRole("link", { name: "Forgot password?", exact: true }).click();
-    await expect(
-        page.getByRole("heading", { name: "Reset your password", exact: true }),
-    ).toBeFocused();
+    await expect(page.getByRole("heading", { name: "Reset your password", exact: true })).toBeFocused();
 });
 
-test("editor and AI locale events synchronize without replacing unsaved resource controls", async ({
-    page,
-}) => {
+test("editor and AI locale events synchronize without replacing unsaved resource controls", async ({ page }) => {
     await installed(page);
     await editorScope(page, `locale-${randomUUID()}`);
     await createResource(page, "DATASET", `locale-data-${randomUUID()}`);
@@ -90,9 +82,7 @@ test.describe("Chinese browser preference", () => {
         page,
     }) => {
         await installed(page);
-        await page.addInitScript(() =>
-            localStorage.setItem("veriq.language", "unsupported-locale"),
-        );
+        await page.addInitScript(() => localStorage.setItem("veriq.language", "unsupported-locale"));
         await page.goto("/login");
         await expect(page.getByTestId("app-language")).toHaveValue("zh");
         await expect(page.getByRole("heading", { name: "登录 VeriQ", exact: true })).toBeVisible();

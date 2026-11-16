@@ -57,9 +57,7 @@ test("real CLI enrollment, owner consent, trust and revocation in Runtime UI", a
             origin,
             "--name",
             "Browser laptop",
-            ...(process.env.VERIQ_TEST_CHROMIUM
-                ? ["--browser-executable", process.env.VERIQ_TEST_CHROMIUM]
-                : []),
+            ...(process.env.VERIQ_TEST_CHROMIUM ? ["--browser-executable", process.env.VERIQ_TEST_CHROMIUM] : []),
         ],
         { cwd: "../runtime", stdio: ["ignore", "pipe", "pipe"] },
     );
@@ -89,9 +87,7 @@ test("real CLI enrollment, owner consent, trust and revocation in Runtime UI", a
         await expect(card.getByTestId("current-trust")).toContainText("MANAGED");
         await card.getByTestId("credential-delivery").check();
         await card.getByTestId("save-delivery").click();
-        await expect(card.getByRole("status")).toContainText(
-            "Workspace credential delivery updated",
-        );
+        await expect(card.getByRole("status")).toContainText("Workspace credential delivery updated");
         await page.screenshot({
             path: "../../.superpowers/sdd/veriq-1/evidence/t08/runtime-managed.png",
             fullPage: true,
@@ -108,9 +104,7 @@ test("real CLI enrollment, owner consent, trust and revocation in Runtime UI", a
     }
 });
 
-test("deployment account UI registers a real service Runtime through CLI stdin and logs out", async ({
-    page,
-}) => {
+test("deployment account UI registers a real service Runtime through CLI stdin and logs out", async ({ page }) => {
     test.setTimeout(60_000);
     const origin = "http://127.0.0.1:5173";
     await page.goto("/login");
@@ -164,9 +158,7 @@ test("deployment account UI registers a real service Runtime through CLI stdin a
                 "--name",
                 "Cloud browser worker",
                 "--share-workspace",
-                ...(process.env.VERIQ_TEST_CHROMIUM
-                    ? ["--browser-executable", process.env.VERIQ_TEST_CHROMIUM]
-                    : []),
+                ...(process.env.VERIQ_TEST_CHROMIUM ? ["--browser-executable", process.env.VERIQ_TEST_CHROMIUM] : []),
             ],
             token,
         );
@@ -180,9 +172,7 @@ test("deployment account UI registers a real service Runtime through CLI stdin a
         expect(status.output).not.toContain(config.deviceToken);
         expect((await run(["workspace", "list"])).output).toContain(ws);
         expect((await run(["workspace", "use", ws])).status).toBe(0);
-        expect(
-            (await run(["workspace", "use", "00000000-0000-4000-8000-000000000000"])).status,
-        ).toBe(1);
+        expect((await run(["workspace", "use", "00000000-0000-4000-8000-000000000000"])).status).toBe(1);
         await page.getByRole("button", { name: "Refresh devices" }).click();
         await expect(page.getByTestId(`runtime-${config.runnerId}`)).toContainText("MANAGED_CLOUD");
         expect((await run(["logout"])).status).toBe(0);

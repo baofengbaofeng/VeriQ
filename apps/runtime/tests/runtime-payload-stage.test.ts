@@ -4,10 +4,7 @@ import { once as event } from "node:events";
 import { mkdtemp, readFile, readdir, lstat, rm } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
-import {
-    stageMacRuntimePayload,
-    assertPayloadEvidenceBudget,
-} from "../scripts/runtime-payload-stage.ts";
+import { stageMacRuntimePayload, assertPayloadEvidenceBudget } from "../scripts/runtime-payload-stage.ts";
 import type { Ref } from "../scripts/runtime-payload-inputs.ts";
 import { verifyMacRuntimeManifestV2 } from "../src/distribution-manifest-v2.ts";
 import { fixture, hash } from "./fixtures/runtime-payload.ts";
@@ -33,26 +30,16 @@ for (const arch of ["x64", "arm64"] as const)
                         layout: f.chromeLayout.layout,
                     });
                     assert.equal(inventory.manifestSha256, result.inventory.manifestSha256);
-                    const receiptBytes = await readFile(
-                        join(result.candidateDirectory, "payload-receipt.json"),
-                    );
+                    const receiptBytes = await readFile(join(result.candidateDirectory, "payload-receipt.json"));
                     assert.equal(hash(receiptBytes), result.receiptSha256);
                     const receipt = JSON.parse(receiptBytes.toString());
                     assert.equal(receipt.status, "DEVELOPMENT_UNSIGNED_STATIC");
-                    for (const descriptor of [
-                        "inputs.json",
-                        "expected.json",
-                        "archive-intake.json",
-                    ]) {
+                    for (const descriptor of ["inputs.json", "expected.json", "archive-intake.json"]) {
                         const ref = receipt.inputReceipts.find(
-                            (file: { path: string }) =>
-                                file.path === `input-evidence/${descriptor}`,
+                            (file: { path: string }) => file.path === `input-evidence/${descriptor}`,
                         );
                         assert.ok(ref);
-                        assert.equal(
-                            hash(await readFile(join(result.candidateDirectory, ref.path))),
-                            ref.sha256,
-                        );
+                        assert.equal(hash(await readFile(join(result.candidateDirectory, ref.path))), ref.sha256);
                     }
                     assert.equal(receipt.files.length, inventory.regularFileCount + 1);
                     for (const [kind, prefix] of [
@@ -63,33 +50,20 @@ for (const arch of ["x64", "arm64"] as const)
                         ["engine", `engines/${f.recipe.target.engineVersion}/`],
                     ] as const)
                         for (const fact of f.inventories[kind].files) {
-                            if (
-                                kind === "dependencies" &&
-                                f.graph.bins.some((bin) => bin.sourceAlias === fact.path)
-                            )
+                            if (kind === "dependencies" && f.graph.bins.some((bin) => bin.sourceAlias === fact.path))
                                 continue;
                             assert.equal(
-                                hash(
-                                    await readFile(
-                                        join(result.runtimeDirectory, prefix + fact.path),
-                                    ),
-                                ),
+                                hash(await readFile(join(result.runtimeDirectory, prefix + fact.path))),
                                 fact.sha256,
                             );
                         }
                     assert.equal(
-                        await readFile(
-                            join(result.runtimeDirectory, "licenses/node/LICENSE"),
-                            "utf8",
-                        ),
+                        await readFile(join(result.runtimeDirectory, "licenses/node/LICENSE"), "utf8"),
                         "synthetic Node license",
                     );
                     assert.equal(
                         await readFile(
-                            join(
-                                result.runtimeDirectory,
-                                `browser/${f.recipe.chrome.topDirectory}/LICENSE`,
-                            ),
+                            join(result.runtimeDirectory, `browser/${f.recipe.chrome.topDirectory}/LICENSE`),
                             "utf8",
                         ),
                         "synthetic browser license",
@@ -100,9 +74,7 @@ for (const arch of ["x64", "arm64"] as const)
                         ["cli", "veriq_cli"],
                         ["runner", "veriq_runner"],
                     ]) {
-                        const stat = await lstat(
-                            join(result.runtimeDirectory, `roles/${role}/${name}`),
-                        );
+                        const stat = await lstat(join(result.runtimeDirectory, `roles/${role}/${name}`));
                         assert.equal(stat.nlink, 1);
                         assert.equal(stat.mode & 0o777, 0o755);
                         identities.push(stat.ino);
@@ -212,12 +184,7 @@ for (const mode of ["DOS", "ZERO"] as const)
 
 // 子 I 的未知写入或关闭事实必须粘住整个 work 父目录，外层独立 final 清理成功也不能擦掉 sentinel；故障发生在实际子事务
 // initialize 之后，确保测试观察的不是尚未创建工作目录的纯参数拒绝。
-for (const outcome of [
-    "COMMIT_UNCONFIRMED",
-    "THROW_INCOMPLETE",
-    "RETURN_INCOMPLETE",
-    "UNKNOWN",
-] as const)
+for (const outcome of ["COMMIT_UNCONFIRMED", "THROW_INCOMPLETE", "RETURN_INCOMPLETE", "UNKNOWN"] as const)
     test(`nested intake ${outcome} retains work parent and reports incomplete`, async (t) => {
         const { ArchiveTransaction } = await import("../scripts/runtime-payload-transaction.ts");
         const { RuntimePayloadError } = await import("../scripts/runtime-payload-inputs.ts");
@@ -252,9 +219,7 @@ for (const outcome of [
                         this.noteCloseFailure();
                         if (outcome === "UNKNOWN") throw new Error("synthetic unknown child fault");
                         throw new RuntimePayloadError(
-                            outcome === "COMMIT_UNCONFIRMED"
-                                ? "PAYLOAD_COMMIT_UNCONFIRMED"
-                                : "PAYLOAD_IO",
+                            outcome === "COMMIT_UNCONFIRMED" ? "PAYLOAD_COMMIT_UNCONFIRMED" : "PAYLOAD_IO",
                             null,
                             "INCOMPLETE",
                             { phase: "INTAKE", candidateDirectory: this.directory },
@@ -277,15 +242,10 @@ for (const outcome of [
                             return true;
                         },
                     );
-                    assert.equal(
-                        await readFile(join(child, "sentinel"), "utf8"),
-                        "unknown child writer",
-                    );
+                    assert.equal(await readFile(join(child, "sentinel"), "utf8"), "unknown child writer");
                     await access(dirname(dirname(child)));
                     await assert.rejects(access(join(output, "candidate")));
-                    assert.ok(
-                        (await readdir(output)).some((name) => name.startsWith(".veriq-s-work-")),
-                    );
+                    assert.ok((await readdir(output)).some((name) => name.startsWith(".veriq-s-work-")));
                 },
                 await stageModel(),
             );
@@ -301,9 +261,7 @@ for (const outcome of [
 for (const errno of ["ENOSPC", "EDQUOT"])
     for (const uncertain of [false, true])
         test(`actual S stream ${errno} retains first error with uncertain close ${uncertain}`, async (t) => {
-            const { ArchiveTransaction } = await import(
-                "../scripts/runtime-payload-transaction.ts"
-            );
+            const { ArchiveTransaction } = await import("../scripts/runtime-payload-transaction.ts");
             const { RuntimePayloadError } = await import("../scripts/runtime-payload-inputs.ts");
             const { open, unlink, mkdir, writeFile } = await import("node:fs/promises");
             type Handle = import("node:fs/promises").FileHandle;
@@ -328,25 +286,21 @@ for (const errno of ["ENOSPC", "EDQUOT"])
                 ) {
                     if (this.profile !== "runtime" || !path.startsWith("runtime/roles/"))
                         return write.call(this, path, chunks, ref, mode);
-                    const injected = t.mock.method(
-                        prototype,
-                        "write",
-                        async function (this: Handle) {
-                            faults++;
-                            if (uncertain) {
-                                const close = this.close;
-                                t.mock.method(this, "close", async () => {
-                                    await close.call(this);
-                                    throw Object.assign(new Error("secondary synthetic close"), {
-                                        code: "EIO",
-                                    });
+                    const injected = t.mock.method(prototype, "write", async function (this: Handle) {
+                        faults++;
+                        if (uncertain) {
+                            const close = this.close;
+                            t.mock.method(this, "close", async () => {
+                                await close.call(this);
+                                throw Object.assign(new Error("secondary synthetic close"), {
+                                    code: "EIO",
                                 });
-                            }
-                            throw Object.assign(new Error("synthetic stream write"), {
-                                code: errno,
                             });
-                        },
-                    );
+                        }
+                        throw Object.assign(new Error("synthetic stream write"), {
+                            code: errno,
+                        });
+                    });
                     try {
                         return await write.call(this, path, chunks, ref, mode);
                     } finally {
@@ -357,9 +311,7 @@ for (const errno of ["ENOSPC", "EDQUOT"])
             try {
                 await fixture(
                     async (f) => {
-                        const nodeHash = hash(
-                            await readFile(join(f.root, f.recipe.node.file.path)),
-                        );
+                        const nodeHash = hash(await readFile(join(f.root, f.recipe.node.file.path)));
                         await assert.rejects(
                             stageMacRuntimePayload(await f.save(), f.expected, {
                                 inputRoot: f.root,
@@ -376,14 +328,8 @@ for (const errno of ["ENOSPC", "EDQUOT"])
                             },
                         );
                         assert.equal(faults, 1);
-                        assert.equal(
-                            hash(await readFile(join(f.root, f.recipe.node.file.path))),
-                            nodeHash,
-                        );
-                        assert.equal(
-                            await readFile(join(output, "old/sentinel"), "utf8"),
-                            "outside sentinel",
-                        );
+                        assert.equal(hash(await readFile(join(f.root, f.recipe.node.file.path))), nodeHash);
+                        assert.equal(await readFile(join(output, "old/sentinel"), "utf8"), "outside sentinel");
                         const entries = await readdir(output);
                         assert.equal(entries.includes("candidate"), false);
                         assert.equal(
@@ -459,10 +405,7 @@ for (const timing of ["before", "after"] as const)
             t.mock.method(
                 ArchiveTransaction.prototype,
                 "publishRuntime",
-                async function (
-                    this: InstanceType<typeof ArchiveTransaction>,
-                    policy: Parameters<typeof publish>[0],
-                ) {
+                async function (this: InstanceType<typeof ArchiveTransaction>, policy: Parameters<typeof publish>[0]) {
                     controller.abort();
                     return publish.call(this, policy);
                 },
@@ -471,10 +414,7 @@ for (const timing of ["before", "after"] as const)
             t.mock.method(
                 ArchiveTransaction.prototype,
                 "audit",
-                async function (
-                    this: InstanceType<typeof ArchiveTransaction>,
-                    root = this.scratch,
-                ) {
+                async function (this: InstanceType<typeof ArchiveTransaction>, root = this.scratch) {
                     await audit.call(this, root);
                     if (this.profile === "runtime" && root === this.directory) controller.abort();
                 },
@@ -535,10 +475,7 @@ test("replaced final lock preserves successful candidate with cleanup INCOMPLETE
                 });
                 assert.equal(result.cleanup, "INCOMPLETE");
                 assert.equal(result.committed, true);
-                assert.equal(
-                    await readFile(join(output, ".veriq-candidate.lock"), "utf8"),
-                    "outside lock",
-                );
+                assert.equal(await readFile(join(output, ".veriq-candidate.lock"), "utf8"), "outside lock");
                 await verifyMacRuntimeManifestV2(result.runtimeDirectory, {
                     arch: "x64",
                     layout: f.chromeLayout.layout,
@@ -567,21 +504,23 @@ for (const scenario of ["SIGINT", "SIGTERM", "SECOND", "DEADLINE"] as const)
                         expected = join(output, "expected.json");
                     await writeFile(inputs, await f.save(), { mode: 0o644 });
                     await writeFile(expected, JSON.stringify(f.expected), { mode: 0o644 });
-                    const wrapper = `import {ArchiveTransaction} from './scripts/runtime-payload-transaction.ts';
+                    const wrapper =
+                        `import {ArchiveTransaction} from './scripts/runtime-payload-transaction.ts';
 const write=ArchiveTransaction.prototype.write;let waiting=false;process.on('message',()=>{});
 ArchiveTransaction.prototype.write=async function(...args){if(this.profile==='runtime'&&!waiting&&args[0].startsWith` +
-`('runtime/roles/')){waiting=true;process.send('ready');await new Promise(resolve=>{` +
-    `${
-    scenario === "SIGINT" || scenario === "SIGTERM" ? "this.signal.addEventListener" +
-        "('abort',resolve,{once:true})" : "process.on('message',()=>{})"}})}return write.apply(this,args)};
+                        `('runtime/roles/')){waiting=true;process.send('ready');await new Promise(resolve=>{` +
+                        `${
+                            scenario === "SIGINT" || scenario === "SIGTERM"
+                                ? "this.signal.addEventListener" + "('abort',resolve,{once:true})"
+                                : "process.on('message',()=>{})"
+                        }})}return write.apply(this,args)};
 process.argv=['node','stage','--inputs',${JSON.stringify(inputs)},'--expected',${JSON.stringify(expected)},'--input-` +
-`root',${JSON.stringify(f.root)},'--output-parent',${JSON.stringify(output)},'--candidate','candidate'];
+                        `root',${JSON.stringify(f.root)},'--output-parent',${JSON.stringify(output)},` +
+                        `'--candidate','candidate'];
 await import('./scripts/stage-macos-runtime.mjs');process.disconnect();`;
-                    const child = spawn(
-                        process.execPath,
-                        ["--import", "tsx", "--input-type=module", "-e", wrapper],
-                        { stdio: ["ignore", "pipe", "pipe", "ipc"] },
-                    );
+                    const child = spawn(process.execPath, ["--import", "tsx", "--input-type=module", "-e", wrapper], {
+                        stdio: ["ignore", "pipe", "pipe", "ipc"],
+                    });
                     let stdout = "",
                         stderr = "";
                     child.stdout!.on("data", (chunk: Buffer) => {
@@ -598,11 +537,7 @@ await import('./scripts/stage-macos-runtime.mjs');process.disconnect();`;
                                 throw new Error(`Child exited before ready: ${stderr}`);
                             }),
                         ]);
-                        child.kill(
-                            scenario === "SIGTERM" || scenario === "DEADLINE"
-                                ? "SIGTERM"
-                                : "SIGINT",
-                        );
+                        child.kill(scenario === "SIGTERM" || scenario === "DEADLINE" ? "SIGTERM" : "SIGINT");
                         if (scenario === "SECOND") {
                             await new Promise<void>((resolve) => {
                                 const observe = (chunk: Buffer) => {
@@ -673,9 +608,7 @@ test("work cleanup uncertainty after successful publication returns committed in
                 });
                 assert.equal(result.committed, true);
                 assert.equal(result.cleanup, "INCOMPLETE");
-                assert.ok(
-                    (await readdir(output)).some((name) => name.startsWith(".veriq-s-work-")),
-                );
+                assert.ok((await readdir(output)).some((name) => name.startsWith(".veriq-s-work-")));
                 await verifyMacRuntimeManifestV2(result.runtimeDirectory, {
                     arch: "x64",
                     layout: f.chromeLayout.layout,
@@ -744,41 +677,25 @@ test("final npm aliases are ordinary shims and raw multihop origins preserve unc
                 outputParent: output,
                 candidateName: "candidate",
             });
-            const receipt = JSON.parse(
-                await readFile(join(result.candidateDirectory, "payload-receipt.json"), "utf8"),
-            );
+            const receipt = JSON.parse(await readFile(join(result.candidateDirectory, "payload-receipt.json"), "utf8"));
             const alias = join(result.runtimeDirectory, "npm/.bin/npm");
             assert.ok((await lstat(alias)).isFile());
             assert.equal((await lstat(alias)).mode & 0o777, 0o755);
             assert.match(await readFile(alias, "utf8"), /roles\/runner\/veriq_runner/);
-            assert.equal(
-                await readFile(join(result.runtimeDirectory, "npm/bin/npm-cli.js"), "utf8"),
-                "export {};\n",
-            );
-            assert.equal(
-                await readFile(join(result.runtimeDirectory, "npm/copy.js"), "utf8"),
-                "export {};\n",
-            );
-            const fact = receipt.files.find(
-                (file: { path: string }) => file.path === "npm/.bin/npm",
+            assert.equal(await readFile(join(result.runtimeDirectory, "npm/bin/npm-cli.js"), "utf8"), "export {};\n");
+            assert.equal(await readFile(join(result.runtimeDirectory, "npm/copy.js"), "utf8"), "export {};\n");
+            const fact = receipt.files.find((file: { path: string }) => file.path === "npm/.bin/npm");
+            assert.ok(
+                fact.origins.some((origin: { sha256: string }) => origin.sha256 === hash(Buffer.from("../relay.js"))),
             );
             assert.ok(
                 fact.origins.some(
-                    (origin: { sha256: string }) =>
-                        origin.sha256 === hash(Buffer.from("../relay.js")),
-                ),
-            );
-            assert.ok(
-                fact.origins.some(
-                    (origin: { sha256: string }) =>
-                        origin.sha256 === hash(Buffer.from("bin/npm-cli.js")),
+                    (origin: { sha256: string }) => origin.sha256 === hash(Buffer.from("bin/npm-cli.js")),
                 ),
             );
             const { BIN_SHIM_TEMPLATE } = await import("../scripts/runtime-payload-bins.ts");
             assert.equal(receipt.templateSha256, hash(Buffer.from(BIN_SHIM_TEMPLATE)));
-            assert.ok(
-                result.inventory.manifest.links.every((link) => link.path.startsWith("browser/")),
-            );
+            assert.ok(result.inventory.manifest.links.every((link) => link.path.startsWith("browser/")));
         }, value);
     } finally {
         await rm(output, { recursive: true, force: true });
@@ -788,11 +705,7 @@ test("final npm aliases are ordinary shims and raw multihop origins preserve unc
 test("same-byte output ownership collision rejects instead of silently merging files", async () => {
     const value = await stageModel(),
         path = "node_modules/peer-lib/index.js";
-    value.add(
-        "entries",
-        path,
-        value.data.get("trees/dependencies/entry/node_modules/peer-lib/index.js")!,
-    );
+    value.add("entries", path, value.data.get("trees/dependencies/entry/node_modules/peer-lib/index.js")!);
     value.receipts.entries.outputs.push({ path, kind: "chunk", imports: [] });
     const output = await mkdtemp(join(tmpdir(), "veriq-stage-collision-"));
     try {
@@ -821,17 +734,12 @@ for (const profile of ["runtime", "work"] as const)
         try {
             await fixture(
                 async (f) => {
-                    const tx = new ArchiveTransaction(
-                        f.root,
-                        output,
-                        "candidate",
-                        undefined,
-                        profile,
-                    );
+                    const tx = new ArchiveTransaction(f.root, output, "candidate", undefined, profile);
                     try {
                         await tx.initialize();
                         await tx.plan(1, 65);
-                        const path = `${profile === "runtime" ? "runtime" : "views"}/` +
+                        const path =
+                            `${profile === "runtime" ? "runtime" : "views"}/` +
                             `${[...Array<string>(63).fill("a"), "file"].join("/")}`;
                         await tx.write(
                             path,
@@ -866,22 +774,20 @@ test("actual stage CLI emits complete success JSON and stable incomplete cleanup
                     expected = join(output, "expected.json");
                 await writeFile(inputs, await f.save(), { mode: 0o644 });
                 await writeFile(expected, JSON.stringify(f.expected), { mode: 0o644 });
-                const wrapper = `import {ArchiveTransaction} from './scripts/runtime-payload-transaction.ts';
+                const wrapper =
+                    `import {ArchiveTransaction} from './scripts/runtime-payload-transaction.ts';
 const cleanup=ArchiveTransaction.prototype.cleanup;ArchiveTransaction.prototype.cleanup=async function(){if(this.pro` +
-`file==='work')this.noteCloseFailure();return cleanup.call(this)};
+                    `file==='work')this.noteCloseFailure();return cleanup.call(this)};
 process.argv=['node','stage','--inputs',${JSON.stringify(inputs)},'--expected',${JSON.stringify(expected)},'--input-` +
-`root',${JSON.stringify(f.root)},'--output-parent',${JSON.stringify(output)},'--candidate','candidate'];
+                    `root',${JSON.stringify(f.root)},'--output-parent',${JSON.stringify(output)},` +
+                    `'--candidate','candidate'];
 await import('./scripts/stage-macos-runtime.mjs');`;
-                const child = spawnSync(
-                    process.execPath,
-                    ["--import", "tsx", "--input-type=module", "-e", wrapper],
-                    { encoding: "utf8", maxBuffer: 1024 ** 2 },
-                );
+                const child = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", wrapper], {
+                    encoding: "utf8",
+                    maxBuffer: 1024 ** 2,
+                });
                 assert.equal(child.status, 0);
-                assert.equal(
-                    child.stderr,
-                    "PAYLOAD_CLEANUP_INCOMPLETE phase=PUBLISH cleanup=INCOMPLETE\n",
-                );
+                assert.equal(child.stderr, "PAYLOAD_CLEANUP_INCOMPLETE phase=PUBLISH cleanup=INCOMPLETE\n");
                 const result = JSON.parse(child.stdout);
                 assert.equal(result.committed, true);
                 assert.equal(result.cleanup, "INCOMPLETE");
@@ -896,10 +802,7 @@ await import('./scripts/stage-macos-runtime.mjs');`;
                 );
                 assert.equal(invalid.status, 1);
                 assert.equal(invalid.stdout, "");
-                assert.match(
-                    invalid.stderr,
-                    /PAYLOAD_INPUT_INVALID phase=INPUTS cleanup=NOT_NEEDED/,
-                );
+                assert.match(invalid.stderr, /PAYLOAD_INPUT_INVALID phase=INPUTS cleanup=NOT_NEEDED/);
             },
             await stageModel(),
         );
@@ -919,9 +822,7 @@ for (const [operation, cause] of [
 ] as const)
     for (const uncertainClose of [false, true])
         test(`R1 stage directory ${operation} preserves ${cause} with uncertain close ${uncertainClose}`, async (t) => {
-            const { ArchiveTransaction } = await import(
-                "../scripts/runtime-payload-transaction.ts"
-            );
+            const { ArchiveTransaction } = await import("../scripts/runtime-payload-transaction.ts");
             const { RuntimePayloadError } = await import("../scripts/runtime-payload-inputs.ts");
             const { open, unlink, mkdir, writeFile } = await import("node:fs/promises");
             type Handle = import("node:fs/promises").FileHandle;
@@ -941,26 +842,22 @@ for (const [operation, cause] of [
                 async function (this: InstanceType<typeof ArchiveTransaction>, path: string) {
                     if (this.profile !== "runtime" || path !== "runtime/browser" || faulted)
                         return mkdirOwned.call(this, path);
-                    const injected = t.mock.method(
-                        prototype,
-                        operation,
-                        async function (this: Handle) {
-                            assert.equal((await this.stat()).isDirectory(), true);
-                            faulted = true;
-                            const close = this.close;
-                            t.mock.method(this, "close", async () => {
-                                await close.call(this);
-                                realClosed++;
-                                if (uncertainClose)
-                                    throw Object.assign(new Error("secondary directory close"), {
-                                        code: "EIO",
-                                    });
-                            });
-                            throw Object.assign(new Error("primary directory operation"), {
-                                code: cause,
-                            });
-                        },
-                    );
+                    const injected = t.mock.method(prototype, operation, async function (this: Handle) {
+                        assert.equal((await this.stat()).isDirectory(), true);
+                        faulted = true;
+                        const close = this.close;
+                        t.mock.method(this, "close", async () => {
+                            await close.call(this);
+                            realClosed++;
+                            if (uncertainClose)
+                                throw Object.assign(new Error("secondary directory close"), {
+                                    code: "EIO",
+                                });
+                        });
+                        throw Object.assign(new Error("primary directory operation"), {
+                            code: cause,
+                        });
+                    });
                     try {
                         return await mkdirOwned.call(this, path);
                     } finally {
@@ -982,18 +879,12 @@ for (const [operation, cause] of [
                                 assert.equal(error.code, "PAYLOAD_DISK_INSUFFICIENT");
                                 assert.equal(error.causeCode, cause);
                                 assert.equal(error.phase, "COPY");
-                                assert.equal(
-                                    error.cleanup,
-                                    uncertainClose ? "INCOMPLETE" : "CONFIRMED",
-                                );
+                                assert.equal(error.cleanup, uncertainClose ? "INCOMPLETE" : "CONFIRMED");
                                 return true;
                             },
                         );
                         assert.equal(realClosed, 1);
-                        assert.equal(
-                            await readFile(join(output, "old/sentinel"), "utf8"),
-                            "outside sentinel",
-                        );
+                        assert.equal(await readFile(join(output, "old/sentinel"), "utf8"), "outside sentinel");
                         for (const kind of ["node", "chrome"] as const)
                             assert.equal(
                                 hash(await readFile(join(f.root, f.recipe[kind].file.path))),
@@ -1050,11 +941,7 @@ test("R1 evidence budget accepts exact total and rejects one byte above without 
         assertPayloadEvidenceBudget([ref("first", 32 * 1024 ** 2), ref("second", 32 * 1024 ** 2)]),
     );
     assert.throws(
-        () =>
-            assertPayloadEvidenceBudget([
-                ref("first", 32 * 1024 ** 2),
-                ref("second", 32 * 1024 ** 2 + 1),
-            ]),
+        () => assertPayloadEvidenceBudget([ref("first", 32 * 1024 ** 2), ref("second", 32 * 1024 ** 2 + 1)]),
         { code: "PAYLOAD_LIMIT" },
     );
     assert.throws(() => assertPayloadEvidenceBudget([ref("oversize", 64 * 1024 ** 2 + 1)]), {
@@ -1065,10 +952,7 @@ test("R1 evidence budget accepts exact total and rejects one byte above without 
 for (const size of [-1, 0.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])
     test(`R1 evidence budget rejects invalid size ${String(size)}`, () => {
         assert.throws(
-            () =>
-                assertPayloadEvidenceBudget([
-                    { path: "numeric-model", sizeBytes: size, sha256: "0".repeat(64) },
-                ]),
+            () => assertPayloadEvidenceBudget([{ path: "numeric-model", sizeBytes: size, sha256: "0".repeat(64) }]),
             { code: "PAYLOAD_LIMIT" },
         );
     });
@@ -1121,16 +1005,16 @@ const space = await statfs(root, { bigint: true });
 assert.ok(space.bavail * space.bsize > 40n * 1024n ** 2n);
 const emit = (event, facts = {}) => console.log(JSON.stringify({ event, scenario, ...facts }));
 process.on("unhandledRejection", error => { emit("UNHANDLED_REJECTION", { message: String(error) }); process.exitCod` +
-`e = 91; });
+                        `e = 91; });
 let target, expected, captured, calls = 0, opens = 0, injected = false, primary, tx;
 const controller = new AbortController();
 const originalOpen = fs.open, originalClose = fs.close, originalRead = fs.read;
 const identity = info => ({ dev: String(info.dev), ino: String(info.ino), size: String(info.size), nlink: String(inf` +
-`o.nlink) });
+                        `o.nlink) });
 const matches = info => info.isFile() && info.dev === expected.dev && info.ino === expected.ino && info.size === exp` +
-`ected.size && info.nlink === 1n;
+                        `ected.size && info.nlink === 1n;
 const restore = () => { fs.open = originalOpen; fs.close = originalClose; fs.read = originalRead; syncBuiltinESMExpo` +
-`rts(); };
+                        `rts(); };
 const install = (select, occurrence) => {
     fs.open = function(path, ...args) {
         if (!select(String(path)) || ++opens !== occurrence) return originalOpen.call(this, path, ...args);
@@ -1160,11 +1044,11 @@ const install = (select, occurrence) => {
     };
     fs.read = function(fd, ...args) {
         if (fd === captured && args[2] === 2018 && !injected && (scenario === "read-eio" || scenario === "cancel-eio` +
-        `")) {
+                        `")) {
             injected = true;
             if (scenario === "cancel-eio") controller.abort();
             else { queueMicrotask(() => args.at(-1)(Object.assign(Error("OWNED_READ_FAULT"), { code: "EIO" }))); ret` +
-            `urn; }
+                        `urn; }
         }
         return originalRead.call(this, fd, ...args);
     };
@@ -1188,7 +1072,7 @@ await fixture(async f => {
     emit("SETUP_RESOLVED");
     try {
         const result = await stageMacRuntimePayload(await f.save(), f.expected, { inputRoot: f.root, outputParent: o` +
-        `utput, candidateName: "a".repeat(64) });
+                        `utput, candidateName: "a".repeat(64) });
         assert.equal(scenario, "normal");
         assert.equal(result.committed, true);
         assert.equal(result.cleanup, "CONFIRMED");
@@ -1202,7 +1086,7 @@ await fixture(async f => {
         await retain();
         assert.ok(!(await readdir(output)).includes("a".repeat(64)));
         emit("SETTLED", { outcome: "rejected", code: error.code, causeCode: error.causeCode, phase: error.phase, cle` +
-        `anup: error.cleanup });
+                        `anup: error.cleanup });
     } finally { restore(); }
 }, await stageModel());
 assert.equal(calls, 1);

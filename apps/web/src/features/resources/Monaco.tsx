@@ -52,8 +52,6 @@ export function Monaco({
     useAppLocale();
     const helpId = useId();
     const localizedLabel = tx(label);
-    const labelRef = useRef(localizedLabel);
-    labelRef.current = localizedLabel;
     const host = useRef<HTMLDivElement>(null),
         instance = useRef<monaco.editor.IStandaloneCodeEditor>(),
         change = useRef(onChange),
@@ -72,15 +70,13 @@ export function Monaco({
             automaticLayout: true,
             minimap: { enabled: false },
             scrollBeyondLastLine: false,
-            ariaLabel: labelRef.current,
+            ariaLabel: tx(label),
             fontSize: 13,
             tabSize: 2,
             wordWrap: "on",
         });
         instance.current = editor;
-        const subscription = editor.onDidChangeModelContent(() =>
-            change.current?.(editor.getValue()),
-        );
+        const subscription = editor.onDidChangeModelContent(() => change.current?.(editor.getValue()));
         return () => {
             subscription.dispose();
             editor.dispose();
@@ -94,8 +90,7 @@ export function Monaco({
         instance.current?.updateOptions({ ariaLabel: localizedLabel });
     }, [localizedLabel]);
     useEffect(() => {
-        if (instance.current && instance.current.getValue() !== value)
-            instance.current.setValue(value);
+        if (instance.current && instance.current.getValue() !== value) instance.current.setValue(value);
     }, [value]);
     return (
         <div>
@@ -107,9 +102,7 @@ export function Monaco({
             </p>
             <button
                 type="button"
-                onClick={() =>
-                    instance.current?.trigger("keyboard", "editor.action.toggleTabFocusMode", null)
-                }
+                onClick={() => instance.current?.trigger("keyboard", "editor.action.toggleTabFocusMode", null)}
             >
                 {tx("Toggle Tab key navigation")}
             </button>

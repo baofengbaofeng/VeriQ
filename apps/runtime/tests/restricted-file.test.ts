@@ -139,10 +139,7 @@ test("explicit OS-vault selection refuses missing source capability instead of u
                 { timeout: 15000, maxBuffer: 8192 },
             ),
             (error: unknown) => {
-                assert.match(
-                    (error as { stderr: string }).stderr,
-                    /RUNTIME_VAULT_CAPABILITY_UNVERIFIED/,
-                );
+                assert.match((error as { stderr: string }).stderr, /RUNTIME_VAULT_CAPABILITY_UNVERIFIED/);
                 return true;
             },
         );

@@ -6,12 +6,7 @@
  * Typed host projection matching the shared LocalReportAdapter without browser imports.
  */
 import { join } from "node:path";
-import type {
-    OfflineResultV1,
-    PlatformComponents,
-    JsonValue,
-    ReportDisplayV1,
-} from "@veriq/contracts";
+import type { OfflineResultV1, PlatformComponents, JsonValue, ReportDisplayV1 } from "@veriq/contracts";
 import { validateSchema } from "@veriq/contracts";
 import { LocalStore } from "./store.ts";
 import { readBoundedFile } from "./config.ts";
@@ -99,10 +94,7 @@ export class LocalReports {
                     };
                     report.cases.push(item);
                 }
-                item.outcome =
-                    attempt.attemptNo === 2 && attempt.outcome === "PASSED"
-                        ? "UNSTABLE"
-                        : attempt.outcome;
+                item.outcome = attempt.attemptNo === 2 && attempt.outcome === "PASSED" ? "UNSTABLE" : attempt.outcome;
                 const events = store.events(workspaceId, runId, attempt.attemptId, 0, 10000);
                 /**
                  * 报告只投影持久 Attempt 已声明的实际范围，缺字段仍然是历史未声明；范围不会改变业务结果、
@@ -122,9 +114,7 @@ export class LocalReports {
                             ? { processStopScope: attempt.processStopScope }
                             : {}),
                         ...(attempt.failureCode ? { errorCode: attempt.failureCode } : {}),
-                        ...(attempt.diagnostics
-                            ? { diagnostics: attempt.diagnostics as unknown as JsonValue }
-                            : {}),
+                        ...(attempt.diagnostics ? { diagnostics: attempt.diagnostics as unknown as JsonValue } : {}),
                     },
                     createdAt: result.startedAt,
                     activatedAt: null,
@@ -156,16 +146,14 @@ export class LocalReports {
                         kind: f.kind!,
                         sensitivity: "CREDENTIAL_RESTRICTED",
                         state:
-                            rawRetired ||
-                            store.artifactRetired(workspaceId, runId, attempt.attemptId, f)
+                            rawRetired || store.artifactRetired(workspaceId, runId, attempt.attemptId, f)
                                 ? "EXPIRED"
                                 : "AVAILABLE",
                     }));
                 const environment = Object.fromEntries(
                     Object.entries(result.actualEnvironment).filter(
                         ([k, v]) =>
-                            ["baseURL", "apiBaseURL", "locale", "timezone"].includes(k) &&
-                            typeof v === "string",
+                            ["baseURL", "apiBaseURL", "locale", "timezone"].includes(k) && typeof v === "string",
                     ),
                 ) as Record<string, string>;
                 let display: S["ReportDisplayDTO"] = {
@@ -179,13 +167,9 @@ export class LocalReports {
                         1024 * 1024,
                     );
                     const metadata = JSON.parse(raw.toString()) as ReportDisplayV1;
-                    if (validateSchema("ReportDisplayV1", metadata).length)
-                        throw new Error("INVALID_REPORT_DISPLAY");
-                    const selected = metadata.cases.find(
-                        (c) => c.caseVersionId === attempt.caseVersionId,
-                    );
-                    if (selected)
-                        display = { display: selected, metadataStatus: "AVAILABLE", environment };
+                    if (validateSchema("ReportDisplayV1", metadata).length) throw new Error("INVALID_REPORT_DISPLAY");
+                    const selected = metadata.cases.find((c) => c.caseVersionId === attempt.caseVersionId);
+                    if (selected) display = { display: selected, metadataStatus: "AVAILABLE", environment };
                 } catch (error) {
                     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
                 }
@@ -193,14 +177,9 @@ export class LocalReports {
             }
             report.statistics = {
                 caseCount: report.cases.length,
-                firstPassCount: result.attempts.filter(
-                    (a) => a.attemptNo === 1 && a.outcome === "PASSED",
-                ).length,
-                retryPassCount: result.attempts.filter(
-                    (a) => a.attemptNo === 2 && a.outcome === "PASSED",
-                ).length,
-                infrastructureErrorCount: result.attempts.filter((a) => a.outcome === "ERROR")
-                    .length,
+                firstPassCount: result.attempts.filter((a) => a.attemptNo === 1 && a.outcome === "PASSED").length,
+                retryPassCount: result.attempts.filter((a) => a.attemptNo === 2 && a.outcome === "PASSED").length,
+                infrastructureErrorCount: result.attempts.filter((a) => a.outcome === "ERROR").length,
             };
             return snapshot;
         } finally {
@@ -210,12 +189,7 @@ export class LocalReports {
     /**
      * 公开方法 readRaw 在归属校验后读取指定证据原始字节：越权或未知制品立即失败关闭（readRaw/RAW_EVIDENCE_FORBIDDEN）。
      */
-    async readRaw(
-        workspaceId: string,
-        runId: string,
-        attemptId: string,
-        artifactId: string,
-    ): Promise<Buffer> {
+    async readRaw(workspaceId: string, runId: string, attemptId: string, artifactId: string): Promise<Buffer> {
         if (!this.authorizeRaw(workspaceId)) throw new Error("RAW_EVIDENCE_FORBIDDEN");
         const store = await LocalStore.open(this.root);
         let result: OfflineResultV1;
@@ -234,8 +208,7 @@ export class LocalReports {
         }
         const attempt = result.attempts.find((a) => a.attemptId === attemptId),
             artifact = attempt?.artifacts.find((a) => a.artifactId === artifactId);
-        if (!artifact || !/^[-a-zA-Z0-9_.]{1,240}$/.test(artifact.path))
-            throw new Error("LOCAL_ARTIFACT_NOT_FOUND");
+        if (!artifact || !/^[-a-zA-Z0-9_.]{1,240}$/.test(artifact.path)) throw new Error("LOCAL_ARTIFACT_NOT_FOUND");
         const bytes = await readBoundedFile(
             join(this.root, "work", attemptId, "evidence", artifact.path),
             32 * 1024 * 1024,

@@ -7,8 +7,7 @@ import type { DesktopBridge } from "../shared/bridge";
  */
 const bridge: DesktopBridge = {
     state: () => ipcRenderer.invoke("veriq:desktop", "state"),
-    configure: (origin, proxy) =>
-        ipcRenderer.invoke("veriq:desktop", "configure", { origin, proxy }),
+    configure: (origin, proxy) => ipcRenderer.invoke("veriq:desktop", "configure", { origin, proxy }),
     login: (data) => ipcRenderer.invoke("veriq:desktop", "login", data),
     logout: () => ipcRenderer.invoke("veriq:desktop", "logout"),
     workspaces: () => ipcRenderer.invoke("veriq:desktop", "workspaces"),

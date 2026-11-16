@@ -82,9 +82,7 @@ const labels = {
  * 事实，窗口关闭和页面切换都不会改变执行归属。
  */
 export function App() {
-    const [language, setLanguage] = useState<"zh" | "en">(
-            appI18n.language.startsWith("zh") ? "zh" : "en",
-        ),
+    const [language, setLanguage] = useState<"zh" | "en">(appI18n.language.startsWith("zh") ? "zh" : "en"),
         t = labels[language];
     const [tab, setTab] = useState<Tab>("overview"),
         [state, setState] = useState<DesktopState>();
@@ -122,21 +120,15 @@ export function App() {
     const [pinIndex, setPinIndex] = useState(0);
     const queries = useQueryClient();
     const workspaceId = workspace?.id;
-    const adapters = useMemo(
-        () => (workspaceId ? cloudAdapters(workspaceId, debug) : undefined),
-        [workspaceId, debug],
-    );
+    const adapters = useMemo(() => (workspaceId ? cloudAdapters(workspaceId, debug) : undefined), [workspaceId, debug]);
     const localReports = useMemo(
         () => (localWorkspace ? new DesktopLocalReports(localWorkspace) : undefined),
         [localWorkspace],
     );
-    // biome-ignore lint/correctness/useExhaustiveDependencies: 此控制器身份有意随三项授权视图作用域改变，虽然构造函数不
-    // 读取这些值，删掉依赖会让旧报告订阅越过工作区或本机云端切
-    // 换继续存活。
-    const scope = useMemo(
-        () => new AbortController(),
-        [workspace?.id, localWorkspace, reportLocal],
-    );
+    // 此控制器身份有意随 workspace?.id / localWorkspace / reportLocal 三项授权视图作用域改变，
+    // 虽回调未读取这些值，删除依赖会让旧报告订阅越过工作区或本机云端切换继续存活。
+    // biome-ignore lint/correctness/useExhaustiveDependencies: 依赖随授权视图作用域改变属有意设计，防止订阅跨工作区存活
+    const scope = useMemo(() => new AbortController(), [workspace?.id, localWorkspace, reportLocal]);
     const agent = state?.agent;
 
     const refresh = useCallback(async () => {
@@ -165,10 +157,7 @@ export function App() {
     }
     useEffect(() => {
         void refresh().catch((error) => setError(String(error)));
-        const timer = setInterval(
-            () => void refresh().catch((error) => setError(String(error))),
-            1500,
-        );
+        const timer = setInterval(() => void refresh().catch((error) => setError(String(error))), 1500);
         return () => clearInterval(timer);
     }, [refresh]);
     useEffect(
@@ -339,9 +328,8 @@ export function App() {
                         <section className="panel">
                             <h2>控制平台 / Control platform</h2>
                             <p>
-                                普通账户用于编辑和查看资源；设备绑定单独授权后台下载与回传。 / User
-                                accounts edit and view resources; device enrollment separately
-                                authorizes Agent downloads and uploads.
+                                普通账户用于编辑和查看资源；设备绑定单独授权后台下载与回传。 / User accounts edit and
+                                view resources; device enrollment separately authorizes Agent downloads and uploads.
                             </p>
                             <form
                                 onSubmit={(event) => {
@@ -393,9 +381,7 @@ export function App() {
                                 <button
                                     type="button"
                                     onClick={() =>
-                                        void action(async () =>
-                                            setWorkspaces((await bridge.workspaces()).items),
-                                        )
+                                        void action(async () => setWorkspaces((await bridge.workspaces()).items))
                                     }
                                 >
                                     读取工作区 / Load workspaces
@@ -405,9 +391,7 @@ export function App() {
                                     <select
                                         aria-label="平台工作区 / Platform workspace"
                                         value={workspace?.id ?? ""}
-                                        onChange={(event) =>
-                                            void action(() => selectWorkspace(event.target.value))
-                                        }
+                                        onChange={(event) => void action(() => selectWorkspace(event.target.value))}
                                     >
                                         <option value="">选择工作区 / Choose workspace</option>
                                         {workspaces.map((item) => (
@@ -441,9 +425,7 @@ export function App() {
                                 <section className="panel">
                                     <span className="eyebrow">PENDING UPLOAD</span>
                                     <strong className="metric">
-                                        {agent?.history.filter(
-                                            (item) => item.uploadState !== "COMPLETE",
-                                        ).length ?? 0}
+                                        {agent?.history.filter((item) => item.uploadState !== "COMPLETE").length ?? 0}
                                     </strong>
                                     <p>重连后可手动回传 / Ready to synchronize</p>
                                 </section>
@@ -459,8 +441,7 @@ export function App() {
                                 </p>
                                 {agent?.credentialError && (
                                     <p role="alert" data-testid="credential-status">
-                                        {agent.credentialError} ·{" "}
-                                        {credentialGuidance[agent.credentialError]}
+                                        {agent.credentialError} · {credentialGuidance[agent.credentialError]}
                                     </p>
                                 )}
                                 <div className="toolbar">
@@ -490,13 +471,8 @@ export function App() {
                                 </div>
                                 {enrollment && (
                                     <div className="notice">
-                                        <strong data-testid="enrollment-code">
-                                            {enrollment.userCode}
-                                        </strong>
-                                        <p>
-                                            请核对设备名与当前工作区后批准。 / Verify this device
-                                            and workspace.
-                                        </p>
+                                        <strong data-testid="enrollment-code">{enrollment.userCode}</strong>
+                                        <p>请核对设备名与当前工作区后批准。 / Verify this device and workspace.</p>
                                         <button
                                             type="button"
                                             disabled={!workspace}
@@ -584,21 +560,13 @@ export function App() {
                                 <div className="toolbar">
                                     <button
                                         type="button"
-                                        onClick={() =>
-                                            void action(() =>
-                                                bridge.local({ operation: "onlineStart" }),
-                                            )
-                                        }
+                                        onClick={() => void action(() => bridge.local({ operation: "onlineStart" }))}
                                     >
                                         启动在线领取 / Start online worker
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() =>
-                                            void action(() =>
-                                                bridge.local({ operation: "onlineStop" }),
-                                            )
-                                        }
+                                        onClick={() => void action(() => bridge.local({ operation: "onlineStop" }))}
                                     >
                                         停止在线领取 / Stop online worker
                                     </button>
@@ -611,16 +579,13 @@ export function App() {
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() =>
-                                            void action(() => bridge.local({ operation: "unbind" }))
-                                        }
+                                        onClick={() => void action(() => bridge.local({ operation: "unbind" }))}
                                     >
                                         解绑设备 / Unbind
                                     </button>
                                 </div>
                                 <p className="muted">
-                                    关闭窗口与退出界面不会中止后台。 / Closing or quitting the UI
-                                    keeps Agent running.
+                                    关闭窗口与退出界面不会中止后台。 / Closing or quitting the UI keeps Agent running.
                                     {state?.tray
                                         ? "托盘可重新打开窗口。 / Reopen the window from the tray."
                                         : "本桌面未确认托盘可用，关闭时最小化；再次启动可恢复窗口。 / Tray su" +
@@ -652,8 +617,7 @@ export function App() {
                                     checked={debug}
                                     onChange={(event) => setDebug(event.target.checked)}
                                 />
-                                允许明确标记的未验证 DEBUG 包 / Allow explicitly unvalidated DEBUG
-                                package
+                                允许明确标记的未验证 DEBUG 包 / Allow explicitly unvalidated DEBUG package
                             </label>
                             {workspace && adapters ? (
                                 <BundleWorkspaceView
@@ -664,9 +628,7 @@ export function App() {
                                     canEdit={["OWNER", "ADMIN", "EDITOR"].includes(workspace.role)}
                                 />
                             ) : (
-                                <p className="panel">
-                                    请先登录并选择工作区。 / Choose an authenticated workspace.
-                                </p>
+                                <p className="panel">请先登录并选择工作区。 / Choose an authenticated workspace.</p>
                             )}
                         </>
                     )}
@@ -675,11 +637,10 @@ export function App() {
                             <section className="panel">
                                 <h2>{t.cache}</h2>
                                 <p>
-                                    断网时仍可读取与运行。离线权限撤销状态未知，结果不等同正式门禁通过。
-                                    / Cached resources remain usable offline. Revocation status is
-                                    unknown offline; local results do not prove official release
-                                    gates passed. / Cached snapshots stay usable offline; revocation
-                                    is unknown.
+                                    断网时仍可读取与运行。离线权限撤销状态未知，结果不等同正式门禁通过。 / Cached
+                                    resources remain usable offline. Revocation status is unknown offline; local results
+                                    do not prove official release gates passed. / Cached snapshots stay usable offline;
+                                    revocation is unknown.
                                 </p>
                                 <div className="toolbar">
                                     <label>
@@ -687,13 +648,9 @@ export function App() {
                                         <select
                                             aria-label="本机资源包 / Local package"
                                             value={bundleId}
-                                            onChange={(event) =>
-                                                void action(() => chooseLocal(event.target.value))
-                                            }
+                                            onChange={(event) => void action(() => chooseLocal(event.target.value))}
                                         >
-                                            <option value="">
-                                                选择已下载包 / Select a package
-                                            </option>
+                                            <option value="">选择已下载包 / Select a package</option>
                                             {agent?.bundles.map((item) => (
                                                 <option key={item.id} value={item.id}>
                                                     {item.id} · {item.engineVersion}
@@ -727,9 +684,7 @@ export function App() {
                                         清理所选缓存 / Remove cache
                                     </button>
                                 </div>
-                                {!agent?.bundles.length && (
-                                    <p>尚未下载资源包。 / No downloaded packages yet.</p>
-                                )}
+                                {!agent?.bundles.length && <p>尚未下载资源包。 / No downloaded packages yet.</p>}
                                 <div className="toolbar">
                                     <label>
                                         <input
@@ -750,12 +705,7 @@ export function App() {
                                     </label>
                                     <button
                                         type="button"
-                                        disabled={
-                                            !bundleId ||
-                                            !!agent?.active ||
-                                            !!agent?.preparing ||
-                                            agent?.online
-                                        }
+                                        disabled={!bundleId || !!agent?.active || !!agent?.preparing || agent?.online}
                                         onClick={() =>
                                             void action(() =>
                                                 bridge.local({
@@ -766,10 +716,7 @@ export function App() {
                                                     overrides: Object.fromEntries(
                                                         Object.entries(routing)
                                                             .filter(([, value]) => value.trim())
-                                                            .map(([key, value]) => [
-                                                                key,
-                                                                value.trim(),
-                                                            ]),
+                                                            .map(([key, value]) => [key, value.trim()]),
                                                     ),
                                                 }),
                                             )
@@ -781,32 +728,29 @@ export function App() {
                                 <details>
                                     <summary>本次本机环境 / Local environment for this run</summary>
                                     <p>
-                                        留空使用签名包环境；覆盖需要原生确认，报告标记
-                                        dirty，不同步回平台资源。 / Overrides require confirmation
-                                        and do not edit the signed resource.
+                                        留空使用签名包环境；覆盖需要原生确认，报告标记 dirty，不同步回平台资源。 /
+                                        Overrides require confirmation and do not edit the signed resource.
                                     </p>
-                                    {(["baseURL", "apiBaseURL", "fixtureBaseURL"] as const).map(
-                                        (key) => (
-                                            <label key={key}>
-                                                {key}
-                                                <input
-                                                    aria-label={`Local ${key}`}
-                                                    value={routing[key]}
-                                                    onChange={(event) =>
-                                                        setRouting((current) => ({
-                                                            ...current,
-                                                            [key]: event.target.value,
-                                                        }))
-                                                    }
-                                                />
-                                            </label>
-                                        ),
-                                    )}
+                                    {(["baseURL", "apiBaseURL", "fixtureBaseURL"] as const).map((key) => (
+                                        <label key={key}>
+                                            {key}
+                                            <input
+                                                aria-label={`Local ${key}`}
+                                                value={routing[key]}
+                                                onChange={(event) =>
+                                                    setRouting((current) => ({
+                                                        ...current,
+                                                        [key]: event.target.value,
+                                                    }))
+                                                }
+                                            />
+                                        </label>
+                                    ))}
                                 </details>
                                 {!agent?.headedAvailable && (
                                     <p className="muted">
-                                        当前安装仅提供已匹配的无头浏览器；完整可见浏览器尚未配置。 /
-                                        The installed browser supports headless execution only.
+                                        当前安装仅提供已匹配的无头浏览器；完整可见浏览器尚未配置。 / The installed
+                                        browser supports headless execution only.
                                     </p>
                                 )}
                                 {agent?.preparing && (
@@ -853,23 +797,15 @@ export function App() {
                             {pins && (
                                 <section className="panel">
                                     <h2>本机凭证映射 / Local credential mapping</h2>
-                                    <p>
-                                        仅写入所选签名包钉选的引用；已存值不可读取。 / Write-only
-                                        pinned references.
-                                    </p>
+                                    <p>仅写入所选签名包钉选的引用；已存值不可读取。 / Write-only pinned references.</p>
                                     <label>
                                         引用 / Reference
                                         <select
                                             value={pinIndex}
-                                            onChange={(event) =>
-                                                setPinIndex(Number(event.target.value))
-                                            }
+                                            onChange={(event) => setPinIndex(Number(event.target.value))}
                                         >
                                             {pins.references.map((pin, index) => (
-                                                <option
-                                                    key={pin.secretRef + pin.versionId}
-                                                    value={index}
-                                                >
+                                                <option key={pin.secretRef + pin.versionId} value={index}>
                                                     {pin.secretRef} · {pin.versionId}
                                                 </option>
                                             ))}
@@ -922,9 +858,7 @@ export function App() {
                                                         ...pin,
                                                     },
                                                 });
-                                                setNotice(
-                                                    "本机凭证已移除 / Local credential removed",
-                                                );
+                                                setNotice("本机凭证已移除 / Local credential removed");
                                             })
                                         }
                                     >
@@ -969,10 +903,7 @@ export function App() {
                                         <ul className="run-list">
                                             {agent?.history.map((item) => (
                                                 <li key={item.id}>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setRun(item.id)}
-                                                    >
+                                                    <button type="button" onClick={() => setRun(item.id)}>
                                                         {item.id}
                                                     </button>
                                                     <span>
@@ -981,10 +912,7 @@ export function App() {
                                                     </span>
                                                     {item.uploadError && (
                                                         <strong>
-                                                            {desktopErrorMessage(
-                                                                item.uploadError,
-                                                                language,
-                                                            )}
+                                                            {desktopErrorMessage(item.uploadError, language)}
                                                         </strong>
                                                     )}
                                                     <button
@@ -1049,8 +977,8 @@ export function App() {
                             />
                         ) : (
                             <p className="panel">
-                                AI 配置需要平台连接；离线确定性执行不调用模型。 / AI requires a
-                                platform connection; offline execution never calls a model.
+                                AI 配置需要平台连接；离线确定性执行不调用模型。 / AI requires a platform connection;
+                                offline execution never calls a model.
                             </p>
                         ))}
                     {tab === "settings" && (
@@ -1059,10 +987,7 @@ export function App() {
                                 <h2>连接与存储 / Connection & storage</h2>
                                 <label>
                                     服务端 Origin / Server origin
-                                    <input
-                                        value={origin}
-                                        onChange={(event) => setOrigin(event.target.value)}
-                                    />
+                                    <input value={origin} onChange={(event) => setOrigin(event.target.value)} />
                                 </label>
                                 <label>
                                     HTTP(S) 代理 / Proxy
@@ -1074,40 +999,30 @@ export function App() {
                                 </label>
                                 <button
                                     type="button"
-                                    onClick={() =>
-                                        void action(() => bridge.configure(origin, proxy))
-                                    }
+                                    onClick={() => void action(() => bridge.configure(origin, proxy))}
                                 >
                                     {t.save}
                                 </button>
                                 <p>
-                                    证书使用系统信任库；不接受无效 TLS 证书。 / Certificates use the
-                                    system trust store; invalid TLS is rejected.
+                                    证书使用系统信任库；不接受无效 TLS 证书。 / Certificates use the system trust store;
+                                    invalid TLS is rejected.
                                 </p>
                                 <p>
-                                    本机执行容量：1；在线默认全局4 / Workspace2，由平台授权限制。 /
-                                    Local capacity: 1.
+                                    本机执行容量：1；在线默认全局4 / Workspace2，由平台授权限制。 / Local capacity: 1.
                                 </p>
-                                <button
-                                    type="button"
-                                    onClick={() => void action(() => bridge.directory())}
-                                >
+                                <button type="button" onClick={() => void action(() => bridge.directory())}>
                                     打开资源目录 / Open resource directory
                                 </button>
                             </section>
                             <section className="panel">
                                 <h2>签发者信任 / Issuer trust</h2>
                                 <p>
-                                    HTTPS 绑定从认证控制平台刷新；本机开发 HTTP
-                                    必须核对管理员提供的公钥指纹。 / Verify an
-                                    administrator-provided fingerprint for local HTTP development.
+                                    HTTPS 绑定从认证控制平台刷新；本机开发 HTTP 必须核对管理员提供的公钥指纹。 / Verify
+                                    an administrator-provided fingerprint for local HTTP development.
                                 </p>
                                 <label>
                                     公钥 JSON / Public issuer JSON
-                                    <textarea
-                                        value={issuer}
-                                        onChange={(event) => setIssuer(event.target.value)}
-                                    />
+                                    <textarea value={issuer} onChange={(event) => setIssuer(event.target.value)} />
                                 </label>
                                 <label>
                                     已核对的 SHA256 指纹 / Verified fingerprint
@@ -1138,9 +1053,7 @@ export function App() {
                                         type="button"
                                         onClick={() =>
                                             void action(async () =>
-                                                setDiagnostics(
-                                                    await bridge.local({ operation: "doctor" }),
-                                                ),
+                                                setDiagnostics(await bridge.local({ operation: "doctor" })),
                                             )
                                         }
                                     >
@@ -1150,9 +1063,7 @@ export function App() {
                                         type="button"
                                         onClick={() =>
                                             void action(async () =>
-                                                setDiagnostics(
-                                                    await bridge.local({ operation: "recover" }),
-                                                ),
+                                                setDiagnostics(await bridge.local({ operation: "recover" })),
                                             )
                                         }
                                     >
@@ -1162,9 +1073,9 @@ export function App() {
                                 <p>
                                     {"停止本机执行和在线领取后，可显式迁移旧凭据。" +
                                         "迁移会核验系统保险库和加密数据，再移除旧明文文件。"}{" "}
-                                    / Stop execution and online polling before explicitly migrating
-                                    legacy credentials. Migration verifies the system vault and
-                                    encrypted data before removing legacy plaintext.
+                                    / Stop execution and online polling before explicitly migrating legacy credentials.
+                                    Migration verifies the system vault and encrypted data before removing legacy
+                                    plaintext.
                                 </p>
                                 <button
                                     type="button"
@@ -1183,9 +1094,8 @@ export function App() {
                                 <p>
                                     {"初始化中断且尚无凭据时，可明确恢复空保险库。" +
                                         "已激活档案缺钥不会被替换；请先停止执行与在线领取。"}{" "}
-                                    / An interrupted empty initialization can be explicitly
-                                    recovered. Missing keys in active profiles are not replaced.
-                                    Stop execution and online polling first.
+                                    / An interrupted empty initialization can be explicitly recovered. Missing keys in
+                                    active profiles are not replaced. Stop execution and online polling first.
                                 </p>
                                 <button
                                     type="button"
@@ -1202,20 +1112,11 @@ export function App() {
                                     恢复空保险库初始化 / Recover empty vault initialization
                                 </button>
                                 {diagnostics !== undefined && (
-                                    <pre data-testid="diagnostics">
-                                        {JSON.stringify(diagnostics, null, 2)}
-                                    </pre>
+                                    <pre data-testid="diagnostics">{JSON.stringify(diagnostics, null, 2)}</pre>
                                 )}
                                 <RetentionPanel
                                     workspaceId={agent?.workspaceId}
-                                    unavailable={
-                                        !!(
-                                            busy ||
-                                            agent?.active ||
-                                            agent?.preparing ||
-                                            agent?.online
-                                        )
-                                    }
+                                    unavailable={!!(busy || agent?.active || agent?.preparing || agent?.online)}
                                     onCompleted={async () => {
                                         setBundle("");
                                         setResources(undefined);
@@ -1225,27 +1126,19 @@ export function App() {
                                         await refresh();
                                     }}
                                 />
-                                <button
-                                    type="button"
-                                    onClick={() => void action(() => bridge.installUpdate())}
-                                >
+                                <button type="button" onClick={() => void action(() => bridge.installUpdate())}>
                                     准备已验证升级或回滚 / Prepare verified update
                                 </button>
                                 <p>
                                     {"更新前请停止在线领取与执行；隔离或未知进程必须先恢复。" +
                                         "卸载默认保留本机配置、凭据与历史。"}{" "}
-                                    / Stop online polling and execution before updates; recover
-                                    unknown or quarantined processes first. Uninstall keeps local
-                                    settings, credentials and history.
+                                    / Stop online polling and execution before updates; recover unknown or quarantined
+                                    processes first. Uninstall keeps local settings, credentials and history.
                                 </p>
-                                {state?.diagnostics && (
-                                    <pre>{JSON.stringify(state.diagnostics, null, 2)}</pre>
-                                )}
+                                {state?.diagnostics && <pre>{JSON.stringify(state.diagnostics, null, 2)}</pre>}
                                 <p>
-                                    VeriQ {state?.version} · Node24 Agent{" "}
-                                    {agent?.node ?? "unavailable"} ·{" "}
-                                    {agent?.browser.version ?? "Browser unavailable"} ·{" "}
-                                    {agent?.browser.source}
+                                    VeriQ {state?.version} · Node24 Agent {agent?.node ?? "unavailable"} ·{" "}
+                                    {agent?.browser.version ?? "Browser unavailable"} · {agent?.browser.source}
                                 </p>
                             </section>
                         </>

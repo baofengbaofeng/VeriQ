@@ -26,6 +26,7 @@ export async function desktopInventory(directory) {
     async function walk(directory, prefix = "") {
         const children = (await readdir(directory)).sort();
         for (const name of children) {
+            // biome-ignore lint/suspicious/noControlCharactersInRegex: 有意拒绝路径控制字符与 DEL，属安全校验而非误写
             if (!name || /[\\:\x00-\x1f\x7f]/.test(name) || /[. ]$/.test(name))
                 throw new Error("DESKTOP_GUI_PATH_INVALID");
             const path = prefix + name;
@@ -38,8 +39,7 @@ export async function desktopInventory(directory) {
             if (before.isSymbolicLink()) throw new Error("DESKTOP_GUI_LINK_FORBIDDEN");
             if (before.isDirectory()) await walk(absolute, path + "/");
             else {
-                if (!before.isFile() || before.nlink !== 1)
-                    throw new Error("DESKTOP_GUI_TYPE_INVALID");
+                if (!before.isFile() || before.nlink !== 1) throw new Error("DESKTOP_GUI_TYPE_INVALID");
                 total += before.size;
                 if (total > 1024 * 1024 * 1024) throw new Error("DESKTOP_GUI_LIMIT");
                 /**
@@ -81,8 +81,7 @@ export async function desktopInventory(directory) {
         "LICENSE",
         "THIRD_PARTY_NOTICES.md",
     ])
-        if (!files.some((file) => file.path === required))
-            throw new Error("DESKTOP_GUI_ENTRY_MISSING");
+        if (!files.some((file) => file.path === required)) throw new Error("DESKTOP_GUI_ENTRY_MISSING");
     const bytes = Buffer.from(JSON.stringify({ schemaVersion: 1, files }) + "\n");
     return { bytes, sha256: createHash("sha256").update(bytes).digest("hex"), files };
 }

@@ -93,9 +93,7 @@ it("installs actual fixture archive from emitted lock offline and typechecks gen
             types: [],
         });
         expect(
-            ts
-                .getPreEmitDiagnostics(program)
-                .map((d) => ts.flattenDiagnosticMessageText(d.messageText, "\n")),
+            ts.getPreEmitDiagnostics(program).map((d) => ts.flattenDiagnosticMessageText(d.messageText, "\n")),
         ).toEqual([]);
         const restored = Object.fromEntries(
             emitted.bundle.files.map((f) => [f.path, readFileSync(join(output, f.path))]),

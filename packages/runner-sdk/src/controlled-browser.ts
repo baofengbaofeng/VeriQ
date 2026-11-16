@@ -16,16 +16,9 @@ type ConnectOptions = Omit<ConnectObject, "wsEndpoint">;
 export function protectBrowserConnection(browserType: BrowserType): () => void {
     const descriptor = Object.getOwnPropertyDescriptor(browserType, "connect"),
         original = browserType.connect;
-    function guarded(
-        this: BrowserType,
-        endpoint: string,
-        options?: ConnectOptions,
-    ): ReturnType<BrowserType["connect"]>;
+    function guarded(this: BrowserType, endpoint: string, options?: ConnectOptions): ReturnType<BrowserType["connect"]>;
     function guarded(this: BrowserType, options: ConnectObject): ReturnType<BrowserType["connect"]>;
-    async function guarded(
-        this: BrowserType,
-        ...args: unknown[]
-    ): ReturnType<BrowserType["connect"]> {
+    async function guarded(this: BrowserType, ...args: unknown[]): ReturnType<BrowserType["connect"]> {
         try {
             return await Reflect.apply(original, this, args);
         } catch {
@@ -41,11 +34,9 @@ export function protectBrowserConnection(browserType: BrowserType): () => void {
     let restored = false;
     return () => {
         if (restored) return;
-        if (browserType.connect !== guarded)
-            throw new Error("VERIQ_BROWSER_GUARD_RESTORE_CONFLICT");
+        if (browserType.connect !== guarded) throw new Error("VERIQ_BROWSER_GUARD_RESTORE_CONFLICT");
         if (descriptor) Object.defineProperty(browserType, "connect", descriptor);
-        else if (!Reflect.deleteProperty(browserType, "connect"))
-            throw new Error("VERIQ_BROWSER_GUARD_RESTORE_FAILED");
+        else if (!Reflect.deleteProperty(browserType, "connect")) throw new Error("VERIQ_BROWSER_GUARD_RESTORE_FAILED");
         restored = true;
     };
 }

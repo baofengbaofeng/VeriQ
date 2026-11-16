@@ -20,11 +20,7 @@ import { assertAgentReconfigurationAllowed } from "../src/shared/credential-stat
  */
 test("Agent reconfiguration preserves existing active online and enrolled guards", () => {
     assert.doesNotThrow(() => assertAgentReconfigurationAllowed({ active: null, online: false }));
-    for (const state of [
-        { active: { state: "UNKNOWN" } },
-        { online: true },
-        { device: { id: "bound" } },
-    ])
+    for (const state of [{ active: { state: "UNKNOWN" } }, { online: true }, { device: { id: "bound" } }])
         assert.throws(() => assertAgentReconfigurationAllowed(state), {
             message: "UNBIND_DEVICE_BEFORE_ORIGIN_CHANGE",
         });
@@ -114,10 +110,7 @@ test("DesktopAgent exposes explicit migration through its guarded finite dispatc
             migrated: true,
             credentialMode: "os-vault",
         });
-        assert.equal(
-            await new SecretStore(directory, { backend }).resolve(ref),
-            "desktop-legacy-value",
-        );
+        assert.equal(await new SecretStore(directory, { backend }).resolve(ref), "desktop-legacy-value");
     } finally {
         await ownership.release();
         await rm(directory, { recursive: true, force: true });
@@ -208,15 +201,7 @@ test("DesktopAgent exposes explicit empty key initialization recovery", async ()
 test("DesktopAgent keeps credential failures visible without exposing secrets or replacing keys", async () => {
     const directory = await mkdtemp(join(tmpdir(), "veriq-desktop-locked-"));
     const keys = new Map<string, Buffer>();
-    let blocked:
-        | "locked"
-        | "unavailable"
-        | "failed"
-        | "unexpected"
-        | "enoent"
-        | "null"
-        | "undefined"
-        | undefined;
+    let blocked: "locked" | "unavailable" | "failed" | "unexpected" | "enoent" | "null" | "undefined" | undefined;
     let sets = 0;
     const backend: VaultKeyBackend = {
         async get(scope) {
@@ -224,8 +209,7 @@ test("DesktopAgent keeps credential failures visible without exposing secrets or
                 throw Object.assign(new Error("backend service entry missing"), { code: "ENOENT" });
             if (blocked === "null") throw null;
             if (blocked === "undefined") throw undefined;
-            if (blocked === "unexpected")
-                throw new Error("private-path-and-secret-must-not-be-rendered");
+            if (blocked === "unexpected") throw new Error("private-path-and-secret-must-not-be-rendered");
             if (blocked) return { status: blocked };
             const key = keys.get(JSON.stringify(scope));
             return key ? { status: "ok", key: Buffer.from(key) } : { status: "missing" };
@@ -289,20 +273,15 @@ test("DesktopAgent keeps credential failures visible without exposing secrets or
                 } catch {
                     reconfigurationAllowed = false;
                 }
-                const enrollmentError = await agent
-                    .dispatch({ operation: "enroll", name: "replacement" })
-                    .then(
-                        () => undefined,
-                        (error: unknown) => error,
-                    );
+                const enrollmentError = await agent.dispatch({ operation: "enroll", name: "replacement" }).then(
+                    () => undefined,
+                    (error: unknown) => error,
+                );
                 assert.deepEqual(
                     {
                         credentialError: status.credentialError,
                         reconfigurationAllowed,
-                        enrollmentError:
-                            enrollmentError instanceof Error
-                                ? enrollmentError.message
-                                : enrollmentError,
+                        enrollmentError: enrollmentError instanceof Error ? enrollmentError.message : enrollmentError,
                     },
                     {
                         credentialError: "CREDENTIAL_ACCESS_FAILED",
@@ -347,15 +326,11 @@ test("DesktopAgent keeps credential failures visible without exposing secrets or
         const originalKeys = new Map(keys);
         keys.clear();
         assert.equal(
-            ((await agent.dispatch({ operation: "status" })) as { credentialError: string })
-                .credentialError,
+            ((await agent.dispatch({ operation: "status" })) as { credentialError: string }).credentialError,
             "VAULT_KEY_MISSING",
         );
         await assert.rejects(agent.dispatch({ operation: "device" }), /VAULT_KEY_MISSING/);
-        await assert.rejects(
-            agent.dispatch({ operation: "enroll", name: "replacement" }),
-            /VAULT_KEY_MISSING/,
-        );
+        await assert.rejects(agent.dispatch({ operation: "enroll", name: "replacement" }), /VAULT_KEY_MISSING/);
         await assert.rejects(
             agent.dispatch({ operation: "recoverCredentialInitialization" }),
             /VAULT_INITIALIZATION_NOT_PENDING/,
@@ -375,9 +350,7 @@ test("DesktopAgent keeps credential failures visible without exposing secrets or
         await rm(join(directory, "desktop-bundles.json"));
         const database = new DatabaseSync(join(directory, "offline/veriq.sqlite"));
         try {
-            database.exec(
-                "ALTER TABLE veriq_local_runs RENAME COLUMN created_at TO damaged_created_at",
-            );
+            database.exec("ALTER TABLE veriq_local_runs RENAME COLUMN created_at TO damaged_created_at");
         } finally {
             database.close();
         }
@@ -388,10 +361,7 @@ test("DesktopAgent keeps credential failures visible without exposing secrets or
         } finally {
             unsupported.close();
         }
-        await assert.rejects(
-            agent.dispatch({ operation: "status" }),
-            /LOCAL_STORE_VERSION_UNSUPPORTED/,
-        );
+        await assert.rejects(agent.dispatch({ operation: "status" }), /LOCAL_STORE_VERSION_UNSUPPORTED/);
     } finally {
         await ownership.release();
         await rm(directory, { recursive: true, force: true });

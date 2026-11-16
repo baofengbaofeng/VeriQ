@@ -66,10 +66,7 @@ export interface DarwinNative {
      * 缓存库存退休先隔离专用 UUID 命名空间后才改变只读属性，未知成员或关闭失败
      * 保持错误，不扩大凭据读取能力。
      */
-    retirePrivateEvidence(
-        path: string,
-        file: { path: string; sizeBytes: number; sha256: string },
-    ): void;
+    retirePrivateEvidence(path: string, file: { path: string; sizeBytes: number; sha256: string }): void;
     /**
      * 有限库存必须由宿主信任校验产生且本机 SQLite 已提交退休意图，原生只允许 bundles/UUID 到对应退休名的隔离与清单成员
      * 删除；单次最大四千零九十八文件及一百二十八 MiB，不能删除引擎、凭据或未知源目录。
@@ -107,12 +104,10 @@ export function bindDarwinDistribution(distribution: RuntimeDistribution): void 
  */
 export function darwinNative(): DarwinNative {
     if (process.platform !== "darwin") throw new Error("DARWIN_NATIVE_PLATFORM_REQUIRED");
-    if (!installedPath && basename(process.execPath) !== "node")
-        throw new Error("DARWIN_NATIVE_DISTRIBUTION_REQUIRED");
+    if (!installedPath && basename(process.execPath) !== "node") throw new Error("DARWIN_NATIVE_DISTRIBUTION_REQUIRED");
     if (!loaded) {
         const path =
-            installedPath ??
-            fileURLToPath(new URL("../../build/darwin/veriq_private_files.node", import.meta.url));
+            installedPath ?? fileURLToPath(new URL("../../build/darwin/veriq_private_files.node", import.meta.url));
         loaded = createRequire(import.meta.url)(path) as DarwinNative;
         loadedPath = path;
     }

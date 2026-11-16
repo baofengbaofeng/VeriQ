@@ -12,9 +12,7 @@ export async function openNativeImage(bytes: Uint8Array): Promise<void> {
     const isolated = session.fromPartition(`veriq-image-${randomUUID()}`);
     isolated.setPermissionRequestHandler((_content, _permission, answer) => answer(false));
     isolated.setPermissionCheckHandler(() => false);
-    isolated.webRequest.onBeforeRequest((request, answer) =>
-        answer({ cancel: !request.url.startsWith("data:") }),
-    );
+    isolated.webRequest.onBeforeRequest((request, answer) => answer({ cancel: !request.url.startsWith("data:") }));
     const viewer = new BrowserWindow({
         title: "VeriQ · Screenshot",
         width: 1000,

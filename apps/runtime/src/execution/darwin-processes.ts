@@ -77,12 +77,7 @@ function observe(entry: Attempt, child: ChildProcess, browser: boolean): Observa
             finish = resolve;
         }),
     };
-    if (
-        !Number.isSafeInteger(child.pid) ||
-        child.pid! < 1 ||
-        child.exitCode !== null ||
-        child.signalCode !== null
-    )
+    if (!Number.isSafeInteger(child.pid) || child.pid! < 1 || child.exitCode !== null || child.signalCode !== null)
         entry.fault = true;
     child.on("error", () => {
         entry.fault = true;
@@ -176,9 +171,7 @@ export class DarwinProcesses {
                 commandSlot: randomUUID(),
             }),
         );
-        const cliBinding = Object.freeze(
-            validateBinding({ ...binding, commandSlot: randomUUID() }),
-        );
+        const cliBinding = Object.freeze(validateBinding({ ...binding, commandSlot: randomUUID() }));
         let acknowledge!: () => void;
         const entry: Attempt = {
             record: {
@@ -231,9 +224,7 @@ export class DarwinProcesses {
                 /^DARWIN_(?:WORKER_(?:READY|PROTOCOL)_|CONTROLLED_TIMEOUT)/.test(error.message)
             )
                 throw error;
-            throw new Error(
-                stoppedDuringStart ? "DARWIN_ATTEMPT_STOPPING" : "DARWIN_CONTROLLED_START_FAILED",
-            );
+            throw new Error(stoppedDuringStart ? "DARWIN_ATTEMPT_STOPPING" : "DARWIN_CONTROLLED_START_FAILED");
         });
         return entry.starting;
     }
@@ -259,11 +250,7 @@ export class DarwinProcesses {
      * 中途日志目录和已存在成员都保持可见未知，绝不删除或覆盖以前的 Attempt 来取得一次新的执行机会
      * 。
      */
-    private async launch(
-        entry: Attempt,
-        command: Command,
-        launch: DarwinControlledLaunch,
-    ): Promise<OwnedProcess> {
+    private async launch(entry: Attempt, command: Command, launch: DarwinControlledLaunch): Promise<OwnedProcess> {
         const source = this.source!,
             id = entry.record.attemptId;
         entry.records = source.native.openPrivateDirectory(this.directory, true);
@@ -271,9 +258,7 @@ export class DarwinProcesses {
         if (
             previous.overflow ||
             previous.names.some((name) =>
-                [`${id}.process.json`, `${id}.controlled.json`, `${id}.drained.json`].includes(
-                    name,
-                ),
+                [`${id}.process.json`, `${id}.controlled.json`, `${id}.drained.json`].includes(name),
             )
         )
             throw new Error("PROCESS_JOURNAL_EXISTS");
@@ -335,8 +320,7 @@ export class DarwinProcesses {
                 if (!preparing) throw new Error("DARWIN_WORK_PREPARATION_CLOSED");
                 if (!["invocation.json", "playwright.config.mjs"].includes(name))
                     throw new Error("DARWIN_WORK_MEMBER_INVALID");
-                if (!Buffer.isBuffer(bytes) || bytes.length > 65536)
-                    throw new Error("DARWIN_WORK_LIMIT");
+                if (!Buffer.isBuffer(bytes) || bytes.length > 65536) throw new Error("DARWIN_WORK_LIMIT");
                 work.replace(name, `.${randomUUID()}.tmp`, bytes, 65536);
             },
         });
@@ -456,11 +440,7 @@ export class DarwinProcesses {
      * 停止去重与关闭准入都发生在返回 promise 以前，正在准备或等待 launchServer 的启动随后必须重新检查关闭位；
      * 所有等待共用同一绝对期限，重复原因不能重新授予授权、延长期限或覆盖先前观察故障。
      */
-    terminateAttempt(
-        id: string,
-        reason: string,
-        deadlineMonotonicMs?: number,
-    ): Promise<StopReceipt> {
+    terminateAttempt(id: string, reason: string, deadlineMonotonicMs?: number): Promise<StopReceipt> {
         const existing = this.stopping.get(id);
         if (existing) return existing;
         const entry = this.attempts.get(id);
@@ -493,33 +473,47 @@ export class DarwinProcesses {
      */
     async confirmStopped(id: string): Promise<boolean> {
         let records: ProcessRecords | undefined;
+        let closeError: unknown;
+        let outcome = false;
         try {
-            if (this.attempts.get(id)?.fault) return false;
-            if (!/^[a-f0-9-]{36}$/.test(id)) return false;
-            records = await ProcessRecords.open(this.directory);
-            if (!records) return false;
-            const names = new Set(await records.names(8192));
-            if ([...names].some((name) => !isControlledProcessMember(name))) return false;
-            if (
-                !names.has(`${id}.process.json`) ||
-                !names.has(`${id}.controlled.json`) ||
-                names.has(`${id}.drained.json`)
-            )
-                return false;
-            return validateControlledPair(
-                await records.read(`${id}.process.json`, 65536),
-                await records.read(`${id}.controlled.json`, 65536),
-                { attemptId: id, uid: process.getuid!() },
-            );
+            if (this.attempts.get(id)?.fault) {
+                outcome = false;
+            } else if (!/^[a-f0-9-]{36}$/.test(id)) {
+                outcome = false;
+            } else {
+                records = await ProcessRecords.open(this.directory);
+                if (!records) {
+                    outcome = false;
+                } else {
+                    const names = new Set(await records.names(8192));
+                    if ([...names].some((name) => !isControlledProcessMember(name))) {
+                        outcome = false;
+                    } else if (
+                        !names.has(`${id}.process.json`) ||
+                        !names.has(`${id}.controlled.json`) ||
+                        names.has(`${id}.drained.json`)
+                    ) {
+                        outcome = false;
+                    } else {
+                        outcome = validateControlledPair(
+                            await records.read(`${id}.process.json`, 65536),
+                            await records.read(`${id}.controlled.json`, 65536),
+                            { attemptId: id, uid: process.getuid!() },
+                        );
+                    }
+                }
+            }
         } catch {
-            return false;
+            outcome = false;
         } finally {
             try {
                 await records?.close();
-            } catch {
-                return false;
+            } catch (error) {
+                closeError = error;
             }
         }
+        if (closeError !== undefined) return false;
+        return outcome;
     }
 
     /**
@@ -539,8 +533,7 @@ export class DarwinProcesses {
      * 错误路径若仍可能有迟到启动或写者就继续持有这些对象，不能提前关闭借出的数字描述符冒充容量释放。
      */
     private closeFiles(entry: Attempt): void {
-        if (entry.outer && !entry.journalsVerified)
-            throw new Error("DARWIN_JOURNAL_WRITER_UNKNOWN");
+        if (entry.outer && !entry.journalsVerified) throw new Error("DARWIN_JOURNAL_WRITER_UNKNOWN");
         entry.commandFile?.close();
         delete entry.commandFile;
         entry.cliFile?.close();
@@ -571,12 +564,7 @@ export class DarwinProcesses {
      * 发布，中断留下的任意半配对仍然不能在重启中恢复正结论，ACK 从来不作为退
      * 出或封存证据。
      */
-    private async stop(
-        id: string,
-        entry: Attempt | undefined,
-        reason: string,
-        deadline: number,
-    ): Promise<StopReceipt> {
+    private async stop(id: string, entry: Attempt | undefined, reason: string, deadline: number): Promise<StopReceipt> {
         const receipt = (stopped: boolean): StopReceipt => ({
             attemptId: id,
             processStopped: stopped,
@@ -640,17 +628,8 @@ export class DarwinProcesses {
             return receipt(false);
         }
         try {
-            const {
-                version,
-                platform,
-                attemptId,
-                uid,
-                kind,
-                ownerGeneration,
-                nonce,
-                commandBinding,
-                cliBinding,
-            } = entry.record;
+            const { version, platform, attemptId, uid, kind, ownerGeneration, nonce, commandBinding, cliBinding } =
+                entry.record;
             const proof: DarwinControlledProof = {
                 version,
                 platform,

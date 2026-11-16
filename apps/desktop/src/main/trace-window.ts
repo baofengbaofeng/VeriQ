@@ -10,11 +10,7 @@ import { ownedTraceOrigin, allowedTraceRequest } from "./viewer-policy";
  */
 export async function openNativeTrace(client: DesktopAgentClient, input: unknown): Promise<void> {
     const value = object(input, ["viewerId", "url", "pid"]);
-    if (
-        typeof value.url !== "string" ||
-        typeof value.viewerId !== "string" ||
-        !/^[0-9a-f-]{36}$/.test(value.viewerId)
-    )
+    if (typeof value.url !== "string" || typeof value.viewerId !== "string" || !/^[0-9a-f-]{36}$/.test(value.viewerId))
         throw new Error("TRACE_VIEWER_INVALID");
     const origin = ownedTraceOrigin(value.url),
         viewerId = value.viewerId;

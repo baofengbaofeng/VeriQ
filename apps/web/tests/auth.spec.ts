@@ -92,9 +92,7 @@ async function holdOutgoingRequest(page: Page, pathname = "/api/v1/auth/logout",
     };
 }
 
-test("real setup, login, account, administration and one-time reset", async ({
-    page,
-}, testInfo) => {
+test("real setup, login, account, administration and one-time reset", async ({ page }, testInfo) => {
     test.setTimeout(30_000);
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Set up VeriQ" })).toBeVisible();
@@ -173,9 +171,7 @@ test("real setup, login, account, administration and one-time reset", async ({
         .getByTestId("user-browser-admin@example.com")
         .getByRole("button", { name: "Disable", exact: true })
         .click();
-    await expect(page.getByRole("alert")).toContainText(
-        "Create another enabled system administrator first",
-    );
+    await expect(page.getByRole("alert")).toContainText("Create another enabled system administrator first");
     await row.getByRole("button", { name: "Make admin", exact: true }).click();
     await expect(row).toContainText("System administrator");
     await row.getByRole("button", { name: "Remove admin", exact: true }).click();
@@ -265,8 +261,7 @@ test("real setup, login, account, administration and one-time reset", async ({
     const userQueries: URL[] = [];
     const recordUsers = (request: import("@playwright/test").Request) => {
         const url = new URL(request.url());
-        if (request.method() === "GET" && url.pathname === "/api/v1/admin/users")
-            userQueries.push(url);
+        if (request.method() === "GET" && url.pathname === "/api/v1/admin/users") userQueries.push(url);
     };
     page.on("request", recordUsers);
     await page.getByTestId("users-search").fill("browser-");
@@ -276,8 +271,7 @@ test("real setup, login, account, administration and one-time reset", async ({
     expect(userQueries).toHaveLength(0);
     const applied = page.waitForResponse(
         (response) =>
-            response.request().method() === "GET" &&
-            new URL(response.url()).pathname === "/api/v1/admin/users",
+            response.request().method() === "GET" && new URL(response.url()).pathname === "/api/v1/admin/users",
     );
     await page.getByTestId("users-filter-submit").click();
     expect((await applied).status()).toBe(200);
@@ -289,8 +283,7 @@ test("real setup, login, account, administration and one-time reset", async ({
     expect(userQueries).toHaveLength(1);
     const more = page.waitForResponse(
         (response) =>
-            response.request().method() === "GET" &&
-            new URL(response.url()).pathname === "/api/v1/admin/users",
+            response.request().method() === "GET" && new URL(response.url()).pathname === "/api/v1/admin/users",
     );
     await page.getByTestId("users-more").click();
     expect((await more).status()).toBe(200);
@@ -315,11 +308,7 @@ test("real setup, login, account, administration and one-time reset", async ({
     const actorResponse = await page.request.get(`${origin}/api/v1/account`);
     expect(actorResponse.status()).toBe(200);
     const actorId = (await actorResponse.json()).data.id;
-    const mutationBarrier = await holdBackendResponse(
-        page,
-        `/api/v1/admin/users/${actorId}`,
-        "PATCH",
-    );
+    const mutationBarrier = await holdBackendResponse(page, `/api/v1/admin/users/${actorId}`, "PATCH");
     const outgoingLogout = await holdOutgoingRequest(page);
     const logoutIntentEvents: { event: string; path?: string; status?: number }[] = [];
     const recordIntentResponse = (response: import("@playwright/test").Response) => {
@@ -363,8 +352,7 @@ test("real setup, login, account, administration and one-time reset", async ({
         logoutIntentEvents.push({ event: "old-mutation-callback-ui-settled" });
         const completedLogout = page.waitForResponse(
             (response) =>
-                response.request().method() === "POST" &&
-                new URL(response.url()).pathname === "/api/v1/auth/logout",
+                response.request().method() === "POST" && new URL(response.url()).pathname === "/api/v1/auth/logout",
         );
         await outgoingLogout.forward();
         logoutIntentEvents.push({ event: "logout-forwarded-to-real-backend" });
@@ -392,9 +380,7 @@ test("real setup, login, account, administration and one-time reset", async ({
         .getByTestId("user-browser-admin@example.com")
         .getByRole("button", { name: "Make admin", exact: true })
         .click();
-    await expect(page.getByTestId("user-browser-admin@example.com")).toContainText(
-        "System administrator",
-    );
+    await expect(page.getByTestId("user-browser-admin@example.com")).toContainText("System administrator");
     await page.getByTestId("logout").click();
     await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
     await page.getByTestId("email").fill("browser-admin@example.com");
@@ -414,12 +400,9 @@ test("real setup, login, account, administration and one-time reset", async ({
     const recordOwnershipResponse = (response: import("@playwright/test").Response) => {
         const path = new URL(response.url()).pathname;
         if (
-            [
-                "/api/v1/account",
-                "/api/v1/account/sessions",
-                "/api/v1/auth/logout",
-                "/api/v1/auth/session",
-            ].includes(path)
+            ["/api/v1/account", "/api/v1/account/sessions", "/api/v1/auth/logout", "/api/v1/auth/session"].includes(
+                path,
+            )
         )
             ownershipEvents.push({ event: "response", path, status: response.status() });
     };
@@ -440,21 +423,15 @@ test("real setup, login, account, administration and one-time reset", async ({
         expect(held.status()).toBe(200);
         expect((await held.json()).data.systemAdmin).toBe(false);
         ownershipEvents.push({ event: "real-demoted-account-held", status: held.status() });
-        const logout = page.waitForResponse(
-            (response) => new URL(response.url()).pathname === "/api/v1/auth/logout",
-        );
+        const logout = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/auth/logout");
         const expired = page.waitForResponse(
-            (response) =>
-                new URL(response.url()).pathname === "/api/v1/auth/session" &&
-                response.status() === 401,
+            (response) => new URL(response.url()).pathname === "/api/v1/auth/session" && response.status() === 401,
         );
         await page.getByTestId("logout").click();
         expect((await logout).status()).toBe(200);
         await expired;
         await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
-        const released = page.waitForResponse(
-            (response) => new URL(response.url()).pathname === "/api/v1/account",
-        );
+        const released = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/account");
         page.on("framenavigated", recordStaleAccount);
         await accountBarrier.release();
         await (await released).finished();
@@ -543,9 +520,7 @@ test("real setup, login, account, administration and one-time reset", async ({
         .getByTestId("user-browser-admin@example.com")
         .getByRole("button", { name: "Make admin", exact: true })
         .click();
-    await expect(page.getByTestId("user-browser-admin@example.com")).toContainText(
-        "System administrator",
-    );
+    await expect(page.getByTestId("user-browser-admin@example.com")).toContainText("System administrator");
     await page
         .getByTestId("user-browser-second-admin@example.com")
         .getByRole("button", { name: "Remove admin", exact: true })
@@ -606,14 +581,11 @@ test("real setup, login, account, administration and one-time reset", async ({
         await page.getByTestId("password").fill("Final password 123!");
         const cancelledLogout = page.waitForEvent(
             "requestfailed",
-            (request) =>
-                request.method() === "POST" &&
-                new URL(request.url()).pathname === "/api/v1/auth/logout",
+            (request) => request.method() === "POST" && new URL(request.url()).pathname === "/api/v1/auth/logout",
         );
         const genuineLogin = page.waitForResponse(
             (response) =>
-                response.request().method() === "POST" &&
-                new URL(response.url()).pathname === "/api/v1/auth/login",
+                response.request().method() === "POST" && new URL(response.url()).pathname === "/api/v1/auth/login",
         );
         await page.getByTestId("login-submit").click();
         expect((await genuineLogin).status()).toBe(200);
@@ -641,8 +613,7 @@ test("real setup, login, account, administration and one-time reset", async ({
         await page.getByTestId("workspace-name").fill("Session owner write");
         const creation = page.waitForResponse(
             (response) =>
-                response.request().method() === "POST" &&
-                new URL(response.url()).pathname === "/api/v1/workspaces",
+                response.request().method() === "POST" && new URL(response.url()).pathname === "/api/v1/workspaces",
         );
         await page.getByTestId("workspace-create").click();
         const created = await creation;

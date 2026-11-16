@@ -20,14 +20,7 @@ function validStop(value: unknown, id: string, state: string): boolean {
     const stop = value as Record<string, unknown>;
     if (
         Object.keys(stop).some(
-            (key) =>
-                ![
-                    "attemptId",
-                    "processStopped",
-                    "processStopScope",
-                    "reason",
-                    "stoppedAt",
-                ].includes(key),
+            (key) => !["attemptId", "processStopped", "processStopScope", "reason", "stoppedAt"].includes(key),
         ) ||
         stop.attemptId !== id ||
         typeof stop.processStopped !== "boolean" ||
@@ -73,8 +66,7 @@ export async function requireStoppedHistory(root: string): Promise<void> {
                 validateSchema("ClaimDTO", record.claim).length ||
                 (record.claim as { attemptId: string }).attemptId !== id ||
                 record.work !== join(root, "work", id) ||
-                (record.claimRequestId !== undefined &&
-                    validateSchema("Id", record.claimRequestId).length)
+                (record.claimRequestId !== undefined && validateSchema("Id", record.claimRequestId).length)
             )
                 throw new Error("INVALID_ATTEMPT_HISTORY");
             if (isPreSpawnState(record.state, "ONLINE")) {
@@ -88,9 +80,7 @@ export async function requireStoppedHistory(root: string): Promise<void> {
                 if (
                     !["SPAWNING", "RUNNING", "STOPPED"].includes(String(record.state)) ||
                     !processNames.delete(`${id}.process.json`) ||
-                    !processNames.delete(
-                        `${id}.${process.platform === "darwin" ? "controlled" : "drained"}.json`,
-                    ) ||
+                    !processNames.delete(`${id}.${process.platform === "darwin" ? "controlled" : "drained"}.json`) ||
                     !(await processes.confirmStopped(id))
                 )
                     throw new Error("UNPROVED_PROCESS_HISTORY");
@@ -115,16 +105,14 @@ export async function requireStoppedHistory(root: string): Promise<void> {
             windowsJournal = await WindowsAttemptJournal.openExisting(root);
             if (windowsJournal) {
                 await windowsJournal.requireNoLegacy();
-                for (const record of windowsJournal.records())
-                    await requireAttempt(record.claim.attemptId, record);
+                for (const record of windowsJournal.records()) await requireAttempt(record.claim.attemptId, record);
             }
         } else {
             // Linux 与 Darwin 继续只读核原有 JSON 与同一 Attempt 的真实进程证明，不迁移到 Windows 数据库、
             // 不改旧来源或扩大停止范围；公共核验函数只复用原有 Claim、工作路径、状态和已
             // 确认排空条件。
             for (const name of attemptNames) {
-                if (!/^[a-zA-Z0-9_-]{1,100}\.json$/.test(name))
-                    throw new Error("INVALID_ATTEMPT_HISTORY");
+                if (!/^[a-zA-Z0-9_-]{1,100}\.json$/.test(name)) throw new Error("INVALID_ATTEMPT_HISTORY");
                 await requireAttempt(name.slice(0, -5), await attempts!.read(name, 65536));
             }
         }

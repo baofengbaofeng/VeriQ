@@ -65,16 +65,12 @@ export class WindowsProcesses {
             state: "SPAWNING",
         };
         await this.save(journal);
-        const child = spawn(
-            this.launcher,
-            [this.path(id, true), journal.nonce, command.executable, ...command.args],
-            {
-                cwd: command.cwd,
-                env: { ...command.env, VERIQ_WORKER_GATE_NONCE: journal.nonce },
-                stdio: ["pipe", "pipe", "pipe"],
-                windowsHide: true,
-            },
-        );
+        const child = spawn(this.launcher, [this.path(id, true), journal.nonce, command.executable, ...command.args], {
+            cwd: command.cwd,
+            env: { ...command.env, VERIQ_WORKER_GATE_NONCE: journal.nonce },
+            stdio: ["pipe", "pipe", "pipe"],
+            windowsHide: true,
+        });
         child.stdin.on("error", () => {});
         const control = (type: string) => child.stdin.write(`${type} ${journal.nonce}\n`);
         let ready!: (value: Record<string, unknown>) => void, fail!: (error: Error) => void;
@@ -89,11 +85,9 @@ export class WindowsProcesses {
         });
         void line.catch(() => {});
         let exit!: (value: { code: number | null; signal: NodeJS.Signals | null }) => void;
-        const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
-            (resolve) => {
-                exit = resolve;
-            },
-        );
+        const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
+            exit = resolve;
+        });
         let buffered = Buffer.alloc(0),
             total = 0,
             output = Buffer.alloc(0),
@@ -116,9 +110,7 @@ export class WindowsProcesses {
                     frame = buffered.subarray(0, end);
                 buffered = buffered.subarray(end + 1);
                 try {
-                    const value = JSON.parse(
-                        new TextDecoder("utf-8", { fatal: true }).decode(frame),
-                    );
+                    const value = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(frame));
                     if (value.nonce !== journal.nonce) throw new Error("GUARDIAN_NONCE_MISMATCH");
                     if (value.type === "READY" && !sawReady) {
                         sawReady = true;
@@ -203,11 +195,7 @@ export class WindowsProcesses {
                 exited,
                 firstLine: () => line,
                 send: (message) => {
-                    if (
-                        !message ||
-                        typeof message !== "object" ||
-                        (message as { type?: unknown }).type !== "START"
-                    )
+                    if (!message || typeof message !== "object" || (message as { type?: unknown }).type !== "START")
                         throw new Error("INVALID_WORKER_COMMAND");
                     control("BUSINESS_START");
                 },
@@ -254,9 +242,7 @@ export class WindowsProcesses {
     async confirmStopped(id: string): Promise<boolean> {
         try {
             const native = windowsNative();
-            const journal = JSON.parse(
-                native.readPrivateFile(this.path(id), 2048).toString("utf8"),
-            ) as Journal;
+            const journal = JSON.parse(native.readPrivateFile(this.path(id), 2048).toString("utf8")) as Journal;
             if (
                 !journal ||
                 journal.attemptId !== id ||

@@ -74,10 +74,7 @@ test("signed update requires exact target, origin version, profile and engine co
     const { release, update, envelope } = fixture();
     assert.deepEqual(verifyUpdateEnvelope(envelope(), release), update);
     assert.equal(
-        verifyUpdateEnvelope(
-            envelope({ ...update, version: "0.9.0", direction: "rollback" }),
-            release,
-        ).direction,
+        verifyUpdateEnvelope(envelope({ ...update, version: "0.9.0", direction: "rollback" }), release).direction,
         "rollback",
     );
     for (const changed of [
@@ -102,23 +99,15 @@ test("signed update requires exact target, origin version, profile and engine co
 test("update rejects altered payload, unknown publisher and missing trust root", () => {
     const first = fixture(),
         second = fixture();
-    assert.throws(
-        () => verifyUpdateEnvelope(first.envelope(), second.release),
-        /DESKTOP_UPDATE_SIGNATURE_INVALID/,
-    );
+    assert.throws(() => verifyUpdateEnvelope(first.envelope(), second.release), /DESKTOP_UPDATE_SIGNATURE_INVALID/);
     const altered = JSON.parse(first.envelope().toString());
-    altered.payload = Buffer.from(JSON.stringify({ ...first.update, version: "9.9.9" })).toString(
-        "base64",
-    );
+    altered.payload = Buffer.from(JSON.stringify({ ...first.update, version: "9.9.9" })).toString("base64");
     assert.throws(
         () => verifyUpdateEnvelope(Buffer.from(JSON.stringify(altered)), first.release),
         /DESKTOP_UPDATE_SIGNATURE_INVALID/,
     );
     const { updatePublicKeyPem: _key, ...withoutKey } = first.release;
-    assert.throws(
-        () => verifyUpdateEnvelope(first.envelope(), withoutKey),
-        /DESKTOP_UPDATE_KEY_UNCONFIGURED/,
-    );
+    assert.throws(() => verifyUpdateEnvelope(first.envelope(), withoutKey), /DESKTOP_UPDATE_KEY_UNCONFIGURED/);
 });
 
 /**
@@ -135,10 +124,7 @@ test("desktop release identities and Mac host capabilities fail closed", () => {
         { profileFormat: 3 },
         { trustedRuntime: { ...release.trustedRuntime, productVersion: "9.0.0" } },
     ])
-        assert.throws(
-            () => parseDesktopRelease({ ...release, ...change }),
-            /DESKTOP_RELEASE_INVALID/,
-        );
+        assert.throws(() => parseDesktopRelease({ ...release, ...change }), /DESKTOP_RELEASE_INVALID/);
     for (const value of [undefined, true, {}, Object.freeze({ platform: "darwin" })])
         assert.throws(() => requireMacDesktopIdentity(value), /COOKIE_MAC_HOST_IDENTITY_REQUIRED/);
 });

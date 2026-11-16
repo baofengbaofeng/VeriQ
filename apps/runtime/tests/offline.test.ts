@@ -156,10 +156,7 @@ test("restricted local mapping binds issuer/workspace/exact version and never fa
         assert.deepEqual(await resolver.resolve(ref, attempt), {
             token: "private-local-value",
         });
-        await assert.rejects(
-            resolver.resolve({ ...ref, issuerId: "foreign" }, attempt),
-            /CREDENTIAL_SCOPE_MISMATCH/,
-        );
+        await assert.rejects(resolver.resolve({ ...ref, issuerId: "foreign" }, attempt), /CREDENTIAL_SCOPE_MISMATCH/);
         await assert.rejects(
             store.resolve({
                 ...ref,
@@ -262,8 +259,7 @@ for (const inconsistent of [
 }
 
 test(
-    "unsigned metadata cannot poison authenticated revi" +
-        "sions; legacy revocations deny aliases after rebind",
+    "unsigned metadata cannot poison authenticated revi" + "sions; legacy revocations deny aliases after rebind",
     async () => {
         const f = await fixture();
         try {
@@ -318,11 +314,7 @@ test(
                 },
             }));
             await assert.rejects(legacy.issuer(f.issuer.issuerId), /ISSUER_NOT_TRUSTED/);
-            await legacy.bind(
-                { ...f.issuer, keys: [key] },
-                "https://control.test",
-                key.fingerprint,
-            );
+            await legacy.bind({ ...f.issuer, keys: [key] }, "https://control.test", key.fingerprint);
             await assert.rejects(
                 legacy.bind(
                     {
@@ -355,10 +347,7 @@ test("execution boundary rechecks signed installed bytes instead of trusting a V
         const member = bundle.manifest.files.find((f) => f.path.endsWith(".test.ts"))!;
         await chmod(join(bundle.directory, member.path), 0o600);
         await writeFile(join(bundle.directory, member.path), 'console.log("tampered")');
-        await assert.rejects(
-            reverifyInstalled(bundle.directory, { trust: f.trust }),
-            /BUNDLE_(HASH|SIZE)_MISMATCH/,
-        );
+        await assert.rejects(reverifyInstalled(bundle.directory, { trust: f.trust }), /BUNDLE_(HASH|SIZE)_MISMATCH/);
     } finally {
         await f.close();
     }
@@ -434,16 +423,8 @@ test("disconnected missing credential failure is durable without a platform requ
                 workspaceId: result.workspaceId,
                 deviceToken: "synthetic-offline-device",
             };
-            const first = await uploadOffline(
-                join(f.dir, "local"),
-                result.localRunId,
-                uploadConfig,
-            );
-            const repeated = await uploadOffline(
-                join(f.dir, "local"),
-                result.localRunId,
-                uploadConfig,
-            );
+            const first = await uploadOffline(join(f.dir, "local"), result.localRunId, uploadConfig);
+            const repeated = await uploadOffline(join(f.dir, "local"), result.localRunId, uploadConfig);
             assert.equal(first.runId, repeated.runId);
             assert.equal(key, "offline_" + result.localRunId);
             assert.equal(received, 2);
@@ -500,13 +481,7 @@ test(
             await writeFile(source, canonicalBytes(snapshot()));
             execFileSync(
                 process.execPath,
-                [
-                    "--import",
-                    fileURLToPath(import.meta.resolve("tsx")),
-                    "tests/queue-fixture.ts",
-                    source,
-                    build,
-                ],
+                ["--import", fileURLToPath(import.meta.resolve("tsx")), "tests/queue-fixture.ts", source, build],
                 {
                     cwd: fileURLToPath(new URL("../../../packages/runner-sdk", import.meta.url)),
                     timeout: 120000,
@@ -574,8 +549,7 @@ test(
             const reportSnapshot = await reports.snapshot(result.workspaceId, result.localRunId);
             assert.equal(reportSnapshot.reports[0]!.gateNow.passed, false);
             assert.equal(
-                (reportSnapshot.reports[0]!.cases[0]!.attempts[0]!.facts as Record<string, unknown>)
-                    .processStopScope,
+                (reportSnapshot.reports[0]!.cases[0]!.attempts[0]!.facts as Record<string, unknown>).processStopScope,
                 "FULL_DESCENDANT_TREE",
             );
             assert.equal(reportSnapshot.reports[0]!.statistics.firstPassCount, 1);
@@ -585,8 +559,7 @@ test(
             const adapter = new LocalReportAdapter(reportSnapshot);
             assert.equal((await adapter.report(result.localRunId)).run.id, result.localRunId);
             assert.equal(
-                (await adapter.display(result.localRunId, result.attempts[0]!.attemptId))
-                    .metadataStatus,
+                (await adapter.display(result.localRunId, result.attempts[0]!.attemptId)).metadataStatus,
                 "AVAILABLE",
             );
             assert.equal(
@@ -686,10 +659,7 @@ test(
                 ),
             );
             assert.equal(retried.attempts.length, 2);
-            assert.notEqual(
-                retried.attempts[0]!.execution!.namespace,
-                retried.attempts[1]!.execution!.namespace,
-            );
+            assert.notEqual(retried.attempts[0]!.execution!.namespace, retried.attempts[1]!.execution!.namespace);
             /**
              * 故障仅注入真实 SQLite 已写入 SPAWNING 事务的 COMMIT 操作，后续回滚、停止和报告仍走生产流程；未提交意图不
              * 能因内存 owner 仍是 ALLOCATED 而产生未派生回执，也不能
@@ -705,8 +675,8 @@ test(
                     if (
                         !injected &&
                         sql === "COMMIT" &&
-                        this.prepare("SELECT state FROM veriq_local_owner WHERE singleton=1").get()
-                            ?.state === "SPAWNING"
+                        this.prepare("SELECT state FROM veriq_local_owner WHERE singleton=1").get()?.state ===
+                            "SPAWNING"
                     ) {
                         injected = true;
                         throw new Error("SQLITE_COMMIT_FAILED");
@@ -731,19 +701,10 @@ test(
                 assert.equal(faultResult.attempts[0]!.processStopScope, undefined);
                 const faultStore = await LocalStore.open(faultRoot);
                 assert.equal(faultStore.active()?.state, "QUARANTINED");
-                assert.deepEqual(
-                    faultStore.result(faultResult.workspaceId, faultResult.localRunId),
-                    faultResult,
-                );
+                assert.deepEqual(faultStore.result(faultResult.workspaceId, faultResult.localRunId), faultResult);
                 faultStore.close();
                 await assert.rejects(
-                    readFile(
-                        join(
-                            faultRoot,
-                            "processes",
-                            `${faultResult.attempts[0]!.attemptId}.process.json`,
-                        ),
-                    ),
+                    readFile(join(faultRoot, "processes", `${faultResult.attempts[0]!.attemptId}.process.json`)),
                     { code: "ENOENT" },
                 );
             } finally {
@@ -823,8 +784,7 @@ test(
             assert.equal(
                 recoveredStore
                     .result(id(99), String(recoveredRun.id))
-                    .attempts.find((attempt) => attempt.attemptId === recovered?.attemptId)!
-                    .processStopScope,
+                    .attempts.find((attempt) => attempt.attemptId === recovered?.attemptId)!.processStopScope,
                 "FULL_DESCENDANT_TREE",
             );
             assert(recoveredStore.history(id(99)).some((r) => r.state === "FINISHED"));
@@ -852,10 +812,7 @@ test("publication failure cleans only unchanged owned staging and preserves subs
         const injection = mock.method(
             fs.default,
             "rename",
-            async (
-                source: Parameters<typeof rename>[0],
-                destination: Parameters<typeof rename>[1],
-            ) => {
+            async (source: Parameters<typeof rename>[0], destination: Parameters<typeof rename>[1]) => {
                 if (String(source).includes("/.veriq-bundle-")) {
                     staging = String(source);
                     if (substitute) {

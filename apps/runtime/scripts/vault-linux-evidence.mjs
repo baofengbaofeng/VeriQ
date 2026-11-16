@@ -24,8 +24,7 @@ const run = async (file, args, maxBuffer = 4 * 1024 * 1024) =>
             env: { PATH: "/usr/bin:/bin", LANG: "C.UTF-8" },
         })
     ).stdout;
-const save = async (name, value) =>
-    writeFile(join(directory, name), JSON.stringify(value, null, 2) + "\n");
+const save = async (name, value) => writeFile(join(directory, name), JSON.stringify(value, null, 2) + "\n");
 
 if (mode === "packages") {
     const raw = await run("/usr/bin/dpkg-query", [
@@ -37,17 +36,8 @@ if (mode === "packages") {
     const providers = new Map();
     const nameOf = (name) => name.replace(/:(?:any|native|amd64|all)$/, "");
     for (const line of raw.trim().split("\n")) {
-        const [
-            binary,
-            version,
-            arch,
-            source,
-            sourceVersion,
-            depends,
-            preDepends,
-            provides,
-            installedKiB,
-        ] = line.split("\t");
+        const [binary, version, arch, source, sourceVersion, depends, preDepends, provides, installedKiB] =
+            line.split("\t");
         const name = nameOf(binary);
         const record = {
             binary,
@@ -96,11 +86,7 @@ if (mode === "packages") {
         const record = installed.get(name);
         let catalog;
         try {
-            catalog = await run(
-                "/usr/bin/apt-cache",
-                ["show", `${record.binary}=${record.version}`],
-                1024 * 1024,
-            );
+            catalog = await run("/usr/bin/apt-cache", ["show", `${record.binary}=${record.version}`], 1024 * 1024);
         } catch {
             catalog = null;
         }
@@ -117,8 +103,7 @@ if (mode === "packages") {
     }
     const releases = {};
     for (const name of await readdir("/var/lib/apt/lists"))
-        if (name.endsWith("_InRelease"))
-            releases[name] = hash(await readFile(join("/var/lib/apt/lists", name)));
+        if (name.endsWith("_InRelease")) releases[name] = hash(await readFile(join("/var/lib/apt/lists", name)));
     let security;
     try {
         security = {
@@ -145,8 +130,7 @@ if (mode === "packages") {
         unresolvedLicenses: Object.entries(records)
             .filter(([, record]) => record.license.unavailable)
             .map(([name]) => name),
-        alternativePolicy:
-            "Conservatively includes every installed alternative/provider; not a minimal package graph",
+        alternativePolicy: "Conservatively includes every installed alternative/provider; not a minimal package graph",
         records,
         security,
     });
@@ -217,18 +201,11 @@ if (mode === "packages") {
             try {
                 if (
                     dirname(path) !== tmpdir() ||
-                    !["veriq-vault-session-", "veriq vault 中文 "].some((prefix) =>
-                        basename(path).startsWith(prefix),
-                    )
+                    !["veriq-vault-session-", "veriq vault 中文 "].some((prefix) => basename(path).startsWith(prefix))
                 )
                     throw new Error("VAULT_CLEANUP_ROOT_INVALID");
                 const info = await lstat(path);
-                if (
-                    !info.isDirectory() ||
-                    info.isSymbolicLink() ||
-                    info.uid !== process.getuid() ||
-                    info.mode & 0o077
-                )
+                if (!info.isDirectory() || info.isSymbolicLink() || info.uid !== process.getuid() || info.mode & 0o077)
                     throw new Error("VAULT_CLEANUP_ROOT_UNOWNED");
                 await rm(path, { recursive: true, force: true });
                 roots.push({ path, removed: true });

@@ -54,9 +54,7 @@ class TarFrames {
                         ...this.context.details,
                         ...details,
                         unknownKeySha256:
-                            unknownKey === undefined
-                                ? null
-                                : createHash("sha256").update(unknownKey).digest("hex"),
+                            unknownKey === undefined ? null : createHash("sha256").update(unknownKey).digest("hex"),
                     },
                 });
         } catch {
@@ -72,16 +70,14 @@ class TarFrames {
      */
     *feed(input: Buffer, scan: ArchiveScan): Generator<{ bytes: Buffer; boundary: boolean }> {
         this.bytes += input.length;
-        if (this.bytes > limits.total + 64 * 1024 ** 2)
-            throw new RuntimePayloadError("PAYLOAD_LIMIT");
+        if (this.bytes > limits.total + 64 * 1024 ** 2) throw new RuntimePayloadError("PAYLOAD_LIMIT");
         let rest: Buffer = this.pending.length ? Buffer.concat([this.pending, input]) : input;
         this.pending = Buffer.alloc(0);
         while (rest.length) {
             if (this.zeros >= 2) {
                 this.tail += rest.length;
                 if (this.tail > 1024 ** 2) throw new RuntimePayloadError("PAYLOAD_LIMIT");
-                if (rest.some((v) => v !== 0))
-                    throw new RuntimePayloadError("PAYLOAD_ARCHIVE_FORMAT");
+                if (rest.some((v) => v !== 0)) throw new RuntimePayloadError("PAYLOAD_ARCHIVE_FORMAT");
                 yield { bytes: rest, boundary: false };
                 return;
             }
@@ -103,8 +99,7 @@ class TarFrames {
                     part = rest.subarray(0, n);
                 rest = rest.subarray(n);
                 this.padding -= n;
-                if (part.some((v) => v !== 0))
-                    throw new RuntimePayloadError("PAYLOAD_ARCHIVE_FORMAT");
+                if (part.some((v) => v !== 0)) throw new RuntimePayloadError("PAYLOAD_ARCHIVE_FORMAT");
                 if (!this.meta) yield { bytes: part, boundary: !this.padding };
                 else if (!this.padding) yield this.metadata();
                 continue;
@@ -123,12 +118,10 @@ class TarFrames {
                 yield { bytes: raw, boundary: false };
                 continue;
             }
-            if (this.zeros || !header.cksumValid)
-                throw new RuntimePayloadError("PAYLOAD_ARCHIVE_FORMAT");
+            if (this.zeros || !header.cksumValid) throw new RuntimePayloadError("PAYLOAD_ARCHIVE_FORMAT");
             const size = header.size ?? 0,
                 type = header.type;
-            if (!Number.isSafeInteger(size) || size < 0)
-                throw new RuntimePayloadError("PAYLOAD_ARCHIVE_FORMAT");
+            if (!Number.isSafeInteger(size) || size < 0) throw new RuntimePayloadError("PAYLOAD_ARCHIVE_FORMAT");
             const metadata = [
                 "ExtendedHeader",
                 "GlobalExtendedHeader",
@@ -148,11 +141,7 @@ class TarFrames {
                 details: { checksumValid: header.cksumValid },
             };
             if (metadata) {
-                if (
-                    size > 64 * 1024 ||
-                    this.metaBytes + size > 4 * 1024 ** 2 ||
-                    ++this.metaCount > 40000
-                )
+                if (size > 64 * 1024 || this.metaBytes + size > 4 * 1024 ** 2 || ++this.metaCount > 40000)
                     throw new RuntimePayloadError("PAYLOAD_LIMIT");
                 if (!size) this.unsupported("TAR_META_EMPTY");
                 this.metaBytes += size;
@@ -198,10 +187,9 @@ class TarFrames {
             let recordIndex = 0;
             for (const record of text.slice(0, -1).split("\n")) {
                 recordIndex++;
-                const match =
-                    /^[0-9]+ (path|linkpath|mtime|atime|ctime|uid|gid|uname|gname)=([\x20-\x7e]*)$/.exec(
-                        record,
-                    );
+                const match = /^[0-9]+ (path|linkpath|mtime|atime|ctime|uid|gid|uname|gname)=([\x20-\x7e]*)$/.exec(
+                    record,
+                );
                 if (!match || seen.has(match[1]!))
                     this.unsupported(
                         "TAR_PAX_RECORD",
@@ -212,9 +200,7 @@ class TarFrames {
                             approvedKey: match?.[1] ?? null,
                         },
                         body,
-                        !match &&
-                            record.indexOf(" ") >= 0 &&
-                            record.indexOf("=") > record.indexOf(" ")
+                        !match && record.indexOf(" ") >= 0 && record.indexOf("=") > record.indexOf(" ")
                             ? record.slice(record.indexOf(" ") + 1, record.indexOf("="))
                             : undefined,
                     );
@@ -244,9 +230,7 @@ class TarFrames {
                             approvedKey: key,
                             missing: value === undefined,
                             invalidDate: value instanceof Date && !Number.isFinite(value.getTime()),
-                            invalidNumber:
-                                typeof value === "number" &&
-                                (!Number.isSafeInteger(value) || value < 0),
+                            invalidNumber: typeof value === "number" && (!Number.isSafeInteger(value) || value < 0),
                             emptyString: typeof value === "string" && !value.length,
                             valueKind: value instanceof Date ? "DATE" : typeof value,
                         },
@@ -267,8 +251,7 @@ class TarFrames {
                             roundtripKind: roundtrip instanceof Date ? "DATE" : typeof roundtrip,
                             dateMismatch:
                                 value instanceof Date &&
-                                (!(roundtrip instanceof Date) ||
-                                    value.getTime() !== roundtrip.getTime()),
+                                (!(roundtrip instanceof Date) || value.getTime() !== roundtrip.getTime()),
                             valueMismatch: !(value instanceof Date) && value !== roundtrip,
                         },
                         body,
@@ -289,11 +272,7 @@ class TarFrames {
         }
         this.meta = undefined;
         return {
-            bytes: Buffer.concat([
-                meta.header,
-                body,
-                Buffer.alloc((512 - (meta.size % 512)) % 512),
-            ]),
+            bytes: Buffer.concat([meta.header, body, Buffer.alloc((512 - (meta.size % 512)) % 512)]),
             boundary: false,
         };
     }
@@ -302,14 +281,7 @@ class TarFrames {
      * padding 都是截断，尾部元数据没有实际成员消费也不能得到成功回执。
      */
     finish() {
-        if (
-            this.pending.length ||
-            this.body ||
-            this.padding ||
-            this.meta ||
-            this.zeros < 2 ||
-            this.afterMeta
-        )
+        if (this.pending.length || this.body || this.padding || this.meta || this.zeros < 2 || this.afterMeta)
             throw new RuntimePayloadError("PAYLOAD_ARCHIVE_FORMAT");
     }
 }
@@ -320,10 +292,7 @@ class TarFrames {
  * ntry 并等待它们结束。
  */
 export async function scanTar(path: string, scan: ArchiveScan): Promise<number> {
-    const handle = await open(
-        path,
-        constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-    );
+    const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
     const source = handle.createReadStream({
         autoClose: false,
         highWaterMark: 64 * 1024,
@@ -346,12 +315,7 @@ export async function scanTar(path: string, scan: ArchiveScan): Promise<number> 
         entry.on("error", (error: unknown) => {
             failure ??= error;
         });
-        const kind =
-            entry.type === "Directory"
-                ? "directory"
-                : entry.type === "SymbolicLink"
-                  ? "link"
-                  : "file";
+        const kind = entry.type === "Directory" ? "directory" : entry.type === "SymbolicLink" ? "link" : "file";
         work = scan
             .entry(
                 {
@@ -391,9 +355,7 @@ export async function scanTar(path: string, scan: ArchiveScan): Promise<number> 
                 // 成熟 Parser 的正文循环仍以五百一十二字节为最小推进单位，不能先喂入非整块正文再单独等待短 padding；这
                 // 里只延迟最多五百一十一字节并合并下一帧，成员边界必然全部交付后才等待消费者结束，背压仍
                 // 逐次遵守。
-                const bytes = parserTail.length
-                    ? Buffer.concat([parserTail, frame.bytes])
-                    : frame.bytes;
+                const bytes = parserTail.length ? Buffer.concat([parserTail, frame.bytes]) : frame.bytes;
                 const aligned = bytes.length - (bytes.length % 512);
                 parserTail = Buffer.from(bytes.subarray(aligned));
                 if (aligned) {
@@ -434,9 +396,7 @@ export async function scanTar(path: string, scan: ArchiveScan): Promise<number> 
         if (scan.tx.signal?.aborted) scan.tx.fail("PAYLOAD_CANCELLED");
         const code = error && typeof error === "object" && "code" in error ? error.code : null;
         return scan.tx.fail(
-            code === "Z_DATA_ERROR" || code === "Z_BUF_ERROR"
-                ? "PAYLOAD_ARCHIVE_CRC"
-                : "PAYLOAD_ARCHIVE_FORMAT",
+            code === "Z_DATA_ERROR" || code === "Z_BUF_ERROR" ? "PAYLOAD_ARCHIVE_CRC" : "PAYLOAD_ARCHIVE_FORMAT",
         );
     } finally {
         scan.tx.signal?.removeEventListener("abort", aborted);

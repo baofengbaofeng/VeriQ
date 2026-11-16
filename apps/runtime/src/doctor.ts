@@ -81,16 +81,12 @@ export async function doctor(
                         : options.distribution.runnerSdkVersion;
             } else {
                 const entry = require.resolve(name);
-                const manifest = JSON.parse(
-                    await readFile(resolve(dirname(entry), "../package.json"), "utf8"),
-                ) as { version: string };
+                const manifest = JSON.parse(await readFile(resolve(dirname(entry), "../package.json"), "utf8")) as {
+                    version: string;
+                };
                 version = manifest.version;
             }
-            check(
-                name,
-                version === "0.1.0",
-                version + (options.distribution ? " (verified distribution)" : ""),
-            );
+            check(name, version === "0.1.0", version + (options.distribution ? " (verified distribution)" : ""));
             engineVersion = version;
         } catch {
             check(name, false, "Package unavailable");
@@ -111,11 +107,7 @@ export async function doctor(
             timeout: 10_000,
         });
         if (options.expectedBrowserVersion)
-            check(
-                "browser version",
-                browser.version() === options.expectedBrowserVersion,
-                browser.version(),
-            );
+            check("browser version", browser.version() === options.expectedBrowserVersion, browser.version());
         const cancel = () => {
             void browser?.close();
         };
@@ -123,20 +115,12 @@ export async function doctor(
         try {
             const page = await browser.newPage();
             await page.setContent("<title>VeriQ doctor</title>", { timeout: 5_000 });
-            check(
-                "browser launch",
-                (await page.title()) === "VeriQ doctor",
-                "Chromium launched and rendered a page",
-            );
+            check("browser launch", (await page.title()) === "VeriQ doctor", "Chromium launched and rendered a page");
         } finally {
             options.signal?.removeEventListener("abort", cancel);
         }
     } catch {
-        check(
-            "browser launch",
-            false,
-            options.signal?.aborted ? "Cancelled" : "Chromium launch/render failed",
-        );
+        check("browser launch", false, options.signal?.aborted ? "Cancelled" : "Chromium launch/render failed");
     } finally {
         await browser?.close();
     }
@@ -145,10 +129,7 @@ export async function doctor(
             const origin = controlOrigin(options.server);
             const response = await fetch(origin + "/api/v1/health/live", {
                 redirect: "error",
-                signal: AbortSignal.any([
-                    AbortSignal.timeout(5_000),
-                    ...(options.signal ? [options.signal] : []),
-                ]),
+                signal: AbortSignal.any([AbortSignal.timeout(5_000), ...(options.signal ? [options.signal] : [])]),
             });
             await response.body?.cancel();
             check(

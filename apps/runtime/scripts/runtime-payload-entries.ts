@@ -125,12 +125,7 @@ function same(a: BigIntStats, b: BigIntStats) {
  * 来源和结算后的输出统一经单链接普通文件描述符流入现有事务，预期来源继续交给 write 核大小和摘要；每块大小沿用系统流限额
  * ，关闭失败保留首错并登记在事务上，避免错误的安全清理声明。
  */
-async function copyFile(
-    work: ArchiveTransaction,
-    full: string,
-    destination: string,
-    expected?: Ref,
-) {
+async function copyFile(work: ArchiveTransaction, full: string, destination: string, expected?: Ref) {
     const before = await lstat(full, { bigint: true });
     if (
         !before.isFile() ||
@@ -139,11 +134,10 @@ async function copyFile(
     )
         fail("PAYLOAD_TREE_MISMATCH");
     if (before.size > BigInt(contentLimit(destination))) fail("PAYLOAD_LIMIT");
-    const handle = await open(
-        full,
-        constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-    );
+    const handle = await open(full, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
     let primary: unknown;
+    let closeError: unknown;
+    let result: Ref;
     try {
         if (!same(before, await handle.stat({ bigint: true }))) fail("PAYLOAD_SOURCE_CHANGED");
         const stream = handle.createReadStream({
@@ -161,7 +155,7 @@ async function copyFile(
                 !same(before, await lstat(full, { bigint: true }))
             )
                 fail("PAYLOAD_SOURCE_CHANGED");
-            return consumerRef(ref);
+            result = consumerRef(ref);
         } finally {
             if (!stream.readableEnded) stream.destroy();
             await closed.catch(() => {});
@@ -174,9 +168,11 @@ async function copyFile(
             await handle.close();
         } catch (error) {
             work.noteCloseFailure();
-            if (!primary) throw error;
+            if (!primary) closeError = error;
         }
     }
+    if (closeError !== undefined) throw closeError;
+    return result;
 }
 
 /**
@@ -187,8 +183,7 @@ async function admitBuildRoot(work: ArchiveTransaction, root: string) {
     if (!isAbsolute(root) || resolve(root) !== root) fail("PAYLOAD_PATH");
     for (const other of [work.inputRoot, work.outputParent]) {
         const fixed = resolve(other);
-        if (root === fixed || root.startsWith(fixed + "/") || fixed.startsWith(root + "/"))
-            fail("PAYLOAD_PATH");
+        if (root === fixed || root.startsWith(fixed + "/") || fixed.startsWith(root + "/")) fail("PAYLOAD_PATH");
     }
     const reader = new InputReader(root, work.signal, []);
     await reader.initialize();
@@ -217,11 +212,7 @@ function sourcePolicy(
     paths(source.files.map((file) => file.path));
     let bytes = 0;
     for (const ref of source.files) {
-        if (
-            ["entries", "execution", "input-evidence"].includes(
-                ref.path.split("/")[0]!.toLowerCase(),
-            )
-        )
+        if (["entries", "execution", "input-evidence"].includes(ref.path.split("/")[0]!.toLowerCase()))
             fail("PAYLOAD_PATH");
         if (ref.sizeBytes > contentLimit(ref.path)) fail("PAYLOAD_LIMIT");
         bytes += ref.sizeBytes;
@@ -333,12 +324,10 @@ async function outputFiles(work: ArchiveTransaction, root: string, trace: Observ
             info = await lstat(full, { bigint: true });
         observations.set(full, info);
         if (info.isDirectory()) {
-            if (path && ![0o700, 0o755, 0o555].includes(Number(info.mode & 0o7777n)))
-                fail("PAYLOAD_TREE_MISMATCH");
+            if (path && ![0o700, 0o755, 0o555].includes(Number(info.mode & 0o7777n))) fail("PAYLOAD_TREE_MISMATCH");
             if (path) directories.push(path);
             const directory = await opendir(full);
-            for await (const entry of directory)
-                await walk(path ? `${path}/${entry.name}` : entry.name);
+            for await (const entry of directory) await walk(path ? `${path}/${entry.name}` : entry.name);
         } else {
             if (
                 !info.isFile() ||
@@ -354,12 +343,10 @@ async function outputFiles(work: ArchiveTransaction, root: string, trace: Observ
     };
     await walk("");
     paths([...directories, ...files], directories);
-    if (!setEqual(files, [tracePath, ...trace.outputs.map((output) => output.path)]))
-        fail("PAYLOAD_TREE_MISMATCH");
+    if (!setEqual(files, [tracePath, ...trace.outputs.map((output) => output.path)])) fail("PAYLOAD_TREE_MISMATCH");
     const parents = new Set<string>();
     for (const file of files)
-        for (let parent = dirname(file); parent !== "."; parent = dirname(parent))
-            parents.add(parent);
+        for (let parent = dirname(file); parent !== "."; parent = dirname(parent)) parents.add(parent);
     if (!setEqual(directories, [...parents])) fail("PAYLOAD_TREE_MISMATCH");
     const finish = async () => {
         for (const [path, before] of observations)
@@ -372,11 +359,7 @@ async function outputFiles(work: ArchiveTransaction, root: string, trace: Observ
  * 工具文件通过持有的真实安装文件描述符流式核身份与字节，Vite CLI、实际 Node 模块及包清单都单独绑定；允许 pnpm 已安装工
  * 具的硬链接与私有权限，但不把这种宿主资格提升为载荷规则或传递依赖认证。
  */
-async function hostTools(
-    work: ArchiveTransaction,
-    source: SourceBindingV1,
-    host: EntryInputOptions["hostBuild"],
-) {
+async function hostTools(work: ArchiveTransaction, source: SourceBindingV1, host: EntryInputOptions["hostBuild"]) {
     if (
         !Number.isSafeInteger(host.timeoutMs) ||
         host.timeoutMs <= 0 ||
@@ -387,10 +370,7 @@ async function hostTools(
     const executable = await realpath(host.executable),
         nodePath = await realpath(process.execPath),
         cli = await realpath(host.viteCli);
-    if (
-        executable !== nodePath ||
-        host.viteCli !== join(work.inputRoot, "apps/desktop/node_modules/vite/bin/vite.js")
-    )
+    if (executable !== nodePath || host.viteCli !== join(work.inputRoot, "apps/desktop/node_modules/vite/bin/vite.js"))
         fail("PAYLOAD_RECEIPT_MISMATCH");
     const observations = new Map<string, BigIntStats>();
     const read = async (full: string, collect: boolean) => {
@@ -453,11 +433,7 @@ async function hostTools(
     const declared = decode(await sourceReader.ref(declaredRef, true)) as {
         devDependencies?: Record<string, unknown>;
     };
-    if (
-        pkg.name !== "vite" ||
-        typeof pkg.version !== "string" ||
-        declared.devDependencies?.vite !== pkg.version
-    )
+    if (pkg.name !== "vite" || typeof pkg.version !== "string" || declared.devDependencies?.vite !== pkg.version)
         fail("PAYLOAD_RECEIPT_MISMATCH");
     const finish = async () => {
         await sourceReader.finish();
@@ -491,8 +467,7 @@ async function embedded(
     const refs = new Map(source.files.map((ref) => [ref.path, ref])),
         groups = new Map<string, { name: string; version: string; sourcePaths: string[] }>();
     for (const path of trace.sources) {
-        if (!refs.has(path) || path.split("/").includes("node_modules"))
-            fail("PAYLOAD_RECEIPT_MISMATCH");
+        if (!refs.has(path) || path.split("/").includes("node_modules")) fail("PAYLOAD_RECEIPT_MISMATCH");
         await reader.ref(refs.get(path)!, false, contentLimit(path), false);
         let manifest: Ref | undefined;
         // 清单存在性由真实来源目录决定，存在但未绑定的最近清单必须立即拒绝而不能回退；上面的模块读取已观察所有父目录，
@@ -504,15 +479,7 @@ async function embedded(
                 await lstat(join(reader.root, candidate));
                 present = true;
             } catch (error) {
-                if (
-                    !(
-                        error &&
-                        typeof error === "object" &&
-                        "code" in error &&
-                        error.code === "ENOENT"
-                    )
-                )
-                    io(error);
+                if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) io(error);
             }
             if (present) {
                 manifest = refs.get(candidate);
@@ -527,12 +494,7 @@ async function embedded(
             version?: unknown;
         };
         if (typeof pkg.name !== "string") fail("PAYLOAD_RECEIPT_MISMATCH");
-        if (
-            !pkg.name.startsWith("@veriq/") ||
-            pkg.name === "@veriq/desktop" ||
-            pkg.name === "@veriq/runtime"
-        )
-            continue;
+        if (!pkg.name.startsWith("@veriq/") || pkg.name === "@veriq/desktop" || pkg.name === "@veriq/runtime") continue;
         if (typeof pkg.version !== "string") fail("PAYLOAD_RECEIPT_MISMATCH");
         const group = groups.get(manifest.path) ?? {
             name: pkg.name,
@@ -559,10 +521,7 @@ async function embedded(
 export async function withEntryInputViews<T>(
     work: ArchiveTransaction,
     options: EntryInputOptions,
-    consume: (
-        inputRoot: string,
-        trees: Readonly<{ entries: BoundTree; execution: BoundTree }>,
-    ) => Promise<T>,
+    consume: (inputRoot: string, trees: Readonly<{ entries: BoundTree; execution: BoundTree }>) => Promise<T>,
 ): Promise<T> {
     const metadata = freeze(
             structuredClone({
@@ -579,16 +538,14 @@ export async function withEntryInputViews<T>(
             run: options.hostBuild.run,
         });
     sourcePolicy(metadata.source, metadata.entries, metadata.execution);
-    if (work.profile !== "work" || work.committed || typeof consume !== "function")
-        fail("PAYLOAD_INPUT_INVALID");
+    if (work.profile !== "work" || work.committed || typeof consume !== "function") fail("PAYLOAD_INPUT_INVALID");
     work.check();
     await work.audit();
     if ((await readdir(join(work.scratch, "views"))).length) fail("PAYLOAD_PATH");
     const rootIdentity = await admitBuildRoot(work, buildRoot),
         source = new InputReader(work.inputRoot, work.signal, []);
     await source.initialize();
-    for (const ref of metadata.source.files)
-        await source.ref(ref, false, contentLimit(ref.path), false);
+    for (const ref of metadata.source.files) await source.ref(ref, false, contentLimit(ref.path), false);
     const tools = await hostTools(work, metadata.source, host);
     const invocation = freeze({
         executable: tools.executable,
@@ -645,8 +602,7 @@ export async function withEntryInputViews<T>(
         settledRoot.mode !== rootIdentity.mode
     )
         fail("PAYLOAD_SOURCE_CHANGED");
-    for (const ref of metadata.source.files)
-        await source.ref(ref, false, contentLimit(ref.path), false);
+    for (const ref of metadata.source.files) await source.ref(ref, false, contentLimit(ref.path), false);
     const outputReader = new InputReader(buildRoot, work.signal, []);
     await outputReader.initialize();
     const trace = observation(decode(await outputReader.input(tracePath))),
@@ -659,9 +615,7 @@ export async function withEntryInputViews<T>(
             executionNames.reduce(
                 (sum, name) =>
                     sum +
-                    metadata.source.files.find(
-                        (ref) => ref.path === `apps/runtime/src/execution/${name}`,
-                    )!.sizeBytes,
+                    metadata.source.files.find((ref) => ref.path === `apps/runtime/src/execution/${name}`)!.sizeBytes,
                 0,
             ),
         metadata.source.files.length + trace.outputs.length + executionNames.length,
@@ -672,12 +626,7 @@ export async function withEntryInputViews<T>(
     await work.mkdir("views/execution");
     for (const directory of directories) await work.mkdir(`views/entries/${directory}`);
     for (const output of trace.outputs) {
-        const ref = await copyFile(
-                work,
-                join(buildRoot, output.path),
-                `views/entries/${output.path}`,
-                output,
-            ),
+        const ref = await copyFile(work, join(buildRoot, output.path), `views/entries/${output.path}`, output),
             file = { ...ref, path: output.path, mode: 0o644 as const };
         entryFiles.push(file);
     }
@@ -685,15 +634,8 @@ export async function withEntryInputViews<T>(
     // 策略就在此 producer 中而不是伪称由 Vite 配置执行。
     const copyStarted = new Date().toISOString();
     for (const name of executionNames) {
-        const ref = metadata.source.files.find(
-            (file) => file.path === `apps/runtime/src/execution/${name}`,
-        )!;
-        const copied = await copyFile(
-            work,
-            join(work.inputRoot, ref.path),
-            `views/execution/${name}`,
-            ref,
-        );
+        const ref = metadata.source.files.find((file) => file.path === `apps/runtime/src/execution/${name}`)!;
+        const copied = await copyFile(work, join(work.inputRoot, ref.path), `views/execution/${name}`, ref);
         executionFiles.push({ ...copied, path: name, mode: 0o644 });
     }
     const copyFinished = new Date().toISOString();
@@ -701,12 +643,8 @@ export async function withEntryInputViews<T>(
         await copyFile(work, join(work.inputRoot, ref.path), `views/${ref.path}`, ref);
     const json = async (path: string, value: unknown) =>
         consumerRef(await writeAssetJson(work, `views/input-evidence/${path}`, value));
-    const stdout = consumerRef(
-            await work.write("views/input-evidence/vite.stdout", assetBytes(result.stdout)),
-        ),
-        stderr = consumerRef(
-            await work.write("views/input-evidence/vite.stderr", assetBytes(result.stderr)),
-        );
+    const stdout = consumerRef(await work.write("views/input-evidence/vite.stdout", assetBytes(result.stdout))),
+        stderr = consumerRef(await work.write("views/input-evidence/vite.stderr", assetBytes(result.stderr)));
     const command = await json("entries-command.json", {
         operation: "VITE_BUILD",
         invocation,
@@ -757,9 +695,7 @@ export async function withEntryInputViews<T>(
         view = new InputReader(viewRoot, work.signal, ["entries", "execution"]);
     // 输出导入从真实已复制字节重新分析，所有 JS 资产同样受固定脚本预算约束；先复用原分类器，再额外拒绝未嵌入的 VeriQ 工
     // 作区外部边，外部普通包的 target 始终保持原 specifier。
-    const scripts = trace.outputs.filter(
-        (output) => output.kind !== "asset" || /\.(?:js|mjs|cjs)$/.test(output.path),
-    );
+    const scripts = trace.outputs.filter((output) => output.kind !== "asset" || /\.(?:js|mjs|cjs)$/.test(output.path));
     if (
         scripts.some((output) => output.sizeBytes > limits.javascript) ||
         scripts.reduce((sum, output) => sum + output.sizeBytes, 0) > limits.javascriptTotal
@@ -772,9 +708,7 @@ export async function withEntryInputViews<T>(
     await codeReader.initialize();
     for (const output of trace.outputs) {
         const file = entryFiles.find((file) => file.path === output.path)!;
-        const code = scripts.includes(output)
-            ? await codeReader.ref(file, true, limits.javascript, false)
-            : undefined;
+        const code = scripts.includes(output) ? await codeReader.ref(file, true, limits.javascript, false) : undefined;
         const imports = code
             ? scanRuntimeLiteralImports(code, output.path).map((fact) =>
                   classifyRuntimeModuleEdge(fact, output.path, entryFiles),
@@ -835,8 +769,7 @@ export async function withEntryInputViews<T>(
     if (!equal(await document(view, sourceBindingRef, schemas.source), metadata.source))
         fail("PAYLOAD_RECEIPT_MISMATCH");
     await view.ref(traceRef);
-    for (const ref of metadata.source.files)
-        await view.ref(ref, false, contentLimit(ref.path), false);
+    for (const ref of metadata.source.files) await view.ref(ref, false, contentLimit(ref.path), false);
     for (const [kind, inventory, receipt, schema] of [
         ["entries", entryInventory, entriesReceipt, schemas.entries],
         ["execution", executionInventory, executionReceipt, schemas.execution],
@@ -851,18 +784,13 @@ export async function withEntryInputViews<T>(
     }
     for (const output of scripts) {
         const file = entryFiles.find((file) => file.path === output.path)!,
-            actual = scanRuntimeLiteralImports(
-                await view.script(trees.entries, file),
-                file.path,
-            ).map((fact) => classifyRuntimeModuleEdge(fact, file.path, entryFiles));
-        if (!equal(actual, outputs.find((item) => item.path === file.path)!.imports))
-            fail("PAYLOAD_GRAPH_MISMATCH");
+            actual = scanRuntimeLiteralImports(await view.script(trees.entries, file), file.path).map((fact) =>
+                classifyRuntimeModuleEdge(fact, file.path, entryFiles),
+            );
+        if (!equal(actual, outputs.find((item) => item.path === file.path)!.imports)) fail("PAYLOAD_GRAPH_MISMATCH");
     }
     for (const file of executionFiles)
-        for (const fact of scanRuntimeLiteralImports(
-            await view.script(trees.execution, file),
-            file.path,
-        ))
+        for (const fact of scanRuntimeLiteralImports(await view.script(trees.execution, file), file.path))
             classifyRuntimeModuleEdge(fact, file.path, executionFiles, true);
     await view.ref(stdout);
     await view.ref(stderr);
@@ -874,8 +802,7 @@ export async function withEntryInputViews<T>(
     const value = await consume(viewRoot, trees);
     // 回调仅在活的所有权窗口内使用输入，返回值不携带持久发布能力；消费者结束后再核来源、工具、构建输出和视图全部身份，
     // 并最后审计事务，从而拒绝消费期间发生的任何已观察替换或字节变更。
-    for (const ref of metadata.source.files)
-        await source.ref(ref, false, contentLimit(ref.path), false);
+    for (const ref of metadata.source.files) await source.ref(ref, false, contentLimit(ref.path), false);
     await source.finish();
     await outputReader.finish();
     await observedOutputs.finish();

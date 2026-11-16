@@ -12,11 +12,7 @@ import type { VaultKeyBackend } from "./backend.ts";
 import { openEnvelope, sealEnvelope, type EnvelopeBinding } from "./envelope.ts";
 import { readCredentialDeletion, requireNotDeleting, retireCredentialFiles } from "./deletion.ts";
 import { VaultFiles } from "./files.ts";
-import {
-    acquireDesktopProfileOwner,
-    ownsDesktopProfile,
-    type DesktopProfileOwner,
-} from "./ownership.ts";
+import { acquireDesktopProfileOwner, ownsDesktopProfile, type DesktopProfileOwner } from "./ownership.ts";
 import type { SecretReference } from "./store.ts";
 import type { DeviceConfig } from "../enrollment.ts";
 
@@ -102,8 +98,7 @@ function parseManifest(wire: string): Manifest {
             !FILE.test(entry.file) ||
             !["business", "device", "rotation"].includes(entry.purpose) ||
             (entry.purpose === "business"
-                ? Object.keys(entry).sort().join() !== "file,purpose" ||
-                  businessSlot(businessReference(slot)) !== slot
+                ? Object.keys(entry).sort().join() !== "file,purpose" || businessSlot(businessReference(slot)) !== slot
                 : !entry.reference ||
                   typeof entry.reference !== "object" ||
                   Object.keys(entry).sort().join() !== "file,purpose,reference" ||
@@ -111,8 +106,7 @@ function parseManifest(wire: string): Manifest {
         )
             fail("profile-corrupt");
     }
-    if (value.state === "initializing" && Object.keys(value.entries).length)
-        fail("profile-corrupt");
+    if (value.state === "initializing" && Object.keys(value.entries).length) fail("profile-corrupt");
     return value;
 }
 /**
@@ -148,8 +142,7 @@ function parseInitialization(wire: string): Initialization {
                 !["pending", "absent"].includes(entry.status) ||
                 (value.state === "active" && entry.status !== "absent"),
         ) ||
-        new Set([...value.previous.map((entry) => entry.keyVersion), value.next.keyVersion])
-            .size !==
+        new Set([...value.previous.map((entry) => entry.keyVersion), value.next.keyVersion]).size !==
             value.previous.length + 1
     )
         fail("initialization-corrupt");
@@ -166,11 +159,7 @@ function businessReference(slot: string): SecretReference {
     } catch {
         return fail("profile-corrupt");
     }
-    if (
-        !Array.isArray(tuple) ||
-        tuple.length !== 4 ||
-        !tuple.every((value) => typeof value === "string")
-    )
+    if (!Array.isArray(tuple) || tuple.length !== 4 || !tuple.every((value) => typeof value === "string"))
         fail("profile-corrupt");
     return {
         issuerId: tuple[0]!,
@@ -216,10 +205,7 @@ export class CredentialTransaction {
             this.key,
         );
     }
-    private async commit(
-        next: Manifest,
-        payloads: Array<{ entry: Entry; reference: Reference; value: JsonValue }>,
-    ) {
+    private async commit(next: Manifest, payloads: Array<{ entry: Entry; reference: Reference; value: JsonValue }>) {
         const before = JSON.stringify(this.manifest);
         const after = JSON.stringify(next);
         const retained = new Set(Object.values(next.entries).map((entry) => entry.file));
@@ -253,12 +239,7 @@ export class CredentialTransaction {
         this.manifest = next;
         await recover(this.files, next, this.key);
     }
-    private async put(
-        slot: string,
-        purpose: Entry["purpose"],
-        reference: Reference,
-        value: JsonValue,
-    ) {
+    private async put(slot: string, purpose: Entry["purpose"], reference: Reference, value: JsonValue) {
         const entry: Entry = {
             file: `record-${randomUUID()}.json`,
             purpose,
@@ -283,17 +264,12 @@ export class CredentialTransaction {
      * 同时每个实际文件仍受独立两兆字节硬上限保护。
      */
     async set(ref: SecretReference, value: JsonValue): Promise<void> {
-        const aggregate: Record<string, JsonValue> = Object.create(null) as Record<
-            string,
-            JsonValue
-        >;
+        const aggregate: Record<string, JsonValue> = Object.create(null) as Record<string, JsonValue>;
         for (const [slot, entry] of Object.entries(this.manifest.entries)) {
-            if (entry.purpose === "business")
-                aggregate[slot] = (await this.read(slot, businessReference(slot)))!;
+            if (entry.purpose === "business") aggregate[slot] = (await this.read(slot, businessReference(slot)))!;
         }
         aggregate[businessSlot(ref)] = value;
-        if (Buffer.byteLength(JSON.stringify(aggregate)) > QUOTA)
-            throw new Error("CONFIGURATION_LIMIT");
+        if (Buffer.byteLength(JSON.stringify(aggregate)) > QUOTA) throw new Error("CONFIGURATION_LIMIT");
         await this.put(businessSlot(ref), "business", ref, value);
     }
     /**
@@ -303,8 +279,7 @@ export class CredentialTransaction {
     async removeBusiness(ref?: SecretReference): Promise<void> {
         const next = structuredClone(this.manifest);
         for (const [slot, entry] of Object.entries(next.entries)) {
-            if (entry.purpose === "business" && (!ref || slot === businessSlot(ref)))
-                delete next.entries[slot];
+            if (entry.purpose === "business" && (!ref || slot === businessSlot(ref))) delete next.entries[slot];
         }
         await this.commit(next, []);
     }
@@ -320,18 +295,14 @@ export class CredentialTransaction {
      * create-only 在同一事务锁中检查，不允许覆盖已注册设备。
      */
     async saveDevice(value: DeviceConfig, createOnly: boolean): Promise<void> {
-        if (Buffer.byteLength(JSON.stringify(value)) > 65536)
-            throw new Error("CONFIGURATION_LIMIT");
+        if (Buffer.byteLength(JSON.stringify(value)) > 65536) throw new Error("CONFIGURATION_LIMIT");
         const prior = this.manifest.entries.device;
         if (prior && createOnly) throw new Error("ALREADY_ENROLLED");
         const reference = {
             server: value.server,
             workspaceId: value.workspaceId,
             runnerId: value.runnerId,
-            generation:
-                prior?.reference && "generation" in prior.reference
-                    ? prior.reference.generation
-                    : randomUUID(),
+            generation: prior?.reference && "generation" in prior.reference ? prior.reference.generation : randomUUID(),
         };
         if (prior) {
             const old = prior.reference as typeof reference;
@@ -358,8 +329,7 @@ export class CredentialTransaction {
     async saveRotation(value: Rotation): Promise<void> {
         const current = this.manifest.entries.device;
         if (!current) absent();
-        if (Buffer.byteLength(JSON.stringify(value)) > 65536)
-            throw new Error("CONFIGURATION_LIMIT");
+        if (Buffer.byteLength(JSON.stringify(value)) > 65536) throw new Error("CONFIGURATION_LIMIT");
         await this.put(
             "rotation",
             "rotation",
@@ -386,8 +356,7 @@ export class CredentialTransaction {
             const sources: Migration["sources"] = {};
             for (const name of names) {
                 const wire = await root.read(name);
-                if (wire !== undefined)
-                    sources[name] = createHmac("sha256", this.key).update(wire).digest("hex");
+                if (wire !== undefined) sources[name] = createHmac("sha256", this.key).update(wire).digest("hex");
             }
             journal = {
                 version: 1,
@@ -413,9 +382,7 @@ export class CredentialTransaction {
                 typeof journal.sources !== "object" ||
                 Object.entries(journal.sources).some(
                     ([name, mac]) =>
-                        !names.includes(name as (typeof names)[number]) ||
-                        typeof mac !== "string" ||
-                        !HASH.test(mac),
+                        !names.includes(name as (typeof names)[number]) || typeof mac !== "string" || !HASH.test(mac),
                 )
             )
                 fail("migration-corrupt");
@@ -424,13 +391,9 @@ export class CredentialTransaction {
         for (const name of names) {
             const wire = await root.read(name);
             if (wire === undefined) {
-                if (journal.phase === "copying" && journal.sources[name])
-                    fail("migration-source-changed");
+                if (journal.phase === "copying" && journal.sources[name]) fail("migration-source-changed");
             } else {
-                if (
-                    createHmac("sha256", this.key).update(wire).digest("hex") !==
-                    journal.sources[name]
-                )
+                if (createHmac("sha256", this.key).update(wire).digest("hex") !== journal.sources[name])
                     fail("migration-source-changed");
                 source[name] = wire;
             }
@@ -439,12 +402,7 @@ export class CredentialTransaction {
             const next = structuredClone(this.manifest);
             next.entries = {};
             const payloads: Array<{ entry: Entry; reference: Reference; value: JsonValue }> = [];
-            const add = (
-                slot: string,
-                purpose: Entry["purpose"],
-                reference: Reference,
-                value: JsonValue,
-            ) => {
+            const add = (slot: string, purpose: Entry["purpose"], reference: Reference, value: JsonValue) => {
                 const entry: Entry = {
                     file: `record-${randomUUID()}.json`,
                     purpose,
@@ -483,8 +441,7 @@ export class CredentialTransaction {
                     return fail("migration-source-corrupt");
                 }
                 const { server, ...receipt } = value;
-                if (validateSchema("DeviceCredentialsDTO", receipt).length)
-                    fail("migration-source-corrupt");
+                if (validateSchema("DeviceCredentialsDTO", receipt).length) fail("migration-source-corrupt");
                 const old = this.manifest.entries.device?.reference;
                 deviceReference = {
                     server,
@@ -496,8 +453,7 @@ export class CredentialTransaction {
             }
             if (source["rotation.json"] !== undefined) {
                 const wire = source["rotation.json"]!;
-                if (Buffer.byteLength(wire) > 65536 || !deviceReference)
-                    fail("migration-source-corrupt");
+                if (Buffer.byteLength(wire) > 65536 || !deviceReference) fail("migration-source-corrupt");
                 let value: Rotation;
                 try {
                     value = JSON.parse(wire) as Rotation;
@@ -509,8 +465,7 @@ export class CredentialTransaction {
                     !UUID.test(value.clientRequestId) ||
                     typeof value.replacementToken !== "string" ||
                     value.previous.server !== (deviceReference as { server: string }).server ||
-                    value.previous.workspaceId !==
-                        (deviceReference as { workspaceId: string }).workspaceId ||
+                    value.previous.workspaceId !== (deviceReference as { workspaceId: string }).workspaceId ||
                     value.previous.runnerId !== (deviceReference as { runnerId: string }).runnerId
                 )
                     fail("migration-source-corrupt");
@@ -526,10 +481,7 @@ export class CredentialTransaction {
             await this.files.write("migration.json", JSON.stringify(journal));
         }
         for (const [slot, entry] of Object.entries(this.manifest.entries))
-            await this.read(
-                slot,
-                entry.purpose === "business" ? businessReference(slot) : undefined,
-            );
+            await this.read(slot, entry.purpose === "business" ? businessReference(slot) : undefined);
         for (const name of names) if (journal.sources[name]) await root.remove(name);
         await this.files.remove("migration.json");
     }
@@ -571,9 +523,7 @@ async function recover(files: VaultFiles, manifest: Manifest, key: Buffer): Prom
         !HASH.test(journal.next) ||
         !Array.isArray(journal.created) ||
         !Array.isArray(journal.retired) ||
-        ![...journal.created, ...journal.retired].every(
-            (name) => typeof name === "string" && FILE.test(name),
-        )
+        ![...journal.created, ...journal.retired].every((name) => typeof name === "string" && FILE.test(name))
     )
         fail("journal-corrupt");
     const currentHash = digest(JSON.stringify(manifest));
@@ -584,11 +534,7 @@ async function recover(files: VaultFiles, manifest: Manifest, key: Buffer): Prom
         for (const name of journal.created) await files.remove(name);
     } else {
         const staged = await files.read(STAGED);
-        if (
-            !staged ||
-            digest(staged) !== journal.next ||
-            ![journal.previous, journal.next].includes(currentHash)
-        )
+        if (!staged || digest(staged) !== journal.next || ![journal.previous, journal.next].includes(currentHash))
             fail("journal-conflict");
         const next = parseManifest(staged);
         if (
@@ -605,8 +551,7 @@ async function recover(files: VaultFiles, manifest: Manifest, key: Buffer): Prom
                 encrypted,
                 binding(next, {
                     purpose: entry.purpose,
-                    reference:
-                        entry.purpose === "business" ? businessReference(slot) : entry.reference,
+                    reference: entry.purpose === "business" ? businessReference(slot) : entry.reference,
                 }),
                 key,
             );
@@ -637,9 +582,7 @@ export class CredentialProfile {
      * 会使获取失败，不能把一次性状态检查视为持续停止证明或绕过已有运行者。
      */
     async migrate(): Promise<void> {
-        await this.withStoppedProfile((root) =>
-            this.withTransaction((tx) => tx.migrate(root), true),
-        );
+        await this.withStoppedProfile((root) => this.withTransaction((tx) => tx.migrate(root), true));
     }
 
     /**
@@ -659,8 +602,7 @@ export class CredentialProfile {
                 if (wire === undefined) fail("profile-missing");
                 const manifest = parseManifest(wire);
                 const initialization = await files.read(INITIALIZATION);
-                const recovery =
-                    initialization === undefined ? undefined : parseInitialization(initialization);
+                const recovery = initialization === undefined ? undefined : parseInitialization(initialization);
                 if (
                     recovery &&
                     (recovery.state !== "active" ||
@@ -674,9 +616,7 @@ export class CredentialProfile {
                     profileId: manifest.profileId,
                     manifestHash: digest(wire),
                     state: "pending",
-                    records: [
-                        ...new Set(Object.values(manifest.entries).map((entry) => entry.file)),
-                    ],
+                    records: [...new Set(Object.values(manifest.entries).map((entry) => entry.file))],
                     keys: [
                         ...(recovery?.previous ?? []).map((entry) => ({
                             keyVersion: entry.keyVersion,
@@ -707,12 +647,8 @@ export class CredentialProfile {
                 let manifest = parseManifest(wire);
                 const logged = await files.read(INITIALIZATION);
                 let journal = logged === undefined ? undefined : parseInitialization(logged);
-                if (manifest.state === "active" && journal?.state !== "pending")
-                    fail("initialization-not-pending");
-                if (
-                    Object.keys(manifest.entries).length ||
-                    !(await files.containsOnly([INDEX, INITIALIZATION]))
-                )
+                if (manifest.state === "active" && journal?.state !== "pending") fail("initialization-not-pending");
+                if (Object.keys(manifest.entries).length || !(await files.containsOnly([INDEX, INITIALIZATION])))
                     fail("initialization-data-present");
                 if (journal) {
                     if (journal.profileId !== manifest.profileId) fail("initialization-conflict");
@@ -739,8 +675,7 @@ export class CredentialProfile {
                     if (result.status === "missing") return false;
                     if (result.status !== "ok") fail(result.status);
                     try {
-                        if (result.key.length !== 32 || digest(result.key) !== manifest.keyHash)
-                            fail("key-conflict");
+                        if (result.key.length !== 32 || digest(result.key) !== manifest.keyHash) fail("key-conflict");
                     } finally {
                         result.key.fill(0);
                     }
@@ -758,29 +693,17 @@ export class CredentialProfile {
                             profileId: journal.profileId,
                             keyVersion: previous.keyVersion,
                         };
-                        const result = await this.options.backend.get(
-                            scope,
-                            AbortSignal.timeout(5000),
-                        );
+                        const result = await this.options.backend.get(scope, AbortSignal.timeout(5000));
                         if (result.status === "ok") {
                             try {
-                                if (
-                                    result.key.length !== 32 ||
-                                    digest(result.key) !== previous.keyHash
-                                )
+                                if (result.key.length !== 32 || digest(result.key) !== previous.keyHash)
                                     fail("key-conflict");
                             } finally {
                                 result.key.fill(0);
                             }
-                            const removed = await this.options.backend.delete(
-                                scope,
-                                AbortSignal.timeout(5000),
-                            );
+                            const removed = await this.options.backend.delete(scope, AbortSignal.timeout(5000));
                             if (!["ok", "missing"].includes(removed.status)) fail(removed.status);
-                            const after = await this.options.backend.get(
-                                scope,
-                                AbortSignal.timeout(5000),
-                            );
+                            const after = await this.options.backend.get(scope, AbortSignal.timeout(5000));
                             if (after.status === "ok") {
                                 after.key.fill(0);
                                 fail("mutation-unconfirmed");
@@ -795,8 +718,7 @@ export class CredentialProfile {
                 if (!present) {
                     if (manifest.state !== "initializing") fail("key-missing");
                     await retire();
-                    if ((journal?.previous.length ?? 0) >= 128)
-                        fail("initialization-recovery-limit");
+                    if ((journal?.previous.length ?? 0) >= 128) fail("initialization-recovery-limit");
                     const key = randomBytes(32);
                     try {
                         const next = { keyVersion: randomUUID(), keyHash: digest(key) };
@@ -854,17 +776,13 @@ export class CredentialProfile {
         try {
             owner = await VaultFiles.acquire(join(this.directory, "agent-owner"));
             if (this.options.desktopOwner) {
-                if (!ownsDesktopProfile(this.options.desktopOwner, this.directory))
-                    fail("owner-invalid");
+                if (!ownsDesktopProfile(this.options.desktopOwner, this.directory)) fail("owner-invalid");
             } else {
                 desktopRelease = (
-                    await acquireDesktopProfileOwner(this.directory).catch(
-                        (error: NodeJS.ErrnoException) => {
-                            if (error.code === "ELOCKED")
-                                throw new Error("AGENT_RUNNING_STOP_FIRST");
-                            throw error;
-                        },
-                    )
+                    await acquireDesktopProfileOwner(this.directory).catch((error: NodeJS.ErrnoException) => {
+                        if (error.code === "ELOCKED") throw new Error("AGENT_RUNNING_STOP_FIRST");
+                        throw error;
+                    })
                 ).release;
             }
             release = await lockfile
@@ -922,14 +840,12 @@ export class CredentialProfile {
             try {
                 await requireNotDeleting(files);
                 if (!migrating) {
-                    if ((await files.read("migration.json")) !== undefined)
-                        fail("migration-required");
+                    if ((await files.read("migration.json")) !== undefined) fail("migration-required");
                     for (const legacy of ["local-secrets.json", "device.json", "rotation.json"])
                         if ((await root.read(legacy)) !== undefined) fail("migration-required");
                 }
                 const initialization = await files.read(INITIALIZATION);
-                const recovery =
-                    initialization === undefined ? undefined : parseInitialization(initialization);
+                const recovery = initialization === undefined ? undefined : parseInitialization(initialization);
                 if (recovery?.state === "pending") fail("initialization-recovery-required");
                 const wire = await files.read(INDEX);
                 let manifest: Manifest;
@@ -964,8 +880,7 @@ export class CredentialProfile {
                     { profileId: manifest.profileId, keyVersion: manifest.keyVersion },
                     AbortSignal.timeout(5000),
                 );
-                if (result.status !== "ok")
-                    fail(result.status === "missing" ? "key-missing" : result.status);
+                if (result.status !== "ok") fail(result.status === "missing" ? "key-missing" : result.status);
                 key?.fill(0);
                 key = result.key;
                 if (key.length !== 32 || digest(key) !== manifest.keyHash) fail("key-conflict");
@@ -985,9 +900,7 @@ export class CredentialProfile {
      * 凭据事务与显式初始化恢复只复用同一个档案锁和有限文件会话，不嵌套取得设备锁；所有异常在资源释放后继续传播，
      * 调用方没有自动重放业务函数、系统写入或未知文件发布的机会。
      */
-    private async withLockedFiles<T>(
-        run: (root: VaultFiles, files: VaultFiles) => Promise<T>,
-    ): Promise<T> {
+    private async withLockedFiles<T>(run: (root: VaultFiles, files: VaultFiles) => Promise<T>): Promise<T> {
         const root = await VaultFiles.acquire(this.directory);
         let release: (() => Promise<void>) | undefined;
         let files: VaultFiles | undefined;
@@ -995,9 +908,7 @@ export class CredentialProfile {
             release = await lockfile.lock(this.directory, {
                 realpath: false,
                 retries: 0,
-                ...(process.platform === "win32"
-                    ? { lockfilePath: join(this.directory, ".device.lock") }
-                    : {}),
+                ...(process.platform === "win32" ? { lockfilePath: join(this.directory, ".device.lock") } : {}),
             });
             files = await VaultFiles.acquire(join(this.directory, "vault"));
             return await run(root, files);

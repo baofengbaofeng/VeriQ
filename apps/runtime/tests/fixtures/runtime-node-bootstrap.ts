@@ -44,13 +44,7 @@ export function nodeSourceEntries(arch: Arch = "x64"): ArchiveFixtureEntry[] {
  * 留场景必须在断言锁及 scratch 后才允许测试 finally 回收。
  */
 export async function nodeSourceFixture<T>(
-    run: (f: {
-        tx: ArchiveTransaction;
-        snapshot: Ref;
-        base: string;
-        root: string;
-        output: string;
-    }) => Promise<T>,
+    run: (f: { tx: ArchiveTransaction; snapshot: Ref; base: string; root: string; output: string }) => Promise<T>,
     entries = nodeSourceEntries(),
 ) {
     const base = await mkdtemp(join(tmpdir(), "veriq-node-source-")),

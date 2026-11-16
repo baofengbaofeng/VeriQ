@@ -2,10 +2,7 @@ import { symlink, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-    verifyRuntimePayloadInputs as verify,
-    RuntimePayloadError,
-} from "../scripts/runtime-payload-inputs.ts";
+import { verifyRuntimePayloadInputs as verify, RuntimePayloadError } from "../scripts/runtime-payload-inputs.ts";
 import { fixture, model, bytes, rehashPackages } from "./fixtures/runtime-payload.ts";
 /**
  * 图反例始终保留真实包文件与正确外层摘要，只修改需要核对的关系记录；缺少逐声明边覆盖、实例身份、解析归属或 bin 包归属
@@ -16,23 +13,17 @@ const changes: Record<string, (f: ReturnType<typeof model>) => void> = {
     missingEdge: (f: ReturnType<typeof model>) => f.graph.edges.pop(),
     duplicateEdge: (f: ReturnType<typeof model>) => f.graph.edges.push({ ...f.graph.edges[0]! }),
     wrongVersion: (f: ReturnType<typeof model>) => (f.graph.instances[0]!.version = "9.0.0"),
-    wrongPackageHash: (f: ReturnType<typeof model>) =>
-        (f.graph.instances[0]!.ownTreeSha256 = "f".repeat(64)),
+    wrongPackageHash: (f: ReturnType<typeof model>) => (f.graph.instances[0]!.ownTreeSha256 = "f".repeat(64)),
     binWrongOwner: (f: ReturnType<typeof model>) => (f.graph.bins[0]!.owner = "p2"),
-    resolutionWrongOwner: (f: ReturnType<typeof model>) =>
-        (f.graph.resolutionProof.resolutions[0]!.to = "p5"),
+    resolutionWrongOwner: (f: ReturnType<typeof model>) => (f.graph.resolutionProof.resolutions[0]!.to = "p5"),
     missingRootBinding: (f: ReturnType<typeof model>) => f.graph.rootBindings.pop(),
-    missingImportReceipt: (f: ReturnType<typeof model>) =>
-        f.receipts.entries.outputs[0]!.imports.pop(),
+    missingImportReceipt: (f: ReturnType<typeof model>) => f.receipts.entries.outputs[0]!.imports.pop(),
 };
 for (const [name, change] of Object.entries(changes))
     test(`static graph rejects ${name}`, async () =>
         fixture(async (f) => {
             change(f);
-            await assert.rejects(
-                verify(await f.save(), f.expected, { inputRoot: f.root }),
-                failure,
-            );
+            await assert.rejects(verify(await f.save(), f.expected, { inputRoot: f.root }), failure);
         }));
 
 /**
@@ -44,8 +35,7 @@ test("package-declared bins cannot disappear from the graph", async () =>
         f.graph.bins = [];
         await assert.rejects(
             verify(await f.save(), f.expected, { inputRoot: f.root }),
-            (e: unknown) =>
-                e instanceof RuntimePayloadError && e.code === "PAYLOAD_BIN_UNSUPPORTED",
+            (e: unknown) => e instanceof RuntimePayloadError && e.code === "PAYLOAD_BIN_UNSUPPORTED",
         );
     }));
 
@@ -99,11 +89,7 @@ test("optional overrides optional peers and npm alias edges stay explicit", asyn
         f.graph.resolutionProof.resolutions[1]!.specifier = "aliasHost";
         rehashPackages(f);
         const report = await verify(await f.save(), f.expected, { inputRoot: f.root });
-        assert.equal(
-            report.trees.dependencies.receipt.graph.instances.filter((p) => p.name === "peer-lib")
-                .length,
-            2,
-        );
+        assert.equal(report.trees.dependencies.receipt.graph.instances.filter((p) => p.name === "peer-lib").length, 2);
         f.receipts.dependencies.optionalDecisions.pop();
         await assert.rejects(verify(await f.save(), f.expected, { inputRoot: f.root }), failure);
     }));
@@ -122,14 +108,8 @@ test("bin sourceAlias logical link is checked without dereferencing", async () =
             target: "../tsx/dist/loader.mjs",
         });
         const b = await f.save();
-        await symlink(
-            "../tsx/dist/loader.mjs",
-            join(f.root, f.recipe.dependencies.root, bin.aliasPath),
-        );
-        assert.equal(
-            (await verify(b, f.expected, { inputRoot: f.root })).trees.dependencies.linkCount,
-            1,
-        );
+        await symlink("../tsx/dist/loader.mjs", join(f.root, f.recipe.dependencies.root, bin.aliasPath));
+        assert.equal((await verify(b, f.expected, { inputRoot: f.root })).trees.dependencies.linkCount, 1);
         await rm(join(f.root, f.recipe.dependencies.root, bin.aliasPath));
         f.inventories.dependencies.links[0]!.target = "../unowned";
         const bad = await f.save();
@@ -220,10 +200,7 @@ test("third party native bins bind inspection hash arch minOS and evidence", asy
         ]) {
             const ref = f.put(inspectionRef.path, bytes({ ...inspection, ...change }));
             f.graph.bins[1]!.inspection = ref;
-            await assert.rejects(
-                verify(await f.save(), f.expected, { inputRoot: f.root }),
-                failure,
-            );
+            await assert.rejects(verify(await f.save(), f.expected, { inputRoot: f.root }), failure);
         }
     }));
 
@@ -260,11 +237,7 @@ test("JavaScript assets cannot hide literal imports", async () =>
  */
 test("physical package instances must be reachable from consumers", async () =>
     fixture(async (f) => {
-        f.add(
-            "dependencies",
-            "node_modules/orphan/package.json",
-            bytes({ name: "orphan", version: "1.0.0" }),
-        );
+        f.add("dependencies", "node_modules/orphan/package.json", bytes({ name: "orphan", version: "1.0.0" }));
         f.graph.instances.push({
             id: "p6",
             root: "node_modules/orphan",
@@ -303,8 +276,7 @@ test("npm declaration graph requires reachable instances and explicit npm-cli ro
             }
             await assert.rejects(
                 verify(await f.save(), f.expected, { inputRoot: f.root }),
-                (e: unknown) =>
-                    e instanceof RuntimePayloadError && e.code === "PAYLOAD_GRAPH_MISMATCH",
+                (e: unknown) => e instanceof RuntimePayloadError && e.code === "PAYLOAD_GRAPH_MISMATCH",
             );
         });
 });

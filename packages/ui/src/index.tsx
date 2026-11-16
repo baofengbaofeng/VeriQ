@@ -73,15 +73,7 @@ export function ConfirmDialog({
 /**
  * 公开组件 Section 渲染带标题的页面分区：可选 data-testid：供各功能页统一区块结构（Section）。
  */
-export function Section({
-    title,
-    children,
-    testId,
-}: {
-    title: string;
-    children: ReactNode;
-    testId?: string;
-}) {
+export function Section({ title, children, testId }: { title: string; children: ReactNode; testId?: string }) {
     return (
         <section className="vq-section" data-testid={testId}>
             <h3>{title}</h3>

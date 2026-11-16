@@ -42,11 +42,7 @@ import { ProcessRecords } from "./records.ts";
 import { ProcessSupervisor, type StopReceipt, type OwnedProcess } from "./processes.ts";
 import { EventBuffer } from "./events.ts";
 import { AttemptBroker, createDarwinBrokerDirectory } from "./broker.ts";
-import {
-    requireDarwinSource,
-    type DarwinSourceCapability,
-    type DarwinSourceState,
-} from "./darwin-source.ts";
+import { requireDarwinSource, type DarwinSourceCapability, type DarwinSourceState } from "./darwin-source.ts";
 import { matchesControlledClaim } from "./darwin-proof.ts";
 import { WindowsAttemptJournal } from "./windows-journal.ts";
 import { monitorStorage } from "./storage.ts";
@@ -114,8 +110,7 @@ export class ExecutionSupervisor {
     readonly processes: ProcessSupervisor;
     private readonly source: DarwinSourceState | undefined;
     constructor(private options: SupervisorOptions) {
-        if (options.darwinSource !== undefined)
-            this.source = requireDarwinSource(options.darwinSource);
+        if (options.darwinSource !== undefined) this.source = requireDarwinSource(options.darwinSource);
         this.processes = new ProcessSupervisor(
             join(options.root, "processes"),
             500,
@@ -130,10 +125,7 @@ export class ExecutionSupervisor {
          * 普通字符串写入回退。
          */
         if (process.platform === "darwin" && this.source) {
-            const parent = this.source.native.openPrivateDirectory(
-                join(this.options.root, "attempts"),
-                true,
-            );
+            const parent = this.source.native.openPrivateDirectory(join(this.options.root, "attempts"), true);
             try {
                 const bytes = Buffer.from(JSON.stringify(value));
                 if (bytes.length > 65536) throw new Error("ATTEMPT_JOURNAL_LIMIT");
@@ -145,12 +137,7 @@ export class ExecutionSupervisor {
                 const staging = `${value.claim.attemptId}.json.${randomUUID()}`;
                 parent.createExclusive(staging).close();
                 parent.replace(staging, `.${randomUUID()}.tmp`, bytes, 65536);
-                parent.replace(
-                    `${value.claim.attemptId}.json`,
-                    `.${randomUUID()}.tmp`,
-                    bytes,
-                    65536,
-                );
+                parent.replace(`${value.claim.attemptId}.json`, `.${randomUUID()}.tmp`, bytes, 65536);
                 parent.remove(staging, 65536);
             } finally {
                 parent.close();
@@ -175,10 +162,7 @@ export class ExecutionSupervisor {
         if (process.platform !== "linux") throw new Error("ONLINE_JOURNAL_DURABILITY_UNSUPPORTED");
         const directory = join(this.options.root, "attempts");
         await privateDirectory(directory);
-        const parent = await open(
-            directory,
-            constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
-        );
+        const parent = await open(directory, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
         const path = join(`/proc/self/fd/${parent.fd}`, `${value.claim.attemptId}.json`);
         const temporary = `${path}.${randomUUID()}`;
         let staged: FileHandle | undefined,
@@ -226,10 +210,7 @@ export class ExecutionSupervisor {
      * 未派生判定只接受当前明确提交完成的前置状态，既不依赖内存 child 句柄缺失也不解释错误 reason；
      * 恢复还必须排除私有原生记录中的启动意图，以免旧发布窗口中的不一致被当成容量释放授权。
      */
-    private async unspawned(
-        record: AttemptJournal,
-        committed: boolean,
-    ): Promise<StopReceipt | undefined> {
+    private async unspawned(record: AttemptJournal, committed: boolean): Promise<StopReceipt | undefined> {
         if (
             !committed ||
             (process.platform !== "linux" && process.platform !== "win32" && !this.source) ||
@@ -323,8 +304,7 @@ export class ExecutionSupervisor {
                     stop.reason === "UNKNOWN_PROCESS"
                 )
                     stop.reason = "JOURNAL_STAGING_UNCONFIRMED";
-                if (stop.processStopped && stop.processStopScope !== "NO_PROCESS_SPAWNED")
-                    record.state = "STOPPED";
+                if (stop.processStopped && stop.processStopScope !== "NO_PROCESS_SPAWNED") record.state = "STOPPED";
                 record.stop = stop;
                 try {
                     await this.journal(record);
@@ -378,15 +358,13 @@ export class ExecutionSupervisor {
             processes = await ProcessRecords.open(join(this.options.root, "processes"));
             for (const name of (await processes?.names(8192)) ?? []) {
                 const match = /^([a-zA-Z0-9_-]{1,100})\.(?:process|drained)\.json$/.exec(name);
-                if (!match || !ids.has(match[1]!))
-                    throw new Error("WINDOWS_ORPHAN_PROCESS_RECOVERY_REQUIRED");
+                if (!match || !ids.has(match[1]!)) throw new Error("WINDOWS_ORPHAN_PROCESS_RECOVERY_REQUIRED");
             }
             for (const record of records) {
                 const stop =
                     (await this.unspawned(record, true)) ??
                     (await this.terminateAttempt(record.claim.attemptId, "AGENT_RECOVERY"));
-                if (stop.processStopped && stop.processStopScope !== "NO_PROCESS_SPAWNED")
-                    record.state = "STOPPED";
+                if (stop.processStopped && stop.processStopScope !== "NO_PROCESS_SPAWNED") record.state = "STOPPED";
                 record.stop = stop;
                 journal.save(record);
                 await this.reconcile(record.claim, stop, "PENDING");
@@ -411,39 +389,33 @@ export class ExecutionSupervisor {
      */
     private async controlledClaim(claim: Claim): Promise<boolean> {
         let records: ProcessRecords | undefined;
+        let closeError: unknown;
+        let outcome = false;
         try {
             records = await ProcessRecords.open(join(this.options.root, "processes"));
-            return (
+            outcome =
                 !!records &&
-                matchesControlledClaim(
-                    await records.read(`${claim.attemptId}.process.json`, 65536),
-                    claim,
-                )
-            );
+                matchesControlledClaim(await records.read(`${claim.attemptId}.process.json`, 65536), claim);
         } catch {
-            return false;
+            outcome = false;
         } finally {
             try {
                 await records?.close();
-            } catch {
-                return false;
+            } catch (error) {
+                closeError = error;
             }
         }
+        if (closeError !== undefined) return false;
+        return outcome;
     }
     private reconcile(claim: Claim, stop: StopReceipt, cleanupStatus: CleanupStatus) {
-        return this.options.client.request(
-            `/internal/v1/attempts/${claim.attemptId}/reconcile`,
-            "POST",
-            {
-                fencingToken: claim.fencingToken,
-                processStopped: stop.processStopped,
-                ...(stop.processStopScope !== undefined
-                    ? { processStopScope: stop.processStopScope }
-                    : {}),
-                cleanupStatus,
-                stoppedAt: stop.stoppedAt,
-            },
-        );
+        return this.options.client.request(`/internal/v1/attempts/${claim.attemptId}/reconcile`, "POST", {
+            fencingToken: claim.fencingToken,
+            processStopped: stop.processStopped,
+            ...(stop.processStopScope !== undefined ? { processStopScope: stop.processStopScope } : {}),
+            cleanupStatus,
+            stoppedAt: stop.stoppedAt,
+        });
     }
     /**
      * 公开方法 runAttempt 在租约预算内激活并执行一次 Claim：心跳、存储监控与 fencing 贯穿全程：完成后上传证据并提交
@@ -505,19 +477,14 @@ export class ExecutionSupervisor {
             child: OwnedProcess | undefined,
             broker: AttemptBroker | undefined,
             monitor: ReturnType<typeof monitorStorage> | undefined;
-        let stop: StopReceipt | undefined,
-            caseResult: CaseResult | undefined,
-            manifest: JobManifestV1 | undefined;
+        let stop: StopReceipt | undefined, caseResult: CaseResult | undefined, manifest: JobManifestV1 | undefined;
         const files: LocalEvidence[] = [];
         let startIssued = false,
             stopOperation: Promise<StopReceipt> | undefined;
         let privateEndpoint: string | undefined,
             retainPrivateReports = false;
         const pendingDownloads: string[] = [];
-        const privacyReporter = join(
-            work,
-            "node_modules/@veriq/runner-sdk/src/endpoint-json-reporter.js",
-        );
+        const privacyReporter = join(work, "node_modules/@veriq/runner-sdk/src/endpoint-json-reporter.js");
         let heartbeat!: Heartbeat;
         /**
          * 第一次停止同步保存唯一操作，正在 await start 的调用也已经拥有后端登记而必须关闭准入；Darwin
@@ -528,9 +495,7 @@ export class ExecutionSupervisor {
             (stopOperation ??= this.terminateAttempt(
                 claim.attemptId,
                 why,
-                this.source
-                    ? performance.now() + Math.max(0, heartbeat.remaining() - 1000)
-                    : undefined,
+                this.source ? performance.now() + Math.max(0, heartbeat.remaining() - 1000) : undefined,
             ));
         const stopRequest = (why: string) => {
             reason ??= why;
@@ -540,13 +505,7 @@ export class ExecutionSupervisor {
         const aborted = () => stopRequest("USER_CANCELLED");
         signal.addEventListener("abort", aborted, { once: true });
         if (signal.aborted) aborted();
-        heartbeat = new Heartbeat(
-            client,
-            claim,
-            assignment.requestStarted,
-            assignment.responseReceived,
-            stopRequest,
-        );
+        heartbeat = new Heartbeat(client, claim, assignment.requestStarted, assignment.responseReceived, stopRequest);
         heartbeat.start();
         let flushTimer: ReturnType<typeof setInterval> | undefined;
         const content = (hash: string) =>
@@ -569,12 +528,7 @@ export class ExecutionSupervisor {
             return bytes;
         };
         try {
-            const raw = await client.download(
-                claim.snapshotUrl,
-                claim.snapshotSha256,
-                claim,
-                controller.signal,
-            );
+            const raw = await client.download(claim.snapshotUrl, claim.snapshotSha256, claim, controller.signal);
             manifest = JSON.parse(Buffer.from(raw).toString()) as JobManifestV1;
             if (
                 validateSchema("JobManifestV1", manifest).length ||
@@ -582,10 +536,7 @@ export class ExecutionSupervisor {
                 manifest.kind !== claim.jobKind
             )
                 throw new Error("ASSIGNMENT_MISMATCH");
-            const release = await loadRelease(
-                this.options.releaseDirectory,
-                manifest.engineVersion,
-            );
+            const release = await loadRelease(this.options.releaseDirectory, manifest.engineVersion);
             const subject = await download(manifest.snapshotSha256);
             await write("subject.json", subject);
             let execution: ExecutionSnapshotV1 | undefined, bundle: CompiledAssetBundle | undefined;
@@ -603,8 +554,7 @@ export class ExecutionSupervisor {
                 await write("execution.json", canonicalBytes(execution));
                 const descriptor = await download(manifest.compiledBundleSha256);
                 bundle = JSON.parse(Buffer.from(descriptor).toString()) as CompiledAssetBundle;
-                if (validateSchema("CompiledAssetBundle", bundle).length)
-                    throw new Error("INVALID_COMPILED_BUNDLE");
+                if (validateSchema("CompiledAssetBundle", bundle).length) throw new Error("INVALID_COMPILED_BUNDLE");
                 await write("bundle.json", descriptor);
                 for (const file of bundle.files) {
                     const bytes = await download(file.sha256);
@@ -621,8 +571,7 @@ export class ExecutionSupervisor {
                 }
             } else {
                 for (const [path, bytes] of Object.entries(release.files)) await write(path, bytes);
-                if (manifest.kind === "VALIDATE")
-                    await write("source/asset-snapshot.json", subject);
+                if (manifest.kind === "VALIDATE") await write("source/asset-snapshot.json", subject);
             }
             const frozen = execution ?? JSON.parse(Buffer.from(subject).toString());
             if (frozen.workspaceId !== manifest.workspaceId) throw new Error("WORKSPACE_MISMATCH");
@@ -640,73 +589,66 @@ export class ExecutionSupervisor {
                 )
                     throw new Error("INVALID_CLEANUP_SUBJECT");
             }
-            broker = new AttemptBroker(
-                join(brokerDirectory?.path ?? tmp, "control.sock"),
-                async (message) => {
-                    if (message.type === "credential") {
-                        if (controller.signal.aborted) throw new Error("ATTEMPT_STOPPING");
-                        const reference = message.reference as {
-                            workspaceId: string;
-                            secretRef: string;
-                            versionId: string;
-                        };
-                        if (
-                            reference.workspaceId !== manifest!.workspaceId ||
-                            !frozen.secretVersions?.some(
-                                (s: { secretRef: string; versionId: string }) =>
-                                    s.secretRef === reference.secretRef &&
-                                    s.versionId === reference.versionId,
-                            )
+            broker = new AttemptBroker(join(brokerDirectory?.path ?? tmp, "control.sock"), async (message) => {
+                if (message.type === "credential") {
+                    if (controller.signal.aborted) throw new Error("ATTEMPT_STOPPING");
+                    const reference = message.reference as {
+                        workspaceId: string;
+                        secretRef: string;
+                        versionId: string;
+                    };
+                    if (
+                        reference.workspaceId !== manifest!.workspaceId ||
+                        !frozen.secretVersions?.some(
+                            (s: { secretRef: string; versionId: string }) =>
+                                s.secretRef === reference.secretRef && s.versionId === reference.versionId,
                         )
-                            throw new Error("SECRET_NOT_FROZEN");
-                        // Credential resolution uses proof headers, never forwards device authorization to a business o
-                        // rigin.
-                        return this.resolveCredential(claim, reference, controller.signal);
-                    }
-                    if (message.type === "status") return { cancelled: controller.signal.aborted };
-                    if (message.type === "event") {
-                        const event = message.event as Parameters<EventBuffer["sdk"]>[0];
-                        await events.sdk(event);
-                        if (event.type === "CASE_FINISHED") caseResult = event.result;
+                    )
+                        throw new Error("SECRET_NOT_FROZEN");
+                    // Credential resolution uses proof headers, never forwards device authorization to a business o
+                    // rigin.
+                    return this.resolveCredential(claim, reference, controller.signal);
+                }
+                if (message.type === "status") return { cancelled: controller.signal.aborted };
+                if (message.type === "event") {
+                    const event = message.event as Parameters<EventBuffer["sdk"]>[0];
+                    await events.sdk(event);
+                    if (event.type === "CASE_FINISHED") caseResult = event.result;
+                    return {};
+                }
+                if (message.type === "restricted") {
+                    const evidence = message.evidence as {
+                        kind: "DOWNLOAD";
+                        path: string;
+                        sensitivity: "CREDENTIAL_RESTRICTED";
+                    };
+                    if (
+                        evidence.kind !== "DOWNLOAD" ||
+                        evidence.sensitivity !== "CREDENTIAL_RESTRICTED" ||
+                        !containedPath(this.source ? join(work, "downloads") : tmp, resolve(evidence.path))
+                    )
+                        throw new Error("UNSAFE_EVIDENCE");
+                    if (this.source) {
+                        pendingDownloads.push(evidence.path);
                         return {};
                     }
-                    if (message.type === "restricted") {
-                        const evidence = message.evidence as {
-                            kind: "DOWNLOAD";
-                            path: string;
-                            sensitivity: "CREDENTIAL_RESTRICTED";
-                        };
-                        if (
-                            evidence.kind !== "DOWNLOAD" ||
-                            evidence.sensitivity !== "CREDENTIAL_RESTRICTED" ||
-                            !containedPath(
-                                this.source ? join(work, "downloads") : tmp,
-                                resolve(evidence.path),
-                            )
-                        )
-                            throw new Error("UNSAFE_EVIDENCE");
-                        if (this.source) {
-                            pendingDownloads.push(evidence.path);
-                            return {};
-                        }
-                        const bytes = await readFile(evidence.path);
-                        const name = `download-${files.length}.bin`;
-                        await writeFile(join(work, name), bytes, { mode: 0o600, flag: "wx" });
-                        files.push({
-                            kind: "DOWNLOAD",
-                            localPath: join(work, name),
-                            file: {
-                                path: name,
-                                sha256: sha256(bytes),
-                                sizeBytes: bytes.length,
-                                sensitivity: "CREDENTIAL_RESTRICTED",
-                            },
-                        });
-                        return {};
-                    }
-                    throw new Error("INVALID_IPC_OPERATION");
-                },
-            );
+                    const bytes = await readFile(evidence.path);
+                    const name = `download-${files.length}.bin`;
+                    await writeFile(join(work, name), bytes, { mode: 0o600, flag: "wx" });
+                    files.push({
+                        kind: "DOWNLOAD",
+                        localPath: join(work, name),
+                        file: {
+                            path: name,
+                            sha256: sha256(bytes),
+                            sizeBytes: bytes.length,
+                            sensitivity: "CREDENTIAL_RESTRICTED",
+                        },
+                    });
+                    return {};
+                }
+                throw new Error("INVALID_IPC_OPERATION");
+            });
             await broker.open();
             const invocation = {
                 kind: manifest.kind,
@@ -724,16 +666,12 @@ export class ExecutionSupervisor {
             await write("release.json", canonicalBytes(release.entry));
             for (const file of ["provider.mjs", "compile-entry.mjs"])
                 await copyFile(
-                    file === "provider.mjs"
-                        ? executionPaths.providerEntry
-                        : executionPaths.compileEntry,
+                    file === "provider.mjs" ? executionPaths.providerEntry : executionPaths.compileEntry,
                     join(work, file),
                 );
             let playwrightConfig: Record<string, unknown> | undefined;
             if (bundle && execution) {
-                const entry = bundle.entrypoints.find(
-                    (e) => e.caseVersionId === execution!.caseVersionId,
-                );
+                const entry = bundle.entrypoints.find((e) => e.caseVersionId === execution!.caseVersionId);
                 if (!entry) throw new Error("MISSING_CASE_ENTRYPOINT");
                 const config = {
                     testDir: "./cases",
@@ -761,10 +699,7 @@ export class ExecutionSupervisor {
                 };
                 playwrightConfig = config;
                 if (!this.source)
-                    await write(
-                        "playwright.config.mjs",
-                        Buffer.from(`export default ${JSON.stringify(config)};`),
-                    );
+                    await write("playwright.config.mjs", Buffer.from(`export default ${JSON.stringify(config)};`));
             }
             if (controller.signal.aborted) throw new Error("ATTEMPT_STOPPING");
             record.state = "ACTIVATING";
@@ -789,18 +724,11 @@ export class ExecutionSupervisor {
                             : (execution?.assetSourceHash ?? manifest.snapshotSha256),
                 },
             });
-            flushTimer = setInterval(
-                () => void events.flush().catch(() => stopRequest("EVENT_UPLOAD_FAILED")),
-                250,
-            );
-            monitor = monitorStorage(
-                tmp,
-                this.options.storageLimit ?? 64 * 1024 * 1024,
-                async (why) => {
-                    stopRequest(why);
-                    if (startIssued) await stopOnce(why);
-                },
-            );
+            flushTimer = setInterval(() => void events.flush().catch(() => stopRequest("EVENT_UPLOAD_FAILED")), 250);
+            monitor = monitorStorage(tmp, this.options.storageLimit ?? 64 * 1024 * 1024, async (why) => {
+                stopRequest(why);
+                if (startIssued) await stopOnce(why);
+            });
             record.state = "SPAWNING";
             await commit();
             if (controller.signal.aborted) throw new Error("ATTEMPT_STOPPING");
@@ -811,13 +739,9 @@ export class ExecutionSupervisor {
                     executable: executionPaths.runnerExecutable,
                     args: [executionPaths.workerEntry, join(work, "invocation.json")],
                     cwd: work,
-                    env: offlineWorkerEnvironment(
-                        tmp,
-                        join(work, "provider.mjs"),
-                        true,
-                        process.env,
-                        { runnerExecutable: executionPaths.runnerExecutable },
-                    ),
+                    env: offlineWorkerEnvironment(tmp, join(work, "provider.mjs"), true, process.env, {
+                        runnerExecutable: executionPaths.runnerExecutable,
+                    }),
                 },
                 this.source
                     ? {
@@ -836,8 +760,7 @@ export class ExecutionSupervisor {
                                   ),
                               );
                               if (playwrightConfig) {
-                                  if (!context.wsEndpoint)
-                                      throw new Error("DARWIN_BROWSER_ENDPOINT_REQUIRED");
+                                  if (!context.wsEndpoint) throw new Error("DARWIN_BROWSER_ENDPOINT_REQUIRED");
                                   privateEndpoint = context.wsEndpoint;
                                   const use = {
                                       ...(playwrightConfig.use as Record<string, unknown>),
@@ -867,8 +790,7 @@ export class ExecutionSupervisor {
                       }
                     : undefined,
             );
-            if (controller.signal.aborted && this.source)
-                void stopOnce(reason ?? "ATTEMPT_STOPPING").catch(() => {});
+            if (controller.signal.aborted && this.source) void stopOnce(reason ?? "ATTEMPT_STOPPING").catch(() => {});
             child = await starting;
             if (controller.signal.aborted) throw new Error("ATTEMPT_STOPPING");
             record.state = "RUNNING";
@@ -904,16 +826,11 @@ export class ExecutionSupervisor {
                     this.source.native.openPrivateDirectory(tmp, false).close();
                     if (!privateEndpoint) throw new Error("REPORT_PRIVACY_UNCONFIRMED");
                     const gate = (await import(pathToFileURL(privacyReporter).href)) as {
-                        verifyEndpointJsonFile?: (
-                            path: string,
-                            endpoints: readonly string[],
-                        ) => Promise<void>;
+                        verifyEndpointJsonFile?: (path: string, endpoints: readonly string[]) => Promise<void>;
                     };
                     if (typeof gate.verifyEndpointJsonFile !== "function")
                         throw new Error("REPORT_PRIVACY_UNCONFIRMED");
-                    await gate.verifyEndpointJsonFile(join(tmp, "playwright.json"), [
-                        privateEndpoint,
-                    ]);
+                    await gate.verifyEndpointJsonFile(join(tmp, "playwright.json"), [privateEndpoint]);
                     this.source.native.openPrivateDirectory(tmp, false).close();
                 } catch {
                     retainPrivateReports = true;
@@ -948,9 +865,7 @@ export class ExecutionSupervisor {
                 }[];
             }>(join(work, "worker-result.json"));
             const cleanupStatus =
-                manifest.kind === "TEST"
-                    ? (caseResult?.cleanupStatus ?? "PENDING")
-                    : workerResult.cleanupStatus;
+                manifest.kind === "TEST" ? (caseResult?.cleanupStatus ?? "PENDING") : workerResult.cleanupStatus;
             if (manifest.kind === "TEST" && !caseResult) throw new Error("MISSING_CASE_RESULT");
             if (manifest.kind !== "TEST") {
                 events.append({ type: "CLEANUP_RESULT", payload: { cleanupStatus } });
@@ -988,11 +903,7 @@ export class ExecutionSupervisor {
                     } catch (error) {
                         // Cancellation may close the page before this optional capture.
                         // Missing required Trace still fails the canonical evidence check.
-                        if (
-                            kind === "SCREENSHOT" &&
-                            (error as NodeJS.ErrnoException).code === "ENOENT"
-                        )
-                            continue;
+                        if (kind === "SCREENSHOT" && (error as NodeJS.ErrnoException).code === "ENOENT") continue;
                         throw error;
                     }
                     await add(name, kind, name, "CREDENTIAL_RESTRICTED");
@@ -1017,8 +928,7 @@ export class ExecutionSupervisor {
                     workerResult.businessOutcome === "PASSED"
                         ? await json<CompiledAssetBundle>(join(work, "bundle.json"))
                         : undefined;
-                for (const file of output?.files ?? release.entry.files)
-                    await add(file.path, "SOURCE");
+                for (const file of output?.files ?? release.entry.files) await add(file.path, "SOURCE");
                 if (output) {
                     if (!files.some((f) => f.file.path === "engine/compiler.tgz"))
                         await add("engine/compiler.tgz", "SOURCE");
@@ -1033,9 +943,7 @@ export class ExecutionSupervisor {
                 });
             }
             const evidence = files.map((f) => f.file),
-                requiredEvidence = files
-                    .filter((f) => ["TRACE", "LOG"].includes(f.kind))
-                    .map((f) => f.file.sha256);
+                requiredEvidence = files.filter((f) => ["TRACE", "LOG"].includes(f.kind)).map((f) => f.file.sha256);
             const common = {
                 schemaVersion: "1.0" as const,
                 attemptId: claim.attemptId,
@@ -1044,9 +952,7 @@ export class ExecutionSupervisor {
                 evidence,
                 requiredEvidence,
                 processStopped: true as const,
-                ...(stop.processStopScope !== undefined
-                    ? { processStopScope: stop.processStopScope }
-                    : {}),
+                ...(stop.processStopScope !== undefined ? { processStopScope: stop.processStopScope } : {}),
             };
             let completion: CompletionManifestV1;
             if (manifest.kind === "TEST")
@@ -1056,9 +962,7 @@ export class ExecutionSupervisor {
                     retrySafety: caseResult!.retrySafety ?? "UNKNOWN",
                     businessOutcome: caseResult!.businessOutcome,
                     caseVersionId: manifest.caseVersionId,
-                    expectedPlansSha256: sha256(
-                        await readFile(join(work, "metadata/expected-plans.json")),
-                    ),
+                    expectedPlansSha256: sha256(await readFile(join(work, "metadata/expected-plans.json"))),
                 };
             else if (manifest.kind === "CLEANUP")
                 completion = {
@@ -1087,8 +991,7 @@ export class ExecutionSupervisor {
                     evidence: evidence as [EvidenceFileEntryV1, ...EvidenceFileEntryV1[]],
                     requiredEvidence: requiredEvidence as [string, ...string[]],
                 };
-            if (validateSchema("CompletionManifestV1", completion).length)
-                throw new Error("INVALID_COMPLETION");
+            if (validateSchema("CompletionManifestV1", completion).length) throw new Error("INVALID_COMPLETION");
             const completionBytes = canonicalBytes(completion);
             await writeFile(join(work, "completion.json"), completionBytes, { mode: 0o600 });
             await this.upload(claim, {
@@ -1106,8 +1009,7 @@ export class ExecutionSupervisor {
                 leaseToken: claim.leaseToken,
                 fencingToken: claim.fencingToken,
                 kind: manifest.kind,
-                outcome:
-                    manifest.kind === "TEST" ? caseResult!.outcome : workerResult.businessOutcome,
+                outcome: manifest.kind === "TEST" ? caseResult!.outcome : workerResult.businessOutcome,
                 manifestSha256: sha256(completionBytes),
                 lastSequence: events.lastSequence,
                 cleanupStatus,
@@ -1143,11 +1045,9 @@ export class ExecutionSupervisor {
                         stoppedAt: new Date().toISOString(),
                     };
             }
-            await this.reconcile(
-                claim,
-                stop,
-                caseResult?.cleanupStatus ?? (child ? "PENDING" : "NOT_REQUIRED"),
-            ).catch(() => {});
+            await this.reconcile(claim, stop, caseResult?.cleanupStatus ?? (child ? "PENDING" : "NOT_REQUIRED")).catch(
+                () => {},
+            );
             return { stop, files };
         } finally {
             heartbeat.close();
@@ -1163,8 +1063,7 @@ export class ExecutionSupervisor {
             if (stop?.processStopped)
                 for (const path of ["node_modules", "tmp/npm-cache"])
                     await rm(join(work, path), { recursive: true, force: true });
-            if (stop?.processStopped && !retainPrivateReports)
-                await rm(tmp, { recursive: true, force: true });
+            if (stop?.processStopped && !retainPrivateReports) await rm(tmp, { recursive: true, force: true });
         }
     }
     private async resolveCredential(

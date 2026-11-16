@@ -1,10 +1,7 @@
 import { credentialGuidance } from "./credential-status";
 
 const guidance: Record<string, readonly [string, string]> = {
-    USER_CANCELLED: [
-        "已取消，尚未发送需要确认的操作。",
-        "Cancelled before the protected request was sent.",
-    ],
+    USER_CANCELLED: ["已取消，尚未发送需要确认的操作。", "Cancelled before the protected request was sent."],
     AGENT_BUSY: [
         "后台正在准备、执行或处理其它变更，请等待完成后重试。",
         "Agent is preparing, running or changing state. Wait for completion before retrying.",
@@ -49,10 +46,7 @@ const guidance: Record<string, readonly [string, string]> = {
         "这条本机历史已按保留策略退休，不能继续读取其报告正文。",
         "This local run was retired by retention policy; its report body is unavailable.",
     ],
-    LOCAL_WORKSPACE_UNAVAILABLE: [
-        "请先选择一个可访问的本机工作区。",
-        "Choose an accessible local workspace first.",
-    ],
+    LOCAL_WORKSPACE_UNAVAILABLE: ["请先选择一个可访问的本机工作区。", "Choose an accessible local workspace first."],
     BUNDLE_WORKSPACE_MISMATCH: [
         "资源包不属于当前本机工作区，请重新选择。",
         "This package is not in the current local workspace. Select it again.",
@@ -101,8 +95,7 @@ const guidance: Record<string, readonly [string, string]> = {
  * 。
  */
 export function desktopErrorMessage(failure: unknown, language: "zh" | "en"): string {
-    const message =
-        failure instanceof Error ? failure.message : typeof failure === "string" ? failure : "";
+    const message = failure instanceof Error ? failure.message : typeof failure === "string" ? failure : "";
     const direct = /^[A-Z][A-Z0-9_]{2,100}(?![\s\S])/.test(message) ? message : undefined;
     const wrapped = /(?:^|: )Error: ([A-Z][A-Z0-9_]{2,100})(?![\s\S])/.exec(message)?.[1];
     const code = direct ?? wrapped ?? "DESKTOP_OPERATION_FAILED";

@@ -23,9 +23,7 @@ if (mode === "--expect-failure" && output) throw new Error("Expected actual comp
 const files: Record<string, Uint8Array> = output?.files ?? {
     ...distribution.files,
     "package.json": canonicalBytes(JSON.parse(Buffer.from(distribution.packageJson).toString())),
-    "package-lock.json": canonicalBytes(
-        JSON.parse(Buffer.from(distribution.packageLock).toString()),
-    ),
+    "package-lock.json": canonicalBytes(JSON.parse(Buffer.from(distribution.packageLock).toString())),
     "dependencies.json": canonicalBytes(distribution.dependencies),
 };
 const compiler = join(root, "compiler.tgz");
@@ -36,18 +34,14 @@ const fixed = Object.entries(files)
     .map(([path, content]) => ({ path, sha256: hash(content), sizeBytes: content.length }))
     .filter(
         (f) =>
-            ["package.json", "package-lock.json", "dependencies.json"].includes(f.path) ||
-            f.path.startsWith("vendor/"),
+            ["package.json", "package-lock.json", "dependencies.json"].includes(f.path) || f.path.startsWith("vendor/"),
     );
 const engine = {
     engineVersion: distribution.engineVersion,
     compilerVersion: COMPILER_VERSION,
     runnerSdkVersion: distribution.runnerSdkVersion,
     dependencies: distribution.dependencies,
-    files: [
-        ...fixed,
-        { path: "engine/compiler.tgz", sha256: hash(bytes), sizeBytes: bytes.length },
-    ],
+    files: [...fixed, { path: "engine/compiler.tgz", sha256: hash(bytes), sizeBytes: bytes.length }],
 };
 files["engine/compiler.tgz"] = bytes;
 if (diagnostic) writeFileSync(join(root, "failure.log"), diagnostic);

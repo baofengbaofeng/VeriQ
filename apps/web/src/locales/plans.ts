@@ -62,21 +62,17 @@ export const plansMessages: Record<string, readonly [string, string]> = {
     "禁用账号 / Disable account": ["禁用账号", "Disable account"],
     "用途 / Purpose": ["用途", "Purpose"],
     "Token purpose": ["令牌用途", "Token purpose"],
-    "10 分钟内一次登记 / One enrollment within 10 minutes": [
-        "10 分钟内一次登记",
-        "One enrollment within 10 minutes",
-    ],
+    "10 分钟内一次登记 / One enrollment within 10 minutes": ["10 分钟内一次登记", "One enrollment within 10 minutes"],
     "有效期 24 小时，可立即吊销 / Expires in 24 hours; revocable": [
         "有效期 24 小时，可立即吊销",
         "Expires in 24 hours; revocable",
     ],
     "操作 / Operations": ["操作", "Operations"],
     "授权计划 / Allowed plans": ["授权计划", "Allowed plans"],
-    "服务仅能使用自己拥有或所有者共享到空间的设备。 / Service-owned or explicitly Workspace-shared Runtimes only.":
-        [
-            "服务仅能使用自己拥有或所有者共享到空间的设备。",
-            "Service-owned or explicitly Workspace-shared Runtimes only.",
-        ],
+    "服务仅能使用自己拥有或所有者共享到空间的设备。 / Service-owned or explicitly Workspace-shared Runtimes only.": [
+        "服务仅能使用自己拥有或所有者共享到空间的设备。",
+        "Service-owned or explicitly Workspace-shared Runtimes only.",
+    ],
     "签发令牌 / Issue token": ["签发令牌", "Issue token"],
     "One-time token": ["一次性令牌", "One-time token"],
     "仅显示一次，请保存到 CI 秘密变量。 / Shown once; save in CI secrets.": [

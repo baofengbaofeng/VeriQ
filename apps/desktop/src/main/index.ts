@@ -1,26 +1,11 @@
-import {
-    app,
-    BrowserWindow,
-    ipcMain,
-    protocol,
-    session,
-    safeStorage,
-    net,
-    Tray,
-    dialog,
-    shell,
-} from "electron";
+import { app, BrowserWindow, ipcMain, protocol, session, safeStorage, net, Tray, dialog, shell } from "electron";
 import { join, dirname, resolve, extname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { readFile, writeFile, open, lstat, copyFile } from "node:fs/promises";
 import { spawn, execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { type RuntimeDistribution } from "../../../runtime/src/distribution.ts";
-import {
-    loadDesktopRuntime,
-    readDesktopRelease,
-    type DesktopRelease,
-} from "../installation/release";
+import { loadDesktopRuntime, readDesktopRelease, type DesktopRelease } from "../installation/release";
 import { verifyDesktopHost } from "../installation/host-identity";
 import { installLifecycleMenu, reportLifecycleError } from "./lifecycle";
 import { agentEnvironment } from "./agent-environment";
@@ -41,11 +26,7 @@ import { routingOverride } from "../shared/routing";
 import { assertAgentReconfigurationAllowed } from "../shared/credential-status";
 import type { CloudOperation } from "../shared/operations.generated";
 import type { DesktopState } from "../shared/bridge";
-import {
-    privateDirectory,
-    readPrivate,
-    updatePrivate,
-} from "../../../runtime/src/offline/config.ts";
+import { privateDirectory, readPrivate, updatePrivate } from "../../../runtime/src/offline/config.ts";
 
 /**
  * 主进程负责桌面窗口、普通登录网络与独立后台的连接边界，启动配置只从可信安装路径或开发启动器读取；这些进程级设置不能通
@@ -91,11 +72,8 @@ const node24 =
 const runtime = {
     engineVersion: process.env.VERIQ_DESKTOP_ENGINE_VERSION ?? "1.0.0",
     engineDirectory: process.env.VERIQ_DESKTOP_ENGINE ?? join(process.resourcesPath, "engine"),
-    browserExecutable:
-        process.env.VERIQ_DESKTOP_BROWSER ?? join(process.resourcesPath, "browser", "chrome"),
-    ...(process.env.VERIQ_DESKTOP_HEADED_BROWSER
-        ? { headedExecutable: process.env.VERIQ_DESKTOP_HEADED_BROWSER }
-        : {}),
+    browserExecutable: process.env.VERIQ_DESKTOP_BROWSER ?? join(process.resourcesPath, "browser", "chrome"),
+    ...(process.env.VERIQ_DESKTOP_HEADED_BROWSER ? { headedExecutable: process.env.VERIQ_DESKTOP_HEADED_BROWSER } : {}),
 };
 
 /**
@@ -154,15 +132,11 @@ async function ensureAgent(): Promise<void> {
             : runtime),
     }));
     const log = await open(join(profile, "agent.log"), "a", 0o600);
-    const child = spawn(
-        agentNode,
-        [installed?.agentEntry ?? join(directory, "agent.js"), profile],
-        {
-            detached: true,
-            stdio: ["ignore", log.fd, log.fd],
-            env: environment,
-        },
-    );
+    const child = spawn(agentNode, [installed?.agentEntry ?? join(directory, "agent.js"), profile], {
+        detached: true,
+        stdio: ["ignore", log.fd, log.fd],
+        env: environment,
+    });
     let spawnFailed = false;
     child.once("error", () => {
         spawnFailed = true;
@@ -404,9 +378,7 @@ async function local(input: unknown) {
         throw new Error("IPC_OPERATION_DENIED");
     if (
         ["clearBundle", "unbind"].includes(command.operation) &&
-        !(await confirm(
-            "此操作会移除本机资源或设备绑定。继续？ / Remove local data or device binding?",
-        ))
+        !(await confirm("此操作会移除本机资源或设备绑定。继续？ / Remove local data or device binding?"))
     )
         throw new Error("USER_CANCELLED");
     /**
@@ -521,11 +493,7 @@ async function artifact(input: unknown) {
         kind = String(result.kind);
     } else {
         if (!host.workspace) throw new Error("WORKSPACE_SCOPE_MISMATCH");
-        const result = await host.artifact(
-            host.workspace.id,
-            String(value.attemptId),
-            String(value.artifactId),
-        );
+        const result = await host.artifact(host.workspace.id, String(value.attemptId), String(value.artifactId));
         kind = result.artifact.kind;
         const exportId = crypto.randomUUID();
         await privateDirectory(join(profile, "exports"));
@@ -538,10 +506,7 @@ async function artifact(input: unknown) {
         if (value.action === "trace")
             trace = async () => {
                 if (kind !== "TRACE") throw new Error("TRACE_REQUIRED");
-                await openNativeTrace(
-                    client,
-                    await client.call({ operation: "nativeTraceExport", exportId }),
-                );
+                await openNativeTrace(client, await client.call({ operation: "nativeTraceExport", exportId }));
             };
     }
     return withArtifactExport(source, async () => {
@@ -557,8 +522,7 @@ async function artifact(input: unknown) {
         const destination = await dialog.showSaveDialog(window!, {
             defaultPath: `veriq-evidence-${value.artifactId}${extname(source)}`,
         });
-        if (!destination.canceled && destination.filePath)
-            await copyFile(source, destination.filePath);
+        if (!destination.canceled && destination.filePath) await copyFile(source, destination.filePath);
     });
 }
 
@@ -601,17 +565,14 @@ function installBridge() {
                 } catch (error) {
                     if (
                         !(error instanceof Error) ||
-                        (error.message !== "AGENT_UNAVAILABLE" &&
-                            (error as NodeJS.ErrnoException).code !== "ENOENT")
+                        (error.message !== "AGENT_UNAVAILABLE" && (error as NodeJS.ErrnoException).code !== "ENOENT")
                     )
                         throw error;
                 }
                 host.invalidate();
                 origin = next;
                 proxy = value.proxy;
-                await session
-                    .fromPartition("persist:veriq-host")
-                    .clearStorageData({ storages: ["cookies"] });
+                await session.fromPartition("persist:veriq-host").clearStorageData({ storages: ["cookies"] });
                 await session
                     .fromPartition("persist:veriq-host")
                     .setProxy(proxy ? { proxyRules: proxy } : { mode: "system" });
@@ -632,14 +593,10 @@ function installBridge() {
                 const value = object(input, ["workspaceId"]);
                 if (typeof value.workspaceId !== "string") throw new Error("IPC_PAYLOAD_INVALID");
                 const selected = await host.select(value.workspaceId);
-                await updatePrivate(
-                    profile,
-                    "desktop-workspaces.json",
-                    (old: Record<string, unknown> | undefined) => ({
-                        ...old,
-                        [selected.id]: selected,
-                    }),
-                );
+                await updatePrivate(profile, "desktop-workspaces.json", (old: Record<string, unknown> | undefined) => ({
+                    ...old,
+                    [selected.id]: selected,
+                }));
                 try {
                     await client.call({ operation: "select", workspaceId: selected.id });
                 } catch {}
@@ -658,9 +615,7 @@ function installBridge() {
                 const value = object(input, ["id"]);
                 if (typeof value.id !== "string" || !/^[0-9a-f-]{36}$/.test(value.id))
                     throw new Error("IPC_PAYLOAD_INVALID");
-                return operation === "streamPull"
-                    ? host.pullStream(value.id)
-                    : host.closeStream(value.id);
+                return operation === "streamPull" ? host.pullStream(value.id) : host.closeStream(value.id);
             }
             case "artifact":
                 return artifact(input);
@@ -734,14 +689,9 @@ async function main() {
      * 存失败也不能因为已有后台可连接而跳过本次宿主的启动授权。
      */
     release = app.isPackaged ? await readDesktopRelease(process.resourcesPath) : undefined;
-    const hostIdentity = release
-        ? await verifyDesktopHost(release, process.resourcesPath)
-        : undefined;
-    installed = app.isPackaged
-        ? await loadDesktopRuntime(join(process.resourcesPath, "runtime"))
-        : undefined;
-    if (release && release.productVersion !== app.getVersion())
-        throw new Error("DESKTOP_PRODUCT_VERSION_MISMATCH");
+    const hostIdentity = release ? await verifyDesktopHost(release, process.resourcesPath) : undefined;
+    installed = app.isPackaged ? await loadDesktopRuntime(join(process.resourcesPath, "runtime")) : undefined;
+    if (release && release.productVersion !== app.getVersion()) throw new Error("DESKTOP_PRODUCT_VERSION_MISMATCH");
     if (installed && process.platform === "darwin") {
         const { bindDarwinDistribution } = await import("../../../runtime/src/native/darwin.ts");
         bindDarwinDistribution(installed);
@@ -752,28 +702,19 @@ async function main() {
     }
     await privateDirectory(profile);
     try {
-        const config = await readPrivate<{ origin: string; proxy: string }>(
-            profile,
-            "desktop-settings.json",
-        );
+        const config = await readPrivate<{ origin: string; proxy: string }>(profile, "desktop-settings.json");
         origin = controlOrigin(config.origin);
         proxy = config.proxy;
     } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
-    const cookieProtection = await requireCookieProtection(
-        safeStorage,
-        process.platform,
-        undefined,
-        hostIdentity,
-    );
+    const cookieProtection = await requireCookieProtection(safeStorage, process.platform, undefined, hostIdentity);
     console.log("VeriQ Cookie protection verified:", JSON.stringify(cookieProtection));
     await prepareCookieStorage(profile, app.getPath("sessionData"), async () => {
         const result = await dialog.showMessageBox({
             type: "warning",
             title: "VeriQ",
-            message:
-                "删除旧登录 Cookie 并重新登录？ / Remove legacy login cookies and sign in again?",
+            message: "删除旧登录 Cookie 并重新登录？ / Remove legacy login cookies and sign in again?",
             detail:
                 "旧 Cookie 数据库及其日志可能以明文保存。仅删除 VeriQ 的这些文件；不会删除设" +
                 "备身份或业务凭据，也不保证介质擦除。 / Only VeriQ login cookie files" +
@@ -793,9 +734,7 @@ async function main() {
     renderer.setPermissionCheckHandler(() => false);
     renderer.webRequest.onBeforeRequest((details, callback) =>
         callback({
-            cancel:
-                !details.url.startsWith("veriq://app/") &&
-                !details.url.startsWith("blob:veriq://app/"),
+            cancel: !details.url.startsWith("veriq://app/") && !details.url.startsWith("blob:veriq://app/"),
         }),
     );
     const assets = resolve(directory, "../renderer");
@@ -807,8 +746,7 @@ async function main() {
         const target = bundledAssetPath(assets, pathname);
         if (!target) return new Response("Not found", { status: 404 });
         const info = await lstat(target).catch(() => undefined);
-        if (!info?.isFile() || info.isSymbolicLink())
-            return new Response("Not found", { status: 404 });
+        if (!info?.isFile() || info.isSymbolicLink()) return new Response("Not found", { status: 404 });
         const response = await net.fetch(pathToFileURL(target).href);
         const headers = new Headers(response.headers);
         headers.set(
@@ -897,10 +835,7 @@ async function main() {
     try {
         await ensureAgent();
     } catch (error) {
-        console.error(
-            "VeriQ Agent startup unavailable:",
-            error instanceof Error ? error.message : "UNKNOWN_ERROR",
-        );
+        console.error("VeriQ Agent startup unavailable:", error instanceof Error ? error.message : "UNKNOWN_ERROR");
     }
 }
 if (!app.requestSingleInstanceLock()) app.quit();

@@ -31,8 +31,7 @@ import {
 function header(raw: readonly string[], name: string): string | null {
     if (raw.length % 2) fail("PAYLOAD_IO");
     const values: string[] = [];
-    for (let i = 0; i < raw.length; i += 2)
-        if (raw[i]!.toLowerCase() === name) values.push(raw[i + 1]!);
+    for (let i = 0; i < raw.length; i += 2) if (raw[i]!.toLowerCase() === name) values.push(raw[i + 1]!);
     if (values.length > 1) fail("PAYLOAD_IO");
     return values[0] ?? null;
 }
@@ -62,10 +61,7 @@ export async function* validatedAssetBody(
     signal?: AbortSignal,
 ): AsyncGenerator<Uint8Array> {
     const { sizeBytes, sha256, maximumBytes } = expected;
-    if (
-        ![sizeBytes, maximumBytes].every((n) => Number.isSafeInteger(n) && n >= 0) ||
-        sizeBytes > maximumBytes
-    )
+    if (![sizeBytes, maximumBytes].every((n) => Number.isSafeInteger(n) && n >= 0) || sizeBytes > maximumBytes)
         fail("PAYLOAD_LIMIT");
     if (sha256 !== null && !/^[a-f0-9]{64}$/.test(sha256)) fail("PAYLOAD_INPUT_INVALID");
     const check = () => {
@@ -94,8 +90,7 @@ export async function* validatedAssetBody(
         }
     }
     check();
-    if (actual !== sizeBytes || (sha256 !== null && digest.digest("hex") !== sha256))
-        fail("PAYLOAD_ARCHIVE_HASH");
+    if (actual !== sizeBytes || (sha256 !== null && digest.digest("hex") !== sha256)) fail("PAYLOAD_ARCHIVE_HASH");
 }
 /**
  * 环境代理及附加 CA 会改变本片冻结的 HTTPS 获取上下文，因此显式出现就拒绝而不是猜测其值是否安全；CI 清除同一列表后启动
@@ -134,9 +129,7 @@ async function request(
         resClosed: Promise<void> | undefined;
     let primary: unknown, timer: ReturnType<typeof setTimeout> | undefined;
     const abort = () => {
-        req?.destroy(
-            new RuntimePayloadError(tx.signal?.aborted ? "PAYLOAD_CANCELLED" : "PAYLOAD_IO"),
-        );
+        req?.destroy(new RuntimePayloadError(tx.signal?.aborted ? "PAYLOAD_CANCELLED" : "PAYLOAD_IO"));
         response?.destroy();
     };
     try {
@@ -220,11 +213,7 @@ async function fetchAsset(
     const progress = { step, bytes: 0 };
     acquisitionProgress.set(tx, progress);
     const controller = new AbortController(),
-        signal = AbortSignal.any([
-            controller.signal,
-            totalSignal,
-            ...(tx.signal ? [tx.signal] : []),
-        ]);
+        signal = AbortSignal.any([controller.signal, totalSignal, ...(tx.signal ? [tx.signal] : [])]);
     const deadline = setTimeout(() => controller.abort(), 600000);
     const cancel = () => controller.abort();
     tx.signal?.addEventListener("abort", cancel, { once: true });
@@ -239,8 +228,7 @@ async function fetchAsset(
                     const status = response.statusCode ?? 0;
                     if ([301, 302, 303, 307, 308].includes(status)) {
                         const location = header(response.rawHeaders, "location");
-                        if (!redirect || index !== 0 || location !== redirect)
-                            tx.fail("PAYLOAD_IO");
+                        if (!redirect || index !== 0 || location !== redirect) tx.fail("PAYLOAD_IO");
                         hops.push({
                             url: current,
                             status: status as Hop["status"],
@@ -301,9 +289,7 @@ async function* countedBody(response: AsyncIterable<Uint8Array>, progress: { byt
  * 内容只含固定阶段和实际收到字节，不改变统一 RuntimePayloadError 的冻结 DT
  * O 与首错语义。
  */
-export function assetAcquisitionFailure(
-    error: unknown,
-): Readonly<{ step: string; bytes: number }> | null {
+export function assetAcquisitionFailure(error: unknown): Readonly<{ step: string; bytes: number }> | null {
     return error && typeof error === "object" ? (acquisitionFailures.get(error) ?? null) : null;
 }
 /**

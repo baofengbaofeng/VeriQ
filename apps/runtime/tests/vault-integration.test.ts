@@ -23,9 +23,7 @@ class MemoryKeys implements VaultKeyBackend {
     async get(scope: VaultKeyScope) {
         if (this.state !== "ok") return { status: this.state } as const;
         const key = this.keys.get(JSON.stringify(scope));
-        return key
-            ? { status: "ok" as const, key: Buffer.from(key) }
-            : { status: "missing" as const };
+        return key ? { status: "ok" as const, key: Buffer.from(key) } : { status: "missing" as const };
     }
     async set(scope: VaultKeyScope, key: Buffer) {
         this.writes++;
@@ -34,9 +32,7 @@ class MemoryKeys implements VaultKeyBackend {
     }
     async delete(scope: VaultKeyScope) {
         return {
-            status: this.keys.delete(JSON.stringify(scope))
-                ? ("ok" as const)
-                : ("missing" as const),
+            status: this.keys.delete(JSON.stringify(scope)) ? ("ok" as const) : ("missing" as const),
         };
     }
     async probe() {
@@ -72,9 +68,7 @@ async function disk(directory: string): Promise<string> {
     return (
         await Promise.all(
             entries.map(async (entry) =>
-                entry.isDirectory()
-                    ? disk(join(directory, entry.name))
-                    : readFile(join(directory, entry.name), "utf8"),
+                entry.isDirectory() ? disk(join(directory, entry.name)) : readFile(join(directory, entry.name), "utf8"),
             ),
         )
     ).join("\n");
@@ -89,10 +83,7 @@ test("SecretStore persists encrypted exact references and shares one stable key 
         assert.deepEqual(await new SecretStore(directory, { backend }).resolve(reference), {
             password: "business-secret-marker",
         });
-        await assert.rejects(
-            store.resolve({ ...reference, versionId: device.runnerId }),
-            /LOCAL_CREDENTIAL_MISSING/,
-        );
+        await assert.rejects(store.resolve({ ...reference, versionId: device.runnerId }), /LOCAL_CREDENTIAL_MISSING/);
         await store.remove(reference);
         await assert.rejects(store.resolve(reference), /LOCAL_CREDENTIAL_MISSING/);
         assert.equal(backend.keys.size, 1);
@@ -180,18 +171,13 @@ test("encrypted DeviceStore rotation resumes the same request after a lost HTTP 
             const serverOrigin = `http://127.0.0.1:${address.port}`;
             const store = new DeviceStore(directory, { backend });
             await store.save({ ...device, server: serverOrigin });
-            await assert.rejects(
-                store.renew(new RuntimeClient(serverOrigin)),
-                /NETWORK_UNAVAILABLE/,
-            );
+            await assert.rejects(store.renew(new RuntimeClient(serverOrigin)), /NETWORK_UNAVAILABLE/);
             assert(candidate);
             assert.equal(await store.hasPendingRotation(), true);
             const bytes = await disk(directory);
             assert.equal(bytes.includes(device.deviceToken), false);
             assert.equal(bytes.includes(candidate.replacementToken), false);
-            const recovered = await new DeviceStore(directory, { backend }).renew(
-                new RuntimeClient(serverOrigin),
-            );
+            const recovered = await new DeviceStore(directory, { backend }).renew(new RuntimeClient(serverOrigin));
             assert.equal(recovered.deviceToken, candidate.replacementToken);
             assert.equal(await store.hasPendingRotation(), false);
             assert.equal(requests, 2);
@@ -219,10 +205,7 @@ test("large storageState keeps the original aggregate quota beyond one MiB ciphe
                 .map((name) => readFile(join(directory, "vault", name))),
         );
         assert(ciphertexts.some((bytes) => bytes.length > 1024 * 1024));
-        await assert.rejects(
-            store.set({ ...reference, secretRef: "tooBig" }, "q".repeat(4096)),
-            /CONFIGURATION_LIMIT/,
-        );
+        await assert.rejects(store.set({ ...reference, secretRef: "tooBig" }, "q".repeat(4096)), /CONFIGURATION_LIMIT/);
         assert.deepEqual(await store.resolve(reference), value);
     }));
 
@@ -242,10 +225,7 @@ test("explicit stopped migration covers business device and rotation before reti
             replacementToken: "replacement-" + "r".repeat(43),
         };
         await updatePrivate(directory, "rotation.json", () => pending);
-        await assert.rejects(
-            new SecretStore(directory, { backend }).resolve(reference),
-            /VAULT_MIGRATION_REQUIRED/,
-        );
+        await assert.rejects(new SecretStore(directory, { backend }).resolve(reference), /VAULT_MIGRATION_REQUIRED/);
         const profile = new CredentialProfile(directory, { backend });
         assert.equal(typeof profile.migrate, "function");
         await profile.migrate();
@@ -277,17 +257,12 @@ test("post-commit retirement failure resumes cleanup without resurrecting delete
         try {
             await assert.rejects(
                 store.clear(),
-                process.platform === "win32"
-                    ? /NATIVE_PRIVATE_REMOVE_FAILED/
-                    : /VAULT_FILE_NOT_PRIVATE/,
+                process.platform === "win32" ? /NATIVE_PRIVATE_REMOVE_FAILED/ : /VAULT_FILE_NOT_PRIVATE/,
             );
         } finally {
             await chmod(join(vault, file), 0o600);
         }
-        await assert.rejects(
-            new SecretStore(directory, { backend }).resolve(reference),
-            /LOCAL_CREDENTIAL_MISSING/,
-        );
+        await assert.rejects(new SecretStore(directory, { backend }).resolve(reference), /LOCAL_CREDENTIAL_MISSING/);
         await assert.rejects(readFile(join(vault, file)), { code: "ENOENT" });
         assert.equal(backend.writes, 1);
     }));
@@ -307,19 +282,13 @@ test("migration refuses active Agent ownership and preserves original bytes unti
         await privateDirectory(owner);
         const release = await lockfile.lock(owner, { retries: 0 });
         try {
-            await assert.rejects(
-                new CredentialProfile(directory, { backend }).migrate(),
-                /AGENT_RUNNING_STOP_FIRST/,
-            );
+            await assert.rejects(new CredentialProfile(directory, { backend }).migrate(), /AGENT_RUNNING_STOP_FIRST/);
         } finally {
             await release();
         }
         assert.deepEqual(await readFile(join(directory, "local-secrets.json")), before);
         await new CredentialProfile(directory, { backend }).migrate();
-        assert.equal(
-            await new SecretStore(directory, { backend }).resolve(reference),
-            "owned-legacy",
-        );
+        assert.equal(await new SecretStore(directory, { backend }).resolve(reference), "owned-legacy");
     }));
 
 /**
@@ -356,10 +325,7 @@ test("migration refuses a separately owned Desktop Agent even when the online Ag
         await privateDirectory(owner);
         const release = await lockfile.lock(owner, { retries: 0 });
         try {
-            await assert.rejects(
-                new CredentialProfile(directory, { backend }).migrate(),
-                /AGENT_RUNNING_STOP_FIRST/,
-            );
+            await assert.rejects(new CredentialProfile(directory, { backend }).migrate(), /AGENT_RUNNING_STOP_FIRST/);
         } finally {
             await release();
         }
@@ -380,10 +346,7 @@ test("vault file boundary accepts two MiB while oversized replacement and genera
         try {
             await files.write("profile-next.json", value);
             assert.equal(await files.read("profile-next.json"), value);
-            await assert.rejects(
-                files.write("profile-next.json", value + "x"),
-                /VAULT_ENVELOPE_LIMIT/,
-            );
+            await assert.rejects(files.write("profile-next.json", value + "x"), /VAULT_ENVELOPE_LIMIT/);
             assert.equal(await files.read("profile-next.json"), value);
             await assert.rejects(
                 updatePrivate(directory, "bounded.json", () => value),
@@ -450,23 +413,20 @@ test("idle migration guard excludes concurrent reservations across connections a
         const competing = await LocalStore.open(execution);
         const release = holding.holdIdle();
         const script =
-            `import {LocalStore} from ${JSON.stringify(
-                new URL("../src/offline/store.ts", import.meta.url)` +
-            `.href,
-            )};
-let store;try {store=await LocalStore.open(process.argv[1]);store.reserve('11111111-1111-4111-8111-111111111111','33` +
-            `333333-3333-4333-8333-333333333333','22222222-2222-4222-8222-222222222222');}
-catch(error){process.exitCode=String(error.message).includes('locked')?41:42;}finally{store?.close();}`;
+            `import {LocalStore} from ${JSON.stringify(new URL("../src/offline/store.ts", import.meta.url).href)};` +
+            `let store;try {store=await LocalStore.open(process.argv[1]);` +
+            `store.reserve('11111111-1111-4111-8111-111111111111','33333333-3333-4333-8333-333333333333','` +
+            `22222222-2222-4222-8222-222222222222');}` +
+            `catch(error){process.exitCode=String(error.message).includes('locked')?41:42;}finally{store?.close();}`;
         const child = () =>
-            spawnSync(
-                process.execPath,
-                ["--import", "tsx", "--input-type=module", "-e", script, execution],
-                { timeout: 10000, encoding: "utf8", maxBuffer: 4096 },
-            );
+            spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", script, execution], {
+                timeout: 10000,
+                encoding: "utf8",
+                maxBuffer: 4096,
+            });
         try {
             assert.throws(
-                () =>
-                    competing.reserve(reference.workspaceId, device.runnerId, reference.versionId),
+                () => competing.reserve(reference.workspaceId, device.runnerId, reference.versionId),
                 /locked/,
             );
             const blocked = child();
@@ -505,9 +465,7 @@ test("many short credentials preserve one MiB business quota beyond two MiB aggr
         await updatePrivate(directory, "local-secrets.json", () => values);
         const profile = new CredentialProfile(directory, { backend });
         await profile.migrate();
-        const records = (await readdir(join(directory, "vault"))).filter((name) =>
-            name.startsWith("record-"),
-        );
+        const records = (await readdir(join(directory, "vault"))).filter((name) => name.startsWith("record-"));
         assert.equal(records.length, refs.length);
         let encryptedBytes = 0;
         for (const name of records) {
@@ -518,10 +476,7 @@ test("many short credentials preserve one MiB business quota beyond two MiB aggr
         assert(encryptedBytes > 2 * 1024 * 1024);
         await profile.transaction(async (transaction) => {
             for (const ref of refs)
-                assert.equal(
-                    await transaction.resolve(ref),
-                    "synthetic-short-value-".padEnd(96, "x"),
-                );
+                assert.equal(await transaction.resolve(ref), "synthetic-short-value-".padEnd(96, "x"));
         });
         await assert.rejects(readFile(join(directory, "local-secrets.json")), { code: "ENOENT" });
         assert.equal(backend.writes, 1);
@@ -544,11 +499,7 @@ test("interrupted staged and unconfirmed published transactions recover exact va
             const fault = mock.method(
                 VaultFiles.prototype,
                 "write",
-                async function (
-                    this: Awaited<ReturnType<typeof VaultFiles.acquire>>,
-                    name: string,
-                    value: string,
-                ) {
+                async function (this: Awaited<ReturnType<typeof VaultFiles.acquire>>, name: string, value: string) {
                     await original.call(this, name, value);
                     if (!interrupted && name === member) {
                         interrupted = true;
@@ -578,9 +529,7 @@ test("interrupted staged and unconfirmed published transactions recover exact va
             for (const name of ["transaction.json", "profile-next.json"])
                 await assert.rejects(readFile(join(directory, "vault", name)), { code: "ENOENT" });
             assert.equal(
-                (await readdir(join(directory, "vault"))).filter((name) =>
-                    name.startsWith("record-"),
-                ).length,
+                (await readdir(join(directory, "vault"))).filter((name) => name.startsWith("record-")).length,
                 1,
             );
         }
@@ -625,22 +574,13 @@ test("partial plaintext retirement remains explicit and resumes verified migrati
         } finally {
             fault.mock.restore();
         }
-        assert.equal(
-            JSON.parse(await readFile(join(directory, "vault/migration.json"), "utf8")).phase,
-            "verified",
-        );
+        assert.equal(JSON.parse(await readFile(join(directory, "vault/migration.json"), "utf8")).phase, "verified");
         await assert.rejects(readFile(join(directory, "local-secrets.json")), { code: "ENOENT" });
         assert.deepEqual(await readFile(join(directory, "device.json")), before);
-        await assert.rejects(
-            new DeviceStore(directory, { backend }).load(),
-            /VAULT_MIGRATION_REQUIRED/,
-        );
+        await assert.rejects(new DeviceStore(directory, { backend }).load(), /VAULT_MIGRATION_REQUIRED/);
         await new CredentialProfile(directory, { backend }).migrate();
         assert.deepEqual(await new DeviceStore(directory, { backend }).load(), device);
-        assert.equal(
-            await new SecretStore(directory, { backend }).resolve(reference),
-            "legacy-recovery-value",
-        );
+        assert.equal(await new SecretStore(directory, { backend }).resolve(reference), "legacy-recovery-value");
         await assert.rejects(readFile(join(directory, "device.json")), { code: "ENOENT" });
         await assert.rejects(readFile(join(directory, "vault/migration.json")), { code: "ENOENT" });
         assert.equal(backend.writes, 1);
@@ -662,10 +602,7 @@ test("explicit empty initialization recovery changes only missing key version an
         backend.keys.clear();
         backend.uncertain = false;
         const before = JSON.parse(await readFile(join(directory, "vault/profile.json"), "utf8"));
-        await assert.rejects(
-            new SecretStore(directory, { backend }).resolve(reference),
-            /VAULT_KEY_MISSING/,
-        );
+        await assert.rejects(new SecretStore(directory, { backend }).resolve(reference), /VAULT_KEY_MISSING/);
         assert.equal(backend.writes, 1);
         await profile.recoverInitialization();
         const after = JSON.parse(await readFile(join(directory, "vault/profile.json"), "utf8"));
@@ -673,19 +610,14 @@ test("explicit empty initialization recovery changes only missing key version an
         assert.notEqual(after.keyVersion, before.keyVersion);
         assert.equal(after.state, "active");
         assert.deepEqual(after.entries, {});
-        const recovery = JSON.parse(
-            await readFile(join(directory, "vault/initialization.json"), "utf8"),
-        );
+        const recovery = JSON.parse(await readFile(join(directory, "vault/initialization.json"), "utf8"));
         assert.deepEqual(recovery.previous, [
             { keyVersion: before.keyVersion, keyHash: before.keyHash, status: "absent" },
         ]);
         assert.equal(recovery.state, "active");
         assert.equal(backend.writes, 2);
         await new SecretStore(directory, { backend }).set(reference, "after-explicit-recovery");
-        assert.equal(
-            await new SecretStore(directory, { backend }).resolve(reference),
-            "after-explicit-recovery",
-        );
+        assert.equal(await new SecretStore(directory, { backend }).resolve(reference), "after-explicit-recovery");
         assert.equal(backend.writes, 2);
     }));
 
@@ -711,10 +643,7 @@ test("initialization recovery refuses active missing keys locked vaults and resi
         const stray = "record-11111111-1111-4111-8111-111111111111.json";
         try {
             await files.write(stray, "synthetic residual");
-            await assert.rejects(
-                profile.recoverInitialization(),
-                /VAULT_INITIALIZATION_DATA_PRESENT/,
-            );
+            await assert.rejects(profile.recoverInitialization(), /VAULT_INITIALIZATION_DATA_PRESENT/);
             assert.equal(await files.read(stray), "synthetic residual");
             await files.remove(stray);
         } finally {
@@ -762,9 +691,7 @@ test("initialization retirement uncertainty preserves exact late key cleanup wit
         try {
             const profile = new CredentialProfile(directory, { backend: delegated });
             await assert.rejects(profile.recoverInitialization(), /VAULT_MUTATION_UNCONFIRMED/);
-            const pending = JSON.parse(
-                await readFile(join(directory, "vault/initialization.json"), "utf8"),
-            );
+            const pending = JSON.parse(await readFile(join(directory, "vault/initialization.json"), "utf8"));
             assert.equal(pending.state, "pending");
             assert.equal(pending.previous[0].status, "pending");
             assert.equal(backend.keys.has(oldScope), false);
@@ -773,9 +700,7 @@ test("initialization retirement uncertainty preserves exact late key cleanup wit
                 /VAULT_INITIALIZATION_RECOVERY_REQUIRED/,
             );
             await profile.recoverInitialization();
-            const completed = JSON.parse(
-                await readFile(join(directory, "vault/initialization.json"), "utf8"),
-            );
+            const completed = JSON.parse(await readFile(join(directory, "vault/initialization.json"), "utf8"));
             assert.deepEqual(completed.next, pending.next);
             assert.equal(completed.previous[0].status, "absent");
             assert.equal(completed.state, "active");
@@ -806,11 +731,7 @@ test("initialization recovery resumes a durable intent interrupted before manife
         const fault = mock.method(
             VaultFiles.prototype,
             "write",
-            async function (
-                this: Awaited<ReturnType<typeof VaultFiles.acquire>>,
-                name: string,
-                value: string,
-            ) {
+            async function (this: Awaited<ReturnType<typeof VaultFiles.acquire>>, name: string, value: string) {
                 await original.call(this, name, value);
                 if (name === "initialization.json" && !injected) {
                     injected = true;
@@ -826,14 +747,10 @@ test("initialization recovery resumes a durable intent interrupted before manife
         } finally {
             fault.mock.restore();
         }
-        const intent = JSON.parse(
-            await readFile(join(directory, "vault/initialization.json"), "utf8"),
-        );
+        const intent = JSON.parse(await readFile(join(directory, "vault/initialization.json"), "utf8"));
         assert.equal(backend.writes, 1);
         await new CredentialProfile(directory, { backend }).recoverInitialization();
-        const completed = JSON.parse(
-            await readFile(join(directory, "vault/initialization.json"), "utf8"),
-        );
+        const completed = JSON.parse(await readFile(join(directory, "vault/initialization.json"), "utf8"));
         assert.equal(completed.previous.length, 2);
         assert.deepEqual(completed.previous[1], { ...intent.next, status: "absent" });
         assert.equal(completed.state, "active");

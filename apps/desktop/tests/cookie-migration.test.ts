@@ -28,10 +28,7 @@ test("new Cookie profile activates without asking to delete nonexistent state", 
         await prepareCookieStorage(profile, join(profile, "electron"), async () => {
             throw new Error("UNEXPECTED_CONFIRMATION");
         });
-        assert.equal(
-            JSON.parse(await readFile(join(profile, "cookie-protection.json"), "utf8")).state,
-            "active",
-        );
+        assert.equal(JSON.parse(await readFile(join(profile, "cookie-protection.json"), "utf8")).state, "active");
     }));
 
 test("declining legacy Cookie migration preserves original database and journal bytes", async () =>
@@ -48,8 +45,7 @@ test("declining legacy Cookie migration preserves original database and journal 
 test("explicit Cookie reset retires only fixed database members in both known layouts", async () =>
     fixture(async (profile, partition) => {
         for (const directory of [partition, join(partition, "Network")]) {
-            for (const name of cookieNames)
-                await writeFile(join(directory, name), "synthetic legacy", { mode: 0o600 });
+            for (const name of cookieNames) await writeFile(join(directory, name), "synthetic legacy", { mode: 0o600 });
             await writeFile(join(directory, "unrelated"), "preserved", { mode: 0o600 });
         }
         let confirmations = 0;
@@ -59,8 +55,7 @@ test("explicit Cookie reset retires only fixed database members in both known la
         });
         assert.equal(confirmations, 1);
         for (const directory of [partition, join(partition, "Network")]) {
-            for (const name of cookieNames)
-                await assert.rejects(readFile(join(directory, name)), { code: "ENOENT" });
+            for (const name of cookieNames) await assert.rejects(readFile(join(directory, name)), { code: "ENOENT" });
             assert.equal(await readFile(join(directory, "unrelated"), "utf8"), "preserved");
         }
         await prepareCookieStorage(profile, join(profile, "electron"), async () => {
@@ -73,13 +68,8 @@ test("interrupted approved retirement keeps pending state and resumes before any
         await writeFile(join(partition, "Cookies"), "first", { mode: 0o600 });
         await writeFile(join(partition, "Network/Cookies"), "second", { mode: 0o600 });
         await chmod(join(partition, "Network"), 0o500);
-        await assert.rejects(
-            prepareCookieStorage(profile, join(profile, "electron"), async () => true),
-        );
-        assert.equal(
-            JSON.parse(await readFile(join(profile, "cookie-protection.json"), "utf8")).state,
-            "resetting",
-        );
+        await assert.rejects(prepareCookieStorage(profile, join(profile, "electron"), async () => true));
+        assert.equal(JSON.parse(await readFile(join(profile, "cookie-protection.json"), "utf8")).state, "resetting");
         assert.equal(await readFile(join(partition, "Network/Cookies"), "utf8"), "second");
         await chmod(join(partition, "Network"), 0o700);
         await prepareCookieStorage(profile, join(profile, "electron"), async () => {

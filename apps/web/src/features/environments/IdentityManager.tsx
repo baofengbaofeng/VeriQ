@@ -81,15 +81,13 @@ export function IdentityManager({
     );
     const credentials = useInfiniteQuery({
         queryKey: ["workspace", workspaceId, "credential-summaries"],
-        queryFn: ({ pageParam, signal: qs }) =>
-            adapter.credentials(pageParam, AbortSignal.any([scope, qs])),
+        queryFn: ({ pageParam, signal: qs }) => adapter.credentials(pageParam, AbortSignal.any([scope, qs])),
         initialPageParam: undefined as string | undefined,
         getNextPageParam: (p) => p.nextCursor ?? undefined,
     });
     const adapters = useInfiniteQuery({
         queryKey: ["workspace", workspaceId, "auth-adapters"],
-        queryFn: ({ pageParam, signal: qs }) =>
-            adapter.adapters(pageParam, AbortSignal.any([scope, qs])),
+        queryFn: ({ pageParam, signal: qs }) => adapter.adapters(pageParam, AbortSignal.any([scope, qs])),
         initialPageParam: undefined as string | undefined,
         getNextPageParam: (p) => p.nextCursor ?? undefined,
     });
@@ -139,10 +137,7 @@ export function IdentityManager({
                                           identityPointer: data.identityPointer,
                                       };
                             const issues = validateSchema("AuthAdapterConfigV1", configuration);
-                            if (issues.length)
-                                throw new Error(
-                                    issues.map((i) => i.path + ": " + i.message).join("\n"),
-                                );
+                            if (issues.length) throw new Error(issues.map((i) => i.path + ": " + i.message).join("\n"));
                             const saved = await adapter.createAdapter(configuration, scope);
                             scope.throwIfAborted();
                             setSuccess("已创建适配器 / Adapter created: " + saved.versionId);
@@ -182,21 +177,17 @@ export function IdentityManager({
                     </Button>
                 </form>
                 {adapters.isPending && <p role="status">{tx("正在加载 / Loading…")}</p>}
-                {adapters.error && (
-                    <ErrorState error={adapters.error} retry={() => void adapters.refetch()} />
-                )}
+                {adapters.error && <ErrorState error={adapters.error} retry={() => void adapters.refetch()} />}
                 <div data-testid="adapter-list">
                     {adapters.data?.pages
                         .flatMap((p) => p.items)
                         .map((a) => (
                             <article className="vq-item" key={a.versionId}>
                                 <p>
-                                    {a.configuration.kind} · {a.versionId} ·{" "}
-                                    {a.revoked ? "REVOKED" : "ACTIVE"}
+                                    {a.configuration.kind} · {a.versionId} · {a.revoked ? "REVOKED" : "ACTIVE"}
                                 </p>
                                 <p>
-                                    {a.configuration.identityPath} ·{" "}
-                                    {a.configuration.identityPointer}
+                                    {a.configuration.identityPath} · {a.configuration.identityPointer}
                                 </p>
                                 <Button
                                     tone="danger"
@@ -218,9 +209,7 @@ export function IdentityManager({
                     <p>{tx("尚无适配器 / No adapters.")}</p>
                 )}
                 {adapters.hasNextPage && (
-                    <Button onClick={() => void adapters.fetchNextPage()}>
-                        {tx("更多适配器 / More adapters")}
-                    </Button>
+                    <Button onClick={() => void adapters.fetchNextPage()}>{tx("更多适配器 / More adapters")}</Button>
                 )}
             </Section>
             <Section title={tx("凭证固定版本 / Credential versions")}>
@@ -235,9 +224,7 @@ export function IdentityManager({
                                     .map((s) => s.trim())
                                     .filter(Boolean);
                                 if (!identities.length)
-                                    throw new Error(
-                                        "至少指定一个允许身份 / At least one allowed identity required",
-                                    );
+                                    throw new Error("至少指定一个允许身份 / At least one allowed identity required");
                                 const value: JsonObject =
                                     data.kind === "HTTP_BEARER"
                                         ? { token: data.token }
@@ -339,20 +326,14 @@ export function IdentityManager({
                     </Button>
                 </form>
                 {credentials.isPending && <p role="status">{tx("正在加载 / Loading…")}</p>}
-                {credentials.error && (
-                    <ErrorState
-                        error={credentials.error}
-                        retry={() => void credentials.refetch()}
-                    />
-                )}
+                {credentials.error && <ErrorState error={credentials.error} retry={() => void credentials.refetch()} />}
                 <div data-testid="credential-list">
                     {credentials.data?.pages
                         .flatMap((p) => p.items)
                         .map((c) => (
                             <article className="vq-item" key={c.versionId}>
                                 <p>
-                                    {c.secretRef} · {c.versionId} ·{" "}
-                                    {c.revoked ? "REVOKED" : "ACTIVE"}
+                                    {c.secretRef} · {c.versionId} · {c.revoked ? "REVOKED" : "ACTIVE"}
                                 </p>
                                 <p>
                                     {tx("允许身份 / Allowed: ")}
@@ -363,11 +344,7 @@ export function IdentityManager({
                                     disabled={busy || c.revoked}
                                     onClick={() =>
                                         run(async () => {
-                                            await adapter.revokeCredential(
-                                                c.secretRef,
-                                                c.versionId,
-                                                scope,
-                                            );
+                                            await adapter.revokeCredential(c.secretRef, c.versionId, scope);
                                             scope.throwIfAborted();
                                             await refresh();
                                         })

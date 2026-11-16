@@ -20,9 +20,7 @@ import { trackObservedCli } from "../src/execution/controlled-child.ts";
 import { validateJournal } from "../src/execution/controlled-child-protocol.mjs";
 import type { ObserverBinding } from "../src/execution/controlled-child-protocol.mjs";
 
-const preload = fileURLToPath(
-    new URL("../src/execution/controlled-child-preload.mjs", import.meta.url),
-);
+const preload = fileURLToPath(new URL("../src/execution/controlled-child-preload.mjs", import.meta.url));
 const binding = {
     version: 1 as const,
     attemptId: "11111111-1111-1111-1111-111111111111",
@@ -37,12 +35,7 @@ const binding = {
  */
 async function withCli(
     source: string,
-    run: (fixture: {
-        child: ChildProcess;
-        fd: number;
-        root: string;
-        exit: Promise<number | null>;
-    }) => Promise<void>,
+    run: (fixture: { child: ChildProcess; fd: number; root: string; exit: Promise<number | null> }) => Promise<void>,
     options: {
         marker?: string | null;
         setup?: (root: string) => string[];
@@ -74,17 +67,12 @@ async function withCli(
         const args = options.setup?.(root) ?? [];
         const env = { ...process.env };
         delete env.VERIQ_CHILD_OBSERVER;
-        if (options.marker !== null)
-            env.VERIQ_CHILD_OBSERVER = options.marker ?? JSON.stringify({ ...binding, fd: 4 });
-        child = spawn(
-            process.execPath,
-            [...args, "--import", preload, ...(options.args ?? [fixture])],
-            {
-                cwd: options.cwd ?? root,
-                env,
-                stdio: ["ignore", "pipe", "pipe", "ipc", fd],
-            },
-        );
+        if (options.marker !== null) env.VERIQ_CHILD_OBSERVER = options.marker ?? JSON.stringify({ ...binding, fd: 4 });
+        child = spawn(process.execPath, [...args, "--import", preload, ...(options.args ?? [fixture])], {
+            cwd: options.cwd ?? root,
+            env,
+            stdio: ["ignore", "pipe", "pipe", "ipc", fd],
+        });
         exit = new Promise((resolve, reject) => {
             child!.once("exit", resolve);
             child!.once("error", reject);
@@ -182,13 +170,13 @@ test("passive preload preserves fd3 IPC and ordinary fork has no journal descrip
             let inherited = false;
             for (let fd = 4; fd < 128; fd++) {
                 try { const s = fstatSync(fd); if (String(s.dev) === process.env.JDEV && String(s.ino) === process.e` +
-                `nv.JINO) inherited = true; } catch {}
+            `nv.JINO) inherited = true; } catch {}
             }
             process.send({marker: process.env.VERIQ_CHILD_OBSERVER ?? null, inherited, imported: process.execArgv.in` +
             `cludes('--import')});
             process.disconnect();\`);
         const child = fork('./fork.mjs', [], {env:{...process.env,JDEV:String(identity.dev),JINO:String(identity.ino` +
-        `)}});
+            `)}});
         child.on('message', value => { process.send(value); process.disconnect(); });
     `,
         async ({ child, fd }) => {
@@ -219,17 +207,14 @@ test("ENOENT and late exit-handler spawn fail synchronously, including closed jo
         await withCli(source, async ({ exit }) => {
             assert.equal(await exit, 73);
         });
-    await withCli(
-        `process.on('message',()=>process.kill(process.pid,'SIGTERM'));`,
-        async ({ child, fd }) => {
-            const observation = trackObservedCli(child, {
-                journalFd: fd,
-                expectedBinding: binding,
-            });
-            child.send("finish");
-            assert.equal((await observation.verifyFinal()).ok, false);
-        },
-    );
+    await withCli(`process.on('message',()=>process.kill(process.pid,'SIGTERM'));`, async ({ child, fd }) => {
+        const observation = trackObservedCli(child, {
+            journalFd: fd,
+            expectedBinding: binding,
+        });
+        child.send("finish");
+        assert.equal((await observation.verifyFinal()).ok, false);
+    });
 });
 
 /**
@@ -241,7 +226,7 @@ test("child signal exit is recorded on the actual object", async () => {
         `
         import {spawn} from 'node:child_process';
         const child = spawn(process.execPath, ['-e', "process.send('ready'); setInterval(()=>{},1000)"], {stdio:['ig` +
-        `nore','ignore','ignore','ipc']});
+            `nore','ignore','ignore','ipc']});
         child.once('message',()=>child.kill('SIGTERM'));
     `,
         async ({ child, fd }) => {
@@ -385,7 +370,8 @@ test("writer and final reader ignore a nonzero shared descriptor offset", async 
 test("real partial writes complete, zero progress, closed fsync and readonly writes fail", async () => {
     const injections = [
         {
-            body: `const write = fs.writeSync; fs.writeSync=(fd,buf,off,len,pos)=>write(fd,buf,off,Math.min(len,3),` +
+            body:
+                `const write = fs.writeSync; fs.writeSync=(fd,buf,off,len,pos)=>write(fd,buf,off,Math.min(len,3),` +
                 `pos);`,
             want: 0,
         },
@@ -437,14 +423,10 @@ test("fixed Playwright public CLI closes concurrent and replacement worker roste
             assert.equal(result.ok, true, JSON.stringify(result));
             if (result.ok) {
                 assert.equal(result.exitCode, 1);
-                assert.ok(
-                    result.objects.length >= 3,
-                    `expected replacement workers, saw ${result.objects.length}`,
-                );
+                assert.ok(result.objects.length >= 3, `expected replacement workers, saw ${result.objects.length}`);
                 assert.ok(
                     result.objects.every(
-                        (object) =>
-                            object.pid > 0 && (object.exitCode !== null || object.signal !== null),
+                        (object) => object.pid > 0 && (object.exitCode !== null || object.signal !== null),
                     ),
                 );
             }
@@ -464,7 +446,7 @@ test("fixed Playwright public CLI closes concurrent and replacement worker roste
                     `const {test,expect}=require(${JSON.stringify(modulePath)});
             const {existsSync,writeFileSync}=require('node:fs');
             test('a failure replaces worker',async()=>{await expect.poll(()=>existsSync('b-ready')).toBe(true);expec` +
-            `t(1).toBe(2);});
+                        `t(1).toBe(2);});
             test('a replacement becomes ready',()=>writeFileSync('replacement-ready','ready'));`,
                 );
                 writeFileSync(
@@ -472,7 +454,7 @@ test("fixed Playwright public CLI closes concurrent and replacement worker roste
                     `const {test,expect}=require(${JSON.stringify(modulePath)});
             const {existsSync,writeFileSync}=require('node:fs');
             test('b overlaps both original and replacement',async()=>{writeFileSync('b-ready','ready');await expect.` +
-            `poll(()=>existsSync('replacement-ready')).toBe(true);});`,
+                        `poll(()=>existsSync('replacement-ready')).toBe(true);});`,
                 );
                 return [];
             },
@@ -485,9 +467,7 @@ test("fixed Playwright public CLI closes concurrent and replacement worker roste
  * 本测试的预制成功对象都会使本例失败。
  */
 test("concrete Node capability selftest exercises real constructor, fork, flush and late gate", async () => {
-    const { runControlledChildCapability } = await import(
-        "../src/execution/controlled-child-capability.ts"
-    );
+    const { runControlledChildCapability } = await import("../src/execution/controlled-child-capability.ts");
     const result = await runControlledChildCapability({
         nodeExecutable: process.execPath,
         temporaryDirectory: tmpdir(),
@@ -500,12 +480,9 @@ test("concrete Node capability selftest exercises real constructor, fork, flush 
  * 查描述符存在就把原有数据当作全新日志。
  */
 test("unspawned constructor, nonempty file and unsafe mode cannot produce clean seal", async () => {
-    await withCli(
-        `import {ChildProcess} from 'node:child_process'; new ChildProcess();`,
-        async ({ exit }) => {
-            assert.equal(await exit, 73);
-        },
-    );
+    await withCli(`import {ChildProcess} from 'node:child_process'; new ChildProcess();`, async ({ exit }) => {
+        assert.equal(await exit, 73);
+    });
     for (const options of [{ mode: 0o640 }, { mode: 0o4600 }, { prefill: "old" }]) {
         await withCli(
             `process.exit(44)`,
@@ -532,18 +509,15 @@ test("uncaught CLI exception cannot be mistaken for normal business code one", a
  * 而不是调用者提供的退出数字驱动父接口。
  */
 test("parent rejects stale cancellation, missed actual exit, spawn error and missing observer", async () => {
-    await withCli(
-        `process.on('message',()=>{process.disconnect();process.exitCode=130;})`,
-        async ({ child, fd }) => {
-            const observed = trackObservedCli(child, {
-                journalFd: fd,
-                expectedBinding: binding,
-                authorizedCancellation: { ...binding, ownerGeneration: 8 },
-            });
-            child.send("finish");
-            assert.equal((await observed.verifyFinal()).ok, false);
-        },
-    );
+    await withCli(`process.on('message',()=>{process.disconnect();process.exitCode=130;})`, async ({ child, fd }) => {
+        const observed = trackObservedCli(child, {
+            journalFd: fd,
+            expectedBinding: binding,
+            authorizedCancellation: { ...binding, ownerGeneration: 8 },
+        });
+        child.send("finish");
+        assert.equal((await observed.verifyFinal()).ok, false);
+    });
     await withCli(``, async ({ child, fd, exit }) => {
         await exit;
         const observed = trackObservedCli(child, { journalFd: fd, expectedBinding: binding });
@@ -619,10 +593,7 @@ test("strict protocol bounds lifetime object count", () => {
     }
     frames.push({ version: 1, seq: frames.length, type: "SEAL" });
     assert.throws(() =>
-        validateJournal(
-            Buffer.from(frames.map((frame) => JSON.stringify(frame)).join("\n") + "\n"),
-            binding,
-        ),
+        validateJournal(Buffer.from(frames.map((frame) => JSON.stringify(frame)).join("\n") + "\n"), binding),
     );
 });
 
@@ -636,16 +607,11 @@ test(
     async () => {
         const root = mkdtempSync(join(tmpdir(), "veriq-c1-owner-"));
         const require = createRequire(import.meta.url);
-        const ownerPath = fileURLToPath(
-            new URL("./fixtures/controlled-child-owner.py", import.meta.url),
-        );
+        const ownerPath = fileURLToPath(new URL("./fixtures/controlled-child-owner.py", import.meta.url));
         let owner: ChildProcess | undefined;
         let exit: Promise<number | null> | undefined;
         try {
-            writeFileSync(
-                join(root, "living.mjs"),
-                "process.send('ready');setTimeout(()=>process.exit(0),10000);",
-            );
+            writeFileSync(join(root, "living.mjs"), "process.send('ready');setTimeout(()=>process.exit(0),10000);");
             writeFileSync(
                 join(root, "cli.mjs"),
                 `import {fork} from 'node:child_process';
@@ -662,26 +628,20 @@ test(
             const binding=${JSON.stringify(binding)};
             const fd=openSync(${JSON.stringify(join(root, "journal"))},'wx+',0o600);
             const child=spawn(process.execPath,['--import',${JSON.stringify(preload)}` +
-            `,${JSON.stringify(join(root, "cli.mjs"))}],{
+                    `,${JSON.stringify(join(root, "cli.mjs"))}],{
                 env:{...process.env,VERIQ_CHILD_OBSERVER:JSON.stringify({...binding,fd:4})},stdio:['ignore','ignore'` +
-                `,'ignore','ipc',fd]});
+                    `,'ignore','ipc',fd]});
             let fixturePid;
             child.once('message',value=>{fixturePid=value.fixturePid;});
             const observed=trackObservedCli(child,{journalFd:fd,expectedBinding:binding,timeoutMs:5000});
             try { const result=await observed.verifyFinal();const exit=await observed.exited;
                 console.log(JSON.stringify({fixturePid,verified:result.ok,cliCode:exit.code}));
             } finally {if(child.exitCode===null&&child.signalCode===null){child.kill('SIGKILL');await new Promise(re` +
-            `solve=>child.once('exit',resolve));}closeSync(fd);}`,
+                    `solve=>child.once('exit',resolve));}closeSync(fd);}`,
             );
             owner = spawn(
                 "python3",
-                [
-                    ownerPath,
-                    process.execPath,
-                    "--import",
-                    require.resolve("tsx"),
-                    join(root, "driver.mjs"),
-                ],
+                [ownerPath, process.execPath, "--import", require.resolve("tsx"), join(root, "driver.mjs")],
                 { stdio: ["ignore", "pipe", "pipe"] },
             );
             let output = "";
@@ -776,10 +736,7 @@ test("live cancellation rejects stale and malformed bindings without granting au
                     journalFd: fd,
                     expectedBinding: binding,
                 });
-                assert.equal(
-                    await new Promise((resolve) => child.once("message", resolve)),
-                    "ready",
-                );
+                assert.equal(await new Promise((resolve) => child.once("message", resolve)), "ready");
                 assert.throws(() => observed.authorizeCancellation(candidate as ObserverBinding), {
                     message: "CONTROLLED_CHILD_CANCELLATION_REJECTED",
                 });
@@ -810,10 +767,7 @@ test("live cancellation still rejects signals, observer failure and incomplete j
                     journalFd: fd,
                     expectedBinding: binding,
                 });
-                assert.equal(
-                    await new Promise((resolve) => child.once("message", resolve)),
-                    "ready",
-                );
+                assert.equal(await new Promise((resolve) => child.once("message", resolve)), "ready");
                 observed.authorizeCancellation(binding);
                 child.send("finish");
                 assert.equal((await observed.verifyFinal()).ok, false);
@@ -847,16 +801,10 @@ test("live cancellation rejects both earlier and later actual exit callbacks", a
                 if (earlier) child.once("exit", authorize);
                 observed = trackObservedCli(child, { journalFd: fd, expectedBinding: binding });
                 if (!earlier) child.once("exit", authorize);
-                assert.equal(
-                    await new Promise((resolve) => child.once("message", resolve)),
-                    "ready",
-                );
+                assert.equal(await new Promise((resolve) => child.once("message", resolve)), "ready");
                 child.send("finish");
                 await observed.exited;
-                assert.equal(
-                    (rejection as Error)?.message,
-                    "CONTROLLED_CHILD_CANCELLATION_REJECTED",
-                );
+                assert.equal((rejection as Error)?.message, "CONTROLLED_CHILD_CANCELLATION_REJECTED");
                 assert.deepEqual(await observed.verifyFinal(), {
                     ok: false,
                     reason: "CLI_EXIT_REJECTED",
@@ -923,10 +871,7 @@ test("live cancellation preserves legacy option snapshots", async () => {
                     authorizedCancellation: authorization,
                 };
                 const observed = trackObservedCli(child, options);
-                assert.equal(
-                    await new Promise((resolve) => child.once("message", resolve)),
-                    "ready",
-                );
+                assert.equal(await new Promise((resolve) => child.once("message", resolve)), "ready");
                 expected.nonce = "b".repeat(64);
                 authorization.ownerGeneration = accepted ? 8 : 7;
                 options.authorizedCancellation = { ...binding };
@@ -947,7 +892,8 @@ test("native node imports shared MJS and verifies a real preloaded CLI", async (
     delete env.NODE_OPTIONS;
     delete env.VERIQ_CHILD_OBSERVER;
     try {
-        const driver = `import assert from 'node:assert/strict';
+        const driver =
+            `import assert from 'node:assert/strict';
             import {spawn} from 'node:child_process';
             import {openSync,closeSync} from 'node:fs';
             const {trackObservedCli}=await import` +
@@ -956,10 +902,10 @@ test("native node imports shared MJS and verifies a real preloaded CLI", async (
             const fd=openSync(${JSON.stringify(join(root, "journal"))},'wx+',0o600);
             const child=spawn(process.execPath,['--import',${JSON.stringify(preload)},'--input-type=module','-e',
                 "import {spawn} from 'node:child_process';const child=spawn(process.execPath,['-e','process.exit(0)'` +
-                `],{stdio:'ignore'});child.once('exit',()=>process.send('ready'));process.on('message',()=>{process.d` +
-                    `isconnect();process.exitCode=130;});"],
+            `],{stdio:'ignore'});child.once('exit',()=>process.send('ready'));process.on('message',()=>{process.d` +
+            `isconnect();process.exitCode=130;});"],
                 {env:{...process.env,VERIQ_CHILD_OBSERVER:JSON.stringify({...binding,fd:4})},stdio:['ignore','ignore` +
-                `','inherit','ipc',fd]});
+            `','inherit','ipc',fd]});
             const exit=new Promise((resolve,reject)=>{child.once('exit',resolve);child.once('error',reject);});
             try {
                 const observed=trackObservedCli(child,{journalFd:fd,expectedBinding:binding});

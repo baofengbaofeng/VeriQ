@@ -29,10 +29,7 @@ async function parent(directory: string): Promise<FileHandle> {
     directory = resolve(directory);
     let handle = await open(parse(directory).root, constants.O_RDONLY | constants.O_DIRECTORY);
     try {
-        for (const part of directory
-            .slice(parse(directory).root.length)
-            .split("/")
-            .filter(Boolean)) {
+        for (const part of directory.slice(parse(directory).root.length).split("/").filter(Boolean)) {
             const child = await open(
                 `/proc/self/fd/${handle.fd}/${part}`,
                 constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
@@ -89,10 +86,7 @@ async function retireFile(
 ): Promise<void> {
     let file: FileHandle;
     try {
-        file = await open(
-            pathAt(directory, name),
-            constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-        );
+        file = await open(pathAt(directory, name), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
     } catch (error) {
         if (missing(error)) return;
         throw error;
@@ -111,12 +105,7 @@ async function retireFile(
             buffer = Buffer.alloc(65536);
         let offset = 0;
         while (offset < before.size) {
-            const { bytesRead } = await file.read(
-                buffer,
-                0,
-                Math.min(buffer.length, before.size - offset),
-                offset,
-            );
+            const { bytesRead } = await file.read(buffer, 0, Math.min(buffer.length, before.size - offset), offset);
             if (!bytesRead) throw new Error("LOCAL_RETENTION_FILE_CHANGED");
             digest.update(buffer.subarray(0, bytesRead));
             offset += bytesRead;
@@ -161,21 +150,12 @@ export async function retireEvidence(
     checked([file]);
     if (!/^[0-9a-f-]{36}$/i.test(attemptId) || !/^[-a-zA-Z0-9_.]{1,240}$/.test(file.path))
         throw new Error("LOCAL_RETENTION_INVENTORY_INVALID");
-    if (metadata && file.path !== "report-display.json")
-        throw new Error("LOCAL_RETENTION_INVENTORY_INVALID");
-    const directory = join(
-            profile,
-            "offline",
-            "work",
-            attemptId,
-            metadata ? "metadata" : "evidence",
-        ),
+    if (metadata && file.path !== "report-display.json") throw new Error("LOCAL_RETENTION_INVENTORY_INVALID");
+    const directory = join(profile, "offline", "work", attemptId, metadata ? "metadata" : "evidence"),
         path = join(directory, file.path);
     try {
         if (process.platform === "win32") {
-            (await import("../native/windows.ts"))
-                .windowsNative()
-                .retirePrivateEvidence(path, file);
+            (await import("../native/windows.ts")).windowsNative().retirePrivateEvidence(path, file);
             return;
         }
         if (process.platform === "darwin") {
@@ -199,11 +179,7 @@ export async function retireEvidence(
  * 任何未知成员导致保留现场，重启使用已经提交的清单重做缺失成员，绝不按 renderer 路径或任意目录递归
  * 清空。
  */
-export async function retireInventory(
-    profile: string,
-    bundleId: string,
-    files: RetentionFile[],
-): Promise<void> {
+export async function retireInventory(profile: string, bundleId: string, files: RetentionFile[]): Promise<void> {
     checked(files);
     if (!/^[0-9a-f-]{36}$/.test(bundleId)) throw new Error("LOCAL_RETENTION_INVENTORY_INVALID");
     const directory = join(profile, "bundles"),
@@ -233,10 +209,7 @@ export async function retireInventory(
         if (original && old) throw new Error("LOCAL_RETENTION_NAMESPACE_CONFLICT");
         if (!original && !old) return;
         const name = original ? bundleId : retiring;
-        tree = await open(
-            pathAt(held, name),
-            constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
-        );
+        tree = await open(pathAt(held, name), constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
         const owned = await tree.stat(),
             observed = original ?? old!;
         if (
@@ -258,21 +231,12 @@ export async function retireInventory(
             directories = new Set<string>();
         for (const file of files) {
             const parts = file.path.split("/");
-            for (let index = 1; index < parts.length; index++)
-                directories.add(parts.slice(0, index).join("/"));
+            for (let index = 1; index < parts.length; index++) directories.add(parts.slice(0, index).join("/"));
         }
         let count = 0;
-        const walk = async (
-            current: FileHandle,
-            relative: string,
-            remove: boolean,
-        ): Promise<void> => {
+        const walk = async (current: FileHandle, relative: string, remove: boolean): Promise<void> => {
             const info = await current.stat();
-            if (
-                info.uid !== process.getuid!() ||
-                !info.isDirectory() ||
-                ![0o500, 0o700].includes(info.mode & 0o7777)
-            )
+            if (info.uid !== process.getuid!() || !info.isDirectory() || ![0o500, 0o700].includes(info.mode & 0o7777))
                 throw new Error("LOCAL_RETENTION_DIRECTORY_UNSAFE");
             if (remove) await current.chmod(0o700);
             const cursor = await opendir(`/proc/self/fd/${current.fd}`),
@@ -281,8 +245,7 @@ export async function retireInventory(
                 for (;;) {
                     const entry = await cursor.read();
                     if (!entry) break;
-                    if (++count > 8192 || !safePath(entry.name))
-                        throw new Error("LOCAL_RETENTION_UNKNOWN_MEMBER");
+                    if (++count > 8192 || !safePath(entry.name)) throw new Error("LOCAL_RETENTION_UNKNOWN_MEMBER");
                     names.push(entry.name);
                 }
             } finally {
@@ -331,8 +294,7 @@ export async function retireInventory(
         count = 0;
         await walk(tree, "", true);
         const actual = await lstat(pathAt(held, retiring));
-        if (actual.dev !== owned.dev || actual.ino !== owned.ino)
-            throw new Error("LOCAL_RETENTION_DIRECTORY_CHANGED");
+        if (actual.dev !== owned.dev || actual.ino !== owned.ino) throw new Error("LOCAL_RETENTION_DIRECTORY_CHANGED");
         await rmdir(pathAt(held, retiring));
         await held.sync();
     } finally {

@@ -1,12 +1,7 @@
 import { join } from "node:path";
 import { rm, writeFile, lstat, readdir, chmod } from "node:fs/promises";
 import { randomUUID, createHash } from "node:crypto";
-import type {
-    PlatformComponents,
-    JsonValue,
-    CompiledAssetBundle,
-    EnvironmentV1,
-} from "@veriq/contracts";
+import type { PlatformComponents, JsonValue, CompiledAssetBundle, EnvironmentV1 } from "@veriq/contracts";
 import { validateSchema } from "@veriq/contracts";
 import { DeviceStore, RuntimeClient, controlOrigin } from "../../../runtime/src/enrollment.ts";
 import { SecretStore, type SecretReference } from "../../../runtime/src/credentials/store.ts";
@@ -20,17 +15,10 @@ import { parseLocalRetentionCommand } from "../shared/retention-policy";
 import { LocalStore } from "../../../runtime/src/offline/store.ts";
 import { LocalReports } from "../../../runtime/src/offline/reports.ts";
 import { uploadOffline } from "../../../runtime/src/offline/upload.ts";
-import {
-    readPrivate,
-    updatePrivate,
-    privateDirectory,
-} from "../../../runtime/src/offline/config.ts";
+import { readPrivate, updatePrivate, privateDirectory } from "../../../runtime/src/offline/config.ts";
 import { diagnoseRelease } from "../../../runtime/src/distribution.ts";
 import { loadDesktopRuntime } from "../installation/release";
-import {
-    createDarwinDistribution,
-    type DarwinSourceCapability,
-} from "../../../runtime/src/execution/darwin-source.ts";
+import { createDarwinDistribution, type DarwinSourceCapability } from "../../../runtime/src/execution/darwin-source.ts";
 import type { RuntimeDistribution } from "../../../runtime/src/distribution.ts";
 import { holdMaintenance } from "./maintenance";
 import { openTrace } from "../../../runtime/src/trace.ts";
@@ -68,22 +56,16 @@ export interface AgentConfiguration {
     distributionRoot?: string;
 }
 const id = (value: unknown) => {
-    if (
-        typeof value !== "string" ||
-        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
-    )
+    if (typeof value !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value))
         throw new Error("IPC_PAYLOAD_INVALID");
     return value;
 };
 const text = (value: unknown, maximum = 160) => {
-    if (typeof value !== "string" || !value.length || value.length > maximum)
-        throw new Error("IPC_PAYLOAD_INVALID");
+    if (typeof value !== "string" || !value.length || value.length > maximum) throw new Error("IPC_PAYLOAD_INVALID");
     return value;
 };
 const failure = (error: unknown) =>
-    error instanceof Error && /^[A-Z_]{1,80}$/.test(error.message)
-        ? error.message
-        : "LOCAL_OPERATION_FAILED";
+    error instanceof Error && /^[A-Z_]{1,80}$/.test(error.message) ? error.message : "LOCAL_OPERATION_FAILED";
 
 /**
  * 桌面后台是已有 Runtime 的本机操作入口，执行、验签、持久化和回传都委托原实现；进程不依赖 Electron 生命周期，状态只返
@@ -106,9 +88,7 @@ export class DesktopAgent {
     private headedCapability: ReturnType<typeof probeBrowser>;
     private browserCapability: ReturnType<typeof probeBrowser>;
     private selectedWorkspace: string | undefined;
-    private transition:
-        | { id: string; operation: string; controller: AbortController; done: Promise<void> }
-        | undefined;
+    private transition: { id: string; operation: string; controller: AbortController; done: Promise<void> } | undefined;
     private interruptions = 0;
     private stopped = false;
     private maintenanceRelease: (() => Promise<void>) | undefined;
@@ -174,8 +154,7 @@ export class DesktopAgent {
      * 签名有效不表示知道实时撤销状态，报告仍保留原有未知撤销语义。
      */
     private async selected(bundleId: string) {
-        if (this.transition?.operation === "pruneCache")
-            throw new Error("LOCAL_CACHE_MAINTENANCE_BUSY");
+        if (this.transition?.operation === "pruneCache") throw new Error("LOCAL_CACHE_MAINTENANCE_BUSY");
         this.resourceReads++;
         try {
             const item = (await this.catalog()).find(
@@ -270,15 +249,10 @@ export class DesktopAgent {
             }
             if (!this.selectedWorkspace) {
                 try {
-                    const remembered = await readPrivate<{ workspaceId: string }>(
-                        this.root,
-                        "desktop-selection.json",
-                    );
+                    const remembered = await readPrivate<{ workspaceId: string }>(this.root, "desktop-selection.json");
                     if (
                         remembered.workspaceId === device?.workspaceId ||
-                        (await this.catalog()).some(
-                            (bundle) => bundle.workspaceId === remembered.workspaceId,
-                        )
+                        (await this.catalog()).some((bundle) => bundle.workspaceId === remembered.workspaceId)
                     )
                         this.selectedWorkspace = remembered.workspaceId;
                 } catch (error) {
@@ -347,14 +321,7 @@ export class DesktopAgent {
             onlineStart: [],
             onlineStop: [],
             clearBundle: ["bundleId"],
-            pruneCache: [
-                "workspaceId",
-                "metadataDays",
-                "bundleDays",
-                "rawSuccessDays",
-                "rawFailureDays",
-                "batchSize",
-            ],
+            pruneCache: ["workspaceId", "metadataDays", "bundleDays", "rawSuccessDays", "rawFailureDays", "batchSize"],
             stop: [],
             prepareMaintenance: [],
             recover: [],
@@ -390,8 +357,7 @@ export class DesktopAgent {
             "recoverCredentialInitialization",
         ];
         if (!guarded.includes(operation)) return this.execute(operation, message);
-        if (this.transition || this.interruptions || this.run || this.online)
-            throw new Error("AGENT_BUSY");
+        if (this.transition || this.interruptions || this.run || this.online) throw new Error("AGENT_BUSY");
         let finish!: () => void;
         const reservation = {
             id: randomUUID(),
@@ -441,8 +407,7 @@ export class DesktopAgent {
             const { operation: _operation, ...policy } = parseLocalRetentionCommand(message);
             if (!this.selectedWorkspace || policy.workspaceId !== this.selectedWorkspace)
                 throw new Error("LOCAL_RETENTION_WORKSPACE_MISMATCH");
-            if (this.viewers.size || this.resourceReads)
-                throw new Error("LOCAL_CACHE_MAINTENANCE_BUSY");
+            if (this.viewers.size || this.resourceReads) throw new Error("LOCAL_CACHE_MAINTENANCE_BUSY");
             return pruneLocalProfile(this.root, {
                 ...policy,
                 ...(this.desktopOwner ? { desktopOwner: this.desktopOwner } : {}),
@@ -475,9 +440,7 @@ export class DesktopAgent {
         }
         if (operation === "select") {
             const workspace = id(message.workspaceId);
-            const cached = (await this.catalog()).some(
-                (bundle) => bundle.workspaceId === workspace,
-            );
+            const cached = (await this.catalog()).some((bundle) => bundle.workspaceId === workspace);
             let bound = false;
             try {
                 bound = (await this.device.load()).workspaceId === workspace;
@@ -516,14 +479,11 @@ export class DesktopAgent {
         }
         if (operation === "pollEnrollment") {
             if (!this.pendingEnrollment) throw new Error("ENROLLMENT_NOT_STARTED");
-            const credentials = await new RuntimeClient(this.config.origin).poll(
-                this.pendingEnrollment.deviceCode,
-            );
+            const credentials = await new RuntimeClient(this.config.origin).poll(this.pendingEnrollment.deviceCode);
             await this.device.save({ ...credentials, server: this.config.origin });
             this.pendingEnrollment = undefined;
             this.selectedWorkspace = credentials.workspaceId;
-            if (this.config.origin.startsWith("https:"))
-                await this.trust.refresh(await this.device.load());
+            if (this.config.origin.startsWith("https:")) await this.trust.refresh(await this.device.load());
             return this.state();
         }
         if (operation === "device") {
@@ -538,13 +498,8 @@ export class DesktopAgent {
             return this.state();
         }
         if (operation === "trust") {
-            if (validateSchema("IssuerTrustV1", message.issuer).length)
-                throw new Error("INVALID_ISSUER");
-            await this.trust.bind(
-                message.issuer as IssuerTrust,
-                this.config.origin,
-                text(message.fingerprint, 64),
-            );
+            if (validateSchema("IssuerTrustV1", message.issuer).length) throw new Error("INVALID_ISSUER");
+            await this.trust.bind(message.issuer as IssuerTrust, this.config.origin, text(message.fingerprint, 64));
             return { trusted: true };
         }
         if (operation === "download") {
@@ -569,10 +524,7 @@ export class DesktopAgent {
                     createdAt: verified.manifest.createdAt,
                     debug: verified.debug,
                 };
-                await updatePrivate<CachedBundle[]>(this.root, "desktop-bundles.json", (old) => [
-                    ...(old ?? []),
-                    item,
-                ]);
+                await updatePrivate<CachedBundle[]>(this.root, "desktop-bundles.json", (old) => [...(old ?? []), item]);
                 return this.state();
             } finally {
                 await rm(archive, { force: true });
@@ -591,8 +543,7 @@ export class DesktopAgent {
             const environmentValue = checked.snapshot.assets.find(
                 (asset) => asset.versionId === selection.environmentVersionId,
             )?.document;
-            if (validateSchema("EnvironmentV1", environmentValue).length)
-                throw new Error("BUNDLE_ENVIRONMENT_MISSING");
+            if (validateSchema("EnvironmentV1", environmentValue).length) throw new Error("BUNDLE_ENVIRONMENT_MISSING");
             const environment = environmentValue as unknown as EnvironmentV1;
             const references = [
                 ...environment.roles,
@@ -605,19 +556,12 @@ export class DesktopAgent {
                     references,
                 };
             if (operation.endsWith("Credential")) {
-                const reference = object(message.reference, [
-                    "issuerId",
-                    "workspaceId",
-                    "secretRef",
-                    "versionId",
-                ]);
+                const reference = object(message.reference, ["issuerId", "workspaceId", "secretRef", "versionId"]);
                 if (
                     reference.issuerId !== checked.manifest.issuerId ||
                     reference.workspaceId !== checked.manifest.workspaceId ||
                     !references.some(
-                        (pin) =>
-                            pin.secretRef === reference.secretRef &&
-                            pin.versionId === reference.versionId,
+                        (pin) => pin.secretRef === reference.secretRef && pin.versionId === reference.versionId,
                     )
                 )
                     throw new Error("CREDENTIAL_SCOPE_MISMATCH");
@@ -629,8 +573,7 @@ export class DesktopAgent {
                 };
                 if (operation === "removeCredential") await this.secrets.remove(ref);
                 else {
-                    if (validateSchema("JsonValue", message.value).length)
-                        throw new Error("INVALID_SECRET_VALUE");
+                    if (validateSchema("JsonValue", message.value).length) throw new Error("INVALID_SECRET_VALUE");
                     await this.secrets.set(ref, message.value as JsonValue);
                 }
                 return { saved: true };
@@ -643,9 +586,7 @@ export class DesktopAgent {
                 sourceFiles[version.id] = {
                     descriptorSha256: createHash("sha256").update(bytes).digest("hex"),
                     files: descriptor.files.filter((file) =>
-                        /^(validation\.ts|source\/context\.ts|cases\/[0-9a-f-]{36}\.test\.ts)$/i.test(
-                            file.path,
-                        ),
+                        /^(validation\.ts|source\/context\.ts|cases\/[0-9a-f-]{36}\.test\.ts)$/i.test(file.path),
                     ),
                 };
             }
@@ -654,24 +595,18 @@ export class DesktopAgent {
                 const file = object(message.file, ["path", "sha256", "sizeBytes"]);
                 const member = sourceFiles[versionId]?.files.find(
                     (item) =>
-                        item.path === file.path &&
-                        item.sha256 === file.sha256 &&
-                        item.sizeBytes === file.sizeBytes,
+                        item.path === file.path && item.sha256 === file.sha256 && item.sizeBytes === file.sizeBytes,
                 );
                 if (!member) throw new Error("SOURCE_NOT_AVAILABLE");
-                return checked.contents
-                    .get(`compiled/${versionId}/${member.path}`)!
-                    .toString("utf8");
+                return checked.contents.get(`compiled/${versionId}/${member.path}`)!.toString("utf8");
             }
             const drafts: S["DraftDTO"][] = [];
             if (checked.dslOnly) {
                 const target = checked.snapshot.validationTarget!;
-                const asset = checked.snapshot.assets.find(
-                    (asset) => asset.versionId === target.versionId,
-                )!;
-                const frozen = JSON.parse(
-                    checked.contents.get("draft/metadata.json")!.toString(),
-                ) as { frozenAt: string };
+                const asset = checked.snapshot.assets.find((asset) => asset.versionId === target.versionId)!;
+                const frozen = JSON.parse(checked.contents.get("draft/metadata.json")!.toString()) as {
+                    frozenAt: string;
+                };
                 drafts.push({
                     resourceId: asset.resourceId,
                     revision: target.revision,
@@ -698,8 +633,7 @@ export class DesktopAgent {
                 throw new Error("HEADED_BROWSER_UNAVAILABLE");
             const { item, directory } = await this.selected(id(message.bundleId)),
                 config = await this.deviceConfig();
-            const overrides =
-                message.overrides === undefined ? {} : routingOverride(message.overrides);
+            const overrides = message.overrides === undefined ? {} : routingOverride(message.overrides);
             const choiceId = randomUUID();
             const choice = {
                 bundleId: item.id,
@@ -732,9 +666,7 @@ export class DesktopAgent {
                     trust: this.trust,
                     secrets: this.secrets,
                     releaseDirectory: this.config.engineDirectory,
-                    browserExecutable: message.headed
-                        ? this.config.headedExecutable!
-                        : this.config.browserExecutable,
+                    browserExecutable: message.headed ? this.config.headedExecutable! : this.config.browserExecutable,
                     deviceId: config.runnerId,
                     debug: item.debug,
                     retry: message.retry,
@@ -742,8 +674,7 @@ export class DesktopAgent {
                     headless: !message.headed,
                     overrides,
                     authorizeOverride: (field, value) =>
-                        Object.hasOwn(overrides, field) &&
-                        overrides[field as keyof typeof overrides] === value,
+                        Object.hasOwn(overrides, field) && overrides[field as keyof typeof overrides] === value,
                 },
             )
                 .then(async (result) => {
@@ -806,8 +737,7 @@ export class DesktopAgent {
             const { item, directory } = await this.selected(id(message.bundleId));
             async function writable(path: string): Promise<void> {
                 const info = await lstat(path);
-                if (!info.isDirectory() || info.isSymbolicLink())
-                    throw new Error("UNSAFE_CACHE_DIRECTORY");
+                if (!info.isDirectory() || info.isSymbolicLink()) throw new Error("UNSAFE_CACHE_DIRECTORY");
                 await chmod(path, 0o700);
                 for (const entry of await readdir(path, { withFileTypes: true })) {
                     if (entry.isSymbolicLink()) throw new Error("UNSAFE_CACHE_DIRECTORY");
@@ -912,11 +842,7 @@ export class DesktopAgent {
             this.runController?.abort();
             this.onlineController?.abort();
             for (const viewer of this.viewers.values()) viewer.controller.abort();
-            await Promise.all([
-                this.run,
-                this.online,
-                ...[...this.viewers.values()].map((viewer) => viewer.done),
-            ]);
+            await Promise.all([this.run, this.online, ...[...this.viewers.values()].map((viewer) => viewer.done)]);
             /**
              * 人工升级取得的持续空闲事务只在本次后台明确停止时释放，释放异常必须让停止失败而不能交出伪造回执；随后入口
              * 关闭 broker 并释放桌面所有权，安装器另行检查真实角色是否全部退出。
@@ -1038,27 +964,21 @@ export class DesktopAgent {
      * 每个查看器只有一个私有 Trace 副本和独立取消句柄，宿主心跳仅维持这个窗口的租期；宿主崩溃后租期到期回收查看器，正
      * 常关闭会等待真实进程退出再删副本，不中止测试 Agent。
      */
-    private async startViewer(
-        path: string,
-    ): Promise<{ viewerId: string; url: string; pid: number }> {
+    private async startViewer(path: string): Promise<{ viewerId: string; url: string; pid: number }> {
         if (this.viewers.size >= 2) throw new Error("TRACE_WINDOW_LIMIT");
         const viewerId = randomUUID(),
             controller = new AbortController();
         let announce!: (value: { viewerId: string; url: string; pid: number }) => void;
         let fail!: (reason: unknown) => void;
-        const ready = new Promise<{ viewerId: string; url: string; pid: number }>(
-            (resolve, reject) => {
-                announce = resolve;
-                fail = reject;
-            },
-        );
+        const ready = new Promise<{ viewerId: string; url: string; pid: number }>((resolve, reject) => {
+            announce = resolve;
+            fail = reject;
+        });
         const expiry = setTimeout(() => {
             controller.abort();
             fail(new Error("TRACE_START_TIMEOUT"));
         }, 10000);
-        const done = openTrace(path, controller.signal, (url, pid) =>
-            announce({ viewerId, url, pid }),
-        )
+        const done = openTrace(path, controller.signal, (url, pid) => announce({ viewerId, url, pid }))
             .catch((error) => {
                 fail(error);
                 this.lastError = failure(error);
@@ -1083,17 +1003,12 @@ export class DesktopAgent {
         const runId = id(message.runId),
             attemptId = id(message.attemptId),
             artifactId = id(message.artifactId);
-        const reports = new LocalReports(
-            this.executionRoot,
-            (requested) => requested === workspace,
-        );
+        const reports = new LocalReports(this.executionRoot, (requested) => requested === workspace);
         const snapshot = await reports.snapshot(workspace, runId);
         const artifact = snapshot.artifacts[attemptId]?.find((item) => item.id === artifactId);
         if (!artifact) throw new Error("LOCAL_ARTIFACT_NOT_FOUND");
-        if (message.action === "trace" && artifact.kind !== "TRACE")
-            throw new Error("TRACE_REQUIRED");
-        if (message.action === "preview" && artifact.kind !== "SCREENSHOT")
-            throw new Error("SCREENSHOT_REQUIRED");
+        if (message.action === "trace" && artifact.kind !== "TRACE") throw new Error("TRACE_REQUIRED");
+        if (message.action === "preview" && artifact.kind !== "SCREENSHOT") throw new Error("SCREENSHOT_REQUIRED");
         const bytes = await reports.readRaw(workspace, runId, attemptId, artifactId);
         const directory = join(this.root, "exports");
         await privateDirectory(directory);

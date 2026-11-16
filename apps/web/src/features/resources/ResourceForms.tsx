@@ -4,12 +4,7 @@
  */
 
 import { tx, useAppLocale } from "../../locale";
-import type {
-    ResourceDocumentV1,
-    ResourceKind,
-    CatalogElementV1,
-    JsonValue,
-} from "@veriq/contracts";
+import type { ResourceDocumentV1, ResourceKind, CatalogElementV1, JsonValue } from "@veriq/contracts";
 import { CaseEditor } from "../cases/CaseEditor";
 import { AssertionEditor, newAssertion } from "../assertions/AssertionEditor";
 import { EnvironmentFields } from "../environments/EnvironmentFields";
@@ -135,24 +130,14 @@ export function newDocument(kind: ResourceKind, key: string, name: string): Reso
  * 根据当前草稿 kind 渲染对应字段集，并接入 AssertionEditor/CaseEditor/EnvironmentFields。版本选项用于固定引用；不持有
  * Workspace 选择状态。
  */
-export function ResourceForms({
-    kind,
-    versions,
-}: {
-    kind: ResourceKind;
-    versions: VersionOption[];
-}) {
+export function ResourceForms({ kind, versions }: { kind: ResourceKind; versions: VersionOption[] }) {
     useAppLocale();
-    if (kind === "CASE" || kind === "FLOW")
-        return <CaseEditor versions={versions} flow={kind === "FLOW"} />;
+    if (kind === "CASE" || kind === "FLOW") return <CaseEditor versions={versions} flow={kind === "FLOW"} />;
     if (kind === "ENVIRONMENT") return <EnvironmentFields />;
     if (kind === "ASSERTION_TEMPLATE")
         return (
             <>
-                <TypeMap
-                    name="content.document.parameters"
-                    label={tx("模板参数类型 / Template parameter types")}
-                />
+                <TypeMap name="content.document.parameters" label={tx("模板参数类型 / Template parameter types")} />
                 <AssertionEditor
                     name="content.document.assertions"
                     title={tx("断言 / Assertions")}
@@ -230,14 +215,8 @@ export function ResourceForms({
         );
     return (
         <>
-            <Field
-                name="content.document.prepare.path"
-                label={tx("准备 POST 路径 / Prepare path")}
-            />
-            <Field
-                name="content.document.query.path"
-                label={tx("只读查询 GET 路径 / Query path")}
-            />
+            <Field name="content.document.prepare.path" label={tx("准备 POST 路径 / Prepare path")} />
+            <Field name="content.document.query.path" label={tx("只读查询 GET 路径 / Query path")} />
             <Field
                 name="content.document.cleanup.method"
                 label={tx("清理方法 / Cleanup method")}
@@ -245,14 +224,8 @@ export function ResourceForms({
             />
             <Field name="content.document.cleanup.path" label={tx("清理路径 / Cleanup path")} />
             <Field name="content.document.ttlSeconds" label={tx("TTL 秒 / TTL seconds")} number />
-            <SchemaFields
-                path="content.document.inputSchema"
-                label={tx("输入 Schema / Input schema")}
-            />
-            <SchemaFields
-                path="content.document.outputSchema"
-                label={tx("输出 Schema / Output schema")}
-            />
+            <SchemaFields path="content.document.inputSchema" label={tx("输入 Schema / Input schema")} />
+            <SchemaFields path="content.document.outputSchema" label={tx("输出 Schema / Output schema")} />
         </>
     );
 }
@@ -286,11 +259,7 @@ function ElementFields({ path }: { path: string }) {
             {element?.locator.by === "role" ? (
                 <>
                     <Field name={`${path}.locator.role`} label="ARIA role" />
-                    <Field
-                        name={`${path}.locator.name`}
-                        label={tx("可访问名称 / Accessible name")}
-                        optional
-                    />
+                    <Field name={`${path}.locator.name`} label={tx("可访问名称 / Accessible name")} optional />
                     <Field name={`${path}.locator.exact`} label={tx("精确匹配 / Exact")} check />
                 </>
             ) : (
@@ -330,22 +299,14 @@ function DatasetValues({ path }: { path: string }) {
                             <Button
                                 tone="danger"
                                 onClick={() =>
-                                    set(
-                                        path,
-                                        Object.fromEntries(
-                                            Object.entries(value).filter(([k]) => k !== key),
-                                        ),
-                                    )
+                                    set(path, Object.fromEntries(Object.entries(value).filter(([k]) => k !== key)))
                                 }
                             >
                                 {tx("设为缺失 / Mark missing")}
                             </Button>
                         </>
                     ) : (
-                        <Button
-                            tone="secondary"
-                            onClick={() => set(path, { ...value, [key]: initial(type) })}
-                        >
+                        <Button tone="secondary" onClick={() => set(path, { ...value, [key]: initial(type) })}>
                             {tx("设置值 / Set ")}
                             {key}
                         </Button>
@@ -364,12 +325,7 @@ function DatasetValues({ path }: { path: string }) {
                         <Button
                             tone="danger"
                             onClick={() =>
-                                set(
-                                    path,
-                                    Object.fromEntries(
-                                        Object.entries(value).filter(([key]) => key !== k),
-                                    ),
-                                )
+                                set(path, Object.fromEntries(Object.entries(value).filter(([key]) => key !== k)))
                             }
                         >
                             {tx("删除 / Remove")}
@@ -384,9 +340,7 @@ function SchemaFields({ path, label }: { path: string; label: string }) {
     const schema = useValue<Record<string, JsonValue>>(path) ?? {},
         set = useSet();
     const properties =
-        schema.properties &&
-        typeof schema.properties === "object" &&
-        !Array.isArray(schema.properties)
+        schema.properties && typeof schema.properties === "object" && !Array.isArray(schema.properties)
             ? schema.properties
             : {};
     const required = Array.isArray(schema.required) ? schema.required : [];
@@ -408,11 +362,7 @@ function SchemaFields({ path, label }: { path: string; label: string }) {
                 options={["object", "array", "string", "number", "integer", "boolean", "null"]}
                 optional
             />
-            <Field
-                name={`${path}.additionalProperties`}
-                label={tx("允许附加字段 / Allow extra properties")}
-                check
-            />
+            <Field name={`${path}.additionalProperties`} label={tx("允许附加字段 / Allow extra properties")} check />
             {Object.entries(properties).map(([key, def]) => (
                 <div className="vq-item" key={key}>
                     <label>
@@ -434,10 +384,7 @@ function SchemaFields({ path, label }: { path: string; label: string }) {
                                     set(path, {
                                         ...schema,
                                         properties: Object.fromEntries(
-                                            Object.entries(properties).map(([k, v]) => [
-                                                k === key ? next : k,
-                                                v,
-                                            ]),
+                                            Object.entries(properties).map(([k, v]) => [k === key ? next : k, v]),
                                         ),
                                         required: required.map((k) => (k === key ? next : k)),
                                     });
@@ -463,22 +410,16 @@ function SchemaFields({ path, label }: { path: string; label: string }) {
                                 properties: {
                                     ...properties,
                                     [key]: {
-                                        ...(def !== null &&
-                                        typeof def === "object" &&
-                                        !Array.isArray(def)
-                                            ? def
-                                            : {}),
+                                        ...(def !== null && typeof def === "object" && !Array.isArray(def) ? def : {}),
                                         type: e.target.value,
                                     },
                                 },
                             })
                         }
                     >
-                        {["object", "array", "string", "number", "integer", "boolean", "null"].map(
-                            (t) => (
-                                <option key={t}>{t}</option>
-                            ),
-                        )}
+                        {["object", "array", "string", "number", "integer", "boolean", "null"].map((t) => (
+                            <option key={t}>{t}</option>
+                        ))}
                     </select>
                     <label className="vq-check">
                         {tx("必需 / Required")}
@@ -488,9 +429,7 @@ function SchemaFields({ path, label }: { path: string; label: string }) {
                             onChange={(e) =>
                                 set(path, {
                                     ...schema,
-                                    required: e.target.checked
-                                        ? [...required, key]
-                                        : required.filter((k) => k !== key),
+                                    required: e.target.checked ? [...required, key] : required.filter((k) => k !== key),
                                 })
                             }
                         />
@@ -500,9 +439,7 @@ function SchemaFields({ path, label }: { path: string; label: string }) {
                         onClick={() =>
                             set(path, {
                                 ...schema,
-                                properties: Object.fromEntries(
-                                    Object.entries(properties).filter(([k]) => k !== key),
-                                ),
+                                properties: Object.fromEntries(Object.entries(properties).filter(([k]) => k !== key)),
                                 required: required.filter((k) => k !== key),
                             })
                         }

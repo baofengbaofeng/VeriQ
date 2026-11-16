@@ -1,8 +1,10 @@
 /*
  * Generated from openapi/platform.yaml. Run pnpm contracts:generate.
  */
-import type { JsonValue as ContractJsonValue,
-    BindingJsonValue as ContractBindingJsonValue } from "./types.generated.js";
+import type {
+    JsonValue as ContractJsonValue,
+    BindingJsonValue as ContractBindingJsonValue,
+} from "./types.generated.js";
 export interface paths {
     "/health/live": {
         parameters: {
@@ -2193,7 +2195,14 @@ export interface components {
         /**
          * @enum {string}
          */
-        ResourceKind: "CASE" | "ELEMENT_CATALOG" | "ASSERTION_TEMPLATE" | "DATASET" | "FLOW" | "FIXTURE" | "SUITE"
+        ResourceKind:
+            | "CASE"
+            | "ELEMENT_CATALOG"
+            | "ASSERTION_TEMPLATE"
+            | "DATASET"
+            | "FLOW"
+            | "FIXTURE"
+            | "SUITE"
             | "ENVIRONMENT";
         /**
          * @enum {string}
@@ -2226,21 +2235,26 @@ export interface components {
             version: components["schemas"]["Version"];
             integrity: string;
         };
-        ObserverWindow: {
-            /**
-             * @constant
-             */
-            mode: "UNTIL_ACTION_SETTLED";
-            quietMs?: number;
-        } | {
-            /**
-             * @constant
-             */
-            mode: "FIXED";
-            durationMs: components["schemas"]["Timeout"];
-        };
-        ObserverV1: components["schemas"]["NetworkObserverV1"] | components["schemas"]["DialogObserverV1"]
-            | components["schemas"]["NewPageObserverV1"] | components["schemas"]["DownloadObserverV1"];
+        ObserverWindow:
+            | {
+                  /**
+                   * @constant
+                   */
+                  mode: "UNTIL_ACTION_SETTLED";
+                  quietMs?: number;
+              }
+            | {
+                  /**
+                   * @constant
+                   */
+                  mode: "FIXED";
+                  durationMs: components["schemas"]["Timeout"];
+              };
+        ObserverV1:
+            | components["schemas"]["NetworkObserverV1"]
+            | components["schemas"]["DialogObserverV1"]
+            | components["schemas"]["NewPageObserverV1"]
+            | components["schemas"]["DownloadObserverV1"];
         ExtractionV1: {
             source: components["schemas"]["SourceRef"];
             pointer: components["schemas"]["Pointer"];
@@ -2248,596 +2262,627 @@ export interface components {
             valueType: components["schemas"]["ValueType"];
             required: boolean;
         };
-        AssertionV1: {
-            id: components["schemas"]["Key"];
-            /**
-             * @enum {string}
-             */
-            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
-            expectedSource: string;
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @constant
-             */
-            type: "ui";
-            target: components["schemas"]["Key"];
-            /**
-             * @enum {string}
-             */
-            operator: "visible" | "enabled" | "checked" | "attached" | "editable";
-            expected: boolean;
-            pageKey?: components["schemas"]["Key"];
-        } | {
-            id: components["schemas"]["Key"];
-            /**
-             * @enum {string}
-             */
-            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
-            expectedSource: string;
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @constant
-             */
-            type: "ui";
-            target: components["schemas"]["Key"];
-            /**
-             * @enum {string}
-             */
-            operator: "textEquals" | "textContains" | "valueEquals";
-            expected: components["schemas"]["SafeString"];
-            pageKey?: components["schemas"]["Key"];
-        } | {
-            id: components["schemas"]["Key"];
-            /**
-             * @enum {string}
-             */
-            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
-            expectedSource: string;
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @constant
-             */
-            type: "ui";
-            target: components["schemas"]["Key"];
-            /**
-             * @constant
-             */
-            operator: "countEquals";
-            expected: number;
-            pageKey?: components["schemas"]["Key"];
-        } | {
-            id: components["schemas"]["Key"];
-            /**
-             * @enum {string}
-             */
-            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
-            expectedSource: string;
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @constant
-             */
-            type: "url";
-            /**
-             * @constant
-             */
-            source: "page";
-            /**
-             * @enum {string}
-             */
-            operator: "equals" | "contains";
-            expected: components["schemas"]["SafeString"];
-            pageKey?: components["schemas"]["Key"];
-        } | {
-            id: components["schemas"]["Key"];
-            /**
-             * @enum {string}
-             */
-            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
-            expectedSource: string;
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @constant
-             */
-            type: "httpStatus";
-            source: components["schemas"]["ResponseRef"];
-            /**
-             * @constant
-             */
-            operator: "equals";
-            expected: number;
-        } | {
-            id: components["schemas"]["Key"];
-            /**
-             * @enum {string}
-             */
-            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
-            expectedSource: string;
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @constant
-             */
-            type: "request";
-            source: components["schemas"]["RequestRef"];
-            /**
-             * @constant
-             */
-            operator: "methodEquals";
-            expected: components["schemas"]["HttpMethod"];
-        } | {
-            id: components["schemas"]["Key"];
-            /**
-             * @enum {string}
-             */
-            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
-            expectedSource: string;
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @constant
-             */
-            type: "request";
-            source: components["schemas"]["RequestRef"];
-            /**
-             * @constant
-             */
-            operator: "pathEquals";
-            expected: components["schemas"]["Path"];
-        } | {
-            id: components["schemas"]["Key"];
-            /**
-             * @enum {string}
-             */
-            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
-            expectedSource: string;
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @constant
-             */
-            type: "responseSchema";
-            source: components["schemas"]["ResponseRef"];
-            /**
-             * @constant
-             */
-            operator: "matchesSchema";
-            expected: components["schemas"]["JsonSchema"];
-        } | {
-            id: components["schemas"]["Key"];
-            /**
-             * @enum {string}
-             */
-            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
-            expectedSource: string;
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @constant
-             */
-            type: "duration";
-            source: components["schemas"]["SourceRef"];
-            /**
-             * @constant
-             */
-            operator: "lessThanOrEqual";
-            expected: number;
-        } | {
-            id: components["schemas"]["Key"];
-            /**
-             * @enum {string}
-             */
-            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
-            expectedSource: string;
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @constant
-             */
-            type: "requestCount";
-            source: components["schemas"]["RequestRef"];
-            /**
-             * @constant
-             */
-            operator: "equals";
-            expected: number;
-        } | {
-            id: components["schemas"]["Key"];
-            /**
-             * @enum {string}
-             */
-            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
-            expectedSource: string;
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @constant
-             */
-            type: "eventually";
-            query: {
-                /**
-                 * @constant
-                 */
-                method: "GET";
-                path: components["schemas"]["Path"];
-                query?: components["schemas"]["BindingJsonObject"];
-            };
-            pointer: components["schemas"]["Pointer"];
-            /**
-             * @constant
-             */
-            operator: "equals";
-            expected: components["schemas"]["BindingJsonValue"];
-            intervalMs?: number;
-        } | {
-            id: components["schemas"]["Key"];
-            /**
-             * @enum {string}
-             */
-            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
-            expectedSource: string;
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @constant
-             */
-            type: "template";
-            versionId: components["schemas"]["Id"];
-            parameters?: components["schemas"]["BindingJsonObject"];
-        } | {
-            id: components["schemas"]["Key"];
-            /**
-             * @enum {string}
-             */
-            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
-            expectedSource: string;
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @constant
-             */
-            type: "responseField";
-            source: components["schemas"]["ResponseRef"];
-            pointer: components["schemas"]["Pointer"];
-            /**
-             * @enum {string}
-             */
-            operator: "equals" | "notEquals";
-            expected: components["schemas"]["BindingJsonValue"];
-        } | {
-            id: components["schemas"]["Key"];
-            /**
-             * @enum {string}
-             */
-            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
-            expectedSource: string;
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @constant
-             */
-            type: "responseField";
-            source: components["schemas"]["ResponseRef"];
-            pointer: components["schemas"]["Pointer"];
-            /**
-             * @constant
-             */
-            operator: "contains";
-            expected: components["schemas"]["SafeString"] | components["schemas"]["BindingJsonValue"][];
-        } | {
-            id: components["schemas"]["Key"];
-            /**
-             * @enum {string}
-             */
-            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
-            expectedSource: string;
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @constant
-             */
-            type: "responseField";
-            source: components["schemas"]["ResponseRef"];
-            pointer: components["schemas"]["Pointer"];
-            /**
-             * @constant
-             */
-            operator: "in";
-            expected: components["schemas"]["BindingJsonValue"][];
-        } | {
-            id: components["schemas"]["Key"];
-            /**
-             * @enum {string}
-             */
-            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
-            expectedSource: string;
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @constant
-             */
-            type: "responseField";
-            source: components["schemas"]["ResponseRef"];
-            pointer: components["schemas"]["Pointer"];
-            /**
-             * @constant
-             */
-            operator: "exists";
-            expected: boolean;
-        } | {
-            id: components["schemas"]["Key"];
-            /**
-             * @enum {string}
-             */
-            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
-            expectedSource: string;
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @constant
-             */
-            type: "requestField";
-            source: components["schemas"]["RequestRef"];
-            pointer: components["schemas"]["Pointer"];
-            /**
-             * @enum {string}
-             */
-            operator: "equals" | "notEquals";
-            expected: components["schemas"]["BindingJsonValue"];
-        } | {
-            id: components["schemas"]["Key"];
-            /**
-             * @enum {string}
-             */
-            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
-            expectedSource: string;
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @constant
-             */
-            type: "requestField";
-            source: components["schemas"]["RequestRef"];
-            pointer: components["schemas"]["Pointer"];
-            /**
-             * @constant
-             */
-            operator: "contains";
-            expected: components["schemas"]["SafeString"] | components["schemas"]["BindingJsonValue"][];
-        } | {
-            id: components["schemas"]["Key"];
-            /**
-             * @enum {string}
-             */
-            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
-            expectedSource: string;
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @constant
-             */
-            type: "requestField";
-            source: components["schemas"]["RequestRef"];
-            pointer: components["schemas"]["Pointer"];
-            /**
-             * @constant
-             */
-            operator: "in";
-            expected: components["schemas"]["BindingJsonValue"][];
-        } | {
-            id: components["schemas"]["Key"];
-            /**
-             * @enum {string}
-             */
-            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
-            expectedSource: string;
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @constant
-             */
-            type: "requestField";
-            source: components["schemas"]["RequestRef"];
-            pointer: components["schemas"]["Pointer"];
-            /**
-             * @constant
-             */
-            operator: "exists";
-            expected: boolean;
-        };
-        StepV1: {
-            id: components["schemas"]["Key"];
-            critical?: boolean;
-            beforeAssertions?: components["schemas"]["AssertionV1"][];
-            observers?: components["schemas"]["ObserverV1"][];
-            afterAssertions?: components["schemas"]["AssertionV1"][];
-            extract?: components["schemas"]["ExtractionV1"][];
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @enum {string}
-             */
-            failurePolicy?: "STOP_CASE" | "CONTINUE";
-            /**
-             * @constant
-             */
-            action: "goto";
-            path: components["schemas"]["Path"];
-            pageKey?: components["schemas"]["Key"];
-        } | {
-            id: components["schemas"]["Key"];
-            critical?: boolean;
-            beforeAssertions?: components["schemas"]["AssertionV1"][];
-            observers?: components["schemas"]["ObserverV1"][];
-            afterAssertions?: components["schemas"]["AssertionV1"][];
-            extract?: components["schemas"]["ExtractionV1"][];
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @enum {string}
-             */
-            failurePolicy?: "STOP_CASE" | "CONTINUE";
-            /**
-             * @constant
-             */
-            action: "click";
-            target: components["schemas"]["Key"];
-            pageKey?: components["schemas"]["Key"];
-        } | {
-            id: components["schemas"]["Key"];
-            critical?: boolean;
-            beforeAssertions?: components["schemas"]["AssertionV1"][];
-            observers?: components["schemas"]["ObserverV1"][];
-            afterAssertions?: components["schemas"]["AssertionV1"][];
-            extract?: components["schemas"]["ExtractionV1"][];
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @enum {string}
-             */
-            failurePolicy?: "STOP_CASE" | "CONTINUE";
-            /**
-             * @constant
-             */
-            action: "check";
-            target: components["schemas"]["Key"];
-            pageKey?: components["schemas"]["Key"];
-        } | {
-            id: components["schemas"]["Key"];
-            critical?: boolean;
-            beforeAssertions?: components["schemas"]["AssertionV1"][];
-            observers?: components["schemas"]["ObserverV1"][];
-            afterAssertions?: components["schemas"]["AssertionV1"][];
-            extract?: components["schemas"]["ExtractionV1"][];
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @enum {string}
-             */
-            failurePolicy?: "STOP_CASE" | "CONTINUE";
-            /**
-             * @constant
-             */
-            action: "uncheck";
-            target: components["schemas"]["Key"];
-            pageKey?: components["schemas"]["Key"];
-        } | {
-            id: components["schemas"]["Key"];
-            critical?: boolean;
-            beforeAssertions?: components["schemas"]["AssertionV1"][];
-            observers?: components["schemas"]["ObserverV1"][];
-            afterAssertions?: components["schemas"]["AssertionV1"][];
-            extract?: components["schemas"]["ExtractionV1"][];
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @enum {string}
-             */
-            failurePolicy?: "STOP_CASE" | "CONTINUE";
-            /**
-             * @constant
-             */
-            action: "fill";
-            target: components["schemas"]["Key"];
-            value: components["schemas"]["SafeString"];
-            pageKey?: components["schemas"]["Key"];
-        } | {
-            id: components["schemas"]["Key"];
-            critical?: boolean;
-            beforeAssertions?: components["schemas"]["AssertionV1"][];
-            observers?: components["schemas"]["ObserverV1"][];
-            afterAssertions?: components["schemas"]["AssertionV1"][];
-            extract?: components["schemas"]["ExtractionV1"][];
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @enum {string}
-             */
-            failurePolicy?: "STOP_CASE" | "CONTINUE";
-            /**
-             * @constant
-             */
-            action: "press";
-            target: components["schemas"]["Key"];
-            value: components["schemas"]["SafeString"];
-            pageKey?: components["schemas"]["Key"];
-        } | {
-            id: components["schemas"]["Key"];
-            critical?: boolean;
-            beforeAssertions?: components["schemas"]["AssertionV1"][];
-            observers?: components["schemas"]["ObserverV1"][];
-            afterAssertions?: components["schemas"]["AssertionV1"][];
-            extract?: components["schemas"]["ExtractionV1"][];
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @enum {string}
-             */
-            failurePolicy?: "STOP_CASE" | "CONTINUE";
-            /**
-             * @constant
-             */
-            action: "selectOption";
-            target: components["schemas"]["Key"];
-            value: components["schemas"]["SafeString"] | components["schemas"]["SafeString"][];
-            pageKey?: components["schemas"]["Key"];
-        } | {
-            id: components["schemas"]["Key"];
-            critical?: boolean;
-            beforeAssertions?: components["schemas"]["AssertionV1"][];
-            observers?: components["schemas"]["ObserverV1"][];
-            afterAssertions?: components["schemas"]["AssertionV1"][];
-            extract?: components["schemas"]["ExtractionV1"][];
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @enum {string}
-             */
-            failurePolicy?: "STOP_CASE" | "CONTINUE";
-            /**
-             * @constant
-             */
-            action: "upload";
-            target: components["schemas"]["Key"];
-            value: components["schemas"]["FilePath"][];
-            pageKey?: components["schemas"]["Key"];
-        } | {
-            id: components["schemas"]["Key"];
-            critical?: boolean;
-            beforeAssertions?: components["schemas"]["AssertionV1"][];
-            observers?: components["schemas"]["ObserverV1"][];
-            afterAssertions?: components["schemas"]["AssertionV1"][];
-            extract?: components["schemas"]["ExtractionV1"][];
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @enum {string}
-             */
-            failurePolicy?: "STOP_CASE" | "CONTINUE";
-            /**
-             * @constant
-             */
-            action: "reload";
-            pageKey?: components["schemas"]["Key"];
-        } | {
-            id: components["schemas"]["Key"];
-            critical?: boolean;
-            beforeAssertions?: components["schemas"]["AssertionV1"][];
-            observers?: components["schemas"]["ObserverV1"][];
-            afterAssertions?: components["schemas"]["AssertionV1"][];
-            extract?: components["schemas"]["ExtractionV1"][];
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @enum {string}
-             */
-            failurePolicy?: "STOP_CASE" | "CONTINUE";
-            /**
-             * @constant
-             */
-            action: "apiRequest";
-            method: components["schemas"]["HttpMethod"];
-            path: components["schemas"]["Path"];
-            query?: components["schemas"]["BindingJsonObject"];
-            body?: components["schemas"]["BindingJsonValue"];
-            headers?: {
-                [key: string]: components["schemas"]["SafeString"];
-            };
-            pageKey?: components["schemas"]["Key"];
-        } | {
-            id: components["schemas"]["Key"];
-            critical?: boolean;
-            beforeAssertions?: components["schemas"]["AssertionV1"][];
-            observers?: components["schemas"]["ObserverV1"][];
-            afterAssertions?: components["schemas"]["AssertionV1"][];
-            extract?: components["schemas"]["ExtractionV1"][];
-            timeoutMs?: components["schemas"]["Timeout"];
-            /**
-             * @enum {string}
-             */
-            failurePolicy?: "STOP_CASE" | "CONTINUE";
-            /**
-             * @constant
-             */
-            action: "callFlow";
-            versionId: components["schemas"]["Id"];
-            parameters?: components["schemas"]["BindingJsonObject"];
-            pageKey?: components["schemas"]["Key"];
-        };
+        AssertionV1:
+            | {
+                  id: components["schemas"]["Key"];
+                  /**
+                   * @enum {string}
+                   */
+                  severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+                  expectedSource: string;
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @constant
+                   */
+                  type: "ui";
+                  target: components["schemas"]["Key"];
+                  /**
+                   * @enum {string}
+                   */
+                  operator: "visible" | "enabled" | "checked" | "attached" | "editable";
+                  expected: boolean;
+                  pageKey?: components["schemas"]["Key"];
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  /**
+                   * @enum {string}
+                   */
+                  severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+                  expectedSource: string;
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @constant
+                   */
+                  type: "ui";
+                  target: components["schemas"]["Key"];
+                  /**
+                   * @enum {string}
+                   */
+                  operator: "textEquals" | "textContains" | "valueEquals";
+                  expected: components["schemas"]["SafeString"];
+                  pageKey?: components["schemas"]["Key"];
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  /**
+                   * @enum {string}
+                   */
+                  severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+                  expectedSource: string;
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @constant
+                   */
+                  type: "ui";
+                  target: components["schemas"]["Key"];
+                  /**
+                   * @constant
+                   */
+                  operator: "countEquals";
+                  expected: number;
+                  pageKey?: components["schemas"]["Key"];
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  /**
+                   * @enum {string}
+                   */
+                  severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+                  expectedSource: string;
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @constant
+                   */
+                  type: "url";
+                  /**
+                   * @constant
+                   */
+                  source: "page";
+                  /**
+                   * @enum {string}
+                   */
+                  operator: "equals" | "contains";
+                  expected: components["schemas"]["SafeString"];
+                  pageKey?: components["schemas"]["Key"];
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  /**
+                   * @enum {string}
+                   */
+                  severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+                  expectedSource: string;
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @constant
+                   */
+                  type: "httpStatus";
+                  source: components["schemas"]["ResponseRef"];
+                  /**
+                   * @constant
+                   */
+                  operator: "equals";
+                  expected: number;
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  /**
+                   * @enum {string}
+                   */
+                  severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+                  expectedSource: string;
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @constant
+                   */
+                  type: "request";
+                  source: components["schemas"]["RequestRef"];
+                  /**
+                   * @constant
+                   */
+                  operator: "methodEquals";
+                  expected: components["schemas"]["HttpMethod"];
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  /**
+                   * @enum {string}
+                   */
+                  severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+                  expectedSource: string;
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @constant
+                   */
+                  type: "request";
+                  source: components["schemas"]["RequestRef"];
+                  /**
+                   * @constant
+                   */
+                  operator: "pathEquals";
+                  expected: components["schemas"]["Path"];
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  /**
+                   * @enum {string}
+                   */
+                  severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+                  expectedSource: string;
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @constant
+                   */
+                  type: "responseSchema";
+                  source: components["schemas"]["ResponseRef"];
+                  /**
+                   * @constant
+                   */
+                  operator: "matchesSchema";
+                  expected: components["schemas"]["JsonSchema"];
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  /**
+                   * @enum {string}
+                   */
+                  severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+                  expectedSource: string;
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @constant
+                   */
+                  type: "duration";
+                  source: components["schemas"]["SourceRef"];
+                  /**
+                   * @constant
+                   */
+                  operator: "lessThanOrEqual";
+                  expected: number;
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  /**
+                   * @enum {string}
+                   */
+                  severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+                  expectedSource: string;
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @constant
+                   */
+                  type: "requestCount";
+                  source: components["schemas"]["RequestRef"];
+                  /**
+                   * @constant
+                   */
+                  operator: "equals";
+                  expected: number;
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  /**
+                   * @enum {string}
+                   */
+                  severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+                  expectedSource: string;
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @constant
+                   */
+                  type: "eventually";
+                  query: {
+                      /**
+                       * @constant
+                       */
+                      method: "GET";
+                      path: components["schemas"]["Path"];
+                      query?: components["schemas"]["BindingJsonObject"];
+                  };
+                  pointer: components["schemas"]["Pointer"];
+                  /**
+                   * @constant
+                   */
+                  operator: "equals";
+                  expected: components["schemas"]["BindingJsonValue"];
+                  intervalMs?: number;
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  /**
+                   * @enum {string}
+                   */
+                  severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+                  expectedSource: string;
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @constant
+                   */
+                  type: "template";
+                  versionId: components["schemas"]["Id"];
+                  parameters?: components["schemas"]["BindingJsonObject"];
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  /**
+                   * @enum {string}
+                   */
+                  severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+                  expectedSource: string;
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @constant
+                   */
+                  type: "responseField";
+                  source: components["schemas"]["ResponseRef"];
+                  pointer: components["schemas"]["Pointer"];
+                  /**
+                   * @enum {string}
+                   */
+                  operator: "equals" | "notEquals";
+                  expected: components["schemas"]["BindingJsonValue"];
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  /**
+                   * @enum {string}
+                   */
+                  severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+                  expectedSource: string;
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @constant
+                   */
+                  type: "responseField";
+                  source: components["schemas"]["ResponseRef"];
+                  pointer: components["schemas"]["Pointer"];
+                  /**
+                   * @constant
+                   */
+                  operator: "contains";
+                  expected: components["schemas"]["SafeString"] | components["schemas"]["BindingJsonValue"][];
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  /**
+                   * @enum {string}
+                   */
+                  severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+                  expectedSource: string;
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @constant
+                   */
+                  type: "responseField";
+                  source: components["schemas"]["ResponseRef"];
+                  pointer: components["schemas"]["Pointer"];
+                  /**
+                   * @constant
+                   */
+                  operator: "in";
+                  expected: components["schemas"]["BindingJsonValue"][];
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  /**
+                   * @enum {string}
+                   */
+                  severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+                  expectedSource: string;
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @constant
+                   */
+                  type: "responseField";
+                  source: components["schemas"]["ResponseRef"];
+                  pointer: components["schemas"]["Pointer"];
+                  /**
+                   * @constant
+                   */
+                  operator: "exists";
+                  expected: boolean;
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  /**
+                   * @enum {string}
+                   */
+                  severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+                  expectedSource: string;
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @constant
+                   */
+                  type: "requestField";
+                  source: components["schemas"]["RequestRef"];
+                  pointer: components["schemas"]["Pointer"];
+                  /**
+                   * @enum {string}
+                   */
+                  operator: "equals" | "notEquals";
+                  expected: components["schemas"]["BindingJsonValue"];
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  /**
+                   * @enum {string}
+                   */
+                  severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+                  expectedSource: string;
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @constant
+                   */
+                  type: "requestField";
+                  source: components["schemas"]["RequestRef"];
+                  pointer: components["schemas"]["Pointer"];
+                  /**
+                   * @constant
+                   */
+                  operator: "contains";
+                  expected: components["schemas"]["SafeString"] | components["schemas"]["BindingJsonValue"][];
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  /**
+                   * @enum {string}
+                   */
+                  severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+                  expectedSource: string;
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @constant
+                   */
+                  type: "requestField";
+                  source: components["schemas"]["RequestRef"];
+                  pointer: components["schemas"]["Pointer"];
+                  /**
+                   * @constant
+                   */
+                  operator: "in";
+                  expected: components["schemas"]["BindingJsonValue"][];
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  /**
+                   * @enum {string}
+                   */
+                  severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+                  expectedSource: string;
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @constant
+                   */
+                  type: "requestField";
+                  source: components["schemas"]["RequestRef"];
+                  pointer: components["schemas"]["Pointer"];
+                  /**
+                   * @constant
+                   */
+                  operator: "exists";
+                  expected: boolean;
+              };
+        StepV1:
+            | {
+                  id: components["schemas"]["Key"];
+                  critical?: boolean;
+                  beforeAssertions?: components["schemas"]["AssertionV1"][];
+                  observers?: components["schemas"]["ObserverV1"][];
+                  afterAssertions?: components["schemas"]["AssertionV1"][];
+                  extract?: components["schemas"]["ExtractionV1"][];
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @enum {string}
+                   */
+                  failurePolicy?: "STOP_CASE" | "CONTINUE";
+                  /**
+                   * @constant
+                   */
+                  action: "goto";
+                  path: components["schemas"]["Path"];
+                  pageKey?: components["schemas"]["Key"];
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  critical?: boolean;
+                  beforeAssertions?: components["schemas"]["AssertionV1"][];
+                  observers?: components["schemas"]["ObserverV1"][];
+                  afterAssertions?: components["schemas"]["AssertionV1"][];
+                  extract?: components["schemas"]["ExtractionV1"][];
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @enum {string}
+                   */
+                  failurePolicy?: "STOP_CASE" | "CONTINUE";
+                  /**
+                   * @constant
+                   */
+                  action: "click";
+                  target: components["schemas"]["Key"];
+                  pageKey?: components["schemas"]["Key"];
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  critical?: boolean;
+                  beforeAssertions?: components["schemas"]["AssertionV1"][];
+                  observers?: components["schemas"]["ObserverV1"][];
+                  afterAssertions?: components["schemas"]["AssertionV1"][];
+                  extract?: components["schemas"]["ExtractionV1"][];
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @enum {string}
+                   */
+                  failurePolicy?: "STOP_CASE" | "CONTINUE";
+                  /**
+                   * @constant
+                   */
+                  action: "check";
+                  target: components["schemas"]["Key"];
+                  pageKey?: components["schemas"]["Key"];
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  critical?: boolean;
+                  beforeAssertions?: components["schemas"]["AssertionV1"][];
+                  observers?: components["schemas"]["ObserverV1"][];
+                  afterAssertions?: components["schemas"]["AssertionV1"][];
+                  extract?: components["schemas"]["ExtractionV1"][];
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @enum {string}
+                   */
+                  failurePolicy?: "STOP_CASE" | "CONTINUE";
+                  /**
+                   * @constant
+                   */
+                  action: "uncheck";
+                  target: components["schemas"]["Key"];
+                  pageKey?: components["schemas"]["Key"];
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  critical?: boolean;
+                  beforeAssertions?: components["schemas"]["AssertionV1"][];
+                  observers?: components["schemas"]["ObserverV1"][];
+                  afterAssertions?: components["schemas"]["AssertionV1"][];
+                  extract?: components["schemas"]["ExtractionV1"][];
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @enum {string}
+                   */
+                  failurePolicy?: "STOP_CASE" | "CONTINUE";
+                  /**
+                   * @constant
+                   */
+                  action: "fill";
+                  target: components["schemas"]["Key"];
+                  value: components["schemas"]["SafeString"];
+                  pageKey?: components["schemas"]["Key"];
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  critical?: boolean;
+                  beforeAssertions?: components["schemas"]["AssertionV1"][];
+                  observers?: components["schemas"]["ObserverV1"][];
+                  afterAssertions?: components["schemas"]["AssertionV1"][];
+                  extract?: components["schemas"]["ExtractionV1"][];
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @enum {string}
+                   */
+                  failurePolicy?: "STOP_CASE" | "CONTINUE";
+                  /**
+                   * @constant
+                   */
+                  action: "press";
+                  target: components["schemas"]["Key"];
+                  value: components["schemas"]["SafeString"];
+                  pageKey?: components["schemas"]["Key"];
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  critical?: boolean;
+                  beforeAssertions?: components["schemas"]["AssertionV1"][];
+                  observers?: components["schemas"]["ObserverV1"][];
+                  afterAssertions?: components["schemas"]["AssertionV1"][];
+                  extract?: components["schemas"]["ExtractionV1"][];
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @enum {string}
+                   */
+                  failurePolicy?: "STOP_CASE" | "CONTINUE";
+                  /**
+                   * @constant
+                   */
+                  action: "selectOption";
+                  target: components["schemas"]["Key"];
+                  value: components["schemas"]["SafeString"] | components["schemas"]["SafeString"][];
+                  pageKey?: components["schemas"]["Key"];
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  critical?: boolean;
+                  beforeAssertions?: components["schemas"]["AssertionV1"][];
+                  observers?: components["schemas"]["ObserverV1"][];
+                  afterAssertions?: components["schemas"]["AssertionV1"][];
+                  extract?: components["schemas"]["ExtractionV1"][];
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @enum {string}
+                   */
+                  failurePolicy?: "STOP_CASE" | "CONTINUE";
+                  /**
+                   * @constant
+                   */
+                  action: "upload";
+                  target: components["schemas"]["Key"];
+                  value: components["schemas"]["FilePath"][];
+                  pageKey?: components["schemas"]["Key"];
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  critical?: boolean;
+                  beforeAssertions?: components["schemas"]["AssertionV1"][];
+                  observers?: components["schemas"]["ObserverV1"][];
+                  afterAssertions?: components["schemas"]["AssertionV1"][];
+                  extract?: components["schemas"]["ExtractionV1"][];
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @enum {string}
+                   */
+                  failurePolicy?: "STOP_CASE" | "CONTINUE";
+                  /**
+                   * @constant
+                   */
+                  action: "reload";
+                  pageKey?: components["schemas"]["Key"];
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  critical?: boolean;
+                  beforeAssertions?: components["schemas"]["AssertionV1"][];
+                  observers?: components["schemas"]["ObserverV1"][];
+                  afterAssertions?: components["schemas"]["AssertionV1"][];
+                  extract?: components["schemas"]["ExtractionV1"][];
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @enum {string}
+                   */
+                  failurePolicy?: "STOP_CASE" | "CONTINUE";
+                  /**
+                   * @constant
+                   */
+                  action: "apiRequest";
+                  method: components["schemas"]["HttpMethod"];
+                  path: components["schemas"]["Path"];
+                  query?: components["schemas"]["BindingJsonObject"];
+                  body?: components["schemas"]["BindingJsonValue"];
+                  headers?: {
+                      [key: string]: components["schemas"]["SafeString"];
+                  };
+                  pageKey?: components["schemas"]["Key"];
+              }
+            | {
+                  id: components["schemas"]["Key"];
+                  critical?: boolean;
+                  beforeAssertions?: components["schemas"]["AssertionV1"][];
+                  observers?: components["schemas"]["ObserverV1"][];
+                  afterAssertions?: components["schemas"]["AssertionV1"][];
+                  extract?: components["schemas"]["ExtractionV1"][];
+                  timeoutMs?: components["schemas"]["Timeout"];
+                  /**
+                   * @enum {string}
+                   */
+                  failurePolicy?: "STOP_CASE" | "CONTINUE";
+                  /**
+                   * @constant
+                   */
+                  action: "callFlow";
+                  versionId: components["schemas"]["Id"];
+                  parameters?: components["schemas"]["BindingJsonObject"];
+                  pageKey?: components["schemas"]["Key"];
+              };
         CaseDslV1: {
             /**
              * @constant
@@ -2858,21 +2903,23 @@ export interface components {
             fixtureInput?: components["schemas"]["BindingJsonObject"];
             initialVariables?: components["schemas"]["ParameterTypes"];
         };
-        LocatorV1: {
-            /**
-             * @constant
-             */
-            by: "testId";
-            value: components["schemas"]["Key"];
-        } | {
-            /**
-             * @constant
-             */
-            by: "role";
-            role: string;
-            name?: components["schemas"]["SafeString"];
-            exact?: boolean;
-        };
+        LocatorV1:
+            | {
+                  /**
+                   * @constant
+                   */
+                  by: "testId";
+                  value: components["schemas"]["Key"];
+              }
+            | {
+                  /**
+                   * @constant
+                   */
+                  by: "role";
+                  role: string;
+                  name?: components["schemas"]["SafeString"];
+                  exact?: boolean;
+              };
         CatalogElementV1: {
             key: components["schemas"]["Key"];
             locator: components["schemas"]["LocatorV1"];
@@ -2979,128 +3026,144 @@ export interface components {
             buildSha?: string;
             fixtureIdentity?: components["schemas"]["FixtureIdentityV1"];
         };
-        ResourceDocumentV1: {
-            /**
-             * @constant
-             */
-            kind: "CASE";
-            document: components["schemas"]["CaseDslV1"];
-        } | {
-            /**
-             * @constant
-             */
-            kind: "ELEMENT_CATALOG";
-            document: components["schemas"]["ElementCatalogV1"];
-        } | {
-            /**
-             * @constant
-             */
-            kind: "ASSERTION_TEMPLATE";
-            document: components["schemas"]["AssertionTemplateV1"];
-        } | {
-            /**
-             * @constant
-             */
-            kind: "DATASET";
-            document: components["schemas"]["DatasetV1"];
-        } | {
-            /**
-             * @constant
-             */
-            kind: "FLOW";
-            document: components["schemas"]["FlowV1"];
-        } | {
-            /**
-             * @constant
-             */
-            kind: "FIXTURE";
-            document: components["schemas"]["FixtureV1"];
-        } | {
-            /**
-             * @constant
-             */
-            kind: "SUITE";
-            document: components["schemas"]["SuiteV1"];
-        } | {
-            /**
-             * @constant
-             */
-            kind: "ENVIRONMENT";
-            document: components["schemas"]["EnvironmentV1"];
-        };
-        AssetVersionV1: {
-            resourceId: components["schemas"]["Id"];
-            versionId: components["schemas"]["Id"];
-            /**
-             * @constant
-             */
-            kind: "CASE";
-            sha256: components["schemas"]["Sha256"];
-            document: components["schemas"]["CaseDslV1"];
-        } | {
-            resourceId: components["schemas"]["Id"];
-            versionId: components["schemas"]["Id"];
-            /**
-             * @constant
-             */
-            kind: "ELEMENT_CATALOG";
-            sha256: components["schemas"]["Sha256"];
-            document: components["schemas"]["ElementCatalogV1"];
-        } | {
-            resourceId: components["schemas"]["Id"];
-            versionId: components["schemas"]["Id"];
-            /**
-             * @constant
-             */
-            kind: "ASSERTION_TEMPLATE";
-            sha256: components["schemas"]["Sha256"];
-            document: components["schemas"]["AssertionTemplateV1"];
-        } | {
-            resourceId: components["schemas"]["Id"];
-            versionId: components["schemas"]["Id"];
-            /**
-             * @constant
-             */
-            kind: "DATASET";
-            sha256: components["schemas"]["Sha256"];
-            document: components["schemas"]["DatasetV1"];
-        } | {
-            resourceId: components["schemas"]["Id"];
-            versionId: components["schemas"]["Id"];
-            /**
-             * @constant
-             */
-            kind: "FLOW";
-            sha256: components["schemas"]["Sha256"];
-            document: components["schemas"]["FlowV1"];
-        } | {
-            resourceId: components["schemas"]["Id"];
-            versionId: components["schemas"]["Id"];
-            /**
-             * @constant
-             */
-            kind: "FIXTURE";
-            sha256: components["schemas"]["Sha256"];
-            document: components["schemas"]["FixtureV1"];
-        } | {
-            resourceId: components["schemas"]["Id"];
-            versionId: components["schemas"]["Id"];
-            /**
-             * @constant
-             */
-            kind: "SUITE";
-            sha256: components["schemas"]["Sha256"];
-            document: components["schemas"]["SuiteV1"];
-        } | {
-            resourceId: components["schemas"]["Id"];
-            versionId: components["schemas"]["Id"];
-            /**
-             * @constant
-             */
-            kind: "ENVIRONMENT";
-            sha256: components["schemas"]["Sha256"];
-            document: components["schemas"]["EnvironmentV1"];
-        };
+        ResourceDocumentV1:
+            | {
+                  /**
+                   * @constant
+                   */
+                  kind: "CASE";
+                  document: components["schemas"]["CaseDslV1"];
+              }
+            | {
+                  /**
+                   * @constant
+                   */
+                  kind: "ELEMENT_CATALOG";
+                  document: components["schemas"]["ElementCatalogV1"];
+              }
+            | {
+                  /**
+                   * @constant
+                   */
+                  kind: "ASSERTION_TEMPLATE";
+                  document: components["schemas"]["AssertionTemplateV1"];
+              }
+            | {
+                  /**
+                   * @constant
+                   */
+                  kind: "DATASET";
+                  document: components["schemas"]["DatasetV1"];
+              }
+            | {
+                  /**
+                   * @constant
+                   */
+                  kind: "FLOW";
+                  document: components["schemas"]["FlowV1"];
+              }
+            | {
+                  /**
+                   * @constant
+                   */
+                  kind: "FIXTURE";
+                  document: components["schemas"]["FixtureV1"];
+              }
+            | {
+                  /**
+                   * @constant
+                   */
+                  kind: "SUITE";
+                  document: components["schemas"]["SuiteV1"];
+              }
+            | {
+                  /**
+                   * @constant
+                   */
+                  kind: "ENVIRONMENT";
+                  document: components["schemas"]["EnvironmentV1"];
+              };
+        AssetVersionV1:
+            | {
+                  resourceId: components["schemas"]["Id"];
+                  versionId: components["schemas"]["Id"];
+                  /**
+                   * @constant
+                   */
+                  kind: "CASE";
+                  sha256: components["schemas"]["Sha256"];
+                  document: components["schemas"]["CaseDslV1"];
+              }
+            | {
+                  resourceId: components["schemas"]["Id"];
+                  versionId: components["schemas"]["Id"];
+                  /**
+                   * @constant
+                   */
+                  kind: "ELEMENT_CATALOG";
+                  sha256: components["schemas"]["Sha256"];
+                  document: components["schemas"]["ElementCatalogV1"];
+              }
+            | {
+                  resourceId: components["schemas"]["Id"];
+                  versionId: components["schemas"]["Id"];
+                  /**
+                   * @constant
+                   */
+                  kind: "ASSERTION_TEMPLATE";
+                  sha256: components["schemas"]["Sha256"];
+                  document: components["schemas"]["AssertionTemplateV1"];
+              }
+            | {
+                  resourceId: components["schemas"]["Id"];
+                  versionId: components["schemas"]["Id"];
+                  /**
+                   * @constant
+                   */
+                  kind: "DATASET";
+                  sha256: components["schemas"]["Sha256"];
+                  document: components["schemas"]["DatasetV1"];
+              }
+            | {
+                  resourceId: components["schemas"]["Id"];
+                  versionId: components["schemas"]["Id"];
+                  /**
+                   * @constant
+                   */
+                  kind: "FLOW";
+                  sha256: components["schemas"]["Sha256"];
+                  document: components["schemas"]["FlowV1"];
+              }
+            | {
+                  resourceId: components["schemas"]["Id"];
+                  versionId: components["schemas"]["Id"];
+                  /**
+                   * @constant
+                   */
+                  kind: "FIXTURE";
+                  sha256: components["schemas"]["Sha256"];
+                  document: components["schemas"]["FixtureV1"];
+              }
+            | {
+                  resourceId: components["schemas"]["Id"];
+                  versionId: components["schemas"]["Id"];
+                  /**
+                   * @constant
+                   */
+                  kind: "SUITE";
+                  sha256: components["schemas"]["Sha256"];
+                  document: components["schemas"]["SuiteV1"];
+              }
+            | {
+                  resourceId: components["schemas"]["Id"];
+                  versionId: components["schemas"]["Id"];
+                  /**
+                   * @constant
+                   */
+                  kind: "ENVIRONMENT";
+                  sha256: components["schemas"]["Sha256"];
+                  document: components["schemas"]["EnvironmentV1"];
+              };
         AssetSnapshotV1: {
             /**
              * @constant
@@ -3172,43 +3235,48 @@ export interface components {
             arch: "x64" | "arm64";
             browsers: components["schemas"]["Browser"][];
             jobKinds?: ("TEST" | "VALIDATE" | "CLEANUP")[];
-        } & ({
-            /**
-             * @constant
-             */
-            os: "linux";
-            /**
-             * @constant
-             */
-            arch: "x64";
-        } | {
-            /**
-             * @constant
-             */
-            os: "win32";
-            /**
-             * @constant
-             */
-            arch: "x64";
-        } | {
-            /**
-             * @constant
-             */
-            os: "darwin";
-            /**
-             * @constant
-             */
-            arch: "x64";
-        } | {
-            /**
-             * @constant
-             */
-            os: "darwin";
-            /**
-             * @constant
-             */
-            arch: "arm64";
-        });
+        } & (
+            | {
+                  /**
+                   * @constant
+                   */
+                  os: "linux";
+                  /**
+                   * @constant
+                   */
+                  arch: "x64";
+              }
+            | {
+                  /**
+                   * @constant
+                   */
+                  os: "win32";
+                  /**
+                   * @constant
+                   */
+                  arch: "x64";
+              }
+            | {
+                  /**
+                   * @constant
+                   */
+                  os: "darwin";
+                  /**
+                   * @constant
+                   */
+                  arch: "x64";
+              }
+            | {
+                  /**
+                   * @constant
+                   */
+                  os: "darwin";
+                  /**
+                   * @constant
+                   */
+                  arch: "arm64";
+              }
+        );
         ClaimRequest: {
             runnerId: components["schemas"]["Id"];
             clientRequestId: components["schemas"]["Id"];
@@ -3287,204 +3355,217 @@ export interface components {
             namespace: components["schemas"]["Key"];
             cleanupRef: string;
         };
-        JobManifestV1: components["schemas"]["TestJobManifestV1"] | components["schemas"]["ValidateJobManifestV1"]
+        JobManifestV1:
+            | components["schemas"]["TestJobManifestV1"]
+            | components["schemas"]["ValidateJobManifestV1"]
             | components["schemas"]["CleanupJobManifestV1"];
-        ExecutionEventV1: {
-            /**
-             * @constant
-             */
-            schemaVersion: "1.0";
-            attemptId: components["schemas"]["Id"];
-            sequence: number;
-            timestamp: components["schemas"]["Timestamp"];
-            stepId?: components["schemas"]["Key"];
-            assertionId?: components["schemas"]["Key"];
-            /**
-             * @constant
-             */
-            type: "ATTEMPT_STARTED";
-            payload: {
-                engineVersion: components["schemas"]["Version"];
-                sourceHash: components["schemas"]["Sha256"];
-            };
-        } | {
-            /**
-             * @constant
-             */
-            schemaVersion: "1.0";
-            attemptId: components["schemas"]["Id"];
-            sequence: number;
-            timestamp: components["schemas"]["Timestamp"];
-            stepId?: components["schemas"]["Key"];
-            assertionId?: components["schemas"]["Key"];
-            /**
-             * @constant
-             */
-            type: "PHASE_CHANGED";
-            payload: {
-                /**
-                 * @enum {string}
-                 */
-                phase: "LEASED" | "PREPARING" | "RUNNING" | "CLEANING" | "FINALIZING" | "FINISHED";
-            };
-        } | {
-            /**
-             * @constant
-             */
-            schemaVersion: "1.0";
-            attemptId: components["schemas"]["Id"];
-            sequence: number;
-            timestamp: components["schemas"]["Timestamp"];
-            stepId: components["schemas"]["Key"];
-            assertionId?: components["schemas"]["Key"];
-            /**
-             * @constant
-             */
-            type: "STEP_STARTED";
-            payload: Record<string, never>;
-        } | {
-            /**
-             * @constant
-             */
-            schemaVersion: "1.0";
-            attemptId: components["schemas"]["Id"];
-            sequence: number;
-            timestamp: components["schemas"]["Timestamp"];
-            stepId: components["schemas"]["Key"];
-            assertionId?: components["schemas"]["Key"];
-            /**
-             * @constant
-             */
-            type: "STEP_FINISHED";
-            payload: components["schemas"]["StepFinishedPayloadV1"];
-        } | {
-            /**
-             * @constant
-             */
-            schemaVersion: "1.0";
-            attemptId: components["schemas"]["Id"];
-            sequence: number;
-            timestamp: components["schemas"]["Timestamp"];
-            stepId: components["schemas"]["Key"];
-            assertionId: components["schemas"]["Key"];
-            /**
-             * @constant
-             */
-            type: "ASSERTION_RESULT";
-            payload: components["schemas"]["AssertionResultPayloadV1"];
-        } | {
-            /**
-             * @constant
-             */
-            schemaVersion: "1.0";
-            attemptId: components["schemas"]["Id"];
-            sequence: number;
-            timestamp: components["schemas"]["Timestamp"];
-            stepId: components["schemas"]["Key"];
-            assertionId?: components["schemas"]["Key"];
-            /**
-             * @constant
-             */
-            type: "OBSERVER_RESULT";
-            payload: components["schemas"]["ObserverResultPayloadV1"];
-        } | {
-            /**
-             * @constant
-             */
-            schemaVersion: "1.0";
-            attemptId: components["schemas"]["Id"];
-            sequence: number;
-            timestamp: components["schemas"]["Timestamp"];
-            stepId: components["schemas"]["Key"];
-            assertionId?: components["schemas"]["Key"];
-            /**
-             * @constant
-             */
-            type: "VARIABLE_EXTRACTED";
-            payload: {
-                name: components["schemas"]["Key"];
-                valueType: components["schemas"]["ValueType"];
-            };
-        } | {
-            /**
-             * @constant
-             */
-            schemaVersion: "1.0";
-            attemptId: components["schemas"]["Id"];
-            sequence: number;
-            timestamp: components["schemas"]["Timestamp"];
-            stepId?: components["schemas"]["Key"];
-            assertionId?: components["schemas"]["Key"];
-            /**
-             * @constant
-             */
-            type: "LOG";
-            payload: {
-                /**
-                 * @enum {string}
-                 */
-                level: "DEBUG" | "INFO" | "WARN" | "ERROR";
-                message: components["schemas"]["DiagnosticText"];
-            };
-        } | {
-            /**
-             * @constant
-             */
-            schemaVersion: "1.0";
-            attemptId: components["schemas"]["Id"];
-            sequence: number;
-            timestamp: components["schemas"]["Timestamp"];
-            stepId?: components["schemas"]["Key"];
-            assertionId?: components["schemas"]["Key"];
-            /**
-             * @constant
-             */
-            type: "CLEANUP_RESULT";
-            payload: {
-                cleanupStatus: components["schemas"]["CleanupStatus"];
-                errorCode?: components["schemas"]["Key"];
-            };
-        } | {
-            /**
-             * @constant
-             */
-            schemaVersion: "1.0";
-            attemptId: components["schemas"]["Id"];
-            sequence: number;
-            timestamp: components["schemas"]["Timestamp"];
-            stepId?: components["schemas"]["Key"];
-            assertionId?: components["schemas"]["Key"];
-            /**
-             * @constant
-             */
-            type: "ARTIFACT_CREATED";
-            payload: {
-                artifactId: components["schemas"]["Id"];
-                file: components["schemas"]["EvidenceFileEntryV1"];
-                /**
-                 * @enum {string}
-                 */
-                kind: "SCREENSHOT" | "TRACE" | "HTML" | "JUNIT" | "LOG" | "SOURCE" | "MANIFEST" | "DOWNLOAD";
-            };
-        } | {
-            /**
-             * @constant
-             */
-            schemaVersion: "1.0";
-            attemptId: components["schemas"]["Id"];
-            sequence: number;
-            timestamp: components["schemas"]["Timestamp"];
-            stepId?: components["schemas"]["Key"];
-            assertionId?: components["schemas"]["Key"];
-            /**
-             * @constant
-             */
-            type: "ATTEMPT_FINISHED";
-            payload: {
-                outcome: components["schemas"]["AttemptOutcome"];
-                cleanupStatus: components["schemas"]["CleanupStatus"];
-            };
-        };
+        ExecutionEventV1:
+            | {
+                  /**
+                   * @constant
+                   */
+                  schemaVersion: "1.0";
+                  attemptId: components["schemas"]["Id"];
+                  sequence: number;
+                  timestamp: components["schemas"]["Timestamp"];
+                  stepId?: components["schemas"]["Key"];
+                  assertionId?: components["schemas"]["Key"];
+                  /**
+                   * @constant
+                   */
+                  type: "ATTEMPT_STARTED";
+                  payload: {
+                      engineVersion: components["schemas"]["Version"];
+                      sourceHash: components["schemas"]["Sha256"];
+                  };
+              }
+            | {
+                  /**
+                   * @constant
+                   */
+                  schemaVersion: "1.0";
+                  attemptId: components["schemas"]["Id"];
+                  sequence: number;
+                  timestamp: components["schemas"]["Timestamp"];
+                  stepId?: components["schemas"]["Key"];
+                  assertionId?: components["schemas"]["Key"];
+                  /**
+                   * @constant
+                   */
+                  type: "PHASE_CHANGED";
+                  payload: {
+                      /**
+                       * @enum {string}
+                       */
+                      phase: "LEASED" | "PREPARING" | "RUNNING" | "CLEANING" | "FINALIZING" | "FINISHED";
+                  };
+              }
+            | {
+                  /**
+                   * @constant
+                   */
+                  schemaVersion: "1.0";
+                  attemptId: components["schemas"]["Id"];
+                  sequence: number;
+                  timestamp: components["schemas"]["Timestamp"];
+                  stepId: components["schemas"]["Key"];
+                  assertionId?: components["schemas"]["Key"];
+                  /**
+                   * @constant
+                   */
+                  type: "STEP_STARTED";
+                  payload: Record<string, never>;
+              }
+            | {
+                  /**
+                   * @constant
+                   */
+                  schemaVersion: "1.0";
+                  attemptId: components["schemas"]["Id"];
+                  sequence: number;
+                  timestamp: components["schemas"]["Timestamp"];
+                  stepId: components["schemas"]["Key"];
+                  assertionId?: components["schemas"]["Key"];
+                  /**
+                   * @constant
+                   */
+                  type: "STEP_FINISHED";
+                  payload: components["schemas"]["StepFinishedPayloadV1"];
+              }
+            | {
+                  /**
+                   * @constant
+                   */
+                  schemaVersion: "1.0";
+                  attemptId: components["schemas"]["Id"];
+                  sequence: number;
+                  timestamp: components["schemas"]["Timestamp"];
+                  stepId: components["schemas"]["Key"];
+                  assertionId: components["schemas"]["Key"];
+                  /**
+                   * @constant
+                   */
+                  type: "ASSERTION_RESULT";
+                  payload: components["schemas"]["AssertionResultPayloadV1"];
+              }
+            | {
+                  /**
+                   * @constant
+                   */
+                  schemaVersion: "1.0";
+                  attemptId: components["schemas"]["Id"];
+                  sequence: number;
+                  timestamp: components["schemas"]["Timestamp"];
+                  stepId: components["schemas"]["Key"];
+                  assertionId?: components["schemas"]["Key"];
+                  /**
+                   * @constant
+                   */
+                  type: "OBSERVER_RESULT";
+                  payload: components["schemas"]["ObserverResultPayloadV1"];
+              }
+            | {
+                  /**
+                   * @constant
+                   */
+                  schemaVersion: "1.0";
+                  attemptId: components["schemas"]["Id"];
+                  sequence: number;
+                  timestamp: components["schemas"]["Timestamp"];
+                  stepId: components["schemas"]["Key"];
+                  assertionId?: components["schemas"]["Key"];
+                  /**
+                   * @constant
+                   */
+                  type: "VARIABLE_EXTRACTED";
+                  payload: {
+                      name: components["schemas"]["Key"];
+                      valueType: components["schemas"]["ValueType"];
+                  };
+              }
+            | {
+                  /**
+                   * @constant
+                   */
+                  schemaVersion: "1.0";
+                  attemptId: components["schemas"]["Id"];
+                  sequence: number;
+                  timestamp: components["schemas"]["Timestamp"];
+                  stepId?: components["schemas"]["Key"];
+                  assertionId?: components["schemas"]["Key"];
+                  /**
+                   * @constant
+                   */
+                  type: "LOG";
+                  payload: {
+                      /**
+                       * @enum {string}
+                       */
+                      level: "DEBUG" | "INFO" | "WARN" | "ERROR";
+                      message: components["schemas"]["DiagnosticText"];
+                  };
+              }
+            | {
+                  /**
+                   * @constant
+                   */
+                  schemaVersion: "1.0";
+                  attemptId: components["schemas"]["Id"];
+                  sequence: number;
+                  timestamp: components["schemas"]["Timestamp"];
+                  stepId?: components["schemas"]["Key"];
+                  assertionId?: components["schemas"]["Key"];
+                  /**
+                   * @constant
+                   */
+                  type: "CLEANUP_RESULT";
+                  payload: {
+                      cleanupStatus: components["schemas"]["CleanupStatus"];
+                      errorCode?: components["schemas"]["Key"];
+                  };
+              }
+            | {
+                  /**
+                   * @constant
+                   */
+                  schemaVersion: "1.0";
+                  attemptId: components["schemas"]["Id"];
+                  sequence: number;
+                  timestamp: components["schemas"]["Timestamp"];
+                  stepId?: components["schemas"]["Key"];
+                  assertionId?: components["schemas"]["Key"];
+                  /**
+                   * @constant
+                   */
+                  type: "ARTIFACT_CREATED";
+                  payload: {
+                      artifactId: components["schemas"]["Id"];
+                      file: components["schemas"]["EvidenceFileEntryV1"];
+                      /**
+                       * @enum {string}
+                       */
+                      kind: "SCREENSHOT" | "TRACE" | "HTML" | "JUNIT" | "LOG" | "SOURCE" | "MANIFEST" | "DOWNLOAD";
+                  };
+              }
+            | {
+                  /**
+                   * @constant
+                   */
+                  schemaVersion: "1.0";
+                  attemptId: components["schemas"]["Id"];
+                  sequence: number;
+                  timestamp: components["schemas"]["Timestamp"];
+                  stepId?: components["schemas"]["Key"];
+                  assertionId?: components["schemas"]["Key"];
+                  /**
+                   * @constant
+                   */
+                  type: "ATTEMPT_FINISHED";
+                  payload: {
+                      outcome: components["schemas"]["AttemptOutcome"];
+                      cleanupStatus: components["schemas"]["CleanupStatus"];
+                  };
+              };
         BundleManifestV1: {
             /**
              * @constant
@@ -4730,8 +4811,16 @@ export interface components {
              * @enum {unknown}
              */
             purpose: "RUNTIME_ENROLLMENT" | "MAINTENANCE" | "EXECUTION";
-            operations?: ("expired-leases/reap" | "fixture-cleanups/reconcile" | "capacity/reconcile"
-                | "artifacts/expire" | "lifecycle/expire" | "trigger" | "read" | "cancel")[];
+            operations?: (
+                | "expired-leases/reap"
+                | "fixture-cleanups/reconcile"
+                | "capacity/reconcile"
+                | "artifacts/expire"
+                | "lifecycle/expire"
+                | "trigger"
+                | "read"
+                | "cancel"
+            )[];
             planIds?: components["schemas"]["Id"][];
         } & (unknown & unknown & unknown);
         ServiceEnrollmentRequest: {
@@ -4774,13 +4863,16 @@ export interface components {
             data: components["schemas"]["UploadChunkDTO"];
             requestId: string;
         };
-        CompletionManifestV1: components["schemas"]["TestCompletionManifestV1"]
+        CompletionManifestV1:
+            | components["schemas"]["TestCompletionManifestV1"]
             | components["schemas"]["ValidateCompletionManifestV1"]
             | components["schemas"]["CleanupCompletionManifestV1"];
-        DeviceRotationRequest: Record<string, never> | {
-            clientRequestId: components["schemas"]["Id"];
-            replacementToken: string;
-        };
+        DeviceRotationRequest:
+            | Record<string, never>
+            | {
+                  clientRequestId: components["schemas"]["Id"];
+                  replacementToken: string;
+              };
         CompiledSourceDTO: {
             descriptorSha256: components["schemas"]["Sha256"];
             files: components["schemas"]["FileEntry"][];
@@ -5227,13 +5319,18 @@ export interface components {
              */
             validationStatus: "VALIDATED" | "UNVALIDATED_DEBUG";
             draftValidationJobId?: components["schemas"]["Id"];
-        } & unknown) & ({
-            caseVersionIds: unknown;
-        } | {
-            suiteVersionId: unknown;
-        } | {
-            draftValidationJobId: unknown;
-        });
+        } & unknown) &
+            (
+                | {
+                      caseVersionIds: unknown;
+                  }
+                | {
+                      suiteVersionId: unknown;
+                  }
+                | {
+                      draftValidationJobId: unknown;
+                  }
+            );
         DurationMs: number;
         /**
          * @description Literal diagnostic/evidence text; retain invalid expressions verbatim and never evaluate or
@@ -5251,18 +5348,20 @@ export interface components {
             blockedByStepId?: components["schemas"]["Key"];
             blockedByAssertionId?: components["schemas"]["Key"];
         };
-        ActualValueV1: {
-            /**
-             * @constant
-             */
-            present: false;
-        } | {
-            /**
-             * @constant
-             */
-            present: true;
-            value: components["schemas"]["JsonValue"];
-        };
+        ActualValueV1:
+            | {
+                  /**
+                   * @constant
+                   */
+                  present: false;
+              }
+            | {
+                  /**
+                   * @constant
+                   */
+                  present: true;
+                  value: components["schemas"]["JsonValue"];
+              };
         AssertionResultPayloadV1: {
             /**
              * @enum {string}
@@ -5302,22 +5401,24 @@ export interface components {
             sizeBytes: number;
             sensitivity: components["schemas"]["ArtifactSensitivity"];
         };
-        AuthAdapterConfigV1: {
-            /**
-             * @constant
-             */
-            kind: "HTTP_BEARER";
-            identityPath: components["schemas"]["Path"];
-            identityPointer: string;
-        } | {
-            /**
-             * @constant
-             */
-            kind: "HTTP_SESSION";
-            loginPath: components["schemas"]["Path"];
-            identityPath: components["schemas"]["Path"];
-            identityPointer: string;
-        };
+        AuthAdapterConfigV1:
+            | {
+                  /**
+                   * @constant
+                   */
+                  kind: "HTTP_BEARER";
+                  identityPath: components["schemas"]["Path"];
+                  identityPointer: string;
+              }
+            | {
+                  /**
+                   * @constant
+                   */
+                  kind: "HTTP_SESSION";
+                  loginPath: components["schemas"]["Path"];
+                  identityPath: components["schemas"]["Path"];
+                  identityPointer: string;
+              };
         AuthAdapterVersionV1: {
             workspaceId: components["schemas"]["Id"];
             versionId: components["schemas"]["Id"];
@@ -5428,7 +5529,8 @@ export interface components {
             diagnostics?: components["schemas"]["CompilerDiagnosticV1"][];
             processStopScope?: components["schemas"]["ProcessStopScope"];
         };
-        ValidateCompletionManifestV1: components["schemas"]["ValidateSuccessCompletionManifestV1"]
+        ValidateCompletionManifestV1:
+            | components["schemas"]["ValidateSuccessCompletionManifestV1"]
             | components["schemas"]["ValidateFailureCompletionManifestV1"];
         CleanupCompletionManifestV1: {
             /**

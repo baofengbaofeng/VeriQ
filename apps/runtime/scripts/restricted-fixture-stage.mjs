@@ -61,10 +61,7 @@ async function inspect(root) {
             if (entry.isSymbolicLink()) {
                 attributes.push(attributesOf(member, entry, "symlink"));
                 const link = await readlink(path);
-                assert(
-                    !isAbsolute(link) && contained(root, await realpath(path)),
-                    "FIXTURE_LINK_OUTSIDE",
-                );
+                assert(!isAbsolute(link) && contained(root, await realpath(path)), "FIXTURE_LINK_OUTSIDE");
                 entries.push({ path: member, link });
             } else if (entry.isDirectory()) {
                 entries.push({ path: member, directory: true });
@@ -93,20 +90,13 @@ async function inspect(root) {
 function proveIndependentCopy(before, copied) {
     assert.deepEqual(copied.entries, before.entries, "FIXTURE_COPY_CHANGED");
     assert.equal(copied.bytes, before.bytes, "FIXTURE_COPY_CHANGED");
-    assert.equal(
-        copied.attributes.length,
-        before.attributes.length,
-        "FIXTURE_COPY_MEMBERS_CHANGED",
-    );
+    assert.equal(copied.attributes.length, before.attributes.length, "FIXTURE_COPY_MEMBERS_CHANGED");
     const originals = new Set(before.attributes.map((entry) => `${entry.dev}:${entry.ino}`));
     const byPath = new Map(copied.attributes.map((entry) => [entry.path, entry]));
     for (const entry of before.attributes) {
         const targetEntry = byPath.get(entry.path);
         assert(targetEntry?.type === entry.type, "FIXTURE_COPY_TYPE_CHANGED");
-        assert(
-            !originals.has(`${targetEntry.dev}:${targetEntry.ino}`),
-            "FIXTURE_COPY_SHARED_INODE",
-        );
+        assert(!originals.has(`${targetEntry.dev}:${targetEntry.ino}`), "FIXTURE_COPY_SHARED_INODE");
     }
 }
 
@@ -125,10 +115,7 @@ async function normalizeCopiedOwnership(target, copied) {
             directory = entry.type === "directory";
         const handle = await open(
             path,
-            constants.O_RDONLY |
-                constants.O_NOFOLLOW |
-                constants.O_NONBLOCK |
-                (directory ? constants.O_DIRECTORY : 0),
+            constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK | (directory ? constants.O_DIRECTORY : 0),
         );
         try {
             const actual = await handle.stat();
@@ -157,17 +144,10 @@ export async function stageOwnedFixture(source, target) {
     assert.equal(await realpath(source), resolve(source), "FIXTURE_SOURCE_LINKED");
     assert(!contained(source, target) && !contained(target, source), "FIXTURE_COPY_OVERLAP");
     await assert.rejects(lstat(target), { code: "ENOENT" });
-    assert.equal(
-        await realpath(dirname(target)),
-        resolve(dirname(target)),
-        "FIXTURE_TARGET_PARENT_LINKED",
-    );
+    assert.equal(await realpath(dirname(target)), resolve(dirname(target)), "FIXTURE_TARGET_PARENT_LINKED");
     const before = await inspect(source);
     const space = await statfs(dirname(target), { bigint: true });
-    assert(
-        space.bavail * space.bsize >= BigInt(before.bytes) + 8n * 1024n * 1024n,
-        "FIXTURE_COPY_BUDGET",
-    );
+    assert(space.bavail * space.bsize >= BigInt(before.bytes) + 8n * 1024n * 1024n, "FIXTURE_COPY_BUDGET");
     await cp(source, target, {
         recursive: true,
         dereference: false,
@@ -186,20 +166,14 @@ export async function stageOwnedFixture(source, target) {
     for (const entry of after.attributes) {
         const previous = originalCopies.get(entry.path);
         assert(
-            previous &&
-                entry.dev === previous.dev &&
-                entry.ino === previous.ino &&
-                entry.nlink === previous.nlink,
+            previous && entry.dev === previous.dev && entry.ino === previous.ino && entry.nlink === previous.nlink,
             "FIXTURE_COPY_IDENTITY_CHANGED",
         );
         if (entry.type === "symlink") {
             assert.deepEqual(entry, previous, "FIXTURE_COPY_LINK_CHANGED");
             continue;
         }
-        assert(
-            entry.uid === ownership.uid && entry.gid === ownership.gid,
-            "FIXTURE_COPY_OWNER_INVALID",
-        );
+        assert(entry.uid === ownership.uid && entry.gid === ownership.gid, "FIXTURE_COPY_OWNER_INVALID");
         assert.equal(
             entry.mode & 0o7777,
             entry.type === "directory" || (previous.mode & 0o111) !== 0 ? 0o755 : 0o644,
@@ -238,8 +212,7 @@ const normalize = (value) =>
                     .map(([key, member]) => [key, normalize(member)]),
             )
           : value;
-const equal = (actual, expected, message) =>
-    assert.deepEqual(normalize(actual), normalize(expected), message);
+const equal = (actual, expected, message) => assert.deepEqual(normalize(actual), normalize(expected), message);
 const sorted = (value) => [...value].sort();
 const packageName = (name) =>
     typeof name === "string" && /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/.test(name);
@@ -250,14 +223,7 @@ const workspaceNames = ["compiler", "contracts", "runner-sdk"];
  * 业务子进程先在 timeout 监督下创建新的网络命名空间，再仅对本次进程执行专用 UID 和 GID 降权；严格重建环境并关闭 tsx 缓
  * 存，避免继承 HOME 或外部模块路径，命名空间权限不足时原样失败而不回退到宿主网络。
  */
-export async function executeNetworkIsolatedFixture(
-    node,
-    uid,
-    gid,
-    cwd,
-    args,
-    execute = promisify(execFile),
-) {
+export async function executeNetworkIsolatedFixture(node, uid, gid, cwd, args, execute = promisify(execFile)) {
     assert(
         isAbsolute(node) &&
             isAbsolute(cwd) &&
@@ -318,10 +284,7 @@ function yamlParser() {
 }
 async function bytes(path, limit = 4 * 1024 * 1024) {
     const entry = await lstat(path);
-    assert(
-        entry.isFile() && !entry.isSymbolicLink() && entry.size <= limit,
-        "FIXTURE_INPUT_INVALID",
-    );
+    assert(entry.isFile() && !entry.isSymbolicLink() && entry.size <= limit, "FIXTURE_INPUT_INVALID");
     const value = await readFile(path);
     assert(value.length <= limit, "FIXTURE_INPUT_LIMIT");
     return value;
@@ -342,17 +305,13 @@ async function document(path, yaml) {
                 ["string", "number", "boolean"].includes(typeof member) || member === null,
                 "FIXTURE_DOCUMENT_VALUE",
             );
-            if (typeof member === "string")
-                assert(member.length <= 16384, "FIXTURE_DOCUMENT_STRING_LIMIT");
+            if (typeof member === "string") assert(member.length <= 16384, "FIXTURE_DOCUMENT_STRING_LIMIT");
             return;
         }
         assert(!seen.has(member), "FIXTURE_DOCUMENT_ALIAS");
         seen.add(member);
         for (const [key, child] of Object.entries(member)) {
-            assert(
-                !["__proto__", "constructor", "prototype"].includes(key),
-                "FIXTURE_DOCUMENT_KEY",
-            );
+            assert(!["__proto__", "constructor", "prototype"].includes(key), "FIXTURE_DOCUMENT_KEY");
             check(child, depth + 1);
         }
     }
@@ -378,9 +337,7 @@ async function inputHashes(repository) {
         ...workspaceNames.map((name) => `packages/${name}/package.json`),
     ];
     return Object.fromEntries(
-        await Promise.all(
-            paths.map(async (path) => [path, digest(await bytes(join(repository, path)))]),
-        ),
+        await Promise.all(paths.map(async (path) => [path, digest(await bytes(join(repository, path)))])),
     );
 }
 function manifestEdges(manifest, importer) {
@@ -438,10 +395,7 @@ async function expectedGraph(repository, source, root) {
             );
             return workspace.id;
         }
-        assert(
-            !workspaces.has(name) && /^[0-9][^\s/:]*$/.test(version),
-            "FIXTURE_REGISTRY_REFERENCE",
-        );
+        assert(!workspaces.has(name) && /^[0-9][^\s/:]*$/.test(version), "FIXTURE_REGISTRY_REFERENCE");
         return `${name}@${version}`;
     };
     const importerEdges = (importer, owner, specifiers) =>
@@ -450,10 +404,7 @@ async function expectedGraph(repository, source, root) {
                 field,
                 Object.fromEntries(
                     Object.entries(importer[field] ?? {}).map(([name, edge]) => {
-                        assert(
-                            object(edge) && typeof edge.specifier === "string",
-                            "FIXTURE_IMPORTER_EDGE",
-                        );
+                        assert(object(edge) && typeof edge.specifier === "string", "FIXTURE_IMPORTER_EDGE");
                         const id = reference(name, edge.version, owner);
                         return [
                             name,
@@ -520,9 +471,7 @@ async function expectedGraph(repository, source, root) {
     };
     for (const field of fields)
         for (const [name, edge] of Object.entries(importer[field]))
-            visit(
-                workspaces.has(name) ? edge.version : reference(name, edge.version, "apps/runtime"),
-            );
+            visit(workspaces.has(name) ? edge.version : reference(name, edge.version, "apps/runtime"));
     return { packages, snapshots, importer, workspaces, identities, runtimeManifest };
 }
 function verifyLock(actual, expected, root) {
@@ -534,15 +483,10 @@ function verifyLock(actual, expected, root) {
 }
 function compatible(values, actual) {
     if (values === undefined) return true;
-    assert(
-        Array.isArray(values) && values.every((value) => typeof value === "string"),
-        "FIXTURE_PLATFORM_CONDITION",
-    );
+    assert(Array.isArray(values) && values.every((value) => typeof value === "string"), "FIXTURE_PLATFORM_CONDITION");
     return (
         !values.includes(`!${actual}`) &&
-        (!values.some((value) => !value.startsWith("!")) ||
-            values.includes(actual) ||
-            values.includes("any"))
+        (!values.some((value) => !value.startsWith("!")) || values.includes(actual) || values.includes("any"))
     );
 }
 
@@ -595,8 +539,7 @@ async function installedGraph(source, expected, modules, inventory) {
                 optional &&
                     declaredSkipped.has(id) &&
                     metadata &&
-                    (!compatible(metadata.os, process.platform) ||
-                        !compatible(metadata.cpu, process.arch)),
+                    (!compatible(metadata.os, process.platform) || !compatible(metadata.cpu, process.arch)),
                 "FIXTURE_REQUIRED_PACKAGE_MISSING",
             );
             skipped.add(id);
@@ -635,14 +578,9 @@ async function installedGraph(source, expected, modules, inventory) {
         "FIXTURE_INSTALL_GRAPH_INCOMPLETE",
     );
     for (const entry of inventory.entries) {
-        const match = /(?:^|\/)node_modules\/((?:@[^/]+\/)?[^/.][^/]*)\/package\.json$/.exec(
-            entry.path,
-        );
+        const match = /(?:^|\/)node_modules\/((?:@[^/]+\/)?[^/.][^/]*)\/package\.json$/.exec(entry.path);
         if (match && entry.sha256)
-            assert(
-                pathIds.has(join(source, dirname(entry.path))),
-                "FIXTURE_EXTRA_INSTALLED_PACKAGE",
-            );
+            assert(pathIds.has(join(source, dirname(entry.path))), "FIXTURE_EXTRA_INSTALLED_PACKAGE");
     }
     return {
         packages: [...installed]
@@ -718,10 +656,7 @@ async function save(evidence, name, value) {
     await writeFile(join(evidence, name), JSON.stringify(value, null, 2) + "\n", { mode: 0o600 });
 }
 async function ownedState(state, temporary, uid) {
-    assert(
-        isAbsolute(temporary) && (await realpath(temporary)) === temporary,
-        "FIXTURE_TEMPORARY_INVALID",
-    );
+    assert(isAbsolute(temporary) && (await realpath(temporary)) === temporary, "FIXTURE_TEMPORARY_INVALID");
     assert(
         object(state) &&
             isAbsolute(state.root) &&
@@ -730,29 +665,20 @@ async function ownedState(state, temporary, uid) {
         "FIXTURE_DEPLOY_ROOT_INVALID",
     );
     assert.equal(state.source, join(state.root, "runtime"), "FIXTURE_DEPLOY_SOURCE_INVALID");
-    assert(
-        Number.isSafeInteger(state.uid) && state.uid > 0 && state.uid === uid,
-        "FIXTURE_DEPLOY_UID_INVALID",
-    );
+    assert(Number.isSafeInteger(state.uid) && state.uid > 0 && state.uid === uid, "FIXTURE_DEPLOY_UID_INVALID");
     assert(
         /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(state.nonce),
         "FIXTURE_DEPLOY_NONCE_INVALID",
     );
     const root = await lstat(state.root);
     assert(
-        root.isDirectory() &&
-            !root.isSymbolicLink() &&
-            root.uid === uid &&
-            (root.mode & 0o777) === 0o700,
+        root.isDirectory() && !root.isSymbolicLink() && root.uid === uid && (root.mode & 0o777) === 0o700,
         "FIXTURE_DEPLOY_ROOT_UNOWNED",
     );
     assert.equal(await realpath(state.root), state.root, "FIXTURE_DEPLOY_ROOT_LINKED");
     const marker = await lstat(join(state.root, ".owned"));
     assert(
-        marker.isFile() &&
-            !marker.isSymbolicLink() &&
-            marker.uid === uid &&
-            (marker.mode & 0o777) === 0o600,
+        marker.isFile() && !marker.isSymbolicLink() && marker.uid === uid && (marker.mode & 0o777) === 0o600,
         "FIXTURE_DEPLOY_MARKER_INVALID",
     );
     assert.equal(
@@ -767,11 +693,7 @@ async function ownedState(state, temporary, uid) {
  * 口不加载开发 YAML 工具，缺结果、错误身份或失败后残树均在复制前关闭，避免把准备意图误认成可启动
  * 证据。
  */
-export async function readPreparedFixtureDeployment(
-    evidence,
-    temporary,
-    repository = repositoryRoot,
-) {
+export async function readPreparedFixtureDeployment(evidence, temporary, repository = repositoryRoot) {
     const state = await json(join(evidence, "restricted-file-deployment.json"));
     await ownedState(state, temporary, state.uid);
     const result = await json(join(evidence, "restricted-file-deployment-result.json"));
@@ -789,11 +711,7 @@ export async function readPreparedFixtureDeployment(
         result.verification?.inventory,
         "FIXTURE_DEPLOY_INVENTORY_CHANGED",
     );
-    equal(
-        await inputHashes(repository),
-        result.verification?.inputs,
-        "FIXTURE_DEPLOY_INPUTS_CHANGED",
-    );
+    equal(await inputHashes(repository), result.verification?.inputs, "FIXTURE_DEPLOY_INPUTS_CHANGED");
     return { ...state, result };
 }
 
@@ -805,17 +723,10 @@ export async function readPreparedFixtureDeployment(
 export async function prepareFixtureDeployment(
     evidence,
     pnpm,
-    {
-        repository = repositoryRoot,
-        temporary = process.env.RUNNER_TEMP,
-        execute = promisify(execFile),
-    } = {},
+    { repository = repositoryRoot, temporary = process.env.RUNNER_TEMP, execute = promisify(execFile) } = {},
 ) {
     assert.equal(process.platform, "linux");
-    assert(
-        process.getuid() > 0 && isAbsolute(evidence) && isAbsolute(pnpm),
-        "FIXTURE_PREPARE_ARGUMENTS",
-    );
+    assert(process.getuid() > 0 && isAbsolute(evidence) && isAbsolute(pnpm), "FIXTURE_PREPARE_ARGUMENTS");
     temporary = await realpath(temporary);
     const descriptor = join(evidence, "restricted-file-deployment.json"),
         resultPath = join(evidence, "restricted-file-deployment-result.json");
@@ -874,8 +785,7 @@ export async function prepareFixtureDeployment(
             effective[key] = value.stdout.trim();
         }
         assert(
-            effective.registry === "https://registry.npmjs.org/" &&
-                effective.minimumReleaseAge === "1440",
+            effective.registry === "https://registry.npmjs.org/" && effective.minimumReleaseAge === "1440",
             "FIXTURE_EFFECTIVE_POLICY",
         );
         const output = await execute(process.execPath, args, {
@@ -964,10 +874,7 @@ async function cleanupDeployment(evidence) {
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
     const [mode, evidence, pnpm] = process.argv.slice(2);
-    assert(
-        ["prepare", "cleanup"].includes(mode) && isAbsolute(evidence),
-        "FIXTURE_STAGE_ARGUMENTS",
-    );
+    assert(["prepare", "cleanup"].includes(mode) && isAbsolute(evidence), "FIXTURE_STAGE_ARGUMENTS");
     if (mode === "prepare") await prepareFixtureDeployment(evidence, pnpm);
     else await cleanupDeployment(evidence);
 }

@@ -53,8 +53,7 @@ export function armEvent(
     ctx: StepContext,
 ): EventHandle {
     if (spec.kind === "download" && !ctx.downloads) throw new Error("DOWNLOAD_PROVIDER_REQUIRED");
-    if (spec.kind === "newPage" && ctx.pages.has(spec.pageKey))
-        throw new Error("DUPLICATE_PAGE_KEY");
+    if (spec.kind === "newPage" && ctx.pages.has(spec.pageKey)) throw new Error("DUPLICATE_PAGE_KEY");
     const controller = new AbortController(),
         deadline = Date.now() + budget(ctx, spec.timeoutMs ?? 15000);
     let count = 0,
@@ -71,8 +70,7 @@ export function armEvent(
     const notify = () => {
         for (const f of watchers) f();
     };
-    let resolvePage: ((page: Page) => void) | undefined,
-        rejectPage: ((error: Error) => void) | undefined;
+    let resolvePage: ((page: Page) => void) | undefined, rejectPage: ((error: Error) => void) | undefined;
     if (spec.kind === "newPage") {
         const page = new Promise<Page>((resolve, reject) => {
             resolvePage = resolve;
@@ -99,19 +97,13 @@ export function armEvent(
     }
     const dialog = (d: Dialog) =>
         receive(async () => {
-            if (
-                d.type() !== specDialog().dialogType ||
-                d.message() !== stringBinding(specDialog().message, ctx)
-            ) {
+            if (d.type() !== specDialog().dialogType || d.message() !== stringBinding(specDialog().message, ctx)) {
                 await d.dismiss();
                 throw new Error("DIALOG_MISMATCH");
             }
             const s = specDialog();
             if (s.handling === "dismiss") await d.dismiss();
-            else
-                await d.accept(
-                    s.promptText === undefined ? undefined : stringBinding(s.promptText, ctx),
-                );
+            else await d.accept(s.promptText === undefined ? undefined : stringBinding(s.promptText, ctx));
             return {
                 observerId: s.id,
                 kind: "dialog",
@@ -149,20 +141,12 @@ export function armEvent(
                 const limit = new Transform({
                     transform(chunk: Buffer, _encoding, callback) {
                         bytes += chunk.length;
-                        callback(
-                            bytes > ctx.downloads!.maxBytes
-                                ? new Error("DOWNLOAD_SIZE_LIMIT")
-                                : null,
-                            chunk,
-                        );
+                        callback(bytes > ctx.downloads!.maxBytes ? new Error("DOWNLOAD_SIZE_LIMIT") : null, chunk);
                     },
                 });
-                await pipeline(
-                    stream,
-                    limit,
-                    createWriteStream(path, { flags: "wx", mode: 0o600 }),
-                    { signal: controller.signal },
-                );
+                await pipeline(stream, limit, createWriteStream(path, { flags: "wx", mode: 0o600 }), {
+                    signal: controller.signal,
+                });
                 const failure = await d.failure();
                 if (failure) throw new Error("DOWNLOAD_FAILED");
                 return {

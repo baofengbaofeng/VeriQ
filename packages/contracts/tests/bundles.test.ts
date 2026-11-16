@@ -26,9 +26,7 @@ test("offline selection is bounded, exclusive and explicit about draft debug", (
             ),
         },
     ])
-        expect(
-            validateSchema("BundleSelectionV1", { ...base, ...selection }).length,
-        ).toBeGreaterThan(0);
+        expect(validateSchema("BundleSelectionV1", { ...base, ...selection }).length).toBeGreaterThan(0);
 });
 test("issuer trust requires explicit versioned revocation facts and bounded keys", () => {
     const key = {
@@ -50,9 +48,7 @@ test("issuer trust requires explicit versioned revocation facts and bounded keys
 });
 
 test("synchronous bundle API has one session auth path and durable retry contract", () => {
-    const api = JSON.parse(
-        readFileSync(new URL("../openapi/platform.yaml", import.meta.url), "utf8"),
-    );
+    const api = JSON.parse(readFileSync(new URL("../openapi/platform.yaml", import.meta.url), "utf8"));
     for (const [path, methods] of Object.entries(api.paths) as [string, Record<string, any>][]) {
         if (!path.startsWith("/api/v1/workspaces/{workspaceId}/bundles")) continue;
         for (const operation of Object.values(methods))
@@ -61,8 +57,6 @@ test("synchronous bundle API has one session auth path and durable retry contrac
     const create = api.paths["/api/v1/workspaces/{workspaceId}/bundles"].post;
     expect(create.responses["201"]).toBeDefined();
     expect(create.responses["202"]).toBeUndefined();
-    expect(
-        create.parameters.find((p: { name: string }) => p.name === "Idempotency-Key").required,
-    ).toBe(true);
+    expect(create.parameters.find((p: { name: string }) => p.name === "Idempotency-Key").required).toBe(true);
     expect(create.responses["409"]).toBeDefined();
 });

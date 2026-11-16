@@ -18,10 +18,7 @@ test("local execution ownership survives reopen and unknown stop never frees the
         first.close();
         const reopened = await LocalStore.open(directory);
         assert.equal(reopened.active()?.attemptId, attemptId);
-        assert.throws(
-            () => reopened.reserve(workspaceId, randomUUID(), randomUUID()),
-            /LOCAL_CAPACITY_HELD/,
-        );
+        assert.throws(() => reopened.reserve(workspaceId, randomUUID(), randomUUID()), /LOCAL_CAPACITY_HELD/);
         reopened.stopped(
             runId,
             {
@@ -33,10 +30,7 @@ test("local execution ownership survives reopen and unknown stop never frees the
             reopened.active()!,
         );
         assert.equal(reopened.active()?.state, "QUARANTINED");
-        assert.throws(
-            () => reopened.reserve(workspaceId, randomUUID(), randomUUID()),
-            /LOCAL_CAPACITY_HELD/,
-        );
+        assert.throws(() => reopened.reserve(workspaceId, randomUUID(), randomUUID()), /LOCAL_CAPACITY_HELD/);
         reopened.close();
     } finally {
         await rm(directory, { recursive: true, force: true });
@@ -144,11 +138,9 @@ test("two OS processes compete for one durable local context", async () => {
          */
         const compete = () =>
             new Promise<string>((resolve, reject) => {
-                const child = spawn(
-                    process.execPath,
-                    ["--import", "tsx", "--input-type=module", "-e", script, dir],
-                    { stdio: ["ignore", "pipe", "pipe"] },
-                );
+                const child = spawn(process.execPath, ["--import", "tsx", "--input-type=module", "-e", script, dir], {
+                    stdio: ["ignore", "pipe", "pipe"],
+                });
                 let output = "",
                     errors = "";
                 child.stdout.on("data", (b) => (output = (output + b).slice(0, 8192)));
@@ -170,10 +162,7 @@ test("two OS processes compete for one durable local context", async () => {
                           ),
                 );
             });
-        assert.deepEqual((await Promise.all([compete(), compete()])).sort(), [
-            "ACQUIRED",
-            "LOCAL_CAPACITY_HELD",
-        ]);
+        assert.deepEqual((await Promise.all([compete(), compete()])).sort(), ["ACQUIRED", "LOCAL_CAPACITY_HELD"]);
     } finally {
         await rm(dir, { recursive: true, force: true });
     }

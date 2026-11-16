@@ -50,15 +50,11 @@ export function AdminUsers() {
             if (!userId || !isAdmin || !owner.current.mounted || owner.current.key !== key) return;
             const request = ++owner.current.request;
             const current = () =>
-                owner.current.mounted &&
-                owner.current.key === key &&
-                owner.current.request === request;
+                owner.current.mounted && owner.current.key === key && owner.current.request === request;
             try {
                 const page = await api.users({ ...filters, cursor });
                 if (!current()) return;
-                setUsers((previous) =>
-                    cursor && previous ? [...previous, ...page.items] : page.items,
-                );
+                setUsers((previous) => (cursor && previous ? [...previous, ...page.items] : page.items));
                 setNextCursor(page.nextCursor);
             } catch (error) {
                 if (current()) throw error;
@@ -122,12 +118,7 @@ export function AdminUsers() {
                         {new Date(link.expiresAt).toLocaleString()}
                         {tx(". Share privately with this user.")}
                     </p>
-                    <input
-                        aria-label={tx("Reset link")}
-                        data-testid="reset-url"
-                        readOnly
-                        value={link.url}
-                    />
+                    <input aria-label={tx("Reset link")} data-testid="reset-url" readOnly value={link.url} />
                     <button
                         type="button"
                         onClick={() =>
@@ -152,8 +143,7 @@ export function AdminUsers() {
                     setFilters({
                         q: input.q,
                         disabled: input.disabled === "" ? undefined : input.disabled === "true",
-                        systemAdmin:
-                            input.systemAdmin === "" ? undefined : input.systemAdmin === "true",
+                        systemAdmin: input.systemAdmin === "" ? undefined : input.systemAdmin === "true",
                         limit: Number(input.limit),
                     });
                 }}
@@ -196,11 +186,7 @@ export function AdminUsers() {
                 a.error ? (
                     <div>
                         <p>{tx("Users could not be loaded.")}</p>
-                        <button
-                            type="button"
-                            onClick={() => void a.run(() => load())}
-                            disabled={a.busy}
-                        >
+                        <button type="button" onClick={() => void a.run(() => load())} disabled={a.busy}>
                             {tx("Retry users")}
                         </button>
                     </div>

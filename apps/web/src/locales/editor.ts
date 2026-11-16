@@ -25,10 +25,7 @@ export const editorMessages: Record<string, readonly [string, string]> = {
     "模板实参 / Template bindings": ["模板实参", "Template bindings"],
     "运算符 / Operator": ["运算符", "Operator"],
     "元素 key / Target": ["元素 key", "Target"],
-    "页面 / Page (省略=原始页面 / original)": [
-        "页面（省略为原始页面）",
-        "Page (omit for original page)",
-    ],
+    "页面 / Page (省略=原始页面 / original)": ["页面（省略为原始页面）", "Page (omit for original page)"],
     "仅显式选择；公共流程内部新页面不泄漏到调用方 / Explicit lexical page scope": [
         "仅显式选择；公共流程内部新页面不泄漏到调用方",
         "Explicit lexical page scope",
@@ -40,18 +37,14 @@ export const editorMessages: Record<string, readonly [string, string]> = {
         "Symbolic caller page key; checked at the calling case. Omission means original page.",
     ],
     "网络来源 / Network source": ["网络来源", "Network source"],
-    "模板在调用方网络监听器作用域内解析，例如 response:save / Symbolic observer reference resolved in caller scope.":
-        [
-            "模板在调用方网络监听器作用域内解析，例如 response:save",
-            "Symbolic observer reference resolved in caller scope.",
-        ],
+    "模板在调用方网络监听器作用域内解析，例如 response:save / Symbolic observer reference resolved in caller scope.": [
+        "模板在调用方网络监听器作用域内解析，例如 response:save",
+        "Symbolic observer reference resolved in caller scope.",
+    ],
     "只读 GET 路径 / Read-only query path": ["只读 GET 路径", "Read-only query path"],
     "查询参数 / Query parameters": ["查询参数", "Query parameters"],
     "轮询间隔 ms / Interval": ["轮询间隔 ms", "Interval"],
-    "GET 只读轮询，不重放写操作 / Read-only polling": [
-        "GET 只读轮询，不重放写操作",
-        "Read-only polling",
-    ],
+    "GET 只读轮询，不重放写操作 / Read-only polling": ["GET 只读轮询，不重放写操作", "Read-only polling"],
     "预期 / Expected": ["预期", "Expected"],
     "预期 JSON Schema / Expected schema": ["预期 JSON Schema", "Expected schema"],
     "预期值 / Expected value": ["预期值", "Expected value"],
@@ -72,10 +65,7 @@ export const editorMessages: Record<string, readonly [string, string]> = {
     "不可变版本 / Published version": ["不可变版本", "Published version"],
     "添加用例 / Add case versions": ["添加用例", "Add case versions"],
     "Selected case versions": ["所选用例版本", "Selected case versions"],
-    "Remove {{value0}} v{{value1}}": [
-        "移除 {{value0}} v{{value1}}",
-        "Remove {{value0}} v{{value1}}",
-    ],
+    "Remove {{value0}} v{{value1}}": ["移除 {{value0}} v{{value1}}", "Remove {{value0}} v{{value1}}"],
     "移除 / Remove": ["移除", "Remove"],
     "环境版本 / Environment version": ["环境版本", "Environment version"],
     "更多环境版本 / More environment versions": ["更多环境版本", "More environment versions"],
@@ -99,15 +89,11 @@ export const editorMessages: Record<string, readonly [string, string]> = {
     "Fixture 版本 / Fixture version": ["Fixture 版本", "Fixture version"],
     "数据集版本 / Dataset version": ["数据集版本", "Dataset version"],
     "持久化检查点 / Persistence checkpoint": ["持久化检查点", "Persistence checkpoint"],
-    "初始变量类型声明 / Initial variable declarations": [
-        "初始变量类型声明",
-        "Initial variable declarations",
+    "初始变量类型声明 / Initial variable declarations": ["初始变量类型声明", "Initial variable declarations"],
+    "这里只声明类型；实际值在执行时冻结，不写入生成源码 / Types only; values belong to execution snapshots.": [
+        "这里只声明类型；实际值在执行时冻结，不写入生成源码",
+        "Types only; values belong to execution snapshots.",
     ],
-    "这里只声明类型；实际值在执行时冻结，不写入生成源码 / Types only; values belong to execution snapshots.":
-        [
-            "这里只声明类型；实际值在执行时冻结，不写入生成源码",
-            "Types only; values belong to execution snapshots.",
-        ],
     ["准备前只能引用所选数据集和已声明初始变量，不包含未来 Fixture 输出或提取值 / " +
     "Before prepare: selected data columns and declared initial vari" +
     "ables only."]: [
@@ -179,10 +165,7 @@ export const editorMessages: Record<string, readonly [string, string]> = {
         "Runtime owns safe download destinations.",
     ],
     "业务角色 key / Role key": ["业务角色 key", "Role key"],
-    "认证适配器固定版本 / Auth adapter version UUID": [
-        "认证适配器固定版本",
-        "Auth adapter version UUID",
-    ],
+    "认证适配器固定版本 / Auth adapter version UUID": ["认证适配器固定版本", "Auth adapter version UUID"],
     "凭证引用 / Secret reference": ["凭证引用", "Secret reference"],
     "凭证固定版本 / Secret version UUID": ["凭证固定版本", "Secret version UUID"],
     "允许身份 ID / Allowed identity IDs": ["允许身份 ID", "Allowed identity IDs"],
@@ -199,10 +182,7 @@ export const editorMessages: Record<string, readonly [string, string]> = {
     "业务角色身份 / Business role identities": ["业务角色身份", "Business role identities"],
     "Fixture URL": ["Fixture 地址", "Fixture URL"],
     "移除 Fixture 身份 / Remove fixture identity": ["移除 Fixture 身份", "Remove fixture identity"],
-    "添加独立 Fixture 身份 / Add fixture identity": [
-        "添加独立 Fixture 身份",
-        "Add fixture identity",
-    ],
+    "添加独立 Fixture 身份 / Add fixture identity": ["添加独立 Fixture 身份", "Add fixture identity"],
     "环境身份与凭证 / Environment identities and credentials": [
         "环境身份与凭证",
         "Environment identities and credentials",
@@ -281,16 +261,10 @@ export const editorMessages: Record<string, readonly [string, string]> = {
     "根类型 / Root type": ["根类型", "Root type"],
     "允许附加字段 / Allow extra properties": ["允许附加字段", "Allow extra properties"],
     "字段名 / Property": ["字段名", "Property"],
-    "{{value0}} property {{value1}}": [
-        "{{value0}} 字段 {{value1}}",
-        "{{value0}} property {{value1}}",
-    ],
+    "{{value0}} property {{value1}}": ["{{value0}} 字段 {{value1}}", "{{value0}} property {{value1}}"],
     "{{value0}}.{{value1}} type": ["{{value0}}.{{value1}} 类型", "{{value0}}.{{value1}} type"],
     "添加 Schema 字段 / Add schema property": ["添加 Schema 字段", "Add schema property"],
-    "完整 Schema 高级字段 / Complete schema fields": [
-        "完整 Schema 高级字段",
-        "Complete schema fields",
-    ],
+    "完整 Schema 高级字段 / Complete schema fields": ["完整 Schema 高级字段", "Complete schema fields"],
     "请先创建或加入空间 / Create or join a Workspace first.": [
         "请先创建或加入空间",
         "Create or join a Workspace first.",
@@ -317,10 +291,7 @@ export const editorMessages: Record<string, readonly [string, string]> = {
         "需要在线受管理的 Runtime",
         "Requires an available managed Runtime.",
     ],
-    "尚无成功校验回执 / No successful validation receipt.": [
-        "尚无成功校验回执",
-        "No successful validation receipt.",
-    ],
+    "尚无成功校验回执 / No successful validation receipt.": ["尚无成功校验回执", "No successful validation receipt."],
     "尚无发布版本 / No published versions.": ["尚无发布版本", "No published versions."],
     "基础版本 / Base version": ["基础版本", "Base version"],
     "选择 / Select": ["选择", "Select"],
@@ -329,25 +300,16 @@ export const editorMessages: Record<string, readonly [string, string]> = {
     "descriptor SHA-256:": ["描述文件 SHA-256：", "descriptor SHA-256:"],
     "保留文件 / Retained file": ["保留文件", "Retained file"],
     "bytes · SHA-256:": ["字节 · SHA-256：", "bytes · SHA-256:"],
-    "Generated TypeScript read only": [
-        "生成的 TypeScript 只读源码",
-        "Generated TypeScript read only",
-    ],
+    "Generated TypeScript read only": ["生成的 TypeScript 只读源码", "Generated TypeScript read only"],
     "引用影响 / Reference impact": ["引用影响", "Reference impact"],
-    "没有已发布资源引用此资源 / No published dependents.": [
-        "没有已发布资源引用此资源",
-        "No published dependents.",
-    ],
+    "没有已发布资源引用此资源 / No published dependents.": ["没有已发布资源引用此资源", "No published dependents."],
     "更多引用 / More dependents": ["更多引用", "More dependents"],
     "{{value0}} · {{value1}} · Request {{value2}}": [
         "{{value0}} · {{value1}} · 请求 {{value2}}",
         "{{value0}} · {{value1}} · Request {{value2}}",
     ],
     "重试 / Retry": ["重试", "Retry"],
-    "· 未在当前作用域声明 / Not declared in this scope": [
-        "· 未在当前作用域声明",
-        "Not declared in this scope",
-    ],
+    "· 未在当前作用域声明 / Not declared in this scope": ["· 未在当前作用域声明", "Not declared in this scope"],
     "选择固定版本 / Select pinned version": ["选择固定版本", "Select pinned version"],
     "(未加载 / unavailable)": ["(未加载", "unavailable)"],
     "拖动排序 / Drag to reorder": ["拖动排序", "Drag to reorder"],

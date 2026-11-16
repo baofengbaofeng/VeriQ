@@ -51,11 +51,7 @@ export function Setup() {
         auth = useContext(Auth);
     return (
         <Panel title={tx("Set up VeriQ")}>
-            <p>
-                {tx(
-                    "Create the first system administrator using the installation secret from your operator.",
-                )}
-            </p>
+            <p>{tx("Create the first system administrator using the installation secret from your operator.")}</p>
             <form
                 onSubmit={(e) => {
                     const v = values(e);
@@ -71,19 +67,10 @@ export function Setup() {
                     });
                 }}
             >
-                <Field
-                    name="installationSecret"
-                    label={tx("Installation secret")}
-                    type="password"
-                />
+                <Field name="installationSecret" label={tx("Installation secret")} type="password" />
                 <Field name="email" label={tx("Administrator email")} type="email" />
                 <Field name="displayName" label={tx("Display name")} />
-                <Field
-                    name="password"
-                    label={tx("Password (at least 12 characters)")}
-                    type="password"
-                    minLength={12}
-                />
+                <Field name="password" label={tx("Password (at least 12 characters)")} type="password" minLength={12} />
                 <button type="submit" data-testid="setup-submit" disabled={a.busy}>
                     {a.busy ? tx("Creating administrator…") : tx("Create administrator")}
                 </button>
@@ -112,9 +99,7 @@ export function ResetRequest() {
                     const v = values(e);
                     void a.run(async () => {
                         await api.resetRequest(v.email);
-                        a.setMessage(
-                            "If this account is eligible, your administrator can provide reset instructions.",
-                        );
+                        a.setMessage("If this account is eligible, your administrator can provide reset instructions.");
                     });
                 }}
             >
@@ -143,11 +128,7 @@ export function ResetConfirm() {
     return (
         <Panel title={tx("Choose a new password")}>
             {!token ? (
-                <p role="alert">
-                    {tx(
-                        "This reset link is missing its token. Ask your administrator for a new link.",
-                    )}
-                </p>
+                <p role="alert">{tx("This reset link is missing its token. Ask your administrator for a new link.")}</p>
             ) : (
                 <form
                     onSubmit={(e) => {
@@ -168,11 +149,7 @@ export function ResetConfirm() {
                         type="password"
                         minLength={12}
                     />
-                    <button
-                        type="submit"
-                        data-testid="reset-confirm-submit"
-                        disabled={a.busy || !!a.message}
-                    >
+                    <button type="submit" data-testid="reset-confirm-submit" disabled={a.busy || !!a.message}>
                         {a.busy ? tx("Updating…") : tx("Update password")}
                     </button>
                 </form>

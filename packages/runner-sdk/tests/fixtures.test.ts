@@ -13,7 +13,7 @@ beforeAll(async () => {
 afterAll(async () => {
     await f.close();
 });
-export function execution(origin: string): ExecutionSnapshotV1 {
+function execution(origin: string): ExecutionSnapshotV1 {
     const configuration = {
         kind: "HTTP_BEARER" as const,
         identityPath: "/me",
@@ -70,7 +70,7 @@ export function execution(origin: string): ExecutionSnapshotV1 {
         ],
     };
 }
-export const definition = {
+const definition = {
     schemaVersion: "1.0" as const,
     prepare: { method: "POST" as const, path: "/prepare" },
     query: { method: "GET" as const, path: "/query" },
@@ -198,10 +198,9 @@ test("sample backend isolates Attempts, cleans UI resources and rejects a concur
         await f.page.getByTestId("name").fill("UI-created");
         await f.page.getByTestId("save").click();
         await f.page.getByTestId("result").getByText("CREATED", { exact: true }).waitFor();
-        const listed = await f.page.request.get(
-            demo.origin + `/employees?namespace=${first.namespace}`,
-            { headers: { authorization: `Bearer ${demo.businessToken}` } },
-        );
+        const listed = await f.page.request.get(demo.origin + `/employees?namespace=${first.namespace}`, {
+            headers: { authorization: `Bearer ${demo.businessToken}` },
+        });
         expect((await listed.json()).items).toHaveLength(1);
         const late = fetch(demo.origin + "/employees", {
             method: "POST",
@@ -267,11 +266,7 @@ test("session business login transfers only verified cookies and fixture session
                 }),
             },
         };
-        const fixtureAuth = await authenticatedRequest(
-            context,
-            e.environment.fixtureIdentity!,
-            demo.origin,
-        );
+        const fixtureAuth = await authenticatedRequest(context, e.environment.fixtureIdentity!, demo.origin);
         expect(fixtureAuth.identityId).toBe("fixture-service");
         expect(await page.context().cookies()).toEqual([]);
         await fixtureAuth.dispose();
@@ -326,9 +321,7 @@ test("partial preparation and a SIGKILL worker leave precisely reclaimable fixtu
             ...definition,
             outputSchema: { type: "object", required: ["missing"] },
         };
-        await expect(prepareFixture({ fixture: incompatible, context })).rejects.toThrow(
-            "FIXTURE_OUTPUT_INVALID",
-        );
+        await expect(prepareFixture({ fixture: incompatible, context })).rejects.toThrow("FIXTURE_OUTPUT_INVALID");
         expect(await cleanupFixture({ fixture: incompatible, context })).toMatchObject({
             status: "CLEANED",
         });
@@ -362,9 +355,7 @@ test("partial preparation and a SIGKILL worker leave precisely reclaimable fixtu
         );
         await new Promise<void>((resolve, reject) => {
             child.stdout.once("data", (data) =>
-                String(data).trim() === "PREPARED"
-                    ? resolve()
-                    : reject(Error("WORKER_PREPARE_FAILED")),
+                String(data).trim() === "PREPARED" ? resolve() : reject(Error("WORKER_PREPARE_FAILED")),
             );
             child.once("error", reject);
             child.once("exit", (code) => {
@@ -373,9 +364,7 @@ test("partial preparation and a SIGKILL worker leave precisely reclaimable fixtu
         });
         child.kill("SIGKILL");
         expect(
-            await new Promise<string | null>((resolve) =>
-                child.once("exit", (_code, signal) => resolve(signal)),
-            ),
+            await new Promise<string | null>((resolve) => child.once("exit", (_code, signal) => resolve(signal))),
         ).toBe("SIGKILL");
         await demo.expire(body.namespace);
         expect(await demo.reconcile()).toMatchObject({
@@ -463,9 +452,7 @@ test("built-in lifecycle compensates after cancellation closes the business brow
         expect(result.cleanupStatus).toBe("SUCCEEDED");
         await demo.release();
         const closed = await fetch(
-            demo.origin +
-                "/query?idempotencyKey=" +
-                encodeURIComponent(`${e.workspaceId}:${e.caseExecutionId}:1`),
+            demo.origin + "/query?idempotencyKey=" + encodeURIComponent(`${e.workspaceId}:${e.caseExecutionId}:1`),
             { headers: { authorization: `Bearer ${demo.fixtureToken}` } },
         );
         expect((await closed.json()).state).toBe("CLOSED");

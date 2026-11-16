@@ -107,8 +107,7 @@ function App() {
         loadGeneration.current += 1;
         try {
             await api.logout();
-            if (mounted.current && identityGeneration.current === request)
-                await readIdentity(request);
+            if (mounted.current && identityGeneration.current === request) await readIdentity(request);
         } catch {
             if (mounted.current && identityGeneration.current === request)
                 setFailure("Unable to sign out. Please retry.");
@@ -154,11 +153,7 @@ function App() {
                             <NavLink to="/resources">{tx("资源 / Resources")}</NavLink>
                             <NavLink to="/environments">{tx("环境 / Environments")}</NavLink>
                             {user.systemAdmin && <NavLink to="/admin/users">{tx("Users")}</NavLink>}
-                            <button
-                                type="button"
-                                data-testid="logout"
-                                onClick={() => void logout()}
-                            >
+                            <button type="button" data-testid="logout" onClick={() => void logout()}>
                                 {tx("Sign out")}
                             </button>
                         </>
@@ -174,13 +169,7 @@ function App() {
                     <Route
                         path="/login"
                         element={
-                            user ? (
-                                <Navigate to="/account" />
-                            ) : initialized ? (
-                                <SignIn />
-                            ) : (
-                                <Navigate to="/setup" />
-                            )
+                            user ? <Navigate to="/account" /> : initialized ? <SignIn /> : <Navigate to="/setup" />
                         }
                     />
                     <Route path="/reset" element={<ResetRequest />} />
@@ -252,12 +241,7 @@ function App() {
                         }
                     />
                     <Route path="/invitations/accept" element={<AcceptInvitation />} />
-                    <Route
-                        path="/"
-                        element={
-                            <Navigate to={user ? "/account" : initialized ? "/login" : "/setup"} />
-                        }
-                    />
+                    <Route path="/" element={<Navigate to={user ? "/account" : initialized ? "/login" : "/setup"} />} />
                     <Route
                         path="*"
                         element={

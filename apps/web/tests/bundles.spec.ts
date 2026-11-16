@@ -159,9 +159,9 @@ test("real Agent publications export through keyboard GUI and verify offline wit
         await page.getByRole("link", { name: "Bundles", exact: true }).click();
         await page.getByLabel("Bundle Workspace").selectOption(scope.workspaceId);
         await page.getByTestId("bundle-resource").selectOption(testcase.resource.id);
-        await expect(
-            page.getByTestId("bundle-version").locator(`option[value="${testcase.version.id}"]`),
-        ).toHaveCount(0);
+        await expect(page.getByTestId("bundle-version").locator(`option[value="${testcase.version.id}"]`)).toHaveCount(
+            0,
+        );
         const casePage = page.waitForResponse((r) =>
             r.url().includes(`/resources/${testcase.resource.id}/versions?cursor=`),
         );
@@ -178,24 +178,16 @@ test("real Agent publications export through keyboard GUI and verify offline wit
         await expect(page.getByTestId("bundle-selected-case")).toHaveCount(2);
         await page.getByTestId("bundle-environment").selectOption(env.resource.id);
         await expect(
-            page
-                .getByTestId("bundle-environment-version")
-                .locator(`option[value="${env.version.id}"]`),
+            page.getByTestId("bundle-environment-version").locator(`option[value="${env.version.id}"]`),
         ).toHaveCount(0);
-        const envPage = page.waitForResponse((r) =>
-            r.url().includes(`/resources/${env.resource.id}/versions?cursor=`),
-        );
+        const envPage = page.waitForResponse((r) => r.url().includes(`/resources/${env.resource.id}/versions?cursor=`));
         await page.getByTestId("bundle-more-environments").click();
         expect((await envPage).status()).toBe(200);
         await expect(
-            page
-                .getByTestId("bundle-environment-version")
-                .locator(`option[value="${env.version.id}"]`),
+            page.getByTestId("bundle-environment-version").locator(`option[value="${env.version.id}"]`),
         ).toContainText("v31");
         await page.getByTestId("bundle-environment-version").selectOption(env.version.id);
-        const exported = page.waitForResponse(
-            (r) => r.url().endsWith("/bundles") && r.request().method() === "POST",
-        );
+        const exported = page.waitForResponse((r) => r.url().endsWith("/bundles") && r.request().method() === "POST");
         await page.getByTestId("bundle-export").focus();
         await page.keyboard.press("Enter");
         const response = await exported;
@@ -207,10 +199,7 @@ test("real Agent publications export through keyboard GUI and verify offline wit
             archive = join(temp, "bundle.zip");
         await download.saveAs(archive);
         const pub = JSON.parse(
-            await readFile(
-                resolve("../../.superpowers/cache/t14/browser-issuer-public.json"),
-                "utf8",
-            ),
+            await readFile(resolve("../../.superpowers/cache/t14/browser-issuer-public.json"), "utf8"),
         );
         const cli = [
             "--filter",
@@ -262,18 +251,12 @@ test("real Agent publications export through keyboard GUI and verify offline wit
         );
         expect(inspected.stdout).toContain("Verified local resource adapter");
         const snapshot = JSON.parse(await readFile(join(temp, "verified/snapshot.json"), "utf8"));
-        expect(snapshot.entryCaseVersionIds.sort()).toEqual(
-            [testcase.version.id, second.version.id].sort(),
-        );
+        expect(snapshot.entryCaseVersionIds.sort()).toEqual([testcase.version.id, second.version.id].sort());
         expect(snapshot.assets.map((a: { versionId: string }) => a.versionId).sort()).toEqual(
             [testcase.version.id, second.version.id, env.version.id, catalog.version.id].sort(),
         );
         const source = await readFile(
-            join(
-                temp,
-                "verified",
-                `compiled/${testcase.version.id}/cases/${testcase.version.id}.test.ts`,
-            ),
+            join(temp, "verified", `compiled/${testcase.version.id}/cases/${testcase.version.id}.test.ts`),
             "utf8",
         );
         expect(source).toContain("registerCase");

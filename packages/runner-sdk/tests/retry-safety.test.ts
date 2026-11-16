@@ -10,9 +10,7 @@ it.each(["GET", "POST"] as const)(
     async (method) => {
         const f = await fixture();
         try {
-            const source = snapshot([
-                { id: "request", action: "apiRequest", method, path: "/save" },
-            ]);
+            const source = snapshot([{ id: "request", action: "apiRequest", method, path: "/save" }]);
             const execution: ExecutionSnapshotV1 = {
                 schemaVersion: "1.0",
                 workspaceId: source.workspaceId,
@@ -44,13 +42,10 @@ it.each(["GET", "POST"] as const)(
                 execution,
                 lifecycle: { authenticate: async () => ({ identityId: "reader" }) },
                 redact: (v) => v,
-                finalizeExecution: async (context: import("@playwright/test").BrowserContext) =>
-                    context.close(),
+                finalizeExecution: async (context: import("@playwright/test").BrowserContext) => context.close(),
             });
             expect(result.businessOutcome).toBe("PASSED");
-            expect(result.retrySafety).toBe(
-                method === "GET" ? "READ_ONLY_OBSERVED" : "WRITE_POSSIBLE",
-            );
+            expect(result.retrySafety).toBe(method === "GET" ? "READ_ONLY_OBSERVED" : "WRITE_POSSIBLE");
             expect(f.page.isClosed()).toBe(true);
         } finally {
             await f.close();
@@ -72,10 +67,7 @@ it.each(["popup", "frame", "websocket", "worker", "workerWebSocket"] as const)(
                 await child.waitForLoadState();
                 await child.evaluate(() => fetch("/save", { method: "POST" }));
             } else if (kind === "frame") {
-                const navigating = f.page.waitForEvent(
-                    "framenavigated",
-                    (frame) => frame !== f.page.mainFrame(),
-                );
+                const navigating = f.page.waitForEvent("framenavigated", (frame) => frame !== f.page.mainFrame());
                 await f.page.evaluate(() => {
                     const frame = document.createElement("iframe");
                     frame.src = "/";
@@ -102,12 +94,9 @@ it.each(["popup", "frame", "websocket", "worker", "workerWebSocket"] as const)(
                 await f.page.evaluate(async (origin) => {
                     const worker = new Worker(
                         URL.createObjectURL(
-                            new Blob(
-                                [
-                                    `fetch('${origin}/save', {method:'POST'}).then(()=>postMessage('done'))`,
-                                ],
-                                { type: "text/javascript" },
-                            ),
+                            new Blob([`fetch('${origin}/save', {method:'POST'}).then(()=>postMessage('done'))`], {
+                                type: "text/javascript",
+                            }),
                         ),
                     );
                     await new Promise((resolve) => (worker.onmessage = resolve));

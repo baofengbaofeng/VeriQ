@@ -58,8 +58,7 @@ export function object(value: unknown, keys?: readonly string[]): Record<string,
  */
 function queryValue(value: unknown, schema: Record<string, unknown>): string {
     if (schema.$ref && typeof schema.$ref === "string") {
-        if (validateSchema(schema.$ref.split("/").at(-1)!, value).length)
-            throw new Error("IPC_PAYLOAD_INVALID");
+        if (validateSchema(schema.$ref.split("/").at(-1)!, value).length) throw new Error("IPC_PAYLOAD_INVALID");
     } else if (schema.enum) {
         if (!(schema.enum as unknown[]).includes(value)) throw new Error("IPC_PAYLOAD_INVALID");
     } else if (schema.type === "integer") {
@@ -104,8 +103,7 @@ export function resolveOperation(value: unknown, workspace: string | undefined):
     }
     const query = input.query === undefined ? {} : object(input.query, Object.keys(rule.queries));
     const search = new URLSearchParams();
-    for (const [key, item] of Object.entries(query))
-        search.set(key, queryValue(item, rule.queries[key]!));
+    for (const [key, item] of Object.entries(query)) search.set(key, queryValue(item, rule.queries[key]!));
     if (search.size) path += "?" + search.toString();
 
     // 正文类型来自生成器读取的共享契约，缺失、超大或模式不允许的额外字段均在网络调用前拒绝；通过校验只说明输入形状有效
@@ -128,8 +126,7 @@ export function resolveOperation(value: unknown, workspace: string | undefined):
         )
             throw new Error("IPC_PAYLOAD_INVALID");
     } else if (input.idempotencyKey !== undefined) throw new Error("IPC_PAYLOAD_INVALID");
-    if (!["json", "stream", "binary", "source"].includes(rule.kind))
-        throw new Error("IPC_OPERATION_DENIED");
+    if (!["json", "stream", "binary", "source"].includes(rule.kind)) throw new Error("IPC_OPERATION_DENIED");
     return {
         path,
         method: rule.method,
@@ -143,9 +140,10 @@ export function resolveOperation(value: unknown, workspace: string | undefined):
  * 返回值投影只在对应 OpenAPI 模式完成实际校验后建立类型，尤其认证 DTO 不能在删去 CSRF 后再冒充完整 SessionDTO；调用方
  * 需要显式构造安全的公开会话形状。
  */
-export function parseSchema<
-    Name extends keyof import("@veriq/contracts").PlatformComponents["schemas"],
->(name: Name, value: unknown): import("@veriq/contracts").PlatformComponents["schemas"][Name] {
+export function parseSchema<Name extends keyof import("@veriq/contracts").PlatformComponents["schemas"]>(
+    name: Name,
+    value: unknown,
+): import("@veriq/contracts").PlatformComponents["schemas"][Name] {
     if (validateSchema(name, value).length) throw new Error("INVALID_HOST_RESPONSE");
     return value as import("@veriq/contracts").PlatformComponents["schemas"][Name];
 }

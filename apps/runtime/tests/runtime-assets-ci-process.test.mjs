@@ -71,9 +71,7 @@ test("stderr cap retains bounded prefix and an explicit marker", async () => {
 });
 
 test("stdout overflow stops admission at exactly the raw byte cap", async () => {
-    const result = await run(
-        "process.stdout.write(Buffer.alloc(128*1024, 98)); setInterval(()=>{},1000);",
-    );
+    const result = await run("process.stdout.write(Buffer.alloc(128*1024, 98)); setInterval(()=>{},1000);");
     assert.deepEqual(result.stdout, Buffer.alloc(65536, 98));
     assert.equal(result.truncated, true);
     assert.equal(result.timedOut, false);

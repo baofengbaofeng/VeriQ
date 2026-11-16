@@ -56,11 +56,7 @@ it.each([false, true])(
             signal: controller.signal,
             onEvent: async (event) => {
                 events.push(event);
-                if (
-                    priorFailure &&
-                    event.type === "ASSERTION_RESULT" &&
-                    event.result.status === "FAILED"
-                )
+                if (priorFailure && event.type === "ASSERTION_RESULT" && event.result.status === "FAILED")
                     controller.abort();
             },
         });
@@ -88,9 +84,7 @@ it.each([false, true])(
         try {
             const result = await executeStep(plan, context);
             expect(result.status).toBe(priorFailure ? "FAILED" : "CANCELLED");
-            expect(events.filter((e) => e.type === "ASSERTION_RESULT")).toHaveLength(
-                priorFailure ? 1 : 0,
-            );
+            expect(events.filter((e) => e.type === "ASSERTION_RESULT")).toHaveLength(priorFailure ? 1 : 0);
             if (priorFailure) expect(result.assertions[0]?.status).toBe("FAILED");
         } finally {
             clearTimeout(timer);

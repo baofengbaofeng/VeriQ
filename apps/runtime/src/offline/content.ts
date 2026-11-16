@@ -19,8 +19,7 @@ import {
     type ApprovedEngineInventoryV1,
 } from "@veriq/contracts";
 const hash = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
-const equal = (a: unknown, b: unknown) =>
-    Buffer.from(canonicalBytes(a)).equals(Buffer.from(canonicalBytes(b)));
+const equal = (a: unknown, b: unknown) => Buffer.from(canonicalBytes(a)).equals(Buffer.from(canonicalBytes(b)));
 /**
  * 公开函数 validateContent 核对清单、快照与成员哈希的交叉引用：发现漂移立即拒绝安装：防止签名通过但内容不一致的包落地。
  */
@@ -33,8 +32,7 @@ export function validateContent(
         const raw = contents.get(path);
         if (!raw) throw new Error("BUNDLE_DEPENDENCY_MISSING");
         const value: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(raw));
-        if (schema && validateSchema(schema, value).length)
-            throw new Error("INVALID_BUNDLE_SCHEMA");
+        if (schema && validateSchema(schema, value).length) throw new Error("INVALID_BUNDLE_SCHEMA");
         return value as T;
     }
     const selection = read<{
@@ -85,34 +83,25 @@ export function validateContent(
     let draft: AssetSnapshotV1 | undefined;
     if (dslOnly) {
         const metadata = read<{ frozenAt: string }>("draft/metadata.json");
-        if (validateSchema("Timestamp", metadata.frozenAt).length)
-            throw new Error("BUNDLE_PROVENANCE_MISMATCH");
+        if (validateSchema("Timestamp", metadata.frozenAt).length) throw new Error("BUNDLE_PROVENANCE_MISMATCH");
         draft = read<AssetSnapshotV1>("draft/source.json", "AssetSnapshotV1");
         if (
             !draft.validationTarget ||
             !equal(draft.validationTarget, snapshot.validationTarget) ||
-            hash(assetSourceBytes(draft as unknown as Record<string, unknown>)) !==
-                draft.sourceHash ||
+            hash(assetSourceBytes(draft as unknown as Record<string, unknown>)) !== draft.sourceHash ||
             draft.workspaceId !== manifest.workspaceId ||
             draft.engineVersion !== manifest.engineVersion
         )
             throw new Error("BUNDLE_PROVENANCE_MISMATCH");
-        if ([...contents.keys()].some((p) => p.startsWith("compiled/")))
-            throw new Error("INVALID_BUNDLE_MODE");
+        if ([...contents.keys()].some((p) => p.startsWith("compiled/"))) throw new Error("INVALID_BUNDLE_MODE");
         const requirements = read<{
             engineVersion: string;
             localCompilationRequired: boolean;
         }>("engine/requirements.json");
-        if (
-            requirements.engineVersion !== manifest.engineVersion ||
-            requirements.localCompilationRequired !== true
-        )
+        if (requirements.engineVersion !== manifest.engineVersion || requirements.localCompilationRequired !== true)
             throw new Error("BUNDLE_ENGINE_MISMATCH");
     } else {
-        const engines = read<ApprovedEngineInventoryV1>(
-            "engine/inventory.json",
-            "ApprovedEngineInventoryV1",
-        ).engines;
+        const engines = read<ApprovedEngineInventoryV1>("engine/inventory.json", "ApprovedEngineInventoryV1").engines;
         engine = engines[0];
         if (engines.length !== 1 || engine!.engineVersion !== manifest.engineVersion)
             throw new Error("BUNDLE_ENGINE_MISMATCH");
@@ -132,8 +121,7 @@ export function validateContent(
         !rootIds?.length ||
         rootIds.some(
             (id) =>
-                assets.get(id)?.kind !==
-                (selection.suiteVersionId ? "SUITE" : dslOnly ? assets.get(id)?.kind : "CASE"),
+                assets.get(id)?.kind !== (selection.suiteVersionId ? "SUITE" : dslOnly ? assets.get(id)?.kind : "CASE"),
         )
     )
         throw new Error("BUNDLE_SELECTION_MISMATCH");
@@ -170,9 +158,7 @@ export function validateContent(
                 if (row.datasetVersionId) visit(row.datasetVersionId, "DATASET");
             }
         const assertions: Record<string, unknown>[] = [
-            ...(asset.kind === "ASSERTION_TEMPLATE"
-                ? (doc.assertions as Record<string, unknown>[])
-                : []),
+            ...(asset.kind === "ASSERTION_TEMPLATE" ? (doc.assertions as Record<string, unknown>[]) : []),
         ];
         if (asset.kind === "CASE" || asset.kind === "FLOW")
             for (const step of doc.steps as Record<string, unknown>[]) {
@@ -182,8 +168,7 @@ export function validateContent(
                     ...((step.afterAssertions as Record<string, unknown>[]) ?? []),
                 );
             }
-        for (const a of assertions)
-            if (a.type === "template") visit(a.versionId as string, "ASSERTION_TEMPLATE");
+        for (const a of assertions) if (a.type === "template") visit(a.versionId as string, "ASSERTION_TEMPLATE");
         visiting.delete(id);
         visited.add(id);
     }
@@ -208,10 +193,7 @@ export function validateContent(
             throw new Error("BUNDLE_ASSET_MISMATCH");
         const prefix = `provenance/${asset.versionId}`;
         const source = read<AssetSnapshotV1>(prefix + "/source.json", "AssetSnapshotV1");
-        const descriptor = read<CompiledAssetBundle>(
-            prefix + "/descriptor.json",
-            "CompiledAssetBundle",
-        );
+        const descriptor = read<CompiledAssetBundle>(prefix + "/descriptor.json", "CompiledAssetBundle");
         const receipt = read<{
             sourceHash: string;
             compiledBundleSha256: string;
@@ -222,8 +204,7 @@ export function validateContent(
         if (
             source.workspaceId !== manifest.workspaceId ||
             source.engineVersion !== manifest.engineVersion ||
-            hash(assetSourceBytes(source as unknown as Record<string, unknown>)) !==
-                source.sourceHash ||
+            hash(assetSourceBytes(source as unknown as Record<string, unknown>)) !== source.sourceHash ||
             !equal(
                 source.assets.find((a) => a.versionId === asset.versionId),
                 asset,
@@ -266,9 +247,7 @@ export function validateContent(
         if (!dslOnly) {
             const prefix = `compiled/${asset.versionId}/`;
             const files = Object.fromEntries(
-                [...contents]
-                    .filter(([p]) => p.startsWith(prefix))
-                    .map(([p, raw]) => [p.slice(prefix.length), raw]),
+                [...contents].filter(([p]) => p.startsWith(prefix)).map(([p, raw]) => [p.slice(prefix.length), raw]),
             );
             try {
                 verifyFiles(descriptor, files);
@@ -288,9 +267,7 @@ export function validateContent(
                         dependencies: descriptor.dependencies,
                         packageJson: files["package.json"]!,
                         packageLock: files["package-lock.json"]!,
-                        files: Object.fromEntries(
-                            Object.entries(files).filter(([path]) => path.startsWith("vendor/")),
-                        ),
+                        files: Object.fromEntries(Object.entries(files).filter(([path]) => path.startsWith("vendor/"))),
                     },
                     manifest.engineVersion,
                 );
@@ -306,8 +283,7 @@ export function validateContent(
             }
     }
     const expectedVersionCount = assets.size - (dslOnly ? 1 : 0);
-    if (resources.versions.length !== expectedVersionCount)
-        throw new Error("BUNDLE_EXTRA_DEPENDENCY");
+    if (resources.versions.length !== expectedVersionCount) throw new Error("BUNDLE_EXTRA_DEPENDENCY");
     if (draft && draft.assets.some((a) => !equal(a, assets.get(a.versionId))))
         throw new Error("BUNDLE_PROVENANCE_MISMATCH");
     return { resources, dslOnly };

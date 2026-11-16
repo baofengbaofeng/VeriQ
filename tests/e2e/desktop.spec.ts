@@ -11,13 +11,9 @@ import { terminateRenderer } from "./renderer-fault";
 let engine: Awaited<ReturnType<typeof testEngine>>;
 test.beforeAll(async () => {
     engine = await testEngine(resolve("../.."));
-    await mkdir(
-        resolve(
-            "../..",
-            process.env.VERIQ_DESKTOP_EVIDENCE ?? ".superpowers/sdd/veriq-1/evidence/t19",
-        ),
-        { recursive: true },
-    );
+    await mkdir(resolve("../..", process.env.VERIQ_DESKTOP_EVIDENCE ?? ".superpowers/sdd/veriq-1/evidence/t19"), {
+        recursive: true,
+    });
 });
 let workflowFixture: { profile: string; fixture: string } | undefined;
 
@@ -110,10 +106,7 @@ test("bundled desktop opens offline with strict renderer and independent Node24"
             ),
             JSON.stringify({ ...versions, independentNode: process.versions.node }) + "\n",
         );
-        page.on(
-            "console",
-            (message) => void appendFile(log, `renderer ${message.type()}: ${message.text()}\n`),
-        );
+        page.on("console", (message) => void appendFile(log, `renderer ${message.type()}: ${message.text()}\n`));
         page.on("pageerror", (error) => void appendFile(log, `page error: ${error.message}\n`));
         await expect(page.getByRole("heading", { name: "工作台", exact: true })).toBeVisible();
         await expect
@@ -137,9 +130,7 @@ test("bundled desktop opens offline with strict renderer and independent Node24"
         expect(state.agent?.pid).not.toBe(electron.process().pid);
         await expect(page.getByText("Offline / signed out", { exact: true })).toHaveCount(0);
         await page.getByRole("button", { name: "本机缓存", exact: true }).click();
-        await expect(
-            page.getByText("尚未下载资源包。 / No downloaded packages yet."),
-        ).toBeVisible();
+        await expect(page.getByText("尚未下载资源包。 / No downloaded packages yet.")).toBeVisible();
         await page.getByLabel("语言 / Language").selectOption("en");
         await expect(page.getByRole("heading", { name: "Local cache", exact: true })).toBeVisible();
         await page.screenshot({
@@ -152,9 +143,7 @@ test("bundled desktop opens offline with strict renderer and independent Node24"
         });
         const forbidden = await page.evaluate(async () => {
             try {
-                await Reflect.apply(window.veriq.local, undefined, [
-                    { operation: "spawn", command: "sh" },
-                ]);
+                await Reflect.apply(window.veriq.local, undefined, [{ operation: "spawn", command: "sh" }]);
                 return false;
             } catch {
                 return true;
@@ -187,10 +176,7 @@ test("bundled desktop opens offline with strict renderer and independent Node24"
 test("production candidate completes the real desktop offline workflow", async ({ request }) => {
     test.setTimeout(300000);
     const root = resolve("../..");
-    const evidence = resolve(
-        root,
-        process.env.VERIQ_DESKTOP_EVIDENCE ?? ".superpowers/sdd/veriq-1/evidence/t19",
-    );
+    const evidence = resolve(root, process.env.VERIQ_DESKTOP_EVIDENCE ?? ".superpowers/sdd/veriq-1/evidence/t19");
     const profile = await mkdtemp("/tmp/veriq-t19-full-");
     const fixture = await mkdtemp(resolve(evidence, "service-"));
     const { spawn } = await import("node:child_process");
@@ -269,20 +255,11 @@ test("production candidate completes the real desktop offline workflow", async (
                 ),
             },
         });
-        electron
-            .process()
-            .stderr?.on(
-                "data",
-                (data) => void appendFile(resolve(evidence, "full-electron.log"), data),
-            );
+        electron.process().stderr?.on("data", (data) => void appendFile(resolve(evidence, "full-electron.log"), data));
         const page = await electron.firstWindow();
         page.on(
             "pageerror",
-            (error) =>
-                void appendFile(
-                    resolve(evidence, "full-electron.log"),
-                    `renderer: ${error.message}\n`,
-                ),
+            (error) => void appendFile(resolve(evidence, "full-electron.log"), `renderer: ${error.message}\n`),
         );
         await expect(page.getByRole("heading", { name: "工作台", exact: true })).toBeVisible();
         await expect
@@ -293,35 +270,24 @@ test("production candidate completes the real desktop offline workflow", async (
         await page.getByLabel("密码 / Password").fill("Desktop password 123!");
         await page.getByRole("button", { name: "登录", exact: true }).click();
         await expect(
-            page
-                .getByLabel("平台工作区 / Platform workspace")
-                .locator(`option[value="${workspace.id}"]`),
+            page.getByLabel("平台工作区 / Platform workspace").locator(`option[value="${workspace.id}"]`),
         ).toHaveCount(1);
         await page.getByLabel("平台工作区 / Platform workspace").selectOption(workspace.id);
         console.log("Desktop ordinary login and workspace selected");
         await page.getByLabel("共享给工作区 / Share with workspace").check();
         await page.getByRole("button", { name: "发起绑定 / Enroll", exact: true }).click();
         await expect(page.getByTestId("enrollment-code")).toBeVisible({ timeout: 20000 });
-        await page
-            .getByRole("button", { name: "批准并完成绑定 / Approve binding", exact: true })
-            .click();
+        await page.getByRole("button", { name: "批准并完成绑定 / Approve binding", exact: true }).click();
         await expect
-            .poll(
-                async () =>
-                    (await page.evaluate(() => window.veriq.state())).agent?.device?.workspaceId,
-            )
+            .poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.device?.workspaceId)
             .toBe(workspace.id);
         const device = (await page.evaluate(() => window.veriq.state())).agent!.device!;
         await api(base + `/runtimes/${device.id}/trust`, "PUT", {
             trustStatus: "MANAGED",
             allowCredentialDelivery: true,
         });
-        await page
-            .getByRole("button", { name: "启动在线领取 / Start online worker", exact: true })
-            .click();
-        await expect
-            .poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.online)
-            .toBe(true);
+        await page.getByRole("button", { name: "启动在线领取 / Start online worker", exact: true }).click();
+        await expect.poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.online).toBe(true);
         console.log("Desktop device enrolled and actual Node24 Agent claiming");
         async function publish(kind: string, key: string, document: unknown) {
             const resource = await api(base + "/resources", "POST", {
@@ -407,23 +373,15 @@ test("production candidate completes the real desktop offline workflow", async (
             ],
         });
         console.log("Production candidate published actual immutable resource versions");
-        await page
-            .getByRole("button", { name: "停止在线领取 / Stop online worker", exact: true })
-            .click();
-        await expect
-            .poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.online)
-            .toBe(false);
+        await page.getByRole("button", { name: "停止在线领取 / Stop online worker", exact: true }).click();
+        await expect.poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.online).toBe(false);
         await page.getByRole("button", { name: "下载与导出", exact: true }).click();
         await page.getByTestId("bundle-resource").selectOption(testcase.resource.id);
         await page.getByTestId("bundle-version").selectOption(testcase.version.id);
         await page.getByTestId("bundle-add-case").click();
         await page.getByTestId("bundle-environment").selectOption(environment.resource.id);
         await page.getByTestId("bundle-environment-version").selectOption(environment.version.id);
-        const exportObservation = await observeExport(
-            electron,
-            page,
-            origin + "/api/v1" + base + "/bundles",
-        );
+        const exportObservation = await observeExport(electron, page, origin + "/api/v1" + base + "/bundles");
         const exportFailures: unknown[] = [];
         try {
             await exportObservation.snapshot("before-focus");
@@ -453,17 +411,14 @@ test("production candidate completes the real desktop offline workflow", async (
         const issuer = JSON.parse(await readFile(resolve(fixture, "issuer-public.json"), "utf8"));
         await page.getByRole("button", { name: "设置与诊断", exact: true }).click();
         await page.getByLabel("公钥 JSON / Public issuer JSON").fill(JSON.stringify(issuer));
-        await page
-            .getByLabel("已核对的 SHA256 指纹 / Verified fingerprint")
-            .fill(issuer.keys[0].fingerprint);
+        await page.getByLabel("已核对的 SHA256 指纹 / Verified fingerprint").fill(issuer.keys[0].fingerprint);
         await page.getByRole("button", { name: "建立信任 / Trust issuer", exact: true }).click();
         await page.getByRole("button", { name: "下载与导出", exact: true }).click();
         await page.getByTestId("bundle-download").click();
         await expect
-            .poll(
-                async () => (await page.evaluate(() => window.veriq.state())).agent?.bundles.length,
-                { timeout: 30000 },
-            )
+            .poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.bundles.length, {
+                timeout: 30000,
+            })
             .toBe(1);
         const bundle = (await page.evaluate(() => window.veriq.state())).agent!.bundles[0]!;
         await page.getByRole("button", { name: "本机缓存", exact: true }).click();
@@ -472,9 +427,7 @@ test("production candidate completes the real desktop offline workflow", async (
             .getByLabel("JSON 凭证 / JSON credential")
             .fill(JSON.stringify({ token: "synthetic-desktop-secret" }));
         await page.getByRole("button", { name: "保存", exact: true }).click();
-        await expect(
-            page.getByText("凭证已保存 / Credential saved", { exact: true }),
-        ).toBeVisible();
+        await expect(page.getByText("凭证已保存 / Credential saved", { exact: true })).toBeVisible();
         server.kill("SIGUSR1");
         await expect
             .poll(async () =>
@@ -486,11 +439,10 @@ test("production candidate completes the real desktop offline workflow", async (
             .toBe(0);
         await page.getByRole("button", { name: "独立执行", exact: true }).click();
         await expect
-            .poll(
-                async () =>
-                    (await page.evaluate(() => window.veriq.state())).agent?.history[0]?.state,
-                { timeout: 90000, intervals: [500, 1000] },
-            )
+            .poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.history[0]?.state, {
+                timeout: 90000,
+                intervals: [500, 1000],
+            })
             .toBe("FINISHED");
         await page.screenshot({
             path: resolve(evidence, "desktop-offline-executed-1280.png"),
@@ -508,16 +460,10 @@ test("production candidate completes the real desktop offline workflow", async (
  * 与签发者目录，绝不重建已发布资源或代写测试结果来掩盖恢复失败。
  */
 test("resume durable desktop evidence and upload acceptance", async ({ request }) => {
-    test.skip(
-        !process.env.VERIQ_T19_RESUME_PROFILE && !workflowFixture,
-        "Requires the recorded real workflow profile",
-    );
+    test.skip(!process.env.VERIQ_T19_RESUME_PROFILE && !workflowFixture, "Requires the recorded real workflow profile");
     test.setTimeout(180000);
     const root = resolve("../.."),
-        evidence = resolve(
-            root,
-            process.env.VERIQ_DESKTOP_EVIDENCE ?? ".superpowers/sdd/veriq-1/evidence/t19",
-        );
+        evidence = resolve(root, process.env.VERIQ_DESKTOP_EVIDENCE ?? ".superpowers/sdd/veriq-1/evidence/t19");
     const profile = process.env.VERIQ_T19_RESUME_PROFILE ?? workflowFixture!.profile;
     const fixture = process.env.VERIQ_T19_RESUME_FIXTURE ?? workflowFixture!.fixture;
     const { spawn, execFile } = await import("node:child_process");
@@ -538,16 +484,9 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
             { cwd: root, env: applicationEnvironment, stdio: ["ignore", "pipe", "pipe"] },
         ),
     );
-    server.stdout.on(
-        "data",
-        (data) => void appendFile(resolve(evidence, "resume-server.log"), data),
-    );
-    server.stderr.on(
-        "data",
-        (data) => void appendFile(resolve(evidence, "resume-server.log"), data),
-    );
-    let electron: Awaited<ReturnType<typeof _electron.launch>> | undefined,
-        agentPid: number | undefined;
+    server.stdout.on("data", (data) => void appendFile(resolve(evidence, "resume-server.log"), data));
+    server.stderr.on("data", (data) => void appendFile(resolve(evidence, "resume-server.log"), data));
+    let electron: Awaited<ReturnType<typeof _electron.launch>> | undefined, agentPid: number | undefined;
     try {
         await expect
             .poll(async () =>
@@ -579,30 +518,19 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
         });
         electron
             .process()
-            .stderr?.on(
-                "data",
-                (data) => void appendFile(resolve(evidence, "resume-electron.log"), data),
-            );
+            .stderr?.on("data", (data) => void appendFile(resolve(evidence, "resume-electron.log"), data));
         const page = await electron.firstWindow();
         page.on(
             "pageerror",
-            (error) =>
-                void appendFile(
-                    resolve(evidence, "resume-electron.log"),
-                    `renderer: ${error.message}\n`,
-                ),
+            (error) => void appendFile(resolve(evidence, "resume-electron.log"), `renderer: ${error.message}\n`),
         );
         await expect
-            .poll(
-                async () =>
-                    (await page.evaluate(() => window.veriq.state())).agent?.history.length ?? 0,
-            )
+            .poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.history.length ?? 0)
             .toBeGreaterThan(0);
         const state = await page.evaluate(() => window.veriq.state());
         agentPid = state.agent!.pid;
         const original =
-            state.agent!.history.find((item) => item.uploadState === "COMPLETE") ??
-            state.agent!.history.at(-1)!;
+            state.agent!.history.find((item) => item.uploadState === "COMPLETE") ?? state.agent!.history.at(-1)!;
         const runId = original.id;
         const snapshot: any = await page.evaluate(
             (id) => window.veriq.local({ operation: "report", runId: id }),
@@ -621,9 +549,7 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
             }),
         ).toBeVisible();
         await page.getByRole("button", { name: /1 · PASSED/ }).click();
-        await expect(
-            page.getByRole("button", { name: "打开 Trace / Open Trace", exact: true }),
-        ).toBeVisible();
+        await expect(page.getByRole("button", { name: "打开 Trace / Open Trace", exact: true })).toBeVisible();
         const nativeId = await electron.evaluate(({ BrowserWindow }) =>
             BrowserWindow.getAllWindows()[0]!.getNativeWindowHandle().readUInt32LE().toString(),
         );
@@ -686,15 +612,9 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
                 .toBe(true);
             await page.getByRole("button", { name: "回传结果", exact: true }).click();
             await expect
-                .poll(
-                    async () =>
-                        (await page.evaluate(() => window.veriq.state())).agent?.history[0]
-                            ?.uploadError,
-                )
+                .poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.history[0]?.uploadError)
                 .toBeTruthy();
-            expect(
-                (await page.evaluate(() => window.veriq.state())).agent!.history[0]!.uploadState,
-            ).toBe("PENDING");
+            expect((await page.evaluate(() => window.veriq.state())).agent!.history[0]!.uploadState).toBe("PENDING");
             server.kill("SIGUSR2");
             await expect
                 .poll(async () =>
@@ -706,25 +626,13 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
                 .toBe(200);
             await page.getByRole("button", { name: "回传结果", exact: true }).click();
             await expect
-                .poll(
-                    async () =>
-                        (await page.evaluate(() => window.veriq.state())).agent?.history[0]
-                            ?.uploadState,
-                    { timeout: 30000 },
-                )
+                .poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.history[0]?.uploadState, {
+                    timeout: 30000,
+                })
                 .toBe("COMPLETE");
-        } else
-            console.log(
-                "Original upload already completed; continuing its stable receipt and lifecycle checks",
-            );
-        const first = await page.evaluate(
-            (id) => window.veriq.local({ operation: "upload", runId: id }),
-            runId,
-        );
-        const second = await page.evaluate(
-            (id) => window.veriq.local({ operation: "upload", runId: id }),
-            runId,
-        );
+        } else console.log("Original upload already completed; continuing its stable receipt and lifecycle checks");
+        const first = await page.evaluate((id) => window.veriq.local({ operation: "upload", runId: id }), runId);
+        const second = await page.evaluate((id) => window.veriq.local({ operation: "upload", runId: id }), runId);
         expect(first).toEqual(second);
         await appendFile(resolve(evidence, "actual-upload-receipt.json"), JSON.stringify(first));
         await page.screenshot({
@@ -733,30 +641,21 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
         });
         console.log("Offline upload failure persisted and recovered with stable receipt");
         await page.getByRole("button", { name: "本机缓存", exact: true }).click();
-        await page
-            .getByLabel("本机资源包 / Local package")
-            .selectOption(state.agent!.bundles[0]!.id);
+        await page.getByLabel("本机资源包 / Local package").selectOption(state.agent!.bundles[0]!.id);
         if (process.env.VERIQ_TEST_HEADED_BROWSER) {
             await page.getByLabel("可见浏览器 / Visible browser", { exact: true }).check();
         }
         await request.post("http://127.0.0.1:18891/__hold");
         await page.getByRole("button", { name: "独立执行", exact: true }).click();
         await expect
-            .poll(
-                async () =>
-                    (await (await request.get("http://127.0.0.1:18891/__state")).json()).waiting,
-                { timeout: 30000 },
-            )
+            .poll(async () => (await (await request.get("http://127.0.0.1:18891/__state")).json()).waiting, {
+                timeout: 30000,
+            })
             .toBe(1);
         const active = (await page.evaluate(() => window.veriq.state())).agent!.active!;
         expect(active.runId).not.toBe(runId);
         const headed = process.env.VERIQ_TEST_HEADED_BROWSER
-            ? await observeHeadedRun(
-                  profile,
-                  agentPid!,
-                  process.env.VERIQ_TEST_HEADED_BROWSER,
-                  evidence,
-              )
+            ? await observeHeadedRun(profile, agentPid!, process.env.VERIQ_TEST_HEADED_BROWSER, evidence)
             : undefined;
         const stopCrashObservation = await observeCrashFailure(electron, evidence);
         const crashFailures: unknown[] = [];
@@ -825,8 +724,7 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
             }
         }
         if (crashFailures.length === 1) throw crashFailures[0];
-        if (crashFailures.length > 1)
-            throw new AggregateError(crashFailures, "CRASH_ASSERTION_AND_OBSERVATION_FAILED");
+        if (crashFailures.length > 1) throw new AggregateError(crashFailures, "CRASH_ASSERTION_AND_OBSERVATION_FAILED");
         await expect
             .poll(() =>
                 electron!.evaluate(({ BrowserWindow }) =>
@@ -846,10 +744,7 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
         );
         await (
             await import("node:fs/promises")
-        ).writeFile(
-            resolve(evidence, "desktop-renderer-recovered.png"),
-            Buffer.from(recoveredImage, "base64"),
-        );
+        ).writeFile(resolve(evidence, "desktop-renderer-recovered.png"), Buffer.from(recoveredImage, "base64"));
         const previous = electron;
         const quitNativeId = await previous.evaluate(({ BrowserWindow }) =>
             BrowserWindow.getAllWindows()[0]!.getNativeWindowHandle().readUInt32LE().toString(),
@@ -858,7 +753,7 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
             const contents = BrowserWindow.getAllWindows()[0]!.webContents;
             const point = await contents.executeJavaScript(
                 "(() => { const r = [...document.querySelectorAll('button')].find(b => " +
-                "b.textContent === '退出界面').get" +
+                    "b.textContent === '退出界面').get" +
                     "BoundingClientRect(); return {x: Math.round(r.x+r.width/2), y: Math.round(r.y+r.height/2)}; })(" +
                     ")",
             );
@@ -867,10 +762,7 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
         });
         await expect
             .poll(async () =>
-                command("python", [
-                    resolve(root, "tests/e2e/native_confirm.py"),
-                    quitNativeId,
-                ]).then(
+                command("python", [resolve(root, "tests/e2e/native_confirm.py"), quitNativeId]).then(
                     () => true,
                     () => false,
                 ),
@@ -899,12 +791,8 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
             },
         });
         const reopened = await electron.firstWindow();
-        await expect
-            .poll(async () => (await reopened.evaluate(() => window.veriq.state())).agent?.pid)
-            .toBe(agentPid);
-        expect((await reopened.evaluate(() => window.veriq.state())).agent!.active!.runId).toBe(
-            active.runId,
-        );
+        await expect.poll(async () => (await reopened.evaluate(() => window.veriq.state())).agent?.pid).toBe(agentPid);
+        expect((await reopened.evaluate(() => window.veriq.state())).agent!.active!.runId).toBe(active.runId);
         await request.post("http://127.0.0.1:18891/__release");
         await expect
             .poll(
@@ -931,20 +819,15 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
         }
         console.log("Active run survived actual renderer crash and confirmed UI quit/reopen");
         await reopened.getByRole("button", { name: "本机缓存", exact: true }).click();
-        await reopened
-            .getByLabel("本机资源包 / Local package")
-            .selectOption(state.agent!.bundles[0]!.id);
+        await reopened.getByLabel("本机资源包 / Local package").selectOption(state.agent!.bundles[0]!.id);
         await request.post("http://127.0.0.1:18891/__hold");
         await reopened.getByRole("button", { name: "独立执行", exact: true }).click();
         await expect
-            .poll(
-                async () =>
-                    (await reopened.evaluate(() => window.veriq.state())).agent?.active?.runId,
-                { timeout: 30000 },
-            )
+            .poll(async () => (await reopened.evaluate(() => window.veriq.state())).agent?.active?.runId, {
+                timeout: 30000,
+            })
             .not.toBeUndefined();
-        const cancelled = (await reopened.evaluate(() => window.veriq.state())).agent!.active!
-            .runId;
+        const cancelled = (await reopened.evaluate(() => window.veriq.state())).agent!.active!.runId;
         await reopened.getByRole("button", { name: "取消执行", exact: true }).click();
         await expect
             .poll(
@@ -969,10 +852,7 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
         await reopened.getByRole("button", { name: "停止后台", exact: true }).click();
         await expect
             .poll(async () =>
-                command("python", [
-                    resolve(root, "tests/e2e/native_confirm.py"),
-                    stopNativeId,
-                ]).then(
+                command("python", [resolve(root, "tests/e2e/native_confirm.py"), stopNativeId]).then(
                     () => true,
                     () => false,
                 ),
@@ -989,9 +869,7 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
         if (agentPid) await stopTestAgent(profile, agentPid);
         agentPid = undefined;
         await previous.close();
-        console.log(
-            "Cancellation has a positive stop receipt and explicit native Agent stop completed",
-        );
+        console.log("Cancellation has a positive stop receipt and explicit native Agent stop completed");
     } catch (error) {
         console.error("Native continuation failed:", error);
         throw error;
@@ -1005,15 +883,9 @@ test("resume durable desktop evidence and upload acceptance", async ({ request }
  * 本例同时确认第二实例不会新建后台，普通关闭窗口不会终止执行服务。
  */
 test("offline shared resource assets and single instance remain local", async ({ request }) => {
-    test.skip(
-        !process.env.VERIQ_T19_RESUME_PROFILE && !workflowFixture,
-        "Requires the recorded real workflow profile",
-    );
+    test.skip(!process.env.VERIQ_T19_RESUME_PROFILE && !workflowFixture, "Requires the recorded real workflow profile");
     const root = resolve("../.."),
-        evidence = resolve(
-            root,
-            process.env.VERIQ_DESKTOP_EVIDENCE ?? ".superpowers/sdd/veriq-1/evidence/t19",
-        );
+        evidence = resolve(root, process.env.VERIQ_DESKTOP_EVIDENCE ?? ".superpowers/sdd/veriq-1/evidence/t19");
     const profile = process.env.VERIQ_T19_RESUME_PROFILE ?? workflowFixture!.profile;
     await expect(request.get("http://127.0.0.1:8888/api/v1/setup")).rejects.toThrow();
     const env = {
@@ -1043,46 +915,24 @@ test("offline shared resource assets and single instance remain local", async ({
         page.on("console", (message) => {
             if (message.type() === "error") errors.push(message.text());
         });
-        page.on("response", (response) =>
-            assets.push({ url: response.url(), status: response.status() }),
-        );
+        page.on("response", (response) => assets.push({ url: response.url(), status: response.status() }));
         await expect
-            .poll(
-                async () =>
-                    (await page.evaluate(() => window.veriq.state())).agent?.bundles.length ?? 0,
-            )
+            .poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.bundles.length ?? 0)
             .toBeGreaterThan(0);
         const state = await page.evaluate(() => window.veriq.state());
         agentPid = state.agent!.pid;
         await page.getByRole("button", { name: "本机缓存", exact: true }).click();
-        await page
-            .getByLabel("本机资源包 / Local package")
-            .selectOption(state.agent!.bundles[0]!.id);
-        await expect(
-            page.getByLabel("可见浏览器 / Visible browser", { exact: true }),
-        ).toBeDisabled();
+        await page.getByLabel("本机资源包 / Local package").selectOption(state.agent!.bundles[0]!.id);
+        await expect(page.getByLabel("可见浏览器 / Visible browser", { exact: true })).toBeDisabled();
         await page.getByTestId("resource-open-desktop-case").click();
-        const version = await page
-            .getByTestId("resource-version")
-            .locator("option")
-            .nth(1)
-            .getAttribute("value");
+        const version = await page.getByTestId("resource-version").locator("option").nth(1).getAttribute("value");
         await page.getByTestId("resource-version").selectOption(version!);
         await expect(page.getByTestId("case.generated-file").locator("option")).not.toHaveCount(1);
-        const file = await page
-            .getByTestId("case.generated-file")
-            .locator("option")
-            .nth(1)
-            .getAttribute("value");
+        const file = await page.getByTestId("case.generated-file").locator("option").nth(1).getAttribute("value");
         await page.getByTestId("case.generated-file").selectOption(file!);
-        await expect(
-            page.getByTestId("case.generated-source").locator(".monaco-editor"),
-        ).toBeVisible();
+        await expect(page.getByTestId("case.generated-source").locator(".monaco-editor")).toBeVisible();
         await expect(page.getByTestId("case.generated-source")).toContainText("import");
-        await expect(page.getByTestId("case.generated-source")).toHaveAttribute(
-            "data-mode-id",
-            "typescript",
-        );
+        await expect(page.getByTestId("case.generated-source")).toHaveAttribute("data-mode-id", "typescript");
         await expect.poll(() => assets.some((asset) => asset.url.includes("ts.worker"))).toBe(true);
         await page.screenshot({
             path: resolve(evidence, "desktop-offline-source.png"),
@@ -1096,14 +946,9 @@ test("offline shared resource assets and single instance remain local", async ({
                 ),
             ),
         ).toBe(true);
+        expect(assets.every((asset) => asset.url.startsWith("veriq://app/") && asset.status === 200)).toBe(true);
         expect(
-            assets.every((asset) => asset.url.startsWith("veriq://app/") && asset.status === 200),
-        ).toBe(true);
-        expect(
-            errors.filter(
-                (error) =>
-                    !error.includes("https://example.com/") && !error.includes("Failed to fetch"),
-            ),
+            errors.filter((error) => !error.includes("https://example.com/") && !error.includes("Failed to fetch")),
         ).toEqual([]);
         await appendFile(
             resolve(evidence, "offline-assets.jsonl"),
@@ -1117,9 +962,7 @@ test("offline shared resource assets and single instance remain local", async ({
         const exportPath = resolve(profile, "exports");
         const priorExports = (await files.readdir(exportPath)).sort();
         const imageWindow = electron.waitForEvent("window");
-        await page
-            .getByRole("button", { name: "预览截图 / Preview screenshot", exact: true })
-            .click();
+        await page.getByRole("button", { name: "预览截图 / Preview screenshot", exact: true }).click();
         const nativeId = await electron.evaluate(({ BrowserWindow }) =>
             BrowserWindow.getAllWindows()
                 .find((window) => window.webContents.getURL().startsWith("veriq://"))!
@@ -1139,11 +982,7 @@ test("offline shared resource assets and single instance remain local", async ({
             .toBe(true);
         const image = await imageWindow;
         await expect
-            .poll(() =>
-                image
-                    .locator("img")
-                    .evaluate((element) => (element as HTMLImageElement).naturalWidth),
-            )
+            .poll(() => image.locator("img").evaluate((element) => (element as HTMLImageElement).naturalWidth))
             .toBeGreaterThan(0);
         expect(
             await image.evaluate(() => ({
@@ -1153,27 +992,17 @@ test("offline shared resource assets and single instance remain local", async ({
         ).toEqual({ bridge: "undefined", node: "undefined" });
         await image.screenshot({ path: resolve(evidence, "native-image-loaded.png") });
         await image.close();
-        await expect
-            .poll(async () => (await files.readdir(exportPath)).sort())
-            .toEqual(priorExports);
-        await page
-            .getByRole("button", { name: "预览截图 / Preview screenshot", exact: true })
-            .click();
+        await expect.poll(async () => (await files.readdir(exportPath)).sort()).toEqual(priorExports);
+        await page.getByRole("button", { name: "预览截图 / Preview screenshot", exact: true }).click();
         await expect
             .poll(async () =>
-                command("python", [
-                    resolve(root, "tests/e2e/native_confirm.py"),
-                    nativeId,
-                    "cancel",
-                ]).then(
+                command("python", [resolve(root, "tests/e2e/native_confirm.py"), nativeId, "cancel"]).then(
                     () => true,
                     () => false,
                 ),
             )
             .toBe(true);
-        expect(
-            await electron.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length),
-        ).toBe(1);
+        expect(await electron.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1);
         expect((await files.readdir(exportPath)).sort()).toEqual(priorExports);
         expect((await page.evaluate(() => window.veriq.state())).agent!.pid).toBe(agentPid);
         const { spawn } = await import("node:child_process");
@@ -1183,13 +1012,9 @@ test("offline shared resource assets and single instance remain local", async ({
         });
         await expect.poll(() => secondary.exitCode).toBe(0);
         expect((await page.evaluate(() => window.veriq.state())).agent!.pid).toBe(agentPid);
-        expect(
-            await electron.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length),
-        ).toBe(1);
+        expect(await electron.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1);
         await electron.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.close());
-        expect(
-            await electron.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length),
-        ).toBe(1);
+        expect(await electron.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1);
         expect(() => process.kill(agentPid!, 0)).not.toThrow();
     } finally {
         await teardownDesktop(electron, profile, agentPid);
@@ -1201,16 +1026,10 @@ test("offline shared resource assets and single instance remain local", async ({
  * 不配置模型密钥、不调用外部供应商，也不替换实际校验回执。
  */
 test("shared cloud editor publishes through the desktop host transport", async ({ request }) => {
-    test.skip(
-        !process.env.VERIQ_T19_RESUME_PROFILE && !workflowFixture,
-        "Requires the recorded real workflow profile",
-    );
+    test.skip(!process.env.VERIQ_T19_RESUME_PROFILE && !workflowFixture, "Requires the recorded real workflow profile");
     test.setTimeout(120000);
     const root = resolve("../.."),
-        evidence = resolve(
-            root,
-            process.env.VERIQ_DESKTOP_EVIDENCE ?? ".superpowers/sdd/veriq-1/evidence/t19",
-        );
+        evidence = resolve(root, process.env.VERIQ_DESKTOP_EVIDENCE ?? ".superpowers/sdd/veriq-1/evidence/t19");
     const profile = process.env.VERIQ_T19_RESUME_PROFILE ?? workflowFixture!.profile;
     const fixture = process.env.VERIQ_T19_RESUME_FIXTURE ?? workflowFixture!.fixture;
     const { spawn } = await import("node:child_process");
@@ -1229,16 +1048,9 @@ test("shared cloud editor publishes through the desktop host transport", async (
             { cwd: root, env: applicationEnvironment, stdio: ["ignore", "pipe", "pipe"] },
         ),
     );
-    server.stdout.on(
-        "data",
-        (data) => void appendFile(resolve(evidence, "cloud-editor-server.log"), data),
-    );
-    server.stderr.on(
-        "data",
-        (data) => void appendFile(resolve(evidence, "cloud-editor-server.log"), data),
-    );
-    let electron: Awaited<ReturnType<typeof _electron.launch>> | undefined,
-        agentPid: number | undefined;
+    server.stdout.on("data", (data) => void appendFile(resolve(evidence, "cloud-editor-server.log"), data));
+    server.stderr.on("data", (data) => void appendFile(resolve(evidence, "cloud-editor-server.log"), data));
+    let electron: Awaited<ReturnType<typeof _electron.launch>> | undefined, agentPid: number | undefined;
     try {
         await expect
             .poll(async () =>
@@ -1266,27 +1078,18 @@ test("shared cloud editor publishes through the desktop host transport", async (
             },
         });
         const page = await electron.firstWindow();
-        await expect
-            .poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.pid)
-            .toBeTruthy();
+        await expect.poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.pid).toBeTruthy();
         agentPid = (await page.evaluate(() => window.veriq.state())).agent!.pid;
         await page.getByLabel("邮箱 / Email").fill("desktop-admin@example.com");
         await page.getByLabel("密码 / Password").fill("Desktop password 123!");
         await page.getByRole("button", { name: "登录", exact: true }).click();
-        const workspaceId = (await page.evaluate(() => window.veriq.state())).agent!.device!
-            .workspaceId;
+        const workspaceId = (await page.evaluate(() => window.veriq.state())).agent!.device!.workspaceId;
         await expect(
-            page
-                .getByLabel("平台工作区 / Platform workspace")
-                .locator(`option[value="${workspaceId}"]`),
+            page.getByLabel("平台工作区 / Platform workspace").locator(`option[value="${workspaceId}"]`),
         ).toHaveCount(1);
         await page.getByLabel("平台工作区 / Platform workspace").selectOption(workspaceId);
-        await page
-            .getByRole("button", { name: "启动在线领取 / Start online worker", exact: true })
-            .click();
-        await expect
-            .poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.online)
-            .toBe(true);
+        await page.getByRole("button", { name: "启动在线领取 / Start online worker", exact: true }).click();
+        await expect.poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.online).toBe(true);
         await page.getByRole("button", { name: "云端资源", exact: true }).click();
         const key = "desktop-ui-" + Date.now();
         await page.getByTestId("resource-kind").selectOption("ELEMENT_CATALOG");
@@ -1303,9 +1106,7 @@ test("shared cloud editor publishes through the desktop host transport", async (
                     kind: "ELEMENT_CATALOG",
                     document: {
                         schemaVersion: "1.0",
-                        elements: [
-                            { key: "actual", locator: { by: "testId", value: "actual-ui" } },
-                        ],
+                        elements: [{ key: "actual", locator: { by: "testId", value: "actual-ui" } }],
                     },
                 },
                 null,
@@ -1332,16 +1133,10 @@ test("shared cloud editor publishes through the desktop host transport", async (
         await expect(page.getByTestId("ai-empty")).toBeVisible();
         await expect(page.getByTestId("ai-execution-independent")).toBeVisible();
         await page.getByRole("button", { name: "工作台", exact: true }).click();
-        await page
-            .getByRole("button", { name: "停止在线领取 / Stop online worker", exact: true })
-            .click();
-        await expect
-            .poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.online)
-            .toBe(false);
+        await page.getByRole("button", { name: "停止在线领取 / Stop online worker", exact: true }).click();
+        await expect.poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.online).toBe(false);
         const retainedCookies = await electron.evaluate(({ session }) =>
-            session
-                .fromPartition("persist:veriq-host")
-                .cookies.get({ url: "http://127.0.0.1:8888" }),
+            session.fromPartition("persist:veriq-host").cookies.get({ url: "http://127.0.0.1:8888" }),
         );
         const oldSession = retainedCookies.find((cookie) => cookie.name === "veriq_session");
         expect(oldSession).toBeDefined();
@@ -1363,15 +1158,9 @@ test("shared cloud editor publishes through the desktop host transport", async (
                 ).status(),
             )
             .toBe(401);
-        await expect
-            .poll(async () => (await page.evaluate(() => window.veriq.state())).user)
-            .toBeUndefined();
-        expect((await page.evaluate(() => window.veriq.state())).agent!.device!.workspaceId).toBe(
-            workspaceId,
-        );
-        console.log(
-            "Copied ordinary Cookie revoked by server after GUI logout; device binding retained",
-        );
+        await expect.poll(async () => (await page.evaluate(() => window.veriq.state())).user).toBeUndefined();
+        expect((await page.evaluate(() => window.veriq.state())).agent!.device!.workspaceId).toBe(workspaceId);
+        console.log("Copied ordinary Cookie revoked by server after GUI logout; device binding retained");
     } finally {
         await teardownDesktop(electron, profile, agentPid, server);
     }
@@ -1399,10 +1188,7 @@ test("component-only startup projection cancels its exact reservation", async ()
         await page.route("**/*", async (route) => {
             const url = new URL(route.request().url());
             if (url.origin !== "https://desktop-component.invalid") return route.abort();
-            const path = resolve(
-                assets,
-                "." + (url.pathname === "/" ? "/index.html" : url.pathname),
-            );
+            const path = resolve(assets, "." + (url.pathname === "/" ? "/index.html" : url.pathname));
             if (!path.startsWith(assets + "/")) return route.abort();
             await route.fulfill({
                 body: await readFile(path),
@@ -1449,13 +1235,9 @@ test("component-only startup projection cancels its exact reservation", async ()
         });
         await page.goto("https://desktop-component.invalid/");
         await page.getByRole("button", { name: "本机缓存", exact: true }).click();
-        await expect(
-            page.getByText("正在准备执行 / Preparing execution", { exact: false }),
-        ).toBeVisible();
+        await expect(page.getByText("正在准备执行 / Preparing execution", { exact: false })).toBeVisible();
         await page.getByRole("button", { name: "取消启动 / Cancel startup", exact: true }).click();
-        await expect(
-            page.getByRole("button", { name: "取消启动 / Cancel startup", exact: true }),
-        ).toBeDisabled();
+        await expect(page.getByRole("button", { name: "取消启动 / Cancel startup", exact: true })).toBeDisabled();
         expect(await page.evaluate(() => Reflect.get(window, "componentCalls"))).toEqual([
             { operation: "cancel", startupId: "11111111-1111-4111-8111-111111111111" },
         ]);
@@ -1496,9 +1278,7 @@ test("production Cookie session persists protected rows and restores after resta
             },
         });
         const page = await electron.firstWindow({ timeout: 10000 });
-        await expect
-            .poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.pid)
-            .toBeGreaterThan(0);
+        await expect.poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.pid).toBeGreaterThan(0);
         agentPid = (await page.evaluate(() => window.veriq.state())).agent?.pid;
         return electron;
     };
@@ -1521,9 +1301,7 @@ test("production Cookie session persists protected rows and restores after resta
             return {
                 path: target.storagePath,
                 provider: encrypted.subarray(0, 3).toString("ascii"),
-                roundtrip:
-                    decrypted.result === "VeriQ public provider probe" &&
-                    !decrypted.shouldReEncrypt,
+                roundtrip: decrypted.result === "VeriQ public provider probe" && !decrypted.shouldReEncrypt,
                 backend: safeStorage.getSelectedStorageBackend(),
             };
         }, value);

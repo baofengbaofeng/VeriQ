@@ -15,9 +15,7 @@ export async function contact(message) {
         const socket = connect(settings.socket);
         let buffer = "",
             bytes = 0;
-        socket.on("connect", () =>
-            socket.write(JSON.stringify({ ...message, nonce: settings.nonce }) + "\n"),
-        );
+        socket.on("connect", () => socket.write(JSON.stringify({ ...message, nonce: settings.nonce }) + "\n"));
         socket.on("error", () => reject(new Error("ATTEMPT_IPC_FAILED")));
         socket.setTimeout(15000, () => {
             socket.destroy();
@@ -58,9 +56,7 @@ export async function createExecutionContext() {
     );
     timer.unref();
     const secrets = new Map();
-    const execution = JSON.parse(
-        await readFile(new URL("./execution.json", import.meta.url), "utf8"),
-    );
+    const execution = JSON.parse(await readFile(new URL("./execution.json", import.meta.url), "utf8"));
     return {
         execution,
         finalizeExecution: async (context) => {

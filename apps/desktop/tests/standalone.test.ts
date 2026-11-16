@@ -12,10 +12,7 @@ import { schemaValidator } from "../../../packages/contracts/src/validators.ts";
 test("desktop standalone validators preserve contract sample results and errors", async () => {
     const generated = createRequire(import.meta.url)("../../web/dist-desktop/validators.cjs");
     const cases: { schema: string; value: unknown; valid: boolean }[] = JSON.parse(
-        await readFile(
-            new URL("../../../packages/contracts/fixtures/compatibility.json", import.meta.url),
-            "utf8",
-        ),
+        await readFile(new URL("../../../packages/contracts/fixtures/compatibility.json", import.meta.url), "utf8"),
     );
     cases.push(
         { schema: "Id", value: "not-a-uuid", valid: false },
@@ -25,11 +22,7 @@ test("desktop standalone validators preserve contract sample results and errors"
         const fn = generated.schemaValidator(sample.schema);
         const valid = fn(sample.value);
         assert.equal(valid, sample.valid, sample.schema);
-        assert.equal(
-            valid,
-            validateSchema(sample.schema, sample.value).length === 0,
-            sample.schema,
-        );
+        assert.equal(valid, validateSchema(sample.schema, sample.value).length === 0, sample.schema);
         const original = schemaValidator(sample.schema);
         assert.equal(original(sample.value), valid, sample.schema);
         assert.deepEqual(fn.errors, original.errors, sample.schema);

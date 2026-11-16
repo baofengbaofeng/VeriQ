@@ -17,8 +17,7 @@ export type RoutingOverride = { baseURL?: string; apiBaseURL?: string; fixtureBa
  * 立边界而不信任前一层已经检查。最终发送凭证前的用户确认在主进程，Runtime 负责记录 dirty 和实际环境。
  */
 export function routingOverride(input: unknown): RoutingOverride {
-    if (!input || typeof input !== "object" || Array.isArray(input))
-        throw new Error("ROUTING_OVERRIDE_INVALID");
+    if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("ROUTING_OVERRIDE_INVALID");
     const output: RoutingOverride = {};
     for (const [key, value] of Object.entries(input)) {
         if (

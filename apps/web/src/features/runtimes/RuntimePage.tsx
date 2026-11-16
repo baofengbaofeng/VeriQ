@@ -39,11 +39,7 @@ export function RuntimePage() {
     const workspace = items.find((w) => w.id === selected);
     return (
         <Panel title={tx("Runtimes")}>
-            <p>
-                {tx(
-                    "Register a device and choose who may use it. Registration alone does not start a worker.",
-                )}
-            </p>
+            <p>{tx("Register a device and choose who may use it. Registration alone does not start a worker.")}</p>
             {workspaces.isPending && <p role="status">{tx("Loading Workspaces…")}</p>}
             {workspaces.error && (
                 <>
@@ -59,11 +55,7 @@ export function RuntimePage() {
             {!!items.length && (
                 <label>
                     {tx("Workspace")}
-                    <select
-                        data-testid="runtime-workspace"
-                        value={selected}
-                        onChange={(e) => select(e.target.value)}
-                    >
+                    <select data-testid="runtime-workspace" value={selected} onChange={(e) => select(e.target.value)}>
                         {items.map((w) => (
                             <option key={w.id} value={w.id}>
                                 {w.name}
@@ -93,9 +85,7 @@ function RuntimeWorkspace({ workspace }: { workspace: Workspace }) {
         client = useQueryClient(),
         a = useAction();
     const [code, setCode] = useState(""),
-        [preview, setPreview] = useState<Awaited<ReturnType<typeof runtimeApi.inspect>> | null>(
-            null,
-        ),
+        [preview, setPreview] = useState<Awaited<ReturnType<typeof runtimeApi.inspect>> | null>(null),
         [sharing, setSharing] = useState("private"),
         [users, setUsers] = useState<string[]>([]);
     const inspectGeneration = useRef(0);
@@ -128,11 +118,10 @@ function RuntimeWorkspace({ workspace }: { workspace: Workspace }) {
                                 // ；空间切换仍由现有 signal 取消，不改变平台审批和权限协议。
                                 try {
                                     const candidate = await runtimeApi.inspect(code, signal);
-                                    if (!signal.aborted && generation === inspectGeneration.current)
+                                    if (!signal?.aborted && generation === inspectGeneration.current)
                                         setPreview(candidate);
                                 } catch (error) {
-                                    if (!signal.aborted && generation === inspectGeneration.current)
-                                        throw error;
+                                    if (!signal?.aborted && generation === inspectGeneration.current) throw error;
                                 }
                             });
                         }}
@@ -176,9 +165,7 @@ function RuntimeWorkspace({ workspace }: { workspace: Workspace }) {
                                     setPreview(null);
                                     setCode("");
                                     await refresh();
-                                    a.setMessage(
-                                        "Device approved. Return to the device to finish registration.",
-                                    );
+                                    a.setMessage("Device approved. Return to the device to finish registration.");
                                 });
                             }}
                         >
@@ -188,30 +175,18 @@ function RuntimeWorkspace({ workspace }: { workspace: Workspace }) {
                                 {preview.capabilities.os} / {preview.capabilities.arch}
                                 {tx("; engine ")}
                                 {preview.capabilities.engineVersion}
-                                {tx("; browsers")}{" "}
-                                {preview.capabilities.browsers.join(", ") || tx("none")}
+                                {tx("; browsers")} {preview.capabilities.browsers.join(", ") || tx("none")}
                             </p>
                             <label>
                                 {tx("Sharing")}
-                                <select
-                                    value={sharing}
-                                    onChange={(e) => setSharing(e.target.value)}
-                                >
+                                <select value={sharing} onChange={(e) => setSharing(e.target.value)}>
                                     <option value="private">{tx("Private — only me")}</option>
-                                    <option value="workspace">
-                                        {tx("Share with this Workspace")}
-                                    </option>
-                                    <option value="members">
-                                        {tx("Share with selected members")}
-                                    </option>
+                                    <option value="workspace">{tx("Share with this Workspace")}</option>
+                                    <option value="members">{tx("Share with selected members")}</option>
                                 </select>
                             </label>
                             {sharing === "members" && (
-                                <MemberShares
-                                    ws={workspace.id}
-                                    selected={users}
-                                    onChange={setUsers}
-                                />
+                                <MemberShares ws={workspace.id} selected={users} onChange={setUsers} />
                             )}
                             <button
                                 type="submit"
@@ -243,9 +218,7 @@ function RuntimeWorkspace({ workspace }: { workspace: Workspace }) {
                         refresh={refresh}
                         writable={writable}
                         archived={workspace.archived}
-                        canDeliver={
-                            !workspace.archived && ["OWNER", "ADMIN"].includes(workspace.role)
-                        }
+                        canDeliver={!workspace.archived && ["OWNER", "ADMIN"].includes(workspace.role)}
                     />
                 ))}
             {runtimes.hasNextPage && (
@@ -257,9 +230,7 @@ function RuntimeWorkspace({ workspace }: { workspace: Workspace }) {
                     {tx("Load more devices")}
                 </button>
             )}
-            {["OWNER", "ADMIN"].includes(workspace.role) && (
-                <ServiceAccounts workspace={workspace} />
-            )}
+            {["OWNER", "ADMIN"].includes(workspace.role) && <ServiceAccounts workspace={workspace} />}
         </>
     );
 }
@@ -347,10 +318,7 @@ function RuntimeCard({
             <h3>{runtime.name}</h3>
             <p>
                 {runtime.location} ·{" "}
-                {runtime.ownerType === "USER"
-                    ? tx("Personal device")
-                    : tx("Service account device")}{" "}
-                · {runtime.status}
+                {runtime.ownerType === "USER" ? tx("Personal device") : tx("Service account device")} · {runtime.status}
             </p>
             <p data-testid="current-trust">
                 {tx("Current trust: ")}
@@ -360,8 +328,7 @@ function RuntimeCard({
                 {tx("Reported capabilities: ")}
                 {runtime.capabilities.os} / {runtime.capabilities.arch}
                 {tx("; engine ")}
-                {runtime.capabilities.engineVersion};{" "}
-                {runtime.capabilities.browsers.join(", ") || tx("no browsers")}
+                {runtime.capabilities.engineVersion}; {runtime.capabilities.browsers.join(", ") || tx("no browsers")}
                 {tx(". These reports do not approve an engine release.")}
             </p>
             <p>
@@ -411,11 +378,7 @@ function RuntimeCard({
                             />
                             {tx("Share with the Workspace")}
                         </label>
-                        <MemberShares
-                            ws={runtime.workspaceId}
-                            selected={users}
-                            onChange={setUsers}
-                        />
+                        <MemberShares ws={runtime.workspaceId} selected={users} onChange={setUsers} />
                         <button type="submit" data-testid="save-grants" disabled={a.busy}>
                             {tx("Save sharing")}
                         </button>
@@ -481,12 +444,7 @@ function RuntimeCard({
                         onSubmit={(e) => {
                             e.preventDefault();
                             void a.run(async () => {
-                                await runtimeApi.delivery(
-                                    runtime.workspaceId,
-                                    runtime.id,
-                                    delivery,
-                                    signal,
-                                );
+                                await runtimeApi.delivery(runtime.workspaceId, runtime.id, delivery, signal);
                                 await refresh();
                                 a.setMessage("Workspace credential delivery updated.");
                             });
@@ -582,13 +540,7 @@ function ServiceAccounts({ workspace }: { workspace: Workspace }) {
                                     onClick={() =>
                                         void a.run(async () => {
                                             setToken(
-                                                (
-                                                    await runtimeApi.issueToken(
-                                                        workspace.id,
-                                                        account.id,
-                                                        signal,
-                                                    )
-                                                ).token,
+                                                (await runtimeApi.issueToken(workspace.id, account.id, signal)).token,
                                             );
                                         })
                                     }
@@ -600,11 +552,7 @@ function ServiceAccounts({ workspace }: { workspace: Workspace }) {
                                     disabled={a.busy}
                                     onClick={() =>
                                         void a.run(async () => {
-                                            await runtimeApi.disableAccount(
-                                                workspace.id,
-                                                account.id,
-                                                signal,
-                                            );
+                                            await runtimeApi.disableAccount(workspace.id, account.id, signal);
                                             setToken("");
                                             await accounts.refetch();
                                             a.setMessage(
@@ -630,11 +578,7 @@ function ServiceAccounts({ workspace }: { workspace: Workspace }) {
                         {tx("One-time enrollment token")}
                         <input readOnly value={token} autoComplete="off" />
                     </label>
-                    <p>
-                        {tx(
-                            "Expires in ten minutes. Pass through standard input, never a command argument.",
-                        )}
-                    </p>
+                    <p>{tx("Expires in ten minutes. Pass through standard input, never a command argument.")}</p>
                     <button type="button" onClick={() => setToken("")}>
                         {tx("Dismiss token")}
                     </button>

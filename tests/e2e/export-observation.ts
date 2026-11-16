@@ -12,13 +12,7 @@ export async function observeExport(electron: Desktop, page: DesktopPage, endpoi
         const transport = session.fromPartition("persist:veriq-host").webRequest;
         const filter = { urls: [endpoint] };
         let count = 0;
-        const record = (
-            event: string,
-            id: number,
-            method: string,
-            status?: number,
-            error?: string,
-        ) => {
+        const record = (event: string, id: number, method: string, status?: number, error?: string) => {
             if (count++ >= 16) return;
             console.error(
                 "Bundle export request observation",
@@ -38,28 +32,20 @@ export async function observeExport(electron: Desktop, page: DesktopPage, endpoi
         transport.onResponseStarted(filter, (details) =>
             record("response", details.id, details.method, details.statusCode),
         );
-        transport.onCompleted(filter, (details) =>
-            record("completed", details.id, details.method, details.statusCode),
-        );
+        transport.onCompleted(filter, (details) => record("completed", details.id, details.method, details.statusCode));
         transport.onErrorOccurred(filter, (details) =>
             record("error", details.id, details.method, undefined, details.error),
         );
     }, endpoint);
     const logInput = (message: { text(): string }) => {
-        if (message.text().startsWith("Bundle export input observation "))
-            console.log(message.text());
+        if (message.text().startsWith("Bundle export input observation ")) console.log(message.text());
     };
     page.on("console", logInput);
     const input = await page.getByTestId("bundle-export").evaluateHandle((button) => {
         let count = 0;
         const record = (event: Event) => {
             if (count++ >= 8) return;
-            const key =
-                event instanceof KeyboardEvent
-                    ? event.key === "Enter"
-                        ? "Enter"
-                        : "other"
-                    : undefined;
+            const key = event instanceof KeyboardEvent ? (event.key === "Enter" ? "Enter" : "other") : undefined;
             console.info(
                 "Bundle export input observation " +
                     JSON.stringify({
@@ -83,31 +69,21 @@ export async function observeExport(electron: Desktop, page: DesktopPage, endpoi
     // 请求错误提示与列表尚未刷新，不能据快照自动重试写操作。
     const snapshot = async (stage: "before-focus" | "focused" | "after-enter" | "settled") => {
         const state = await page.evaluate(() => {
-            const button = document.querySelector<HTMLButtonElement>(
-                '[data-testid="bundle-export"]',
-            );
-            const environment = document.querySelector<HTMLSelectElement>(
-                '[data-testid="bundle-environment-version"]',
-            );
-            const statuses = [...document.querySelectorAll('[role="status"]')].map(
-                (node) => node.textContent ?? "",
-            );
+            const button = document.querySelector<HTMLButtonElement>('[data-testid="bundle-export"]');
+            const environment = document.querySelector<HTMLSelectElement>('[data-testid="bundle-environment-version"]');
+            const statuses = [...document.querySelectorAll('[role="status"]')].map((node) => node.textContent ?? "");
             return {
                 disabled: button?.disabled ?? null,
                 focused: !!button && document.activeElement === button,
                 environmentSelected: !!environment?.value,
-                selectedCases: document.querySelectorAll('[data-testid="bundle-selected-case"]')
-                    .length,
+                selectedCases: document.querySelectorAll('[data-testid="bundle-selected-case"]').length,
                 items: document.querySelectorAll('[data-testid="bundle-item"]').length,
                 alert: !!document.querySelector('[role="alert"]'),
                 working: statuses.some((text) => text.includes("Working")),
                 exported: statuses.some((text) => text.includes("Exported")),
             };
         });
-        console.log(
-            "Bundle export DOM observation",
-            JSON.stringify({ stage, at: Date.now(), ...state }),
-        );
+        console.log("Bundle export DOM observation", JSON.stringify({ stage, at: Date.now(), ...state }));
     };
     return {
         snapshot,

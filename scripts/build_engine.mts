@@ -102,35 +102,20 @@ try {
      */
     function collect(name: string, from: string): void {
         const local =
-            name === "@veriq/runner-sdk"
-                ? "runner-sdk"
-                : name === "@veriq/contracts"
-                  ? "contracts"
-                  : undefined;
+            name === "@veriq/runner-sdk" ? "runner-sdk" : name === "@veriq/contracts" ? "contracts" : undefined;
         let directory: string;
         if (local) {
             directory = join(built, local);
-            const manifest = JSON.parse(
-                readFileSync(join(packages, local, "package.json"), "utf8"),
-            );
+            const manifest = JSON.parse(readFileSync(join(packages, local, "package.json"), "utf8"));
             const dependencies = Object.fromEntries(
-                Object.entries(manifest.dependencies as Record<string, string>).map(
-                    ([key, value]) => [
-                        key,
-                        value.startsWith("workspace:")
-                            ? JSON.parse(
-                                  readFileSync(
-                                      join(
-                                          packages,
-                                          key.slice(key.indexOf("/") + 1),
-                                          "package.json",
-                                      ),
-                                      "utf8",
-                                  ),
-                              ).version
-                            : value,
-                    ],
-                ),
+                Object.entries(manifest.dependencies as Record<string, string>).map(([key, value]) => [
+                    key,
+                    value.startsWith("workspace:")
+                        ? JSON.parse(
+                              readFileSync(join(packages, key.slice(key.indexOf("/") + 1), "package.json"), "utf8"),
+                          ).version
+                        : value,
+                ]),
             );
             writeFileSync(
                 join(directory, "package.json"),
@@ -157,9 +142,7 @@ try {
         const previous = collected.get(name);
         if (previous) {
             if (previous.pkg.version !== pkg.version)
-                throw new Error(
-                    "Multiple engine dependency versions require an explicit release design",
-                );
+                throw new Error("Multiple engine dependency versions require an explicit release design");
             return;
         }
         /**
@@ -231,11 +214,7 @@ try {
     cpSync(join(packages, "compiler/src"), join(compiler, "src"), { recursive: true });
     cpSync(join(packages, "compiler/package.json"), join(compiler, "package.json"));
     cpSync(join(root, "LICENSE"), join(compiler, "LICENSE"));
-    await archive(
-        compiler,
-        ["src", "package.json", "LICENSE"],
-        join(release, "engine/compiler.tgz"),
-    );
+    await archive(compiler, ["src", "package.json", "LICENSE"], join(release, "engine/compiler.tgz"));
     const members = [
         "package.json",
         "package-lock.json",

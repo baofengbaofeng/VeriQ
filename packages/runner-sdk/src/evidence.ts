@@ -29,9 +29,14 @@ export class EvidencePolicy {
             this.values.add(value);
             this.values.add(encodeURIComponent(value));
             this.values.add(Buffer.from(value).toString("base64"));
-        } else if (Array.isArray(value)) value.forEach((v) => this.protect(v));
+        } else if (Array.isArray(value))
+            value.forEach((v) => {
+                this.protect(v);
+            });
         else if (value && typeof value === "object")
-            Object.values(value).forEach((v) => this.protect(v));
+            Object.values(value).forEach((v) => {
+                this.protect(v);
+            });
     }
     readonly redact = (value: JsonValue): JsonValue => {
         if (typeof value === "string") {
@@ -43,21 +48,12 @@ export class EvidencePolicy {
         if (Array.isArray(value)) return value.map(this.redact);
         if (value && typeof value === "object") {
             // Dynamic JSON keys are data. Withhold the whole object to avoid collisions.
-            if (
-                Object.keys(value).some((key) =>
-                    [...this.values].some((secret) => key.includes(secret)),
-                )
-            )
+            if (Object.keys(value).some((key) => [...this.values].some((secret) => key.includes(secret))))
                 return "[REDACTED]";
-            const restricted =
-                value.sensitivity === "CREDENTIAL_RESTRICTED" || value.kind === "download";
+            const restricted = value.sensitivity === "CREDENTIAL_RESTRICTED" || value.kind === "download";
             return Object.fromEntries(
                 Object.entries(value)
-                    .filter(
-                        ([key]) =>
-                            !restricted ||
-                            !["path", "bytes", "body", "buffer", "url"].includes(key),
-                    )
+                    .filter(([key]) => !restricted || !["path", "bytes", "body", "buffer", "url"].includes(key))
                     .map(([key, item]) => [
                         key,
                         new RegExp(
@@ -107,31 +103,20 @@ export class EvidencePolicy {
             "pageKey",
         ]);
         const dynamic = new Set(["expected", "value", "data", "vars", "variables", "headers"]);
-        const restricted =
-            value.sensitivity === "CREDENTIAL_RESTRICTED" || value.kind === "download";
+        const restricted = value.sensitivity === "CREDENTIAL_RESTRICTED" || value.kind === "download";
         return Object.fromEntries(
             Object.entries(value)
-                .filter(
-                    ([key]) =>
-                        !restricted || !["path", "bytes", "body", "buffer", "url"].includes(key),
-                )
+                .filter(([key]) => !restricted || !["path", "bytes", "body", "buffer", "url"].includes(key))
                 .map(([key, item]) => [
                     key,
-                    identifiers.has(key)
-                        ? item
-                        : dynamic.has(key)
-                          ? this.redact(item)
-                          : this.redactProtocol(item),
+                    identifiers.has(key) ? item : dynamic.has(key) ? this.redact(item) : this.redactProtocol(item),
                 ]),
         );
     };
     /**
      * 公开方法 access 在具备 credentialEvidence 能力时允许读取受限证据：否则拒绝返回原始字节或路径。
      */
-    access(
-        evidence: RestrictedEvidence,
-        capability: { credentialEvidence: boolean },
-    ): RestrictedEvidence {
+    access(evidence: RestrictedEvidence, capability: { credentialEvidence: boolean }): RestrictedEvidence {
         if (!capability.credentialEvidence) throw new Error("CREDENTIAL_EVIDENCE_FORBIDDEN");
         return evidence;
     }

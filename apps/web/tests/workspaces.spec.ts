@@ -1,9 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test("real Workspace selection, invitation acceptance and member permissions", async ({
-    page,
-    browser,
-}) => {
+test("real Workspace selection, invitation acceptance and member permissions", async ({ page, browser }) => {
     const state = await page.request.get("/api/v1/setup");
     if (!(await state.json()).data.initialized) {
         const csrfToken = (await state.json()).data.csrfToken;
@@ -83,9 +80,7 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     const viewerContext = await browser.newContext();
     const viewer = await viewerContext.newPage();
     await viewer.goto(invitation);
-    await expect(
-        viewer.getByRole("heading", { name: "Accept Workspace invitation" }),
-    ).toBeVisible();
+    await expect(viewer.getByRole("heading", { name: "Accept Workspace invitation" })).toBeVisible();
     expect(new URL(viewer.url()).hash).toBe("");
     await viewer.getByTestId("invite-new-account").check();
     await viewer.getByTestId("displayName").fill("Workspace Viewer");
@@ -165,9 +160,7 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     const existingContext = await browser.newContext();
     const existingPage = await existingContext.newPage();
     await existingPage.goto(existingInvitation);
-    await expect(
-        existingPage.getByRole("heading", { name: "Accept Workspace invitation" }),
-    ).toBeVisible();
+    await expect(existingPage.getByRole("heading", { name: "Accept Workspace invitation" })).toBeVisible();
     expect(new URL(existingPage.url()).hash).toBe("");
     await existingPage.getByTestId("email").fill("existing-workspace@example.com");
     await existingPage.getByTestId("password").fill("Existing password 123!");
@@ -189,8 +182,6 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     await expect(page.getByTestId("account-info")).toContainText("Workspace Viewer");
     await page.getByRole("link", { name: "Workspaces", exact: true }).click();
     await expect(page.getByTestId("workspace-detail")).toContainText("Browser Alpha");
-    await expect(
-        page.getByTestId("workspace-selector").getByRole("option", { name: /Browser Beta/ }),
-    ).toHaveCount(0);
+    await expect(page.getByTestId("workspace-selector").getByRole("option", { name: /Browser Beta/ })).toHaveCount(0);
     await viewerContext.close();
 });

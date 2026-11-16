@@ -39,13 +39,10 @@ interface SqliteDirectory {
  * 尤其旧 JSON 的前置状态不能通过这个新数据库解析器取得未派生授权。
  */
 function checked(root: string, value: unknown): WindowsAttemptRecord {
-    if (!value || typeof value !== "object" || Array.isArray(value))
-        throw new Error("WINDOWS_JOURNAL_CORRUPT");
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("WINDOWS_JOURNAL_CORRUPT");
     const record = value as WindowsAttemptRecord;
     if (
-        Object.keys(record).some(
-            (key) => !["claim", "claimRequestId", "state", "work", "stop"].includes(key),
-        ) ||
+        Object.keys(record).some((key) => !["claim", "claimRequestId", "state", "work", "stop"].includes(key)) ||
         validateSchema("ClaimDTO", record.claim).length ||
         !states.includes(record.state) ||
         record.work !== join(root, "work", record.claim.attemptId) ||
@@ -58,14 +55,7 @@ function checked(root: string, value: unknown): WindowsAttemptRecord {
             typeof record.stop !== "object" ||
             Array.isArray(record.stop) ||
             Object.keys(record.stop).some(
-                (key) =>
-                    ![
-                        "attemptId",
-                        "processStopped",
-                        "processStopScope",
-                        "reason",
-                        "stoppedAt",
-                    ].includes(key),
+                (key) => !["attemptId", "processStopped", "processStopScope", "reason", "stoppedAt"].includes(key),
             ) ||
             record.stop.attemptId !== record.claim.attemptId ||
             typeof record.stop.processStopped !== "boolean" ||
@@ -73,9 +63,7 @@ function checked(root: string, value: unknown): WindowsAttemptRecord {
             record.stop.reason.length > 120 ||
             validateSchema("Timestamp", record.stop.stoppedAt).length ||
             (record.stop.processStopScope !== undefined &&
-                !["FULL_DESCENDANT_TREE", "NO_PROCESS_SPAWNED"].includes(
-                    record.stop.processStopScope,
-                )))
+                !["FULL_DESCENDANT_TREE", "NO_PROCESS_SPAWNED"].includes(record.stop.processStopScope)))
     )
         throw new Error("WINDOWS_JOURNAL_CORRUPT");
     return record;
@@ -87,15 +75,9 @@ function checked(root: string, value: unknown): WindowsAttemptRecord {
  * 构。
  */
 function requireSchema(db: DatabaseSync, initializing: boolean): void {
-    const entries = db
-        .prepare("SELECT name,type FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' LIMIT 3")
-        .all();
+    const entries = db.prepare("SELECT name,type FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' LIMIT 3").all();
     if (initializing && entries.length === 0) return;
-    if (
-        entries.length !== 1 ||
-        entries[0]!.name !== "veriq_online_attempts" ||
-        entries[0]!.type !== "table"
-    )
+    if (entries.length !== 1 || entries[0]!.name !== "veriq_online_attempts" || entries[0]!.type !== "table")
         throw new Error("WINDOWS_JOURNAL_SCHEMA_UNSUPPORTED");
     const columns = db.prepare("PRAGMA table_info(veriq_online_attempts)").all();
     const names = ["attempt_id", "claim", "document", "state", "updated_at"];
@@ -103,16 +85,11 @@ function requireSchema(db: DatabaseSync, initializing: boolean): void {
         columns.length !== names.length ||
         columns.some(
             (column, index) =>
-                column.name !== names[index] ||
-                column.type !== "TEXT" ||
-                Number(column.pk) !== (index === 0 ? 1 : 0),
+                column.name !== names[index] || column.type !== "TEXT" || Number(column.pk) !== (index === 0 ? 1 : 0),
         )
     )
         throw new Error("WINDOWS_JOURNAL_SCHEMA_UNSUPPORTED");
-    if (
-        initializing &&
-        Number(db.prepare("SELECT count(*) AS count FROM veriq_online_attempts").get()!.count) !== 0
-    )
+    if (initializing && Number(db.prepare("SELECT count(*) AS count FROM veriq_online_attempts").get()!.count) !== 0)
         throw new Error("WINDOWS_JOURNAL_SCHEMA_UNSUPPORTED");
 }
 
@@ -147,14 +124,12 @@ export class WindowsAttemptJournal {
                 "PRAGMA trusted_schema=OFF; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON",
             );
             if (
-                String(db.prepare("PRAGMA journal_mode").get()!.journal_mode).toLowerCase() !==
-                    "wal" ||
+                String(db.prepare("PRAGMA journal_mode").get()!.journal_mode).toLowerCase() !== "wal" ||
                 Number(db.prepare("PRAGMA synchronous").get()!.synchronous) !== 2
             )
                 throw new Error("WINDOWS_JOURNAL_DURABILITY_UNAVAILABLE");
             const version = Number(db.prepare("PRAGMA user_version").get()!.user_version);
-            if (version !== 0 && version !== 1)
-                throw new Error("WINDOWS_JOURNAL_VERSION_UNSUPPORTED");
+            if (version !== 0 && version !== 1) throw new Error("WINDOWS_JOURNAL_VERSION_UNSUPPORTED");
             requireSchema(db, version === 0);
             db.exec(`BEGIN IMMEDIATE; CREATE TABLE IF NOT EXISTS veriq_online_attempts (
                 attempt_id TEXT PRIMARY KEY, claim TEXT NOT NULL CHECK(length(claim)<=65536),
@@ -185,11 +160,7 @@ export class WindowsAttemptJournal {
         if (process.platform !== "win32") throw new Error("WINDOWS_NATIVE_PLATFORM_REQUIRED");
         let directory: SqliteDirectory;
         try {
-            directory = windowsNative().openPrivateSqliteDirectory(
-                join(root, "journal"),
-                "veriq-online.sqlite",
-                false,
-            );
+            directory = windowsNative().openPrivateSqliteDirectory(join(root, "journal"), "veriq-online.sqlite", false);
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
             throw error;
@@ -202,8 +173,7 @@ export class WindowsAttemptJournal {
             });
             if (
                 Number(db.prepare("PRAGMA user_version").get()!.user_version) !== 1 ||
-                String(db.prepare("PRAGMA journal_mode").get()!.journal_mode).toLowerCase() !==
-                    "wal" ||
+                String(db.prepare("PRAGMA journal_mode").get()!.journal_mode).toLowerCase() !== "wal" ||
                 db.prepare("PRAGMA quick_check(1)").get()!.quick_check !== "ok"
             )
                 throw new Error("WINDOWS_JOURNAL_CORRUPT");
@@ -228,16 +198,11 @@ export class WindowsAttemptJournal {
     records(): WindowsAttemptRecord[] {
         this.directory.validate();
         const rows = this.db
-            .prepare(
-                "SELECT attempt_id,claim,document,state FROM veriq_online_attempts ORDER BY attempt_id LIMIT ?",
-            )
+            .prepare("SELECT attempt_id,claim,document,state FROM veriq_online_attempts ORDER BY attempt_id LIMIT ?")
             .all(LIMIT + 1);
         if (rows.length > LIMIT) throw new Error("WINDOWS_JOURNAL_LIMIT");
         return rows.map((row) => {
-            if (
-                Buffer.byteLength(String(row.document)) > 65536 ||
-                Buffer.byteLength(String(row.claim)) > 65536
-            )
+            if (Buffer.byteLength(String(row.document)) > 65536 || Buffer.byteLength(String(row.claim)) > 65536)
                 throw new Error("WINDOWS_JOURNAL_LIMIT");
             const record = checked(this.root, JSON.parse(String(row.document)));
             if (
@@ -263,9 +228,7 @@ export class WindowsAttemptJournal {
         this.db.exec("BEGIN IMMEDIATE");
         try {
             const previous = this.db
-                .prepare(
-                    "SELECT claim,document,state FROM veriq_online_attempts WHERE attempt_id=?",
-                )
+                .prepare("SELECT claim,document,state FROM veriq_online_attempts WHERE attempt_id=?")
                 .get(record.claim.attemptId);
             if (previous) {
                 const old = checked(this.root, JSON.parse(String(previous.document)));
@@ -280,10 +243,7 @@ export class WindowsAttemptJournal {
                     throw new Error("WINDOWS_JOURNAL_CONFLICT");
             } else if (
                 record.state !== "ALLOCATED" ||
-                Number(
-                    this.db.prepare("SELECT count(*) AS count FROM veriq_online_attempts").get()!
-                        .count,
-                ) >= LIMIT
+                Number(this.db.prepare("SELECT count(*) AS count FROM veriq_online_attempts").get()!.count) >= LIMIT
             )
                 throw new Error("WINDOWS_JOURNAL_CONFLICT");
             this.db
@@ -292,13 +252,7 @@ export class WindowsAttemptJournal {
                 ON CONFLICT(attempt_id) DO UPDATE SET document=excluded.document,state=excluded.state,updated_at=exc` +
                         `luded.updated_at`,
                 )
-                .run(
-                    record.claim.attemptId,
-                    claim,
-                    document,
-                    record.state,
-                    new Date().toISOString(),
-                );
+                .run(record.claim.attemptId, claim, document, record.state, new Date().toISOString());
             this.directory.validate();
             this.db.exec("COMMIT");
             this.directory.validate();
@@ -317,8 +271,7 @@ export class WindowsAttemptJournal {
         if (!legacy) return;
         try {
             const { names, interrupted } = await legacy.journalNames(LIMIT);
-            if (names.length || interrupted.size)
-                throw new Error("WINDOWS_LEGACY_JOURNAL_RECOVERY_REQUIRED");
+            if (names.length || interrupted.size) throw new Error("WINDOWS_LEGACY_JOURNAL_RECOVERY_REQUIRED");
         } finally {
             await legacy.close();
         }

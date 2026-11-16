@@ -1,17 +1,7 @@
 import { build, Platform, Arch } from "electron-builder";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import {
-    cp,
-    lstat,
-    mkdir,
-    mkdtemp,
-    readdir,
-    realpath,
-    rm,
-    statfs,
-    writeFile,
-} from "node:fs/promises";
+import { cp, lstat, mkdir, mkdtemp, readdir, realpath, rm, statfs, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { readBoundedRegularFile } from "../src/installation/bounded-file.ts";
@@ -56,8 +46,7 @@ function argumentsOf(args: string[]): Map<string, string> {
             throw new Error("DESKTOP_PACKAGE_ARGUMENT_INVALID");
         flags.set(key, value);
     }
-    for (const key of permitted.slice(0, 6))
-        if (!flags.has(key)) throw new Error("DESKTOP_PACKAGE_ARGUMENT_MISSING");
+    for (const key of permitted.slice(0, 6)) if (!flags.has(key)) throw new Error("DESKTOP_PACKAGE_ARGUMENT_MISSING");
     for (const key of permitted.slice(0, 5))
         if (!isAbsolute(flags.get(key)!)) throw new Error("DESKTOP_PACKAGE_PATH_INVALID");
     return flags;
@@ -133,11 +122,9 @@ async function dependencies(root: string): Promise<Record<string, string>> {
     }
     for (const entry of await readdir(packages, { withFileTypes: true })) {
         if (entry.name.startsWith(".")) continue;
-        if (!entry.isDirectory() || entry.isSymbolicLink())
-            throw new Error("DESKTOP_DEPENDENCY_INVALID");
+        if (!entry.isDirectory() || entry.isSymbolicLink()) throw new Error("DESKTOP_DEPENDENCY_INVALID");
         if (entry.name.startsWith("@"))
-            for (const child of await readdir(join(packages, entry.name)))
-                await item(entry.name + "/" + child);
+            for (const child of await readdir(join(packages, entry.name))) await item(entry.name + "/" + child);
         else await item(entry.name);
     }
     return result;
@@ -164,8 +151,7 @@ async function main(): Promise<void> {
     const release = parseDesktopRelease(expected);
     if (process.platform !== release.platform || process.arch !== release.arch)
         throw new Error("DESKTOP_NATIVE_TARGET_REQUIRED");
-    if (flags.get("--signing") !== release.signing.mode)
-        throw new Error("DESKTOP_SIGNING_MODE_MISMATCH");
+    if (flags.get("--signing") !== release.signing.mode) throw new Error("DESKTOP_SIGNING_MODE_MISMATCH");
     /**
      * 签名模式必须与独立期望相同且原生身份必须逐字匹配，Mac 应用证书与 pkg Installer 证书分别提供；Linux 没有这个原生
      * 签名协议，所以明确要求独立清单签名而不生成误导的 native-signed 状态。
@@ -177,9 +163,7 @@ async function main(): Promise<void> {
         installerIdentity = flags.get("--installer-identity");
     if (
         release.signing.mode === "NATIVE_SIGNED" &&
-        (!identity ||
-            identity !== release.signing.identity ||
-            (release.platform === "darwin" && !installerIdentity))
+        (!identity || identity !== release.signing.identity || (release.platform === "darwin" && !installerIdentity))
     )
         throw new Error("DESKTOP_SIGNING_IDENTITY_REQUIRED");
     if (release.signing.mode === "NATIVE_SIGNED" && release.platform === "linux")
@@ -200,8 +184,7 @@ async function main(): Promise<void> {
         if (path === "" || (!path.startsWith("..") && !isAbsolute(path)))
             throw new Error("DESKTOP_INDEPENDENT_EXPECTED_REQUIRED");
     }
-    if (basename(dirname(runtime)) !== expected.candidate)
-        throw new Error("DESKTOP_CANDIDATE_MISMATCH");
+    if (basename(dirname(runtime)) !== expected.candidate) throw new Error("DESKTOP_CANDIDATE_MISMATCH");
     /**
      * 回执必须绑定原始字节摘要后再逐项匹配目标、来源和清单，额外的生产命令证据仍保留在外部材料中；不把一次 JSON 解析成
      * 功、路径存在或自报 committed 当作完整发行真实性。Mac 沿用已有
@@ -230,8 +213,7 @@ async function main(): Promise<void> {
     if ((await desktopInventory(gui)).sha256 !== expected.guiInventorySha256)
         throw new Error("DESKTOP_GUI_IDENTITY_MISMATCH");
     const output = resolve(flags.get("--output")!);
-    if ((await realpath(dirname(output))) !== dirname(output))
-        throw new Error("DESKTOP_OUTPUT_PATH_INVALID");
+    if ((await realpath(dirname(output))) !== dirname(output)) throw new Error("DESKTOP_OUTPUT_PATH_INVALID");
     await mkdir(output);
     /**
      * 可用空间按真实清单大小提高最低预算，并分别检查输出与临时文件系统，不能把压缩包标称尺寸当成安装空间承诺；不足时保
@@ -240,20 +222,15 @@ async function main(): Promise<void> {
      * Electron、GUI 和工具暂存留余量，实际验收还要记录峰值。输出目录独占创建，
      * 不允许复用未知旧目录掩盖先前失败。
      */
-    const runtimeManifest = JSON.parse(
-        (await bounded(join(runtime, "runtime-manifest.json"))).toString("utf8"),
-    );
+    const runtimeManifest = JSON.parse((await bounded(join(runtime, "runtime-manifest.json"))).toString("utf8"));
     const runtimeBytes = runtimeManifest.files.reduce(
         (total: number, file: { sizeBytes: number }) => total + file.sizeBytes,
         0,
     );
-    const reserve = BigInt(
-        Math.max(12 * 1024 * 1024 * 1024, runtimeBytes * 4 + 2 * 1024 * 1024 * 1024),
-    );
+    const reserve = BigInt(Math.max(12 * 1024 * 1024 * 1024, runtimeBytes * 4 + 2 * 1024 * 1024 * 1024));
     for (const path of [output, await realpath(tmpdir())]) {
         const disk = await statfs(path, { bigint: true });
-        if (disk.bavail * disk.bsize < reserve)
-            throw new Error("DESKTOP_PACKAGE_DISK_RESERVE_REQUIRED");
+        if (disk.bavail * disk.bsize < reserve) throw new Error("DESKTOP_PACKAGE_DISK_RESERVE_REQUIRED");
     }
     const temporary = await mkdtemp(join(await realpath(tmpdir()), "veriq-desktop-"));
     try {
@@ -276,10 +253,7 @@ async function main(): Promise<void> {
             preserveTimestamps: true,
         });
         await verifyRuntime(runtimeDirectory, expected);
-        if (
-            (await desktopInventory(join(appDirectory, "out"))).sha256 !==
-            expected.guiInventorySha256
-        )
+        if ((await desktopInventory(join(appDirectory, "out"))).sha256 !== expected.guiInventorySha256)
             throw new Error("DESKTOP_GUI_IDENTITY_MISMATCH");
         /**
          * GUI 主进程所需第三方包复用已核 Runtime 的物理生产依赖，不让 builder 解析开发工作区软链接或自行安装；
@@ -364,16 +338,12 @@ async function main(): Promise<void> {
             "CSC_IDENTITY_AUTO_DISCOVERY",
         ];
         const signingEnvironment = new Map(signingNames.map((name) => [name, process.env[name]]));
-        if (release.signing.mode !== "NATIVE_SIGNED")
-            for (const name of signingNames) delete process.env[name];
+        if (release.signing.mode !== "NATIVE_SIGNED") for (const name of signingNames) delete process.env[name];
         process.env.CSC_IDENTITY_AUTO_DISCOVERY = "false";
         let artifacts: string[];
         try {
             artifacts = await build({
-                targets: platform.createTarget(
-                    undefined,
-                    expected.arch === "arm64" ? Arch.arm64 : Arch.x64,
-                ),
+                targets: platform.createTarget(undefined, expected.arch === "arm64" ? Arch.arm64 : Arch.x64),
                 config: { ...config, afterPack: checkPackaged, afterSign: checkPackaged },
                 publish: "never",
             });
@@ -390,24 +360,13 @@ async function main(): Promise<void> {
          * 未验收，测试、安装、可信来源和发布许可都不能从这里推导。未知错误只输出稳定英文分类，
          * 避免泄露私有路径或原始签名工具消息。
          */
-        const extension =
-            expected.platform === "darwin"
-                ? ".pkg"
-                : expected.platform === "win32"
-                  ? ".exe"
-                  : ".deb";
-        if (!artifacts.some((file) => file.endsWith(extension)))
-            throw new Error("DESKTOP_INSTALLER_OUTPUT_MISSING");
+        const extension = expected.platform === "darwin" ? ".pkg" : expected.platform === "win32" ? ".exe" : ".deb";
+        if (!artifacts.some((file) => file.endsWith(extension))) throw new Error("DESKTOP_INSTALLER_OUTPUT_MISSING");
         const files = [];
         for (const file of artifacts) {
             const path = relative(output, resolve(file));
             const info = await lstat(file);
-            if (
-                path.startsWith("..") ||
-                isAbsolute(path) ||
-                !info.isFile() ||
-                info.isSymbolicLink()
-            )
+            if (path.startsWith("..") || isAbsolute(path) || !info.isFile() || info.isSymbolicLink())
                 throw new Error("DESKTOP_INSTALLER_OUTPUT_INVALID");
             const hash = createHash("sha256");
             for await (const bytes of createReadStream(file)) hash.update(bytes);
@@ -437,10 +396,7 @@ async function main(): Promise<void> {
                 4,
             ) + "\n",
         );
-        process.stdout.write(
-            JSON.stringify({ status: "PACKAGED_UNVERIFIED", output, artifacts: files.length }) +
-                "\n",
-        );
+        process.stdout.write(JSON.stringify({ status: "PACKAGED_UNVERIFIED", output, artifacts: files.length }) + "\n");
     } finally {
         await rm(temporary, { recursive: true, force: true });
     }
@@ -448,9 +404,7 @@ async function main(): Promise<void> {
 main().catch((error: unknown) => {
     process.stderr.write(
         `VeriQ desktop packaging failed: ${
-            error instanceof Error && /^[A-Z0-9_]+$/.test(error.message)
-                ? error.message
-                : "DESKTOP_PACKAGE_FAILED"
+            error instanceof Error && /^[A-Z0-9_]+$/.test(error.message) ? error.message : "DESKTOP_PACKAGE_FAILED"
         }\n`,
     );
     process.exitCode = 1;

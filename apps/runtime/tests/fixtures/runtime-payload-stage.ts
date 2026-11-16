@@ -25,18 +25,12 @@ export async function stageModel(arch: Arch = "x64") {
         if (existing) Object.assign(existing, ref);
         else value.sourceBinding.files.push(ref);
     }
-    Object.assign(
-        value.recipe.source.pnpmLock,
-        value.sourceBinding.files.find((f) => f.path === "pnpm-lock.yaml")!,
-    );
+    Object.assign(value.recipe.source.pnpmLock, value.sourceBinding.files.find((f) => f.path === "pnpm-lock.yaml")!);
     value.expected.pnpmLockSha256 = value.recipe.source.pnpmLock.sha256;
     const pkg = value.nodeEntries.find((e) => e.path.endsWith("/npm/package.json"))!;
     pkg.body = JSON.stringify({ name: "npm", version: "11.0.0", bin: { npm: "bin/npm-cli.js" } });
     const npmFiles: FileFact[] = value.nodeEntries
-        .filter(
-            (e) =>
-                (e.kind ?? "file") === "file" && e.path.startsWith(value.nodeReceipt.npmRoot + "/"),
-        )
+        .filter((e) => (e.kind ?? "file") === "file" && e.path.startsWith(value.nodeReceipt.npmRoot + "/"))
         .map(
             (e): FileFact => ({
                 path: e.path.slice(value.nodeReceipt.npmRoot.length + 1),
@@ -47,9 +41,7 @@ export async function stageModel(arch: Arch = "x64") {
         )
         .sort((a, b) => (a.path < b.path ? -1 : 1));
     const graph = value.nodeReceipt.npmGraph;
-    graph.instances[0]!.ownTreeSha256 = hash(
-        canonicalBytes({ directories: ["bin"], files: npmFiles }),
-    );
+    graph.instances[0]!.ownTreeSha256 = hash(canonicalBytes({ directories: ["bin"], files: npmFiles }));
     graph.bins.push({
         owner: "p1",
         name: "npm",
@@ -60,8 +52,7 @@ export async function stageModel(arch: Arch = "x64") {
         launcher: "node",
         inspection: null,
     });
-    let nodeOverride: Buffer<ArrayBuffer> | undefined,
-        chromeOverride: Buffer<ArrayBuffer> | undefined;
+    let nodeOverride: Buffer<ArrayBuffer> | undefined, chromeOverride: Buffer<ArrayBuffer> | undefined;
     const seal = () => {
         value.put(value.recipe.source.binding.path, bytes(value.sourceBinding));
         const bindingSha = hash(bytes(value.sourceBinding));

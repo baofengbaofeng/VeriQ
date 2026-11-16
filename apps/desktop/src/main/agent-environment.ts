@@ -30,8 +30,7 @@ export function agentEnvironment(proxy: string): NodeJS.ProcessEnv {
         "ProgramData",
     ];
     const environment: NodeJS.ProcessEnv = {};
-    for (const name of allowed)
-        if (process.env[name] !== undefined) environment[name] = process.env[name];
+    for (const name of allowed) if (process.env[name] !== undefined) environment[name] = process.env[name];
     environment.PATH =
         process.platform === "win32"
             ? `${process.env.SystemRoot ?? "C:\\Windows"}\\System32`

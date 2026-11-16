@@ -1,18 +1,8 @@
 import { canonicalBytes } from "@veriq/contracts";
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-    verifyRuntimePayloadInputs as verify,
-    RuntimePayloadError,
-} from "../scripts/runtime-payload-inputs.ts";
-import {
-    fixture,
-    model,
-    bytes,
-    hash,
-    rebindSource,
-    replaceEngineFile,
-} from "./fixtures/runtime-payload.ts";
+import { verifyRuntimePayloadInputs as verify, RuntimePayloadError } from "../scripts/runtime-payload-inputs.ts";
+import { fixture, model, bytes, hash, rebindSource, replaceEngineFile } from "./fixtures/runtime-payload.ts";
 /**
  * 每个 receipt 都在独立摘要更新后进入正式入口，跨记录拒绝不能只依赖配方 hash 不匹配；这些反例覆盖来源、构建工具、生产
  * 定义与引擎原库存的具体约束。
@@ -22,10 +12,7 @@ for (const kind of ["entries", "execution", "dependencies", "native", "engine"] 
     test(`receipt ${kind} source mismatch rejects`, async () =>
         fixture(async (f) => {
             f.receipts[kind].build.sourceBindingSha256 = "e".repeat(64);
-            await assert.rejects(
-                verify(await f.save(), f.expected, { inputRoot: f.root }),
-                failure,
-            );
+            await assert.rejects(verify(await f.save(), f.expected, { inputRoot: f.root }), failure);
         }));
 test("native test-only defines fail production admission", async () =>
     fixture(async (f) => {
@@ -72,8 +59,7 @@ test("native exact production source and macro sets are mandatory", async () => 
             change(f);
             await assert.rejects(
                 verify(await f.save(), f.expected, { inputRoot: f.root }),
-                (e: unknown) =>
-                    e instanceof RuntimePayloadError && e.code === "PAYLOAD_NATIVE_INPUT_INVALID",
+                (e: unknown) => e instanceof RuntimePayloadError && e.code === "PAYLOAD_NATIVE_INPUT_INVALID",
             );
         });
 });
@@ -102,8 +88,7 @@ test("all receipt kinds and nested DTOs reject missing and unknown fields", asyn
                     const copy = structuredClone(f.docs.get(docPath));
                     f.docs.set(docPath, copy);
                     let target: unknown = copy;
-                    for (const key of location)
-                        target = (target as Record<string | number, unknown>)[key];
+                    for (const key of location) target = (target as Record<string | number, unknown>)[key];
                     const value = target as Record<string, unknown>;
                     if (action === "missing") delete value[Object.keys(value)[0]!];
                     else value.unexpected = "secret";
@@ -118,8 +103,7 @@ test("all receipt kinds and nested DTOs reject missing and unknown fields", asyn
                         f.expected.chromeLayoutSha256 = f.recipe.chromeLayout.sha256;
                     await assert.rejects(
                         verify(input, f.expected, { inputRoot: f.root }),
-                        (e: unknown) =>
-                            e instanceof RuntimePayloadError && e.code === "PAYLOAD_INPUT_INVALID",
+                        (e: unknown) => e instanceof RuntimePayloadError && e.code === "PAYLOAD_INPUT_INVALID",
                         `${docPath}:${location.join(".")}:${action}`,
                     );
                     exercised++;
@@ -156,10 +140,7 @@ test("receipt kinds missing refs tools and archive layout bindings reject", asyn
     ])
         await fixture(async (f) => {
             change(f);
-            await assert.rejects(
-                verify(await f.save(), f.expected, { inputRoot: f.root }),
-                failure,
-            );
+            await assert.rejects(verify(await f.save(), f.expected, { inputRoot: f.root }), failure);
         });
 });
 
@@ -178,20 +159,13 @@ test("engine dependencies JSON must match original inventory dependencies", asyn
             return { path, sizeBytes: fact.sizeBytes, sha256: fact.sha256 };
         };
         const changed = update("dependencies.json", bytes([]));
-        Object.assign(
-            f.receipts.engine.files.find((x) => x.path === "dependencies.json")!,
-            changed,
-        );
+        Object.assign(f.receipts.engine.files.find((x) => x.path === "dependencies.json")!, changed);
         const raw = bytes(f.engineInventory);
-        f.receipts.engine.inventory = update(
-            "inventory.json",
-            raw,
-        ) as typeof f.receipts.engine.inventory;
+        f.receipts.engine.inventory = update("inventory.json", raw) as typeof f.receipts.engine.inventory;
         f.receipts.engine.entrySha256 = hash(canonicalBytes(f.engineInventory.engines[0]));
         await assert.rejects(
             verify(await f.save(), f.expected, { inputRoot: f.root }),
-            (e: unknown) =>
-                e instanceof RuntimePayloadError && e.code === "PAYLOAD_ENGINE_INPUT_INVALID",
+            (e: unknown) => e instanceof RuntimePayloadError && e.code === "PAYLOAD_ENGINE_INPUT_INVALID",
         );
     }));
 

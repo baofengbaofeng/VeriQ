@@ -45,8 +45,7 @@ async function input(path) {
 const controller = new AbortController();
 let exit = 0,
     timer;
-const diagnostic = (code, phase, cleanup) =>
-    process.stderr.write(`${code} phase=${phase} cleanup=${cleanup}\n`);
+const diagnostic = (code, phase, cleanup) => process.stderr.write(`${code} phase=${phase} cleanup=${cleanup}\n`);
 const interrupt = (number) => {
     if (exit) {
         diagnostic("PAYLOAD_CANCELLED", "UNKNOWN", "INCOMPLETE");
@@ -72,14 +71,11 @@ try {
         candidateName: values.get("--candidate"),
         signal: controller.signal,
     });
-    if (result.cleanup === "INCOMPLETE")
-        diagnostic("PAYLOAD_CLEANUP_INCOMPLETE", "PUBLISH", "INCOMPLETE");
-    if (controller.signal.aborted)
-        diagnostic("PAYLOAD_COMMITTED_BEFORE_CANCELLATION", "PUBLISH", result.cleanup);
+    if (result.cleanup === "INCOMPLETE") diagnostic("PAYLOAD_CLEANUP_INCOMPLETE", "PUBLISH", "INCOMPLETE");
+    if (controller.signal.aborted) diagnostic("PAYLOAD_COMMITTED_BEFORE_CANCELLATION", "PUBLISH", result.cleanup);
     process.stdout.write(`${JSON.stringify(result)}\n`);
 } catch (error) {
-    const known =
-        error instanceof RuntimePayloadError ? error : new RuntimePayloadError("PAYLOAD_IO");
+    const known = error instanceof RuntimePayloadError ? error : new RuntimePayloadError("PAYLOAD_IO");
     emitArchiveFailure(known, exit || 1);
 } finally {
     clearTimeout(timer);

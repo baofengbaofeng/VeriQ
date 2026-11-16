@@ -91,8 +91,7 @@ const en: typeof zh = {
     unavailable: "Values withheld: redaction context unavailable.",
     moreEvents: "More events",
     restricted: "Restricted raw evidence",
-    rawHelp:
-        "Raw evidence may contain credentials; current Workspace Owner/Admin access is required.",
+    rawHelp: "Raw evidence may contain credentials; current Workspace Owner/Admin access is required.",
     traceHelp: "View Trace locally:",
     download: "Download",
     preview: "Preview screenshot",

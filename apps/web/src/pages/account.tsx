@@ -46,9 +46,7 @@ export function Account() {
             if (!userId || !owner.current.mounted || owner.current.key !== key) return;
             const request = ++owner.current.request;
             const current = () =>
-                owner.current.mounted &&
-                owner.current.key === key &&
-                owner.current.request === request;
+                owner.current.mounted && owner.current.key === key && owner.current.request === request;
             try {
                 const page = await api.sessions({ limit, cursor });
                 if (!current()) return;
@@ -124,11 +122,7 @@ export function Account() {
                 a.error ? (
                     <div>
                         <p>{tx("Sessions could not be loaded.")}</p>
-                        <button
-                            type="button"
-                            onClick={() => void a.run(() => loadSessions())}
-                            disabled={a.busy}
-                        >
+                        <button type="button" onClick={() => void a.run(() => loadSessions())} disabled={a.busy}>
                             {tx("Retry sessions")}
                         </button>
                     </div>
@@ -141,8 +135,8 @@ export function Account() {
                 <ul data-testid="sessions">
                     {sessions.items.map((s) => (
                         <li key={s.id}>
-                            {s.current ? tx("This session") : tx("Other session")}{" "}
-                            {tx(" · Expires")} {new Date(s.expiresAt).toLocaleString()}
+                            {s.current ? tx("This session") : tx("Other session")} {tx(" · Expires")}{" "}
+                            {new Date(s.expiresAt).toLocaleString()}
                         </li>
                     ))}
                 </ul>

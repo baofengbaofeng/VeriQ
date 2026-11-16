@@ -58,9 +58,7 @@ test("deadline and cancellation report actual termination", async () => {
             cancel,
         });
         assert.equal(
-            result.exitConfirmed &&
-                result.ready &&
-                result.reason === (cancel ? "cancelled" : "timeout"),
+            result.exitConfirmed && result.ready && result.reason === (cancel ? "cancelled" : "timeout"),
             true,
         );
     }
@@ -69,17 +67,10 @@ test("deadline and cancellation report actual termination", async () => {
 test("valid binary frames are accepted without store access in the protocol driver", async () => {
     const key = Buffer.from(Array.from({ length: 32 }, (_, index) => (index === 31 ? 255 : index)));
     try {
-        const result = await nativeCall(
-            nativePaths.test,
-            `V1 set ${scope} ${key.toString("base64url")}\n`,
-            { capability: { mode: "validate" } },
-        );
-        assert.equal(
-            result.exitConfirmed &&
-                result.code === 0 &&
-                result.bytes.equals(Buffer.from("V1 ok\n")),
-            true,
-        );
+        const result = await nativeCall(nativePaths.test, `V1 set ${scope} ${key.toString("base64url")}\n`, {
+            capability: { mode: "validate" },
+        });
+        assert.equal(result.exitConfirmed && result.code === 0 && result.bytes.equals(Buffer.from("V1 ok\n")), true);
         result.bytes.fill(0);
     } finally {
         key.fill(0);

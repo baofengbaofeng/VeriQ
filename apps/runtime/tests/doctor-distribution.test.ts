@@ -31,10 +31,7 @@ test("doctor keeps package probing and validates explicit distribution versions"
     assert.equal(selected.checks.find((item) => item.name === "control network")?.ok, false);
     for (const name of ["@veriq/compiler", "@veriq/runner-sdk"]) {
         assert.equal(selected.checks.find((item) => item.name === name)?.ok, true);
-        assert.match(
-            selected.checks.find((item) => item.name === name)!.detail,
-            /verified distribution/,
-        );
+        assert.match(selected.checks.find((item) => item.name === name)!.detail, /verified distribution/);
     }
 });
 
@@ -61,8 +58,5 @@ test("shared release doctor advertises the verified engine identity", async () =
     assert.equal(wrongBrowser.ok, false);
     assert.equal(wrongBrowser.capabilities, undefined);
     assert.equal(wrongBrowser.checks.find((item) => item.name === "browser version")?.ok, false);
-    await assert.rejects(
-        diagnoseRelease({ ...options, engineVersion: "9.9.9-absent" }),
-        /ENGINE_NOT_APPROVED/,
-    );
+    await assert.rejects(diagnoseRelease({ ...options, engineVersion: "9.9.9-absent" }), /ENGINE_NOT_APPROVED/);
 });

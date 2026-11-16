@@ -15,11 +15,7 @@ import { plansMessages } from "./locales/plans";
 import { editorMessages } from "./locales/editor";
 import { interactionMessages } from "./locales/interaction";
 
-import {
-    initialLanguage,
-    normalizeLanguage as language,
-    type AppLanguage,
-} from "./locales/preference";
+import { initialLanguage, normalizeLanguage as language, type AppLanguage } from "./locales/preference";
 export type { AppLanguage } from "./locales/preference";
 
 const preferenceKey = "veriq.language";
@@ -71,8 +67,7 @@ function synchronize(next: AppLanguage): void {
         for (const instance of [appI18n, editorI18n, aiI18n]) {
             if (instance.language !== next) void instance.changeLanguage(next);
         }
-        if (typeof document !== "undefined")
-            document.documentElement.lang = next === "zh" ? "zh-CN" : "en";
+        if (typeof document !== "undefined") document.documentElement.lang = next === "zh" ? "zh-CN" : "en";
         if (typeof window !== "undefined") {
             try {
                 window.localStorage.setItem(preferenceKey, next);
@@ -90,16 +85,14 @@ function acquireBridge(): () => void {
     if (consumers === 1) {
         synchronize(language(appI18n.language));
         const changed = (next: string) => synchronize(language(next));
-        for (const instance of [appI18n, editorI18n, aiI18n])
-            instance.on("languageChanged", changed);
+        for (const instance of [appI18n, editorI18n, aiI18n]) instance.on("languageChanged", changed);
         const stored = (event: StorageEvent) => {
             if (event.key === preferenceKey && (event.newValue === "zh" || event.newValue === "en"))
                 synchronize(event.newValue);
         };
         if (typeof window !== "undefined") window.addEventListener("storage", stored);
         unsubscribe = () => {
-            for (const instance of [appI18n, editorI18n, aiI18n])
-                instance.off("languageChanged", changed);
+            for (const instance of [appI18n, editorI18n, aiI18n]) instance.off("languageChanged", changed);
             if (typeof window !== "undefined") window.removeEventListener("storage", stored);
         };
     }

@@ -95,10 +95,7 @@ export async function withWindowsOwnership(
             journals,
             async replaceJournal(id, changes) {
                 assert(authentic.has(id), "Only this fixture's recorded Attempt may be changed");
-                await writeFile(
-                    journalPath(id),
-                    JSON.stringify({ ...journals.get(id), ...changes }),
-                );
+                await writeFile(journalPath(id), JSON.stringify({ ...journals.get(id), ...changes }));
             },
             async requireProgress(observedIds) {
                 const results = await Promise.allSettled(
@@ -151,18 +148,10 @@ export async function withWindowsOwnership(
             try {
                 const bytes = authentic.get(id);
                 if (bytes) await writeFile(journalPath(id), bytes);
-                const receipt = await bounded(() =>
-                    processes.terminateAttempt(id, "OWNERSHIP_SCENARIO_FINALLY"),
-                );
+                const receipt = await bounded(() => processes.terminateAttempt(id, "OWNERSHIP_SCENARIO_FINALLY"));
                 context.diagnostic(`Ownership cleanup: ${JSON.stringify(receipt)}`);
-                assert.equal(
-                    receipt.processStopped,
-                    true,
-                    `${id}: unproved cleanup: ${receipt.reason}`,
-                );
-                const proof = JSON.parse(
-                    await readFile(join(root, "processes", `${id}.drained.json`), "utf8"),
-                );
+                assert.equal(receipt.processStopped, true, `${id}: unproved cleanup: ${receipt.reason}`);
+                const proof = JSON.parse(await readFile(join(root, "processes", `${id}.drained.json`), "utf8"));
                 const original = journals.get(id);
                 assert.equal(proof.state, "DRAINED");
                 if (original) {
@@ -183,9 +172,7 @@ export async function withWindowsOwnership(
                 await bounded(() => rm(root, { recursive: true, force: true }));
             } catch (error) {
                 failures.push(error);
-                context.diagnostic(
-                    `Ownership scenario removal failed; retain remaining evidence: ${root}`,
-                );
+                context.diagnostic(`Ownership scenario removal failed; retain remaining evidence: ${root}`);
             }
         }
     }

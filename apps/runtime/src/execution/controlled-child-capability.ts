@@ -39,9 +39,7 @@ export async function runControlledChildCapability(
     if (process.platform === "win32" || typeof process.getuid !== "function")
         return { supported: false, reason: "UNIX_FD_UNSUPPORTED" };
     const root = mkdtempSync(join(options.temporaryDirectory, "veriq-child-capability-"));
-    const preload =
-        options.preloadPath ??
-        fileURLToPath(new URL("./controlled-child-preload.mjs", import.meta.url));
+    const preload = options.preloadPath ?? fileURLToPath(new URL("./controlled-child-preload.mjs", import.meta.url));
     const binding: ObserverBinding = {
         version: 1,
         attemptId: randomUUID(),

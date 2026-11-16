@@ -84,18 +84,10 @@ export async function observeRuntimeCommand(
     // 失败观察也必须留下事实而不是生成成功的领域收据；在关闭未知时只写到独立证据根，绝不遍历仍可能由子进程写入的构建根
     // 。
     const stdout = bounded
-        ? await writeReleaseBytes(
-              context.inputRoot,
-              `release-evidence/${name}.stdout`,
-              result.stdout,
-          )
+        ? await writeReleaseBytes(context.inputRoot, `release-evidence/${name}.stdout`, result.stdout)
         : null;
     const stderr = bounded
-        ? await writeReleaseBytes(
-              context.inputRoot,
-              `release-evidence/${name}.stderr`,
-              result.stderr,
-          )
+        ? await writeReleaseBytes(context.inputRoot, `release-evidence/${name}.stderr`, result.stderr)
         : null;
     const evidence = await writeReleaseJson(context.inputRoot, `release-evidence/${name}.json`, {
         operation: "BOUNDED_BUILD_COMMAND",
@@ -106,11 +98,7 @@ export async function observeRuntimeCommand(
         observation: { ...result, stdout, stderr },
     });
     if (!success || !bounded || !Number.isSafeInteger(result.pid) || result.pid! <= 0)
-        throw new Error(
-            result.closeConfirmed
-                ? "RUNTIME_BUILD_COMMAND_FAILED"
-                : "RUNTIME_BUILD_CLOSE_UNCONFIRMED",
-        );
+        throw new Error(result.closeConfirmed ? "RUNTIME_BUILD_COMMAND_FAILED" : "RUNTIME_BUILD_CLOSE_UNCONFIRMED");
     return { evidence, stdout: result.stdout.toString("utf8") };
 }
 
@@ -158,6 +146,7 @@ export async function produceMacNativeTree(context: RuntimeBuildContext): Promis
         (typeof signing.identity !== "string" ||
             !signing.identity.trim() ||
             signing.identity.length > 1024 ||
+            // biome-ignore lint/suspicious/noControlCharactersInRegex: 有意拒绝控制字符与 DEL 路径输入的安全校验
             /[\x00-\x1f\x7f]/.test(signing.identity) ||
             (signing.timestamp !== undefined && !["secure", "none"].includes(signing.timestamp)))
     )
@@ -172,9 +161,7 @@ export async function produceMacNativeTree(context: RuntimeBuildContext): Promis
         )
     )
         throw new Error("RUNTIME_NATIVE_ENTITLEMENTS_UNBOUND");
-    const signer = signing
-        ? await releaseFileIdentity(await realpath("/usr/bin/codesign"))
-        : undefined;
+    const signer = signing ? await releaseFileIdentity(await realpath("/usr/bin/codesign")) : undefined;
     const signingCommands: Ref[] = [];
     const addon = await command("native-addon-build", context.executable, [
         join(context.sourceRoot, "apps/runtime/scripts/build-darwin.mjs"),
@@ -190,32 +177,20 @@ export async function produceMacNativeTree(context: RuntimeBuildContext): Promis
         undefined,
         0o644,
     );
-    const sdkPath = (
-        await command("native-sdk-path", "/usr/bin/xcrun", ["--show-sdk-path"])
-    ).stdout.trim();
-    const sdkVersion = (
-        await command("native-sdk-version", "/usr/bin/xcrun", ["--show-sdk-version"])
-    ).stdout.trim();
-    if (
-        !/^\d+(?:\.\d+){0,2}$/.test(sdkVersion) ||
-        !sdkPath.startsWith("/") ||
-        /[\r\n]/.test(sdkPath)
-    )
+    const sdkPath = (await command("native-sdk-path", "/usr/bin/xcrun", ["--show-sdk-path"])).stdout.trim();
+    const sdkVersion = (await command("native-sdk-version", "/usr/bin/xcrun", ["--show-sdk-version"])).stdout.trim();
+    if (!/^\d+(?:\.\d+){0,2}$/.test(sdkVersion) || !sdkPath.startsWith("/") || /[\r\n]/.test(sdkPath))
         throw new Error("RUNTIME_SDK_IDENTITY_INVALID");
     const settings = new InputReader(await realpath(sdkPath), undefined, []);
     await settings.initialize();
     const settingsBytes = await settings.input("SDKSettings.json");
     await settings.finish();
-    const settingsEvidence = await writeReleaseJson(
-        context.inputRoot,
-        "release-evidence/native-sdk-settings.json",
-        {
-            sdkPath,
-            sdkVersion,
-            settingsSha256: sha(settingsBytes),
-            settings: decode(settingsBytes),
-        },
-    );
+    const settingsEvidence = await writeReleaseJson(context.inputRoot, "release-evidence/native-sdk-settings.json", {
+        sdkPath,
+        sdkVersion,
+        settingsSha256: sha(settingsBytes),
+        settings: decode(settingsBytes),
+    });
     await releaseDirectory(context.inputRoot, "native");
     const outputs: NativeOutput[] = [];
     for (const item of [
@@ -224,20 +199,14 @@ export async function produceMacNativeTree(context: RuntimeBuildContext): Promis
             source: "apps/runtime/build/darwin/veriq_private_files.node",
             targetName: "veriq_private_files" as const,
             defines: ["NAPI_CPP_EXCEPTIONS", "NAPI_VERSION=9"],
-            sourceFiles: [
-                "apps/runtime/native/darwin/addon.cc",
-                "apps/runtime/native/darwin/private-files.h",
-            ],
+            sourceFiles: ["apps/runtime/native/darwin/addon.cc", "apps/runtime/native/darwin/private-files.h"],
         },
         {
             path: "vault/veriq_agent" as const,
             source: "apps/runtime/build/vault-darwin/veriq_agent",
             targetName: "veriq_agent" as const,
             defines: [],
-            sourceFiles: [
-                "apps/runtime/native/vault/darwin-vault.mm",
-                "apps/runtime/native/vault/darwin-acl.hpp",
-            ],
+            sourceFiles: ["apps/runtime/native/vault/darwin-vault.mm", "apps/runtime/native/vault/darwin-acl.hpp"],
         },
     ]) {
         const original = join(context.sourceRoot, item.source);
@@ -256,9 +225,7 @@ export async function produceMacNativeTree(context: RuntimeBuildContext): Promis
                     : []),
                 original,
             ];
-            signingCommands.push(
-                (await command(`native-${item.targetName}-sign`, signer.path, args)).evidence,
-            );
+            signingCommands.push((await command(`native-${item.targetName}-sign`, signer.path, args)).evidence);
             signingCommands.push(
                 (
                     await command(`native-${item.targetName}-signature-verify`, signer.path, [
@@ -279,18 +246,9 @@ export async function produceMacNativeTree(context: RuntimeBuildContext): Promis
                 ).evidence,
             );
         }
-        const arch = await command(`native-${item.targetName}-arch`, "/usr/bin/lipo", [
-            "-archs",
-            original,
-        ]);
-        const load = await command(`native-${item.targetName}-load`, "/usr/bin/otool", [
-            "-l",
-            original,
-        ]);
-        const links = await command(`native-${item.targetName}-links`, "/usr/bin/otool", [
-            "-L",
-            original,
-        ]);
+        const arch = await command(`native-${item.targetName}-arch`, "/usr/bin/lipo", ["-archs", original]);
+        const load = await command(`native-${item.targetName}-load`, "/usr/bin/otool", ["-l", original]);
+        const links = await command(`native-${item.targetName}-links`, "/usr/bin/otool", ["-L", original]);
         const architecture = context.target.arch === "arm64" ? "arm64" : "x86_64";
         if (arch.stdout.trim() !== architecture || !/\bminos 15\.0(?:\.0)?\b/.test(load.stdout))
             throw new Error("RUNTIME_NATIVE_BINARY_IDENTITY_MISMATCH");
@@ -329,37 +287,26 @@ export async function produceMacNativeTree(context: RuntimeBuildContext): Promis
         });
     }
     const inventory = await inventoryReleaseTree(join(context.inputRoot, "native"), "native");
-    const inventoryRef = await writeReleaseJson(
-        context.inputRoot,
-        "release-evidence/native-inventory.json",
-        inventory,
-    );
+    const inventoryRef = await writeReleaseJson(context.inputRoot, "release-evidence/native-inventory.json", inventory);
     const signerAfter = signer ? await releaseFileIdentity(signer.path) : undefined;
-    if (
-        signer &&
-        (signerAfter?.sha256 !== signer.sha256 || signerAfter.sizeBytes !== signer.sizeBytes)
-    )
+    if (signer && (signerAfter?.sha256 !== signer.sha256 || signerAfter.sizeBytes !== signer.sizeBytes))
         throw new Error("RUNTIME_NATIVE_SIGNER_CHANGED");
-    const commandEvidence = await writeReleaseJson(
-        context.inputRoot,
-        "release-evidence/native-build.json",
-        {
-            operation: "NATIVE_PRODUCTION_BUILD",
-            commands: [addon.evidence, vault.evidence],
-            outputs,
-            signing: signing
-                ? {
-                      requested: true,
-                      identity: signing.identity,
-                      entitlements: signing.entitlements ?? null,
-                      timestamp: signing.timestamp ?? "secure",
-                      signerBefore: signer,
-                      signerAfter,
-                      commands: signingCommands,
-                  }
-                : { requested: false },
-        },
-    );
+    const commandEvidence = await writeReleaseJson(context.inputRoot, "release-evidence/native-build.json", {
+        operation: "NATIVE_PRODUCTION_BUILD",
+        commands: [addon.evidence, vault.evidence],
+        outputs,
+        signing: signing
+            ? {
+                  requested: true,
+                  identity: signing.identity,
+                  entitlements: signing.entitlements ?? null,
+                  timestamp: signing.timestamp ?? "secure",
+                  signerBefore: signer,
+                  signerAfter,
+                  commands: signingCommands,
+              }
+            : { requested: false },
+    });
     const receipt: NativeReceipt = checked(
         {
             schemaVersion: 1,
@@ -381,11 +328,7 @@ export async function produceMacNativeTree(context: RuntimeBuildContext): Promis
     return {
         root: "native",
         inventory: inventoryRef,
-        buildReceipt: await writeReleaseJson(
-            context.inputRoot,
-            "release-evidence/native-receipt.json",
-            receipt,
-        ),
+        buildReceipt: await writeReleaseJson(context.inputRoot, "release-evidence/native-receipt.json", receipt),
     };
 }
 
@@ -405,11 +348,7 @@ export async function produceMacEngineTree(context: RuntimeBuildContext): Promis
         context,
         "engine-build",
         context.executable,
-        [
-            join(context.sourceRoot, "scripts/build_engine.mts"),
-            context.target.engineVersion,
-            context.engineOutput,
-        ],
+        [join(context.sourceRoot, "scripts/build_engine.mts"), context.target.engineVersion, context.engineOutput],
         context.sourceRoot,
     );
     const original = await inventoryReleaseTree(context.engineOutput, "engine");
@@ -437,29 +376,21 @@ export async function produceMacEngineTree(context: RuntimeBuildContext): Promis
     };
     if (validateSchema("ApprovedEngineInventoryV1", document).length)
         throw new Error("RUNTIME_ENGINE_INVENTORY_INVALID");
-    const matches = document.engines.filter(
-        (entry) => entry.engineVersion === context.target.engineVersion,
-    );
+    const matches = document.engines.filter((entry) => entry.engineVersion === context.target.engineVersion);
     if (matches.length !== 1) throw new Error("RUNTIME_ENGINE_VERSION_MISMATCH");
     const entry = matches[0]!;
     for (const file of entry.files) await reader.ref(file, false, limits.file, false);
     await reader.finish();
-    const inventoryRef = await writeReleaseJson(
-        context.inputRoot,
-        "release-evidence/engine-inventory.json",
-        inventory,
-    );
+    const inventoryRef = await writeReleaseJson(context.inputRoot, "release-evidence/engine-inventory.json", inventory);
     const receipt: EngineReceipt = checked(
         {
             schemaVersion: 1,
             kind: "ENGINE_PAYLOAD",
             build: {
-                ...runtimeBuildHeader(
-                    context,
-                    "scripts/build_engine.mts",
-                    "scripts/build_engine.mts",
-                    ["node", "pnpm"],
-                ),
+                ...runtimeBuildHeader(context, "scripts/build_engine.mts", "scripts/build_engine.mts", [
+                    "node",
+                    "pnpm",
+                ]),
                 commandEvidence: command.evidence,
             },
             treeInventorySha256: inventoryRef.sha256,
@@ -476,10 +407,6 @@ export async function produceMacEngineTree(context: RuntimeBuildContext): Promis
     return {
         root: "engine",
         inventory: inventoryRef,
-        buildReceipt: await writeReleaseJson(
-            context.inputRoot,
-            "release-evidence/engine-receipt.json",
-            receipt,
-        ),
+        buildReceipt: await writeReleaseJson(context.inputRoot, "release-evidence/engine-receipt.json", receipt),
     };
 }

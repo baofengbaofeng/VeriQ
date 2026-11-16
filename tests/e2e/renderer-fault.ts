@@ -39,10 +39,7 @@ export type RendererTarget = {
  * 同步读取官方进程角色并拒绝缺失、重复、错误类型或无效创建时间，前后快照变化也必须在调用信号辅助器之前失败；
  * 此函数可在 Electron main 内序列化执行，不解析 proc 标题或接受替代角色字符串。
  */
-export function rendererTarget(
-    source: RendererRoleSource,
-    previous?: RendererTarget,
-): RendererTarget {
+export function rendererTarget(source: RendererRoleSource, previous?: RendererTarget): RendererTarget {
     const windows = source.BrowserWindow.getAllWindows();
     if (windows.length !== 1 || windows[0]!.webContents.getURL() !== "veriq://app/index.html")
         throw new Error("RENDERER_FAULT_APP_WINDOW_REQUIRED");
@@ -53,18 +50,9 @@ export function rendererTarget(
     const metrics = source.app.getAppMetrics();
     const main = metrics.filter((metric) => metric.pid === process.pid);
     const renderer = metrics.filter((metric) => metric.pid === rendererPid);
-    if (
-        main.length !== 1 ||
-        renderer.length !== 1 ||
-        main[0]!.type !== "Browser" ||
-        renderer[0]!.type !== "Tab"
-    )
+    if (main.length !== 1 || renderer.length !== 1 || main[0]!.type !== "Browser" || renderer[0]!.type !== "Tab")
         throw new Error("RENDERER_FAULT_METRIC_ROLE_MISMATCH");
-    if (
-        ![main[0]!.creationTime, renderer[0]!.creationTime].every(
-            (time) => Number.isFinite(time) && time > 0,
-        )
-    )
+    if (![main[0]!.creationTime, renderer[0]!.creationTime].every((time) => Number.isFinite(time) && time > 0))
         throw new Error("RENDERER_FAULT_METRIC_TIME_INVALID");
     const target = {
         mainPid: process.pid,
@@ -197,10 +185,7 @@ export async function terminateRenderer(electron: Desktop, root: string, evidenc
             proof.pidfdBound !== true
         )
             throw new Error("RENDERER_FAULT_EXIT_PROOF_INVALID");
-        await appendFile(
-            join(evidence, "renderer-fault.log"),
-            JSON.stringify({ phase: "injected", ...proof }) + "\n",
-        );
+        await appendFile(join(evidence, "renderer-fault.log"), JSON.stringify({ phase: "injected", ...proof }) + "\n");
         const recovered = await restored;
         if (
             !["killed", "crashed"].includes(recovered.reason) ||
@@ -223,19 +208,14 @@ export async function terminateRenderer(electron: Desktop, root: string, evidenc
     } catch (error) {
         failures.push(error);
     } finally {
-        const removal = observer
-            .evaluate((observation) => observation.dispose())
-            .finally(() => observer.dispose());
+        const removal = observer.evaluate((observation) => observation.dispose()).finally(() => observer.dispose());
         void removal.catch(() => {});
         let timer: ReturnType<typeof setTimeout> | undefined;
         try {
             await Promise.race([
                 removal,
                 new Promise<never>((_resolve, reject) => {
-                    timer = setTimeout(
-                        () => reject(new Error("RENDERER_FAULT_OBSERVER_CLEANUP_PENDING")),
-                        3000,
-                    );
+                    timer = setTimeout(() => reject(new Error("RENDERER_FAULT_OBSERVER_CLEANUP_PENDING")), 3000);
                 }),
             ]);
         } catch (error) {
@@ -245,6 +225,5 @@ export async function terminateRenderer(electron: Desktop, root: string, evidenc
         }
     }
     if (failures.length === 1) throw failures[0];
-    if (failures.length > 1)
-        throw new AggregateError(failures, "RENDERER_FAULT_AND_CLEANUP_FAILED");
+    if (failures.length > 1) throw new AggregateError(failures, "RENDERER_FAULT_AND_CLEANUP_FAILED");
 }

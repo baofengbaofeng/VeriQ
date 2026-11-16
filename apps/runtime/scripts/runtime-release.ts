@@ -4,27 +4,13 @@ import { mkdir, mkdtemp, lstat, realpath } from "node:fs/promises";
 import { canonicalBytes } from "@veriq/contracts";
 import { ArchiveTransaction } from "./runtime-payload-transaction.ts";
 import { withEntryInputViews, type EntryInputOptions } from "./runtime-payload-entries.ts";
-import {
-    withDependencyInputViews,
-    type DependencyInputOptions,
-} from "./runtime-payload-dependencies.ts";
+import { withDependencyInputViews, type DependencyInputOptions } from "./runtime-payload-dependencies.ts";
 import { stageMacRuntimePayload, type PayloadResult } from "./runtime-payload-stage.ts";
 import { prepareMacNodeBootstrap } from "./runtime-node-bootstrap.ts";
 import { checked, schemas } from "./runtime-payload-receipts.ts";
 import { InputReader, sha, limits } from "./runtime-payload-tree.ts";
-import type {
-    Recipe,
-    BoundTree,
-    ExpectedPayloadInputs,
-    SourceBindingV1,
-    Ref,
-} from "./runtime-payload-inputs.ts";
-import {
-    admitReleaseRoot,
-    copyReleaseFile,
-    mergeReleaseView,
-    writeReleaseJson,
-} from "./runtime-release-files.ts";
+import type { Recipe, BoundTree, ExpectedPayloadInputs, SourceBindingV1, Ref } from "./runtime-payload-inputs.ts";
+import { admitReleaseRoot, copyReleaseFile, mergeReleaseView, writeReleaseJson } from "./runtime-release-files.ts";
 import {
     produceMacNativeTree,
     produceMacEngineTree,
@@ -85,14 +71,11 @@ async function sourceSnapshot(
     await reader.initialize();
     for (const ref of source.files) {
         await reader.ref(ref, false, limits.file, false);
-        const existing = await lstat(join(inputRoot, ref.path)).catch(
-            (error: NodeJS.ErrnoException) => {
-                if (error.code !== "ENOENT") throw error;
-                return null;
-            },
-        );
-        if (!existing)
-            await copyReleaseFile(join(sourceRoot, ref.path), inputRoot, ref.path, ref, 0o644);
+        const existing = await lstat(join(inputRoot, ref.path)).catch((error: NodeJS.ErrnoException) => {
+            if (error.code !== "ENOENT") throw error;
+            return null;
+        });
+        if (!existing) await copyReleaseFile(join(sourceRoot, ref.path), inputRoot, ref.path, ref, 0o644);
         else {
             const duplicate = new InputReader(inputRoot, undefined, []);
             await duplicate.initialize();
@@ -130,8 +113,7 @@ export async function produceMacRuntimeInputs(
         job.targetNode.version !== job.recipe.target.nodeVersion
     )
         throw new Error("RUNTIME_TARGET_NODE_TOOL_IDENTITY_MISMATCH");
-    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(job.candidateName))
-        throw new Error("RUNTIME_CANDIDATE_NAME_INVALID");
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(job.candidateName)) throw new Error("RUNTIME_CANDIDATE_NAME_INVALID");
     for (const path of [
         job.sourceRoot,
         job.seedRoot,
@@ -150,8 +132,7 @@ export async function produceMacRuntimeInputs(
     for (const root of [job.sourceRoot, job.seedRoot]) {
         const a = resolve(root),
             b = resolve(job.workParent);
-        if (a === b || a.startsWith(b + "/") || b.startsWith(a + "/"))
-            throw new Error("RUNTIME_WORK_ROOT_OVERLAP");
+        if (a === b || a.startsWith(b + "/") || b.startsWith(a + "/")) throw new Error("RUNTIME_WORK_ROOT_OVERLAP");
     }
     if (
         resolve(job.hostBuild.executable) !== (await realpath(process.execPath)) ||
@@ -162,10 +143,7 @@ export async function produceMacRuntimeInputs(
     await seed.initialize();
     const sourceBytes = await seed.ref(job.recipe.source.binding, true);
     const source: SourceBindingV1 = checked(JSON.parse(sourceBytes.toString()), schemas.source);
-    if (
-        source.commit !== job.recipe.source.commit ||
-        sha(canonicalBytes(source)) !== job.recipe.source.binding.sha256
-    )
+    if (source.commit !== job.recipe.source.commit || sha(canonicalBytes(source)) !== job.recipe.source.binding.sha256)
         throw new Error("RUNTIME_SOURCE_BINDING_MISMATCH");
     const owned = await mkdtemp(join(job.workParent, `.veriq-runtime-${job.candidateName}-`));
     const inputRoot = join(owned, "input"),
@@ -201,18 +179,11 @@ export async function produceMacRuntimeInputs(
             outputParent: bootstrapParent,
             candidateName: "node-source",
         });
-        if (bootstrap.cleanup !== "CONFIRMED")
-            throw new Error("RUNTIME_BOOTSTRAP_CLEANUP_INCOMPLETE");
+        if (bootstrap.cleanup !== "CONFIRMED") throw new Error("RUNTIME_BOOTSTRAP_CLEANUP_INCOMPLETE");
         await writeReleaseJson(inputRoot, "release-evidence/node-bootstrap-result.json", bootstrap);
     }
     let entryTrees: Readonly<{ entries: BoundTree; execution: BoundTree }> | undefined;
-    const entryWork = new ArchiveTransaction(
-        job.sourceRoot,
-        transactions,
-        `entry-${randomUUID()}`,
-        undefined,
-        "work",
-    );
+    const entryWork = new ArchiveTransaction(job.sourceRoot, transactions, `entry-${randomUUID()}`, undefined, "work");
     await entryWork.initialize();
     await withEntryInputViews(
         entryWork,

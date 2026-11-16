@@ -55,10 +55,7 @@ test("monotonic lease deadline kills a TERM-resistant owned process despite a sk
     try {
         const child = await processes.start("deadline", {
             executable: process.execPath,
-            args: [
-                "-e",
-                "process.on('SIGTERM',()=>{});console.log('ready');setInterval(()=>{},1000)",
-            ],
+            args: ["-e", "process.on('SIGTERM',()=>{});console.log('ready');setInterval(()=>{},1000)"],
             cwd: directory,
         });
         await child.firstLine();
@@ -168,11 +165,7 @@ test("a changed execution UID in the private journal cannot authorize signalling
         });
         await child.firstLine();
         original = await readFile(path, "utf8");
-        await writeFile(
-            path,
-            JSON.stringify({ ...JSON.parse(original), uid: process.getuid!() + 1 }),
-            { mode: 0o600 },
-        );
+        await writeFile(path, JSON.stringify({ ...JSON.parse(original), uid: process.getuid!() + 1 }), { mode: 0o600 });
         const receipt = await supervisor.terminateAttempt("uid", "RECOVERY");
         assert.equal(receipt.processStopped, false);
         assert.equal(receipt.processStopScope, undefined);
@@ -259,8 +252,7 @@ test("a STOPPED journal without the guardian drain proof remains unknown", async
         assert.equal((await supervisor.terminateAttempt("proof", "STOP")).processStopped, true);
         await unlink(join(directory, "proof.drained.json"));
         assert.equal(
-            (await new ProcessSupervisor(directory).terminateAttempt("proof", "RECOVERY"))
-                .processStopped,
+            (await new ProcessSupervisor(directory).terminateAttempt("proof", "RECOVERY")).processStopped,
             false,
         );
     } finally {
@@ -270,8 +262,7 @@ test("a STOPPED journal without the guardian drain proof remains unknown", async
 });
 
 test(
-    "actual Agent-parent death closes private control an" +
-        "d the guardian drains clean-environment descendants",
+    "actual Agent-parent death closes private control an" + "d the guardian drains clean-environment descendants",
     async () => {
         const { spawn } = await import("node:child_process");
         const { setTimeout: delay } = await import("node:timers/promises");
@@ -290,11 +281,9 @@ test(
             `rse(await readFile(root+'/parent.process.json','utf8'));console.log(JSON.stringify({worker:worker.pid,` +
             `deta` +
             `ched,guardian:journal.guardianPid}));setInterval(()=>{},1000);`;
-        const parent = spawn(
-            process.execPath,
-            ["--import", "tsx", "--input-type=module", "-e", program, directory],
-            { stdio: ["ignore", "pipe", "pipe"] },
-        );
+        const parent = spawn(process.execPath, ["--import", "tsx", "--input-type=module", "-e", program, directory], {
+            stdio: ["ignore", "pipe", "pipe"],
+        });
         let observed: { worker: number; detached: number; guardian: number } | undefined;
         try {
             const line = await new Promise<string>((resolve, reject) => {
@@ -312,17 +301,13 @@ test(
             await gone;
             const until = performance.now() + 3000;
             while (
-                ((await supervisor.isRunning(observed!.worker)) ||
-                    (await supervisor.isRunning(observed!.detached))) &&
+                ((await supervisor.isRunning(observed!.worker)) || (await supervisor.isRunning(observed!.detached))) &&
                 performance.now() < until
             )
                 await delay(20);
             assert.equal(await supervisor.isRunning(observed!.worker), false);
             assert.equal(await supervisor.isRunning(observed!.detached), false);
-            assert.equal(
-                (await supervisor.terminateAttempt("parent", "RECOVERY")).processStopped,
-                true,
-            );
+            assert.equal((await supervisor.terminateAttempt("parent", "RECOVERY")).processStopped, true);
         } finally {
             if (parent.exitCode === null && parent.signalCode === null) parent.kill("SIGKILL");
             if (observed)
@@ -337,16 +322,11 @@ test("a real absent-proof observation delivered after natural guardian exit is r
     const { setTimeout: delay } = await import("node:timers/promises");
     const root = await mkdtemp(join(tmpdir(), "veriq-t10-proof-handoff-")),
         supervisor = new ProcessSupervisor(root);
-    const original = Reflect.get(supervisor, "hasProof").bind(supervisor) as (
-        journal: unknown,
-    ) => Promise<boolean>;
+    const original = Reflect.get(supervisor, "hasProof").bind(supervisor) as (journal: unknown) => Promise<boolean>;
     try {
         const worker = await supervisor.start("handoff", {
             executable: process.execPath,
-            args: [
-                "-e",
-                "process.once('message',()=>process.exit(0));console.log('ready');setInterval(()=>{},1000);",
-            ],
+            args: ["-e", "process.once('message',()=>process.exit(0));console.log('ready');setInterval(()=>{},1000);"],
             cwd: root,
         });
         await worker.firstLine();
@@ -363,8 +343,7 @@ test("a real absent-proof observation delivered after natural guardian exit is r
                 await worker.exited;
                 const until = performance.now() + 2000;
                 while (
-                    (!(await original(value)) ||
-                        (await supervisor.isRunning(journal.guardianPid))) &&
+                    (!(await original(value)) || (await supervisor.isRunning(journal.guardianPid))) &&
                     performance.now() < until
                 )
                     await delay(10);
@@ -373,10 +352,7 @@ test("a real absent-proof observation delivered after natural guardian exit is r
             }
             return observed;
         });
-        assert.equal(
-            (await supervisor.terminateAttempt("handoff", "NATURAL_EXIT")).processStopped,
-            true,
-        );
+        assert.equal((await supervisor.terminateAttempt("handoff", "NATURAL_EXIT")).processStopped, true);
     } finally {
         Reflect.set(supervisor, "hasProof", original);
         await supervisor.terminateAttempt("handoff", "TEST_FINALLY");

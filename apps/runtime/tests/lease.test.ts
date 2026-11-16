@@ -23,9 +23,6 @@ test("lease deadline uses elapsed monotonic roundtrip, independent of client wal
 
 test("late or invalid grants cannot authorize local work", () => {
     assert.throws(() => leaseDeadline(grant, 100, 60100), /LEASE_BUDGET_EXHAUSTED/);
-    assert.throws(
-        () => leaseDeadline({ ...grant, leaseDurationMs: 120000 }, 0, 1),
-        /INVALID_LEASE/,
-    );
+    assert.throws(() => leaseDeadline({ ...grant, leaseDurationMs: 120000 }, 0, 1), /INVALID_LEASE/);
     assert.throws(() => leaseDeadline(grant, 100, 90), /INVALID_LEASE/);
 });

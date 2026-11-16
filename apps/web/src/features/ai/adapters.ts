@@ -49,12 +49,7 @@ export interface AiAdapter {
 export class CloudAiAdapter implements AiAdapter {
     constructor(readonly workspaceId: string) {}
     resource = (id: string, signal?: AbortSignal) =>
-        request<S["ResourceDTO"]>(
-            "/workspaces/" + this.workspaceId + "/resources/" + id,
-            "GET",
-            undefined,
-            signal,
-        );
+        request<S["ResourceDTO"]>("/workspaces/" + this.workspaceId + "/resources/" + id, "GET", undefined, signal);
     private base = () => "/workspaces/" + this.workspaceId + "/ai";
     providers = (cursor?: string, signal?: AbortSignal) =>
         request<S["ProviderDTOPageEnvelope"]["data"]>(
@@ -64,21 +59,11 @@ export class CloudAiAdapter implements AiAdapter {
             signal,
         );
     save = (data: S["ProviderWrite"], id?: string, signal?: AbortSignal) =>
-        request<Provider>(
-            this.base() + "/providers" + (id ? "/" + id : ""),
-            id ? "PUT" : "POST",
-            data,
-            signal,
-        );
+        request<Provider>(this.base() + "/providers" + (id ? "/" + id : ""), id ? "PUT" : "POST", data, signal);
     remove = (id: string, signal?: AbortSignal) =>
         request(this.base() + "/providers/" + id, "DELETE", undefined, signal);
     test = (id: string, requestId: string, signal?: AbortSignal) =>
-        request<Generation>(
-            this.base() + "/providers/" + id + "/connection-tests",
-            "POST",
-            { requestId },
-            signal,
-        );
+        request<Generation>(this.base() + "/providers/" + id + "/connection-tests", "POST", { requestId }, signal);
     preview = (data: GenerationRequest, signal?: AbortSignal) =>
         request<S["AiContextDTO"]>(this.base() + "/context", "POST", data, signal);
     generate = (data: GenerationRequest, signal?: AbortSignal) =>
@@ -95,12 +80,7 @@ export class CloudAiAdapter implements AiAdapter {
     review = (id: string, data: S["GenerationReview"], signal?: AbortSignal) =>
         request<Generation>(this.base() + "/generations/" + id + "/review", "POST", data, signal);
     cancel = (id: string, signal?: AbortSignal) =>
-        request<Generation>(
-            this.base() + "/generations/" + id + "/cancel",
-            "POST",
-            undefined,
-            signal,
-        );
+        request<Generation>(this.base() + "/generations/" + id + "/cancel", "POST", undefined, signal);
 }
 /**
  * 把桌面可信 typed bridge 适配为 AiAdapter；渲染层不读密钥、不发起任意 IPC。桥接错误原样上抛给 Notice。方法一一委托

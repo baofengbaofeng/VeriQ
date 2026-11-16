@@ -77,16 +77,9 @@ async function copyMaterial(material: RuntimeV1Material, destination: string): P
     if (JSON.stringify(identity(before.files)) !== JSON.stringify(identity(expected)))
         throw new Error("RUNTIME_V1_MATERIAL_INVENTORY_MISMATCH");
     for (const file of expected)
-        await copyReleaseFile(
-            join(material.root, file.path),
-            destination,
-            file.path,
-            file,
-            file.mode,
-        );
+        await copyReleaseFile(join(material.root, file.path), destination, file.path, file, file.mode);
     const after = await inventoryReleaseTree(material.root, "dependencies");
-    if (JSON.stringify(before) !== JSON.stringify(after))
-        throw new Error("RUNTIME_V1_MATERIAL_CHANGED");
+    if (JSON.stringify(before) !== JSON.stringify(after)) throw new Error("RUNTIME_V1_MATERIAL_CHANGED");
 }
 
 /**
@@ -118,11 +111,9 @@ export async function produceRuntimeV1(
         process.versions.node !== job.nodeVersion
     )
         throw new Error("RUNTIME_V1_HOST_TARGET_MISMATCH");
-    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(job.candidateName))
-        throw new Error("RUNTIME_CANDIDATE_NAME_INVALID");
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(job.candidateName)) throw new Error("RUNTIME_CANDIDATE_NAME_INVALID");
     for (const value of [job.productVersion, job.engineVersion])
-        if (!/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/.test(value))
-            throw new Error("RUNTIME_VERSION_INVALID");
+        if (!/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/.test(value)) throw new Error("RUNTIME_VERSION_INVALID");
     for (const path of [
         job.sourceRoot,
         job.workParent,
@@ -136,8 +127,7 @@ export async function produceRuntimeV1(
     if ((await realpath(job.hostBuild.executable)) !== (await realpath(process.execPath)))
         throw new Error("RUNTIME_BUILD_NODE_IDENTITY_MISMATCH");
     const source: SourceBindingV1 = checked(job.source, schemas.source);
-    if (sha(canonicalBytes(source)) !== job.sourceBindingSha256)
-        throw new Error("RUNTIME_SOURCE_BINDING_MISMATCH");
+    if (sha(canonicalBytes(source)) !== job.sourceBindingSha256) throw new Error("RUNTIME_SOURCE_BINDING_MISMATCH");
     for (const path of [
         "pnpm-lock.yaml",
         "apps/runtime/runtime.vite.config.mjs",
@@ -157,8 +147,7 @@ export async function produceRuntimeV1(
                   "apps/runtime/native/vault/windows-vault.cc",
               ]),
     ])
-        if (!source.files.some((file) => file.path === path))
-            throw new Error("RUNTIME_SOURCE_BINDING_MISSING");
+        if (!source.files.some((file) => file.path === path)) throw new Error("RUNTIME_SOURCE_BINDING_MISSING");
     const owned = await mkdtemp(join(job.workParent, `.veriq-v1-${job.candidateName}-`));
     const runtime = join(owned, "runtime"),
         evidence = join(owned, "evidence"),
@@ -169,13 +158,7 @@ export async function produceRuntimeV1(
     await mkdir(sourceSnapshot, { mode: 0o700 });
     for (const ref of source.files)
         await copyReleaseFile(join(job.sourceRoot, ref.path), sourceSnapshot, ref.path, ref, 0o644);
-    await copyReleaseFile(
-        job.hostBuild.executable,
-        evidence,
-        "tools/node",
-        job.hostBuild.nodeIdentity,
-        0o755,
-    );
+    await copyReleaseFile(job.hostBuild.executable, evidence, "tools/node", job.hostBuild.nodeIdentity, 0o755);
     const context = { inputRoot: evidence, timeoutMs: job.hostBuild.timeoutMs, run };
     const command = (name: string, args: readonly string[]) =>
         observeRuntimeCommand(context, name, job.hostBuild.executable, args, job.sourceRoot);
@@ -199,21 +182,9 @@ export async function produceRuntimeV1(
     )
         throw new Error("RUNTIME_V1_ENTRY_OUTPUT_MISSING");
     await releaseDirectory(runtime, "entry");
-    for (const file of entryInventory.files.filter(
-        (file) => file.path !== ".veriq-entry-trace.json",
-    ))
-        await copyReleaseFile(
-            join(build, file.path),
-            join(runtime, "entry"),
-            file.path,
-            file,
-            0o644,
-        );
-    await copyReleaseFile(
-        join(build, ".veriq-entry-trace.json"),
-        evidence,
-        "entry-observation.json",
-    );
+    for (const file of entryInventory.files.filter((file) => file.path !== ".veriq-entry-trace.json"))
+        await copyReleaseFile(join(build, file.path), join(runtime, "entry"), file.path, file, 0o644);
+    await copyReleaseFile(join(build, ".veriq-entry-trace.json"), evidence, "entry-observation.json");
     const traceFile = entryInventory.files.find((file) => file.path === ".veriq-entry-trace.json")!;
     if (traceFile.sizeBytes > 4 * 1024 * 1024) throw new Error("RUNTIME_ENTRY_OBSERVATION_LIMIT");
     const trace = JSON.parse(await readFile(join(evidence, "entry-observation.json"), "utf8")) as {
@@ -250,13 +221,7 @@ export async function produceRuntimeV1(
         const path = `apps/runtime/src/execution/${name}.mjs`;
         const ref = source.files.find((file) => file.path === path);
         if (!ref) throw new Error("RUNTIME_EXECUTION_SOURCE_MISSING");
-        await copyReleaseFile(
-            join(job.sourceRoot, path),
-            join(runtime, "execution"),
-            `${name}.mjs`,
-            ref,
-            0o644,
-        );
+        await copyReleaseFile(join(job.sourceRoot, path), join(runtime, "execution"), `${name}.mjs`, ref, 0o644);
     }
     for (const [name, material] of [
         ["npm", job.npm],
@@ -309,18 +274,12 @@ export async function produceRuntimeV1(
     const nativeCommands: Ref[] = [];
     if (job.platform === "linux") {
         nativeCommands.push(
-            (
-                await command("native-linux-launcher", [
-                    join(job.sourceRoot, "apps/runtime/scripts/build-launcher.mjs"),
-                ])
-            ).evidence,
+            (await command("native-linux-launcher", [join(job.sourceRoot, "apps/runtime/scripts/build-launcher.mjs")]))
+                .evidence,
         );
         nativeCommands.push(
-            (
-                await command("native-linux-vault", [
-                    join(job.sourceRoot, "apps/runtime/scripts/build-vault-linux.mjs"),
-                ])
-            ).evidence,
+            (await command("native-linux-vault", [join(job.sourceRoot, "apps/runtime/scripts/build-vault-linux.mjs")]))
+                .evidence,
         );
         await copyReleaseFile(
             join(job.sourceRoot, "apps/runtime/build/veriq_runner"),
@@ -381,9 +340,7 @@ export async function produceRuntimeV1(
         job.hostBuild.engineOutput,
     ]);
     const engineInventory = await inventoryReleaseTree(job.hostBuild.engineOutput, "engine");
-    const engineInventoryFile = engineInventory.files.find(
-        (file) => file.path === "inventory.json",
-    );
+    const engineInventoryFile = engineInventory.files.find((file) => file.path === "inventory.json");
     if (
         !engineInventoryFile ||
         engineInventoryFile.sizeBytes > 4 * 1024 * 1024 ||
@@ -409,9 +366,7 @@ export async function produceRuntimeV1(
         "npm/bin/npm-cli.js",
         "node_modules/tsx/dist/loader.mjs",
         `engines/${job.engineVersion}/inventory.json`,
-        job.platform === "win32"
-            ? "browser/chrome-win64/chrome.exe"
-            : "browser/chrome-linux64/chrome",
+        job.platform === "win32" ? "browser/chrome-win64/chrome.exe" : "browser/chrome-linux64/chrome",
     ];
     if (required.some((name) => !inventory.files.some((file) => file.path === name)))
         throw new Error("RUNTIME_V1_REQUIRED_MEMBER_MISSING");
@@ -427,15 +382,8 @@ export async function produceRuntimeV1(
     const manifestRef = await writeReleaseJson(runtime, "runtime-manifest.json", manifest);
     const after = join(evidence, "source-after");
     await mkdir(after, { mode: 0o700 });
-    for (const ref of source.files)
-        await copyReleaseFile(join(job.sourceRoot, ref.path), after, ref.path, ref, 0o644);
-    await copyReleaseFile(
-        job.hostBuild.executable,
-        evidence,
-        "tools/node-after",
-        job.hostBuild.nodeIdentity,
-        0o755,
-    );
+    for (const ref of source.files) await copyReleaseFile(join(job.sourceRoot, ref.path), after, ref.path, ref, 0o644);
+    await copyReleaseFile(job.hostBuild.executable, evidence, "tools/node-after", job.hostBuild.nodeIdentity, 0o755);
     const receipt = await writeReleaseJson(owned, "payload-receipt.json", {
         schemaVersion: 1,
         kind: "RUNTIME_V1_PAYLOAD_CANDIDATE",
@@ -454,11 +402,7 @@ export async function produceRuntimeV1(
         materials: job.materialEvidence.files,
         dependencyProduction: preparedDependencies?.evidence ?? null,
         status: "UNVERIFIED",
-        pending: [
-            "INDEPENDENT_SOURCE_AND_INPUT_REVIEW",
-            "INSTALLED_EXECUTION",
-            "SIGNING_AND_RELEASE_APPROVAL",
-        ],
+        pending: ["INDEPENDENT_SOURCE_AND_INPUT_REVIEW", "INSTALLED_EXECUTION", "SIGNING_AND_RELEASE_APPROVAL"],
     });
     return {
         kind: "RUNTIME_V1_CANDIDATE",

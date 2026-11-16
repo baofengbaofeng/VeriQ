@@ -122,9 +122,7 @@ it("cancelled business action settles observers and still runs fixture cleanup",
                     id: "blocked",
                     action: "click",
                     target: "name",
-                    observers: [
-                        { id: "missing", method: "POST", path: "/never", timeoutMs: 10000 },
-                    ],
+                    observers: [{ id: "missing", method: "POST", path: "/never", timeoutMs: 10000 }],
                     afterAssertions: [],
                 },
                 sourcePath: "/steps/0",
@@ -219,19 +217,17 @@ it("rejects resolved fixture input before authentication and passes explicit inp
     });
     expect(invalid.errorCode).toBe("INITIAL_VARIABLES_INVALID");
     execution.variables = {};
-    expect(
-        (await executeCase(plan, source, { page: f.page, execution, lifecycle })).errorCode,
-    ).toBe("INITIAL_VARIABLES_INVALID");
+    expect((await executeCase(plan, source, { page: f.page, execution, lifecycle })).errorCode).toBe(
+        "INITIAL_VARIABLES_INVALID",
+    );
     expect(authenticated).toBe(false);
     execution.variables = { private: "A" };
-    expect(
-        (await executeCase(plan, source, { page: f.page, execution, lifecycle })).errorCode,
-    ).toBe("FIXTURE_INPUT_INVALID");
+    expect((await executeCase(plan, source, { page: f.page, execution, lifecycle })).errorCode).toBe(
+        "FIXTURE_INPUT_INVALID",
+    );
     expect(authenticated).toBe(false);
     execution.variables = { private: "Ada" };
-    expect((await executeCase(plan, source, { page: f.page, execution, lifecycle })).outcome).toBe(
-        "PASSED",
-    );
+    expect((await executeCase(plan, source, { page: f.page, execution, lifecycle })).outcome).toBe("PASSED");
 });
 it.each([false, true])(
     "core protects generic cleanup tokens before ordinary projection (invalid output: %s)",

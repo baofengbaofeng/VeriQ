@@ -68,10 +68,7 @@ export function model(arch: Arch = "x64") {
         docs.set(path, value);
         return put(path, bytes(value));
     };
-    const opaque = put(
-        "evidence/opaque.txt",
-        "synthetic external inspection and command evidence\n",
-    );
+    const opaque = put("evidence/opaque.txt", "synthetic external inspection and command evidence\n");
     const producer = put("apps/runtime/scripts/producer.mjs", "export const synthetic = true;\n");
     const config = put("apps/runtime/config.json", "{}\n");
     const nativeSources = [
@@ -101,10 +98,7 @@ export function model(arch: Arch = "x64") {
         files: sourceFiles,
     };
     const binding = doc("evidence/source-binding.json", sourceBinding);
-    const sourceArchive = put(
-        "archives/source.tar.gz",
-        "synthetic source archive, not extracted\n",
-    );
+    const sourceArchive = put("archives/source.tar.gz", "synthetic source archive, not extracted\n");
     const nodeArchive = put("archives/node.tar.gz", "synthetic node archive, not extracted\n");
     const chromeArchive = put("archives/chrome.zip", "synthetic chrome archive, not extracted\n");
     const target = {
@@ -129,12 +123,7 @@ export function model(arch: Arch = "x64") {
         native: inventory("native"),
         engine: inventory("engine"),
     };
-    const add = (
-        kind: keyof typeof inventories,
-        path: string,
-        value: string | Buffer,
-        mode: 420 | 493 = 420,
-    ) => {
+    const add = (kind: keyof typeof inventories, path: string, value: string | Buffer, mode: 420 | 493 = 420) => {
         const ref = put(`trees/${kind}/${path}`, value),
             inventory = inventories[kind];
         let parent = dirname(path);
@@ -147,8 +136,7 @@ export function model(arch: Arch = "x64") {
     };
     add("entries", "agent.js", 'import "peer-lib";\n');
     add("entries", "cli.js", 'import "node:fs";\n');
-    for (const name of executionNames)
-        add("execution", name, data.get(`apps/runtime/src/execution/${name}`)!);
+    for (const name of executionNames) add("execution", name, data.get(`apps/runtime/src/execution/${name}`)!);
     add("native", "veriq_private_files.node", "synthetic Node-API bytes\n");
     add("native", "vault/veriq_agent", "synthetic keychain helper bytes\n", 493);
     const packageDefs = [
@@ -240,9 +228,8 @@ export function model(arch: Arch = "x64") {
                 aliasPath: "node_modules/.bin/tsx",
                 sourceAlias: null,
                 targetPath: "node_modules/tsx/dist/loader.mjs",
-                targetSha256: inventories.dependencies.files.find(
-                    (f) => f.path === "node_modules/tsx/dist/loader.mjs",
-                )!.sha256,
+                targetSha256: inventories.dependencies.files.find((f) => f.path === "node_modules/tsx/dist/loader.mjs")!
+                    .sha256,
                 launcher: "node",
                 inspection: null,
             },
@@ -316,16 +303,12 @@ export function model(arch: Arch = "x64") {
             {
                 path: "agent.js",
                 kind: "entry",
-                imports: [
-                    { specifier: "peer-lib", kind: "external", target: "peer-lib", dynamic: false },
-                ],
+                imports: [{ specifier: "peer-lib", kind: "external", target: "peer-lib", dynamic: false }],
             },
             {
                 path: "cli.js",
                 kind: "entry",
-                imports: [
-                    { specifier: "node:fs", kind: "builtin", target: "node:fs", dynamic: false },
-                ],
+                imports: [{ specifier: "node:fs", kind: "builtin", target: "node:fs", dynamic: false }],
             },
         ],
         embeddedWorkspaces: [],
@@ -362,16 +345,9 @@ export function model(arch: Arch = "x64") {
         kind: "NATIVE_PRODUCTION_BUILD",
         outputs: inventories.native.files.map((f) => ({
             path: f.path as "veriq_private_files.node" | "vault/veriq_agent",
-            targetName:
-                f.path === "veriq_private_files.node" ? "veriq_private_files" : "veriq_agent",
-            defines:
-                f.path === "veriq_private_files.node"
-                    ? ["NAPI_CPP_EXCEPTIONS", "NAPI_VERSION=9"]
-                    : [],
-            sourceFiles:
-                f.path === "veriq_private_files.node"
-                    ? nativeSources.slice(0, 2)
-                    : nativeSources.slice(2),
+            targetName: f.path === "veriq_private_files.node" ? "veriq_private_files" : "veriq_agent",
+            defines: f.path === "veriq_private_files.node" ? ["NAPI_CPP_EXCEPTIONS", "NAPI_VERSION=9"] : [],
+            sourceFiles: f.path === "veriq_private_files.node" ? nativeSources.slice(0, 2) : nativeSources.slice(2),
             sha256: f.sha256,
             architecture: arch === "x64" ? "x86_64" : "arm64",
             minimumOs: "15.0",
@@ -488,29 +464,24 @@ export function model(arch: Arch = "x64") {
             {
                 root: `trees/${kind}`,
                 inventory: doc(`evidence/${kind}-inventory.json`, inventory),
-                buildReceipt: doc(
-                    `evidence/${kind}-receipt.json`,
-                    receipts[kind as keyof typeof receipts],
-                ),
+                buildReceipt: doc(`evidence/${kind}-receipt.json`, receipts[kind as keyof typeof receipts]),
             },
         ]),
     ) as Pick<Mutable<Recipe>, "entries" | "execution" | "dependencies" | "native" | "engine">;
-    const tools = (["node", "pnpm", "tar", "yauzl", "vite", "node-gyp", "clang"] as const).map(
-        (name) => ({
-            name,
-            version: {
-                node: "24.22.1",
-                pnpm: "11.25.0",
-                tar: "7.5.22",
-                yauzl: "3.4.0",
-                vite: "6.4.0",
-                "node-gyp": "12.4.0",
-                clang: "17.0.0",
-            }[name],
-            artifactSha256: name === "node" ? "b".repeat(64) : "d".repeat(64),
-            evidence: opaque,
-        }),
-    );
+    const tools = (["node", "pnpm", "tar", "yauzl", "vite", "node-gyp", "clang"] as const).map((name) => ({
+        name,
+        version: {
+            node: "24.22.1",
+            pnpm: "11.25.0",
+            tar: "7.5.22",
+            yauzl: "3.4.0",
+            vite: "6.4.0",
+            "node-gyp": "12.4.0",
+            clang: "17.0.0",
+        }[name],
+        artifactSha256: name === "node" ? "b".repeat(64) : "d".repeat(64),
+        evidence: opaque,
+    }));
     const recipe: Mutable<Recipe> = {
         schemaVersion: 1,
         kind: "MAC_RUNTIME_PAYLOAD_INPUTS",
@@ -596,9 +567,7 @@ export function model(arch: Arch = "x64") {
  * 声明，实际核验过程中不会自动修复篡改。
  */
 export async function fixture(
-    run: (
-        value: ReturnType<typeof model> & { root: string; save: () => Promise<Buffer> },
-    ) => Promise<unknown>,
+    run: (value: ReturnType<typeof model> & { root: string; save: () => Promise<Buffer> }) => Promise<unknown>,
     value = model(),
 ): Promise<void> {
     const root = await mkdtemp(join(tmpdir(), "veriq payload 中文 "));
@@ -613,9 +582,9 @@ export async function fixture(
         for (const [path, content] of value.data) {
             await mkdir(dirname(join(root, path)), { recursive: true });
             await writeFile(join(root, path), content);
-            const kind = Object.keys(value.inventories).find((k) =>
-                path.startsWith(`trees/${k}/`),
-            ) as keyof typeof value.inventories | undefined;
+            const kind = Object.keys(value.inventories).find((k) => path.startsWith(`trees/${k}/`)) as
+                | keyof typeof value.inventories
+                | undefined;
             const fact = kind
                 ? value.inventories[kind].files.find((f) => `trees/${kind}/${f.path}` === path)
                 : undefined;

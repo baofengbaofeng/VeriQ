@@ -7,12 +7,7 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 import lockfile from "proper-lockfile";
 import { observeRestrictedOperation, type RestrictedFileResult } from "./restricted-operation.ts";
 import { VaultFiles } from "./files.ts";
-import type {
-    VaultKeyBackend,
-    VaultKeyScope,
-    VaultBackendFailure,
-    VaultMutationResult,
-} from "./backend.ts";
+import type { VaultKeyBackend, VaultKeyScope, VaultBackendFailure, VaultMutationResult } from "./backend.ts";
 import type { CredentialOptions } from "./profile.ts";
 
 /**
@@ -58,16 +53,13 @@ function context(policy: ManagedFilePolicy) {
     const volume = resolve(policy.persistentVolume),
         profile = resolve(policy.profileDirectory),
         child = relative(volume, profile);
-    if (volume !== policy.persistentVolume || profile !== policy.profileDirectory)
-        fail("CONTEXT_REQUIRED");
+    if (volume !== policy.persistentVolume || profile !== policy.profileDirectory) fail("CONTEXT_REQUIRED");
     if (volume === "/" || child === ".." || child.startsWith("../") || isAbsolute(child))
         fail("PERSISTENT_VOLUME_REQUIRED");
 }
 function unescapeMount(value: string): string {
     if (/\\(?!040|011|012|134)/.test(value)) fail("PERSISTENT_VOLUME_REQUIRED");
-    return value.replace(/\\(040|011|012|134)/g, (_all, octal: string) =>
-        String.fromCharCode(parseInt(octal, 8)),
-    );
+    return value.replace(/\\(040|011|012|134)/g, (_all, octal: string) => String.fromCharCode(parseInt(octal, 8)));
 }
 /**
  * 挂载观察只读取当前命名空间的固定 proc 文件，按一兆字节上限完成而不相信伪文件的零长度 stat；
@@ -88,14 +80,10 @@ async function mountedVolume(volume: string): Promise<Mount> {
     }
     if (used > 1024 * 1024) fail("PERSISTENT_VOLUME_REQUIRED");
     const matches: Mount[] = [];
-    for (const line of new TextDecoder("utf-8", { fatal: true })
-        .decode(bytes.subarray(0, used))
-        .trim()
-        .split("\n")) {
+    for (const line of new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(0, used)).trim().split("\n")) {
         const fields = line.split(" "),
             separator = fields.indexOf("-");
-        if (fields.length < 10 || separator < 6 || !fields[separator + 1])
-            fail("PERSISTENT_VOLUME_REQUIRED");
+        if (fields.length < 10 || separator < 6 || !fields[separator + 1]) fail("PERSISTENT_VOLUME_REQUIRED");
         if (unescapeMount(fields[4]!) !== volume) continue;
         const type = fields[separator + 1]!;
         if (
@@ -111,8 +99,7 @@ async function mountedVolume(volume: string): Promise<Mount> {
 async function verify(policy: ManagedFilePolicy, expected?: Mount): Promise<Mount> {
     context(policy);
     const mount = await mountedVolume(resolve(policy.persistentVolume));
-    if (expected && JSON.stringify(mount) !== JSON.stringify(expected))
-        fail("PERSISTENT_VOLUME_CHANGED");
+    if (expected && JSON.stringify(mount) !== JSON.stringify(expected)) fail("PERSISTENT_VOLUME_CHANGED");
     const volume = await lstat(policy.persistentVolume);
     if (
         !volume.isDirectory() ||
@@ -172,46 +159,40 @@ class RestrictedFileBackend implements VaultKeyBackend {
         signal: AbortSignal,
         run: (files: VaultFiles, markMutation: () => void) => Promise<RestrictedFileResult>,
     ): Promise<RestrictedFileResult> {
-        return observeRestrictedOperation(
-            this.directory,
-            signal,
-            async (observed, markMutation) => {
-                let files: VaultFiles | undefined, release: (() => Promise<void>) | undefined;
-                let result: RestrictedFileResult | undefined;
+        return observeRestrictedOperation(this.directory, signal, async (observed, markMutation) => {
+            let files: VaultFiles | undefined, release: (() => Promise<void>) | undefined;
+            let result: RestrictedFileResult | undefined;
+            let closeError: unknown;
+            try {
+                await verify(this.policy, this.mount);
+                if (observed.aborted) throw new Error("RESTRICTED_FILE_OBSERVATION_ABORTED");
+                const existing = await lstat(this.directory);
+                if (!existing.isDirectory() || existing.isSymbolicLink()) fail("DIRECTORY_NOT_PRIVATE");
+                files = await VaultFiles.acquire(this.directory);
+                release = await lockfile.lock(this.directory, { realpath: false, retries: 0 });
+                if (observed.aborted) throw new Error("RESTRICTED_FILE_OBSERVATION_ABORTED");
+                result = await run(files, markMutation);
+            } finally {
                 try {
-                    await verify(this.policy, this.mount);
-                    if (observed.aborted) throw new Error("RESTRICTED_FILE_OBSERVATION_ABORTED");
-                    const existing = await lstat(this.directory);
-                    if (!existing.isDirectory() || existing.isSymbolicLink())
-                        fail("DIRECTORY_NOT_PRIVATE");
-                    files = await VaultFiles.acquire(this.directory);
-                    release = await lockfile.lock(this.directory, { realpath: false, retries: 0 });
-                    if (observed.aborted) throw new Error("RESTRICTED_FILE_OBSERVATION_ABORTED");
-                    result = await run(files, markMutation);
-                    return result;
-                } finally {
                     try {
-                        try {
-                            await files?.close();
-                        } finally {
-                            await release?.();
-                        }
-                    } catch (error) {
-                        if (result && "key" in result) result.key.fill(0);
-                        throw error;
+                        await files?.close();
+                    } finally {
+                        await release?.();
                     }
+                } catch (error) {
+                    if (result && "key" in result) result.key.fill(0);
+                    closeError = error;
                 }
-            },
-        );
+            }
+            if (closeError !== undefined) throw closeError;
+            return result;
+        });
     }
     /**
      * 读取仅解码指定档案与版本的原始三十二字节密钥并交付独立缓冲区，畸形内容和权限错误保持失败；
      * 本模式的原始密钥可以由合法文件拥有者读取，因此任何调用方都不能把它描述成系统保险库或加密静态存储。
      */
-    async get(
-        scope: VaultKeyScope,
-        signal: AbortSignal,
-    ): Promise<{ status: "ok"; key: Buffer } | VaultBackendFailure> {
+    async get(scope: VaultKeyScope, signal: AbortSignal): Promise<{ status: "ok"; key: Buffer } | VaultBackendFailure> {
         let member: string;
         try {
             member = name(scope);
@@ -229,11 +210,7 @@ class RestrictedFileBackend implements VaultKeyBackend {
      * 写入只接受新的精确版本与固定长度密钥，合作锁内发现既存成员就拒绝而不覆盖；原子文件发布复用现有刷新及未知提交处
      * 理，取消后仍报告可能已提交，不能通过再次生成随机密钥掩盖第一次写入状态。
      */
-    async set(
-        scope: VaultKeyScope,
-        material: Buffer,
-        signal: AbortSignal,
-    ): Promise<VaultMutationResult> {
+    async set(scope: VaultKeyScope, material: Buffer, signal: AbortSignal): Promise<VaultMutationResult> {
         let member: string;
         try {
             member = name(scope);
@@ -298,10 +275,7 @@ export async function managedFileCredentials(input: ManagedFilePolicy): Promise<
         async (signal, markMutation) => {
             try {
                 mount = await verify(policy);
-                for (const directory of [
-                    policy.profileDirectory,
-                    join(policy.profileDirectory, "restricted-keys"),
-                ]) {
+                for (const directory of [policy.profileDirectory, join(policy.profileDirectory, "restricted-keys")]) {
                     if (signal.aborted) throw new Error("RESTRICTED_FILE_OBSERVATION_ABORTED");
                     markMutation();
                     const files = await VaultFiles.acquire(directory);
@@ -309,8 +283,7 @@ export async function managedFileCredentials(input: ManagedFilePolicy): Promise<
                 }
                 return { status: "ready" };
             } catch (error) {
-                if (error instanceof Error && /^RESTRICTED_FILE_[A-Z_]+$/.test(error.message))
-                    failure = error;
+                if (error instanceof Error && /^RESTRICTED_FILE_[A-Z_]+$/.test(error.message)) failure = error;
                 throw error;
             }
         },

@@ -28,22 +28,11 @@ function pathAllowed(path: string) {
     if (!isAbsolute(path) || path.includes("\0") || resolve(path) !== path) fail();
 }
 function endpointsAllowed(endpoints: readonly string[]) {
-    if (
-        endpoints.length < 1 ||
-        endpoints.length > 64 ||
-        new Set(endpoints).size !== endpoints.length
-    )
-        fail();
+    if (endpoints.length < 1 || endpoints.length > 64 || new Set(endpoints).size !== endpoints.length) fail();
     for (const endpoint of endpoints) {
         if (typeof endpoint !== "string" || endpoint.length < 16 || endpoint.length > 4096) fail();
         const url = new URL(endpoint);
-        if (
-            !["ws:", "wss:"].includes(url.protocol) ||
-            url.username ||
-            url.password ||
-            url.pathname.length < 17
-        )
-            fail();
+        if (!["ws:", "wss:"].includes(url.protocol) || url.username || url.password || url.pathname.length < 17) fail();
     }
 }
 function forms(endpoints: readonly string[]) {
@@ -81,13 +70,7 @@ function parsed(bytes: Buffer): ObjectValue {
         }
     }
     visit(value, 0);
-    if (
-        !object(value) ||
-        !object(value.config) ||
-        !Array.isArray(value.suites) ||
-        !object(value.stats)
-    )
-        fail();
+    if (!object(value) || !object(value.config) || !Array.isArray(value.suites) || !object(value.stats)) fail();
     return value;
 }
 function endpointFields(value: ObjectValue): ObjectValue[] {
@@ -120,8 +103,7 @@ export function verifyEndpointJson(bytes: Buffer, endpoints: readonly string[]):
         const value = parsed(bytes);
         if (endpointFields(value).some((field) => field.wsEndpoint !== MARKER)) fail();
         const normalized = Buffer.from(JSON.stringify(value));
-        if (forms(endpoints).some((form) => bytes.includes(form) || normalized.includes(form)))
-            fail();
+        if (forms(endpoints).some((form) => bytes.includes(form) || normalized.includes(form))) fail();
     } catch {
         fail();
     }
@@ -150,20 +132,14 @@ async function privateParent(path: string): Promise<FileHandle> {
     let current = root;
     for (const part of parent.slice(root.length).split("/").filter(Boolean)) {
         current = join(current, part);
-        const handle = await open(
-            current,
-            constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
-        );
+        const handle = await open(current, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
         try {
             if (!(await handle.stat()).isDirectory()) fail();
         } finally {
             await handle.close();
         }
     }
-    const directory = await open(
-        parent,
-        constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
-    );
+    const directory = await open(parent, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
     try {
         const stat = await directory.stat();
         if (
@@ -192,10 +168,7 @@ async function parentUnchanged(path: string, parent: FileHandle) {
         fail();
 }
 async function readStable(path: string, refresh = false): Promise<{ bytes: Buffer; stat: Stats }> {
-    const handle = await open(
-        path,
-        constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-    );
+    const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
     try {
         const stat = await handle.stat();
         if (
@@ -226,10 +199,7 @@ async function readStable(path: string, refresh = false): Promise<{ bytes: Buffe
  * 主机在读取任何报告附件、计算证据哈希或创建交付元数据之前独立调用这个标准库模块；它仅接受冻结 SDK 的绝对路径，
  * 读取同一已验证文件描述符并复核父目录和名字身份，缺失、超限、替换与残留都只抛固定安全错误。
  */
-export async function verifyEndpointJsonFile(
-    path: string,
-    endpoints: readonly string[],
-): Promise<void> {
+export async function verifyEndpointJsonFile(path: string, endpoints: readonly string[]): Promise<void> {
     let parent: FileHandle | undefined;
     try {
         endpointsAllowed(endpoints);
@@ -271,11 +241,7 @@ async function finalize(path: string, endpoints: readonly string[]) {
             await output.close();
         }
         await parentUnchanged(path, parent);
-        if (
-            !stable(original.stat, await lstat(path)) ||
-            !same(temporaryStat, await lstat(temporary))
-        )
-            fail();
+        if (!stable(original.stat, await lstat(path)) || !same(temporaryStat, await lstat(temporary))) fail();
         await rename(temporary, path);
         published = true;
         await parent.sync();
@@ -325,19 +291,13 @@ export default class EndpointJsonReporter implements Reporter {
             if (
                 !last ||
                 typeof last[0] !== "string" ||
-                (!last[0].endsWith("/endpoint-json-reporter.ts") &&
-                    !last[0].endsWith("/endpoint-json-reporter.js")) ||
+                (!last[0].endsWith("/endpoint-json-reporter.ts") && !last[0].endsWith("/endpoint-json-reporter.js")) ||
                 !object(last[1]) ||
                 last[1].outputFile !== this.outputFile
             )
                 fail();
             const json = configured.filter(([name]) => name === "json");
-            if (
-                json.length !== 1 ||
-                !object(json[0]![1]) ||
-                json[0]![1].outputFile !== this.outputFile
-            )
-                fail();
+            if (json.length !== 1 || !object(json[0]![1]) || json[0]![1].outputFile !== this.outputFile) fail();
             this.endpoints = [
                 ...new Set(
                     [...config.projects, ...config.filteredProjects]

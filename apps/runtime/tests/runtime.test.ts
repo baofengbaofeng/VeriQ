@@ -78,9 +78,7 @@ test("client rejects unsafe control origins, redirects and redacts error respons
         assert(a && typeof a !== "string");
         await assert.rejects(
             new RuntimeClient(`http://127.0.0.1:${a.port}`).poll("secret"),
-            (e: Error) =>
-                !e.message.includes("synthetic-secret") &&
-                e.message.includes("DEVICE_UNAUTHORIZED"),
+            (e: Error) => !e.message.includes("synthetic-secret") && e.message.includes("DEVICE_UNAUTHORIZED"),
         );
     } finally {
         server.close();
@@ -101,11 +99,7 @@ test("doctor launches a real browser and checks a real network endpoint; missing
             executablePath: process.env.VERIQ_TEST_CHROMIUM,
         });
         assert.equal(good.ok, true, JSON.stringify(good));
-        assert(
-            good.checks.some(
-                (c: { name: string; ok: boolean }) => c.name === "browser launch" && c.ok,
-            ),
-        );
+        assert(good.checks.some((c: { name: string; ok: boolean }) => c.name === "browser launch" && c.ok));
         const bad = await doctor({
             server: `http://127.0.0.1:${a.port}`,
             executablePath: "/nonexistent/veriq-browser",
@@ -152,10 +146,7 @@ test("client rejects malformed enrollment and credential responses before storag
     try {
         const a = server.address();
         assert(a && typeof a !== "string");
-        await assert.rejects(
-            new RuntimeClient(`http://127.0.0.1:${a.port}`).poll("secret"),
-            /INVALID_RESPONSE/,
-        );
+        await assert.rejects(new RuntimeClient(`http://127.0.0.1:${a.port}`).poll("secret"), /INVALID_RESPONSE/);
     } finally {
         server.close();
     }
@@ -174,10 +165,7 @@ test("a second enrollment never overwrites the existing device credential", asyn
     const store = new DeviceStore(directory);
     try {
         await store.save(config);
-        await assert.rejects(
-            store.save({ ...config, deviceToken: "synthetic-replacement" }),
-            /ALREADY_ENROLLED/,
-        );
+        await assert.rejects(store.save({ ...config, deviceToken: "synthetic-replacement" }), /ALREADY_ENROLLED/);
         assert.equal((await store.load()).deviceToken, config.deviceToken);
     } finally {
         await rm(directory, { recursive: true, force: true });
@@ -186,13 +174,9 @@ test("a second enrollment never overwrites the existing device credential", asyn
 
 function recoveryCli(directory: string, args: string[], input = "") {
     return new Promise<{ status: number | null; output: string }>((resolve, reject) => {
-        const child = spawn(
-            process.execPath,
-            ["--import", "tsx", "src/cli.ts", "--config-dir", directory, ...args],
-            {
-                cwd: new URL("..", import.meta.url),
-            },
-        );
+        const child = spawn(process.execPath, ["--import", "tsx", "src/cli.ts", "--config-dir", directory, ...args], {
+            cwd: new URL("..", import.meta.url),
+        });
         let output = "";
         const timeout = setTimeout(() => {
             child.kill("SIGKILL");

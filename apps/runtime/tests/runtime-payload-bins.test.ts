@@ -31,10 +31,7 @@ for (const launcher of ["node", "native"] as const)
             // 。
             const carrier = `#!/bin/sh\nexec '${process.execPath.replaceAll("'", "'\\''")}' "$@"\n`;
             await writeFile(join(root, "roles/runner/veriq_runner"), carrier, { mode: 0o755 });
-            await writeFile(
-                join(dirname(dirname(target)), "value.cjs"),
-                "module.exports='original package';\n",
-            );
+            await writeFile(join(dirname(dirname(target)), "value.cjs"), "module.exports='original package';\n");
             await writeFile(
                 target,
                 launcher === "node"

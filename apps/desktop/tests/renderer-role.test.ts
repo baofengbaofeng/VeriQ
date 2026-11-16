@@ -13,11 +13,7 @@ const validMetrics = (): Metric[] => [
  * 这里只提供官方接口的最小受控指标以验证角色拒绝契约，不读取或终止这些数字对应的宿主进程；实际驱动必须先通过同一函数的
  * 两次验证，之后才可启动固定 pidfd 辅助器。
  */
-function source(
-    metrics: Metric[] = validMetrics(),
-    windowId = 1,
-    contentsId = 1,
-): RendererRoleSource {
+function source(metrics: Metric[] = validMetrics(), windowId = 1, contentsId = 1): RendererRoleSource {
     return {
         BrowserWindow: {
             getAllWindows: () => [
@@ -92,14 +88,8 @@ test("changed official identity or app window is rejected on revalidation", () =
         metrics[index] = { ...metrics[index]!, creationTime: metrics[index]!.creationTime + 1 };
         assert.throws(() => rendererTarget(source(metrics), initial), /METRIC_IDENTITY_CHANGED/);
     }
-    assert.throws(
-        () => rendererTarget(source(validMetrics(), 2), initial),
-        /METRIC_IDENTITY_CHANGED/,
-    );
-    assert.throws(
-        () => rendererTarget(source(validMetrics(), 1, 2), initial),
-        /METRIC_IDENTITY_CHANGED/,
-    );
+    assert.throws(() => rendererTarget(source(validMetrics(), 2), initial), /METRIC_IDENTITY_CHANGED/);
+    assert.throws(() => rendererTarget(source(validMetrics(), 1, 2), initial), /METRIC_IDENTITY_CHANGED/);
     const moved = source([
         { pid: process.pid, type: "Browser", creationTime: 1000 },
         { pid: rendererPid + 1, type: "Tab", creationTime: 2000 },
@@ -108,10 +98,7 @@ test("changed official identity or app window is rejected on revalidation", () =
     movedWindow.webContents.getOSProcessId = () => rendererPid + 1;
     moved.BrowserWindow.getAllWindows = () => [movedWindow];
     assert.throws(() => rendererTarget(moved, initial), /METRIC_IDENTITY_CHANGED/);
-    assert.throws(
-        () => rendererTarget(source(), { ...initial, mainPid: process.pid + 1 }),
-        /METRIC_IDENTITY_CHANGED/,
-    );
+    assert.throws(() => rendererTarget(source(), { ...initial, mainPid: process.pid + 1 }), /METRIC_IDENTITY_CHANGED/);
     const multiple = source();
     const window = multiple.BrowserWindow.getAllWindows()[0]!;
     multiple.BrowserWindow.getAllWindows = () => [window, window];

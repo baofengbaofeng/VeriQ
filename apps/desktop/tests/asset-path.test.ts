@@ -17,16 +17,8 @@ test("bundled assets use Windows and POSIX containment semantics", () => {
             bundledAssetPath(root, "/assets/editor.worker.js", paths),
             paths.join(root, "assets/editor.worker.js"),
         );
-        for (const name of [
-            "/",
-            "/../private.json",
-            "/../renderer-private/key",
-            "/assets/../../private.json",
-        ])
+        for (const name of ["/", "/../private.json", "/../renderer-private/key", "/assets/../../private.json"])
             assert.equal(bundledAssetPath(root, name, paths), undefined, name);
     }
-    assert.equal(
-        bundledAssetPath("C:\\VeriQ\\out\\renderer", "/..\\private.json", path.win32),
-        undefined,
-    );
+    assert.equal(bundledAssetPath("C:\\VeriQ\\out\\renderer", "/..\\private.json", path.win32), undefined);
 });

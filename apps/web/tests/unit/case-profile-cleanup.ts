@@ -64,14 +64,7 @@ test("body and cleanup preserve exact outcomes including thrown undefined", asyn
 test("profile cleanup retains uncertain journals and failed evidence writes", async () => {
     const root = await mkdtemp(join(tmpdir(), "veriq-web-cleanup-"));
     try {
-        for (const scenario of [
-            "absent",
-            "not-directory",
-            "malformed",
-            "running",
-            "write-failed",
-            "stopped",
-        ]) {
+        for (const scenario of ["absent", "not-directory", "malformed", "running", "write-failed", "stopped"]) {
             const profile = join(root, scenario);
             const processes = join(profile, "agent/processes");
             const evidence = join(root, scenario + ".json");

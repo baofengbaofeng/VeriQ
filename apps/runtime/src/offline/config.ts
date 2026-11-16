@@ -37,11 +37,7 @@ export async function privateDirectory(directory: string) {
  * 公开函数 readBoundedFile 在字节上限内读取文件：超限或非常规文件立即失败：避免把巨型对象载入内存（
  * readBoundedFile/UNSAFE_CONFIGURATION）。
  */
-export async function readBoundedFile(
-    path: string,
-    limit: number,
-    restricted = false,
-): Promise<Buffer> {
+export async function readBoundedFile(path: string, limit: number, restricted = false): Promise<Buffer> {
     /**
      * Windows 私有读取由实际原生文件句柄贯穿授权与读取，不能在验证 DACL 后再调用 Node 按路径重新打开；
      * 未受限的公开包读取保留既有库存校验流程，Linux 的描述符与权限合同也保持不变。
@@ -64,16 +60,11 @@ export async function readBoundedFile(
         }
     }
     const before = await lstat(path);
-    if (!before.isFile() || before.isSymbolicLink() || before.size > limit)
-        throw new Error("UNSAFE_CONFIGURATION");
+    if (!before.isFile() || before.isSymbolicLink() || before.size > limit) throw new Error("UNSAFE_CONFIGURATION");
     const fd = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
     try {
         const st = await fd.stat();
-        if (
-            !st.isFile() ||
-            st.size > limit ||
-            (restricted && process.platform !== "win32" && st.mode & 0o077)
-        )
+        if (!st.isFile() || st.size > limit || (restricted && process.platform !== "win32" && st.mode & 0o077))
             throw new Error("UNSAFE_CONFIGURATION");
         const result = Buffer.alloc(st.size);
         let offset = 0;
@@ -113,9 +104,7 @@ export async function readPrivate<T>(directory: string, name: string): Promise<T
     const parent = await lstat(directory);
     if (!parent.isDirectory() || parent.isSymbolicLink() || parent.mode & 0o077)
         throw new Error("UNSAFE_CONFIGURATION");
-    return JSON.parse(
-        (await readBoundedFile(join(directory, name), 1024 * 1024, true)).toString("utf8"),
-    ) as T;
+    return JSON.parse((await readBoundedFile(join(directory, name), 1024 * 1024, true)).toString("utf8")) as T;
 }
 /**
  * 私有 JSON 更新在合作锁内读取上一代并只执行一次调用方回调，内容超限或回调失败不提交；Windows
@@ -183,8 +172,7 @@ export async function updatePrivate<T>(
         }
         await rename(tmp, join(directory, name));
     } finally {
-        if (process.platform !== "win32" && process.platform !== "darwin")
-            await unlink(tmp).catch(() => {});
+        if (process.platform !== "win32" && process.platform !== "darwin") await unlink(tmp).catch(() => {});
         await release();
     }
 }

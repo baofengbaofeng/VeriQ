@@ -40,24 +40,16 @@ async function rejectedWithoutChange(path: string, operation: () => Promise<unkn
     const before = await readFile(path);
     const failures: unknown[] = [];
     try {
-        await assert.rejects(
-            operation,
-            /UNSAFE_CONFIGURATION|NATIVE_ACL_NOT_PRIVATE|NATIVE_REPARSE_REJECTED/,
-        );
+        await assert.rejects(operation, /UNSAFE_CONFIGURATION|NATIVE_ACL_NOT_PRIVATE|NATIVE_REPARSE_REJECTED/);
     } catch (error) {
         failures.push(error);
     }
     try {
-        assert.deepEqual(
-            await readFile(path),
-            before,
-            "Rejected access must retain original bytes",
-        );
+        assert.deepEqual(await readFile(path), before, "Rejected access must retain original bytes");
     } catch (error) {
         failures.push(error);
     }
-    if (failures.length)
-        throw new AggregateError(failures, "Private configuration rejection failed");
+    if (failures.length) throw new AggregateError(failures, "Private configuration rejection failed");
 }
 
 /**

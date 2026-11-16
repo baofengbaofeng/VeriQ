@@ -11,10 +11,7 @@ import { VaultHelperBackend } from "./helper.ts";
  * 冲突拒绝与不确定修改仍由固定协议表达，调用方不能通过选项注入 DLL、程序路径或任意原生操作。
  */
 export class WindowsVaultBackend extends VaultHelperBackend {
-    constructor(
-        distribution: RuntimeDistribution,
-        options: ConstructorParameters<typeof VaultHelperBackend>[1] = {},
-    ) {
+    constructor(distribution: RuntimeDistribution, options: ConstructorParameters<typeof VaultHelperBackend>[1] = {}) {
         if (process.platform !== "win32") throw new Error("VAULT_PLATFORM_UNSUPPORTED");
         super(distribution, options);
     }

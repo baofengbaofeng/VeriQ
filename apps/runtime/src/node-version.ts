@@ -3,10 +3,7 @@
  * 这只是兼容条件，发行身份仍由完整库存中的具体版本、角色路径与文件摘要共同约束。
  */
 export function isNode24Version(value: unknown): value is string {
-    return (
-        typeof value === "string" &&
-        /^24\.(?:0|[1-9][0-9]{0,8})\.(?:0|[1-9][0-9]{0,8})(?![\s\S])/.test(value)
-    );
+    return typeof value === "string" && /^24\.(?:0|[1-9][0-9]{0,8})\.(?:0|[1-9][0-9]{0,8})(?![\s\S])/.test(value);
 }
 
 /**

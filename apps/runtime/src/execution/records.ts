@@ -46,17 +46,10 @@ export class ProcessRecords {
              */
             if (process.platform === "darwin") {
                 const { darwinNative } = await import("../native/darwin.ts");
-                return new ProcessRecords(
-                    directory,
-                    undefined,
-                    darwinNative().openPrivateDirectory(directory, false),
-                );
+                return new ProcessRecords(directory, undefined, darwinNative().openPrivateDirectory(directory, false));
             }
             handle = await open(parse(directory).root, constants.O_RDONLY | constants.O_DIRECTORY);
-            for (const part of directory
-                .slice(parse(directory).root.length)
-                .split("/")
-                .filter(Boolean)) {
+            for (const part of directory.slice(parse(directory).root.length).split("/").filter(Boolean)) {
                 const next = await open(
                     `/proc/self/fd/${handle.fd}/${part}`,
                     constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
@@ -76,9 +69,7 @@ export class ProcessRecords {
     }
     private path(name: string, journalStaging = false) {
         if (
-            !/^[a-zA-Z0-9_-]{1,100}\.(?:json|process\.json|drained\.json|controlled\.json)$/.test(
-                name,
-            ) &&
+            !/^[a-zA-Z0-9_-]{1,100}\.(?:json|process\.json|drained\.json|controlled\.json)$/.test(name) &&
             !(journalStaging && stagedAttempt(name))
         )
             throw new Error("PROCESS_RECORD_NAME_INVALID");
@@ -102,16 +93,13 @@ export class ProcessRecords {
             for (const name of names) this.path(name, journalStaging);
             return names;
         }
-        const directory = await opendir(
-            this.handle ? `/proc/self/fd/${this.handle.fd}` : this.directory,
-        );
+        const directory = await opendir(this.handle ? `/proc/self/fd/${this.handle.fd}` : this.directory);
         const names: string[] = [];
         try {
             for (;;) {
                 const entry = await directory.read();
                 if (!entry) return names;
-                if (!entry.isFile() || names.length >= limit)
-                    throw new Error("PROCESS_RECORD_LIMIT_OR_TYPE");
+                if (!entry.isFile() || names.length >= limit) throw new Error("PROCESS_RECORD_LIMIT_OR_TYPE");
                 this.path(entry.name, journalStaging);
                 names.push(entry.name);
             }
@@ -140,13 +128,10 @@ export class ProcessRecords {
      * 拥有者与长度都在同一描述符核验，Windows 由既有原生有限接口执行同类约束。
      */
     async read(name: string, limit: number): Promise<unknown> {
-        return JSON.parse(
-            new TextDecoder("utf-8", { fatal: true }).decode(await this.bytes(name, limit)),
-        );
+        return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(await this.bytes(name, limit)));
     }
     private async bytes(name: string, limit: number, journalStaging = false): Promise<Buffer> {
-        if (!Number.isSafeInteger(limit) || limit < 1 || limit > 65536)
-            throw new Error("PROCESS_RECORD_LIMIT_INVALID");
+        if (!Number.isSafeInteger(limit) || limit < 1 || limit > 65536) throw new Error("PROCESS_RECORD_LIMIT_INVALID");
         let bytes: Buffer;
         if (this.darwin) {
             /**
@@ -179,8 +164,7 @@ export class ProcessRecords {
                     if (!result.bytesRead) throw new Error("PROCESS_RECORD_CHANGED");
                     offset += result.bytesRead;
                 }
-                if ((await handle.stat()).size !== info.size)
-                    throw new Error("PROCESS_RECORD_CHANGED");
+                if ((await handle.stat()).size !== info.size) throw new Error("PROCESS_RECORD_CHANGED");
             } finally {
                 await handle.close();
             }

@@ -7,18 +7,7 @@
  * Verify exact signed bytes before writing any archive member to disk.
  */
 import { createHash, verify } from "node:crypto";
-import {
-    readdir,
-    lstat,
-    mkdir,
-    mkdtemp,
-    rename,
-    rm,
-    chmod,
-    writeFile,
-    open,
-    type FileHandle,
-} from "node:fs/promises";
+import { readdir, lstat, mkdir, mkdtemp, rename, rm, chmod, writeFile, open, type FileHandle } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { constants } from "node:fs";
 import type { DarwinPrivateDirectory } from "../native/darwin.ts";
@@ -82,8 +71,7 @@ async function members(zip: ZipFile): Promise<Map<string, Entry>> {
                     lower = actual.toLowerCase(),
                     directory = i < parts.length - 1,
                     prior = paths.get(lower);
-                if (prior && (prior.actual !== actual || prior.directory !== directory))
-                    alias = true;
+                if (prior && (prior.actual !== actual || prior.directory !== directory)) alias = true;
                 paths.set(lower, { actual, directory });
             }
             if (
@@ -164,8 +152,7 @@ export async function verifyBundle(
     },
 ): Promise<VerifiedBundle> {
     const st = await lstat(input);
-    if (!st.isFile() || st.isSymbolicLink() || st.size > MAX_ARCHIVE)
-        throw new Error("UNSAFE_ARCHIVE");
+    if (!st.isFile() || st.isSymbolicLink() || st.size > MAX_ARCHIVE) throw new Error("UNSAFE_ARCHIVE");
     const raw = await readBoundedFile(input, MAX_ARCHIVE);
     if (raw.length > MAX_ARCHIVE) throw new Error("BUNDLE_SIZE_LIMIT");
     const zip = await new Promise<ZipFile>((resolve, reject) =>
@@ -177,15 +164,13 @@ export async function verifyBundle(
                 validateEntrySizes: true,
                 strictFileNames: true,
             },
-            (error, file) =>
-                error || !file ? reject(new Error("INVALID_ARCHIVE")) : resolve(file),
+            (error, file) => (error || !file ? reject(new Error("INVALID_ARCHIVE")) : resolve(file)),
         ),
     );
     let staging: string | undefined;
     let stagingIdentity: { dev: number; ino: number; uid: number } | undefined;
     let publicationRoot: FileHandle | undefined;
-    let privateParent: DarwinPrivateDirectory | undefined,
-        privateStaging: DarwinPrivateDirectory | undefined;
+    let privateParent: DarwinPrivateDirectory | undefined, privateStaging: DarwinPrivateDirectory | undefined;
     try {
         const entries = await members(zip),
             manifestEntry = entries.get("manifest.json"),
@@ -203,11 +188,9 @@ export async function verifyBundle(
         if (options.workspaceId && manifest.workspaceId !== options.workspaceId)
             throw new Error("BUNDLE_WORKSPACE_MISMATCH");
         const expired = Date.parse(manifest.expiresAt) <= Date.now();
-        if (Date.parse(manifest.expiresAt) <= Date.parse(manifest.createdAt))
-            throw new Error("INVALID_BUNDLE_DATES");
+        if (Date.parse(manifest.expiresAt) <= Date.parse(manifest.createdAt)) throw new Error("INVALID_BUNDLE_DATES");
         const debug = expired || manifest.validationStatus !== "VALIDATED";
-        if (debug && !options.debug)
-            throw new Error(expired ? "BUNDLE_EXPIRED" : "BUNDLE_DEBUG_REQUIRED");
+        if (debug && !options.debug) throw new Error(expired ? "BUNDLE_EXPIRED" : "BUNDLE_DEBUG_REQUIRED");
         const expected = new Set<string>(["manifest.json", "manifest.sig"]);
         const contents = new Map<string, Buffer>();
         let expanded = manifestRaw.length + sig.length;
@@ -216,8 +199,7 @@ export async function verifyBundle(
                 throw new Error("INVALID_BUNDLE_FILES");
             expected.add(file.path);
             const entry = entries.get(file.path);
-            if (!entry || entry.uncompressedSize !== file.sizeBytes)
-                throw new Error("BUNDLE_FILE_MISSING");
+            if (!entry || entry.uncompressedSize !== file.sizeBytes) throw new Error("BUNDLE_FILE_MISSING");
             const content = await bytes(zip, entry, Math.min(file.sizeBytes, MAX_FILE));
             expanded += content.length;
             if (expanded > MAX_OUTPUT) throw new Error("BUNDLE_SIZE_LIMIT");
@@ -233,8 +215,7 @@ export async function verifyBundle(
             snapshot.workspaceId !== manifest.workspaceId ||
             snapshot.engineVersion !== manifest.engineVersion ||
             snapshot.sourceHash !== manifest.sourceHash ||
-            digest(assetSourceBytes(snapshot as unknown as Record<string, unknown>)) !==
-                manifest.sourceHash
+            digest(assetSourceBytes(snapshot as unknown as Record<string, unknown>)) !== manifest.sourceHash
         )
             throw new Error("BUNDLE_SNAPSHOT_MISMATCH");
         const { resources, dslOnly } = validateContent(contents, manifest, snapshot);
@@ -243,10 +224,7 @@ export async function verifyBundle(
         if (!parent.isDirectory() || parent.isSymbolicLink()) throw new Error("UNSAFE_DESTINATION");
         if (process.platform === "darwin") {
             const { darwinNative } = await import("../native/darwin.ts");
-            privateParent = darwinNative().openPrivateDirectory(
-                dirname(options.destination),
-                false,
-            );
+            privateParent = darwinNative().openPrivateDirectory(dirname(options.destination), false);
         }
         staging = await mkdtemp(join(dirname(options.destination), ".veriq-bundle-"));
         const created = await lstat(staging);
@@ -254,10 +232,7 @@ export async function verifyBundle(
         if (process.platform === "darwin") {
             const { darwinNative } = await import("../native/darwin.ts");
             privateStaging = darwinNative().openPrivateDirectory(staging, false);
-            publicationRoot = await open(
-                staging,
-                constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
-            );
+            publicationRoot = await open(staging, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
             const held = await publicationRoot.stat();
             if (
                 !held.isDirectory() ||
@@ -268,11 +243,7 @@ export async function verifyBundle(
             )
                 throw new Error("UNSAFE_DESTINATION");
         }
-        for (const [name, body] of new Map([
-            ["manifest.json", manifestRaw],
-            ["manifest.sig", sig],
-            ...contents,
-        ])) {
+        for (const [name, body] of new Map([["manifest.json", manifestRaw], ["manifest.sig", sig], ...contents])) {
             const path = join(staging, name);
             await mkdir(dirname(path), { recursive: true, mode: 0o700 });
             await writeFile(path, body, { flag: "wx", mode: 0o400 });
@@ -282,8 +253,7 @@ export async function verifyBundle(
             await lstat(options.destination);
             throw new Error("BUNDLE_DESTINATION_EXISTS");
         } catch (error) {
-            if (!(error instanceof Error && "code" in error && error.code === "ENOENT"))
-                throw error;
+            if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
         }
         const directories = new Set<string>([staging]);
         for (const name of contents.keys()) {
@@ -361,9 +331,7 @@ export async function verifyBundle(
                     sourceFiles[version.id] = {
                         descriptorSha256: digest(descriptorRaw),
                         files: descriptor.files.filter((f) =>
-                            /^(validation\.ts|source\/context\.ts|cases\/[0-9a-f-]{36}\.test\.ts)$/i.test(
-                                f.path,
-                            ),
+                            /^(validation\.ts|source\/context\.ts|cases\/[0-9a-f-]{36}\.test\.ts)$/i.test(f.path),
                         ),
                     };
                 }
@@ -371,9 +339,9 @@ export async function verifyBundle(
                 if (dslOnly) {
                     const target = snapshot.validationTarget!,
                         asset = snapshot.assets.find((a) => a.versionId === target.versionId)!;
-                    const frozen = JSON.parse(
-                        contents.get("draft/metadata.json")!.toString("utf8"),
-                    ) as { frozenAt: string };
+                    const frozen = JSON.parse(contents.get("draft/metadata.json")!.toString("utf8")) as {
+                        frozenAt: string;
+                    };
                     drafts.push({
                         resourceId: asset.resourceId,
                         revision: target.revision,
@@ -393,10 +361,7 @@ export async function verifyBundle(
                     readSource: async (versionId, file, signal) => {
                         signal?.throwIfAborted();
                         const member = sourceFiles[versionId]?.files.find(
-                            (f) =>
-                                f.path === file.path &&
-                                f.sha256 === file.sha256 &&
-                                f.sizeBytes === file.sizeBytes,
+                            (f) => f.path === file.path && f.sha256 === file.sha256 && f.sizeBytes === file.sizeBytes,
                         );
                         if (!member) throw new Error("SOURCE_NOT_AVAILABLE");
                         const body = contents.get(`compiled/${versionId}/${file.path}`);
@@ -429,11 +394,9 @@ export async function verifyBundle(
                      * 链接或缺失保留未知现场，不能按用户目的地回滚、放宽权限或删除原有安装。
                      */
                     if (staging && stagingIdentity) {
-                        const current = await lstat(staging).catch(
-                            (error: NodeJS.ErrnoException) => {
-                                if (error.code !== "ENOENT") throw error;
-                            },
-                        );
+                        const current = await lstat(staging).catch((error: NodeJS.ErrnoException) => {
+                            if (error.code !== "ENOENT") throw error;
+                        });
                         if (
                             current?.isDirectory() &&
                             !current.isSymbolicLink() &&
@@ -446,8 +409,7 @@ export async function verifyBundle(
                                 for (const entry of await readdir(directory, {
                                     withFileTypes: true,
                                 }))
-                                    if (entry.isDirectory())
-                                        await writable(join(directory, entry.name));
+                                    if (entry.isDirectory()) await writable(join(directory, entry.name));
                             }
                             await writable(staging);
                             await rm(staging, { recursive: true, force: true });
@@ -484,18 +446,15 @@ export async function reverifyInstalled(
         throw new Error("BUNDLE_SIGNATURE_INVALID");
     if (options.workspaceId && manifest.workspaceId !== options.workspaceId)
         throw new Error("BUNDLE_WORKSPACE_MISMATCH");
-    if (Date.parse(manifest.expiresAt) <= Date.parse(manifest.createdAt))
-        throw new Error("INVALID_BUNDLE_DATES");
+    if (Date.parse(manifest.expiresAt) <= Date.parse(manifest.createdAt)) throw new Error("INVALID_BUNDLE_DATES");
     const expired = Date.parse(manifest.expiresAt) <= Date.now(),
         debug = expired || manifest.validationStatus !== "VALIDATED";
-    if (debug && !options.debug)
-        throw new Error(expired ? "BUNDLE_EXPIRED" : "BUNDLE_DEBUG_REQUIRED");
+    if (debug && !options.debug) throw new Error(expired ? "BUNDLE_EXPIRED" : "BUNDLE_DEBUG_REQUIRED");
     const actual = new Set<string>();
     async function walk(relative: string): Promise<void> {
         for (const entry of await readdir(join(directory, relative), { withFileTypes: true })) {
             const path = relative ? `${relative}/${entry.name}` : entry.name;
-            if (!safePath(path) || entry.isSymbolicLink())
-                throw new Error("UNSAFE_BUNDLE_DIRECTORY");
+            if (!safePath(path) || entry.isSymbolicLink()) throw new Error("UNSAFE_BUNDLE_DIRECTORY");
             if (entry.isDirectory()) await walk(path);
             else if (entry.isFile()) actual.add(path);
             else throw new Error("UNSAFE_BUNDLE_DIRECTORY");
@@ -520,15 +479,13 @@ export async function reverifyInstalled(
     }
     if (actual.size !== expected.size) throw new Error("BUNDLE_EXTRA_FILE");
     const raw = contents.get("snapshot.json");
-    if (!raw || digest(raw) !== manifest.snapshotSha256)
-        throw new Error("BUNDLE_SNAPSHOT_MISMATCH");
+    if (!raw || digest(raw) !== manifest.snapshotSha256) throw new Error("BUNDLE_SNAPSHOT_MISMATCH");
     const snapshot = parse<AssetSnapshotV1>(raw, "AssetSnapshotV1");
     if (
         snapshot.workspaceId !== manifest.workspaceId ||
         snapshot.engineVersion !== manifest.engineVersion ||
         snapshot.sourceHash !== manifest.sourceHash ||
-        digest(assetSourceBytes(snapshot as unknown as Record<string, unknown>)) !==
-            manifest.sourceHash
+        digest(assetSourceBytes(snapshot as unknown as Record<string, unknown>)) !== manifest.sourceHash
     )
         throw new Error("BUNDLE_SNAPSHOT_MISMATCH");
     const validated = validateContent(contents, manifest, snapshot);

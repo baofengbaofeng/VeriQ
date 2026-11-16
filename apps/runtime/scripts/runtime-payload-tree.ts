@@ -75,10 +75,7 @@ export function io(error: unknown): never {
         "EINVAL",
         "ENOSPC",
     ]);
-    throw new RuntimePayloadError(
-        "PAYLOAD_IO",
-        typeof code === "string" && allowed.has(code) ? code : null,
-    );
+    throw new RuntimePayloadError("PAYLOAD_IO", typeof code === "string" && allowed.has(code) ? code : null);
 }
 /**
  * 原始字节摘要统一交给 Node crypto，避免私造密码学实现或因 JSON 重编码改变证据身份；规范化条目需要由调用方明确先使用现
@@ -129,9 +126,7 @@ export function relative(value: unknown, link = false): string {
             part === "." ||
             part === ".." ||
             /\.asar$/i.test(part) ||
-            /^(con|prn|aux|nul|conin\$|conout\$|com[1-9]|lpt[1-9])$/i.test(
-                part.split(".")[0]!.trimEnd(),
-            )
+            /^(con|prn|aux|nul|conin\$|conout\$|com[1-9]|lpt[1-9])$/i.test(part.split(".")[0]!.trimEnd())
         )
             fail("PAYLOAD_PATH");
     }
@@ -256,10 +251,7 @@ export class InputReader {
             if (!info.isDirectory() || info.isSymbolicLink()) fail("PAYLOAD_PATH");
         }
         const rootInfo = await this.stat(this.root);
-        if (
-            !rootInfo.isDirectory() ||
-            ![0o700, 0o755, 0o555].includes(Number(rootInfo.mode & 0o7777n))
-        )
+        if (!rootInfo.isDirectory() || ![0o700, 0o755, 0o555].includes(Number(rootInfo.mode & 0o7777n)))
             fail("PAYLOAD_PATH");
         this.observe(this.root, rootInfo);
     }
@@ -313,8 +305,7 @@ export class InputReader {
         budgeted = limit !== limits.file,
     ): Promise<Buffer> {
         relative(ref.path);
-        if (this.trees.some((root) => ref.path === root || ref.path.startsWith(root + "/")))
-            fail("PAYLOAD_PATH");
+        if (this.trees.some((root) => ref.path === root || ref.path.startsWith(root + "/"))) fail("PAYLOAD_PATH");
         const prior = this.checked.get(ref.path);
         if (prior && (prior.sha256 !== ref.sha256 || prior.sizeBytes !== ref.sizeBytes))
             fail("PAYLOAD_RECEIPT_MISMATCH");
@@ -350,20 +341,17 @@ export class InputReader {
             !before.isFile() ||
             before.nlink !== 1n ||
             before.ino === 0n ||
-            !(
-                mode === undefined ? (raw ? [0o400, 0o600, 0o444, 0o644] : [0o444, 0o644]) : [mode]
-            ).includes(Number(before.mode & 0o7777n))
+            !(mode === undefined ? (raw ? [0o400, 0o600, 0o444, 0o644] : [0o444, 0o644]) : [mode]).includes(
+                Number(before.mode & 0o7777n),
+            )
         )
             fail("PAYLOAD_TREE_MISMATCH");
         if (before.size > BigInt(limit)) fail("PAYLOAD_LIMIT");
         if (before.size !== BigInt(ref.sizeBytes)) fail("PAYLOAD_TREE_MISMATCH");
         this.observe(full, before);
-        let handle;
+        let handle: import("node:fs/promises").FileHandle | undefined;
         try {
-            handle = await open(
-                full,
-                constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-            );
+            handle = await open(full, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
             this.abort();
             if (!same(before, await handle.stat({ bigint: true }))) fail("PAYLOAD_SOURCE_CHANGED");
             this.abort();
@@ -381,19 +369,13 @@ export class InputReader {
                 if (size > limit || size > ref.sizeBytes) fail("PAYLOAD_LIMIT");
                 digest.update(chunk);
                 if (collect && size - chunk.length < captureLimit)
-                    chunks.push(
-                        chunk.subarray(
-                            0,
-                            Math.min(chunk.length, captureLimit - (size - chunk.length)),
-                        ),
-                    );
+                    chunks.push(chunk.subarray(0, Math.min(chunk.length, captureLimit - (size - chunk.length))));
             }
             this.abort();
             if (!same(before, await handle.stat({ bigint: true }))) fail("PAYLOAD_SOURCE_CHANGED");
             this.abort();
             if (!same(before, await this.stat(full))) fail("PAYLOAD_SOURCE_CHANGED");
-            if (size !== ref.sizeBytes || (!raw && digest.digest("hex") !== ref.sha256))
-                fail("PAYLOAD_TREE_MISMATCH");
+            if (size !== ref.sizeBytes || (!raw && digest.digest("hex") !== ref.sha256)) fail("PAYLOAD_TREE_MISMATCH");
             return collect ? Buffer.concat(chunks, Math.min(size, captureLimit)) : Buffer.alloc(0);
         } catch (error) {
             this.abort();
@@ -416,14 +398,7 @@ export class InputReader {
         await this.parents(path);
         const info = await this.stat(join(this.root, path));
         if (info.size < 0n || info.size > BigInt(limits.json)) fail("PAYLOAD_LIMIT");
-        return this.read(
-            path,
-            { path, sizeBytes: Number(info.size), sha256: "" },
-            limits.json,
-            true,
-            undefined,
-            true,
-        );
+        return this.read(path, { path, sizeBytes: Number(info.size), sha256: "" }, limits.json, true, undefined, true);
     }
     /**
      * 已核树成员需要 JSON 或 JavaScript 正文时按较小上限重读同一身份，不能从无界缓存中隐式取得内容；重复读取不会重复累
@@ -504,11 +479,7 @@ export class InputReader {
             this.fileBytes += file.sizeBytes;
             if (file.sizeBytes > limits.file) fail("PAYLOAD_LIMIT");
         }
-        if (
-            this.entries > limits.entries ||
-            this.links > limits.links ||
-            this.fileBytes > limits.total
-        )
+        if (this.entries > limits.entries || this.links > limits.links || this.fileBytes > limits.total)
             fail("PAYLOAD_LIMIT");
         const files = new Map(inventory.files.map((f) => [f.path, f])),
             links = new Map(inventory.links.map((l) => [l.path, l]));
@@ -542,18 +513,11 @@ export class InputReader {
                     this.observe(join(full, name), child);
                 } else {
                     const file = files.get(member);
-                    if (!file || !child.isFile() || child.nlink !== 1n)
-                        fail("PAYLOAD_TREE_MISMATCH");
+                    if (!file || !child.isFile() || child.nlink !== 1n) fail("PAYLOAD_TREE_MISMATCH");
                     const key = `${child.dev}:${child.ino}`;
                     if (this.identities.has(key)) fail("PAYLOAD_TREE_MISMATCH");
                     this.identities.add(key);
-                    await this.read(
-                        `${tree.root}/${member}`,
-                        file,
-                        contentLimit(file.path),
-                        false,
-                        file.mode,
-                    );
+                    await this.read(`${tree.root}/${member}`, file, contentLimit(file.path), false, file.mode);
                 }
             }
         };

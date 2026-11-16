@@ -26,10 +26,7 @@ export const commonMessages: Record<string, readonly [string, string]> = {
         "Unable to reach VeriQ. Please try again.",
     ],
     "Unable to connect to VeriQ.": ["无法连接 VeriQ。", "Unable to connect to VeriQ."],
-    "Unable to sign out. Please retry.": [
-        "无法退出登录，请重试。",
-        "Unable to sign out. Please retry.",
-    ],
+    "Unable to sign out. Please retry.": ["无法退出登录，请重试。", "Unable to sign out. Please retry."],
     "Device approved. Return to the device to finish registration.": [
         "设备已批准，请返回设备完成登记。",
         "Device approved. Return to the device to finish registration.",
@@ -43,10 +40,7 @@ export const commonMessages: Record<string, readonly [string, string]> = {
         "Runtime revoked. New device operations are denied.",
     ],
     "Current trust updated.": ["当前信任设置已更新。", "Current trust updated."],
-    "Workspace credential delivery updated.": [
-        "工作区凭证投递设置已更新。",
-        "Workspace credential delivery updated.",
-    ],
+    "Workspace credential delivery updated.": ["工作区凭证投递设置已更新。", "Workspace credential delivery updated."],
     "Service account created.": ["服务账号已创建。", "Service account created."],
     "Service account disabled; its devices can no longer authenticate.": [
         "服务账号已禁用，其设备将无法继续认证。",

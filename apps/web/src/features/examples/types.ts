@@ -4,15 +4,7 @@ import type { PlatformComponents, ResourceDocumentV1 } from "@veriq/contracts";
  * 示例导入只接受固定七类资产和明确的版本别名，HTTP清单由安装包提供，跨空间重写只能使用当前空间真实发布返回的UUID，不能
  * 把模板标识直接当作生产版本引用。
  */
-export const sampleOrder = [
-    "catalog",
-    "dataset",
-    "fixture",
-    "flow",
-    "case",
-    "suite",
-    "environment",
-] as const;
+export const sampleOrder = ["catalog", "dataset", "fixture", "flow", "case", "suite", "environment"] as const;
 export type SampleKey = (typeof sampleOrder)[number];
 export type Schemas = PlatformComponents["schemas"];
 

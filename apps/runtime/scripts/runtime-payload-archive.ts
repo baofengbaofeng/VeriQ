@@ -60,10 +60,7 @@ const rejectionContexts = new WeakMap<ArchiveScan, Omit<ArchiveRejectionFacts, "
  * 每个扫描对象的原头上下文只在这个私有弱表存活，适配器交付当前成员前写入已观察字段；它不成为构造参数或公开结果，跨扫描
  * 没有共享当前条目，捕获失败也不能打断正常解析。
  */
-export function setArchiveRejectionContext(
-    scan: ArchiveScan,
-    context: Omit<ArchiveRejectionFacts, "reason">,
-): void {
+export function setArchiveRejectionContext(scan: ArchiveScan, context: Omit<ArchiveRejectionFacts, "reason">): void {
     try {
         rejectionContexts.set(scan, context);
     } catch {
@@ -117,10 +114,7 @@ export function attachArchiveRejection(error: unknown, facts: ArchiveRejectionFa
         };
         let path = null;
         if (facts.path !== undefined) {
-            if (
-                facts.path.length > 65536 ||
-                (typeof facts.path === "string" && Buffer.byteLength(facts.path) > 65536)
-            )
+            if (facts.path.length > 65536 || (typeof facts.path === "string" && Buffer.byteLength(facts.path) > 65536))
                 return;
             const bytes = Buffer.from(facts.path);
             if (bytes.length > 65536) return;
@@ -134,15 +128,8 @@ export function attachArchiveRejection(error: unknown, facts: ArchiveRejectionFa
         const entries = Object.entries(facts.details ?? {});
         if (entries.length > 32) return;
         for (const [key, value] of entries) {
-            if (
-                !/^[A-Za-z][A-Za-z0-9]{0,39}$/.test(key) ||
-                (typeof value === "string" && value.length > 128)
-            )
-                return;
-            details[key] =
-                value === undefined || (typeof value === "number" && !Number.isFinite(value))
-                    ? null
-                    : value;
+            if (!/^[A-Za-z][A-Za-z0-9]{0,39}$/.test(key) || (typeof value === "string" && value.length > 128)) return;
+            details[key] = value === undefined || (typeof value === "number" && !Number.isFinite(value)) ? null : value;
         }
         if (
             (typeof facts.type === "string" && facts.type.length > 128) ||
@@ -187,10 +174,7 @@ export function archiveRejectionLine(error: unknown): string | null {
  * 事务清理完成后的异常归一化只迁移被选中首错的私有字符串，不覆盖目标已有事件或复制其它异常事实；返回对象仍是调用方刚构
  * 造的正式错误，公开字段与原构造参数完全一致。
  */
-export function transferArchiveRejection(
-    source: unknown,
-    target: RuntimePayloadError,
-): RuntimePayloadError {
+export function transferArchiveRejection(source: unknown, target: RuntimePayloadError): RuntimePayloadError {
     try {
         const line = archiveRejectionLine(source);
         if (line && target.code === "PAYLOAD_ARCHIVE_UNSUPPORTED" && !rejectionLines.has(target))
@@ -289,8 +273,7 @@ export class ArchiveBudget {
                 this.add(
                     tree.fileCount + tree.directoryCount + tree.linkCount,
                     tree.linkCount,
-                    tree.fileBytes +
-                        tree.inventory.links.reduce((n, l) => n + Buffer.byteLength(l.target), 0),
+                    tree.fileBytes + tree.inventory.links.reduce((n, l) => n + Buffer.byteLength(l.target), 0),
                 );
     }
     /**
@@ -370,8 +353,7 @@ export class ArchiveScan {
             this.cases.set(prefix.toLowerCase(), prefix);
             const old = this.effective.get(prefix);
             if (old) {
-                if (old.kind !== requested || (leaf && explicit && old.explicit))
-                    this.tx.fail("PAYLOAD_COLLISION");
+                if (old.kind !== requested || (leaf && explicit && old.explicit)) this.tx.fail("PAYLOAD_COLLISION");
                 if (leaf && explicit) old.explicit = true;
             } else {
                 this.effective.set(prefix, { kind: requested, explicit: leaf && explicit });
@@ -395,9 +377,7 @@ export class ArchiveScan {
             entry.size > limits.file
         ) {
             try {
-                this.tx.fail(
-                    entry.size > limits.file ? "PAYLOAD_LIMIT" : "PAYLOAD_ARCHIVE_UNSUPPORTED",
-                );
+                this.tx.fail(entry.size > limits.file ? "PAYLOAD_LIMIT" : "PAYLOAD_ARCHIVE_UNSUPPORTED");
             } catch (error) {
                 const context = rejectionContexts.get(this);
                 attachArchiveRejection(error, {
@@ -423,10 +403,7 @@ export class ArchiveScan {
                 throw error;
             }
         }
-        const path =
-            entry.kind === "directory" && entry.path.endsWith("/")
-                ? entry.path.slice(0, -1)
-                : entry.path;
+        const path = entry.kind === "directory" && entry.path.endsWith("/") ? entry.path.slice(0, -1) : entry.path;
         if (entry.kind === "directory" && entry.size !== 0) this.tx.fail("PAYLOAD_ARCHIVE_FORMAT");
         if (entry.kind === "link" && entry.size > 1024) this.tx.fail("PAYLOAD_LIMIT");
         if (!this.previous) {
@@ -451,8 +428,7 @@ export class ArchiveScan {
                 scan.tx.check();
                 const chunk = Buffer.from(value);
                 size += chunk.length;
-                if (size > entry.size || (entry.kind === "link" && size > 1024))
-                    scan.tx.fail("PAYLOAD_LIMIT");
+                if (size > entry.size || (entry.kind === "link" && size > 1024)) scan.tx.fail("PAYLOAD_LIMIT");
                 digest.update(chunk);
                 if (entry.kind === "link") small.push(chunk);
                 yield chunk;
@@ -481,21 +457,15 @@ export class ArchiveScan {
         else {
             const target = entry.target ?? Buffer.concat(small).toString("utf8");
             relative(target, true);
-            if (Buffer.byteLength(target) > 1024 || /[^\x20-\x7e]/.test(target))
-                this.tx.fail("PAYLOAD_PATH");
+            if (Buffer.byteLength(target) > 1024 || /[^\x20-\x7e]/.test(target)) this.tx.fail("PAYLOAD_PATH");
             member = { path, kind: "link", target, mode: entry.mode };
             if (!this.previous) this.budget.add(0, 0, Buffer.byteLength(target));
         }
-        if (expected && JSON.stringify(member) !== JSON.stringify(expected))
-            this.tx.fail("PAYLOAD_SOURCE_CHANGED");
+        if (expected && JSON.stringify(member) !== JSON.stringify(expected)) this.tx.fail("PAYLOAD_SOURCE_CHANGED");
         if (!this.previous) this.budget.member(member);
         this.members.push(member);
         this.expandedBytes +=
-            member.kind === "file"
-                ? member.sizeBytes
-                : member.kind === "link"
-                  ? Buffer.byteLength(member.target)
-                  : 0;
+            member.kind === "file" ? member.sizeBytes : member.kind === "link" ? Buffer.byteLength(member.target) : 0;
         this.tx.check();
     }
     /**
@@ -513,28 +483,16 @@ export class ArchiveScan {
      * 链接先逐字符组件在明确根内解析，每次跟随别名都消费固定跳数且必须终止于存在成员；物理目录边与目录别名边组成有界图
      * 后再做迭代环检，合法重复别名共享终点而不展开可能无限的虚拟目录树。
      */
-    links(
-        allowed: readonly Readonly<{ path: string; target: string }>[],
-        frameworkRoots: readonly string[] = [],
-    ) {
-        const links = this.members.filter(
-            (m): m is Extract<ArchiveMember, { kind: "link" }> => m.kind === "link",
-        );
+    links(allowed: readonly Readonly<{ path: string; target: string }>[], frameworkRoots: readonly string[] = []) {
+        const links = this.members.filter((m): m is Extract<ArchiveMember, { kind: "link" }> => m.kind === "link");
         const declarations = new Map(
-            allowed.map((l) => [
-                this.kind === "chrome" ? l.path.slice("browser/".length) : l.path,
-                l.target,
-            ]),
+            allowed.map((l) => [this.kind === "chrome" ? l.path.slice("browser/".length) : l.path, l.target]),
         );
-        if (
-            declarations.size !== links.length ||
-            links.some((l) => declarations.get(l.path) !== l.target)
-        )
+        if (declarations.size !== links.length || links.some((l) => declarations.get(l.path) !== l.target))
             this.tx.fail("PAYLOAD_ARCHIVE_LINK");
         const aliases = new Map(links.map((l) => [l.path, l.target])),
             graph = new Map<string, string[]>();
-        for (const [path, value] of this.effective)
-            if (value.kind === "directory") graph.set(path, []);
+        for (const [path, value] of this.effective) if (value.kind === "directory") graph.set(path, []);
         for (const path of graph.keys()) graph.get(dirname(path))?.push(path);
         for (const link of links) {
             const root =
@@ -566,14 +524,10 @@ export class ArchiveScan {
                     if (++hops > 32) this.tx.fail("PAYLOAD_ARCHIVE_LINK");
                     stack.pop();
                     pending = [...target.split("/"), ...pending];
-                } else if (pending.length && item.kind !== "directory")
-                    this.tx.fail("PAYLOAD_ARCHIVE_LINK");
+                } else if (pending.length && item.kind !== "directory") this.tx.fail("PAYLOAD_ARCHIVE_LINK");
             }
             const terminal = stack.join("/");
-            if (
-                (terminal !== root && !terminal.startsWith(root + "/")) ||
-                !this.effective.has(terminal)
-            )
+            if ((terminal !== root && !terminal.startsWith(root + "/")) || !this.effective.has(terminal))
                 this.tx.fail("PAYLOAD_ARCHIVE_LINK");
             if (graph.has(terminal)) graph.get(dirname(link.path))!.push(terminal);
         }
@@ -642,11 +596,7 @@ export async function intakeRuntimeArchives(
             new ArchiveScan("chrome", report.recipe.chrome.topDirectory, tx, budget),
         ] as const;
         const nodeStreamBytes = await scanTar(join(tx.scratch, "snapshots/node.tar.gz"), scans[0]);
-        await scanZip(
-            join(tx.scratch, "snapshots/chrome.zip"),
-            scans[1],
-            report.recipe.chrome.file.sizeBytes,
-        );
+        await scanZip(join(tx.scratch, "snapshots/chrome.zip"), scans[1], report.recipe.chrome.file.sizeBytes);
         scans[0].links(report.nodeReceipt.inputLinks);
         /**
          * 每个声明 Framework 根都先核独立布局的明确前缀和非空名称，准入不能依赖该根是否恰好含有链接；逐跳物理根与目录图
@@ -655,31 +605,20 @@ export async function intakeRuntimeArchives(
         const frameworkPrefix = `${report.chromeLayout.layout.bundlePath}/Contents/Frameworks/`;
         for (const root of report.chromeLayout.layout.frameworkRoots) {
             const name = root.slice(frameworkPrefix.length);
-            if (
-                !root.startsWith(frameworkPrefix) ||
-                name.includes("/") ||
-                !/^.+\.framework$/.test(name)
-            )
+            if (!root.startsWith(frameworkPrefix) || name.includes("/") || !/^.+\.framework$/.test(name))
                 tx.fail("PAYLOAD_ARCHIVE_LINK");
         }
-        scans[1].links(
-            report.chromeLayout.layout.allowedLinks,
-            report.chromeLayout.layout.frameworkRoots,
-        );
+        scans[1].links(report.chromeLayout.layout.allowedLinks, report.chromeLayout.layout.frameworkRoots);
         if (
             scans[0].effective.get(report.nodeReceipt.nodeMember)?.kind !== "file" ||
             scans[0].effective.get(report.nodeReceipt.npmRoot)?.kind !== "directory" ||
-            scans[1].effective.get(
-                report.chromeLayout.layout.executablePath.slice("browser/".length),
-            )?.kind !== "file"
+            scans[1].effective.get(report.chromeLayout.layout.executablePath.slice("browser/".length))?.kind !== "file"
         )
             tx.fail("PAYLOAD_ARCHIVE_LINK");
         const entries = scans.reduce((n, scan) => n + scan.effective.size, 0);
         await tx.plan(
             scans.reduce(
-                (n, scan) =>
-                    n +
-                    scan.members.reduce((sum, m) => sum + (m.kind === "file" ? m.sizeBytes : 0), 0),
+                (n, scan) => n + scan.members.reduce((sum, m) => sum + (m.kind === "file" ? m.sizeBytes : 0), 0),
                 0,
             ),
             entries,
@@ -713,8 +652,7 @@ export async function intakeRuntimeArchives(
                 },
                 members: scan.members,
                 expandedBytes: scan.expandedBytes,
-                streamBytes:
-                    scan.kind === "node" ? nodeStreamBytes : report.recipe.chrome.file.sizeBytes,
+                streamBytes: scan.kind === "node" ? nodeStreamBytes : report.recipe.chrome.file.sizeBytes,
                 checks: {
                     crc: scan.kind === "node" ? "GZIP_STREAM" : "ZIP_EACH_ENTRY",
                     zipLocalDataRanges: scan.kind === "node" ? "NOT_APPLICABLE" : "CHECKED",
@@ -741,10 +679,7 @@ export async function intakeRuntimeArchives(
                 error.causeCode,
                 cleanup === "NOT_NEEDED" ? error.cleanup : cleanup,
                 {
-                    phase:
-                        error.phase === "INPUTS" && error.candidateDirectory === null
-                            ? tx.phase
-                            : error.phase,
+                    phase: error.phase === "INPUTS" && error.candidateDirectory === null ? tx.phase : error.phase,
                     candidateDirectory: tx.directory,
                 },
             );
