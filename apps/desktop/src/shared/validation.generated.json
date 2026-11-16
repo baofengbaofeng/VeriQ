@@ -12247,6 +12247,57 @@
                 "requestId"
             ],
             "additionalProperties": false
+        },
+        "api_SampleWorkspacePackageDTO": {
+            "type": "object",
+            "properties": {
+                "schemaVersion": {
+                    "type": "string",
+                    "enum": [
+                        "1.0"
+                    ]
+                },
+                "manifest": {
+                    "$ref": "#/$defs/api_JsonValue"
+                },
+                "assets": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/api_JsonValue"
+                    }
+                },
+                "sourceInventory": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                    }
+                }
+            },
+            "required": [
+                "schemaVersion",
+                "manifest",
+                "assets",
+                "sourceInventory"
+            ],
+            "additionalProperties": false
+        },
+        "api_SampleWorkspacePackageDTOEnvelope": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/$defs/api_SampleWorkspacePackageDTO"
+                },
+                "requestId": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            },
+            "required": [
+                "data",
+                "requestId"
+            ],
+            "additionalProperties": false
         }
     }
 }
