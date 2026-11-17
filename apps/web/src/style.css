@@ -248,13 +248,21 @@ a {
 }
 
 /*
- * 右侧内容区：自适应剩余宽度、可滚动、留出页面内边距。
+ * 右侧内容区：自适应剩余宽度、可滚动，实际内容由内部容器居中约束到固定最大宽度，避免超宽屏上元素被拉伸。
  */
 .vq-content {
     flex: 1;
     min-width: 0;
     overflow-y: auto;
-    padding: 24px;
+}
+
+/*
+ * 内容内部容器：最大 1280px 居中，两侧留出舒适留白；操作区在此宽度内按自适应多列排布。
+ */
+.vq-content-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 24px 32px;
 }
 
 /*
@@ -532,10 +540,11 @@ p {
 }
 
 form {
-    max-width: 480px;
     display: grid;
-    gap: 18px;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 18px 20px;
     margin: 24px 0;
+    align-items: start;
 }
 
 label {
@@ -685,11 +694,15 @@ dd {
 }
 
 @media (max-width: 650px) {
-    .vq-content {
+    .vq-content-inner {
         padding: 16px;
     }
 
     .panel {
         padding: 20px;
+    }
+
+    form {
+        grid-template-columns: 1fr;
     }
 }

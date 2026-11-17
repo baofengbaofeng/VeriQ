@@ -169,7 +169,7 @@ export function AppShell({ children, onLogout }: { children: ReactNode; onLogout
             <div className="vq-shell-body">
                 {user ? <Sidebar /> : null}
                 <main id="main-content" className="vq-content" tabIndex={-1}>
-                    {children}
+                    <div className="vq-content-inner">{children}</div>
                 </main>
             </div>
         </div>
