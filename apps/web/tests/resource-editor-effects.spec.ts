@@ -77,17 +77,57 @@ test("resources retain manual workspace and unsaved values across list refresh",
             queried.push(request.url());
     });
     await page.goto("/resources");
-    const first = (await (await listing).json()).data.items[0].id as string;
+    const firstPage = (await (await listing).json()).data;
+    const first = firstPage.items[0].id as string;
+    let lastLoadedId = firstPage.items.at(-1).id as string;
     const selector = page.getByLabel("Workspace");
     await expect(selector).toHaveValue(first);
-    await expect(page.getByText("No resources in this Workspace.")).toBeVisible();
     expect(queried.some((url) => new URL(url).pathname === `/api/v1/workspaces/${first}/resources`)).toBe(true);
 
     /**
-     * 先离开资源入口取得已完成的真实列表，再在回到入口时暂缓交付下一次服务器响应；用户在响应抵达之前选择 Beta，释放后
-     * 验证表单与选中空间都未被默认值重置。
+     * 共享管理员的默认空间可能已有其它用例资源，因此只以真实首屏响应核对默认查询；空态属于本例新建的 Alpha，必须先通过
+     * 实际分页按钮载入两个已知空间，再选择自有空间进行断言。
      */
-    const staged = page.waitForResponse((response) => response.request().method() === "GET" && response.url() === path);
+    const cursors = new Set<string>();
+    while (
+        (await selector.locator(`option[value="${alpha}"]`).count()) === 0 ||
+        (await selector.locator(`option[value="${beta}"]`).count()) === 0
+    ) {
+        const more = page.getByRole("button", { name: "More Workspaces", exact: true });
+        await expect(more).toBeVisible();
+        const nextPage = page.waitForResponse(
+            (response) =>
+                response.request().method() === "GET" &&
+                new URL(response.url()).pathname === "/api/v1/workspaces" &&
+                new URL(response.url()).searchParams.has("cursor"),
+        );
+        await more.click();
+        const response = await nextPage;
+        expect(response.status()).toBe(200);
+        const cursor = new URL(response.url()).searchParams.get("cursor");
+        if (cursor === null) throw new Error("Workspace pagination cursor is missing");
+        expect(cursors.has(cursor)).toBe(false);
+        cursors.add(cursor);
+        const items = (await response.json()).data.items;
+        expect(items.length).toBeGreaterThan(0);
+        lastLoadedId = items.at(-1).id;
+        await expect(selector.locator(`option[value="${lastLoadedId}"]`)).toHaveCount(1);
+    }
+    await selector.selectOption(alpha);
+    await expect(selector).toHaveValue(alpha);
+    await expect(page.getByText("No resources in this Workspace.")).toBeVisible();
+    expect(queried.some((url) => new URL(url).pathname === `/api/v1/workspaces/${alpha}/resources`)).toBe(true);
+
+    /**
+     * 先离开资源入口等待已载入末页也完成真实刷新，再在回到入口时暂缓交付首屏响应；用户在响应抵达之前选择 Beta，释放后
+     * 验证表单与选中空间都未被默认值重置，避免与尚未完成的多页刷新合并请求。
+     */
+    const staged = page.waitForResponse(async (response) => {
+        if (response.request().method() !== "GET" || new URL(response.url()).pathname !== "/api/v1/workspaces")
+            return false;
+        const items = (await response.json()).data.items as { id: string }[];
+        return items.some((item) => item.id === lastLoadedId);
+    });
     await page.getByRole("link", { name: "Workspaces", exact: true }).click();
     await (await staged).finished();
     const renamed = await page.request.patch(`/api/v1/workspaces/${beta}`, {

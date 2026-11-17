@@ -129,8 +129,8 @@ test("real Agent publications export through keyboard GUI and verify offline wit
             catalogVersionId: catalog.version.id,
             steps: [{ id: "open", action: "goto", path: "/two" }],
         });
-        // 30 listing-only history rows, never selected/exported or claimed as compiled.
-        // Selected IDs/source/receipt/generated TS remain the real Agent publications.
+        // 三十条旧版本仅用于实际分页且不会被选择或导出，选中版本的标识、源码、回执及生成产物仍来自真实 Agent 发布，
+        // 因此历史列表夹具不能被误认为已经编译的业务版本。
         await command(
             "uv",
             [
@@ -178,17 +178,18 @@ test("real Agent publications export through keyboard GUI and verify offline wit
         await page.getByLabel("Published version").selectOption(second.version.id);
         await page.getByRole("button", { name: "Add case versions" }).click();
         await expect(page.getByRole("list", { name: "Selected case versions" }).getByRole("listitem")).toHaveCount(2);
-        await page.getByLabel("Environment").selectOption(env.resource.id);
-        await expect(page.getByLabel("Environment version").locator(`option[value="${env.version.id}"]`)).toHaveCount(
-            0,
-        );
+        const exportSection = page.locator("section > section").filter({
+            has: page.getByRole("button", { name: "Export signed bundle", exact: true }),
+        });
+        const environment = exportSection.getByRole("combobox", { name: "Environment", exact: true });
+        const environmentVersion = exportSection.getByRole("combobox", { name: "Environment version", exact: true });
+        await environment.selectOption(env.resource.id);
+        await expect(environmentVersion.locator(`option[value="${env.version.id}"]`)).toHaveCount(0);
         const envPage = page.waitForResponse((r) => r.url().includes(`/resources/${env.resource.id}/versions?cursor=`));
         await page.getByRole("button", { name: "More environment versions" }).click();
         expect((await envPage).status()).toBe(200);
-        await expect(page.getByLabel("Environment version").locator(`option[value="${env.version.id}"]`)).toContainText(
-            "v31",
-        );
-        await page.getByLabel("Environment version").selectOption(env.version.id);
+        await expect(environmentVersion.locator(`option[value="${env.version.id}"]`)).toContainText("v31");
+        await environmentVersion.selectOption(env.version.id);
         const exported = page.waitForResponse((r) => r.url().endsWith("/bundles") && r.request().method() === "POST");
         await page.getByRole("button", { name: "Export signed bundle" }).focus();
         await page.keyboard.press("Enter");

@@ -2,8 +2,9 @@
  * VeriQ 的作用域测试直接挂载产品 Provider 与真实 QueryClient，并以已提交信号、订阅关闭及查询取消为观察依据；页面测试仅
  * 延迟真实服务器响应，不构造资源或替换权限数据。
  */
+import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { test, expect } from "@playwright/test";
+import { test, expect, request } from "@playwright/test";
 
 test("actual Provider preserves scopes and releases the latest committed scope", async ({ page }) => {
     await page.goto("/");
@@ -163,20 +164,50 @@ test("four GUI entry selectors retain manual selection across real list refetch"
                     headers: { Origin: "http://127.0.0.1:5173", "X-CSRF-Token": setup.csrfToken },
                     data: {
                         installationSecret: "browser-operator-secret",
-                        email: "w2b@example.com",
-                        displayName: "Workspace operator",
-                        password: "Workspace password 123!",
+                        email: "browser-admin@example.com",
+                        displayName: "Browser Administrator",
+                        password: "Browser password 123!",
                     },
                 })
             ).status(),
         ).toBe(201);
     }
+    /**
+     * 站点已初始化不能证明本例操作者存在；独立管理员会话通过管理接口创建活跃系统管理员，页面仍须正常登录，并由该身份
+     * 在界面创建自己的两个空间，避免共享管理员列表污染四个入口。
+     */
+    const actorEmail = `w2b-${randomUUID()}@example.com`;
+    const administrator = await request.newContext({ baseURL: "http://127.0.0.1:5173" });
+    try {
+        const anonymous = (await (await administrator.get("/api/v1/setup")).json()).data;
+        const login = await administrator.post("/api/v1/auth/login", {
+            headers: { Origin: "http://127.0.0.1:5173", "X-CSRF-Token": anonymous.csrfToken },
+            data: { email: "browser-admin@example.com", password: "Browser password 123!" },
+        });
+        expect(login.status()).toBe(200);
+        const session = (await login.json()).data;
+        const created = await administrator.post("/api/v1/admin/users", {
+            headers: { Origin: "http://127.0.0.1:5173", "X-CSRF-Token": session.csrfToken },
+            data: {
+                email: actorEmail,
+                displayName: "Workspace operator",
+                password: "Workspace password 123!",
+                systemAdmin: true,
+            },
+        });
+        expect(created.status()).toBe(201);
+        const actor = (await created.json()).data;
+        expect(actor).toMatchObject({ email: actorEmail, disabled: false, systemAdmin: true });
+    } finally {
+        await administrator.dispose();
+    }
     await page.goto("/login");
-    await page.getByRole("textbox", { name: "Email" }).fill("w2b@example.com");
+    await page.getByRole("textbox", { name: "Email" }).fill(actorEmail);
     await page.getByLabel("Password").fill("Workspace password 123!");
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page.locator("dl")).toBeVisible();
     await page.getByRole("link", { name: "Workspaces", exact: true }).click();
+    await expect(page.getByText("No Workspaces yet.", { exact: true })).toBeVisible();
     const ids: string[] = [];
     for (const name of ["Alpha", "Beta"]) {
         await page.getByLabel("Key").fill("w2b-" + name.toLowerCase());
@@ -191,6 +222,10 @@ test("four GUI entry selectors retain manual selection across real list refetch"
         await expect(page.getByRole("article")).toContainText("W2B " + name);
         ids.push(await page.getByLabel("Current Workspace").inputValue());
     }
+    const membership = (await (await page.request.get("/api/v1/workspaces")).json()).data;
+    expect(membership.items.map((workspace: { id: string }) => workspace.id).sort()).toEqual([...ids].sort());
+    expect(membership.items.map((workspace: { role: string }) => workspace.role)).toEqual(["OWNER", "OWNER"]);
+    expect(membership.nextCursor).toBeNull();
     const [alpha, beta] = ids;
     for (const entry of [
         {
@@ -296,8 +331,8 @@ test("four GUI entry selectors retain manual selection across real list refetch"
     }
     await page.getByRole("combobox", { name: "Bundle Workspace" }).selectOption(beta);
     await page.getByLabel("Selection").selectOption("SUITE");
-    await page.getByRole("button", { name: "Sign out" }).click();
-    await page.getByRole("textbox", { name: "Email" }).fill("w2b@example.com");
+    await page.getByRole("button", { name: "Sign out", exact: true }).click();
+    await page.getByRole("textbox", { name: "Email" }).fill(actorEmail);
     await page.getByLabel("Password").fill("Workspace password 123!");
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page.locator("dl")).toBeVisible();

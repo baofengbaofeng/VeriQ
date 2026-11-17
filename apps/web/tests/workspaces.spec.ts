@@ -27,8 +27,8 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     await page.getByLabel("Password").fill("Browser password 123!");
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page.locator("dl")).toBeVisible();
-    // Keep unrelated state present: this test's empty state belongs to a new actor, independently of other feature
-    // suites that already created Workspaces.
+    // 保留共享管理员创建的无关空间，再切换到本例独立操作者观察空态；这样其它套件留下的空间继续存在，并可同时验证管理员
+    // 身份不自动获得无关空间的成员权限。
     const setupSession = (await (await page.request.get("/api/v1/auth/session")).json()).data;
     const setupHeaders = {
         Origin: "http://127.0.0.1:5173",
@@ -53,7 +53,7 @@ test("real Workspace selection, invitation acceptance and member permissions", a
         },
     });
     expect(isolated.status(), await isolated.text()).toBe(201);
-    await page.getByRole("button", { name: "Sign out" }).click();
+    await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await page.getByRole("textbox", { name: "Email" }).fill("workspace-operator@example.com");
     await page.getByLabel("Password").fill("Workspace operator password 123!");
     await page.getByRole("button", { name: "Sign in" }).click();
@@ -117,8 +117,8 @@ test("real Workspace selection, invitation acceptance and member permissions", a
         fullPage: true,
         mask: [page.getByLabel("Copy invitation link")],
     });
-    // Hold an actual HTTP response so the switch happens with work in flight. The browser must abort the old scoped
-    // fetch; its data cannot enter Beta.
+    // 在切换空间前持有真实成员列表响应，使旧作用域请求仍在进行；浏览器必须因产品取消该请求而报告失败，旧空间的成员数据
+    // 不能进入后来选择的 Beta，不能靠人工中断制造通过证据。
     let releaseOld!: () => void;
     let receivedOld!: () => void;
     const oldReceived = new Promise<void>((resolve) => {
@@ -132,8 +132,8 @@ test("real Workspace selection, invitation acceptance and member permissions", a
         const response = await route.fetch();
         receivedOld();
         await oldRelease;
-        // The application has aborted this request; forwarding it would attempt
-        // to fulfil a route Chromium has already closed.
+        // 产品已经取消这次旧空间请求，继续转发会尝试完成浏览器已经关闭的路由；这里只回收获取到的真实响应，成员隔离仍由
+        // 上方的实际取消事件和后续页面断言证明。
         await response.dispose();
     });
     const abortedOld = page.waitForEvent("requestfailed", {
@@ -147,7 +147,8 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     await page.unroute(oldPath);
     await expect(page.getByRole("article")).toContainText("Browser Beta");
     await expect(member).toHaveCount(0);
-    // Existing accounts sign in inline; the token stays in component memory.
+    // 已有账号通过邀请页的正常内联登录完成加入，令牌只保留在组件内存中；管理接口仅建立真实前置账号，后续接受邀请仍走
+    // 独立浏览器上下文中的用户操作并核对地址栏。
     const csrf = (await (await page.request.get("/api/v1/auth/session")).json()).data.csrfToken;
     expect(
         (
@@ -182,7 +183,7 @@ test("real Workspace selection, invitation acceptance and member permissions", a
         path: "../../.superpowers/sdd/veriq-1/evidence/t03/workspace.png",
         fullPage: true,
     });
-    await page.getByRole("button", { name: "Sign out" }).click();
+    await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
     await page.getByRole("textbox", { name: "Email" }).fill("workspace-viewer@example.com");
     await page.getByLabel("Password").fill("Viewer password 123!");
